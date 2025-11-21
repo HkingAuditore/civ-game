@@ -1,8 +1,8 @@
-import { BUILDINGS, STRATA } from '../config/gameData';
+import { BUILDINGS, STRATA, EPOCHS } from '../config/gameData';
 
 const ROLE_PRIORITY = ['official', 'cleric', 'capitalist', 'landowner', 'knight', 'soldier', 'worker', 'serf', 'slave', 'peasant'];
 
-export const simulateTick = ({ resources, buildings, population, decrees, gameSpeed }) => {
+export const simulateTick = ({ resources, buildings, population, decrees, gameSpeed, epoch }) => {
   const res = { ...resources };
   const builds = buildings;
   const rates = {};
@@ -40,14 +40,68 @@ export const simulateTick = ({ resources, buildings, population, decrees, gameSp
   let currentAdminStrain = 0;
   let taxIncome = 0;
   const classApproval = {};
+  const classInfluence = {};
+  const classWealth = {};
+  const activeBuffs = [];
+  const activeDebuffs = [];
 
+  // Calculate base approval, influence, and wealth for each class
   Object.keys(STRATA).forEach(key => {
     const count = popStructure[key] || 0;
     if (count === 0) return;
     const def = STRATA[key];
+    
     if (def.admin > 0) currentAdminStrain += count * def.admin;
     taxIncome += count * def.tax * gameSpeed;
-    classApproval[key] = 50;
+    
+    // Base approval starts at 50
+    let approval = 50;
+    
+    // Check resource needs satisfaction
+    let needsSatisfied = true;
+    if (def.needs) {
+      for (let needRes in def.needs) {
+        const required = def.needs[needRes] * count;
+        const available = res[needRes] || 0;
+        const satisfactionRate = available / Math.max(required, 1);
+        
+        if (satisfactionRate < 0.5) {
+          approval -= 20;
+          needsSatisfied = false;
+        } else if (satisfactionRate < 1.0) {
+          approval -= 10;
+          needsSatisfied = false;
+        } else if (satisfactionRate > 2.0) {
+          approval += 10;
+        }
+      }
+    }
+    
+    classApproval[key] = Math.max(0, Math.min(100, approval));
+    
+    // Calculate wealth (population * wealth weight)
+    classWealth[key] = count * def.wealthWeight;
+    
+    // Calculate influence (base influence * population + wealth factor)
+    const wealthFactor = classWealth[key] / Math.max(population, 1);
+    classInfluence[key] = (def.influenceBase * count) + (wealthFactor * 2);
+    
+    // Apply buffs/debuffs based on approval
+    if (def.buffs) {
+      if (classApproval[key] >= 70 && needsSatisfied) {
+        // Satisfied: apply positive buffs
+        activeBuffs.push({
+          class: key,
+          ...def.buffs.satisfied
+        });
+      } else if (classApproval[key] < 40) {
+        // Dissatisfied: apply negative debuffs
+        activeDebuffs.push({
+          class: key,
+          ...def.buffs.dissatisfied
+        });
+      }
+    }
   });
 
   decrees.forEach(d => {
@@ -66,8 +120,35 @@ export const simulateTick = ({ resources, buildings, population, decrees, gameSp
   });
 
   const adminStrain = currentAdminStrain;
+  
+  // Apply epoch bonuses to admin capacity
+  let epochAdminBonus = 0;
+  if (epoch > 0 && EPOCHS[epoch].bonuses.adminBonus) {
+    epochAdminBonus = EPOCHS[epoch].bonuses.adminBonus;
+  }
+  
+  // Apply class buffs/debuffs to admin capacity
+  activeBuffs.forEach(buff => {
+    if (buff.adminBonus) adminCapacity += buff.adminBonus;
+  });
+  activeDebuffs.forEach(debuff => {
+    if (debuff.adminBonus) adminCapacity += debuff.adminBonus;
+  });
+  
+  adminCapacity += epochAdminBonus;
+  
   res.admin = Math.max(0, adminCapacity - adminStrain);
-  const efficiency = res.admin < 0 ? 0.5 : 1.0;
+  let efficiency = res.admin < 0 ? 0.5 : 1.0;
+  
+  // Apply tax income modifiers from buffs/debuffs
+  let taxModifier = 1.0;
+  activeBuffs.forEach(buff => {
+    if (buff.taxIncome) taxModifier += buff.taxIncome;
+  });
+  activeDebuffs.forEach(debuff => {
+    if (debuff.taxIncome) taxModifier += debuff.taxIncome;
+  });
+  taxIncome *= taxModifier;
 
   const logs = [];
   const foodConsumption = population * 0.5 * gameSpeed;
@@ -76,11 +157,48 @@ export const simulateTick = ({ resources, buildings, population, decrees, gameSp
   res.gold += taxIncome * efficiency;
   rates['gold'] = (rates['gold'] || 0) + (taxIncome * efficiency);
 
+  // Calculate global production modifiers from class buffs/debuffs
+  let productionModifier = 1.0;
+  let industryModifier = 1.0;
+  let stabilityModifier = 0;
+  
+  activeBuffs.forEach(buff => {
+    if (buff.production) productionModifier += buff.production;
+    if (buff.industryBonus) industryModifier += buff.industryBonus;
+    if (buff.stability) stabilityModifier += buff.stability;
+  });
+  activeDebuffs.forEach(debuff => {
+    if (debuff.production) productionModifier += debuff.production;
+    if (debuff.industryBonus) industryModifier += debuff.industryBonus;
+    if (debuff.stability) stabilityModifier += debuff.stability;
+  });
+
   BUILDINGS.forEach(b => {
     const count = builds[b.id] || 0;
     if (count === 0) return;
 
     let multiplier = 1.0 * gameSpeed * efficiency;
+    
+    // Apply epoch bonuses
+    const currentEpoch = EPOCHS[epoch];
+    if (currentEpoch && currentEpoch.bonuses) {
+      // Gathering bonus (farms, lumber camps, quarries, mines)
+      if (b.cat === 'gather' && currentEpoch.bonuses.gatherBonus) {
+        multiplier *= (1 + currentEpoch.bonuses.gatherBonus);
+      }
+      // Industry bonus (sawmill, brickworks, factory)
+      if (b.cat === 'industry' && currentEpoch.bonuses.industryBonus) {
+        multiplier *= (1 + currentEpoch.bonuses.industryBonus);
+      }
+    }
+    
+    // Apply class-based production modifiers
+    if (b.cat === 'gather' || b.cat === 'civic') {
+      multiplier *= productionModifier;
+    }
+    if (b.cat === 'industry') {
+      multiplier *= industryModifier;
+    }
 
     let staffingRatio = 1.0;
     if (b.jobs) {
@@ -118,7 +236,29 @@ export const simulateTick = ({ resources, buildings, population, decrees, gameSp
     if (canProduce && b.output) {
       for (let k in b.output) {
         if (k === 'maxPop' || k === 'admin') continue;
-        const amt = b.output[k] * count * multiplier;
+        let amt = b.output[k] * count * multiplier;
+        
+        // Apply specific resource bonuses from epoch
+        const currentEpoch = EPOCHS[epoch];
+        if (currentEpoch && currentEpoch.bonuses) {
+          if (k === 'science' && currentEpoch.bonuses.scienceBonus) {
+            amt *= (1 + currentEpoch.bonuses.scienceBonus);
+          }
+          if (k === 'culture' && currentEpoch.bonuses.cultureBonus) {
+            amt *= (1 + currentEpoch.bonuses.cultureBonus);
+          }
+        }
+        
+        // Apply class-based resource bonuses
+        activeBuffs.forEach(buff => {
+          if (k === 'science' && buff.scienceBonus) amt *= (1 + buff.scienceBonus);
+          if (k === 'culture' && buff.cultureBonus) amt *= (1 + buff.cultureBonus);
+        });
+        activeDebuffs.forEach(debuff => {
+          if (k === 'science' && debuff.scienceBonus) amt *= (1 + debuff.scienceBonus);
+          if (k === 'culture' && debuff.cultureBonus) amt *= (1 + debuff.cultureBonus);
+        });
+        
         res[k] += amt;
         rates[k] = (rates[k] || 0) + amt;
       }
@@ -141,6 +281,10 @@ export const simulateTick = ({ resources, buildings, population, decrees, gameSp
     if (res[k] < 0) res[k] = 0;
   });
 
+  // Calculate total influence
+  const totalInfluence = Object.values(classInfluence).reduce((sum, val) => sum + val, 0);
+  const totalWealth = Object.values(classWealth).reduce((sum, val) => sum + val, 0);
+
   return {
     resources: res,
     rates,
@@ -150,6 +294,13 @@ export const simulateTick = ({ resources, buildings, population, decrees, gameSp
     adminStrain,
     population: nextPopulation,
     classApproval,
+    classInfluence,
+    classWealth,
+    totalInfluence,
+    totalWealth,
+    activeBuffs,
+    activeDebuffs,
+    stability: Math.max(0, Math.min(100, 50 + stabilityModifier * 100)),
     logs,
   };
 };
