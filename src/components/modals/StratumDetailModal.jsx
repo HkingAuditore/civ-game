@@ -4,6 +4,7 @@
 import React from 'react';
 import { Icon } from '../common/UIComponents';
 import { STRATA } from '../../config/gameData';
+import { RESOURCES } from '../../config/gameConstants';
 
 /**
  * 阶层详情模态框组件
@@ -138,8 +139,8 @@ export const StratumDetailModal = ({
             </h3>
             <div className="space-y-2">
               {Object.entries(stratum.needs).map(([resource, amount]) => {
-                // 这里需要从外部传入当前资源供给情况
-                // 暂时显示需求量
+                // 获取资源的中文名称
+                const resourceName = RESOURCES[resource]?.name || resource;
                 return (
                   <div
                     key={resource}
@@ -147,7 +148,7 @@ export const StratumDetailModal = ({
                   >
                     <div className="flex items-center gap-2">
                       <Icon name="Package" size={14} className="text-blue-400" />
-                      <span className="text-sm text-white">{resource}</span>
+                      <span className="text-sm text-white">{resourceName}</span>
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-bold text-white">{amount}/人/天</p>
