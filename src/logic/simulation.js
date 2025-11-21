@@ -46,6 +46,21 @@ const getBasePrice = (resource) => {
   return def?.basePrice || 1;
 };
 
+const DEFAULT_FOREIGN_PARTNER = { relation: 0, economyTraits: { resourceBias: {} } };
+
+const clampRelation = (value) => Math.max(-100, Math.min(100, value ?? 0));
+
+export const calculateForeignPrice = (resource, nation = DEFAULT_FOREIGN_PARTNER, type = 'import') => {
+  const base = getBasePrice(resource);
+  const bias = nation?.economyTraits?.resourceBias?.[resource] ?? 1;
+  const relation = clampRelation(nation?.relation ?? DEFAULT_FOREIGN_PARTNER.relation);
+  const relationFactor = type === 'import'
+    ? 1 - (relation / 200)
+    : 1 + (relation / 200);
+  const volatility = 1 + (Math.random() - 0.5) * 0.1;
+  return Math.max(0.1, base * bias * relationFactor * volatility);
+};
+
 export const simulateTick = ({
   resources,
   buildings,
@@ -58,6 +73,8 @@ export const simulateTick = ({
   activeBuffs: productionBuffs = [],
   activeDebuffs: productionDebuffs = [],
   taxPolicies,
+  nations = [],
+  tradeRoutes = [],
 }) => {
   const res = { ...resources };
   const priceMap = { ...(market?.prices || {}) };
@@ -65,6 +82,17 @@ export const simulateTick = ({
   const previousWages = market?.wages || {};
   const demand = {};
   const supply = {};
+  const externalTrade = {
+    imports: {},
+    exports: {},
+    importCost: 0,
+    exportRevenue: 0,
+    routes: [],
+  };
+  const nationMap = {};
+  nations.forEach(n => {
+    if (n?.id) nationMap[n.id] = n;
+  });
   const wealth = initializeWealth(classWealth);
   const policies = taxPolicies || {};
   const headTaxRates = policies.headTaxRates || {};
@@ -106,20 +134,25 @@ export const simulateTick = ({
     ownership[resource][ownerKey] = (ownership[resource][ownerKey] || 0) + amount;
   };
 
-  const settleMarketPurchase = (resource, desiredAmount) => {
+  const getExternalPrice = (resource, type) => calculateForeignPrice(resource, DEFAULT_FOREIGN_PARTNER, type);
+
+  const settleMarketPurchase = (resource, desiredAmount, options = {}) => {
+    const { allowImport = false } = options;
     if (!isTradableResource(resource) || desiredAmount <= 0) {
-      return { amount: 0, spent: 0 };
+      return { amount: 0, spent: 0, localAmount: 0, imported: 0 };
     }
     const price = getPrice(resource);
     const available = res[resource] || 0;
-    const amount = Math.min(desiredAmount, available);
-    if (amount <= 0) return { amount: 0, spent: 0 };
+    const localAmount = Math.min(desiredAmount, available);
+    if (localAmount <= 0 && !allowImport) {
+      return { amount: 0, spent: 0, localAmount: 0, imported: 0 };
+    }
 
-    res[resource] = available - amount;
-    demand[resource] = (demand[resource] || 0) + amount;
+    res[resource] = available - localAmount;
+    demand[resource] = (demand[resource] || 0) + localAmount;
     ensureBucket(resource);
 
-    let remaining = amount;
+    let remaining = localAmount;
     const bucket = ownership[resource];
     for (const ownerKey of Object.keys(bucket)) {
       if (remaining <= 0) break;
@@ -131,17 +164,24 @@ export const simulateTick = ({
       remaining -= sold;
     }
 
-    if (remaining > 0) {
-      res.silver = (res.silver || 0) + remaining * price;
-    }
-
-    const baseCost = amount * price;
+    const baseCost = localAmount * price;
     const resourceTaxRate = Math.max(0, getResourceTaxRate(resource));
     const taxPaid = baseCost * resourceTaxRate;
     if (taxPaid > 0) {
       taxBreakdown.industryTax += taxPaid;
     }
-    return { amount, spent: baseCost + taxPaid };
+    let imported = 0;
+    let importCost = 0;
+    if (allowImport && localAmount < desiredAmount) {
+      imported = desiredAmount - localAmount;
+      const importPrice = getExternalPrice(resource, 'import');
+      importCost = imported * importPrice;
+      externalTrade.imports[resource] = (externalTrade.imports[resource] || 0) + imported;
+      externalTrade.importCost += importCost;
+      demand[resource] = (demand[resource] || 0) + imported;
+    }
+
+    return { amount: localAmount + imported, spent: baseCost + taxPaid + importCost, localAmount, imported };
   };
 
   const rates = {};
@@ -349,10 +389,12 @@ export const simulateTick = ({
       for (const [resKey, perUnit] of Object.entries(b.input)) {
         const amountNeeded = perUnit * count * actualMultiplier;
         if (!amountNeeded || amountNeeded <= 0) continue;
-        const { spent, amount } = settleMarketPurchase(resKey, amountNeeded);
+        const { spent, localAmount } = settleMarketPurchase(resKey, amountNeeded, { allowImport: true });
         if (spent > 0) {
           wealth[ownerKey] = Math.max(0, (wealth[ownerKey] || 0) - spent);
-          rates[resKey] = (rates[resKey] || 0) - amount;
+          if (localAmount > 0) {
+            rates[resKey] = (rates[resKey] || 0) - localAmount;
+          }
         }
       }
     }
@@ -441,14 +483,16 @@ export const simulateTick = ({
       }
 
       if (requirement > 0) {
-        const price = getPrice(resKey);
-        const maxAffordable = price > 0 ? Math.min(requirement, (wealth[key] || 0) / price) : requirement;
-        const { amount, spent } = settleMarketPurchase(resKey, maxAffordable);
-        if (spent > 0) {
-          wealth[key] = Math.max(0, (wealth[key] || 0) - spent);
-          rates[resKey] = (rates[resKey] || 0) - amount;
+      const price = getPrice(resKey);
+      const maxAffordable = price > 0 ? Math.min(requirement, (wealth[key] || 0) / price) : requirement;
+      const { amount, spent, localAmount } = settleMarketPurchase(resKey, maxAffordable, { allowImport: true });
+      if (spent > 0) {
+        wealth[key] = Math.max(0, (wealth[key] || 0) - spent);
+        if (localAmount > 0) {
+          rates[resKey] = (rates[resKey] || 0) - localAmount;
         }
-        satisfied += amount;
+      }
+      satisfied += amount;
       }
 
       const ratio = originalRequirement > 0 ? satisfied / originalRequirement : 1;
@@ -590,6 +634,7 @@ export const simulateTick = ({
     updatedWages[role] = Math.max(0, Number(smoothed.toFixed(2)));
   });
 
+  const EXPORT_RATIO = 0.5;
   Object.keys(RESOURCES).forEach(resource => {
     if (!isTradableResource(resource)) return;
     const base = getBasePrice(resource);
@@ -600,7 +645,94 @@ export const simulateTick = ({
     const prevPrice = priceMap[resource] || base;
     const smoothed = prevPrice + (targetPrice - prevPrice) * 0.3;
     updatedPrices[resource] = parseFloat(smoothed.toFixed(2));
+
+    const surplus = Math.max(0, (supply[resource] || 0) - (demand[resource] || 0));
+    const available = res[resource] || 0;
+    if (surplus > 0 && available > 0) {
+      const exportTarget = Math.min(available * 0.4, surplus * EXPORT_RATIO);
+      if (exportTarget > 0.0001) {
+        let remaining = exportTarget;
+        ensureBucket(resource);
+        const bucket = ownership[resource];
+        const exportPrice = getExternalPrice(resource, 'export');
+        let soldTotal = 0;
+        for (const ownerKey of Object.keys(bucket)) {
+          if (remaining <= 0) break;
+          const owned = bucket[ownerKey] || 0;
+          if (owned <= 0) continue;
+          const sold = Math.min(owned, remaining);
+          bucket[ownerKey] = owned - sold;
+          wealth[ownerKey] = (wealth[ownerKey] || 0) + sold * exportPrice;
+          remaining -= sold;
+          soldTotal += sold;
+        }
+        if (soldTotal > 0) {
+          res[resource] = Math.max(0, available - soldTotal);
+          externalTrade.exports[resource] = (externalTrade.exports[resource] || 0) + soldTotal;
+          externalTrade.exportRevenue += soldTotal * exportPrice;
+        }
+      }
+    }
   });
+
+  const tradeRouteReports = [];
+  const tradeVolumeMultiplier = Math.max(0.1, gameSpeed);
+  tradeRoutes.forEach(route => {
+    if (!route || !isTradableResource(route.resource)) return;
+    const nation = nationMap[route.targetNationId] || DEFAULT_FOREIGN_PARTNER;
+    const desiredVolume = Math.max(0, route.volume || 0) * tradeVolumeMultiplier;
+    if (desiredVolume <= 0) return;
+
+    if (route.type === 'export') {
+      const estimatedCost = getPrice(route.resource) * desiredVolume * (1 + Math.max(0, getResourceTaxRate(route.resource)));
+      if ((res.silver || 0) < estimatedCost) {
+        tradeRouteReports.push({ id: route.id, type: 'export', resource: route.resource, amount: 0, note: 'lack_silver' });
+        return;
+      }
+      const { amount, spent } = settleMarketPurchase(route.resource, desiredVolume, { allowImport: false });
+      if (amount <= 0 || spent <= 0) {
+        tradeRouteReports.push({ id: route.id, type: 'export', resource: route.resource, amount: 0, note: 'no_supply' });
+        return;
+      }
+      res.silver = Math.max(0, (res.silver || 0) - spent);
+      const foreignPrice = calculateForeignPrice(route.resource, nation, 'export');
+      const revenue = amount * foreignPrice;
+      res.silver = (res.silver || 0) + revenue;
+      externalTrade.exports[route.resource] = (externalTrade.exports[route.resource] || 0) + amount;
+      externalTrade.exportRevenue += revenue;
+      tradeRouteReports.push({
+        id: route.id,
+        type: 'export',
+        nation: nation?.id || 'unknown',
+        resource: route.resource,
+        amount,
+        cost: spent,
+        revenue,
+      });
+    } else {
+      const importPrice = calculateForeignPrice(route.resource, nation, 'import');
+      const totalCost = importPrice * desiredVolume;
+      if ((res.silver || 0) < totalCost) {
+        tradeRouteReports.push({ id: route.id, type: 'import', resource: route.resource, amount: 0, note: 'lack_silver' });
+        return;
+      }
+      res.silver = Math.max(0, (res.silver || 0) - totalCost);
+      creditProduction(route.resource, desiredVolume, 'state');
+      externalTrade.imports[route.resource] = (externalTrade.imports[route.resource] || 0) + desiredVolume;
+      externalTrade.importCost += totalCost;
+      tradeRouteReports.push({
+        id: route.id,
+        type: 'import',
+        nation: nation?.id || 'unknown',
+        resource: route.resource,
+        amount: desiredVolume,
+        cost: totalCost,
+      });
+    }
+  });
+  if (tradeRouteReports.length > 0) {
+    externalTrade.routes = tradeRouteReports;
+  }
 
   const roleVacancies = {};
   ROLE_PRIORITY.forEach(role => {
@@ -673,6 +805,7 @@ export const simulateTick = ({
       supply,
       ownership,
       wages: updatedWages,
+      externalTrade,
     },
     jobFill: buildingJobFill,
     taxes,

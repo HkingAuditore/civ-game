@@ -61,6 +61,7 @@ export const useGameLoop = (gameState, addLog) => {
     setMilitaryQueue,
     jobFill,
     setJobFill,
+    tradeRoutes,
   } = gameState;
 
   // 使用ref保存最新状态，避免闭包问题
@@ -79,6 +80,7 @@ export const useGameLoop = (gameState, addLog) => {
     activeBuffs,
     taxPolicies,
     activeDebuffs,
+    tradeRoutes,
   });
 
   useEffect(() => {
@@ -97,8 +99,9 @@ export const useGameLoop = (gameState, addLog) => {
       activeBuffs,
       taxPolicies,
       activeDebuffs,
+      tradeRoutes,
     };
-  }, [resources, market, buildings, population, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, activeBuffs, activeDebuffs, taxPolicies]);
+  }, [resources, market, buildings, population, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, activeBuffs, activeDebuffs, taxPolicies, tradeRoutes]);
 
   // 游戏核心循环
   useEffect(() => {

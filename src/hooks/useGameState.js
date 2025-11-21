@@ -99,6 +99,7 @@ export const useGameState = () => {
   // ========== 政令与外交状态 ==========
   const [decrees, setDecrees] = useState(DECREES);
   const [nations, setNations] = useState(COUNTRIES.map(c => ({ ...c, relation: 50 })));
+  const [tradeRoutes, setTradeRoutes] = useState([]);
 
   // ========== 社会阶层状态 ==========
   const [classApproval, setClassApproval] = useState({});
@@ -174,6 +175,8 @@ export const useGameState = () => {
     setDecrees,
     nations,
     setNations,
+    tradeRoutes,
+    setTradeRoutes,
     
     // 社会阶层
     classApproval,

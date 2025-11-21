@@ -143,20 +143,47 @@ export const COUNTRIES = [
     name: "大明帝国", 
     type: "军事专制", 
     color: "text-red-400", 
-    desc: "好战的邻居，拥有强大的军队。" 
+    desc: "好战的邻居，拥有强大的军队。",
+    economyTraits: {
+      resourceBias: {
+        food: 0.8,
+        wood: 1.1,
+        iron: 1.4,
+        tools: 1.3,
+        culture: 0.9,
+      },
+    },
   },
   { 
     id: 'republic', 
     name: "威尼斯共和国", 
     type: "商业共和", 
     color: "text-blue-400", 
-    desc: "富有的商人国家，贸易繁荣。" 
+    desc: "富有的商人国家，贸易繁荣。",
+    economyTraits: {
+      resourceBias: {
+        food: 1.2,
+        wood: 0.9,
+        plank: 0.85,
+        tools: 0.7,
+        culture: 1.4,
+      },
+    },
   },
   { 
     id: 'theocracy', 
     name: "教皇国", 
     type: "神权政治", 
     color: "text-purple-400", 
-    desc: "宗教圣地，文化影响力巨大。" 
+    desc: "宗教圣地，文化影响力巨大。",
+    economyTraits: {
+      resourceBias: {
+        food: 1.1,
+        stone: 0.9,
+        brick: 0.8,
+        culture: 1.8,
+        wood: 1.2,
+      },
+    },
   }
 ];

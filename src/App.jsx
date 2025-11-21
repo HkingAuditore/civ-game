@@ -191,6 +191,10 @@ export default function RiseOfCivs() {
             resources={gameState.resources} 
             rates={gameState.rates} 
             market={gameState.market}
+            nations={gameState.nations}
+            tradeRoutes={gameState.tradeRoutes}
+            onCreateTradeRoute={actions.createTradeRoute}
+            onCancelTradeRoute={actions.cancelTradeRoute}
           />
 
           {/* 社会阶层面板 */}

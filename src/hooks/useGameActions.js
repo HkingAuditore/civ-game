@@ -6,6 +6,8 @@ import { UNIT_TYPES } from '../config/militaryUnits';
 import { calculateArmyAdminCost, calculateArmyPopulation, simulateBattle } from '../config/militaryUnits';
 import { isMarketResource, getResourcePrice } from '../utils/economy';
 
+const TRADE_ROUTE_ADMIN_COST = 5;
+
 /**
  * 游戏操作钩子
  * 提供所有游戏操作函数
@@ -40,6 +42,8 @@ export const useGameActions = (gameState, addLog) => {
     nations,
     setNations,
     setClassWealth,
+    tradeRoutes,
+    setTradeRoutes,
   } = gameState;
 
   const mergePayments = (target, addition = {}) => {
@@ -460,6 +464,54 @@ export const useGameActions = (gameState, addLog) => {
     addLog(result.victory ? '⚔️ 战斗胜利！' : '💀 战斗失败...');
   };
 
+  // ========== 贸易路线管理 ==========
+
+  const createTradeRoute = ({ targetNationId, resource, type, volume = 1 }) => {
+    if (!targetNationId || !resource || !type) {
+      addLog('贸易路线参数不完整。');
+      return false;
+    }
+    if (!isMarketResource(resource)) {
+      addLog('该资源无法用于对外贸易。');
+      return false;
+    }
+    const nation = nations.find(n => n.id === targetNationId);
+    if (!nation) {
+      addLog('目标国家不存在。');
+      return false;
+    }
+    if ((resources.admin || 0) < TRADE_ROUTE_ADMIN_COST) {
+      addLog('行政力不足，无法建立新的商队。');
+      return false;
+    }
+    const normalizedVolume = Math.max(0.25, volume);
+    setResources(prev => ({
+      ...prev,
+      admin: Math.max(0, (prev.admin || 0) - TRADE_ROUTE_ADMIN_COST),
+    }));
+    const route = {
+      id: Date.now(),
+      targetNationId,
+      resource,
+      type,
+      volume: normalizedVolume,
+    };
+    setTradeRoutes(prev => [...prev, route]);
+    addLog(`📦 已与 ${nation.name} 建立${type === 'export' ? '出口' : '进口'}路线（${resource}）`);
+    return true;
+  };
+
+  const cancelTradeRoute = (routeId) => {
+    const targetRoute = tradeRoutes.find(r => r.id === routeId);
+    if (!targetRoute) {
+      addLog('未找到该贸易路线。');
+      return;
+    }
+    const nation = nations.find(n => n.id === targetRoute.targetNationId);
+    setTradeRoutes(prev => prev.filter(r => r.id !== routeId));
+    addLog(`✂️ 已终止与 ${nation?.name || targetRoute.targetNationId} 的${targetRoute.type === 'export' ? '出口' : '进口'}路线`);
+  };
+
   // ========== 外交系统 ==========
 
   /**
@@ -536,6 +588,10 @@ export const useGameActions = (gameState, addLog) => {
     recruitUnit,
     disbandUnit,
     launchBattle,
+
+    // 贸易
+    createTradeRoute,
+    cancelTradeRoute,
 
     // 外交
     handleDiplomaticAction,
