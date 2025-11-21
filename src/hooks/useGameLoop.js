@@ -5,6 +5,14 @@ import { useEffect, useRef } from 'react';
 import { simulateTick } from '../logic/simulation';
 import { calculateArmyMaintenance } from '../config/militaryUnits';
 import { UNIT_TYPES } from '../config/militaryUnits';
+import { RESOURCES } from '../config/gameData';
+
+const isTradableResource = (resource) => {
+  if (resource === 'silver') return false;
+  const def = RESOURCES[resource];
+  if (!def) return false;
+  return !def.type || def.type !== 'virtual';
+};
 
 /**
  * 游戏循环钩子
@@ -16,6 +24,8 @@ export const useGameLoop = (gameState, addLog) => {
   const {
     resources,
     setResources,
+    market,
+    setMarket,
     buildings,
     population,
     setPopulation,
@@ -29,45 +39,66 @@ export const useGameLoop = (gameState, addLog) => {
     setAdminCap,
     setAdminStrain,
     setRates,
+    setTaxes,
     setClassApproval,
     setClassInfluence,
     setClassWealth,
+    setClassWealthDelta,
     setTotalInfluence,
     setTotalWealth,
     setActiveBuffs,
     setActiveDebuffs,
     setStability,
     setLogs,
+    taxPolicies,
+    classWealth,
+    setClassShortages,
+    activeBuffs,
+    activeDebuffs,
     army,
     setArmy,
     militaryQueue,
     setMilitaryQueue,
+    jobFill,
+    setJobFill,
   } = gameState;
 
   // 使用ref保存最新状态，避免闭包问题
   const stateRef = useRef({ 
-    resources, 
+    resources,
+    market,
     buildings, 
     population, 
     epoch, 
     techsUnlocked, 
     decrees, 
     gameSpeed, 
-    nations 
+    nations,
+    classWealth,
+    jobFill,
+    activeBuffs,
+    taxPolicies,
+    activeDebuffs,
   });
 
   useEffect(() => {
     stateRef.current = { 
       resources, 
+      market,
       buildings, 
       population, 
       epoch, 
       techsUnlocked, 
       decrees, 
-      gameSpeed, 
-      nations 
+      gameSpeed,
+      nations,
+      classWealth,
+      jobFill,
+      activeBuffs,
+      taxPolicies,
+      activeDebuffs,
     };
-  }, [resources, buildings, population, epoch, techsUnlocked, decrees, gameSpeed, nations]);
+  }, [resources, market, buildings, population, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, activeBuffs, activeDebuffs, taxPolicies]);
 
   // 游戏核心循环
   useEffect(() => {
@@ -77,21 +108,72 @@ export const useGameLoop = (gameState, addLog) => {
       // 执行游戏模拟
       const result = simulateTick(current);
 
+      const maintenance = calculateArmyMaintenance(army);
+      const adjustedResources = { ...result.resources };
+      const ownershipBuckets = {};
+      Object.entries(result.market?.ownership || {}).forEach(([key, bucket]) => {
+        ownershipBuckets[key] = { ...bucket };
+      });
+      let maintenancePayments = {};
+
+      Object.entries(maintenance).forEach(([resource, cost]) => {
+        const amount = cost * gameSpeed;
+        if (amount <= 0) return;
+        adjustedResources[resource] = Math.max(0, (adjustedResources[resource] || 0) - amount);
+        if (!isTradableResource(resource)) return;
+        const price = (result.market.prices?.[resource]) || RESOURCES[resource]?.basePrice || 1;
+        const bucket = ownershipBuckets[resource] || {};
+        let remaining = amount;
+        for (const owner of Object.keys(bucket)) {
+          if (remaining <= 0) break;
+          const owned = bucket[owner] || 0;
+          if (owned <= 0) continue;
+          const sold = Math.min(owned, remaining);
+          bucket[owner] = owned - sold;
+          maintenancePayments[owner] = (maintenancePayments[owner] || 0) + sold * price;
+          remaining -= sold;
+        }
+        ownershipBuckets[resource] = bucket;
+      });
+
+      const adjustedClassWealth = { ...result.classWealth };
+      Object.entries(maintenancePayments).forEach(([owner, amount]) => {
+        if (adjustedClassWealth[owner] === undefined) return;
+        adjustedClassWealth[owner] += amount;
+      });
+      const adjustedTotalWealth = Object.values(adjustedClassWealth).reduce((sum, val) => sum + val, 0);
+      const adjustedMarket = {
+        ...(result.market || {}),
+        ownership: ownershipBuckets,
+      };
+
       // 更新所有状态
       setPopStructure(result.popStructure);
       setMaxPop(result.maxPop);
       setAdminCap(result.adminCap);
       setAdminStrain(result.adminStrain);
-      setResources(result.resources);
+      setResources(adjustedResources);
       setRates(result.rates);
       setClassApproval(result.classApproval);
       setClassInfluence(result.classInfluence);
-      setClassWealth(result.classWealth);
+      const wealthDelta = {};
+      Object.keys(adjustedClassWealth).forEach(key => {
+        const prevWealth = current.classWealth?.[key] || 0;
+        wealthDelta[key] = adjustedClassWealth[key] - prevWealth;
+      });
+      setClassWealth(adjustedClassWealth);
+      setClassWealthDelta(wealthDelta);
       setTotalInfluence(result.totalInfluence);
-      setTotalWealth(result.totalWealth);
+      setTotalWealth(adjustedTotalWealth);
       setActiveBuffs(result.activeBuffs);
       setActiveDebuffs(result.activeDebuffs);
       setStability(result.stability);
+      setTaxes(result.taxes || { total: 0, breakdown: { headTax: 0, industryTax: 0 }, efficiency: 1 });
+      setMarket(adjustedMarket);
+      setClassShortages(result.needsShortages || {});
+      if (result.jobFill) {
+        setJobFill(result.jobFill);
+      }
 
       // 更新人口（如果有变化）
       if (result.population !== current.population) {
@@ -102,14 +184,6 @@ export const useGameLoop = (gameState, addLog) => {
       if (result.logs.length) {
         setLogs(prev => [...result.logs, ...prev].slice(0, 8));
       }
-      
-      // 军事系统：扣除军队维护成本
-      const maintenance = calculateArmyMaintenance(army);
-      const newRes = { ...result.resources };
-      Object.entries(maintenance).forEach(([resource, cost]) => {
-        newRes[resource] = Math.max(0, (newRes[resource] || 0) - cost * gameSpeed);
-      });
-      setResources(newRes);
       
       // 处理训练队列
       setMilitaryQueue(prev => {

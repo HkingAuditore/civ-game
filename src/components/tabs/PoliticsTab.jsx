@@ -3,14 +3,19 @@
 
 import React from 'react';
 import { Icon } from '../common/UIComponents';
+import { STRATA } from '../../config/strata';
+import { RESOURCES } from '../../config/gameConstants';
 
 /**
  * 政令标签页组件
  * 显示所有政令及其效果
  * @param {Array} decrees - 政令数组
  * @param {Function} onToggle - 切换政令回调
+ * @param {Object} taxPolicies - 税收策略
+ * @param {Function} onUpdateTaxPolicies - 更新税收策略回调
+ * @param {Object} popStructure - 当前人口结构
  */
-export const PoliticsTab = ({ decrees, onToggle }) => {
+export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicies, popStructure = {} }) => {
   // 按类别分组政令
   const categories = {
     economy: { name: '经济政策', icon: 'Coins', color: 'text-yellow-400' },
@@ -25,6 +30,35 @@ export const PoliticsTab = ({ decrees, onToggle }) => {
     acc[category].push(decree);
     return acc;
   }, {});
+
+  const headRates = taxPolicies?.headTaxRates || {};
+  const resourceRates = taxPolicies?.resourceTaxRates || {};
+
+  const handleHeadTaxChange = (key, value) => {
+    if (!onUpdateTaxPolicies) return;
+    const numeric = parseFloat(value);
+    onUpdateTaxPolicies(prev => ({
+      ...prev,
+      headTaxRates: {
+        ...(prev?.headTaxRates || {}),
+        [key]: numeric,
+      },
+    }));
+  };
+
+  const handleResourceTaxChange = (key, value) => {
+    if (!onUpdateTaxPolicies) return;
+    const numeric = parseFloat(value);
+    onUpdateTaxPolicies(prev => ({
+      ...prev,
+      resourceTaxRates: {
+        ...(prev?.resourceTaxRates || {}),
+        [key]: numeric,
+      },
+    }));
+  };
+  const activeStrata = Object.keys(popStructure).filter(key => (popStructure[key] || 0) > 0 && STRATA[key]);
+  const taxableResources = Object.entries(RESOURCES).filter(([key, info]) => !info.type || (info.type !== 'virtual' && info.type !== 'currency'));
 
   return (
     <div className="space-y-4">
@@ -41,6 +75,77 @@ export const PoliticsTab = ({ decrees, onToggle }) => {
           </div>
         </div>
       </div>
+
+      {/* 税收政策调节 */}
+      {onUpdateTaxPolicies && (
+        <div className="bg-gray-800/50 p-4 rounded-lg border border-gray-700">
+          <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300">
+            <Icon name="Sliders" size={16} className="text-green-400" />
+            税收政策
+          </h3>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div>
+              <h4 className="text-xs font-semibold text-gray-400 mb-2">人头税 (每人每 tick)</h4>
+              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                {activeStrata.map((key) => {
+                  const base = STRATA[key]?.headTaxBase ?? 0.01;
+                  const finalRate = (headRates[key] ?? 1) * base;
+                  return (
+                    <div key={key} className="bg-gray-900/40 p-2 rounded border border-gray-700/50">
+                      <div className="flex items-center justify-between text-xs text-gray-300 mb-1">
+                        <span>{STRATA[key]?.name || key}</span>
+                        <span className="font-mono text-yellow-300">
+                          {finalRate.toFixed(3)} 银币/人/tick
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="2"
+                        step="0.1"
+                        value={headRates[key] ?? 1}
+                        onChange={(e) => handleHeadTaxChange(key, e.target.value)}
+                        className="w-full"
+                      />
+                    </div>
+                  );
+                })}
+                {activeStrata.length === 0 && (
+                  <p className="text-xs text-gray-500">暂无需征税的阶层</p>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <h4 className="text-xs font-semibold text-gray-400 mb-2">资源税 (交易附加税)</h4>
+              <div className="space-y-2">
+                {taxableResources.map(([key, info]) => (
+                  <div key={key} className="bg-gray-900/40 p-2 rounded border border-gray-700/50">
+                    <div className="flex items-center justify-between text-xs text-gray-300 mb-1">
+                      <span>{info.name}</span>
+                      <span className="font-mono text-blue-300">
+                        {((resourceRates[key] ?? 0) * 100).toFixed(0)}%
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="0.2"
+                      step="0.01"
+                      value={resourceRates[key] ?? 0}
+                      onChange={(e) => handleResourceTaxChange(key, e.target.value)}
+                      className="w-full"
+                    />
+                  </div>
+                ))}
+                {taxableResources.length === 0 && (
+                  <p className="text-xs text-gray-500">暂无可征税资源</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 按类别显示政令 */}
       {Object.entries(categories).map(([catKey, catInfo]) => {

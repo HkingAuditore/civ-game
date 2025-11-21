@@ -9,7 +9,7 @@ import { Icon } from '../common/UIComponents';
  * 显示与其他国家的外交关系
  * @param {Array} nations - 国家列表
  */
-export const DiplomacyTab = ({ nations }) => {
+export const DiplomacyTab = ({ nations, onDiplomaticAction }) => {
   /**
    * 获取关系等级
    * @param {number} relation - 关系值
@@ -187,24 +187,30 @@ export const DiplomacyTab = ({ nations }) => {
                 {/* 外交行动按钮 */}
                 <div className="grid grid-cols-3 gap-2 mt-3">
                   <button
+                    onClick={() => onDiplomaticAction(nation.id, 'gift')}
                     className="px-2 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded text-xs font-semibold transition-colors"
                     title="赠送礼物"
                   >
                     <Icon name="Gift" size={12} className="mx-auto" />
                   </button>
                   <button
+                    onClick={() => onDiplomaticAction(nation.id, 'trade')}
                     className="px-2 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-semibold transition-colors"
                     title="贸易协定"
                   >
                     <Icon name="Handshake" size={12} className="mx-auto" />
                   </button>
                   <button
+                    onClick={() => onDiplomaticAction(nation.id, 'war')}
                     className="px-2 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded text-xs font-semibold transition-colors"
                     title="宣战"
                   >
                     <Icon name="Swords" size={12} className="mx-auto" />
                   </button>
                 </div>
+                <p className="text-[10px] text-gray-400 mt-2 text-center">
+                  礼物：500 银币 ｜ 贸易协定：1000 银币
+                </p>
               </div>
             );
           })}

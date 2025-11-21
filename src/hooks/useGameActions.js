@@ -4,6 +4,7 @@
 import { BUILDINGS, EPOCHS, TECHS } from '../config/gameData';
 import { UNIT_TYPES } from '../config/militaryUnits';
 import { calculateArmyAdminCost, calculateArmyPopulation, simulateBattle } from '../config/militaryUnits';
+import { isMarketResource, getResourcePrice } from '../utils/economy';
 
 /**
  * 游戏操作钩子
@@ -16,6 +17,8 @@ export const useGameActions = (gameState, addLog) => {
   const {
     resources,
     setResources,
+    market,
+    setMarket,
     buildings,
     setBuildings,
     epoch,
@@ -36,7 +39,58 @@ export const useGameActions = (gameState, addLog) => {
     setBattleResult,
     nations,
     setNations,
+    setClassWealth,
   } = gameState;
+
+  const mergePayments = (target, addition = {}) => {
+    const next = { ...target };
+    Object.entries(addition).forEach(([owner, amount]) => {
+      next[owner] = (next[owner] || 0) + amount;
+    });
+    return next;
+  };
+
+  const distributePayments = (payments = {}) => {
+    if (!payments || Object.keys(payments).length === 0) return;
+    setClassWealth(prev => {
+      const updated = { ...prev };
+      Object.entries(payments).forEach(([owner, amount]) => {
+        if (updated[owner] === undefined) return;
+        updated[owner] += amount;
+      });
+      return updated;
+    });
+  };
+
+  const settleMarketWithdrawal = (resource, amount) => {
+    if (!isMarketResource(resource) || amount <= 0) {
+      return { payments: {}, bucket: market.ownership?.[resource] || {} };
+    }
+    const price = getResourcePrice(resource, market);
+    const bucket = { ...(market.ownership?.[resource] || {}) };
+    let remaining = amount;
+    const payments = {};
+    for (const owner of Object.keys(bucket)) {
+      if (remaining <= 0) break;
+      const owned = bucket[owner] || 0;
+      if (owned <= 0) continue;
+      const sold = Math.min(owned, remaining);
+      bucket[owner] = owned - sold;
+      payments[owner] = (payments[owner] || 0) + sold * price;
+      remaining -= sold;
+    }
+    return { payments, bucket };
+  };
+
+  const addMarketSupply = (resource, amount, ownerKey) => {
+    if (!isMarketResource(resource) || amount <= 0) return;
+    setMarket(prev => {
+      const ownership = { ...prev.ownership };
+      ownership[resource] = { ...(ownership[resource] || {}) };
+      ownership[resource][ownerKey] = (ownership[resource][ownerKey] || 0) + amount;
+      return { ...prev, ownership };
+    });
+  };
 
   // ========== 时代升级 ==========
   
@@ -96,19 +150,50 @@ export const useGameActions = (gameState, addLog) => {
       cost[k] = b.baseCost[k] * Math.pow(1.15, count);
     }
     
-    // 检查是否能负担
-    let canAfford = true;
-    for (let k in cost) {
-      if ((resources[k] || 0) < cost[k]) canAfford = false;
+    // 检查库存和市场价格
+    let silverCost = 0;
+    let hasMaterials = true;
+    Object.entries(cost).forEach(([resource, amount]) => {
+      if ((resources[resource] || 0) < amount) {
+        hasMaterials = false;
+      }
+      silverCost += amount * getResourcePrice(resource, market);
+    });
+
+    if (!hasMaterials) {
+      addLog(`市场缺少建造 ${b.name} 所需的材料`);
+      return;
     }
 
-    if (canAfford) {
-      const newRes = { ...resources };
-      for (let k in cost) newRes[k] -= cost[k];
-      setResources(newRes);
-      setBuildings(prev => ({ ...prev, [id]: (prev[id] || 0) + 1 }));
-      addLog(`建造了 ${b.name}`);
+    if ((resources.silver || 0) < silverCost) {
+      addLog('银币不足，无法采购建筑材料。');
+      return;
     }
+
+    const newRes = { ...resources, silver: (resources.silver || 0) - silverCost };
+    const ownershipUpdates = {};
+    let paymentLedger = {};
+
+    Object.entries(cost).forEach(([resource, amount]) => {
+      newRes[resource] = Math.max(0, (newRes[resource] || 0) - amount);
+      if (isMarketResource(resource)) {
+        const { payments, bucket } = settleMarketWithdrawal(resource, amount);
+        ownershipUpdates[resource] = bucket;
+        paymentLedger = mergePayments(paymentLedger, payments);
+      }
+    });
+
+    setMarket(prev => {
+      const ownership = { ...(prev.ownership || {}) };
+      Object.entries(ownershipUpdates).forEach(([key, bucket]) => {
+        ownership[key] = bucket;
+      });
+      return { ...prev, ownership };
+    });
+    distributePayments(paymentLedger);
+    setResources(newRes);
+    setBuildings(prev => ({ ...prev, [id]: (prev[id] || 0) + 1 }));
+    addLog(`建造了 ${b.name}`);
   };
 
   /**
@@ -200,6 +285,8 @@ export const useGameActions = (gameState, addLog) => {
       food: prev.food + 1, 
       wood: prev.wood + 1 
     }));
+    addMarketSupply('food', 1, 'peasant');
+    addMarketSupply('wood', 1, 'lumberjack');
   };
 
   // ========== 军事系统 ==========
@@ -286,52 +373,144 @@ export const useGameActions = (gameState, addLog) => {
       addLog('请先选择目标国家');
       return;
     }
-    
-    // 检查是否有军队
+
     const totalUnits = Object.values(army).reduce((sum, count) => sum + count, 0);
     if (totalUnits === 0) {
       addLog('没有可用的军队');
       return;
     }
+
+    // 准备攻击方数据
+    const attackerData = {
+      army: army,
+      epoch: epoch,
+      militaryBuffs: 0, // 可以在此基础上扩展
+    };
+
+    // 基于目标国家类型生成防御方数据
+    const defenderEpoch = Math.max(0, epoch + Math.floor(Math.random() * 3) - 1);
+    let defenderArmy = {};
+    let defenderWealth = 1000;
+
+    switch (selectedTarget.type) {
+      case '军事专制':
+        defenderWealth = 800 + Math.random() * 400;
+        defenderArmy = { // 偏向步兵和骑兵
+          [Object.keys(UNIT_TYPES).find(u => u.includes('infantry') && UNIT_TYPES[u].epoch <= defenderEpoch) || 'militia']: Math.floor(20 + Math.random() * 20),
+          [Object.keys(UNIT_TYPES).find(u => u.includes('cavalry') && UNIT_TYPES[u].epoch <= defenderEpoch) || 'spearman']: Math.floor(10 + Math.random() * 10),
+        };
+        break;
+      case '商业共和':
+        defenderWealth = 1500 + Math.random() * 800;
+        defenderArmy = { // 军队较弱但有钱
+          [Object.keys(UNIT_TYPES).find(u => u.includes('infantry') && UNIT_TYPES[u].epoch <= defenderEpoch) || 'militia']: Math.floor(10 + Math.random() * 10),
+        };
+        break;
+      case '神权政治':
+        defenderWealth = 1200 + Math.random() * 600;
+        defenderArmy = { // 偏向防御性单位
+          [Object.keys(UNIT_TYPES).find(u => u.includes('spearman') && UNIT_TYPES[u].epoch <= defenderEpoch) || 'militia']: Math.floor(15 + Math.random() * 15),
+          [Object.keys(UNIT_TYPES).find(u => u.includes('archer') && UNIT_TYPES[u].epoch <= defenderEpoch) || 'slinger']: Math.floor(10 + Math.random() * 10),
+        };
+        break;
+      default:
+        defenderArmy = { 'militia': Math.floor(10 + Math.random() * 10) };
+    }
     
-    // 模拟战斗
-    const result = simulateBattle(army, selectedTarget, actionType, epoch);
+    const defenderData = {
+      army: defenderArmy,
+      epoch: defenderEpoch,
+      militaryBuffs: 0,
+      wealth: defenderWealth,
+    };
     
-    // 应用战斗结果
+    const result = simulateBattle(attackerData, defenderData);
+
     if (result.victory) {
-      // 获得资源
       const newRes = { ...resources };
-      Object.entries(result.resourcesGained).forEach(([resource, amount]) => {
-        newRes[resource] = (newRes[resource] || 0) + amount;
+      Object.entries(result.loot).forEach(([resource, amount]) => {
+        if (amount > 0) {
+          newRes[resource] = (newRes[resource] || 0) + amount;
+        }
       });
       setResources(newRes);
       
-      // 提升关系（如果是防御）或降低关系
       if (actionType === 'defend') {
-        setNations(prev => prev.map(n => 
-          n.id === selectedTarget.id 
+        setNations(prev => prev.map(n =>
+          n.id === selectedTarget.id
             ? { ...n, relation: Math.min(100, n.relation + 10) }
             : n
         ));
       } else {
-        setNations(prev => prev.map(n => 
-          n.id === selectedTarget.id 
+        setNations(prev => prev.map(n =>
+          n.id === selectedTarget.id
             ? { ...n, relation: Math.max(0, n.relation - 20) }
             : n
         ));
       }
     }
-    
-    // 应用损失
+
     const newArmy = { ...army };
-    Object.entries(result.losses).forEach(([unitId, lossCount]) => {
+    Object.entries(result.attackerLosses).forEach(([unitId, lossCount]) => {
       newArmy[unitId] = Math.max(0, (newArmy[unitId] || 0) - lossCount);
     });
     setArmy(newArmy);
-    
-    // 显示战斗结果
+
     setBattleResult(result);
     addLog(result.victory ? '⚔️ 战斗胜利！' : '💀 战斗失败...');
+  };
+
+  // ========== 外交系统 ==========
+
+  /**
+   * 处理外交行动
+   * @param {string} nationId - 国家ID
+   * @param {string} action - 外交行动 (gift/trade/war)
+   */
+  const handleDiplomaticAction = (nationId, action) => {
+    const targetNation = nations.find(n => n.id === nationId);
+    if (!targetNation) return;
+
+    switch (action) {
+      case 'gift':
+        if ((resources.silver || 0) >= 500) {
+          setResources(prev => ({ ...prev, silver: prev.silver - 500 }));
+          setNations(prev => prev.map(n =>
+            n.id === nationId
+              ? { ...n, relation: Math.min(100, n.relation + 10) }
+              : n
+          ));
+          addLog(`你向 ${targetNation.name} 赠送了礼物，关系提升了。`);
+        } else {
+          addLog('银币不足，无法赠送礼物。');
+        }
+        break;
+
+      case 'trade':
+        if ((resources.silver || 0) >= 1000) {
+          setResources(prev => ({ ...prev, silver: prev.silver - 1000 }));
+          setNations(prev => prev.map(n =>
+            n.id === nationId
+              ? { ...n, relation: Math.min(100, n.relation + 5) }
+              : n
+          ));
+          // 未来可以加入贸易buff
+          addLog(`你与 ${targetNation.name} 达成了贸易协定。`);
+        } else {
+          addLog('银币不足，无法达成贸易协定。');
+        }
+        break;
+
+      case 'war':
+        setNations(prev => prev.map(n =>
+          n.id === nationId ? { ...n, relation: 0 } : n
+        ));
+        addLog(`你向 ${targetNation.name} 宣战了！`);
+        break;
+
+      default:
+        break;
+    }
   };
 
   // 返回所有操作函数
@@ -357,5 +536,8 @@ export const useGameActions = (gameState, addLog) => {
     recruitUnit,
     disbandUnit,
     launchBattle,
+
+    // 外交
+    handleDiplomaticAction,
   };
 };

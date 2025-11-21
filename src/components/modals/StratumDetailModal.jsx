@@ -5,6 +5,7 @@ import React from 'react';
 import { Icon } from '../common/UIComponents';
 import { STRATA } from '../../config/gameData';
 import { RESOURCES } from '../../config/gameConstants';
+import { formatEffectDetails } from '../../utils/effectFormatter';
 
 /**
  * 阶层详情模态框组件
@@ -20,6 +21,105 @@ import { RESOURCES } from '../../config/gameConstants';
  * @param {Array} activeDebuffs - 激活的debuff数组
  * @param {Function} onClose - 关闭回调
  */
+const AllStrataSummary = ({
+  popStructure,
+  classApproval,
+  classInfluence,
+  activeBuffs,
+  activeDebuffs,
+  onClose
+}) => {
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div className="bg-gray-800 rounded-lg border-2 border-gray-700 max-w-4xl w-full max-h-[90vh] flex flex-col">
+        <div className="p-6 border-b border-gray-700">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-bold text-white">社会阶层总览</h2>
+            <button onClick={onClose} className="p-2 hover:bg-gray-700 rounded-lg">
+              <Icon name="X" size={24} className="text-gray-400" />
+            </button>
+          </div>
+        </div>
+        <div className="p-6 overflow-y-auto">
+          <table className="w-full text-left table-auto">
+            <thead>
+              <tr className="border-b border-gray-600">
+                <th className="p-2 text-sm font-semibold text-gray-300">阶层</th>
+                <th className="p-2 text-sm font-semibold text-gray-300">人口</th>
+                <th className="p-2 text-sm font-semibold text-gray-300">好感度</th>
+                <th className="p-2 text-sm font-semibold text-gray-300">影响力</th>
+                <th className="p-2 text-sm font-semibold text-gray-300">当前效果</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.keys(STRATA).map(key => {
+                const stratum = STRATA[key];
+                const count = popStructure[key] || 0;
+                if (count === 0) return null;
+
+                const approval = classApproval[key] || 50;
+                const influence = classInfluence[key] || 0;
+
+                const buffs = activeBuffs.filter(b => b.class === key || b.source === key);
+                const debuffs = activeDebuffs.filter(d => d.class === key || d.source === key);
+
+                return (
+                  <tr key={key} className="border-b border-gray-700 hover:bg-gray-700/50">
+                    <td className="p-2 text-sm text-white flex items-center gap-2">
+                      <Icon name={stratum.icon} size={16} /> {stratum.name}
+                    </td>
+                    <td className="p-2 text-sm text-gray-300">{count}</td>
+                    <td className="p-2 text-sm">
+                      <span className={
+                        approval >= 70 ? 'text-green-400' :
+                        approval >= 40 ? 'text-yellow-400' :
+                        'text-red-400'
+                      }>{approval.toFixed(0)}%</span>
+                    </td>
+                    <td className="p-2 text-sm text-purple-400">{influence.toFixed(1)}</td>
+                    <td className="p-2 text-xs space-y-1">
+                      {buffs.map((b, i) => {
+                        const details = formatEffectDetails(b);
+                        return (
+                          <div key={i} className="text-green-400">
+                            <span className="font-semibold">{b.desc || '满意加成'}</span>
+                            {details.length > 0 && (
+                              <span className="text-gray-300 ml-2">({details.join('，')})</span>
+                            )}
+                          </div>
+                        );
+                      })}
+                      {debuffs.map((d, i) => {
+                        const details = formatEffectDetails(d);
+                        return (
+                          <div key={i} className="text-red-400">
+                            <span className="font-semibold">{d.desc || '不满惩罚'}</span>
+                            {details.length > 0 && (
+                              <span className="text-gray-300 ml-2">({details.join('，')})</span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div className="p-6 border-t border-gray-700 bg-gray-800/50">
+          <button
+            onClick={onClose}
+            className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-bold transition-colors"
+          >
+            关闭
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const StratumDetailModal = ({
   stratumKey,
   popStructure,
@@ -30,9 +130,21 @@ export const StratumDetailModal = ({
   totalWealth,
   activeBuffs,
   activeDebuffs,
+  epoch = 0,
   onClose,
 }) => {
-  if (!stratumKey) return null;
+  if (!stratumKey || stratumKey === 'all') {
+    return (
+      <AllStrataSummary 
+        popStructure={popStructure}
+        classApproval={classApproval}
+        classInfluence={classInfluence}
+        activeBuffs={activeBuffs}
+        activeDebuffs={activeDebuffs}
+        onClose={onClose}
+      />
+    );
+  }
 
   const stratum = STRATA[stratumKey];
   if (!stratum) return null;
@@ -49,8 +161,8 @@ export const StratumDetailModal = ({
   const wealthPercent = totalWealth > 0 ? (wealth / totalWealth) * 100 : 0;
 
   // 获取该阶层相关的buff和debuff
-  const stratumBuffs = activeBuffs.filter(buff => buff.source === stratumKey);
-  const stratumDebuffs = activeDebuffs.filter(debuff => debuff.source === stratumKey);
+  const stratumBuffs = activeBuffs.filter(buff => buff.class === stratumKey || buff.source === stratumKey);
+  const stratumDebuffs = activeDebuffs.filter(debuff => debuff.class === stratumKey || debuff.source === stratumKey);
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
@@ -138,27 +250,37 @@ export const StratumDetailModal = ({
               资源需求
             </h3>
             <div className="space-y-2">
-              {Object.entries(stratum.needs).map(([resource, amount]) => {
-                // 获取资源的中文名称
-                const resourceName = RESOURCES[resource]?.name || resource;
-                return (
-                  <div
-                    key={resource}
-                    className="flex items-center justify-between bg-gray-700/50 p-3 rounded"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Icon name="Package" size={14} className="text-blue-400" />
-                      <span className="text-sm text-white">{resourceName}</span>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-bold text-white">{amount}/人/天</p>
-                      <p className="text-xs text-gray-400">
-                        总需求: {(amount * population).toFixed(1)}/天
-                      </p>
-                    </div>
-                  </div>
+              {(() => {
+                const needsEntries = Object.entries(stratum.needs || {});
+                const visibleNeeds = needsEntries.filter(([resource]) => {
+                  const unlockEpoch = RESOURCES[resource]?.unlockEpoch ?? 0;
+                  return unlockEpoch <= epoch;
+                });
+                return visibleNeeds.length > 0 ? (
+                  visibleNeeds.map(([resource, amount]) => {
+                    const resourceName = RESOURCES[resource]?.name || resource;
+                    return (
+                      <div
+                        key={resource}
+                        className="flex items-center justify-between bg-gray-700/50 p-3 rounded"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Icon name="Package" size={14} className="text-blue-400" />
+                          <span className="text-sm text-white">{resourceName}</span>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-bold text-white">{amount}/人/天</p>
+                          <p className="text-xs text-gray-400">
+                            总需求: {(amount * population).toFixed(1)}/天
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <p className="text-xs text-gray-500 italic">当前时代暂无物资需求</p>
                 );
-              })}
+              })()}
             </div>
           </div>
 
@@ -212,30 +334,40 @@ export const StratumDetailModal = ({
                 当前激活的效果
               </h3>
               <div className="space-y-2">
-                {stratumBuffs.map((buff, idx) => (
-                  <div
-                    key={`buff-${idx}`}
-                    className="flex items-start gap-2 bg-green-900/20 border border-green-600/30 p-3 rounded"
-                  >
-                    <Icon name="TrendingUp" size={14} className="text-green-400 flex-shrink-0 mt-0.5" />
-                    <div className="flex-1">
-                      <p className="text-sm font-semibold text-green-300">{buff.name}</p>
-                      <p className="text-xs text-gray-400 mt-1">{buff.description}</p>
+                {stratumBuffs.map((buff, idx) => {
+                  const details = formatEffectDetails(buff);
+                  return (
+                    <div
+                      key={`buff-${idx}`}
+                      className="flex items-start gap-2 bg-green-900/20 border border-green-600/30 p-3 rounded"
+                    >
+                      <Icon name="TrendingUp" size={14} className="text-green-400 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-green-300">{buff.desc || buff.name || '满意加成'}</p>
+                        {details.length > 0 && (
+                          <p className="text-xs text-gray-400 mt-1">{details.join('，')}</p>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
-                {stratumDebuffs.map((debuff, idx) => (
-                  <div
-                    key={`debuff-${idx}`}
-                    className="flex items-start gap-2 bg-red-900/20 border border-red-600/30 p-3 rounded"
-                  >
-                    <Icon name="TrendingDown" size={14} className="text-red-400 flex-shrink-0 mt-0.5" />
-                    <div className="flex-1">
-                      <p className="text-sm font-semibold text-red-300">{debuff.name}</p>
-                      <p className="text-xs text-gray-400 mt-1">{debuff.description}</p>
+                  );
+                })}
+                {stratumDebuffs.map((debuff, idx) => {
+                  const details = formatEffectDetails(debuff);
+                  return (
+                    <div
+                      key={`debuff-${idx}`}
+                      className="flex items-start gap-2 bg-red-900/20 border border-red-600/30 p-3 rounded"
+                    >
+                      <Icon name="TrendingDown" size={14} className="text-red-400 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-red-300">{debuff.desc || debuff.name || '不满惩罚'}</p>
+                        {details.length > 0 && (
+                          <p className="text-xs text-gray-400 mt-1">{details.join('，')}</p>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
