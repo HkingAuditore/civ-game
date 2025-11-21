@@ -5,6 +5,25 @@ import React from 'react';
 import { Icon } from '../common/UIComponents';
 import { TECHS, EPOCHS } from '../../config/gameData';
 import { RESOURCES } from '../../config/gameConstants';
+import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
+
+const EPOCH_BONUS_LABELS = {
+  gatherBonus: { label: '采集产出', type: 'percent' },
+  industryBonus: { label: '工业产出', type: 'percent' },
+  cultureBonus: { label: '文化产出', type: 'percent' },
+  scienceBonus: { label: '科研产出', type: 'percent' },
+  militaryBonus: { label: '军事力量', type: 'percent' },
+  adminBonus: { label: '行政容量', type: 'flat' },
+};
+
+const formatBonusValue = (key, value) => {
+  const meta = EPOCH_BONUS_LABELS[key];
+  if (meta?.type === 'flat') {
+    return `${value > 0 ? '+' : ''}${value}`;
+  }
+  const numeric = typeof value === 'number' ? value : Number(value) || 0;
+  return `${numeric > 0 ? '+' : ''}${(numeric * 100).toFixed(0)}%`;
+};
 
 /**
  * 科技标签页组件
@@ -25,6 +44,7 @@ export const TechTab = ({
   onResearch,
   onUpgradeEpoch,
   canUpgradeEpoch,
+  market,
 }) => {
   /**
    * 检查科技是否可研究
@@ -42,6 +62,9 @@ export const TechTab = ({
     for (let resource in tech.cost) {
       if ((resources[resource] || 0) < tech.cost[resource]) return false;
     }
+
+    const silverCost = calculateSilverCost(tech.cost, market);
+    if ((resources.silver || 0) < silverCost) return false;
     
     return true;
   };
@@ -64,6 +87,10 @@ export const TechTab = ({
     return acc;
   }, {});
 
+  const nextEpochInfo = epoch < EPOCHS.length - 1 ? EPOCHS[epoch + 1] : null;
+  const nextEpochSilverCost = nextEpochInfo ? calculateSilverCost(nextEpochInfo.cost, market) : 0;
+  const hasNextEpochSilver = nextEpochInfo ? (resources.silver || 0) >= nextEpochSilverCost : true;
+
   return (
     <div className="space-y-4">
       {/* 时代升级区域 */}
@@ -79,11 +106,11 @@ export const TechTab = ({
             </p>
           </div>
           
-          {epoch < EPOCHS.length - 1 && (
+          {epoch < EPOCHS.length - 1 && nextEpochInfo && (
             <div className="text-right">
               <p className="text-xs text-gray-400 mb-1">下一时代</p>
               <p className="text-sm font-bold text-purple-300">
-                {EPOCHS[epoch + 1].name}
+                {nextEpochInfo.name}
               </p>
             </div>
           )}
@@ -95,54 +122,57 @@ export const TechTab = ({
             <p className="text-xs text-gray-400 mb-2">当前时代加成：</p>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
               {Object.entries(EPOCHS[epoch].bonuses).map(([key, value]) => (
-                <div key={key} className="flex items-center gap-1 text-xs">
-                  <Icon name="TrendingUp" size={12} className="text-green-400" />
-                  <span className="text-gray-300">
-                    {RESOURCES[key]?.name || key}: <span className="text-green-400">+{(value * 100).toFixed(0)}%</span>
-                  </span>
-                </div>
+                key === 'desc' ? null : (
+                  <div key={key} className="flex items-center gap-1 text-xs">
+                    <Icon name="TrendingUp" size={12} className="text-green-400" />
+                    <span className="text-gray-300">
+                      {EPOCH_BONUS_LABELS[key]?.label || RESOURCES[key]?.name || key}:
+                      <span className="text-green-400 ml-1">{formatBonusValue(key, value)}</span>
+                    </span>
+                  </div>
+                )
               ))}
             </div>
           </div>
         )}
 
         {/* 升级按钮 */}
-        {epoch < EPOCHS.length - 1 && (
+        {epoch < EPOCHS.length - 1 && nextEpochInfo && (
           <div>
             <div className="mb-2">
               <p className="text-xs text-gray-400 mb-1">升级要求：</p>
               <div className="flex flex-wrap gap-2">
-                {EPOCHS[epoch + 1].req.science && (
+                {nextEpochInfo.req.science && (
                   <span
                     className={`text-xs px-2 py-1 rounded ${
-                      resources.science >= EPOCHS[epoch + 1].req.science
+                      resources.science >= nextEpochInfo.req.science
                         ? 'bg-green-900/30 text-green-400'
                         : 'bg-red-900/30 text-red-400'
                     }`}
                   >
-                    {RESOURCES.science?.name || '科研'}: {resources.science.toFixed(0)} / {EPOCHS[epoch + 1].req.science}
+                    {RESOURCES.science?.name || '科研'}: {resources.science.toFixed(0)} / {nextEpochInfo.req.science}
                   </span>
                 )}
-                {EPOCHS[epoch + 1].req.population && (
+                {nextEpochInfo.req.population && (
                   <span
                     className={`text-xs px-2 py-1 rounded ${
-                      population >= EPOCHS[epoch + 1].req.population
+                      population >= nextEpochInfo.req.population
                         ? 'bg-green-900/30 text-green-400'
                         : 'bg-red-900/30 text-red-400'
                     }`}
                   >
-                    人口: {population} / {EPOCHS[epoch + 1].req.population}
+                    人口: {population} / {nextEpochInfo.req.population}
                   </span>
                 )}
-                {EPOCHS[epoch + 1].req.culture && (
+                {nextEpochInfo.req.culture && (
                   <span
                     className={`text-xs px-2 py-1 rounded ${
-                      resources.culture >= EPOCHS[epoch + 1].req.culture
+                      resources.culture >= nextEpochInfo.req.culture
                         ? 'bg-green-900/30 text-green-400'
                         : 'bg-red-900/30 text-red-400'
                     }`}
                   >
-                    {RESOURCES.culture?.name || '文化'}: {resources.culture.toFixed(0)} / {EPOCHS[epoch + 1].req.culture}
+                    {RESOURCES.culture?.name || '文化'}: {resources.culture.toFixed(0)} / {nextEpochInfo.req.culture}
                   </span>
                 )}
               </div>
@@ -151,7 +181,7 @@ export const TechTab = ({
               <div className="mb-2">
                 <p className="text-xs text-gray-400 mb-1">升级成本：</p>
                 <div className="flex flex-wrap gap-2">
-                  {Object.entries(EPOCHS[epoch + 1].cost).map(([resource, cost]) => (
+                  {Object.entries(nextEpochInfo.cost).map(([resource, cost]) => (
                     <span
                       key={resource}
                       className={`text-xs px-2 py-1 rounded ${
@@ -164,21 +194,27 @@ export const TechTab = ({
                     </span>
                   ))}
                 </div>
+                <div className="flex items-center justify-between text-xs mt-2">
+                  <span className="text-gray-400">银币成本</span>
+                  <span className={hasNextEpochSilver ? 'text-slate-100 font-semibold' : 'text-red-400 font-semibold'}>
+                    {formatSilverCost(nextEpochSilverCost)}
+                  </span>
+                </div>
               </div>
 
             <button
               onClick={onUpgradeEpoch}
-              disabled={!canUpgradeEpoch()}
+              disabled={!canUpgradeEpoch() || !hasNextEpochSilver}
               className={`w-full px-4 py-3 rounded-lg text-sm font-bold transition-all ${
-                canUpgradeEpoch()
+                canUpgradeEpoch() && hasNextEpochSilver
                   ? 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white shadow-lg'
                   : 'bg-gray-600 text-gray-400 cursor-not-allowed'
               }`}
             >
-              {canUpgradeEpoch() ? (
+              {canUpgradeEpoch() && hasNextEpochSilver ? (
                 <span className="flex items-center justify-center gap-2">
                   <Icon name="ArrowUp" size={16} />
-                  升级到 {EPOCHS[epoch + 1].name}
+                  升级到 {nextEpochInfo.name}
                 </span>
               ) : (
                 '条件不足'
@@ -222,6 +258,7 @@ export const TechTab = ({
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 ml-4">
                   {techs.map((tech) => {
                     const status = getTechStatus(tech);
+                    const silverCost = calculateSilverCost(tech.cost, market);
                     const affordable = canResearch(tech);
 
                     return (
@@ -257,20 +294,32 @@ export const TechTab = ({
 
                         {/* 研究成本 */}
                         {status !== 'unlocked' && (
-                          <div className="flex flex-wrap gap-1 mb-2">
-                            {Object.entries(tech.cost).map(([resource, cost]) => (
-                              <span
-                                key={resource}
-                                className={`text-xs px-1.5 py-0.5 rounded ${
-                                  (resources[resource] || 0) >= cost
-                                    ? 'bg-green-900/30 text-green-400'
-                                    : 'bg-red-900/30 text-red-400'
-                                }`}
-                              >
-                                {RESOURCES[resource]?.name || resource}: {cost}
+                          <>
+                            <div className="flex flex-wrap gap-1 mb-2">
+                              {Object.entries(tech.cost).map(([resource, cost]) => (
+                                <span
+                                  key={resource}
+                                  className={`text-xs px-1.5 py-0.5 rounded ${
+                                    (resources[resource] || 0) >= cost
+                                      ? 'bg-green-900/30 text-green-400'
+                                      : 'bg-red-900/30 text-red-400'
+                                  }`}
+                                >
+                                  {RESOURCES[resource]?.name || resource}: {cost}
+                                </span>
+                              ))}
+                            </div>
+                            <div className="flex items-center justify-between text-xs mb-2">
+                              <span className="text-gray-400">银币成本</span>
+                              <span className={
+                                (resources.silver || 0) >= silverCost
+                                  ? 'text-slate-100 font-semibold'
+                                  : 'text-red-400 font-semibold'
+                              }>
+                                {formatSilverCost(silverCost)}
                               </span>
-                            ))}
-                          </div>
+                            </div>
+                          </>
                         )}
 
                         {/* 研究按钮 */}

@@ -4,8 +4,8 @@
 import React from 'react';
 import { Icon } from '../common/UIComponents';
 import { UNIT_TYPES, calculateArmyAdminCost, calculateArmyPopulation, calculateArmyMaintenance } from '../../config/militaryUnits';
-import { EPOCHS } from '../../config/gameData';
 import { RESOURCES } from '../../config/gameConstants';
+import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
 
 /**
  * 军事标签页组件
@@ -36,6 +36,7 @@ export const MilitaryTab = ({
   onDisband,
   onSelectTarget,
   onLaunchBattle,
+  market,
 }) => {
   // 计算军队统计信息
   const totalUnits = Object.values(army).reduce((sum, count) => sum + count, 0);
@@ -57,6 +58,9 @@ export const MilitaryTab = ({
     for (let resource in unit.recruitCost) {
       if ((resources[resource] || 0) < unit.recruitCost[resource]) return false;
     }
+
+    const silverCost = calculateSilverCost(unit.recruitCost, market);
+    if ((resources.silver || 0) < silverCost) return false;
     
     // 检查行政力
     if (armyAdmin + unit.adminCost > adminCap) return false;
@@ -149,6 +153,7 @@ export const MilitaryTab = ({
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {Object.entries(UNIT_TYPES).filter(([_, unit]) => unit.epoch <= epoch).map(([unitId, unit]) => {
+            const silverCost = calculateSilverCost(unit.recruitCost, market);
             const affordable = canRecruit(unit);
 
             return (
@@ -210,6 +215,16 @@ export const MilitaryTab = ({
                       {RESOURCES[resource]?.name || resource}: {cost}
                     </span>
                   ))}
+                </div>
+                <div className="flex items-center justify-between text-xs mb-2">
+                  <span className="text-gray-400">银币成本</span>
+                  <span className={
+                    (resources.silver || 0) >= silverCost
+                      ? 'text-slate-100 font-semibold'
+                      : 'text-red-400 font-semibold'
+                  }>
+                    {formatSilverCost(silverCost)}
+                  </span>
                 </div>
 
                 {/* 操作按钮 */}

@@ -31,7 +31,7 @@ export const EPOCHS = [
     bg: "bg-orange-950", 
     tileColor: "bg-orange-800", 
     req: { science: 500, population: 20 },
-    cost: { food: 500, wood: 300, stone: 100, gold: 50 },
+    cost: { food: 500, wood: 300, stone: 100, silver: 50 },
     bonuses: { 
       desc: "掌握金属冶炼技术，生产效率提升。",
       gatherBonus: 0.15,      // 采集加成 +15%
@@ -45,7 +45,7 @@ export const EPOCHS = [
     bg: "bg-blue-950", 
     tileColor: "bg-blue-800", 
     req: { science: 2000, population: 100, culture: 500 },
-    cost: { food: 2000, wood: 1000, stone: 500, gold: 200, plank: 200 },
+    cost: { food: 2000, wood: 1000, stone: 500, silver: 200, plank: 200 },
     bonuses: { 
       desc: "建立封建制度，行政和文化发展加速。",
       gatherBonus: 0.25,      // 采集加成 +25%
@@ -60,7 +60,7 @@ export const EPOCHS = [
     bg: "bg-gray-800", 
     tileColor: "bg-gray-600", 
     req: { science: 10000, population: 500, culture: 2000 },
-    cost: { food: 5000, brick: 1000, iron: 500, gold: 500, plank: 500 },
+    cost: { food: 5000, brick: 1000, iron: 500, silver: 500, plank: 500 },
     bonuses: { 
       desc: "工业革命带来生产力飞跃。",
       gatherBonus: 0.4,       // 采集加成 +40%
@@ -75,7 +75,7 @@ export const EPOCHS = [
     bg: "bg-purple-950", 
     tileColor: "bg-purple-800", 
     req: { science: 50000, population: 2000, culture: 10000 },
-    cost: { food: 10000, brick: 2000, iron: 1000, gold: 1000, tools: 500 },
+    cost: { food: 10000, brick: 2000, iron: 1000, silver: 1000, tools: 500 },
     bonuses: { 
       desc: "信息技术革命，全面发展。",
       gatherBonus: 0.6,       // 采集加成 +60%

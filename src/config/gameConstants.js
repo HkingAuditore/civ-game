@@ -19,20 +19,20 @@ export const GAME_SPEEDS = [1, 2, 5];
  */
 export const RESOURCES = {
   // 基础资源
-  food: { name: "粮食", icon: 'Wheat', color: "text-yellow-400" },
-  wood: { name: "木材", icon: 'Trees', color: "text-emerald-400" },
-  stone: { name: "石料", icon: 'Pickaxe', color: "text-stone-400" },
+  food: { name: "粮食", icon: 'Wheat', color: "text-yellow-400", basePrice: 1, defaultOwner: 'peasant', unlockEpoch: 0 },
+  wood: { name: "木材", icon: 'Trees', color: "text-emerald-400", basePrice: 2, defaultOwner: 'lumberjack', unlockEpoch: 0 },
+  stone: { name: "石料", icon: 'Pickaxe', color: "text-stone-400", basePrice: 3, defaultOwner: 'miner', unlockEpoch: 0 },
   
   // 加工资源
-  plank: { name: "木板", icon: 'Hammer', color: "text-amber-600" },
-  brick: { name: "砖块", icon: 'Home', color: "text-red-400" },
-  iron: { name: "铁矿", icon: 'Pickaxe', color: "text-zinc-400" },
-  tools: { name: "工具", icon: 'Anvil', color: "text-blue-300" },
+  plank: { name: "木板", icon: 'Hammer', color: "text-amber-600", basePrice: 4, defaultOwner: 'worker', unlockEpoch: 0 },
+  brick: { name: "砖块", icon: 'Home', color: "text-red-400", basePrice: 5, defaultOwner: 'worker', unlockEpoch: 1 },
+  iron: { name: "铁矿", icon: 'Pickaxe', color: "text-zinc-400", basePrice: 6, defaultOwner: 'miner', unlockEpoch: 1 },
+  tools: { name: "工具", icon: 'Anvil', color: "text-blue-300", basePrice: 8, defaultOwner: 'capitalist', unlockEpoch: 3 },
   
   // 特殊资源
-  gold: { name: "黄金", icon: 'Crown', color: "text-yellow-300" },
-  science: { name: "科研", icon: 'Cpu', color: "text-cyan-400" },
-  culture: { name: "文化", icon: 'ScrollText', color: "text-pink-400" },
+  silver: { name: "银币", icon: 'Coins', color: "text-slate-200", type: 'currency', basePrice: 1, unlockEpoch: 0 },
+  science: { name: "科研", icon: 'Cpu', color: "text-cyan-400", basePrice: 10, defaultOwner: 'official', unlockEpoch: 0 },
+  culture: { name: "文化", icon: 'ScrollText', color: "text-pink-400", basePrice: 6, defaultOwner: 'cleric', unlockEpoch: 1 },
   
   // 虚拟资源
   admin: { name: "行政力", icon: 'Scale', color: "text-purple-300", type: 'virtual' },

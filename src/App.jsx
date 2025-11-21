@@ -1,7 +1,7 @@
 // 文明崛起 - 主应用文件
 // 使用拆分后的钩子和组件，保持代码简洁
 
-import React from 'react';
+import React, { useState } from 'react';
 import { GAME_SPEEDS, EPOCHS } from './config/gameData';
 import { useGameState, useGameLoop, useGameActions } from './hooks';
 import {
@@ -50,10 +50,12 @@ export default function RiseOfCivs() {
     }]);
     gameState.setResources(prev => ({ 
       ...prev, 
-      food: prev.food + 1, 
-      wood: prev.wood + 1 
+      silver: (prev.silver || 0) + 1 
     }));
   };
+
+  const [showTaxDetail, setShowTaxDetail] = useState(false);
+  const taxes = gameState.taxes || { total: 0, breakdown: { headTax: 0, industryTax: 0 }, efficiency: 1 };
 
   return (
     <div className={`min-h-screen font-sans text-gray-100 ${EPOCHS[gameState.epoch].bg} transition-colors duration-1000 pb-20`}>
@@ -90,8 +92,24 @@ export default function RiseOfCivs() {
             </div>
           </div>
 
-          {/* 行政力和人口显示 */}
-          <div className="flex items-center gap-4 bg-gray-800/50 px-4 py-1.5 rounded-full border border-gray-700">
+          {/* 财富、行政力和人口显示 */}
+          <div className="relative flex items-center gap-4 bg-gray-800/50 px-4 py-1.5 rounded-full border border-gray-700">
+            <div className="flex items-center gap-2" title="当前银币">
+              <Icon name="Coins" size={16} className="text-yellow-300" />
+              <span className="font-mono text-sm text-yellow-200">
+                {(gameState.resources.silver || 0).toFixed(0)} 银币
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowTaxDetail(prev => !prev)}
+                className="flex items-center gap-1 text-[11px] text-green-300 bg-green-900/20 px-2 py-0.5 rounded-full hover:bg-green-900/40 transition-colors"
+                title="查看税收详情"
+              >
+                <Icon name="TrendingUp" size={12} />
+                +{taxes.total.toFixed(2)}/s
+              </button>
+            </div>
+            <div className="w-px h-4 bg-gray-600"></div>
             <div className="flex gap-1" title="行政压力/容量">
               <Icon 
                 name="Scale" 
@@ -109,6 +127,35 @@ export default function RiseOfCivs() {
                 {gameState.population} / {gameState.maxPop}
               </span>
             </div>
+
+            {showTaxDetail && (
+              <div className="absolute top-full right-0 mt-2 w-64 bg-gray-900 border border-gray-700 rounded-lg p-3 shadow-xl">
+                <div className="flex items-center justify-between text-xs text-gray-300 mb-2">
+                  <span className="font-semibold">本轮税收</span>
+                  <span className="text-green-300 font-mono">+{taxes.total.toFixed(2)} 银币</span>
+                </div>
+                <div className="text-xs text-gray-400 space-y-1">
+                  <div className="flex justify-between">
+                    <span>人头税</span>
+                    <span className="text-yellow-200 font-mono">
+                      {taxes.breakdown?.headTax?.toFixed(2) || '0.00'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>产业税</span>
+                    <span className="text-yellow-200 font-mono">
+                      {taxes.breakdown?.industryTax?.toFixed(2) || '0.00'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>行政效率</span>
+                    <span className="text-blue-300 font-mono">
+                      {(taxes.efficiency * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* 游戏速度控制 */}
@@ -143,6 +190,7 @@ export default function RiseOfCivs() {
           <ResourcePanel 
             resources={gameState.resources} 
             rates={gameState.rates} 
+            market={gameState.market}
           />
 
           {/* 社会阶层面板 */}
@@ -154,6 +202,9 @@ export default function RiseOfCivs() {
             population={gameState.population}
             activeBuffs={gameState.activeBuffs}
             activeDebuffs={gameState.activeDebuffs}
+            classWealth={gameState.classWealth}
+            classWealthDelta={gameState.classWealthDelta}
+            classShortages={gameState.classShortages}
             onDetailClick={(key) => gameState.setStratumDetailView(key)}
           />
 
@@ -205,8 +256,11 @@ export default function RiseOfCivs() {
                   resources={gameState.resources}
                   epoch={gameState.epoch}
                   techsUnlocked={gameState.techsUnlocked}
+                  popStructure={gameState.popStructure}
+                  jobFill={gameState.jobFill}
                   onBuy={actions.buyBuilding}
                   onSell={actions.sellBuilding}
+                  market={gameState.market}
                 />
               )}
 
@@ -225,6 +279,7 @@ export default function RiseOfCivs() {
                   onDisband={actions.disbandUnit}
                   onSelectTarget={gameState.setSelectedTarget}
                   onLaunchBattle={actions.launchBattle}
+                  market={gameState.market}
                 />
               )}
 
@@ -238,6 +293,7 @@ export default function RiseOfCivs() {
                   onResearch={actions.researchTech}
                   onUpgradeEpoch={actions.upgradeEpoch}
                   canUpgradeEpoch={actions.canUpgradeEpoch}
+                  market={gameState.market}
                 />
               )}
 
@@ -246,6 +302,9 @@ export default function RiseOfCivs() {
                 <PoliticsTab
                   decrees={gameState.decrees}
                   onToggle={actions.toggleDecree}
+                  taxPolicies={gameState.taxPolicies}
+                  onUpdateTaxPolicies={gameState.setTaxPolicies}
+                  popStructure={gameState.popStructure}
                 />
               )}
 
@@ -253,6 +312,7 @@ export default function RiseOfCivs() {
               {gameState.activeTab === 'diplo' && (
                 <DiplomacyTab
                   nations={gameState.nations}
+                  onDiplomaticAction={actions.handleDiplomaticAction}
                 />
               )}
             </div>
@@ -294,6 +354,7 @@ export default function RiseOfCivs() {
           totalWealth={gameState.totalWealth}
           activeBuffs={gameState.activeBuffs}
           activeDebuffs={gameState.activeDebuffs}
+          epoch={gameState.epoch}
           onClose={() => gameState.setStratumDetailView(null)}
         />
       )}

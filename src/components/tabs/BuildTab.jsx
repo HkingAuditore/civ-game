@@ -3,9 +3,10 @@
 
 import React from 'react';
 import { Icon } from '../common/UIComponents';
-import { BUILDINGS, EPOCHS } from '../../config/gameData';
+import { BUILDINGS } from '../../config/gameData';
 import { RESOURCES } from '../../config/gameConstants';
-import { STRATA } from '../../config/strata'; // 添加STRATA导入
+import { STRATA } from '../../config/strata';
+import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
 
 /**
  * 建设标签页组件
@@ -22,8 +23,11 @@ export const BuildTab = ({
   resources, 
   epoch, 
   techsUnlocked, 
+  popStructure = {},
+  jobFill = {},
   onBuy, 
-  onSell 
+  onSell,
+  market,
 }) => {
   /**
    * 检查建筑是否可用
@@ -58,18 +62,6 @@ export const BuildTab = ({
     return cost;
   };
 
-  /**
-   * 检查是否能负担建筑
-   * @param {Object} cost - 成本对象
-   * @returns {boolean}
-   */
-  const canAfford = (cost) => {
-    for (let k in cost) {
-      if ((resources[k] || 0) < cost[k]) return false;
-    }
-    return true;
-  };
-
   // 按类别分组建筑
   const categories = {
     gather: { name: '采集与农业', icon: 'Wheat', color: 'text-yellow-400' },
@@ -95,7 +87,10 @@ export const BuildTab = ({
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {categoryBuildings.filter(b => isBuildingAvailable(b)).map(b => {
                 const cost = calculateCost(b);
-                const affordable = canAfford(cost);
+                const silverCost = calculateSilverCost(cost, market);
+                const hasMaterials = Object.entries(cost).every(([res, val]) => (resources[res] || 0) >= val);
+                const hasSilver = (resources.silver || 0) >= silverCost;
+                const affordable = hasMaterials && hasSilver;
                 const count = buildings[b.id] || 0;
                 const VisualIcon = Icon;
 
@@ -143,12 +138,34 @@ export const BuildTab = ({
                       ))}
                       
                       {/* 岗位 */}
-                      {b.jobs && Object.entries(b.jobs).map(([job, val]) => (
-                        <div key={job} className="flex items-center justify-between text-xs">
-                          <span className="text-gray-400">岗位:</span>
-                          <span className="text-blue-400">{val} {STRATA[job]?.name || job}</span>
+                      {b.jobs && (
+                        <div className="space-y-1">
+                          {Object.entries(b.jobs).map(([job, perBuilding]) => {
+                            const required = perBuilding * count;
+                            const assignedRaw = jobFill?.[b.id]?.[job] ?? 0;
+                            const assigned = Math.min(assignedRaw, required);
+                            const fillPercent = required > 0 ? Math.min(1, assigned / required) : 0;
+                            return (
+                              <div key={job}>
+                                <div className="flex items-center justify-between text-xs">
+                                  <span className="text-gray-400">
+                                    岗位: {STRATA[job]?.name || job}
+                                  </span>
+                                  <span className="text-blue-400 font-mono">
+                                    {assigned}/{required}
+                                  </span>
+                                </div>
+                                <div className="w-full bg-gray-600/60 rounded-full h-1.5">
+                                  <div
+                                    className="h-1.5 rounded-full bg-blue-400 transition-all"
+                                    style={{ width: `${fillPercent * 100}%` }}
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
-                      ))}
+                      )}
                     </div>
 
                     {/* 成本 */}
@@ -165,6 +182,13 @@ export const BuildTab = ({
                           {RESOURCES[res]?.name || res}: {val}
                         </span>
                       ))}
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs mb-2">
+                      <span className="text-gray-400">银币成本</span>
+                      <span className={hasSilver ? 'text-slate-100 font-semibold' : 'text-red-400 font-semibold'}>
+                        {formatSilverCost(silverCost)}
+                      </span>
                     </div>
 
                     {/* 操作按钮 */}
