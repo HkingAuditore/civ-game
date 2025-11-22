@@ -4,6 +4,8 @@
 import { useEffect, useRef } from 'react';
 import { simulateTick } from '../logic/simulation';
 import { calculateArmyMaintenance, UNIT_TYPES } from '../config';
+import { getRandomFestivalEffects } from '../config/festivalEffects';
+import { getCalendarInfo } from '../utils/calendar';
 
 /**
  * 游戏循环钩子
@@ -60,6 +62,11 @@ export const useGameLoop = (gameState, addLog) => {
     militaryWageRatio,
     classInfluenceShift,
     setClassInfluenceShift,
+    setFestivalModal,
+    activeFestivalEffects,
+    setActiveFestivalEffects,
+    lastFestivalYear,
+    setLastFestivalYear,
   } = gameState;
 
   // 使用ref保存最新状态，避免闭包问题
@@ -84,6 +91,8 @@ export const useGameLoop = (gameState, addLog) => {
     classApproval,
     nations,
     daysElapsed,
+    activeFestivalEffects,
+    lastFestivalYear,
   });
 
   useEffect(() => {
@@ -108,18 +117,39 @@ export const useGameLoop = (gameState, addLog) => {
       classApproval,
       nations,
       daysElapsed,
+      activeFestivalEffects,
+      lastFestivalYear,
     };
-  }, [resources, market, buildings, population, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, army, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, militaryWageRatio, classApproval, daysElapsed]);
+  }, [resources, market, buildings, population, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, army, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear]);
 
   // 游戏核心循环
   useEffect(() => {
     const timer = setInterval(() => {
       const current = stateRef.current;
       
+      // 检查是否需要触发年度庆典
+      // 修复：检测年份变化而非特定日期，避免加速模式下跳过触发点
+      const currentCalendar = getCalendarInfo(current.daysElapsed || 0);
+      const nextCalendar = getCalendarInfo((current.daysElapsed || 0) + current.gameSpeed);
+      
+      // 如果当前年份大于上次庆典年份，且即将跨越或已经跨越新年
+      if (currentCalendar.year > (current.lastFestivalYear || 0)) {
+        // 新的一年开始，触发庆典
+        const festivalOptions = getRandomFestivalEffects(current.epoch);
+        if (festivalOptions.length > 0) {
+          setFestivalModal({
+            options: festivalOptions,
+            year: currentCalendar.year
+          });
+          setLastFestivalYear(currentCalendar.year);
+        }
+      }
+      
       // 执行游戏模拟
       const result = simulateTick({
         ...current,
         tick: current.daysElapsed || 0,
+        activeFestivalEffects: current.activeFestivalEffects || [],
       });
 
       const maintenance = calculateArmyMaintenance(army);
@@ -200,6 +230,18 @@ export const useGameLoop = (gameState, addLog) => {
         setJobFill(result.jobFill);
       }
       setDaysElapsed(prev => prev + gameSpeed);
+      
+      // 更新庆典效果，移除过期的短期效果
+      if (activeFestivalEffects.length > 0) {
+        const updatedEffects = activeFestivalEffects.filter(effect => {
+          if (effect.type === 'permanent') return true;
+          const elapsedSinceActivation = (current.daysElapsed || 0) - (effect.activatedAt || 0);
+          return elapsedSinceActivation < (effect.duration || 360);
+        });
+        if (updatedEffects.length !== activeFestivalEffects.length) {
+          setActiveFestivalEffects(updatedEffects);
+        }
+      }
 
       setClassInfluenceShift(prev => {
         if (!prev || Object.keys(prev).length === 0) return prev || {};
@@ -254,5 +296,5 @@ export const useGameLoop = (gameState, addLog) => {
     }, 1000); // 每秒执行一次
 
     return () => clearInterval(timer);
-  }, [gameSpeed, army]); // 依赖游戏速度和军队状态
+  }, [gameSpeed, army, activeFestivalEffects, setFestivalModal, setActiveFestivalEffects, setLastFestivalYear, lastFestivalYear]); // 依赖游戏速度、军队状态和庆典相关状态
 };

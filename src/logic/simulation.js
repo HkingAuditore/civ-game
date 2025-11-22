@@ -71,6 +71,7 @@ export const simulateTick = ({
   nations = [],
   tick = 0,
   techsUnlocked = [],
+  activeFestivalEffects = [],
 }) => {
   const res = { ...resources };
   const priceMap = { ...(market?.prices || {}) };
@@ -160,6 +161,12 @@ export const simulateTick = ({
   decrees.forEach(decree => {
     if (!decree || !decree.active || !decree.modifiers) return;
     applyEffects(decree.modifiers);
+  });
+
+  // 应用庆典效果
+  activeFestivalEffects.forEach(festivalEffect => {
+    if (!festivalEffect || !festivalEffect.effects) return;
+    applyEffects(festivalEffect.effects);
   });
 
   const getPrice = (resource) => {
@@ -871,7 +878,7 @@ export const simulateTick = ({
     : 0;
 
   const sourceCandidate = activeRoleMetrics
-    .filter(r => r.pop > 0 && (r.perCap < averagePerCapWealth || r.perCapDelta < 0))
+    .filter(r => r.pop > 0 && (r.perCap < averagePerCapWealth * 0.8 || r.perCapDelta < -0.5))
     .reduce((lowest, current) => {
       if (!lowest) return current;
       if (current.perCap < lowest.perCap) return current;
@@ -882,7 +889,7 @@ export const simulateTick = ({
   let targetCandidate = null;
   if (sourceCandidate) {
     targetCandidate = activeRoleMetrics
-      .filter(r => r.vacancy > 0 && r.perCap > sourceCandidate.perCap && r.perCapDelta > sourceCandidate.perCapDelta)
+      .filter(r => r.vacancy > 0 && r.perCap > sourceCandidate.perCap)
       .reduce((best, current) => {
         if (!best) return current;
         if (current.perCap > best.perCap) return current;

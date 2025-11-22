@@ -19,6 +19,7 @@ import {
   DiplomacyTab,
   BattleResultModal,
   StratumDetailModal,
+  AnnualFestivalModal,
 } from './components';
 
 /**
@@ -28,6 +29,17 @@ import {
 export default function RiseOfCivs() {
   // 使用自定义钩子管理状态
   const gameState = useGameState();
+  
+  // 调试：检查gameState是否正确初始化
+  if (!gameState) {
+    console.error('gameState is null or undefined');
+    return <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+      <div className="text-center">
+        <h1 className="text-2xl font-bold mb-4">游戏状态初始化失败</h1>
+        <p>请检查浏览器控制台获取更多信息</p>
+      </div>
+    </div>;
+  }
   
   // 添加日志函数
   const addLog = (msg) => {
@@ -39,6 +51,26 @@ export default function RiseOfCivs() {
   
   // 使用操作函数钩子
   const actions = useGameActions(gameState, addLog);
+  
+  // 处理庆典效果选择
+  const handleFestivalSelect = (selectedEffect) => {
+    if (!selectedEffect) return;
+    
+    // 添加到激活的庆典效果列表
+    const effectWithTimestamp = {
+      ...selectedEffect,
+      activatedAt: gameState.daysElapsed || 0,
+    };
+    
+    gameState.setActiveFestivalEffects(prev => [...prev, effectWithTimestamp]);
+    
+    // 关闭模态框
+    gameState.setFestivalModal(null);
+    
+    // 添加日志
+    const effectType = selectedEffect.type === 'permanent' ? '永久' : '短期';
+    addLog(`🎊 庆典效果「${selectedEffect.name}」已激活！（${effectType}）`);
+  };
   
   // 手动采集函数
   const manualGather = (e) => {
@@ -405,6 +437,16 @@ export default function RiseOfCivs() {
             activeDebuffs={gameState.activeDebuffs}
             epoch={gameState.epoch}
           onClose={() => gameState.setStratumDetailView(null)}
+        />
+      )}
+
+      {/* 年度庆典模态框 */}
+      {gameState.festivalModal && (
+        <AnnualFestivalModal
+          festivalOptions={gameState.festivalModal.options}
+          year={gameState.festivalModal.year}
+          epoch={gameState.epoch}
+          onSelect={handleFestivalSelect}
         />
       )}
     </div>

@@ -3,7 +3,7 @@
 
 import React from 'react';
 import { Icon } from '../common/UIComponents';
-import { BUILDINGS, EPOCHS } from '../../config/gameData';
+import { BUILDINGS, EPOCHS } from '../../config';
 import { getIcon } from '../../config/iconMap';
 
 /**

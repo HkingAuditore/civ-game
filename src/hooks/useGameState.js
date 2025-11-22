@@ -149,6 +149,11 @@ export const useGameState = () => {
   const [battleResult, setBattleResult] = useState(null);
   const [militaryWageRatio, setMilitaryWageRatio] = useState(1.5);
 
+  // ========== 庆典系统状态 ==========
+  const [festivalModal, setFestivalModal] = useState(null); // { options: [], year: number }
+  const [activeFestivalEffects, setActiveFestivalEffects] = useState([]); // 激活的庆典效果
+  const [lastFestivalYear, setLastFestivalYear] = useState(0); // 上次庆典的年份
+
   // ========== UI状态 ==========
   const [logs, setLogs] = useState(["文明的黎明已至，第 1 年春季从这里开启，请分配你的人民工作吧。"]);
   const [clicks, setClicks] = useState([]);
@@ -248,6 +253,14 @@ export const useGameState = () => {
     setBattleResult,
     militaryWageRatio,
     setMilitaryWageRatio,
+    
+    // 庆典系统
+    festivalModal,
+    setFestivalModal,
+    activeFestivalEffects,
+    setActiveFestivalEffects,
+    lastFestivalYear,
+    setLastFestivalYear,
     
     // UI
     logs,

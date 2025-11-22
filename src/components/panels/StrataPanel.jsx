@@ -3,7 +3,7 @@
 
 import React from 'react';
 import { Icon } from '../common/UIComponents';
-import { STRATA, RESOURCES } from '../../config/gameData';
+import { STRATA, RESOURCES } from '../../config';
 import { formatEffectDetails } from '../../utils/effectFormatter';
 
 /**

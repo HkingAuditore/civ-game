@@ -3,7 +3,7 @@
 
 import React, { useState } from 'react';
 import { Icon } from '../common/UIComponents';
-import { RESOURCES } from '../../config/gameData';
+import { RESOURCES } from '../../config';
 
 /**
  * 资源面板组件
