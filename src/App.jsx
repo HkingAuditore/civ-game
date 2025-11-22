@@ -2,7 +2,7 @@
 // 使用拆分后的钩子和组件，保持代码简洁
 
 import React, { useState } from 'react';
-import { GAME_SPEEDS, EPOCHS, calculateArmyMaintenance } from './config';
+import { GAME_SPEEDS, EPOCHS, RESOURCES, calculateArmyFoodNeed } from './config';
 import { getCalendarInfo } from './utils/calendar';
 import { useGameState, useGameLoop, useGameActions } from './hooks';
 import {
@@ -91,8 +91,10 @@ export default function RiseOfCivs() {
   const taxes = gameState.taxes || { total: 0, breakdown: { headTax: 0, industryTax: 0 }, efficiency: 1 };
   const dayScale = Math.max(gameState.gameSpeed || 0, 0.0001);
   const taxesPerDay = taxes.total / dayScale;
-  const armyMaintenance = calculateArmyMaintenance(gameState.army || {});
-  const silverUpkeepPerDay = armyMaintenance.silver || 0;
+  const armyFoodNeed = calculateArmyFoodNeed(gameState.army || {});
+  const foodPrice = gameState.market?.prices?.food ?? (RESOURCES.food?.basePrice || 1);
+  const wageRatio = gameState.militaryWageRatio || 1;
+  const silverUpkeepPerDay = armyFoodNeed * foodPrice * wageRatio;
   const netSilverPerDay = taxesPerDay - silverUpkeepPerDay;
   const netSilverClass = netSilverPerDay >= 0 ? 'text-green-300' : 'text-red-300';
   const netChipClasses = netSilverPerDay >= 0
