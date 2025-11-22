@@ -97,13 +97,6 @@ export const simulateTick = ({
     headTax: 0,
     industryTax: 0,
   };
-  const requiresLocalProduction = (resKey) => {
-    const info = RESOURCES[resKey];
-    if (!info) return false;
-    if (info.unlockTech) return true;
-    if (typeof info.unlockEpoch === 'number' && info.unlockEpoch > 0) return true;
-    return false;
-  };
 
   const buildingBonuses = {};
   const categoryBonuses = { gather: 1, industry: 1, civic: 1, military: 1 };
@@ -577,6 +570,9 @@ export const simulateTick = ({
     const shortages = [];
 
     for (const [resKey, perCapita] of Object.entries(def.needs)) {
+      if (def.defaultResource && def.defaultResource === resKey) {
+        continue;
+      }
       const resourceInfo = RESOURCES[resKey];
       // Check if resource requires a technology to unlock
       if (resourceInfo && resourceInfo.unlockTech) {
@@ -588,7 +584,7 @@ export const simulateTick = ({
         // Fallback to epoch check for resources without tech requirement
         continue;
       }
-      if (requiresLocalProduction(resKey) && !producedResources.has(resKey)) {
+      if (!producedResources.has(resKey)) {
         continue;
       }
       const requirement = perCapita * count * gameSpeed;
