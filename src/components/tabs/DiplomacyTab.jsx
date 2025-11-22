@@ -60,9 +60,10 @@ export const DiplomacyTab = ({
   const totalAllies = visibleNations.filter((n) => (n.relation || 0) >= 80).length;
   const totalWars = visibleNations.filter((n) => n.isAtWar).length;
 
-  const handleTrade = (resourceKey) => {
+  const handleTrade = (resourceKey, isImport = false) => {
     if (!selectedNation || !onDiplomaticAction) return;
-    onDiplomaticAction(selectedNation.id, 'trade', { resource: resourceKey, amount: tradeAmount });
+    const action = isImport ? 'import' : 'trade';
+    onDiplomaticAction(selectedNation.id, action, { resource: resourceKey, amount: tradeAmount });
   };
 
   const handleSimpleAction = (nationId, action) => {
@@ -249,7 +250,7 @@ export const DiplomacyTab = ({
                       <tr className="text-gray-400">
                         <th className="text-left py-1">资源</th>
                         <th className="text-left py-1">本地价格</th>
-                        <th className="text-left py-1">收购价</th>
+                        <th className="text-left py-1">外国价格</th>
                         <th className="text-left py-1">差价</th>
                         <th className="text-right py-1">操作</th>
                       </tr>
@@ -280,12 +281,22 @@ export const DiplomacyTab = ({
                               {diff.toFixed(2)}
                             </td>
                             <td className="py-1 text-right">
-                              <button
-                                className="px-2 py-1 bg-teal-600 hover:bg-teal-500 rounded text-white flex items-center gap-1 ml-auto"
-                                onClick={() => handleTrade(key)}
-                              >
-                                <Icon name="ArrowUpRight" size={12} /> 出口
-                              </button>
+                              <div className="flex items-center gap-1 justify-end">
+                                <button
+                                  className="px-2 py-1 bg-teal-600 hover:bg-teal-500 rounded text-white flex items-center gap-1"
+                                  onClick={() => handleTrade(key, false)}
+                                  title="出口到外国市场"
+                                >
+                                  <Icon name="ArrowUpRight" size={12} /> 出口
+                                </button>
+                                <button
+                                  className="px-2 py-1 bg-purple-600 hover:bg-purple-500 rounded text-white flex items-center gap-1"
+                                  onClick={() => handleTrade(key, true)}
+                                  title="从外国市场进口"
+                                >
+                                  <Icon name="ArrowDownLeft" size={12} /> 进口
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );

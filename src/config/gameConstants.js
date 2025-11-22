@@ -19,31 +19,31 @@ export const GAME_SPEEDS = [1, 2, 5];
  */
 export const RESOURCES = {
   // 基础资源
-  food: { name: "粮食", icon: 'Wheat', color: "text-yellow-400", basePrice: 1, defaultOwner: 'peasant', unlockEpoch: 0 },
-  wood: { name: "木材", icon: 'Trees', color: "text-emerald-400", basePrice: 2, defaultOwner: 'lumberjack', unlockEpoch: 0 },
-  stone: { name: "石料", icon: 'Pickaxe', color: "text-stone-400", basePrice: 3, defaultOwner: 'miner', unlockEpoch: 0 },
+  food: { name: "粮食", icon: 'Wheat', color: "text-yellow-400", basePrice: 1.2, defaultOwner: 'peasant', unlockEpoch: 0 },
+  wood: { name: "木材", icon: 'Trees', color: "text-emerald-400", basePrice: 2.5, defaultOwner: 'lumberjack', unlockEpoch: 0 },
+  stone: { name: "石料", icon: 'Pickaxe', color: "text-stone-400", basePrice: 3.5, defaultOwner: 'miner', unlockEpoch: 0 },
   
   // 青铜时代资源
-  plank: { name: "木板", icon: 'Hammer', color: "text-amber-600", basePrice: 4, defaultOwner: 'worker', unlockEpoch: 1 },
-  brick: { name: "砖块", icon: 'Home', color: "text-red-400", basePrice: 5, defaultOwner: 'artisan', unlockEpoch: 1 },
-  copper: { name: "铜矿", icon: 'Pickaxe', color: "text-orange-400", basePrice: 6, defaultOwner: 'miner', unlockEpoch: 1 },
-  tools: { name: "工具", icon: 'Anvil', color: "text-blue-300", basePrice: 9, defaultOwner: 'artisan', unlockEpoch: 1 },
+  plank: { name: "木板", icon: 'Hammer', color: "text-amber-600", basePrice: 5, defaultOwner: 'worker', unlockEpoch: 1, unlockTech: 'tools' },
+  brick: { name: "砖块", icon: 'Home', color: "text-red-400", basePrice: 6, defaultOwner: 'artisan', unlockEpoch: 1, unlockTech: 'pottery' },
+  copper: { name: "铜矿", icon: 'Pickaxe', color: "text-orange-400", basePrice: 7, defaultOwner: 'miner', unlockEpoch: 1, unlockTech: 'copper_mining' },
+  tools: { name: "工具", icon: 'Anvil', color: "text-blue-300", basePrice: 10, defaultOwner: 'artisan', unlockEpoch: 1, unlockTech: 'bronze_working' },
   
   // 古典时代
-  papyrus: { name: "莎草纸", icon: 'ScrollText', color: "text-lime-300", basePrice: 7, defaultOwner: 'scribe', unlockEpoch: 2 },
+  papyrus: { name: "莎草纸", icon: 'ScrollText', color: "text-lime-300", basePrice: 8, defaultOwner: 'scribe', unlockEpoch: 2, unlockTech: 'papyrus_cultivation' },
   
   // 封建时代
-  iron: { name: "铁矿", icon: 'Pickaxe', color: "text-zinc-400", basePrice: 8, defaultOwner: 'miner', unlockEpoch: 3 },
+  iron: { name: "铁矿", icon: 'Pickaxe', color: "text-zinc-400", basePrice: 9, defaultOwner: 'miner', unlockEpoch: 3, unlockTech: 'ironworking' },
 
   // 探索时代
-  spice: { name: "香料", icon: 'Leaf', color: "text-amber-400", basePrice: 12, defaultOwner: 'merchant', unlockEpoch: 4 },
+  spice: { name: "香料", icon: 'Leaf', color: "text-amber-400", basePrice: 14, defaultOwner: 'merchant', unlockEpoch: 4, unlockTech: 'cartography' },
 
   // 启蒙时代
-  coffee: { name: "咖啡", icon: 'Coffee', color: "text-amber-700", basePrice: 10, defaultOwner: 'merchant', unlockEpoch: 5 },
+  coffee: { name: "咖啡", icon: 'Coffee', color: "text-amber-700", basePrice: 12, defaultOwner: 'merchant', unlockEpoch: 5, unlockTech: 'coffee_agronomy' },
 
   // 工业时代
-  coal: { name: "煤炭", icon: 'Flame', color: "text-slate-300", basePrice: 7, defaultOwner: 'miner', unlockEpoch: 6 },
-  steel: { name: "钢材", icon: 'Cog', color: "text-gray-300", basePrice: 14, defaultOwner: 'engineer', unlockEpoch: 6 },
+  coal: { name: "煤炭", icon: 'Flame', color: "text-slate-300", basePrice: 8, defaultOwner: 'miner', unlockEpoch: 6, unlockTech: 'coal_gasification' },
+  steel: { name: "钢材", icon: 'Cog', color: "text-gray-300", basePrice: 16, defaultOwner: 'engineer', unlockEpoch: 6, unlockTech: 'steel_alloys' },
   
   // 特殊资源
   silver: { name: "银币", icon: 'Coins', color: "text-slate-200", type: 'currency', basePrice: 1, unlockEpoch: 0 },

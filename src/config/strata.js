@@ -29,7 +29,8 @@ export const STRATA = {
     wealthWeight: 1,
     influenceBase: 0.5,
     startingWealth: 15,
-    needs: { food: 0.5, wood: 0.05,stone: 0.05 },
+    defaultResource: 'food',
+    needs: { food: 0.45, wood: 0.04, stone: 0.04 },
     buffs: {
       satisfied: { desc: "民心稳定", taxIncome: 0.1, production: 0.05 },
       dissatisfied: { desc: "民怨沸腾", taxIncome: -0.2, production: -0.1 }
@@ -47,6 +48,7 @@ export const STRATA = {
     wealthWeight: 1,
     influenceBase: 0.4,
     startingWealth: 18,
+    defaultResource: 'wood',
     needs: { food: 0.7, wood: 0.05, tools: 0.05 ,stone: 0.05},
     buffs: {
       satisfied: { desc: "林场顺畅", production: 0.06 },
@@ -65,6 +67,7 @@ export const STRATA = {
     wealthWeight: 0.5,
     influenceBase: 0.3,
     startingWealth: 8,
+    defaultResource: 'food',
     needs: { food: 0.4, wood: 0.05 },
     buffs: {
       satisfied: { desc: "佃农勤恳", production: 0.08 },
@@ -84,7 +87,8 @@ export const STRATA = {
     wealthWeight: 2,
     influenceBase: 1,
     startingWealth: 30,
-    needs: { food: 0.6, tools: 0.08 },
+    defaultResource: 'plank',
+    needs: { food: 0.55, tools: 0.07 },
     buffs: {
       satisfied: { desc: "工人积极", industryBonus: 0.15 },
       dissatisfied: { desc: "工人罢工", industryBonus: -0.25 }
@@ -102,7 +106,8 @@ export const STRATA = {
     wealthWeight: 2.5,
     influenceBase: 1.2,
     startingWealth: 45,
-    needs: { food: 0.6, tools: 0.12, brick: 0.05 },
+    defaultResource: 'tools',
+    needs: { food: 0.55, tools: 0.10, brick: 0.04 },
     buffs: {
       satisfied: { desc: "坊市繁盛", production: 0.1 },
       dissatisfied: { desc: "工坊停工", production: -0.15 }
@@ -120,6 +125,7 @@ export const STRATA = {
     wealthWeight: 1.5,
     influenceBase: 0.8,
     startingWealth: 25,
+    defaultResource: 'stone',
     needs: { food: 0.7, wood: 0.05, tools: 0.1},
     buffs: {
       satisfied: { desc: "矿脉稳定", gatherBonus: 0.1 },
@@ -134,17 +140,17 @@ export const STRATA = {
     tax: 5,
     headTaxBase: 0.09,
     admin: 2,
-    desc: "控制贸易网络的阶层，主宰港口与市场。",
+    desc: "控制贸易网络的阶层，主宽港口与市场。",
     wealthWeight: 8,
     influenceBase: 3.5,
     startingWealth: 150,
-    needs: { food: 0.5, culture: 0.2, tools: 0.05 },
+    defaultResource: 'spice',
+    needs: { food: 0.45, culture: 0.18, tools: 0.04 },
     buffs: {
       satisfied: { desc: "商贸兴隆", taxIncome: 0.15, gatherBonus: 0.05 },
       dissatisfied: { desc: "贸易停滞", taxIncome: -0.2, stability: -0.1 }
     }
   },
-
   navigator: {
     name: "领航者",
     icon: 'Compass',
@@ -156,6 +162,7 @@ export const STRATA = {
     wealthWeight: 3,
     influenceBase: 2.5,
     startingWealth: 80,
+    defaultResource: 'spice',
     needs: { food: 0.6, spice: 0.1, culture: 0.1 },
     buffs: {
       satisfied: { desc: "海权扩张", gatherBonus: 0.1 },
@@ -174,6 +181,7 @@ export const STRATA = {
     wealthWeight: 2.5,
     influenceBase: 1.5,
     startingWealth: 55,
+    defaultResource: 'papyrus',
     needs: { food: 0.5, papyrus: 0.1, culture: 0.2 },
     buffs: {
       satisfied: { desc: "文献井然", scienceBonus: 0.15 },
@@ -192,6 +200,7 @@ export const STRATA = {
     wealthWeight: 2,
     influenceBase: 2,
     startingWealth: 35,
+    defaultResource: 'tools',
     needs: { food: 0.8, tools: 0.1 },
     buffs: {
       satisfied: { desc: "军心稳固", militaryPower: 0.2 },
@@ -210,6 +219,7 @@ export const STRATA = {
     wealthWeight: 3,
     influenceBase: 3,
     startingWealth: 45,
+    defaultResource: 'culture',
     needs: { food: 0.5, culture: 1 },
     buffs: {
       satisfied: { desc: "宗教和谐", cultureBonus: 0.2, stability: 0.1 },
@@ -229,6 +239,7 @@ export const STRATA = {
     wealthWeight: 5,
     influenceBase: 4,
     startingWealth: 80,
+    defaultResource: 'science',
     needs: { food: 0.7, culture: 0.5, tools: 0.05 },
     buffs: {
       satisfied: { desc: "吏治清明", adminBonus: 5, taxIncome: 0.1 },
@@ -247,6 +258,7 @@ export const STRATA = {
     wealthWeight: 10,
     influenceBase: 5,
     startingWealth: 150,
+    defaultResource: 'food',
     needs: { food: 1, culture: 1, plank: 0.2 },
     buffs: {
       satisfied: { desc: "贵族支持", taxIncome: 0.15, stability: 0.15 },
@@ -265,6 +277,7 @@ export const STRATA = {
     wealthWeight: 20,
     influenceBase: 6,
     startingWealth: 200,
+    defaultResource: 'steel',
     needs: { food: 0.5, tools: 0.2, culture: 0.5 },
     buffs: {
       satisfied: { desc: "资本繁荣", industryBonus: 0.25, scienceBonus: 0.15 },
@@ -283,6 +296,7 @@ export const STRATA = {
     wealthWeight: 8,
     influenceBase: 4,
     startingWealth: 120,
+    defaultResource: 'tools',
     needs: { food: 1, culture: 0.5, tools: 0.2 },
     buffs: {
       satisfied: { desc: "骑士忠诚", militaryPower: 0.25, stability: 0.1 },
@@ -301,6 +315,7 @@ export const STRATA = {
     wealthWeight: 6,
     influenceBase: 3.5,
     startingWealth: 160,
+    defaultResource: 'steel',
     needs: { food: 0.7, tools: 0.2, coffee: 0.1 },
     buffs: {
       satisfied: { desc: "工艺革新", industryBonus: 0.2, scienceBonus: 0.1 },

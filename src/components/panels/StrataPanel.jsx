@@ -28,9 +28,9 @@ export const StrataPanel = ({
   onDetailClick 
 }) => {
   return (
-    <div className="bg-gray-800 p-3 rounded-lg border border-gray-700 shadow-lg min-h-[460px]">
+    <div className="bg-gray-800 p-3 rounded-lg border border-gray-700 shadow-lg min-h-[460px] flex flex-col">
       {/* 标题和稳定度 */}
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center justify-between mb-2 flex-shrink-0">
         <h3 className="text-sm font-bold text-gray-300 flex items-center gap-2">
           <Icon name="Users" size={16} />
           社会阶层
@@ -57,8 +57,8 @@ export const StrataPanel = ({
         </div>
       </div>
 
-      {/* 阶层列表 */}
-      <div className="space-y-1.5 max-h-[420px] overflow-y-auto pr-1">
+      {/* 阶层列表 - 使用自定义滚动条样式 */}
+      <div className="space-y-1 flex-1 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500" style={{ maxHeight: 'calc(100vh - 520px)', minHeight: '300px' }}>
         {Object.entries(STRATA).map(([key, info]) => {
           const count = popStructure[key] || 0;
           if (count === 0) return null;
@@ -83,37 +83,34 @@ export const StrataPanel = ({
           return (
             <div 
               key={key}
-              className="bg-gray-700/50 p-2 rounded hover:bg-gray-700 transition-colors cursor-pointer"
+              className="bg-gray-700/50 p-1.5 rounded hover:bg-gray-700 transition-colors cursor-pointer"
               onClick={() => onDetailClick && onDetailClick(key)}
             >
-              {/* 阶层名称和人口 */}
-              <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center gap-1.5">
-                  <Icon name={info.icon} size={14} className="text-gray-400" />
+              {/* 阶层名称、人口和好感度 - 合并为一行 */}
+              <div className="flex items-center justify-between mb-0.5">
+                <div className="flex items-center gap-1">
+                  <Icon name={info.icon} size={12} className="text-gray-400" />
                   <span className="text-xs font-semibold text-gray-200">
                     {info.name}
                   </span>
+                  <span className="text-[10px] text-gray-500">
+                    {count}人
+                  </span>
                 </div>
-                <span className="text-xs text-gray-400">
-                  {count}人
+                <span className={`text-[10px] font-semibold ${
+                  approval >= 70 ? 'text-green-400' :
+                  approval >= 40 ? 'text-yellow-400' :
+                  'text-red-400'
+                }`}>
+                  {approval.toFixed(0)}%
                 </span>
               </div>
 
-              {/* 好感度进度条 */}
-              <div className="mb-1">
-                <div className="flex items-center justify-between text-xs mb-0.5">
-                  <span className="text-gray-400">好感度</span>
-                  <span className={
-                    approval >= 70 ? 'text-green-400' :
-                    approval >= 40 ? 'text-yellow-400' :
-                    'text-red-400'
-                  }>
-                    {approval.toFixed(0)}%
-                  </span>
-                </div>
-                <div className="w-full bg-gray-600 rounded-full h-1.5">
+              {/* 好感度进度条 - 更细 */}
+              <div className="mb-0.5">
+                <div className="w-full bg-gray-600 rounded-full h-1">
                   <div 
-                    className={`h-1.5 rounded-full transition-all ${
+                    className={`h-1 rounded-full transition-all ${
                       approval >= 70 ? 'bg-green-500' :
                       approval >= 40 ? 'bg-yellow-500' :
                       'bg-red-500'
@@ -123,45 +120,39 @@ export const StrataPanel = ({
                 </div>
               </div>
 
-              {/* 影响力 */}
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-gray-400">影响力</span>
-                <span className="text-purple-400 font-semibold">
-                  {influence.toFixed(1)}
-                </span>
-              </div>
-
-              {/* 财富信息 */}
-              <div className="flex items-center justify-between text-xs mt-1">
-                <span className="text-gray-400 flex items-center gap-1">
-                  <Icon name="Coins" size={12} className="text-yellow-400" />
-                  财富
-                </span>
-                <div className="flex flex-col items-end text-right font-mono leading-tight">
-                  <span className="text-gray-200 text-sm">{wealthValue.toFixed(1)}</span>
-                  <span className={`${deltaColor} text-[11px]`}>
-                    {wealthDelta > 0 ? '+' : ''}{wealthDelta.toFixed(1)} ({rateText})
+              {/* 影响力和财富 - 合并为一行 */}
+              <div className="flex items-center justify-between text-[10px] mb-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-400">影响</span>
+                  <span className="text-purple-400 font-semibold">
+                    {influence.toFixed(1)}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Icon name="Coins" size={10} className="text-yellow-400" />
+                  <span className="text-gray-200 font-mono">{wealthValue.toFixed(1)}</span>
+                  <span className={`${deltaColor} font-mono`}>
+                    {wealthDelta > 0 ? '+' : ''}{wealthDelta.toFixed(1)}
                   </span>
                 </div>
               </div>
 
-              {/* 短缺资源提示 */}
+              {/* 短缺资源提示 - 更紧凑 */}
               {shortages.length > 0 && (
-                <div className="flex items-center gap-1 text-[11px] text-red-300 mt-1 flex-wrap">
-                  <Icon name="AlertTriangle" size={12} className="text-red-400" />
-                  <span>短缺:</span>
-                  <div className="flex items-center gap-1 flex-wrap">
+                <div className="flex items-center gap-0.5 text-[10px] text-red-300 flex-wrap">
+                  <Icon name="AlertTriangle" size={10} className="text-red-400" />
+                  <div className="flex items-center gap-0.5 flex-wrap">
                     {shortages.map(resKey => {
                       const res = RESOURCES[resKey];
                       return (
                         <span
                           key={`${key}-${resKey}`}
-                          className="px-1 py-0.5 bg-gray-800/60 rounded flex items-center"
+                          className="px-0.5 py-0.5 bg-gray-800/60 rounded flex items-center"
                           title={`${res?.name || resKey} 供应不足`}
                         >
                           <Icon
                             name={res?.icon || 'HelpCircle'}
-                            size={11}
+                            size={10}
                             className="text-red-300"
                           />
                         </span>
@@ -175,23 +166,23 @@ export const StrataPanel = ({
         })}
       </div>
 
-      {/* 当前效果 */}
-      <div className="mt-2 pt-2 border-t border-gray-700">
-        <h4 className="text-xs font-bold text-gray-400 mb-1.5 flex items-center gap-1.5">
-          <Icon name="Activity" size={14} />
+      {/* 当前效果 - 更紧凑 */}
+      <div className="mt-1.5 pt-1.5 border-t border-gray-700 flex-shrink-0">
+        <h4 className="text-[10px] font-bold text-gray-400 mb-1 flex items-center gap-1">
+          <Icon name="Activity" size={12} />
           当前效果
         </h4>
-        <div className="space-y-1 text-xs max-h-24 overflow-y-auto pr-1">
+        <div className="space-y-0.5 text-[10px] max-h-20 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
           {activeBuffs.map((buff, index) => {
             const details = formatEffectDetails(buff);
             return (
-              <div key={`buff-${index}`} className="text-green-400">
-                <div className="flex items-center gap-1.5">
-                  <Icon name="ArrowUp" size={12} />
+              <div key={`buff-${index}`} className="text-green-400 leading-tight">
+                <div className="flex items-center gap-1">
+                  <Icon name="ArrowUp" size={10} />
                   <span className="font-semibold">{buff.desc || '满意加成'}</span>
                 </div>
                 {details.length > 0 && (
-                  <div className="text-gray-300 ml-4">{details.join('，')}</div>
+                  <div className="text-gray-300 ml-3 text-[9px]">{details.join('，')}</div>
                 )}
               </div>
             );
@@ -199,29 +190,29 @@ export const StrataPanel = ({
           {activeDebuffs.map((debuff, index) => {
             const details = formatEffectDetails(debuff);
             return (
-              <div key={`debuff-${index}`} className="text-red-400">
-                <div className="flex items-center gap-1.5">
-                  <Icon name="ArrowDown" size={12} />
+              <div key={`debuff-${index}`} className="text-red-400 leading-tight">
+                <div className="flex items-center gap-1">
+                  <Icon name="ArrowDown" size={10} />
                   <span className="font-semibold">{debuff.desc || '不满惩罚'}</span>
                 </div>
                 {details.length > 0 && (
-                  <div className="text-gray-300 ml-4">{details.join('，')}</div>
+                  <div className="text-gray-300 ml-3 text-[9px]">{details.join('，')}</div>
                 )}
               </div>
             );
           })}
           {activeBuffs.length === 0 && activeDebuffs.length === 0 && (
-            <span className="text-gray-500 text-xs italic">无有效效果</span>
+            <span className="text-gray-500 text-[10px] italic">无有效效果</span>
           )}
         </div>
       </div>
 
-      {/* 查看详情按钮 */}
+      {/* 查看详情按钮 - 更紧凑 */}
       <button
         onClick={() => onDetailClick && onDetailClick('all')}
-        className="w-full mt-2 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs rounded transition-colors flex items-center justify-center gap-1"
+        className="w-full mt-1.5 px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 text-[10px] rounded transition-colors flex items-center justify-center gap-1 flex-shrink-0"
       >
-        <Icon name="Info" size={12} />
+        <Icon name="Info" size={10} />
         查看详细信息
       </button>
     </div>

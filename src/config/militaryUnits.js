@@ -12,14 +12,14 @@ export const UNIT_TYPES = {
     category: 'infantry',
     
     // 基础属性
-    attack: 5,
-    defense: 3,
+    attack: 6,
+    defense: 4,
     speed: 3,
     range: 1,
     
     // 成本
-    recruitCost: { food: 20, wood: 10 },
-    maintenanceCost: { food: 0.3, silver: 0.1 },
+    recruitCost: { food: 25, wood: 12 },
+    maintenanceCost: { food: 0.35, silver: 0.12 },
     trainingTime: 2, // 秒
     
     // 限制
@@ -69,13 +69,13 @@ export const UNIT_TYPES = {
     icon: 'Swords',
     category: 'infantry',
     
-    attack: 10,
-    defense: 8,
+    attack: 12,
+    defense: 9,
     speed: 3,
     range: 1,
     
-    recruitCost: { food: 50, wood: 30, iron: 10 },
-    maintenanceCost: { food: 0.5, silver: 0.3 },
+    recruitCost: { food: 55, wood: 35, iron: 12 },
+    maintenanceCost: { food: 0.55, silver: 0.35 },
     trainingTime: 4,
     
     adminCost: 2,
@@ -95,13 +95,13 @@ export const UNIT_TYPES = {
     icon: 'Target',
     category: 'archer',
     
-    attack: 12,
-    defense: 5,
+    attack: 14,
+    defense: 6,
     speed: 4,
     range: 4,
     
-    recruitCost: { food: 60, wood: 40, silver: 20 },
-    maintenanceCost: { food: 0.6, silver: 0.4 },
+    recruitCost: { food: 65, wood: 45, silver: 25 },
+    maintenanceCost: { food: 0.65, silver: 0.45 },
     trainingTime: 5,
     
     adminCost: 2.5,
@@ -200,13 +200,13 @@ export const UNIT_TYPES = {
     icon: 'Shield',
     category: 'cavalry',
     
-    attack: 25,
-    defense: 18,
+    attack: 28,
+    defense: 20,
     speed: 6,
     range: 1,
     
-    recruitCost: { food: 200, iron: 80, silver: 120 },
-    maintenanceCost: { food: 1.5, silver: 1.2 },
+    recruitCost: { food: 220, iron: 90, silver: 140 },
+    maintenanceCost: { food: 1.6, silver: 1.3 },
     trainingTime: 10,
     
     adminCost: 5,
@@ -327,18 +327,18 @@ export const UNIT_TYPES = {
   tank: {
     id: 'tank',
     name: '坦克',
-    desc: '装甲战车，强大的攻击和防御。',
+    desc: '装甲战车，强大的政击和防御。',
     epoch: 4,
     icon: 'Truck',
     category: 'cavalry',
     
-    attack: 60,
-    defense: 40,
+    attack: 65,
+    defense: 45,
     speed: 5,
     range: 3,
     
-    recruitCost: { food: 500, iron: 300, tools: 150, silver: 400, science: 100 },
-    maintenanceCost: { food: 2.0, silver: 2.5, tools: 0.5 },
+    recruitCost: { food: 550, iron: 350, tools: 180, silver: 450, science: 120 },
+    maintenanceCost: { food: 2.2, silver: 2.8, tools: 0.6 },
     trainingTime: 20,
     
     adminCost: 10,
@@ -349,7 +349,6 @@ export const UNIT_TYPES = {
     counters: { infantry: 2.0, cavalry: 1.5, archer: 1.8 },
     weakAgainst: []
   },
-
   artillery: {
     id: 'artillery',
     name: '现代火炮',

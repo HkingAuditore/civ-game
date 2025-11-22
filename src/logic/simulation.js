@@ -543,7 +543,14 @@ export const simulateTick = ({
 
     for (const [resKey, perCapita] of Object.entries(def.needs)) {
       const resourceInfo = RESOURCES[resKey];
-      if (resourceInfo && typeof resourceInfo.unlockEpoch === 'number' && resourceInfo.unlockEpoch > epoch) {
+      // Check if resource requires a technology to unlock
+      if (resourceInfo && resourceInfo.unlockTech) {
+        // Skip this resource if the required tech is not unlocked
+        if (!techsUnlocked.includes(resourceInfo.unlockTech)) {
+          continue;
+        }
+      } else if (resourceInfo && typeof resourceInfo.unlockEpoch === 'number' && resourceInfo.unlockEpoch > epoch) {
+        // Fallback to epoch check for resources without tech requirement
         continue;
       }
       const requirement = perCapita * count * gameSpeed;
@@ -652,6 +659,21 @@ export const simulateTick = ({
       approval -= penalty;
     }
 
+    // Tax rate effects on approval (wealth-sensitive)
+    const headTaxRate = getHeadTaxRate(key);
+    const perCapitaWealth = (wealth[key] || 0) / Math.max(1, count);
+    // Wealth sensitivity factor: 0.5 (poor, very sensitive) to 1.5 (rich, less sensitive)
+    // Base threshold at 10 silver per capita
+    const wealthFactor = Math.max(0.5, Math.min(1.5, perCapitaWealth / 10));
+    
+    if (headTaxRate < 0.5) {
+      approval += Math.round(5 / wealthFactor); // Poor benefit more from low tax
+    } else if (headTaxRate > 1.5) {
+      approval -= Math.round(15 * wealthFactor); // Rich less affected by high tax
+    } else if (headTaxRate > 1.2) {
+      approval -= Math.round(8 * wealthFactor); // Rich less affected by medium-high tax
+    }
+
     classApproval[key] = Math.max(0, Math.min(100, approval));
   });
 
@@ -696,11 +718,12 @@ export const simulateTick = ({
     const count = popStructure[key] || 0;
     if (count === 0) return;
     const approval = classApproval[key] || 50;
-    if (approval >= 30) return;
+    if (approval >= 25) return;
     const influenceShare = totalInfluence > 0 ? (classInfluence[key] || 0) / totalInfluence : 0;
     const className = STRATA[key]?.name || key;
-    if (approval < 25 && influenceShare < 0.07) {
-      const leaving = Math.min(count, Math.max(1, Math.floor(count * 0.12)));
+    if (approval < 20 && influenceShare < 0.07) {
+      const leavingRate = Math.max(0.03, (20 - approval) / 200);
+      const leaving = Math.min(count, Math.max(1, Math.floor(count * leavingRate)));
       exodusPopulationLoss += leaving;
       logs.push(`${className} 阶层对政局失望，${leaving} 人离开了国家。`);
     } else if (influenceShare >= 0.12) {
@@ -799,11 +822,12 @@ export const simulateTick = ({
     return next;
   });
 
-  if ((res.food || 0) > population * 2 && population < totalMaxPop) {
-    const growthBonus = Math.max(0, (stabilityValue - 50) / 200);
-    const threshold = Math.max(0.3, 0.8 - Math.min(0.3, growthBonus));
+  if ((res.food || 0) > population * 1.5 && population < totalMaxPop) {
+    const growthBonus = Math.max(0, (stabilityValue - 50) / 150);
+    const threshold = Math.max(0.15, 0.5 - Math.min(0.35, growthBonus));
     if (Math.random() > threshold) {
-      nextPopulation = Math.min(totalMaxPop, nextPopulation + 1);
+      const growthAmount = Math.min(3, Math.max(1, Math.floor(population * 0.02)));
+      nextPopulation = Math.min(totalMaxPop, nextPopulation + growthAmount);
     }
   }
   if ((res.food || 0) <= 0) {
@@ -863,37 +887,52 @@ export const simulateTick = ({
     const delta = wealthNow - prevWealth;
     const perCap = pop > 0 ? wealthNow / pop : 0;
     const perCapDelta = pop > 0 ? delta / pop : 0;
+    
+    // Calculate potential income based on resource production and prices
+    let potentialIncome = 0;
+    const roleDef = STRATA[role];
+    if (roleDef && roleDef.defaultResource) {
+      const resourcePrice = getPrice(roleDef.defaultResource);
+      const basePrice = getBasePrice(roleDef.defaultResource);
+      // Higher price means more attractive job
+      const priceMultiplier = resourcePrice / basePrice;
+      potentialIncome = perCap * priceMultiplier;
+    } else {
+      potentialIncome = perCap;
+    }
+    
     return {
       role,
       pop,
       perCap,
       perCapDelta,
+      potentialIncome,
       vacancy: roleVacancies[role] || 0,
     };
   });
 
   const totalMigratablePop = activeRoleMetrics.reduce((sum, r) => r.pop > 0 ? sum + r.pop : sum, 0);
-  const averagePerCapWealth = totalMigratablePop > 0
-    ? activeRoleMetrics.reduce((sum, r) => sum + (r.perCap * r.pop), 0) / totalMigratablePop
+  const averagePotentialIncome = totalMigratablePop > 0
+    ? activeRoleMetrics.reduce((sum, r) => sum + (r.potentialIncome * r.pop), 0) / totalMigratablePop
     : 0;
 
   const sourceCandidate = activeRoleMetrics
-    .filter(r => r.pop > 0 && (r.perCap < averagePerCapWealth * 0.8 || r.perCapDelta < -0.5))
+    .filter(r => r.pop > 0 && (r.potentialIncome < averagePotentialIncome * 0.7 || r.perCapDelta < -0.5))
     .reduce((lowest, current) => {
       if (!lowest) return current;
-      if (current.perCap < lowest.perCap) return current;
-      if (current.perCap === lowest.perCap && current.perCapDelta < lowest.perCapDelta) return current;
+      if (current.potentialIncome < lowest.potentialIncome) return current;
+      if (current.potentialIncome === lowest.potentialIncome && current.perCapDelta < lowest.perCapDelta) return current;
       return lowest;
     }, null);
 
   let targetCandidate = null;
   if (sourceCandidate) {
     targetCandidate = activeRoleMetrics
-      .filter(r => r.vacancy > 0 && r.perCap > sourceCandidate.perCap)
+      .filter(r => r.vacancy > 0 && r.potentialIncome > sourceCandidate.potentialIncome * 1.2)
       .reduce((best, current) => {
         if (!best) return current;
-        if (current.perCap > best.perCap) return current;
-        if (current.perCap === best.perCap && current.perCapDelta > best.perCapDelta) return current;
+        if (current.potentialIncome > best.potentialIncome) return current;
+        if (current.potentialIncome === best.potentialIncome && current.perCapDelta > best.perCapDelta) return current;
         return best;
       }, null);
   }

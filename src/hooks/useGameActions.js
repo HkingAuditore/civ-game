@@ -507,17 +507,13 @@ export const useGameActions = (gameState, addLog) => {
           return;
         }
         const localPrice = getMarketPrice(resourceKey);
-        const cost = localPrice * amount;
-        if ((resources.silver || 0) < cost) {
-          addLog('银币不足，无法在本地市场买入。');
-          return;
-        }
         const foreignPrice = calculateForeignPrice(resourceKey, targetNation, daysElapsed);
         const payout = Math.min(targetNation.wealth || 0, foreignPrice * amount);
-        const profit = payout - cost;
+        const profit = payout;
+        const profitPerUnit = foreignPrice - localPrice;
         setResources(prev => ({
           ...prev,
-          silver: prev.silver - cost + payout,
+          silver: prev.silver + payout,
           [resourceKey]: Math.max(0, (prev[resourceKey] || 0) - amount),
         }));
         setNations(prev => prev.map(n =>
@@ -525,11 +521,44 @@ export const useGameActions = (gameState, addLog) => {
             ? {
                 ...n,
                 wealth: Math.max(0, (n.wealth || 0) - payout),
-                relation: clampRelation((n.relation || 0) + (profit > 0 ? 2 : 0)),
+                relation: clampRelation((n.relation || 0) + (profitPerUnit > 0 ? 2 : 0)),
               }
             : n
         ));
-        addLog(`向 ${targetNation.name} 出口 ${amount}${RESOURCES[resourceKey].name}，净收益 ${profit >= 0 ? '+' : ''}${profit.toFixed(1)} 银币。`);
+        addLog(`向 ${targetNation.name} 出口 ${amount}${RESOURCES[resourceKey].name}，收入 ${profit.toFixed(1)} 银币（单价差 ${profitPerUnit >= 0 ? '+' : ''}${profitPerUnit.toFixed(2)}）。`);
+        break;
+      }
+
+      case 'import': {
+        const resourceKey = payload.resource;
+        const amount = Math.max(1, Math.floor(payload.amount || 5));
+        if (!resourceKey || !RESOURCES[resourceKey] || RESOURCES[resourceKey].type === 'virtual' || resourceKey === 'silver') {
+          addLog('该资源无法进行套利贸易。');
+          return;
+        }
+        const localPrice = getMarketPrice(resourceKey);
+        const foreignPrice = calculateForeignPrice(resourceKey, targetNation, daysElapsed);
+        const cost = foreignPrice * amount;
+        if ((resources.silver || 0) < cost) {
+          addLog('银币不足，无法从外国进口。');
+          return;
+        }
+        const profitPerUnit = localPrice - foreignPrice;
+        setResources(prev => ({
+          ...prev,
+          silver: prev.silver - cost,
+          [resourceKey]: (prev[resourceKey] || 0) + amount,
+        }));
+        setNations(prev => prev.map(n =>
+          n.id === nationId
+            ? {
+                ...n,
+                wealth: (n.wealth || 0) + cost,
+                relation: clampRelation((n.relation || 0) + (profitPerUnit > 0 ? 2 : 0)),
+              }
+            : n
+        ));
+        addLog(`从 ${targetNation.name} 进口 ${amount}${RESOURCES[resourceKey].name}，支出 ${cost.toFixed(1)} 银币（单价差 ${profitPerUnit >= 0 ? '+' : ''}${profitPerUnit.toFixed(2)}）。`);
         break;
       }
 

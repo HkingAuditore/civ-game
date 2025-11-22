@@ -30,8 +30,8 @@ export const EPOCHS = [
     color: "text-orange-400", 
     bg: "bg-orange-950", 
     tileColor: "bg-orange-800", 
-    req: { science: 500, population: 20 },
-    cost: { food: 500, wood: 300, stone: 100, silver: 50 },
+    req: { science: 600, population: 25 },
+    cost: { food: 600, wood: 350, stone: 120, silver: 60 },
     bonuses: { 
       desc: "掌握青铜冶炼与畜力生产，采集效率提升。",
       gatherBonus: 0.15,
@@ -44,8 +44,8 @@ export const EPOCHS = [
     color: "text-amber-300", 
     bg: "bg-amber-900", 
     tileColor: "bg-amber-700", 
-    req: { science: 1500, population: 80, culture: 200 },
-    cost: { food: 800, wood: 400, brick: 150, silver: 200, tools: 50 },
+    req: { science: 1800, population: 90, culture: 250 },
+    cost: { food: 1000, wood: 500, brick: 180, silver: 250, tools: 60 },
     bonuses: { 
       desc: "城邦理性与文化盛开，基础设施大幅改善。",
       gatherBonus: 0.2,
@@ -59,8 +59,8 @@ export const EPOCHS = [
     color: "text-blue-400", 
     bg: "bg-blue-950", 
     tileColor: "bg-blue-800", 
-    req: { science: 4000, population: 150, culture: 500 },
-    cost: { food: 1500, wood: 800, brick: 400, iron: 200, papyrus: 80, silver: 250 },
+    req: { science: 4500, population: 170, culture: 600 },
+    cost: { food: 1800, wood: 1000, brick: 500, iron: 250, papyrus: 100, silver: 300 },
     bonuses: { 
       desc: "骑士与庄园秩序成熟，行政和文化发展加速。",
       gatherBonus: 0.25,
@@ -74,8 +74,8 @@ export const EPOCHS = [
     color: "text-cyan-300", 
     bg: "bg-cyan-900", 
     tileColor: "bg-cyan-700", 
-    req: { science: 7000, population: 280, culture: 1200 },
-    cost: { food: 2200, plank: 600, brick: 500, iron: 300, silver: 350 },
+    req: { science: 8000, population: 320, culture: 1400 },
+    cost: { food: 2600, plank: 700, brick: 600, iron: 350, silver: 400 },
     bonuses: { 
       desc: "远洋航行拓展视野，贸易与军事齐头并进。",
       gatherBonus: 0.3,
