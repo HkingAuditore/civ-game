@@ -3,7 +3,7 @@
 
 import React from 'react';
 import { Icon } from '../common/UIComponents';
-import { TECHS, EPOCHS } from '../../config';
+import { TECHS, EPOCHS, BUILDINGS } from '../../config';
 import { RESOURCES } from '../../config';
 import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
 
@@ -24,6 +24,14 @@ const formatBonusValue = (key, value) => {
   const numeric = typeof value === 'number' ? value : Number(value) || 0;
   return `${numeric > 0 ? '+' : ''}${(numeric * 100).toFixed(0)}%`;
 };
+
+const TECH_BUILDING_UNLOCKS = BUILDINGS.reduce((acc, building) => {
+  if (!building.requiresTech) return acc;
+  const techId = building.requiresTech;
+  if (!acc[techId]) acc[techId] = [];
+  acc[techId].push(building.name || building.id);
+  return acc;
+}, {});
 
 /**
  * 科技标签页组件
@@ -282,6 +290,11 @@ export const TechTab = ({
                               )}
                             </h5>
                             <p className="text-xs text-gray-400 mt-1">{tech.desc}</p>
+                            {TECH_BUILDING_UNLOCKS[tech.id]?.length > 0 && (
+                              <p className="text-[11px] text-amber-300 mt-1">
+                                解锁建筑：{TECH_BUILDING_UNLOCKS[tech.id].join('、')}
+                              </p>
+                            )}
                           </div>
                         </div>
 

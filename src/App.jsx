@@ -2,7 +2,7 @@
 // 使用拆分后的钩子和组件，保持代码简洁
 
 import React, { useState } from 'react';
-import { GAME_SPEEDS, EPOCHS } from './config';
+import { GAME_SPEEDS, EPOCHS, calculateArmyMaintenance } from './config';
 import { getCalendarInfo } from './utils/calendar';
 import { useGameState, useGameLoop, useGameActions } from './hooks';
 import {
@@ -91,6 +91,14 @@ export default function RiseOfCivs() {
   const taxes = gameState.taxes || { total: 0, breakdown: { headTax: 0, industryTax: 0 }, efficiency: 1 };
   const dayScale = Math.max(gameState.gameSpeed || 0, 0.0001);
   const taxesPerDay = taxes.total / dayScale;
+  const armyMaintenance = calculateArmyMaintenance(gameState.army || {});
+  const silverUpkeepPerDay = armyMaintenance.silver || 0;
+  const netSilverPerDay = taxesPerDay - silverUpkeepPerDay;
+  const netSilverClass = netSilverPerDay >= 0 ? 'text-green-300' : 'text-red-300';
+  const netChipClasses = netSilverPerDay >= 0
+    ? 'text-green-300 bg-green-900/20 hover:bg-green-900/40'
+    : 'text-red-300 bg-red-900/20 hover:bg-red-900/40';
+  const netTrendIcon = netSilverPerDay >= 0 ? 'TrendingUp' : 'TrendingDown';
   const calendar = getCalendarInfo(gameState.daysElapsed || 0);
 
   return (
@@ -153,11 +161,14 @@ export default function RiseOfCivs() {
               <button
                 type="button"
                 onClick={() => setShowTaxDetail(prev => !prev)}
-                className="flex items-center gap-1 text-[11px] text-green-300 bg-green-900/20 px-2 py-0.5 rounded-full hover:bg-green-900/40 transition-colors"
-                title="查看税收详情"
+                className={`flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full transition-colors ${netChipClasses}`}
+                title="查看税收与支出详情"
               >
-                <Icon name="TrendingUp" size={12} />
-                +{taxesPerDay.toFixed(2)}/日
+                <Icon name={netTrendIcon} size={12} />
+                <span className="uppercase tracking-wide text-[10px] text-gray-300/80"></span>
+                <span className={`font-mono ${netSilverClass}`}>
+                  {netSilverPerDay >= 0 ? '+' : ''}{netSilverPerDay.toFixed(2)}/日
+                </span>
               </button>
             </div>
             <div className="w-px h-4 bg-gray-600"></div>
@@ -180,10 +191,12 @@ export default function RiseOfCivs() {
             </div>
 
             {showTaxDetail && (
-              <div className="absolute top-full right-0 mt-2 w-64 bg-gray-900 border border-gray-700 rounded-lg p-3 shadow-xl">
+              <div className="absolute top-full right-0 mt-2 w-64 bg-gray-900 border border-gray-700 rounded-lg p-3 shadow-xl z-30">
                 <div className="flex items-center justify-between text-xs text-gray-300 mb-2">
-                  <span className="font-semibold">本轮税收</span>
-                  <span className="text-green-300 font-mono">+{taxes.total.toFixed(2)} 银币</span>
+                  <span className="font-semibold">税收 - 支出 (每日日均)</span>
+                  <span className={`${netSilverClass} font-mono`}>
+                    {netSilverPerDay >= 0 ? '+' : ''}{netSilverPerDay.toFixed(2)} 银币
+                  </span>
                 </div>
                 <div className="text-xs text-gray-400 space-y-1">
                   <div className="flex justify-between">
@@ -199,9 +212,21 @@ export default function RiseOfCivs() {
                     </span>
                   </div>
                   <div className="flex justify-between">
+                    <span>军饷/维护</span>
+                    <span className="text-red-300 font-mono">
+                      -{silverUpkeepPerDay.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
                     <span>行政效率</span>
                     <span className="text-blue-300 font-mono">
                       {(taxes.efficiency * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>净收益</span>
+                    <span className={`${netSilverClass} font-mono`}>
+                      {netSilverPerDay >= 0 ? '+' : ''}{netSilverPerDay.toFixed(2)}
                     </span>
                   </div>
                 </div>

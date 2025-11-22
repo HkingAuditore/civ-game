@@ -134,10 +134,12 @@ export const BuildTab = ({
                       {b.jobs && (
                         <div className="space-y-1">
                           {Object.entries(b.jobs).map(([job, perBuilding]) => {
-                            const required = perBuilding * count;
+                            const requiredExact = perBuilding * count;
                             const assignedRaw = jobFill?.[b.id]?.[job] ?? 0;
-                            const assigned = Math.min(assignedRaw, required);
-                            const fillPercent = required > 0 ? Math.min(1, assigned / required) : 0;
+                            const assignedExact = Math.min(assignedRaw, requiredExact);
+                            const fillPercent = requiredExact > 0 ? Math.min(1, assignedExact / requiredExact) : 0;
+                            const requiredDisplay = Math.round(requiredExact);
+                            const assignedDisplay = Math.min(requiredDisplay, Math.round(assignedExact));
                             return (
                               <div key={job}>
                                 <div className="flex items-center justify-between text-xs">
@@ -145,7 +147,7 @@ export const BuildTab = ({
                                     岗位: {STRATA[job]?.name || job}
                                   </span>
                                   <span className="text-blue-400 font-mono">
-                                    {assigned}/{required}
+                                    {assignedDisplay}/{requiredDisplay}
                                   </span>
                                 </div>
                                 <div className="w-full bg-gray-600/60 rounded-full h-1.5">

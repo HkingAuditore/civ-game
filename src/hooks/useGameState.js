@@ -40,6 +40,14 @@ const buildInitialWealthHistory = () => {
   return history;
 };
 
+const buildInitialNeedsHistory = () => {
+  const history = {};
+  Object.keys(STRATA).forEach(key => {
+    history[key] = [];
+  });
+  return history;
+};
+
 const isTradable = (resourceKey) => {
   if (resourceKey === 'silver') return false;
   const def = RESOURCES[resourceKey];
@@ -126,6 +134,7 @@ export const useGameState = () => {
   const [classWealth, setClassWealth] = useState(buildInitialWealth());
   const [classWealthDelta, setClassWealthDelta] = useState({});
   const [classWealthHistory, setClassWealthHistory] = useState(buildInitialWealthHistory());
+  const [classNeedsHistory, setClassNeedsHistory] = useState(buildInitialNeedsHistory());
   const [totalInfluence, setTotalInfluence] = useState(0);
   const [totalWealth, setTotalWealth] = useState(0);
   const [activeBuffs, setActiveBuffs] = useState([]);
@@ -221,6 +230,8 @@ export const useGameState = () => {
     setClassWealthDelta,
     classWealthHistory,
     setClassWealthHistory,
+    classNeedsHistory,
+    setClassNeedsHistory,
     totalInfluence,
     setTotalInfluence,
     totalWealth,

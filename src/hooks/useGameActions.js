@@ -508,7 +508,7 @@ export const useGameActions = (gameState, addLog) => {
         }
         const localPrice = getMarketPrice(resourceKey);
         const foreignPrice = calculateForeignPrice(resourceKey, targetNation, daysElapsed);
-        const payout = Math.min(targetNation.wealth || 0, foreignPrice * amount);
+        const payout = foreignPrice * amount;
         const profit = payout;
         const profitPerUnit = foreignPrice - localPrice;
         setResources(prev => ({

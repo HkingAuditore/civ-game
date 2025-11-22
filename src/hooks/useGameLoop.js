@@ -41,6 +41,8 @@ export const useGameLoop = (gameState, addLog) => {
     setClassWealthDelta,
     classWealthHistory,
     setClassWealthHistory,
+    classNeedsHistory,
+    setClassNeedsHistory,
     setTotalInfluence,
     setTotalWealth,
     setActiveBuffs,
@@ -85,10 +87,10 @@ export const useGameLoop = (gameState, addLog) => {
     jobFill,
     activeBuffs,
     taxPolicies,
-    activeDebuffs,
-    classWealthHistory,
-    militaryWageRatio,
-    classApproval,
+          activeDebuffs,
+          classWealthHistory,
+          classNeedsHistory,
+          militaryWageRatio,    classApproval,
     nations,
     daysElapsed,
     activeFestivalEffects,
@@ -113,6 +115,7 @@ export const useGameLoop = (gameState, addLog) => {
       taxPolicies,
       activeDebuffs,
       classWealthHistory,
+      classNeedsHistory,
       militaryWageRatio,
       classApproval,
       nations,
@@ -120,7 +123,7 @@ export const useGameLoop = (gameState, addLog) => {
       activeFestivalEffects,
       lastFestivalYear,
     };
-  }, [resources, market, buildings, population, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, army, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear]);
+  }, [resources, market, buildings, population, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, army, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear]);
 
   // 游戏核心循环
   useEffect(() => {
@@ -183,6 +186,19 @@ export const useGameLoop = (gameState, addLog) => {
         }
         wealthHistory[key] = series;
       });
+
+      const previousNeedsHistory = current.classNeedsHistory || {};
+      const needsHistory = { ...previousNeedsHistory };
+      const MAX_NEEDS_POINTS = 120;
+      Object.entries(result.needsReport || {}).forEach(([key, report]) => {
+        const series = needsHistory[key] ? [...needsHistory[key]] : [];
+        series.push(report.satisfactionRatio);
+        if (series.length > MAX_NEEDS_POINTS) {
+          series.shift();
+        }
+        needsHistory[key] = series;
+      });
+
       const adjustedMarket = {
         ...(result.market || {}),
         priceHistory,
@@ -215,6 +231,7 @@ export const useGameLoop = (gameState, addLog) => {
       setClassWealth(adjustedClassWealth);
       setClassWealthDelta(wealthDelta);
       setClassWealthHistory(wealthHistory);
+      setClassNeedsHistory(needsHistory);
       setTotalInfluence(result.totalInfluence);
       setTotalWealth(adjustedTotalWealth);
       setActiveBuffs(result.activeBuffs);

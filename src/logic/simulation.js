@@ -72,6 +72,8 @@ export const simulateTick = ({
   tick = 0,
   techsUnlocked = [],
   activeFestivalEffects = [],
+  classWealthHistory,
+  classNeedsHistory,
 }) => {
   const res = { ...resources };
   const priceMap = { ...(market?.prices || {}) };
@@ -94,6 +96,13 @@ export const simulateTick = ({
   const taxBreakdown = {
     headTax: 0,
     industryTax: 0,
+  };
+  const requiresLocalProduction = (resKey) => {
+    const info = RESOURCES[resKey];
+    if (!info) return false;
+    if (info.unlockTech) return true;
+    if (typeof info.unlockEpoch === 'number' && info.unlockEpoch > 0) return true;
+    return false;
   };
 
   const buildingBonuses = {};
@@ -169,6 +178,21 @@ export const simulateTick = ({
     applyEffects(festivalEffect.effects);
   });
 
+  // Keep domestic vs. external price deviations modest unless supply/demand is extreme
+  const computePriceMultiplier = (ratio) => {
+    const clamped = Math.max(0.25, Math.min(4, ratio || 1));
+    const softened = Math.pow(clamped, 0.35);
+    if (ratio > 2.5) {
+      const severity = Math.min(1.5, ratio - 2.5);
+      return softened + severity * 0.2;
+    }
+    if (ratio < 0.6) {
+      const severity = Math.min(0.6, 0.6 - ratio);
+      return Math.max(0.4, softened - severity * 0.2);
+    }
+    return softened;
+  };
+
   const getPrice = (resource) => {
     if (!priceMap[resource]) {
       priceMap[resource] = getBasePrice(resource);
@@ -189,6 +213,7 @@ export const simulateTick = ({
 
   const rates = {};
   const builds = buildings;
+  const producedResources = new Set();
   const jobsAvailable = {};
   const roleWageStats = {};
   const roleWagePayout = {};
@@ -212,6 +237,14 @@ export const simulateTick = ({
       if (b.output?.admin) adminCapacity += (b.output.admin * count);
       if (b.jobs) {
         for (let role in b.jobs) jobsAvailable[role] += (b.jobs[role] * count);
+      }
+      if (b.output) {
+        Object.entries(b.output).forEach(([resKey, amount]) => {
+          if (!RESOURCES[resKey]) return;
+          if ((amount || 0) > 0) {
+            producedResources.add(resKey);
+          }
+        });
       }
     }
   });
@@ -503,11 +536,6 @@ export const simulateTick = ({
     }
   });
 
-  Object.entries(roleWagePayout).forEach(([role, payout]) => {
-    if (payout <= 0) return;
-    wealth[role] = (wealth[role] || 0) + payout;
-  });
-
   const wageMultiplier = Math.max(0, militaryWageRatio ?? 0);
   const foodPrice = getPrice('food');
   const baseArmyWage = armyFoodNeed * foodPrice * wageMultiplier;
@@ -519,12 +547,19 @@ export const simulateTick = ({
     if (paid > 0) {
       res.silver = available - paid;
       rates.silver = (rates.silver || 0) - paid;
-      wealth.soldier = (wealth.soldier || 0) + paid;
+      // Centralize military wage into the main payout tracker
+      roleWagePayout.soldier = (roleWagePayout.soldier || 0) + paid;
     }
     if (paid < wageDue) {
       logs.push('银币不足，军饷被拖欠，军心不稳。');
     }
   }
+
+  // Add all tracked income (civilian + military) to the wealth of each class
+  Object.entries(roleWagePayout).forEach(([role, payout]) => {
+    if (payout <= 0) return;
+    wealth[role] = (wealth[role] || 0) + payout;
+  });
 
   const needsReport = {};
   const classShortages = {};
@@ -551,6 +586,9 @@ export const simulateTick = ({
         }
       } else if (resourceInfo && typeof resourceInfo.unlockEpoch === 'number' && resourceInfo.unlockEpoch > epoch) {
         // Fallback to epoch check for resources without tech requirement
+        continue;
+      }
+      if (requiresLocalProduction(resKey) && !producedResources.has(resKey)) {
         continue;
       }
       const requirement = perCapita * count * gameSpeed;
@@ -591,7 +629,10 @@ export const simulateTick = ({
       }
     }
 
-  needsReport[key] = tracked > 0 ? satisfactionSum / tracked : 1;
+  needsReport[key] = {
+    satisfactionRatio: tracked > 0 ? satisfactionSum / tracked : 1,
+    totalTrackedNeeds: tracked,
+  };
   classShortages[key] = shortages;
 });
 
@@ -643,38 +684,87 @@ export const simulateTick = ({
   Object.keys(STRATA).forEach(key => {
     const count = popStructure[key] || 0;
     if (count === 0) return;
-    const satisfaction = needsReport[key] ?? 1;
-    let approval = classApproval[key] || 50;
-    if (satisfaction < 0.5) {
-      approval -= 20;
-    } else if (satisfaction < 1) {
-      approval -= 10;
-    } else if (satisfaction > 1.5) {
-      approval += 10;
+    const satisfactionInfo = needsReport[key];
+    const satisfaction = satisfactionInfo?.satisfactionRatio ?? 1;
+    let targetApproval = 70; // Base approval
+
+    // Tax Burden Logic
+    const headRate = getHeadTaxRate(key);
+    const headBase = STRATA[key]?.headTaxBase ?? 0.01;
+    const taxPerCapita = headBase * gameSpeed * headRate * effectiveTaxModifier;
+    const incomePerCapita = (roleWagePayout[key] || 0) / Math.max(1, count);
+    if (incomePerCapita > 0.001 && taxPerCapita > incomePerCapita * 0.5) {
+      targetApproval = Math.min(targetApproval, 40); // Tax burden cap
+    } else if (headRate < 0.6) {
+      targetApproval += 5; // Tax relief bonus
     }
 
+    // Resource Shortage Logic
+    const totalNeeds = satisfactionInfo?.totalTrackedNeeds ?? 0;
+    const unmetNeeds = (classShortages[key] || []).length;
+    if (unmetNeeds > 0 && totalNeeds > 0) {
+      if (unmetNeeds >= totalNeeds) {
+        targetApproval = Math.min(targetApproval, 0); // All needs unmet, drops to 0
+      } else {
+        targetApproval = Math.min(targetApproval, 30); // Partial shortage, capped at 30
+      }
+    }
+
+    // Sustained needs satisfaction bonus (reward consecutive ticks of high fulfillment)
+    const needsHistory = (classNeedsHistory || {})[key];
+    if (needsHistory && needsHistory.length > 0) {
+      const threshold = 0.95;
+      const maxWindow = 20;
+      let consecutiveSatisfied = 0;
+      for (let i = needsHistory.length - 1; i >= 0 && consecutiveSatisfied < maxWindow; i--) {
+        if (needsHistory[i] >= threshold) {
+          consecutiveSatisfied += 1;
+        } else {
+          break;
+        }
+      }
+      if (consecutiveSatisfied >= 3) {
+        const sustainedBonus = Math.min(15, consecutiveSatisfied * 0.6);
+        targetApproval = Math.min(100, targetApproval + sustainedBonus);
+      }
+    }
+
+    // Wealth Trend Logic
+    const history = (classWealthHistory || {})[key];
+    if (history && history.length >= 20) { // Check for 20 ticks of history
+      const recentWealth = history.slice(-10).reduce((a, b) => a + b, 0) / 10;
+      const pastWealth = history.slice(-20, -10).reduce((a, b) => a + b, 0) / 10;
+
+      if (pastWealth > 1) { // Avoid division by zero or tiny numbers
+        const trend = (recentWealth - pastWealth) / pastWealth;
+        const trendBonus = Math.min(15, Math.abs(trend) * 50); // Scale bonus with trend, cap at 15
+
+        if (trend > 0.05) { // Modest but sustained growth
+          targetApproval += trendBonus;
+        } else if (trend < -0.05) { // Modest but sustained decline
+          targetApproval -= trendBonus;
+        }
+      }
+    }
+
+    // Positive satisfaction bonus
+    if (satisfaction > 1.5) {
+      targetApproval = Math.min(100, targetApproval + 10);
+    }
+    
+    // Unemployed penalty
     if (key === 'unemployed') {
       const ratio = count / Math.max(1, population);
       const penalty = 2 + ratio * 30;
-      approval -= penalty;
+      targetApproval -= penalty;
     }
-
-    // Tax rate effects on approval (wealth-sensitive)
-    const headTaxRate = getHeadTaxRate(key);
-    const perCapitaWealth = (wealth[key] || 0) / Math.max(1, count);
-    // Wealth sensitivity factor: 0.5 (poor, very sensitive) to 1.5 (rich, less sensitive)
-    // Base threshold at 10 silver per capita
-    const wealthFactor = Math.max(0.5, Math.min(1.5, perCapitaWealth / 10));
     
-    if (headTaxRate < 0.5) {
-      approval += Math.round(5 / wealthFactor); // Poor benefit more from low tax
-    } else if (headTaxRate > 1.5) {
-      approval -= Math.round(15 * wealthFactor); // Rich less affected by high tax
-    } else if (headTaxRate > 1.2) {
-      approval -= Math.round(8 * wealthFactor); // Rich less affected by medium-high tax
-    }
-
-    classApproval[key] = Math.max(0, Math.min(100, approval));
+    // Gradual adjustment
+    const currentApproval = classApproval[key] || 50;
+    const adjustmentSpeed = 0.08; // How slowly approval changes per tick
+    let newApproval = currentApproval + (targetApproval - currentApproval) * adjustmentSpeed;
+    
+    classApproval[key] = Math.max(0, Math.min(100, newApproval));
   });
 
   if ((popStructure.unemployed || 0) === 0 && previousApproval.unemployed !== undefined) {
@@ -740,7 +830,7 @@ export const simulateTick = ({
     const def = STRATA[key];
     if (!def.buffs || (popStructure[key] || 0) === 0) return;
     const approval = classApproval[key] || 50;
-    const satisfied = (needsReport[key] ?? 1) >= 0.95;
+    const satisfied = (needsReport[key] ?? 1) >= 0.9;
     if (approval >= 70 && satisfied) {
       newActiveBuffs.push({
         class: key,
@@ -869,7 +959,8 @@ export const simulateTick = ({
     const sup = supply[resource] || 0;
     const dem = demand[resource] || 0;
     const ratio = dem / Math.max(sup, 1);
-    const targetPrice = Math.max(PRICE_FLOOR, base * Math.max(0.25, Math.min(4, ratio)));
+    const priceMultiplier = computePriceMultiplier(ratio);
+    const targetPrice = Math.max(PRICE_FLOOR, base * priceMultiplier);
     const prevPrice = priceMap[resource] || base;
     const smoothed = prevPrice + (targetPrice - prevPrice) * 0.3;
     updatedPrices[resource] = parseFloat(Math.max(PRICE_FLOOR, smoothed).toFixed(2));
@@ -983,6 +1074,7 @@ export const simulateTick = ({
     jobFill: buildingJobFill,
     taxes,
     needsShortages: classShortages,
+    needsReport,
     nations: updatedNations,
   };
 };

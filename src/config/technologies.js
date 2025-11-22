@@ -168,9 +168,9 @@ export const TECHS = [
   {
     id: 'amphitheater_design',
     name: "剧场设计",
-    desc: "剧场文化产出 +30%。",
+    desc: "解锁剧场建筑，且剧场文化产出 +30%。",
     cost: { science: 490 },
-    epoch: 2,
+    epoch: 1,
     effects: { buildings: { amphitheater: 0.3 } },
   },
   {

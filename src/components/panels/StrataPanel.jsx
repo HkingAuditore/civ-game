@@ -67,6 +67,7 @@ export const StrataPanel = ({
           const influence = classInfluence[key] || 0;
           const wealthValue = classWealth[key] ?? 0;
           const wealthDelta = classWealthDelta[key] ?? 0;
+          const incomePerCapita = (classWealthDelta[key] || 0) / (popStructure[key] || 1);
           const prevWealth = wealthValue - wealthDelta;
           let changeRate = 0;
           if (Math.abs(prevWealth) > 0.001) {
@@ -88,13 +89,16 @@ export const StrataPanel = ({
             >
               {/* 阶层名称、人口和好感度 - 合并为一行 */}
               <div className="flex items-center justify-between mb-0.5">
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1.5">
                   <Icon name={info.icon} size={12} className="text-gray-400" />
                   <span className="text-xs font-semibold text-gray-200">
                     {info.name}
                   </span>
                   <span className="text-[10px] text-gray-500">
                     {count}人
+                  </span>
+                  <span className={`text-[10px] font-mono ${incomePerCapita > 0 ? 'text-green-500' : incomePerCapita < 0 ? 'text-red-500' : 'text-gray-500'}`}>
+                    ({incomePerCapita > 0 ? '人均收入: +' : '人均收入: '}{incomePerCapita.toFixed(2)}/天)
                   </span>
                 </div>
                 <span className={`text-[10px] font-semibold ${
