@@ -25,8 +25,10 @@ export const StrataPanel = ({
   classWealth = {},
   classWealthDelta = {},
   classShortages = {},
-  onDetailClick 
+  onDetailClick,
+  dayScale = 1,
 }) => {
+  const safeDayScale = Math.max(dayScale, 0.0001);
   return (
     <div className="bg-gray-800 p-3 rounded-lg border border-gray-700 shadow-lg min-h-[460px] flex flex-col">
       {/* 标题和稳定度 */}
@@ -67,7 +69,8 @@ export const StrataPanel = ({
           const influence = classInfluence[key] || 0;
           const wealthValue = classWealth[key] ?? 0;
           const wealthDelta = classWealthDelta[key] ?? 0;
-          const incomePerCapita = (classWealthDelta[key] || 0) / (popStructure[key] || 1);
+          const perClassDeltaPerDay = (classWealthDelta[key] || 0) / safeDayScale;
+          const incomePerCapita = perClassDeltaPerDay / Math.max(count, 1);
           const prevWealth = wealthValue - wealthDelta;
           let changeRate = 0;
           if (Math.abs(prevWealth) > 0.001) {

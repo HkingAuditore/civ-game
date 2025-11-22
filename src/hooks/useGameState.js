@@ -8,6 +8,7 @@ const INITIAL_RESOURCES = {
   food: 200, 
   wood: 200, 
   stone: 200, 
+  cloth: 80,
   plank: 0, 
   brick: 0, 
   iron: 0, 
@@ -123,6 +124,7 @@ export const useGameState = () => {
   // ========== 游戏控制状态 ==========
   const [activeTab, setActiveTab] = useState('build');
   const [gameSpeed, setGameSpeed] = useState(1);
+  const [isPaused, setIsPaused] = useState(false);
 
   // ========== 政令与外交状态 ==========
   const [decrees, setDecrees] = useState(DECREES);
@@ -146,7 +148,7 @@ export const useGameState = () => {
 
   // ========== 行政管理状态 ==========
   const [adminStrain, setAdminStrain] = useState(0);
-  const [adminCap, setAdminCap] = useState(20);
+  const [adminCap, setAdminCap] = useState(50);
 
   // ========== 时间状态 ==========
   const [daysElapsed, setDaysElapsed] = useState(0);
@@ -169,7 +171,7 @@ export const useGameState = () => {
   const [rates, setRates] = useState({});
   const [taxes, setTaxes] = useState({
     total: 0,
-    breakdown: { headTax: 0, industryTax: 0 },
+    breakdown: { headTax: 0, industryTax: 0, subsidy: 0 },
     efficiency: 1,
   });
   const [taxPolicies, setTaxPolicies] = useState({
@@ -210,6 +212,8 @@ export const useGameState = () => {
     setActiveTab,
     gameSpeed,
     setGameSpeed,
+    isPaused,
+    setIsPaused,
     
     // 政令与外交
     decrees,
@@ -272,6 +276,8 @@ export const useGameState = () => {
     setActiveFestivalEffects,
     lastFestivalYear,
     setLastFestivalYear,
+    isPaused,
+    setIsPaused,
     
     // UI
     logs,

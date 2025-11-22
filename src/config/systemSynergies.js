@@ -233,6 +233,19 @@ export const CHAIN_CLASS_INTERACTION = {
     },
   },
 
+  textile_chain: {
+    primary_classes: ['peasant', 'artisan', 'worker'],
+    development_effects: {
+      level_1: { classApproval: { peasant: 5, artisan: 5 } },
+      level_2: { classApproval: { peasant: 10, artisan: 10, worker: 5 }, stability: 5 },
+      level_3: { classApproval: { peasant: 15, artisan: 15, worker: 10 }, stability: 10, population_growth: 0.08 },
+    },
+    decline_effects: {
+      classApproval: { peasant: -15, artisan: -20, worker: -10 },
+      stability: -8,
+    },
+  },
+
   military_chain: {
     primary_classes: ['soldier', 'noble', 'engineer'],
     development_effects: {
@@ -319,34 +332,34 @@ export const DECREE_COMBINATIONS = {
  */
 export const EPOCH_SYSTEM_EFFECTS = {
   0: { // 石器时代
-    available_chains: ['food_chain', 'wood_chain'],
+    available_chains: ['food_chain', 'wood_chain', 'textile_chain'],
     class_structure: { peasant: 0.7, lumberjack: 0.3 },
     decree_efficiency: 0.7,
   },
   
   1: { // 青铜时代
-    available_chains: ['food_chain', 'wood_chain', 'mining_chain'],
+    available_chains: ['food_chain', 'wood_chain', 'mining_chain', 'textile_chain'],
     class_structure: { peasant: 0.5, lumberjack: 0.2, miner: 0.2, artisan: 0.1 },
     decree_efficiency: 0.8,
     new_mechanics: ['trade', 'basic_diplomacy'],
   },
   
   2: { // 古典时代
-    available_chains: ['food_chain', 'wood_chain', 'mining_chain', 'knowledge_chain'],
+    available_chains: ['food_chain', 'wood_chain', 'mining_chain', 'knowledge_chain', 'textile_chain'],
     class_structure: { peasant: 0.4, worker: 0.2, artisan: 0.15, scribe: 0.1, merchant: 0.15 },
     decree_efficiency: 0.9,
     new_mechanics: ['culture_influence', 'advanced_trade'],
   },
   
   3: { // 封建时代
-    available_chains: ['food_chain', 'wood_chain', 'mining_chain', 'knowledge_chain', 'military_chain'],
+    available_chains: ['food_chain', 'wood_chain', 'mining_chain', 'knowledge_chain', 'military_chain', 'textile_chain'],
     class_structure: { serf: 0.3, peasant: 0.2, artisan: 0.15, noble: 0.05, landowner: 0.1, soldier: 0.1, cleric: 0.1 },
     decree_efficiency: 1.0,
     new_mechanics: ['feudal_system', 'religious_influence'],
   },
   
   4: { // 探索时代
-    available_chains: ['food_chain', 'wood_chain', 'mining_chain', 'knowledge_chain', 'military_chain', 'luxury_chain'],
+    available_chains: ['food_chain', 'wood_chain', 'mining_chain', 'knowledge_chain', 'military_chain', 'luxury_chain', 'textile_chain'],
     class_structure: { peasant: 0.25, worker: 0.2, merchant: 0.2, artisan: 0.15, navigator: 0.1, noble: 0.1 },
     decree_efficiency: 1.1,
     new_mechanics: ['colonial_trade', 'naval_power'],

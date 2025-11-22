@@ -26,6 +26,8 @@ export const useGameLoop = (gameState, addLog) => {
     techsUnlocked,
     decrees,
     gameSpeed,
+    isPaused,
+    setIsPaused,
     nations,
     setNations,
     setPopStructure,
@@ -72,63 +74,67 @@ export const useGameLoop = (gameState, addLog) => {
   } = gameState;
 
   // 使用ref保存最新状态，避免闭包问题
-  const stateRef = useRef({ 
+  const stateRef = useRef({
     resources,
     market,
-    buildings, 
-    population, 
-    epoch, 
-    techsUnlocked, 
-    decrees, 
-    gameSpeed, 
+    buildings,
+    population,
+    epoch,
+    techsUnlocked,
+    decrees,
+    gameSpeed,
     nations,
     classWealth,
     army,
     jobFill,
     activeBuffs,
+    activeDebuffs,
     taxPolicies,
-          activeDebuffs,
-          classWealthHistory,
-          classNeedsHistory,
-          militaryWageRatio,    classApproval,
-    nations,
+    classWealthHistory,
+    classNeedsHistory,
+    militaryWageRatio,
+    classApproval,
     daysElapsed,
     activeFestivalEffects,
     lastFestivalYear,
+    isPaused,
   });
 
   useEffect(() => {
-    stateRef.current = { 
-      resources, 
+    stateRef.current = {
+      resources,
       market,
-      buildings, 
-      population, 
-      epoch, 
-      techsUnlocked, 
-      decrees, 
+      buildings,
+      population,
+      epoch,
+      techsUnlocked,
+      decrees,
       gameSpeed,
       nations,
       classWealth,
       army,
       jobFill,
       activeBuffs,
-      taxPolicies,
       activeDebuffs,
+      taxPolicies,
       classWealthHistory,
       classNeedsHistory,
       militaryWageRatio,
       classApproval,
-      nations,
       daysElapsed,
       activeFestivalEffects,
       lastFestivalYear,
+      isPaused,
     };
-  }, [resources, market, buildings, population, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, army, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear]);
+  }, [resources, market, buildings, population, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, army, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused]);
 
   // 游戏核心循环
   useEffect(() => {
     const timer = setInterval(() => {
       const current = stateRef.current;
+      if (current.isPaused) {
+        return;
+      }
       
       // 检查是否需要触发年度庆典
       // 修复：检测年份变化而非特定日期，避免加速模式下跳过触发点
@@ -145,6 +151,7 @@ export const useGameLoop = (gameState, addLog) => {
             year: currentCalendar.year
           });
           setLastFestivalYear(currentCalendar.year);
+          setIsPaused(true);
         }
       }
       
@@ -237,7 +244,7 @@ export const useGameLoop = (gameState, addLog) => {
       setActiveBuffs(result.activeBuffs);
       setActiveDebuffs(result.activeDebuffs);
       setStability(result.stability);
-      setTaxes(result.taxes || { total: 0, breakdown: { headTax: 0, industryTax: 0 }, efficiency: 1 });
+      setTaxes(result.taxes || { total: 0, breakdown: { headTax: 0, industryTax: 0, subsidy: 0 }, efficiency: 1 });
       setMarket(adjustedMarket);
       setClassShortages(result.needsShortages || {});
       if (result.nations) {
@@ -313,5 +320,5 @@ export const useGameLoop = (gameState, addLog) => {
     }, 1000); // 每秒执行一次
 
     return () => clearInterval(timer);
-  }, [gameSpeed, army, activeFestivalEffects, setFestivalModal, setActiveFestivalEffects, setLastFestivalYear, lastFestivalYear]); // 依赖游戏速度、军队状态和庆典相关状态
+  }, [gameSpeed, army, activeFestivalEffects, setFestivalModal, setActiveFestivalEffects, setLastFestivalYear, lastFestivalYear, setIsPaused]); // 依赖游戏速度、军队状态和庆典相关状态
 };

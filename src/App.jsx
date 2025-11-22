@@ -66,6 +66,7 @@ export default function RiseOfCivs() {
     
     // 关闭模态框
     gameState.setFestivalModal(null);
+    gameState.setIsPaused(false);
     
     // 添加日志
     const effectType = selectedEffect.type === 'permanent' ? '永久' : '短期';
@@ -88,7 +89,7 @@ export default function RiseOfCivs() {
   };
 
   const [showTaxDetail, setShowTaxDetail] = useState(false);
-  const taxes = gameState.taxes || { total: 0, breakdown: { headTax: 0, industryTax: 0 }, efficiency: 1 };
+  const taxes = gameState.taxes || { total: 0, breakdown: { headTax: 0, industryTax: 0, subsidy: 0 }, efficiency: 1 };
   const dayScale = Math.max(gameState.gameSpeed || 0, 0.0001);
   const taxesPerDay = taxes.total / dayScale;
   const armyFoodNeed = calculateArmyFoodNeed(gameState.army || {});
@@ -174,22 +175,28 @@ export default function RiseOfCivs() {
               </button>
             </div>
             <div className="w-px h-4 bg-gray-600"></div>
-            <div className="flex gap-1" title="行政压力/容量">
-              <Icon 
-                name="Scale" 
-                size={16} 
-                className={gameState.adminStrain > gameState.adminCap ? "text-red-400 animate-pulse" : "text-purple-400"} 
-              />
-              <span className="font-mono text-sm">
-                {gameState.adminStrain.toFixed(0)} / {gameState.adminCap}
-              </span>
+            <div className="flex items-center gap-2 text-[11px] text-gray-400">
+              <span>行政</span>
+              <div className="flex gap-1" title="行政压力 / 行政容量">
+                <Icon 
+                  name="Scale" 
+                  size={16} 
+                  className={gameState.adminStrain > gameState.adminCap ? "text-red-400 animate-pulse" : "text-purple-400"} 
+                />
+                <span className="font-mono text-sm">
+                  {gameState.adminStrain.toFixed(0)} / {gameState.adminCap}
+                </span>
+              </div>
             </div>
             <div className="w-px h-4 bg-gray-600"></div>
-            <div className="flex gap-1" title="总人口">
-              <Icon name="Users" size={16} className="text-blue-400" />
-              <span className="font-mono text-sm">
-                {gameState.population} / {gameState.maxPop}
-              </span>
+            <div className="flex items-center gap-2 text-[11px] text-gray-400">
+              <span>人口</span>
+              <div className="flex gap-1" title="当前人口 / 人口上限">
+                <Icon name="Users" size={16} className="text-blue-400" />
+                <span className="font-mono text-sm">
+                  {gameState.population} / {gameState.maxPop}
+                </span>
+              </div>
             </div>
 
             {showTaxDetail && (
@@ -207,6 +214,14 @@ export default function RiseOfCivs() {
                       {taxes.breakdown?.headTax?.toFixed(2) || '0.00'}
                     </span>
                   </div>
+                  {taxes.breakdown?.subsidy > 0 && (
+                    <div className="flex justify-between">
+                      <span>补助</span>
+                      <span className="text-teal-300 font-mono">
+                        -{taxes.breakdown.subsidy.toFixed(2)}
+                      </span>
+                    </div>
+                  )}
                   <div className="flex justify-between">
                     <span>产业税</span>
                     <span className="text-yellow-200 font-mono">
@@ -285,6 +300,7 @@ export default function RiseOfCivs() {
             classWealthDelta={gameState.classWealthDelta}
             classShortages={gameState.classShortages}
             onDetailClick={(key) => gameState.setStratumDetailView(key)}
+            dayScale={dayScale}
           />
 
           {/* 手动采集按钮 */}
@@ -415,6 +431,7 @@ export default function RiseOfCivs() {
           <div className="bg-blue-900/20 border border-blue-500/20 p-4 rounded-xl text-xs text-gray-300 space-y-2">
             <h4 className="font-bold text-blue-300">统治指南</h4>
             <p>• <span className="text-white">阶层即兵源与劳力</span>：岗位由建筑创造，人口自动填补并转化为对应阶层，留意阶层需求免得怠工。</p>
+            <p>• <span className="text-white">行政容量 vs 行政压力</span>：行政容量代表政府能处理的事务上限，行政压力则是当前消耗；若压力超过容量，税收与政策效率都会下降，记得通过建筑、科技或政令提升容量。</p>
             <p>• <span className="text-white">银币驱动经济</span>：绝大多数资源都在市场流通，你的仓库存货来自用银币在当前价格买入，银币短缺会导致供应断档。</p>
             <p>• <span className="text-white">掌控节奏</span>：在研究、政令、外交之间保持平衡，时代升级前先确保文化与行政容量足够，避免管理崩溃。</p>
           </div>

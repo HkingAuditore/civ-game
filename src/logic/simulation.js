@@ -23,10 +23,12 @@ const ROLE_PRIORITY = [
 const JOB_MIGRATION_RATIO = 0.04;
 
 
+const SPECIAL_TRADE_RESOURCES = new Set(['admin']);
 const isTradableResource = (key) => {
   if (key === 'silver') return false;
   const def = RESOURCES[key];
   if (!def) return false;
+  if (SPECIAL_TRADE_RESOURCES.has(key)) return true;
   return !def.type || def.type !== 'virtual';
 };
 
@@ -52,6 +54,21 @@ const TECH_MAP = TECHS.reduce((acc, tech) => {
   acc[tech.id] = tech;
   return acc;
 }, {});
+
+const scaleEffectValues = (effect = {}, multiplier = 1) => {
+  if (!effect || typeof effect !== 'object') return {};
+  const scaled = {};
+  Object.entries(effect).forEach(([key, value]) => {
+    if (typeof value === 'number') {
+      scaled[key] = value * multiplier;
+    } else if (value && typeof value === 'object' && !Array.isArray(value)) {
+      scaled[key] = scaleEffectValues(value, multiplier);
+    } else {
+      scaled[key] = value;
+    }
+  });
+  return scaled;
+};
 
 export const simulateTick = ({
   resources,
@@ -86,7 +103,10 @@ export const simulateTick = ({
   const resourceTaxRates = policies.resourceTaxRates || {};
   const getHeadTaxRate = (key) => {
     const rate = headTaxRates[key];
-    return typeof rate === 'number' ? rate : 1;
+    if (typeof rate === 'number') {
+      return rate;
+    }
+    return 1;
   };
   const getResourceTaxRate = (resource) => {
     const rate = resourceTaxRates[resource];
@@ -96,6 +116,7 @@ export const simulateTick = ({
   const taxBreakdown = {
     headTax: 0,
     industryTax: 0,
+    subsidy: 0,
   };
 
   const buildingBonuses = {};
@@ -304,6 +325,7 @@ export const simulateTick = ({
     }
   });
 
+  const zeroApprovalClasses = {};
   Object.keys(STRATA).forEach(key => {
     const count = popStructure[key] || 0;
     if (count === 0) return;
@@ -315,13 +337,26 @@ export const simulateTick = ({
     const headRate = getHeadTaxRate(key);
     const headBase = STRATA[key]?.headTaxBase ?? 0.01;
     const due = count * headBase * gameSpeed * headRate * effectiveTaxModifier;
-    if (due > 0) {
+    if (due !== 0) {
       const available = wealth[key] || 0;
-      const paid = Math.min(available, due);
-      wealth[key] = available - paid;
-      taxBreakdown.headTax += paid;
+      if (due > 0) {
+        const paid = Math.min(available, due);
+        wealth[key] = available - paid;
+        taxBreakdown.headTax += paid;
+      } else {
+        const subsidyNeeded = -due;
+        const treasury = res.silver || 0;
+        if (treasury >= subsidyNeeded) {
+          res.silver = treasury - subsidyNeeded;
+          wealth[key] = available + subsidyNeeded;
+          taxBreakdown.subsidy += subsidyNeeded;
+        }
+      }
     }
     classApproval[key] = previousApproval[key] ?? 50;
+    if ((classApproval[key] || 0) <= 0) {
+      zeroApprovalClasses[key] = true;
+    }
   });
 
   const forcedLabor = decrees.some(d => d.id === 'forced_labor' && d.active);
@@ -458,6 +493,20 @@ export const simulateTick = ({
       actualMultiplier = 0;
     }
 
+    const zeroApprovalFactor = 0.3;
+    let approvalMultiplier = 1;
+    if (zeroApprovalClasses[ownerKey]) {
+      approvalMultiplier = Math.min(approvalMultiplier, zeroApprovalFactor);
+    }
+    if (b.jobs) {
+      Object.keys(b.jobs).forEach(role => {
+        if (zeroApprovalClasses[role]) {
+          approvalMultiplier = Math.min(approvalMultiplier, zeroApprovalFactor);
+        }
+      });
+    }
+    actualMultiplier *= approvalMultiplier;
+
     const plannedWagePerSlot = paidSlotsTotal > 0 ? (profitPerMultiplier * actualMultiplier) / paidSlotsTotal : 0;
     const plannedWageBill = plannedWagePerSlot * paidSlotsFilled;
 
@@ -536,14 +585,11 @@ export const simulateTick = ({
   if (baseArmyWage > 0) {
     const wageDue = baseArmyWage * gameSpeed;
     const available = res.silver || 0;
-    const paid = Math.min(available, wageDue);
-    if (paid > 0) {
-      res.silver = available - paid;
-      rates.silver = (rates.silver || 0) - paid;
-      // Centralize military wage into the main payout tracker
-      roleWagePayout.soldier = (roleWagePayout.soldier || 0) + paid;
-    }
-    if (paid < wageDue) {
+    if (available >= wageDue) {
+      res.silver = available - wageDue;
+      rates.silver = (rates.silver || 0) - wageDue;
+      roleWagePayout.soldier = (roleWagePayout.soldier || 0) + wageDue;
+    } else if (wageDue > 0) {
       logs.push('银币不足，军饷被拖欠，军心不稳。');
     }
   }
@@ -617,7 +663,7 @@ export const simulateTick = ({
         }
       }
 
-      const ratio = requirement > 0 ? satisfied / requirement : 1;
+        const ratio = requirement > 0 ? satisfied / requirement : 1;
       satisfactionSum += ratio;
       tracked += 1;
       if (ratio < 0.99) {
@@ -687,7 +733,7 @@ export const simulateTick = ({
     // Tax Burden Logic
     const headRate = getHeadTaxRate(key);
     const headBase = STRATA[key]?.headTaxBase ?? 0.01;
-    const taxPerCapita = headBase * gameSpeed * headRate * effectiveTaxModifier;
+    const taxPerCapita = Math.max(0, headBase * gameSpeed * headRate * effectiveTaxModifier);
     const incomePerCapita = (roleWagePayout[key] || 0) / Math.max(1, count);
     if (incomePerCapita > 0.001 && taxPerCapita > incomePerCapita * 0.5) {
       targetApproval = Math.min(targetApproval, 40); // Tax burden cap
@@ -826,16 +872,23 @@ export const simulateTick = ({
     const def = STRATA[key];
     if (!def.buffs || (popStructure[key] || 0) === 0) return;
     const approval = classApproval[key] || 50;
-    const satisfied = (needsReport[key] ?? 1) >= 0.9;
-    if (approval >= 85 && satisfied) {
+    const satisfiedNeeds = (needsReport[key] ?? 1) >= 0.9;
+    const influenceShare = totalInfluence > 0 ? (classInfluence[key] || 0) / totalInfluence : 0;
+    const buffMultiplier = influenceShare > 0.8 ? 2 : influenceShare > 0.5 ? 1.5 : 1;
+    const hasInfluenceBuffPrivilege = approval >= 85 && influenceShare >= 0.3;
+    const meetsStandardBuffCondition = approval >= 85 && satisfiedNeeds;
+
+    if ((hasInfluenceBuffPrivilege || meetsStandardBuffCondition) && def.buffs.satisfied) {
+      const scaledBuff = scaleEffectValues(def.buffs.satisfied, buffMultiplier);
       newActiveBuffs.push({
         class: key,
-        ...def.buffs.satisfied,
+        ...scaledBuff,
       });
-    } else if (approval < 40) {
+    } else if (approval < 40 && def.buffs.dissatisfied && influenceShare >= 0.3) {
+      const scaledDebuff = scaleEffectValues(def.buffs.dissatisfied, buffMultiplier);
       newActiveDebuffs.push({
         class: key,
-        ...def.buffs.dissatisfied,
+        ...scaledDebuff,
       });
     }
   });
@@ -1035,12 +1088,14 @@ export const simulateTick = ({
     }
   }
 
+  const netTax = totalCollectedTax - taxBreakdown.subsidy;
   const taxes = {
-    total: totalCollectedTax,
+    total: netTax,
     efficiency,
     breakdown: {
       headTax: collectedHeadTax,
       industryTax: collectedIndustryTax,
+      subsidy: taxBreakdown.subsidy,
     },
   };
 
