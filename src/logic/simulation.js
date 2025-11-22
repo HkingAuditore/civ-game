@@ -831,7 +831,7 @@ export const simulateTick = ({
     if (!def.buffs || (popStructure[key] || 0) === 0) return;
     const approval = classApproval[key] || 50;
     const satisfied = (needsReport[key] ?? 1) >= 0.9;
-    if (approval >= 70 && satisfied) {
+    if (approval >= 85 && satisfied) {
       newActiveBuffs.push({
         class: key,
         ...def.buffs.satisfied,
