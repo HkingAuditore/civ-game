@@ -1,253 +1,347 @@
-// 外交标签页组件
-// 显示外交关系和外交行动
+// 外交标签页
+// 展示国家状态、贸易套利与和平谈判
 
-import React from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Icon } from '../common/UIComponents';
+import { RESOURCES } from '../../config';
+import { calculateForeignPrice } from '../../utils/foreignTrade';
 
-/**
- * 外交标签页组件
- * 显示与其他国家的外交关系
- * @param {Array} nations - 国家列表
- */
-export const DiplomacyTab = ({ nations, onDiplomaticAction }) => {
-  /**
-   * 获取关系等级
-   * @param {number} relation - 关系值
-   * @returns {Object} 关系等级信息
-   */
-  const getRelationLevel = (relation) => {
-    if (relation >= 80) return { level: '盟友', color: 'text-green-400', bg: 'bg-green-900/20', border: 'border-green-600' };
-    if (relation >= 60) return { level: '友好', color: 'text-blue-400', bg: 'bg-blue-900/20', border: 'border-blue-600' };
-    if (relation >= 40) return { level: '中立', color: 'text-gray-400', bg: 'bg-gray-700/20', border: 'border-gray-600' };
-    if (relation >= 20) return { level: '冷淡', color: 'text-yellow-400', bg: 'bg-yellow-900/20', border: 'border-yellow-600' };
-    return { level: '敌对', color: 'text-red-400', bg: 'bg-red-900/20', border: 'border-red-600' };
+const relationInfo = (relation = 0) => {
+  if (relation >= 80) return { label: '盟友', color: 'text-green-300', bg: 'bg-green-900/20' };
+  if (relation >= 60) return { label: '友好', color: 'text-blue-300', bg: 'bg-blue-900/20' };
+  if (relation >= 40) return { label: '中立', color: 'text-gray-300', bg: 'bg-gray-800/40' };
+  if (relation >= 20) return { label: '冷淡', color: 'text-yellow-300', bg: 'bg-yellow-900/20' };
+  return { label: '敌对', color: 'text-red-300', bg: 'bg-red-900/20' };
+};
+
+export const DiplomacyTab = ({
+  nations = [],
+  epoch = 0,
+  market = {},
+  resources = {},
+  daysElapsed = 0,
+  onDiplomaticAction,
+}) => {
+  const [selectedNationId, setSelectedNationId] = useState(null);
+  const [tradeAmount, setTradeAmount] = useState(10);
+
+  const tradableResources = useMemo(
+    () =>
+      Object.entries(RESOURCES).filter(
+        ([key, def]) =>
+          def.type !== 'virtual' &&
+          key !== 'silver' &&
+          (def.unlockEpoch ?? 0) <= epoch
+      ),
+    [epoch]
+  );
+
+  const visibleNations = useMemo(
+    () =>
+      nations.filter(
+        (nation) =>
+          epoch >= (nation.appearEpoch ?? 0) &&
+          (nation.expireEpoch == null || epoch <= nation.expireEpoch)
+      ),
+    [nations, epoch]
+  );
+
+  useEffect(() => {
+    if (!selectedNationId && visibleNations.length > 0) {
+      setSelectedNationId(visibleNations[0].id);
+    } else if (selectedNationId && !visibleNations.some((n) => n.id === selectedNationId)) {
+      setSelectedNationId(visibleNations[0]?.id || null);
+    }
+  }, [selectedNationId, visibleNations]);
+
+  const selectedNation =
+    visibleNations.find((nation) => nation.id === selectedNationId) || visibleNations[0] || null;
+
+  const totalAllies = visibleNations.filter((n) => (n.relation || 0) >= 80).length;
+  const totalWars = visibleNations.filter((n) => n.isAtWar).length;
+
+  const handleTrade = (resourceKey) => {
+    if (!selectedNation || !onDiplomaticAction) return;
+    onDiplomaticAction(selectedNation.id, 'trade', { resource: resourceKey, amount: tradeAmount });
+  };
+
+  const handleSimpleAction = (nationId, action) => {
+    if (onDiplomaticAction) {
+      onDiplomaticAction(nationId, action);
+    }
+  };
+
+  const getLocalPrice = (resourceKey) => {
+    return market?.prices?.[resourceKey] ?? (RESOURCES[resourceKey]?.basePrice || 1);
+  };
+
+  const renderPeaceHint = (nation) => {
+    if (!nation?.isAtWar) return null;
+    if ((nation.warScore || 0) > 0) {
+      return '我方占优，可尝试索赔停战。';
+    }
+    if ((nation.warScore || 0) < 0) {
+      return '局势不利，可能需要赔款求和。';
+    }
+    return '僵持阶段，继续作战或准备谈判。';
   };
 
   return (
     <div className="space-y-4">
-      {/* 外交说明 */}
-      <div className="bg-purple-900/20 border border-purple-500/30 p-4 rounded-lg">
+      <div className="bg-indigo-900/20 border border-indigo-500/30 p-4 rounded-lg">
         <div className="flex items-start gap-3">
-          <Icon name="Info" size={20} className="text-purple-400 flex-shrink-0 mt-0.5" />
-          <div>
-            <h3 className="text-sm font-bold text-purple-300 mb-1">关于外交</h3>
-            <p className="text-xs text-gray-300">
-              外交关系影响贸易、战争和文化交流。良好的关系可以带来贸易加成，
-              而敌对关系可能导致战争。通过军事行动、贸易和文化交流来改善或恶化关系。
+          <Icon name="Info" size={18} className="text-indigo-300 flex-shrink-0 mt-0.5" />
+          <div className="text-xs text-gray-200 space-y-1">
+            <p>
+              外交关系决定即时套利贸易与战争爆发。保持高关系可获取更低的进口成本，而敌对国家会主动宣战。
+            </p>
+            <p>
+              开战后可通过军事胜利累积战争分数，逼迫敌国赔款和平；若劣势，则需要支付银币才能脱身。
             </p>
           </div>
         </div>
       </div>
 
-      {/* 外交概览 */}
-      <div className="bg-gray-800/50 p-4 rounded-lg border border-gray-700">
-        <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300">
-          <Icon name="BarChart" size={16} className="text-blue-400" />
-          外交概览
-        </h3>
-
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          <div className="bg-gray-700/50 p-3 rounded">
-            <p className="text-xs text-gray-400 mb-1">总国家数</p>
-            <p className="text-lg font-bold text-white">{nations.length}</p>
-          </div>
-          <div className="bg-green-900/20 p-3 rounded border border-green-600/30">
-            <p className="text-xs text-gray-400 mb-1">盟友</p>
-            <p className="text-lg font-bold text-green-400">
-              {nations.filter((n) => n.relation >= 80).length}
-            </p>
-          </div>
-          <div className="bg-blue-900/20 p-3 rounded border border-blue-600/30">
-            <p className="text-xs text-gray-400 mb-1">友好</p>
-            <p className="text-lg font-bold text-blue-400">
-              {nations.filter((n) => n.relation >= 60 && n.relation < 80).length}
-            </p>
-          </div>
-          <div className="bg-yellow-900/20 p-3 rounded border border-yellow-600/30">
-            <p className="text-xs text-gray-400 mb-1">冷淡</p>
-            <p className="text-lg font-bold text-yellow-400">
-              {nations.filter((n) => n.relation >= 20 && n.relation < 40).length}
-            </p>
-          </div>
-          <div className="bg-red-900/20 p-3 rounded border border-red-600/30">
-            <p className="text-xs text-gray-400 mb-1">敌对</p>
-            <p className="text-lg font-bold text-red-400">
-              {nations.filter((n) => n.relation < 20).length}
-            </p>
-          </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="bg-gray-800/60 p-3 rounded border border-gray-700">
+          <p className="text-xs text-gray-400 mb-1">可见国家</p>
+          <p className="text-lg font-bold text-white">{visibleNations.length}</p>
+        </div>
+        <div className="bg-green-900/20 p-3 rounded border border-green-600/20">
+          <p className="text-xs text-gray-400 mb-1">盟友</p>
+          <p className="text-lg font-bold text-green-300">{totalAllies}</p>
+        </div>
+        <div className="bg-red-900/20 p-3 rounded border border-red-600/30">
+          <p className="text-xs text-gray-400 mb-1">战争中</p>
+          <p className="text-lg font-bold text-red-300">{totalWars}</p>
+        </div>
+        <div className="bg-blue-900/20 p-3 rounded border border-blue-600/30">
+          <p className="text-xs text-gray-400 mb-1">贸易套利金额</p>
+          <p className="text-lg font-bold text-blue-300">{tradeAmount}</p>
         </div>
       </div>
 
-      {/* 国家列表 */}
-      <div className="bg-gray-800/50 p-4 rounded-lg border border-gray-700">
-        <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300">
-          <Icon name="Globe" size={16} className="text-green-400" />
-          国家关系
-        </h3>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {nations.map((nation) => {
-            const relationInfo = getRelationLevel(nation.relation);
-
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+        <div className="space-y-3">
+          {visibleNations.map((nation) => {
+            const relation = relationInfo(nation.relation);
             return (
               <div
                 key={nation.id}
-                className={`p-4 rounded-lg border ${relationInfo.bg} ${relationInfo.border}`}
+                className={`p-4 rounded-lg border border-gray-700 bg-gray-800/50 ${
+                  nation.id === selectedNation?.id ? 'ring-1 ring-blue-400' : ''
+                }`}
               >
-                {/* 国家头部 */}
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1">
+                <div className="flex items-start justify-between">
+                  <div>
                     <h4 className="text-sm font-bold text-white flex items-center gap-2">
                       {nation.name}
-                      <span className={`px-2 py-0.5 ${relationInfo.bg} ${relationInfo.color} text-xs rounded border ${relationInfo.border}`}>
-                        {relationInfo.level}
+                      <span className={`px-2 py-0.5 text-[11px] rounded ${relation.bg} ${relation.color}`}>
+                        {relation.label}
                       </span>
                     </h4>
-                    <p className="text-xs text-gray-400 mt-1">{nation.desc}</p>
+                    <p className="text-[11px] text-gray-400">
+                      {nation.type} · 时代 {nation.appearEpoch ?? 0}-{nation.expireEpoch ?? '∞'}
+                    </p>
                   </div>
+                  <span
+                    className={`px-2 py-0.5 text-[11px] rounded ${
+                      nation.isAtWar ? 'bg-red-900/40 text-red-300' : 'bg-green-900/20 text-green-300'
+                    }`}
+                  >
+                    {nation.isAtWar ? '战争' : '和平'}
+                  </span>
                 </div>
+                <p className="text-xs text-gray-400 mt-2">{nation.desc}</p>
 
-                {/* 关系进度条 */}
-                <div className="mb-3">
-                  <div className="flex items-center justify-between text-xs mb-1">
-                    <span className="text-gray-400">关系值</span>
-                    <span className={relationInfo.color}>{nation.relation}</span>
+                <div className="mt-3">
+                  <div className="flex items-center justify-between text-[11px] text-gray-400">
+                    <span>关系 {nation.relation}</span>
+                    <span>财富 {Math.floor(nation.wealth || 0)}</span>
                   </div>
-                  <div className="w-full bg-gray-700 rounded-full h-2">
+                  <div className="w-full bg-gray-700 rounded-full h-1.5 mt-1">
                     <div
-                      className={`h-2 rounded-full transition-all ${
-                        nation.relation >= 80 ? 'bg-green-500' :
-                        nation.relation >= 60 ? 'bg-blue-500' :
-                        nation.relation >= 40 ? 'bg-gray-500' :
-                        nation.relation >= 20 ? 'bg-yellow-500' :
-                        'bg-red-500'
-                      }`}
-                      style={{ width: `${nation.relation}%` }}
+                      className="h-1.5 rounded-full bg-gradient-to-r from-yellow-400 to-green-400"
+                      style={{ width: `${Math.min(100, nation.relation || 0)}%` }}
                     />
                   </div>
                 </div>
 
-                {/* 国家特性 */}
-                <div className="space-y-2">
-                  {/* 军事实力 */}
-                  <div className="flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-1">
-                      <Icon name="Swords" size={12} className="text-red-400" />
-                      <span className="text-gray-400">军事实力</span>
-                    </div>
-                    <div className="flex gap-0.5">
-                      {[...Array(5)].map((_, i) => (
-                        <div
-                          key={i}
-                          className={`w-2 h-2 rounded-sm ${
-                            i < (nation.military || 3) ? 'bg-red-500' : 'bg-gray-600'
-                          }`}
-                        />
-                      ))}
-                    </div>
+                <div className="grid grid-cols-2 gap-2 mt-3 text-xs">
+                  <div className="bg-gray-900/50 rounded p-2">
+                    <p className="text-gray-400">市场波动</p>
+                    <p className="text-white font-mono">
+                      {(nation.marketVolatility || 0).toFixed(2)}
+                    </p>
                   </div>
-
-                  {/* 经济实力 */}
-                  <div className="flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-1">
-                      <Icon name="Coins" size={12} className="text-yellow-400" />
-                      <span className="text-gray-400">经济实力</span>
-                    </div>
-                    <div className="flex gap-0.5">
-                      {[...Array(5)].map((_, i) => (
-                        <div
-                          key={i}
-                          className={`w-2 h-2 rounded-sm ${
-                            i < (nation.economy || 3) ? 'bg-yellow-500' : 'bg-gray-600'
-                          }`}
-                        />
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* 科技水平 */}
-                  <div className="flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-1">
-                      <Icon name="Lightbulb" size={12} className="text-blue-400" />
-                      <span className="text-gray-400">科技水平</span>
-                    </div>
-                    <div className="flex gap-0.5">
-                      {[...Array(5)].map((_, i) => (
-                        <div
-                          key={i}
-                          className={`w-2 h-2 rounded-sm ${
-                            i < (nation.tech || 3) ? 'bg-blue-500' : 'bg-gray-600'
-                          }`}
-                        />
-                      ))}
-                    </div>
+                  <div className="bg-gray-900/50 rounded p-2">
+                    <p className="text-gray-400">侵略性</p>
+                    <p className="text-white font-mono">{(nation.aggression || 0).toFixed(2)}</p>
                   </div>
                 </div>
 
-                {/* 外交行动按钮 */}
-                <div className="grid grid-cols-3 gap-2 mt-3">
+                <div className="grid grid-cols-2 gap-2 mt-3 text-xs">
                   <button
-                    onClick={() => onDiplomaticAction(nation.id, 'gift')}
-                    className="px-2 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded text-xs font-semibold transition-colors"
-                    title="赠送礼物"
+                    className="px-2 py-1.5 bg-green-600 hover:bg-green-500 rounded text-white flex items-center justify-center gap-1"
+                    onClick={() => handleSimpleAction(nation.id, 'gift')}
                   >
-                    <Icon name="Gift" size={12} className="mx-auto" />
+                    <Icon name="Gift" size={12} /> 礼物
                   </button>
                   <button
-                    onClick={() => onDiplomaticAction(nation.id, 'trade')}
-                    className="px-2 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-semibold transition-colors"
-                    title="贸易协定"
+                    className="px-2 py-1.5 bg-yellow-600 hover:bg-yellow-500 rounded text-white flex items-center justify-center gap-1"
+                    onClick={() => handleSimpleAction(nation.id, 'demand')}
                   >
-                    <Icon name="Handshake" size={12} className="mx-auto" />
+                    <Icon name="ShieldAlert" size={12} /> 索要
                   </button>
                   <button
-                    onClick={() => onDiplomaticAction(nation.id, 'war')}
-                    className="px-2 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded text-xs font-semibold transition-colors"
-                    title="宣战"
+                    className="px-2 py-1.5 bg-blue-600 hover:bg-blue-500 rounded text-white flex items-center justify-center gap-1"
+                    onClick={() => setSelectedNationId(nation.id)}
                   >
-                    <Icon name="Swords" size={12} className="mx-auto" />
+                    <Icon name="ShoppingCart" size={12} /> 贸易
+                  </button>
+                  <button
+                    className={`px-2 py-1.5 rounded text-white flex items-center justify-center gap-1 ${
+                      nation.isAtWar
+                        ? 'bg-purple-600 hover:bg-purple-500'
+                        : 'bg-red-600 hover:bg-red-500'
+                    }`}
+                    onClick={() =>
+                      handleSimpleAction(nation.id, nation.isAtWar ? 'peace' : 'declare_war')
+                    }
+                  >
+                    <Icon name={nation.isAtWar ? 'Flag' : 'Swords'} size={12} />
+                    {nation.isAtWar ? '求和' : '宣战'}
                   </button>
                 </div>
-                <p className="text-[10px] text-gray-400 mt-2 text-center">
-                  礼物：500 银币 ｜ 贸易协定：1000 银币
-                </p>
               </div>
             );
           })}
-        </div>
-      </div>
-
-      {/* 外交建议 */}
-      <div className="bg-gray-800/50 p-4 rounded-lg border border-gray-700">
-        <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300">
-          <Icon name="MessageSquare" size={16} className="text-yellow-400" />
-          外交建议
-        </h3>
-
-        <div className="space-y-2">
-          {nations.filter((n) => n.relation < 30).length > 0 && (
-            <div className="flex items-start gap-2 p-3 bg-red-900/20 border border-red-600/30 rounded">
-              <Icon name="AlertTriangle" size={16} className="text-red-400 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-xs font-semibold text-red-300">警告</p>
-                <p className="text-xs text-gray-300 mt-1">
-                  你与 {nations.filter((n) => n.relation < 30).map((n) => n.name).join('、')} 的关系非常紧张，
-                  可能随时爆发战争。建议加强军事防御或改善关系。
-                </p>
-              </div>
+          {visibleNations.length === 0 && (
+            <div className="p-4 bg-gray-800/50 border border-gray-700 rounded text-sm text-gray-400">
+              当前时代暂无可接触的国家。
             </div>
           )}
+        </div>
 
-          {nations.filter((n) => n.relation >= 70).length > 0 && (
-            <div className="flex items-start gap-2 p-3 bg-green-900/20 border border-green-600/30 rounded">
-              <Icon name="ThumbsUp" size={16} className="text-green-400 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-xs font-semibold text-green-300">机会</p>
-                <p className="text-xs text-gray-300 mt-1">
-                  你与 {nations.filter((n) => n.relation >= 70).map((n) => n.name).join('、')} 的关系良好，
-                  可以考虑建立贸易协定或军事同盟。
-                </p>
+        <div className="xl:col-span-2 space-y-4">
+          {selectedNation ? (
+            <>
+              <div className="bg-gray-800/60 p-4 rounded-lg border border-gray-700">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Icon name="BarChart" size={14} className="text-blue-300" />
+                    即时套利贸易 · {selectedNation.name}
+                  </h3>
+                  <div className="flex items-center gap-2 text-xs text-gray-400">
+                    <span>批量</span>
+                    <input
+                      type="number"
+                      min="1"
+                      className="w-16 bg-gray-900/70 border border-gray-700 rounded px-2 py-0.5 text-right text-white"
+                      value={tradeAmount}
+                      onChange={(e) => setTradeAmount(Math.max(1, Number(e.target.value) || 1))}
+                    />
+                  </div>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs text-gray-300">
+                    <thead>
+                      <tr className="text-gray-400">
+                        <th className="text-left py-1">资源</th>
+                        <th className="text-left py-1">本地价格</th>
+                        <th className="text-left py-1">收购价</th>
+                        <th className="text-left py-1">差价</th>
+                        <th className="text-right py-1">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tradableResources.map(([key, res]) => {
+                        const local = getLocalPrice(key);
+                        const foreign = calculateForeignPrice(key, selectedNation, daysElapsed);
+                        const diff = foreign - local;
+                        const profitable = diff > 0;
+                        return (
+                          <tr key={key} className="border-t border-gray-700/50">
+                            <td className="py-1">{res.name}</td>
+                            <td className="py-1 text-gray-400">{local.toFixed(2)}</td>
+                            <td
+                              className={`py-1 ${
+                                profitable ? 'text-green-300' : 'text-red-300'
+                              } font-mono`}
+                            >
+                              {foreign.toFixed(2)}
+                            </td>
+                            <td
+                              className={`py-1 font-mono ${
+                                profitable ? 'text-green-400' : 'text-red-400'
+                              }`}
+                            >
+                              {diff >= 0 ? '+' : ''}
+                              {diff.toFixed(2)}
+                            </td>
+                            <td className="py-1 text-right">
+                              <button
+                                className="px-2 py-1 bg-teal-600 hover:bg-teal-500 rounded text-white flex items-center gap-1 ml-auto"
+                                onClick={() => handleTrade(key)}
+                              >
+                                <Icon name="ArrowUpRight" size={12} /> 出口
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
+
+              {selectedNation.isAtWar && (
+                <div className="bg-gray-800/60 p-4 rounded-lg border border-gray-700">
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2 mb-2">
+                    <Icon name="AlertTriangle" size={14} className="text-red-300" />
+                    和平谈判 · {selectedNation.name}
+                  </h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-gray-300">
+                    <div className="bg-red-900/20 p-2 rounded border border-red-600/30">
+                      <p className="text-gray-400">战争分数</p>
+                      <p className="text-lg font-bold text-red-300">
+                        {selectedNation.warScore?.toFixed(0) || 0}
+                      </p>
+                    </div>
+                    <div className="bg-gray-900/40 p-2 rounded border border-gray-700">
+                      <p className="text-gray-400">持续天数</p>
+                      <p className="text-lg font-bold text-white">
+                        {selectedNation.warDuration || 0}
+                      </p>
+                    </div>
+                    <div className="bg-gray-900/40 p-2 rounded border border-gray-700">
+                      <p className="text-gray-400">敌军损失</p>
+                      <p className="text-lg font-bold text-white">
+                        {selectedNation.enemyLosses || 0}
+                      </p>
+                    </div>
+                    <div className="bg-gray-900/40 p-2 rounded border border-gray-700">
+                      <p className="text-gray-400">剩余财富</p>
+                      <p className="text-lg font-bold text-white">
+                        {Math.floor(selectedNation.wealth || 0)}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-2">{renderPeaceHint(selectedNation)}</p>
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    <button
+                      className="px-3 py-2 bg-red-600 hover:bg-red-500 text-white rounded text-xs font-semibold"
+                      onClick={() => handleSimpleAction(selectedNation.id, 'peace')}
+                    >
+                      提出和平协议
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="bg-gray-800/50 p-4 rounded-lg border border-gray-700 text-sm text-gray-400">
+              请选择一个国家以查看贸易与谈判选项。
             </div>
           )}
         </div>

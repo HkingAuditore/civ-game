@@ -3,9 +3,7 @@
 
 import React from 'react';
 import { Icon } from '../common/UIComponents';
-import { BUILDINGS } from '../../config/gameData';
-import { RESOURCES } from '../../config/gameConstants';
-import { STRATA } from '../../config/strata';
+import { BUILDINGS, RESOURCES, STRATA } from '../../config';
 import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
 
 /**
@@ -38,12 +36,7 @@ export const BuildTab = ({
     // 检查时代要求
     if (building.epoch > epoch) return false;
     
-    // 检查科技要求
-    if (building.id === 'sawmill' && !techsUnlocked.includes('tools')) return false;
-    if (building.id === 'large_estate' && !techsUnlocked.includes('feudalism')) return false;
-    if (building.id === 'church' && !techsUnlocked.includes('theology')) return false;
-    if (building.id === 'town_hall' && !techsUnlocked.includes('bureaucracy')) return false;
-    if (building.id === 'factory' && !techsUnlocked.includes('industrialization')) return false;
+    if (building.requiresTech && !techsUnlocked.includes(building.requiresTech)) return false;
     
     return true;
   };
@@ -125,7 +118,7 @@ export const BuildTab = ({
                       {b.output && Object.entries(b.output).map(([res, val]) => (
                         <div key={res} className="flex items-center justify-between text-xs">
                           <span className="text-gray-400">产出:</span>
-                          <span className="text-green-400">+{val} {RESOURCES[res]?.name || res}/s</span>
+                          <span className="text-green-400">+{val} {RESOURCES[res]?.name || res}/日</span>
                         </div>
                       ))}
                       
@@ -133,7 +126,7 @@ export const BuildTab = ({
                       {b.input && Object.entries(b.input).map(([res, val]) => (
                         <div key={res} className="flex items-center justify-between text-xs">
                           <span className="text-gray-400">消耗:</span>
-                          <span className="text-red-400">-{val} {RESOURCES[res]?.name || res}/s</span>
+                          <span className="text-red-400">-{val} {RESOURCES[res]?.name || res}/日</span>
                         </div>
                       ))}
                       

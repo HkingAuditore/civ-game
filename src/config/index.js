@@ -10,6 +10,10 @@ import { TECHS } from './technologies';
 import { DECREES } from './decrees';
 import { COUNTRIES } from './countries';
 import { MILITARY_ACTIONS } from './militaryActions';
+import { UNIT_TYPES, calculateArmyAdminCost, calculateArmyPopulation, simulateBattle, calculateBattlePower, calculateArmyFoodNeed, calculateArmyMaintenance } from './militaryUnits';
+
+
+import { ICON_MAP } from './iconMap';
 
 // 统一导出所有配置
 export {
@@ -39,4 +43,16 @@ export {
 
   // 固定军事行动
   MILITARY_ACTIONS,
+
+  // 军事单位
+  UNIT_TYPES,
+  calculateArmyAdminCost,
+  calculateArmyPopulation,
+  simulateBattle,
+  calculateBattlePower,
+  calculateArmyFoodNeed,
+  calculateArmyMaintenance,
+
+  // 图标
+  ICON_MAP,
 };

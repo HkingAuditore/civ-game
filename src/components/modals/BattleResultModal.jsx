@@ -4,6 +4,7 @@
 import React from 'react';
 import { Icon } from '../common/UIComponents';
 import { UNIT_TYPES } from '../../config/militaryUnits';
+import { RESOURCES } from '../../config/gameConstants';
 
 /**
  * 战斗结果模态框组件
@@ -35,11 +36,14 @@ export const BattleResultModal = ({ result, onClose }) => {
                   {result.victory ? '🎉 战斗胜利！' : '💀 战斗失败...'}
                 </h2>
                 <p className="text-sm text-gray-300 mt-1">
-                  {result.actionType === 'raid' && '掠夺行动'}
-                  {result.actionType === 'conquer' && '征服战争'}
-                  {result.actionType === 'defend' && '防御作战'}
-                  {result.actionType === 'scout' && '侦察任务'}
+                  {result.missionName || '军事行动'} {result.missionDifficulty && `（${result.missionDifficulty}）`}
                 </p>
+                {result.nationName && (
+                  <p className="text-[11px] text-gray-400 mt-0.5">目标：{result.nationName}</p>
+                )}
+                {result.missionDesc && (
+                  <p className="text-xs text-gray-400 mt-1">{result.missionDesc}</p>
+                )}
               </div>
             </div>
             <button
@@ -95,9 +99,9 @@ export const BattleResultModal = ({ result, onClose }) => {
               <Icon name="Heart" size={16} className="text-red-400" />
               我方损失
             </h3>
-            {Object.keys(result.losses || {}).length > 0 ? (
+            {Object.keys(result.losses || result.attackerLosses || {}).length > 0 ? (
               <div className="space-y-2">
-                {Object.entries(result.losses).map(([unitId, count]) => {
+                {Object.entries(result.losses || result.attackerLosses || {}).map(([unitId, count]) => {
                   const unit = UNIT_TYPES[unitId];
                   return (
                     <div
@@ -161,7 +165,7 @@ export const BattleResultModal = ({ result, onClose }) => {
                     key={resource}
                     className="flex items-center justify-between bg-yellow-900/20 border border-yellow-600/30 p-3 rounded"
                   >
-                    <span className="text-sm text-gray-300">{resource}</span>
+                    <span className="text-sm text-gray-300">{RESOURCES[resource]?.name || resource}</span>
                     <span className="text-sm font-bold text-yellow-400">+{amount}</span>
                   </div>
                 ))}

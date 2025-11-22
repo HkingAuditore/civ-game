@@ -2,7 +2,8 @@
 // 使用拆分后的钩子和组件，保持代码简洁
 
 import React, { useState } from 'react';
-import { GAME_SPEEDS, EPOCHS } from './config/gameData';
+import { GAME_SPEEDS, EPOCHS } from './config';
+import { getCalendarInfo } from './utils/calendar';
 import { useGameState, useGameLoop, useGameActions } from './hooks';
 import {
   Icon,
@@ -56,6 +57,9 @@ export default function RiseOfCivs() {
 
   const [showTaxDetail, setShowTaxDetail] = useState(false);
   const taxes = gameState.taxes || { total: 0, breakdown: { headTax: 0, industryTax: 0 }, efficiency: 1 };
+  const dayScale = Math.max(gameState.gameSpeed || 0, 0.0001);
+  const taxesPerDay = taxes.total / dayScale;
+  const calendar = getCalendarInfo(gameState.daysElapsed || 0);
 
   return (
     <div className={`min-h-screen font-sans text-gray-100 ${EPOCHS[gameState.epoch].bg} transition-colors duration-1000 pb-20`}>
@@ -77,18 +81,33 @@ export default function RiseOfCivs() {
       {/* 头部导航栏 */}
       <header className="bg-gray-900/90 backdrop-blur p-4 sticky top-0 z-20 border-b border-gray-700 shadow-xl">
         <div className="max-w-7xl mx-auto flex flex-wrap justify-between items-center gap-4">
-          {/* Logo和时代 */}
-          <div className="flex items-center gap-3">
-            <div className="bg-blue-600 p-2 rounded-lg shadow-lg shadow-blue-500/20">
-              <Icon name="Globe" size={20} />
+          <div className="flex items-center gap-4 flex-wrap">
+            {/* Logo和时代 */}
+            <div className="flex items-center gap-3">
+              <div className="bg-blue-600 p-2 rounded-lg shadow-lg shadow-blue-500/20">
+                <Icon name="Globe" size={20} />
+              </div>
+              <div>
+                <h1 className="font-bold text-lg leading-none text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400">
+                  文明崛起
+                </h1>
+                <span className={`text-xs font-bold uppercase ${EPOCHS[gameState.epoch].color}`}>
+                  {EPOCHS[gameState.epoch].name}
+                </span>
+              </div>
             </div>
-            <div>
-              <h1 className="font-bold text-lg leading-none text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400">
-                文明崛起
-              </h1>
-              <span className={`text-xs font-bold uppercase ${EPOCHS[gameState.epoch].color}`}>
-                {EPOCHS[gameState.epoch].name}
-              </span>
+
+            {/* 时间显示 */}
+            <div className="flex items-center gap-2 bg-gray-800/40 px-3 py-1.5 rounded-full border border-gray-700">
+              <Icon name="Calendar" size={16} className="text-blue-300" />
+              <div className="text-xs leading-tight">
+                <div className="text-sm font-bold text-white">
+                  第 {calendar.year} 年 · {calendar.season}
+                </div>
+                <div className="text-[10px] text-gray-400">
+                  {calendar.monthName}{calendar.day}日 · 第 {calendar.totalDays} 天 · 速度 x{gameState.gameSpeed}
+                </div>
+              </div>
             </div>
           </div>
 
@@ -106,7 +125,7 @@ export default function RiseOfCivs() {
                 title="查看税收详情"
               >
                 <Icon name="TrendingUp" size={12} />
-                +{taxes.total.toFixed(2)}/s
+                +{taxesPerDay.toFixed(2)}/日
               </button>
             </div>
             <div className="w-px h-4 bg-gray-600"></div>
@@ -191,10 +210,7 @@ export default function RiseOfCivs() {
             resources={gameState.resources} 
             rates={gameState.rates} 
             market={gameState.market}
-            nations={gameState.nations}
-            tradeRoutes={gameState.tradeRoutes}
-            onCreateTradeRoute={actions.createTradeRoute}
-            onCancelTradeRoute={actions.cancelTradeRoute}
+            epoch={gameState.epoch}
           />
 
           {/* 社会阶层面板 */}
@@ -284,6 +300,8 @@ export default function RiseOfCivs() {
                   onSelectTarget={gameState.setSelectedTarget}
                   onLaunchBattle={actions.launchBattle}
                   market={gameState.market}
+                  militaryWageRatio={gameState.militaryWageRatio}
+                  onUpdateWageRatio={gameState.setMilitaryWageRatio}
                 />
               )}
 
@@ -309,6 +327,8 @@ export default function RiseOfCivs() {
                   taxPolicies={gameState.taxPolicies}
                   onUpdateTaxPolicies={gameState.setTaxPolicies}
                   popStructure={gameState.popStructure}
+                  market={gameState.market}
+                  epoch={gameState.epoch}
                 />
               )}
 
@@ -316,6 +336,10 @@ export default function RiseOfCivs() {
               {gameState.activeTab === 'diplo' && (
                 <DiplomacyTab
                   nations={gameState.nations}
+                  epoch={gameState.epoch}
+                  market={gameState.market}
+                  resources={gameState.resources}
+                  daysElapsed={gameState.daysElapsed}
                   onDiplomaticAction={actions.handleDiplomaticAction}
                 />
               )}
@@ -329,11 +353,31 @@ export default function RiseOfCivs() {
           <LogPanel logs={gameState.logs} />
           
           {/* 游戏提示 */}
-          <div className="bg-blue-900/20 border border-blue-500/20 p-4 rounded-xl text-xs text-gray-400 space-y-2">
+          <div className="bg-blue-900/20 border border-blue-500/20 p-4 rounded-xl text-xs text-gray-300 space-y-2">
             <h4 className="font-bold text-blue-300">统治指南</h4>
-            <p>• <span className="text-white">人口就是阶层</span>：建筑提供岗位，人口会自动填补岗位成为对应阶层。</p>
-            <p>• <span className="text-white">平衡产出</span>：注意查看建筑卡片上的绿色（产出）和红色（消耗）数值。</p>
-            <p>• <span className="text-white">外交</span>：初期可以通过掠夺邻国快速获取资源，但要小心报复。</p>
+            <p>• <span className="text-white">阶层即兵源与劳力</span>：岗位由建筑创造，人口自动填补并转化为对应阶层，留意阶层需求免得怠工。</p>
+            <p>• <span className="text-white">银币驱动经济</span>：绝大多数资源都在市场流通，你的仓库存货来自用银币在当前价格买入，银币短缺会导致供应断档。</p>
+            <p>• <span className="text-white">掌控节奏</span>：在研究、政令、外交之间保持平衡，时代升级前先确保文化与行政容量足够，避免管理崩溃。</p>
+          </div>
+
+          <div className="bg-emerald-900/20 border border-emerald-500/20 p-4 rounded-xl text-xs text-gray-200 space-y-3">
+            <h4 className="font-bold text-emerald-300">新手教程</h4>
+            <div className="space-y-1">
+              <p className="text-white font-semibold">1. 稳固开局</p>
+              <p>在【建设】面板先补足农田与伐木场，保持粮食与木材正增长，同时关注人口上限。</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-white font-semibold">2. 了解市场</p>
+              <p>查看右下角的市场价格，记住：<span className="text-white">所有实物资源都在市场</span>，你的仓库只是用银币按价格买来的存货。每当建造、生产或研究需要材料时，系统会自动消耗库存；若库存不足，就会立刻用银币在市场补货。</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-white font-semibold">3. 推进科技与时代</p>
+              <p>用图书馆产生科研，研究能解锁新建筑与增益；满足时代要求后支付资源和银币升级，新的外交对手与产业链也会出现。</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-white font-semibold">4. 调整政令与外交</p>
+              <p>政令提供强大但有代价的加成，记得观察阶层好感；通过外交或贸易获取稀缺资源，比盲目扩军更省成本。</p>
+            </div>
           </div>
         </aside>
       </main>
@@ -348,17 +392,18 @@ export default function RiseOfCivs() {
 
       {/* 阶层详情模态框 */}
       {gameState.stratumDetailView && (
-        <StratumDetailModal
-          stratumKey={gameState.stratumDetailView}
-          popStructure={gameState.popStructure}
-          classApproval={gameState.classApproval}
-          classInfluence={gameState.classInfluence}
-          classWealth={gameState.classWealth}
-          totalInfluence={gameState.totalInfluence}
-          totalWealth={gameState.totalWealth}
-          activeBuffs={gameState.activeBuffs}
-          activeDebuffs={gameState.activeDebuffs}
-          epoch={gameState.epoch}
+          <StratumDetailModal
+            stratumKey={gameState.stratumDetailView}
+            popStructure={gameState.popStructure}
+            classApproval={gameState.classApproval}
+            classInfluence={gameState.classInfluence}
+            classWealth={gameState.classWealth}
+            classWealthHistory={gameState.classWealthHistory}
+            totalInfluence={gameState.totalInfluence}
+            totalWealth={gameState.totalWealth}
+            activeBuffs={gameState.activeBuffs}
+            activeDebuffs={gameState.activeDebuffs}
+            epoch={gameState.epoch}
           onClose={() => gameState.setStratumDetailView(null)}
         />
       )}

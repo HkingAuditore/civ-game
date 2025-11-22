@@ -1,4 +1,5 @@
-import { BUILDINGS, STRATA, EPOCHS, RESOURCES } from '../config/gameData';
+import { BUILDINGS, STRATA, EPOCHS, RESOURCES, TECHS } from '../config';
+import { calculateArmyPopulation, calculateArmyFoodNeed } from '../config';
 
 const ROLE_PRIORITY = [
   'official',
@@ -6,13 +7,20 @@ const ROLE_PRIORITY = [
   'capitalist',
   'landowner',
   'knight',
+  'engineer',
+  'navigator',
+  'merchant',
   'soldier',
+  'scribe',
   'worker',
+  'artisan',
   'miner',
   'lumberjack',
   'serf',
   'peasant',
 ];
+
+const JOB_MIGRATION_RATIO = 0.04;
 
 
 const isTradableResource = (key) => {
@@ -20,14 +28,6 @@ const isTradableResource = (key) => {
   const def = RESOURCES[key];
   if (!def) return false;
   return !def.type || def.type !== 'virtual';
-};
-
-const cloneOwnership = (source = {}) => {
-  const result = {};
-  Object.keys(source).forEach((resource) => {
-    result[resource] = { ...source[resource] };
-  });
-  return result;
 };
 
 const initializeWealth = (currentWealth = {}) => {
@@ -46,20 +46,12 @@ const getBasePrice = (resource) => {
   return def?.basePrice || 1;
 };
 
-const DEFAULT_FOREIGN_PARTNER = { relation: 0, economyTraits: { resourceBias: {} } };
+const PRICE_FLOOR = 0.5;
 
-const clampRelation = (value) => Math.max(-100, Math.min(100, value ?? 0));
-
-export const calculateForeignPrice = (resource, nation = DEFAULT_FOREIGN_PARTNER, type = 'import') => {
-  const base = getBasePrice(resource);
-  const bias = nation?.economyTraits?.resourceBias?.[resource] ?? 1;
-  const relation = clampRelation(nation?.relation ?? DEFAULT_FOREIGN_PARTNER.relation);
-  const relationFactor = type === 'import'
-    ? 1 - (relation / 200)
-    : 1 + (relation / 200);
-  const volatility = 1 + (Math.random() - 0.5) * 0.1;
-  return Math.max(0.1, base * bias * relationFactor * volatility);
-};
+const TECH_MAP = TECHS.reduce((acc, tech) => {
+  acc[tech.id] = tech;
+  return acc;
+}, {});
 
 export const simulateTick = ({
   resources,
@@ -70,29 +62,21 @@ export const simulateTick = ({
   epoch,
   market,
   classWealth,
+  classApproval: previousApproval = {},
   activeBuffs: productionBuffs = [],
   activeDebuffs: productionDebuffs = [],
   taxPolicies,
+  army = {},
+  militaryWageRatio = 1,
   nations = [],
-  tradeRoutes = [],
+  tick = 0,
+  techsUnlocked = [],
 }) => {
   const res = { ...resources };
   const priceMap = { ...(market?.prices || {}) };
-  const ownership = cloneOwnership(market?.ownership || {});
   const previousWages = market?.wages || {};
   const demand = {};
   const supply = {};
-  const externalTrade = {
-    imports: {},
-    exports: {},
-    importCost: 0,
-    exportRevenue: 0,
-    routes: [],
-  };
-  const nationMap = {};
-  nations.forEach(n => {
-    if (n?.id) nationMap[n.id] = n;
-  });
   const wealth = initializeWealth(classWealth);
   const policies = taxPolicies || {};
   const headTaxRates = policies.headTaxRates || {};
@@ -111,77 +95,89 @@ export const simulateTick = ({
     industryTax: 0,
   };
 
+  const buildingBonuses = {};
+  const categoryBonuses = { gather: 1, industry: 1, civic: 1, military: 1 };
+  const passiveGains = {};
+  let extraMaxPop = 0;
+  let extraAdminCapacity = 0;
+  let productionBonus = 0;
+  let industryBonus = 0;
+  let taxBonus = 0;
+
+  const boostBuilding = (id, percent) => {
+    if (!id || typeof percent !== 'number') return;
+    const factor = 1 + percent;
+    if (!Number.isFinite(factor) || factor <= 0) return;
+    buildingBonuses[id] = (buildingBonuses[id] || 1) * factor;
+  };
+
+  const boostCategory = (category, percent) => {
+    if (!category || typeof percent !== 'number') return;
+    const factor = 1 + percent;
+    if (!Number.isFinite(factor) || factor <= 0) return;
+    categoryBonuses[category] = (categoryBonuses[category] || 1) * factor;
+  };
+
+  const addPassiveGain = (resource, amount) => {
+    if (!resource || typeof amount !== 'number') return;
+    passiveGains[resource] = (passiveGains[resource] || 0) + amount;
+  };
+
+  const applyEffects = (effects = {}) => {
+    if (!effects) return;
+    if (effects.buildings) {
+      Object.entries(effects.buildings).forEach(([id, percent]) => boostBuilding(id, percent));
+    }
+    if (effects.categories) {
+      Object.entries(effects.categories).forEach(([cat, percent]) => boostCategory(cat, percent));
+    }
+    if (effects.passive) {
+      Object.entries(effects.passive).forEach(([resKey, amount]) => addPassiveGain(resKey, amount));
+    }
+    if (effects.maxPop) {
+      extraMaxPop += effects.maxPop;
+    }
+    if (effects.admin) {
+      extraAdminCapacity += effects.admin;
+    }
+    if (effects.production) {
+      productionBonus += effects.production;
+    }
+    if (effects.industry) {
+      industryBonus += effects.industry;
+    }
+    if (effects.taxIncome) {
+      taxBonus += effects.taxIncome;
+    }
+  };
+
+  techsUnlocked.forEach(id => {
+    const tech = TECH_MAP[id];
+    if (!tech || !tech.effects) return;
+    applyEffects(tech.effects);
+  });
+
+  decrees.forEach(decree => {
+    if (!decree || !decree.active || !decree.modifiers) return;
+    applyEffects(decree.modifiers);
+  });
+
   const getPrice = (resource) => {
     if (!priceMap[resource]) {
       priceMap[resource] = getBasePrice(resource);
     }
+    priceMap[resource] = Math.max(PRICE_FLOOR, priceMap[resource]);
     return priceMap[resource];
   };
 
-  const ensureBucket = (resource) => {
-    if (!ownership[resource]) ownership[resource] = {};
-  };
-
-  const creditProduction = (resource, amount, ownerKey) => {
+  const sellProduction = (resource, amount, ownerKey) => {
     if (amount <= 0) return;
-    if (!isTradableResource(resource)) {
-      res[resource] = (res[resource] || 0) + amount;
-      return;
-    }
     res[resource] = (res[resource] || 0) + amount;
-    supply[resource] = (supply[resource] || 0) + amount;
-    ensureBucket(resource);
-    ownership[resource][ownerKey] = (ownership[resource][ownerKey] || 0) + amount;
-  };
-
-  const getExternalPrice = (resource, type) => calculateForeignPrice(resource, DEFAULT_FOREIGN_PARTNER, type);
-
-  const settleMarketPurchase = (resource, desiredAmount, options = {}) => {
-    const { allowImport = false } = options;
-    if (!isTradableResource(resource) || desiredAmount <= 0) {
-      return { amount: 0, spent: 0, localAmount: 0, imported: 0 };
+    if (isTradableResource(resource)) {
+      supply[resource] = (supply[resource] || 0) + amount;
+      const price = getPrice(resource);
+      wealth[ownerKey] = (wealth[ownerKey] || 0) + price * amount;
     }
-    const price = getPrice(resource);
-    const available = res[resource] || 0;
-    const localAmount = Math.min(desiredAmount, available);
-    if (localAmount <= 0 && !allowImport) {
-      return { amount: 0, spent: 0, localAmount: 0, imported: 0 };
-    }
-
-    res[resource] = available - localAmount;
-    demand[resource] = (demand[resource] || 0) + localAmount;
-    ensureBucket(resource);
-
-    let remaining = localAmount;
-    const bucket = ownership[resource];
-    for (const ownerKey of Object.keys(bucket)) {
-      if (remaining <= 0) break;
-      const owned = bucket[ownerKey] || 0;
-      if (owned <= 0) continue;
-      const sold = Math.min(owned, remaining);
-      bucket[ownerKey] = owned - sold;
-      wealth[ownerKey] = (wealth[ownerKey] || 0) + sold * price;
-      remaining -= sold;
-    }
-
-    const baseCost = localAmount * price;
-    const resourceTaxRate = Math.max(0, getResourceTaxRate(resource));
-    const taxPaid = baseCost * resourceTaxRate;
-    if (taxPaid > 0) {
-      taxBreakdown.industryTax += taxPaid;
-    }
-    let imported = 0;
-    let importCost = 0;
-    if (allowImport && localAmount < desiredAmount) {
-      imported = desiredAmount - localAmount;
-      const importPrice = getExternalPrice(resource, 'import');
-      importCost = imported * importPrice;
-      externalTrade.imports[resource] = (externalTrade.imports[resource] || 0) + imported;
-      externalTrade.importCost += importCost;
-      demand[resource] = (demand[resource] || 0) + imported;
-    }
-
-    return { amount: localAmount + imported, spent: baseCost + taxPaid + importCost, localAmount, imported };
   };
 
   const rates = {};
@@ -191,6 +187,10 @@ export const simulateTick = ({
   const roleWagePayout = {};
   let totalMaxPop = 5;
   let adminCapacity = 20;
+  totalMaxPop += extraMaxPop;
+  adminCapacity += extraAdminCapacity;
+  const armyPopulationDemand = calculateArmyPopulation(army);
+  const armyFoodNeed = calculateArmyFoodNeed(army);
 
   ROLE_PRIORITY.forEach(role => jobsAvailable[role] = 0);
   ROLE_PRIORITY.forEach(role => {
@@ -209,19 +209,22 @@ export const simulateTick = ({
     }
   });
 
+  if (armyPopulationDemand > 0) {
+    jobsAvailable.soldier = (jobsAvailable.soldier || 0) + armyPopulationDemand;
+  }
+
   let remainingPop = population;
   const popStructure = {};
 
   ROLE_PRIORITY.forEach(role => {
-    if (role === 'peasant') {
-      popStructure[role] = Math.max(0, remainingPop);
-      remainingPop = 0;
-    } else {
-      const filled = Math.min(remainingPop, jobsAvailable[role] || 0);
-      popStructure[role] = filled;
-      remainingPop -= filled;
-    }
+    const slots = Math.max(0, jobsAvailable[role] || 0);
+    const filled = Math.min(remainingPop, slots);
+    popStructure[role] = filled;
+    remainingPop -= filled;
   });
+
+  popStructure.unemployed = Math.max(0, remainingPop);
+  remainingPop = 0;
 
   let currentAdminStrain = 0;
   const classApproval = {};
@@ -244,7 +247,29 @@ export const simulateTick = ({
     if (debuff.industryBonus) industryModifier += debuff.industryBonus;
     if (debuff.taxIncome) taxModifier += debuff.taxIncome;
   });
+
+  productionModifier *= (1 + productionBonus);
+  industryModifier *= (1 + industryBonus);
+  taxModifier *= (1 + taxBonus);
+
   const effectiveTaxModifier = Math.max(0, taxModifier);
+
+  Object.entries(passiveGains).forEach(([resKey, amountPerDay]) => {
+    if (!amountPerDay) return;
+    const gain = amountPerDay * gameSpeed;
+    const current = res[resKey] || 0;
+    if (gain >= 0) {
+      res[resKey] = current + gain;
+      rates[resKey] = (rates[resKey] || 0) + gain;
+    } else {
+      const needed = Math.abs(gain);
+      const spent = Math.min(current, needed);
+      if (spent > 0) {
+        res[resKey] = current - spent;
+        rates[resKey] = (rates[resKey] || 0) - spent;
+      }
+    }
+  });
 
   Object.keys(STRATA).forEach(key => {
     const count = popStructure[key] || 0;
@@ -263,7 +288,7 @@ export const simulateTick = ({
       wealth[key] = available - paid;
       taxBreakdown.headTax += paid;
     }
-    classApproval[key] = 50;
+    classApproval[key] = previousApproval[key] ?? 50;
   });
 
   const forcedLabor = decrees.some(d => d.id === 'forced_labor' && d.active);
@@ -294,6 +319,24 @@ export const simulateTick = ({
     }
     if (b.cat === 'industry') {
       multiplier *= industryModifier;
+    }
+
+    if (techsUnlocked.includes('wheel') && b.cat === 'gather') {
+      multiplier *= 1.2;
+    }
+    if (techsUnlocked.includes('pottery') && b.id === 'farm') {
+      multiplier *= 1.1;
+    }
+    if (techsUnlocked.includes('basic_irrigation') && b.id === 'farm') {
+      multiplier *= 1.15;
+    }
+    const categoryBonus = categoryBonuses[b.cat];
+    if (categoryBonus && categoryBonus !== 1) {
+      multiplier *= categoryBonus;
+    }
+    const buildingBonus = buildingBonuses[b.id];
+    if (buildingBonus && buildingBonus !== 1) {
+      multiplier *= buildingBonus;
     }
 
     let staffingRatio = 1.0;
@@ -339,13 +382,13 @@ export const simulateTick = ({
         const perMultiplierAmount = perUnit * count;
         const requiredAtBase = perMultiplierAmount * baseMultiplier;
         if (requiredAtBase <= 0) continue;
+        const available = res[resKey] || 0;
+        if (available <= 0) {
+          resourceLimit = 0;
+        } else {
+          resourceLimit = Math.min(resourceLimit, available / requiredAtBase);
+        }
         if (isTradableResource(resKey)) {
-          const available = res[resKey] || 0;
-          if (available <= 0) {
-            resourceLimit = 0;
-          } else {
-            resourceLimit = Math.min(resourceLimit, available / requiredAtBase);
-          }
           const price = getPrice(resKey);
           inputValuePerMultiplier += perMultiplierAmount * price;
           const taxRate = Math.max(0, getResourceTaxRate(resKey));
@@ -389,13 +432,22 @@ export const simulateTick = ({
       for (const [resKey, perUnit] of Object.entries(b.input)) {
         const amountNeeded = perUnit * count * actualMultiplier;
         if (!amountNeeded || amountNeeded <= 0) continue;
-        const { spent, localAmount } = settleMarketPurchase(resKey, amountNeeded, { allowImport: true });
-        if (spent > 0) {
-          wealth[ownerKey] = Math.max(0, (wealth[ownerKey] || 0) - spent);
-          if (localAmount > 0) {
-            rates[resKey] = (rates[resKey] || 0) - localAmount;
+        const available = res[resKey] || 0;
+        const consumed = Math.min(amountNeeded, available);
+        if (consumed <= 0) continue;
+        res[resKey] = available - consumed;
+        if (isTradableResource(resKey)) {
+          demand[resKey] = (demand[resKey] || 0) + consumed;
+          const price = getPrice(resKey);
+          const taxRate = Math.max(0, getResourceTaxRate(resKey));
+          const baseCost = consumed * price;
+          const taxPaid = baseCost * taxRate;
+          if (taxPaid > 0) {
+            taxBreakdown.industryTax += taxPaid;
           }
+          wealth[ownerKey] = Math.max(0, (wealth[ownerKey] || 0) - (baseCost + taxPaid));
         }
+        rates[resKey] = (rates[resKey] || 0) - consumed;
       }
     }
 
@@ -412,13 +464,18 @@ export const simulateTick = ({
 
     if (b.output) {
       for (const [resKey, perUnit] of Object.entries(b.output)) {
+        const amount = perUnit * count * actualMultiplier;
+        if (!amount || amount <= 0) continue;
         if (resKey === 'maxPop' || resKey === 'admin') {
-          res[resKey] = (res[resKey] || 0) + (perUnit * count * actualMultiplier);
+          res[resKey] = (res[resKey] || 0) + amount;
           continue;
         }
-        const amount = perUnit * count * actualMultiplier;
-        creditProduction(resKey, amount, ownerKey);
-        rates[resKey] = (rates[resKey] || 0) + amount;
+        if (isTradableResource(resKey)) {
+          sellProduction(resKey, amount, ownerKey);
+          rates[resKey] = (rates[resKey] || 0) + amount;
+        } else {
+          res[resKey] = (res[resKey] || 0) + amount;
+        }
       }
     }
 
@@ -444,6 +501,24 @@ export const simulateTick = ({
     wealth[role] = (wealth[role] || 0) + payout;
   });
 
+  const wageMultiplier = Math.max(0, militaryWageRatio ?? 0);
+  const foodPrice = getPrice('food');
+  const baseArmyWage = armyFoodNeed * foodPrice * wageMultiplier;
+
+  if (baseArmyWage > 0) {
+    const wageDue = baseArmyWage * gameSpeed;
+    const available = res.silver || 0;
+    const paid = Math.min(available, wageDue);
+    if (paid > 0) {
+      res.silver = available - paid;
+      rates.silver = (rates.silver || 0) - paid;
+      wealth.soldier = (wealth.soldier || 0) + paid;
+    }
+    if (paid < wageDue) {
+      logs.push('银币不足，军饷被拖欠，军心不稳。');
+    }
+  }
+
   const needsReport = {};
   const classShortages = {};
   Object.keys(STRATA).forEach(key => {
@@ -464,38 +539,37 @@ export const simulateTick = ({
       if (resourceInfo && typeof resourceInfo.unlockEpoch === 'number' && resourceInfo.unlockEpoch > epoch) {
         continue;
       }
-      let requirement = perCapita * count * gameSpeed;
+      const requirement = perCapita * count * gameSpeed;
       if (requirement <= 0) continue;
-      const originalRequirement = requirement;
+      const available = res[resKey] || 0;
       let satisfied = 0;
 
-      const ownedBucket = ownership[resKey]?.[key] || 0;
-      if (ownedBucket > 0) {
-        const consumeOwn = Math.min(requirement, ownedBucket);
-        ownership[resKey][key] = ownedBucket - consumeOwn;
-        if (ownership[resKey][key] <= 0) {
-          delete ownership[resKey][key];
+      if (isTradableResource(resKey)) {
+        const price = getPrice(resKey);
+        const affordable = price > 0 ? Math.min(requirement, (wealth[key] || 0) / price) : requirement;
+        const amount = Math.min(requirement, available, affordable);
+        if (amount > 0) {
+          res[resKey] = available - amount;
+          demand[resKey] = (demand[resKey] || 0) + amount;
+          rates[resKey] = (rates[resKey] || 0) - amount;
+          const taxRate = Math.max(0, getResourceTaxRate(resKey));
+          const baseCost = amount * price;
+          const taxPaid = baseCost * taxRate;
+          if (taxPaid > 0) {
+            taxBreakdown.industryTax += taxPaid;
+          }
+          wealth[key] = Math.max(0, (wealth[key] || 0) - (baseCost + taxPaid));
+          satisfied = amount;
         }
-        res[resKey] = Math.max(0, (res[resKey] || 0) - consumeOwn);
-        rates[resKey] = (rates[resKey] || 0) - consumeOwn;
-        requirement -= consumeOwn;
-        satisfied += consumeOwn;
+      } else {
+        const amount = Math.min(requirement, available);
+        if (amount > 0) {
+          res[resKey] = available - amount;
+          satisfied = amount;
+        }
       }
 
-      if (requirement > 0) {
-      const price = getPrice(resKey);
-      const maxAffordable = price > 0 ? Math.min(requirement, (wealth[key] || 0) / price) : requirement;
-      const { amount, spent, localAmount } = settleMarketPurchase(resKey, maxAffordable, { allowImport: true });
-      if (spent > 0) {
-        wealth[key] = Math.max(0, (wealth[key] || 0) - spent);
-        if (localAmount > 0) {
-          rates[resKey] = (rates[resKey] || 0) - localAmount;
-        }
-      }
-      satisfied += amount;
-      }
-
-      const ratio = originalRequirement > 0 ? satisfied / originalRequirement : 1;
+      const ratio = requirement > 0 ? satisfied / requirement : 1;
       satisfactionSum += ratio;
       tracked += 1;
       if (ratio < 0.99) {
@@ -503,9 +577,33 @@ export const simulateTick = ({
       }
     }
 
-    needsReport[key] = tracked > 0 ? satisfactionSum / tracked : 1;
-    classShortages[key] = shortages;
+  needsReport[key] = tracked > 0 ? satisfactionSum / tracked : 1;
+  classShortages[key] = shortages;
+});
+
+  let workforceNeedWeighted = 0;
+  let workforceTotal = 0;
+  Object.keys(STRATA).forEach(key => {
+    const count = popStructure[key] || 0;
+    if (count <= 0) return;
+    workforceTotal += count;
+    const needLevel = Math.min(1, needsReport[key] ?? 1);
+    workforceNeedWeighted += needLevel * count;
   });
+  const laborNeedAverage = workforceTotal > 0 ? workforceNeedWeighted / workforceTotal : 1;
+  const laborEfficiencyFactor = 0.3 + 0.7 * laborNeedAverage;
+  if (laborEfficiencyFactor < 0.999) {
+    Object.entries(rates).forEach(([resKey, value]) => {
+      const resInfo = RESOURCES[resKey];
+      if (!resInfo || resKey === 'silver' || (resInfo.type && resInfo.type === 'virtual')) return;
+      if (value > 0) {
+        const reduction = value * (1 - laborEfficiencyFactor);
+        rates[resKey] = value - reduction;
+        res[resKey] = Math.max(0, (res[resKey] || 0) - reduction);
+      }
+    });
+    logs.push('劳动力因需求未满足而效率下降。');
+  }
 
   decrees.forEach(d => {
     if (d.active) {
@@ -540,8 +638,19 @@ export const simulateTick = ({
     } else if (satisfaction > 1.5) {
       approval += 10;
     }
+
+    if (key === 'unemployed') {
+      const ratio = count / Math.max(1, population);
+      const penalty = 2 + ratio * 30;
+      approval -= penalty;
+    }
+
     classApproval[key] = Math.max(0, Math.min(100, approval));
   });
+
+  if ((popStructure.unemployed || 0) === 0 && previousApproval.unemployed !== undefined) {
+    classApproval.unemployed = Math.min(100, previousApproval.unemployed + 5);
+  }
 
 
   let epochAdminBonus = 0;
@@ -551,32 +660,12 @@ export const simulateTick = ({
 
   adminCapacity += epochAdminBonus;
   res.admin = adminCapacity - currentAdminStrain;
-  let efficiency = res.admin < 0 ? 0.5 : 1.0;
+  const adminEfficiency = res.admin < 0 ? 0.5 : 1.0;
 
   res.admin = Math.max(0, res.admin);
 
-  const collectedHeadTax = taxBreakdown.headTax * efficiency;
-  const collectedIndustryTax = taxBreakdown.industryTax * efficiency;
-  const totalCollectedTax = collectedHeadTax + collectedIndustryTax;
-
-  res.silver = (res.silver || 0) + totalCollectedTax;
-  rates.silver = (rates.silver || 0) + totalCollectedTax;
-
   let nextPopulation = population;
-  if ((res.food || 0) > population * 2 && population < totalMaxPop) {
-    if (Math.random() > 0.8) nextPopulation = population + 1;
-  }
-  if ((res.food || 0) <= 0) {
-    res.food = 0;
-    if (Math.random() > 0.9 && population > 2) {
-      nextPopulation = population - 1;
-      logs.push("饥荒导致人口减少！");
-    }
-  }
-
-  Object.keys(res).forEach(k => {
-    if (res[k] < 0) res[k] = 0;
-  });
+  let raidPopulationLoss = 0;
 
   Object.keys(STRATA).forEach(key => {
     classWealthResult[key] = Math.max(0, wealth[key] || 0);
@@ -591,6 +680,27 @@ export const simulateTick = ({
     const wealthShare = classWealthResult[key] || 0;
     const wealthFactor = totalWealth > 0 ? wealthShare / totalWealth : 0;
     classInfluence[key] = (def.influenceBase * count) + (wealthFactor * 10);
+  });
+
+  const totalInfluence = Object.values(classInfluence).reduce((sum, val) => sum + val, 0);
+  let exodusPopulationLoss = 0;
+  let extraStabilityPenalty = 0;
+  Object.keys(STRATA).forEach(key => {
+    const count = popStructure[key] || 0;
+    if (count === 0) return;
+    const approval = classApproval[key] || 50;
+    if (approval >= 30) return;
+    const influenceShare = totalInfluence > 0 ? (classInfluence[key] || 0) / totalInfluence : 0;
+    const className = STRATA[key]?.name || key;
+    if (approval < 25 && influenceShare < 0.07) {
+      const leaving = Math.min(count, Math.max(1, Math.floor(count * 0.12)));
+      exodusPopulationLoss += leaving;
+      logs.push(`${className} 阶层对政局失望，${leaving} 人离开了国家。`);
+    } else if (influenceShare >= 0.12) {
+      const penalty = Math.min(0.2, 0.05 + influenceShare * 0.15);
+      extraStabilityPenalty += penalty;
+      logs.push(`${className} 阶层的愤怒正在削弱社会稳定。`);
+    }
   });
 
   const newActiveBuffs = [];
@@ -621,8 +731,96 @@ export const simulateTick = ({
   newActiveDebuffs.forEach(debuff => {
     if (debuff.stability) stabilityModifier += debuff.stability;
   });
+  stabilityModifier -= extraStabilityPenalty;
 
-  const totalInfluence = Object.values(classInfluence).reduce((sum, val) => sum + val, 0);
+  const stabilityValue = Math.max(0, Math.min(100, 50 + stabilityModifier * 100));
+  const stabilityFactor = Math.min(1.5, Math.max(0.5, 1 + (stabilityValue - 50) / 100));
+  const efficiency = adminEfficiency * stabilityFactor;
+
+  const visibleEpoch = epoch;
+  const updatedNations = (nations || []).map(nation => {
+    const next = { ...nation };
+    const visible = visibleEpoch >= (nation.appearEpoch ?? 0) && (nation.expireEpoch == null || visibleEpoch <= nation.expireEpoch);
+    if (!visible) return next;
+    if (next.isAtWar) {
+      next.warDuration = (next.warDuration || 0) + 1;
+      if (visibleEpoch >= 1) {
+        const disadvantage = Math.max(0, -(next.warScore || 0));
+        const raidChance = Math.min(0.18, 0.02 + (next.aggression || 0.2) * 0.04 + disadvantage / 400);
+        if (Math.random() < raidChance) {
+          const raidStrength = 0.05 + (next.aggression || 0.2) * 0.05 + disadvantage / 1200;
+          const foodLoss = Math.floor((res.food || 0) * raidStrength);
+          const silverLoss = Math.floor((res.silver || 0) * (raidStrength / 2));
+          if (foodLoss > 0) res.food = Math.max(0, (res.food || 0) - foodLoss);
+          if (silverLoss > 0) res.silver = Math.max(0, (res.silver || 0) - silverLoss);
+          const popLoss = Math.min(3, Math.max(1, Math.floor(raidStrength * 20)));
+          raidPopulationLoss += popLoss;
+          logs.push(`❗ ${next.name} 的突袭夺走了粮食 ${foodLoss}、银币 ${silverLoss}，人口损失 ${popLoss}。`);
+        }
+      }
+      if ((next.warScore || 0) > 12) {
+        const willingness = Math.min(0.5, 0.03 + (next.warScore || 0) / 120 + (next.warDuration || 0) / 400) + Math.min(0.15, (next.enemyLosses || 0) / 500);
+        if (Math.random() < willingness) {
+          const tribute = Math.min(next.wealth || 0, Math.max(50, Math.ceil((next.warScore || 0) * 30 + (next.enemyLosses || 0) * 2)));
+          if (tribute > 0) {
+            res.silver = (res.silver || 0) + tribute;
+            rates.silver = (rates.silver || 0) + tribute;
+            next.wealth = Math.max(0, (next.wealth || 0) - tribute);
+          }
+          logs.push(`🤝 ${next.name} 请求和平，并支付了 ${tribute} 银币。`);
+          next.isAtWar = false;
+          next.warScore = 0;
+          next.warDuration = 0;
+          next.enemyLosses = 0;
+          next.relation = Math.max(35, next.relation || 0);
+        }
+      }
+    } else if (next.warDuration) {
+      next.warDuration = 0;
+    }
+    const relation = next.relation ?? 50;
+    const aggression = next.aggression ?? 0.2;
+    const hostility = Math.max(0, (50 - relation) / 70);
+    const unrest = stabilityValue < 35 ? 0.02 : 0;
+    const declarationChance = visibleEpoch >= 1 ? Math.min(0.08, (aggression * 0.04) + (hostility * 0.04) + unrest) : 0;
+    if (!next.isAtWar && relation < 35 && Math.random() < declarationChance) {
+      next.isAtWar = true;
+      next.warStartDay = tick;
+      next.warDuration = 0;
+      logs.push(`⚠️ ${next.name} 对你发动了战争！`);
+    }
+    return next;
+  });
+
+  if ((res.food || 0) > population * 2 && population < totalMaxPop) {
+    const growthBonus = Math.max(0, (stabilityValue - 50) / 200);
+    const threshold = Math.max(0.3, 0.8 - Math.min(0.3, growthBonus));
+    if (Math.random() > threshold) {
+      nextPopulation = Math.min(totalMaxPop, nextPopulation + 1);
+    }
+  }
+  if ((res.food || 0) <= 0) {
+    res.food = 0;
+    if (Math.random() > 0.9 && nextPopulation > 2) {
+      nextPopulation = nextPopulation - 1;
+      logs.push("饥荒导致人口减少！");
+    }
+  }
+  const totalForcedLoss = raidPopulationLoss + exodusPopulationLoss;
+  if (totalForcedLoss > 0) {
+    nextPopulation = Math.max(0, nextPopulation - totalForcedLoss);
+  }
+
+  Object.keys(res).forEach(k => {
+    if (res[k] < 0) res[k] = 0;
+  });
+
+  const collectedHeadTax = taxBreakdown.headTax * efficiency;
+  const collectedIndustryTax = taxBreakdown.industryTax * efficiency;
+  const totalCollectedTax = collectedHeadTax + collectedIndustryTax;
+
+  res.silver = (res.silver || 0) + totalCollectedTax;
+  rates.silver = (rates.silver || 0) + totalCollectedTax;
 
   const updatedPrices = { ...priceMap };
   const updatedWages = {};
@@ -634,142 +832,73 @@ export const simulateTick = ({
     updatedWages[role] = Math.max(0, Number(smoothed.toFixed(2)));
   });
 
-  const EXPORT_RATIO = 0.5;
   Object.keys(RESOURCES).forEach(resource => {
     if (!isTradableResource(resource)) return;
     const base = getBasePrice(resource);
     const sup = supply[resource] || 0;
     const dem = demand[resource] || 0;
     const ratio = dem / Math.max(sup, 1);
-    const targetPrice = base * Math.max(0.25, Math.min(4, ratio));
+    const targetPrice = Math.max(PRICE_FLOOR, base * Math.max(0.25, Math.min(4, ratio)));
     const prevPrice = priceMap[resource] || base;
     const smoothed = prevPrice + (targetPrice - prevPrice) * 0.3;
-    updatedPrices[resource] = parseFloat(smoothed.toFixed(2));
-
-    const surplus = Math.max(0, (supply[resource] || 0) - (demand[resource] || 0));
-    const available = res[resource] || 0;
-    if (surplus > 0 && available > 0) {
-      const exportTarget = Math.min(available * 0.4, surplus * EXPORT_RATIO);
-      if (exportTarget > 0.0001) {
-        let remaining = exportTarget;
-        ensureBucket(resource);
-        const bucket = ownership[resource];
-        const exportPrice = getExternalPrice(resource, 'export');
-        let soldTotal = 0;
-        for (const ownerKey of Object.keys(bucket)) {
-          if (remaining <= 0) break;
-          const owned = bucket[ownerKey] || 0;
-          if (owned <= 0) continue;
-          const sold = Math.min(owned, remaining);
-          bucket[ownerKey] = owned - sold;
-          wealth[ownerKey] = (wealth[ownerKey] || 0) + sold * exportPrice;
-          remaining -= sold;
-          soldTotal += sold;
-        }
-        if (soldTotal > 0) {
-          res[resource] = Math.max(0, available - soldTotal);
-          externalTrade.exports[resource] = (externalTrade.exports[resource] || 0) + soldTotal;
-          externalTrade.exportRevenue += soldTotal * exportPrice;
-        }
-      }
-    }
+    updatedPrices[resource] = parseFloat(Math.max(PRICE_FLOOR, smoothed).toFixed(2));
   });
-
-  const tradeRouteReports = [];
-  const tradeVolumeMultiplier = Math.max(0.1, gameSpeed);
-  tradeRoutes.forEach(route => {
-    if (!route || !isTradableResource(route.resource)) return;
-    const nation = nationMap[route.targetNationId] || DEFAULT_FOREIGN_PARTNER;
-    const desiredVolume = Math.max(0, route.volume || 0) * tradeVolumeMultiplier;
-    if (desiredVolume <= 0) return;
-
-    if (route.type === 'export') {
-      const estimatedCost = getPrice(route.resource) * desiredVolume * (1 + Math.max(0, getResourceTaxRate(route.resource)));
-      if ((res.silver || 0) < estimatedCost) {
-        tradeRouteReports.push({ id: route.id, type: 'export', resource: route.resource, amount: 0, note: 'lack_silver' });
-        return;
-      }
-      const { amount, spent } = settleMarketPurchase(route.resource, desiredVolume, { allowImport: false });
-      if (amount <= 0 || spent <= 0) {
-        tradeRouteReports.push({ id: route.id, type: 'export', resource: route.resource, amount: 0, note: 'no_supply' });
-        return;
-      }
-      res.silver = Math.max(0, (res.silver || 0) - spent);
-      const foreignPrice = calculateForeignPrice(route.resource, nation, 'export');
-      const revenue = amount * foreignPrice;
-      res.silver = (res.silver || 0) + revenue;
-      externalTrade.exports[route.resource] = (externalTrade.exports[route.resource] || 0) + amount;
-      externalTrade.exportRevenue += revenue;
-      tradeRouteReports.push({
-        id: route.id,
-        type: 'export',
-        nation: nation?.id || 'unknown',
-        resource: route.resource,
-        amount,
-        cost: spent,
-        revenue,
-      });
-    } else {
-      const importPrice = calculateForeignPrice(route.resource, nation, 'import');
-      const totalCost = importPrice * desiredVolume;
-      if ((res.silver || 0) < totalCost) {
-        tradeRouteReports.push({ id: route.id, type: 'import', resource: route.resource, amount: 0, note: 'lack_silver' });
-        return;
-      }
-      res.silver = Math.max(0, (res.silver || 0) - totalCost);
-      creditProduction(route.resource, desiredVolume, 'state');
-      externalTrade.imports[route.resource] = (externalTrade.imports[route.resource] || 0) + desiredVolume;
-      externalTrade.importCost += totalCost;
-      tradeRouteReports.push({
-        id: route.id,
-        type: 'import',
-        nation: nation?.id || 'unknown',
-        resource: route.resource,
-        amount: desiredVolume,
-        cost: totalCost,
-      });
-    }
-  });
-  if (tradeRouteReports.length > 0) {
-    externalTrade.routes = tradeRouteReports;
-  }
 
   const roleVacancies = {};
   ROLE_PRIORITY.forEach(role => {
     roleVacancies[role] = Math.max(0, (jobsAvailable[role] || 0) - (popStructure[role] || 0));
   });
 
-  const sourceRole = ROLE_PRIORITY
-    .filter(role => (popStructure[role] || 0) > 0)
-    .reduce((lowest, role) => {
-      if (lowest === null) return role;
-      const wage = updatedWages[role] || 0;
-      const lowestWage = updatedWages[lowest] || 0;
-      if (wage < lowestWage) return role;
-      if (wage === lowestWage && (popStructure[role] || 0) > (popStructure[lowest] || 0)) return role;
+  const activeRoleMetrics = ROLE_PRIORITY.map(role => {
+    const pop = popStructure[role] || 0;
+    const wealthNow = classWealthResult[role] || 0;
+    const prevWealth = classWealth?.[role] || 0;
+    const delta = wealthNow - prevWealth;
+    const perCap = pop > 0 ? wealthNow / pop : 0;
+    const perCapDelta = pop > 0 ? delta / pop : 0;
+    return {
+      role,
+      pop,
+      perCap,
+      perCapDelta,
+      vacancy: roleVacancies[role] || 0,
+    };
+  });
+
+  const totalMigratablePop = activeRoleMetrics.reduce((sum, r) => r.pop > 0 ? sum + r.pop : sum, 0);
+  const averagePerCapWealth = totalMigratablePop > 0
+    ? activeRoleMetrics.reduce((sum, r) => sum + (r.perCap * r.pop), 0) / totalMigratablePop
+    : 0;
+
+  const sourceCandidate = activeRoleMetrics
+    .filter(r => r.pop > 0 && (r.perCap < averagePerCapWealth || r.perCapDelta < 0))
+    .reduce((lowest, current) => {
+      if (!lowest) return current;
+      if (current.perCap < lowest.perCap) return current;
+      if (current.perCap === lowest.perCap && current.perCapDelta < lowest.perCapDelta) return current;
       return lowest;
     }, null);
 
-  const targetRole = ROLE_PRIORITY
-    .filter(role => roleVacancies[role] > 0)
-    .reduce((highest, role) => {
-      if (highest === null) return role;
-      const wage = updatedWages[role] || 0;
-      const highestWage = updatedWages[highest] || 0;
-      if (wage > highestWage) return role;
-      if (wage === highestWage && roleVacancies[role] > roleVacancies[highest]) return role;
-      return highest;
-    }, null);
+  let targetCandidate = null;
+  if (sourceCandidate) {
+    targetCandidate = activeRoleMetrics
+      .filter(r => r.vacancy > 0 && r.perCap > sourceCandidate.perCap && r.perCapDelta > sourceCandidate.perCapDelta)
+      .reduce((best, current) => {
+        if (!best) return current;
+        if (current.perCap > best.perCap) return current;
+        if (current.perCap === best.perCap && current.perCapDelta > best.perCapDelta) return current;
+        return best;
+      }, null);
+  }
 
-  if (sourceRole && targetRole && (updatedWages[targetRole] || 0) > (updatedWages[sourceRole] || 0)) {
-    const sourcePop = popStructure[sourceRole] || 0;
-    let migrants = Math.floor(sourcePop * 0.05);
-    if (migrants <= 0 && sourcePop > 0) migrants = 1;
-    migrants = Math.min(migrants, roleVacancies[targetRole]);
+  if (sourceCandidate && targetCandidate) {
+    let migrants = Math.floor(sourceCandidate.pop * JOB_MIGRATION_RATIO);
+    if (migrants <= 0 && sourceCandidate.pop > 0) migrants = 1;
+    migrants = Math.min(migrants, targetCandidate.vacancy);
     if (migrants > 0) {
-      popStructure[sourceRole] = sourcePop - migrants;
-      popStructure[targetRole] = (popStructure[targetRole] || 0) + migrants;
-      logs.push(`${migrants} 名 ${STRATA[sourceRole]?.name || sourceRole} 转职为 ${STRATA[targetRole]?.name || targetRole}`);
+      popStructure[sourceCandidate.role] = Math.max(0, sourceCandidate.pop - migrants);
+      popStructure[targetCandidate.role] = (popStructure[targetCandidate.role] || 0) + migrants;
+      logs.push(`${migrants} 名 ${STRATA[sourceCandidate.role]?.name || sourceCandidate.role} 转向 ${STRATA[targetCandidate.role]?.name || targetCandidate.role} 寻求更高收益`);
     }
   }
 
@@ -797,18 +926,17 @@ export const simulateTick = ({
     totalWealth,
     activeBuffs: newActiveBuffs,
     activeDebuffs: newActiveDebuffs,
-    stability: Math.max(0, Math.min(100, 50 + stabilityModifier * 100)),
+    stability: stabilityValue,
     logs,
     market: {
       prices: updatedPrices,
       demand,
       supply,
-      ownership,
       wages: updatedWages,
-      externalTrade,
     },
     jobFill: buildingJobFill,
     taxes,
     needsShortages: classShortages,
+    nations: updatedNations,
   };
 };

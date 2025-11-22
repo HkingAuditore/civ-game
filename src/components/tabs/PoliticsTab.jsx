@@ -3,8 +3,7 @@
 
 import React from 'react';
 import { Icon } from '../common/UIComponents';
-import { STRATA } from '../../config/strata';
-import { RESOURCES } from '../../config/gameConstants';
+import { STRATA, RESOURCES, EPOCHS } from '../../config';
 
 /**
  * 政令标签页组件
@@ -14,8 +13,9 @@ import { RESOURCES } from '../../config/gameConstants';
  * @param {Object} taxPolicies - 税收策略
  * @param {Function} onUpdateTaxPolicies - 更新税收策略回调
  * @param {Object} popStructure - 当前人口结构
+ * @param {number} epoch - 当前时代编号
  */
-export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicies, popStructure = {} }) => {
+export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicies, popStructure = {}, market = {}, epoch = 0 }) => {
   // 按类别分组政令
   const categories = {
     economy: { name: '经济政策', icon: 'Coins', color: 'text-yellow-400' },
@@ -24,7 +24,24 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
     social: { name: '社会政策', icon: 'Users', color: 'text-blue-400' },
   };
 
-  const decreesByCategory = decrees.reduce((acc, decree) => {
+  const unlockedDecrees = (decrees || []).filter(d => (d.unlockEpoch ?? 0) <= epoch);
+  const lockedDecrees = (decrees || []).filter(d => (d.unlockEpoch ?? 0) > epoch);
+  const nextUnlockEpoch = lockedDecrees.length > 0
+    ? lockedDecrees.reduce((min, d) => {
+        const value = d.unlockEpoch ?? Infinity;
+        return value < min ? value : min;
+      }, Infinity)
+    : null;
+  const nextUnlockEpochName = Number.isFinite(nextUnlockEpoch)
+    ? (EPOCHS[nextUnlockEpoch]?.name || `第 ${nextUnlockEpoch + 1} 个时代`)
+    : null;
+  const unlockedActiveCount = unlockedDecrees.filter(d => d.active).length;
+  const unlockedInactiveCount = unlockedDecrees.length - unlockedActiveCount;
+  const policyEfficiency = unlockedDecrees.length > 0
+    ? ((unlockedActiveCount / unlockedDecrees.length) * 100).toFixed(0)
+    : '0';
+
+  const decreesByCategory = unlockedDecrees.reduce((acc, decree) => {
     const category = decree.category || 'social';
     if (!acc[category]) acc[category] = [];
     acc[category].push(decree);
@@ -36,7 +53,8 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
 
   const handleHeadTaxChange = (key, value) => {
     if (!onUpdateTaxPolicies) return;
-    const numeric = parseFloat(value);
+    const parsed = parseFloat(value);
+    const numeric = Number.isNaN(parsed) ? 0 : parsed;
     onUpdateTaxPolicies(prev => ({
       ...prev,
       headTaxRates: {
@@ -48,7 +66,8 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
 
   const handleResourceTaxChange = (key, value) => {
     if (!onUpdateTaxPolicies) return;
-    const numeric = parseFloat(value);
+    const parsed = parseFloat(value);
+    const numeric = Number.isNaN(parsed) ? 0 : parsed;
     onUpdateTaxPolicies(prev => ({
       ...prev,
       resourceTaxRates: {
@@ -58,7 +77,12 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
     }));
   };
   const activeStrata = Object.keys(popStructure).filter(key => (popStructure[key] || 0) > 0 && STRATA[key]);
-  const taxableResources = Object.entries(RESOURCES).filter(([key, info]) => !info.type || (info.type !== 'virtual' && info.type !== 'currency'));
+  const marketResourceKeys = Object.entries(market?.supply || {})
+    .filter(([, amount]) => amount > 0)
+    .map(([key]) => key);
+  const taxableResources = marketResourceKeys
+    .map(key => [key, RESOURCES[key]])
+    .filter(([, info]) => info && (!info.type || (info.type !== 'virtual' && info.type !== 'currency')));
 
   return (
     <div className="space-y-4">
@@ -85,7 +109,8 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
           </h3>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div>
-              <h4 className="text-xs font-semibold text-gray-400 mb-2">人头税 (每人每 tick)</h4>
+              <h4 className="text-xs font-semibold text-gray-400 mb-1">人头税（按日结算）</h4>
+              <p className="text-[11px] text-gray-500 mb-2">针对每位在职人口，按阶层基准税率 × 调整系数收取银币。</p>
               <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
                 {activeStrata.map((key) => {
                   const base = STRATA[key]?.headTaxBase ?? 0.01;
@@ -95,18 +120,17 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
                       <div className="flex items-center justify-between text-xs text-gray-300 mb-1">
                         <span>{STRATA[key]?.name || key}</span>
                         <span className="font-mono text-yellow-300">
-                          {finalRate.toFixed(3)} 银币/人/tick
+                          {finalRate.toFixed(3)} 银币/人/日
                         </span>
                       </div>
-                      <input
-                        type="range"
-                        min="0"
-                        max="2"
-                        step="0.1"
-                        value={headRates[key] ?? 1}
-                        onChange={(e) => handleHeadTaxChange(key, e.target.value)}
-                        className="w-full"
-                      />
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.05"
+                      value={headRates[key] ?? 1}
+                      onChange={(e) => handleHeadTaxChange(key, e.target.value)}
+                      className="w-full bg-gray-900/60 border border-gray-700 text-xs text-gray-200 rounded px-2 py-1"
+                    />
                     </div>
                   );
                 })}
@@ -117,7 +141,8 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
             </div>
 
             <div>
-              <h4 className="text-xs font-semibold text-gray-400 mb-2">资源税 (交易附加税)</h4>
+              <h4 className="text-xs font-semibold text-gray-400 mb-1">资源税（市场成交附加税）</h4>
+              <p className="text-[11px] text-gray-500 mb-2">仅对当前在市场流通的资源，在买入/卖出时按照成交额加收税率。</p>
               <div className="space-y-2">
                 {taxableResources.map(([key, info]) => (
                   <div key={key} className="bg-gray-900/40 p-2 rounded border border-gray-700/50">
@@ -130,7 +155,7 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
                     <input
                       type="range"
                       min="0"
-                      max="0.2"
+                      max="1.0"
                       step="0.01"
                       value={resourceRates[key] ?? 0}
                       onChange={(e) => handleResourceTaxChange(key, e.target.value)}
@@ -139,11 +164,23 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
                   </div>
                 ))}
                 {taxableResources.length === 0 && (
-                  <p className="text-xs text-gray-500">暂无可征税资源</p>
+                  <p className="text-xs text-gray-500">当前市场暂无可征税资源</p>
                 )}
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {unlockedDecrees.length === 0 && (
+        <div className="bg-yellow-900/20 border border-yellow-600/30 p-4 rounded-lg text-xs text-yellow-100">
+          <p className="font-semibold mb-1 flex items-center gap-2">
+            <Icon name="Lock" size={14} className="text-yellow-300" />
+            当前时代暂无可颁布政令
+          </p>
+          <p>
+            升级到 {nextUnlockEpochName || '更高时代'} 后可解锁新的政策。
+          </p>
         </div>
       )}
 
@@ -253,30 +290,41 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
           <Icon name="FileText" size={16} className="text-blue-400" />
           政令统计
         </h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <div className="bg-gray-700/50 p-3 rounded">
             <p className="text-xs text-gray-400 mb-1">总政令数</p>
-            <p className="text-lg font-bold text-white">{decrees.length}</p>
+            <p className="text-lg font-bold text-white">{unlockedDecrees.length}</p>
           </div>
           <div className="bg-gray-700/50 p-3 rounded">
             <p className="text-xs text-gray-400 mb-1">生效中</p>
             <p className="text-lg font-bold text-green-400">
-              {decrees.filter((d) => d.active).length}
+              {unlockedActiveCount}
             </p>
           </div>
           <div className="bg-gray-700/50 p-3 rounded">
             <p className="text-xs text-gray-400 mb-1">未启用</p>
             <p className="text-lg font-bold text-gray-400">
-              {decrees.filter((d) => !d.active).length}
+              {unlockedInactiveCount}
             </p>
           </div>
           <div className="bg-gray-700/50 p-3 rounded">
             <p className="text-xs text-gray-400 mb-1">政策效率</p>
             <p className="text-lg font-bold text-blue-400">
-              {((decrees.filter((d) => d.active).length / decrees.length) * 100).toFixed(0)}%
+              {policyEfficiency}%
+            </p>
+          </div>
+          <div className="bg-gray-700/50 p-3 rounded">
+            <p className="text-xs text-gray-400 mb-1">待解锁</p>
+            <p className="text-lg font-bold text-yellow-300">
+              {lockedDecrees.length}
             </p>
           </div>
         </div>
+        {lockedDecrees.length > 0 && (
+          <p className="text-[11px] text-gray-400 mt-3">
+            还有 {lockedDecrees.length} 条政令将在后续时代解锁{nextUnlockEpochName ? `，最近的是 ${nextUnlockEpochName}` : ''}。
+          </p>
+        )}
       </div>
     </div>
   );

@@ -385,6 +385,18 @@ export const UNIT_CATEGORIES = {
   siege: { name: '攻城', icon: 'Bomb', color: 'text-orange-400' }
 };
 
+export const calculateArmyFoodNeed = (army = {}) => {
+  let total = 0;
+  Object.entries(army).forEach(([unitId, count]) => {
+    if (count <= 0) return;
+    const unit = UNIT_TYPES[unitId];
+    if (!unit) return;
+    const foodNeed = unit.maintenanceCost?.food || 0;
+    total += foodNeed * count;
+  });
+  return total;
+};
+
 // 战斗计算函数
 export const calculateBattlePower = (army, epoch, militaryBuffs = 0) => {
   let totalPower = 0;

@@ -126,6 +126,7 @@ export const StratumDetailModal = ({
   classApproval,
   classInfluence,
   classWealth,
+  classWealthHistory = {},
   totalInfluence,
   totalWealth,
   activeBuffs,
@@ -163,6 +164,30 @@ export const StratumDetailModal = ({
   // 获取该阶层相关的buff和debuff
   const stratumBuffs = activeBuffs.filter(buff => buff.class === stratumKey || buff.source === stratumKey);
   const stratumDebuffs = activeDebuffs.filter(debuff => debuff.class === stratumKey || debuff.source === stratumKey);
+  const wealthHistory = classWealthHistory[stratumKey] || [];
+
+  const renderWealthChart = (history = []) => {
+    if (!history || history.length <= 1) return null;
+    const width = 260;
+    const height = 90;
+    const max = Math.max(...history);
+    const min = Math.min(...history);
+    const range = max - min || 1;
+    const points = history.map((value, index) => {
+      const x = history.length > 1 ? (index / (history.length - 1)) * width : width;
+      const y = height - ((value - min) / range) * height;
+      return `${x},${y}`;
+    }).join(' ');
+    return (
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        preserveAspectRatio="none"
+        className="w-full h-24 text-emerald-300 stroke-current fill-none"
+      >
+        <polyline points={points} strokeWidth="2" />
+      </svg>
+    );
+  };
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
@@ -222,6 +247,19 @@ export const StratumDetailModal = ({
                 <p className="text-lg font-bold text-yellow-400">{wealth.toFixed(0)}</p>
                 <p className="text-xs text-yellow-400 mt-1">{wealthPercent.toFixed(1)}%</p>
               </div>
+            </div>
+          </div>
+
+          {/* 财富走势 */}
+          <div>
+            <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300">
+              <Icon name="TrendingUp" size={16} className="text-emerald-400" />
+              财富变化
+            </h3>
+            <div className="bg-gray-700/40 p-3 rounded">
+              {renderWealthChart(wealthHistory) || (
+                <p className="text-xs text-gray-500">暂无足够数据绘制曲线</p>
+              )}
             </div>
           </div>
 

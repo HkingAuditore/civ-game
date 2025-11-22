@@ -3,8 +3,8 @@
 
 import React from 'react';
 import { Icon } from '../common/UIComponents';
-import { TECHS, EPOCHS } from '../../config/gameData';
-import { RESOURCES } from '../../config/gameConstants';
+import { TECHS, EPOCHS } from '../../config';
+import { RESOURCES } from '../../config';
 import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
 
 const EPOCH_BONUS_LABELS = {

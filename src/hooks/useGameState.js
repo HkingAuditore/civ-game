@@ -2,7 +2,7 @@
 // 集中管理所有游戏状态，避免App.jsx中状态定义过多
 
 import { useState } from 'react';
-import { DECREES, COUNTRIES, RESOURCES, STRATA } from '../config/gameData';
+import { DECREES, COUNTRIES, RESOURCES, STRATA } from '../config';
 
 const INITIAL_RESOURCES = { 
   food: 200, 
@@ -12,6 +12,12 @@ const INITIAL_RESOURCES = {
   brick: 0, 
   iron: 0, 
   tools: 0, 
+  copper: 0,
+  papyrus: 0,
+  spice: 0,
+  coffee: 0,
+  coal: 0,
+  steel: 0,
   silver: 200, 
   science: 0, 
   culture: 0, 
@@ -26,6 +32,14 @@ const buildInitialWealth = () => {
   return wealth;
 };
 
+const buildInitialWealthHistory = () => {
+  const history = {};
+  Object.keys(STRATA).forEach(key => {
+    history[key] = [];
+  });
+  return history;
+};
+
 const isTradable = (resourceKey) => {
   if (resourceKey === 'silver') return false;
   const def = RESOURCES[resourceKey];
@@ -34,25 +48,18 @@ const isTradable = (resourceKey) => {
 };
 
 const buildInitialMarket = () => {
-  const ownership = {};
-  Object.entries(INITIAL_RESOURCES).forEach(([key, value]) => {
-    if (!isTradable(key) || value <= 0) return;
-    const owner = RESOURCES[key]?.defaultOwner;
-    if (!owner) return;
-    ownership[key] = { [owner]: value };
-  });
-
   const prices = {};
   Object.keys(RESOURCES).forEach(key => {
     if (!isTradable(key)) return;
-    prices[key] = RESOURCES[key].basePrice || 1;
+    prices[key] = Math.max(0.5, RESOURCES[key].basePrice || 1);
   });
 
   return {
     prices,
     demand: {},
     supply: {},
-    ownership,
+    wages: {},
+    priceHistory: {},
   };
 };
 
@@ -71,6 +78,19 @@ const buildDefaultResourceTaxRates = () => {
     rates[key] = 0.05;
   });
   return rates;
+};
+
+const buildInitialNations = () => {
+  return COUNTRIES.map(nation => ({
+    ...nation,
+    relation: 50,
+    warScore: nation.warScore ?? 0,
+    isAtWar: nation.isAtWar ?? false,
+    wealth: nation.wealth ?? 800,
+    enemyLosses: 0,
+    warDuration: 0,
+    warStartDay: null,
+  }));
 };
 
 /**
@@ -98,18 +118,19 @@ export const useGameState = () => {
 
   // ========== 政令与外交状态 ==========
   const [decrees, setDecrees] = useState(DECREES);
-  const [nations, setNations] = useState(COUNTRIES.map(c => ({ ...c, relation: 50 })));
-  const [tradeRoutes, setTradeRoutes] = useState([]);
+  const [nations, setNations] = useState(buildInitialNations()); 
 
   // ========== 社会阶层状态 ==========
   const [classApproval, setClassApproval] = useState({});
   const [classInfluence, setClassInfluence] = useState({});
   const [classWealth, setClassWealth] = useState(buildInitialWealth());
   const [classWealthDelta, setClassWealthDelta] = useState({});
+  const [classWealthHistory, setClassWealthHistory] = useState(buildInitialWealthHistory());
   const [totalInfluence, setTotalInfluence] = useState(0);
   const [totalWealth, setTotalWealth] = useState(0);
   const [activeBuffs, setActiveBuffs] = useState([]);
   const [activeDebuffs, setActiveDebuffs] = useState([]);
+  const [classInfluenceShift, setClassInfluenceShift] = useState({});
   const [stability, setStability] = useState(50);
   const [stratumDetailView, setStratumDetailView] = useState(null);
   const [classShortages, setClassShortages] = useState({});
@@ -118,14 +139,18 @@ export const useGameState = () => {
   const [adminStrain, setAdminStrain] = useState(0);
   const [adminCap, setAdminCap] = useState(20);
 
+  // ========== 时间状态 ==========
+  const [daysElapsed, setDaysElapsed] = useState(0);
+
   // ========== 军事系统状态 ==========
   const [army, setArmy] = useState({});
   const [militaryQueue, setMilitaryQueue] = useState([]);
   const [selectedTarget, setSelectedTarget] = useState(null);
   const [battleResult, setBattleResult] = useState(null);
+  const [militaryWageRatio, setMilitaryWageRatio] = useState(1.5);
 
   // ========== UI状态 ==========
-  const [logs, setLogs] = useState(["文明的黎明已至，分配你的人民工作吧。"]);
+  const [logs, setLogs] = useState(["文明的黎明已至，第 1 年春季从这里开启，请分配你的人民工作吧。"]);
   const [clicks, setClicks] = useState([]);
   const [rates, setRates] = useState({});
   const [taxes, setTaxes] = useState({
@@ -163,6 +188,8 @@ export const useGameState = () => {
     setTechsUnlocked,
     epoch,
     setEpoch,
+    daysElapsed,
+    setDaysElapsed,
     
     // 游戏控制
     activeTab,
@@ -175,8 +202,8 @@ export const useGameState = () => {
     setDecrees,
     nations,
     setNations,
-    tradeRoutes,
-    setTradeRoutes,
+    selectedTarget,
+    setSelectedTarget,
     
     // 社会阶层
     classApproval,
@@ -187,6 +214,8 @@ export const useGameState = () => {
     setClassWealth,
     classWealthDelta,
     setClassWealthDelta,
+    classWealthHistory,
+    setClassWealthHistory,
     totalInfluence,
     setTotalInfluence,
     totalWealth,
@@ -195,6 +224,8 @@ export const useGameState = () => {
     setActiveBuffs,
     activeDebuffs,
     setActiveDebuffs,
+    classInfluenceShift,
+    setClassInfluenceShift,
     stability,
     setStability,
     stratumDetailView,
@@ -213,10 +244,10 @@ export const useGameState = () => {
     setArmy,
     militaryQueue,
     setMilitaryQueue,
-    selectedTarget,
-    setSelectedTarget,
     battleResult,
     setBattleResult,
+    militaryWageRatio,
+    setMilitaryWageRatio,
     
     // UI
     logs,

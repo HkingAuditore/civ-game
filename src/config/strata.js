@@ -8,7 +8,7 @@
  * - icon: 显示图标
  * - weight: 权重（影响分配优先级）
  * - tax: 税收贡献（每人每秒）
- * - headTaxBase: 头税基准（银币/人/tick）
+ * - headTaxBase: 头税基准（银币/人/日）
  * - admin: 行政影响（正值为压力，负值为容量）
  * - desc: 描述
  * - wealthWeight: 财富权重
@@ -91,6 +91,24 @@ export const STRATA = {
     }
   },
 
+  artisan: {
+    name: "工匠",
+    icon: 'Anvil',
+    weight: 1.5,
+    tax: 3.5,
+    headTaxBase: 0.035,
+    admin: 1.2,
+    desc: "技艺精湛的手工业者，负责加工铜器与印刷制品。",
+    wealthWeight: 2.5,
+    influenceBase: 1.2,
+    startingWealth: 45,
+    needs: { food: 0.6, tools: 0.12, brick: 0.05 },
+    buffs: {
+      satisfied: { desc: "坊市繁盛", production: 0.1 },
+      dissatisfied: { desc: "工坊停工", production: -0.15 }
+    }
+  },
+
   miner: {
     name: "矿工",
     icon: 'Pickaxe',
@@ -106,6 +124,60 @@ export const STRATA = {
     buffs: {
       satisfied: { desc: "矿脉稳定", gatherBonus: 0.1 },
       dissatisfied: { desc: "矿难隐患", stability: -0.1 }
+    }
+  },
+
+  merchant: {
+    name: "商人",
+    icon: 'Coins',
+    weight: 6,
+    tax: 5,
+    headTaxBase: 0.09,
+    admin: 2,
+    desc: "控制贸易网络的阶层，主宰港口与市场。",
+    wealthWeight: 8,
+    influenceBase: 3.5,
+    startingWealth: 150,
+    needs: { food: 0.5, culture: 0.2, tools: 0.05 },
+    buffs: {
+      satisfied: { desc: "商贸兴隆", taxIncome: 0.15, gatherBonus: 0.05 },
+      dissatisfied: { desc: "贸易停滞", taxIncome: -0.2, stability: -0.1 }
+    }
+  },
+
+  navigator: {
+    name: "领航者",
+    icon: 'Compass',
+    weight: 4,
+    tax: 3,
+    headTaxBase: 0.06,
+    admin: 1.5,
+    desc: "探索时代的海员与测绘师，推动航海扩张。",
+    wealthWeight: 3,
+    influenceBase: 2.5,
+    startingWealth: 80,
+    needs: { food: 0.6, spice: 0.1, culture: 0.1 },
+    buffs: {
+      satisfied: { desc: "海权扩张", gatherBonus: 0.1 },
+      dissatisfied: { desc: "航员哗变", gatherBonus: -0.1, stability: -0.1 }
+    }
+  },
+
+  scribe: {
+    name: "抄写员",
+    icon: 'Feather',
+    weight: 2.5,
+    tax: 2,
+    headTaxBase: 0.04,
+    admin: 1.2,
+    desc: "记录知识的学者，为图书馆与学院服务。",
+    wealthWeight: 2.5,
+    influenceBase: 1.5,
+    startingWealth: 55,
+    needs: { food: 0.5, papyrus: 0.1, culture: 0.2 },
+    buffs: {
+      satisfied: { desc: "文献井然", scienceBonus: 0.15 },
+      dissatisfied: { desc: "文献损失", scienceBonus: -0.2 }
     }
   },
   
@@ -215,6 +287,42 @@ export const STRATA = {
     buffs: {
       satisfied: { desc: "骑士忠诚", militaryPower: 0.25, stability: 0.1 },
       dissatisfied: { desc: "骑士不满", militaryPower: -0.2, stability: -0.15 }
+    }
+  },
+
+  engineer: {
+    name: "工程师",
+    icon: 'Cog',
+    weight: 7,
+    tax: 6,
+    headTaxBase: 0.1,
+    admin: 2.5,
+    desc: "掌控蒸汽与机器的技术阶层。",
+    wealthWeight: 6,
+    influenceBase: 3.5,
+    startingWealth: 160,
+    needs: { food: 0.7, tools: 0.2, coffee: 0.1 },
+    buffs: {
+      satisfied: { desc: "工艺革新", industryBonus: 0.2, scienceBonus: 0.1 },
+      dissatisfied: { desc: "技术流失", industryBonus: -0.25 }
+    }
+  },
+
+  unemployed: {
+    name: "失业者",
+    icon: 'AlertTriangle',
+    weight: 0.2,
+    tax: 0,
+    headTaxBase: 0,
+    admin: 0.5,
+    desc: "暂时没有工作的平民，如果得不到安排会渐渐不满。",
+    wealthWeight: 0.2,
+    influenceBase: 0.3,
+    startingWealth: 5,
+    needs: { food: 0.4 },
+    buffs: {
+      satisfied: { desc: "等待机会", stability: 0.02 },
+      dissatisfied: { desc: "失业动荡", stability: -0.1 }
     }
   },
 };

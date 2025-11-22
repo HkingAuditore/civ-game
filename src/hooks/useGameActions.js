@@ -1,12 +1,9 @@
 // 游戏操作钩子
 // 包含所有游戏操作函数，如建造建筑、研究科技、升级时代等
 
-import { BUILDINGS, EPOCHS, TECHS } from '../config/gameData';
-import { UNIT_TYPES } from '../config/militaryUnits';
-import { calculateArmyAdminCost, calculateArmyPopulation, simulateBattle } from '../config/militaryUnits';
-import { isMarketResource, getResourcePrice } from '../utils/economy';
-
-const TRADE_ROUTE_ADMIN_COST = 5;
+import { BUILDINGS, EPOCHS, RESOURCES, TECHS, MILITARY_ACTIONS, UNIT_TYPES } from '../config';
+import { calculateArmyAdminCost, calculateArmyPopulation, simulateBattle, calculateBattlePower } from '../config';
+import { calculateForeignPrice } from '../utils/foreignTrade';
 
 /**
  * 游戏操作钩子
@@ -20,7 +17,6 @@ export const useGameActions = (gameState, addLog) => {
     resources,
     setResources,
     market,
-    setMarket,
     buildings,
     setBuildings,
     epoch,
@@ -28,75 +24,26 @@ export const useGameActions = (gameState, addLog) => {
     population,
     techsUnlocked,
     setTechsUnlocked,
-    decrees,
     setDecrees,
     setClicks,
     army,
     setArmy,
-    militaryQueue,
     setMilitaryQueue,
     adminCap,
-    selectedTarget,
-    setSelectedTarget,
     setBattleResult,
     nations,
     setNations,
-    setClassWealth,
-    tradeRoutes,
-    setTradeRoutes,
+    setClassInfluenceShift,
+    daysElapsed,
   } = gameState;
 
-  const mergePayments = (target, addition = {}) => {
-    const next = { ...target };
-    Object.entries(addition).forEach(([owner, amount]) => {
-      next[owner] = (next[owner] || 0) + amount;
-    });
-    return next;
+  const getMarketPrice = (resource) => {
+    if (!resource) return 1;
+    const base = RESOURCES[resource]?.basePrice || 1;
+    return market?.prices?.[resource] ?? base;
   };
 
-  const distributePayments = (payments = {}) => {
-    if (!payments || Object.keys(payments).length === 0) return;
-    setClassWealth(prev => {
-      const updated = { ...prev };
-      Object.entries(payments).forEach(([owner, amount]) => {
-        if (updated[owner] === undefined) return;
-        updated[owner] += amount;
-      });
-      return updated;
-    });
-  };
-
-  const settleMarketWithdrawal = (resource, amount) => {
-    if (!isMarketResource(resource) || amount <= 0) {
-      return { payments: {}, bucket: market.ownership?.[resource] || {} };
-    }
-    const price = getResourcePrice(resource, market);
-    const bucket = { ...(market.ownership?.[resource] || {}) };
-    let remaining = amount;
-    const payments = {};
-    for (const owner of Object.keys(bucket)) {
-      if (remaining <= 0) break;
-      const owned = bucket[owner] || 0;
-      if (owned <= 0) continue;
-      const sold = Math.min(owned, remaining);
-      bucket[owner] = owned - sold;
-      payments[owner] = (payments[owner] || 0) + sold * price;
-      remaining -= sold;
-    }
-    return { payments, bucket };
-  };
-
-  const addMarketSupply = (resource, amount, ownerKey) => {
-    if (!isMarketResource(resource) || amount <= 0) return;
-    setMarket(prev => {
-      const ownership = { ...prev.ownership };
-      ownership[resource] = { ...(ownership[resource] || {}) };
-      ownership[resource][ownerKey] = (ownership[resource][ownerKey] || 0) + amount;
-      return { ...prev, ownership };
-    });
-  };
-
-  // ========== 时代升级 ==========
+  // ========== 时代升级 ========== 
   
   /**
    * 检查是否可以升级时代
@@ -154,47 +101,27 @@ export const useGameActions = (gameState, addLog) => {
       cost[k] = b.baseCost[k] * Math.pow(1.15, count);
     }
     
-    // 检查库存和市场价格
-    let silverCost = 0;
-    let hasMaterials = true;
-    Object.entries(cost).forEach(([resource, amount]) => {
-      if ((resources[resource] || 0) < amount) {
-        hasMaterials = false;
-      }
-      silverCost += amount * getResourcePrice(resource, market);
-    });
-
+    const hasMaterials = Object.entries(cost).every(([resource, amount]) => (resources[resource] || 0) >= amount);
     if (!hasMaterials) {
-      addLog(`市场缺少建造 ${b.name} 所需的材料`);
+      addLog(`资源不足，无法建造 ${b.name}`);
       return;
     }
+
+    const silverCost = Object.entries(cost).reduce((sum, [resource, amount]) => {
+      return sum + amount * getMarketPrice(resource);
+    }, 0);
 
     if ((resources.silver || 0) < silverCost) {
-      addLog('银币不足，无法采购建筑材料。');
+      addLog('银币不足，无法支付建造费用');
       return;
     }
 
-    const newRes = { ...resources, silver: (resources.silver || 0) - silverCost };
-    const ownershipUpdates = {};
-    let paymentLedger = {};
-
+    const newRes = { ...resources };
     Object.entries(cost).forEach(([resource, amount]) => {
       newRes[resource] = Math.max(0, (newRes[resource] || 0) - amount);
-      if (isMarketResource(resource)) {
-        const { payments, bucket } = settleMarketWithdrawal(resource, amount);
-        ownershipUpdates[resource] = bucket;
-        paymentLedger = mergePayments(paymentLedger, payments);
-      }
     });
+    newRes.silver = Math.max(0, (newRes.silver || 0) - silverCost);
 
-    setMarket(prev => {
-      const ownership = { ...(prev.ownership || {}) };
-      Object.entries(ownershipUpdates).forEach(([key, bucket]) => {
-        ownership[key] = bucket;
-      });
-      return { ...prev, ownership };
-    });
-    distributePayments(paymentLedger);
     setResources(newRes);
     setBuildings(prev => ({ ...prev, [id]: (prev[id] || 0) + 1 }));
     addLog(`建造了 ${b.name}`);
@@ -265,9 +192,22 @@ export const useGameActions = (gameState, addLog) => {
    * @param {string} id - 政令ID
    */
   const toggleDecree = (id) => {
-    setDecrees(prev => prev.map(d => 
-      d.id === id ? { ...d, active: !d.active } : d
-    ));
+    let blockedEpoch = null;
+    let blockedName = '';
+    setDecrees(prev => prev.map(d => {
+      if (d.id !== id) return d;
+      const requiredEpoch = d.unlockEpoch ?? 0;
+      if (requiredEpoch > epoch) {
+        blockedEpoch = requiredEpoch;
+        blockedName = d.name || '';
+        return d;
+      }
+      return { ...d, active: !d.active };
+    }));
+    if (blockedEpoch !== null && addLog) {
+      const epochName = EPOCHS[blockedEpoch]?.name || `第 ${blockedEpoch + 1} 个时代`;
+      addLog(`需要达到${epochName}才能颁布「${blockedName || '该政令'}」。`);
+    }
   };
 
   // ========== 手动采集 ==========
@@ -289,8 +229,6 @@ export const useGameActions = (gameState, addLog) => {
       food: prev.food + 1, 
       wood: prev.wood + 1 
     }));
-    addMarketSupply('food', 1, 'peasant');
-    addMarketSupply('wood', 1, 'lumberjack');
   };
 
   // ========== 军事系统 ==========
@@ -323,6 +261,15 @@ export const useGameActions = (gameState, addLog) => {
       return;
     }
     
+    const silverCost = Object.entries(unit.recruitCost).reduce((sum, [resource, amount]) => {
+      return sum + amount * getMarketPrice(resource);
+    }, 0);
+
+    if ((resources.silver || 0) < silverCost) {
+      addLog('银币不足，无法支付征兵物资费用。');
+      return;
+    }
+
     // 检查行政力
     const currentArmyAdmin = calculateArmyAdminCost(army);
     if (currentArmyAdmin + unit.adminCost > adminCap) {
@@ -343,6 +290,7 @@ export const useGameActions = (gameState, addLog) => {
     for (let resource in unit.recruitCost) {
       newRes[resource] -= unit.recruitCost[resource];
     }
+    newRes.silver = Math.max(0, (newRes.silver || 0) - silverCost);
     setResources(newRes);
     
     // 加入训练队列
@@ -370,11 +318,23 @@ export const useGameActions = (gameState, addLog) => {
 
   /**
    * 发起战斗
-   * @param {string} actionType - 行动类型（raid/conquer/defend/scout）
+   * @param {string} missionId - 行动类型
+   * @param {string} nationId - 目标国家
    */
-  const launchBattle = (actionType) => {
-    if (!selectedTarget) {
-      addLog('请先选择目标国家');
+  const launchBattle = (missionId, nationId) => {
+    const mission = MILITARY_ACTIONS.find(action => action.id === missionId);
+    if (!mission) {
+      addLog('未找到对应的军事行动。');
+      return;
+    }
+
+    const targetNation = nations.find(n => n.id === nationId);
+    if (!targetNation) {
+      addLog('请先选择一个目标国家。');
+      return;
+    }
+    if (!targetNation.isAtWar) {
+      addLog(`${targetNation.name} 当前与你处于和平状态。`);
       return;
     }
 
@@ -384,132 +344,120 @@ export const useGameActions = (gameState, addLog) => {
       return;
     }
 
-    // 准备攻击方数据
     const attackerData = {
-      army: army,
-      epoch: epoch,
-      militaryBuffs: 0, // 可以在此基础上扩展
+      army,
+      epoch,
+      militaryBuffs: 0,
     };
 
-    // 基于目标国家类型生成防御方数据
-    const defenderEpoch = Math.max(0, epoch + Math.floor(Math.random() * 3) - 1);
-    let defenderArmy = {};
-    let defenderWealth = 1000;
+    const aggressionFactor = 1 + (targetNation.aggression || 0.2);
+    const warScoreFactor = 1 + Math.max(-0.5, (targetNation.warScore || 0) / 120);
+    const defenderArmy = {};
+    (mission.enemyUnits || []).forEach(enemy => {
+      const min = Math.max(0, enemy.min || 0);
+      const max = Math.max(min, enemy.max || min);
+      const baseCount = min + Math.random() * (max - min + 1);
+      const scaled = Math.floor(baseCount * aggressionFactor * warScoreFactor);
+      if (scaled > 0) {
+        defenderArmy[enemy.unit] = (defenderArmy[enemy.unit] || 0) + scaled;
+      }
+    });
 
-    switch (selectedTarget.type) {
-      case '军事专制':
-        defenderWealth = 800 + Math.random() * 400;
-        defenderArmy = { // 偏向步兵和骑兵
-          [Object.keys(UNIT_TYPES).find(u => u.includes('infantry') && UNIT_TYPES[u].epoch <= defenderEpoch) || 'militia']: Math.floor(20 + Math.random() * 20),
-          [Object.keys(UNIT_TYPES).find(u => u.includes('cavalry') && UNIT_TYPES[u].epoch <= defenderEpoch) || 'spearman']: Math.floor(10 + Math.random() * 10),
-        };
-        break;
-      case '商业共和':
-        defenderWealth = 1500 + Math.random() * 800;
-        defenderArmy = { // 军队较弱但有钱
-          [Object.keys(UNIT_TYPES).find(u => u.includes('infantry') && UNIT_TYPES[u].epoch <= defenderEpoch) || 'militia']: Math.floor(10 + Math.random() * 10),
-        };
-        break;
-      case '神权政治':
-        defenderWealth = 1200 + Math.random() * 600;
-        defenderArmy = { // 偏向防御性单位
-          [Object.keys(UNIT_TYPES).find(u => u.includes('spearman') && UNIT_TYPES[u].epoch <= defenderEpoch) || 'militia']: Math.floor(15 + Math.random() * 15),
-          [Object.keys(UNIT_TYPES).find(u => u.includes('archer') && UNIT_TYPES[u].epoch <= defenderEpoch) || 'slinger']: Math.floor(10 + Math.random() * 10),
-        };
-        break;
-      default:
-        defenderArmy = { 'militia': Math.floor(10 + Math.random() * 10) };
-    }
-    
     const defenderData = {
       army: defenderArmy,
-      epoch: defenderEpoch,
-      militaryBuffs: 0,
-      wealth: defenderWealth,
+      epoch: Math.max(targetNation.appearEpoch || 0, Math.min(epoch, targetNation.expireEpoch ?? epoch)),
+      militaryBuffs: mission.enemyBuff || 0,
+      wealth: targetNation.wealth || 500,
     };
-    
-    const result = simulateBattle(attackerData, defenderData);
 
+    const result = simulateBattle(attackerData, defenderData);
+    let resourcesGained = {};
     if (result.victory) {
-      const newRes = { ...resources };
-      Object.entries(result.loot).forEach(([resource, amount]) => {
+      const combinedLoot = {};
+      const mergeLoot = (source) => {
+        Object.entries(source || {}).forEach(([resource, amount]) => {
+          if (amount > 0) {
+            combinedLoot[resource] = (combinedLoot[resource] || 0) + Math.floor(amount);
+          }
+        });
+      };
+      mergeLoot(result.loot || {});
+      Object.entries(mission.loot || {}).forEach(([resource, range]) => {
+        if (!Array.isArray(range) || range.length < 2) return;
+        const [min, max] = range;
+        const amount = Math.floor(min + Math.random() * (max - min + 1));
         if (amount > 0) {
-          newRes[resource] = (newRes[resource] || 0) + amount;
+          combinedLoot[resource] = (combinedLoot[resource] || 0) + amount;
         }
       });
-      setResources(newRes);
-      
-      if (actionType === 'defend') {
-        setNations(prev => prev.map(n =>
-          n.id === selectedTarget.id
-            ? { ...n, relation: Math.min(100, n.relation + 10) }
-            : n
-        ));
-      } else {
-        setNations(prev => prev.map(n =>
-          n.id === selectedTarget.id
-            ? { ...n, relation: Math.max(0, n.relation - 20) }
-            : n
-        ));
+      resourcesGained = combinedLoot;
+
+      if (Object.keys(combinedLoot).length > 0) {
+        setResources(prev => {
+          const updated = { ...prev };
+          Object.entries(combinedLoot).forEach(([resource, amount]) => {
+            updated[resource] = (updated[resource] || 0) + amount;
+          });
+          return updated;
+        });
       }
     }
 
-    const newArmy = { ...army };
-    Object.entries(result.attackerLosses).forEach(([unitId, lossCount]) => {
-      newArmy[unitId] = Math.max(0, (newArmy[unitId] || 0) - lossCount);
+    setArmy(prevArmy => {
+      const updated = { ...prevArmy };
+      Object.entries(result.attackerLosses || {}).forEach(([unitId, lossCount]) => {
+        updated[unitId] = Math.max(0, (updated[unitId] || 0) - lossCount);
+      });
+      return updated;
     });
-    setArmy(newArmy);
 
-    setBattleResult(result);
-    addLog(result.victory ? '⚔️ 战斗胜利！' : '💀 战斗失败...');
-  };
+    const influenceChange = result.victory
+      ? mission.influence?.win || 0
+      : mission.influence?.lose || 0;
+    if (influenceChange !== 0) {
+      setClassInfluenceShift(prev => ({
+        ...prev,
+        soldier: (prev?.soldier || 0) + influenceChange,
+      }));
+    }
 
-  // ========== 贸易路线管理 ==========
+    const enemyLossCount = Object.values(result.defenderLosses || {}).reduce((sum, val) => sum + val, 0);
+    const wealthDamagePerUnit = mission.wealthDamage || 20;
+    const wealthDamage = result.victory
+      ? Math.min(targetNation.wealth || 0, Math.max(50, enemyLossCount * wealthDamagePerUnit))
+      : 0;
+    const warScoreDelta = result.victory
+      ? (mission.winScore || 10)
+      : -(mission.loseScore || 8);
 
-  const createTradeRoute = ({ targetNationId, resource, type, volume = 1 }) => {
-    if (!targetNationId || !resource || !type) {
-      addLog('贸易路线参数不完整。');
-      return false;
-    }
-    if (!isMarketResource(resource)) {
-      addLog('该资源无法用于对外贸易。');
-      return false;
-    }
-    const nation = nations.find(n => n.id === targetNationId);
-    if (!nation) {
-      addLog('目标国家不存在。');
-      return false;
-    }
-    if ((resources.admin || 0) < TRADE_ROUTE_ADMIN_COST) {
-      addLog('行政力不足，无法建立新的商队。');
-      return false;
-    }
-    const normalizedVolume = Math.max(0.25, volume);
-    setResources(prev => ({
-      ...prev,
-      admin: Math.max(0, (prev.admin || 0) - TRADE_ROUTE_ADMIN_COST),
+    setNations(prev => prev.map(n => {
+      if (n.id !== nationId) return n;
+      return {
+        ...n,
+        wealth: Math.max(0, (n.wealth || 0) - wealthDamage),
+        warScore: (n.warScore || 0) + warScoreDelta,
+        enemyLosses: (n.enemyLosses || 0) + enemyLossCount,
+      };
     }));
-    const route = {
-      id: Date.now(),
-      targetNationId,
-      resource,
-      type,
-      volume: normalizedVolume,
-    };
-    setTradeRoutes(prev => [...prev, route]);
-    addLog(`📦 已与 ${nation.name} 建立${type === 'export' ? '出口' : '进口'}路线（${resource}）`);
-    return true;
-  };
 
-  const cancelTradeRoute = (routeId) => {
-    const targetRoute = tradeRoutes.find(r => r.id === routeId);
-    if (!targetRoute) {
-      addLog('未找到该贸易路线。');
-      return;
-    }
-    const nation = nations.find(n => n.id === targetRoute.targetNationId);
-    setTradeRoutes(prev => prev.filter(r => r.id !== routeId));
-    addLog(`✂️ 已终止与 ${nation?.name || targetRoute.targetNationId} 的${targetRoute.type === 'export' ? '出口' : '进口'}路线`);
+    setBattleResult({
+      victory: result.victory,
+      actionType: mission.id,
+      missionName: mission.name,
+      missionDesc: mission.desc,
+      missionDifficulty: mission.difficulty,
+      ourPower: result.attackerPower,
+      enemyPower: result.defenderPower,
+      powerRatio: result.defenderPower > 0 ? result.attackerPower / result.defenderPower : result.attackerPower,
+      score: Number(result.attackerAdvantage || 0),
+      losses: result.attackerLosses || {},
+      enemyLosses: result.defenderLosses || {},
+      resourcesGained,
+      nationName: targetNation.name,
+      description: (result.battleReport || []).join('\n'),
+    });
+
+    addLog(result.victory ? `⚔️ 针对 ${targetNation.name} 的行动取得胜利！` : `💀 对 ${targetNation.name} 的进攻受挫。`);
   };
 
   // ========== 外交系统 ==========
@@ -517,48 +465,181 @@ export const useGameActions = (gameState, addLog) => {
   /**
    * 处理外交行动
    * @param {string} nationId - 国家ID
-   * @param {string} action - 外交行动 (gift/trade/war)
+   * @param {string} action - 外交行动类型
+   * @param {Object} payload - 附加参数
    */
-  const handleDiplomaticAction = (nationId, action) => {
+  const handleDiplomaticAction = (nationId, action, payload = {}) => {
     const targetNation = nations.find(n => n.id === nationId);
     if (!targetNation) return;
+    const clampRelation = (value) => Math.max(0, Math.min(100, value));
+
+    if (targetNation.isAtWar && (action === 'gift' || action === 'trade' || action === 'demand')) {
+      addLog(`${targetNation.name} 与你正处于战争状态，无法进行此外交行动。`);
+      return;
+    }
 
     switch (action) {
-      case 'gift':
-        if ((resources.silver || 0) >= 500) {
-          setResources(prev => ({ ...prev, silver: prev.silver - 500 }));
-          setNations(prev => prev.map(n =>
-            n.id === nationId
-              ? { ...n, relation: Math.min(100, n.relation + 10) }
-              : n
-          ));
-          addLog(`你向 ${targetNation.name} 赠送了礼物，关系提升了。`);
-        } else {
+      case 'gift': {
+        const giftCost = payload.amount || 500;
+        if ((resources.silver || 0) < giftCost) {
           addLog('银币不足，无法赠送礼物。');
+          return;
         }
+        setResources(prev => ({ ...prev, silver: prev.silver - giftCost }));
+        setNations(prev => prev.map(n =>
+          n.id === nationId
+            ? { ...n, relation: clampRelation((n.relation || 0) + 10), wealth: (n.wealth || 0) + giftCost }
+            : n
+        ));
+        addLog(`你向 ${targetNation.name} 赠送了礼物，关系提升了。`);
         break;
+      }
 
-      case 'trade':
-        if ((resources.silver || 0) >= 1000) {
-          setResources(prev => ({ ...prev, silver: prev.silver - 1000 }));
+      case 'trade': {
+        const resourceKey = payload.resource;
+        const amount = Math.max(1, Math.floor(payload.amount || 5));
+        if (!resourceKey || !RESOURCES[resourceKey] || RESOURCES[resourceKey].type === 'virtual' || resourceKey === 'silver') {
+          addLog('该资源无法进行套利贸易。');
+          return;
+        }
+        if ((resources[resourceKey] || 0) < amount) {
+          addLog('库存不足，无法出口。');
+          return;
+        }
+        const localPrice = getMarketPrice(resourceKey);
+        const cost = localPrice * amount;
+        if ((resources.silver || 0) < cost) {
+          addLog('银币不足，无法在本地市场买入。');
+          return;
+        }
+        const foreignPrice = calculateForeignPrice(resourceKey, targetNation, daysElapsed);
+        const payout = Math.min(targetNation.wealth || 0, foreignPrice * amount);
+        const profit = payout - cost;
+        setResources(prev => ({
+          ...prev,
+          silver: prev.silver - cost + payout,
+          [resourceKey]: Math.max(0, (prev[resourceKey] || 0) - amount),
+        }));
+        setNations(prev => prev.map(n =>
+          n.id === nationId
+            ? {
+                ...n,
+                wealth: Math.max(0, (n.wealth || 0) - payout),
+                relation: clampRelation((n.relation || 0) + (profit > 0 ? 2 : 0)),
+              }
+            : n
+        ));
+        addLog(`向 ${targetNation.name} 出口 ${amount}${RESOURCES[resourceKey].name}，净收益 ${profit >= 0 ? '+' : ''}${profit.toFixed(1)} 银币。`);
+        break;
+      }
+
+      case 'demand': {
+        const armyPower = calculateBattlePower(army, epoch);
+        const successChance = Math.max(0.1, (armyPower / (armyPower + 200)) * 0.6 + (targetNation.relation || 0) / 300);
+        if (Math.random() < successChance) {
+          const tribute = Math.min(targetNation.wealth || 0, Math.ceil(150 + armyPower * 0.25));
+          setResources(prev => ({ ...prev, silver: prev.silver + tribute }));
           setNations(prev => prev.map(n =>
             n.id === nationId
-              ? { ...n, relation: Math.min(100, n.relation + 5) }
+              ? {
+                  ...n,
+                  wealth: Math.max(0, (n.wealth || 0) - tribute),
+                  relation: clampRelation((n.relation || 0) - 30),
+                }
               : n
           ));
-          // 未来可以加入贸易buff
-          addLog(`你与 ${targetNation.name} 达成了贸易协定。`);
+          addLog(`${targetNation.name} 被迫缴纳 ${tribute} 银币。`);
         } else {
-          addLog('银币不足，无法达成贸易协定。');
+          const escalate = Math.random() < (0.4 + (targetNation.aggression || 0) * 0.4);
+          setNations(prev => prev.map(n =>
+            n.id === nationId
+              ? {
+                  ...n,
+                  relation: clampRelation((n.relation || 0) - 40),
+                  isAtWar: escalate ? true : n.isAtWar,
+                  warStartDay: escalate ? daysElapsed : n.warStartDay,
+                  warDuration: escalate ? 0 : n.warDuration,
+                }
+              : n
+          ));
+          addLog(`${targetNation.name} 拒绝了你的勒索${escalate ? '，并向你宣战！' : '。'}`);
         }
         break;
+      }
 
-      case 'war':
+      case 'declare_war':
         setNations(prev => prev.map(n =>
-          n.id === nationId ? { ...n, relation: 0 } : n
+          n.id === nationId
+            ? {
+                ...n,
+                relation: 0,
+                isAtWar: true,
+                warScore: 0,
+                warStartDay: daysElapsed,
+                warDuration: 0,
+                enemyLosses: 0,
+              }
+            : n
         ));
         addLog(`你向 ${targetNation.name} 宣战了！`);
         break;
+
+      case 'peace': {
+        if (!targetNation.isAtWar) {
+          addLog('当前并未与该国交战。');
+          return;
+        }
+        const warScore = targetNation.warScore || 0;
+        const warDuration = targetNation.warDuration || 0;
+        const enemyLosses = targetNation.enemyLosses || 0;
+        if (warScore < 0) {
+          const payment = Math.max(100, Math.ceil(Math.abs(warScore) * 30 + warDuration * 5));
+          if ((resources.silver || 0) < payment) {
+            addLog('银币不足，无法支付赔款。');
+            return;
+          }
+          setResources(prev => ({ ...prev, silver: prev.silver - payment }));
+          setNations(prev => prev.map(n =>
+            n.id === nationId
+              ? {
+                  ...n,
+                  isAtWar: false,
+                  warScore: 0,
+                  warDuration: 0,
+                  enemyLosses: 0,
+                  wealth: (n.wealth || 0) + payment,
+                  relation: 30,
+                }
+              : n
+          ));
+          addLog(`你支付 ${payment} 银币，与 ${targetNation.name} 达成和平。`);
+        } else if (warScore > 0) {
+          const willingness = (warScore / 80) + Math.min(0.5, enemyLosses / 200) + Math.min(0.3, warDuration / 200);
+          if (willingness > 0.8 || (targetNation.wealth || 0) <= 0) {
+            const tribute = Math.min(targetNation.wealth || 0, Math.ceil(warScore * 40 + enemyLosses * 2));
+            setResources(prev => ({ ...prev, silver: prev.silver + tribute }));
+            setNations(prev => prev.map(n =>
+              n.id === nationId
+                ? {
+                    ...n,
+                    wealth: Math.max(0, (n.wealth || 0) - tribute),
+                    isAtWar: false,
+                    warScore: 0,
+                    warDuration: 0,
+                    enemyLosses: 0,
+                    relation: clampRelation((n.relation || 0) + 10),
+                  }
+                : n
+            ));
+            addLog(`${targetNation.name} 支付 ${tribute} 银币换取和平。`);
+          } else {
+            addLog(`${targetNation.name} 拒绝了当前的停战条件。`);
+          }
+        } else {
+          addLog('战局尚未出现明显胜负，对方拒绝和平。');
+        }
+        break;
+      }
 
       default:
         break;
@@ -588,10 +669,6 @@ export const useGameActions = (gameState, addLog) => {
     recruitUnit,
     disbandUnit,
     launchBattle,
-
-    // 贸易
-    createTradeRoute,
-    cancelTradeRoute,
 
     // 外交
     handleDiplomaticAction,

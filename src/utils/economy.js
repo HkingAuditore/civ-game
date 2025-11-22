@@ -1,4 +1,4 @@
-import { RESOURCES } from '../config/gameData';
+import { RESOURCES } from '../config';
 
 /**
  * 判断资源是否为可在市场交易的物资
