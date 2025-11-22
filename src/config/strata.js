@@ -30,7 +30,7 @@ export const STRATA = {
     influenceBase: 0.5,
     startingWealth: 15,
     defaultResource: 'food',
-    needs: { food: 0.45, wood: 0.04, stone: 0.04 },
+    needs: { wood: 0.04, stone: 0.04 },
     buffs: {
       satisfied: { desc: "民心稳定", taxIncome: 0.1, production: 0.05 },
       dissatisfied: { desc: "民怨沸腾", taxIncome: -0.2, production: -0.1 }
@@ -49,7 +49,7 @@ export const STRATA = {
     influenceBase: 0.4,
     startingWealth: 18,
     defaultResource: 'wood',
-    needs: { food: 0.7, wood: 0.05, tools: 0.05 ,stone: 0.05},
+    needs: { food: 0.7, tools: 0.05 ,stone: 0.05},
     buffs: {
       satisfied: { desc: "林场顺畅", production: 0.06 },
       dissatisfied: { desc: "供应迟滞", production: -0.1 }
@@ -68,7 +68,7 @@ export const STRATA = {
     influenceBase: 0.3,
     startingWealth: 8,
     defaultResource: 'food',
-    needs: { food: 0.4, wood: 0.05 },
+    needs: { wood: 0.05 },
     buffs: {
       satisfied: { desc: "佃农勤恳", production: 0.08 },
       dissatisfied: { desc: "佃农怠工", production: -0.15 }
@@ -107,7 +107,7 @@ export const STRATA = {
     influenceBase: 1.2,
     startingWealth: 45,
     defaultResource: 'tools',
-    needs: { food: 0.55, tools: 0.10, brick: 0.04 },
+    needs: { food: 0.55, brick: 0.04 },
     buffs: {
       satisfied: { desc: "坊市繁盛", production: 0.1 },
       dissatisfied: { desc: "工坊停工", production: -0.15 }
@@ -163,7 +163,7 @@ export const STRATA = {
     influenceBase: 2.5,
     startingWealth: 80,
     defaultResource: 'spice',
-    needs: { food: 0.6, spice: 0.1, culture: 0.1 },
+    needs: { food: 0.6, culture: 0.1 },
     buffs: {
       satisfied: { desc: "海权扩张", gatherBonus: 0.1 },
       dissatisfied: { desc: "航员哗变", gatherBonus: -0.1, stability: -0.1 }
@@ -182,7 +182,7 @@ export const STRATA = {
     influenceBase: 1.5,
     startingWealth: 55,
     defaultResource: 'papyrus',
-    needs: { food: 0.5, papyrus: 0.1, culture: 0.2 },
+    needs: { food: 0.5, culture: 0.2 },
     buffs: {
       satisfied: { desc: "文献井然", scienceBonus: 0.15 },
       dissatisfied: { desc: "文献损失", scienceBonus: -0.2 }
@@ -201,7 +201,7 @@ export const STRATA = {
     influenceBase: 2,
     startingWealth: 35,
     defaultResource: 'tools',
-    needs: { food: 0.8, tools: 0.1 },
+    needs: { food: 0.8 },
     buffs: {
       satisfied: { desc: "军心稳固", militaryPower: 0.2 },
       dissatisfied: { desc: "军队哗变风险", militaryPower: -0.3, stability: -0.2 }
@@ -220,7 +220,7 @@ export const STRATA = {
     influenceBase: 3,
     startingWealth: 45,
     defaultResource: 'culture',
-    needs: { food: 0.5, culture: 1 },
+    needs: { food: 0.5 },
     buffs: {
       satisfied: { desc: "宗教和谐", cultureBonus: 0.2, stability: 0.1 },
       dissatisfied: { desc: "信仰危机", cultureBonus: -0.15, stability: -0.1 }
@@ -259,7 +259,7 @@ export const STRATA = {
     influenceBase: 5,
     startingWealth: 150,
     defaultResource: 'food',
-    needs: { food: 1, culture: 1, plank: 0.2 },
+    needs: { culture: 1, plank: 0.2 },
     buffs: {
       satisfied: { desc: "贵族支持", taxIncome: 0.15, stability: 0.15 },
       dissatisfied: { desc: "贵族叛乱", taxIncome: -0.3, stability: -0.25 }
@@ -297,7 +297,7 @@ export const STRATA = {
     influenceBase: 4,
     startingWealth: 120,
     defaultResource: 'tools',
-    needs: { food: 1, culture: 0.5, tools: 0.2 },
+    needs: { food: 1, culture: 0.5 },
     buffs: {
       satisfied: { desc: "骑士忠诚", militaryPower: 0.25, stability: 0.1 },
       dissatisfied: { desc: "骑士不满", militaryPower: -0.2, stability: -0.15 }
