@@ -16,10 +16,10 @@ const MONTH_NAMES = [
 ];
 
 const SEASONS = [
-  { name: '春季', months: [1, 2, 3] },
-  { name: '夏季', months: [4, 5, 6] },
-  { name: '秋季', months: [7, 8, 9] },
-  { name: '冬季', months: [10, 11, 12] },
+  { name: '春季', months: [3, 4, 5] },
+  { name: '夏季', months: [6, 7, 8] },
+  { name: '秋季', months: [9, 10, 11] },
+  { name: '冬季', months: [12, 1, 2] },
 ];
 
 export const getCalendarInfo = (daysElapsed = 0) => {

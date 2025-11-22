@@ -50,6 +50,7 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
 
   const headRates = taxPolicies?.headTaxRates || {};
   const resourceRates = taxPolicies?.resourceTaxRates || {};
+  const [headDrafts, setHeadDrafts] = React.useState({});
 
   const handleHeadTaxChange = (key, value) => {
     if (!onUpdateTaxPolicies) return;
@@ -62,6 +63,23 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
         [key]: numeric,
       },
     }));
+  };
+
+  const handleHeadDraftChange = (key, raw) => {
+    setHeadDrafts(prev => ({
+      ...prev,
+      [key]: raw,
+    }));
+  };
+
+  const commitHeadDraft = (key) => {
+    if (headDrafts[key] === undefined) return;
+    handleHeadTaxChange(key, headDrafts[key]);
+    setHeadDrafts(prev => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
   };
 
   const handleResourceTaxChange = (key, value) => {
@@ -110,7 +128,7 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div>
               <h4 className="text-xs font-semibold text-gray-400 mb-1">人头税（按日结算）</h4>
-              <p className="text-[11px] text-gray-500 mb-2">针对每位在职人口，按阶层基准税率 × 调整系数收取银币。</p>
+              <p className="text-[11px] text-gray-500 mb-2">针对每位在职人口，按阶层基准税率 × 调整系数收取银币。若为负数，则为补助。</p>
               <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
                 {activeStrata.map((key) => {
                   const base = STRATA[key]?.headTaxBase ?? 0.01;
@@ -124,11 +142,18 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
                         </span>
                       </div>
                     <input
-                      type="number"
-                      min="0"
+                      type="text"
+                      inputMode="decimal"
                       step="0.05"
-                      value={headRates[key] ?? 1}
-                      onChange={(e) => handleHeadTaxChange(key, e.target.value)}
+                      value={headDrafts[key] ?? (headRates[key] ?? 1)}
+                      onChange={(e) => handleHeadDraftChange(key, e.target.value)}
+                      onBlur={() => commitHeadDraft(key)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          commitHeadDraft(key);
+                          e.target.blur();
+                        }
+                      }}
                       className="w-full bg-gray-900/60 border border-gray-700 text-xs text-gray-200 rounded px-2 py-1"
                     />
                     </div>

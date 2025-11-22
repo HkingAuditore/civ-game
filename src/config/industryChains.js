@@ -128,6 +128,56 @@ export const INDUSTRY_CHAINS = {
     ],
   },
 
+  textile_chain: {
+    id: 'textile_chain',
+    name: "布料产业链",
+    desc: "以布料为核心的生活必需产业，从纺织到成衣。",
+    unlockEpoch: 0,
+    stages: [
+      {
+        stage: 'extraction',
+        name: "纤维采集",
+        buildings: ['loom_house'],
+        output: 'cloth',
+        efficiency: 1.0,
+        workers: ['peasant'],
+      },
+      {
+        stage: 'processing',
+        name: "成衣制作",
+        buildings: ['tailor_workshop'],
+        input: 'cloth',
+        output: 'cloth',
+        ratio: 1.4,
+        efficiency: 1.0,
+        workers: ['artisan'],
+      },
+      {
+        stage: 'consumption',
+        name: "全民衣物",
+        consumers: ['all_classes'],
+        input: 'cloth',
+        bonus: { approval: 0.05, stability: 0.02 },
+      }
+    ],
+    upgrades: [
+      {
+        id: 'loom_standardization',
+        name: "织机规制",
+        unlockEpoch: 1,
+        cost: { wood: 80, stone: 30 },
+        bonus: { efficiency: 0.2, quality: 0.15 },
+      },
+      {
+        id: 'dyeworks_expansion',
+        name: "染坊扩建",
+        unlockEpoch: 2,
+        cost: { papyrus: 60, silver: 150 },
+        bonus: { culture: 0.15, value: 0.2 },
+      }
+    ],
+  },
+
   mining_chain: {
     id: 'mining_chain',
     name: "采矿产业链",
@@ -495,6 +545,25 @@ export const CHAIN_DEVELOPMENT_PATHS = {
       },
     ],
   },
+
+  textile_chain: {
+    paths: [
+      {
+        id: 'guild_textiles',
+        name: "织造行会",
+        desc: "以行会形式统一布料标准，提升品质。",
+        requirements: { epoch: 2, buildings: { tailor_workshop: 3 } },
+        effects: { quality: 0.25, efficiency: 0.2, value: 0.2 },
+      },
+      {
+        id: 'proto_industrial_looms',
+        name: "家族工场",
+        desc: "以家庭作坊串联成网络，形成原始工业体系。",
+        requirements: { epoch: 3, workers: { artisan: 12, worker: 6 } },
+        effects: { output: 0.35, stability: 0.05 },
+      },
+    ],
+  },
 };
 
 /**
@@ -519,6 +588,7 @@ export const CHAIN_NATION_BONUSES = {
     chains: {
       knowledge_chain: { efficiency: 0.25 },
       luxury_chain: { efficiency: 0.2 },
+      textile_chain: { efficiency: 0.3, quality: 0.25 },
     },
   },
   
@@ -535,7 +605,7 @@ export const CHAIN_NATION_BONUSES = {
  */
 export const CHAIN_DECREE_EFFECTS = {
   guild_charter: {
-    affects: ['wood_chain', 'mining_chain'],
+    affects: ['wood_chain', 'mining_chain', 'textile_chain'],
     bonus: { efficiency: 0.15, quality: 0.1 },
   },
   

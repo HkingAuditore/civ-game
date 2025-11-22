@@ -27,6 +27,48 @@ export const BuildTab = ({
   onSell,
   market,
 }) => {
+  const NON_TRADE_KEYS = new Set(['maxPop']);
+  const getResourcePrice = (key) => {
+    if (!key || key === 'silver') return 1;
+    const def = RESOURCES[key];
+    if (!def) return 0;
+    if (NON_TRADE_KEYS.has(key)) return 0;
+    return market?.prices?.[key] ?? def.basePrice ?? 0;
+  };
+
+  const getOwnerIncomePerBuilding = (building) => {
+    const outputValue = Object.entries(building.output || {}).reduce((sum, [res, val]) => {
+      const price = getResourcePrice(res);
+      return sum + price * val;
+    }, 0);
+    const inputValue = Object.entries(building.input || {}).reduce((sum, [res, val]) => {
+      const price = getResourcePrice(res);
+      return sum + price * val;
+    }, 0);
+    const wageCost = Object.entries(building.jobs || {}).reduce((sum, [job, perBuilding]) => {
+      const wage = market?.wages?.[job] ?? 0;
+      return sum + wage * perBuilding;
+    }, 0);
+    return outputValue - inputValue - wageCost;
+  };
+
+  const getJobIncomePerBuilding = (building, ownerIncome) => {
+    const jobEntries = Object.keys(building.jobs || {}).map(job => {
+      const wage = market?.wages?.[job] ?? 0;
+      return {
+        job,
+        perCapitaIncome: wage,
+      };
+    });
+    if (building.owner && jobEntries.every(entry => entry.perCapitaIncome === 0)) {
+      const ownerRole = jobEntries.find(entry => entry.job === building.owner);
+      if (ownerRole) {
+        ownerRole.perCapitaIncome = ownerIncome;
+      }
+    }
+    return jobEntries;
+  };
+
   /**
    * 检查建筑是否可用
    * @param {Object} building - 建筑对象
@@ -86,6 +128,8 @@ export const BuildTab = ({
                 const affordable = hasMaterials && hasSilver;
                 const count = buildings[b.id] || 0;
                 const VisualIcon = Icon;
+                const ownerIncomePerBuilding = getOwnerIncomePerBuilding(b);
+                const jobIncomePerBuilding = getJobIncomePerBuilding(b, ownerIncomePerBuilding);
 
                 return (
                   <div 
@@ -105,6 +149,12 @@ export const BuildTab = ({
                         <div>
                           <h4 className="text-sm font-bold text-white">{b.name}</h4>
                           <p className="text-xs text-gray-400">拥有: {count}</p>
+                          {b.owner && (
+                            <span className="text-[10px] text-yellow-300 bg-yellow-900/40 border border-yellow-600/40 rounded px-1.5 py-0.5 inline-flex items-center gap-1 mt-0.5">
+                              <Icon name="User" size={10} className="text-yellow-400" />
+                              业主: {STRATA[b.owner]?.name || b.owner}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -112,57 +162,77 @@ export const BuildTab = ({
                     {/* 建筑描述 */}
                     <p className="text-xs text-gray-400 mb-2">{b.desc}</p>
 
-                    {/* 建筑效果 */}
-                    <div className="space-y-1 mb-2">
-                      {/* 产出 */}
-                      {b.output && Object.entries(b.output).map(([res, val]) => (
-                        <div key={res} className="flex items-center justify-between text-xs">
-                          <span className="text-gray-400">产出:</span>
-                          <span className="text-green-400">+{val} {RESOURCES[res]?.name || res}/日</span>
+                    {/* 建筑详情 */}
+                    <div className="space-y-2 text-[11px] mb-3">
+                      {(b.output || b.input) && (
+                        <div className="bg-gray-900/30 border border-gray-700/70 rounded px-2 py-1.5">
+                          <div className="flex items-center justify-between text-[10px] text-gray-500 uppercase tracking-wide mb-1">
+                            <span>资源流</span>
+                            <span>每日</span>
+                          </div>
+                          <div className="space-y-0.5">
+                            {Object.entries(b.output || {}).map(([res, val]) => (
+                              <div key={`out-${res}`} className="flex items-center justify-between">
+                                <span className="text-gray-300">{RESOURCES[res]?.name || res}</span>
+                                <span className="text-green-300 font-mono">+{val}</span>
+                              </div>
+                            ))}
+                            {Object.entries(b.input || {}).map(([res, val]) => (
+                              <div key={`in-${res}`} className="flex items-center justify-between">
+                                <span className="text-gray-300">{RESOURCES[res]?.name || res}</span>
+                                <span className="text-red-300 font-mono">-{val}</span>
+                              </div>
+                            ))}
+                            {(!b.output && !b.input) && (
+                              <div className="text-gray-500 italic">无资源流</div>
+                            )}
+                          </div>
                         </div>
-                      ))}
-                      
-                      {/* 消耗 */}
-                      {b.input && Object.entries(b.input).map(([res, val]) => (
-                        <div key={res} className="flex items-center justify-between text-xs">
-                          <span className="text-gray-400">消耗:</span>
-                          <span className="text-red-400">-{val} {RESOURCES[res]?.name || res}/日</span>
-                        </div>
-                      ))}
-                      
-                      {/* 岗位 */}
-                      {b.jobs && (
-                        <div className="space-y-1">
-                          {Object.entries(b.jobs).map(([job, perBuilding]) => {
+                      )}
+
+                      {(b.jobs || b.owner) && (
+                        <div className="bg-gray-900/30 border border-gray-700/70 rounded px-2 py-1.5 space-y-1">
+                          <div className="flex items-center justify-between text-[10px] text-gray-500 uppercase tracking-wide">
+                            <span>岗位与收益</span>
+                            <span>银币/人·日</span>
+                          </div>
+                          {b.jobs && Object.entries(b.jobs).map(([job, perBuilding]) => {
                             const requiredExact = perBuilding * count;
                             const assignedRaw = jobFill?.[b.id]?.[job] ?? 0;
                             const assignedExact = Math.min(assignedRaw, requiredExact);
-                            const fillPercent = requiredExact > 0 ? Math.min(1, assignedExact / requiredExact) : 0;
+                            const fillPercent = requiredExact > 0 ? Math.min(1, assignedExact / Math.max(requiredExact, 1)) : 0;
                             const requiredDisplay = Math.round(requiredExact);
                             const assignedDisplay = Math.min(requiredDisplay, Math.round(assignedExact));
+                            const income = jobIncomePerBuilding.find(j => j.job === job)?.perCapitaIncome ?? 0;
                             return (
-                              <div key={job}>
-                                <div className="flex items-center justify-between text-xs">
-                                  <span className="text-gray-400">
-                                    岗位: {STRATA[job]?.name || job}
+                              <div key={job} className="space-y-0.5">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-gray-300">
+                                    {STRATA[job]?.name || job}
+                                    <span className="text-gray-500 ml-1">({assignedDisplay}/{requiredDisplay})</span>
                                   </span>
-                                  <span className="text-blue-400 font-mono">
-                                    {assignedDisplay}/{requiredDisplay}
+                                  <span className="text-blue-300 font-mono">
+                                    {income >= 0 ? '+' : ''}{income.toFixed(2)}
                                   </span>
                                 </div>
-                                <div className="w-full bg-gray-600/60 rounded-full h-1.5">
+                                <div className="w-full bg-gray-700/70 rounded-full h-1">
                                   <div
-                                    className="h-1.5 rounded-full bg-blue-400 transition-all"
+                                    className="h-1 rounded-full bg-blue-400 transition-all"
                                     style={{ width: `${fillPercent * 100}%` }}
                                   />
                                 </div>
                               </div>
                             );
                           })}
+                          <div className="flex items-center justify-between text-gray-300 pt-1 border-t border-gray-700/60">
+                            <span>业主</span>
+                            <span className={`${ownerIncomePerBuilding >= 0 ? 'text-green-300' : 'text-red-300'} font-mono`}>
+                              {ownerIncomePerBuilding >= 0 ? '+' : ''}{ownerIncomePerBuilding.toFixed(2)}
+                            </span>
+                          </div>
                         </div>
                       )}
                     </div>
-
                     {/* 成本 */}
                     <div className="flex flex-wrap gap-1 mb-2">
                       {Object.entries(cost).map(([res, val]) => (
