@@ -21,6 +21,8 @@ import {
   Factory,
   Zap,
   Trash2,
+  Save,
+  Download,
   Scale,
   BookOpen,
   Coins,
@@ -195,6 +197,8 @@ export const iconMap = {
   List,
   Paintbrush,
   Droplets,
+  Save,
+  Download,
   Table,
   Horse: Users
 };
