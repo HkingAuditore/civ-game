@@ -10,6 +10,7 @@ export { TECHS } from './technologies';
 export { DECREES } from './decrees';
 export { COUNTRIES } from './countries';
 export { MILITARY_ACTIONS } from './militaryActions';
+export { TUTORIAL_STEPS } from './tutorialSteps';
 
 // 军事单位系统
 export { 

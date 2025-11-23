@@ -23,6 +23,7 @@ import {
   PopulationDetailModal,
   AnnualFestivalModal,
   TutorialModal,
+  WikiModal,
 } from './components';
 
 /**
@@ -113,6 +114,7 @@ export default function RiseOfCivs() {
 
   const [showTaxDetail, setShowTaxDetail] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false); // 控制设置弹窗显示
+  const [isWikiOpen, setIsWikiOpen] = useState(false);
   const [isLoadMenuOpen, setIsLoadMenuOpen] = useState(false); // 控制读档菜单
   const loadMenuRef = useRef(null);
   useEffect(() => {
@@ -324,6 +326,16 @@ export default function RiseOfCivs() {
             >
               <Icon name="BookOpen" size={14} />
               <span className="hidden sm:inline">教程</span>
+            </button>
+
+            {/* 百科按钮 */}
+            <button
+              onClick={() => setIsWikiOpen(true)}
+              className="px-3 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/40 border border-indigo-500/30 rounded-lg transition-colors flex items-center gap-2 text-xs font-semibold text-indigo-200"
+              title="打开文明百科"
+            >
+              <Icon name="Book" size={14} />
+              <span className="hidden sm:inline">百科</span>
             </button>
 
             {/* 设置按钮 */}
@@ -693,6 +705,13 @@ export default function RiseOfCivs() {
         show={gameState.showTutorial}
         onComplete={handleTutorialComplete}
         onSkip={handleTutorialSkip}
+        onOpenWiki={() => setIsWikiOpen(true)}
+      />
+
+      {/* 百科模态框 */}
+      <WikiModal
+        show={isWikiOpen}
+        onClose={() => setIsWikiOpen(false)}
       />
 
       {/* 设置弹窗 */}
