@@ -128,10 +128,12 @@ export const simulateTick = ({
   const categoryBonuses = { gather: 1, industry: 1, civic: 1, military: 1 };
   const passiveGains = {};
   let extraMaxPop = 0;
+  let maxPopPercent = 0;
   let extraAdminCapacity = 0;
   let productionBonus = 0;
   let industryBonus = 0;
   let taxBonus = 0;
+  let needsReduction = 0;
 
   const boostBuilding = (id, percent) => {
     if (!id || typeof percent !== 'number') return;
@@ -164,7 +166,12 @@ export const simulateTick = ({
       Object.entries(effects.passive).forEach(([resKey, amount]) => addPassiveGain(resKey, amount));
     }
     if (effects.maxPop) {
-      extraMaxPop += effects.maxPop;
+      const value = effects.maxPop;
+      if (value > -1 && value < 1 && value !== 0) {
+        maxPopPercent += value;
+      } else {
+        extraMaxPop += value;
+      }
     }
     if (effects.admin) {
       extraAdminCapacity += effects.admin;
@@ -177,6 +184,9 @@ export const simulateTick = ({
     }
     if (effects.taxIncome) {
       taxBonus += effects.taxIncome;
+    }
+    if (effects.needsReduction) {
+      needsReduction += effects.needsReduction;
     }
   };
 
@@ -292,6 +302,11 @@ export const simulateTick = ({
       });
     }
   });
+
+  if (maxPopPercent !== 0) {
+    const multiplier = Math.max(0, 1 + maxPopPercent);
+    totalMaxPop = Math.max(0, totalMaxPop * multiplier);
+  }
 
   if (armyPopulationDemand > 0) {
     jobsAvailable.soldier = (jobsAvailable.soldier || 0) + armyPopulationDemand;
@@ -467,6 +482,9 @@ export const simulateTick = ({
   });
 
   const zeroApprovalClasses = {};
+  const effectiveNeedsReduction = Math.max(0, Math.min(0.95, needsReduction || 0));
+  const needsRequirementMultiplier = 1 - effectiveNeedsReduction;
+
   Object.keys(STRATA).forEach(key => {
     const count = popStructure[key] || 0;
     if (count === 0) return;
@@ -872,7 +890,7 @@ export const simulateTick = ({
       if (!potentialResources.has(resKey)) {
         continue;
       }
-      const requirement = perCapita * count * gameSpeed;
+      const requirement = perCapita * count * gameSpeed * needsRequirementMultiplier;
       if (requirement <= 0) continue;
       const available = res[resKey] || 0;
       let satisfied = 0;

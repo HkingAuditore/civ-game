@@ -49,6 +49,19 @@ const buildInitialNeedsHistory = () => {
   return history;
 };
 
+const buildInitialHistory = () => {
+  const classHistory = {};
+  Object.keys(STRATA).forEach(key => {
+    classHistory[key] = { pop: [], income: [], expense: [] };
+  });
+  return {
+    treasury: [],
+    tax: [],
+    population: [],
+    class: classHistory,
+  };
+};
+
 const isTradable = (resourceKey) => {
   if (resourceKey === 'silver') return false;
   const def = RESOURCES[resourceKey];
@@ -69,6 +82,8 @@ const buildInitialMarket = () => {
     supply: {},
     wages: {},
     priceHistory: {},
+    supplyHistory: {},
+    demandHistory: {},
   };
 };
 
@@ -173,6 +188,8 @@ export const useGameState = () => {
   const [stratumDetailView, setStratumDetailView] = useState(null);
   const [resourceDetailView, setResourceDetailView] = useState(null);
   const [classShortages, setClassShortages] = useState({});
+  const [populationDetailView, setPopulationDetailView] = useState(false);
+  const [history, setHistory] = useState(buildInitialHistory());
 
   // ========== 行政管理状态 ==========
   const [adminStrain, setAdminStrain] = useState(0);
@@ -293,6 +310,10 @@ export const useGameState = () => {
     setResourceDetailView,
     classShortages,
     setClassShortages,
+    populationDetailView,
+    setPopulationDetailView,
+    history,
+    setHistory,
     
     // 行政管理
     adminStrain,

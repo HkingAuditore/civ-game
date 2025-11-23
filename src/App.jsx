@@ -19,6 +19,7 @@ import {
   BattleResultModal,
   StratumDetailModal,
   ResourceDetailModal,
+  PopulationDetailModal,
   AnnualFestivalModal,
   TutorialModal,
 } from './components';
@@ -178,10 +179,16 @@ export default function RiseOfCivs() {
           {/* 财富、行政力和人口显示 */}
           <div className="relative flex items-center gap-4 bg-gray-800/50 px-4 py-1.5 rounded-full border border-gray-700">
             <div className="flex items-center gap-2" title="当前银币">
-              <Icon name="Coins" size={16} className="text-yellow-300" />
-              <span className="font-mono text-sm text-yellow-200">
-                {(gameState.resources.silver || 0).toFixed(0)} 银币
-              </span>
+              <button
+                type="button"
+                onClick={() => gameState.setResourceDetailView('silver')}
+                className="flex items-center gap-2 rounded-lg px-2 py-1 transition-colors hover:bg-gray-800/60"
+              >
+                <Icon name="Coins" size={16} className="text-yellow-300" />
+                <span className="font-mono text-sm text-yellow-200">
+                  {(gameState.resources.silver || 0).toFixed(0)} 银币
+                </span>
+              </button>
               <button
                 type="button"
                 onClick={() => setShowTaxDetail(prev => !prev)}
@@ -212,12 +219,17 @@ export default function RiseOfCivs() {
             <div className="w-px h-4 bg-gray-600"></div>
             <div className="flex items-center gap-2 text-[11px] text-gray-400">
               <span>人口</span>
-              <div className="flex gap-1" title="当前人口 / 人口上限">
+              <button
+                type="button"
+                onClick={() => gameState.setPopulationDetailView(true)}
+                className="flex items-center gap-1 rounded-lg px-2 py-1 transition-colors hover:bg-gray-800/60"
+                title="当前人口 / 人口上限"
+              >
                 <Icon name="Users" size={16} className="text-blue-400" />
                 <span className="font-mono text-sm">
                   {gameState.population} / {gameState.maxPop}
                 </span>
-              </div>
+              </button>
             </div>
 
             {showTaxDetail && (
@@ -503,19 +515,20 @@ export default function RiseOfCivs() {
 
       {/* 阶层详情模态框 */}
       {gameState.stratumDetailView && (
-          <StratumDetailModal
-            stratumKey={gameState.stratumDetailView}
-            popStructure={gameState.popStructure}
-            classApproval={gameState.classApproval}
-            classInfluence={gameState.classInfluence}
-            classWealth={gameState.classWealth}
-            classWealthHistory={gameState.classWealthHistory}
-            totalInfluence={gameState.totalInfluence}
-            totalWealth={gameState.totalWealth}
-            activeBuffs={gameState.activeBuffs}
-            activeDebuffs={gameState.activeDebuffs}
-            epoch={gameState.epoch}
-            techsUnlocked={gameState.techsUnlocked}
+        <StratumDetailModal
+          stratumKey={gameState.stratumDetailView}
+          popStructure={gameState.popStructure}
+          classApproval={gameState.classApproval}
+          classInfluence={gameState.classInfluence}
+          classWealth={gameState.classWealth}
+          classWealthHistory={gameState.classWealthHistory}
+          totalInfluence={gameState.totalInfluence}
+          totalWealth={gameState.totalWealth}
+          activeBuffs={gameState.activeBuffs}
+          activeDebuffs={gameState.activeDebuffs}
+          epoch={gameState.epoch}
+          techsUnlocked={gameState.techsUnlocked}
+          history={gameState.history}
           onClose={() => gameState.setStratumDetailView(null)}
         />
       )}
@@ -529,7 +542,19 @@ export default function RiseOfCivs() {
           buildings={gameState.buildings}
           popStructure={gameState.popStructure}
           army={gameState.army}
+          history={gameState.history}
           onClose={() => gameState.setResourceDetailView(null)}
+        />
+      )}
+
+      {gameState.populationDetailView && (
+        <PopulationDetailModal
+          isOpen={gameState.populationDetailView}
+          onClose={() => gameState.setPopulationDetailView(false)}
+          population={gameState.population}
+          maxPop={gameState.maxPop}
+          popStructure={gameState.popStructure}
+          history={gameState.history}
         />
       )}
 

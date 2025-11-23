@@ -3,6 +3,7 @@
 
 import React from 'react';
 import { Icon } from '../common/UIComponents';
+import { SimpleLineChart } from '../common/SimpleLineChart';
 import { STRATA } from '../../config';
 import { RESOURCES } from '../../config/gameConstants';
 import { formatEffectDetails } from '../../utils/effectFormatter';
@@ -134,6 +135,7 @@ export const StratumDetailModal = ({
   activeDebuffs,
   epoch = 0,
   techsUnlocked = [],
+  history = {},
   onClose,
 }) => {
   if (!stratumKey || stratumKey === 'all') {
@@ -167,6 +169,7 @@ export const StratumDetailModal = ({
   const stratumBuffs = activeBuffs.filter(buff => buff.class === stratumKey || buff.source === stratumKey);
   const stratumDebuffs = activeDebuffs.filter(debuff => debuff.class === stratumKey || debuff.source === stratumKey);
   const wealthHistory = classWealthHistory[stratumKey] || [];
+  const stratumHistory = history?.class?.[stratumKey] || { pop: [], income: [], expense: [] };
 
   const renderWealthChart = (history = []) => {
     if (!history || history.length <= 1) return null;
@@ -248,6 +251,39 @@ export const StratumDetailModal = ({
                 <p className="text-xs text-gray-400 mb-1">财富</p>
                 <p className="text-lg font-bold text-yellow-400">{wealth.toFixed(0)}</p>
                 <p className="text-xs text-yellow-400 mt-1">{wealthPercent.toFixed(1)}%</p>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300">
+              <Icon name="Activity" size={16} className="text-cyan-400" />
+              趋势分析
+            </h3>
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="bg-gray-700/40 p-3 rounded">
+                <p className="text-xs text-gray-400 mb-2">人口变化</p>
+                <SimpleLineChart
+                  data={stratumHistory.pop}
+                  color="#38bdf8"
+                  label="人口"
+                />
+              </div>
+              <div className="bg-gray-700/40 p-3 rounded">
+                <p className="text-xs text-gray-400 mb-2">收入变化</p>
+                <SimpleLineChart
+                  data={stratumHistory.income}
+                  color="#4ade80"
+                  label="收入"
+                />
+              </div>
+              <div className="bg-gray-700/40 p-3 rounded">
+                <p className="text-xs text-gray-400 mb-2">支出变化</p>
+                <SimpleLineChart
+                  data={stratumHistory.expense}
+                  color="#f87171"
+                  label="支出"
+                />
               </div>
             </div>
           </div>

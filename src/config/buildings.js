@@ -157,17 +157,30 @@ export const BUILDINGS = [
     cat: 'industry', 
     visual: { icon: 'Shirt', color: 'bg-indigo-800', text: 'text-indigo-200' } 
   },
+  { 
+    id: 'dye_works', 
+    name: "染坊", 
+    desc: "从植物中提取染料，用于制作高级织物。", 
+    baseCost: { wood: 60, stone: 20 }, 
+    input: { food: 0.5 }, 
+    output: { dye: 0.4 }, 
+    jobs: { peasant: 2 }, 
+    owner: 'artisan',
+    epoch: 1, 
+    cat: 'industry', 
+    visual: { icon: 'Palette', color: 'bg-pink-800', text: 'text-pink-200' } 
+  },
 
   { 
     id: 'tailor_workshop', 
     name: "成衣作坊", 
-    desc: "集中裁制布料，提升衣物品质与文化影响。", 
-    baseCost: { wood: 70, stone: 20 }, 
-    input: { cloth: 0.8, wood: 0.2 }, 
-    output: { cloth: 1.8, culture: 0.05 }, 
+    desc: "使用布料和染料制作精美的华服，供上层阶级享用。", 
+    baseCost: { wood: 100, stone: 40 }, 
+    input: { cloth: 1.0, dye: 0.2 }, 
+    output: { fine_clothes: 0.8, culture: 0.1 }, 
     jobs: { artisan: 2 }, 
     owner: 'artisan',
-    epoch: 1, 
+    epoch: 2, 
     cat: 'industry', 
     requiresTech: 'tools',
     visual: { icon: 'Package', color: 'bg-indigo-900', text: 'text-indigo-100' } 
