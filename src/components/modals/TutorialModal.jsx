@@ -3,207 +3,21 @@
 
 import React, { useState } from 'react';
 import { Icon } from '../common/UIComponents';
+import { TUTORIAL_STEPS } from '../../config/tutorialSteps';
 
 /**
  * 新手教程模态框组件
  * @param {boolean} show - 是否显示教程
  * @param {Function} onComplete - 完成教程回调
  * @param {Function} onSkip - 跳过教程回调
+ * @param {Function} onOpenWiki - 打开百科的回调
  */
-export const TutorialModal = ({ show, onComplete, onSkip }) => {
+export const TutorialModal = ({ show, onComplete, onSkip, onOpenWiki }) => {
   const [currentStep, setCurrentStep] = useState(0);
 
   if (!show) return null;
 
-  // 教程步骤内容
-  const tutorialSteps = [
-    {
-      title: '欢迎来到文明崛起',
-      icon: 'Globe',
-      iconColor: 'text-blue-400',
-      content: (
-        <div className="space-y-4">
-          <p className="text-lg text-white font-semibold">
-            欢迎，伟大的统治者！
-          </p>
-          <p className="text-gray-300 leading-relaxed">
-            你将带领一个小小的部落，从原始时代开始，逐步发展成为强大的文明帝国。
-          </p>
-          <p className="text-gray-300 leading-relaxed">
-            在这个旅程中，你需要管理资源、发展科技、维护社会稳定，并与其他文明进行外交或战争。
-          </p>
-          <div className="bg-blue-900/30 border border-blue-500/30 p-4 rounded-lg">
-            <p className="text-sm text-blue-300">
-              💡 <span className="font-semibold">游戏目标：</span>
-              从部落发展到现代文明，解锁所有时代，建立繁荣的帝国！
-            </p>
-          </div>
-        </div>
-      ),
-    },
-    {
-      title: '资源管理',
-      icon: 'Package',
-      iconColor: 'text-yellow-400',
-      content: (
-        <div className="space-y-4">
-          <p className="text-gray-300 leading-relaxed">
-            <span className="text-white font-semibold">左侧面板</span>显示了你的所有资源。资源是文明发展的基础！
-          </p>
-          <div className="space-y-3">
-            <div className="bg-gray-700/50 p-3 rounded-lg">
-              <p className="text-white font-semibold mb-2 flex items-center gap-2">
-                <Icon name="Wheat" size={16} className="text-yellow-400" />
-                基础资源
-              </p>
-              <p className="text-sm text-gray-300">
-                <span className="text-yellow-300">食物</span>、<span className="text-yellow-300">木材</span>、<span className="text-yellow-300">石头</span> 等是最基础的资源，用于建造和维持人口。
-              </p>
-            </div>
-            <div className="bg-gray-700/50 p-3 rounded-lg">
-              <p className="text-white font-semibold mb-2 flex items-center gap-2">
-                <Icon name="Coins" size={16} className="text-yellow-400" />
-                银币系统
-              </p>
-              <p className="text-sm text-gray-300">
-                <span className="text-yellow-300">银币</span>是经济核心！所有实物资源都在市场流通，你的仓库存货是用银币按当前价格买入的。
-              </p>
-            </div>
-            <div className="bg-gray-700/50 p-3 rounded-lg">
-              <p className="text-white font-semibold mb-2 flex items-center gap-2">
-                <Icon name="Pickaxe" size={16} className="text-emerald-400" />
-                获取资源
-              </p>
-              <p className="text-sm text-gray-300">
-                点击左下角的<span className="text-emerald-300">「手动采集」</span>按钮可以获得少量银币，但主要还是通过建造建筑和分配人口来自动生产。
-              </p>
-            </div>
-          </div>
-        </div>
-      ),
-    },
-    {
-      title: '人口与社会',
-      icon: 'Users',
-      iconColor: 'text-blue-400',
-      content: (
-        <div className="space-y-4">
-          <p className="text-gray-300 leading-relaxed">
-            <span className="text-white font-semibold">人口是文明的核心</span>，他们会自动填补建筑创造的岗位，并转化为对应的社会阶层。
-          </p>
-          <div className="space-y-3">
-            <div className="bg-gray-700/50 p-3 rounded-lg">
-              <p className="text-white font-semibold mb-2 flex items-center gap-2">
-                <Icon name="Wheat" size={16} className="text-yellow-400" />
-                维持人口
-              </p>
-              <p className="text-sm text-gray-300">
-                人口需要<span className="text-yellow-300">食物</span>维持。确保食物产量为正，否则人口会饿死！
-              </p>
-            </div>
-            <div className="bg-gray-700/50 p-3 rounded-lg">
-              <p className="text-white font-semibold mb-2 flex items-center gap-2">
-                <Icon name="Home" size={16} className="text-blue-400" />
-                增加人口上限
-              </p>
-              <p className="text-sm text-gray-300">
-                建造<span className="text-blue-300">房屋</span>可以提高人口上限。人口会自然增长，直到达到上限。
-              </p>
-            </div>
-            <div className="bg-gray-700/50 p-3 rounded-lg">
-              <p className="text-white font-semibold mb-2 flex items-center gap-2">
-                <Icon name="Users" size={16} className="text-purple-400" />
-                社会阶层
-              </p>
-              <p className="text-sm text-gray-300">
-                不同建筑会创造不同阶层的岗位（农民、工匠、商人等）。留意各阶层的需求和好感度，避免社会动荡！
-              </p>
-            </div>
-          </div>
-        </div>
-      ),
-    },
-    {
-      title: '科技与时代',
-      icon: 'Cpu',
-      iconColor: 'text-purple-400',
-      content: (
-        <div className="space-y-4">
-          <p className="text-gray-300 leading-relaxed">
-            通过<span className="text-white font-semibold">科技研究</span>解锁新建筑和能力，推动文明进入新时代！
-          </p>
-          <div className="space-y-3">
-            <div className="bg-gray-700/50 p-3 rounded-lg">
-              <p className="text-white font-semibold mb-2 flex items-center gap-2">
-                <Icon name="BookOpen" size={16} className="text-blue-400" />
-                科研系统
-              </p>
-              <p className="text-sm text-gray-300">
-                建造<span className="text-blue-300">图书馆</span>产生科研点数。在<span className="text-purple-300">「科技」</span>标签页中研究新科技。
-              </p>
-            </div>
-            <div className="bg-gray-700/50 p-3 rounded-lg">
-              <p className="text-white font-semibold mb-2 flex items-center gap-2">
-                <Icon name="TrendingUp" size={16} className="text-yellow-400" />
-                时代升级
-              </p>
-              <p className="text-sm text-gray-300">
-                满足条件后可以升级时代（原始→古典→中世纪→工业→现代）。每个时代都会解锁新的建筑、科技和外交对手。
-              </p>
-            </div>
-            <div className="bg-gray-700/50 p-3 rounded-lg">
-              <p className="text-white font-semibold mb-2 flex items-center gap-2">
-                <Icon name="Scale" size={16} className="text-purple-400" />
-                行政容量
-              </p>
-              <p className="text-sm text-gray-300">
-                注意<span className="text-purple-300">行政压力</span>不要超过<span className="text-purple-300">行政容量</span>，否则税收和政策效率会下降！
-              </p>
-            </div>
-          </div>
-        </div>
-      ),
-    },
-    {
-      title: '开始你的征程',
-      icon: 'Sparkles',
-      iconColor: 'text-yellow-400',
-      content: (
-        <div className="space-y-4">
-          <p className="text-lg text-white font-semibold">
-            准备好了吗？
-          </p>
-          <p className="text-gray-300 leading-relaxed">
-            现在你已经掌握了基础知识，是时候开始建立你的文明了！
-          </p>
-          <div className="space-y-3">
-            <div className="bg-emerald-900/30 border border-emerald-500/30 p-4 rounded-lg">
-              <p className="text-sm text-emerald-300">
-                ✨ <span className="font-semibold">开局建议：</span>
-                先建造农田和伐木场，确保食物和木材稳定增长。
-              </p>
-            </div>
-            <div className="bg-blue-900/30 border border-blue-500/30 p-4 rounded-lg">
-              <p className="text-sm text-blue-300">
-                🎊 <span className="font-semibold">年度庆典：</span>
-                从第2年开始，每年都会有庆典活动，你可以选择一项祝福效果！
-              </p>
-            </div>
-            <div className="bg-purple-900/30 border border-purple-500/30 p-4 rounded-lg">
-              <p className="text-sm text-purple-300">
-                💡 <span className="font-semibold">游戏提示：</span>
-                右侧有详细的统治指南和新手教程，随时可以查看。
-              </p>
-            </div>
-          </div>
-          <p className="text-center text-lg text-yellow-300 font-bold mt-6">
-            祝你好运，伟大的统治者！
-          </p>
-        </div>
-      ),
-    },
-  ];
-
+  const tutorialSteps = TUTORIAL_STEPS;
   const currentStepData = tutorialSteps[currentStep];
   const isFirstStep = currentStep === 0;
   const isLastStep = currentStep === tutorialSteps.length - 1;
@@ -262,7 +76,7 @@ export const TutorialModal = ({ show, onComplete, onSkip }) => {
 
         {/* 模态框内容 */}
         <div className="p-8 min-h-[400px]">
-          {currentStepData.content}
+          <StepContent step={currentStepData} onOpenWiki={onOpenWiki} isLastStep={isLastStep} />
         </div>
 
         {/* 模态框底部按钮 */}
@@ -309,6 +123,100 @@ export const TutorialModal = ({ show, onComplete, onSkip }) => {
           </button>
         </div>
       </div>
+    </div>
+  );
+};
+
+const toneStyles = {
+  info: { container: 'bg-blue-900/30 border-blue-500/30', text: 'text-blue-200' },
+  success: { container: 'bg-emerald-900/30 border-emerald-500/30', text: 'text-emerald-200' },
+  warning: { container: 'bg-amber-900/30 border-amber-500/30', text: 'text-amber-200' },
+  tip: { container: 'bg-purple-900/30 border-purple-500/30', text: 'text-purple-200' },
+};
+
+const StepContent = ({ step, onOpenWiki, isLastStep }) => {
+  if (!step) return null;
+
+  return (
+    <div className="space-y-4">
+      {step.lead && (
+        <p className="text-lg text-white font-semibold">
+          {step.lead}
+        </p>
+      )}
+
+      {step.paragraphs?.map((text, idx) => (
+        <p key={idx} className="text-gray-300 leading-relaxed">
+          {text}
+        </p>
+      ))}
+
+      {step.cards?.length > 0 && (
+        <div className="space-y-3">
+          {step.cards.map((card, idx) => (
+            <div key={`${card.title}-${idx}`} className="bg-gray-700/50 p-3 rounded-lg">
+              <p className="text-white font-semibold mb-2 flex items-center gap-2">
+                {card.icon && <Icon name={card.icon} size={16} className={card.iconColor || 'text-white'} />}
+                {card.title}
+              </p>
+              <p className="text-sm text-gray-300">{card.text}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {step.callouts?.length > 0 && (
+        <div className="space-y-3">
+          {step.callouts.map((callout, idx) => {
+            const tone = toneStyles[callout.tone] || { container: 'bg-gray-800/40 border-gray-700', text: 'text-gray-200' };
+            return (
+              <div
+                key={`${callout.title}-${idx}`}
+                className={`p-4 rounded-lg border ${tone.container} ${tone.text}`}
+              >
+                <p className="text-sm font-semibold flex items-center gap-2 text-white">
+                  {callout.icon && <Icon name={callout.icon} size={16} className="text-current" />}
+                  {callout.title}
+                </p>
+                <p className="text-sm mt-2">
+                  {callout.text}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {step.wikiPrompt && (
+        <div className="bg-indigo-900/30 border border-indigo-500/40 p-4 rounded-lg space-y-3">
+          <p className="text-indigo-200 flex items-center gap-2 text-sm">
+            <Icon name="BookOpen" size={16} className="text-indigo-300" />
+            {step.wikiPrompt.text}
+          </p>
+          {typeof onOpenWiki === 'function' && (
+            <button
+              type="button"
+              onClick={onOpenWiki}
+              className="px-4 py-2 rounded-lg bg-indigo-600/30 border border-indigo-500/50 text-sm font-semibold text-indigo-100 hover:bg-indigo-600/50 transition-colors flex items-center gap-2 max-w-xs"
+            >
+              <Icon name="Book" size={16} />
+              {step.wikiPrompt.buttonLabel || '查看百科'}
+            </button>
+          )}
+        </div>
+      )}
+
+      {step.footerNote && (
+        <p className="text-center text-lg text-yellow-300 font-bold mt-6">
+          {step.footerNote}
+        </p>
+      )}
+
+      {isLastStep && !step.footerNote && (
+        <p className="text-center text-lg text-yellow-300 font-bold mt-6">
+          祝你好运，伟大的统治者！
+        </p>
+      )}
     </div>
   );
 };
