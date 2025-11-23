@@ -23,6 +23,8 @@ export const RESOURCES = {
   wood: { name: "木材", icon: 'Trees', color: "text-emerald-400", basePrice: 2.5, defaultOwner: 'lumberjack', unlockEpoch: 0, tags: ['raw_material'] },
   stone: { name: "石料", icon: 'Pickaxe', color: "text-stone-400", basePrice: 3.5, defaultOwner: 'miner', unlockEpoch: 0, tags: ['raw_material'] },
   cloth: { name: "布料", icon: 'Shirt', color: "text-indigo-300", basePrice: 4, defaultOwner: 'artisan', unlockEpoch: 0, tags: ['essential','raw_material', 'manufactured'] },
+  dye: { name: "染料", icon: 'Palette', color: "text-pink-500", basePrice: 6, defaultOwner: 'artisan', unlockEpoch: 1, tags: ['industrial', 'raw_material'] },
+  fine_clothes: { name: "华服", icon: 'Shirt', color: "text-purple-400", basePrice: 18, defaultOwner: 'artisan', unlockEpoch: 2, tags: ['luxury', 'manufactured'] },
   
   // 青铜时代资源
   plank: { name: "木板", icon: 'Hammer', color: "text-amber-600", basePrice: 5, defaultOwner: 'worker', unlockEpoch: 1, unlockTech: 'tools', tags: ['industrial'] },

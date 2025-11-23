@@ -3,7 +3,7 @@
 
 import { useEffect, useRef } from 'react';
 import { simulateTick } from '../logic/simulation';
-import { calculateArmyMaintenance, UNIT_TYPES } from '../config';
+import { calculateArmyMaintenance, UNIT_TYPES, STRATA } from '../config';
 import { getRandomFestivalEffects } from '../config/festivalEffects';
 import { getCalendarInfo } from '../utils/calendar';
 
@@ -73,6 +73,7 @@ export const useGameLoop = (gameState, addLog) => {
     setActiveFestivalEffects,
     lastFestivalYear,
     setLastFestivalYear,
+    setHistory,
   } = gameState;
 
   // 使用ref保存最新状态，避免闭包问题
@@ -202,16 +203,47 @@ export const useGameLoop = (gameState, addLog) => {
 
       const adjustedClassWealth = { ...result.classWealth };
       const adjustedTotalWealth = Object.values(adjustedClassWealth).reduce((sum, val) => sum + val, 0);
-      const previousHistory = current.market?.priceHistory || {};
-      const priceHistory = { ...previousHistory };
-      const MAX_HISTORY_POINTS = 60;
-      Object.entries(result.market?.prices || {}).forEach(([resource, price]) => {
+
+      // --- 市场数据历史记录更新 ---
+      const previousPriceHistory = current.market?.priceHistory || {};
+      const priceHistory = { ...previousPriceHistory };
+
+      const previousSupplyHistory = current.market?.supplyHistory || {};
+      const supplyHistory = { ...previousSupplyHistory };
+
+      const previousDemandHistory = current.market?.demandHistory || {};
+      const demandHistory = { ...previousDemandHistory };
+
+      const MAX_MARKET_HISTORY_POINTS = 60;
+
+      Object.keys(result.market?.prices || {}).forEach(resource => {
+        const price = result.market?.prices?.[resource];
+
         if (!priceHistory[resource]) priceHistory[resource] = [];
         priceHistory[resource] = [...priceHistory[resource], price];
-        if (priceHistory[resource].length > MAX_HISTORY_POINTS) {
+        if (priceHistory[resource].length > MAX_MARKET_HISTORY_POINTS) {
           priceHistory[resource].shift();
         }
+
+        if (!supplyHistory[resource]) supplyHistory[resource] = [];
+        supplyHistory[resource] = [
+          ...supplyHistory[resource],
+          result.market?.supply?.[resource] || 0,
+        ];
+        if (supplyHistory[resource].length > MAX_MARKET_HISTORY_POINTS) {
+          supplyHistory[resource].shift();
+        }
+
+        if (!demandHistory[resource]) demandHistory[resource] = [];
+        demandHistory[resource] = [
+          ...demandHistory[resource],
+          result.market?.demand?.[resource] || 0,
+        ];
+        if (demandHistory[resource].length > MAX_MARKET_HISTORY_POINTS) {
+          demandHistory[resource].shift();
+        }
       });
+
       const previousWealthHistory = current.classWealthHistory || {};
       const wealthHistory = { ...previousWealthHistory };
       const MAX_WEALTH_POINTS = 120;
@@ -239,7 +271,41 @@ export const useGameLoop = (gameState, addLog) => {
       const adjustedMarket = {
         ...(result.market || {}),
         priceHistory,
+        supplyHistory,
+        demandHistory,
       };
+
+      const MAX_HISTORY_POINTS = 90;
+      setHistory(prevHistory => {
+        const appendValue = (series = [], value) => {
+          const nextSeries = [...series, value];
+          if (nextSeries.length > MAX_HISTORY_POINTS) {
+            nextSeries.shift();
+          }
+          return nextSeries;
+        };
+
+        const safeHistory = prevHistory || {};
+        const nextHistory = {
+          ...safeHistory,
+          treasury: appendValue(safeHistory.treasury, result.resources?.silver || 0),
+          tax: appendValue(safeHistory.tax, result.taxes?.total || 0),
+          population: appendValue(safeHistory.population, result.population || 0),
+        };
+
+        const previousClassHistory = safeHistory.class || {};
+        const classHistory = { ...previousClassHistory };
+        Object.keys(STRATA).forEach(key => {
+          const entry = previousClassHistory[key] || { pop: [], income: [], expense: [] };
+          classHistory[key] = {
+            pop: appendValue(entry.pop, result.popStructure?.[key] || 0),
+            income: appendValue(entry.income, result.classIncome?.[key] || 0),
+            expense: appendValue(entry.expense, result.classExpense?.[key] || 0),
+          };
+        });
+        nextHistory.class = classHistory;
+        return nextHistory;
+      });
 
       // 更新所有状态
       setPopStructure(result.popStructure);

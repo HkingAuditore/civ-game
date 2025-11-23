@@ -164,13 +164,13 @@ export const INDUSTRY_CHAINS = {
 
   textile_chain: {
     id: 'textile_chain',
-    name: "布料产业链",
-    desc: "以布料为核心的生活必需产业，从纺织到成衣。",
+    name: "纺织与华服产业链",
+    desc: "织布、染料与华服生产构成的多层级衣物供应体系。",
     unlockEpoch: 0,
     stages: [
       {
         stage: 'extraction',
-        name: "纤维采集",
+        name: "纺织生产",
         buildings: ['loom_house'],
         output: 'cloth',
         efficiency: 1.0,
@@ -178,20 +178,38 @@ export const INDUSTRY_CHAINS = {
       },
       {
         stage: 'processing',
-        name: "成衣制作",
+        name: "染料提取",
+        buildings: ['dye_works'],
+        input: 'food',
+        output: 'dye',
+        ratio: 0.4,
+        efficiency: 1.0,
+        workers: ['peasant', 'artisan'],
+      },
+      {
+        stage: 'advanced',
+        name: "高级制衣",
         buildings: ['tailor_workshop'],
-        input: 'cloth',
-        output: 'cloth',
-        ratio: 1.4,
+        input: ['cloth', 'dye'],
+        output: 'fine_clothes',
+        ratio: 0.8,
         efficiency: 1.0,
         workers: ['artisan'],
+        bonus: { culture: 0.1 },
       },
       {
         stage: 'consumption',
-        name: "全民衣物",
+        name: "日常衣物消费",
         consumers: ['all_classes'],
         input: 'cloth',
         bonus: { approval: 0.05, stability: 0.02 },
+      },
+      {
+        stage: 'consumption',
+        name: "奢侈服饰消费",
+        consumers: ['merchant', 'landowner', 'official', 'capitalist', 'knight'],
+        input: 'fine_clothes',
+        bonus: { approval: 0.1, culture: 0.05 },
       }
     ],
     upgrades: [
@@ -200,14 +218,14 @@ export const INDUSTRY_CHAINS = {
         name: "织机规制",
         unlockEpoch: 1,
         cost: { wood: 80, stone: 30 },
-        bonus: { efficiency: 0.2, quality: 0.15 },
+        bonus: { cloth_output: 0.2, efficiency: 0.15 },
       },
       {
         id: 'dyeworks_expansion',
         name: "染坊扩建",
         unlockEpoch: 2,
         cost: { papyrus: 60, silver: 150 },
-        bonus: { culture: 0.15, value: 0.2 },
+        bonus: { dye_output: 0.25, efficiency: 0.15 },
       }
     ],
   },

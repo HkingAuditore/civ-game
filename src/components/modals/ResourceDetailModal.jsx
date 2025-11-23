@@ -1,8 +1,9 @@
 // 资源详情模态框
-// 展示单个资源的库存、价格、供需与产业链信息
+// 展示库存、市场趋势以及可视化的产业链信息
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Icon } from '../common/UIComponents';
+import { SimpleLineChart } from '../common/SimpleLineChart';
 import { RESOURCES, STRATA, BUILDINGS, UNIT_TYPES, INDUSTRY_CHAINS } from '../../config';
 
 const formatAmount = (value) => {
@@ -12,62 +13,217 @@ const formatAmount = (value) => {
   return value.toFixed(3);
 };
 
-const formatFlowLabel = (stage) => {
-  if (!stage) return null;
-  return `${stage.name}${stage.stage ? `（${stage.stage}）` : ''}`;
+const ensureArray = (value) => {
+  if (!value) return [];
+  return Array.isArray(value) ? value : [value];
 };
 
-const buildChainDetails = (resourceKey, resourceDef) => {
-  const hasResource = (field, key) => {
-    if (!field) return false;
-    if (Array.isArray(field)) return field.includes(key);
-    return field === key;
+const MarketTrendChart = ({ series = [], height = 220 }) => {
+  const normalizedSeries = series
+    .map(item => ({
+      ...item,
+      data: Array.isArray(item.data) ? item.data : [],
+      color: item.color || '#60a5fa',
+    }))
+    .filter(item => item.data.length > 0);
+
+  const values = normalizedSeries.flatMap(item => item.data.filter(value => Number.isFinite(value)));
+  if (!normalizedSeries.length || !values.length) {
+    return (
+      <div className="flex h-48 items-center justify-center text-sm text-gray-500">
+        暂无历史数据
+      </div>
+    );
+  }
+
+  let yMin = Math.min(...values);
+  let yMax = Math.max(...values);
+  if (yMax === yMin) {
+    const paddingRange = Math.abs(yMax) * 0.1 || 1;
+    yMax += paddingRange;
+    yMin -= paddingRange;
+  }
+  const yRange = Math.max(yMax - yMin, 1);
+
+  const width = 640;
+  const padding = 40;
+  const totalPoints = Math.max(...normalizedSeries.map(item => item.data.length));
+  const xStep = totalPoints > 1 ? (width - padding * 2) / (totalPoints - 1) : 0;
+  const gridLines = 4;
+  const ticks = Array.from({ length: gridLines + 1 }, (_, index) => ({
+    value: yMin + (yRange / gridLines) * index,
+    y: height - padding - ((yMin + (yRange / gridLines) * index - yMin) / yRange) * (height - padding * 2),
+  }));
+
+  const buildSeriesPath = (data) => {
+    const offset = totalPoints - data.length;
+    const coords = data
+      .map((value, index) => {
+        if (!Number.isFinite(value)) return null;
+        const xIndex = offset + index;
+        const x = padding + xIndex * xStep;
+        const normalized = (value - yMin) / yRange;
+        const y = height - padding - normalized * (height - padding * 2);
+        return { x, y };
+      })
+      .filter(Boolean);
+
+    if (!coords.length) return null;
+
+    const pathD = coords
+      .map((point, index) => `${index === 0 ? 'M' : 'L'}${point.x.toFixed(2)} ${point.y.toFixed(2)}`)
+      .join(' ');
+
+    return { pathD, coords };
   };
 
+  return (
+    <div className="w-full">
+      <div className="mb-4 flex flex-wrap gap-4 text-sm">
+        {normalizedSeries.map(item => (
+          <div key={item.label} className="flex items-center gap-2 text-gray-300">
+            <span
+              className="h-3 w-3 rounded-full"
+              style={{ backgroundColor: item.color }}
+            />
+            {item.label}
+          </div>
+        ))}
+      </div>
+      <div className="relative h-56 w-full overflow-hidden rounded-2xl bg-gray-950/60">
+        <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="h-full w-full">
+          {ticks.map(({ value, y }, index) => (
+            <g key={`grid-${index}`}>
+              <line
+                x1={padding}
+                x2={width - padding / 2}
+                y1={y}
+                y2={y}
+                stroke="rgba(255,255,255,0.08)"
+                strokeWidth="1"
+              />
+              <text
+                x={padding - 10}
+                y={y + 4}
+                fill="rgba(255,255,255,0.45)"
+                fontSize="10"
+                textAnchor="end"
+              >
+                {value.toFixed(1)}
+              </text>
+            </g>
+          ))}
+          <line
+            x1={padding}
+            x2={width - padding / 2}
+            y1={height - padding}
+            y2={height - padding}
+            stroke="rgba(255,255,255,0.15)"
+            strokeWidth="1"
+          />
+          {normalizedSeries.map(item => {
+            const pathData = buildSeriesPath(item.data);
+            if (!pathData) return null;
+            return (
+              <g key={`series-${item.label}`}>
+                <path
+                  d={pathData.pathD}
+                  stroke={item.color}
+                  strokeWidth="2.5"
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                {pathData.coords.map((point, index) => (
+                  <circle
+                    key={`${item.label}-${index}`}
+                    cx={point.x}
+                    cy={point.y}
+                    r="3"
+                    fill={item.color}
+                    stroke="rgba(15,23,42,0.8)"
+                    strokeWidth="1"
+                  />
+                ))}
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+    </div>
+  );
+};
+
+const ChainNode = ({ resourceKey, label, subLabel, highlight = false }) => {
+  const resource = resourceKey ? RESOURCES[resourceKey] : null;
+  const iconName = resource?.icon || 'Package';
+  const colorClass = resource?.color || 'text-indigo-300';
+
+  return (
+    <div
+      className={`flex min-w-[96px] flex-col items-center rounded-2xl border px-4 py-3 text-center ${
+        highlight
+          ? 'border-emerald-400/80 bg-emerald-400/10'
+          : 'border-gray-800/80 bg-gray-900/70'
+      }`}
+    >
+      <div className="rounded-full border border-gray-800/60 bg-gray-950/70 p-2">
+        <Icon name={iconName} size={20} className={colorClass} />
+      </div>
+      <p className="mt-2 text-sm font-semibold text-white">{label || resource?.name || '未知'}</p>
+      {subLabel && <p className="text-xs text-gray-400">{subLabel}</p>}
+    </div>
+  );
+};
+
+const buildChainFlows = (resourceKey) => {
+  if (!resourceKey) return [];
   return Object.values(INDUSTRY_CHAINS)
-    .map((chain) => {
-      const productionStages = [];
-      const consumptionStages = [];
-      chain.stages.forEach((stage, index) => {
-        if (hasResource(stage.output, resourceKey)) {
-          productionStages.push({ ...stage, index });
+    .map(chain => {
+      let involvesResource = false;
+      const upstream = new Set();
+      const downstream = new Set();
+
+      chain.stages.forEach(stage => {
+        const inputs = ensureArray(stage.input);
+        const outputs = ensureArray(stage.output);
+
+        if (outputs.includes(resourceKey)) {
+          involvesResource = true;
+          inputs.forEach(input => {
+            if (RESOURCES[input]) {
+              upstream.add(input);
+            }
+          });
         }
-        if (hasResource(stage.input, resourceKey)) {
-          consumptionStages.push({ ...stage, index });
+
+        if (inputs.includes(resourceKey)) {
+          involvesResource = true;
+          outputs.forEach(output => {
+            if (RESOURCES[output] && output !== resourceKey) {
+              downstream.add(output);
+            }
+          });
         }
       });
 
-      if (productionStages.length === 0 && consumptionStages.length === 0) {
-        return null;
-      }
-
-      const anchorIndex =
-        productionStages[0]?.index ??
-        consumptionStages[0]?.index ??
-        0;
-
-      const prevStage = anchorIndex > 0 ? chain.stages[anchorIndex - 1] : null;
-      const downstreamStage = consumptionStages.length
-        ? consumptionStages[0]
-        : (anchorIndex < chain.stages.length - 1 ? chain.stages[anchorIndex + 1] : null);
-
-      const flowParts = [
-        formatFlowLabel(prevStage) || '原材料',
-        resourceDef.name,
-        formatFlowLabel(downstreamStage) || '成品',
-      ];
+      if (!involvesResource) return null;
 
       return {
         id: chain.id,
         name: chain.name,
         desc: chain.desc,
-        productionStages,
-        consumptionStages,
-        flow: flowParts.join(' → '),
+        inputs: Array.from(upstream),
+        outputs: Array.from(downstream),
       };
     })
     .filter(Boolean);
 };
+
+const TAB_OPTIONS = [
+  { id: 'price', label: '价格走势', description: '追踪最近的市场价格波动' },
+  { id: 'supplyDemand', label: '供需对比', description: '对比供给与需求曲线' },
+];
 
 export const ResourceDetailModal = ({
   resourceKey,
@@ -76,18 +232,35 @@ export const ResourceDetailModal = ({
   buildings = {},
   popStructure = {},
   army = {},
+  history = {},
   onClose,
 }) => {
+  const [activeTab, setActiveTab] = useState(TAB_OPTIONS[0].id);
   const resourceDef = RESOURCES[resourceKey];
-  const marketPrice = market?.prices?.[resourceKey] ?? resourceDef?.basePrice ?? 0;
-  const inventory = resources[resourceKey] || 0;
+  const isSilver = resourceKey === 'silver';
+
+  const priceHistoryData = useMemo(() => {
+    const history = market?.priceHistory?.[resourceKey];
+    return history ? [...history] : [];
+  }, [market, resourceKey]);
+
+  const supplyHistoryData = useMemo(() => {
+    const history = market?.supplyHistory?.[resourceKey];
+    return history ? [...history] : [];
+  }, [market, resourceKey]);
+
+  const demandHistoryData = useMemo(() => {
+    const history = market?.demandHistory?.[resourceKey];
+    return history ? [...history] : [];
+  }, [market, resourceKey]);
+
+  const chainFlows = useMemo(() => buildChainFlows(resourceKey), [resourceKey]);
 
   const {
     stratumDemand,
     buildingDemand,
     armyDemand,
     buildingSupply,
-    chainDetails,
   } = useMemo(() => {
     if (!resourceDef) {
       return {
@@ -95,7 +268,6 @@ export const ResourceDetailModal = ({
         buildingDemand: [],
         armyDemand: [],
         buildingSupply: [],
-        chainDetails: [],
       };
     }
 
@@ -108,7 +280,7 @@ export const ResourceDetailModal = ({
         name: stratum.name,
         icon: stratum.icon,
         amount: perCap * population,
-        formula: `${population} 人 × ${perCap}`,
+        formula: `${population}人 × ${perCap}`,
       });
       return acc;
     }, []);
@@ -157,32 +329,49 @@ export const ResourceDetailModal = ({
       buildingDemand: buildingDemandList,
       armyDemand: armyDemandList,
       buildingSupply: buildingSupplyList,
-      chainDetails: buildChainDetails(resourceKey, resourceDef),
     };
-  }, [resourceKey, resourceDef, popStructure, buildings, army]);
+  }, [resourceDef, resourceKey, popStructure, buildings, army]);
 
   if (!resourceKey || !resourceDef) return null;
+
+  const treasuryHistory = history?.treasury || [];
+  const taxHistory = history?.tax || [];
+  const latestTreasury = treasuryHistory.length
+    ? treasuryHistory[treasuryHistory.length - 1]
+    : resources[resourceKey] || 0;
+  const latestTax = taxHistory.length ? taxHistory[taxHistory.length - 1] : 0;
 
   const totalDemand =
     stratumDemand.reduce((sum, item) => sum + item.amount, 0) +
     buildingDemand.reduce((sum, item) => sum + item.amount, 0) +
     armyDemand.reduce((sum, item) => sum + item.amount, 0);
   const totalSupply = buildingSupply.reduce((sum, item) => sum + item.amount, 0);
+
+  const inventory = resources[resourceKey] || 0;
   const marketSupply = market?.supply?.[resourceKey] || 0;
   const marketDemand = market?.demand?.[resourceKey] || 0;
+  const marketPrice = market?.prices?.[resourceKey] ?? resourceDef.basePrice ?? 0;
+  const priceTrend =
+    priceHistoryData.length >= 2
+      ? priceHistoryData[priceHistoryData.length - 1] - priceHistoryData[priceHistoryData.length - 2]
+      : 0;
+
+  const latestSupply = supplyHistoryData[supplyHistoryData.length - 1] ?? marketSupply;
+  const latestDemand = demandHistoryData[demandHistoryData.length - 1] ?? marketDemand;
+  const activeTabMeta = TAB_OPTIONS.find(tab => tab.id === activeTab);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-2xl border border-gray-700 bg-gray-900 shadow-2xl">
+      <div className="w-full max-w-6xl max-h-[92vh] overflow-y-auto rounded-2xl border border-gray-700 bg-gray-900 shadow-2xl">
         <div className="flex items-center justify-between border-b border-gray-800 bg-gradient-to-r from-gray-900 to-gray-800 p-6">
           <div className="flex items-center gap-3">
-            <div className="rounded-xl bg-gray-800 p-3">
-              <Icon name={resourceDef.icon} size={24} className={resourceDef.color} />
+            <div className="rounded-2xl border border-gray-700 bg-gray-900/60 p-4">
+              <Icon name={resourceDef.icon} size={28} className={resourceDef.color} />
             </div>
             <div>
               <h2 className="text-2xl font-bold text-white">{resourceDef.name}</h2>
               <p className="text-sm text-gray-400">
-                当前库存 {inventory.toFixed(1)} · 市场价 {marketPrice.toFixed(2)} 银币
+                当前库存 {inventory.toFixed(1)} {isSilver ? '· 财政资源（非交易品）' : `· 市场价 ${marketPrice.toFixed(2)} 银币`}
               </p>
             </div>
           </div>
@@ -196,188 +385,379 @@ export const ResourceDetailModal = ({
           </button>
         </div>
 
+        {isSilver ? (
+          <div className="space-y-6 p-6">
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="rounded-2xl border border-yellow-500/30 bg-yellow-500/5 p-4">
+                <p className="text-xs uppercase tracking-wide text-yellow-300/80">国库银币</p>
+                <p className="mt-2 text-3xl font-bold text-yellow-200">{latestTreasury.toFixed(0)}</p>
+                <p className="mt-2 text-sm text-yellow-200/80">
+                  当前储备 {(resources[resourceKey] || 0).toFixed(0)}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4">
+                <p className="text-xs uppercase tracking-wide text-emerald-300/80">每日税收</p>
+                <p className="mt-2 text-3xl font-bold text-emerald-200">
+                  {formatAmount(latestTax)}
+                </p>
+                <p className="mt-2 text-sm text-emerald-200/80">最新估算净税额</p>
+              </div>
+              <div className="rounded-2xl border border-blue-500/30 bg-blue-500/5 p-4">
+                <p className="text-xs uppercase tracking-wide text-blue-200/80">财政说明</p>
+                <p className="mt-2 text-sm text-blue-100/80 leading-relaxed">
+                  银币为非交易资源，仅通过税收、事件和政策流动，下面的走势可帮助你判断财政稳定性。
+                </p>
+              </div>
+            </div>
+            <div className="grid gap-6 md:grid-cols-2">
+              <div className="rounded-2xl border border-gray-800 bg-gray-950/60 p-5">
+                <div className="mb-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-gray-500">国库资金走势</p>
+                    <p className="text-xl font-semibold text-white">
+                      当前 {(resources[resourceKey] || 0).toFixed(0)} 银币
+                    </p>
+                  </div>
+                  <Icon name="Coins" className="text-yellow-200" />
+                </div>
+                <SimpleLineChart
+                  data={treasuryHistory}
+                  color="#facc15"
+                  label="银币"
+                />
+              </div>
+              <div className="rounded-2xl border border-gray-800 bg-gray-950/60 p-5">
+                <div className="mb-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-gray-500">每日净税收走势</p>
+                    <p className="text-xl font-semibold text-white">
+                      当前 {formatAmount(latestTax)} / 日
+                    </p>
+                  </div>
+                  <Icon name="Activity" className="text-emerald-300" />
+                </div>
+                <SimpleLineChart
+                  data={taxHistory}
+                  color="#34d399"
+                  label="每日净税收"
+                />
+              </div>
+            </div>
+          </div>
+        ) : (
+        <>
         <div className="grid gap-4 border-b border-gray-800 bg-gray-900/70 p-6 md:grid-cols-3">
-          <div className="rounded-xl border border-gray-700 bg-gray-900 p-4">
-            <p className="text-xs text-gray-400">库存</p>
-            <p className="text-2xl font-bold text-white">{inventory.toFixed(1)}</p>
+          <div className="rounded-2xl border border-gray-800 bg-gray-950/60 p-4">
+            <p className="text-xs uppercase tracking-wide text-gray-500">库存概览</p>
+            <p className="mt-2 text-3xl font-bold text-white">{inventory.toFixed(1)}</p>
+            <p className="mt-2 text-sm text-gray-400">
+              日净变化 {formatAmount((latestSupply - latestDemand) || 0)}
+            </p>
           </div>
-          <div className="rounded-xl border border-gray-700 bg-gray-900 p-4">
-            <p className="text-xs text-gray-400">市场价</p>
-            <p className="text-2xl font-bold text-amber-300">{marketPrice.toFixed(2)} 银币</p>
+          <div className="rounded-2xl border border-gray-800 bg-gray-950/60 p-4">
+            <p className="text-xs uppercase tracking-wide text-gray-500">市场状态</p>
+            <div className="mt-2 flex items-center gap-3 text-white">
+              <span className="text-3xl font-bold">{marketPrice.toFixed(2)}</span>
+              <span
+                className={`flex items-center gap-1 text-sm ${
+                  priceTrend > 0 ? 'text-emerald-400' : priceTrend < 0 ? 'text-rose-400' : 'text-gray-400'
+                }`}
+              >
+                <Icon name={priceTrend >= 0 ? 'ArrowUp' : 'ArrowDown'} size={16} />
+                {priceTrend >= 0 ? '+' : ''}
+                {formatAmount(priceTrend)}
+              </span>
+            </div>
+            <p className="mt-2 text-sm text-gray-400">近两日价格变化</p>
           </div>
-          <div className="rounded-xl border border-gray-700 bg-gray-900 p-4">
-            <p className="text-xs text-gray-400">市场供需 (每日)</p>
-            <p className="text-sm text-gray-300">
-              供给 <span className="text-green-300 font-mono">{formatAmount(marketSupply)}</span> · 需求{' '}
-              <span className="text-red-300 font-mono">{formatAmount(marketDemand)}</span>
+          <div className="rounded-2xl border border-gray-800 bg-gray-950/60 p-4">
+            <p className="text-xs uppercase tracking-wide text-gray-500">供需对比</p>
+            <div className="mt-2 flex items-center gap-6 text-sm">
+              <div>
+                <p className="text-gray-400">供给</p>
+                <p className="text-xl font-semibold text-emerald-300">{formatAmount(marketSupply)}</p>
+              </div>
+              <div>
+                <p className="text-gray-400">需求</p>
+                <p className="text-xl font-semibold text-rose-300">{formatAmount(marketDemand)}</p>
+              </div>
+            </div>
+            <p className="mt-2 text-sm text-gray-400">
+              缺口 {formatAmount(marketSupply - marketDemand)}
             </p>
           </div>
         </div>
 
-        <div className="grid gap-6 p-6 lg:grid-cols-2">
-          <section className="space-y-4 rounded-xl border border-gray-800 bg-gray-900 p-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-white">需求方</h3>
-              <span className="text-sm text-gray-400">总计 {formatAmount(totalDemand)} / 日</span>
-            </div>
-
-            <div>
-              <h4 className="text-sm font-semibold text-gray-300 mb-1">社会阶层</h4>
-              {stratumDemand.length > 0 ? (
-                <ul className="space-y-2 text-sm">
-                  {stratumDemand.map((item) => (
-                    <li
-                      key={item.key}
-                      className="flex items-center justify-between rounded-lg border border-gray-800 bg-gray-800/60 px-3 py-2"
-                    >
-                      <div className="flex items-center gap-2">
-                        <Icon name={item.icon || 'Users'} size={14} className="text-gray-300" />
-                        <span className="text-gray-200">{item.name}</span>
-                        <span className="text-[11px] text-gray-500">{item.formula}</span>
-                      </div>
-                      <span className="font-mono text-red-300">{formatAmount(item.amount)}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-xs text-gray-500">暂无阶层直接需求。</p>
+        <div className="space-y-6 p-6">
+          <div className="rounded-2xl border border-gray-800 bg-gray-950/60">
+            <div className="flex flex-wrap items-center gap-3 border-b border-gray-800 px-4 pt-4 md:px-6">
+              {TAB_OPTIONS.map(tab => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  className={`rounded-full px-4 py-1.5 text-sm font-semibold ${
+                    tab.id === activeTab
+                      ? 'bg-emerald-500/20 text-emerald-300'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                  onClick={() => setActiveTab(tab.id)}
+                >
+                  {tab.label}
+                </button>
+              ))}
+              {activeTabMeta && (
+                <span className="text-sm text-gray-500">{activeTabMeta.description}</span>
               )}
             </div>
-
-            <div>
-              <h4 className="text-sm font-semibold text-gray-300 mb-1">建筑消耗</h4>
-              {buildingDemand.length > 0 ? (
-                <ul className="space-y-2 text-sm">
-                  {buildingDemand.map((item) => (
-                    <li
-                      key={item.id}
-                      className="flex items-center justify-between rounded-lg border border-gray-800 bg-gray-800/60 px-3 py-2"
-                    >
-                      <div>
-                        <p className="text-gray-200">{item.name}</p>
-                        <p className="text-[11px] text-gray-500">{item.formula}</p>
-                      </div>
-                      <span className="font-mono text-red-300">{formatAmount(item.amount)}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-xs text-gray-500">暂无建筑消耗。</p>
-              )}
-            </div>
-
-            <div>
-              <h4 className="text-sm font-semibold text-gray-300 mb-1">军队维护</h4>
-              {armyDemand.length > 0 ? (
-                <ul className="space-y-2 text-sm">
-                  {armyDemand.map((item) => (
-                    <li
-                      key={item.id}
-                      className="flex items-center justify-between rounded-lg border border-gray-800 bg-gray-800/60 px-3 py-2"
-                    >
-                      <div>
-                        <p className="text-gray-200">{item.name}</p>
-                        <p className="text-[11px] text-gray-500">{item.formula}</p>
-                      </div>
-                      <span className="font-mono text-red-300">{formatAmount(item.amount)}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-xs text-gray-500">暂无军队维护需求。</p>
-              )}
-            </div>
-          </section>
-
-          <section className="space-y-4 rounded-xl border border-gray-800 bg-gray-900 p-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-white">供给方</h3>
-              <span className="text-sm text-gray-400">总计 {formatAmount(totalSupply)} / 日</span>
-            </div>
-            {buildingSupply.length > 0 ? (
-              <ul className="space-y-2 text-sm">
-                {buildingSupply.map((item) => (
-                  <li
-                    key={item.id}
-                    className="flex items-center justify-between rounded-lg border border-gray-800 bg-gray-800/60 px-3 py-2"
-                  >
-                    <div>
-                      <p className="text-gray-200">{item.name}</p>
-                      <p className="text-[11px] text-gray-500">{item.formula}</p>
-                    </div>
-                    <span className="font-mono text-green-300">{formatAmount(item.amount)}</span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-xs text-gray-500">暂无建筑产出该资源。</p>
-            )}
-          </section>
-        </div>
-
-        <div className="space-y-4 border-t border-gray-800 p-6">
-          <h3 className="text-lg font-semibold text-white">产业链位置</h3>
-          {chainDetails.length > 0 ? (
-            <div className="space-y-4">
-              {chainDetails.map((chain) => (
-                <div key={chain.id} className="rounded-xl border border-gray-800 bg-gray-900/60 p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <p className="text-base font-semibold text-white">{chain.name}</p>
-                      <p className="text-xs text-gray-400">{chain.desc}</p>
-                    </div>
-                    <span className="rounded-full bg-blue-900/40 px-3 py-1 text-xs text-blue-200">
-                      {chain.flow}
+            <div className="p-6">
+              {activeTab === 'price' ? (
+                <>
+                  <MarketTrendChart
+                    series={[
+                      {
+                        label: '市场价（银币）',
+                        color: '#60a5fa',
+                        data: priceHistoryData,
+                      },
+                    ]}
+                  />
+                  <div className="mt-4 flex flex-wrap gap-6 text-sm text-gray-400">
+                    <span>
+                      当前价格 <span className="text-white">{marketPrice.toFixed(2)}</span> 银币
+                    </span>
+                    <span>
+                      日变化{' '}
+                      <span
+                        className={
+                          priceTrend > 0
+                            ? 'text-emerald-300'
+                            : priceTrend < 0
+                            ? 'text-rose-300'
+                            : 'text-white'
+                        }
+                      >
+                        {priceTrend >= 0 ? '+' : ''}
+                        {formatAmount(priceTrend)}
+                      </span>
                     </span>
                   </div>
-                  <div className="mt-3 grid gap-4 md:grid-cols-2">
-                    <div>
-                      <p className="text-xs font-semibold text-gray-400">生产阶段</p>
-                      {chain.productionStages.length > 0 ? (
-                        <ul className="mt-1 space-y-1 text-sm text-gray-200">
-                          {chain.productionStages.map((stage) => (
-                            <li key={`${chain.id}-prod-${stage.index}`}>
-                              • {stage.name}（{stage.stage || '阶段'}）
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className="text-xs text-gray-500">暂无上游生产信息。</p>
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-gray-400">消费阶段</p>
-                      {chain.consumptionStages.length > 0 ? (
-                        <ul className="mt-1 space-y-1 text-sm text-gray-200">
-                          {chain.consumptionStages.map((stage) => (
-                            <li key={`${chain.id}-cons-${stage.index}`}>
-                              • {stage.name}（{stage.stage || '阶段'}）
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className="text-xs text-gray-500">暂无下游消费信息。</p>
-                      )}
-                    </div>
+                </>
+              ) : (
+                <>
+                  <MarketTrendChart
+                    series={[
+                      {
+                        label: '供给',
+                        color: '#34d399',
+                        data: supplyHistoryData,
+                      },
+                      {
+                        label: '需求',
+                        color: '#f87171',
+                        data: demandHistoryData,
+                      },
+                    ]}
+                  />
+                  <div className="mt-4 flex flex-wrap gap-6 text-sm text-gray-400">
+                    <span>
+                      最新供给{' '}
+                      <span className="text-emerald-300">{formatAmount(latestSupply)}</span>
+                    </span>
+                    <span>
+                      最新需求{' '}
+                      <span className="text-rose-300">{formatAmount(latestDemand)}</span>
+                    </span>
+                    <span>
+                      净供需{' '}
+                      <span className="text-white">
+                        {formatAmount((latestSupply || 0) - (latestDemand || 0))}
+                      </span>
+                    </span>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-2">
+            <div className="rounded-2xl border border-gray-800 bg-gray-950/60 p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-gray-500">需求构成</p>
+                  <p className="text-xl font-semibold text-white">总需求 {formatAmount(totalDemand)}</p>
+                </div>
+                <Icon name="TrendingUp" className="text-rose-300" />
+              </div>
+              <div className="mt-4 space-y-4">
+                <div>
+                  <p className="text-sm font-semibold text-gray-300">社会阶层</p>
+                  <div className="mt-2 space-y-2">
+                    {stratumDemand.length ? (
+                      stratumDemand.map(item => (
+                        <div
+                          key={item.key}
+                          className="flex items-center justify-between rounded-xl border border-gray-800/60 bg-gray-900/60 p-3"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="rounded-xl bg-gray-900/80 p-2">
+                              <Icon name={item.icon} size={18} className="text-amber-300" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold text-white">{item.name}</p>
+                              <p className="text-xs text-gray-500">{item.formula}</p>
+                            </div>
+                          </div>
+                          <p className="text-base font-bold text-rose-200">{formatAmount(item.amount)}</p>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-gray-500">暂无有效需求</p>
+                    )}
                   </div>
                 </div>
-              ))}
+                <div>
+                  <p className="text-sm font-semibold text-gray-300">建筑/工坊</p>
+                  <div className="mt-2 space-y-2">
+                    {buildingDemand.length ? (
+                      buildingDemand.map(item => (
+                        <div
+                          key={item.id}
+                          className="flex items-center justify-between rounded-xl border border-gray-800/60 bg-gray-900/60 p-3"
+                        >
+                          <div>
+                            <p className="text-sm font-semibold text-white">{item.name}</p>
+                            <p className="text-xs text-gray-500">{item.formula}</p>
+                          </div>
+                          <p className="text-base font-bold text-rose-200">{formatAmount(item.amount)}</p>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-gray-500">暂无建筑需求</p>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-300">军需</p>
+                  <div className="mt-2 space-y-2">
+                    {armyDemand.length ? (
+                      armyDemand.map(item => (
+                        <div
+                          key={item.id}
+                          className="flex items-center justify-between rounded-xl border border-gray-800/60 bg-gray-900/60 p-3"
+                        >
+                          <div>
+                            <p className="text-sm font-semibold text-white">{item.name}</p>
+                            <p className="text-xs text-gray-500">{item.formula}</p>
+                          </div>
+                          <p className="text-base font-bold text-rose-200">{formatAmount(item.amount)}</p>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-gray-500">暂无军队消耗</p>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
-          ) : (
-            <p className="text-sm text-gray-500">该资源暂未纳入任何产业链配置。</p>
-          )}
-        </div>
 
-        <div className="border-t border-gray-800 bg-gray-900/80 p-4 text-right">
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500"
-          >
-            <Icon name="X" size={14} />
-            关闭
-          </button>
+            <div className="rounded-2xl border border-gray-800 bg-gray-950/60 p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-gray-500">生产来源</p>
+                  <p className="text-xl font-semibold text-white">总供给 {formatAmount(totalSupply)}</p>
+                </div>
+                <Icon name="TrendingDown" className="text-emerald-300" />
+              </div>
+              <div className="mt-4 space-y-2">
+                {buildingSupply.length ? (
+                  buildingSupply.map(item => (
+                    <div
+                      key={item.id}
+                      className="flex items-center justify-between rounded-xl border border-gray-800/60 bg-gray-900/60 p-3"
+                    >
+                      <div>
+                        <p className="text-sm font-semibold text-white">{item.name}</p>
+                        <p className="text-xs text-gray-500">{item.formula}</p>
+                      </div>
+                      <p className="text-base font-bold text-emerald-200">{formatAmount(item.amount)}</p>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-gray-500">暂无建筑供给</p>
+                )}
+              </div>
+              <div className="mt-4 rounded-xl border border-gray-800/60 bg-gray-900/60 p-4 text-sm text-gray-400">
+                本地产出 {formatAmount(totalSupply)} · 市场供给 {formatAmount(marketSupply)} · 缺口{' '}
+                {formatAmount(totalDemand - marketSupply)}
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-gray-800 bg-gray-950/60 p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-gray-500">产业链流程</p>
+                <p className="text-xl font-semibold text-white">上下游位置</p>
+              </div>
+            </div>
+            <div className="mt-4 space-y-4">
+              {chainFlows.length ? (
+                chainFlows.map(flow => (
+                  <div key={flow.id} className="rounded-2xl border border-gray-800/60 bg-gray-900/60 p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-lg font-semibold text-white">{flow.name}</p>
+                        <p className="text-sm text-gray-400">{flow.desc}</p>
+                      </div>
+                    </div>
+                    <div className="mt-4 flex flex-wrap items-center gap-4">
+                      <div className="flex flex-wrap gap-2">
+                        {(flow.inputs.length ? flow.inputs : [null]).map((inputKey, index) => {
+                          const resource = inputKey ? RESOURCES[inputKey] : null;
+                          return (
+                            <ChainNode
+                              key={`${flow.id}-input-${inputKey || index}`}
+                              resourceKey={inputKey}
+                              label={resource?.name || '原料/采集'}
+                              subLabel={resource ? '上游资源' : '无上游原料'}
+                            />
+                          );
+                        })}
+                      </div>
+                      <Icon name="ArrowRight" className="text-gray-500" />
+                      <ChainNode
+                        resourceKey={resourceKey}
+                        label={resourceDef.name}
+                        subLabel="当前资源"
+                        highlight
+                      />
+                      <Icon name="ArrowRight" className="text-gray-500" />
+                      <div className="flex flex-wrap gap-2">
+                        {(flow.outputs.length ? flow.outputs : [null]).map((outputKey, index) => {
+                          const resource = outputKey ? RESOURCES[outputKey] : null;
+                          return (
+                            <ChainNode
+                              key={`${flow.id}-output-${outputKey || index}`}
+                              resourceKey={outputKey}
+                              label={resource?.name || '终端消费'}
+                              subLabel={resource ? '下游产物' : '等待消费'}
+                            />
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-xl border border-gray-800/60 bg-gray-900/60 p-6 text-center text-sm text-gray-500">
+                  暂未发现该资源的产业链数据。
+                </div>
+              )}
+            </div>
+          </div>
         </div>
+        </>
+        )}
       </div>
     </div>
   );
