@@ -222,7 +222,10 @@ export const simulateTick = ({
     if (isTradableResource(resource)) {
       supply[resource] = (supply[resource] || 0) + amount;
       const price = getPrice(resource);
-      wealth[ownerKey] = (wealth[ownerKey] || 0) + price * amount;
+      const income = price * amount;
+      wealth[ownerKey] = (wealth[ownerKey] || 0) + income;
+      // 记录owner的销售收入
+      roleWagePayout[ownerKey] = (roleWagePayout[ownerKey] || 0) + income;
     }
   };
 
@@ -660,7 +663,10 @@ export const simulateTick = ({
           if (taxPaid > 0) {
             taxBreakdown.industryTax += taxPaid;
           }
-          wealth[ownerKey] = Math.max(0, (wealth[ownerKey] || 0) - (baseCost + taxPaid));
+          const totalCost = baseCost + taxPaid;
+          wealth[ownerKey] = Math.max(0, (wealth[ownerKey] || 0) - totalCost);
+          // 记录owner支付输入资源的支出
+          roleExpense[ownerKey] = (roleExpense[ownerKey] || 0) + totalCost;
         }
         rates[resKey] = (rates[resKey] || 0) - consumed;
       }
@@ -671,6 +677,8 @@ export const simulateTick = ({
       const available = wealth[ownerKey] || 0;
       const paid = Math.min(available, plannedWageBill);
       wealth[ownerKey] = available - paid;
+      // 记录owner支付工资的支出
+      roleExpense[ownerKey] = (roleExpense[ownerKey] || 0) + paid;
       const wageRatio = plannedWageBill > 0 ? paid / plannedWageBill : 0;
       actualWagePerSlot = plannedWagePerSlot * wageRatio;
     } else {
