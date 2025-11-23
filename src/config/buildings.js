@@ -31,6 +31,20 @@ export const BUILDINGS = [
   },
   
   { 
+    id: 'trading_post', 
+    name: "贸易站", 
+    desc: "原始的物资交换场所，提供商人岗位。", 
+    baseCost: { wood: 50, stone: 10 }, 
+    output: { silver: 0.5 }, 
+    jobs: { merchant: 1 }, 
+    owner: 'merchant',
+    epoch: 0, 
+    cat: 'civic', 
+    requiresTech: 'barter',
+    visual: { icon: 'Handshake', color: 'bg-amber-800', text: 'text-amber-200' } 
+  },
+  
+  { 
     id: 'large_estate', 
     name: "庄园", 
     desc: "地主控制的土地，雇佣佃农。", 

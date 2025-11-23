@@ -74,6 +74,10 @@ export const useGameLoop = (gameState, addLog) => {
     lastFestivalYear,
     setLastFestivalYear,
     setHistory,
+    autoSaveInterval,
+    isAutoSaveEnabled,
+    lastAutoSaveTime,
+    saveGame,
   } = gameState;
 
   // 使用ref保存最新状态，避免闭包问题
@@ -101,35 +105,16 @@ export const useGameLoop = (gameState, addLog) => {
     activeFestivalEffects,
     lastFestivalYear,
     isPaused,
+    autoSaveInterval,
+    isAutoSaveEnabled,
+    lastAutoSaveTime,
   });
 
+  const saveGameRef = useRef(gameState.saveGame);
+
   useEffect(() => {
-    stateRef.current = {
-      resources,
-      market,
-      buildings,
-      population,
-      epoch,
-      techsUnlocked,
-      decrees,
-      gameSpeed,
-      nations,
-      classWealth,
-      army,
-      jobFill,
-      activeBuffs,
-      activeDebuffs,
-      taxPolicies,
-      classWealthHistory,
-      classNeedsHistory,
-      militaryWageRatio,
-      classApproval,
-      daysElapsed,
-      activeFestivalEffects,
-      lastFestivalYear,
-      isPaused,
-    };
-  }, [resources, market, buildings, population, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, army, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused]);
+    saveGameRef.current = gameState.saveGame;
+  }, [gameState.saveGame]);
 
   useEffect(() => {
     stateRef.current = {
@@ -156,13 +141,58 @@ export const useGameLoop = (gameState, addLog) => {
       activeFestivalEffects,
       lastFestivalYear,
       isPaused,
+      autoSaveInterval,
+      isAutoSaveEnabled,
+      lastAutoSaveTime,
     };
-  }, [resources, market, buildings, population, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, army, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused]);
+  }, [resources, market, buildings, population, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, army, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime]);
+
+  useEffect(() => {
+    stateRef.current = {
+      resources,
+      market,
+      buildings,
+      population,
+      epoch,
+      techsUnlocked,
+      decrees,
+      gameSpeed,
+      nations,
+      classWealth,
+      army,
+      jobFill,
+      activeBuffs,
+      activeDebuffs,
+      taxPolicies,
+      classWealthHistory,
+      classNeedsHistory,
+      militaryWageRatio,
+      classApproval,
+      daysElapsed,
+      activeFestivalEffects,
+      lastFestivalYear,
+      isPaused,
+      autoSaveInterval,
+      isAutoSaveEnabled,
+      lastAutoSaveTime,
+    };
+  }, [resources, market, buildings, population, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, army, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime]);
 
   // 游戏核心循环
   useEffect(() => {
     const timer = setInterval(() => {
       const current = stateRef.current;
+
+      // 自动存档检测：即使暂停也照常运行，避免长时间停留丢进度
+      if (current.isAutoSaveEnabled) {
+        const intervalSeconds = Math.max(5, current.autoSaveInterval || 60);
+        const elapsed = Date.now() - (current.lastAutoSaveTime || 0);
+        if (elapsed >= intervalSeconds * 1000 && saveGameRef.current) {
+          saveGameRef.current({ source: 'auto' });
+          stateRef.current.lastAutoSaveTime = Date.now();
+        }
+      }
+
       if (current.isPaused) {
         return;
       }

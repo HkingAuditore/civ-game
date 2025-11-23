@@ -10,6 +10,13 @@
 export const TECHS = [
   // 石器时代
   {
+    id: 'barter',
+    name: "物物交换",
+    desc: "允许建造贸易站，让商人阶层登上历史舞台。",
+    cost: { science: 50 },
+    epoch: 0,
+  },
+  {
     id: 'stone_axes',
     name: "磨制石斧",
     desc: "伐木场产出提升 25%。",

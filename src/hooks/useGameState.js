@@ -1,10 +1,11 @@
 // 游戏状态管理钩子
 // 集中管理所有游戏状态，避免App.jsx中状态定义过多
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { DECREES, COUNTRIES, RESOURCES, STRATA } from '../config';
 
 const SAVE_KEY = 'civ_game_save_data_v1';
+const AUTOSAVE_KEY = 'civ_game_autosave_v1';
 
 const INITIAL_RESOURCES = { 
   food: 200, 
@@ -167,6 +168,11 @@ export const useGameState = () => {
   const [activeTab, setActiveTab] = useState('build');
   const [gameSpeed, setGameSpeed] = useState(1);
   const [isPaused, setIsPaused] = useState(false);
+  const [autoSaveInterval, setAutoSaveInterval] = useState(60); // 自动存档间隔（秒）
+  const [isAutoSaveEnabled, setIsAutoSaveEnabled] = useState(true); // 自动存档开关
+  const [lastAutoSaveTime, setLastAutoSaveTime] = useState(() => Date.now()); // 上次自动存档时间
+  const [isSaving, setIsSaving] = useState(false); // UI保存状态指示
+  const savingIndicatorTimer = useRef(null);
 
   // ========== 政令与外交状态 ==========
   const [decrees, setDecrees] = useState(DECREES);
@@ -235,12 +241,53 @@ export const useGameState = () => {
   const [jobFill, setJobFill] = useState({});
   const [market, setMarket] = useState(buildInitialMarket());
 
+  useEffect(() => {
+    return () => {
+      if (savingIndicatorTimer.current) {
+        clearTimeout(savingIndicatorTimer.current);
+      }
+    };
+  }, []);
+
   const addLogEntry = (message) => {
     setLogs(prev => [message, ...prev].slice(0, 8));
   };
 
-  const saveGame = () => {
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
     try {
+      const autoRaw = localStorage.getItem(AUTOSAVE_KEY);
+      if (!autoRaw) return;
+      const manualRaw = localStorage.getItem(SAVE_KEY);
+      if (!manualRaw) {
+        addLogEntry('💡 检测到自动存档，可在设置中加载。');
+        return;
+      }
+      const autoData = JSON.parse(autoRaw);
+      const manualData = JSON.parse(manualRaw);
+      if ((autoData?.updatedAt || 0) > (manualData?.updatedAt || 0)) {
+        addLogEntry('💡 有更新的自动存档，可在设置中选择读取。');
+      }
+    } catch (error) {
+      console.warn('Auto-save detection failed:', error);
+    }
+  }, []);
+
+  const triggerSavingIndicator = () => {
+    setIsSaving(true);
+    if (savingIndicatorTimer.current) {
+      clearTimeout(savingIndicatorTimer.current);
+    }
+    savingIndicatorTimer.current = setTimeout(() => {
+      setIsSaving(false);
+      savingIndicatorTimer.current = null;
+    }, 1000);
+  };
+
+  const saveGame = ({ source = 'manual' } = {}) => {
+    try {
+      const timestamp = Date.now();
+      const nextLastAuto = source === 'auto' ? timestamp : lastAutoSaveTime;
       const saveData = {
         resources,
         population,
@@ -292,20 +339,38 @@ export const useGameState = () => {
         taxPolicies,
         jobFill,
         market,
+        autoSaveInterval,
+        isAutoSaveEnabled,
+        lastAutoSaveTime: nextLastAuto,
+        updatedAt: timestamp,
+        saveSource: source,
       };
-      localStorage.setItem(SAVE_KEY, JSON.stringify(saveData));
-      addLogEntry('💾 游戏已成功保存！');
+      const targetKey = source === 'auto' ? AUTOSAVE_KEY : SAVE_KEY;
+      localStorage.setItem(targetKey, JSON.stringify(saveData));
+      triggerSavingIndicator();
+      if (source === 'auto') {
+        setLastAutoSaveTime(timestamp);
+      } else {
+        addLogEntry('💾 游戏已成功保存！');
+      }
     } catch (error) {
-      console.error('Save game failed:', error);
-      addLogEntry(`❌ 存档失败：${error.message}`);
+      console.error(`${source === 'auto' ? 'Auto' : 'Manual'} save failed:`, error);
+      if (source === 'auto') {
+        addLogEntry(`❌ 自动存档失败：${error.message}`);
+      } else {
+        addLogEntry(`❌ 存档失败：${error.message}`);
+      }
+      setIsSaving(false);
     }
   };
 
-  const loadGame = () => {
+  const loadGame = ({ source = 'manual' } = {}) => {
     try {
-      const rawData = localStorage.getItem(SAVE_KEY);
+      const targetKey = source === 'auto' ? AUTOSAVE_KEY : SAVE_KEY;
+      const friendly = source === 'auto' ? '自动' : '手动';
+      const rawData = localStorage.getItem(targetKey);
       if (!rawData) {
-        addLogEntry('⚠️ 未找到任何存档数据。');
+        addLogEntry(`⚠️ 未找到任何${friendly}存档数据。`);
         return;
       }
       const data = JSON.parse(rawData);
@@ -366,7 +431,10 @@ export const useGameState = () => {
       });
       setJobFill(data.jobFill || {});
       setMarket(data.market || buildInitialMarket());
-      addLogEntry('📂 读取存档成功！');
+      setAutoSaveInterval(data.autoSaveInterval ?? 60);
+      setIsAutoSaveEnabled(data.isAutoSaveEnabled ?? true);
+      setLastAutoSaveTime(data.lastAutoSaveTime || Date.now());
+      addLogEntry(source === 'auto' ? '📂 自动存档读取成功！' : '📂 读取存档成功！');
     } catch (error) {
       console.error('Load game failed:', error);
       addLogEntry(`❌ 读取存档失败：${error.message}`);
@@ -380,7 +448,13 @@ export const useGameState = () => {
     const confirmed = window.confirm('确认要重置游戏并清除存档吗？该操作不可撤销。');
     if (!confirmed) return;
     localStorage.removeItem(SAVE_KEY);
+    localStorage.removeItem(AUTOSAVE_KEY);
     window.location.reload();
+  };
+
+  const hasAutoSave = () => {
+    if (typeof window === 'undefined') return false;
+    return !!localStorage.getItem(AUTOSAVE_KEY);
   };
 
   // 返回所有状态和更新函数
@@ -416,6 +490,13 @@ export const useGameState = () => {
     setGameSpeed,
     isPaused,
     setIsPaused,
+    autoSaveInterval,
+    setAutoSaveInterval,
+    isAutoSaveEnabled,
+    setIsAutoSaveEnabled,
+    lastAutoSaveTime,
+    setLastAutoSaveTime,
+    isSaving,
     
     // 政令与外交
     decrees,
@@ -510,6 +591,7 @@ export const useGameState = () => {
     setJobFill,
     saveGame,
     loadGame,
+    hasAutoSave,
     resetGame,
   };
 };

@@ -11,6 +11,7 @@ export { CityMap } from './game/CityMap';
 export { ResourcePanel } from './panels/ResourcePanel';
 export { StrataPanel } from './panels/StrataPanel';
 export { LogPanel } from './panels/LogPanel';
+export { SettingsPanel } from './panels/SettingsPanel';
 
 // 标签页组件
 export { BuildTab } from './tabs/BuildTab';

@@ -1117,7 +1117,7 @@ export const simulateTick = ({
     classWealthResult[key] = Math.max(0, wealth[key] || 0);
   });
 
-  const totalWealth = Object.values(classWealthResult).reduce((sum, val) => sum + val, 0);
+  let totalWealth = Object.values(classWealthResult).reduce((sum, val) => sum + val, 0);
 
   Object.keys(STRATA).forEach(key => {
     const count = popStructure[key] || 0;
@@ -1128,7 +1128,7 @@ export const simulateTick = ({
     classInfluence[key] = (def.influenceBase * count) + (wealthFactor * 10);
   });
 
-  const totalInfluence = Object.values(classInfluence).reduce((sum, val) => sum + val, 0);
+  let totalInfluence = Object.values(classInfluence).reduce((sum, val) => sum + val, 0);
   let exodusPopulationLoss = 0;
   let extraStabilityPenalty = 0;
   // 修正人口外流（Exodus）：愤怒人口离开时带走财富（资本外逃）
@@ -1476,6 +1476,47 @@ export const simulateTick = ({
       const targetName = STRATA[targetCandidate.role]?.name || targetCandidate.role;
       const incomeGain = ((targetCandidate.potentialIncome - sourceCandidate.potentialIncome) / Math.max(0.01, sourceCandidate.potentialIncome) * 100).toFixed(0);
       logs.push(`💼 ${migrants} 名 ${sourceName} 转职为 ${targetName}（预期收益提升 ${incomeGain}%）`);
+    }
+  }
+
+  // 自动出口：将库存盈余卖到外部市场，把利润计入商人阶层
+  let merchantExportIncome = 0;
+  Object.keys(RESOURCES).forEach(resourceKey => {
+    if (!isTradableResource(resourceKey)) return;
+    if (resourceKey === 'silver') return;
+    const stock = res[resourceKey] || 0;
+    if (stock <= 0) return;
+    const pendingDemand = Math.max(0, (demand[resourceKey] || 0) - (supply[resourceKey] || 0));
+    if (pendingDemand <= 0) return;
+    const exportAmount = Math.min(stock * 0.25, pendingDemand * 0.5);
+    if (exportAmount <= 0) return;
+    const price = updatedPrices[resourceKey] ?? getPrice(resourceKey);
+    const income = exportAmount * price;
+    if (income <= 0) return;
+    res[resourceKey] = stock - exportAmount;
+    rates[resourceKey] = (rates[resourceKey] || 0) - exportAmount;
+    wealth.merchant = (wealth.merchant || 0) + income;
+    roleWagePayout.merchant = (roleWagePayout.merchant || 0) + income;
+    merchantExportIncome += income;
+    const resourceName = RESOURCES[resourceKey]?.name || resourceKey;
+    logs.push(`商人通过出口 ${resourceName} 赚取了 ${income.toFixed(1)} 银币。`);
+  });
+
+  if (merchantExportIncome > 0) {
+    const updatedMerchantWealth = Math.max(0, wealth.merchant || 0);
+    const previousMerchantWealth = classWealthResult.merchant || 0;
+    const wealthDelta = updatedMerchantWealth - previousMerchantWealth;
+    if (wealthDelta !== 0) {
+      classWealthResult.merchant = updatedMerchantWealth;
+      totalWealth += wealthDelta;
+      const merchantDef = STRATA.merchant;
+      if (merchantDef) {
+        const merchantCount = popStructure.merchant || 0;
+        const newInfluence = (merchantDef.influenceBase * merchantCount) + (totalWealth > 0 ? (updatedMerchantWealth / totalWealth) * 10 : 0);
+        const influenceDelta = newInfluence - (classInfluence.merchant || 0);
+        classInfluence.merchant = newInfluence;
+        totalInfluence += influenceDelta;
+      }
     }
   }
 
