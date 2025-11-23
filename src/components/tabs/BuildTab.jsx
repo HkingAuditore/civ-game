@@ -64,7 +64,9 @@ export const BuildTab = ({
     if (building.owner && jobEntries.every(entry => entry.perCapitaIncome === 0)) {
       const ownerRole = jobEntries.find(entry => entry.job === building.owner);
       if (ownerRole) {
-        ownerRole.perCapitaIncome = ownerIncome;
+        // 修复：将总利润除以该岗位的工人数量，得到人均收入
+        const workerCount = building.jobs[building.owner] || 1;
+        ownerRole.perCapitaIncome = ownerIncome / workerCount;
       }
     }
     return jobEntries;

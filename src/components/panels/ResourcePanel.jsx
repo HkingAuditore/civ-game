@@ -20,6 +20,18 @@ export const ResourcePanel = ({
 }) => {
   const [selectedResource, setSelectedResource] = useState(null);
 
+  // 格式化大额数字显示
+  const formatCompactNumber = (value) => {
+    const num = Math.floor(value);
+    if (num >= 1000000) {
+      return (num / 1000000).toFixed(2) + 'M';
+    }
+    if (num >= 1000) {
+      return (num / 1000).toFixed(1) + 'k';
+    }
+    return num.toString();
+  };
+
   const getPrice = (key) => {
     if (!market) return RESOURCES[key]?.basePrice || 1;
     const base = RESOURCES[key]?.basePrice || 1;
@@ -94,8 +106,8 @@ export const ResourcePanel = ({
 
                 {/* 资源数量和速率 */}
                 <div className="flex items-center gap-3">
-                  <span className="font-mono font-bold text-white min-w-[40px] text-right">
-                    {Math.floor(amount)}
+                  <span className="font-mono font-bold text-white min-w-[50px] text-right">
+                    {formatCompactNumber(amount)}
                   </span>
                   <span className="px-1.5 py-0.5 rounded bg-slate-700/70 text-[10px] text-slate-200 font-mono">
                   {price.toFixed(2)} 银币

@@ -224,8 +224,7 @@ export const simulateTick = ({
       supply[resource] = (supply[resource] || 0) + amount;
       const price = getPrice(resource);
       const income = price * amount;
-      wealth[ownerKey] = (wealth[ownerKey] || 0) + income;
-      // 记录owner的销售收入
+      // 记录owner的销售收入（在tick结束时统一结算到wealth）
       roleWagePayout[ownerKey] = (roleWagePayout[ownerKey] || 0) + income;
     }
   };
@@ -482,6 +481,8 @@ export const simulateTick = ({
         const paid = Math.min(available, due);
         wealth[key] = available - paid;
         taxBreakdown.headTax += paid;
+        // 记录人头税支出
+        roleExpense[key] = (roleExpense[key] || 0) + paid;
       } else {
         const subsidyNeeded = -due;
         const treasury = res.silver || 0;
@@ -489,6 +490,8 @@ export const simulateTick = ({
           res.silver = treasury - subsidyNeeded;
           wealth[key] = available + subsidyNeeded;
           taxBreakdown.subsidy += subsidyNeeded;
+          // 记录政府补助收入
+          roleWagePayout[key] = (roleWagePayout[key] || 0) + subsidyNeeded;
         }
       }
     }
@@ -907,6 +910,8 @@ export const simulateTick = ({
           const paid = Math.min(available, titheDue);
           wealth.cleric = Math.max(0, available - paid);
           taxBreakdown.headTax += paid;
+          // 记录什一税支出
+          roleExpense.cleric = (roleExpense.cleric || 0) + paid;
         }
       }
     }
@@ -1268,7 +1273,8 @@ export const simulateTick = ({
     updatedWages[role] = Math.max(0, Number(smoothed.toFixed(2)));
   });
 
-  const baseExternalDemand = 5 + population * 0.2;
+  // FIX: 外部需求也应该随游戏速度缩放，否则加速时会导致供过于求（物价暴跌）
+  const baseExternalDemand = (5 + population * 0.2) * gameSpeed;
   Object.keys(RESOURCES).forEach(resource => {
     if (!isTradableResource(resource)) return;
     demand[resource] = (demand[resource] || 0) + baseExternalDemand;

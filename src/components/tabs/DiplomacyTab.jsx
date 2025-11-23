@@ -122,8 +122,8 @@ export const DiplomacyTab = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-        <div className="space-y-3">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 h-[calc(100vh-300px)]">
+        <div className="space-y-3 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500">
           {visibleNations.map((nation) => {
             const relation = relationInfo(nation.relation);
             return (
@@ -224,7 +224,7 @@ export const DiplomacyTab = ({
           )}
         </div>
 
-        <div className="xl:col-span-2 space-y-4">
+        <div className="xl:col-span-2 space-y-4 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500">
           {selectedNation ? (
             <>
               <div className="bg-gray-800/60 p-4 rounded-lg border border-gray-700">
