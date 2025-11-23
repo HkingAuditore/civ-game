@@ -74,6 +74,7 @@ export const simulateTick = ({
   resources,
   buildings,
   population,
+  popStructure: previousPopStructure = {},
   decrees,
   gameSpeed,
   epoch,
@@ -267,18 +268,106 @@ export const simulateTick = ({
     jobsAvailable.soldier = (jobsAvailable.soldier || 0) + armyPopulationDemand;
   }
 
-  let remainingPop = population;
+  const hasPreviousPopStructure = previousPopStructure && Object.keys(previousPopStructure).length > 0;
   const popStructure = {};
+  if (!hasPreviousPopStructure) {
+    let remainingPop = population;
+    ROLE_PRIORITY.forEach(role => {
+      const slots = Math.max(0, jobsAvailable[role] || 0);
+      const filled = Math.min(remainingPop, slots);
+      popStructure[role] = filled;
+      remainingPop -= filled;
+    });
+    popStructure.unemployed = Math.max(0, remainingPop);
+  } else {
+    ROLE_PRIORITY.forEach(role => {
+      const prevCount = Math.floor(previousPopStructure[role] || 0);
+      popStructure[role] = Math.max(0, prevCount);
+    });
+    popStructure.unemployed = Math.max(0, Math.floor(previousPopStructure.unemployed || 0));
+    const assignedPop = ROLE_PRIORITY.reduce((sum, role) => sum + (popStructure[role] || 0), 0) + (popStructure.unemployed || 0);
+    let diff = population - assignedPop;
+    if (diff > 0) {
+      popStructure.unemployed = (popStructure.unemployed || 0) + diff;
+    } else if (diff < 0) {
+      let reductionNeeded = -diff;
+      const unemployedReduction = Math.min(popStructure.unemployed || 0, reductionNeeded);
+      if (unemployedReduction > 0) {
+        popStructure.unemployed -= unemployedReduction;
+        reductionNeeded -= unemployedReduction;
+      }
+      if (reductionNeeded > 0) {
+        const initialTotal = ROLE_PRIORITY.reduce((sum, role) => sum + (popStructure[role] || 0), 0);
+        if (initialTotal > 0) {
+          const baseReduction = reductionNeeded;
+          ROLE_PRIORITY.forEach((role, index) => {
+            if (reductionNeeded <= 0) return;
+            const current = popStructure[role] || 0;
+            if (current <= 0) return;
+            const proportion = current / initialTotal;
+            let remove = Math.floor(proportion * baseReduction);
+            if (remove <= 0 && reductionNeeded > 0) remove = 1;
+            if (index === ROLE_PRIORITY.length - 1) {
+              remove = Math.min(current, reductionNeeded);
+            } else {
+              remove = Math.min(current, Math.min(remove, reductionNeeded));
+            }
+            if (remove <= 0) return;
+            popStructure[role] = current - remove;
+            reductionNeeded -= remove;
+          });
+          if (reductionNeeded > 0) {
+            ROLE_PRIORITY.forEach(role => {
+              if (reductionNeeded <= 0) return;
+              const current = popStructure[role] || 0;
+              if (current <= 0) return;
+              const remove = Math.min(current, reductionNeeded);
+              popStructure[role] = current - remove;
+              reductionNeeded -= remove;
+            });
+          }
+        }
+      }
+    }
+  }
+  popStructure.unemployed = Math.max(0, popStructure.unemployed || 0);
 
   ROLE_PRIORITY.forEach(role => {
+    const current = popStructure[role] || 0;
     const slots = Math.max(0, jobsAvailable[role] || 0);
-    const filled = Math.min(remainingPop, slots);
-    popStructure[role] = filled;
-    remainingPop -= filled;
+    if (current > slots) {
+      const layoffs = current - slots;
+      const roleWealth = wealth[role] || 0;
+      const perCapWealth = current > 0 ? roleWealth / current : 0;
+      popStructure[role] = slots;
+      popStructure.unemployed = (popStructure.unemployed || 0) + layoffs;
+      if (perCapWealth > 0) {
+        const transfer = perCapWealth * layoffs;
+        wealth[role] = Math.max(0, roleWealth - transfer);
+        wealth.unemployed = (wealth.unemployed || 0) + transfer;
+      }
+    }
   });
 
-  popStructure.unemployed = Math.max(0, remainingPop);
-  remainingPop = 0;
+  ROLE_PRIORITY.forEach(role => {
+    const availableUnemployed = popStructure.unemployed || 0;
+    if (availableUnemployed <= 0) return;
+    const slots = Math.max(0, jobsAvailable[role] || 0);
+    const current = popStructure[role] || 0;
+    const vacancy = Math.max(0, slots - current);
+    if (vacancy <= 0) return;
+    const hiring = Math.min(vacancy, availableUnemployed);
+    if (hiring <= 0) return;
+    const unemployedWealth = wealth.unemployed || 0;
+    const perCapWealth = availableUnemployed > 0 ? unemployedWealth / availableUnemployed : 0;
+    popStructure[role] = current + hiring;
+    popStructure.unemployed = Math.max(0, availableUnemployed - hiring);
+    if (perCapWealth > 0) {
+      const transfer = perCapWealth * hiring;
+      wealth.unemployed = Math.max(0, unemployedWealth - transfer);
+      wealth[role] = (wealth[role] || 0) + transfer;
+    }
+  });
 
   let currentAdminStrain = 0;
   const classApproval = {};
@@ -856,6 +945,14 @@ export const simulateTick = ({
     if (approval < 20 && influenceShare < 0.07) {
       const leavingRate = Math.max(0.03, (20 - approval) / 200);
       const leaving = Math.min(count, Math.max(1, Math.floor(count * leavingRate)));
+      if (leaving > 0) {
+        const currentWealth = wealth[key] || 0;
+        const perCapWealth = count > 0 ? currentWealth / count : 0;
+        const fleeingCapital = perCapWealth * leaving;
+        if (fleeingCapital > 0) {
+          wealth[key] = Math.max(0, currentWealth - fleeingCapital);
+        }
+      }
       exodusPopulationLoss += leaving;
       logs.push(`${className} 阶层对政局失望，${leaving} 人离开了国家。`);
     } else if (influenceShare >= 0.12) {
@@ -1002,6 +1099,12 @@ export const simulateTick = ({
     updatedWages[role] = Math.max(0, Number(smoothed.toFixed(2)));
   });
 
+  const baseExternalDemand = 5 + population * 0.2;
+  Object.keys(RESOURCES).forEach(resource => {
+    if (!isTradableResource(resource)) return;
+    demand[resource] = (demand[resource] || 0) + baseExternalDemand;
+  });
+
   Object.keys(RESOURCES).forEach(resource => {
     if (!isTradableResource(resource)) return;
     const base = getBasePrice(resource);
@@ -1082,6 +1185,13 @@ export const simulateTick = ({
     if (migrants <= 0 && sourceCandidate.pop > 0) migrants = 1;
     migrants = Math.min(migrants, targetCandidate.vacancy);
     if (migrants > 0) {
+      const sourceWealth = wealth[sourceCandidate.role] || 0;
+      const perCapWealth = sourceCandidate.pop > 0 ? sourceWealth / sourceCandidate.pop : 0;
+      const migratingWealth = perCapWealth * migrants;
+      if (migratingWealth > 0) {
+        wealth[sourceCandidate.role] = Math.max(0, sourceWealth - migratingWealth);
+        wealth[targetCandidate.role] = (wealth[targetCandidate.role] || 0) + migratingWealth;
+      }
       popStructure[sourceCandidate.role] = Math.max(0, sourceCandidate.pop - migrants);
       popStructure[targetCandidate.role] = (popStructure[targetCandidate.role] || 0) + migrants;
       logs.push(`${migrants} 名 ${STRATA[sourceCandidate.role]?.name || sourceCandidate.role} 转向 ${STRATA[targetCandidate.role]?.name || targetCandidate.role} 寻求更高收益`);
