@@ -115,7 +115,7 @@ export default function RiseOfCivs() {
   const armyFoodNeed = calculateArmyFoodNeed(gameState.army || {});
   const foodPrice = gameState.market?.prices?.food ?? (RESOURCES.food?.basePrice || 1);
   const wageRatio = gameState.militaryWageRatio || 1;
-  const silverUpkeepPerDay = armyFoodNeed * foodPrice * wageRatio;
+  const silverUpkeepPerDay = (armyFoodNeed * foodPrice * wageRatio) / dayScale;
   const netSilverPerDay = taxesPerDay - silverUpkeepPerDay;
   const netSilverClass = netSilverPerDay >= 0 ? 'text-green-300' : 'text-red-300';
   const netChipClasses = netSilverPerDay >= 0
@@ -231,21 +231,21 @@ export default function RiseOfCivs() {
                   <div className="flex justify-between">
                     <span>人头税</span>
                     <span className="text-yellow-200 font-mono">
-                      {taxes.breakdown?.headTax?.toFixed(2) || '0.00'}
+                      {((taxes.breakdown?.headTax || 0) / dayScale).toFixed(2)}
                     </span>
                   </div>
                   {taxes.breakdown?.subsidy > 0 && (
                     <div className="flex justify-between">
                       <span>补助</span>
                       <span className="text-teal-300 font-mono">
-                        -{taxes.breakdown.subsidy.toFixed(2)}
+                        -{(taxes.breakdown.subsidy / dayScale).toFixed(2)}
                       </span>
                     </div>
                   )}
                   <div className="flex justify-between">
                     <span>产业税</span>
                     <span className="text-yellow-200 font-mono">
-                      {taxes.breakdown?.industryTax?.toFixed(2) || '0.00'}
+                      {((taxes.breakdown?.industryTax || 0) / dayScale).toFixed(2)}
                     </span>
                   </div>
                   <div className="flex justify-between">
@@ -318,6 +318,7 @@ export default function RiseOfCivs() {
             rates={gameState.rates} 
             market={gameState.market}
             epoch={gameState.epoch}
+            gameSpeed={gameState.gameSpeed}
           />
 
           {/* 社会阶层面板 */}
@@ -332,6 +333,8 @@ export default function RiseOfCivs() {
             classWealth={gameState.classWealth}
             classWealthDelta={gameState.classWealthDelta}
             classShortages={gameState.classShortages}
+            classIncome={gameState.classIncome}
+            classExpense={gameState.classExpense}
             onDetailClick={(key) => gameState.setStratumDetailView(key)}
             dayScale={dayScale}
           />

@@ -16,6 +16,7 @@ export const ResourcePanel = ({
   rates, 
   market,
   epoch = 0,
+  gameSpeed = 1,
 }) => {
   const [selectedResource, setSelectedResource] = useState(null);
 
@@ -70,8 +71,9 @@ export const ResourcePanel = ({
           const amount = resources[key] || 0;
           const rate = rates[key] || 0;
           const price = getPrice(key);
-          const supply = market?.supply?.[key] ?? 0;
-          const demand = market?.demand?.[key] ?? 0;
+          const safeDayScale = Math.max(gameSpeed, 0.0001);
+          const supply = (market?.supply?.[key] ?? 0) / safeDayScale;
+          const demand = (market?.demand?.[key] ?? 0) / safeDayScale;
           const ratio = supply > 0 ? demand / supply : (demand > 0 ? Infinity : 1);
           const history = market?.priceHistory?.[key] || [];
           const isSelected = selectedResource === key;

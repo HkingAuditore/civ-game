@@ -25,6 +25,8 @@ export const StrataPanel = ({
   classWealth = {},
   classWealthDelta = {},
   classShortages = {},
+  classIncome = {},
+  classExpense = {},
   onDetailClick,
   dayScale = 1,
 }) => {
@@ -70,7 +72,12 @@ export const StrataPanel = ({
           const wealthValue = classWealth[key] ?? 0;
           const wealthDelta = classWealthDelta[key] ?? 0;
           const perClassDeltaPerDay = (classWealthDelta[key] || 0) / safeDayScale;
-          const incomePerCapita = perClassDeltaPerDay / Math.max(count, 1);
+          
+          // 计算人均收入和支出（每日）
+          const totalIncome = (classIncome[key] || 0) / safeDayScale;
+          const totalExpense = (classExpense[key] || 0) / safeDayScale;
+          const incomePerCapita = totalIncome / Math.max(count, 1);
+          const expensePerCapita = totalExpense / Math.max(count, 1);
           const prevWealth = wealthValue - wealthDelta;
           let changeRate = 0;
           if (Math.abs(prevWealth) > 0.001) {
@@ -100,9 +107,6 @@ export const StrataPanel = ({
                   <span className="text-[10px] text-gray-500">
                     {count}人
                   </span>
-                  <span className={`text-[10px] font-mono ${incomePerCapita > 0 ? 'text-green-500' : incomePerCapita < 0 ? 'text-red-500' : 'text-gray-500'}`}>
-                    ({incomePerCapita > 0 ? '人均收入: +' : '人均收入: '}{incomePerCapita.toFixed(2)}/天)
-                  </span>
                 </div>
                 <span className={`text-[10px] font-semibold ${
                   approval >= 70 ? 'text-green-400' :
@@ -111,6 +115,22 @@ export const StrataPanel = ({
                 }`}>
                   {approval.toFixed(0)}%
                 </span>
+              </div>
+              
+              {/* 收入和支出 - 新增一行 */}
+              <div className="flex items-center justify-between text-[10px] mb-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-green-400">收入</span>
+                  <span className="text-green-300 font-mono">
+                    +{incomePerCapita.toFixed(2)}/天
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-red-400">支出</span>
+                  <span className="text-red-300 font-mono">
+                    -{expensePerCapita.toFixed(2)}/天
+                  </span>
+                </div>
               </div>
 
               {/* 好感度进度条 - 更细 */}

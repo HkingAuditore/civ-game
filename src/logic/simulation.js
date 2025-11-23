@@ -244,6 +244,12 @@ export const simulateTick = ({
     roleWageStats[role] = { totalSlots: 0, weightedWage: 0 };
     roleWagePayout[role] = 0;
   });
+  
+  // Track class expenses (spending on resources)
+  const roleExpense = {};
+  Object.keys(STRATA).forEach(key => {
+    roleExpense[key] = 0;
+  });
 
   BUILDINGS.forEach(b => {
     const count = builds[b.id] || 0;
@@ -779,7 +785,9 @@ export const simulateTick = ({
           if (taxPaid > 0) {
             taxBreakdown.industryTax += taxPaid;
           }
-          wealth[key] = Math.max(0, (wealth[key] || 0) - (baseCost + taxPaid));
+          const totalCost = baseCost + taxPaid;
+          wealth[key] = Math.max(0, (wealth[key] || 0) - totalCost);
+          roleExpense[key] = (roleExpense[key] || 0) + totalCost;
           satisfied = amount;
         }
         
@@ -1372,6 +1380,8 @@ export const simulateTick = ({
       supply,
       wages: updatedWages,
     },
+    classIncome: roleWagePayout,
+    classExpense: roleExpense,
     jobFill: buildingJobFill,
     taxes,
     needsShortages: classShortages,
