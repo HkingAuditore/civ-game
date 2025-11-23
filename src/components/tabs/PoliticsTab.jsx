@@ -129,13 +129,13 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
             <div>
               <h4 className="text-xs font-semibold text-gray-400 mb-1">人头税（按日结算）</h4>
               <p className="text-[11px] text-gray-500 mb-2">针对每位在职人口，按阶层基准税率 × 调整系数收取银币。若为负数，则为补助。</p>
-              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-80 overflow-y-auto pr-1">
                 {activeStrata.map((key) => {
                   const base = STRATA[key]?.headTaxBase ?? 0.01;
                   const finalRate = (headRates[key] ?? 1) * base;
                   return (
-                    <div key={key} className="bg-gray-900/40 p-2 rounded border border-gray-700/50">
-                      <div className="flex items-center justify-between text-xs text-gray-300 mb-1">
+                    <div key={key} className="bg-gray-900/40 p-1.5 rounded border border-gray-700/50 text-[11px]">
+                      <div className="flex items-center justify-between text-gray-300 mb-1">
                         <span>{STRATA[key]?.name || key}</span>
                         <span className="font-mono text-yellow-300">
                           {finalRate.toFixed(3)} 银币/人/日
@@ -154,7 +154,7 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
                           e.target.blur();
                         }
                       }}
-                      className="w-full bg-gray-900/60 border border-gray-700 text-xs text-gray-200 rounded px-2 py-1"
+                      className="w-full bg-gray-900/60 border border-gray-700 text-[11px] text-gray-200 rounded px-1.5 py-0.5"
                     />
                     </div>
                   );

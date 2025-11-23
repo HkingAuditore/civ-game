@@ -24,7 +24,7 @@ const ROLE_PRIORITY = [
 const JOB_MIGRATION_RATIO = 0.04;
 
 
-const SPECIAL_TRADE_RESOURCES = new Set(['admin']);
+const SPECIAL_TRADE_RESOURCES = new Set(['science', 'culture']);
 const isTradableResource = (key) => {
   if (key === 'silver') return false;
   const def = RESOURCES[key];
@@ -704,10 +704,8 @@ export const simulateTick = ({
         if (!amountNeeded || amountNeeded <= 0) continue;
         const available = res[resKey] || 0;
         const consumed = Math.min(amountNeeded, available);
-        if (consumed <= 0) continue;
-        res[resKey] = available - consumed;
         if (isTradableResource(resKey)) {
-          demand[resKey] = (demand[resKey] || 0) + consumed;
+          demand[resKey] = (demand[resKey] || 0) + amountNeeded;
           const price = getPrice(resKey);
           const taxRate = Math.max(0, getResourceTaxRate(resKey));
           const baseCost = consumed * price;
@@ -720,6 +718,8 @@ export const simulateTick = ({
           // 记录owner支付输入资源的支出
           roleExpense[ownerKey] = (roleExpense[ownerKey] || 0) + totalCost;
         }
+        if (consumed <= 0) continue;
+        res[resKey] = available - consumed;
         rates[resKey] = (rates[resKey] || 0) - consumed;
       }
     }
@@ -807,6 +807,12 @@ export const simulateTick = ({
               demand[sourceResource] = (demand[sourceResource] || 0) + exportAmount;
               rates[sourceResource] = (rates[sourceResource] || 0) - exportAmount;
               rates[targetResource] = (rates[targetResource] || 0) + importAmount;
+              const exportRevenue = exportAmount * sourcePrice;
+              const importCost = importAmount * targetPrice;
+              const tradeProfit = exportRevenue - importCost;
+              if (tradeProfit > 0) {
+                roleWagePayout[ownerKey] = (roleWagePayout[ownerKey] || 0) + tradeProfit;
+              }
               if (Math.random() < 0.05) {
                 const sourceName = RESOURCES[sourceResource]?.name || sourceResource;
                 const targetName = RESOURCES[targetResource]?.name || targetResource;
@@ -899,9 +905,9 @@ export const simulateTick = ({
         const price = getPrice(resKey);
         const affordable = price > 0 ? Math.min(requirement, (wealth[key] || 0) / price) : requirement;
         const amount = Math.min(requirement, available, affordable);
+        demand[resKey] = (demand[resKey] || 0) + requirement;
         if (amount > 0) {
           res[resKey] = available - amount;
-          demand[resKey] = (demand[resKey] || 0) + amount;
           rates[resKey] = (rates[resKey] || 0) - amount;
           const taxRate = Math.max(0, getResourceTaxRate(resKey));
           const baseCost = amount * price;

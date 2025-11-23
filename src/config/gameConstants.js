@@ -30,7 +30,7 @@ export const RESOURCES = {
   brick: { name: "砖块", icon: 'Home', color: "text-red-400", basePrice: 7, defaultOwner: 'artisan', unlockEpoch: 1, unlockTech: 'pottery', tags: ['industrial'] },
   copper: { name: "铜矿", icon: 'Pickaxe', color: "text-orange-400", basePrice: 7, defaultOwner: 'miner', unlockEpoch: 1, unlockTech: 'copper_mining', tags: ['raw_material'] },
   tools: { name: "工具", icon: 'Anvil', color: "text-blue-300", basePrice: 10, defaultOwner: 'artisan', unlockEpoch: 1, unlockTech: 'bronze_working', tags: ['industrial'] },
-    dye: { name: "染料", icon: 'Palette', color: "text-pink-500", basePrice: 6, defaultOwner: 'artisan', unlockEpoch: 1, tags: ['industrial', 'raw_material'] },
+    dye: { name: "染料", icon: 'Droplets', color: "text-pink-500", basePrice: 6, defaultOwner: 'artisan', unlockEpoch: 1, tags: ['industrial', 'raw_material'] },
   
   // 古典时代
   papyrus: { name: "纸", icon: 'ScrollText', color: "text-lime-300", basePrice: 8, defaultOwner: 'scribe', unlockEpoch: 2, unlockTech: 'papyrus_cultivation', tags: ['raw_material', 'manufactured'] },
@@ -41,7 +41,7 @@ export const RESOURCES = {
   fine_clothes: { name: "华服", icon: 'Shirt', color: "text-purple-400", basePrice: 18, defaultOwner: 'artisan', unlockEpoch: 2, tags: ['luxury', 'manufactured'] },
   
   // 封建时代
-  iron: { name: "铁矿", icon: 'Pickaxe', color: "text-zinc-400", basePrice: 9, defaultOwner: 'miner', unlockEpoch: 3, unlockTech: 'ironworking', tags: ['raw_material'] },
+  iron: { name: "铁矿", icon: 'Pickaxe', color: "text-zinc-400", basePrice: 9, defaultOwner: 'miner', unlockEpoch: 2, unlockTech: 'ironworking', tags: ['raw_material'] },
 
   // 探索时代
   spice: { name: "香料", icon: 'Leaf', color: "text-amber-400", basePrice: 14, defaultOwner: 'merchant', unlockEpoch: 4, unlockTech: 'cartography', tags: ['essential', 'manufactured'] },
