@@ -23,20 +23,22 @@ export const RESOURCES = {
   wood: { name: "木材", icon: 'Trees', color: "text-emerald-400", basePrice: 2.5, defaultOwner: 'lumberjack', unlockEpoch: 0, tags: ['raw_material'] },
   stone: { name: "石料", icon: 'Pickaxe', color: "text-stone-400", basePrice: 3.5, defaultOwner: 'miner', unlockEpoch: 0, tags: ['raw_material'] },
   cloth: { name: "布料", icon: 'Shirt', color: "text-indigo-300", basePrice: 4, defaultOwner: 'artisan', unlockEpoch: 0, tags: ['essential','raw_material', 'manufactured'] },
-  dye: { name: "染料", icon: 'Palette', color: "text-pink-500", basePrice: 6, defaultOwner: 'artisan', unlockEpoch: 1, tags: ['industrial', 'raw_material'] },
-  fine_clothes: { name: "华服", icon: 'Shirt', color: "text-purple-400", basePrice: 18, defaultOwner: 'artisan', unlockEpoch: 2, tags: ['luxury', 'manufactured'] },
+
   
   // 青铜时代资源
   plank: { name: "木板", icon: 'Hammer', color: "text-amber-600", basePrice: 5, defaultOwner: 'worker', unlockEpoch: 1, unlockTech: 'tools', tags: ['industrial'] },
   brick: { name: "砖块", icon: 'Home', color: "text-red-400", basePrice: 7, defaultOwner: 'artisan', unlockEpoch: 1, unlockTech: 'pottery', tags: ['industrial'] },
   copper: { name: "铜矿", icon: 'Pickaxe', color: "text-orange-400", basePrice: 7, defaultOwner: 'miner', unlockEpoch: 1, unlockTech: 'copper_mining', tags: ['raw_material'] },
   tools: { name: "工具", icon: 'Anvil', color: "text-blue-300", basePrice: 10, defaultOwner: 'artisan', unlockEpoch: 1, unlockTech: 'bronze_working', tags: ['industrial'] },
+    dye: { name: "染料", icon: 'Palette', color: "text-pink-500", basePrice: 6, defaultOwner: 'artisan', unlockEpoch: 1, tags: ['industrial', 'raw_material'] },
   
   // 古典时代
   papyrus: { name: "纸", icon: 'ScrollText', color: "text-lime-300", basePrice: 8, defaultOwner: 'scribe', unlockEpoch: 2, unlockTech: 'papyrus_cultivation', tags: ['raw_material', 'manufactured'] },
   delicacies: { name: "珍馐", icon: 'UtensilsCrossed', color: "text-rose-400", basePrice: 12, defaultOwner: 'artisan', unlockEpoch: 2, unlockTech: 'culinary_arts', tags: ['luxury', 'manufactured'] },
   furniture: { name: "精美家具", icon: 'Armchair', color: "text-amber-500", basePrice: 15, defaultOwner: 'artisan', unlockEpoch: 2, unlockTech: 'carpentry', tags: ['luxury', 'manufactured'] },
   ale: { name: "美酒", icon: 'Wine', color: "text-purple-400", basePrice: 10, defaultOwner: 'artisan', unlockEpoch: 2, unlockTech: 'brewing', tags: ['luxury', 'manufactured'] },
+  
+  fine_clothes: { name: "华服", icon: 'Shirt', color: "text-purple-400", basePrice: 18, defaultOwner: 'artisan', unlockEpoch: 2, tags: ['luxury', 'manufactured'] },
   
   // 封建时代
   iron: { name: "铁矿", icon: 'Pickaxe', color: "text-zinc-400", basePrice: 9, defaultOwner: 'miner', unlockEpoch: 3, unlockTech: 'ironworking', tags: ['raw_material'] },
