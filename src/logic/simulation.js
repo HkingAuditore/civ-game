@@ -1,5 +1,6 @@
 import { BUILDINGS, STRATA, EPOCHS, RESOURCES, TECHS } from '../config';
 import { calculateArmyPopulation, calculateArmyFoodNeed } from '../config';
+import { isResourceUnlocked } from '../utils/resources';
 
 const ROLE_PRIORITY = [
   'official',
@@ -270,6 +271,23 @@ export const simulateTick = ({
           }
         });
       }
+    }
+  });
+
+  // Calculate potential resources: resources from buildings that are unlocked (can be built)
+  const potentialResources = new Set();
+  BUILDINGS.forEach(b => {
+    // Check if building is unlocked: epoch requirement met AND tech requirement met (if any)
+    const epochUnlocked = (b.epoch ?? 0) <= epoch;
+    const techUnlocked = !b.requiresTech || techsUnlocked.includes(b.requiresTech);
+    
+    if (epochUnlocked && techUnlocked && b.output) {
+      Object.entries(b.output).forEach(([resKey, amount]) => {
+        if (!RESOURCES[resKey]) return;
+        if ((amount || 0) > 0) {
+          potentialResources.add(resKey);
+        }
+      });
     }
   });
 
@@ -569,6 +587,11 @@ export const simulateTick = ({
 
     if (b.input) {
       for (const [resKey, perUnit] of Object.entries(b.input)) {
+        // Skip input requirement if resource is not unlocked yet (prevents early game deadlock)
+        if (!isResourceUnlocked(resKey, epoch, techsUnlocked)) {
+          continue;
+        }
+        
         const perMultiplierAmount = perUnit * count;
         const requiredAtBase = perMultiplierAmount * baseMultiplier;
         if (requiredAtBase <= 0) continue;
@@ -648,6 +671,11 @@ export const simulateTick = ({
     // 低效模式下不消耗输入原料（徒手采集）
     if (b.input && !isInLowEfficiencyMode) {
       for (const [resKey, perUnit] of Object.entries(b.input)) {
+        // Skip input requirement if resource is not unlocked yet
+        if (!isResourceUnlocked(resKey, epoch, techsUnlocked)) {
+          continue;
+        }
+        
         const amountNeeded = perUnit * count * actualMultiplier;
         if (!amountNeeded || amountNeeded <= 0) continue;
         const available = res[resKey] || 0;
@@ -771,7 +799,7 @@ export const simulateTick = ({
         // Fallback to epoch check for resources without tech requirement
         continue;
       }
-      if (!producedResources.has(resKey)) {
+      if (!potentialResources.has(resKey)) {
         continue;
       }
       const requirement = perCapita * count * gameSpeed;

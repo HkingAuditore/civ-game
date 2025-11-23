@@ -41,6 +41,8 @@ export const useGameLoop = (gameState, addLog) => {
     setClassInfluence,
     setClassWealth,
     setClassWealthDelta,
+    setClassIncome,
+    setClassExpense,
     classWealthHistory,
     setClassWealthHistory,
     classNeedsHistory,
@@ -99,6 +101,34 @@ export const useGameLoop = (gameState, addLog) => {
     lastFestivalYear,
     isPaused,
   });
+
+  useEffect(() => {
+    stateRef.current = {
+      resources,
+      market,
+      buildings,
+      population,
+      epoch,
+      techsUnlocked,
+      decrees,
+      gameSpeed,
+      nations,
+      classWealth,
+      army,
+      jobFill,
+      activeBuffs,
+      activeDebuffs,
+      taxPolicies,
+      classWealthHistory,
+      classNeedsHistory,
+      militaryWageRatio,
+      classApproval,
+      daysElapsed,
+      activeFestivalEffects,
+      lastFestivalYear,
+      isPaused,
+    };
+  }, [resources, market, buildings, population, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, army, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused]);
 
   useEffect(() => {
     stateRef.current = {
@@ -237,6 +267,8 @@ export const useGameLoop = (gameState, addLog) => {
       });
       setClassWealth(adjustedClassWealth);
       setClassWealthDelta(wealthDelta);
+      setClassIncome(result.classIncome || {});
+      setClassExpense(result.classExpense || {});
       setClassWealthHistory(wealthHistory);
       setClassNeedsHistory(needsHistory);
       setTotalInfluence(result.totalInfluence);
