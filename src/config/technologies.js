@@ -158,8 +158,8 @@ export const TECHS = [
   // 古典时代
   {
     id: 'papyrus_cultivation',
-    name: "莎草培植",
-    desc: "纸草工坊效率 +20%。",
+    name: "改进造纸术",
+    desc: "造纸工坊效率 +20%。",
     cost: { science: 450 },
     epoch: 2,
     effects: { buildings: { reed_works: 0.2 } },

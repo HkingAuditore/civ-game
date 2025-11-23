@@ -103,8 +103,8 @@ export const BUILDINGS = [
   
   { 
     id: 'reed_works', 
-    name: "纸草田", 
-    desc: "在河畔收割、晒干用于记录知识的纸草。", 
+    name: "造纸工坊", 
+    desc: "生产纸张的手工作坊。", 
     baseCost: { food: 140, wood: 80 }, 
     output: { papyrus: 0.40 }, 
     jobs: { peasant: 2 }, 

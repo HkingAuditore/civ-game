@@ -72,7 +72,7 @@ export const COUNTRIES = [
     name: "大理石同盟",
     type: "古典议会",
     color: "text-blue-300",
-    desc: "讲求理性与艺术的古典城邦联盟，纸草与戏剧出口旺盛。",
+    desc: "讲求理性与艺术的古典城邦联盟，纸张与戏剧出口旺盛。",
     appearEpoch: 2,
     expireEpoch: 4,
     marketVolatility: 0.28,

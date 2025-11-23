@@ -33,7 +33,7 @@ export const RESOURCES = {
     dye: { name: "染料", icon: 'Droplets', color: "text-pink-500", basePrice: 6, defaultOwner: 'artisan', unlockEpoch: 1, tags: ['industrial', 'raw_material'] },
   
   // 古典时代
-  papyrus: { name: "纸", icon: 'ScrollText', color: "text-lime-300", basePrice: 8, defaultOwner: 'scribe', unlockEpoch: 2, unlockTech: 'papyrus_cultivation', tags: ['raw_material', 'manufactured'] },
+  papyrus: { name: "纸张", icon: 'ScrollText', color: "text-lime-300", basePrice: 8, defaultOwner: 'scribe', unlockEpoch: 2, unlockTech: 'papyrus_cultivation', tags: ['raw_material', 'manufactured'] },
   delicacies: { name: "珍馐", icon: 'UtensilsCrossed', color: "text-rose-400", basePrice: 12, defaultOwner: 'artisan', unlockEpoch: 2, unlockTech: 'culinary_arts', tags: ['luxury', 'manufactured'] },
   furniture: { name: "精美家具", icon: 'Armchair', color: "text-amber-500", basePrice: 15, defaultOwner: 'artisan', unlockEpoch: 2, unlockTech: 'carpentry', tags: ['luxury', 'manufactured'] },
   ale: { name: "美酒", icon: 'Wine', color: "text-purple-400", basePrice: 10, defaultOwner: 'artisan', unlockEpoch: 2, unlockTech: 'brewing', tags: ['luxury', 'manufactured'] },

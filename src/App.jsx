@@ -1,7 +1,7 @@
 // 文明崛起 - 主应用文件
 // 使用拆分后的钩子和组件，保持代码简洁
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { GAME_SPEEDS, EPOCHS, RESOURCES, calculateArmyFoodNeed } from './config';
 import { getCalendarInfo } from './utils/calendar';
 import { useGameState, useGameLoop, useGameActions } from './hooks';
@@ -113,6 +113,17 @@ export default function RiseOfCivs() {
 
   const [showTaxDetail, setShowTaxDetail] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false); // 控制设置弹窗显示
+  const [isLoadMenuOpen, setIsLoadMenuOpen] = useState(false); // 控制读档菜单
+  const loadMenuRef = useRef(null);
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (loadMenuRef.current && !loadMenuRef.current.contains(event.target)) {
+        setIsLoadMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
   const taxes = gameState.taxes || { total: 0, breakdown: { headTax: 0, industryTax: 0, subsidy: 0 }, efficiency: 1 };
   const dayScale = Math.max(gameState.gameSpeed || 0, 0.0001);
   const taxesPerDay = taxes.total / dayScale;
@@ -338,29 +349,55 @@ export default function RiseOfCivs() {
                   <Icon name="Save" size={14} />
                   <span className="hidden sm:inline">保存</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={handleLoadManual}
-                  className="px-3 py-1.5 bg-purple-600/20 hover:bg-purple-600/40 border border-purple-500/30 rounded-lg transition-colors flex items-center gap-2 text-xs font-semibold text-purple-300"
-                  title="读取最近的手动存档"
-                >
-                  <Icon name="Download" size={14} />
-                  <span className="hidden sm:inline">读手动档</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleLoadAuto}
-                  disabled={!autoSaveAvailable}
-                  className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-2 text-xs font-semibold border ${
-                    autoSaveAvailable
-                      ? 'bg-amber-600/20 hover:bg-amber-600/40 border-amber-500/30 text-amber-200'
-                      : 'bg-gray-700/40 border-gray-600 text-gray-400 cursor-not-allowed'
-                  }`}
-                  title={autoSaveAvailable ? '加载自动存档' : '当前没有自动存档'}
-                >
-                  <Icon name="Clock" size={14} />
-                  <span className="hidden sm:inline">读自动档</span>
-                </button>
+                <div className="relative" ref={loadMenuRef}>
+                  <button
+                    type="button"
+                    onClick={() => setIsLoadMenuOpen(prev => !prev)}
+                    className={`px-3 py-1.5 border rounded-lg transition-colors flex items-center gap-2 text-xs font-semibold ${
+                      isLoadMenuOpen
+                        ? 'bg-purple-600/40 border-purple-500/50 text-purple-100'
+                        : 'bg-purple-600/20 hover:bg-purple-600/40 border-purple-500/30 text-purple-200'
+                    }`}
+                    title="读取手动或自动存档"
+                  >
+                    <Icon name="Download" size={14} />
+                    <span className="hidden sm:inline">读档</span>
+                    <Icon name="ChevronDown" size={12} className={`transition-transform ${isLoadMenuOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  {isLoadMenuOpen && (
+                    <div className="absolute right-0 mt-2 w-36 rounded-lg border border-slate-700 bg-slate-900/95 shadow-xl py-1 z-20">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleLoadManual();
+                          setIsLoadMenuOpen(false);
+                        }}
+                        className="w-full flex items-center justify-between px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-slate-700/60 transition-colors"
+                      >
+                        <span>读手动档</span>
+                        <Icon name="FileText" size={12} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!autoSaveAvailable) return;
+                          handleLoadAuto();
+                          setIsLoadMenuOpen(false);
+                        }}
+                        disabled={!autoSaveAvailable}
+                        className={`w-full flex items-center justify-between px-3 py-1.5 text-xs font-semibold transition-colors ${
+                          autoSaveAvailable
+                            ? 'text-amber-200 hover:bg-slate-700/60'
+                            : 'text-gray-500 cursor-not-allowed'
+                        }`}
+                        title={autoSaveAvailable ? '加载自动存档' : '当前没有自动存档'}
+                      >
+                        <span>读自动档</span>
+                        <Icon name="Clock" size={12} />
+                      </button>
+                    </div>
+                  )}
+                </div>
                 <button
                   type="button"
                   onClick={gameState.resetGame}

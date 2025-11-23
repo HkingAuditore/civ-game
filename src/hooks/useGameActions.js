@@ -473,7 +473,7 @@ export const useGameActions = (gameState, addLog) => {
     if (!targetNation) return;
     const clampRelation = (value) => Math.max(0, Math.min(100, value));
 
-    if (targetNation.isAtWar && (action === 'gift' || action === 'trade' || action === 'demand')) {
+    if (targetNation.isAtWar && (action === 'gift' || action === 'trade' || action === 'import' || action === 'demand')) {
       addLog(`${targetNation.name} 与你正处于战争状态，无法进行此外交行动。`);
       return;
     }

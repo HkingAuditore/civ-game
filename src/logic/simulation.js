@@ -99,9 +99,6 @@ export const simulateTick = ({
   const previousWages = market?.wages || {};
   const demand = {};
   const supply = {};
-  const previousMarketDemand = market?.demand || {};
-  const previousMarketSupply = market?.supply || {};
-  const previousClassShortages = market?.needsShortages || {};
   const wealth = initializeWealth(classWealth);
   const policies = taxPolicies || {};
   const headTaxRates = policies.headTaxRates || {};
@@ -248,6 +245,7 @@ export const simulateTick = ({
   const jobsAvailable = {};
   const roleWageStats = {};
   const roleWagePayout = {};
+  const directIncomeApplied = {};
   let totalMaxPop = 5;
   let adminCapacity = 20;
   totalMaxPop += extraMaxPop;
@@ -755,69 +753,106 @@ export const simulateTick = ({
     }
 
     if (b.id === 'market') {
-      // Leverage last tick shortages to rebalance resources through trade swaps
-      const shortageSet = new Set();
-      Object.values(previousClassShortages).forEach(list => {
-        if (!Array.isArray(list)) return;
-        list.forEach(entry => {
-          const resKey = typeof entry === 'string' ? entry : entry?.resource;
-          if (!resKey || resKey === 'silver') return;
-          shortageSet.add(resKey);
-        });
-      });
-      const shortages = Array.from(shortageSet);
-      const surpluses = [];
-      Object.entries(res).forEach(([resKey, amount]) => {
-        if (!isTradableResource(resKey)) return;
-        if (resKey === 'silver') return;
-        if ((amount || 0) <= 50) return;
-        if (shortageSet.has(resKey)) return;
-        const supplyValue = previousMarketSupply[resKey] || 0;
-        const demandValue = previousMarketDemand[resKey] || 0;
-        if (supplyValue <= demandValue * 1.5) return;
-        surpluses.push({
-          resource: resKey,
-          stock: amount,
-          price: getPrice(resKey),
-        });
-      });
+      const marketOwnerKey = b.owner || 'merchant';
+      const hasMerchants = (popStructure[marketOwnerKey] || 0) > 0;
+      const canTradeThisTick = tick % 5 === 0;
+      if (hasMerchants && canTradeThisTick) {
+        const merchantWealth = wealth[marketOwnerKey] || 0;
+        let availableMerchantWealth = merchantWealth;
+        if (availableMerchantWealth <= 0) {
+          // 没有可用于贸易的资金
+        } else {
+          const surpluses = [];
+          Object.entries(res).forEach(([resKey, amount]) => {
+            if (!isTradableResource(resKey) || resKey === 'silver') return;
+            if ((amount || 0) <= 300) return;
+            if ((rates[resKey] || 0) < 0) return;
 
-      if (shortages.length > 0 && surpluses.length > 0) {
-        surpluses.sort((a, b) => {
-          if (b.stock !== a.stock) return b.stock - a.stock;
-          if (a.price !== b.price) return a.price - b.price;
-          return 0;
-        });
-        const targetResource = shortages[0];
-        const sourceResource = surpluses[0].resource;
-        const effectiveMarkets = Math.max(0, count * actualMultiplier);
-        const baseVolume = effectiveMarkets * 5;
-        if (baseVolume > 0) {
-          const importAmount = baseVolume;
-          const targetPrice = getPrice(targetResource);
-          const requiredValue = importAmount * targetPrice * 1.2;
-          const sourcePrice = getPrice(sourceResource);
-          if (sourcePrice > 0) {
-            const exportAmount = requiredValue / sourcePrice;
-            const available = res[sourceResource] || 0;
-            if (available >= exportAmount && exportAmount > 0) {
-              res[sourceResource] = available - exportAmount;
-              res[targetResource] = (res[targetResource] || 0) + importAmount;
-              supply[targetResource] = (supply[targetResource] || 0) + importAmount;
-              demand[sourceResource] = (demand[sourceResource] || 0) + exportAmount;
-              rates[sourceResource] = (rates[sourceResource] || 0) - exportAmount;
-              rates[targetResource] = (rates[targetResource] || 0) + importAmount;
-              const exportRevenue = exportAmount * sourcePrice;
-              const importCost = importAmount * targetPrice;
-              const tradeProfit = exportRevenue - importCost;
-              if (tradeProfit > 0) {
-                roleWagePayout[ownerKey] = (roleWagePayout[ownerKey] || 0) + tradeProfit;
-              }
-              if (Math.random() < 0.05) {
-                const sourceName = RESOURCES[sourceResource]?.name || sourceResource;
-                const targetName = RESOURCES[targetResource]?.name || targetResource;
-                logs.push(`市场将滞销的 ${sourceName} 置换为了急需的 ${targetName}。`);
-              }
+            const localPrice = getPrice(resKey);
+            surpluses.push({ resource: resKey, stock: amount, localPrice });
+          });
+
+          if (surpluses.length > 0) {
+            const shortageTargets = [];
+            Object.keys(RESOURCES).forEach(resourceKey => {
+              if (!isTradableResource(resourceKey) || resourceKey === 'silver') return;
+              const stock = res[resourceKey] || 0;
+              const netRate = rates[resourceKey] || 0;
+              const demandGap = Math.max(0, (demand[resourceKey] || 0) - (supply[resourceKey] || 0));
+              const stockGap = Math.max(0, 200 - stock);
+              const netDeficit = netRate < 0 ? Math.abs(netRate) : 0;
+              const shortageAmount = Math.max(demandGap, stockGap, netDeficit);
+              if (shortageAmount <= 0) return;
+              const importPrice = Math.max(PRICE_FLOOR, getPrice(resourceKey) * 1.15);
+              const requiredValue = shortageAmount * importPrice;
+              if (requiredValue <= 0) return;
+              shortageTargets.push({ resource: resourceKey, shortageAmount, importPrice, requiredValue });
+            });
+
+            if (shortageTargets.length > 0) {
+              shortageTargets.sort((a, b) => b.requiredValue - a.requiredValue);
+              const logThreshold = 10;
+
+              shortageTargets.forEach(target => {
+                if (availableMerchantWealth <= 0) return;
+                let remainingAmount = target.shortageAmount;
+                let remainingValue = target.requiredValue;
+
+                for (const surplus of surpluses) {
+                  if (availableMerchantWealth <= 0) break;
+                  if (remainingAmount <= 0 || remainingValue <= 0) break;
+
+                  const sourceResource = surplus.resource;
+                  const sourcePrice = surplus.localPrice;
+                  if (sourcePrice <= 0) continue;
+                  const currentStock = res[sourceResource] || 0;
+                  if (currentStock <= 0) continue;
+
+                  const demandLimit = remainingValue / sourcePrice;
+                  const inventoryLimit = currentStock * 0.05;
+                  const wealthLimit = availableMerchantWealth / sourcePrice;
+                  const exportAmount = Math.min(demandLimit, inventoryLimit, wealthLimit);
+                  if (!Number.isFinite(exportAmount) || exportAmount <= 0) continue;
+
+                  const exportValue = exportAmount * sourcePrice;
+                  availableMerchantWealth -= exportValue;
+                  wealth[marketOwnerKey] = availableMerchantWealth;
+                  roleExpense[marketOwnerKey] = (roleExpense[marketOwnerKey] || 0) + exportValue;
+
+                  res[sourceResource] = Math.max(0, currentStock - exportAmount);
+                  supply[sourceResource] = (supply[sourceResource] || 0) + exportAmount;
+                  rates[sourceResource] = (rates[sourceResource] || 0) - exportAmount;
+                  surplus.stock = Math.max(0, surplus.stock - exportAmount);
+                  remainingValue = Math.max(0, remainingValue - exportValue);
+
+                  if (target.importPrice <= 0) continue;
+                  let importAmount = exportValue / target.importPrice;
+                  if (!Number.isFinite(importAmount) || importAmount <= 0) continue;
+                  importAmount = Math.min(importAmount, remainingAmount);
+                  if (importAmount <= 0) continue;
+
+                  const importCost = importAmount * target.importPrice;
+                  wealth[marketOwnerKey] += importCost;
+                  availableMerchantWealth += importCost;
+
+                  res[target.resource] = (res[target.resource] || 0) + importAmount;
+                  supply[target.resource] = (supply[target.resource] || 0) + importAmount;
+                  rates[target.resource] = (rates[target.resource] || 0) + importAmount;
+                  remainingAmount = Math.max(0, remainingAmount - importAmount);
+
+                  const profit = importCost - exportValue;
+                  if (profit > 0) {
+                    directIncomeApplied[marketOwnerKey] = (directIncomeApplied[marketOwnerKey] || 0) + profit;
+                    roleWagePayout[marketOwnerKey] = (roleWagePayout[marketOwnerKey] || 0) + profit;
+                  }
+
+                  if (importCost > logThreshold) {
+                    const fromName = RESOURCES[sourceResource]?.name || sourceResource;
+                    const toName = RESOURCES[target.resource]?.name || target.resource;
+                    logs.push(`🚢 市场：商人动用自有资金 ${exportValue.toFixed(1)} 银币购入 ${exportAmount.toFixed(1)} ${fromName}，换回 ${importAmount.toFixed(1)} ${toName}。`);
+                  }
+                }
+              });
             }
           }
         }
@@ -860,7 +895,11 @@ export const simulateTick = ({
   // Add all tracked income (civilian + military) to the wealth of each class
   Object.entries(roleWagePayout).forEach(([role, payout]) => {
     if (payout <= 0) return;
-    wealth[role] = (wealth[role] || 0) + payout;
+    const alreadyApplied = directIncomeApplied[role] || 0;
+    const netPayout = payout - alreadyApplied;
+    if (netPayout > 0) {
+      wealth[role] = (wealth[role] || 0) + netPayout;
+    }
   });
 
   const needsReport = {};
