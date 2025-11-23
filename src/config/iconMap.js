@@ -93,7 +93,9 @@ import {
   XCircle,
   HelpCircle,
   List,
-  Table
+  Table,
+  Paintbrush,
+  Droplets
 } from 'lucide-react';
 
 export const iconMap = {
@@ -191,6 +193,8 @@ export const iconMap = {
   XCircle,
   HelpCircle,
   List,
+  Paintbrush,
+  Droplets,
   Table,
   Horse: Users
 };

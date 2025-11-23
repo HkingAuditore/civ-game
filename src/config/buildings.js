@@ -168,7 +168,7 @@ export const BUILDINGS = [
     owner: 'artisan',
     epoch: 1, 
     cat: 'industry', 
-    visual: { icon: 'Palette', color: 'bg-pink-800', text: 'text-pink-200' } 
+    visual: { icon: 'Paintbrush', color: 'bg-pink-800', text: 'text-pink-200' } 
   },
 
   { 
@@ -195,7 +195,7 @@ export const BUILDINGS = [
     output: { iron: 0.35 }, 
     jobs: { miner: 5, capitalist: 1 }, 
     owner: 'capitalist',
-    epoch: 3, 
+    epoch: 2, 
     cat: 'gather', 
     requiresTech: 'ironworking',
     visual: { icon: 'Mountain', color: 'bg-zinc-700', text: 'text-zinc-200' } 

@@ -1,7 +1,7 @@
 // 阶层详情模态框组件
 // 显示社会阶层的详细信息
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Icon } from '../common/UIComponents';
 import { SimpleLineChart } from '../common/SimpleLineChart';
 import { STRATA } from '../../config';
@@ -122,6 +122,12 @@ const AllStrataSummary = ({
   );
 };
 
+const STRATUM_TAB_OPTIONS = [
+  { id: 'overview', label: '概览', description: '基础统计与管理建议' },
+  { id: 'economy', label: '经济', description: '趋势与财富结构' },
+  { id: 'needs', label: '需求', description: '资源消费与满意度预览' },
+];
+
 export const StratumDetailModal = ({
   stratumKey,
   popStructure,
@@ -138,6 +144,8 @@ export const StratumDetailModal = ({
   history = {},
   onClose,
 }) => {
+  const [activeTab, setActiveTab] = useState('overview');
+
   if (!stratumKey || stratumKey === 'all') {
     return (
       <AllStrataSummary 
@@ -153,6 +161,7 @@ export const StratumDetailModal = ({
 
   const stratum = STRATA[stratumKey];
   if (!stratum) return null;
+  const activeTabMeta = STRATUM_TAB_OPTIONS.find(tab => tab.id === activeTab);
 
   const population = popStructure[stratumKey] || 0;
   const approval = classApproval[stratumKey] || 50;
@@ -196,7 +205,7 @@ export const StratumDetailModal = ({
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-800 rounded-lg border-2 border-gray-700 max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-gray-800 rounded-lg border-2 border-gray-700 max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden">
         {/* 模态框头部 */}
         <div className="p-6 border-b border-gray-700 bg-gradient-to-r from-purple-900/50 to-blue-900/50">
           <div className="flex items-center justify-between">
@@ -219,257 +228,283 @@ export const StratumDetailModal = ({
         </div>
 
         {/* 模态框内容 */}
-        <div className="p-6 space-y-6">
-          {/* 基础统计 */}
-          <div>
-            <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300">
-              <Icon name="BarChart" size={16} className="text-blue-400" />
-              基础统计
-            </h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div className="bg-gray-700/50 p-3 rounded">
-                <p className="text-xs text-gray-400 mb-1">人口数量</p>
-                <p className="text-lg font-bold text-white">{population}</p>
-                <p className="text-xs text-blue-400 mt-1">{popPercent.toFixed(1)}%</p>
+        <div className="border-b border-gray-700 bg-gray-800/60 px-6 pt-4">
+          <div className="flex flex-wrap items-center gap-3 pb-4">
+            {STRATUM_TAB_OPTIONS.map(tab => (
+              <button
+                key={tab.id}
+                type="button"
+                className={`rounded-full px-4 py-1.5 text-sm font-semibold ${
+                  tab.id === activeTab
+                    ? 'bg-indigo-500/20 text-indigo-200'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+                onClick={() => setActiveTab(tab.id)}
+              >
+                {tab.label}
+              </button>
+            ))}
+            {activeTabMeta?.description && (
+              <span className="text-sm text-gray-500">{activeTabMeta.description}</span>
+            )}
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6">
+          {activeTab === 'overview' && (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300">
+                  <Icon name="BarChart" size={16} className="text-blue-400" />
+                  基础统计
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="bg-gray-700/50 p-3 rounded">
+                    <p className="text-xs text-gray-400 mb-1">人口数量</p>
+                    <p className="text-lg font-bold text-white">{population}</p>
+                    <p className="text-xs text-blue-400 mt-1">{popPercent.toFixed(1)}%</p>
+                  </div>
+                  <div className="bg-gray-700/50 p-3 rounded">
+                    <p className="text-xs text-gray-400 mb-1">好感度</p>
+                    <p className={`text-lg font-bold ${
+                      approval >= 70 ? 'text-green-400' :
+                      approval >= 40 ? 'text-yellow-400' :
+                      'text-red-400'
+                    }`}>
+                      {approval.toFixed(0)}%
+                    </p>
+                  </div>
+                  <div className="bg-gray-700/50 p-3 rounded">
+                    <p className="text-xs text-gray-400 mb-1">影响力</p>
+                    <p className="text-lg font-bold text-purple-400">{influence.toFixed(1)}</p>
+                    <p className="text-xs text-purple-400 mt-1">{influencePercent.toFixed(1)}%</p>
+                  </div>
+                  <div className="bg-gray-700/50 p-3 rounded">
+                    <p className="text-xs text-gray-400 mb-1">财富</p>
+                    <p className="text-lg font-bold text-yellow-400">{wealth.toFixed(0)}</p>
+                    <p className="text-xs text-yellow-400 mt-1">{wealthPercent.toFixed(1)}%</p>
+                  </div>
+                </div>
               </div>
-              <div className="bg-gray-700/50 p-3 rounded">
-                <p className="text-xs text-gray-400 mb-1">好感度</p>
-                <p className={`text-lg font-bold ${
-                  approval >= 70 ? 'text-green-400' :
-                  approval >= 40 ? 'text-yellow-400' :
-                  'text-red-400'
-                }`}>
-                  {approval.toFixed(0)}%
-                </p>
-              </div>
-              <div className="bg-gray-700/50 p-3 rounded">
-                <p className="text-xs text-gray-400 mb-1">影响力</p>
-                <p className="text-lg font-bold text-purple-400">{influence.toFixed(1)}</p>
-                <p className="text-xs text-purple-400 mt-1">{influencePercent.toFixed(1)}%</p>
-              </div>
-              <div className="bg-gray-700/50 p-3 rounded">
-                <p className="text-xs text-gray-400 mb-1">财富</p>
-                <p className="text-lg font-bold text-yellow-400">{wealth.toFixed(0)}</p>
-                <p className="text-xs text-yellow-400 mt-1">{wealthPercent.toFixed(1)}%</p>
+
+              {(stratumBuffs.length > 0 || stratumDebuffs.length > 0) && (
+                <div>
+                  <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300">
+                    <Icon name="Zap" size={16} className="text-yellow-400" />
+                    当前激活的效果
+                  </h3>
+                  <div className="space-y-2">
+                    {stratumBuffs.map((buff, idx) => {
+                      const details = formatEffectDetails(buff);
+                      return (
+                        <div
+                          key={`buff-${idx}`}
+                          className="flex items-start gap-2 bg-green-900/20 border border-green-600/30 p-3 rounded"
+                        >
+                          <Icon name="TrendingUp" size={14} className="text-green-400 flex-shrink-0 mt-0.5" />
+                          <div className="flex-1">
+                            <p className="text-sm font-semibold text-green-300">{buff.desc || buff.name || '满意加成'}</p>
+                            {details.length > 0 && (
+                              <p className="text-xs text-gray-400 mt-1">{details.join('，')}</p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {stratumDebuffs.map((debuff, idx) => {
+                      const details = formatEffectDetails(debuff);
+                      return (
+                        <div
+                          key={`debuff-${idx}`}
+                          className="flex items-start gap-2 bg-red-900/20 border border-red-600/30 p-3 rounded"
+                        >
+                          <Icon name="TrendingDown" size={14} className="text-red-400 flex-shrink-0 mt-0.5" />
+                          <div className="flex-1">
+                            <p className="text-sm font-semibold text-red-300">{debuff.desc || debuff.name || '不满惩罚'}</p>
+                            {details.length > 0 && (
+                              <p className="text-xs text-gray-400 mt-1">{details.join('，')}</p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <div className="bg-blue-900/20 border border-blue-500/30 p-4 rounded">
+                <div className="flex items-start gap-3">
+                  <Icon name="Lightbulb" size={20} className="text-blue-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="text-sm font-bold text-blue-300 mb-2">管理建议</h4>
+                    <ul className="space-y-1 text-xs text-gray-300">
+                      {approval < 40 && (
+                        <li>• 该阶层好感度较低，建议增加资源供给或调整政策</li>
+                      )}
+                      {influence > totalInfluence * 0.3 && (
+                        <li>• 该阶层影响力较大，需要重点关注其需求</li>
+                      )}
+                      {population > totalPop * 0.4 && (
+                        <li>• 该阶层人口占比较高，是社会的主要组成部分</li>
+                      )}
+                      {approval >= 70 && (
+                        <li>• 该阶层满意度高，可以获得正面加成</li>
+                      )}
+                    </ul>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
-          <div>
-            <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300">
-              <Icon name="Activity" size={16} className="text-cyan-400" />
-              趋势分析
-            </h3>
-            <div className="grid gap-3 md:grid-cols-3">
-              <div className="bg-gray-700/40 p-3 rounded">
-                <p className="text-xs text-gray-400 mb-2">人口变化</p>
-                <SimpleLineChart
-                  data={stratumHistory.pop}
-                  color="#38bdf8"
-                  label="人口"
-                />
+          {activeTab === 'economy' && (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300">
+                  <Icon name="Activity" size={16} className="text-cyan-400" />
+                  趋势分析
+                </h3>
+                <div className="grid gap-3 md:grid-cols-3">
+                  <div className="bg-gray-700/40 p-3 rounded">
+                    <p className="text-xs text-gray-400 mb-2">人口变化</p>
+                    <SimpleLineChart
+                      data={stratumHistory.pop}
+                      color="#38bdf8"
+                      label="人口"
+                    />
+                  </div>
+                  <div className="bg-gray-700/40 p-3 rounded">
+                    <p className="text-xs text-gray-400 mb-2">收入变化</p>
+                    <SimpleLineChart
+                      data={stratumHistory.income}
+                      color="#4ade80"
+                      label="收入"
+                    />
+                  </div>
+                  <div className="bg-gray-700/40 p-3 rounded">
+                    <p className="text-xs text-gray-400 mb-2">支出变化</p>
+                    <SimpleLineChart
+                      data={stratumHistory.expense}
+                      color="#f87171"
+                      label="支出"
+                    />
+                  </div>
+                </div>
               </div>
-              <div className="bg-gray-700/40 p-3 rounded">
-                <p className="text-xs text-gray-400 mb-2">收入变化</p>
-                <SimpleLineChart
-                  data={stratumHistory.income}
-                  color="#4ade80"
-                  label="收入"
-                />
+
+              <div>
+                <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300">
+                  <Icon name="TrendingUp" size={16} className="text-emerald-400" />
+                  财富变化
+                </h3>
+                <div className="bg-gray-700/40 p-3 rounded">
+                  {renderWealthChart(wealthHistory) || (
+                    <p className="text-xs text-gray-500">暂无足够数据绘制曲线</p>
+                  )}
+                </div>
               </div>
-              <div className="bg-gray-700/40 p-3 rounded">
-                <p className="text-xs text-gray-400 mb-2">支出变化</p>
-                <SimpleLineChart
-                  data={stratumHistory.expense}
-                  color="#f87171"
-                  label="支出"
-                />
+
+              <div>
+                <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300">
+                  <Icon name="Star" size={16} className="text-yellow-400" />
+                  阶层特性
+                </h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-gray-700/50 p-3 rounded">
+                    <p className="text-xs text-gray-400 mb-1">财富权重</p>
+                    <p className="text-sm text-white">{stratum.wealthWeight}x</p>
+                  </div>
+                  <div className="bg-gray-700/50 p-3 rounded">
+                    <p className="text-xs text-gray-400 mb-1">影响力基数</p>
+                    <p className="text-sm text-white">{stratum.influenceBase}</p>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
-          {/* 财富走势 */}
-          <div>
-            <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300">
-              <Icon name="TrendingUp" size={16} className="text-emerald-400" />
-              财富变化
-            </h3>
-            <div className="bg-gray-700/40 p-3 rounded">
-              {renderWealthChart(wealthHistory) || (
-                <p className="text-xs text-gray-500">暂无足够数据绘制曲线</p>
+          {activeTab === 'needs' && (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300">
+                  <Icon name="Package" size={16} className="text-green-400" />
+                  资源需求
+                </h3>
+                <div className="space-y-2">
+                  {(() => {
+                    const needsEntries = Object.entries(stratum.needs || {});
+                    const visibleNeeds = needsEntries.filter(([resource]) => {
+                      return isResourceUnlocked(resource, epoch, techsUnlocked);
+                    });
+                    return visibleNeeds.length > 0 ? (
+                      visibleNeeds.map(([resource, amount]) => {
+                        const resourceName = RESOURCES[resource]?.name || resource;
+                        return (
+                          <div
+                            key={resource}
+                            className="flex items-center justify-between bg-gray-700/50 p-3 rounded"
+                          >
+                            <div className="flex items-center gap-2">
+                              <Icon name="Package" size={14} className="text-blue-400" />
+                              <span className="text-sm text-white">{resourceName}</span>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm font-bold text-white">{amount}/人/天</p>
+                              <p className="text-xs text-gray-400">
+                                总需求: {(amount * population).toFixed(1)}/天
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <p className="text-xs text-gray-500 italic">当前时代暂无物资需求</p>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              {stratum.satisfiedEffects && stratum.satisfiedEffects.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300">
+                    <Icon name="ThumbsUp" size={16} className="text-green-400" />
+                    满意时的效果
+                  </h3>
+                  <div className="space-y-2">
+                    {stratum.satisfiedEffects.map((effect, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-start gap-2 bg-green-900/20 border border-green-600/30 p-3 rounded"
+                      >
+                        <Icon name="Plus" size={14} className="text-green-400 flex-shrink-0 mt-0.5" />
+                        <p className="text-sm text-green-300">{effect}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {stratum.dissatisfiedEffects && stratum.dissatisfiedEffects.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300">
+                    <Icon name="ThumbsDown" size={16} className="text-red-400" />
+                    不满时的效果
+                  </h3>
+                  <div className="space-y-2">
+                    {stratum.dissatisfiedEffects.map((effect, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-start gap-2 bg-red-900/20 border border-red-600/30 p-3 rounded"
+                      >
+                        <Icon name="Minus" size={14} className="text-red-400 flex-shrink-0 mt-0.5" />
+                        <p className="text-sm text-red-300">{effect}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
-          </div>
-
-          {/* 阶层特性 */}
-          <div>
-            <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300">
-              <Icon name="Star" size={16} className="text-yellow-400" />
-              阶层特性
-            </h3>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-gray-700/50 p-3 rounded">
-                <p className="text-xs text-gray-400 mb-1">财富权重</p>
-                <p className="text-sm text-white">{stratum.wealthWeight}x</p>
-              </div>
-              <div className="bg-gray-700/50 p-3 rounded">
-                <p className="text-xs text-gray-400 mb-1">影响力基数</p>
-                <p className="text-sm text-white">{stratum.influenceBase}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* 资源需求 */}
-          <div>
-            <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300">
-              <Icon name="Package" size={16} className="text-green-400" />
-              资源需求
-            </h3>
-            <div className="space-y-2">
-              {(() => {
-                const needsEntries = Object.entries(stratum.needs || {});
-                const visibleNeeds = needsEntries.filter(([resource]) => {
-                  return isResourceUnlocked(resource, epoch, techsUnlocked);
-                });
-                return visibleNeeds.length > 0 ? (
-                  visibleNeeds.map(([resource, amount]) => {
-                    const resourceName = RESOURCES[resource]?.name || resource;
-                    return (
-                      <div
-                        key={resource}
-                        className="flex items-center justify-between bg-gray-700/50 p-3 rounded"
-                      >
-                        <div className="flex items-center gap-2">
-                          <Icon name="Package" size={14} className="text-blue-400" />
-                          <span className="text-sm text-white">{resourceName}</span>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm font-bold text-white">{amount}/人/天</p>
-                          <p className="text-xs text-gray-400">
-                            总需求: {(amount * population).toFixed(1)}/天
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <p className="text-xs text-gray-500 italic">当前时代暂无物资需求</p>
-                );
-              })()}
-            </div>
-          </div>
-
-          {/* 满意效果 */}
-          {stratum.satisfiedEffects && stratum.satisfiedEffects.length > 0 && (
-            <div>
-              <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300">
-                <Icon name="ThumbsUp" size={16} className="text-green-400" />
-                满意时的效果
-              </h3>
-              <div className="space-y-2">
-                {stratum.satisfiedEffects.map((effect, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-start gap-2 bg-green-900/20 border border-green-600/30 p-3 rounded"
-                  >
-                    <Icon name="Plus" size={14} className="text-green-400 flex-shrink-0 mt-0.5" />
-                    <p className="text-sm text-green-300">{effect}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
           )}
-
-          {/* 不满效果 */}
-          {stratum.dissatisfiedEffects && stratum.dissatisfiedEffects.length > 0 && (
-            <div>
-              <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300">
-                <Icon name="ThumbsDown" size={16} className="text-red-400" />
-                不满时的效果
-              </h3>
-              <div className="space-y-2">
-                {stratum.dissatisfiedEffects.map((effect, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-start gap-2 bg-red-900/20 border border-red-600/30 p-3 rounded"
-                  >
-                    <Icon name="Minus" size={14} className="text-red-400 flex-shrink-0 mt-0.5" />
-                    <p className="text-sm text-red-300">{effect}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* 当前激活的效果 */}
-          {(stratumBuffs.length > 0 || stratumDebuffs.length > 0) && (
-            <div>
-              <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300">
-                <Icon name="Zap" size={16} className="text-yellow-400" />
-                当前激活的效果
-              </h3>
-              <div className="space-y-2">
-                {stratumBuffs.map((buff, idx) => {
-                  const details = formatEffectDetails(buff);
-                  return (
-                    <div
-                      key={`buff-${idx}`}
-                      className="flex items-start gap-2 bg-green-900/20 border border-green-600/30 p-3 rounded"
-                    >
-                      <Icon name="TrendingUp" size={14} className="text-green-400 flex-shrink-0 mt-0.5" />
-                      <div className="flex-1">
-                        <p className="text-sm font-semibold text-green-300">{buff.desc || buff.name || '满意加成'}</p>
-                        {details.length > 0 && (
-                          <p className="text-xs text-gray-400 mt-1">{details.join('，')}</p>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-                {stratumDebuffs.map((debuff, idx) => {
-                  const details = formatEffectDetails(debuff);
-                  return (
-                    <div
-                      key={`debuff-${idx}`}
-                      className="flex items-start gap-2 bg-red-900/20 border border-red-600/30 p-3 rounded"
-                    >
-                      <Icon name="TrendingDown" size={14} className="text-red-400 flex-shrink-0 mt-0.5" />
-                      <div className="flex-1">
-                        <p className="text-sm font-semibold text-red-300">{debuff.desc || debuff.name || '不满惩罚'}</p>
-                        {details.length > 0 && (
-                          <p className="text-xs text-gray-400 mt-1">{details.join('，')}</p>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* 管理建议 */}
-          <div className="bg-blue-900/20 border border-blue-500/30 p-4 rounded">
-            <div className="flex items-start gap-3">
-              <Icon name="Lightbulb" size={20} className="text-blue-400 flex-shrink-0 mt-0.5" />
-              <div>
-                <h4 className="text-sm font-bold text-blue-300 mb-2">管理建议</h4>
-                <ul className="space-y-1 text-xs text-gray-300">
-                  {approval < 40 && (
-                    <li>• 该阶层好感度较低，建议增加资源供给或调整政策</li>
-                  )}
-                  {influence > totalInfluence * 0.3 && (
-                    <li>• 该阶层影响力较大，需要重点关注其需求</li>
-                  )}
-                  {population > totalPop * 0.4 && (
-                    <li>• 该阶层人口占比较高，是社会的主要组成部分</li>
-                  )}
-                  {approval >= 70 && (
-                    <li>• 该阶层满意度高，可以获得正面加成</li>
-                  )}
-                </ul>
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* 模态框底部 */}

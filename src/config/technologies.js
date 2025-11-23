@@ -267,8 +267,8 @@ export const TECHS = [
     id: 'ironworking',
     name: "锻铁术",
     desc: "铁矿井效率 +30%。",
-    cost: { science: 1200 },
-    epoch: 3,
+    cost: { science: 1500 },
+    epoch: 2,
     effects: { buildings: { mine: 0.3 } },
   },
 

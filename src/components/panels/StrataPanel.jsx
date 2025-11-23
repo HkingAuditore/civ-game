@@ -44,14 +44,11 @@ export const StrataPanel = ({
         const approval = classApproval[key] || 50;
         const influence = classInfluence[key] || 0;
         const wealthValue = classWealth[key] ?? 0;
-        const wealthDelta = classWealthDelta[key] ?? 0;
         const totalIncome = (classIncome[key] || 0) / safeDayScale;
         const totalExpense = (classExpense[key] || 0) / safeDayScale;
         const incomePerCapita = totalIncome / Math.max(count, 1);
         const expensePerCapita = totalExpense / Math.max(count, 1);
         const netIncomePerCapita = incomePerCapita - expensePerCapita;
-        const deltaColor =
-          wealthDelta > 0 ? 'text-green-400' : wealthDelta < 0 ? 'text-red-400' : 'text-gray-400';
         const shortages = classShortages[key] || [];
 
         return {
@@ -61,8 +58,6 @@ export const StrataPanel = ({
           approval,
           influence,
           wealthValue,
-          wealthDelta,
-          deltaColor,
           incomePerCapita,
           expensePerCapita,
           netIncomePerCapita,
@@ -156,10 +151,9 @@ export const StrataPanel = ({
                 approval,
                 influence,
                 wealthValue,
-                wealthDelta,
-                deltaColor,
                 incomePerCapita,
                 expensePerCapita,
+                netIncomePerCapita,
                 shortages,
               }) => (
                 <div
@@ -179,18 +173,29 @@ export const StrataPanel = ({
                     </span>
                   </div>
 
-                  {/* 收入和支出 */}
-                  <div className="flex items-center justify-between text-[10px] mb-0.5">
-                    <div className="flex items-center gap-2">
-                      <span className="text-green-400">收入</span>
+                  {/* 收入、支出与净增（人均） */}
+                  <div className="grid grid-cols-3 gap-1 text-[10px] mb-0.5 bg-gray-900/30 px-1.5 py-0.5 rounded">
+                    <div className="flex items-center gap-1" title="人均日收入">
+                      <span className="text-gray-500">收</span>
                       <span className="text-green-300 font-mono">
-                        +{incomePerCapita.toFixed(2)}/天
+                        +{incomePerCapita.toFixed(2)}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-red-400">支出</span>
+                    <div className="flex items-center gap-1 justify-center" title="人均日支出">
+                      <span className="text-gray-500">支</span>
                       <span className="text-red-300 font-mono">
-                        -{expensePerCapita.toFixed(2)}/天
+                        -{expensePerCapita.toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1 justify-end" title="人均日净增">
+                      <span className="text-gray-500">净</span>
+                      <span
+                        className={`font-mono ${
+                          netIncomePerCapita >= 0 ? 'text-green-300' : 'text-red-300'
+                        }`}
+                      >
+                        {netIncomePerCapita > 0 ? '+' : ''}
+                        {netIncomePerCapita.toFixed(2)}
                       </span>
                     </div>
                   </div>
@@ -213,13 +218,9 @@ export const StrataPanel = ({
                       <span className="text-gray-400">影响</span>
                       <span className="text-purple-400 font-semibold">{influence.toFixed(1)}</span>
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1" title="阶层总财富">
                       <Icon name="Coins" size={10} className="text-yellow-400" />
                       <span className="text-gray-200 font-mono">{wealthValue.toFixed(1)}</span>
-                      <span className={`${deltaColor} font-mono`}>
-                        {wealthDelta > 0 ? '+' : ''}
-                        {wealthDelta.toFixed(1)}
-                      </span>
                     </div>
                   </div>
 
