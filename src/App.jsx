@@ -8,7 +8,6 @@ import { useGameState, useGameLoop, useGameActions } from './hooks';
 import {
   Icon,
   FloatingText,
-  CityMap,
   ResourcePanel,
   StrataPanel,
   LogPanel,
@@ -20,6 +19,7 @@ import {
   BattleResultModal,
   StratumDetailModal,
   AnnualFestivalModal,
+  TutorialModal,
 } from './components';
 
 /**
@@ -73,6 +73,26 @@ export default function RiseOfCivs() {
     addLog(`🎊 庆典效果「${selectedEffect.name}」已激活！（${effectType}）`);
   };
   
+  // 处理教程完成
+  const handleTutorialComplete = () => {
+    gameState.setShowTutorial(false);
+    localStorage.setItem('tutorial_completed', 'true');
+    addLog('🎓 新手引导完成！祝你建立伟大的文明！');
+  };
+  
+  // 处理跳过教程
+  const handleTutorialSkip = () => {
+    gameState.setShowTutorial(false);
+    localStorage.setItem('tutorial_completed', 'true');
+    addLog('ℹ️ 已跳过教程，可以在右侧查看统治指南。');
+  };
+  
+  // 重新打开教程
+  const handleReopenTutorial = () => {
+    gameState.setShowTutorial(true);
+    addLog('📖 重新打开新手教程');
+  };
+  
   // 手动采集函数
   const manualGather = (e) => {
     gameState.setClicks(prev => [...prev, { 
@@ -123,7 +143,7 @@ export default function RiseOfCivs() {
 
       {/* 头部导航栏 */}
       <header className="bg-gray-900/90 backdrop-blur p-4 sticky top-0 z-20 border-b border-gray-700 shadow-xl">
-        <div className="max-w-7xl mx-auto flex flex-wrap justify-between items-center gap-4">
+        <div className="max-w-[1920px] mx-auto flex flex-wrap justify-between items-center gap-4">
           <div className="flex items-center gap-4 flex-wrap">
             {/* Logo和时代 */}
             <div className="flex items-center gap-3">
@@ -251,34 +271,47 @@ export default function RiseOfCivs() {
             )}
           </div>
 
-          {/* 游戏速度控制 */}
-          <div className="flex bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
-            {GAME_SPEEDS.map(s => (
-              <button
-                key={s}
-                onClick={() => gameState.setGameSpeed(s)}
-                className={`px-3 py-1 text-xs font-bold hover:bg-gray-700 transition-colors ${
-                  gameState.gameSpeed === s ? 'bg-blue-600 text-white' : 'text-gray-400'
-                }`}
-              >
-                {s === 1 ? (
-                  <Icon name="Play" size={12} />
-                ) : (
-                  <div className="flex items-center">
-                    {s}x <Icon name="FastForward" size={12} className="ml-1"/>
-                  </div>
-                )}
-              </button>
-            ))}
+          {/* 游戏速度控制和教程按钮 */}
+          <div className="flex items-center gap-2">
+            {/* 查看教程按钮 */}
+            <button
+              onClick={handleReopenTutorial}
+              className="px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/40 border border-blue-500/30 rounded-lg transition-colors flex items-center gap-2 text-xs font-semibold text-blue-300"
+              title="重新查看新手教程"
+            >
+              <Icon name="BookOpen" size={14} />
+              <span className="hidden sm:inline">教程</span>
+            </button>
+            
+            {/* 游戏速度控制 */}
+            <div className="flex bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
+              {GAME_SPEEDS.map(s => (
+                <button
+                  key={s}
+                  onClick={() => gameState.setGameSpeed(s)}
+                  className={`px-3 py-1 text-xs font-bold hover:bg-gray-700 transition-colors ${
+                    gameState.gameSpeed === s ? 'bg-blue-600 text-white' : 'text-gray-400'
+                  }`}
+                >
+                  {s === 1 ? (
+                    <Icon name="Play" size={12} />
+                  ) : (
+                    <div className="flex items-center">
+                      {s}x <Icon name="FastForward" size={12} className="ml-1"/>
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </header>
 
       {/* 主内容区域 */}
-      <main className="max-w-7xl mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <main className="max-w-[1920px] mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-4">
         
         {/* 左侧边栏 - 资源、阶层、日志 */}
-        <aside className="lg:col-span-3 space-y-4 order-2 lg:order-1">
+        <aside className="lg:col-span-2 space-y-4 order-2 lg:order-1">
           {/* 资源面板 */}
           <ResourcePanel 
             resources={gameState.resources} 
@@ -312,11 +345,8 @@ export default function RiseOfCivs() {
           </button>
         </aside>
 
-        {/* 中间内容区 - 城市地图和标签页 */}
-        <section className="lg:col-span-6 space-y-6 order-1 lg:order-2">
-          {/* 城市地图 */}
-          <CityMap buildings={gameState.buildings} epoch={gameState.epoch} />
-
+        {/* 中间内容区 - 标签页 */}
+        <section className="lg:col-span-8 space-y-4 order-1 lg:order-2">
           {/* 标签页容器 */}
           <div className="bg-gray-900/60 backdrop-blur rounded-xl border border-gray-700 shadow-xl overflow-hidden min-h-[500px]">
             {/* 标签页导航 */}
@@ -377,6 +407,7 @@ export default function RiseOfCivs() {
                   market={gameState.market}
                   militaryWageRatio={gameState.militaryWageRatio}
                   onUpdateWageRatio={gameState.setMilitaryWageRatio}
+                  techsUnlocked={gameState.techsUnlocked}
                 />
               )}
 
@@ -423,7 +454,7 @@ export default function RiseOfCivs() {
         </section>
 
         {/* 右侧边栏 - 日志和提示 */}
-        <aside className="lg:col-span-3 order-3 space-y-4">
+        <aside className="lg:col-span-2 order-3 space-y-4">
           {/* 日志面板 */}
           <LogPanel logs={gameState.logs} />
           
@@ -480,6 +511,7 @@ export default function RiseOfCivs() {
             activeBuffs={gameState.activeBuffs}
             activeDebuffs={gameState.activeDebuffs}
             epoch={gameState.epoch}
+            techsUnlocked={gameState.techsUnlocked}
           onClose={() => gameState.setStratumDetailView(null)}
         />
       )}
@@ -493,6 +525,13 @@ export default function RiseOfCivs() {
           onSelect={handleFestivalSelect}
         />
       )}
+
+      {/* 新手教程模态框 */}
+      <TutorialModal
+        show={gameState.showTutorial}
+        onComplete={handleTutorialComplete}
+        onSkip={handleTutorialSkip}
+      />
     </div>
   );
 }

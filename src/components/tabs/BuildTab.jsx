@@ -5,6 +5,7 @@ import React from 'react';
 import { Icon } from '../common/UIComponents';
 import { BUILDINGS, RESOURCES, STRATA } from '../../config';
 import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
+import { filterUnlockedResources } from '../../utils/resources';
 
 /**
  * 建设标签页组件
@@ -21,7 +22,7 @@ export const BuildTab = ({
   resources, 
   epoch, 
   techsUnlocked, 
-  popStructure = {},
+  popStructure: _popStructure = {}, // 保留以备将来使用
   jobFill = {},
   onBuy, 
   onSell,
@@ -119,7 +120,7 @@ export const BuildTab = ({
             </h3>
 
             {/* 建筑列表 */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
               {categoryBuildings.filter(b => isBuildingAvailable(b)).map(b => {
                 const cost = calculateCost(b);
                 const silverCost = calculateSilverCost(cost, market);
@@ -162,33 +163,59 @@ export const BuildTab = ({
                     {/* 建筑描述 */}
                     <p className="text-xs text-gray-400 mb-2">{b.desc}</p>
 
+                    {/* 预计利润 */}
+                    <div className={`mb-2 px-2 py-1.5 rounded border ${
+                      ownerIncomePerBuilding >= 0 
+                        ? 'bg-green-900/20 border-green-600/40' 
+                        : 'bg-red-900/20 border-red-600/40'
+                    }`}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1">
+                          {ownerIncomePerBuilding >= 0 ? (
+                            <Icon name="TrendingUp" size={12} className="text-green-400" />
+                          ) : (
+                            <Icon name="AlertTriangle" size={12} className="text-red-400" />
+                          )}
+                          <span className="text-[10px] text-gray-400">预计日净利</span>
+                        </div>
+                        <span className={`text-xs font-bold ${
+                          ownerIncomePerBuilding >= 0 ? 'text-green-300' : 'text-red-300'
+                        }`}>
+                          {ownerIncomePerBuilding >= 0 ? '+' : ''}{ownerIncomePerBuilding.toFixed(2)} 银币/日
+                        </span>
+                      </div>
+                    </div>
+
                     {/* 建筑详情 */}
                     <div className="space-y-2 text-[11px] mb-3">
-                      {(b.output || b.input) && (
-                        <div className="bg-gray-900/30 border border-gray-700/70 rounded px-2 py-1.5">
-                          <div className="flex items-center justify-between text-[10px] text-gray-500 uppercase tracking-wide mb-1">
-                            <span>资源流</span>
-                            <span>每日</span>
+                      {(() => {
+                        const unlockedOutput = filterUnlockedResources(b.output, epoch, techsUnlocked);
+                        const unlockedInput = filterUnlockedResources(b.input, epoch, techsUnlocked);
+                        const hasResources = Object.keys(unlockedOutput).length > 0 || Object.keys(unlockedInput).length > 0;
+                        
+                        return hasResources && (
+                          <div className="bg-gray-900/30 border border-gray-700/70 rounded px-2 py-1.5">
+                            <div className="flex items-center justify-between text-[10px] text-gray-500 uppercase tracking-wide mb-1">
+                              <span>资源流</span>
+                              <span>每日</span>
+                            </div>
+                            <div className="space-y-0.5">
+                              {Object.entries(unlockedOutput).map(([res, val]) => (
+                                <div key={`out-${res}`} className="flex items-center justify-between">
+                                  <span className="text-gray-300">{RESOURCES[res]?.name || res}</span>
+                                  <span className="text-green-300 font-mono">+{val}</span>
+                                </div>
+                              ))}
+                              {Object.entries(unlockedInput).map(([res, val]) => (
+                                <div key={`in-${res}`} className="flex items-center justify-between">
+                                  <span className="text-gray-300">{RESOURCES[res]?.name || res}</span>
+                                  <span className="text-red-300 font-mono">-{val}</span>
+                                </div>
+                              ))}
+                            </div>
                           </div>
-                          <div className="space-y-0.5">
-                            {Object.entries(b.output || {}).map(([res, val]) => (
-                              <div key={`out-${res}`} className="flex items-center justify-between">
-                                <span className="text-gray-300">{RESOURCES[res]?.name || res}</span>
-                                <span className="text-green-300 font-mono">+{val}</span>
-                              </div>
-                            ))}
-                            {Object.entries(b.input || {}).map(([res, val]) => (
-                              <div key={`in-${res}`} className="flex items-center justify-between">
-                                <span className="text-gray-300">{RESOURCES[res]?.name || res}</span>
-                                <span className="text-red-300 font-mono">-{val}</span>
-                              </div>
-                            ))}
-                            {(!b.output && !b.input) && (
-                              <div className="text-gray-500 italic">无资源流</div>
-                            )}
-                          </div>
-                        </div>
-                      )}
+                        );
+                      })()}
 
                       {(b.jobs || b.owner) && (
                         <div className="bg-gray-900/30 border border-gray-700/70 rounded px-2 py-1.5 space-y-1">

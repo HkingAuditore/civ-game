@@ -90,16 +90,41 @@ const buildDefaultResourceTaxRates = () => {
 };
 
 const buildInitialNations = () => {
-  return COUNTRIES.map(nation => ({
-    ...nation,
-    relation: 50,
-    warScore: nation.warScore ?? 0,
-    isAtWar: nation.isAtWar ?? false,
-    wealth: nation.wealth ?? 800,
-    enemyLosses: 0,
-    warDuration: 0,
-    warStartDay: null,
-  }));
+  return COUNTRIES.map(nation => {
+    // 初始化库存：基于资源偏差
+    const inventory = {};
+    if (nation.economyTraits?.resourceBias) {
+      Object.entries(nation.economyTraits.resourceBias).forEach(([resourceKey, bias]) => {
+        if (bias > 1) {
+          // 特产资源：高库存 (500-1000)
+          inventory[resourceKey] = Math.floor(500 + Math.random() * 500);
+        } else if (bias < 1) {
+          // 稀缺资源：低库存 (0-100)
+          inventory[resourceKey] = Math.floor(Math.random() * 100);
+        } else {
+          // 中性资源：中等库存 (100-300)
+          inventory[resourceKey] = Math.floor(100 + Math.random() * 200);
+        }
+      });
+    }
+    
+    // 初始化预算：基于财富
+    const wealth = nation.wealth ?? 800;
+    const budget = Math.floor(wealth * 0.5);
+    
+    return {
+      ...nation,
+      relation: 50,
+      warScore: nation.warScore ?? 0,
+      isAtWar: nation.isAtWar ?? false,
+      wealth,
+      budget,
+      inventory,
+      enemyLosses: 0,
+      warDuration: 0,
+      warStartDay: null,
+    };
+  });
 };
 
 /**
@@ -163,7 +188,14 @@ export const useGameState = () => {
   // ========== 庆典系统状态 ==========
   const [festivalModal, setFestivalModal] = useState(null); // { options: [], year: number }
   const [activeFestivalEffects, setActiveFestivalEffects] = useState([]); // 激活的庆典效果
-  const [lastFestivalYear, setLastFestivalYear] = useState(0); // 上次庆典的年份
+  const [lastFestivalYear, setLastFestivalYear] = useState(1); // 上次庆典的年份（从1开始，避免第1年触发）
+
+  // ========== 教程系统状态 ==========
+  const [showTutorial, setShowTutorial] = useState(() => {
+    // 检查是否已完成教程
+    const completed = localStorage.getItem('tutorial_completed');
+    return !completed; // 如果没有记录，则显示教程
+  });
 
   // ========== UI状态 ==========
   const [logs, setLogs] = useState(["文明的黎明已至，第 1 年春季从这里开启，请分配你的人民工作吧。"]);
@@ -278,6 +310,10 @@ export const useGameState = () => {
     setLastFestivalYear,
     isPaused,
     setIsPaused,
+    
+    // 教程系统
+    showTutorial,
+    setShowTutorial,
     
     // UI
     logs,

@@ -84,7 +84,14 @@ import {
   ShoppingCart,
   ArrowUpRight,
   Compass,
-  Feather
+  Feather,
+  UtensilsCrossed,
+  Armchair,
+  Wine,
+  ArrowDownLeft,
+  DollarSign,
+  XCircle,
+  HelpCircle
 } from 'lucide-react';
 
 export const iconMap = {
@@ -174,6 +181,13 @@ export const iconMap = {
   ArrowUpRight,
   Compass,
   Feather,
+  UtensilsCrossed,
+  Armchair,
+  Wine,
+  ArrowDownLeft,
+  DollarSign,
+  XCircle,
+  HelpCircle,
   Horse: Users
 };
 

@@ -144,30 +144,101 @@ export const StrataPanel = ({
                 </div>
               </div>
 
-              {/* 短缺资源提示 - 更紧凑 */}
-              {shortages.length > 0 && (
-                <div className="flex items-center gap-0.5 text-[10px] text-red-300 flex-wrap">
-                  <Icon name="AlertTriangle" size={10} className="text-red-400" />
-                  <div className="flex items-center gap-0.5 flex-wrap">
-                    {shortages.map(resKey => {
-                      const res = RESOURCES[resKey];
-                      return (
-                        <span
-                          key={`${key}-${resKey}`}
-                          className="px-0.5 py-0.5 bg-gray-800/60 rounded flex items-center"
-                          title={`${res?.name || resKey} 供应不足`}
-                        >
-                          <Icon
-                            name={res?.icon || 'HelpCircle'}
-                            size={10}
-                            className="text-red-300"
-                          />
-                        </span>
-                      );
-                    })}
+              {/* 短缺资源提示 - 强化版，区分缺货和买不起 */}
+              {shortages.length > 0 && (() => {
+                // 统计不同类型的短缺
+                const hasOutOfStock = shortages.some(s => {
+                  const reason = typeof s === 'string' ? 'outOfStock' : s.reason;
+                  return reason === 'outOfStock' || reason === 'both';
+                });
+                const hasUnaffordable = shortages.some(s => {
+                  const reason = typeof s === 'string' ? 'outOfStock' : s.reason;
+                  return reason === 'unaffordable' || reason === 'both';
+                });
+                
+                // 根据短缺类型确定标签文字和样式
+                let labelText = '短缺';
+                let labelIcon = 'AlertTriangle';
+                let labelBg = 'bg-red-900/30';
+                let labelBorder = 'border-red-500/40';
+                
+                if (hasOutOfStock && hasUnaffordable) {
+                  labelText = '缺货&买不起';
+                  labelIcon = 'XCircle';
+                  labelBg = 'bg-red-900/40';
+                  labelBorder = 'border-red-600/50';
+                } else if (hasUnaffordable) {
+                  labelText = '买不起';
+                  labelIcon = 'DollarSign';
+                  labelBg = 'bg-orange-900/30';
+                  labelBorder = 'border-orange-500/40';
+                } else if (hasOutOfStock) {
+                  labelText = '缺货';
+                  labelIcon = 'Package';
+                  labelBg = 'bg-red-900/30';
+                  labelBorder = 'border-red-500/40';
+                }
+                
+                return (
+                  <div className={`flex items-center gap-1 text-[10px] text-red-300 flex-wrap ${labelBg} border ${labelBorder} rounded px-1.5 py-1 mt-0.5`}>
+                    <Icon name={labelIcon} size={12} className="text-red-400 animate-pulse" />
+                    <span className="text-red-200 font-semibold">{labelText}:</span>
+                    <div className="flex items-center gap-1 flex-wrap">
+                      {shortages.map((shortage, idx) => {
+                        // 兼容旧格式（字符串）和新格式（对象）
+                        const resKey = typeof shortage === 'string' ? shortage : shortage.resource;
+                        const reason = typeof shortage === 'string' ? 'outOfStock' : shortage.reason;
+                        const res = RESOURCES[resKey];
+                        
+                        // 根据原因选择不同的样式和图标
+                        let reasonIcon = 'AlertTriangle';
+                        let reasonText = '供应不足';
+                        let bgColor = 'bg-red-800/60';
+                        let borderColor = 'border-red-500/60';
+                        
+                        if (reason === 'unaffordable') {
+                          reasonIcon = 'DollarSign';
+                          reasonText = '买不起';
+                          bgColor = 'bg-orange-800/60';
+                          borderColor = 'border-orange-500/60';
+                        } else if (reason === 'outOfStock') {
+                          reasonIcon = 'Package';
+                          reasonText = '缺货';
+                          bgColor = 'bg-red-800/60';
+                          borderColor = 'border-red-500/60';
+                        } else if (reason === 'both') {
+                          reasonIcon = 'XCircle';
+                          reasonText = '缺货且买不起';
+                          bgColor = 'bg-red-900/80';
+                          borderColor = 'border-red-600/80';
+                        }
+                      
+                        return (
+                          <span
+                            key={`${key}-${resKey}-${idx}`}
+                            className={`px-1 py-0.5 ${bgColor} border ${borderColor} rounded flex items-center gap-0.5 animate-pulse`}
+                            title={`${res?.name || resKey} ${reasonText}`}
+                          >
+                            <Icon
+                              name={reasonIcon}
+                              size={10}
+                              className="text-red-200"
+                            />
+                            <Icon
+                              name={res?.icon || 'HelpCircle'}
+                              size={11}
+                              className="text-red-200"
+                            />
+                            <span className="text-red-100 font-medium text-[9px]">
+                              {res?.name || resKey}
+                            </span>
+                          </span>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
           );
         })}

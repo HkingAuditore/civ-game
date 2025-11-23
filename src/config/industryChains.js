@@ -48,10 +48,27 @@ export const INDUSTRY_CHAINS = {
         bonus: { preservation: 0.05 },
       },
       {
+        stage: 'processing',
+        name: "烹饪加工",
+        buildings: ['culinary_kitchen'],
+        input: 'food',
+        output: 'delicacies',
+        ratio: 1.6,
+        efficiency: 1.0,
+        workers: ['artisan', 'peasant'],
+      },
+      {
         stage: 'consumption',
         name: "民众消费",
         consumers: ['all_classes'],
         input: 'food',
+      },
+      {
+        stage: 'consumption',
+        name: "上层享用",
+        consumers: ['merchant', 'official', 'landowner', 'capitalist', 'knight'],
+        input: 'delicacies',
+        bonus: { approval: 0.1, stability: 0.05 },
       }
     ],
     upgrades: [
@@ -104,10 +121,27 @@ export const INDUSTRY_CHAINS = {
         workers: ['worker', 'artisan'],
       },
       {
+        stage: 'advanced',
+        name: "家具制作",
+        buildings: ['furniture_workshop'],
+        input: ['wood', 'stone'],
+        output: 'furniture',
+        ratio: 2.2,
+        efficiency: 1.0,
+        workers: ['artisan'],
+      },
+      {
         stage: 'consumption',
         name: "建筑与制造",
         consumers: ['buildings', 'ships', 'tools'],
         input: ['wood', 'plank'],
+      },
+      {
+        stage: 'consumption',
+        name: "上层居住",
+        consumers: ['merchant', 'official', 'landowner', 'capitalist', 'knight'],
+        input: 'furniture',
+        bonus: { approval: 0.08, culture: 0.05 },
       }
     ],
     upgrades: [

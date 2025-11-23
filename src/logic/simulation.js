@@ -268,9 +268,12 @@ export const simulateTick = ({
     jobsAvailable.soldier = (jobsAvailable.soldier || 0) + armyPopulationDemand;
   }
 
+  // 职业持久化：基于上一帧状态进行增减，而非每帧重置
   const hasPreviousPopStructure = previousPopStructure && Object.keys(previousPopStructure).length > 0;
   const popStructure = {};
+  
   if (!hasPreviousPopStructure) {
+    // 首次运行：按优先级初始填充
     let remainingPop = population;
     ROLE_PRIORITY.forEach(role => {
       const slots = Math.max(0, jobsAvailable[role] || 0);
@@ -280,22 +283,30 @@ export const simulateTick = ({
     });
     popStructure.unemployed = Math.max(0, remainingPop);
   } else {
+    // 继承上一帧状态
     ROLE_PRIORITY.forEach(role => {
       const prevCount = Math.floor(previousPopStructure[role] || 0);
       popStructure[role] = Math.max(0, prevCount);
     });
     popStructure.unemployed = Math.max(0, Math.floor(previousPopStructure.unemployed || 0));
+    
+    // 处理人口变化（增长或减少）
     const assignedPop = ROLE_PRIORITY.reduce((sum, role) => sum + (popStructure[role] || 0), 0) + (popStructure.unemployed || 0);
     let diff = population - assignedPop;
+    
     if (diff > 0) {
+      // 人口增长：新人加入失业者
       popStructure.unemployed = (popStructure.unemployed || 0) + diff;
     } else if (diff < 0) {
+      // 人口减少：优先扣除失业者，不够则按比例扣除各职业
       let reductionNeeded = -diff;
       const unemployedReduction = Math.min(popStructure.unemployed || 0, reductionNeeded);
       if (unemployedReduction > 0) {
         popStructure.unemployed -= unemployedReduction;
         reductionNeeded -= unemployedReduction;
       }
+      
+      // 如果还需要减少人口，按比例从各职业扣除（财富留给幸存者均摊）
       if (reductionNeeded > 0) {
         const initialTotal = ROLE_PRIORITY.reduce((sum, role) => sum + (popStructure[role] || 0), 0);
         if (initialTotal > 0) {
@@ -315,6 +326,7 @@ export const simulateTick = ({
             if (remove <= 0) return;
             popStructure[role] = current - remove;
             reductionNeeded -= remove;
+            // 注意：财富不扣除，留给幸存者均摊（变相增加人均财富）
           });
           if (reductionNeeded > 0) {
             ROLE_PRIORITY.forEach(role => {
@@ -332,6 +344,7 @@ export const simulateTick = ({
   }
   popStructure.unemployed = Math.max(0, popStructure.unemployed || 0);
 
+  // 处理岗位上限（裁员）：如果职业人数超过岗位数，将多出的人转为失业
   ROLE_PRIORITY.forEach(role => {
     const current = popStructure[role] || 0;
     const slots = Math.max(0, jobsAvailable[role] || 0);
@@ -339,8 +352,11 @@ export const simulateTick = ({
       const layoffs = current - slots;
       const roleWealth = wealth[role] || 0;
       const perCapWealth = current > 0 ? roleWealth / current : 0;
+      
+      // 裁员：人口移至失业，并携带财富
       popStructure[role] = slots;
       popStructure.unemployed = (popStructure.unemployed || 0) + layoffs;
+      
       if (perCapWealth > 0) {
         const transfer = perCapWealth * layoffs;
         wealth[role] = Math.max(0, roleWealth - transfer);
@@ -349,19 +365,26 @@ export const simulateTick = ({
     }
   });
 
+  // 自动填补（招工）：失业者按优先级填补有空缺的岗位
   ROLE_PRIORITY.forEach(role => {
     const availableUnemployed = popStructure.unemployed || 0;
     if (availableUnemployed <= 0) return;
+    
     const slots = Math.max(0, jobsAvailable[role] || 0);
     const current = popStructure[role] || 0;
     const vacancy = Math.max(0, slots - current);
     if (vacancy <= 0) return;
+    
     const hiring = Math.min(vacancy, availableUnemployed);
     if (hiring <= 0) return;
+    
+    // 招工：失业者填补岗位，并携带财富
     const unemployedWealth = wealth.unemployed || 0;
     const perCapWealth = availableUnemployed > 0 ? unemployedWealth / availableUnemployed : 0;
+    
     popStructure[role] = current + hiring;
     popStructure.unemployed = Math.max(0, availableUnemployed - hiring);
+    
     if (perCapWealth > 0) {
       const transfer = perCapWealth * hiring;
       wealth.unemployed = Math.max(0, unemployedWealth - transfer);
@@ -533,6 +556,7 @@ export const simulateTick = ({
     let resourceLimit = 1;
     let inputCostPerMultiplier = 0;
     let inputValuePerMultiplier = 0;
+    let isInLowEfficiencyMode = false;
 
     if (b.input) {
       for (const [resKey, perUnit] of Object.entries(b.input)) {
@@ -554,7 +578,20 @@ export const simulateTick = ({
       }
     }
 
-    const targetMultiplier = baseMultiplier * Math.max(0, Math.min(1, resourceLimit));
+    // 防死锁机制：采集类建筑在缺少输入原料时进入低效模式
+    let targetMultiplier = baseMultiplier * Math.max(0, Math.min(1, resourceLimit));
+    if (b.cat === 'gather' && resourceLimit === 0 && b.input) {
+      // 进入低效模式：20%效率，不消耗原料
+      targetMultiplier = baseMultiplier * 0.2;
+      isInLowEfficiencyMode = true;
+      inputCostPerMultiplier = 0; // 低效模式下不消耗原料，因此成本为0
+      
+      // 添加日志提示（每个建筑类型只提示一次，避免刷屏）
+      const inputNames = Object.keys(b.input).map(k => RESOURCES[k]?.name || k).join('、');
+      if (tick % 30 === 0) { // 每30个tick提示一次
+        logs.push(`⚠️ ${b.name} 缺少 ${inputNames}，工人正在徒手作业（效率20%）`);
+      }
+    }
 
     let outputValuePerMultiplier = 0;
     if (b.output) {
@@ -599,7 +636,8 @@ export const simulateTick = ({
     const plannedWagePerSlot = paidSlotsTotal > 0 ? (profitPerMultiplier * actualMultiplier) / paidSlotsTotal : 0;
     const plannedWageBill = plannedWagePerSlot * paidSlotsFilled;
 
-    if (b.input) {
+    // 低效模式下不消耗输入原料（徒手采集）
+    if (b.input && !isInLowEfficiencyMode) {
       for (const [resKey, perUnit] of Object.entries(b.input)) {
         const amountNeeded = perUnit * count * actualMultiplier;
         if (!amountNeeded || amountNeeded <= 0) continue;
@@ -702,7 +740,7 @@ export const simulateTick = ({
 
     let satisfactionSum = 0;
     let tracked = 0;
-    const shortages = [];
+    const shortages = []; // 改为对象数组，记录短缺原因
 
     for (const [resKey, perCapita] of Object.entries(def.needs)) {
       if (def.defaultResource && def.defaultResource === resKey) {
@@ -744,19 +782,37 @@ export const simulateTick = ({
           wealth[key] = Math.max(0, (wealth[key] || 0) - (baseCost + taxPaid));
           satisfied = amount;
         }
+        
+        // 记录短缺原因
+        const ratio = requirement > 0 ? satisfied / requirement : 1;
+        satisfactionSum += ratio;
+        tracked += 1;
+        if (ratio < 0.99) {
+          // 判断短缺原因：买不起 vs 缺货
+          const canAfford = affordable >= requirement * 0.99;
+          const inStock = available >= requirement * 0.99;
+          let reason = 'both'; // 既缺货又买不起
+          if (canAfford && !inStock) {
+            reason = 'outOfStock'; // 有钱但缺货
+          } else if (!canAfford && inStock) {
+            reason = 'unaffordable'; // 有货但买不起
+          }
+          shortages.push({ resource: resKey, reason });
+        }
       } else {
         const amount = Math.min(requirement, available);
         if (amount > 0) {
           res[resKey] = available - amount;
           satisfied = amount;
         }
-      }
-
+        
         const ratio = requirement > 0 ? satisfied / requirement : 1;
-      satisfactionSum += ratio;
-      tracked += 1;
-      if (ratio < 0.99) {
-        shortages.push(resKey);
+        satisfactionSum += ratio;
+        tracked += 1;
+        if (ratio < 0.99) {
+          // 非交易资源只可能是缺货
+          shortages.push({ resource: resKey, reason: 'outOfStock' });
+        }
       }
     }
 
@@ -935,6 +991,7 @@ export const simulateTick = ({
   const totalInfluence = Object.values(classInfluence).reduce((sum, val) => sum + val, 0);
   let exodusPopulationLoss = 0;
   let extraStabilityPenalty = 0;
+  // 修正人口外流（Exodus）：愤怒人口离开时带走财富（资本外逃）
   Object.keys(STRATA).forEach(key => {
     const count = popStructure[key] || 0;
     if (count === 0) return;
@@ -949,16 +1006,54 @@ export const simulateTick = ({
         const currentWealth = wealth[key] || 0;
         const perCapWealth = count > 0 ? currentWealth / count : 0;
         const fleeingCapital = perCapWealth * leaving;
+        
+        // 关键修改：扣除离开人口带走的财富（资本外逃）
         if (fleeingCapital > 0) {
           wealth[key] = Math.max(0, currentWealth - fleeingCapital);
         }
       }
       exodusPopulationLoss += leaving;
-      logs.push(`${className} 阶层对政局失望，${leaving} 人离开了国家。`);
+      
+      // 生成详细的短缺原因日志
+      const shortageDetails = (classShortages[key] || []).map(shortage => {
+        const resKey = typeof shortage === 'string' ? shortage : shortage.resource;
+        const reason = typeof shortage === 'string' ? 'outOfStock' : shortage.reason;
+        const resName = RESOURCES[resKey]?.name || resKey;
+        
+        if (reason === 'unaffordable') {
+          return `${resName}(买不起)`;
+        } else if (reason === 'outOfStock') {
+          return `${resName}(缺货)`;
+        } else if (reason === 'both') {
+          return `${resName}(缺货且买不起)`;
+        }
+        return resName;
+      }).join('、');
+      
+      const shortageMsg = shortageDetails ? `，短缺资源：${shortageDetails}` : '';
+      logs.push(`${className} 阶层对政局失望，${leaving} 人离开了国家，带走了 ${(leaving * (wealth[key] || 0) / Math.max(1, count)).toFixed(1)} 银币${shortageMsg}。`);
     } else if (influenceShare >= 0.12) {
       const penalty = Math.min(0.2, 0.05 + influenceShare * 0.15);
       extraStabilityPenalty += penalty;
-      logs.push(`${className} 阶层的愤怒正在削弱社会稳定。`);
+      
+      // 为稳定性惩罚也添加短缺详情
+      const shortageDetails = (classShortages[key] || []).map(shortage => {
+        const resKey = typeof shortage === 'string' ? shortage : shortage.resource;
+        const reason = typeof shortage === 'string' ? 'outOfStock' : shortage.reason;
+        const resName = RESOURCES[resKey]?.name || resKey;
+        
+        if (reason === 'unaffordable') {
+          return `${resName}(买不起)`;
+        } else if (reason === 'outOfStock') {
+          return `${resName}(缺货)`;
+        } else if (reason === 'both') {
+          return `${resName}(缺货且买不起)`;
+        }
+        return resName;
+      }).join('、');
+      
+      const shortageMsg = shortageDetails ? `（短缺：${shortageDetails}）` : '';
+      logs.push(`${className} 阶层的愤怒正在削弱社会稳定${shortageMsg}。`);
     }
   });
 
@@ -1008,6 +1103,36 @@ export const simulateTick = ({
     const next = { ...nation };
     const visible = visibleEpoch >= (nation.appearEpoch ?? 0) && (nation.expireEpoch == null || visibleEpoch <= nation.expireEpoch);
     if (!visible) return next;
+    
+    // ========== 外国经济模拟 ==========
+    // 初始化库存和预算（如果不存在）
+    if (!next.inventory) next.inventory = {};
+    if (typeof next.budget !== 'number') next.budget = (next.wealth || 800) * 0.5;
+    
+    // 遍历该国的资源偏差，模拟生产和消耗
+    if (next.economyTraits?.resourceBias) {
+      Object.entries(next.economyTraits.resourceBias).forEach(([resourceKey, bias]) => {
+        const currentStock = next.inventory[resourceKey] || 0;
+        
+        if (bias > 1) {
+          // 特产资源：自然生产
+          const productionRate = bias * 0.5 * gameSpeed;
+          next.inventory[resourceKey] = currentStock + productionRate;
+        } else if (bias <= 1) {
+          // 非特产资源：自然消耗
+          const consumptionRate = (1 / bias) * 0.2 * gameSpeed;
+          next.inventory[resourceKey] = Math.max(0, currentStock - consumptionRate);
+        }
+      });
+    }
+    
+    // 资金恢复：预算缓慢向财富基准值回归（模拟税收和内部贸易）
+    const targetBudget = (next.wealth || 800) * 0.5;
+    const budgetRecoveryRate = 0.02; // 每tick恢复2%的差距
+    const budgetDiff = targetBudget - next.budget;
+    next.budget = next.budget + (budgetDiff * budgetRecoveryRate * gameSpeed);
+    next.budget = Math.max(0, next.budget); // 确保预算不为负
+    // ========== 外国经济模拟结束 ==========
     if (next.isAtWar) {
       next.warDuration = (next.warDuration || 0) + 1;
       if (visibleEpoch >= 1) {
@@ -1118,6 +1243,7 @@ export const simulateTick = ({
     updatedPrices[resource] = parseFloat(Math.max(PRICE_FLOOR, smoothed).toFixed(2));
   });
 
+  // 增强转职（Migration）逻辑：基于市场价格和潜在收益的职业流动
   const roleVacancies = {};
   ROLE_PRIORITY.forEach(role => {
     roleVacancies[role] = Math.max(0, (jobsAvailable[role] || 0) - (popStructure[role] || 0));
@@ -1131,17 +1257,19 @@ export const simulateTick = ({
     const perCap = pop > 0 ? wealthNow / pop : 0;
     const perCapDelta = pop > 0 ? delta / pop : 0;
     
-    // Calculate potential income based on resource production and prices
+    // 计算潜在收入：基于资源价格和工资
     let potentialIncome = 0;
     const roleDef = STRATA[role];
+    const roleWage = updatedWages[role] || 0;
+    
     if (roleDef && roleDef.defaultResource) {
       const resourcePrice = getPrice(roleDef.defaultResource);
       const basePrice = getBasePrice(roleDef.defaultResource);
-      // Higher price means more attractive job
+      // 资源价格越高，职业越有吸引力
       const priceMultiplier = resourcePrice / basePrice;
-      potentialIncome = perCap * priceMultiplier;
+      potentialIncome = (perCap * priceMultiplier * 0.6) + (roleWage * 0.4);
     } else {
-      potentialIncome = perCap;
+      potentialIncome = (perCap * 0.6) + (roleWage * 0.4);
     }
     
     return {
@@ -1159,6 +1287,7 @@ export const simulateTick = ({
     ? activeRoleMetrics.reduce((sum, r) => sum + (r.potentialIncome * r.pop), 0) / totalMigratablePop
     : 0;
 
+  // 寻找收入低于平均水平的源职业
   const sourceCandidate = activeRoleMetrics
     .filter(r => r.pop > 0 && (r.potentialIncome < averagePotentialIncome * 0.7 || r.perCapDelta < -0.5))
     .reduce((lowest, current) => {
@@ -1168,10 +1297,11 @@ export const simulateTick = ({
       return lowest;
     }, null);
 
+  // 寻找收入显著更高的目标职业（必须有空缺）
   let targetCandidate = null;
   if (sourceCandidate) {
     targetCandidate = activeRoleMetrics
-      .filter(r => r.vacancy > 0 && r.potentialIncome > sourceCandidate.potentialIncome * 1.2)
+      .filter(r => r.vacancy > 0 && r.potentialIncome > sourceCandidate.potentialIncome * 1.3)
       .reduce((best, current) => {
         if (!best) return current;
         if (current.potentialIncome > best.potentialIncome) return current;
@@ -1180,21 +1310,31 @@ export const simulateTick = ({
       }, null);
   }
 
+  // 执行转职并转移财富
   if (sourceCandidate && targetCandidate) {
     let migrants = Math.floor(sourceCandidate.pop * JOB_MIGRATION_RATIO);
     if (migrants <= 0 && sourceCandidate.pop > 0) migrants = 1;
     migrants = Math.min(migrants, targetCandidate.vacancy);
+    
     if (migrants > 0) {
+      // 关键：执行财富转移
       const sourceWealth = wealth[sourceCandidate.role] || 0;
       const perCapWealth = sourceCandidate.pop > 0 ? sourceWealth / sourceCandidate.pop : 0;
       const migratingWealth = perCapWealth * migrants;
+      
       if (migratingWealth > 0) {
         wealth[sourceCandidate.role] = Math.max(0, sourceWealth - migratingWealth);
         wealth[targetCandidate.role] = (wealth[targetCandidate.role] || 0) + migratingWealth;
       }
+      
+      // 执行人口转移
       popStructure[sourceCandidate.role] = Math.max(0, sourceCandidate.pop - migrants);
       popStructure[targetCandidate.role] = (popStructure[targetCandidate.role] || 0) + migrants;
-      logs.push(`${migrants} 名 ${STRATA[sourceCandidate.role]?.name || sourceCandidate.role} 转向 ${STRATA[targetCandidate.role]?.name || targetCandidate.role} 寻求更高收益`);
+      
+      const sourceName = STRATA[sourceCandidate.role]?.name || sourceCandidate.role;
+      const targetName = STRATA[targetCandidate.role]?.name || targetCandidate.role;
+      const incomeGain = ((targetCandidate.potentialIncome - sourceCandidate.potentialIncome) / Math.max(0.01, sourceCandidate.potentialIncome) * 100).toFixed(0);
+      logs.push(`💼 ${migrants} 名 ${sourceName} 转职为 ${targetName}（预期收益提升 ${incomeGain}%）`);
     }
   }
 

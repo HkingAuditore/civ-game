@@ -23,3 +23,4 @@ export { DiplomacyTab } from './tabs/DiplomacyTab';
 export { BattleResultModal } from './modals/BattleResultModal';
 export { StratumDetailModal } from './modals/StratumDetailModal';
 export { AnnualFestivalModal } from './modals/AnnualFestivalModal';
+export { TutorialModal } from './modals/TutorialModal';

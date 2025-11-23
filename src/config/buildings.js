@@ -47,8 +47,9 @@ export const BUILDINGS = [
   { 
     id: 'lumber_camp', 
     name: "伐木场", 
-    desc: "砍伐木材。", 
+    desc: "砍伐木材，需要工具维护。", 
     baseCost: { food: 18 }, 
+    input: { tools: 0.05 }, 
     output: { wood: 2.20 }, 
     jobs: { lumberjack: 2 }, 
     owner: 'lumberjack',
@@ -60,8 +61,9 @@ export const BUILDINGS = [
   { 
     id: 'quarry', 
     name: "采石场", 
-    desc: "开采石料，由矿工负责。", 
+    desc: "开采石料，需要工具维护。", 
     baseCost: { wood: 55 }, 
+    input: { tools: 0.05 }, 
     output: { stone: 1.70 }, 
     jobs: { miner: 2 }, 
     owner: 'miner',
@@ -73,8 +75,9 @@ export const BUILDINGS = [
   { 
     id: 'copper_mine', 
     name: "铜矿井", 
-    desc: "开采铜矿石，是所有青铜器的基础。", 
+    desc: "开采铜矿石，需要工具维护。", 
     baseCost: { food: 120, wood: 120 }, 
+    input: { tools: 0.05 }, 
     output: { copper: 0.35 }, 
     jobs: { miner: 3 }, 
     owner: 'miner',
@@ -87,7 +90,7 @@ export const BUILDINGS = [
   { 
     id: 'reed_works', 
     name: "纸草田", 
-    desc: "在河畔收割、晾晒用于记录知识的纸草。", 
+    desc: "在河畔收割、晒干用于记录知识的纸草。", 
     baseCost: { food: 140, wood: 80 }, 
     output: { papyrus: 0.40 }, 
     jobs: { peasant: 2 }, 
@@ -98,6 +101,50 @@ export const BUILDINGS = [
     visual: { icon: 'ScrollText', color: 'bg-lime-800', text: 'text-lime-200' } 
   },
 
+  { 
+    id: 'culinary_kitchen', 
+    name: "烹饪坊", 
+    desc: "将粮食烹饪为珍馐，供上层阶级享用。", 
+    baseCost: { wood: 100, stone: 60, brick: 30 }, 
+    input: { food: 0.80 }, 
+    output: { delicacies: 0.50 }, 
+    jobs: { artisan: 3, peasant: 1 }, 
+    owner: 'artisan',
+    epoch: 2, 
+    cat: 'industry', 
+    requiresTech: 'culinary_arts',
+    visual: { icon: 'UtensilsCrossed', color: 'bg-rose-800', text: 'text-rose-200' } 
+  },
+
+  { 
+    id: 'brewery', 
+    name: "酿造坊", 
+    desc: "将粮食发酵酿造成美酒，供贸易与享用。", 
+    baseCost: { wood: 90, stone: 50, brick: 25 }, 
+    input: { food: 0.70, wood: 0.10 }, 
+    output: { ale: 0.40 }, 
+    jobs: { artisan: 3, peasant: 1 }, 
+    owner: 'artisan',
+    epoch: 2, 
+    cat: 'industry', 
+    requiresTech: 'brewing',
+    visual: { icon: 'Wine', color: 'bg-purple-800', text: 'text-purple-200' } 
+  },
+
+  { 
+    id: 'furniture_workshop', 
+    name: "家具工坊", 
+    desc: "将木板与布料雕刻成精美家具，提升上层阶级的生活品质。", 
+    baseCost: { plank: 120, stone: 80 }, 
+    input: { plank: 0.50, cloth: 0.15 }, 
+    output: { furniture: 0.45 }, 
+    jobs: { artisan: 4 }, 
+    owner: 'artisan',
+    epoch: 2, 
+    cat: 'industry', 
+    requiresTech: 'carpentry',
+    visual: { icon: 'Armchair', color: 'bg-amber-800', text: 'text-amber-200' } 
+  },
   { 
     id: 'loom_house', 
     name: "织布坊", 
@@ -129,8 +176,9 @@ export const BUILDINGS = [
   { 
     id: 'mine', 
     name: "铁矿井", 
-    desc: "深入岩层采集铁矿，为武器与机器供料。", 
+    desc: "深入岩层采集铁矿，需要工具维护。", 
     baseCost: { plank: 120, food: 220 }, 
+    input: { tools: 0.08 }, 
     output: { iron: 0.35 }, 
     jobs: { miner: 5, capitalist: 1 }, 
     owner: 'capitalist',
@@ -157,8 +205,9 @@ export const BUILDINGS = [
   { 
     id: 'coal_mine', 
     name: "煤矿", 
-    desc: "开采地下煤炭，支撑蒸汽动力。", 
+    desc: "开采地下煤炭，需要工具维护。", 
     baseCost: { plank: 200, tools: 60 }, 
+    input: { tools: 0.08 }, 
     output: { coal: 0.45 }, 
     jobs: { miner: 6, capitalist: 1 }, 
     owner: 'capitalist',
@@ -198,8 +247,6 @@ export const BUILDINGS = [
     desc: "加固的干燥粮仓，提升人口承载。", 
     baseCost: { wood: 120, brick: 40 }, 
     output: { maxPop: 6 }, 
-    jobs: { worker: 2 }, 
-    owner: 'worker',
     epoch: 1, 
     cat: 'civic', 
     requiresTech: 'granary_architecture',
@@ -209,8 +256,9 @@ export const BUILDINGS = [
   { 
     id: 'town_hall', 
     name: "市政厅", 
-    desc: "官员办公地，增加行政容量。", 
+    desc: "官员办公地，增加行政容量，需要维护。", 
     baseCost: { brick: 200, plank: 200 }, 
+    input: { brick: 0.20, papyrus: 0.10 }, 
     output: { admin: 3.00 }, 
     jobs: { official: 5 }, 
     epoch: 3, 
@@ -279,7 +327,7 @@ export const BUILDINGS = [
   { 
     id: 'rail_depot', 
     name: "铁路枢纽", 
-    desc: "蒸汽时代的交通心脏，连接全国贸易。", 
+    desc: "蒸汽时代的交通心脏，连接全国贸易，提供岗位和人口上限。", 
     baseCost: { steel: 180, coal: 120 }, 
     input: { coal: 0.40 }, 
     output: { silver: 1.50, maxPop: 2 }, 
@@ -312,7 +360,7 @@ export const BUILDINGS = [
     name: "砖窯", 
     desc: "烧制砖块，供城墙与民宅所用。", 
     baseCost: { wood: 140, stone: 90 }, 
-    input: { stone: 0.60, wood: 0.25 }, 
+    input: { stone: 0.60, wood: 0.15 }, 
     output: { brick: 0.60 }, 
     jobs: { artisan: 3 }, 
     owner: 'artisan',
@@ -320,7 +368,7 @@ export const BUILDINGS = [
     cat: 'industry', 
     requiresTech: 'pottery',
     visual: { icon: 'Factory', color: 'bg-red-900', text: 'text-red-300' } 
-  },  
+  },
   { 
     id: 'bronze_foundry', 
     name: "青铜铸坊", 
@@ -372,7 +420,7 @@ export const BUILDINGS = [
     desc: "以煤炭为燃料的炼钢炉，供应工业时代钢材。", 
     baseCost: { brick: 300, iron: 200 }, 
     input: { iron: 0.40, coal: 0.40 }, 
-    output: { steel: 0.35 }, 
+    output: { steel: 0.40 }, 
     jobs: { engineer: 3, worker: 4, capitalist: 1 }, 
     owner: 'capitalist',
     epoch: 6, 
@@ -398,8 +446,9 @@ export const BUILDINGS = [
   { 
     id: 'market', 
     name: "市场", 
-    desc: "贸易中心。", 
+    desc: "贸易中心，需要维护。", 
     baseCost: { plank: 100 }, 
+    input: { brick: 0.10 }, 
     output: { silver: 0.60 }, 
     jobs: { merchant: 2 }, 
     owner: 'merchant',

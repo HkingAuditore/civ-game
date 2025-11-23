@@ -506,26 +506,61 @@ export const useGameActions = (gameState, addLog) => {
           addLog('库存不足，无法出口。');
           return;
         }
+        
+        // 检查目标国家是否有缺口（库存低于目标值的50%）
+        const nationInventory = (targetNation.inventory || {})[resourceKey] || 0;
+        const targetInventory = 500;
+        const isShortage = nationInventory < targetInventory * 0.5;
+        
+        if (!isShortage) {
+          addLog(`${targetNation.name} 对 ${RESOURCES[resourceKey].name} 没有缺口，无法出口。`);
+          return;
+        }
+        
+        // 计算缺口数量：目标库存 - 当前库存
+        const shortageAmount = Math.floor(targetInventory - nationInventory);
+        
+        // 检查是否超过缺口限制
+        if (amount > shortageAmount) {
+          if (shortageAmount <= 0) {
+            addLog(`${targetNation.name} 对 ${RESOURCES[resourceKey].name} 的缺口已填满，无法出口。`);
+            return;
+          }
+          addLog(`${targetNation.name} 对 ${RESOURCES[resourceKey].name} 的缺口只有 ${shortageAmount} 单位，已调整出口数量（原计划 ${amount}）。`);
+          // 调整交易数量为缺口的最大值
+          payload.amount = shortageAmount;
+          return handleDiplomaticAction(nationId, action, payload); // 递归调用，使用调整后的数量
+        }
+        
         const localPrice = getMarketPrice(resourceKey);
         const foreignPrice = calculateForeignPrice(resourceKey, targetNation, daysElapsed);
-        const payout = foreignPrice * amount;
-        const profit = payout;
+        const totalCost = foreignPrice * amount;
+        
+        const payout = totalCost;
         const profitPerUnit = foreignPrice - localPrice;
+        
+        // 执行交易
         setResources(prev => ({
           ...prev,
           silver: prev.silver + payout,
           [resourceKey]: Math.max(0, (prev[resourceKey] || 0) - amount),
         }));
+        
         setNations(prev => prev.map(n =>
           n.id === nationId
             ? {
                 ...n,
-                wealth: Math.max(0, (n.wealth || 0) - payout),
+                budget: Math.max(0, (n.budget || 0) - payout), // 扣除预算
+                inventory: {
+                  ...n.inventory,
+                  [resourceKey]: ((n.inventory || {})[resourceKey] || 0) + amount, // 增加库存
+                },
                 relation: clampRelation((n.relation || 0) + (profitPerUnit > 0 ? 2 : 0)),
               }
             : n
         ));
-        addLog(`向 ${targetNation.name} 出口 ${amount}${RESOURCES[resourceKey].name}，收入 ${profit.toFixed(1)} 银币（单价差 ${profitPerUnit >= 0 ? '+' : ''}${profitPerUnit.toFixed(2)}）。`);
+        
+        addLog(`向 ${targetNation.name} 出口 ${amount}${RESOURCES[resourceKey].name}，收入 ${payout.toFixed(1)} 银币（单价差 ${profitPerUnit >= 0 ? '+' : ''}${profitPerUnit.toFixed(2)}）。`);
         break;
       }
 
@@ -536,28 +571,64 @@ export const useGameActions = (gameState, addLog) => {
           addLog('该资源无法进行套利贸易。');
           return;
         }
+        
+        // 检查目标国家是否有盈余（库存高于目标值的150%）
+        const nationInventory = (targetNation.inventory || {})[resourceKey] || 0;
+        const targetInventory = 500;
+        const isSurplus = nationInventory > targetInventory * 1.5;
+        
+        if (!isSurplus) {
+          addLog(`${targetNation.name} 对 ${RESOURCES[resourceKey].name} 没有盈余，无法进口。`);
+          return;
+        }
+        
+        // 计算盈余数量：当前库存 - 目标库存
+        const surplusAmount = Math.floor(nationInventory - targetInventory);
+        
+        // 检查是否超过盈余限制
+        if (amount > surplusAmount) {
+          if (surplusAmount <= 0) {
+            addLog(`${targetNation.name} 对 ${RESOURCES[resourceKey].name} 的盈余已售罄，无法进口。`);
+            return;
+          }
+          addLog(`${targetNation.name} 对 ${RESOURCES[resourceKey].name} 的盈余只有 ${surplusAmount} 单位，已调整进口数量（原计划 ${amount}）。`);
+          // 调整交易数量为盈余的最大值
+          payload.amount = surplusAmount;
+          return handleDiplomaticAction(nationId, action, payload); // 递归调用，使用调整后的数量
+        }
+        
         const localPrice = getMarketPrice(resourceKey);
         const foreignPrice = calculateForeignPrice(resourceKey, targetNation, daysElapsed);
         const cost = foreignPrice * amount;
+        
         if ((resources.silver || 0) < cost) {
           addLog('银币不足，无法从外国进口。');
           return;
         }
+        
         const profitPerUnit = localPrice - foreignPrice;
+        
+        // 执行交易
         setResources(prev => ({
           ...prev,
           silver: prev.silver - cost,
           [resourceKey]: (prev[resourceKey] || 0) + amount,
         }));
+        
         setNations(prev => prev.map(n =>
           n.id === nationId
             ? {
                 ...n,
-                wealth: (n.wealth || 0) + cost,
+                budget: (n.budget || 0) + cost, // 增加预算
+                inventory: {
+                  ...n.inventory,
+                  [resourceKey]: Math.max(0, ((n.inventory || {})[resourceKey] || 0) - amount), // 减少库存
+                },
                 relation: clampRelation((n.relation || 0) + (profitPerUnit > 0 ? 2 : 0)),
               }
             : n
         ));
+        
         addLog(`从 ${targetNation.name} 进口 ${amount}${RESOURCES[resourceKey].name}，支出 ${cost.toFixed(1)} 银币（单价差 ${profitPerUnit >= 0 ? '+' : ''}${profitPerUnit.toFixed(2)}）。`);
         break;
       }

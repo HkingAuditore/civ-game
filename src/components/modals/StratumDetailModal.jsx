@@ -6,6 +6,7 @@ import { Icon } from '../common/UIComponents';
 import { STRATA } from '../../config';
 import { RESOURCES } from '../../config/gameConstants';
 import { formatEffectDetails } from '../../utils/effectFormatter';
+import { isResourceUnlocked } from '../../utils/resources';
 
 /**
  * 阶层详情模态框组件
@@ -132,6 +133,7 @@ export const StratumDetailModal = ({
   activeBuffs,
   activeDebuffs,
   epoch = 0,
+  techsUnlocked = [],
   onClose,
 }) => {
   if (!stratumKey || stratumKey === 'all') {
@@ -291,8 +293,7 @@ export const StratumDetailModal = ({
               {(() => {
                 const needsEntries = Object.entries(stratum.needs || {});
                 const visibleNeeds = needsEntries.filter(([resource]) => {
-                  const unlockEpoch = RESOURCES[resource]?.unlockEpoch ?? 0;
-                  return unlockEpoch <= epoch;
+                  return isResourceUnlocked(resource, epoch, techsUnlocked);
                 });
                 return visibleNeeds.length > 0 ? (
                   visibleNeeds.map(([resource, amount]) => {

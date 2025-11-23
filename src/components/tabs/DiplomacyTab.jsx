@@ -249,6 +249,8 @@ export const DiplomacyTab = ({
                     <thead>
                       <tr className="text-gray-400">
                         <th className="text-left py-1">资源</th>
+                        <th className="text-left py-1">对方库存</th>
+                        <th className="text-left py-1">缺口/盈余</th>
                         <th className="text-left py-1">本地价格</th>
                         <th className="text-left py-1">外国价格</th>
                         <th className="text-left py-1">差价</th>
@@ -261,9 +263,42 @@ export const DiplomacyTab = ({
                         const foreign = calculateForeignPrice(key, selectedNation, daysElapsed);
                         const diff = foreign - local;
                         const profitable = diff > 0;
+                        const nationInventory = (selectedNation.inventory || {})[key] || 0;
+                        const targetInventory = 500;
+                        const isShortage = nationInventory < targetInventory * 0.5;
+                        const isSurplus = nationInventory > targetInventory * 1.5;
+                        
+                        // 计算缺口和盈余数量
+                        const shortageAmount = isShortage ? Math.floor(targetInventory - nationInventory) : 0;
+                        const surplusAmount = isSurplus ? Math.floor(nationInventory - targetInventory) : 0;
+                        
                         return (
                           <tr key={key} className="border-t border-gray-700/50">
                             <td className="py-1">{res.name}</td>
+                            <td className="py-1">
+                              <span className={`font-mono ${
+                                isShortage ? 'text-red-400' : 
+                                isSurplus ? 'text-green-400' : 
+                                'text-gray-400'
+                              }`}>
+                                {nationInventory.toFixed(0)}
+                              </span>
+                            </td>
+                            <td className="py-1">
+                              {isShortage && (
+                                <span className="text-red-400 font-mono text-[11px]">
+                                  缺口: {shortageAmount}
+                                </span>
+                              )}
+                              {isSurplus && (
+                                <span className="text-green-400 font-mono text-[11px]">
+                                  盈余: {surplusAmount}
+                                </span>
+                              )}
+                              {!isShortage && !isSurplus && (
+                                <span className="text-gray-500 text-[11px]">-</span>
+                              )}
+                            </td>
                             <td className="py-1 text-gray-400">{local.toFixed(2)}</td>
                             <td
                               className={`py-1 ${
@@ -283,16 +318,18 @@ export const DiplomacyTab = ({
                             <td className="py-1 text-right">
                               <div className="flex items-center gap-1 justify-end">
                                 <button
-                                  className="px-2 py-1 bg-teal-600 hover:bg-teal-500 rounded text-white flex items-center gap-1"
+                                  className="px-2 py-1 bg-teal-600 hover:bg-teal-500 rounded text-white flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
                                   onClick={() => handleTrade(key, false)}
-                                  title="出口到外国市场"
+                                  disabled={!isShortage}
+                                  title={isShortage ? "对方有缺口，可以出口" : "对方无缺口，无法出口"}
                                 >
                                   <Icon name="ArrowUpRight" size={12} /> 出口
                                 </button>
                                 <button
-                                  className="px-2 py-1 bg-purple-600 hover:bg-purple-500 rounded text-white flex items-center gap-1"
+                                  className="px-2 py-1 bg-purple-600 hover:bg-purple-500 rounded text-white flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
                                   onClick={() => handleTrade(key, true)}
-                                  title="从外国市场进口"
+                                  disabled={!isSurplus}
+                                  title={isSurplus ? "对方有盈余，可以进口" : "对方无盈余，无法进口"}
                                 >
                                   <Icon name="ArrowDownLeft" size={12} /> 进口
                                 </button>

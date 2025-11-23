@@ -5,6 +5,7 @@ import React from 'react';
 import { Icon } from '../common/UIComponents';
 import { UNIT_TYPES, calculateArmyAdminCost, calculateArmyPopulation, calculateArmyMaintenance, calculateArmyFoodNeed, calculateBattlePower, RESOURCES, MILITARY_ACTIONS } from '../../config';
 import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
+import { filterUnlockedResources } from '../../utils/resources';
 
 /**
  * 军事标签页组件
@@ -38,6 +39,7 @@ export const MilitaryTab = ({
   market,
   militaryWageRatio = 1,
   onUpdateWageRatio,
+  techsUnlocked = [],
 }) => {
   // 计算军队统计信息
   const totalUnits = Object.values(army).reduce((sum, count) => sum + count, 0);
@@ -143,25 +145,28 @@ export const MilitaryTab = ({
         </div>
 
         {/* 维护成本 */}
-        {Object.keys(maintenance).length > 0 && (
-          <div className="mt-3 pt-3 border-t border-gray-700">
-            <p className="text-xs text-gray-400 mb-2">维护成本（每日）：</p>
-            <div className="flex flex-wrap gap-2">
-              {Object.entries(maintenance).map(([resource, cost]) => (
-                <span
-                  key={resource}
-                  className={`text-xs px-2 py-1 rounded ${
-                    (resources[resource] || 0) >= cost
-                      ? 'bg-green-900/30 text-green-400'
-                      : 'bg-red-900/30 text-red-400'
-                  }`}
-                >
-                  {RESOURCES[resource]?.name || resource}: -{cost.toFixed(1)}/日
-                </span>
-              ))}
+        {(() => {
+          const unlockedMaintenance = filterUnlockedResources(maintenance, epoch, techsUnlocked);
+          return Object.keys(unlockedMaintenance).length > 0 && (
+            <div className="mt-3 pt-3 border-t border-gray-700">
+              <p className="text-xs text-gray-400 mb-2">维护成本（每日）：</p>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(unlockedMaintenance).map(([resource, cost]) => (
+                  <span
+                    key={resource}
+                    className={`text-xs px-2 py-1 rounded ${
+                      (resources[resource] || 0) >= cost
+                        ? 'bg-green-900/30 text-green-400'
+                        : 'bg-red-900/30 text-red-400'
+                    }`}
+                  >
+                    {RESOURCES[resource]?.name || resource}: -{cost.toFixed(1)}/日
+                  </span>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         <div className="mt-3 pt-3 border-t border-gray-700">
           <p className="text-xs text-gray-400 mb-2">军饷（每日）：</p>
