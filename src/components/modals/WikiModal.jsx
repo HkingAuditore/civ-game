@@ -1,5 +1,6 @@
 // 内置百科模态框组件
 // 提供分类导航、搜索和详情展示
+// v2.0: 增加核心机制说明，全中文汉化
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../common/UIComponents';
@@ -10,22 +11,142 @@ import {
   RESOURCES,
   UNIT_TYPES,
   STRATA,
+  EPOCHS,
 } from '../../config';
 
-const CATEGORY_CONFIG = [
-  { id: 'economy', label: '经济机制', icon: 'Coins' },
-  { id: 'buildings', label: '建筑', icon: 'Home' },
-  { id: 'military', label: '军事', icon: 'Shield' },
-  { id: 'technologies', label: '科技', icon: 'Cpu' },
-  { id: 'decrees', label: '政令', icon: 'Gavel' },
-  { id: 'resources', label: '资源', icon: 'Package' },
+// --- 核心机制攻略文案数据 ---
+const MECHANICS_GUIDES = [
+  {
+    id: 'mech_economy',
+    name: '市场与经济',
+    icon: 'Coins',
+    summary: '了解价格波动、银币流动与贸易原理',
+    content: [
+      { type: 'h4', text: '1. 银币的核心地位' },
+      { type: 'p', text: '银币是游戏中唯一的通用货币。请记住：你仓库中的资源（如木材、粮食）都是实物，而“银币”代表你的国库资金。' },
+      { type: 'p', text: '当建筑生产需要消耗原料时（例如锯木厂消耗木材），如果仓库里没有木材，系统会自动花费银币按当前市场价购买。如果银币不足，生产就会停止。' },
+      { type: 'h4', text: '2. 价格波动机制' },
+      { type: 'p', text: '所有资源（除银币外）都有基础价格。实际价格受供需关系影响：' },
+      { type: 'list', items: [
+        '供给（Supply）：你的产出 + 进口量',
+        '需求（Demand）：你的消耗 + 出口量 + 人口维护',
+        '当需求 > 供给时，价格上涨；反之价格下跌。',
+        '价格有最低保底（通常为0.5）和软上限，防止经济系统崩溃。'
+      ]},
+      { type: 'h4', text: '3. 进出口贸易' },
+      { type: 'p', text: '你可以通过外交界面与其他国家进行贸易。利用差价是致富的关键：' },
+      { type: 'list', items: [
+        '出口：当外国价格 > 本地价格时，卖出库存赚取差价。',
+        '进口：当外国价格 < 本地价格时，买入资源囤积或用于生产。',
+        '注意：大量倾销会导致对方收购价降低，大量采购会导致对方售价上涨。'
+      ]}
+    ]
+  },
+  {
+    id: 'mech_strata',
+    name: '社会阶层与人口',
+    icon: 'Users',
+    summary: '人口流动、阶层转化与满意度系统',
+    content: [
+      { type: 'h4', text: '1. 人口即劳动力' },
+      { type: 'p', text: '你的人口不会凭空产生职业。他们是“流动的”。当你在建筑中提供岗位（如建造农田提供“自耕农”岗位）时，失业人口会自动填补这些岗位，并转化为对应的社会阶层。' },
+      { type: 'h4', text: '2. 阶层需求与满意度' },
+      { type: 'p', text: '每个阶层都有特定的物资需求（如自耕农需要粮食，商人需要香料）。' },
+      { type: 'list', items: [
+        '满足度 > 100%：好感度上升，提供强力Buff（如税收加成、生产加速）。',
+        '满足度 < 100%：好感度下降，产生Debuff（如罢工、叛乱风险）。',
+        '如果长期无法满足需求，高阶层人口可能会降级或离开。'
+      ]},
+      { type: 'h4', text: '3. 影响力与政治' },
+      { type: 'p', text: '阶层的人口数量和财富决定了他们的政治影响力。主要阶层（影响力高）的满意度对国家稳定度影响更大。得罪影响力大的阶层是危险的。' }
+    ]
+  },
+  {
+    id: 'mech_admin',
+    name: '行政与管理',
+    icon: 'Scale',
+    summary: '行政容量、压力与效率的关系',
+    content: [
+      { type: 'h4', text: '1. 行政容量 (Capacity)' },
+      { type: 'p', text: '代表政府治理国家的能力上限。主要来源：市政厅建筑、科技、特定阶层（如官员）的加成。' },
+      { type: 'h4', text: '2. 行政压力 (Strain)' },
+      { type: 'p', text: '代表国家当前的运转负担。来源包括：' },
+      { type: 'list', items: [
+        '人口规模：人口越多，管理越难。',
+        '军队规模：维持常备军需要大量行政力。',
+        '政令数量：激活的政令越多，行政负担越重。'
+      ]},
+      { type: 'h4', text: '3. 超限惩罚' },
+      { type: 'p', text: '当行政压力 > 行政容量时，国家进入“行政过载”状态。后果包括：' },
+      { type: 'list', items: [
+        '税收效率大幅下降（收不上税）。',
+        '政令效果减弱。',
+        '社会稳定度逐渐降低。'
+      ]}
+    ]
+  },
+  {
+    id: 'mech_military',
+    name: '军事与战争',
+    icon: 'Swords',
+    summary: '兵种克制、战斗计算与战利品',
+    content: [
+      { type: 'h4', text: '1. 兵种克制循环' },
+      { type: 'p', text: '战场遵循严格的克制关系，利用好这一点可以以少胜多：' },
+      { type: 'list', items: [
+        '骑兵 克制 弓箭手/远程 (+50%~80% 伤害)',
+        '弓箭手 克制 步兵 (+50% 伤害)',
+        '步兵/长矛兵 克制 骑兵 (+80% 伤害)',
+        '坦克/火炮 对旧时代单位有毁灭性打击。'
+      ]},
+      { type: 'h4', text: '2. 战斗力计算' },
+      { type: 'p', text: '总战力 = (单位攻击+防御) × 数量 × 时代加成 × 克制修正。' },
+      { type: 'p', text: '此外，社会阶层（如军人、骑士）的满意度会提供全局军事Buff。' },
+      { type: 'h4', text: '3. 战利品与损失' },
+      { type: 'p', text: '战斗胜利可以掠夺敌国资源（粮食、银币等）。压倒性胜利（战力比 > 2:1）能大幅减少己方伤亡并增加战利品。' }
+    ]
+  },
+  {
+    id: 'mech_tech',
+    name: '科技与时代',
+    icon: 'Cpu',
+    summary: '时代演进与科技解锁逻辑',
+    content: [
+      { type: 'h4', text: '1. 时代升级' },
+      { type: 'p', text: '时代是文明发展的里程碑。升级时代需要满足三个条件：' },
+      { type: 'list', items: [
+        '科研点数达标',
+        '人口规模达标',
+        '文化点数达标（封建时代起）'
+      ]},
+      { type: 'h4', text: '2. 解锁新机制' },
+      { type: 'p', text: '新时代不仅仅解锁建筑，还会解锁核心机制：' },
+      { type: 'list', items: [
+        '青铜时代：解锁贸易系统和基础外交。',
+        '古典时代：解锁文化系统和高级政令。',
+        '封建时代：解锁宗教和更复杂的阶层互动。',
+        '工业时代：解锁产业链深度加工（如煤→钢）。'
+      ]}
+    ]
+  }
 ];
 
+const CATEGORY_CONFIG = [
+  { id: 'mechanics', label: '核心机制', icon: 'BookOpen' }, // 新增分类
+  { id: 'economy', label: '社会阶层', icon: 'Users' },
+  { id: 'buildings', label: '建筑设施', icon: 'Home' },
+  { id: 'military', label: '军事单位', icon: 'Shield' },
+  { id: 'technologies', label: '科技研究', icon: 'Cpu' },
+  { id: 'decrees', label: '国家政令', icon: 'Gavel' },
+  { id: 'resources', label: '物资资源', icon: 'Package' },
+];
+
+// 汉化映射表
 const BUILDING_CATEGORY_LABELS = {
-  gather: '采集',
-  industry: '工业',
-  civic: '民生',
-  military: '军事',
+  gather: '采集与农业',
+  industry: '工业生产',
+  civic: '民生与行政',
+  military: '军事设施',
 };
 
 const UNIT_CATEGORY_LABELS = {
@@ -53,6 +174,15 @@ const WIKI_DATA = buildWikiData();
 
 function buildWikiData() {
   return {
+    mechanics: MECHANICS_GUIDES.map(guide => ({
+      id: guide.id,
+      name: guide.name,
+      summary: guide.summary,
+      icon: guide.icon,
+      iconColor: 'text-blue-300',
+      type: 'mechanics',
+      data: guide.content
+    })),
     economy: Object.entries(STRATA || {}).map(([id, data]) => ({
       id,
       name: data?.name || id,
@@ -101,7 +231,17 @@ function buildWikiData() {
     resources: Object.entries(RESOURCES || {}).map(([id, data]) => ({
       id,
       name: data?.name || id,
-      summary: data?.tags?.join(' · '),
+      summary: data?.tags?.map(tag => {
+        if(tag === 'raw_material') return '原料';
+        if(tag === 'manufactured') return '加工品';
+        if(tag === 'luxury') return '奢侈品';
+        if(tag === 'essential') return '必需品';
+        if(tag === 'special') return '特殊';
+        if(tag === 'virtual') return '虚拟';
+        if(tag === 'currency') return '货币';
+        if(tag === 'industrial') return '工业品';
+        return tag;
+      }).join(' · '),
       icon: data?.icon || 'Package',
       iconColor: data?.color || 'text-slate-200',
       type: 'resource',
@@ -119,7 +259,8 @@ const formatNumber = (value) => {
 
 const formatEpoch = (epoch) => {
   if (epoch === undefined || epoch === null || Number.isNaN(epoch)) return undefined;
-  return `第 ${epoch + 1} 时代`;
+  const epochName = EPOCHS[epoch]?.name || `第 ${epoch + 1} 时代`;
+  return epochName;
 };
 
 const getResourceMeta = (key) => RESOURCES?.[key] || { name: key };
@@ -132,7 +273,19 @@ const flattenEffects = (source, prefix = '') => {
 
   if (typeof source === 'object') {
     return Object.entries(source).flatMap(([key, value]) => {
-      const nextPrefix = prefix ? `${prefix} › ${key}` : key;
+      // 汉化效果键名
+      let cnKey = key;
+      if(key === 'production') cnKey = '全局生产';
+      else if(key === 'taxIncome') cnKey = '税收收入';
+      else if(key === 'stability') cnKey = '稳定度';
+      else if(key === 'scienceBonus') cnKey = '科研产出';
+      else if(key === 'cultureBonus') cnKey = '文化产出';
+      else if(key === 'industry') cnKey = '工业效率';
+      else if(key === 'gather') cnKey = '采集效率';
+      else if(key === 'admin') cnKey = '行政容量';
+      else if(key === 'maxPop') cnKey = '人口上限';
+      
+      const nextPrefix = prefix ? `${prefix} › ${cnKey}` : cnKey;
       if (typeof value === 'object' && !Array.isArray(value)) {
         return flattenEffects(value, nextPrefix);
       }
@@ -180,7 +333,7 @@ const renderJobSection = (jobs) => {
 
   return (
     <div className="space-y-2">
-      <p className="text-sm text-gray-400">岗位</p>
+      <p className="text-sm text-gray-400">提供岗位</p>
       <div className="flex flex-wrap gap-2">
         {entries.map(([key, value]) => {
           const stratum = STRATA?.[key];
@@ -239,9 +392,9 @@ const StrataBuffs = ({ buffs }) => {
         const { desc, ...rest } = info || {};
         return (
           <div key={state} className="bg-gray-800/60 border border-gray-700 rounded-lg p-3">
-            <p className="text-xs uppercase tracking-wide text-gray-400">{state === 'satisfied' ? '满意' : '不满'}</p>
-            <p className="text-sm text-gray-200 mt-1">{desc}</p>
-            {renderListSection('效果', flattenEffects(rest))}
+            <p className="text-xs uppercase tracking-wide text-gray-400">{state === 'satisfied' ? '满意效果' : '不满后果'}</p>
+            <p className="text-sm text-gray-200 mt-1 font-semibold">{desc}</p>
+            {renderListSection('数值影响', flattenEffects(rest))}
           </div>
         );
       })}
@@ -304,10 +457,13 @@ export const WikiModal = ({ show, onClose }) => {
   return (
     <div className="fixed inset-0 bg-black/80 z-[70] flex items-center justify-center p-4">
       <div className="bg-gray-900/95 backdrop-blur-lg rounded-2xl border border-indigo-500/40 shadow-2xl w-full max-w-6xl h-[90vh] flex flex-col overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 bg-gray-900">
           <div>
-            <p className="text-sm uppercase tracking-widest text-indigo-400">Civilopedia</p>
-            <h2 className="text-2xl font-bold text-white">文明百科</h2>
+            <p className="text-xs uppercase tracking-widest text-indigo-400 mb-1">CIVILIZATION KNOWLEDGE BASE</p>
+            <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+              <Icon name="BookOpen" size={24} className="text-indigo-300"/>
+              文明百科全书
+            </h2>
           </div>
           <button
             onClick={onClose}
@@ -320,6 +476,7 @@ export const WikiModal = ({ show, onClose }) => {
 
         <div className="flex flex-1 overflow-hidden">
           <aside className="w-72 border-r border-gray-800 bg-gray-900/60 flex flex-col">
+            {/* 侧边栏分类按钮 */}
             <div className="grid grid-cols-2 gap-2 p-4">
               {CATEGORY_CONFIG.map((category) => {
                 const isActive = category.id === selectedCategory;
@@ -328,40 +485,39 @@ export const WikiModal = ({ show, onClose }) => {
                     key={category.id}
                     type="button"
                     onClick={() => setSelectedCategory(category.id)}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-colors ${
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-colors ${
                       isActive
                         ? 'border-indigo-400 bg-indigo-900/40 text-indigo-100'
                         : 'border-gray-700 text-gray-400 hover:text-gray-100 hover:border-gray-500'
                     }`}
                   >
-                    <Icon name={category.icon} size={16} />
+                    <Icon name={category.icon} size={14} />
                     <span>{category.label}</span>
                   </button>
                 );
               })}
             </div>
 
+            {/* 搜索框 */}
             <div className="px-4 pb-2">
-              <label className="block text-xs uppercase tracking-widest text-gray-500 mb-1">
-                搜索
-              </label>
               <div className="relative">
                 <Icon
                   name="Search"
-                  size={16}
+                  size={14}
                   className="text-gray-500 absolute left-3 top-1/2 -translate-y-1/2"
                 />
                 <input
                   type="text"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="输入名称"
-                  className="w-full bg-gray-800/70 border border-gray-700 rounded-lg pl-9 pr-3 py-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder={`搜索${CATEGORY_CONFIG.find(c=>c.id===selectedCategory)?.label}...`}
+                  className="w-full bg-gray-800/70 border border-gray-700 rounded-lg pl-9 pr-3 py-2 text-xs text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-3 pb-4 space-y-2">
+            {/* 条目列表 */}
+            <div className="flex-1 overflow-y-auto px-3 pb-4 space-y-1 scrollbar-thin scrollbar-thumb-gray-700">
               {filteredEntries.length === 0 ? (
                 <p className="text-xs text-gray-500 px-2 py-4 text-center border border-dashed border-gray-800 rounded-lg">
                   暂无符合条件的条目
@@ -374,18 +530,18 @@ export const WikiModal = ({ show, onClose }) => {
                       key={entry.id}
                       type="button"
                       onClick={() => setSelectedEntryId(entry.id)}
-                      className={`w-full text-left px-3 py-2 rounded-xl border transition-colors ${
+                      className={`w-full text-left px-3 py-2.5 rounded-xl border transition-all ${
                         isActive
-                          ? 'bg-indigo-900/40 border-indigo-500/50'
-                          : 'bg-gray-800/40 border-gray-800 hover:border-gray-600'
+                          ? 'bg-indigo-900/30 border-indigo-500/40 shadow-sm'
+                          : 'bg-transparent border-transparent hover:bg-gray-800/50 hover:border-gray-700'
                       }`}
                     >
-                      <p className="text-sm font-semibold text-white flex items-center gap-2">
-                        <Icon name={entry.icon || 'Bookmark'} size={16} className={entry.iconColor} />
+                      <p className={`text-sm font-semibold flex items-center gap-2 ${isActive ? 'text-indigo-200' : 'text-gray-300'}`}>
+                        <Icon name={entry.icon || 'Bookmark'} size={14} className={isActive ? 'text-indigo-300' : entry.iconColor} />
                         {entry.name}
                       </p>
                       {entry.summary && (
-                        <p className="text-xs text-gray-400 mt-1 truncate">{entry.summary}</p>
+                        <p className="text-[11px] text-gray-500 mt-0.5 truncate ml-6">{entry.summary}</p>
                       )}
                     </button>
                   );
@@ -394,19 +550,19 @@ export const WikiModal = ({ show, onClose }) => {
             </div>
           </aside>
 
-          <section className="flex-1 flex flex-col">
+          <section className="flex-1 flex flex-col bg-gray-900/30">
             {selectedEntry ? (
               <>
-                <div className="p-6 border-b border-gray-800">
+                <div className="p-6 border-b border-gray-800 bg-gray-800/20">
                   <div className="flex items-center gap-4">
-                    <div className="p-3 rounded-2xl bg-gray-800">
-                      <Icon name={selectedEntry.icon || 'Book'} size={28} className={selectedEntry.iconColor} />
+                    <div className="p-3 rounded-2xl bg-gray-800 shadow-lg border border-gray-700">
+                      <Icon name={selectedEntry.icon || 'Book'} size={32} className={selectedEntry.iconColor} />
                     </div>
                     <div>
-                      <p className="text-sm uppercase tracking-widest text-indigo-400">
+                      <p className="text-xs uppercase tracking-widest text-indigo-400 mb-1">
                         {CATEGORY_CONFIG.find((c) => c.id === selectedCategory)?.label}
                       </p>
-                      <h3 className="text-2xl font-bold text-white">{selectedEntry.name}</h3>
+                      <h3 className="text-3xl font-bold text-white">{selectedEntry.name}</h3>
                       {selectedEntry.summary && (
                         <p className="text-sm text-gray-400 mt-1">{selectedEntry.summary}</p>
                       )}
@@ -414,13 +570,14 @@ export const WikiModal = ({ show, onClose }) => {
                   </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                <div className="flex-1 overflow-y-auto p-8 space-y-8 scrollbar-thin scrollbar-thumb-gray-600">
                   {renderEntryDetails(selectedEntry)}
                 </div>
               </>
             ) : (
-              <div className="flex-1 flex items-center justify-center">
-                <p className="text-gray-500">请选择左侧条目查看详情</p>
+              <div className="flex-1 flex flex-col items-center justify-center text-gray-500 opacity-50">
+                <Icon name="BookOpen" size={64} className="mb-4" />
+                <p>请从左侧选择一个条目查看详情</p>
               </div>
             )}
           </section>
@@ -437,6 +594,8 @@ const renderEntryDetails = (entry) => {
   }
 
   switch (type) {
+    case 'mechanics':
+      return renderMechanicsDetails(data);
     case 'economy':
       return renderEconomyDetails(data);
     case 'building':
@@ -458,23 +617,52 @@ const renderEntryDetails = (entry) => {
   }
 };
 
+const renderMechanicsDetails = (content) => {
+  if (!Array.isArray(content)) return null;
+  
+  return (
+    <div className="space-y-6 max-w-3xl">
+      {content.map((block, idx) => {
+        if (block.type === 'h4') {
+          return <h4 key={idx} className="text-lg font-bold text-indigo-300 mt-6 mb-2 pb-2 border-b border-gray-700">{block.text}</h4>;
+        }
+        if (block.type === 'p') {
+          return <p key={idx} className="text-gray-300 leading-7 text-sm">{block.text}</p>;
+        }
+        if (block.type === 'list') {
+          return (
+            <ul key={idx} className="list-disc list-inside space-y-2 bg-gray-800/40 p-4 rounded-lg border border-gray-700/50">
+              {block.items.map((item, i) => (
+                <li key={i} className="text-gray-300 text-sm">{item}</li>
+              ))}
+            </ul>
+          );
+        }
+        return null;
+      })}
+    </div>
+  );
+};
+
 const renderEconomyDetails = (data) => {
   const rows = [
-    data.weight !== undefined && { label: '人口权重', value: formatNumber(data.weight) },
-    data.tax !== undefined && { label: '税收贡献 (每秒)', value: formatNumber(data.tax) },
+    data.weight !== undefined && { label: '分配权重', value: formatNumber(data.weight) },
+    data.tax !== undefined && { label: '税收贡献 (每人)', value: formatNumber(data.tax) },
     data.headTaxBase !== undefined && { label: '人头税基准', value: `${formatNumber(data.headTaxBase)} 银币/日` },
-    data.admin !== undefined && { label: '行政影响', value: formatNumber(data.admin) },
-    data.wealthWeight !== undefined && { label: '财富权重', value: formatNumber(data.wealthWeight) },
+    data.admin !== undefined && { label: '行政压力', value: formatNumber(data.admin) },
+    data.wealthWeight !== undefined && { label: '财富系数', value: formatNumber(data.wealthWeight) },
     data.influenceBase !== undefined && { label: '基础影响力', value: formatNumber(data.influenceBase) },
-    data.startingWealth !== undefined && { label: '起始财富', value: `${formatNumber(data.startingWealth)} 银币` },
-    data.defaultResource && { label: '代表资源', value: getResourceMeta(data.defaultResource).name },
+    data.startingWealth !== undefined && { label: '初始财富', value: `${formatNumber(data.startingWealth)} 银币` },
+    data.defaultResource && { label: '生产资源', value: getResourceMeta(data.defaultResource).name },
   ].filter(Boolean);
 
   return (
     <div className="space-y-6">
-      <p className="text-gray-300 leading-relaxed">{data.desc}</p>
+      <div className="bg-gray-800/40 p-4 rounded-xl border border-gray-700/50">
+        <p className="text-gray-300 leading-relaxed text-sm">{data.desc}</p>
+      </div>
       <InfoGrid rows={rows} />
-      {renderResourceSection('日常需求', data.needs)}
+      {renderResourceSection('日常物资需求', data.needs)}
       <StrataBuffs buffs={data.buffs} />
     </div>
   );
@@ -483,7 +671,7 @@ const renderEconomyDetails = (data) => {
 const renderBuildingDetails = (data) => {
   const rows = [
     data.cat && { label: '建筑类别', value: BUILDING_CATEGORY_LABELS[data.cat] || data.cat },
-    data.owner && { label: '所属阶层', value: stratumNameById(data.owner) },
+    data.owner && { label: '运营阶层', value: stratumNameById(data.owner) },
     (data.epoch !== undefined || data.unlockEpoch !== undefined) && {
       label: '解锁时代',
       value: formatEpoch(data.epoch ?? data.unlockEpoch),
@@ -493,12 +681,16 @@ const renderBuildingDetails = (data) => {
 
   return (
     <div className="space-y-6">
-      <p className="text-gray-300 leading-relaxed">{data.desc}</p>
+      <div className="bg-gray-800/40 p-4 rounded-xl border border-gray-700/50">
+        <p className="text-gray-300 leading-relaxed text-sm">{data.desc}</p>
+      </div>
       <InfoGrid rows={rows} />
-      {renderResourceSection('建造成本', data.baseCost)}
-      {renderResourceSection('运行消耗', data.input)}
-      {renderResourceSection('产出', data.output)}
-      {renderJobSection(data.jobs)}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {renderResourceSection('建造成本', data.baseCost)}
+        {renderResourceSection('产出资源', data.output)}
+        {renderResourceSection('消耗原料', data.input)}
+        {renderJobSection(data.jobs)}
+      </div>
     </div>
   );
 };
@@ -510,21 +702,26 @@ const renderMilitaryDetails = (data) => {
     data.adminCost !== undefined && { label: '行政消耗', value: formatNumber(data.adminCost) },
     data.populationCost !== undefined && { label: '人口占用', value: formatNumber(data.populationCost) },
     data.trainingTime !== undefined && { label: '训练时间 (秒)', value: formatNumber(data.trainingTime) },
-    data.attack !== undefined && { label: '攻击', value: formatNumber(data.attack) },
-    data.defense !== undefined && { label: '防御', value: formatNumber(data.defense) },
-    data.speed !== undefined && { label: '速度', value: formatNumber(data.speed) },
+    data.attack !== undefined && { label: '攻击力', value: formatNumber(data.attack) },
+    data.defense !== undefined && { label: '防御力', value: formatNumber(data.defense) },
+    data.speed !== undefined && { label: '机动速度', value: formatNumber(data.speed) },
     data.range !== undefined && { label: '射程', value: formatNumber(data.range) },
   ].filter(Boolean);
 
   return (
     <div className="space-y-6">
-      <p className="text-gray-300 leading-relaxed">{data.desc}</p>
+      <div className="bg-gray-800/40 p-4 rounded-xl border border-gray-700/50">
+        <p className="text-gray-300 leading-relaxed text-sm">{data.desc}</p>
+      </div>
       <InfoGrid rows={rows} />
-      {renderResourceSection('征召成本', data.recruitCost)}
-      {renderResourceSection('维护成本 (每秒)', data.maintenanceCost)}
-      {renderListSection('能力', data.abilities)}
-      {renderListSection('克制', flattenEffects(data.counters))}
-      {renderListSection('弱点', Array.isArray(data.weakAgainst) ? data.weakAgainst.map((w) => UNIT_CATEGORY_LABELS[w] || w) : [])}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {renderResourceSection('征召成本', data.recruitCost)}
+        {renderResourceSection('每日维护', data.maintenanceCost)}
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {renderListSection('特殊能力', data.abilities)}
+        {renderListSection('克制对象', flattenEffects(data.counters).map(s => s.replace('infantry', '步兵').replace('cavalry', '骑兵').replace('archer', '远程').replace('siege', '攻城')))}
+      </div>
     </div>
   );
 };
@@ -536,28 +733,37 @@ const renderTechDetails = (data) => {
 
   return (
     <div className="space-y-6">
-      <p className="text-gray-300 leading-relaxed">{data.desc}</p>
+      <div className="bg-gray-800/40 p-4 rounded-xl border border-gray-700/50">
+        <p className="text-gray-300 leading-relaxed text-sm">{data.desc}</p>
+      </div>
       <InfoGrid rows={rows} />
       {renderResourceSection('科研成本', data.cost)}
-      {renderListSection('效果', flattenEffects(data.effects))}
+      {renderListSection('科技效果', flattenEffects(data.effects))}
     </div>
   );
 };
 
 const renderDecreeDetails = (data) => {
   const rows = [
-    data.category && { label: '政令类别', value: data.category },
+    data.category && { label: '政令类别', value: data.category === 'economy' ? '经济' : data.category === 'military' ? '军事' : data.category === 'culture' ? '文化' : '社会' },
     data.unlockEpoch !== undefined && { label: '解锁时代', value: formatEpoch(data.unlockEpoch) },
-    data.cost && { label: '行政力消耗', value: flattenEffects(data.cost).join('，') },
+    data.cost && { label: '行政消耗', value: flattenEffects(data.cost).join('，') },
   ].filter(Boolean);
 
   return (
     <div className="space-y-6">
-      <p className="text-gray-300 leading-relaxed">{data.desc}</p>
+      <div className="bg-gray-800/40 p-4 rounded-xl border border-gray-700/50">
+        <p className="text-gray-300 leading-relaxed text-sm">{data.desc}</p>
+      </div>
       <InfoGrid rows={rows} />
-      {renderListSection('正面效果', data.effects)}
-      {renderListSection('负面影响', data.drawbacks)}
-      {renderListSection('数值改动', flattenEffects(data.modifiers))}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="p-4 bg-green-900/20 border border-green-800/30 rounded-lg">
+          {renderListSection('正面效果', data.effects)}
+        </div>
+        <div className="p-4 bg-red-900/20 border border-red-800/30 rounded-lg">
+          {renderListSection('负面代价', data.drawbacks)}
+        </div>
+      </div>
     </div>
   );
 };
@@ -565,15 +771,17 @@ const renderDecreeDetails = (data) => {
 const renderResourceDetails = (data) => {
   const rows = [
     data.basePrice !== undefined && { label: '基础价格', value: `${formatNumber(data.basePrice)} 银币` },
-    data.type && { label: '资源类型', value: data.type === 'currency' ? '货币' : data.type === 'virtual' ? '虚拟' : '实物' },
+    data.type && { label: '资源类型', value: data.type === 'currency' ? '货币' : data.type === 'virtual' ? '概念' : '实物' },
     data.unlockEpoch !== undefined && { label: '解锁时代', value: formatEpoch(data.unlockEpoch) },
     data.unlockTech && { label: '解锁科技', value: techNameById(data.unlockTech) },
-    data.defaultOwner && { label: '默认所有者', value: stratumNameById(data.defaultOwner) },
+    data.defaultOwner && { label: '主要生产者', value: stratumNameById(data.defaultOwner) },
   ].filter(Boolean);
 
   return (
     <div className="space-y-6">
-      <p className="text-gray-300 leading-relaxed">{data.desc || '基础资源信息'}</p>
+      <div className="bg-gray-800/40 p-4 rounded-xl border border-gray-700/50">
+        <p className="text-gray-300 leading-relaxed text-sm">{data.desc || '基础资源信息'}</p>
+      </div>
       <InfoGrid rows={rows} />
       <ResourceTags tags={data.tags} />
     </div>
