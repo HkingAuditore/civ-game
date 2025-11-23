@@ -295,6 +295,37 @@ export default function RiseOfCivs() {
               <Icon name="BookOpen" size={14} />
               <span className="hidden sm:inline">教程</span>
             </button>
+
+            {/* 存档/读档/重置 */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={gameState.saveGame}
+                className="px-3 py-1.5 bg-green-600/20 hover:bg-green-600/40 border border-green-500/30 rounded-lg transition-colors flex items-center gap-2 text-xs font-semibold text-green-300"
+                title="保存当前进度"
+              >
+                <Icon name="Save" size={14} />
+                <span className="hidden sm:inline">保存</span>
+              </button>
+              <button
+                type="button"
+                onClick={gameState.loadGame}
+                className="px-3 py-1.5 bg-purple-600/20 hover:bg-purple-600/40 border border-purple-500/30 rounded-lg transition-colors flex items-center gap-2 text-xs font-semibold text-purple-300"
+                title="读取最近存档"
+              >
+                <Icon name="Download" size={14} />
+                <span className="hidden sm:inline">读档</span>
+              </button>
+              <button
+                type="button"
+                onClick={gameState.resetGame}
+                className="px-3 py-1.5 bg-red-600/20 hover:bg-red-600/40 border border-red-500/30 rounded-lg transition-colors flex items-center gap-2 text-xs font-semibold text-red-300"
+                title="重置游戏并清除存档"
+              >
+                <Icon name="Trash2" size={14} />
+                <span className="hidden sm:inline">重置</span>
+              </button>
+            </div>
             
             {/* 游戏速度控制 */}
             <div className="flex bg-gray-800 rounded-lg overflow-hidden border border-gray-700">

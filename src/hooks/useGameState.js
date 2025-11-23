@@ -4,6 +4,8 @@
 import { useState } from 'react';
 import { DECREES, COUNTRIES, RESOURCES, STRATA } from '../config';
 
+const SAVE_KEY = 'civ_game_save_data_v1';
+
 const INITIAL_RESOURCES = { 
   food: 200, 
   wood: 200, 
@@ -233,6 +235,154 @@ export const useGameState = () => {
   const [jobFill, setJobFill] = useState({});
   const [market, setMarket] = useState(buildInitialMarket());
 
+  const addLogEntry = (message) => {
+    setLogs(prev => [message, ...prev].slice(0, 8));
+  };
+
+  const saveGame = () => {
+    try {
+      const saveData = {
+        resources,
+        population,
+        popStructure,
+        maxPop,
+        buildings,
+        techsUnlocked,
+        epoch,
+        activeTab,
+        gameSpeed,
+        isPaused,
+        decrees,
+        nations,
+        classApproval,
+        classInfluence,
+        classWealth,
+        classWealthDelta,
+        classIncome,
+        classExpense,
+        classWealthHistory,
+        classNeedsHistory,
+        totalInfluence,
+        totalWealth,
+        activeBuffs,
+        activeDebuffs,
+        classInfluenceShift,
+        stability,
+        stratumDetailView,
+        resourceDetailView,
+        classShortages,
+        populationDetailView,
+        history,
+        adminStrain,
+        adminCap,
+        daysElapsed,
+        army,
+        militaryQueue,
+        selectedTarget,
+        battleResult,
+        militaryWageRatio,
+        festivalModal,
+        activeFestivalEffects,
+        lastFestivalYear,
+        showTutorial,
+        logs,
+        clicks,
+        rates,
+        taxes,
+        taxPolicies,
+        jobFill,
+        market,
+      };
+      localStorage.setItem(SAVE_KEY, JSON.stringify(saveData));
+      addLogEntry('💾 游戏已成功保存！');
+    } catch (error) {
+      console.error('Save game failed:', error);
+      addLogEntry(`❌ 存档失败：${error.message}`);
+    }
+  };
+
+  const loadGame = () => {
+    try {
+      const rawData = localStorage.getItem(SAVE_KEY);
+      if (!rawData) {
+        addLogEntry('⚠️ 未找到任何存档数据。');
+        return;
+      }
+      const data = JSON.parse(rawData);
+      setResources(data.resources || INITIAL_RESOURCES);
+      setPopulation(data.population ?? 5);
+      setPopStructure(data.popStructure || {});
+      setMaxPop(data.maxPop ?? 10);
+      setBuildings(data.buildings || {});
+      setTechsUnlocked(data.techsUnlocked || []);
+      setEpoch(data.epoch ?? 0);
+      setActiveTab(data.activeTab || 'build');
+      setGameSpeed(data.gameSpeed ?? 1);
+      setIsPaused(data.isPaused ?? false);
+      setDecrees(data.decrees || DECREES);
+      setNations(data.nations || buildInitialNations());
+      setClassApproval(data.classApproval || {});
+      setClassInfluence(data.classInfluence || {});
+      setClassWealth(data.classWealth || buildInitialWealth());
+      setClassWealthDelta(data.classWealthDelta || {});
+      setClassIncome(data.classIncome || {});
+      setClassExpense(data.classExpense || {});
+      setClassWealthHistory(data.classWealthHistory || buildInitialWealthHistory());
+      setClassNeedsHistory(data.classNeedsHistory || buildInitialNeedsHistory());
+      setTotalInfluence(data.totalInfluence || 0);
+      setTotalWealth(data.totalWealth || 0);
+      setActiveBuffs(data.activeBuffs || []);
+      setActiveDebuffs(data.activeDebuffs || []);
+      setClassInfluenceShift(data.classInfluenceShift || {});
+      setStability(data.stability ?? 50);
+      setStratumDetailView(data.stratumDetailView || null);
+      setResourceDetailView(data.resourceDetailView || null);
+      setClassShortages(data.classShortages || {});
+      setPopulationDetailView(data.populationDetailView || false);
+      setHistory(data.history || buildInitialHistory());
+      setAdminStrain(data.adminStrain || 0);
+      setAdminCap(data.adminCap || 50);
+      setDaysElapsed(data.daysElapsed || 0);
+      setArmy(data.army || {});
+      setMilitaryQueue(data.militaryQueue || []);
+      setSelectedTarget(data.selectedTarget || null);
+      setBattleResult(data.battleResult || null);
+      setMilitaryWageRatio(data.militaryWageRatio || 1.5);
+      setFestivalModal(data.festivalModal || null);
+      setActiveFestivalEffects(data.activeFestivalEffects || []);
+      setLastFestivalYear(data.lastFestivalYear || 1);
+      setShowTutorial(data.showTutorial ?? true);
+      setLogs(data.logs || []);
+      setClicks(data.clicks || []);
+      setRates(data.rates || {});
+      setTaxes(data.taxes || {
+        total: 0,
+        breakdown: { headTax: 0, industryTax: 0, subsidy: 0 },
+        efficiency: 1,
+      });
+      setTaxPolicies(data.taxPolicies || {
+        headTaxRates: buildDefaultHeadTaxRates(),
+        resourceTaxRates: buildDefaultResourceTaxRates(),
+      });
+      setJobFill(data.jobFill || {});
+      setMarket(data.market || buildInitialMarket());
+      addLogEntry('📂 读取存档成功！');
+    } catch (error) {
+      console.error('Load game failed:', error);
+      addLogEntry(`❌ 读取存档失败：${error.message}`);
+    }
+  };
+
+  const resetGame = () => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    const confirmed = window.confirm('确认要重置游戏并清除存档吗？该操作不可撤销。');
+    if (!confirmed) return;
+    localStorage.removeItem(SAVE_KEY);
+    window.location.reload();
+  };
+
   // 返回所有状态和更新函数
   return {
     // 资源
@@ -358,5 +508,8 @@ export const useGameState = () => {
     setTaxPolicies,
     jobFill,
     setJobFill,
+    saveGame,
+    loadGame,
+    resetGame,
   };
 };
