@@ -220,7 +220,7 @@ export const STRATA = {
     influenceBase: 3,
     startingWealth: 45,
     defaultResource: 'culture',
-    needs: { food: 0.6, cloth: 0.09, papyrus: 0.05, ale: 0.05 },
+    needs: { food: 0.6, cloth: 0.09, papyrus: 0.035, ale: 0.035 },
     buffs: {
       satisfied: { desc: "宗教和谐", cultureBonus: 0.2, stability: 0.1 },
       dissatisfied: { desc: "信仰危机", cultureBonus: -0.15, stability: -0.1 }
@@ -240,7 +240,7 @@ export const STRATA = {
     influenceBase: 4,
     startingWealth: 80,
     defaultResource: 'science',
-    needs: { delicacies: 0.55, cloth: 0.12, papyrus: 0.08, coffee: 0.04, furniture: 0.06, stone: 0.02, fine_clothes: 0.06 },
+    needs: { delicacies: 0.385, cloth: 0.12, papyrus: 0.08, coffee: 0.04, furniture: 0.06, stone: 0.02, fine_clothes: 0.06 },
     buffs: {
       satisfied: { desc: "吏治清明", adminBonus: 5, taxIncome: 0.1 },
       dissatisfied: { desc: "官员腐败", adminBonus: -3, taxIncome: -0.2 }
@@ -252,7 +252,7 @@ export const STRATA = {
     icon: 'Castle', 
     weight: 10, 
     tax: 5,
-    headTaxBase: 0.1,
+    headTaxBase: 0.07,
     admin: 3, 
     desc: "传统精英，掌控土地和农业。",
     wealthWeight: 10,
@@ -271,14 +271,14 @@ export const STRATA = {
     icon: 'Briefcase', 
     weight: 15, 
     tax: 8,
-    headTaxBase: 0.12,
+    headTaxBase: 0.08,
     admin: 4, 
     desc: "工业精英，提供投资和工业加成。",
     wealthWeight: 20,
     influenceBase: 6,
     startingWealth: 200,
     defaultResource: 'steel',
-    needs: { delicacies: 0.50, cloth: 0.14, coffee: 0.12, furniture: 0.12, steel: 0.02 },
+    needs: { delicacies: 0.30, cloth: 0.14, coffee: 0.072, furniture: 0.072, steel: 0.02 },
     buffs: {
       satisfied: { desc: "资本繁荣", industryBonus: 0.25, scienceBonus: 0.15 },
       dissatisfied: { desc: "资本外逃", industryBonus: -0.3, taxIncome: -0.25 }

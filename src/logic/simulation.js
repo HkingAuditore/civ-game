@@ -51,6 +51,83 @@ const getBasePrice = (resource) => {
 };
 
 const PRICE_FLOOR = 0.5;
+const BASE_WAGE_REFERENCE = 1;
+
+const calculateResourceCost = (
+  resourceKey,
+  buildingsConfig = BUILDINGS,
+  currentPrices = {},
+  currentWages = {}
+) => {
+  const resolvePrice = (key) => {
+    const current = currentPrices?.[key];
+    if (Number.isFinite(current) && current > 0) {
+      return Math.max(PRICE_FLOOR, current);
+    }
+    const base = RESOURCES[key]?.basePrice;
+    if (Number.isFinite(base) && base > 0) {
+      return Math.max(PRICE_FLOOR, base);
+    }
+    return PRICE_FLOOR;
+  };
+
+  const wageValues = Object.values(currentWages || {}).filter(value => Number.isFinite(value) && value > 0);
+  const avgWage = wageValues.length > 0
+    ? wageValues.reduce((sum, value) => sum + value, 0) / wageValues.length
+    : BASE_WAGE_REFERENCE;
+
+  const resolveWage = (role) => {
+    const wage = currentWages?.[role];
+    if (Number.isFinite(wage) && wage > 0) {
+      return wage;
+    }
+    return avgWage;
+  };
+
+  let primaryBuilding = null;
+  buildingsConfig.forEach(building => {
+    const outputAmount = building.output?.[resourceKey];
+    if (!outputAmount || outputAmount <= 0) return;
+    if (!primaryBuilding) {
+      primaryBuilding = building;
+      return;
+    }
+    const bestOutput = primaryBuilding.output?.[resourceKey] || 0;
+    if (outputAmount > bestOutput) {
+      primaryBuilding = building;
+    }
+  });
+
+  if (primaryBuilding) {
+    const totalOutput = primaryBuilding.output?.[resourceKey] || 0;
+    if (totalOutput > 0) {
+      let inputCost = 0;
+      if (primaryBuilding.input) {
+        Object.entries(primaryBuilding.input).forEach(([inputKey, amount]) => {
+          if (!amount || amount <= 0) return;
+          inputCost += amount * resolvePrice(inputKey);
+        });
+      }
+
+      let laborCost = 0;
+      if (primaryBuilding.jobs) {
+        Object.entries(primaryBuilding.jobs).forEach(([role, slots]) => {
+          if (!slots || slots <= 0) return;
+          laborCost += slots * resolveWage(role);
+        });
+      }
+
+      const unitCost = (inputCost + laborCost) / totalOutput;
+      if (Number.isFinite(unitCost) && unitCost > 0) {
+        return unitCost;
+      }
+    }
+  }
+
+  const basePrice = getBasePrice(resourceKey);
+  const wageInflationFactor = Math.max(0.5, avgWage / BASE_WAGE_REFERENCE);
+  return Math.max(PRICE_FLOOR, basePrice * wageInflationFactor);
+};
 
 const TECH_MAP = TECHS.reduce((acc, tech) => {
   acc[tech.id] = tech;
@@ -78,191 +155,139 @@ const MERCHANT_CAPACITY_WEALTH_DIVISOR = 100;
 const MERCHANT_LOG_VOLUME_RATIO = 0.05;
 const MERCHANT_LOG_PROFIT_THRESHOLD = 50;
 
-// 基于供需和运力的商人贸易逻辑（双向套利）
 const simulateMerchantTrade = ({
   res,
-  rates,
   wealth,
   popStructure,
-  priceLookup,
-  demand,
   supply,
-  logs,
+  demand,
   nations,
   tick,
-  roleWagePayout,
-  roleExpense,
+  taxPolicies,
+  taxBreakdown,
   getLocalPrice,
+  roleExpense,
+  roleWagePayout,
 }) => {
   const merchantCount = popStructure?.merchant || 0;
   if (merchantCount <= 0) {
-    return { wealthDelta: 0 };
+    return;
   }
 
-  const merchantWealthBefore = Math.max(0, wealth?.merchant || 0);
-  let remainingCapacity = merchantCount * MERCHANT_CAPACITY_PER_POP + (merchantWealthBefore / MERCHANT_CAPACITY_WEALTH_DIVISOR);
-  if (!Number.isFinite(remainingCapacity) || remainingCapacity <= 0) {
-    return { wealthDelta: 0 };
-  }
+  const resourceTaxRates = taxPolicies?.resourceTaxRates || {};
+  const getResourceTaxRate = (resource) => Math.max(0, resourceTaxRates[resource] || 0);
 
-  const localPriceResolver = typeof getLocalPrice === 'function' ? getLocalPrice : () => 1;
-  const marketPrices = priceLookup || {};
-  const foreignPartners = Array.isArray(nations)
-    ? nations.filter(n => n && (n.inventory || n.economyTraits))
-    : [];
+  const foreignPartners = Array.isArray(nations) ? nations.filter(n => n && (n.inventory || n.economyTraits)) : [];
   const foreignPriceCache = {};
 
   const getForeignPrice = (resourceKey) => {
-    if (foreignPriceCache[resourceKey] !== undefined) {
-      return foreignPriceCache[resourceKey];
-    }
-    if (foreignPartners.length === 0) {
-      foreignPriceCache[resourceKey] = null;
-      return null;
-    }
-    let total = 0;
-    let count = 0;
-    foreignPartners.forEach(nation => {
-      const price = calculateForeignPrice(resourceKey, nation, tick);
-      if (Number.isFinite(price) && price > 0) {
-        total += price;
-        count += 1;
+      if (foreignPriceCache[resourceKey] !== undefined) {
+          return foreignPriceCache[resourceKey];
       }
-    });
-    const averaged = count > 0 ? total / count : null;
-    foreignPriceCache[resourceKey] = averaged;
-    return averaged;
+      if (foreignPartners.length === 0) {
+          foreignPriceCache[resourceKey] = null;
+          return null;
+      }
+      let total = 0;
+      let count = 0;
+      foreignPartners.forEach(nation => {
+          const price = calculateForeignPrice(resourceKey, nation, tick);
+          if (Number.isFinite(price) && price > 0) {
+              total += price;
+              count += 1;
+          }
+      });
+      const averaged = count > 0 ? total / count : null;
+      foreignPriceCache[resourceKey] = averaged;
+      return averaged;
   };
 
-  const logTradeIfNeeded = ({ type, amount, resourceKey, profit, foreignPrice, localPrice, baseline }) => {
-    const baselineVolume = Math.max(1, baseline || MERCHANT_SAFE_STOCK);
-    const largeVolume = amount >= baselineVolume * MERCHANT_LOG_VOLUME_RATIO;
-    const largeProfit = Math.abs(profit) >= MERCHANT_LOG_PROFIT_THRESHOLD;
-    if (!largeVolume && !largeProfit) return;
-    const resourceName = RESOURCES[resourceKey]?.name || resourceKey;
-    logs.push(
-      `${type} 商人处理 ${amount.toFixed(1)} ${resourceName}，国外 ${foreignPrice.toFixed(2)} vs 本地 ${localPrice.toFixed(2)}，利润 ${profit >= 0 ? '+' : ''}${profit.toFixed(1)} 银币。`
-    );
-  };
+  const tradableKeys = Object.keys(RESOURCES).filter(key => isTradableResource(key));
+  const surplusResources = tradableKeys.filter(key => (supply[key] || 0) > (demand[key] || 0));
+  const shortageResources = tradableKeys.filter(key => (demand[key] || 0) > (supply[key] || 0));
 
-  const tradableKeys = Object.keys(RESOURCES).filter(key => isTradableResource(key) && key !== 'silver');
+  const simCount = merchantCount > 100 ? 100 : merchantCount;
+  const batchMultiplier = merchantCount > 100 ? merchantCount / 100 : 1;
 
-  const importCandidates = tradableKeys
-    .map(resourceKey => {
-      const localPrice = marketPrices[resourceKey] ?? localPriceResolver(resourceKey);
-      if (!Number.isFinite(localPrice) || localPrice <= 0) return null;
-      const foreignPrice = getForeignPrice(resourceKey);
-      if (!Number.isFinite(foreignPrice) || foreignPrice <= 0) return null;
-      if (foreignPrice >= localPrice) return null;
-      const stock = res[resourceKey] || 0;
-      const netRate = rates[resourceKey] || 0;
-      const demandGap = Math.max(0, (demand[resourceKey] || 0) - (supply[resourceKey] || 0));
-      const shortageFromStock = Math.max(0, MERCHANT_SAFE_STOCK - stock);
-      const shortageFromRate = netRate < 0 ? Math.abs(netRate) : 0;
-      const shortageNeed = Math.max(shortageFromStock, demandGap, shortageFromRate);
-      if (shortageNeed <= 0) return null;
-      return {
-        resource: resourceKey,
-        localPrice,
-        foreignPrice,
-        stock,
-        shortageNeed,
-      };
-    })
-    .filter(Boolean)
-    .sort((a, b) => (b.localPrice - b.foreignPrice) - (a.localPrice - a.foreignPrice));
+  for (let i = 0; i < simCount; i++) {
+      const currentTotalWealth = wealth.merchant || 0;
+      if (currentTotalWealth <= 0) break;
 
-  importCandidates.forEach(candidate => {
-    if (remainingCapacity <= 0) return;
-    const wealthAvailable = Math.max(0, wealth.merchant || 0);
-    const maxAffordable = candidate.foreignPrice > 0 ? wealthAvailable / candidate.foreignPrice : 0;
-    const tradeAmount = Math.min(candidate.shortageNeed, remainingCapacity, maxAffordable);
-    if (!Number.isFinite(tradeAmount) || tradeAmount <= 0) return;
-    const cost = tradeAmount * candidate.foreignPrice;
-    wealth.merchant = Math.max(0, (wealth.merchant || 0) - cost);
-    roleExpense.merchant = (roleExpense.merchant || 0) + cost;
+      const decision = Math.random();
 
-    res[candidate.resource] = (res[candidate.resource] || 0) + tradeAmount;
-    rates[candidate.resource] = (rates[candidate.resource] || 0) + tradeAmount;
-    supply[candidate.resource] = (supply[candidate.resource] || 0) + tradeAmount;
+      // Approximate the wealth of the merchant(s) in the current simulated batch
+      const wealthForThisBatch = currentTotalWealth / (simCount - i);
 
-    const profitPerUnit = Math.max(0, candidate.localPrice - candidate.foreignPrice);
-    const profit = profitPerUnit * tradeAmount;
-    if (profit > 0) {
-      wealth.merchant = (wealth.merchant || 0) + profit;
-      roleWagePayout.merchant = (roleWagePayout.merchant || 0) + profit;
-    }
+      if (decision < 0.5 && surplusResources.length > 0) { // Export
+          const resourceKey = surplusResources[Math.floor(Math.random() * surplusResources.length)];
+          const localPrice = getLocalPrice(resourceKey);
+          const foreignPrice = getForeignPrice(resourceKey);
 
-    remainingCapacity -= tradeAmount;
-    logTradeIfNeeded({
-      type: '[进口]',
-      amount: tradeAmount,
-      resourceKey: candidate.resource,
-      profit,
-      foreignPrice: candidate.foreignPrice,
-      localPrice: candidate.localPrice,
-      baseline: candidate.shortageNeed,
-    });
-  });
+          if (foreignPrice === null || localPrice === null || foreignPrice <= localPrice) continue;
 
-  const exportCandidates = tradableKeys
-    .map(resourceKey => {
-      const localPrice = marketPrices[resourceKey] ?? localPriceResolver(resourceKey);
-      if (!Number.isFinite(localPrice) || localPrice <= 0) return null;
-      const foreignPrice = getForeignPrice(resourceKey);
-      if (!Number.isFinite(foreignPrice) || foreignPrice <= 0) return null;
-      if (foreignPrice <= localPrice) return null;
-      const stock = res[resourceKey] || 0;
-      if (stock <= MERCHANT_SAFE_STOCK) return null;
-      const netRate = rates[resourceKey] || 0;
-      if (netRate < 0) return null;
-      const available = Math.max(0, stock - MERCHANT_SAFE_STOCK);
-      const pendingDemand = Math.max(0, (demand[resourceKey] || 0) - (supply[resourceKey] || 0));
-      const exportVolume = pendingDemand > 0 ? Math.min(available, pendingDemand) : available;
-      if (exportVolume <= 0) return null;
-      return {
-        resource: resourceKey,
-        localPrice,
-        foreignPrice,
-        exportVolume,
-        stock,
-      };
-    })
-    .filter(Boolean)
-    .sort((a, b) => (b.foreignPrice - b.localPrice) - (a.foreignPrice - a.localPrice));
+          const taxRate = getResourceTaxRate(resourceKey);
+          const costWithTaxPerUnit = localPrice * (1 + taxRate);
+          
+          const affordableAmount = costWithTaxPerUnit > 0 ? wealthForThisBatch / costWithTaxPerUnit : 3;
+          const amount = Math.min(50, affordableAmount);
+          if (amount <= 0) continue;
 
-  exportCandidates.forEach(candidate => {
-    if (remainingCapacity <= 0) return;
-    const tradeAmount = Math.min(candidate.exportVolume, remainingCapacity);
-    if (!Number.isFinite(tradeAmount) || tradeAmount <= 0) return;
+          const cost = localPrice * amount;
+          const tax = cost * taxRate;
+          const revenue = foreignPrice * amount;
 
-    const currentStock = res[candidate.resource] || 0;
-    res[candidate.resource] = Math.max(0, currentStock - tradeAmount);
-    rates[candidate.resource] = (rates[candidate.resource] || 0) - tradeAmount;
-    supply[candidate.resource] = Math.max(0, (supply[candidate.resource] || 0) - tradeAmount);
+          if (revenue > cost + tax) {
+              const totalAmount = amount * batchMultiplier;
+              const totalCost = cost * batchMultiplier;
+              const totalTax = tax * batchMultiplier;
+              const totalRevenue = revenue * batchMultiplier;
+              
+              const totalOutlay = totalCost + totalTax;
+              
+              if ((wealth.merchant || 0) >= totalOutlay) {
+                  wealth.merchant -= totalOutlay;
+                  roleExpense.merchant = (roleExpense.merchant || 0) + totalOutlay;
+                  roleWagePayout.merchant = (roleWagePayout.merchant || 0) + totalRevenue;
+                  taxBreakdown.industryTax += totalTax;
+                  res[resourceKey] = Math.max(0, (res[resourceKey] || 0) - totalAmount);
+                  supply[resourceKey] = Math.max(0, (supply[resourceKey] || 0) - totalAmount);
+              }
+          }
+      } else if (shortageResources.length > 0) { // Import
+          const resourceKey = shortageResources[Math.floor(Math.random() * shortageResources.length)];
+          const localPrice = getLocalPrice(resourceKey);
+          const foreignPrice = getForeignPrice(resourceKey);
 
-    const revenue = tradeAmount * candidate.foreignPrice;
-    wealth.merchant = (wealth.merchant || 0) + revenue;
-    roleWagePayout.merchant = (roleWagePayout.merchant || 0) + revenue;
+          if (foreignPrice === null || localPrice === null || foreignPrice >= localPrice) continue;
 
-    const profit = Math.max(0, candidate.foreignPrice - candidate.localPrice) * tradeAmount;
-    logTradeIfNeeded({
-      type: '[出口]',
-      amount: tradeAmount,
-      resourceKey: candidate.resource,
-      profit,
-      foreignPrice: candidate.foreignPrice,
-      localPrice: candidate.localPrice,
-      baseline: candidate.stock,
-    });
+          const taxRate = getResourceTaxRate(resourceKey);
+          const totalPerUnitCost = foreignPrice + (localPrice * taxRate);
+          const affordableAmount = totalPerUnitCost > 0 ? wealthForThisBatch / totalPerUnitCost : 3;
+          const amount = Math.min(50, affordableAmount);
+          if (amount <= 0) continue;
 
-    remainingCapacity -= tradeAmount;
-  });
+          const cost = foreignPrice * amount;
+          const revenue = localPrice * amount;
+          const tax = revenue * taxRate;
 
-  const merchantWealthAfter = Math.max(0, wealth.merchant || 0);
-  return {
-    wealthDelta: merchantWealthAfter - merchantWealthBefore,
-  };
+          if (revenue > cost + tax) {
+              const totalAmount = amount * batchMultiplier;
+              const totalCost = cost * batchMultiplier;
+              const totalTax = tax * batchMultiplier;
+              const totalRevenue = revenue * batchMultiplier;
+              const totalOutlay = totalCost + totalTax;
+              
+              if ((wealth.merchant || 0) >= totalOutlay) {
+                  wealth.merchant -= totalOutlay;
+                  roleExpense.merchant = (roleExpense.merchant || 0) + totalOutlay;
+                  roleWagePayout.merchant = (roleWagePayout.merchant || 0) + totalRevenue;
+                  taxBreakdown.industryTax += totalTax;
+                  res[resourceKey] = (res[resourceKey] || 0) + totalAmount;
+                  supply[resourceKey] = (supply[resourceKey] || 0) + totalAmount;
+              }
+          }
+      }
+  }
 };
 
 export const simulateTick = ({
@@ -458,6 +483,21 @@ export const simulateTick = ({
   Object.keys(STRATA).forEach(key => {
     roleExpense[key] = 0;
   });
+
+  const applyRoleIncomeToWealth = () => {
+    Object.entries(roleWagePayout).forEach(([role, payout]) => {
+      if (payout <= 0) {
+        directIncomeApplied[role] = payout;
+        return;
+      }
+      const alreadyApplied = directIncomeApplied[role] || 0;
+      const netPayout = payout - alreadyApplied;
+      if (netPayout > 0) {
+        wealth[role] = (wealth[role] || 0) + netPayout;
+      }
+      directIncomeApplied[role] = payout;
+    });
+  };
 
   BUILDINGS.forEach(b => {
     const count = builds[b.id] || 0;
@@ -1087,14 +1127,7 @@ export const simulateTick = ({
   }
 
   // Add all tracked income (civilian + military) to the wealth of each class
-  Object.entries(roleWagePayout).forEach(([role, payout]) => {
-    if (payout <= 0) return;
-    const alreadyApplied = directIncomeApplied[role] || 0;
-    const netPayout = payout - alreadyApplied;
-    if (netPayout > 0) {
-      wealth[role] = (wealth[role] || 0) + netPayout;
-    }
-  });
+  applyRoleIncomeToWealth();
 
   const needsReport = {};
   const classShortages = {};
@@ -1606,14 +1639,17 @@ export const simulateTick = ({
 
   Object.keys(RESOURCES).forEach(resource => {
     if (!isTradableResource(resource)) return;
-    const base = getBasePrice(resource);
+    const anchorPrice = calculateResourceCost(resource, BUILDINGS, priceMap, updatedWages);
     const sup = supply[resource] || 0;
     const dem = demand[resource] || 0;
     const ratio = dem / Math.max(sup, 1);
     const priceMultiplier = computePriceMultiplier(ratio);
-    const targetPrice = Math.max(PRICE_FLOOR, base * priceMultiplier);
-    const prevPrice = priceMap[resource] || base;
-    const smoothed = prevPrice + (targetPrice - prevPrice) * 0.3;
+    let targetPrice = anchorPrice * priceMultiplier;
+    const costFloor = anchorPrice * 0.6;
+    targetPrice = Math.max(targetPrice, costFloor);
+    targetPrice = Math.max(targetPrice, PRICE_FLOOR);
+    const prevPrice = priceMap[resource] || anchorPrice;
+    const smoothed = prevPrice + (targetPrice - prevPrice) * 0.1;
     updatedPrices[resource] = parseFloat(Math.max(PRICE_FLOOR, smoothed).toFixed(2));
   });
 
@@ -1712,28 +1748,29 @@ export const simulateTick = ({
     }
   }
 
-  const merchantTradeOutcome = simulateMerchantTrade({
+  const previousMerchantWealth = classWealthResult.merchant || 0;
+  simulateMerchantTrade({
     res,
-    rates,
     wealth,
     popStructure,
-    priceLookup: updatedPrices,
-    demand,
     supply,
-    logs,
+    demand,
     nations: updatedNations,
     tick,
-    roleWagePayout,
-    roleExpense,
+    taxPolicies: policies,
+    taxBreakdown,
     getLocalPrice: getPrice,
+    roleExpense,
+    roleWagePayout,
   });
 
-  if (merchantTradeOutcome.wealthDelta !== 0) {
-    const updatedMerchantWealth = Math.max(0, wealth.merchant || 0);
-    const previousMerchantWealth = classWealthResult.merchant || 0;
-    const wealthDelta = updatedMerchantWealth - previousMerchantWealth;
+  applyRoleIncomeToWealth();
+
+  const updatedMerchantWealth = Math.max(0, wealth.merchant || 0);
+  const merchantWealthDelta = updatedMerchantWealth - previousMerchantWealth;
+  if (merchantWealthDelta !== 0) {
     classWealthResult.merchant = updatedMerchantWealth;
-    totalWealth += wealthDelta;
+    totalWealth += merchantWealthDelta;
     const merchantDef = STRATA.merchant;
     if (merchantDef) {
       const merchantCount = popStructure.merchant || 0;
