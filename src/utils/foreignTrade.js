@@ -41,6 +41,40 @@ export const calculateForeignPrice = (resourceKey, nation, tick = 0) => {
   const clampedFactor = Math.max(0.2, Math.min(10, inventoryFactor));
   
   const price = base * bias * clampedFactor;
-  
+
   return Math.max(0.2, parseFloat(price.toFixed(2)));
+};
+
+const getResourceKeyOffset = (resourceKey = '') => {
+  if (!resourceKey) return 0;
+  return resourceKey.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
+};
+
+/**
+ * 计算动态贸易状态（缺口/盈余）及目标库存
+ * @param {string} resourceKey
+ * @param {Object} nation
+ * @param {number} daysElapsed
+ * @returns {{isShortage: boolean, isSurplus: boolean, shortageAmount: number, surplusAmount: number, target: number}}
+ */
+export const calculateTradeStatus = (resourceKey, nation = {}, daysElapsed = 0) => {
+  const baseTarget = 500;
+  const volatility =
+    typeof nation.marketVolatility === 'number' ? nation.marketVolatility : 0.3;
+  const inventory = nation?.inventory?.[resourceKey] || 0;
+  const offset = getResourceKeyOffset(resourceKey);
+  const factor = Math.sin(daysElapsed * 0.05 + offset);
+  const dynamicTarget = baseTarget * (1 + factor * volatility);
+  const shortageThreshold = dynamicTarget * 0.5;
+  const surplusThreshold = dynamicTarget * 1.5;
+  const shortageAmount = Math.max(0, shortageThreshold - inventory);
+  const surplusAmount = Math.max(0, inventory - surplusThreshold);
+
+  return {
+    isShortage: shortageAmount > 0,
+    isSurplus: surplusAmount > 0,
+    shortageAmount,
+    surplusAmount,
+    target: dynamicTarget,
+  };
 };

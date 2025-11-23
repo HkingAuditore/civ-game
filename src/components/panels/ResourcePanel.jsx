@@ -1,7 +1,7 @@
 // 资源面板组件
 // 显示当前资源数量和生产速率
 
-import React, { useState } from 'react';
+import React from 'react';
 import { Icon } from '../common/UIComponents';
 import { RESOURCES } from '../../config';
 
@@ -16,9 +16,8 @@ export const ResourcePanel = ({
   rates, 
   market,
   epoch = 0,
-  gameSpeed = 1,
+  onDetailClick,
 }) => {
-  const [selectedResource, setSelectedResource] = useState(null);
 
   // 格式化大额数字显示
   const formatCompactNumber = (value) => {
@@ -36,33 +35,6 @@ export const ResourcePanel = ({
     if (!market) return RESOURCES[key]?.basePrice || 1;
     const base = RESOURCES[key]?.basePrice || 1;
     return market.prices?.[key] ?? base;
-  };
-
-  const handleSelect = (key) => {
-    setSelectedResource(prev => (prev === key ? null : key));
-  };
-
-  const renderPriceChart = (history = []) => {
-    if (!history || history.length <= 1) return null;
-    const width = 160;
-    const height = 48;
-    const max = Math.max(...history);
-    const min = Math.min(...history);
-    const range = max - min || 1;
-    const points = history.map((price, index) => {
-      const x = history.length > 1 ? (index / (history.length - 1)) * width : width;
-      const y = height - ((price - min) / range) * height;
-      return `${x},${y}`;
-    }).join(' ');
-    return (
-      <svg
-        viewBox={`0 0 ${width} ${height}`}
-        preserveAspectRatio="none"
-        className="w-full h-16 text-blue-300 stroke-current fill-none"
-      >
-        <polyline points={points} strokeWidth="2" />
-      </svg>
-    );
   };
 
   return (
@@ -83,20 +55,12 @@ export const ResourcePanel = ({
           const amount = resources[key] || 0;
           const rate = rates[key] || 0;
           const price = getPrice(key);
-          const safeDayScale = Math.max(gameSpeed, 0.0001);
-          const supply = (market?.supply?.[key] ?? 0) / safeDayScale;
-          const demand = (market?.demand?.[key] ?? 0) / safeDayScale;
-          const ratio = supply > 0 ? demand / supply : (demand > 0 ? Infinity : 1);
-          const history = market?.priceHistory?.[key] || [];
-          const isSelected = selectedResource === key;
-
           return (
             <div key={key} className="text-xs">
               <div
-                className={`flex items-center justify-between hover:bg-gray-700/50 p-1 rounded transition-colors cursor-pointer ${
-                  isSelected ? 'bg-gray-700/80 border border-blue-500/40' : ''
-                }`}
-                onClick={() => handleSelect(key)}
+                className="flex items-center justify-between hover:bg-gray-700/50 p-1 rounded transition-colors cursor-pointer"
+                onClick={() => onDetailClick && onDetailClick(key)}
+                title="点击查看详情"
               >
                 {/* 资源图标和名称 */}
                 <div className="flex items-center gap-1.5">
@@ -123,19 +87,6 @@ export const ResourcePanel = ({
                   )}
                 </div>
               </div>
-
-              {isSelected && (
-                <div className="mt-1 px-2 py-2 bg-gray-900/70 rounded border border-gray-700 text-[11px] text-gray-400 space-y-2">
-                  <div className="flex gap-4 justify-end">
-                    <span>供给 <span className="text-green-300 font-mono">{supply.toFixed(1)}</span></span>
-                    <span>需求 <span className="text-red-300 font-mono">{demand.toFixed(1)}</span></span>
-                    <span>需求/供给 <span className="text-yellow-300 font-mono">{Number.isFinite(ratio) ? ratio.toFixed(2) : '∞'}</span></span>
-                  </div>
-                  {renderPriceChart(history) || (
-                    <div className="text-[10px] text-gray-600 text-right">价格变化数据不足</div>
-                  )}
-                </div>
-              )}
             </div>
           );
         })}

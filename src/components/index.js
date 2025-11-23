@@ -22,5 +22,6 @@ export { DiplomacyTab } from './tabs/DiplomacyTab';
 // 模态框组件
 export { BattleResultModal } from './modals/BattleResultModal';
 export { StratumDetailModal } from './modals/StratumDetailModal';
+export { ResourceDetailModal } from './modals/ResourceDetailModal';
 export { AnnualFestivalModal } from './modals/AnnualFestivalModal';
 export { TutorialModal } from './modals/TutorialModal';

@@ -18,6 +18,7 @@ import {
   DiplomacyTab,
   BattleResultModal,
   StratumDetailModal,
+  ResourceDetailModal,
   AnnualFestivalModal,
   TutorialModal,
 } from './components';
@@ -318,7 +319,7 @@ export default function RiseOfCivs() {
             rates={gameState.rates} 
             market={gameState.market}
             epoch={gameState.epoch}
-            gameSpeed={gameState.gameSpeed}
+            onDetailClick={(key) => gameState.setResourceDetailView(key)}
           />
 
           {/* 社会阶层面板 */}
@@ -516,6 +517,19 @@ export default function RiseOfCivs() {
             epoch={gameState.epoch}
             techsUnlocked={gameState.techsUnlocked}
           onClose={() => gameState.setStratumDetailView(null)}
+        />
+      )}
+
+      {/* 资源详情模态框 */}
+      {gameState.resourceDetailView && (
+        <ResourceDetailModal
+          resourceKey={gameState.resourceDetailView}
+          resources={gameState.resources}
+          market={gameState.market}
+          buildings={gameState.buildings}
+          popStructure={gameState.popStructure}
+          army={gameState.army}
+          onClose={() => gameState.setResourceDetailView(null)}
         />
       )}
 

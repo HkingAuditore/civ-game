@@ -1,7 +1,7 @@
 // 建设标签页组件
 // 显示可建造的建筑列表
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Icon } from '../common/UIComponents';
 import { BUILDINGS, RESOURCES, STRATA } from '../../config';
 import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
@@ -107,10 +107,42 @@ export const BuildTab = ({
     civic: { name: '居住与行政', icon: 'Home', color: 'text-green-400' },
     military: { name: '军事建筑', icon: 'Swords', color: 'text-red-400' },
   };
+  const categoryFilters = [
+    { key: 'all', label: '全部' },
+    { key: 'gather', label: '采集' },
+    { key: 'industry', label: '工业' },
+    { key: 'civic', label: '居住' },
+    { key: 'military', label: '军事' },
+  ];
+  const [activeCategory, setActiveCategory] = useState('all');
+  const categoriesToRender =
+    activeCategory === 'all'
+      ? Object.entries(categories)
+      : Object.entries(categories).filter(([key]) => key === activeCategory);
 
   return (
     <div className="space-y-4">
-      {Object.entries(categories).map(([catKey, catInfo]) => {
+      <div className="flex flex-wrap gap-2 pb-1 border-b border-gray-700/60 mb-3">
+        {categoryFilters.map((filter) => {
+          const isActive = filter.key === activeCategory;
+          return (
+            <button
+              key={filter.key}
+              onClick={() => setActiveCategory(filter.key)}
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+                isActive
+                  ? 'bg-blue-600 text-white shadow-inner'
+                  : 'bg-gray-700/70 text-gray-300 hover:bg-gray-600/60'
+              }`}
+              aria-pressed={isActive}
+            >
+              {filter.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {categoriesToRender.map(([catKey, catInfo]) => {
         const categoryBuildings = BUILDINGS.filter(b => b.cat === catKey);
         
         return (

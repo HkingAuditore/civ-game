@@ -1,7 +1,7 @@
 // 科技标签页组件
 // 显示科技树和时代升级功能
 
-import React from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Icon } from '../common/UIComponents';
 import { TECHS, EPOCHS, BUILDINGS } from '../../config';
 import { RESOURCES } from '../../config';
@@ -59,7 +59,7 @@ export const TechTab = ({
    * @param {Object} tech - 科技对象
    * @returns {boolean}
    */
-  const canResearch = (tech) => {
+  const canResearch = useCallback((tech) => {
     // 已研究
     if (techsUnlocked.includes(tech.id)) return false;
     
@@ -75,7 +75,7 @@ export const TechTab = ({
     if ((resources.silver || 0) < silverCost) return false;
     
     return true;
-  };
+  }, [techsUnlocked, epoch, resources, market]);
 
   /**
    * 获取科技状态
@@ -89,11 +89,85 @@ export const TechTab = ({
   };
 
   // 按时代分组科技
-  const techsByEpoch = TECHS.reduce((acc, tech) => {
-    if (!acc[tech.epoch]) acc[tech.epoch] = [];
-    acc[tech.epoch].push(tech);
-    return acc;
-  }, {});
+  const techsByEpoch = useMemo(() => {
+    return TECHS.reduce((acc, tech) => {
+      if (!acc[tech.epoch]) acc[tech.epoch] = [];
+      acc[tech.epoch].push(tech);
+      return acc;
+    }, {});
+  }, []);
+
+  const [expandedEpochs, setExpandedEpochs] = useState(() => {
+    const defaults = new Set();
+    Object.keys(techsByEpoch).forEach((epochIdx) => {
+      const idx = parseInt(epochIdx, 10);
+      const techs = techsByEpoch[idx] || [];
+      const hasUnresearched = techs.some((tech) => !techsUnlocked.includes(tech.id));
+      if (idx === epoch || hasUnresearched) {
+        defaults.add(idx);
+      }
+    });
+    return defaults;
+  });
+
+  const [showUnresearchedOnly, setShowUnresearchedOnly] = useState(false);
+
+  useEffect(() => {
+    // 自动展开新进入的时代
+    setExpandedEpochs((prev) => {
+      if (prev.has(epoch)) return prev;
+      const updated = new Set(prev);
+      updated.add(epoch);
+      return updated;
+    });
+  }, [epoch]);
+
+  const visibleEpochIndices = useMemo(() => (
+    Object.keys(techsByEpoch)
+      .map(Number)
+      .filter((idx) => idx <= epoch)
+      .sort((a, b) => a - b)
+  ), [techsByEpoch, epoch]);
+
+  const epochSummaries = useMemo(() => {
+    return visibleEpochIndices.reduce((acc, idx) => {
+      const techs = techsByEpoch[idx] || [];
+      const total = techs.length;
+      const researchedCount = techs.filter((tech) => techsUnlocked.includes(tech.id)).length;
+      const hasResearchable = techs.some((tech) => canResearch(tech));
+      acc[idx] = {
+        techs,
+        total,
+        researchedCount,
+        isCompleted: total > 0 && researchedCount === total,
+        hasResearchable,
+      };
+      return acc;
+    }, {});
+  }, [visibleEpochIndices, techsByEpoch, techsUnlocked, canResearch]);
+
+  const areAllVisibleExpanded = visibleEpochIndices.length > 0 && visibleEpochIndices.every((idx) => expandedEpochs.has(idx));
+
+  const toggleEpoch = (idx) => {
+    setExpandedEpochs((prev) => {
+      const updated = new Set(prev);
+      if (updated.has(idx)) {
+        updated.delete(idx);
+      } else {
+        updated.add(idx);
+      }
+      return updated;
+    });
+  };
+
+  const handleToggleAll = () => {
+    setExpandedEpochs(() => {
+      if (areAllVisibleExpanded) {
+        return new Set();
+      }
+      return new Set(visibleEpochIndices);
+    });
+  };
 
   const nextEpochInfo = epoch < EPOCHS.length - 1 ? EPOCHS[epoch + 1] : null;
   const nextEpochSilverCost = nextEpochInfo ? calculateSilverCost(nextEpochInfo.cost, market) : 0;
@@ -247,116 +321,163 @@ export const TechTab = ({
           科技树
         </h3>
 
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between mb-4">
+          <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              className="form-checkbox rounded border-gray-600 text-purple-400 focus:ring-purple-500"
+              checked={showUnresearchedOnly}
+              onChange={(e) => setShowUnresearchedOnly(e.target.checked)}
+            />
+            仅显示未研究
+          </label>
+          <button
+            onClick={handleToggleAll}
+            className="text-xs px-3 py-1.5 rounded border border-gray-600 text-gray-200 hover:border-purple-400 hover:text-white transition-colors"
+          >
+            {areAllVisibleExpanded ? '全部折叠' : '全部展开'}
+          </button>
+        </div>
+
         {/* 按时代显示科技 */}
         <div className="space-y-4">
-          {Object.entries(techsByEpoch).filter(([epochIdx]) => parseInt(epochIdx) <= epoch).map(([epochIdx, techs]) => {
-            const epochInfo = EPOCHS[parseInt(epochIdx)];
+          {visibleEpochIndices.map((epochIdx) => {
+            const epochInfo = EPOCHS[epochIdx];
+            const summary = epochSummaries[epochIdx];
+            const isExpanded = expandedEpochs.has(epochIdx);
+            const progressLabel = summary?.isCompleted
+              ? '✓ 已完成'
+              : `${summary?.researchedCount || 0}/${summary?.total || 0}`;
+            const progressClass = summary?.isCompleted ? 'text-green-400' : 'text-gray-300';
+
+            const techs = summary?.techs || [];
+            const visibleTechs = showUnresearchedOnly
+              ? techs.filter((tech) => !techsUnlocked.includes(tech.id))
+              : techs;
 
             return (
-              <div key={epochIdx}>
-                {/* 时代标题 */}
-                <div className="flex items-center gap-2 mb-2">
-                  <Icon name="Flag" size={14} className="text-purple-400" />
-                  <h4 className="text-sm font-bold text-purple-300">
-                    {epochInfo.name}
-                  </h4>
-                </div>
+              <div
+                key={epochIdx}
+                className={`border rounded-lg ${
+                  summary?.hasResearchable ? 'border-yellow-400/70' : 'border-gray-700'
+                } bg-gray-900/40`}
+              >
+                <button
+                  type="button"
+                  className="w-full flex items-center justify-between px-3 py-2 text-left text-sm text-purple-200"
+                  onClick={() => toggleEpoch(epochIdx)}
+                >
+                  <div className="flex items-center gap-2">
+                    <Icon name={isExpanded ? 'ArrowDown' : 'ArrowRight'} size={16} className="text-purple-300" />
+                    <span className="font-bold">{epochInfo?.name}</span>
+                    {summary?.hasResearchable && (
+                      <span className="h-2 w-2 rounded-full bg-yellow-300 animate-pulse" />
+                    )}
+                  </div>
+                  <div className={`text-xs font-semibold ${progressClass}`}>
+                    {progressLabel}
+                  </div>
+                </button>
+                {isExpanded && (
+                  <div className="border-t border-gray-800 px-3 py-4">
+                    {visibleTechs.length > 0 ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {visibleTechs.map((tech) => {
+                          const status = getTechStatus(tech);
+                          const silverCost = calculateSilverCost(tech.cost, market);
+                          const affordable = canResearch(tech);
 
-                {/* 科技列表 */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 ml-4">
-                  {techs.map((tech) => {
-                    const status = getTechStatus(tech);
-                    const silverCost = calculateSilverCost(tech.cost, market);
-                    const affordable = canResearch(tech);
+                          return (
+                            <div
+                              key={tech.id}
+                              className={`p-3 rounded-lg border transition-all ${
+                                status === 'unlocked'
+                                  ? 'bg-green-900/20 border-green-600'
+                                  : affordable
+                                  ? 'bg-gray-700 border-gray-600 hover:border-gray-500'
+                                  : 'bg-gray-700/50 border-gray-700'
+                              }`}
+                            >
+                              <div className="flex items-start justify-between mb-2">
+                                <div className="flex-1">
+                                  <h5 className="text-sm font-bold text-white flex items-center gap-1">
+                                    {tech.name}
+                                    {status === 'unlocked' && (
+                                      <Icon name="Check" size={14} className="text-green-400" />
+                                    )}
+                                  </h5>
+                                  <p className="text-xs text-gray-400 mt-1">{tech.desc}</p>
+                                  {TECH_BUILDING_UNLOCKS[tech.id]?.length > 0 && (
+                                    <p className="text-[11px] text-amber-300 mt-1">
+                                      解锁建筑：{TECH_BUILDING_UNLOCKS[tech.id].join('、')}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
 
-                    return (
-                      <div
-                        key={tech.id}
-                        className={`p-3 rounded-lg border transition-all ${
-                          status === 'unlocked'
-                            ? 'bg-green-900/20 border-green-600'
-                            : affordable
-                            ? 'bg-gray-700 border-gray-600 hover:border-gray-500'
-                            : 'bg-gray-700/50 border-gray-700'
-                        }`}
-                      >
-                        {/* 科技头部 */}
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="flex-1">
-                            <h5 className="text-sm font-bold text-white flex items-center gap-1">
-                              {tech.name}
-                              {status === 'unlocked' && (
-                                <Icon name="Check" size={14} className="text-green-400" />
+                              {tech.effect && (
+                                <div className="mb-2 p-2 bg-black/20 rounded">
+                                  <p className="text-xs text-blue-300">{tech.effect}</p>
+                                </div>
                               )}
-                            </h5>
-                            <p className="text-xs text-gray-400 mt-1">{tech.desc}</p>
-                            {TECH_BUILDING_UNLOCKS[tech.id]?.length > 0 && (
-                              <p className="text-[11px] text-amber-300 mt-1">
-                                解锁建筑：{TECH_BUILDING_UNLOCKS[tech.id].join('、')}
-                              </p>
-                            )}
-                          </div>
-                        </div>
 
-                        {/* 科技效果 */}
-                        {tech.effect && (
-                          <div className="mb-2 p-2 bg-black/20 rounded">
-                            <p className="text-xs text-blue-300">{tech.effect}</p>
-                          </div>
-                        )}
+                              {status !== 'unlocked' && (
+                                <>
+                                  <div className="flex flex-wrap gap-1 mb-2">
+                                    {Object.entries(tech.cost).map(([resource, cost]) => (
+                                      <span
+                                        key={resource}
+                                        className={`text-xs px-1.5 py-0.5 rounded ${
+                                          (resources[resource] || 0) >= cost
+                                            ? 'bg-green-900/30 text-green-400'
+                                            : 'bg-red-900/30 text-red-400'
+                                        }`}
+                                      >
+                                        {RESOURCES[resource]?.name || resource}: {cost}
+                                      </span>
+                                    ))}
+                                  </div>
+                                  <div className="flex items-center justify-between text-xs mb-2">
+                                    <span className="text-gray-400">银币成本</span>
+                                    <span className={
+                                      (resources.silver || 0) >= silverCost
+                                        ? 'text-slate-100 font-semibold'
+                                        : 'text-red-400 font-semibold'
+                                    }>
+                                      {formatSilverCost(silverCost)}
+                                    </span>
+                                  </div>
+                                </>
+                              )}
 
-                        {/* 研究成本 */}
-                        {status !== 'unlocked' && (
-                          <>
-                            <div className="flex flex-wrap gap-1 mb-2">
-                              {Object.entries(tech.cost).map(([resource, cost]) => (
-                                <span
-                                  key={resource}
-                                  className={`text-xs px-1.5 py-0.5 rounded ${
-                                    (resources[resource] || 0) >= cost
-                                      ? 'bg-green-900/30 text-green-400'
-                                      : 'bg-red-900/30 text-red-400'
+                              {status === 'unlocked' ? (
+                                <div className="text-center py-1 bg-green-900/20 rounded text-xs text-green-400 font-semibold">
+                                  ✓ 已研究
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => onResearch(tech.id)}
+                                  disabled={!affordable}
+                                  className={`w-full px-3 py-1.5 rounded text-xs font-semibold transition-colors ${
+                                    affordable
+                                      ? 'bg-blue-600 hover:bg-blue-500 text-white'
+                                      : 'bg-gray-600 text-gray-400 cursor-not-allowed'
                                   }`}
                                 >
-                                  {RESOURCES[resource]?.name || resource}: {cost}
-                                </span>
-                              ))}
+                                  研究
+                                </button>
+                              )}
                             </div>
-                            <div className="flex items-center justify-between text-xs mb-2">
-                              <span className="text-gray-400">银币成本</span>
-                              <span className={
-                                (resources.silver || 0) >= silverCost
-                                  ? 'text-slate-100 font-semibold'
-                                  : 'text-red-400 font-semibold'
-                              }>
-                                {formatSilverCost(silverCost)}
-                              </span>
-                            </div>
-                          </>
-                        )}
-
-                        {/* 研究按钮 */}
-                        {status === 'unlocked' ? (
-                          <div className="text-center py-1 bg-green-900/20 rounded text-xs text-green-400 font-semibold">
-                            ✓ 已研究
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => onResearch(tech.id)}
-                            disabled={!affordable}
-                            className={`w-full px-3 py-1.5 rounded text-xs font-semibold transition-colors ${
-                              affordable
-                                ? 'bg-blue-600 hover:bg-blue-500 text-white'
-                                : 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                            }`}
-                          >
-                            研究
-                          </button>
-                        )}
+                          );
+                        })}
                       </div>
-                    );
-                  })}
-                </div>
+                    ) : (
+                      <p className="text-xs text-gray-400 text-center">
+                        {showUnresearchedOnly ? '该时代暂无未研究科技。' : '该时代暂无科技。'}
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}

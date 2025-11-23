@@ -3,7 +3,7 @@
 
 import { BUILDINGS, EPOCHS, RESOURCES, TECHS, MILITARY_ACTIONS, UNIT_TYPES } from '../config';
 import { calculateArmyAdminCost, calculateArmyPopulation, simulateBattle, calculateBattlePower } from '../config';
-import { calculateForeignPrice } from '../utils/foreignTrade';
+import { calculateForeignPrice, calculateTradeStatus } from '../utils/foreignTrade';
 
 /**
  * 游戏操作钩子
@@ -508,27 +508,19 @@ export const useGameActions = (gameState, addLog) => {
         }
         
         // 检查目标国家是否有缺口（库存低于目标值的50%）
-        const nationInventory = (targetNation.inventory || {})[resourceKey] || 0;
-        const targetInventory = 500;
-        const isShortage = nationInventory < targetInventory * 0.5;
+        const tradeStatus = calculateTradeStatus(resourceKey, targetNation, daysElapsed);
+        const shortageCapacity = Math.floor(tradeStatus.shortageAmount);
         
-        if (!isShortage) {
+        if (!tradeStatus.isShortage || shortageCapacity <= 0) {
           addLog(`${targetNation.name} 对 ${RESOURCES[resourceKey].name} 没有缺口，无法出口。`);
           return;
         }
         
-        // 计算缺口数量：目标库存 - 当前库存
-        const shortageAmount = Math.floor(targetInventory - nationInventory);
-        
         // 检查是否超过缺口限制
-        if (amount > shortageAmount) {
-          if (shortageAmount <= 0) {
-            addLog(`${targetNation.name} 对 ${RESOURCES[resourceKey].name} 的缺口已填满，无法出口。`);
-            return;
-          }
-          addLog(`${targetNation.name} 对 ${RESOURCES[resourceKey].name} 的缺口只有 ${shortageAmount} 单位，已调整出口数量（原计划 ${amount}）。`);
+        if (amount > shortageCapacity) {
+          addLog(`${targetNation.name} 对 ${RESOURCES[resourceKey].name} 的缺口只有 ${shortageCapacity} 单位，已调整出口数量（原计划 ${amount}）。`);
           // 调整交易数量为缺口的最大值
-          payload.amount = shortageAmount;
+          payload.amount = shortageCapacity;
           return handleDiplomaticAction(nationId, action, payload); // 递归调用，使用调整后的数量
         }
         
@@ -573,27 +565,19 @@ export const useGameActions = (gameState, addLog) => {
         }
         
         // 检查目标国家是否有盈余（库存高于目标值的150%）
-        const nationInventory = (targetNation.inventory || {})[resourceKey] || 0;
-        const targetInventory = 500;
-        const isSurplus = nationInventory > targetInventory * 1.5;
+        const tradeStatus = calculateTradeStatus(resourceKey, targetNation, daysElapsed);
+        const surplusCapacity = Math.floor(tradeStatus.surplusAmount);
         
-        if (!isSurplus) {
+        if (!tradeStatus.isSurplus || surplusCapacity <= 0) {
           addLog(`${targetNation.name} 对 ${RESOURCES[resourceKey].name} 没有盈余，无法进口。`);
           return;
         }
         
-        // 计算盈余数量：当前库存 - 目标库存
-        const surplusAmount = Math.floor(nationInventory - targetInventory);
-        
         // 检查是否超过盈余限制
-        if (amount > surplusAmount) {
-          if (surplusAmount <= 0) {
-            addLog(`${targetNation.name} 对 ${RESOURCES[resourceKey].name} 的盈余已售罄，无法进口。`);
-            return;
-          }
-          addLog(`${targetNation.name} 对 ${RESOURCES[resourceKey].name} 的盈余只有 ${surplusAmount} 单位，已调整进口数量（原计划 ${amount}）。`);
+        if (amount > surplusCapacity) {
+          addLog(`${targetNation.name} 对 ${RESOURCES[resourceKey].name} 的盈余只有 ${surplusCapacity} 单位，已调整进口数量（原计划 ${amount}）。`);
           // 调整交易数量为盈余的最大值
-          payload.amount = surplusAmount;
+          payload.amount = surplusCapacity;
           return handleDiplomaticAction(nationId, action, payload); // 递归调用，使用调整后的数量
         }
         

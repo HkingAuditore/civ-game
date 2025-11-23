@@ -91,7 +91,9 @@ import {
   ArrowDownLeft,
   DollarSign,
   XCircle,
-  HelpCircle
+  HelpCircle,
+  List,
+  Table
 } from 'lucide-react';
 
 export const iconMap = {
@@ -188,6 +190,8 @@ export const iconMap = {
   DollarSign,
   XCircle,
   HelpCircle,
+  List,
+  Table,
   Horse: Users
 };
 

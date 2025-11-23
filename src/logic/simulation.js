@@ -99,6 +99,9 @@ export const simulateTick = ({
   const previousWages = market?.wages || {};
   const demand = {};
   const supply = {};
+  const previousMarketDemand = market?.demand || {};
+  const previousMarketSupply = market?.supply || {};
+  const previousClassShortages = market?.needsShortages || {};
   const wealth = initializeWealth(classWealth);
   const policies = taxPolicies || {};
   const headTaxRates = policies.headTaxRates || {};
@@ -729,6 +732,70 @@ export const simulateTick = ({
           rates[resKey] = (rates[resKey] || 0) + amount;
         } else {
           res[resKey] = (res[resKey] || 0) + amount;
+        }
+      }
+    }
+
+    if (b.id === 'market') {
+      // Leverage last tick shortages to rebalance resources through trade swaps
+      const shortageSet = new Set();
+      Object.values(previousClassShortages).forEach(list => {
+        if (!Array.isArray(list)) return;
+        list.forEach(entry => {
+          const resKey = typeof entry === 'string' ? entry : entry?.resource;
+          if (!resKey || resKey === 'silver') return;
+          shortageSet.add(resKey);
+        });
+      });
+      const shortages = Array.from(shortageSet);
+      const surpluses = [];
+      Object.entries(res).forEach(([resKey, amount]) => {
+        if (!isTradableResource(resKey)) return;
+        if (resKey === 'silver') return;
+        if ((amount || 0) <= 50) return;
+        if (shortageSet.has(resKey)) return;
+        const supplyValue = previousMarketSupply[resKey] || 0;
+        const demandValue = previousMarketDemand[resKey] || 0;
+        if (supplyValue <= demandValue * 1.5) return;
+        surpluses.push({
+          resource: resKey,
+          stock: amount,
+          price: getPrice(resKey),
+        });
+      });
+
+      if (shortages.length > 0 && surpluses.length > 0) {
+        surpluses.sort((a, b) => {
+          if (b.stock !== a.stock) return b.stock - a.stock;
+          if (a.price !== b.price) return a.price - b.price;
+          return 0;
+        });
+        const targetResource = shortages[0];
+        const sourceResource = surpluses[0].resource;
+        const effectiveMarkets = Math.max(0, count * actualMultiplier);
+        const baseVolume = effectiveMarkets * 5;
+        if (baseVolume > 0) {
+          const importAmount = baseVolume;
+          const targetPrice = getPrice(targetResource);
+          const requiredValue = importAmount * targetPrice * 1.2;
+          const sourcePrice = getPrice(sourceResource);
+          if (sourcePrice > 0) {
+            const exportAmount = requiredValue / sourcePrice;
+            const available = res[sourceResource] || 0;
+            if (available >= exportAmount && exportAmount > 0) {
+              res[sourceResource] = available - exportAmount;
+              res[targetResource] = (res[targetResource] || 0) + importAmount;
+              supply[targetResource] = (supply[targetResource] || 0) + importAmount;
+              demand[sourceResource] = (demand[sourceResource] || 0) + exportAmount;
+              rates[sourceResource] = (rates[sourceResource] || 0) - exportAmount;
+              rates[targetResource] = (rates[targetResource] || 0) + importAmount;
+              if (Math.random() < 0.05) {
+                const sourceName = RESOURCES[sourceResource]?.name || sourceResource;
+                const targetName = RESOURCES[targetResource]?.name || targetResource;
+                logs.push(`市场将滞销的 ${sourceName} 置换为了急需的 ${targetName}。`);
+              }
+            }
+          }
         }
       }
     }
@@ -1421,6 +1488,7 @@ export const simulateTick = ({
       demand,
       supply,
       wages: updatedWages,
+      needsShortages: classShortages,
     },
     classIncome: roleWagePayout,
     classExpense: roleExpense,

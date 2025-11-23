@@ -171,6 +171,7 @@ export const useGameState = () => {
   const [classInfluenceShift, setClassInfluenceShift] = useState({});
   const [stability, setStability] = useState(50);
   const [stratumDetailView, setStratumDetailView] = useState(null);
+  const [resourceDetailView, setResourceDetailView] = useState(null);
   const [classShortages, setClassShortages] = useState({});
 
   // ========== 行政管理状态 ==========
@@ -288,6 +289,8 @@ export const useGameState = () => {
     setStability,
     stratumDetailView,
     setStratumDetailView,
+    resourceDetailView,
+    setResourceDetailView,
     classShortages,
     setClassShortages,
     
