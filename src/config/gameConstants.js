@@ -4,10 +4,8 @@
 /**
  * 游戏速度选项
  * 1x = 正常速度
- * 2x = 2倍速
- * 5x = 5倍速
  */
-export const GAME_SPEEDS = [1, 2, 5];
+export const GAME_SPEEDS = [1];
 
 /**
  * 资源类型配置
