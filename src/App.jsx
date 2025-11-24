@@ -653,6 +653,7 @@ export default function RiseOfCivs() {
             population={gameState.population}
             stability={gameState.stability}
             wealth={gameState.resources.silver}
+            epoch={gameState.epoch}
           />
           
           {/* 日志面板 */}
