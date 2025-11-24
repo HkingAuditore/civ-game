@@ -40,38 +40,48 @@ const RESOURCE_GROUPS = {
 const ALL_GROUPED_RESOURCES = new Set(Object.values(RESOURCE_GROUPS).flatMap(g => g.keys));
 
 // 紧凑型资源税卡片
-const ResourceTaxCard = ({ resourceKey, info, rate, hasSupply, onChange }) => (
-  <div 
-    className={`bg-gray-900/40 p-2.5 rounded-lg border flex flex-col justify-between transition-opacity ${
-      hasSupply ? 'border-gray-700/60' : 'border-gray-800/50 opacity-50'
-    }`}
-  >
-    <div>
-      {/* 头部：Icon + 名称 + 缺货标记 */}
-      <div className="flex items-center gap-2 mb-1">
-        <Icon name={info.icon || 'Box'} size={14} className={info.color || 'text-gray-400'} />
-        <span className="font-semibold text-gray-300 text-xs flex-grow whitespace-nowrap overflow-hidden text-ellipsis">{info.name}</span>
-        {!hasSupply && <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" title="当前无市场供应"></div>}
+const ResourceTaxCard = ({ resourceKey, info, rate, hasSupply, onChange }) => {
+  // 当税率为负时，作为“交易补贴”运作
+  const currentRate = rate ?? 0;
+  const isSubsidy = currentRate < 0;
+  const displayValue = Math.abs(currentRate * 100).toFixed(0);
+
+  const valueColor = isSubsidy ? 'text-green-300' : 'text-blue-300';
+  const sliderColor = isSubsidy ? 'accent-green-500' : 'accent-blue-500';
+
+  return (
+    <div 
+      className={`bg-gray-900/40 p-2.5 rounded-lg border flex flex-col justify-between transition-opacity ${
+        hasSupply ? 'border-gray-700/60' : 'border-gray-800/50 opacity-50'
+      }`}
+    >
+      <div>
+        {/* 头部：Icon + 名称 + 缺货标记 */}
+        <div className="flex items-center gap-2 mb-1">
+          <Icon name={info.icon || 'Box'} size={14} className={info.color || 'text-gray-400'} />
+          <span className="font-semibold text-gray-300 text-xs flex-grow whitespace-nowrap overflow-hidden text-ellipsis">{info.name}</span>
+          {!hasSupply && <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" title="当前无市场供应"></div>}
+        </div>
+        {/* 状态栏：当前税率/补贴 */}
+        <div className="text-center my-1">
+          <span className={`font-mono ${valueColor} text-lg`}>
+            {isSubsidy ? `补贴 ${displayValue}` : `${displayValue}`}<span className="text-xs">%</span>
+          </span>
+        </div>
       </div>
-      {/* 状态栏：当前税率 */}
-      <div className="text-center my-1">
-        <span className="font-mono text-blue-300 text-lg">
-          {((rate ?? 0) * 100).toFixed(0)}<span className="text-xs">%</span>
-        </span>
-      </div>
+      {/* 控制区：滑动条 */}
+      <input
+        type="range"
+        min="-1.0" // 允许负税率（补贴）
+        max="2.0" // 最大税率200%
+        step="0.01"
+        value={currentRate}
+        onChange={(e) => onChange(resourceKey, e.target.value)}
+        className={`w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer range-sm ${sliderColor}`}
+      />
     </div>
-    {/* 控制区：滑动条 */}
-    <input
-      type="range"
-      min="0"
-      max="2.0" // 最大税率200%
-      step="0.01"
-      value={rate ?? 0}
-      onChange={(e) => onChange(resourceKey, e.target.value)}
-      className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer range-sm accent-blue-500"
-    />
-  </div>
-);
+  );
+};
 
 /**
  * 政令标签页组件
@@ -353,7 +363,7 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
             {/* 资源税部分 */}
             <div className="max-h-[500px] overflow-y-auto pr-2">
               <h4 className="text-xs font-semibold text-gray-400 mb-1">资源交易税</h4>
-              <p className="text-[11px] text-gray-500 mb-3">对市场交易的资源，按成交额收取固定比例的税，会计入国库。</p>
+              <p className="text-[11px] text-gray-500 mb-3">对市场交易的资源，按成交额收取或补贴固定比例的资金。税收将计入国库，补贴将由国库支出。</p>
               
               {Object.values(RESOURCE_GROUPS).map(group => renderResourceGroup(group, taxableResources))}
               
