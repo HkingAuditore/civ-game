@@ -53,14 +53,22 @@ export default function RiseOfCivs() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isWikiOpen, setIsWikiOpen] = useState(false);
   const [isLoadMenuOpen, setIsLoadMenuOpen] = useState(false);
+  const [isGameMenuOpen, setIsGameMenuOpen] = useState(false);
+  const [isHelpMenuOpen, setIsHelpMenuOpen] = useState(false);
   const loadMenuRef = useRef(null);
-  
-  // 点击外部关闭读档菜单
+  const gameMenuRef = useRef(null);
+  const helpMenuRef = useRef(null);
+
+  // 点击外部关闭菜单
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (loadMenuRef.current && !loadMenuRef.current.contains(event.target)) {
-        setIsLoadMenuOpen(false);
+      if (gameMenuRef.current && !gameMenuRef.current.contains(event.target)) {
+        setIsGameMenuOpen(false);
       }
+      if (helpMenuRef.current && !helpMenuRef.current.contains(event.target)) {
+        setIsHelpMenuOpen(false);
+      }
+      // 对于读档菜单，它的触发按钮在游戏菜单内部，所以不做外部关闭
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -324,124 +332,13 @@ export default function RiseOfCivs() {
             )}
           </div>
 
-          {/* 游戏速度控制和教程按钮 */}
+          {/* 游戏控制和菜单 */}
           <div className="flex items-center gap-2">
-            {/* 查看教程按钮 */}
-            <button
-              onClick={handleReopenTutorial}
-              className="px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/40 border border-blue-500/30 rounded-lg transition-colors flex items-center gap-2 text-xs font-semibold text-blue-300"
-              title="重新查看新手教程"
-            >
-              <Icon name="BookOpen" size={14} />
-              <span className="hidden sm:inline">教程</span>
-            </button>
-
-            {/* 百科按钮 */}
-            <button
-              onClick={() => setIsWikiOpen(true)}
-              className="px-3 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/40 border border-indigo-500/30 rounded-lg transition-colors flex items-center gap-2 text-xs font-semibold text-indigo-200"
-              title="打开文明百科"
-            >
-              <Icon name="Book" size={14} />
-              <span className="hidden sm:inline">百科</span>
-            </button>
-
-            {/* 设置按钮 */}
-            <button
-              type="button"
-              onClick={() => setIsSettingsOpen(true)}
-              className="px-3 py-1.5 bg-slate-700/60 hover:bg-slate-600/60 border border-slate-500/50 rounded-lg transition-colors flex items-center gap-2 text-xs font-semibold text-slate-200"
-              title="打开设置"
-            >
-              <Icon name="Sliders" size={14} />
-              <span className="hidden sm:inline">设置</span>
-            </button>
-
-            {/* 存档/读档/重置 */}
-            <div className="flex flex-col gap-1 items-start">
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleManualSave}
-                  className="px-3 py-1.5 bg-green-600/20 hover:bg-green-600/40 border border-green-500/30 rounded-lg transition-colors flex items-center gap-2 text-xs font-semibold text-green-300"
-                  title="保存当前进度"
-                >
-                  <Icon name="Save" size={14} />
-                  <span className="hidden sm:inline">保存</span>
-                </button>
-                <div className="relative" ref={loadMenuRef}>
-                  <button
-                    type="button"
-                    onClick={() => setIsLoadMenuOpen(prev => !prev)}
-                    className={`px-3 py-1.5 border rounded-lg transition-colors flex items-center gap-2 text-xs font-semibold ${
-                      isLoadMenuOpen
-                        ? 'bg-purple-600/40 border-purple-500/50 text-purple-100'
-                        : 'bg-purple-600/20 hover:bg-purple-600/40 border-purple-500/30 text-purple-200'
-                    }`}
-                    title="读取手动或自动存档"
-                  >
-                    <Icon name="Download" size={14} />
-                    <span className="hidden sm:inline">读档</span>
-                    <Icon name="ChevronDown" size={12} className={`transition-transform ${isLoadMenuOpen ? 'rotate-180' : ''}`} />
-                  </button>
-                  {isLoadMenuOpen && (
-                    <div className="absolute right-0 mt-2 w-36 rounded-lg border border-slate-700 bg-slate-900/95 shadow-xl py-1 z-20">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          handleLoadManual();
-                          setIsLoadMenuOpen(false);
-                        }}
-                        className="w-full flex items-center justify-between px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-slate-700/60 transition-colors"
-                      >
-                        <span>读手动档</span>
-                        <Icon name="FileText" size={12} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!autoSaveAvailable) return;
-                          handleLoadAuto();
-                          setIsLoadMenuOpen(false);
-                        }}
-                        disabled={!autoSaveAvailable}
-                        className={`w-full flex items-center justify-between px-3 py-1.5 text-xs font-semibold transition-colors ${
-                          autoSaveAvailable
-                            ? 'text-amber-200 hover:bg-slate-700/60'
-                            : 'text-gray-500 cursor-not-allowed'
-                        }`}
-                        title={autoSaveAvailable ? '加载自动存档' : '当前没有自动存档'}
-                      >
-                        <span>读自动档</span>
-                        <Icon name="Clock" size={12} />
-                      </button>
-                    </div>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={gameState.resetGame}
-                  className="px-3 py-1.5 bg-red-600/20 hover:bg-red-600/40 border border-red-500/30 rounded-lg transition-colors flex items-center gap-2 text-xs font-semibold text-red-300"
-                  title="重置游戏并清除存档"
-                >
-                  <Icon name="Trash2" size={14} />
-                  <span className="hidden sm:inline">重置</span>
-                </button>
-              </div>
-              {gameState.isSaving && (
-                <div className="flex items-center gap-1 text-[11px] text-emerald-300">
-                  <Icon name="Activity" size={12} className="animate-spin" />
-                  <span>保存中...</span>
-                </div>
-              )}
-            </div>
-            
             {/* 游戏速度控制 */}
-            <div className="flex items-center gap-2">
-              {/* 暂停/继续按钮 */}
+            <div className="flex items-center">
               <button
                 onClick={() => gameState.setIsPaused(!gameState.isPaused)}
-                className={`px-3 py-1.5 rounded-lg border transition-colors flex items-center gap-2 text-xs font-bold ${
+                className={`px-3 py-1.5 rounded-l-lg border transition-colors flex items-center gap-2 text-xs font-bold ${
                   gameState.isPaused
                     ? 'bg-green-600/20 hover:bg-green-600/40 border-green-500/30 text-green-300'
                     : 'bg-orange-600/20 hover:bg-orange-600/40 border-orange-500/30 text-orange-300'
@@ -451,24 +348,17 @@ export default function RiseOfCivs() {
                 <Icon name={gameState.isPaused ? 'Play' : 'Pause'} size={14} />
                 <span className="hidden sm:inline">{gameState.isPaused ? '继续' : '暂停'}</span>
               </button>
-
-              {/* 速度档位按钮 */}
-              <div className="flex bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
+              <div className="flex bg-gray-800 rounded-r-lg overflow-hidden border-t border-b border-r border-gray-700">
                 {GAME_SPEEDS.map(s => (
                   <button
                     key={s}
                     onClick={() => {
                       gameState.setGameSpeed(s);
-                      // 切换速度时自动取消暂停
-                      if (gameState.isPaused) {
-                        gameState.setIsPaused(false);
-                      }
+                      if (gameState.isPaused) gameState.setIsPaused(false);
                     }}
                     disabled={gameState.isPaused}
                     className={`px-3 py-1 text-xs font-bold transition-colors ${
-                      gameState.isPaused
-                        ? 'text-gray-600 cursor-not-allowed'
-                        : 'hover:bg-gray-700'
+                      gameState.isPaused ? 'text-gray-600 cursor-not-allowed' : 'hover:bg-gray-700'
                     } ${
                       gameState.gameSpeed === s && !gameState.isPaused
                         ? 'bg-blue-600 text-white'
@@ -485,6 +375,112 @@ export default function RiseOfCivs() {
                   </button>
                 ))}
               </div>
+            </div>
+
+            {/* 游戏菜单 */}
+            <div className="relative" ref={gameMenuRef}>
+              <button
+                type="button"
+                onClick={() => setIsGameMenuOpen(prev => !prev)}
+                className="px-3 py-1.5 bg-slate-700/60 hover:bg-slate-600/60 border border-slate-500/50 rounded-lg transition-colors flex items-center gap-2 text-xs font-semibold text-slate-200"
+                title="游戏菜单"
+              >
+                <Icon name="Menu" size={14} />
+                <span className="hidden sm:inline">存档</span>
+              </button>
+              {isGameMenuOpen && (
+                <div className="absolute right-0 mt-2 w-40 rounded-lg border border-slate-700 bg-slate-900/95 shadow-xl py-1 z-30">
+                  <button
+                    type="button"
+                    onClick={() => { handleManualSave(); setIsGameMenuOpen(false); }}
+                    className="w-full flex items-center justify-between px-3 py-1.5 text-xs font-semibold text-green-300 hover:bg-slate-700/60"
+                  >
+                    <span>保存进度</span>
+                    <Icon name="Save" size={14} />
+                  </button>
+                  <div className="relative" ref={loadMenuRef}>
+                    <button
+                      type="button"
+                      onClick={() => setIsLoadMenuOpen(prev => !prev)}
+                      className="w-full flex items-center justify-between px-3 py-1.5 text-xs font-semibold text-purple-200 hover:bg-slate-700/60"
+                    >
+                      <span>读取存档</span>
+                      <Icon name={isLoadMenuOpen ? 'ChevronDown' : 'ChevronRight'} size={12} />
+                    </button>
+                    {isLoadMenuOpen && (
+                      <div className="absolute right-full top-0 mr-1 w-36 rounded-lg border border-slate-700 bg-slate-800 shadow-xl py-1">
+                        <button
+                          type="button"
+                          onClick={() => { handleLoadManual(); setIsGameMenuOpen(false); setIsLoadMenuOpen(false); }}
+                          className="w-full flex items-center justify-between px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-slate-700/60"
+                        >
+                          <span>手动存档</span>
+                          <Icon name="FileText" size={12} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { if(autoSaveAvailable) handleLoadAuto(); setIsGameMenuOpen(false); setIsLoadMenuOpen(false); }}
+                          disabled={!autoSaveAvailable}
+                          className={`w-full flex items-center justify-between px-3 py-1.5 text-xs font-semibold ${autoSaveAvailable ? 'text-amber-200 hover:bg-slate-700/60' : 'text-gray-500 cursor-not-allowed'}`}
+                        >
+                          <span>自动存档</span>
+                          <Icon name="Clock" size={12} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setIsSettingsOpen(true); setIsGameMenuOpen(false); }}
+                    className="w-full flex items-center justify-between px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-slate-700/60"
+                  >
+                    <span>存档设置</span>
+                    <Icon name="Sliders" size={14} />
+                  </button>
+                  <div className="my-1 h-px bg-slate-700"></div>
+                  <button
+                    type="button"
+                    onClick={() => { gameState.resetGame(); setIsGameMenuOpen(false); }}
+                    className="w-full flex items-center justify-between px-3 py-1.5 text-xs font-semibold text-red-300 hover:bg-slate-700/60"
+                  >
+                    <span>重置游戏</span>
+                    <Icon name="Trash2" size={14} />
+                  </button>
+                </div>
+              )}
+            </div>
+            
+            {/* 帮助菜单 */}
+            <div className="relative" ref={helpMenuRef}>
+              <button
+                type="button"
+                onClick={() => setIsHelpMenuOpen(prev => !prev)}
+                className="px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/40 border border-blue-500/30 rounded-lg transition-colors flex items-center gap-2 text-xs font-semibold text-blue-300"
+                title="帮助与指南"
+              >
+                <Icon name="HelpCircle" size={14} />
+                <span className="hidden sm:inline">帮助</span>
+              </button>
+              {isHelpMenuOpen && (
+                <div className="absolute right-0 mt-2 w-36 rounded-lg border border-slate-700 bg-slate-900/95 shadow-xl py-1 z-30">
+                  <button
+                    type="button"
+                    onClick={() => { handleReopenTutorial(); setIsHelpMenuOpen(false); }}
+                    className="w-full flex items-center justify-between px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-slate-700/60"
+                  >
+                    <span>新手教程</span>
+                    <Icon name="BookOpen" size={12} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setIsWikiOpen(true); setIsHelpMenuOpen(false); }}
+                    className="w-full flex items-center justify-between px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-slate-700/60"
+                  >
+                    <span>文明百科</span>
+                    <Icon name="Book" size={12} />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
