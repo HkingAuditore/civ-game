@@ -19,8 +19,8 @@ export const GAME_SPEEDS = [1, 2, 5];
  */
 export const ECONOMIC_INFLUENCE = {
   price: {
-    livingCostWeight: 0.2,
-    taxCostWeight: 0.3,
+    livingCostWeight: 0.15,
+    taxCostWeight: 0.1,
   },
   wage: {
     livingCostWeight: 0.1,
