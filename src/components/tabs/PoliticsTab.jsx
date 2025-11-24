@@ -51,6 +51,38 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
   const headRates = taxPolicies?.headTaxRates || {};
   const resourceRates = taxPolicies?.resourceTaxRates || {};
   const [headDrafts, setHeadDrafts] = React.useState({});
+  const [seenStrataKeys, setSeenStrataKeys] = React.useState([]);
+  const [seenResourceKeys, setSeenResourceKeys] = React.useState([]);
+  const allStrataKeys = React.useMemo(
+    () => Object.keys(popStructure || {}).filter((key) => STRATA[key]),
+    [popStructure]
+  );
+  const activeStrata = React.useMemo(
+    () => allStrataKeys.filter((key) => (popStructure[key] || 0) > 0),
+    [allStrataKeys, popStructure]
+  );
+
+  React.useEffect(() => {
+    if (activeStrata.length === 0) return;
+    setSeenStrataKeys((prev) => {
+      const nextSet = new Set(prev);
+      let changed = false;
+      activeStrata.forEach((key) => {
+        if (!nextSet.has(key)) {
+          nextSet.add(key);
+          changed = true;
+        }
+      });
+      return changed ? Array.from(nextSet) : prev;
+    });
+  }, [activeStrata]);
+
+  const strataToDisplay = React.useMemo(() => {
+    if (allStrataKeys.length === 0) return [];
+    const unlockedSet = new Set(seenStrataKeys);
+    const activeSet = new Set(activeStrata);
+    return allStrataKeys.filter((key) => activeSet.has(key) || unlockedSet.has(key));
+  }, [activeStrata, allStrataKeys, seenStrataKeys]);
 
   const handleHeadTaxChange = (key, value) => {
     if (!onUpdateTaxPolicies) return;
@@ -94,11 +126,39 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
       },
     }));
   };
-  const activeStrata = Object.keys(popStructure).filter(key => (popStructure[key] || 0) > 0 && STRATA[key]);
   const marketResourceKeys = Object.entries(market?.supply || {})
     .filter(([, amount]) => amount > 0)
     .map(([key]) => key);
-  const taxableResources = marketResourceKeys
+  React.useEffect(() => {
+    if (marketResourceKeys.length === 0) return;
+    setSeenResourceKeys((prev) => {
+      const nextSet = new Set(prev);
+      let changed = false;
+      marketResourceKeys.forEach((key) => {
+        const info = RESOURCES[key];
+        if (!info) return;
+        if (info.type && (info.type === 'virtual' || info.type === 'currency')) return;
+        if (!nextSet.has(key)) {
+          nextSet.add(key);
+          changed = true;
+        }
+      });
+      return changed ? Array.from(nextSet) : prev;
+    });
+  }, [marketResourceKeys]);
+
+  const orderedResourceKeys = React.useMemo(() => {
+    if (marketResourceKeys.length === 0 && seenResourceKeys.length === 0) return [];
+    const ordered = [...marketResourceKeys];
+    seenResourceKeys.forEach((key) => {
+      if (!ordered.includes(key)) {
+        ordered.push(key);
+      }
+    });
+    return ordered;
+  }, [marketResourceKeys, seenResourceKeys]);
+
+  const taxableResources = orderedResourceKeys
     .map(key => [key, RESOURCES[key]])
     .filter(([, info]) => info && (!info.type || (info.type !== 'virtual' && info.type !== 'currency')));
 
@@ -166,7 +226,7 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
             </div>
 
             <div>
-              <h4 className="text-xs font-semibold text-gray-400 mb-1">资源税（市场成交附加税）</h4>
+              <h4 className="text-xs font-semibold text-gray-400 mb-1">资源交易税</h4>
               <p className="text-[11px] text-gray-500 mb-2">仅对当前在市场流通的资源，在买入/卖出时按照成交额加收税率。</p>
               <div className="space-y-2">
                 {taxableResources.map(([key, info]) => (

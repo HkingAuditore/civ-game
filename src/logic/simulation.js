@@ -22,7 +22,7 @@ const ROLE_PRIORITY = [
   'peasant',
 ];
 
-const JOB_MIGRATION_RATIO = 0.04;
+const JOB_MIGRATION_RATIO = 0.1;
 
 
 const SPECIAL_TRADE_RESOURCES = new Set(['science', 'culture']);
@@ -225,10 +225,11 @@ const simulateMerchantTrade = ({
   roleWagePayout,
   pendingTrades = [],
   lastTradeTime = 0,
+  gameSpeed = 1,
 }) => {
   const merchantCount = popStructure?.merchant || 0;
   if (merchantCount <= 0) {
-    return;
+    return { pendingTrades, lastTradeTime };
   }
 
   const resourceTaxRates = taxPolicies?.resourceTaxRates || {};
@@ -314,11 +315,15 @@ const simulateMerchantTrade = ({
   
   // 检查交易冷却时间
   const ticksSinceLastTrade = tick - lastTradeTime;
+  // 修复：确保tradeCooldown也是基于游戏日的（如果需要），这里假设tradeCooldown是天数
+  // 由于tick是基于gameSpeed累加的，所以直接比较即可，只要tradeCooldown单位与tick一致
+  // 但通常config里的cooldown是天数，而tick是累加的daysElapsed。
+  // daysElapsed = tick.
   const canTradeNow = ticksSinceLastTrade >= tradeConfig.tradeCooldown;
   
   if (!canTradeNow) {
     if (tradeConfig.enableDebugLog) {
-      console.log(`[商人调试] ⏳ 交易冷却中，还需等待 ${tradeConfig.tradeCooldown - ticksSinceLastTrade} ticks`);
+      console.log(`[商人调试] ⏳ 交易冷却中，还需等待 ${(tradeConfig.tradeCooldown - ticksSinceLastTrade).toFixed(1)} 天`);
     }
     return { pendingTrades: updatedPendingTrades, lastTradeTime };
   }
@@ -348,20 +353,6 @@ const simulateMerchantTrade = ({
     const isImportable = foreignPrice < localPrice && 
                          profitMargin >= tradeConfig.minProfitMargin;
     
-    // if (tradeConfig.enableDebugLog && key === 'cloth') {
-    //   console.log(`[商人调试] 布料信息:`, {
-    //     supply: supply[key] || 0,
-    //     demand: demand[key] || 0,
-    //     availableStock,
-    //     localPrice,
-    //     foreignPrice,
-    //     priceDiff,
-    //     profitMargin: (profitMargin * 100).toFixed(2) + '%',
-    //     isExportable,
-    //     isImportable
-    //   });
-    // }
-    
     if (isExportable) exportableResources.push(key);
     if (isImportable) importableResources.push(key);
   });
@@ -369,7 +360,10 @@ const simulateMerchantTrade = ({
   const simCount = merchantCount > 100 ? 100 : merchantCount;
   const batchMultiplier = merchantCount > 100 ? merchantCount / 100 : 1;
 
-  for (let i = 0; i < simCount; i++) {
+  // 限制每tick的新交易数量，防止性能问题
+  const maxNewTrades = Math.min(simCount, 50);
+
+  for (let i = 0; i < maxNewTrades; i++) {
       const currentTotalWealth = wealth.merchant || 0;
       if (currentTotalWealth <= tradeConfig.minWealthForTrade) break;
 
@@ -398,12 +392,13 @@ const simulateMerchantTrade = ({
             maxInventory
           );
           
-          if (amount <= 0) continue;
+          if (amount <= 0.1) continue;
 
           const cost = localPrice * amount;
           const tax = cost * taxRate;
           const revenue = foreignPrice * amount;
-          const profit = revenue - cost - tax;
+          // 利润 = 收入 - (成本+税)
+          const profit = revenue - (cost + tax);
           const profitMargin = profit / (cost + tax);
 
           if (profitMargin >= tradeConfig.minProfitMargin) {
@@ -443,7 +438,8 @@ const simulateMerchantTrade = ({
                     amount: totalAmount,
                     revenue: totalRevenue,
                     profit: totalRevenue - totalOutlay,
-                    daysRemaining: tradeConfig.tradeDuration
+                    // 修复：固定3天周期（游戏日），tick会自动适配
+                    daysRemaining: 3 
                   });
                   
                   // 更新最后交易时间
@@ -458,50 +454,62 @@ const simulateMerchantTrade = ({
           if (foreignPrice === null || localPrice === null || foreignPrice >= localPrice) continue;
           
           const taxRate = getResourceTaxRate(resourceKey);
-          const totalPerUnitCost = foreignPrice + (localPrice * taxRate);
+          // 进口成本 = 外国价格 + 进口税(如果有)
+          // 这里简化假设：进口时支付外国价格，卖出时获得本地价格（需扣除交易税?）
+          // 通常进口商在国内卖出时，购买者支付含税价，商家获得(售价/(1+税率))? 
+          // 简化：进口商支付外国价格。在国内按本地价格卖出。交易税由购买者承担，或者商家承担。
+          // 保持一致性：商家在本地卖出获得 revenue = localPrice * amount. 
+          // 商家需缴纳税费 = revenue * taxRate.
+          
+          const totalPerUnitCost = foreignPrice; // 购买成本
           const affordableAmount = totalPerUnitCost > 0 ? wealthForThisBatch / totalPerUnitCost : 3;
           const amount = Math.min(tradeConfig.maxPurchaseAmount, affordableAmount);
-          if (amount <= 0) continue;
+          if (amount <= 0.1) continue;
 
           const cost = foreignPrice * amount;
-          const revenue = localPrice * amount;
-          const tax = revenue * taxRate;
-          const profit = revenue - cost - tax;
-          const profitMargin = profit / (cost + tax);
+          const grossRevenue = localPrice * amount;
+          const tax = grossRevenue * taxRate; // 卖出时交税
+          const netRevenue = grossRevenue - tax;
+          
+          const profit = netRevenue - cost;
+          const profitMargin = profit / cost;
 
           if (profitMargin >= tradeConfig.minProfitMargin) {
               const totalAmount = amount * batchMultiplier;
               const totalCost = cost * batchMultiplier;
-              const totalTax = tax * batchMultiplier;
-              const totalRevenue = revenue * batchMultiplier;
-              const totalOutlay = totalCost + totalTax;
+              // const totalTax = tax * batchMultiplier; // 税费在卖出时扣除
+              const totalNetRevenue = netRevenue * batchMultiplier;
+              
+              const totalOutlay = totalCost;
               
               if ((wealth.merchant || 0) >= totalOutlay) {
                   if (tradeConfig.enableDebugLog && resourceKey === 'cloth') {
                     console.log(`[商人调试] 📦 购买布料准备进口:`, {
                       amount: totalAmount,
                       cost: totalCost,
-                      tax: totalTax,
-                      expectedRevenue: totalRevenue,
-                      expectedProfit: totalRevenue - totalOutlay,
+                      expectedNetRevenue: totalNetRevenue,
+                      expectedProfit: totalNetRevenue - totalCost,
                       profitMargin: (profitMargin * 100).toFixed(2) + '%',
                       daysUntilSale: tradeConfig.tradeDuration
                     });
                   }
                   
-                  // 立即支付成本和税费
+                  // 立即支付采购成本
                   wealth.merchant -= totalOutlay;
                   roleExpense.merchant = (roleExpense.merchant || 0) + totalOutlay;
-                  taxBreakdown.industryTax += totalTax;
+                  // 税费在到货卖出时扣除? 为了简化，我们在revenue里已经是净收入了。
+                  // 但为了统计税收，我们需要在卖出时增加 taxBreakdown.
+                  // 这里我们把税费信息存入交易记录，卖出时处理。
                   
                   // 添加到待完成交易列表（进口商品等待到货后才能卖出）
                   updatedPendingTrades.push({
                     type: 'import',
                     resource: resourceKey,
                     amount: totalAmount,
-                    revenue: totalRevenue,
-                    profit: totalRevenue - totalOutlay,
-                    daysRemaining: tradeConfig.tradeDuration
+                    revenue: totalNetRevenue, // 净收入（已扣税）
+                    taxToPay: tax * batchMultiplier, // 待缴税款
+                    profit: totalNetRevenue - totalCost,
+                    daysRemaining: 3
                   });
                   
                   // 更新最后交易时间
@@ -510,8 +518,6 @@ const simulateMerchantTrade = ({
           }
       }
   }
-  
-  
   
   // 调试：查看输出的交易状态
   if (tradeConfig.enableDebugLog) {
@@ -591,7 +597,7 @@ export const simulateTick = ({
   const getExpectedWage = (role) => {
     const prev = previousWages?.[role];
     if (Number.isFinite(prev) && prev > 0) {
-      return Math.max(PRICE_FLOOR, prev, getLivingCostFloor(role));
+      return Math.max(PRICE_FLOOR, prev);
     }
     const starting = STRATA[role]?.startingWealth;
     if (Number.isFinite(starting) && starting > 0) {
@@ -832,8 +838,11 @@ export const simulateTick = ({
   const hasPreviousPopStructure = previousPopStructure && Object.keys(previousPopStructure).length > 0;
   const popStructure = {};
   
+  let diff = 0;
+
   if (!hasPreviousPopStructure) {
-    // 首次运行：按优先级初始填充
+    // 首次运行：按优先级初始填充（已注释，防止强制重新分配）
+
     let remainingPop = population;
     ROLE_PRIORITY.forEach(role => {
       const slots = Math.max(0, jobsAvailable[role] || 0);
@@ -842,23 +851,30 @@ export const simulateTick = ({
       remainingPop -= filled;
     });
     popStructure.unemployed = Math.max(0, remainingPop);
+    
+    
+    // 改为直接设置默认人口结构
+    ROLE_PRIORITY.forEach(role => {
+      popStructure[role] = 0;
+    });
+    popStructure.unemployed = population;
   } else {
     // 继承上一帧状态
     ROLE_PRIORITY.forEach(role => {
-      const prevCount = Math.floor(previousPopStructure[role] || 0);
+      const prevCount = (previousPopStructure[role] || 0);
       popStructure[role] = Math.max(0, prevCount);
     });
-    popStructure.unemployed = Math.max(0, Math.floor(previousPopStructure.unemployed || 0));
+    popStructure.unemployed = Math.max(0, (previousPopStructure.unemployed || 0));
     
     // 处理人口变化（增长或减少）
     const assignedPop = ROLE_PRIORITY.reduce((sum, role) => sum + (popStructure[role] || 0), 0) + (popStructure.unemployed || 0);
-    let diff = population - assignedPop;
+    diff = population - assignedPop;
     
     if (diff > 0) {
       // 人口增长：新人加入失业者
       popStructure.unemployed = (popStructure.unemployed || 0) + diff;
     } else if (diff < 0) {
-      // 人口减少：优先扣除失业者，不够则按比例扣除各职业
+      // 人口减少：仅从失业者中扣除，不自动从各职业扣除（防止人口被吸走）
       let reductionNeeded = -diff;
       const unemployedReduction = Math.min(popStructure.unemployed || 0, reductionNeeded);
       if (unemployedReduction > 0) {
@@ -866,7 +882,8 @@ export const simulateTick = ({
         reductionNeeded -= unemployedReduction;
       }
       
-      // 如果还需要减少人口，按比例从各职业扣除（财富留给幸存者均摊）
+      // 注释掉自动从各职业扣除人口的逻辑
+      // 如果还需要减少人口，保持现状（不自动重新分配）
       if (reductionNeeded > 0) {
         const initialTotal = ROLE_PRIORITY.reduce((sum, role) => sum + (popStructure[role] || 0), 0);
         if (initialTotal > 0) {
@@ -954,6 +971,7 @@ export const simulateTick = ({
     return wage - Math.max(0, taxCost);
   };
 
+    console.log('[vacancy debug] diff =', diff, ', unemployed =', popStructure.unemployed || 0);
   const vacancyRanking = ROLE_PRIORITY.map((role, index) => {
     const slots = Math.max(0, jobsAvailable[role] || 0);
     const current = popStructure[role] || 0;
@@ -2029,12 +2047,54 @@ export const simulateTick = ({
   const updatedPrices = { ...priceMap };
   const updatedWages = {};
   const wageSmoothing = 0.35;
+
   Object.entries(roleWageStats).forEach(([role, data]) => {
-    const avgWage = data.totalSlots > 0 ? data.weightedWage / data.totalSlots : 0;
+
+    let currentSignal = 0;
+
+    const pop = popStructure[role] || 0;
+
+
+
+    if (pop > 0) {
+
+      const income = roleWagePayout[role] || 0;
+
+      const expense = roleExpense[role] || 0;
+
+      currentSignal = (income - expense) / pop;
+
+    } else {
+
+      if (data.weightedWage > 0 && data.totalSlots > 0) {
+
+        currentSignal = data.weightedWage / data.totalSlots;
+
+      } else {
+
+        currentSignal = previousWages[role] || 0;
+
+      }
+
+    }
+
+
+
+    currentSignal = Math.max(0, currentSignal);
+
+
+
     const prev = previousWages[role] || 0;
-    const smoothed = prev + (avgWage - prev) * wageSmoothing;
-    updatedWages[role] = Math.max(0, Number(smoothed.toFixed(2)));
+
+    const smoothed = prev + (currentSignal - prev) * wageSmoothing;
+
+
+
+    updatedWages[role] = parseFloat(smoothed.toFixed(2));
+
   });
+
+
 
   const demandPopulation = Math.max(0, nextPopulation ?? population ?? 0);
   const virtualDemandBaseline = virtualDemandPerPop * demandPopulation;
@@ -2170,11 +2230,16 @@ export const simulateTick = ({
       return lowest;
     }, null);
 
-  // 寻找收入显著更高的目标职业（必须有空缺）
+  // 寻找收入显著更高的目标职业（必须有空缺，且必须是不同职业）
   let targetCandidate = null;
   if (sourceCandidate) {
     targetCandidate = activeRoleMetrics
-      .filter(r => r.vacancy > 0 && hasBuildingVacancyForRole(r.role) && r.potentialIncome > sourceCandidate.potentialIncome * 1.3)
+      .filter(r =>
+        r.role !== sourceCandidate.role &&
+        r.vacancy > 0 &&
+        hasBuildingVacancyForRole(r.role) &&
+        r.potentialIncome > sourceCandidate.potentialIncome * 1.3
+      )
       .reduce((best, current) => {
         if (!best) return current;
         if (current.potentialIncome > best.potentialIncome) return current;
@@ -2185,9 +2250,13 @@ export const simulateTick = ({
 
   // 执行转职并转移财富
   if (sourceCandidate && targetCandidate) {
+    // 如果迁移比例为0，直接返回，不执行任何迁移
+    if (JOB_MIGRATION_RATIO <= 0) return;
+    
     let placementInfo = null;
     let migrants = Math.floor(sourceCandidate.pop * JOB_MIGRATION_RATIO);
-    if (migrants <= 0 && sourceCandidate.pop > 0) migrants = 1;
+    // 只有当迁移比例大于0时才允许强制迁移
+    if (migrants <= 0 && sourceCandidate.pop > 0 && JOB_MIGRATION_RATIO > 0) migrants = 1;
     migrants = Math.min(migrants, targetCandidate.vacancy);
     
     if (migrants > 0) {
@@ -2215,8 +2284,7 @@ export const simulateTick = ({
       popStructure[sourceCandidate.role] = Math.max(0, sourceCandidate.pop - migrants);
       popStructure[targetCandidate.role] = (popStructure[targetCandidate.role] || 0) + migrants;
       
-      const sourceName = STRATA[sourceCandidate.role]?.name || sourceCandidate.role;
-      const targetName = STRATA[targetCandidate.role]?.name || targetCandidate.role;
+      const sourceName = STRATA[sourceCandidate.role]?.name || sourceCandidate.role;      const targetName = STRATA[targetCandidate.role]?.name || targetCandidate.role;
       const incomeGain = ((targetCandidate.potentialIncome - sourceCandidate.potentialIncome) / Math.max(0.01, sourceCandidate.potentialIncome) * 100).toFixed(0);
       const placementNote = placementInfo?.buildingName ? `（目标建筑：${placementInfo.buildingName}）` : '';
       logs.push(`💼 ${migrants} 名 ${sourceName} 转职为 ${targetName}${placementNote}（预期收益提升 ${incomeGain}%）`);
@@ -2239,6 +2307,7 @@ export const simulateTick = ({
     roleWagePayout,
     pendingTrades: merchantState.pendingTrades || [],
     lastTradeTime: merchantState.lastTradeTime || 0,
+    gameSpeed,
   });
 
   applyRoleIncomeToWealth();

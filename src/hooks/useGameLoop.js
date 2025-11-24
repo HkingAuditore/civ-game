@@ -21,6 +21,7 @@ export const useGameLoop = (gameState, addLog) => {
     setMarket,
     buildings,
     population,
+    popStructure,
     setPopulation,
     epoch,
     techsUnlocked,
@@ -88,6 +89,7 @@ export const useGameLoop = (gameState, addLog) => {
     market,
     buildings,
     population,
+    popStructure,
     epoch,
     techsUnlocked,
     decrees,
@@ -126,6 +128,7 @@ export const useGameLoop = (gameState, addLog) => {
       buildings,
       population,
       epoch,
+      popStructure,
       techsUnlocked,
       decrees,
       gameSpeed,
@@ -149,7 +152,7 @@ export const useGameLoop = (gameState, addLog) => {
       lastAutoSaveTime,
       merchantState,
     };
-  }, [resources, market, buildings, population, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, army, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState]);
+  }, [resources, market, buildings, population, popStructure, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, army, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState]);
 
   // 游戏核心循环
   useEffect(() => {
