@@ -3,7 +3,7 @@
 
 import React from 'react';
 import { Icon } from '../common/UIComponents';
-import { STRATA, RESOURCES, EPOCHS } from '../../config';
+import { STRATA, RESOURCES, EPOCHS, BUILDINGS } from '../../config';
 import { isResourceUnlocked } from '../../utils/resources';
 
 // 定义阶层分组，用于UI显示
@@ -83,6 +83,99 @@ const ResourceTaxCard = ({ resourceKey, info, rate, hasSupply, onChange }) => {
   );
 };
 
+// 营业税卡片组件
+const BusinessTaxCard = ({ building, rate, buildingCount, onChange }) => {
+  const [inputValue, setInputValue] = React.useState('');
+  const currentRate = rate ?? 0;
+  const isSubsidy = currentRate < 0;
+  const displayValue = Math.abs(currentRate).toFixed(2);
+  
+  // 同步外部rate到inputValue
+  React.useEffect(() => {
+    setInputValue(currentRate.toString());
+  }, [currentRate]);
+  
+  const valueColor = isSubsidy ? 'text-green-300' : 'text-yellow-300';
+  const borderColor = isSubsidy ? 'border-green-700/60' : (currentRate > 0 ? 'border-yellow-700/60' : 'border-gray-700/60');
+  const bgColor = building.visual?.color || 'bg-gray-700';
+  const textColor = building.visual?.text || 'text-gray-200';
+  
+  return (
+    <div 
+      className={`bg-gray-900/40 p-2.5 rounded-lg border ${borderColor} flex flex-col justify-between transition-all ${
+        buildingCount > 0 ? '' : 'opacity-50'
+      }`}
+    >
+      <div>
+        {/* 头部：Icon + 名称 + 建筑数量 */}
+        <div className="flex items-center gap-2 mb-1">
+          <div className={`${bgColor} ${textColor} p-1 rounded`}>
+            <Icon name={building.visual?.icon || 'Building'} size={14} />
+          </div>
+          <span className="font-semibold text-gray-300 text-xs flex-grow whitespace-nowrap overflow-hidden text-ellipsis">
+            {building.name}
+          </span>
+          <span className="text-gray-500 text-[10px] font-mono">{buildingCount}</span>
+        </div>
+        
+        {/* 状态栏：当前税率/补贴 */}
+        <div className="text-center my-1.5">
+          {isSubsidy ? (
+            <div className="flex items-center justify-center gap-1">
+              <Icon name="TrendingDown" size={14} className="text-green-400" />
+              <span className={`${valueColor} text-base font-semibold`}>
+                补贴 {displayValue}
+              </span>
+            </div>
+          ) : currentRate > 0 ? (
+            <div className="flex items-center justify-center gap-1">
+              <Icon name="TrendingUp" size={14} className="text-yellow-400" />
+              <span className={`${valueColor} text-base font-semibold`}>
+                {displayValue}
+              </span>
+            </div>
+          ) : (
+            <span className="text-gray-500 text-sm">无税收</span>
+          )}
+          <div className="text-[10px] text-gray-500 mt-0.5">银币/建筑/次</div>
+        </div>
+      </div>
+      
+      {/* 控制区：输入框 */}
+      <input
+        type="text"
+        inputMode="decimal"
+        value={inputValue}
+        onChange={(e) => {
+          const value = e.target.value;
+          // 允许输入负号、数字和小数点
+          if (value === '' || value === '-' || /^-?\d*\.?\d*$/.test(value)) {
+            setInputValue(value);
+            // 只有在有效数字时才更新
+            if (value !== '' && value !== '-') {
+              const parsed = parseFloat(value);
+              if (!isNaN(parsed)) {
+                onChange(building.id, parsed);
+              }
+            } else if (value === '') {
+              onChange(building.id, 0);
+            }
+          }
+        }}
+        onBlur={() => {
+          // 失焦时，如果只有负号，重置为0
+          if (inputValue === '-' || inputValue === '') {
+            setInputValue('0');
+            onChange(building.id, 0);
+          }
+        }}
+        className="w-full bg-gray-900/70 border border-gray-600 text-[11px] text-gray-200 rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
+        placeholder="0.00"
+      />
+    </div>
+  );
+};
+
 /**
  * 政令标签页组件
  * 显示所有政令及其效果
@@ -91,9 +184,10 @@ const ResourceTaxCard = ({ resourceKey, info, rate, hasSupply, onChange }) => {
  * @param {Object} taxPolicies - 税收策略
  * @param {Function} onUpdateTaxPolicies - 更新税收策略回调
  * @param {Object} popStructure - 当前人口结构
+ * @param {Object} buildings - 当前建筑数量
  * @param {number} epoch - 当前时代编号
  */
-export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicies, popStructure = {}, market = {}, epoch = 0, techsUnlocked = [] }) => {
+export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicies, popStructure = {}, buildings = {}, market = {}, epoch = 0, techsUnlocked = [] }) => {
   // 按类别分组政令
   const categories = {
     economy: { name: '经济政策', icon: 'Coins', color: 'text-yellow-400' },
@@ -128,7 +222,9 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
 
   const headRates = taxPolicies?.headTaxRates || {};
   const resourceRates = taxPolicies?.resourceTaxRates || {};
+  const businessRates = taxPolicies?.businessTaxRates || {};
   const [headDrafts, setHeadDrafts] = React.useState({});
+  const [activeTaxTab, setActiveTaxTab] = React.useState('head'); // 'head', 'resource', 'business'
   
   // 获取所有已解锁的阶层
   const unlockedStrataKeys = React.useMemo(() => {
@@ -187,6 +283,18 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
       },
     }));
   };
+
+  const handleBusinessTaxChange = (buildingId, value) => {
+    if (!onUpdateTaxPolicies) return;
+    const numeric = Number.isNaN(value) ? 0 : value;
+    onUpdateTaxPolicies(prev => ({
+      ...prev,
+      businessTaxRates: {
+        ...(prev?.businessTaxRates || {}),
+        [buildingId]: numeric,
+      },
+    }));
+  };
   
   // 获取所有已解锁的资源
   const unlockedResourceKeys = React.useMemo(() => {
@@ -220,19 +328,56 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
     .map(key => [key, RESOURCES[key]])
     .filter(([, info]) => info && (!info.type || (info.type !== 'virtual' && info.type !== 'currency')));
 
+  // 获取所有已建造的建筑（按类别分组）
+  const builtBuildings = React.useMemo(() => {
+    return BUILDINGS.filter(b => {
+      const count = buildings[b.id] || 0;
+      return count > 0;
+    }).sort((a, b) => {
+      // 按类别和建筑数量排序
+      const countA = buildings[a.id] || 0;
+      const countB = buildings[b.id] || 0;
+      if (a.cat !== b.cat) {
+        return a.cat.localeCompare(b.cat);
+      }
+      return countB - countA;
+    });
+  }, [buildings]);
+
+  // 按类别分组建筑
+  const buildingsByCategory = React.useMemo(() => {
+    const categories = {
+      gather: { name: '采集建筑', buildings: [] },
+      industry: { name: '工业建筑', buildings: [] },
+      civic: { name: '民用建筑', buildings: [] },
+    };
+    
+    builtBuildings.forEach(building => {
+      const cat = building.cat || 'civic';
+      if (categories[cat]) {
+        categories[cat].buildings.push(building);
+      }
+    });
+    
+    return categories;
+  }, [builtBuildings]);
+
   // 渲染单个阶层的人头税卡片
   const renderStratumCard = (key) => {
     const stratumInfo = STRATA[key] || {};
     const base = stratumInfo.headTaxBase ?? 0.01;
-    const finalRate = (headRates[key] ?? 1) * base;
+    const multiplier = headRates[key] ?? 1;
+    const finalRate = multiplier * base;
     const population = popStructure[key] || 0;
     const hasPopulation = population > 0;
+    const isSubsidy = finalRate < 0;
+    const isTax = finalRate > 0;
 
     return (
       <div 
         key={key} 
         className={`bg-gray-900/40 p-2 rounded-md border text-xs flex flex-col gap-2 ${
-          hasPopulation ? 'border-gray-700/60' : 'border-gray-800 opacity-60'
+          hasPopulation ? (isSubsidy ? 'border-green-700/60' : isTax ? 'border-yellow-700/60' : 'border-gray-700/60') : 'border-gray-800 opacity-60'
         }`}
       >
         {/* 第一行：Icon, 名称, 人口 */}
@@ -242,11 +387,31 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
           <span className="text-gray-500 text-[10px] font-mono">{population.toLocaleString()} 人</span>
         </div>
 
-        {/* 第二行：税率和输入框（始终显示） */}
+        {/* 第二行：税率显示（带补贴/征税标识） */}
+        <div className="flex items-center justify-center gap-1">
+          {isSubsidy ? (
+            <>
+              <Icon name="TrendingDown" size={12} className="text-green-400" />
+              <span className="font-mono text-green-300 whitespace-nowrap text-[11px]">
+                补贴 {Math.abs(finalRate).toFixed(3)}/人
+              </span>
+            </>
+          ) : isTax ? (
+            <>
+              <Icon name="TrendingUp" size={12} className="text-yellow-400" />
+              <span className="font-mono text-yellow-300 whitespace-nowrap text-[11px]">
+                {finalRate.toFixed(3)}/人
+              </span>
+            </>
+          ) : (
+            <span className="font-mono text-gray-500 whitespace-nowrap text-[11px]">
+              无税收
+            </span>
+          )}
+        </div>
+
+        {/* 第三行：输入框 */}
         <div className="flex items-center gap-2">
-          <span className="font-mono text-yellow-400 whitespace-nowrap text-[10px]">
-            {finalRate.toFixed(3)}/人
-          </span>
           <input
             type="text"
             inputMode="decimal"
@@ -260,7 +425,7 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
                 e.target.blur();
               }
             }}
-            className="w-full bg-gray-900/70 border border-gray-600 text-[11px] text-gray-200 rounded px-1 py-0.5 focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full bg-gray-900/70 border border-gray-600 text-[11px] text-gray-200 rounded px-1 py-0.5 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
             placeholder="税率系数"
           />
         </div>
@@ -316,13 +481,58 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
             <Icon name="Sliders" size={16} className="text-green-400" />
             税收政策
           </h3>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* 人头税部分 */}
-            <div className="space-y-4">
-              <div>
-                <h4 className="text-xs font-semibold text-gray-400 mb-1">人头税（按日结算）</h4>
-                <p className="text-[11px] text-gray-500 mb-3">针对每位在职人口，按阶层基准税率 × 调整系数收取银币。若为负数，则为补助。</p>
+          
+          {/* Tab 切换按钮 */}
+          <div className="flex gap-2 mb-4 border-b border-gray-700">
+            <button
+              onClick={() => setActiveTaxTab('head')}
+              className={`px-4 py-2 text-sm font-semibold transition-all ${
+                activeTaxTab === 'head'
+                  ? 'text-yellow-300 border-b-2 border-yellow-400'
+                  : 'text-gray-400 hover:text-gray-300'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Icon name="Users" size={14} />
+                人头税
               </div>
+            </button>
+            <button
+              onClick={() => setActiveTaxTab('resource')}
+              className={`px-4 py-2 text-sm font-semibold transition-all ${
+                activeTaxTab === 'resource'
+                  ? 'text-blue-300 border-b-2 border-blue-400'
+                  : 'text-gray-400 hover:text-gray-300'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Icon name="Package" size={14} />
+                资源税
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTaxTab('business')}
+              className={`px-4 py-2 text-sm font-semibold transition-all ${
+                activeTaxTab === 'business'
+                  ? 'text-green-300 border-b-2 border-green-400'
+                  : 'text-gray-400 hover:text-gray-300'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Icon name="Building" size={14} />
+                营业税
+              </div>
+            </button>
+          </div>
+
+          <div>
+            {/* 人头税部分 */}
+            {activeTaxTab === 'head' && (
+              <div className="space-y-4">
+                <div>
+                  <h4 className="text-xs font-semibold text-gray-400 mb-1">人头税（按日结算）</h4>
+                  <p className="text-[11px] text-gray-500 mb-3">针对每位在职人口，按阶层基准税率 × 调整系数收取银币。若为负数，则为补助。</p>
+                </div>
               
               {/* 遍历阶层分组来渲染UI */}
               {Object.values(STRATA_GROUPS).map(group => {
@@ -358,12 +568,14 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
               {strataToDisplay.length === 0 && (
                 <p className="text-xs text-gray-500">暂无需征税的阶层</p>
               )}
-            </div>
+              </div>
+            )}
 
             {/* 资源税部分 */}
-            <div className="max-h-[500px] overflow-y-auto pr-2">
-              <h4 className="text-xs font-semibold text-gray-400 mb-1">资源交易税</h4>
-              <p className="text-[11px] text-gray-500 mb-3">对市场交易的资源，按成交额收取或补贴固定比例的资金。税收将计入国库，补贴将由国库支出。</p>
+            {activeTaxTab === 'resource' && (
+              <div className="max-h-[500px] overflow-y-auto pr-2">
+                <h4 className="text-xs font-semibold text-gray-400 mb-1">资源交易税</h4>
+                <p className="text-[11px] text-gray-500 mb-3">对市场交易的资源，按成交额收取或补贴固定比例的资金。税收将计入国库，补贴将由国库支出。</p>
               
               {Object.values(RESOURCE_GROUPS).map(group => renderResourceGroup(group, taxableResources))}
               
@@ -392,7 +604,41 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
               {taxableResources.length === 0 && (
                   <p className="text-xs text-gray-500 mt-4">当前市场暂无可征税资源</p>
               )}
-            </div>
+              </div>
+            )}
+
+            {/* 营业税部分 */}
+            {activeTaxTab === 'business' && (
+              <div className="max-h-[500px] overflow-y-auto pr-2">
+                <h4 className="text-xs font-semibold text-gray-400 mb-1">营业税</h4>
+                <p className="text-[11px] text-gray-500 mb-3">对建筑每次产出收取固定银币值。正值为收税，负值为补贴。业主财产不足时放弃收税。</p>
+              
+              {Object.entries(buildingsByCategory).map(([catKey, catInfo]) => {
+                if (catInfo.buildings.length === 0) return null;
+                
+                return (
+                  <div key={catKey} className="mb-4">
+                    <h5 className="text-xs font-semibold text-gray-400 mb-2">{catInfo.name}</h5>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {catInfo.buildings.map(building => (
+                        <BusinessTaxCard
+                          key={building.id}
+                          building={building}
+                          rate={businessRates[building.id]}
+                          buildingCount={buildings[building.id] || 0}
+                          onChange={handleBusinessTaxChange}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {builtBuildings.length === 0 && (
+                <p className="text-xs text-gray-500 mt-4">当前暂无已建造的建筑</p>
+              )}
+              </div>
+            )}
           </div>
         </div>
       )}

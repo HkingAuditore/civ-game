@@ -112,6 +112,12 @@ const buildDefaultResourceTaxRates = () => {
   return rates;
 };
 
+const buildDefaultBusinessTaxRates = () => {
+  const rates = {};
+  // 默认所有建筑营业税为0（不收税也不补贴）
+  return rates;
+};
+
 const buildInitialNations = () => {
   return COUNTRIES.map(nation => {
     // 初始化库存：基于资源偏差，围绕目标库存500波动
@@ -246,6 +252,7 @@ export const useGameState = () => {
   const [taxPolicies, setTaxPolicies] = useState({
     headTaxRates: buildDefaultHeadTaxRates(),
     resourceTaxRates: buildDefaultResourceTaxRates(),
+    businessTaxRates: buildDefaultBusinessTaxRates(),
   });
   const [jobFill, setJobFill] = useState({});
   const [market, setMarket] = useState(buildInitialMarket());
@@ -438,6 +445,7 @@ export const useGameState = () => {
       setTaxPolicies(data.taxPolicies || {
         headTaxRates: buildDefaultHeadTaxRates(),
         resourceTaxRates: buildDefaultResourceTaxRates(),
+        businessTaxRates: buildDefaultBusinessTaxRates(),
       });
       setJobFill(data.jobFill || {});
       setMarket(data.market || buildInitialMarket());
