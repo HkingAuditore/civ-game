@@ -602,7 +602,7 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
 
             {/* 营业税部分 */}
             {activeTaxTab === 'business' && (
-              <div className="max-h-[500px] overflow-y-auto pr-2">
+              <div className="space-y-4">
                 <h4 className="text-xs font-semibold text-gray-400 mb-1">营业税</h4>
                 <p className="text-[11px] text-gray-500 mb-3">对建筑每次产出，按“基准税额 × 调整系数”收取银币。正值为收税，负值为补贴。业主财产不足时放弃收税。</p>
               
