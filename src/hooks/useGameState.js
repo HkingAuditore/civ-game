@@ -218,6 +218,9 @@ export const useGameState = () => {
   const [activeFestivalEffects, setActiveFestivalEffects] = useState([]); // 激活的庆典效果
   const [lastFestivalYear, setLastFestivalYear] = useState(1); // 上次庆典的年份（从1开始，避免第1年触发）
 
+  // ========== 商人交易状态 ==========
+  const [merchantState, setMerchantState] = useState({ trades: {} }); // 商人交易状态：买入-持有-卖出周期
+
   // ========== 教程系统状态 ==========
   const [showTutorial, setShowTutorial] = useState(() => {
     // 检查是否已完成教程
@@ -339,6 +342,7 @@ export const useGameState = () => {
         taxPolicies,
         jobFill,
         market,
+        merchantState,
         autoSaveInterval,
         isAutoSaveEnabled,
         lastAutoSaveTime: nextLastAuto,
@@ -431,6 +435,7 @@ export const useGameState = () => {
       });
       setJobFill(data.jobFill || {});
       setMarket(data.market || buildInitialMarket());
+      setMerchantState(data.merchantState || { trades: {} });
       setAutoSaveInterval(data.autoSaveInterval ?? 60);
       setIsAutoSaveEnabled(data.isAutoSaveEnabled ?? true);
       setLastAutoSaveTime(data.lastAutoSaveTime || Date.now());
@@ -571,6 +576,10 @@ export const useGameState = () => {
     setLastFestivalYear,
     isPaused,
     setIsPaused,
+    
+    // 商人交易系统
+    merchantState,
+    setMerchantState,
     
     // 教程系统
     showTutorial,

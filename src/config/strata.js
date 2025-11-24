@@ -143,7 +143,7 @@ export const STRATA = {
     desc: "控制贸易网络的阶层，主宽港口与市场。",
     wealthWeight: 8,
     influenceBase: 3.5,
-    startingWealth: 100,
+    startingWealth: 30,
     defaultResource: 'spice',
     needs: { delicacies: 0.45, cloth: 0.12, spice: 0.15, furniture: 0.08, plank: 0.05, ale: 0.1, fine_clothes: 0.05 },
     buffs: {

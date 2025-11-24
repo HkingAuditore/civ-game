@@ -78,6 +78,8 @@ export const useGameLoop = (gameState, addLog) => {
     isAutoSaveEnabled,
     lastAutoSaveTime,
     saveGame,
+    merchantState,
+    setMerchantState,
   } = gameState;
 
   // 使用ref保存最新状态，避免闭包问题
@@ -108,6 +110,7 @@ export const useGameLoop = (gameState, addLog) => {
     autoSaveInterval,
     isAutoSaveEnabled,
     lastAutoSaveTime,
+    merchantState,
   });
 
   const saveGameRef = useRef(gameState.saveGame);
@@ -221,6 +224,7 @@ export const useGameLoop = (gameState, addLog) => {
         ...current,
         tick: current.daysElapsed || 0,
         activeFestivalEffects: current.activeFestivalEffects || [],
+        merchantState: current.merchantState,
       });
 
       const maintenance = calculateArmyMaintenance(army);
@@ -380,6 +384,9 @@ export const useGameLoop = (gameState, addLog) => {
       }
       if (result.jobFill) {
         setJobFill(result.jobFill);
+      }
+      if (result.merchantState) {
+        setMerchantState(result.merchantState);
       }
       setDaysElapsed(prev => prev + gameSpeed);
       
