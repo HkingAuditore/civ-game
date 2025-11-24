@@ -155,14 +155,6 @@ const MERCHANT_CAPACITY_WEALTH_DIVISOR = 100;
 const MERCHANT_LOG_VOLUME_RATIO = 0.05;
 const MERCHANT_LOG_PROFIT_THRESHOLD = 50;
 
-/**
- * Merchant Trade Simulation with 3-day cycle:
- * Day 0: Buy resource
- * Day 1-2: Hold (waiting period)
- * Day 3: Sell resource
- * 
- * Performance optimization: Use aggregated state instead of individual merchant tracking
- */
 const simulateMerchantTrade = ({
   res,
   wealth,
@@ -171,26 +163,18 @@ const simulateMerchantTrade = ({
   demand,
   nations,
   tick,
-  gameSpeed, // New: game speed multiplier
   taxPolicies,
   taxBreakdown,
   getLocalPrice,
   roleExpense,
   roleWagePayout,
-  merchantState, // New: merchant trading state
+  pendingTrades = [],
+  lastTradeTime = 0,
 }) => {
   const merchantCount = popStructure?.merchant || 0;
   if (merchantCount <= 0) {
-    return merchantState || { trades: {} };
+    return;
   }
-
-  // Initialize merchant state if not exists
-  if (!merchantState) {
-    merchantState = { trades: {} };
-  }
-
-  // Trading cycle duration in game days (not ticks)
-  const TRADE_CYCLE_DAYS = 3;
 
   const resourceTaxRates = taxPolicies?.resourceTaxRates || {};
   const getResourceTaxRate = (resource) => Math.max(0, resourceTaxRates[resource] || 0);
@@ -220,144 +204,278 @@ const simulateMerchantTrade = ({
       return averaged;
   };
 
-  const tradableKeys = Object.keys(RESOURCES).filter(key => isTradableResource(key));
-  const surplusResources = tradableKeys.filter(key => (supply[key] || 0) > (demand[key] || 0));
-  const shortageResources = tradableKeys.filter(key => (demand[key] || 0) > (supply[key] || 0));
+  // 获取商人交易配置
+  const tradeConfig = STRATA.merchant?.tradeConfig || {
+    minProfitMargin: 0.10,
+    maxPurchaseAmount: 20,
+    exportProbability: 0.5,
+    maxInventoryRatio: 0.3,
+    minWealthForTrade: 10,
+    tradeDuration: 3,
+    tradeCooldown: 0,
+    enableDebugLog: false
+  };
 
-  // Clean up old trades and process selling
-  const newTrades = {};
-  Object.keys(merchantState.trades).forEach(tradeId => {
-    const trade = merchantState.trades[tradeId];
-    const daysHeld = tick - trade.buyTick;
+  // 处理待完成的交易（到期的交易）
+  const updatedPendingTrades = [];
+  pendingTrades.forEach(trade => {
+    trade.daysRemaining -= 1;
     
-    // Check if enough game days have passed (not ticks)
-    if (daysHeld >= TRADE_CYCLE_DAYS) {
-      // Time to sell
-      const { resource, amount, buyPrice, type } = trade;
+    if (trade.daysRemaining <= 0) {
+      // 交易完成，获得收入
+      roleWagePayout.merchant = (roleWagePayout.merchant || 0) + trade.revenue;
       
-      if (type === 'export') {
-        // Sell to foreign market
-        const foreignPrice = getForeignPrice(resource);
-        if (foreignPrice && foreignPrice > buyPrice * 1.05) { // 5% minimum profit
-          const revenue = foreignPrice * amount;
-          roleWagePayout.merchant = (roleWagePayout.merchant || 0) + revenue;
-        } else {
-          // Can't sell profitably, hold for next cycle
-          newTrades[tradeId] = trade;
-        }
-      } else if (type === 'import') {
-        // Sell to local market
-        const localPrice = getLocalPrice(resource);
-        if (localPrice && localPrice > buyPrice * 1.05) { // 5% minimum profit
-          const revenue = localPrice * amount;
-          const taxRate = getResourceTaxRate(resource);
-          const tax = revenue * taxRate;
-          
-          if (revenue > tax) {
-            roleWagePayout.merchant = (roleWagePayout.merchant || 0) + revenue;
-            taxBreakdown.industryTax += tax;
-            res[resource] = (res[resource] || 0) + amount;
-            supply[resource] = (supply[resource] || 0) + amount;
-          }
-        } else {
-          // Can't sell profitably, hold for next cycle
-          newTrades[tradeId] = trade;
-        }
+      if (trade.type === 'import') {
+        // 进口商品到货
+        res[trade.resource] = (res[trade.resource] || 0) + trade.amount;
+        supply[trade.resource] = (supply[trade.resource] || 0) + trade.amount;
+      }
+      
+      if (tradeConfig.enableDebugLog) {
+        console.log(`[商人调试] ✅ 交易完成:`, {
+          type: trade.type === 'export' ? '出口' : '进口',
+          resource: trade.resource,
+          amount: trade.amount,
+          revenue: trade.revenue,
+          profit: trade.profit
+        });
       }
     } else {
-      // Still holding, keep the trade
-      newTrades[tradeId] = trade;
+      // 交易尚未完成，继续等待
+      updatedPendingTrades.push(trade);
     }
   });
 
-  // Calculate how many merchants are available for new trades
-  const activeTrades = Object.keys(newTrades).length;
-  const availableMerchants = Math.max(0, merchantCount - activeTrades);
+  // 调试：查看输入的交易状态
+  if (tradeConfig.enableDebugLog) {
+    console.log(`[商人调试] 📥 输入状态:`, {
+      tick,
+      lastTradeTime,
+      pendingTradesCount: pendingTrades.length,
+      updatedPendingTradesCount: updatedPendingTrades.length,
+      merchantCount: popStructure.merchant || 0
+    });
+  }
   
-  // Each available merchant can start one new trade
-  if (availableMerchants > 0) {
-    const currentTotalWealth = wealth.merchant || 0;
-    const wealthPerMerchant = availableMerchants > 0 ? currentTotalWealth / availableMerchants : 0;
-    
-    // Limit new trades to prevent performance issues
-    const maxNewTrades = Math.min(availableMerchants, 50);
-    
-    for (let i = 0; i < maxNewTrades; i++) {
-      if (wealthPerMerchant <= 0) break;
-      
-      const decision = Math.random();
-      
-      if (decision < 0.5 && surplusResources.length > 0) {
-        // Export: Buy local, plan to sell foreign
-        const resourceKey = surplusResources[Math.floor(Math.random() * surplusResources.length)];
-        const localPrice = getLocalPrice(resourceKey);
-        const foreignPrice = getForeignPrice(resourceKey);
-        
-        if (foreignPrice && localPrice && foreignPrice > localPrice * 1.2) { // 20% profit potential
-          const taxRate = getResourceTaxRate(resourceKey);
-          const costWithTaxPerUnit = localPrice * (1 + taxRate);
-          const affordableAmount = costWithTaxPerUnit > 0 ? wealthPerMerchant / costWithTaxPerUnit : 0;
-          const amount = Math.min(10, Math.floor(affordableAmount)); // Reduced from 20 to 10
-          
-          if (amount > 0) {
-            const cost = localPrice * amount;
-            const tax = cost * taxRate;
-            const totalOutlay = cost + tax;
-            
-            if ((wealth.merchant || 0) >= totalOutlay && (res[resourceKey] || 0) >= amount) {
-              wealth.merchant -= totalOutlay;
-              roleExpense.merchant = (roleExpense.merchant || 0) + totalOutlay;
-              taxBreakdown.industryTax += tax;
-              res[resourceKey] = Math.max(0, (res[resourceKey] || 0) - amount);
-              supply[resourceKey] = Math.max(0, (supply[resourceKey] || 0) - amount);
-              
-              // Record the trade
-              const tradeId = `${tick}_${i}_export`;
-              newTrades[tradeId] = {
-                resource: resourceKey,
-                amount,
-                buyPrice: localPrice,
-                buyTick: tick,
-                type: 'export',
-              };
-            }
-          }
-        }
-      } else if (shortageResources.length > 0) {
-        // Import: Buy foreign, plan to sell local
-        const resourceKey = shortageResources[Math.floor(Math.random() * shortageResources.length)];
-        const localPrice = getLocalPrice(resourceKey);
-        const foreignPrice = getForeignPrice(resourceKey);
-        
-        if (foreignPrice && localPrice && localPrice > foreignPrice * 1.2) { // 20% profit potential
-          const affordableAmount = foreignPrice > 0 ? wealthPerMerchant / foreignPrice : 0;
-          const amount = Math.min(10, Math.floor(affordableAmount)); // Reduced from 20 to 10
-          
-          if (amount > 0) {
-            const cost = foreignPrice * amount;
-            
-            if ((wealth.merchant || 0) >= cost) {
-              wealth.merchant -= cost;
-              roleExpense.merchant = (roleExpense.merchant || 0) + cost;
-              
-              // Record the trade
-              const tradeId = `${tick}_${i}_import`;
-              newTrades[tradeId] = {
-                resource: resourceKey,
-                amount,
-                buyPrice: foreignPrice,
-                buyTick: tick,
-                type: 'import',
-              };
-            }
-          }
-        }
-      }
+  // 检查交易冷却时间
+  const ticksSinceLastTrade = tick - lastTradeTime;
+  const canTradeNow = ticksSinceLastTrade >= tradeConfig.tradeCooldown;
+  
+  if (!canTradeNow) {
+    if (tradeConfig.enableDebugLog) {
+      console.log(`[商人调试] ⏳ 交易冷却中，还需等待 ${tradeConfig.tradeCooldown - ticksSinceLastTrade} ticks`);
     }
+    return { pendingTrades: updatedPendingTrades, lastTradeTime };
   }
 
-  merchantState.trades = newTrades;
-  return merchantState;
+  const tradableKeys = Object.keys(RESOURCES).filter(key => isTradableResource(key));
+  
+  // 基于价格差异识别可交易资源
+  const exportableResources = []; // 外部价格 > 内部价格
+  const importableResources = []; // 外部价格 < 内部价格
+  
+  tradableKeys.forEach(key => {
+    const localPrice = getLocalPrice(key);
+    const foreignPrice = getForeignPrice(key);
+    const availableStock = res[key] || 0;
+    
+    if (foreignPrice === null || localPrice === null) return;
+    
+    const priceDiff = foreignPrice - localPrice;
+    const profitMargin = Math.abs(priceDiff) / localPrice;
+    
+    // 判断是否可出口（外部价格高于内部）
+    const isExportable = foreignPrice > localPrice && 
+                         profitMargin >= tradeConfig.minProfitMargin &&
+                         availableStock > 0;
+    
+    // 判断是否可进口（外部价格低于内部）
+    const isImportable = foreignPrice < localPrice && 
+                         profitMargin >= tradeConfig.minProfitMargin;
+    
+    // if (tradeConfig.enableDebugLog && key === 'cloth') {
+    //   console.log(`[商人调试] 布料信息:`, {
+    //     supply: supply[key] || 0,
+    //     demand: demand[key] || 0,
+    //     availableStock,
+    //     localPrice,
+    //     foreignPrice,
+    //     priceDiff,
+    //     profitMargin: (profitMargin * 100).toFixed(2) + '%',
+    //     isExportable,
+    //     isImportable
+    //   });
+    // }
+    
+    if (isExportable) exportableResources.push(key);
+    if (isImportable) importableResources.push(key);
+  });
+
+  const simCount = merchantCount > 100 ? 100 : merchantCount;
+  const batchMultiplier = merchantCount > 100 ? merchantCount / 100 : 1;
+
+  for (let i = 0; i < simCount; i++) {
+      const currentTotalWealth = wealth.merchant || 0;
+      if (currentTotalWealth <= tradeConfig.minWealthForTrade) break;
+
+      const decision = Math.random();
+
+      // Approximate the wealth of the merchant(s) in the current simulated batch
+      const wealthForThisBatch = currentTotalWealth / (simCount - i);
+
+      if (decision < tradeConfig.exportProbability && exportableResources.length > 0) { // Export
+          const resourceKey = exportableResources[Math.floor(Math.random() * exportableResources.length)];
+          const localPrice = getLocalPrice(resourceKey);
+          const foreignPrice = getForeignPrice(resourceKey);
+
+          if (foreignPrice === null || localPrice === null || foreignPrice <= localPrice) continue;
+
+          const taxRate = getResourceTaxRate(resourceKey);
+          const costWithTaxPerUnit = localPrice * (1 + taxRate);
+          
+          const affordableAmount = costWithTaxPerUnit > 0 ? wealthForThisBatch / costWithTaxPerUnit : 3;
+          const availableStock = (res[resourceKey] || 0) / batchMultiplier;
+          const maxInventory = availableStock * tradeConfig.maxInventoryRatio;
+          
+          const amount = Math.min(
+            tradeConfig.maxPurchaseAmount, 
+            affordableAmount, 
+            maxInventory
+          );
+          
+          if (amount <= 0) continue;
+
+          const cost = localPrice * amount;
+          const tax = cost * taxRate;
+          const revenue = foreignPrice * amount;
+          const profit = revenue - cost - tax;
+          const profitMargin = profit / (cost + tax);
+
+          if (profitMargin >= tradeConfig.minProfitMargin) {
+              const totalAmount = amount * batchMultiplier;
+              const totalCost = cost * batchMultiplier;
+              const totalTax = tax * batchMultiplier;
+              const totalRevenue = revenue * batchMultiplier;
+              
+              const totalOutlay = totalCost + totalTax;
+              
+              if ((wealth.merchant || 0) >= totalOutlay && (res[resourceKey] || 0) >= totalAmount) {
+                  if (tradeConfig.enableDebugLog && resourceKey === 'cloth') {
+                    console.log(`[商人调试] 📦 购买布料准备出口:`, {
+                      amount: totalAmount,
+                      cost: totalCost,
+                      tax: totalTax,
+                      expectedRevenue: totalRevenue,
+                      expectedProfit: totalRevenue - totalOutlay,
+                      profitMargin: (profitMargin * 100).toFixed(2) + '%',
+                      daysUntilSale: tradeConfig.tradeDuration
+                    });
+                  }
+                  
+                  // 立即支付成本和税费
+                  wealth.merchant -= totalOutlay;
+                  roleExpense.merchant = (roleExpense.merchant || 0) + totalOutlay;
+                  taxBreakdown.industryTax += totalTax;
+                  
+                  // 出口商品：立即扣除库存
+                  res[resourceKey] = Math.max(0, (res[resourceKey] || 0) - totalAmount);
+                  supply[resourceKey] = Math.max(0, (supply[resourceKey] || 0) - totalAmount);
+                  
+                  // 添加到待完成交易列表
+                  updatedPendingTrades.push({
+                    type: 'export',
+                    resource: resourceKey,
+                    amount: totalAmount,
+                    revenue: totalRevenue,
+                    profit: totalRevenue - totalOutlay,
+                    daysRemaining: tradeConfig.tradeDuration
+                  });
+                  
+                  // 更新最后交易时间
+                  lastTradeTime = tick;
+              }
+          }
+      } else if (importableResources.length > 0) { // Import
+          const resourceKey = importableResources[Math.floor(Math.random() * importableResources.length)];
+          const localPrice = getLocalPrice(resourceKey);
+          const foreignPrice = getForeignPrice(resourceKey);
+
+          if (foreignPrice === null || localPrice === null || foreignPrice >= localPrice) continue;
+          
+          const taxRate = getResourceTaxRate(resourceKey);
+          const totalPerUnitCost = foreignPrice + (localPrice * taxRate);
+          const affordableAmount = totalPerUnitCost > 0 ? wealthForThisBatch / totalPerUnitCost : 3;
+          const amount = Math.min(tradeConfig.maxPurchaseAmount, affordableAmount);
+          if (amount <= 0) continue;
+
+          const cost = foreignPrice * amount;
+          const revenue = localPrice * amount;
+          const tax = revenue * taxRate;
+          const profit = revenue - cost - tax;
+          const profitMargin = profit / (cost + tax);
+
+          if (profitMargin >= tradeConfig.minProfitMargin) {
+              const totalAmount = amount * batchMultiplier;
+              const totalCost = cost * batchMultiplier;
+              const totalTax = tax * batchMultiplier;
+              const totalRevenue = revenue * batchMultiplier;
+              const totalOutlay = totalCost + totalTax;
+              
+              if ((wealth.merchant || 0) >= totalOutlay) {
+                  if (tradeConfig.enableDebugLog && resourceKey === 'cloth') {
+                    console.log(`[商人调试] 📦 购买布料准备进口:`, {
+                      amount: totalAmount,
+                      cost: totalCost,
+                      tax: totalTax,
+                      expectedRevenue: totalRevenue,
+                      expectedProfit: totalRevenue - totalOutlay,
+                      profitMargin: (profitMargin * 100).toFixed(2) + '%',
+                      daysUntilSale: tradeConfig.tradeDuration
+                    });
+                  }
+                  
+                  // 立即支付成本和税费
+                  wealth.merchant -= totalOutlay;
+                  roleExpense.merchant = (roleExpense.merchant || 0) + totalOutlay;
+                  taxBreakdown.industryTax += totalTax;
+                  
+                  // 添加到待完成交易列表（进口商品等待到货后才能卖出）
+                  updatedPendingTrades.push({
+                    type: 'import',
+                    resource: resourceKey,
+                    amount: totalAmount,
+                    revenue: totalRevenue,
+                    profit: totalRevenue - totalOutlay,
+                    daysRemaining: tradeConfig.tradeDuration
+                  });
+                  
+                  // 更新最后交易时间
+                  lastTradeTime = tick;
+              }
+          }
+      }
+  }
+  
+  
+  
+  // 调试：查看输出的交易状态
+  if (tradeConfig.enableDebugLog) {
+    console.log(`[商人调试] 📤 输出状态:`, {
+      pendingTradesCount: updatedPendingTrades.length,
+      lastTradeTime: lastTradeTime,
+      pendingTrades: updatedPendingTrades.map(t => ({
+        type: t.type,
+        resource: t.resource,
+        amount: t.amount,
+        daysRemaining: t.daysRemaining
+      }))
+    });
+  }
+  
+  return {
+    pendingTrades: updatedPendingTrades,
+    lastTradeTime: lastTradeTime
+  };
 };
 
 export const simulateTick = ({
@@ -382,7 +500,7 @@ export const simulateTick = ({
   activeFestivalEffects = [],
   classWealthHistory,
   classNeedsHistory,
-  merchantState, // New: merchant trading state
+  merchantState = { pendingTrades: [], lastTradeTime: 0 },
 }) => {
   const res = { ...resources };
   const priceMap = { ...(market?.prices || {}) };
@@ -1645,23 +1763,60 @@ export const simulateTick = ({
     
     // ========== 外国经济模拟 ==========
     // 初始化库存和预算（如果不存在）
-    if (!next.inventory) next.inventory = {};
+    // 重要：深拷贝inventory对象，避免修改原对象导致React状态更新失败
+    if (!next.inventory) {
+      next.inventory = {};
+    } else {
+      next.inventory = { ...next.inventory };
+    }
     if (typeof next.budget !== 'number') next.budget = (next.wealth || 800) * 0.5;
     
     // 遍历该国的资源偏差，模拟生产和消耗
+    // 新机制：所有资源都有生产和消耗，但速率受bias影响，并自动向目标库存调节
     if (next.economyTraits?.resourceBias) {
       Object.entries(next.economyTraits.resourceBias).forEach(([resourceKey, bias]) => {
         const currentStock = next.inventory[resourceKey] || 0;
         
-        if (bias > 1) {
-          // 特产资源：自然生产
-          const productionRate = bias * 0.5 * gameSpeed;
-          next.inventory[resourceKey] = currentStock + productionRate;
-        } else if (bias <= 1) {
-          // 非特产资源：自然消耗
-          const consumptionRate = (1 / bias) * 0.2 * gameSpeed;
-          next.inventory[resourceKey] = Math.max(0, currentStock - consumptionRate);
+        // 使用固定的目标库存（不使用动态目标，避免目标变化导致库存看起来不变）
+        const targetInventory = 500;
+        
+        // 计算生产和消耗速率（所有资源都有生产和消耗）
+        // bias > 1: 特产资源，生产快消耗慢
+        // bias < 1: 稀缺资源，生产慢消耗快
+        // bias = 1: 中性资源，生产消耗平衡
+        
+        const baseProductionRate = 3.0 * gameSpeed; // 基础生产速率
+        const baseConsumptionRate = 3.0 * gameSpeed; // 基础消耗速率
+        
+        // 生产速率受bias正向影响：bias越高生产越快
+        const productionRate = baseProductionRate * bias;
+        
+        // 消耗速率受bias反向影响：bias越低消耗越快
+        const consumptionRate = baseConsumptionRate / bias;
+        
+        // 自动调节机制：当库存偏离目标时，调整生产/消耗速率
+        const stockRatio = currentStock / targetInventory;
+        let adjustmentFactor = 1.0;
+        
+        if (stockRatio > 1.5) {
+          // 库存过高：减少生产，增加消耗
+          adjustmentFactor = 0.5;
+        } else if (stockRatio < 0.5) {
+          // 库存过低：增加生产，减少消耗
+          adjustmentFactor = 1.5;
         }
+        
+        // 应用调节因子
+        const finalProduction = productionRate * (stockRatio > 1.5 ? adjustmentFactor : 1.0);
+        const finalConsumption = consumptionRate * (stockRatio < 0.5 ? adjustmentFactor : 1.0);
+        
+        // 计算净变化
+        const netChange = finalProduction - finalConsumption;
+        
+        // 更新库存，确保不低于最小值
+        const minInventory = targetInventory * 0.3; // 最小库存为目标的30%
+        const maxInventory = targetInventory * 2.0; // 最大库存为目标的2倍
+        next.inventory[resourceKey] = Math.max(minInventory, Math.min(maxInventory, currentStock + netChange));
       });
     }
     
@@ -1779,28 +1934,6 @@ export const simulateTick = ({
     updatedPrices[resource] = parseFloat(Math.max(PRICE_FLOOR, smoothed).toFixed(2));
   });
 
-  // Execute merchant trade BEFORE occupation switching to ensure correct income calculation
-  const previousMerchantWealth = classWealthResult.merchant || 0;
-  const updatedMerchantState = simulateMerchantTrade({
-    res,
-    wealth,
-    popStructure,
-    supply,
-    demand,
-    nations: updatedNations,
-    tick,
-    gameSpeed,
-    taxPolicies: policies,
-    taxBreakdown,
-    getLocalPrice: getPrice,
-    roleExpense,
-    roleWagePayout,
-    merchantState,
-  });
-
-  // Apply merchant income to wealth immediately
-  applyRoleIncomeToWealth();
-
   // 增强转职（Migration）逻辑：基于市场价格和潜在收益的职业流动
   const roleVacancies = {};
   ROLE_PRIORITY.forEach(role => {
@@ -1890,6 +2023,26 @@ export const simulateTick = ({
     }
   }
 
+  const previousMerchantWealth = classWealthResult.merchant || 0;
+  const updatedMerchantState = simulateMerchantTrade({
+    res,
+    wealth,
+    popStructure,
+    supply,
+    demand,
+    nations: updatedNations,
+    tick,
+    taxPolicies: policies,
+    taxBreakdown,
+    getLocalPrice: getPrice,
+    roleExpense,
+    roleWagePayout,
+    pendingTrades: merchantState.pendingTrades || [],
+    lastTradeTime: merchantState.lastTradeTime || 0,
+  });
+
+  applyRoleIncomeToWealth();
+
   const updatedMerchantWealth = Math.max(0, wealth.merchant || 0);
   const merchantWealthDelta = updatedMerchantWealth - previousMerchantWealth;
   if (merchantWealthDelta !== 0) {
@@ -1947,6 +2100,6 @@ export const simulateTick = ({
     needsShortages: classShortages,
     needsReport,
     nations: updatedNations,
-    merchantState: updatedMerchantState, // New: merchant trading state
+    merchantState: updatedMerchantState,
   };
 };

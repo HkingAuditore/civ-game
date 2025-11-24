@@ -149,6 +149,17 @@ export const STRATA = {
     buffs: {
       satisfied: { desc: "商贸兴隆", taxIncome: 0.15, gatherBonus: 0.05 },
       dissatisfied: { desc: "贸易停滞", taxIncome: -0.2, stability: -0.1 }
+    },
+    // 商人交易配置
+    tradeConfig: {
+      minProfitMargin: 0.10,        // 最低利润率（10%）
+      maxPurchaseAmount: 10,         // 单次最大购买量
+      exportProbability: 0.5,        // 出口概率（50%）
+      maxInventoryRatio: 0.1,        // 最大库存占用比例（出口时最多使用10%的可用库存）
+      minWealthForTrade: 10,         // 最低交易财富要求
+      tradeDuration: 3,              // 贸易周期（天）- 买入后等待X天才能卖出
+      tradeCooldown: 0,              // 交易冷却时间（天）- 两次交易之间的最小间隔，0表示无冷却
+      enableDebugLog: true          // 是否启用调试日志
     }
   },
   navigator: {

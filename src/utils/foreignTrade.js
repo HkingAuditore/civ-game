@@ -30,19 +30,28 @@ export const calculateForeignPrice = (resourceKey, nation, tick = 0) => {
   // 目标库存基准值
   const targetInventory = 500;
   
-  // 库存驱动定价公式：
-  // 实际价格 = 基础价格 * 偏差系数 * (目标库存 / max(1, 当前库存))
-  // 当库存接近0时，价格趋于无穷大（买不起）
-  // 当库存远超目标时，价格跌至地板价（卖不掉）
-  const inventoryFactor = targetInventory / Math.max(1, currentInventory);
+  // 库存驱动定价公式（优化版）：
+  // 实际价格 = 基础价格 * 偏差系数 * 库存调节因子
+  // 库存调节因子基于库存与目标的比率，使用平滑的曲线而非线性关系
   
-  // 限制价格波动范围，避免极端情况
-  // 最低0.2倍基础价格，最高10倍基础价格
-  const clampedFactor = Math.max(0.2, Math.min(10, inventoryFactor));
+  const stockRatio = currentInventory / targetInventory;
   
-  const price = base * bias * clampedFactor;
+  // 使用平方根函数平滑价格波动：
+  // stockRatio = 0.5 时，factor ≈ 1.41 (价格上涨41%)
+  // stockRatio = 1.0 时，factor = 1.0 (正常价格)
+  // stockRatio = 2.0 时，factor ≈ 0.71 (价格下降29%)
+  const inventoryFactor = 1.0 / Math.sqrt(Math.max(0.3, Math.min(3.0, stockRatio)));
+  
+  // 限制价格波动范围，避免与国内价格相差过大
+  // 最低0.5倍基础价格，最高3倍基础价格（而非之前的0.2-10倍）
+  const clampedFactor = Math.max(0.5, Math.min(3.0, inventoryFactor));
+  
+  // 最终价格 = 基础价格 * bias * 库存因子
+  // bias的影响也被限制在合理范围内
+  const biasFactor = Math.max(0.7, Math.min(1.5, bias));
+  const price = base * biasFactor * clampedFactor;
 
-  return Math.max(0.2, parseFloat(price.toFixed(2)));
+  return Math.max(0.5, parseFloat(price.toFixed(2)));
 };
 
 const getResourceKeyOffset = (resourceKey = '') => {

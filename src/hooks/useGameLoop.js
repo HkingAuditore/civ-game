@@ -147,39 +147,9 @@ export const useGameLoop = (gameState, addLog) => {
       autoSaveInterval,
       isAutoSaveEnabled,
       lastAutoSaveTime,
+      merchantState,
     };
-  }, [resources, market, buildings, population, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, army, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime]);
-
-  useEffect(() => {
-    stateRef.current = {
-      resources,
-      market,
-      buildings,
-      population,
-      epoch,
-      techsUnlocked,
-      decrees,
-      gameSpeed,
-      nations,
-      classWealth,
-      army,
-      jobFill,
-      activeBuffs,
-      activeDebuffs,
-      taxPolicies,
-      classWealthHistory,
-      classNeedsHistory,
-      militaryWageRatio,
-      classApproval,
-      daysElapsed,
-      activeFestivalEffects,
-      lastFestivalYear,
-      isPaused,
-      autoSaveInterval,
-      isAutoSaveEnabled,
-      lastAutoSaveTime,
-    };
-  }, [resources, market, buildings, population, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, army, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime]);
+  }, [resources, market, buildings, population, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, army, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState]);
 
   // 游戏核心循环
   useEffect(() => {
@@ -224,7 +194,6 @@ export const useGameLoop = (gameState, addLog) => {
         ...current,
         tick: current.daysElapsed || 0,
         activeFestivalEffects: current.activeFestivalEffects || [],
-        merchantState: current.merchantState,
       });
 
       const maintenance = calculateArmyMaintenance(army);
@@ -379,14 +348,18 @@ export const useGameLoop = (gameState, addLog) => {
       setTaxes(result.taxes || { total: 0, breakdown: { headTax: 0, industryTax: 0, subsidy: 0 }, efficiency: 1 });
       setMarket(adjustedMarket);
       setClassShortages(result.needsShortages || {});
+      setMerchantState(prev => {
+        const nextState = result.merchantState || current.merchantState || { pendingTrades: [], lastTradeTime: 0 };
+        if (prev === nextState) {
+          return prev;
+        }
+        return nextState;
+      });
       if (result.nations) {
         setNations(result.nations);
       }
       if (result.jobFill) {
         setJobFill(result.jobFill);
-      }
-      if (result.merchantState) {
-        setMerchantState(result.merchantState);
       }
       setDaysElapsed(prev => prev + gameSpeed);
       

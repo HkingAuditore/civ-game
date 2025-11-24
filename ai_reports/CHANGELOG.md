@@ -1,5 +1,44 @@
 # 更新日志 (CHANGELOG)
 
+## [2.1.6] - 2025-11-24 - 商人交易状态丢失修复 🔴🛠️
+
+### 🐛 严重Bug修复
+
+#### 商人交易状态丢失问题
+- **问题**: 商人买了东西但从不卖出，导致商品和财富永久消失
+- **根本原因**: 商人交易状态（`pendingTrades` 和 `lastTradeTime`）在每个tick后完全丢失
+- **技术细节**:
+  - `useGameState` 定义了 `merchantState` 对象
+  - `simulateTick` 期望分开的 `pendingTrades` 和 `lastTradeTime` 参数
+  - 返回值也是分开的字段，但 `useGameLoop` 期望保存 `merchantState` 对象
+  - 结果：状态从未被正确保存和传递
+- **修复方案**: 统一使用 `merchantState` 对象结构
+  ```javascript
+  merchantState = {
+    pendingTrades: [],  // 待完成的交易列表
+    lastTradeTime: 0    // 上次交易时间
+  }
+  ```
+- **影响**: 🔴 严重 - 导致商人系统完全失效
+- **修复文件**: `src/logic/simulation.js`
+- **详细文档**: [MERCHANT_STATE_LOSS_FIX.md](./MERCHANT_STATE_LOSS_FIX.md)
+
+### 🎯 修复效果
+
+**修复前**：
+- ❌ 商人买入商品后，交易状态立即丢失
+- ❌ 商人从不卖出商品
+- ❌ 商品和财富永久消失
+- ❌ 商人财富持续下降
+
+**修复后**：
+- ✅ 商人交易状态正确保存
+- ✅ 商人在3天后成功卖出商品
+- ✅ 商人财富合理增长
+- ✅ 完整的买入-持有-卖出周期
+
+---
+
 ## [2.1.5] - 2025-11-24 - 商人系统重大修复与优化 🛠️💼
 
 ### ⚠️ 重要更新（2025-11-24 10:40）

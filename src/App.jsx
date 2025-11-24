@@ -12,6 +12,7 @@ import {
   StrataPanel,
   LogPanel,
   SettingsPanel,
+  EmpireScene,
   BuildTab,
   MilitaryTab,
   TechTab,
@@ -603,6 +604,15 @@ export default function RiseOfCivs() {
 
         {/* 右侧边栏 - 日志和提示 */}
         <aside className="lg:col-span-2 order-3 space-y-4">
+          {/* 帝国场景可视化 */}
+          <EmpireScene
+            daysElapsed={gameState.daysElapsed}
+            season={calendar.season}
+            population={gameState.population}
+            stability={gameState.stability}
+            wealth={gameState.resources.silver}
+          />
+          
           {/* 日志面板 */}
           <LogPanel logs={gameState.logs} />
           

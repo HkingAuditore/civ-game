@@ -12,6 +12,7 @@ export { ResourcePanel } from './panels/ResourcePanel';
 export { StrataPanel } from './panels/StrataPanel';
 export { LogPanel } from './panels/LogPanel';
 export { SettingsPanel } from './panels/SettingsPanel';
+export { default as EmpireScene } from './panels/EmpireScene';
 
 // 标签页组件
 export { BuildTab } from './tabs/BuildTab';

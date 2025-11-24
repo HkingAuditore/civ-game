@@ -65,6 +65,11 @@ const buildInitialHistory = () => {
   };
 };
 
+const buildInitialMerchantState = () => ({
+  pendingTrades: [],
+  lastTradeTime: 0,
+});
+
 const isTradable = (resourceKey) => {
   if (resourceKey === 'silver') return false;
   const def = RESOURCES[resourceKey];
@@ -109,19 +114,20 @@ const buildDefaultResourceTaxRates = () => {
 
 const buildInitialNations = () => {
   return COUNTRIES.map(nation => {
-    // 初始化库存：基于资源偏差
+    // 初始化库存：基于资源偏差，围绕目标库存500波动
     const inventory = {};
+    const targetInventory = 500;
     if (nation.economyTraits?.resourceBias) {
       Object.entries(nation.economyTraits.resourceBias).forEach(([resourceKey, bias]) => {
         if (bias > 1) {
-          // 特产资源：高库存 (500-1000)
-          inventory[resourceKey] = Math.floor(500 + Math.random() * 500);
+          // 特产资源：高库存，在目标值的1.2-1.8倍之间 (600-900)
+          inventory[resourceKey] = Math.floor(targetInventory * (1.2 + Math.random() * 0.6));
         } else if (bias < 1) {
-          // 稀缺资源：低库存 (0-100)
-          inventory[resourceKey] = Math.floor(Math.random() * 100);
+          // 稀缺资源：低库存，在目标值的0.2-0.5倍之间 (100-250)
+          inventory[resourceKey] = Math.floor(targetInventory * (0.2 + Math.random() * 0.3));
         } else {
-          // 中性资源：中等库存 (100-300)
-          inventory[resourceKey] = Math.floor(100 + Math.random() * 200);
+          // 中性资源：中等库存，在目标值的0.8-1.2倍之间 (400-600)
+          inventory[resourceKey] = Math.floor(targetInventory * (0.8 + Math.random() * 0.4));
         }
       });
     }
@@ -219,7 +225,7 @@ export const useGameState = () => {
   const [lastFestivalYear, setLastFestivalYear] = useState(1); // 上次庆典的年份（从1开始，避免第1年触发）
 
   // ========== 商人交易状态 ==========
-  const [merchantState, setMerchantState] = useState({ trades: {} }); // 商人交易状态：买入-持有-卖出周期
+  const [merchantState, setMerchantState] = useState(buildInitialMerchantState); // 商人交易状态：买入-持有-卖出周期
 
   // ========== 教程系统状态 ==========
   const [showTutorial, setShowTutorial] = useState(() => {
@@ -435,7 +441,7 @@ export const useGameState = () => {
       });
       setJobFill(data.jobFill || {});
       setMarket(data.market || buildInitialMarket());
-      setMerchantState(data.merchantState || { trades: {} });
+      setMerchantState(data.merchantState || buildInitialMerchantState());
       setAutoSaveInterval(data.autoSaveInterval ?? 60);
       setIsAutoSaveEnabled(data.isAutoSaveEnabled ?? true);
       setLastAutoSaveTime(data.lastAutoSaveTime || Date.now());
