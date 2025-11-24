@@ -22,6 +22,57 @@ const STRATA_GROUPS = {
   },
 };
 
+// 定义资源分组
+const RESOURCE_GROUPS = {
+  basic: {
+    name: '基础资源',
+    keys: ['food', 'wood', 'stone', 'cloth'],
+  },
+  industrial: {
+    name: '工业原料',
+    keys: ['brick', 'plank', 'copper', 'tools', 'dye', 'iron', 'coal', 'steel'],
+  },
+  consumer: {
+    name: '消费品',
+    keys: ['papyrus', 'delicacies', 'furniture', 'ale', 'fine_clothes', 'spice', 'coffee'],
+  }
+};
+const ALL_GROUPED_RESOURCES = new Set(Object.values(RESOURCE_GROUPS).flatMap(g => g.keys));
+
+// 紧凑型资源税卡片
+const ResourceTaxCard = ({ resourceKey, info, rate, hasSupply, onChange }) => (
+  <div 
+    className={`bg-gray-900/40 p-2.5 rounded-lg border flex flex-col justify-between transition-opacity ${
+      hasSupply ? 'border-gray-700/60' : 'border-gray-800/50 opacity-50'
+    }`}
+  >
+    <div>
+      {/* 头部：Icon + 名称 + 缺货标记 */}
+      <div className="flex items-center gap-2 mb-1">
+        <Icon name={info.icon || 'Box'} size={14} className={info.color || 'text-gray-400'} />
+        <span className="font-semibold text-gray-300 text-xs flex-grow whitespace-nowrap overflow-hidden text-ellipsis">{info.name}</span>
+        {!hasSupply && <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" title="当前无市场供应"></div>}
+      </div>
+      {/* 状态栏：当前税率 */}
+      <div className="text-center my-1">
+        <span className="font-mono text-blue-300 text-lg">
+          {((rate ?? 0) * 100).toFixed(0)}<span className="text-xs">%</span>
+        </span>
+      </div>
+    </div>
+    {/* 控制区：滑动条 */}
+    <input
+      type="range"
+      min="0"
+      max="2.0" // 最大税率200%
+      step="0.01"
+      value={rate ?? 0}
+      onChange={(e) => onChange(resourceKey, e.target.value)}
+      className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer range-sm accent-blue-500"
+    />
+  </div>
+);
+
 /**
  * 政令标签页组件
  * 显示所有政令及其效果
@@ -208,6 +259,29 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
   };
 
   const allGroupKeys = new Set(Object.values(STRATA_GROUPS).flatMap(g => g.keys));
+  
+  const renderResourceGroup = (group, resources) => {
+    const groupResources = resources.filter(([key]) => group.keys.includes(key));
+    if (groupResources.length === 0) return null;
+
+    return (
+      <div key={group.name} className="mb-4">
+        <h5 className="text-xs font-semibold text-gray-400 mb-2">{group.name}</h5>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+          {groupResources.map(([key, info]) => (
+            <ResourceTaxCard
+              key={key}
+              resourceKey={key}
+              info={info}
+              rate={resourceRates[key]}
+              hasSupply={(market?.supply?.[key] || 0) > 0}
+              onChange={handleResourceTaxChange}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-4">
@@ -277,39 +351,37 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
             </div>
 
             {/* 资源税部分 */}
-            <div>
+            <div className="max-h-[500px] overflow-y-auto pr-2">
               <h4 className="text-xs font-semibold text-gray-400 mb-1">资源交易税</h4>
-              <p className="text-[11px] text-gray-500 mb-3">仅对当前在市场流通的资源，在买入/卖出时按照成交额加收税率。</p>
-              <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
-                {taxableResources.map(([key, info]) => {
-                  const hasSupply = (market?.supply?.[key] || 0) > 0;
-                  return (
-                    <div key={key} className={`bg-gray-900/40 p-2 rounded border ${hasSupply ? 'border-gray-700/50' : 'border-gray-600/30 opacity-70'}`}>
-                      <div className="flex items-center justify-between text-xs text-gray-300 mb-1">
-                        <span>{info.name}</span>
-                        <span className="font-mono text-blue-300">
-                          {((resourceRates[key] ?? 0) * 100).toFixed(0)}%
-                        </span>
-                      </div>
-                      {!hasSupply && (
-                        <div className="text-[10px] text-gray-500 mb-1">当前无市场供应</div>
-                      )}
-                      <input
-                        type="range"
-                        min="0"
-                        max="1.0"
-                        step="0.01"
-                        value={resourceRates[key] ?? 0}
-                        onChange={(e) => handleResourceTaxChange(key, e.target.value)}
-                        className="w-full"
-                      />
+              <p className="text-[11px] text-gray-500 mb-3">对市场交易的资源，按成交额收取固定比例的税，会计入国库。</p>
+              
+              {Object.values(RESOURCE_GROUPS).map(group => renderResourceGroup(group, taxableResources))}
+              
+              {(() => {
+                const ungroupedResources = taxableResources.filter(([key]) => !ALL_GROUPED_RESOURCES.has(key));
+                if (ungroupedResources.length === 0) return null;
+                return (
+                   <div key="other-resources" className="mb-4">
+                    <h5 className="text-xs font-semibold text-gray-400 mb-2">其他</h5>
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                      {ungroupedResources.map(([key, info]) => (
+                        <ResourceTaxCard
+                          key={key}
+                          resourceKey={key}
+                          info={info}
+                          rate={resourceRates[key]}
+                          hasSupply={(market?.supply?.[key] || 0) > 0}
+                          onChange={handleResourceTaxChange}
+                        />
+                      ))}
                     </div>
-                  );
-                })}
-                {taxableResources.length === 0 && (
-                  <p className="text-xs text-gray-500">当前市场暂无可征税资源</p>
-                )}
-              </div>
+                  </div>
+                );
+              })()}
+
+              {taxableResources.length === 0 && (
+                  <p className="text-xs text-gray-500 mt-4">当前市场暂无可征税资源</p>
+              )}
             </div>
           </div>
         </div>
