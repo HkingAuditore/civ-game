@@ -507,7 +507,7 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
             >
               <div className="flex items-center gap-2">
                 <Icon name="Package" size={14} />
-                资源税
+                交易税
               </div>
             </button>
             <button
