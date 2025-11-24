@@ -846,30 +846,50 @@ export const simulateTick = ({
     }
   });
 
-  // 自动填补（招工）：失业者按优先级填补有空缺的岗位
-  ROLE_PRIORITY.forEach(role => {
-    const availableUnemployed = popStructure.unemployed || 0;
-    if (availableUnemployed <= 0) return;
-    
+  // 自动填补（招工）：失业者优先进入净收入更高的岗位
+  const estimateRoleNetIncome = (role) => {
+    const wage = getExpectedWage(role);
+    const headBase = STRATA[role]?.headTaxBase ?? 0.01;
+    const taxCost = headBase * gameSpeed * getHeadTaxRate(role) * effectiveTaxModifier;
+    return wage - Math.max(0, taxCost);
+  };
+
+  const vacancyRanking = ROLE_PRIORITY.map((role, index) => {
     const slots = Math.max(0, jobsAvailable[role] || 0);
     const current = popStructure[role] || 0;
     const vacancy = Math.max(0, slots - current);
-    if (vacancy <= 0) return;
-    
-    const hiring = Math.min(vacancy, availableUnemployed);
+    if (vacancy <= 0) return null;
+    return {
+      role,
+      vacancy,
+      netIncome: estimateRoleNetIncome(role),
+      priorityIndex: index,
+    };
+  })
+    .filter(Boolean)
+    .sort((a, b) => {
+      if (b.netIncome !== a.netIncome) return b.netIncome - a.netIncome;
+      return a.priorityIndex - b.priorityIndex;
+    });
+
+  vacancyRanking.forEach(entry => {
+    const availableUnemployed = popStructure.unemployed || 0;
+    if (availableUnemployed <= 0) return;
+
+    const hiring = Math.min(entry.vacancy, availableUnemployed);
     if (hiring <= 0) return;
-    
+
     // 招工：失业者填补岗位，并携带财富
     const unemployedWealth = wealth.unemployed || 0;
     const perCapWealth = availableUnemployed > 0 ? unemployedWealth / availableUnemployed : 0;
-    
-    popStructure[role] = current + hiring;
+
+    popStructure[entry.role] = (popStructure[entry.role] || 0) + hiring;
     popStructure.unemployed = Math.max(0, availableUnemployed - hiring);
-    
+
     if (perCapWealth > 0) {
       const transfer = perCapWealth * hiring;
       wealth.unemployed = Math.max(0, unemployedWealth - transfer);
-      wealth[role] = (wealth[role] || 0) + transfer;
+      wealth[entry.role] = (wealth[entry.role] || 0) + transfer;
     }
   });
 
@@ -1773,50 +1793,45 @@ export const simulateTick = ({
     
     // 遍历该国的资源偏差，模拟生产和消耗
     // 新机制：所有资源都有生产和消耗，但速率受bias影响，并自动向目标库存调节
-    if (next.economyTraits?.resourceBias) {
-      Object.entries(next.economyTraits.resourceBias).forEach(([resourceKey, bias]) => {
+    const resourceBiasMap = next.economyTraits?.resourceBias || {};
+    const foreignResourceKeys = Object.keys(RESOURCES).filter(isTradableResource);
+    if (foreignResourceKeys.length > 0) {
+      foreignResourceKeys.forEach((resourceKey) => {
+        const bias = resourceBiasMap[resourceKey] ?? 1;
         const currentStock = next.inventory[resourceKey] || 0;
-        
-        // 使用固定的目标库存（不使用动态目标，避免目标变化导致库存看起来不变）
+        // 使用固定的目标库存（避免目标不断变化造成“假稳定”）
         const targetInventory = 500;
-        
-        // 计算生产和消耗速率（所有资源都有生产和消耗）
-        // bias > 1: 特产资源，生产快消耗慢
-        // bias < 1: 稀缺资源，生产慢消耗快
-        // bias = 1: 中性资源，生产消耗平衡
-        
         const baseProductionRate = 3.0 * gameSpeed; // 基础生产速率
         const baseConsumptionRate = 3.0 * gameSpeed; // 基础消耗速率
-        
-        // 生产速率受bias正向影响：bias越高生产越快
         const productionRate = baseProductionRate * bias;
-        
-        // 消耗速率受bias反向影响：bias越低消耗越快
-        const consumptionRate = baseConsumptionRate / bias;
-        
-        // 自动调节机制：当库存偏离目标时，调整生产/消耗速率
+        const consumptionRate = baseConsumptionRate / Math.max(bias, 0.25);
         const stockRatio = currentStock / targetInventory;
-        let adjustmentFactor = 1.0;
-        
+        let productionAdjustment = 1.0;
+        let consumptionAdjustment = 1.0;
         if (stockRatio > 1.5) {
-          // 库存过高：减少生产，增加消耗
-          adjustmentFactor = 0.5;
+          // 库存极高：削减生产、提升消耗，加快回落
+          productionAdjustment *= 0.5;
+          consumptionAdjustment *= 1.15;
+        } else if (stockRatio > 1.1) {
+          productionAdjustment *= 0.8;
+          consumptionAdjustment *= 1.05;
         } else if (stockRatio < 0.5) {
-          // 库存过低：增加生产，减少消耗
-          adjustmentFactor = 1.5;
+          // 库存极低：提升生产、压缩消耗，加快补货
+          productionAdjustment *= 1.5;
+          consumptionAdjustment *= 0.85;
+        } else if (stockRatio < 0.9) {
+          productionAdjustment *= 1.2;
+          consumptionAdjustment *= 0.95;
         }
-        
-        // 应用调节因子
-        const finalProduction = productionRate * (stockRatio > 1.5 ? adjustmentFactor : 1.0);
-        const finalConsumption = consumptionRate * (stockRatio < 0.5 ? adjustmentFactor : 1.0);
-        
-        // 计算净变化
-        const netChange = finalProduction - finalConsumption;
-        
-        // 更新库存，确保不低于最小值
-        const minInventory = targetInventory * 0.3; // 最小库存为目标的30%
-        const maxInventory = targetInventory * 2.0; // 最大库存为目标的2倍
-        next.inventory[resourceKey] = Math.max(minInventory, Math.min(maxInventory, currentStock + netChange));
+        const correction = (targetInventory - currentStock) * 0.01 * gameSpeed;
+        const randomShock = (Math.random() - 0.5) * targetInventory * 0.3 * gameSpeed;
+        const finalProduction = productionRate * productionAdjustment;
+        const finalConsumption = consumptionRate * consumptionAdjustment;
+        const netChange = (finalProduction - finalConsumption) + correction + randomShock;
+        const minInventory = targetInventory * 0.2;
+        const maxInventory = targetInventory * 3.0;
+        const nextStock = currentStock + netChange;
+        next.inventory[resourceKey] = Math.max(minInventory, Math.min(maxInventory, nextStock));
       });
     }
     

@@ -34,22 +34,21 @@ export const calculateForeignPrice = (resourceKey, nation, tick = 0) => {
   // 实际价格 = 基础价格 * 偏差系数 * 库存调节因子
   // 库存调节因子基于库存与目标的比率，使用平滑的曲线而非线性关系
   
-  const stockRatio = currentInventory / targetInventory;
-  
-  // 使用平方根函数平滑价格波动：
-  // stockRatio = 0.5 时，factor ≈ 1.41 (价格上涨41%)
-  // stockRatio = 1.0 时，factor = 1.0 (正常价格)
-  // stockRatio = 2.0 时，factor ≈ 0.71 (价格下降29%)
-  const inventoryFactor = 1.0 / Math.sqrt(Math.max(0.3, Math.min(3.0, stockRatio)));
-  
-  // 限制价格波动范围，避免与国内价格相差过大
-  // 最低0.5倍基础价格，最高3倍基础价格（而非之前的0.2-10倍）
-  const clampedFactor = Math.max(0.5, Math.min(3.0, inventoryFactor));
-  
-  // 最终价格 = 基础价格 * bias * 库存因子
-  // bias的影响也被限制在合理范围内
-  const biasFactor = Math.max(0.7, Math.min(1.5, bias));
-  const price = base * biasFactor * clampedFactor;
+  const stockRatio = targetInventory > 0 ? currentInventory / targetInventory : 1;
+  const shortagePressure = Math.max(0, 1 - stockRatio);
+  const surplusPressure = Math.max(0, stockRatio - 1);
+
+  // ?????????????????
+  const shortageMultiplier = 1 + Math.min(2.5, shortagePressure * 0.9);
+  const surplusMultiplier = 1 - Math.min(0.95, surplusPressure * 0.6);
+  const inventoryFactor = shortageMultiplier * surplusMultiplier;
+
+  // ???????????????????????
+  const normalizedBias = Math.max(0.6, Math.min(1.6, bias));
+  const biasFactor = 1 + (normalizedBias - 1) * 0.25;
+
+  let price = base * biasFactor * inventoryFactor;
+  price = Math.max(base * 0.25, Math.min(base * 3, price));
 
   return Math.max(0.5, parseFloat(price.toFixed(2)));
 };
