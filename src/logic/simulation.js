@@ -2289,7 +2289,17 @@ export const simulateTick = ({
     targetPrice = Math.max(targetPrice, PRICE_FLOOR);
     const prevPrice = priceMap[resource] || anchorPrice;
     const smoothed = prevPrice + (targetPrice - prevPrice) * 0.1;
-    updatedPrices[resource] = parseFloat(Math.max(PRICE_FLOOR, smoothed).toFixed(2));
+        const minPrice = resourceDef.minPrice ?? PRICE_FLOOR;
+    const maxPrice = resourceDef.maxPrice;
+    
+    let finalPrice = smoothed;
+
+    if (maxPrice !== undefined) {
+        finalPrice = Math.min(finalPrice, maxPrice);
+    }
+    finalPrice = Math.max(finalPrice, minPrice);
+    
+    updatedPrices[resource] = parseFloat(finalPrice.toFixed(2));
   });
 
   const getLastTickNetIncomePerCapita = (role) => {

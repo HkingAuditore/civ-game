@@ -41,6 +41,8 @@ export const RESOURCES = {
     icon: 'Wheat', 
     color: "text-yellow-400", 
     basePrice: 1.6, 
+    minPrice: 0.16,
+    maxPrice: 16,
     defaultOwner: 'peasant', 
     unlockEpoch: 0, 
     tags: ['essential','raw_material'],
@@ -51,26 +53,28 @@ export const RESOURCES = {
       inventoryPriceImpact: 0.15,     // 库存对价格影响较小
     }
   },
-  wood: { name: "木材", icon: 'Trees', color: "text-emerald-400", basePrice: 3.2, defaultOwner: 'lumberjack', unlockEpoch: 0, tags: ['raw_material'] },
-  stone: { name: "石料", icon: 'Pickaxe', color: "text-stone-400", basePrice: 4.5, defaultOwner: 'miner', unlockEpoch: 0, tags: ['raw_material'] },
-  cloth: { name: "布料", icon: 'Shirt', color: "text-indigo-300", basePrice: 2.5, defaultOwner: 'artisan', unlockEpoch: 0, tags: ['essential','raw_material', 'manufactured'] },
-  brick: { name: "砖块", icon: 'Home', color: "text-red-400", basePrice: 9.5, defaultOwner: 'artisan', unlockEpoch: 0, unlockTech: 'pottery', tags: ['industrial'] },
+  wood: { name: "木材", icon: 'Trees', color: "text-emerald-400", basePrice: 3.2, minPrice: 0.32, maxPrice: 32, defaultOwner: 'lumberjack', unlockEpoch: 0, tags: ['raw_material'] },
+  stone: { name: "石料", icon: 'Pickaxe', color: "text-stone-400", basePrice: 4.5, minPrice: 0.45, maxPrice: 45, defaultOwner: 'miner', unlockEpoch: 0, tags: ['raw_material'] },
+  cloth: { name: "布料", icon: 'Shirt', color: "text-indigo-300", basePrice: 2.5, minPrice: 0.25, maxPrice: 25, defaultOwner: 'artisan', unlockEpoch: 0, tags: ['essential','raw_material', 'manufactured'] },
+  brick: { name: "砖块", icon: 'Home', color: "text-red-400", basePrice: 9.5, minPrice: 0.95, maxPrice: 95, defaultOwner: 'artisan', unlockEpoch: 0, unlockTech: 'pottery', tags: ['industrial'] },
 
   
   // 青铜时代资源
-  plank: { name: "木板", icon: 'Hammer', color: "text-amber-600", basePrice: 7.5, defaultOwner: 'worker', unlockEpoch: 1, unlockTech: 'tools', tags: ['industrial'] },
-  copper: { name: "铜矿", icon: 'Pickaxe', color: "text-orange-400", basePrice: 8.5, defaultOwner: 'miner', unlockEpoch: 1, unlockTech: 'copper_mining', tags: ['raw_material'] },
-  tools: { name: "工具", icon: 'Anvil', color: "text-blue-300", basePrice: 12.5, defaultOwner: 'artisan', unlockEpoch: 1, unlockTech: 'bronze_working', tags: ['industrial'] },
-    dye: { name: "染料", icon: 'Droplets', color: "text-pink-500", basePrice: 7.5, defaultOwner: 'artisan', unlockEpoch: 1, tags: ['industrial', 'raw_material'] },
+  plank: { name: "木板", icon: 'Hammer', color: "text-amber-600", basePrice: 7.5, minPrice: 0.75, maxPrice: 75, defaultOwner: 'worker', unlockEpoch: 1, unlockTech: 'tools', tags: ['industrial'] },
+  copper: { name: "铜矿", icon: 'Pickaxe', color: "text-orange-400", basePrice: 8.5, minPrice: 0.85, maxPrice: 85, defaultOwner: 'miner', unlockEpoch: 1, unlockTech: 'copper_mining', tags: ['raw_material'] },
+  tools: { name: "工具", icon: 'Anvil', color: "text-blue-300", basePrice: 12.5, minPrice: 1.25, maxPrice: 125, defaultOwner: 'artisan', unlockEpoch: 1, unlockTech: 'bronze_working', tags: ['industrial'] },
+    dye: { name: "染料", icon: 'Droplets', color: "text-pink-500", basePrice: 7.5, minPrice: 0.75, maxPrice: 75, defaultOwner: 'artisan', unlockEpoch: 1, tags: ['industrial', 'raw_material'] },
   
   // 古典时代
-  papyrus: { name: "纸张", icon: 'ScrollText', color: "text-lime-300", basePrice: 10, defaultOwner: 'scribe', unlockEpoch: 2, unlockTech: 'papyrus_cultivation', tags: ['raw_material', 'manufactured'] },
-  delicacies: { name: "珍馐", icon: 'UtensilsCrossed', color: "text-rose-400", basePrice: 18, defaultOwner: 'artisan', unlockEpoch: 2, unlockTech: 'culinary_arts', tags: ['luxury', 'manufactured'] },
+  papyrus: { name: "纸张", icon: 'ScrollText', color: "text-lime-300", basePrice: 10, minPrice: 1, maxPrice: 100, defaultOwner: 'scribe', unlockEpoch: 2, unlockTech: 'papyrus_cultivation', tags: ['raw_material', 'manufactured'] },
+  delicacies: { name: "珍馐", icon: 'UtensilsCrossed', color: "text-rose-400", basePrice: 18, minPrice: 1.8, maxPrice: 180, defaultOwner: 'artisan', unlockEpoch: 2, unlockTech: 'culinary_arts', tags: ['luxury', 'manufactured'] },
   furniture: { 
     name: "精美家具", 
     icon: 'Armchair', 
     color: "text-amber-500", 
     basePrice: 20, 
+    minPrice: 2,
+    maxPrice: 200,
     defaultOwner: 'artisan', 
     unlockEpoch: 2, 
     unlockTech: 'carpentry', 
@@ -82,27 +86,27 @@ export const RESOURCES = {
       inventoryPriceImpact: 0.4,      // 库存对价格影响更大
     }
   },
-  ale: { name: "美酒", icon: 'Wine', color: "text-purple-400", basePrice: 13, defaultOwner: 'artisan', unlockEpoch: 2, unlockTech: 'brewing', tags: ['luxury', 'manufactured'] },
+  ale: { name: "美酒", icon: 'Wine', color: "text-purple-400", basePrice: 13, minPrice: 1.3, maxPrice: 130, defaultOwner: 'artisan', unlockEpoch: 2, unlockTech: 'brewing', tags: ['luxury', 'manufactured'] },
   
-  fine_clothes: { name: "华服", icon: 'Shirt', color: "text-purple-400", basePrice: 24, defaultOwner: 'artisan', unlockEpoch: 2, tags: ['luxury', 'manufactured'] },
+  fine_clothes: { name: "华服", icon: 'Shirt', color: "text-purple-400", basePrice: 24, minPrice: 2.4, maxPrice: 240, defaultOwner: 'artisan', unlockEpoch: 2, tags: ['luxury', 'manufactured'] },
   
   // 封建时代
-  iron: { name: "铁矿", icon: 'Pickaxe', color: "text-zinc-400", basePrice: 11.5, defaultOwner: 'miner', unlockEpoch: 2, unlockTech: 'ironworking', tags: ['raw_material'] },
+  iron: { name: "铁矿", icon: 'Pickaxe', color: "text-zinc-400", basePrice: 11.5, minPrice: 1.15, maxPrice: 115, defaultOwner: 'miner', unlockEpoch: 2, unlockTech: 'ironworking', tags: ['raw_material'] },
 
   // 探索时代
-  spice: { name: "香料", icon: 'Leaf', color: "text-amber-400", basePrice: 20, defaultOwner: 'merchant', unlockEpoch: 4, unlockTech: 'cartography', tags: ['essential', 'manufactured'] },
+  spice: { name: "香料", icon: 'Leaf', color: "text-amber-400", basePrice: 20, minPrice: 2, maxPrice: 200, defaultOwner: 'merchant', unlockEpoch: 4, unlockTech: 'cartography', tags: ['essential', 'manufactured'] },
 
   // 启蒙时代
-  coffee: { name: "咖啡", icon: 'Coffee', color: "text-amber-700", basePrice: 18, defaultOwner: 'merchant', unlockEpoch: 5, unlockTech: 'coffee_agronomy', tags: ['essential', 'manufactured'] },
+  coffee: { name: "咖啡", icon: 'Coffee', color: "text-amber-700", basePrice: 18, minPrice: 1.8, maxPrice: 180, defaultOwner: 'merchant', unlockEpoch: 5, unlockTech: 'coffee_agronomy', tags: ['essential', 'manufactured'] },
 
   // 工业时代
-  coal: { name: "煤炭", icon: 'Flame', color: "text-slate-300", basePrice: 11, defaultOwner: 'miner', unlockEpoch: 6, unlockTech: 'coal_gasification', tags: ['raw_material'] },
-  steel: { name: "钢材", icon: 'Cog', color: "text-gray-300", basePrice: 30, defaultOwner: 'engineer', unlockEpoch: 6, unlockTech: 'steel_alloys', tags: ['industrial'] },
+  coal: { name: "煤炭", icon: 'Flame', color: "text-slate-300", basePrice: 11, minPrice: 1.1, maxPrice: 110, defaultOwner: 'miner', unlockEpoch: 6, unlockTech: 'coal_gasification', tags: ['raw_material'] },
+  steel: { name: "钢材", icon: 'Cog', color: "text-gray-300", basePrice: 30, minPrice: 3, maxPrice: 300, defaultOwner: 'engineer', unlockEpoch: 6, unlockTech: 'steel_alloys', tags: ['industrial'] },
   
   // 特殊资源
-  silver: { name: "银币", icon: 'Coins', color: "text-slate-200", type: 'currency', basePrice: 1, unlockEpoch: 0, tags: ['currency'] },
-  science: { name: "科研", icon: 'Cpu', color: "text-cyan-400", basePrice: 5, defaultOwner: 'official', unlockEpoch: 0, tags: ['special', 'manufactured'] },
-  culture: { name: "文化", icon: 'ScrollText', color: "text-pink-400", basePrice: 8.5, defaultOwner: 'cleric', unlockEpoch: 1, tags: ['special', 'manufactured'] },
+  silver: { name: "银币", icon: 'Coins', color: "text-slate-200", type: 'currency', basePrice: 1, minPrice: 1, maxPrice: 1, unlockEpoch: 0, tags: ['currency'] },
+  science: { name: "科研", icon: 'Cpu', color: "text-cyan-400", basePrice: 5, minPrice: 0.5, maxPrice: 50, defaultOwner: 'official', unlockEpoch: 0, tags: ['special', 'manufactured'] },
+  culture: { name: "文化", icon: 'ScrollText', color: "text-pink-400", basePrice: 8.5, minPrice: 0.85, maxPrice: 85, defaultOwner: 'cleric', unlockEpoch: 1, tags: ['special', 'manufactured'] },
   
   // 虚拟资源
   admin: { name: "行政力", icon: 'Scale', color: "text-purple-300", type: 'virtual', tags: ['special'] },
