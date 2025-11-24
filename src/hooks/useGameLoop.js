@@ -156,6 +156,28 @@ export const useGameLoop = (gameState, addLog) => {
 
   // 游戏核心循环
   useEffect(() => {
+    // 暂停时不设置游戏循环定时器，但自动保存定时器需要单独处理
+    if (isPaused) {
+      // 设置独立的自动保存定时器
+      const autoSaveTimer = setInterval(() => {
+        const current = stateRef.current;
+        if (current.isAutoSaveEnabled) {
+          const intervalSeconds = Math.max(5, current.autoSaveInterval || 60);
+          const elapsed = Date.now() - (current.lastAutoSaveTime || 0);
+          if (elapsed >= intervalSeconds * 1000 && saveGameRef.current) {
+            saveGameRef.current({ source: 'auto' });
+            stateRef.current.lastAutoSaveTime = Date.now();
+          }
+        }
+      }, 1000);
+      
+      return () => clearInterval(autoSaveTimer);
+    }
+
+    // 计算 Tick 间隔：基于游戏速度动态调整
+    // 1倍速 = 1000ms，2倍速 = 500ms，5倍速 = 200ms
+    const tickInterval = 1000 / Math.max(1, gameSpeed);
+
     const timer = setInterval(() => {
       const current = stateRef.current;
 
@@ -168,15 +190,12 @@ export const useGameLoop = (gameState, addLog) => {
           stateRef.current.lastAutoSaveTime = Date.now();
         }
       }
-
-      if (current.isPaused) {
-        return;
-      }
       
       // 检查是否需要触发年度庆典
       // 修复：检测年份变化而非特定日期，避免加速模式下跳过触发点
       const currentCalendar = getCalendarInfo(current.daysElapsed || 0);
-      const nextCalendar = getCalendarInfo((current.daysElapsed || 0) + current.gameSpeed);
+      // 注意：这里使用 1 而非 current.gameSpeed，因为现在每次 Tick 只推进 1 天
+      const nextCalendar = getCalendarInfo((current.daysElapsed || 0) + 1);
       
       // 如果当前年份大于上次庆典年份，且即将跨越或已经跨越新年
       if (currentCalendar.year > (current.lastFestivalYear || 0)) {
@@ -193,16 +212,23 @@ export const useGameLoop = (gameState, addLog) => {
       }
       
       // 执行游戏模拟
+      // 【关键】强制将 gameSpeed 设为 1，确保单次 Tick 只计算 1 个单位时间的产出
+      // 原因：我们已经通过调整 setInterval 的频率来实现加速（时间流）
+      // 如果这里不归一化，simulateTick 内部会再次乘以 gameSpeed，导致倍率叠加
+      // 例如：5倍速时，频率已经是 5 倍（200ms/次），如果再传 gameSpeed=5，
+      // 实际速度会变成 25 倍（5×5），这是错误的
       const result = simulateTick({
         ...current,
         tick: current.daysElapsed || 0,
+        gameSpeed: 1, // 强制归一化为 1，防止倍率叠加
         activeFestivalEffects: current.activeFestivalEffects || [],
       });
 
       const maintenance = calculateArmyMaintenance(army);
       const adjustedResources = { ...result.resources };
       Object.entries(maintenance).forEach(([resource, cost]) => {
-        const amount = cost * gameSpeed;
+        // 每次 Tick 计算 1 天的维护费用（不再乘以 gameSpeed）
+        const amount = cost;
         if (amount <= 0) return;
         adjustedResources[resource] = Math.max(0, (adjustedResources[resource] || 0) - amount);
       });
@@ -319,12 +345,8 @@ export const useGameLoop = (gameState, addLog) => {
       setAdminCap(result.adminCap);
       setAdminStrain(result.adminStrain);
       setResources(adjustedResources);
-      const dayScale = Math.max(gameSpeed, 0.0001);
-      const perDayRates = {};
-      Object.entries(result.rates || {}).forEach(([key, value]) => {
-        perDayRates[key] = value / dayScale;
-      });
-      setRates(perDayRates);
+      // 由于现在每次 Tick 都是 1 天的产出，rates 已经是每天的速率，无需再除以 gameSpeed
+      setRates(result.rates || {});
       setClassApproval(result.classApproval);
       const adjustedInfluence = { ...(result.classInfluence || {}) };
       Object.entries(classInfluenceShift || {}).forEach(([key, delta]) => {
@@ -364,7 +386,9 @@ export const useGameLoop = (gameState, addLog) => {
       if (result.jobFill) {
         setJobFill(result.jobFill);
       }
-      setDaysElapsed(prev => prev + gameSpeed);
+      // 每次 Tick 推进 1 天（而非 gameSpeed 天）
+      // 加速效果通过增加 Tick 频率实现，而非增加每次推进的天数
+      setDaysElapsed(prev => prev + 1);
       
       // 更新庆典效果，移除过期的短期效果
       if (activeFestivalEffects.length > 0) {
@@ -428,8 +452,8 @@ export const useGameLoop = (gameState, addLog) => {
         // 返回未完成的训练
         return updated.filter(item => item.remainingTime > 0);
       });
-    }, 1000); // 每秒执行一次
+    }, tickInterval); // 根据游戏速度动态调整执行频率
 
     return () => clearInterval(timer);
-  }, [gameSpeed, army, activeFestivalEffects, setFestivalModal, setActiveFestivalEffects, setLastFestivalYear, lastFestivalYear, setIsPaused]); // 依赖游戏速度、军队状态和庆典相关状态
+  }, [gameSpeed, isPaused, army, activeFestivalEffects, setFestivalModal, setActiveFestivalEffects, setLastFestivalYear, lastFestivalYear, setIsPaused]); // 依赖游戏速度、暂停状态、军队状态和庆典相关状态
 };
