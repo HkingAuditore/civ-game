@@ -310,6 +310,12 @@ export default function RiseOfCivs() {
                     </span>
                   </div>
                   <div className="flex justify-between">
+                    <span>营业税</span>
+                    <span className="text-yellow-200 font-mono">
+                      {((taxes.breakdown?.businessTax || 0) / dayScale).toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
                     <span>军饷/维护</span>
                     <span className="text-red-300 font-mono">
                       -{silverUpkeepPerDay.toFixed(2)}
@@ -616,8 +622,10 @@ export default function RiseOfCivs() {
                   taxPolicies={gameState.taxPolicies}
                   onUpdateTaxPolicies={gameState.setTaxPolicies}
                   popStructure={gameState.popStructure}
+                  buildings={gameState.buildings}
                   market={gameState.market}
                   epoch={gameState.epoch}
+                  techsUnlocked={gameState.techsUnlocked}
                 />
               )}
 

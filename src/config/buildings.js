@@ -27,7 +27,18 @@ export const BUILDINGS = [
     owner: 'peasant',
     epoch: 0, 
     cat: 'gather', 
-    visual: { icon: 'Wheat', color: 'bg-yellow-700', text: 'text-yellow-200' } 
+    visual: { icon: 'Wheat', color: 'bg-yellow-700', text: 'text-yellow-200' },
+    // 农田的差异化经济配置：农民工资和价格受生活成本、税收影响较小（基础生产，相对稳定）
+    marketConfig: {
+      price: {
+        livingCostWeight: 0.15,    // 价格受生活成本影响较小（基础必需品）
+        taxCostWeight: 0.2,        // 价格受税收影响较小
+      },
+      wage: {
+        livingCostWeight: 0.08,    // 工资受生活成本影响较小（农民工资相对固定）
+        taxCostWeight: 0.05,       // 工资受税收影响较小
+      },
+    }
   },
   
   { 
@@ -157,7 +168,18 @@ export const BUILDINGS = [
     epoch: 2, 
     cat: 'industry', 
     requiresTech: 'carpentry',
-    visual: { icon: 'Armchair', color: 'bg-amber-800', text: 'text-amber-200' } 
+    visual: { icon: 'Armchair', color: 'bg-amber-800', text: 'text-amber-200' },
+    // 家具工坊的差异化经济配置：奢侈品工艺，工资和价格受生活成本、税收影响更大
+    marketConfig: {
+      price: {
+        livingCostWeight: 0.3,     // 价格受生活成本影响更大（奢侈品价格弹性高）
+        taxCostWeight: 0.4,        // 价格受税收影响更大
+      },
+      wage: {
+        livingCostWeight: 0.15,    // 工资受生活成本影响更大（工匠技能要求高）
+        taxCostWeight: 0.15,       // 工资受税收影响更大
+      },
+    }
   },
   { 
     id: 'loom_house', 

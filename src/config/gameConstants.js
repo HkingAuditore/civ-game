@@ -36,7 +36,21 @@ export const ECONOMIC_INFLUENCE = {
 
 export const RESOURCES = {
   // 基础资源
-  food: { name: "粮食", icon: 'Wheat', color: "text-yellow-400", basePrice: 1.6, defaultOwner: 'peasant', unlockEpoch: 0, tags: ['essential','raw_material'] },
+  food: { 
+    name: "粮食", 
+    icon: 'Wheat', 
+    color: "text-yellow-400", 
+    basePrice: 1.6, 
+    defaultOwner: 'peasant', 
+    unlockEpoch: 0, 
+    tags: ['essential','raw_material'],
+    // 粮食的差异化市场配置：作为基础必需品，价格波动更小，库存目标更高
+    marketConfig: {
+      supplyDemandWeight: 0.6,        // 供需对价格影响较小（必需品价格相对稳定）
+      inventoryTargetDays: 30.0,      // 目标库存天数更高（战略储备）
+      inventoryPriceImpact: 0.15,     // 库存对价格影响较小
+    }
+  },
   wood: { name: "木材", icon: 'Trees', color: "text-emerald-400", basePrice: 3.2, defaultOwner: 'lumberjack', unlockEpoch: 0, tags: ['raw_material'] },
   stone: { name: "石料", icon: 'Pickaxe', color: "text-stone-400", basePrice: 4.5, defaultOwner: 'miner', unlockEpoch: 0, tags: ['raw_material'] },
   cloth: { name: "布料", icon: 'Shirt', color: "text-indigo-300", basePrice: 2.5, defaultOwner: 'artisan', unlockEpoch: 0, tags: ['essential','raw_material', 'manufactured'] },
@@ -52,7 +66,22 @@ export const RESOURCES = {
   // 古典时代
   papyrus: { name: "纸张", icon: 'ScrollText', color: "text-lime-300", basePrice: 10, defaultOwner: 'scribe', unlockEpoch: 2, unlockTech: 'papyrus_cultivation', tags: ['raw_material', 'manufactured'] },
   delicacies: { name: "珍馐", icon: 'UtensilsCrossed', color: "text-rose-400", basePrice: 18, defaultOwner: 'artisan', unlockEpoch: 2, unlockTech: 'culinary_arts', tags: ['luxury', 'manufactured'] },
-  furniture: { name: "精美家具", icon: 'Armchair', color: "text-amber-500", basePrice: 20, defaultOwner: 'artisan', unlockEpoch: 2, unlockTech: 'carpentry', tags: ['luxury', 'manufactured'] },
+  furniture: { 
+    name: "精美家具", 
+    icon: 'Armchair', 
+    color: "text-amber-500", 
+    basePrice: 20, 
+    defaultOwner: 'artisan', 
+    unlockEpoch: 2, 
+    unlockTech: 'carpentry', 
+    tags: ['luxury', 'manufactured'],
+    // 家具的差异化市场配置：作为奢侈品，价格波动更大，库存目标较低
+    marketConfig: {
+      supplyDemandWeight: 1.5,        // 供需对价格影响更大（奢侈品价格弹性高）
+      inventoryTargetDays: 10.0,      // 目标库存天数较低（非必需品）
+      inventoryPriceImpact: 0.4,      // 库存对价格影响更大
+    }
+  },
   ale: { name: "美酒", icon: 'Wine', color: "text-purple-400", basePrice: 13, defaultOwner: 'artisan', unlockEpoch: 2, unlockTech: 'brewing', tags: ['luxury', 'manufactured'] },
   
   fine_clothes: { name: "华服", icon: 'Shirt', color: "text-purple-400", basePrice: 24, defaultOwner: 'artisan', unlockEpoch: 2, tags: ['luxury', 'manufactured'] },

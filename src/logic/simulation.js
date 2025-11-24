@@ -58,7 +58,8 @@ const calculateResourceCost = (
   buildingsConfig = BUILDINGS,
   currentPrices = {},
   currentWages = {},
-  livingCosts = {}
+  priceLivingCosts = {},
+  wageLivingCosts = {}  // 新增参数：用于工资计算的生活成本权重
 ) => {
   const resolvePrice = (key) => {
     const current = currentPrices?.[key];
@@ -78,9 +79,10 @@ const calculateResourceCost = (
     : BASE_WAGE_REFERENCE;
 
   const resolveWage = (role) => {
+    // 使用 wageLivingCosts 而不是 priceLivingCosts 来计算工资底线
     const livingFloor = Math.max(
       BASE_WAGE_REFERENCE * 0.8,
-      (livingCosts?.[role] || 0) * 1.05
+      (wageLivingCosts?.[role] || 0) * 1.05
     );
     const wage = currentWages?.[role];
     if (Number.isFinite(wage) && wage > 0) {
@@ -582,6 +584,7 @@ export const simulateTick = ({
   const policies = taxPolicies || {};
   const headTaxRates = policies.headTaxRates || {};
   const resourceTaxRates = policies.resourceTaxRates || {};
+  const businessTaxRates = policies.businessTaxRates || {};
   const livingCostBreakdown = computeLivingCosts(priceMap, headTaxRates, resourceTaxRates);
   const priceLivingCosts = buildLivingCostMap(
     livingCostBreakdown,
@@ -591,11 +594,8 @@ export const simulateTick = ({
     livingCostBreakdown,
     ECONOMIC_INFLUENCE?.wage || {}
   );
-  const marketInfluence = ECONOMIC_INFLUENCE?.market || {};
-  const supplyDemandWeight = Math.max(0, marketInfluence.supplyDemandWeight ?? 1);
-  const virtualDemandPerPop = Math.max(0, marketInfluence.virtualDemandPerPop || 0);
-  const inventoryTargetDays = Math.max(0.1, marketInfluence.inventoryTargetDays ?? 1.5);
-  const inventoryPriceImpact = Math.max(0, marketInfluence.inventoryPriceImpact ?? 0.25);
+  // 注意：不再在此处全局解构 market 参数，而是在价格计算循环中动态获取
+  // 这样可以支持每个资源使用不同的经济参数配置
   const previousWages = market?.wages || {};
   const previousWageValues = Object.values(previousWages).filter(value => Number.isFinite(value) && value > 0);
   const defaultWageEstimate = previousWageValues.length > 0
@@ -634,9 +634,15 @@ export const simulateTick = ({
     if (typeof rate === 'number') return rate; // 允许负税率
     return 0;
   };
+  const getBusinessTaxRate = (buildingId) => {
+    const rate = businessTaxRates[buildingId];
+    if (typeof rate === 'number') return rate; // 允许负税率（补贴）
+    return 0;
+  };
   const taxBreakdown = {
     headTax: 0,
     industryTax: 0,
+    businessTax: 0,
     subsidy: 0,
   };
 
@@ -1402,6 +1408,42 @@ export const simulateTick = ({
       }
     }
 
+    // 营业税收取：每次建筑产出时收取固定银币值
+    const businessTaxPerBuilding = getBusinessTaxRate(b.id);
+    if (businessTaxPerBuilding !== 0 && count > 0) {
+      const totalBusinessTax = businessTaxPerBuilding * count * actualMultiplier;
+      
+      if (totalBusinessTax > 0) {
+        // 正值：收税
+        const ownerWealth = wealth[ownerKey] || 0;
+        if (ownerWealth >= totalBusinessTax) {
+          // 业主有足够财产支付营业税
+          wealth[ownerKey] = ownerWealth - totalBusinessTax;
+          roleExpense[ownerKey] = (roleExpense[ownerKey] || 0) + totalBusinessTax;
+          taxBreakdown.businessTax += totalBusinessTax;
+        } else {
+          // 业主财产不足，放弃收税
+          if (tick % 30 === 0 && ownerWealth < totalBusinessTax * 0.5) {
+            logs.push(`⚠️ ${STRATA[ownerKey]?.name || ownerKey} 无力支付 ${b.name} 的营业税，政府放弃征收。`);
+          }
+        }
+      } else if (totalBusinessTax < 0) {
+        // 负值：补贴
+        const subsidyAmount = Math.abs(totalBusinessTax);
+        const treasury = res.silver || 0;
+        if (treasury >= subsidyAmount) {
+          res.silver = treasury - subsidyAmount;
+          wealth[ownerKey] = (wealth[ownerKey] || 0) + subsidyAmount;
+          roleWagePayout[ownerKey] = (roleWagePayout[ownerKey] || 0) + subsidyAmount;
+          taxBreakdown.subsidy += subsidyAmount;
+        } else {
+          if (tick % 30 === 0) {
+            logs.push(`⚠️ 国库空虚，无法为 ${b.name} 支付营业补贴！`);
+          }
+        }
+      }
+    }
+
     if (b.id === 'market') {
       const marketOwnerKey = b.owner || 'merchant';
       const hasMerchants = (popStructure[marketOwnerKey] || 0) > 0;
@@ -2078,7 +2120,8 @@ export const simulateTick = ({
 
   const collectedHeadTax = taxBreakdown.headTax * efficiency;
   const collectedIndustryTax = taxBreakdown.industryTax * efficiency;
-  const totalCollectedTax = collectedHeadTax + collectedIndustryTax;
+  const collectedBusinessTax = taxBreakdown.businessTax * efficiency;
+  const totalCollectedTax = collectedHeadTax + collectedIndustryTax + collectedBusinessTax;
 
   res.silver = (res.silver || 0) + totalCollectedTax;
   rates.silver = (rates.silver || 0) + totalCollectedTax;
@@ -2136,23 +2179,103 @@ export const simulateTick = ({
 
 
   const demandPopulation = Math.max(0, nextPopulation ?? population ?? 0);
-  const virtualDemandBaseline = virtualDemandPerPop * demandPopulation;
+  
+  // 获取全局默认的市场参数（作为 fallback）
+  const defaultMarketInfluence = ECONOMIC_INFLUENCE?.market || {};
+  const defaultSupplyDemandWeight = Math.max(0, defaultMarketInfluence.supplyDemandWeight ?? 1);
+  const defaultVirtualDemandPerPop = Math.max(0, defaultMarketInfluence.virtualDemandPerPop || 0);
+  const defaultInventoryTargetDays = Math.max(0.1, defaultMarketInfluence.inventoryTargetDays ?? 1.5);
+  const defaultInventoryPriceImpact = Math.max(0, defaultMarketInfluence.inventoryPriceImpact ?? 0.25);
 
   Object.keys(RESOURCES).forEach(resource => {
     if (!isTradableResource(resource)) return;
+    
+    // 动态获取当前资源的经济参数：优先使用资源特定配置，否则使用全局默认值
+    const resourceDef = RESOURCES[resource];
+    const resourceMarketConfig = resourceDef?.marketConfig || {};
+    
+    // 合并特定资源的经济参数（如果有配置则覆盖默认值）
+    const supplyDemandWeight = resourceMarketConfig.supplyDemandWeight !== undefined 
+      ? Math.max(0, resourceMarketConfig.supplyDemandWeight)
+      : defaultSupplyDemandWeight;
+    const virtualDemandPerPop = resourceMarketConfig.virtualDemandPerPop !== undefined
+      ? Math.max(0, resourceMarketConfig.virtualDemandPerPop)
+      : defaultVirtualDemandPerPop;
+    const inventoryTargetDays = resourceMarketConfig.inventoryTargetDays !== undefined
+      ? Math.max(0.1, resourceMarketConfig.inventoryTargetDays)
+      : defaultInventoryTargetDays;
+    const inventoryPriceImpact = resourceMarketConfig.inventoryPriceImpact !== undefined
+      ? Math.max(0, resourceMarketConfig.inventoryPriceImpact)
+      : defaultInventoryPriceImpact;
+    
+    // 查找生产该资源的主要建筑，获取建筑特定的经济配置
+    let primaryBuilding = null;
+    BUILDINGS.forEach(building => {
+      const outputAmount = building.output?.[resource];
+      if (!outputAmount || outputAmount <= 0) return;
+      if (!primaryBuilding) {
+        primaryBuilding = building;
+        return;
+      }
+      const bestOutput = primaryBuilding.output?.[resource] || 0;
+      if (outputAmount > bestOutput) {
+        primaryBuilding = building;
+      }
+    });
+    
+    // 获取建筑特定的 price 和 wage 权重配置
+    const buildingMarketConfig = primaryBuilding?.marketConfig || {};
+    const buildingPriceWeights = buildingMarketConfig.price || ECONOMIC_INFLUENCE?.price || {};
+    const buildingWageWeights = buildingMarketConfig.wage || ECONOMIC_INFLUENCE?.wage || {};
+    
+    // 为当前资源计算特定的 priceLivingCosts 和 wageLivingCosts（使用建筑特定的权重）
+    const resourceSpecificPriceLivingCosts = buildLivingCostMap(
+      livingCostBreakdown,
+      buildingPriceWeights
+    );
+    const resourceSpecificWageLivingCosts = buildLivingCostMap(
+      livingCostBreakdown,
+      buildingWageWeights
+    );
+    
+    // 使用当前资源的经济参数计算价格
+    const virtualDemandBaseline = virtualDemandPerPop * demandPopulation;
+    
     const anchorPrice = calculateResourceCost(
       resource,
       BUILDINGS,
       priceMap,
       updatedWages,
-      priceLivingCosts
+      resourceSpecificPriceLivingCosts,  // 使用资源特定的价格生活成本权重
+      resourceSpecificWageLivingCosts    // 使用资源特定的工资生活成本权重
     );
     const sup = supply[resource] || 0;
     const dem = demand[resource] || 0;
     const adjustedDemand = dem + virtualDemandBaseline;
     const ratio = adjustedDemand / Math.max(sup, 1);
-    const priceMultiplier = computePriceMultiplier(ratio);
+    
+    // 使用资源特定的 supplyDemandWeight 计算价格乘数
+    const computePriceMultiplierForResource = (ratio) => {
+      if (!Number.isFinite(ratio) || ratio <= 0) {
+        return 0.7;
+      }
+      const minMultiplier = 0.7;
+      const maxMultiplier = 3.5;
+      const safeRatio = Math.max(ratio, 0.01);
+      const smoothness = 0.9;
+      let pressure = Math.tanh(Math.log(safeRatio) * smoothness);
+      pressure *= supplyDemandWeight; // 使用当前资源的权重
+      pressure = Math.max(-1, Math.min(1, pressure));
+      if (pressure >= 0) {
+        return 1 + pressure * (maxMultiplier - 1);
+      }
+      return 1 + pressure * (1 - minMultiplier);
+    };
+    
+    const priceMultiplier = computePriceMultiplierForResource(ratio);
     let targetPrice = anchorPrice * priceMultiplier;
+    
+    // 使用资源特定的库存参数
     const inventoryStock = res[resource] || 0;
     const desiredInventory = adjustedDemand * inventoryTargetDays;
     if (desiredInventory > 0) {
@@ -2376,6 +2499,7 @@ export const simulateTick = ({
     breakdown: {
       headTax: collectedHeadTax,
       industryTax: collectedIndustryTax,
+      businessTax: collectedBusinessTax,
       subsidy: taxBreakdown.subsidy,
     },
   };
