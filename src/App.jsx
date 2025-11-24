@@ -335,46 +335,47 @@ export default function RiseOfCivs() {
           {/* 游戏控制和菜单 */}
           <div className="flex items-center gap-2">
             {/* 游戏速度控制 */}
-            <div className="flex items-center">
+            <div className="flex items-center rounded-lg border border-gray-700 bg-gray-800/40 overflow-hidden shadow-sm">
               <button
                 onClick={() => gameState.setIsPaused(!gameState.isPaused)}
-                className={`px-3 py-1.5 rounded-l-lg border transition-colors flex items-center gap-2 text-xs font-bold ${
+                className={`px-3 py-1.5 transition-colors flex items-center gap-2 text-xs font-bold ${
                   gameState.isPaused
-                    ? 'bg-green-600/20 hover:bg-green-600/40 border-green-500/30 text-green-300'
-                    : 'bg-orange-600/20 hover:bg-orange-600/40 border-orange-500/30 text-orange-300'
+                    ? 'bg-green-600/30 hover:bg-green-600/40 text-green-200'
+                    : 'bg-orange-600/30 hover:bg-orange-600/40 text-orange-200'
                 }`}
                 title={gameState.isPaused ? '继续游戏' : '暂停游戏'}
               >
                 <Icon name={gameState.isPaused ? 'Play' : 'Pause'} size={14} />
                 <span className="hidden sm:inline">{gameState.isPaused ? '继续' : '暂停'}</span>
               </button>
-              <div className="flex bg-gray-800 rounded-r-lg overflow-hidden border-t border-b border-r border-gray-700">
-                {GAME_SPEEDS.map(s => (
-                  <button
-                    key={s}
-                    onClick={() => {
-                      gameState.setGameSpeed(s);
-                      if (gameState.isPaused) gameState.setIsPaused(false);
-                    }}
-                    disabled={gameState.isPaused}
-                    className={`px-3 py-1 text-xs font-bold transition-colors ${
-                      gameState.isPaused ? 'text-gray-600 cursor-not-allowed' : 'hover:bg-gray-700'
-                    } ${
-                      gameState.gameSpeed === s && !gameState.isPaused
-                        ? 'bg-blue-600 text-white'
-                        : gameState.isPaused
-                        ? 'text-gray-600'
-                        : 'text-gray-400'
-                    }`}
-                    title={gameState.isPaused ? '请先继续游戏' : `${s}倍速`}
-                  >
-                    <div className="flex items-center gap-1">
-                      {s}x
-                      {s > 1 && <Icon name="FastForward" size={12} />}
-                    </div>
-                  </button>
-                ))}
-              </div>
+              <div className="w-px h-4 bg-gray-600 self-center"></div>
+              {GAME_SPEEDS.map(s => (
+                <button
+                  key={s}
+                  onClick={() => {
+                    gameState.setGameSpeed(s);
+                    if (gameState.isPaused) gameState.setIsPaused(false);
+                  }}
+                  disabled={gameState.isPaused}
+                  className={`px-3 py-1.5 text-xs font-bold transition-colors ${
+                    gameState.isPaused
+                      ? 'text-gray-500 cursor-not-allowed'
+                      : 'hover:bg-gray-700/50'
+                  } ${
+                    gameState.gameSpeed === s && !gameState.isPaused
+                      ? 'bg-blue-600 text-white'
+                      : gameState.isPaused
+                      ? ''
+                      : 'text-gray-300'
+                  }`}
+                  title={gameState.isPaused ? '请先继续游戏' : `${s}倍速`}
+                >
+                  <div className="flex items-center gap-1">
+                    <span>{s}x</span>
+                    {s > 1 && <Icon name="FastForward" size={12} />}
+                  </div>
+                </button>
+              ))}
             </div>
 
             {/* 游戏菜单 */}
