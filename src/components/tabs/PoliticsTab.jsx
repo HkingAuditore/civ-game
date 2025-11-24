@@ -6,6 +6,22 @@ import { Icon } from '../common/UIComponents';
 import { STRATA, RESOURCES, EPOCHS } from '../../config';
 import { isResourceUnlocked } from '../../utils/resources';
 
+// 定义阶层分组，用于UI显示
+const STRATA_GROUPS = {
+  upper: {
+    name: '上流阶级',
+    keys: ['merchant', 'official', 'landowner', 'capitalist', 'knight', 'engineer'],
+  },
+  middle: {
+    name: '中产阶级',
+    keys: ['worker', 'artisan', 'miner', 'soldier', 'cleric', 'scribe', 'navigator'],
+  },
+  lower: {
+    name: '底层阶级',
+    keys: ['unemployed', 'peasant', 'serf', 'lumberjack', 'slave'],
+  },
+};
+
 /**
  * 政令标签页组件
  * 显示所有政令及其效果
@@ -52,8 +68,6 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
   const headRates = taxPolicies?.headTaxRates || {};
   const resourceRates = taxPolicies?.resourceTaxRates || {};
   const [headDrafts, setHeadDrafts] = React.useState({});
-  const [seenStrataKeys, setSeenStrataKeys] = React.useState([]);
-  const [seenResourceKeys, setSeenResourceKeys] = React.useState([]);
   
   // 获取所有已解锁的阶层
   const unlockedStrataKeys = React.useMemo(() => {
@@ -71,42 +85,21 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
     });
   }, [epoch, techsUnlocked]);
 
-  const allStrataKeys = React.useMemo(
+  const strataToDisplay = React.useMemo(
     () => unlockedStrataKeys,
     [unlockedStrataKeys]
   );
-  
-  const activeStrata = React.useMemo(
-    () => allStrataKeys.filter((key) => (popStructure[key] || 0) > 0),
-    [allStrataKeys, popStructure]
-  );
 
-  React.useEffect(() => {
-    if (activeStrata.length === 0) return;
-    setSeenStrataKeys((prev) => {
-      const nextSet = new Set(prev);
-      let changed = false;
-      activeStrata.forEach((key) => {
-        if (!nextSet.has(key)) {
-          nextSet.add(key);
-          changed = true;
-        }
-      });
-      return changed ? Array.from(nextSet) : prev;
-    });
-  }, [activeStrata]);
+  // 处理人头税临时输入变化的逻辑
+  const handleHeadDraftChange = (key, raw) => {
+    setHeadDrafts(prev => ({ ...prev, [key]: raw }));
+  };
 
-  const strataToDisplay = React.useMemo(() => {
-    if (allStrataKeys.length === 0) return [];
-    const unlockedSet = new Set(unlockedStrataKeys);
-    const activeSet = new Set(activeStrata);
-    return allStrataKeys.filter((key) => activeSet.has(key) || unlockedSet.has(key));
-  }, [activeStrata, allStrataKeys, unlockedStrataKeys]);
-
-  const handleHeadTaxChange = (key, value) => {
-    if (!onUpdateTaxPolicies) return;
-    const parsed = parseFloat(value);
-    const numeric = Number.isNaN(parsed) ? 0 : parsed;
+  // 提交人头税修改的逻辑
+  const commitHeadDraft = (key) => {
+    if (headDrafts[key] === undefined) return;
+    const parsed = parseFloat(headDrafts[key]);
+    const numeric = Number.isNaN(parsed) ? 1 : parsed; // 如果输入无效，重置为1
     onUpdateTaxPolicies(prev => ({
       ...prev,
       headTaxRates: {
@@ -114,18 +107,6 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
         [key]: numeric,
       },
     }));
-  };
-
-  const handleHeadDraftChange = (key, raw) => {
-    setHeadDrafts(prev => ({
-      ...prev,
-      [key]: raw,
-    }));
-  };
-
-  const commitHeadDraft = (key) => {
-    if (headDrafts[key] === undefined) return;
-    handleHeadTaxChange(key, headDrafts[key]);
     setHeadDrafts(prev => {
       const next = { ...prev };
       delete next[key];
@@ -162,24 +143,6 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
   const marketResourceKeys = Object.entries(market?.supply || {})
     .filter(([, amount]) => amount > 0)
     .map(([key]) => key);
-    
-  React.useEffect(() => {
-    if (marketResourceKeys.length === 0) return;
-    setSeenResourceKeys((prev) => {
-      const nextSet = new Set(prev);
-      let changed = false;
-      marketResourceKeys.forEach((key) => {
-        const info = RESOURCES[key];
-        if (!info) return;
-        if (info.type && (info.type === 'virtual' || info.type === 'currency')) return;
-        if (!nextSet.has(key)) {
-          nextSet.add(key);
-          changed = true;
-        }
-      });
-      return changed ? Array.from(nextSet) : prev;
-    });
-  }, [marketResourceKeys]);
 
   const orderedResourceKeys = React.useMemo(() => {
     if (unlockedResourceKeys.length === 0) return [];
@@ -195,6 +158,56 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
   const taxableResources = orderedResourceKeys
     .map(key => [key, RESOURCES[key]])
     .filter(([, info]) => info && (!info.type || (info.type !== 'virtual' && info.type !== 'currency')));
+
+  // 渲染单个阶层的人头税卡片
+  const renderStratumCard = (key) => {
+    const stratumInfo = STRATA[key] || {};
+    const base = stratumInfo.headTaxBase ?? 0.01;
+    const finalRate = (headRates[key] ?? 1) * base;
+    const population = popStructure[key] || 0;
+    const hasPopulation = population > 0;
+
+    return (
+      <div 
+        key={key} 
+        className={`bg-gray-900/40 p-2 rounded-md border text-xs flex flex-col gap-2 ${
+          hasPopulation ? 'border-gray-700/60' : 'border-gray-800 opacity-60'
+        }`}
+      >
+        {/* 第一行：Icon, 名称, 人口 */}
+        <div className="flex items-center gap-1.5">
+          <Icon name={stratumInfo.icon || 'User'} size={14} className="text-gray-400" />
+          <span className="font-semibold text-gray-300 flex-grow">{stratumInfo.name || key}</span>
+          <span className="text-gray-500 text-[10px] font-mono">{population.toLocaleString()} 人</span>
+        </div>
+
+        {/* 第二行：税率和输入框（始终显示） */}
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-yellow-400 whitespace-nowrap text-[10px]">
+            {finalRate.toFixed(3)}/人
+          </span>
+          <input
+            type="text"
+            inputMode="decimal"
+            step="0.05"
+            value={headDrafts[key] ?? (headRates[key] ?? 1)}
+            onChange={(e) => handleHeadDraftChange(key, e.target.value)}
+            onBlur={() => commitHeadDraft(key)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                commitHeadDraft(key);
+                e.target.blur();
+              }
+            }}
+            className="w-full bg-gray-900/70 border border-gray-600 text-[11px] text-gray-200 rounded px-1 py-0.5 focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+            placeholder="税率系数"
+          />
+        </div>
+      </div>
+    );
+  };
+
+  const allGroupKeys = new Set(Object.values(STRATA_GROUPS).flatMap(g => g.keys));
 
   return (
     <div className="space-y-4">
@@ -219,54 +232,55 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
             <Icon name="Sliders" size={16} className="text-green-400" />
             税收政策
           </h3>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div>
-              <h4 className="text-xs font-semibold text-gray-400 mb-1">人头税（按日结算）</h4>
-              <p className="text-[11px] text-gray-500 mb-2">针对每位在职人口，按阶层基准税率 × 调整系数收取银币。若为负数，则为补助。</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-80 overflow-y-auto pr-1">
-                {strataToDisplay.map((key) => {
-                  const base = STRATA[key]?.headTaxBase ?? 0.01;
-                  const finalRate = (headRates[key] ?? 1) * base;
-                  const hasPopulation = (popStructure[key] || 0) > 0;
-                  return (
-                    <div key={key} className={`bg-gray-900/40 p-1.5 rounded border ${hasPopulation ? 'border-gray-700/50' : 'border-gray-600/30 opacity-70'} text-[11px]`}>
-                      <div className="flex items-center justify-between text-gray-300 mb-1">
-                        <span>{STRATA[key]?.name || key}</span>
-                        <span className="font-mono text-yellow-300">
-                          {finalRate.toFixed(3)} 银币/人/日
-                        </span>
-                      </div>
-                      {!hasPopulation && (
-                        <div className="text-[10px] text-gray-500 mb-1">当前无此阶层人口</div>
-                      )}
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        step="0.05"
-                        value={headDrafts[key] ?? (headRates[key] ?? 1)}
-                        onChange={(e) => handleHeadDraftChange(key, e.target.value)}
-                        onBlur={() => commitHeadDraft(key)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            commitHeadDraft(key);
-                            e.target.blur();
-                          }
-                        }}
-                        className="w-full bg-gray-900/60 border border-gray-700 text-[11px] text-gray-200 rounded px-1.5 py-0.5"
-                      />
-                    </div>
-                  );
-                })}
-                {strataToDisplay.length === 0 && (
-                  <p className="text-xs text-gray-500">暂无需征税的阶层</p>
-                )}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* 人头税部分 */}
+            <div className="space-y-4">
+              <div>
+                <h4 className="text-xs font-semibold text-gray-400 mb-1">人头税（按日结算）</h4>
+                <p className="text-[11px] text-gray-500 mb-3">针对每位在职人口，按阶层基准税率 × 调整系数收取银币。若为负数，则为补助。</p>
               </div>
+              
+              {/* 遍历阶层分组来渲染UI */}
+              {Object.values(STRATA_GROUPS).map(group => {
+                // 筛选出当前分组下需要显示的阶层
+                const groupStrata = strataToDisplay.filter(key => group.keys.includes(key));
+                if (groupStrata.length === 0) return null;
+
+                return (
+                  <div key={group.name}>
+                    <h5 className="text-xs font-semibold text-gray-400 mb-2">{group.name}</h5>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                      {groupStrata.map(renderStratumCard)}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* 处理未分组的阶层 */}
+              {(() => {
+                const ungroupedStrata = strataToDisplay.filter(key => !allGroupKeys.has(key));
+                if (ungroupedStrata.length === 0) return null;
+
+                return (
+                  <div>
+                    <h5 className="text-xs font-semibold text-gray-400 mb-2">其他</h5>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                      {ungroupedStrata.map(renderStratumCard)}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {strataToDisplay.length === 0 && (
+                <p className="text-xs text-gray-500">暂无需征税的阶层</p>
+              )}
             </div>
 
+            {/* 资源税部分 */}
             <div>
               <h4 className="text-xs font-semibold text-gray-400 mb-1">资源交易税</h4>
-              <p className="text-[11px] text-gray-500 mb-2">仅对当前在市场流通的资源，在买入/卖出时按照成交额加收税率。</p>
-              <div className="space-y-2">
+              <p className="text-[11px] text-gray-500 mb-3">仅对当前在市场流通的资源，在买入/卖出时按照成交额加收税率。</p>
+              <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
                 {taxableResources.map(([key, info]) => {
                   const hasSupply = (market?.supply?.[key] || 0) > 0;
                   return (
