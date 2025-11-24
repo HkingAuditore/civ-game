@@ -84,19 +84,15 @@ const ResourceTaxCard = ({ resourceKey, info, rate, hasSupply, onChange }) => {
 };
 
 // 营业税卡片组件
-const BusinessTaxCard = ({ building, rate, buildingCount, onChange }) => {
-  const [inputValue, setInputValue] = React.useState('');
-  const currentRate = rate ?? 0;
-  const isSubsidy = currentRate < 0;
-  const displayValue = Math.abs(currentRate).toFixed(2);
-  
-  // 同步外部rate到inputValue
-  React.useEffect(() => {
-    setInputValue(currentRate.toString());
-  }, [currentRate]);
-  
+const BusinessTaxCard = ({ building, multiplier, buildingCount, draftMultiplier, onDraftChange, onCommit }) => {
+  const base = building.businessTaxBase ?? 0.1; // 默认税基
+  const currentMultiplier = multiplier ?? 1;
+  const finalRate = currentMultiplier * base;
+  const isSubsidy = finalRate < 0;
+  const isTax = finalRate > 0;
+
   const valueColor = isSubsidy ? 'text-green-300' : 'text-yellow-300';
-  const borderColor = isSubsidy ? 'border-green-700/60' : (currentRate > 0 ? 'border-yellow-700/60' : 'border-gray-700/60');
+  const borderColor = isSubsidy ? 'border-green-700/60' : (isTax ? 'border-yellow-700/60' : 'border-gray-700/60');
   const bgColor = building.visual?.color || 'bg-gray-700';
   const textColor = building.visual?.text || 'text-gray-200';
   
@@ -124,20 +120,20 @@ const BusinessTaxCard = ({ building, rate, buildingCount, onChange }) => {
             <div className="flex items-center justify-center gap-1">
               <Icon name="TrendingDown" size={14} className="text-green-400" />
               <span className={`${valueColor} text-base font-semibold`}>
-                补贴 {displayValue}
+                补贴 {Math.abs(finalRate).toFixed(2)}
               </span>
             </div>
-          ) : currentRate > 0 ? (
+          ) : isTax ? (
             <div className="flex items-center justify-center gap-1">
               <Icon name="TrendingUp" size={14} className="text-yellow-400" />
               <span className={`${valueColor} text-base font-semibold`}>
-                {displayValue}
+                {finalRate.toFixed(2)}
               </span>
             </div>
           ) : (
             <span className="text-gray-500 text-sm">无税收</span>
           )}
-          <div className="text-[10px] text-gray-500 mt-0.5">银币/建筑/次</div>
+          <div className="text-[10px] text-gray-500 mt-0.5">银币/建筑/次 (基{base.toFixed(2)})</div>
         </div>
       </div>
       
@@ -145,32 +141,18 @@ const BusinessTaxCard = ({ building, rate, buildingCount, onChange }) => {
       <input
         type="text"
         inputMode="decimal"
-        value={inputValue}
-        onChange={(e) => {
-          const value = e.target.value;
-          // 允许输入负号、数字和小数点
-          if (value === '' || value === '-' || /^-?\d*\.?\d*$/.test(value)) {
-            setInputValue(value);
-            // 只有在有效数字时才更新
-            if (value !== '' && value !== '-') {
-              const parsed = parseFloat(value);
-              if (!isNaN(parsed)) {
-                onChange(building.id, parsed);
-              }
-            } else if (value === '') {
-              onChange(building.id, 0);
-            }
-          }
-        }}
-        onBlur={() => {
-          // 失焦时，如果只有负号，重置为0
-          if (inputValue === '-' || inputValue === '') {
-            setInputValue('0');
-            onChange(building.id, 0);
+        step="0.05"
+        value={draftMultiplier ?? (currentMultiplier ?? 1)}
+        onChange={(e) => onDraftChange(building.id, e.target.value)}
+        onBlur={() => onCommit(building.id)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            onCommit(building.id);
+            e.target.blur();
           }
         }}
         className="w-full bg-gray-900/70 border border-gray-600 text-[11px] text-gray-200 rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
-        placeholder="0.00"
+        placeholder="税率系数"
       />
     </div>
   );
@@ -224,6 +206,7 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
   const resourceRates = taxPolicies?.resourceTaxRates || {};
   const businessRates = taxPolicies?.businessTaxRates || {};
   const [headDrafts, setHeadDrafts] = React.useState({});
+  const [businessDrafts, setBusinessDrafts] = React.useState({});
   const [activeTaxTab, setActiveTaxTab] = React.useState('head'); // 'head', 'resource', 'business'
   
   // 获取所有已解锁的阶层
@@ -284,16 +267,26 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
     }));
   };
 
-  const handleBusinessTaxChange = (buildingId, value) => {
-    if (!onUpdateTaxPolicies) return;
-    const numeric = Number.isNaN(value) ? 0 : value;
+  const handleBusinessDraftChange = (key, raw) => {
+    setBusinessDrafts(prev => ({ ...prev, [key]: raw }));
+  };
+
+  const commitBusinessDraft = (key) => {
+    if (businessDrafts[key] === undefined) return;
+    const parsed = parseFloat(businessDrafts[key]);
+    const numeric = Number.isNaN(parsed) ? 1 : parsed;
     onUpdateTaxPolicies(prev => ({
       ...prev,
-      businessTaxRates: {
+      businessTaxRates: { // This will now store multipliers
         ...(prev?.businessTaxRates || {}),
-        [buildingId]: numeric,
+        [key]: numeric,
       },
     }));
+    setBusinessDrafts(prev => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
   };
   
   // 获取所有已解锁的资源
@@ -611,7 +604,7 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
             {activeTaxTab === 'business' && (
               <div className="max-h-[500px] overflow-y-auto pr-2">
                 <h4 className="text-xs font-semibold text-gray-400 mb-1">营业税</h4>
-                <p className="text-[11px] text-gray-500 mb-3">对建筑每次产出收取固定银币值。正值为收税，负值为补贴。业主财产不足时放弃收税。</p>
+                <p className="text-[11px] text-gray-500 mb-3">对建筑每次产出，按“基准税额 × 调整系数”收取银币。正值为收税，负值为补贴。业主财产不足时放弃收税。</p>
               
               {Object.entries(buildingsByCategory).map(([catKey, catInfo]) => {
                 if (catInfo.buildings.length === 0) return null;
@@ -624,9 +617,11 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
                         <BusinessTaxCard
                           key={building.id}
                           building={building}
-                          rate={businessRates[building.id]}
+                          multiplier={businessRates[building.id]}
                           buildingCount={buildings[building.id] || 0}
-                          onChange={handleBusinessTaxChange}
+                          draftMultiplier={businessDrafts[building.id]}
+                          onDraftChange={handleBusinessDraftChange}
+                          onCommit={commitBusinessDraft}
                         />
                       ))}
                     </div>
