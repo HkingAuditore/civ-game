@@ -35,7 +35,38 @@ export default function RiseOfCivs() {
   // 使用自定义钩子管理状态
   const gameState = useGameState();
   
-  // 调试：检查gameState是否正确初始化
+  // 添加日志函数
+  const addLog = (msg) => {
+    if (gameState?.setLogs) {
+      gameState.setLogs(prev => [msg, ...prev].slice(0, 8));
+    }
+  };
+  
+  // 使用游戏循环钩子（必须在所有条件判断之前调用）
+  useGameLoop(gameState, addLog);
+  
+  // 使用操作函数钩子（必须在所有条件判断之前调用）
+  const actions = useGameActions(gameState, addLog);
+  
+  // UI 状态管理（必须在所有条件判断之前调用）
+  const [showTaxDetail, setShowTaxDetail] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isWikiOpen, setIsWikiOpen] = useState(false);
+  const [isLoadMenuOpen, setIsLoadMenuOpen] = useState(false);
+  const loadMenuRef = useRef(null);
+  
+  // 点击外部关闭读档菜单
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (loadMenuRef.current && !loadMenuRef.current.contains(event.target)) {
+        setIsLoadMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+  
+  // 调试：检查gameState是否正确初始化（所有 Hooks 调用完毕后再进行条件判断）
   if (!gameState) {
     console.error('gameState is null or undefined');
     return <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
@@ -45,17 +76,6 @@ export default function RiseOfCivs() {
       </div>
     </div>;
   }
-  
-  // 添加日志函数
-  const addLog = (msg) => {
-    gameState.setLogs(prev => [msg, ...prev].slice(0, 8));
-  };
-  
-  // 使用游戏循环钩子
-  useGameLoop(gameState, addLog);
-  
-  // 使用操作函数钩子
-  const actions = useGameActions(gameState, addLog);
   
   // 处理庆典效果选择
   const handleFestivalSelect = (selectedEffect) => {
@@ -113,20 +133,7 @@ export default function RiseOfCivs() {
     }));
   };
 
-  const [showTaxDetail, setShowTaxDetail] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false); // 控制设置弹窗显示
-  const [isWikiOpen, setIsWikiOpen] = useState(false);
-  const [isLoadMenuOpen, setIsLoadMenuOpen] = useState(false); // 控制读档菜单
-  const loadMenuRef = useRef(null);
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (loadMenuRef.current && !loadMenuRef.current.contains(event.target)) {
-        setIsLoadMenuOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  // 计算税收和军队相关数据
   const taxes = gameState.taxes || { total: 0, breakdown: { headTax: 0, industryTax: 0, subsidy: 0 }, efficiency: 1 };
   const dayScale = Math.max(gameState.gameSpeed || 0, 0.0001);
   const taxesPerDay = taxes.total / dayScale;
@@ -430,24 +437,54 @@ export default function RiseOfCivs() {
             </div>
             
             {/* 游戏速度控制 */}
-            <div className="flex bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
-              {GAME_SPEEDS.map(s => (
-                <button
-                  key={s}
-                  onClick={() => gameState.setGameSpeed(s)}
-                  className={`px-3 py-1 text-xs font-bold hover:bg-gray-700 transition-colors ${
-                    gameState.gameSpeed === s ? 'bg-blue-600 text-white' : 'text-gray-400'
-                  }`}
-                >
-                  {s === 1 ? (
-                    <Icon name="Play" size={12} />
-                  ) : (
-                    <div className="flex items-center">
-                      {s}x <Icon name="FastForward" size={12} className="ml-1"/>
+            <div className="flex items-center gap-2">
+              {/* 暂停/继续按钮 */}
+              <button
+                onClick={() => gameState.setIsPaused(!gameState.isPaused)}
+                className={`px-3 py-1.5 rounded-lg border transition-colors flex items-center gap-2 text-xs font-bold ${
+                  gameState.isPaused
+                    ? 'bg-green-600/20 hover:bg-green-600/40 border-green-500/30 text-green-300'
+                    : 'bg-orange-600/20 hover:bg-orange-600/40 border-orange-500/30 text-orange-300'
+                }`}
+                title={gameState.isPaused ? '继续游戏' : '暂停游戏'}
+              >
+                <Icon name={gameState.isPaused ? 'Play' : 'Pause'} size={14} />
+                <span className="hidden sm:inline">{gameState.isPaused ? '继续' : '暂停'}</span>
+              </button>
+
+              {/* 速度档位按钮 */}
+              <div className="flex bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
+                {GAME_SPEEDS.map(s => (
+                  <button
+                    key={s}
+                    onClick={() => {
+                      gameState.setGameSpeed(s);
+                      // 切换速度时自动取消暂停
+                      if (gameState.isPaused) {
+                        gameState.setIsPaused(false);
+                      }
+                    }}
+                    disabled={gameState.isPaused}
+                    className={`px-3 py-1 text-xs font-bold transition-colors ${
+                      gameState.isPaused
+                        ? 'text-gray-600 cursor-not-allowed'
+                        : 'hover:bg-gray-700'
+                    } ${
+                      gameState.gameSpeed === s && !gameState.isPaused
+                        ? 'bg-blue-600 text-white'
+                        : gameState.isPaused
+                        ? 'text-gray-600'
+                        : 'text-gray-400'
+                    }`}
+                    title={gameState.isPaused ? '请先继续游戏' : `${s}倍速`}
+                  >
+                    <div className="flex items-center gap-1">
+                      {s}x
+                      {s > 1 && <Icon name="FastForward" size={12} />}
                     </div>
-                  )}
-                </button>
-              ))}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>

@@ -580,8 +580,6 @@ export const useGameState = () => {
     setActiveFestivalEffects,
     lastFestivalYear,
     setLastFestivalYear,
-    isPaused,
-    setIsPaused,
     
     // 商人交易系统
     merchantState,
