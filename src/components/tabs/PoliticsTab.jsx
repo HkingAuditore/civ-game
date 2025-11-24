@@ -4,6 +4,7 @@
 import React from 'react';
 import { Icon } from '../common/UIComponents';
 import { STRATA, RESOURCES, EPOCHS } from '../../config';
+import { isResourceUnlocked } from '../../utils/resources';
 
 /**
  * 政令标签页组件
@@ -15,7 +16,7 @@ import { STRATA, RESOURCES, EPOCHS } from '../../config';
  * @param {Object} popStructure - 当前人口结构
  * @param {number} epoch - 当前时代编号
  */
-export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicies, popStructure = {}, market = {}, epoch = 0 }) => {
+export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicies, popStructure = {}, market = {}, epoch = 0, techsUnlocked = [] }) => {
   // 按类别分组政令
   const categories = {
     economy: { name: '经济政策', icon: 'Coins', color: 'text-yellow-400' },
@@ -53,10 +54,28 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
   const [headDrafts, setHeadDrafts] = React.useState({});
   const [seenStrataKeys, setSeenStrataKeys] = React.useState([]);
   const [seenResourceKeys, setSeenResourceKeys] = React.useState([]);
+  
+  // 获取所有已解锁的阶层
+  const unlockedStrataKeys = React.useMemo(() => {
+    return Object.keys(STRATA).filter(key => {
+      const stratum = STRATA[key];
+      // 检查阶层是否在当前时代已解锁（如果没有明确解锁时代，默认为已解锁）
+      if (stratum.unlockEpoch !== undefined && stratum.unlockEpoch > epoch) {
+        return false;
+      }
+      // 检查科技要求
+      if (stratum.unlockTech && !techsUnlocked.includes(stratum.unlockTech)) {
+        return false;
+      }
+      return true;
+    });
+  }, [epoch, techsUnlocked]);
+
   const allStrataKeys = React.useMemo(
-    () => Object.keys(popStructure || {}).filter((key) => STRATA[key]),
-    [popStructure]
+    () => unlockedStrataKeys,
+    [unlockedStrataKeys]
   );
+  
   const activeStrata = React.useMemo(
     () => allStrataKeys.filter((key) => (popStructure[key] || 0) > 0),
     [allStrataKeys, popStructure]
@@ -79,10 +98,10 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
 
   const strataToDisplay = React.useMemo(() => {
     if (allStrataKeys.length === 0) return [];
-    const unlockedSet = new Set(seenStrataKeys);
+    const unlockedSet = new Set(unlockedStrataKeys);
     const activeSet = new Set(activeStrata);
     return allStrataKeys.filter((key) => activeSet.has(key) || unlockedSet.has(key));
-  }, [activeStrata, allStrataKeys, seenStrataKeys]);
+  }, [activeStrata, allStrataKeys, unlockedStrataKeys]);
 
   const handleHeadTaxChange = (key, value) => {
     if (!onUpdateTaxPolicies) return;
@@ -126,9 +145,24 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
       },
     }));
   };
+  
+  // 获取所有已解锁的资源
+  const unlockedResourceKeys = React.useMemo(() => {
+    return Object.keys(RESOURCES).filter(key => {
+      const resource = RESOURCES[key];
+      // 跳过虚拟资源和货币类型
+      if (resource.type && (resource.type === 'virtual' || resource.type === 'currency')) {
+        return false;
+      }
+      // 检查资源是否已解锁
+      return isResourceUnlocked(key, epoch, techsUnlocked);
+    });
+  }, [epoch, techsUnlocked]);
+
   const marketResourceKeys = Object.entries(market?.supply || {})
     .filter(([, amount]) => amount > 0)
     .map(([key]) => key);
+    
   React.useEffect(() => {
     if (marketResourceKeys.length === 0) return;
     setSeenResourceKeys((prev) => {
@@ -148,15 +182,15 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
   }, [marketResourceKeys]);
 
   const orderedResourceKeys = React.useMemo(() => {
-    if (marketResourceKeys.length === 0 && seenResourceKeys.length === 0) return [];
+    if (unlockedResourceKeys.length === 0) return [];
     const ordered = [...marketResourceKeys];
-    seenResourceKeys.forEach((key) => {
+    unlockedResourceKeys.forEach((key) => {
       if (!ordered.includes(key)) {
         ordered.push(key);
       }
     });
     return ordered;
-  }, [marketResourceKeys, seenResourceKeys]);
+  }, [marketResourceKeys, unlockedResourceKeys]);
 
   const taxableResources = orderedResourceKeys
     .map(key => [key, RESOURCES[key]])
@@ -190,36 +224,40 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
               <h4 className="text-xs font-semibold text-gray-400 mb-1">人头税（按日结算）</h4>
               <p className="text-[11px] text-gray-500 mb-2">针对每位在职人口，按阶层基准税率 × 调整系数收取银币。若为负数，则为补助。</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-80 overflow-y-auto pr-1">
-                {activeStrata.map((key) => {
+                {strataToDisplay.map((key) => {
                   const base = STRATA[key]?.headTaxBase ?? 0.01;
                   const finalRate = (headRates[key] ?? 1) * base;
+                  const hasPopulation = (popStructure[key] || 0) > 0;
                   return (
-                    <div key={key} className="bg-gray-900/40 p-1.5 rounded border border-gray-700/50 text-[11px]">
+                    <div key={key} className={`bg-gray-900/40 p-1.5 rounded border ${hasPopulation ? 'border-gray-700/50' : 'border-gray-600/30 opacity-70'} text-[11px]`}>
                       <div className="flex items-center justify-between text-gray-300 mb-1">
                         <span>{STRATA[key]?.name || key}</span>
                         <span className="font-mono text-yellow-300">
                           {finalRate.toFixed(3)} 银币/人/日
                         </span>
                       </div>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      step="0.05"
-                      value={headDrafts[key] ?? (headRates[key] ?? 1)}
-                      onChange={(e) => handleHeadDraftChange(key, e.target.value)}
-                      onBlur={() => commitHeadDraft(key)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          commitHeadDraft(key);
-                          e.target.blur();
-                        }
-                      }}
-                      className="w-full bg-gray-900/60 border border-gray-700 text-[11px] text-gray-200 rounded px-1.5 py-0.5"
-                    />
+                      {!hasPopulation && (
+                        <div className="text-[10px] text-gray-500 mb-1">当前无此阶层人口</div>
+                      )}
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        step="0.05"
+                        value={headDrafts[key] ?? (headRates[key] ?? 1)}
+                        onChange={(e) => handleHeadDraftChange(key, e.target.value)}
+                        onBlur={() => commitHeadDraft(key)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            commitHeadDraft(key);
+                            e.target.blur();
+                          }
+                        }}
+                        className="w-full bg-gray-900/60 border border-gray-700 text-[11px] text-gray-200 rounded px-1.5 py-0.5"
+                      />
                     </div>
                   );
                 })}
-                {activeStrata.length === 0 && (
+                {strataToDisplay.length === 0 && (
                   <p className="text-xs text-gray-500">暂无需征税的阶层</p>
                 )}
               </div>
@@ -229,25 +267,31 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
               <h4 className="text-xs font-semibold text-gray-400 mb-1">资源交易税</h4>
               <p className="text-[11px] text-gray-500 mb-2">仅对当前在市场流通的资源，在买入/卖出时按照成交额加收税率。</p>
               <div className="space-y-2">
-                {taxableResources.map(([key, info]) => (
-                  <div key={key} className="bg-gray-900/40 p-2 rounded border border-gray-700/50">
-                    <div className="flex items-center justify-between text-xs text-gray-300 mb-1">
-                      <span>{info.name}</span>
-                      <span className="font-mono text-blue-300">
-                        {((resourceRates[key] ?? 0) * 100).toFixed(0)}%
-                      </span>
+                {taxableResources.map(([key, info]) => {
+                  const hasSupply = (market?.supply?.[key] || 0) > 0;
+                  return (
+                    <div key={key} className={`bg-gray-900/40 p-2 rounded border ${hasSupply ? 'border-gray-700/50' : 'border-gray-600/30 opacity-70'}`}>
+                      <div className="flex items-center justify-between text-xs text-gray-300 mb-1">
+                        <span>{info.name}</span>
+                        <span className="font-mono text-blue-300">
+                          {((resourceRates[key] ?? 0) * 100).toFixed(0)}%
+                        </span>
+                      </div>
+                      {!hasSupply && (
+                        <div className="text-[10px] text-gray-500 mb-1">当前无市场供应</div>
+                      )}
+                      <input
+                        type="range"
+                        min="0"
+                        max="1.0"
+                        step="0.01"
+                        value={resourceRates[key] ?? 0}
+                        onChange={(e) => handleResourceTaxChange(key, e.target.value)}
+                        className="w-full"
+                      />
                     </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="1.0"
-                      step="0.01"
-                      value={resourceRates[key] ?? 0}
-                      onChange={(e) => handleResourceTaxChange(key, e.target.value)}
-                      className="w-full"
-                    />
-                  </div>
-                ))}
+                  );
+                })}
                 {taxableResources.length === 0 && (
                   <p className="text-xs text-gray-500">当前市场暂无可征税资源</p>
                 )}

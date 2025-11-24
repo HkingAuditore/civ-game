@@ -163,7 +163,7 @@ export const STRATA = {
     }
   },
   navigator: {
-    name: "领航者",
+    name: "水手",
     icon: 'Compass',
     weight: 4,
     tax: 3,
