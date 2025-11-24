@@ -64,7 +64,7 @@ const ResourceTaxCard = ({ resourceKey, info, rate, hasSupply, onChange }) => {
         </div>
         {/* 状态栏：当前税率/补贴 */}
         <div className="text-center my-1">
-          <span className={`font-mono ${valueColor} text-lg`}>
+          <span className={`${valueColor} text-lg`}>
             {isSubsidy ? `补贴 ${displayValue}` : `${displayValue}`}<span className="text-xs">%</span>
           </span>
         </div>
