@@ -1,4 +1,4 @@
-import { BUILDINGS, STRATA, EPOCHS, RESOURCES, TECHS } from '../config';
+import { BUILDINGS, STRATA, EPOCHS, RESOURCES, TECHS, ECONOMIC_INFLUENCE } from '../config';
 import { calculateArmyPopulation, calculateArmyFoodNeed } from '../config';
 import { isResourceUnlocked } from '../utils/resources';
 import { calculateForeignPrice } from '../utils/foreignTrade';
@@ -57,7 +57,8 @@ const calculateResourceCost = (
   resourceKey,
   buildingsConfig = BUILDINGS,
   currentPrices = {},
-  currentWages = {}
+  currentWages = {},
+  livingCosts = {}
 ) => {
   const resolvePrice = (key) => {
     const current = currentPrices?.[key];
@@ -77,12 +78,18 @@ const calculateResourceCost = (
     : BASE_WAGE_REFERENCE;
 
   const resolveWage = (role) => {
+    const livingFloor = Math.max(
+      BASE_WAGE_REFERENCE * 0.8,
+      (livingCosts?.[role] || 0) * 1.05
+    );
     const wage = currentWages?.[role];
     if (Number.isFinite(wage) && wage > 0) {
-      return wage;
+      return Math.max(wage, livingFloor);
     }
-    return avgWage;
+    return Math.max(avgWage, livingFloor);
   };
+
+  const basePrice = getBasePrice(resourceKey);
 
   let primaryBuilding = null;
   buildingsConfig.forEach(building => {
@@ -119,14 +126,62 @@ const calculateResourceCost = (
 
       const unitCost = (inputCost + laborCost) / totalOutput;
       if (Number.isFinite(unitCost) && unitCost > 0) {
-        return unitCost;
+        return Math.max(PRICE_FLOOR, Math.max(unitCost, basePrice));
       }
     }
   }
 
-  const basePrice = getBasePrice(resourceKey);
   const wageInflationFactor = Math.max(0.5, avgWage / BASE_WAGE_REFERENCE);
-  return Math.max(PRICE_FLOOR, basePrice * wageInflationFactor);
+  const fallback = Math.max(basePrice, basePrice * wageInflationFactor);
+  return Math.max(PRICE_FLOOR, fallback);
+};
+
+const computeLivingCosts = (
+  priceMap = {},
+  headTaxRates = {},
+  resourceTaxRates = {}
+) => {
+  const breakdown = {};
+  Object.entries(STRATA).forEach(([key, def]) => {
+    let needsCost = 0;
+    let taxCost = 0;
+    const needs = def.needs || {};
+    Object.entries(needs).forEach(([resKey, perCapita]) => {
+      if (!perCapita || perCapita <= 0) return;
+      const price =
+        priceMap?.[resKey] ??
+        RESOURCES[resKey]?.basePrice ??
+        getBasePrice(resKey);
+      if (!Number.isFinite(price) || price <= 0) return;
+      const taxRate = Math.max(0, resourceTaxRates?.[resKey] || 0);
+      needsCost += perCapita * price;
+      taxCost += perCapita * price * taxRate;
+    });
+    const headBase = Math.max(0, def.headTaxBase ?? 0);
+    const headRate = Math.max(0, headTaxRates?.[key] ?? 1);
+    taxCost += headBase * headRate;
+    breakdown[key] = {
+      needsCost: Number.isFinite(needsCost) ? needsCost : 0,
+      taxCost: Number.isFinite(taxCost) ? taxCost : 0,
+    };
+  });
+  return breakdown;
+};
+
+const buildLivingCostMap = (breakdown = {}, weights = {}) => {
+  const livingWeight = Number.isFinite(weights.livingCostWeight)
+    ? weights.livingCostWeight
+    : 1;
+  const taxWeight = Number.isFinite(weights.taxCostWeight)
+    ? weights.taxCostWeight
+    : 1;
+  const map = {};
+  Object.entries(breakdown).forEach(([key, value]) => {
+    const needs = value?.needsCost || 0;
+    const tax = value?.taxCost || 0;
+    map[key] = Math.max(0, needs * livingWeight + tax * taxWeight);
+  });
+  return map;
 };
 
 const TECH_MAP = TECHS.reduce((acc, tech) => {
@@ -504,28 +559,49 @@ export const simulateTick = ({
 }) => {
   const res = { ...resources };
   const priceMap = { ...(market?.prices || {}) };
+  const policies = taxPolicies || {};
+  const headTaxRates = policies.headTaxRates || {};
+  const resourceTaxRates = policies.resourceTaxRates || {};
+  const livingCostBreakdown = computeLivingCosts(priceMap, headTaxRates, resourceTaxRates);
+  const priceLivingCosts = buildLivingCostMap(
+    livingCostBreakdown,
+    ECONOMIC_INFLUENCE?.price || {}
+  );
+  const wageLivingCosts = buildLivingCostMap(
+    livingCostBreakdown,
+    ECONOMIC_INFLUENCE?.wage || {}
+  );
+  const marketInfluence = ECONOMIC_INFLUENCE?.market || {};
+  const supplyDemandWeight = Math.max(0, marketInfluence.supplyDemandWeight ?? 1);
+  const virtualDemandPerPop = Math.max(0, marketInfluence.virtualDemandPerPop || 0);
+  const inventoryTargetDays = Math.max(0.1, marketInfluence.inventoryTargetDays ?? 1.5);
+  const inventoryPriceImpact = Math.max(0, marketInfluence.inventoryPriceImpact ?? 0.25);
   const previousWages = market?.wages || {};
   const previousWageValues = Object.values(previousWages).filter(value => Number.isFinite(value) && value > 0);
   const defaultWageEstimate = previousWageValues.length > 0
     ? previousWageValues.reduce((sum, value) => sum + value, 0) / previousWageValues.length
     : BASE_WAGE_REFERENCE;
+  const getLivingCostFloor = (role) => {
+    const base = wageLivingCosts?.[role];
+    if (!Number.isFinite(base) || base <= 0) {
+      return BASE_WAGE_REFERENCE * 0.8;
+    }
+    return Math.max(BASE_WAGE_REFERENCE * 0.8, base * 1.1);
+  };
   const getExpectedWage = (role) => {
     const prev = previousWages?.[role];
     if (Number.isFinite(prev) && prev > 0) {
-      return Math.max(PRICE_FLOOR, prev);
+      return Math.max(PRICE_FLOOR, prev, getLivingCostFloor(role));
     }
     const starting = STRATA[role]?.startingWealth;
     if (Number.isFinite(starting) && starting > 0) {
-      return Math.max(BASE_WAGE_REFERENCE * 0.5, starting / 40);
+      return Math.max(BASE_WAGE_REFERENCE * 0.5, starting / 40, getLivingCostFloor(role));
     }
-    return defaultWageEstimate;
+    return Math.max(defaultWageEstimate, getLivingCostFloor(role));
   };
   const demand = {};
   const supply = {};
   const wealth = initializeWealth(classWealth);
-  const policies = taxPolicies || {};
-  const headTaxRates = policies.headTaxRates || {};
-  const resourceTaxRates = policies.resourceTaxRates || {};
   const getHeadTaxRate = (key) => {
     const rate = headTaxRates[key];
     if (typeof rate === 'number') {
@@ -636,7 +712,9 @@ export const simulateTick = ({
     const maxMultiplier = 3.5;
     const safeRatio = Math.max(ratio, 0.01);
     const smoothness = 0.9;
-    const pressure = Math.tanh(Math.log(safeRatio) * smoothness);
+    let pressure = Math.tanh(Math.log(safeRatio) * smoothness);
+    pressure *= supplyDemandWeight;
+    pressure = Math.max(-1, Math.min(1, pressure));
     if (pressure >= 0) {
       return 1 + pressure * (maxMultiplier - 1);
     }
@@ -670,6 +748,7 @@ export const simulateTick = ({
   const roleWageStats = {};
   const roleWagePayout = {};
   const directIncomeApplied = {};
+  const roleVacancyTargets = {};
   let totalMaxPop = 5;
   let adminCapacity = 20;
   totalMaxPop += extraMaxPop;
@@ -846,6 +925,27 @@ export const simulateTick = ({
     }
   });
 
+  let productionModifier = 1.0;
+  let industryModifier = 1.0;
+  let taxModifier = 1.0;
+
+  productionBuffs.forEach(buff => {
+    if (buff.production) productionModifier += buff.production;
+    if (buff.industryBonus) industryModifier += buff.industryBonus;
+    if (buff.taxIncome) taxModifier += buff.taxIncome;
+  });
+  productionDebuffs.forEach(debuff => {
+    if (debuff.production) productionModifier += debuff.production;
+    if (debuff.industryBonus) industryModifier += debuff.industryBonus;
+    if (debuff.taxIncome) taxModifier += debuff.taxIncome;
+  });
+
+  productionModifier *= (1 + productionBonus);
+  industryModifier *= (1 + industryBonus);
+  taxModifier *= (1 + taxBonus);
+
+  const effectiveTaxModifier = Math.max(0, taxModifier);
+
   // 自动填补（招工）：失业者优先进入净收入更高的岗位
   const estimateRoleNetIncome = (role) => {
     const wage = getExpectedWage(role);
@@ -899,27 +999,6 @@ export const simulateTick = ({
   const classWealthResult = {};
   const logs = [];
   const buildingJobFill = {};
-
-  let productionModifier = 1.0;
-  let industryModifier = 1.0;
-  let taxModifier = 1.0;
-
-  productionBuffs.forEach(buff => {
-    if (buff.production) productionModifier += buff.production;
-    if (buff.industryBonus) industryModifier += buff.industryBonus;
-    if (buff.taxIncome) taxModifier += buff.taxIncome;
-  });
-  productionDebuffs.forEach(debuff => {
-    if (debuff.production) productionModifier += debuff.production;
-    if (debuff.industryBonus) industryModifier += debuff.industryBonus;
-    if (debuff.taxIncome) taxModifier += debuff.taxIncome;
-  });
-
-  productionModifier *= (1 + productionBonus);
-  industryModifier *= (1 + industryBonus);
-  taxModifier *= (1 + taxBonus);
-
-  const effectiveTaxModifier = Math.max(0, taxModifier);
 
   Object.entries(passiveGains).forEach(([resKey, amountPerDay]) => {
     if (!amountPerDay) return;
@@ -1032,6 +1111,7 @@ export const simulateTick = ({
     let filledSlots = 0;
     const roleExpectedWages = {};
     let expectedWageBillBase = 0;
+    const wagePlans = [];
     if (b.jobs) {
       buildingJobFill[b.id] = buildingJobFill[b.id] || {};
       for (let role in b.jobs) {
@@ -1046,10 +1126,28 @@ export const simulateTick = ({
         const roleFilled = roleRequired * fillRate;
         filledSlots += roleFilled;
         buildingJobFill[b.id][role] = roleFilled;
+        const vacancySlots = Math.max(0, roleRequired - roleFilled);
+        if (vacancySlots > 1e-3) {
+          const availableSlots = vacancySlots >= 1 ? Math.floor(vacancySlots) : 1;
+          const vacancyList = roleVacancyTargets[role] || (roleVacancyTargets[role] = []);
+          vacancyList.push({
+            buildingId: b.id,
+            buildingName: b.name || b.id,
+            availableSlots,
+          });
+        }
         if (role !== ownerKey && roleFilled > 0) {
-          const expected = roleExpectedWages[role] ?? getExpectedWage(role);
-          roleExpectedWages[role] = expected;
-          expectedWageBillBase += roleFilled * expected;
+          const cached = roleExpectedWages[role] ?? getExpectedWage(role);
+          const livingFloor = getLivingCostFloor(role);
+          const adjustedWage = Math.max(cached, livingFloor);
+          roleExpectedWages[role] = adjustedWage;
+          expectedWageBillBase += roleFilled * adjustedWage;
+          wagePlans.push({
+            role,
+            roleSlots: roleRequired,
+            filled: roleFilled,
+            baseWage: adjustedWage,
+          });
         }
       }
       if (totalSlots > 0) staffingRatio = filledSlots / totalSlots;
@@ -1120,12 +1218,22 @@ export const simulateTick = ({
       }
     }
 
-    const wageCostPerMultiplier = baseMultiplier > 0 ? expectedWageBillBase / baseMultiplier : expectedWageBillBase;
-    const totalOperatingCostPerMultiplier = inputCostPerMultiplier + wageCostPerMultiplier;
-
+    const baseWageCostPerMultiplier = baseMultiplier > 0 ? expectedWageBillBase / baseMultiplier : expectedWageBillBase;
     const estimatedRevenue = outputValuePerMultiplier * targetMultiplier;
     const estimatedInputCost = inputCostPerMultiplier * targetMultiplier;
+    const baseWageCost = baseWageCostPerMultiplier * targetMultiplier;
+    const valueAvailableForLabor = Math.max(0, estimatedRevenue - estimatedInputCost);
+    const wageCoverage = baseWageCost > 0 ? valueAvailableForLabor / baseWageCost : 1;
+    const wagePressure = (() => {
+      if (!Number.isFinite(wageCoverage)) return 1;
+      if (wageCoverage >= 1) {
+        return Math.min(1.4, 1 + (wageCoverage - 1) * 0.35);
+      }
+      return Math.max(0.65, 1 - (1 - wageCoverage) * 0.5);
+    })();
+    const wageCostPerMultiplier = baseWageCostPerMultiplier * wagePressure;
     const estimatedWageCost = wageCostPerMultiplier * targetMultiplier;
+    const totalOperatingCostPerMultiplier = inputCostPerMultiplier + wageCostPerMultiplier;
     let actualMultiplier = targetMultiplier;
     if (producesTradableOutput) {
       const estimatedCost = estimatedInputCost + estimatedWageCost;
@@ -1162,7 +1270,6 @@ export const simulateTick = ({
 
     const utilization = baseMultiplier > 0 ? Math.min(1, actualMultiplier / baseMultiplier) : 0;
     let plannedWageBill = 0;
-    const wagePlans = [];
 
     // 低效模式下不消耗输入原料（徒手采集）
     if (b.input && !isInLowEfficiencyMode) {
@@ -1204,22 +1311,18 @@ export const simulateTick = ({
           roleWageStats[role] = { totalSlots: 0, weightedWage: 0 };
         }
         roleWageStats[role].totalSlots += roleSlots;
-        if (role === ownerKey) return;
-        const filled = buildingJobFill[b.id]?.[role] || 0;
-        const expectedBaseWage = roleExpectedWages[role] ?? getExpectedWage(role);
-        roleExpectedWages[role] = expectedBaseWage;
-        const expectedSlotWage = expectedBaseWage * utilization;
-        const due = expectedSlotWage * filled;
-        plannedWageBill += due;
-        wagePlans.push({
-          role,
-          roleSlots,
-          filled,
-          expectedSlotWage,
-          due,
-        });
       });
     }
+
+    const preparedWagePlans = wagePlans.map(plan => {
+      const expectedSlotWage = plan.baseWage * utilization * wagePressure;
+      const due = expectedSlotWage * plan.filled;
+      plannedWageBill += due;
+      return {
+        ...plan,
+        expectedSlotWage,
+      };
+    });
 
     let wageRatio = 0;
     if (plannedWageBill > 0) {
@@ -1231,7 +1334,7 @@ export const simulateTick = ({
       wageRatio = paid / plannedWageBill;
     }
 
-    wagePlans.forEach(plan => {
+    preparedWagePlans.forEach(plan => {
       const actualSlotWage = plan.expectedSlotWage * wageRatio;
       roleWageStats[plan.role].weightedWage += actualSlotWage * plan.roleSlots;
       if (plan.filled > 0 && actualSlotWage > 0) {
@@ -1933,14 +2036,32 @@ export const simulateTick = ({
     updatedWages[role] = Math.max(0, Number(smoothed.toFixed(2)));
   });
 
+  const demandPopulation = Math.max(0, nextPopulation ?? population ?? 0);
+  const virtualDemandBaseline = virtualDemandPerPop * demandPopulation;
+
   Object.keys(RESOURCES).forEach(resource => {
     if (!isTradableResource(resource)) return;
-    const anchorPrice = calculateResourceCost(resource, BUILDINGS, priceMap, updatedWages);
+    const anchorPrice = calculateResourceCost(
+      resource,
+      BUILDINGS,
+      priceMap,
+      updatedWages,
+      priceLivingCosts
+    );
     const sup = supply[resource] || 0;
     const dem = demand[resource] || 0;
-    const ratio = dem / Math.max(sup, 1);
+    const adjustedDemand = dem + virtualDemandBaseline;
+    const ratio = adjustedDemand / Math.max(sup, 1);
     const priceMultiplier = computePriceMultiplier(ratio);
     let targetPrice = anchorPrice * priceMultiplier;
+    const inventoryStock = res[resource] || 0;
+    const desiredInventory = adjustedDemand * inventoryTargetDays;
+    if (desiredInventory > 0) {
+      const stockRatio = inventoryStock / desiredInventory;
+      const delta = Math.max(-1, Math.min(1, 1 - stockRatio));
+      const inventoryPressure = Math.max(0.3, 1 + delta * inventoryPriceImpact);
+      targetPrice *= inventoryPressure;
+    }
     const costFloor = anchorPrice * 0.6;
     targetPrice = Math.max(targetPrice, costFloor);
     targetPrice = Math.max(targetPrice, PRICE_FLOOR);
@@ -1948,6 +2069,50 @@ export const simulateTick = ({
     const smoothed = prevPrice + (targetPrice - prevPrice) * 0.1;
     updatedPrices[resource] = parseFloat(Math.max(PRICE_FLOOR, smoothed).toFixed(2));
   });
+
+  const getLastTickNetIncomePerCapita = (role) => {
+    const history = (classWealthHistory || {})[role];
+    if (!history || history.length < 2) return null;
+    const lastWealth = history[history.length - 1];
+    const prevWealth = history[history.length - 2];
+    const prevPop = Math.max(1, (previousPopStructure?.[role] || 0));
+    return (lastWealth - prevWealth) / prevPop;
+  };
+
+  const hasBuildingVacancyForRole = (role) => {
+    const list = roleVacancyTargets[role];
+    if (!list || list.length === 0) return false;
+    return list.some(entry => entry && entry.availableSlots > 0);
+  };
+
+  const reserveBuildingVacancyForRole = (role, desiredCount) => {
+    const list = roleVacancyTargets[role];
+    if (!list || list.length === 0 || desiredCount <= 0) return null;
+    let bestIndex = -1;
+    let bestSlots = 0;
+    for (let i = 0; i < list.length; i++) {
+      const entry = list[i];
+      if (!entry) continue;
+      const slots = entry.availableSlots >= 1 ? Math.floor(entry.availableSlots) : (entry.availableSlots > 0 ? 1 : 0);
+      if (slots > bestSlots) {
+        bestSlots = slots;
+        bestIndex = i;
+      }
+    }
+    if (bestIndex === -1 || bestSlots <= 0) return null;
+    const chosen = list[bestIndex];
+    const assigned = Math.min(desiredCount, bestSlots);
+    const result = {
+      buildingId: chosen.buildingId,
+      buildingName: chosen.buildingName,
+      count: assigned,
+    };
+    chosen.availableSlots -= assigned;
+    if (chosen.availableSlots <= 0) {
+      list.splice(bestIndex, 1);
+    }
+    return result;
+  };
 
   // 增强转职（Migration）逻辑：基于市场价格和潜在收益的职业流动
   const roleVacancies = {};
@@ -1967,10 +2132,18 @@ export const simulateTick = ({
     const totalExpense = roleExpense[role] || 0;
     const netIncome = totalIncome - totalExpense;
     const netIncomePerCapita = netIncome / Math.max(1, pop);
-    const roleWage = updatedWages[role] || 0;
+    const roleWage = updatedWages[role] || getExpectedWage(role);
+    const headTaxBase = STRATA[role]?.headTaxBase ?? 0.01;
+    const taxCostPerCapita = headTaxBase * gameSpeed * getHeadTaxRate(role) * effectiveTaxModifier;
+    const disposableWage = roleWage - taxCostPerCapita;
+    const lastTickIncome = getLastTickNetIncomePerCapita(role);
+    const historicalIncomePerCapita = lastTickIncome !== null ? lastTickIncome : perCapDelta;
+    const fallbackIncome = netIncomePerCapita !== 0 ? netIncomePerCapita : disposableWage;
+    const incomeSignal = historicalIncomePerCapita !== 0 ? historicalIncomePerCapita : fallbackIncome;
+    const stabilityBonus = perCap > 0 ? perCap * 0.002 : 0;
 
-    // Net income drives migration; wealth/wage add minor stability for edge cases (e.g., empty roles)
-    const potentialIncome = (netIncomePerCapita * 0.75) + (perCap * 0.15) + (roleWage * 0.1);
+    // 以上一tick的人均净收入为主导，辅以小幅稳定性奖励，避免理论工资误导
+    const potentialIncome = incomeSignal + stabilityBonus;
 
     return {
       role,
@@ -2001,7 +2174,7 @@ export const simulateTick = ({
   let targetCandidate = null;
   if (sourceCandidate) {
     targetCandidate = activeRoleMetrics
-      .filter(r => r.vacancy > 0 && r.potentialIncome > sourceCandidate.potentialIncome * 1.3)
+      .filter(r => r.vacancy > 0 && hasBuildingVacancyForRole(r.role) && r.potentialIncome > sourceCandidate.potentialIncome * 1.3)
       .reduce((best, current) => {
         if (!best) return current;
         if (current.potentialIncome > best.potentialIncome) return current;
@@ -2012,10 +2185,21 @@ export const simulateTick = ({
 
   // 执行转职并转移财富
   if (sourceCandidate && targetCandidate) {
+    let placementInfo = null;
     let migrants = Math.floor(sourceCandidate.pop * JOB_MIGRATION_RATIO);
     if (migrants <= 0 && sourceCandidate.pop > 0) migrants = 1;
     migrants = Math.min(migrants, targetCandidate.vacancy);
     
+    if (migrants > 0) {
+      const placement = reserveBuildingVacancyForRole(targetCandidate.role, migrants);
+      if (!placement || placement.count <= 0) {
+        migrants = 0;
+      } else {
+        migrants = placement.count;
+        placementInfo = placement;
+      }
+    }
+
     if (migrants > 0) {
       // 关键：执行财富转移
       const sourceWealth = wealth[sourceCandidate.role] || 0;
@@ -2034,7 +2218,8 @@ export const simulateTick = ({
       const sourceName = STRATA[sourceCandidate.role]?.name || sourceCandidate.role;
       const targetName = STRATA[targetCandidate.role]?.name || targetCandidate.role;
       const incomeGain = ((targetCandidate.potentialIncome - sourceCandidate.potentialIncome) / Math.max(0.01, sourceCandidate.potentialIncome) * 100).toFixed(0);
-      logs.push(`💼 ${migrants} 名 ${sourceName} 转职为 ${targetName}（预期收益提升 ${incomeGain}%）`);
+      const placementNote = placementInfo?.buildingName ? `（目标建筑：${placementInfo.buildingName}）` : '';
+      logs.push(`💼 ${migrants} 名 ${sourceName} 转职为 ${targetName}${placementNote}（预期收益提升 ${incomeGain}%）`);
     }
   }
 

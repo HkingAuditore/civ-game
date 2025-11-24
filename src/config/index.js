@@ -2,7 +2,7 @@
 // 提供便捷的导入方式
 
 // 基础配置
-export { GAME_SPEEDS, RESOURCES } from './gameConstants';
+export { GAME_SPEEDS, RESOURCES, ECONOMIC_INFLUENCE } from './gameConstants';
 export { EPOCHS } from './epochs';
 export { STRATA } from './strata';
 export { BUILDINGS } from './buildings';

@@ -289,7 +289,7 @@ export default function RiseOfCivs() {
                     </div>
                   )}
                   <div className="flex justify-between">
-                    <span>产业税</span>
+                    <span>交易税</span>
                     <span className="text-yellow-200 font-mono">
                       {((taxes.breakdown?.industryTax || 0) / dayScale).toFixed(2)}
                     </span>
