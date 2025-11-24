@@ -40,11 +40,11 @@ export const RESOURCES = {
   wood: { name: "木材", icon: 'Trees', color: "text-emerald-400", basePrice: 3.2, defaultOwner: 'lumberjack', unlockEpoch: 0, tags: ['raw_material'] },
   stone: { name: "石料", icon: 'Pickaxe', color: "text-stone-400", basePrice: 4.5, defaultOwner: 'miner', unlockEpoch: 0, tags: ['raw_material'] },
   cloth: { name: "布料", icon: 'Shirt', color: "text-indigo-300", basePrice: 2.5, defaultOwner: 'artisan', unlockEpoch: 0, tags: ['essential','raw_material', 'manufactured'] },
+  brick: { name: "砖块", icon: 'Home', color: "text-red-400", basePrice: 9.5, defaultOwner: 'artisan', unlockEpoch: 0, unlockTech: 'pottery', tags: ['industrial'] },
 
   
   // 青铜时代资源
   plank: { name: "木板", icon: 'Hammer', color: "text-amber-600", basePrice: 7.5, defaultOwner: 'worker', unlockEpoch: 1, unlockTech: 'tools', tags: ['industrial'] },
-  brick: { name: "砖块", icon: 'Home', color: "text-red-400", basePrice: 9.5, defaultOwner: 'artisan', unlockEpoch: 1, unlockTech: 'pottery', tags: ['industrial'] },
   copper: { name: "铜矿", icon: 'Pickaxe', color: "text-orange-400", basePrice: 8.5, defaultOwner: 'miner', unlockEpoch: 1, unlockTech: 'copper_mining', tags: ['raw_material'] },
   tools: { name: "工具", icon: 'Anvil', color: "text-blue-300", basePrice: 12.5, defaultOwner: 'artisan', unlockEpoch: 1, unlockTech: 'bronze_working', tags: ['industrial'] },
     dye: { name: "染料", icon: 'Droplets', color: "text-pink-500", basePrice: 7.5, defaultOwner: 'artisan', unlockEpoch: 1, tags: ['industrial', 'raw_material'] },
