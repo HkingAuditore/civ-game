@@ -49,6 +49,13 @@ export const TECHS = [
     effects: { buildings: { farm: 0.1 } },
   },
   {
+    id: 'tool_making',
+    name: "工具制作",
+    desc: "解锁石器作坊，提供早期稳定的工具来源。",
+    cost: { science: 90 },
+    epoch: 0,
+  },
+  {
     id: 'basic_irrigation',
     name: "基础灌溉",
     desc: "开凿浅渠把河水引入农田，产量提升 15%。",
@@ -273,7 +280,7 @@ export const TECHS = [
   {
     id: 'ironworking',
     name: "锻铁术",
-    desc: "铁矿井效率 +30%。",
+    desc: "解锁铁器铺，并且铁矿井效率 +30%。",
     cost: { science: 1500 },
     epoch: 2,
     effects: { buildings: { mine: 0.3 } },
