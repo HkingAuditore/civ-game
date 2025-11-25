@@ -381,7 +381,7 @@ export const TechTab = ({
                 {isExpanded && (
                   <div className="border-t border-gray-800 px-3 py-4">
                     {visibleTechs.length > 0 ? (
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-2">
                         {visibleTechs.map((tech) => {
                           const status = getTechStatus(tech);
                           const silverCost = calculateSilverCost(tech.cost, market);
@@ -390,83 +390,112 @@ export const TechTab = ({
                           return (
                             <div
                               key={tech.id}
-                              className={`p-3 rounded-lg border transition-all ${
+                              className={`group relative p-2 rounded-lg border transition-all ${
                                 status === 'unlocked'
                                   ? 'bg-green-900/20 border-green-600'
                                   : affordable
-                                  ? 'bg-gray-700 border-gray-600 hover:border-gray-500'
+                                  ? 'bg-gray-700 border-gray-600 hover:border-blue-500 hover:shadow-lg'
                                   : 'bg-gray-700/50 border-gray-700'
                               }`}
                             >
-                              <div className="flex items-start justify-between mb-2">
-                                <div className="flex-1">
-                                  <h5 className="text-sm font-bold text-white flex items-center gap-1">
-                                    {tech.name}
-                                    {status === 'unlocked' && (
-                                      <Icon name="Check" size={14} className="text-green-400" />
-                                    )}
-                                  </h5>
-                                  <p className="text-xs text-gray-400 mt-1">{tech.desc}</p>
-                                  {TECH_BUILDING_UNLOCKS[tech.id]?.length > 0 && (
-                                    <p className="text-[11px] text-amber-300 mt-1">
-                                      解锁建筑：{TECH_BUILDING_UNLOCKS[tech.id].join('、')}
-                                    </p>
+                              {/* 科技头部 - 紧凑版 */}
+                              <div className="flex flex-col items-center mb-2">
+                                <div className="w-12 h-12 bg-blue-900/30 rounded-full flex items-center justify-center mb-1">
+                                  {status === 'unlocked' ? (
+                                    <Icon name="Check" size={24} className="text-green-400" />
+                                  ) : (
+                                    <Icon name="Lightbulb" size={24} className="text-blue-400" />
                                   )}
                                 </div>
+                                <h5 className="text-xs font-bold text-white text-center leading-tight">{tech.name}</h5>
                               </div>
 
-                              {tech.effect && (
-                                <div className="mb-2 p-2 bg-black/20 rounded">
-                                  <p className="text-xs text-blue-300">{tech.effect}</p>
+                              {/* 简化的关键信息 */}
+                              {status !== 'unlocked' && (
+                                <div className="space-y-1 text-[10px] mb-2">
+                                  {TECH_BUILDING_UNLOCKS[tech.id]?.length > 0 && (
+                                    <div className="bg-amber-900/30 rounded px-1.5 py-1 text-center text-amber-300">
+                                      解锁{TECH_BUILDING_UNLOCKS[tech.id].length}个建筑
+                                    </div>
+                                  )}
+                                  {tech.effect && (
+                                    <div className="bg-blue-900/30 rounded px-1.5 py-1 text-center text-blue-300">
+                                      有特殊效果
+                                    </div>
+                                  )}
                                 </div>
                               )}
 
-                              {status !== 'unlocked' && (
-                                <>
-                                  <div className="flex flex-wrap gap-1 mb-2">
-                                    {Object.entries(tech.cost).map(([resource, cost]) => (
-                                      <span
-                                        key={resource}
-                                        className={`text-xs px-1.5 py-0.5 rounded ${
-                                          (resources[resource] || 0) >= cost
-                                            ? 'bg-green-900/30 text-green-400'
-                                            : 'bg-red-900/30 text-red-400'
-                                        }`}
-                                      >
-                                        {RESOURCES[resource]?.name || resource}: {cost}
-                                      </span>
-                                    ))}
-                                  </div>
-                                  <div className="flex items-center justify-between text-xs mb-2">
-                                    <span className="text-gray-400">银币成本</span>
-                                    <span className={
-                                      (resources.silver || 0) >= silverCost
-                                        ? 'text-slate-100 font-semibold'
-                                        : 'text-red-400 font-semibold'
-                                    }>
-                                      {formatSilverCost(silverCost)}
-                                    </span>
-                                  </div>
-                                </>
-                              )}
-
+                              {/* 操作按钮 - 紧凑版 */}
                               {status === 'unlocked' ? (
-                                <div className="text-center py-1 bg-green-900/20 rounded text-xs text-green-400 font-semibold">
+                                <div className="text-center py-1 bg-green-900/30 rounded text-[10px] text-green-400 font-semibold">
                                   ✓ 已研究
                                 </div>
                               ) : (
                                 <button
                                   onClick={() => onResearch(tech.id)}
                                   disabled={!affordable}
-                                  className={`w-full px-3 py-1.5 rounded text-xs font-semibold transition-colors ${
+                                  className={`w-full px-2 py-1 rounded text-[10px] font-semibold transition-colors ${
                                     affordable
                                       ? 'bg-blue-600 hover:bg-blue-500 text-white'
                                       : 'bg-gray-600 text-gray-400 cursor-not-allowed'
                                   }`}
                                 >
-                                  研究
+                                  <div className="flex items-center justify-center gap-1">
+                                    <Icon name="Zap" size={10} />
+                                    <span className={(resources.silver || 0) < silverCost ? 'text-red-300' : ''}>
+                                      {formatSilverCost(silverCost)}
+                                    </span>
+                                  </div>
                                 </button>
                               )}
+
+                              {/* 悬停显示详细信息 - 桌面端 */}
+                              <div className="hidden lg:block absolute left-full top-0 ml-2 w-80 bg-gray-800 border border-gray-600 rounded-lg shadow-2xl p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none">
+                                <h5 className="text-sm font-bold text-white mb-1 flex items-center gap-1">
+                                  {tech.name}
+                                  {status === 'unlocked' && (
+                                    <Icon name="Check" size={14} className="text-green-400" />
+                                  )}
+                                </h5>
+                                <p className="text-xs text-gray-400 mb-2">{tech.desc}</p>
+
+                                {tech.effect && (
+                                  <div className="bg-blue-900/30 rounded px-2 py-1.5 mb-2">
+                                    <div className="text-[10px] text-gray-400 mb-1">特殊效果</div>
+                                    <p className="text-xs text-blue-300">{tech.effect}</p>
+                                  </div>
+                                )}
+
+                                {TECH_BUILDING_UNLOCKS[tech.id]?.length > 0 && (
+                                  <div className="bg-amber-900/30 rounded px-2 py-1.5 mb-2">
+                                    <div className="text-[10px] text-gray-400 mb-1">解锁建筑</div>
+                                    <p className="text-xs text-amber-300">
+                                      {TECH_BUILDING_UNLOCKS[tech.id].join('、')}
+                                    </p>
+                                  </div>
+                                )}
+
+                                {status !== 'unlocked' && (
+                                  <div className="bg-gray-900/50 rounded px-2 py-1.5">
+                                    <div className="text-[10px] text-gray-400 mb-1">研究成本</div>
+                                    {Object.entries(tech.cost).map(([resource, cost]) => (
+                                      <div key={resource} className="flex justify-between text-xs">
+                                        <span className="text-gray-300">{RESOURCES[resource]?.name || resource}</span>
+                                        <span className={(resources[resource] || 0) >= cost ? 'text-green-400' : 'text-red-400'}>
+                                          {cost} ({resources[resource] || 0})
+                                        </span>
+                                      </div>
+                                    ))}
+                                    <div className="flex justify-between text-xs pt-1 border-t border-gray-700 mt-1">
+                                      <span className="text-gray-300">总计</span>
+                                      <span className={(resources.silver || 0) >= silverCost ? 'text-green-400' : 'text-red-400'}>
+                                        {formatSilverCost(silverCost)}
+                                      </span>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           );
                         })}

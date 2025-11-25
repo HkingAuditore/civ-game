@@ -54,6 +54,7 @@ export default function RiseOfCivs() {
   // UI 状态管理（必须在所有条件判断之前调用）
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isWikiOpen, setIsWikiOpen] = useState(false);
+  const [showEmpireScene, setShowEmpireScene] = useState(false); // 移动端EmpireScene折叠状态
   
   // 调试：检查gameState是否正确初始化（所有 Hooks 调用完毕后再进行条件判断）
   if (!gameState) {
@@ -192,9 +193,9 @@ export default function RiseOfCivs() {
         }
       />
 
-      {/* 移动端游戏控制 - 浮动按钮 */}
-      <div className="lg:hidden fixed top-[120px] right-2 z-[60]">
-        <div className="flex flex-col gap-2 scale-90 origin-top-right">
+      {/* 移动端游戏控制 - 浮动按钮（移到底部，避免与顶部栏重叠） */}
+      <div className="lg:hidden fixed bottom-20 right-2 z-[60]">
+        <div className="flex flex-col gap-2 scale-90 origin-bottom-right">
           <GameControls
             isPaused={gameState.isPaused}
             gameSpeed={gameState.gameSpeed}
@@ -260,16 +261,34 @@ export default function RiseOfCivs() {
 
           {/* 中间内容区 - 主操作面板 */}
           <section className="lg:col-span-8 space-y-3 sm:space-y-4 order-1 lg:order-2">
-            {/* 移动端：帝国场景卡片 */}
-            <div className="lg:hidden bg-gray-900/60 backdrop-blur-md rounded-xl border border-white/10 shadow-glass overflow-hidden">
-              <EmpireScene
-                daysElapsed={gameState.daysElapsed}
-                season={calendar.season}
-                population={gameState.population}
-                stability={gameState.stability}
-                wealth={gameState.resources.silver}
-                epoch={gameState.epoch}
-              />
+            {/* 移动端：帝国场景卡片（可折叠） */}
+            <div className="lg:hidden">
+              <button
+                onClick={() => setShowEmpireScene(!showEmpireScene)}
+                className="w-full bg-gray-900/60 backdrop-blur-md rounded-xl border border-white/10 p-3 flex items-center justify-between hover:bg-gray-900/70 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <Icon name="Image" size={16} className="text-blue-400" />
+                  <span className="text-sm font-semibold text-white">帝国场景</span>
+                  <span className="text-xs text-gray-400">
+                    {calendar.season} · {gameState.population}人 · {Math.round(gameState.stability)}%稳定
+                  </span>
+                </div>
+                <Icon name={showEmpireScene ? "ChevronUp" : "ChevronDown"} size={16} className="text-gray-400" />
+              </button>
+              
+              {showEmpireScene && (
+                <div className="mt-2 bg-gray-900/60 backdrop-blur-md rounded-xl border border-white/10 shadow-glass overflow-hidden animate-slide-down">
+                  <EmpireScene
+                    daysElapsed={gameState.daysElapsed}
+                    season={calendar.season}
+                    population={gameState.population}
+                    stability={gameState.stability}
+                    wealth={gameState.resources.silver}
+                    epoch={gameState.epoch}
+                  />
+                </div>
+              )}
             </div>
 
             {/* 标签页容器 */}
