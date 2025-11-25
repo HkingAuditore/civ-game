@@ -748,9 +748,32 @@ export const simulateTick = ({
     if (isTradableResource(resource)) {
       supply[resource] = (supply[resource] || 0) + amount;
       const price = getPrice(resource);
-      const income = price * amount;
-      // 记录owner的销售收入（在tick结束时统一结算到wealth）
-      roleWagePayout[ownerKey] = (roleWagePayout[ownerKey] || 0) + income;
+      const grossIncome = price * amount;
+      const taxRate = getResourceTaxRate(resource);
+      const taxAmount = grossIncome * taxRate;
+      let netIncome = grossIncome;
+      
+      if (taxAmount > 0) {
+        // 正税率：从销售收入中扣除税款
+        netIncome = grossIncome - taxAmount;
+        taxBreakdown.industryTax += taxAmount;
+      } else if (taxAmount < 0) {
+        // 负税率（补贴）：从国库支付补贴
+        const subsidyAmount = Math.abs(taxAmount);
+        if ((res.silver || 0) >= subsidyAmount) {
+          res.silver -= subsidyAmount;
+          netIncome = grossIncome + subsidyAmount;
+          taxBreakdown.subsidy += subsidyAmount;
+        } else {
+          // 国库不足，无法支付补贴
+          if (tick % 30 === 0) {
+            logs.push(`⚠️ 国库空虚，无法为 ${RESOURCES[resource]?.name || resource} 销售支付补贴！`);
+          }
+        }
+      }
+      
+      // 记录owner的净销售收入（在tick结束时统一结算到wealth）
+      roleWagePayout[ownerKey] = (roleWagePayout[ownerKey] || 0) + netIncome;
     }
   };
 
@@ -779,6 +802,12 @@ export const simulateTick = ({
   const roleExpense = {};
   Object.keys(STRATA).forEach(key => {
     roleExpense[key] = 0;
+  });
+  
+  // Track head tax paid separately (not part of living expenses)
+  const roleHeadTaxPaid = {};
+  Object.keys(STRATA).forEach(key => {
+    roleHeadTaxPaid[key] = 0;
   });
 
   const applyRoleIncomeToWealth = () => {
@@ -1065,8 +1094,8 @@ export const simulateTick = ({
         const paid = Math.min(available, due);
         wealth[key] = available - paid;
         taxBreakdown.headTax += paid;
-        // 记录人头税支出
-        roleExpense[key] = (roleExpense[key] || 0) + paid;
+        // 记录人头税支出（单独统计，不计入生活支出）
+        roleHeadTaxPaid[key] = (roleHeadTaxPaid[key] || 0) + paid;
       } else {
         const subsidyNeeded = -due;
         const treasury = res.silver || 0;
@@ -1255,7 +1284,11 @@ export const simulateTick = ({
         if (!isTradableResource(resKey)) continue;
         producesTradableOutput = true;
         const perMultiplierAmount = perUnit * count;
-        outputValuePerMultiplier += perMultiplierAmount * getPrice(resKey);
+        const grossValue = perMultiplierAmount * getPrice(resKey);
+        const taxRate = getResourceTaxRate(resKey);
+        // 计算税后净收入：正税率减少收入，负税率（补贴）增加收入
+        const netValue = grossValue * (1 - taxRate);
+        outputValuePerMultiplier += netValue;
       }
     }
 
@@ -1274,10 +1307,16 @@ export const simulateTick = ({
     })();
     const wageCostPerMultiplier = baseWageCostPerMultiplier * wagePressure;
     const estimatedWageCost = wageCostPerMultiplier * targetMultiplier;
+    
+    // 预估营业税成本
+    const businessTaxPerBuilding = getBusinessTaxRate(b.id);
+    const estimatedBusinessTax = businessTaxPerBuilding * count * targetMultiplier;
+    
     const totalOperatingCostPerMultiplier = inputCostPerMultiplier + wageCostPerMultiplier;
     let actualMultiplier = targetMultiplier;
     if (producesTradableOutput) {
-      const estimatedCost = estimatedInputCost + estimatedWageCost;
+      // 将营业税计入总成本（只考虑正税，补贴不计入成本）
+      const estimatedCost = estimatedInputCost + estimatedWageCost + Math.max(0, estimatedBusinessTax);
       if (estimatedCost > 0 && estimatedRevenue <= 0) {
         actualMultiplier = 0;
       } else if (estimatedCost > 0 && estimatedRevenue < estimatedCost * 0.98) {
@@ -1325,7 +1364,7 @@ export const simulateTick = ({
         const available = res[resKey] || 0;
         const consumed = Math.min(amountNeeded, available);
         if (isTradableResource(resKey)) {
-          demand[resKey] = (demand[resKey] || 0) + amountNeeded;
+          // 先不统计需求，等实际消费后再统计
           const price = getPrice(resKey);
           const taxRate = getResourceTaxRate(resKey);
           const baseCost = consumed * price;
@@ -1350,6 +1389,9 @@ export const simulateTick = ({
           
           wealth[ownerKey] = Math.max(0, (wealth[ownerKey] || 0) - totalCost);
           roleExpense[ownerKey] = (roleExpense[ownerKey] || 0) + totalCost;
+          
+          // 统计实际消费的需求量，而不是原始需求量
+          demand[resKey] = (demand[resKey] || 0) + consumed;
         }
         if (consumed <= 0) continue;
         res[resKey] = available - consumed;
@@ -1636,7 +1678,7 @@ export const simulateTick = ({
         const price = getPrice(resKey);
         const affordable = price > 0 ? Math.min(requirement, (wealth[key] || 0) / price) : requirement;
         const amount = Math.min(requirement, available, affordable);
-        demand[resKey] = (demand[resKey] || 0) + requirement;
+        // 先不统计需求，等实际消费后再统计
         if (amount > 0) {
           res[resKey] = available - amount;
           rates[resKey] = (rates[resKey] || 0) - amount;
@@ -1664,6 +1706,9 @@ export const simulateTick = ({
           wealth[key] = Math.max(0, (wealth[key] || 0) - totalCost);
           roleExpense[key] = (roleExpense[key] || 0) + totalCost;
           satisfied = amount;
+          
+          // 统计实际消费的需求量，而不是原始需求量
+          demand[resKey] = (demand[resKey] || 0) + amount;
         }
         
         // 记录短缺原因
@@ -2149,6 +2194,8 @@ export const simulateTick = ({
       const income = roleWagePayout[role] || 0;
 
       const expense = roleExpense[role] || 0;
+      // 人头税不计入生活支出，工资调整只考虑生活消费
+      // const headTaxPaid = roleHeadTaxPaid[role] || 0;
 
       currentSignal = (income - expense) / pop;
 
