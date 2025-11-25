@@ -33,4 +33,14 @@
     scrollbar-width: thin;
     scrollbar-color: #4b5563 #1f2937;
   }
+
+  /* 隐藏滚动条 */
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
 }
