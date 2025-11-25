@@ -110,7 +110,9 @@ const calculateResourceCost = (
       }
 
       let laborCost = 0;
-      if (primaryBuilding.jobs) {
+      const isSelfOwned = primaryBuilding.owner && primaryBuilding.jobs && primaryBuilding.jobs[primaryBuilding.owner];
+
+      if (primaryBuilding.jobs && !isSelfOwned) {
         Object.entries(primaryBuilding.jobs).forEach(([role, slots]) => {
           if (!slots || slots <= 0) return;
           laborCost += slots * resolveWage(role);
