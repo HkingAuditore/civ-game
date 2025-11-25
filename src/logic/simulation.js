@@ -809,6 +809,12 @@ export const simulateTick = ({
   Object.keys(STRATA).forEach(key => {
     roleHeadTaxPaid[key] = 0;
   });
+  
+  // Track business tax paid separately (not part of living expenses)
+  const roleBusinessTaxPaid = {};
+  Object.keys(STRATA).forEach(key => {
+    roleBusinessTaxPaid[key] = 0;
+  });
 
   const applyRoleIncomeToWealth = () => {
     Object.entries(roleWagePayout).forEach(([role, payout]) => {
@@ -1457,7 +1463,7 @@ export const simulateTick = ({
     }
 
     // 营业税收取：每次建筑产出时收取固定银币值
-    const businessTaxPerBuilding = getBusinessTaxRate(b.id);
+    // businessTaxPerBuilding 已在上面声明，直接使用
     if (businessTaxPerBuilding !== 0 && count > 0) {
       const totalBusinessTax = businessTaxPerBuilding * count * actualMultiplier;
       
@@ -1467,7 +1473,8 @@ export const simulateTick = ({
         if (ownerWealth >= totalBusinessTax) {
           // 业主有足够财产支付营业税
           wealth[ownerKey] = ownerWealth - totalBusinessTax;
-          roleExpense[ownerKey] = (roleExpense[ownerKey] || 0) + totalBusinessTax;
+          // 营业税单独统计，不计入生活支出
+          roleBusinessTaxPaid[ownerKey] = (roleBusinessTaxPaid[ownerKey] || 0) + totalBusinessTax;
           taxBreakdown.businessTax += totalBusinessTax;
         } else {
           // 业主财产不足，放弃收税
