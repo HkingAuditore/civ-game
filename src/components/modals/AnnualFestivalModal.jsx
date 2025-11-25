@@ -81,7 +81,7 @@ export const AnnualFestivalModal = ({ festivalOptions, year, epoch, onSelect }) 
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4">
       <div className="bg-gray-800 rounded-lg border-2 border-yellow-500/50 max-w-5xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
         {/* 模态框头部 */}
         <div className="p-6 border-b border-gray-700 bg-gradient-to-r from-yellow-900/50 via-orange-900/50 to-red-900/50">

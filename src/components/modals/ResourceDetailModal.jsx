@@ -362,7 +362,7 @@ export const ResourceDetailModal = ({
   const activeTabMeta = TAB_OPTIONS.find(tab => tab.id === activeTab);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4">
       <div className="flex w-full max-w-6xl max-h-[92vh] flex-col overflow-hidden rounded-2xl border border-gray-700 bg-gray-900 shadow-2xl">
         <div className="flex items-center justify-between border-b border-gray-800 bg-gradient-to-r from-gray-900 to-gray-800 p-6">
           <div className="flex items-center gap-3">

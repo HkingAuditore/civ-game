@@ -41,7 +41,7 @@ export const TutorialModal = ({ show, onComplete, onSkip, onOpenWiki }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-[60] p-4">
+    <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-[100] p-4 sm:p-4 p-0">
       <div className="bg-gray-900/95 backdrop-blur rounded-xl border-2 border-blue-500/50 max-w-3xl w-full shadow-2xl">
         {/* 进度条 */}
         <div className="h-2 bg-gray-800 rounded-t-xl overflow-hidden">

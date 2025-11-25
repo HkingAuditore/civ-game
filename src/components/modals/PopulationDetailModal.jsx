@@ -30,7 +30,7 @@ export const PopulationDetailModal = ({
     .sort((a, b) => b.count - a.count);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4">
       <div className="w-full max-w-4xl rounded-2xl border border-gray-700 bg-gray-900 shadow-2xl">
         <div className="flex items-center justify-between border-b border-gray-800 bg-gray-900/70 p-6">
           <div className="flex items-center gap-3">

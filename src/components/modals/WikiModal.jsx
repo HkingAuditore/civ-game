@@ -953,7 +953,7 @@ export const WikiModal = ({ show, onClose }) => {
   if (!show) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/80 z-[70] flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 sm:p-4 p-0">
       <div className="bg-gray-900/95 backdrop-blur-lg rounded-2xl border border-indigo-500/40 shadow-2xl w-full max-w-6xl h-[90vh] flex flex-col overflow-hidden">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 bg-gray-900">
           <div>
