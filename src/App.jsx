@@ -2,7 +2,7 @@
 // 使用拆分后的钩子和组件，保持代码简洁
 
 import React, { useEffect, useRef, useState } from 'react';
-import { GAME_SPEEDS, EPOCHS, RESOURCES, calculateArmyFoodNeed } from './config';
+import { GAME_SPEEDS, EPOCHS, RESOURCES, STRATA, calculateArmyFoodNeed } from './config';
 import { getCalendarInfo } from './utils/calendar';
 import { useGameState, useGameLoop, useGameActions } from './hooks';
 import {
@@ -302,7 +302,7 @@ export default function RiseOfCivs() {
                 </div>
                 <div className="grid grid-cols-4 gap-1">
                   {Object.entries(gameState.popStructure || {}).slice(0, 8).map(([key, count]) => {
-                    const stratum = require('./config').STRATA[key];
+                    const stratum = STRATA[key];
                     if (!stratum || count === 0) return null;
                     const approval = gameState.classApproval?.[key] || 0;
                     const approvalColor = approval >= 60 ? 'text-green-400' : approval >= 30 ? 'text-yellow-400' : 'text-red-400';
@@ -332,7 +332,7 @@ export default function RiseOfCivs() {
                 </div>
                 <div className="grid grid-cols-4 gap-1">
                   {['food', 'wood', 'stone', 'iron', 'science', 'culture'].map((key) => {
-                    const resource = require('./config').RESOURCES[key];
+                    const resource = RESOURCES[key];
                     if (!resource) return null;
                     const amount = gameState.resources[key] || 0;
                     const rate = gameState.rates[key] || 0;

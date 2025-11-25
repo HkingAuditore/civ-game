@@ -311,7 +311,7 @@ export const MilitaryTab = ({
                       <div key={resource} className="flex justify-between text-xs">
                         <span className="text-gray-300">{RESOURCES[resource]?.name || resource}</span>
                         <span className={(resources[resource] || 0) >= cost ? 'text-green-400' : 'text-red-400'}>
-                          {cost} ({resources[resource].toFixed(1) || 0})
+                          {cost} ({(resources[resource] || 0).toFixed(1)})
                         </span>
                       </div>
                     ))}

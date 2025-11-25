@@ -327,7 +327,7 @@ export const BuildTab = ({
                           <div key={res} className="flex justify-between text-xs">
                             <span className="text-gray-300">{RESOURCES[res]?.name || res}</span>
                             <span className={(resources[res] || 0) >= val ? 'text-green-400' : 'text-red-400'}>
-                              {val} ({resources[res].toFixed(1) || 0})
+                              {val} ({(resources[res] || 0).toFixed(1)})
                             </span>
                           </div>
                         ))}

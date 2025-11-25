@@ -227,12 +227,12 @@ export const TechTab = ({
                 {nextEpochInfo.req.science && (
                   <span
                     className={`text-xs px-2 py-1 rounded ${
-                      resources.science >= nextEpochInfo.req.science
+                      (resources.science || 0) >= nextEpochInfo.req.science
                         ? 'bg-green-900/30 text-green-400'
                         : 'bg-red-900/30 text-red-400'
                     }`}
                   >
-                    {RESOURCES.science?.name || '科研'}: {resources.science.toFixed(0)} / {nextEpochInfo.req.science}
+                    {RESOURCES.science?.name || '科研'}: {(resources.science || 0).toFixed(0)} / {nextEpochInfo.req.science}
                   </span>
                 )}
                 {nextEpochInfo.req.population && (
@@ -249,12 +249,12 @@ export const TechTab = ({
                 {nextEpochInfo.req.culture && (
                   <span
                     className={`text-xs px-2 py-1 rounded ${
-                      resources.culture >= nextEpochInfo.req.culture
+                      (resources.culture || 0) >= nextEpochInfo.req.culture
                         ? 'bg-green-900/30 text-green-400'
                         : 'bg-red-900/30 text-red-400'
                     }`}
                   >
-                    {RESOURCES.culture?.name || '文化'}: {resources.culture.toFixed(0)} / {nextEpochInfo.req.culture}
+                    {RESOURCES.culture?.name || '文化'}: {(resources.culture || 0).toFixed(0)} / {nextEpochInfo.req.culture}
                   </span>
                 )}
               </div>
