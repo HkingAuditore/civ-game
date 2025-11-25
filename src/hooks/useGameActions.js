@@ -63,6 +63,12 @@ export const useGameActions = (gameState, addLog) => {
       if ((resources[k] || 0) < nextEpoch.cost[k]) return false;
     }
     
+    // 检查银币成本
+    const silverCost = Object.entries(nextEpoch.cost).reduce((sum, [resource, amount]) => {
+      return sum + amount * getMarketPrice(resource);
+    }, 0);
+    if ((resources.silver || 0) < silverCost) return false;
+    
     return true;
   };
 
@@ -75,10 +81,16 @@ export const useGameActions = (gameState, addLog) => {
     const nextEpoch = EPOCHS[epoch + 1];
     const newRes = { ...resources };
     
-    // 扣除成本
+    // 计算银币成本
+    const silverCost = Object.entries(nextEpoch.cost).reduce((sum, [resource, amount]) => {
+      return sum + amount * getMarketPrice(resource);
+    }, 0);
+    
+    // 扣除成本和银币
     for (let k in nextEpoch.cost) {
       newRes[k] -= nextEpoch.cost[k];
     }
+    newRes.silver = Math.max(0, (newRes.silver || 0) - silverCost);
     
     setResources(newRes);
     setEpoch(epoch + 1);
@@ -174,11 +186,23 @@ export const useGameActions = (gameState, addLog) => {
       return;
     }
     
-    // 扣除资源
+    // 计算银币成本
+    const silverCost = Object.entries(tech.cost).reduce((sum, [resource, amount]) => {
+      return sum + amount * getMarketPrice(resource);
+    }, 0);
+
+    // 检查银币是否足够
+    if ((resources.silver || 0) < silverCost) {
+      addLog('银币不足，无法支付研究费用');
+      return;
+    }
+    
+    // 扣除资源和银币
     const newRes = { ...resources };
     for (let resource in tech.cost) {
       newRes[resource] -= tech.cost[resource];
     }
+    newRes.silver = Math.max(0, (newRes.silver || 0) - silverCost);
     
     setResources(newRes);
     setTechsUnlocked(prev => [...prev, id]);
