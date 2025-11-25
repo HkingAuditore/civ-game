@@ -69,7 +69,7 @@ export default function EmpireScene({
     return { from, to, sunX, sunY, moonX, moonY, starOpacity, cloudColor };
   }, [dayProgress]);
 
-  // 2. 增强版季节配置 (包含草、灌木、树干、树叶)
+  // 2. 增强版季节配置 (包含草、灌木、树干、树叶、山脉)
   const seasonConfig = useMemo(() => {
     const configs = {
       '春季': { 
@@ -79,7 +79,9 @@ export default function EmpireScene({
         treeTrunk: '#795548',
         treeLeaf: '#66bb6a', // 鲜绿
         flower: '#f48fb1',   // 粉花
-        particles: '#f8bbd0' 
+        particles: '#f8bbd0',
+        mountain1: ['#6b8e7f', '#4a6b5c'], // 春季山脉 - 青绿
+        mountain2: ['#7fa89b', '#5d7f72']
       },
       '夏季': { 
         ground: ['#558b2f', '#8bc34a'], 
@@ -88,7 +90,9 @@ export default function EmpireScene({
         treeTrunk: '#5d4037',
         treeLeaf: '#2e7d32', // 浓绿
         flower: null,
-        particles: '#fff176' 
+        particles: '#fff176',
+        mountain1: ['#546e7a', '#37474f'], // 夏季山脉 - 深蓝灰
+        mountain2: ['#607d8b', '#455a64']
       },
       '秋季': { 
         ground: ['#d7ccc8', '#efebe9'], 
@@ -97,7 +101,9 @@ export default function EmpireScene({
         treeTrunk: '#4e342e',
         treeLeaf: ['#ff7043', '#ffca28', '#d84315'], // 枫叶红/黄混合
         flower: null,
-        particles: '#d84315' 
+        particles: '#d84315',
+        mountain1: ['#8d6e63', '#5d4037'], // 秋季山脉 - 棕褐
+        mountain2: ['#a1887f', '#6d4c41']
       },
       '冬季': { 
         ground: ['#eceff1', '#ffffff'], 
@@ -106,7 +112,9 @@ export default function EmpireScene({
         treeTrunk: '#3e2723',
         treeLeaf: '#ffffff', // 积雪
         flower: null,
-        particles: '#ffffff' 
+        particles: '#ffffff',
+        mountain1: ['#b0bec5', '#78909c'], // 冬季山脉 - 雪白灰
+        mountain2: ['#cfd8dc', '#90a4ae']
       },
     };
     return configs[season] || configs['春季'];
@@ -275,28 +283,16 @@ export default function EmpireScene({
         {/* === 远景层 (SVG 路径同步上移 15px) === */}
         <defs>
           <linearGradient id="mountainGrad1" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor="#546e7a">
-              <animate attributeName="stop-color" dur="2s" fill="freeze" />
-            </stop>
-            <stop offset="100%" stopColor="#37474f">
-              <animate attributeName="stop-color" dur="2s" fill="freeze" />
-            </stop>
+            <stop offset="0%" stopColor={seasonConfig.mountain1[0]} />
+            <stop offset="100%" stopColor={seasonConfig.mountain1[1]} />
           </linearGradient>
           <linearGradient id="mountainGrad2" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor="#607d8b">
-              <animate attributeName="stop-color" dur="2s" fill="freeze" />
-            </stop>
-            <stop offset="100%" stopColor="#455a64">
-              <animate attributeName="stop-color" dur="2s" fill="freeze" />
-            </stop>
+            <stop offset="0%" stopColor={seasonConfig.mountain2[0]} />
+            <stop offset="100%" stopColor={seasonConfig.mountain2[1]} />
           </linearGradient>
           <linearGradient id="groundGrad" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor={seasonConfig.ground[0]}>
-              <animate attributeName="stop-color" dur="2s" fill="freeze" />
-            </stop>
-            <stop offset="100%" stopColor={seasonConfig.ground[1]}>
-              <animate attributeName="stop-color" dur="2s" fill="freeze" />
-            </stop>
+            <stop offset="0%" stopColor={seasonConfig.ground[0]} />
+            <stop offset="100%" stopColor={seasonConfig.ground[1]} />
           </linearGradient>
           <radialGradient id="sunGlow">
              <stop offset="0%" stopColor="#fff176" stopOpacity="0.8"/>
