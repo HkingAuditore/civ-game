@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 
 /**
  * EmpireScene - 帝国场景可视化组件
- * 更新：重写植被系统，增加草丛、灌木、树木，且随季节变换颜色
+ * 修复：抬高地面 (HORIZON_Y = 85)，让地面物体展示更完整
  */
 export default function EmpireScene({ 
   daysElapsed = 0, 
@@ -16,7 +16,8 @@ export default function EmpireScene({
   const [weatherRandom, setWeatherRandom] = useState(0.5);
   const [windSpeed, setWindSpeed] = useState(1.0);
   
-  const HORIZON_Y = 100;
+  // 修改 1: 将地平线向上移 (原为 100)
+  const HORIZON_Y = 85;
 
   useEffect(() => {
     const dayInterval = setInterval(() => {
@@ -39,6 +40,7 @@ export default function EmpireScene({
     const p = dayProgress;
     let from, to, sunPos, moonPos, starOpacity, cloudColor;
     
+    // 太阳和月亮的高度轨迹也可以稍微调整，或者保持现状（它们在天上，影响不大）
     const sunY = 110 - Math.sin((p - 0.2) * (Math.PI / 0.6)) * 100;
     const sunX = 20 + ((p - 0.2) / 0.6) * 160;
     
@@ -152,10 +154,10 @@ export default function EmpireScene({
     })).sort((a, b) => a.y - b.y);
   }, [population]);
 
-  // 6. 全新植被生成逻辑
+  // 6. 植被生成逻辑
   const vegetation = useMemo(() => {
     const items = [];
-    const count = 60; // 增加数量，包括草丛
+    const count = 60; 
 
     const seededRandom = (index) => {
         const x = Math.sin(index + 123.45) * 10000;
@@ -167,26 +169,18 @@ export default function EmpireScene({
       const r2 = seededRandom(i * 2.2); // 类型随机
       const r3 = seededRandom(i * 3.3); // 变体随机
       
-      // 生成类型：50% 草, 30% 灌木, 20% 树
       let type = 'grass';
       if (r2 > 0.5) type = 'bush';
       if (r2 > 0.8) type = 'tree';
 
-      // 坐标计算：确保在地面上
-      // 越靠下(y越大)，scale越大，模拟近大远小
-      // Y 范围: 100 (地平线) 到 130 (前景)
       const yNorm = r1; // 0-1
       const y = HORIZON_Y + 2 + yNorm * 35; 
       
-      // X 范围: -20 到 220，覆盖全屏
       const x = -20 + seededRandom(i * 99) * 240;
 
-      // 大小
       let baseScale = 0.5 + yNorm * 0.8; 
-      // 草要小一点
       if (type === 'grass') baseScale *= 0.6;
       
-      // 颜色变体 (针对秋季多色树叶)
       let colorVariant = 0;
       if (Array.isArray(seasonConfig.treeLeaf)) {
          colorVariant = Math.floor(r3 * seasonConfig.treeLeaf.length);
@@ -204,9 +198,8 @@ export default function EmpireScene({
       });
     }
 
-    // 按Y轴排序，保证近处遮挡远处
     return items.sort((a, b) => a.y - b.y);
-  }, [season, seasonConfig]); // 依赖 seasonConfig 以处理颜色变化逻辑
+  }, [season, seasonConfig]); 
 
   // 7. 天气状态
   const rainChance = (100 - stability) / 100 * 0.8; 
@@ -275,7 +268,7 @@ export default function EmpireScene({
           )}
         </g>
 
-        {/* === 远景层 === */}
+        {/* === 远景层 (SVG 路径同步上移 15px) === */}
         <defs>
           <linearGradient id="mountainGrad1" x1="0" x2="0" y1="0" y2="1">
             <stop offset="0%" stopColor="#546e7a" />
@@ -296,14 +289,15 @@ export default function EmpireScene({
         </defs>
         
         <g id="background">
-          <path d="M0,85 L30,55 L60,70 L100,45 L140,65 L180,50 L200,70 L200,130 L0,130 Z" 
+          {/* 原山脉 y 值减去 15 */}
+          <path d="M0,70 L30,40 L60,55 L100,30 L140,50 L180,35 L200,55 L200,130 L0,130 Z" 
                 fill="url(#mountainGrad1)" opacity="0.85" />
-          <path d="M-10,95 L40,75 L80,90 L120,70 L160,85 L200,75 L220,90 L220,130 L-10,130 Z" 
+          <path d="M-10,80 L40,60 L80,75 L120,55 L160,70 L200,60 L220,75 L220,130 L-10,130 Z" 
                 fill="url(#mountainGrad2)" opacity="0.95" />
         </g>
 
-        {/* === 地面层 (从 Y=100 开始) === */}
-        <path d="M-10,100 Q100,98 210,100 L210,140 L-10,140 Z" fill="url(#groundGrad)" />
+        {/* === 地面层 (从 Y=85 开始, 原 100) === */}
+        <path d="M-10,85 Q100,83 210,85 L210,140 L-10,140 Z" fill="url(#groundGrad)" />
 
         {/* === 新版植被层 === */}
         {vegetation.map((v) => (
@@ -392,18 +386,6 @@ export default function EmpireScene({
           </g>
         ))}
 
-        {/* === 建筑层 (确保在植被之后绘制，因为有的树可能在房子前面，这里简化了层级) === 
-            注意：为了完美遮挡，理想情况下应该把植被、房子、人合并到一个数组里按Y排序。
-            但在 React 组件中，为了代码清晰，我们保持分层，但通过 sort Y 已经在每层内部做了排序。
-            为了更好的视觉效果，我们可以让近处的植被遮挡远处的房子。
-            当前的实现：先画植被，后画房子。
-            如果需要房子遮挡树，或者树遮挡房子，最好是将它们 merge 后渲染。
-            但鉴于性能和代码复杂度，我们这里让房子层覆盖在植被层之上，
-            或者你可以选择把植被层放在房子层下面作为背景林。
-            这里我选择：植被 -> 房子 -> 人。这样房子会压在所有树上面。
-            如果你想要树挡住房子，可以交换顺序。
-        */}
-        
         {/* === 建筑层 === */}
         {houses.map((h) => (
           <g key={`h-${h.id}`} transform={`translate(${h.x}, ${h.y}) scale(${h.scale})`}>
@@ -587,8 +569,8 @@ export default function EmpireScene({
         </g>
       </svg>
 
-      {/* 底部信息栏 */}
-      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-gray-900/95 to-transparent px-3 py-1.5 flex items-center justify-between text-xs pointer-events-none backdrop-blur-sm z-10">
+      {/* 顶部信息栏 */}
+      <div className="absolute top-0 left-0 right-0 bg-gradient-to-b from-gray-900/80 to-transparent px-3 py-2 flex items-center justify-between text-xs pointer-events-none z-10">
          <div className="flex items-center gap-1.5">
             <span style={{ color: seasonConfig.treeLeaf && !Array.isArray(seasonConfig.treeLeaf) ? seasonConfig.treeLeaf : seasonConfig.grass }} className="text-sm">●</span>
             <span className="text-white text-[11px] font-medium">{season}</span>
