@@ -197,29 +197,6 @@ export const BuildTab = ({
                     {/* 建筑描述 */}
                     <p className="text-xs text-gray-400 mb-2">{b.desc}</p>
 
-                    {/* 预计利润 */}
-                    <div className={`mb-2 px-2 py-1.5 rounded border ${
-                      ownerIncomePerBuilding >= 0 
-                        ? 'bg-green-900/20 border-green-600/40' 
-                        : 'bg-red-900/20 border-red-600/40'
-                    }`}>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1">
-                          {ownerIncomePerBuilding >= 0 ? (
-                            <Icon name="TrendingUp" size={12} className="text-green-400" />
-                          ) : (
-                            <Icon name="AlertTriangle" size={12} className="text-red-400" />
-                          )}
-                          <span className="text-[10px] text-gray-400">预计日净利</span>
-                        </div>
-                        <span className={`text-xs font-bold ${
-                          ownerIncomePerBuilding >= 0 ? 'text-green-300' : 'text-red-300'
-                        }`}>
-                          {ownerIncomePerBuilding >= 0 ? '+' : ''}{ownerIncomePerBuilding.toFixed(2)} 银币/日
-                        </span>
-                      </div>
-                    </div>
-
                     {/* 建筑详情 */}
                     <div className="space-y-2 text-[11px] mb-3">
                       {(() => {
@@ -310,25 +287,21 @@ export const BuildTab = ({
                       ))}
                     </div>
 
-                    <div className="flex items-center justify-between text-xs mb-2">
-                      <span className="text-gray-400">银币成本</span>
-                      <span className={hasSilver ? 'text-slate-100 font-semibold' : 'text-red-400 font-semibold'}>
-                        {formatSilverCost(silverCost)}
-                      </span>
-                    </div>
-
                     {/* 操作按钮 */}
                     <div className="flex gap-2">
                       <button
                         onClick={() => onBuy(b.id)}
                         disabled={!affordable}
-                        className={`flex-1 px-3 py-1.5 rounded text-xs font-semibold transition-colors ${
+                        className={`flex-1 px-3 py-1.5 rounded text-xs font-semibold transition-colors flex items-center justify-center gap-1 ${
                           affordable
                             ? 'bg-green-600 hover:bg-green-500 text-white'
                             : 'bg-gray-600 text-gray-400 cursor-not-allowed'
                         }`}
                       >
-                        建造
+                        <span>建造</span>
+                        <span className={!hasSilver ? 'text-red-400' : ''}>
+                          ({formatSilverCost(silverCost)})
+                        </span>
                       </button>
                       
                       {count > 0 && (
