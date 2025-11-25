@@ -261,24 +261,25 @@ export default function RiseOfCivs() {
 
           {/* 中间内容区 - 主操作面板 */}
           <section className="lg:col-span-8 space-y-3 sm:space-y-4 order-1 lg:order-2">
-            {/* 移动端：帝国场景卡片（可折叠） */}
-            <div className="lg:hidden">
+          {/* 移动端：快速信息面板（紧凑设计） */}
+            <div className="lg:hidden space-y-2">
+              {/* 帝国场景卡片（可折叠） */}
               <button
                 onClick={() => setShowEmpireScene(!showEmpireScene)}
-                className="w-full bg-gray-900/60 backdrop-blur-md rounded-xl border border-white/10 p-3 flex items-center justify-between hover:bg-gray-900/70 transition-colors"
+                className="w-full bg-gray-900/60 backdrop-blur-md rounded-lg border border-white/10 p-2 flex items-center justify-between hover:bg-gray-900/70 transition-colors"
               >
                 <div className="flex items-center gap-2">
-                  <Icon name="Image" size={16} className="text-blue-400" />
-                  <span className="text-sm font-semibold text-white">帝国场景</span>
-                  <span className="text-xs text-gray-400">
-                    {calendar.season} · {gameState.population}人 · {Math.round(gameState.stability)}%稳定
+                  <Icon name="Image" size={14} className="text-blue-400" />
+                  <span className="text-xs font-semibold text-white">帝国场景</span>
+                  <span className="text-[10px] text-gray-400">
+                    {calendar.season} · {gameState.population}人
                   </span>
                 </div>
-                <Icon name={showEmpireScene ? "ChevronUp" : "ChevronDown"} size={16} className="text-gray-400" />
+                <Icon name={showEmpireScene ? "ChevronUp" : "ChevronDown"} size={14} className="text-gray-400" />
               </button>
               
               {showEmpireScene && (
-                <div className="mt-2 bg-gray-900/60 backdrop-blur-md rounded-xl border border-white/10 shadow-glass overflow-hidden animate-slide-down">
+                <div className="bg-gray-900/60 backdrop-blur-md rounded-lg border border-white/10 shadow-glass overflow-hidden">
                   <EmpireScene
                     daysElapsed={gameState.daysElapsed}
                     season={calendar.season}
@@ -289,6 +290,71 @@ export default function RiseOfCivs() {
                   />
                 </div>
               )}
+
+              {/* 社会阶层快速查看 */}
+              <div className="bg-gray-900/60 backdrop-blur-md rounded-lg border border-white/10 p-2">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-1">
+                    <Icon name="Users" size={14} className="text-purple-400" />
+                    <span className="text-xs font-semibold text-white">社会阶层</span>
+                  </div>
+                  <span className="text-[10px] text-gray-400">点击查看详情</span>
+                </div>
+                <div className="grid grid-cols-4 gap-1">
+                  {Object.entries(gameState.popStructure || {}).slice(0, 8).map(([key, count]) => {
+                    const stratum = require('./config').STRATA[key];
+                    if (!stratum || count === 0) return null;
+                    const approval = gameState.classApproval?.[key] || 0;
+                    const approvalColor = approval >= 60 ? 'text-green-400' : approval >= 30 ? 'text-yellow-400' : 'text-red-400';
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => gameState.setStratumDetailView(key)}
+                        className="bg-gray-800/60 rounded p-1.5 hover:bg-gray-700/60 transition-colors border border-gray-700/50"
+                      >
+                        <div className="flex flex-col items-center gap-0.5">
+                          <Icon name={stratum.icon} size={16} className="text-gray-300" />
+                          <span className="text-[9px] text-gray-400 truncate w-full text-center">{stratum.name}</span>
+                          <span className="text-[10px] font-bold text-white">{count}</span>
+                          <span className={`text-[9px] ${approvalColor}`}>{Math.round(approval)}%</span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 资源快速查看 */}
+              <div className="bg-gray-900/60 backdrop-blur-md rounded-lg border border-white/10 p-2">
+                <div className="flex items-center gap-1 mb-2">
+                  <Icon name="Package" size={14} className="text-amber-400" />
+                  <span className="text-xs font-semibold text-white">关键资源</span>
+                </div>
+                <div className="grid grid-cols-4 gap-1">
+                  {['food', 'wood', 'stone', 'iron', 'science', 'culture'].map((key) => {
+                    const resource = require('./config').RESOURCES[key];
+                    if (!resource) return null;
+                    const amount = gameState.resources[key] || 0;
+                    const rate = gameState.rates[key] || 0;
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => gameState.setResourceDetailView(key)}
+                        className="bg-gray-800/60 rounded p-1.5 hover:bg-gray-700/60 transition-colors border border-gray-700/50"
+                      >
+                        <div className="flex flex-col items-center gap-0.5">
+                          <Icon name={resource.icon} size={16} className={resource.color} />
+                          <span className="text-[9px] text-gray-400 truncate w-full text-center">{resource.name}</span>
+                          <span className="text-[10px] font-bold text-white">{Math.round(amount)}</span>
+                          <span className={`text-[9px] ${rate >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            {rate >= 0 ? '+' : ''}{rate.toFixed(1)}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
 
             {/* 标签页容器 */}

@@ -953,29 +953,31 @@ export const WikiModal = ({ show, onClose }) => {
   if (!show) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 sm:p-4 p-0">
-      <div className="bg-gray-900/95 backdrop-blur-lg rounded-2xl border border-indigo-500/40 shadow-2xl w-full max-w-6xl h-[90vh] flex flex-col overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 bg-gray-900">
+    <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-0 sm:p-4">
+      <div className="bg-gray-900/95 backdrop-blur-lg sm:rounded-2xl border-t sm:border border-indigo-500/40 shadow-2xl w-full max-w-6xl h-full sm:h-[90vh] flex flex-col overflow-hidden">
+        {/* 头部 - 移动端紧凑 */}
+        <div className="flex items-center justify-between px-3 sm:px-6 py-2 sm:py-4 border-b border-gray-800 bg-gray-900">
           <div>
-            <p className="text-xs uppercase tracking-widest text-indigo-400 mb-1">CIVILIZATION KNOWLEDGE BASE</p>
-            <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-              <Icon name="BookOpen" size={24} className="text-indigo-300"/>
+            <p className="text-[10px] sm:text-xs uppercase tracking-widest text-indigo-400 mb-0.5 sm:mb-1">CIVILIZATION KNOWLEDGE BASE</p>
+            <h2 className="text-base sm:text-2xl font-bold text-white flex items-center gap-1 sm:gap-2">
+              <Icon name="BookOpen" size={18} className="text-indigo-300 sm:w-6 sm:h-6"/>
               文明百科全书
             </h2>
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-lg border border-gray-700 text-gray-300 hover:text-white hover:border-gray-500 transition-colors"
+            className="p-1.5 sm:p-2 rounded-lg border border-gray-700 text-gray-300 hover:text-white hover:border-gray-500 transition-colors"
             aria-label="关闭百科"
           >
-            <Icon name="X" size={20} />
+            <Icon name="X" size={18} className="sm:w-5 sm:h-5" />
           </button>
         </div>
 
         <div className="flex flex-1 overflow-hidden">
-          <aside className="w-72 border-r border-gray-800 bg-gray-900/60 flex flex-col">
-            {/* 侧边栏分类按钮 */}
-            <div className="grid grid-cols-2 gap-2 p-4">
+          {/* 侧边栏 - 移动端可滚动 */}
+          <aside className="w-full sm:w-72 border-r border-gray-800 bg-gray-900/60 flex flex-col overflow-y-auto sm:overflow-visible">
+            {/* 侧边栏分类按钮 - 移动端紧凑 */}
+            <div className="grid grid-cols-2 gap-1 sm:gap-2 p-2 sm:p-4">
               {CATEGORY_CONFIG.map((category) => {
                 const isActive = category.id === selectedCategory;
                 return (
@@ -983,41 +985,41 @@ export const WikiModal = ({ show, onClose }) => {
                     key={category.id}
                     type="button"
                     onClick={() => setSelectedCategory(category.id)}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-colors ${
+                    className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg border text-[10px] sm:text-xs font-medium transition-colors ${
                       isActive
                         ? 'border-indigo-400 bg-indigo-900/40 text-indigo-100'
                         : 'border-gray-700 text-gray-400 hover:text-gray-100 hover:border-gray-500'
                     }`}
                   >
-                    <Icon name={category.icon} size={14} />
-                    <span>{category.label}</span>
+                    <Icon name={category.icon} size={12} className="sm:w-3.5 sm:h-3.5" />
+                    <span className="truncate">{category.label}</span>
                   </button>
                 );
               })}
             </div>
 
-            {/* 搜索框 */}
-            <div className="px-4 pb-2">
+            {/* 搜索框 - 移动端紧凑 */}
+            <div className="px-2 sm:px-4 pb-2">
               <div className="relative">
                 <Icon
                   name="Search"
-                  size={14}
-                  className="text-gray-500 absolute left-3 top-1/2 -translate-y-1/2"
+                  size={12}
+                  className="text-gray-500 absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 sm:w-3.5 sm:h-3.5"
                 />
                 <input
                   type="text"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder={`搜索${CATEGORY_CONFIG.find(c=>c.id===selectedCategory)?.label}...`}
-                  className="w-full bg-gray-800/70 border border-gray-700 rounded-lg pl-9 pr-3 py-2 text-xs text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full bg-gray-800/70 border border-gray-700 rounded-lg pl-7 sm:pl-9 pr-2 sm:pr-3 py-1.5 sm:py-2 text-[11px] sm:text-xs text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
             </div>
 
-            {/* 条目列表 */}
-            <div className="flex-1 overflow-y-auto px-3 pb-4 space-y-1 scrollbar-thin scrollbar-thumb-gray-700">
+            {/* 条目列表 - 移动端紧凑 */}
+            <div className="flex-1 overflow-y-auto px-2 sm:px-3 pb-4 space-y-0.5 sm:space-y-1">
               {filteredEntries.length === 0 ? (
-                <p className="text-xs text-gray-500 px-2 py-4 text-center border border-dashed border-gray-800 rounded-lg">
+                <p className="text-[10px] sm:text-xs text-gray-500 px-2 py-3 sm:py-4 text-center border border-dashed border-gray-800 rounded-lg">
                   暂无符合条件的条目
                 </p>
               ) : (
@@ -1028,18 +1030,18 @@ export const WikiModal = ({ show, onClose }) => {
                       key={entry.id}
                       type="button"
                       onClick={() => setSelectedEntryId(entry.id)}
-                      className={`w-full text-left px-3 py-2.5 rounded-xl border transition-all ${
+                      className={`w-full text-left px-2 sm:px-3 py-1.5 sm:py-2.5 rounded-lg sm:rounded-xl border transition-all ${
                         isActive
                           ? 'bg-indigo-900/30 border-indigo-500/40 shadow-sm'
                           : 'bg-transparent border-transparent hover:bg-gray-800/50 hover:border-gray-700'
                       }`}
                     >
-                      <p className={`text-sm font-semibold flex items-center gap-2 ${isActive ? 'text-indigo-200' : 'text-gray-300'}`}>
-                        <Icon name={entry.icon || 'Bookmark'} size={14} className={isActive ? 'text-indigo-300' : entry.iconColor} />
-                        {entry.name}
+                      <p className={`text-xs sm:text-sm font-semibold flex items-center gap-1 sm:gap-2 ${isActive ? 'text-indigo-200' : 'text-gray-300'}`}>
+                        <Icon name={entry.icon || 'Bookmark'} size={12} className={`${isActive ? 'text-indigo-300' : entry.iconColor} sm:w-3.5 sm:h-3.5`} />
+                        <span className="truncate">{entry.name}</span>
                       </p>
                       {entry.summary && (
-                        <p className="text-[11px] text-gray-500 mt-0.5 truncate ml-6">{entry.summary}</p>
+                        <p className="text-[10px] sm:text-[11px] text-gray-500 mt-0.5 truncate ml-4 sm:ml-6">{entry.summary}</p>
                       )}
                     </button>
                   );
@@ -1048,34 +1050,37 @@ export const WikiModal = ({ show, onClose }) => {
             </div>
           </aside>
 
-          <section className="flex-1 flex flex-col bg-gray-900/30">
+          {/* 内容区域 - 移动端全屏 */}
+          <section className="flex-1 flex flex-col bg-gray-900/30 overflow-hidden">
             {selectedEntry ? (
               <>
-                <div className="p-6 border-b border-gray-800 bg-gray-800/20">
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 rounded-2xl bg-gray-800 shadow-lg border border-gray-700">
-                      <Icon name={selectedEntry.icon || 'Book'} size={32} className={selectedEntry.iconColor} />
+                {/* 头部 - 移动端紧凑 */}
+                <div className="p-3 sm:p-6 border-b border-gray-800 bg-gray-800/20">
+                  <div className="flex items-center gap-2 sm:gap-4">
+                    <div className="p-2 sm:p-3 rounded-lg sm:rounded-2xl bg-gray-800 shadow-lg border border-gray-700">
+                      <Icon name={selectedEntry.icon || 'Book'} size={20} className={`${selectedEntry.iconColor} sm:w-8 sm:h-8`} />
                     </div>
-                    <div>
-                      <p className="text-xs uppercase tracking-widest text-indigo-400 mb-1">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] sm:text-xs uppercase tracking-widest text-indigo-400 mb-0.5 sm:mb-1">
                         {CATEGORY_CONFIG.find((c) => c.id === selectedCategory)?.label}
                       </p>
-                      <h3 className="text-3xl font-bold text-white">{selectedEntry.name}</h3>
+                      <h3 className="text-lg sm:text-3xl font-bold text-white truncate">{selectedEntry.name}</h3>
                       {selectedEntry.summary && (
-                        <p className="text-sm text-gray-400 mt-1">{selectedEntry.summary}</p>
+                        <p className="text-xs sm:text-sm text-gray-400 mt-0.5 sm:mt-1 line-clamp-2">{selectedEntry.summary}</p>
                       )}
                     </div>
                   </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-8 space-y-8 scrollbar-thin scrollbar-thumb-gray-600">
+                {/* 内容 - 移动端紧凑 */}
+                <div className="flex-1 overflow-y-auto p-3 sm:p-8 space-y-4 sm:space-y-8">
                   {renderEntryDetails(selectedEntry)}
                 </div>
               </>
             ) : (
-              <div className="flex-1 flex flex-col items-center justify-center text-gray-500 opacity-50">
-                <Icon name="BookOpen" size={64} className="mb-4" />
-                <p>请从左侧选择一个条目查看详情</p>
+              <div className="flex-1 flex flex-col items-center justify-center text-gray-500 opacity-50 p-4">
+                <Icon name="BookOpen" size={48} className="mb-3 sm:w-16 sm:h-16 sm:mb-4" />
+                <p className="text-xs sm:text-base text-center">请从左侧选择一个条目查看详情</p>
               </div>
             )}
           </section>
@@ -1119,19 +1124,19 @@ const renderMechanicsDetails = (content) => {
   if (!Array.isArray(content)) return null;
   
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-3 sm:space-y-6 max-w-3xl">
       {content.map((block, idx) => {
         if (block.type === 'h4') {
-          return <h4 key={idx} className="text-lg font-bold text-indigo-300 mt-6 mb-2 pb-2 border-b border-gray-700">{block.text}</h4>;
+          return <h4 key={idx} className="text-sm sm:text-lg font-bold text-indigo-300 mt-3 sm:mt-6 mb-1 sm:mb-2 pb-1 sm:pb-2 border-b border-gray-700">{block.text}</h4>;
         }
         if (block.type === 'p') {
-          return <p key={idx} className="text-gray-300 leading-7 text-sm">{block.text}</p>;
+          return <p key={idx} className="text-gray-300 leading-5 sm:leading-7 text-xs sm:text-sm">{block.text}</p>;
         }
         if (block.type === 'list') {
           return (
-            <ul key={idx} className="list-disc list-inside space-y-2 bg-gray-800/40 p-4 rounded-lg border border-gray-700/50">
+            <ul key={idx} className="list-disc list-inside space-y-1 sm:space-y-2 bg-gray-800/40 p-2 sm:p-4 rounded-lg border border-gray-700/50">
               {block.items.map((item, i) => (
-                <li key={i} className="text-gray-300 text-sm">{item}</li>
+                <li key={i} className="text-gray-300 text-xs sm:text-sm leading-tight sm:leading-normal">{item}</li>
               ))}
             </ul>
           );
@@ -1155,9 +1160,9 @@ const renderEconomyDetails = (data) => {
   ].filter(Boolean);
 
   return (
-    <div className="space-y-6">
-      <div className="bg-gray-800/40 p-4 rounded-xl border border-gray-700/50">
-        <p className="text-gray-300 leading-relaxed text-sm">{data.desc}</p>
+    <div className="space-y-3 sm:space-y-6">
+      <div className="bg-gray-800/40 p-2 sm:p-4 rounded-lg sm:rounded-xl border border-gray-700/50">
+        <p className="text-gray-300 leading-relaxed text-xs sm:text-sm">{data.desc}</p>
       </div>
       <InfoGrid rows={rows} />
       {renderResourceSection('日常物资需求', data.needs)}

@@ -34,3 +34,4 @@ export { PopulationDetailModal } from './modals/PopulationDetailModal';
 export { AnnualFestivalModal } from './modals/AnnualFestivalModal';
 export { TutorialModal } from './modals/TutorialModal';
 export { WikiModal } from './modals/WikiModal';
+export { CardDetailModal } from './modals/CardDetailModal';
