@@ -53,16 +53,34 @@ export const RESOURCES = {
       inventoryPriceImpact: 0.15,     // 库存对价格影响较小
     }
   },
-  wood: { name: "木材", icon: 'Trees', color: "text-emerald-400", basePrice: 3.2, minPrice: 0.32, maxPrice: 32, defaultOwner: 'lumberjack', unlockEpoch: 0, tags: ['raw_material'] },
-  stone: { name: "石料", icon: 'Pickaxe', color: "text-stone-400", basePrice: 4.5, minPrice: 0.45, maxPrice: 45, defaultOwner: 'miner', unlockEpoch: 0, tags: ['raw_material'] },
+  wood: { name: "木材", icon: 'Trees', color: "text-emerald-400", basePrice: 3.2, minPrice: 0.32, maxPrice: 32, defaultOwner: 'lumberjack', unlockEpoch: 0, tags: ['raw_material'],
+    // Tier 1 基础资源：极高稳定性配置
+    marketConfig: { supplyDemandWeight: 0.7, inventoryTargetDays: 25.0, inventoryPriceImpact: 0.2 }
+  },
+  stone: { name: "石料", icon: 'Pickaxe', color: "text-stone-400", basePrice: 4.5, minPrice: 0.45, maxPrice: 45, defaultOwner: 'miner', unlockEpoch: 0, tags: ['raw_material'],
+    // Tier 1 基础资源：极高稳定性配置
+    marketConfig: { supplyDemandWeight: 0.7, inventoryTargetDays: 25.0, inventoryPriceImpact: 0.2 }
+  },
   cloth: { name: "布料", icon: 'Shirt', color: "text-indigo-300", basePrice: 2.5, minPrice: 0.25, maxPrice: 25, defaultOwner: 'artisan', unlockEpoch: 0, tags: ['essential','raw_material', 'manufactured'] },
-  brick: { name: "砖块", icon: 'Home', color: "text-red-400", basePrice: 9.5, minPrice: 0.95, maxPrice: 95, defaultOwner: 'artisan', unlockEpoch: 0, unlockTech: 'pottery', tags: ['industrial'] },
+  brick: { name: "砖块", icon: 'Home', color: "text-red-400", basePrice: 9.5, minPrice: 0.95, maxPrice: 95, defaultOwner: 'artisan', unlockEpoch: 0, unlockTech: 'pottery', tags: ['industrial'],
+    // Tier 2 工业资源：标准平衡配置
+    marketConfig: { supplyDemandWeight: 1.0, inventoryTargetDays: 15.0, inventoryPriceImpact: 0.3 }
+  },
 
   
   // 青铜时代资源
-  plank: { name: "木板", icon: 'Hammer', color: "text-amber-600", basePrice: 7.5, minPrice: 0.75, maxPrice: 75, defaultOwner: 'worker', unlockEpoch: 1, unlockTech: 'tools', tags: ['industrial'] },
-  copper: { name: "铜矿", icon: 'Pickaxe', color: "text-orange-400", basePrice: 8.5, minPrice: 0.85, maxPrice: 85, defaultOwner: 'miner', unlockEpoch: 1, unlockTech: 'copper_mining', tags: ['raw_material'] },
-  tools: { name: "工具", icon: 'Anvil', color: "text-blue-300", basePrice: 12.5, minPrice: 1.25, maxPrice: 125, defaultOwner: 'artisan', unlockEpoch: 1, unlockTech: 'bronze_working', tags: ['industrial'] },
+  plank: { name: "木板", icon: 'Hammer', color: "text-amber-600", basePrice: 7.5, minPrice: 0.75, maxPrice: 75, defaultOwner: 'worker', unlockEpoch: 1, unlockTech: 'tools', tags: ['industrial'],
+    // Tier 2 工业资源：标准平衡配置
+    marketConfig: { supplyDemandWeight: 1.0, inventoryTargetDays: 15.0, inventoryPriceImpact: 0.3 }
+  },
+  copper: { name: "铜矿", icon: 'Pickaxe', color: "text-orange-400", basePrice: 8.5, minPrice: 0.85, maxPrice: 85, defaultOwner: 'miner', unlockEpoch: 1, unlockTech: 'copper_mining', tags: ['raw_material'],
+    // Tier 2 工业资源：标准平衡配置
+    marketConfig: { supplyDemandWeight: 1.0, inventoryTargetDays: 15.0, inventoryPriceImpact: 0.3 }
+  },
+  tools: { name: "工具", icon: 'Anvil', color: "text-blue-300", basePrice: 12.5, minPrice: 1.25, maxPrice: 125, defaultOwner: 'artisan', unlockEpoch: 1, unlockTech: 'bronze_working', tags: ['industrial'],
+    // Tier 3 奢侈品/高科技资源：高波动性配置
+    marketConfig: { supplyDemandWeight: 1.3, inventoryTargetDays: 10.0, inventoryPriceImpact: 0.4 }
+  },
     dye: { name: "染料", icon: 'Droplets', color: "text-pink-500", basePrice: 7.5, minPrice: 0.75, maxPrice: 75, defaultOwner: 'artisan', unlockEpoch: 1, tags: ['industrial', 'raw_material'] },
   
   // 古典时代
@@ -86,7 +104,10 @@ export const RESOURCES = {
       inventoryPriceImpact: 0.4,      // 库存对价格影响更大
     }
   },
-  ale: { name: "美酒", icon: 'Wine', color: "text-purple-400", basePrice: 13, minPrice: 1.3, maxPrice: 130, defaultOwner: 'artisan', unlockEpoch: 2, unlockTech: 'brewing', tags: ['luxury', 'manufactured'] },
+  ale: { name: "美酒", icon: 'Wine', color: "text-purple-400", basePrice: 13, minPrice: 1.3, maxPrice: 130, defaultOwner: 'artisan', unlockEpoch: 2, unlockTech: 'brewing', tags: ['luxury', 'manufactured'],
+    // Tier 3 奢侈品资源：高波动性、高敏感度配置
+    marketConfig: { supplyDemandWeight: 1.6, inventoryTargetDays: 8.0, inventoryPriceImpact: 0.5 }
+  },
   
   fine_clothes: { name: "华服", icon: 'Shirt', color: "text-purple-400", basePrice: 24, minPrice: 2.4, maxPrice: 240, defaultOwner: 'artisan', unlockEpoch: 2, tags: ['luxury', 'manufactured'] },
   

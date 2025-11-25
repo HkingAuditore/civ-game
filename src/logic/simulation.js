@@ -597,10 +597,6 @@ export const simulateTick = ({
   // 注意：不再在此处全局解构 market 参数，而是在价格计算循环中动态获取
   // 这样可以支持每个资源使用不同的经济参数配置
   const previousWages = market?.wages || {};
-  const previousWageValues = Object.values(previousWages).filter(value => Number.isFinite(value) && value > 0);
-  const defaultWageEstimate = previousWageValues.length > 0
-    ? previousWageValues.reduce((sum, value) => sum + value, 0) / previousWageValues.length
-    : BASE_WAGE_REFERENCE;
   const getLivingCostFloor = (role) => {
     const base = wageLivingCosts?.[role];
     if (!Number.isFinite(base) || base <= 0) {
@@ -940,6 +936,25 @@ export const simulateTick = ({
     }
   }
   popStructure.unemployed = Math.max(0, popStructure.unemployed || 0);
+
+  // 计算加权平均工资（基于人口权重，而非算术平均）
+  let totalWeightedWage = 0;
+  let totalPopulation = 0;
+  
+  Object.keys(popStructure).forEach(role => {
+    const popCount = popStructure[role] || 0;
+    const wageValue = previousWages[role] || 0;
+    
+    if (popCount > 0 && wageValue > 0) {
+      totalWeightedWage += wageValue * popCount;
+      totalPopulation += popCount;
+    }
+  });
+  
+  // 使用加权平均工资替换原来的算术平均工资
+  const defaultWageEstimate = totalPopulation > 0 
+    ? totalWeightedWage / totalPopulation 
+    : BASE_WAGE_REFERENCE;
 
   // 处理岗位上限（裁员）：如果职业人数超过岗位数，将多出的人转为失业
   ROLE_PRIORITY.forEach(role => {

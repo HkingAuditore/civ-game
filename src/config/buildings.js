@@ -72,44 +72,59 @@ export const BUILDINGS = [
   { 
     id: 'lumber_camp', 
     name: "伐木场", 
-    desc: "砍伐木材，需要工具维护。", 
+    desc: "砍伐木材，基础采集建筑。", 
     baseCost: { food: 18 }, 
-    input: { tools: 0.05 }, 
+    input: {}, 
     output: { wood: 2.20 }, 
     jobs: { lumberjack: 2 }, 
     owner: 'lumberjack',
     epoch: 0, 
     cat: 'gather', 
-    visual: { icon: 'Trees', color: 'bg-emerald-800', text: 'text-emerald-200' } 
+    visual: { icon: 'Trees', color: 'bg-emerald-800', text: 'text-emerald-200' },
+    // Tier 1 基础采集建筑：极高稳定性配置
+    marketConfig: { 
+      price: { livingCostWeight: 0.1, taxCostWeight: 0.15 }, 
+      wage: { livingCostWeight: 0.05, taxCostWeight: 0.05 } 
+    }
   },
   
   { 
     id: 'quarry', 
     name: "采石场", 
-    desc: "开采石料，需要工具维护。", 
+    desc: "开采石料，基础采集建筑。", 
     baseCost: { wood: 55 }, 
-    input: { tools: 0.05 }, 
+    input: {}, 
     output: { stone: 1.70 }, 
     jobs: { miner: 2 }, 
     owner: 'miner',
     epoch: 0, 
     cat: 'gather', 
-    visual: { icon: 'Pickaxe', color: 'bg-stone-600', text: 'text-stone-200' } 
+    visual: { icon: 'Pickaxe', color: 'bg-stone-600', text: 'text-stone-200' },
+    // Tier 1 基础采集建筑：极高稳定性配置
+    marketConfig: { 
+      price: { livingCostWeight: 0.1, taxCostWeight: 0.15 }, 
+      wage: { livingCostWeight: 0.05, taxCostWeight: 0.05 } 
+    }
   },
   
   { 
     id: 'copper_mine', 
     name: "铜矿井", 
-    desc: "开采铜矿石，需要工具维护。", 
+    desc: "开采铜矿石，需要少量工具维护。", 
     baseCost: { food: 120, wood: 120 }, 
-    input: { tools: 0.05 }, 
+    input: { tools: 0.02 }, 
     output: { copper: 0.35 }, 
     jobs: { miner: 3 }, 
     owner: 'miner',
     epoch: 1, 
     cat: 'gather', 
     requiresTech: 'copper_mining',
-    visual: { icon: 'Gem', color: 'bg-orange-700', text: 'text-orange-200' } 
+    visual: { icon: 'Gem', color: 'bg-orange-700', text: 'text-orange-200' },
+    // Tier 2 工业加工建筑：标准平衡配置
+    marketConfig: { 
+      price: { livingCostWeight: 0.2, taxCostWeight: 0.25 }, 
+      wage: { livingCostWeight: 0.1, taxCostWeight: 0.1 } 
+    }
   },
   
   { 
@@ -123,7 +138,12 @@ export const BUILDINGS = [
     epoch: 2, 
     cat: 'gather', 
     requiresTech: 'papyrus_cultivation',
-    visual: { icon: 'ScrollText', color: 'bg-lime-800', text: 'text-lime-200' } 
+    visual: { icon: 'ScrollText', color: 'bg-lime-800', text: 'text-lime-200' },
+    // Tier 1 基础生产建筑：高稳定性配置，防止纸张价格波动导致行政崩溃
+    marketConfig: { 
+      price: { livingCostWeight: 0.1, taxCostWeight: 0.15 }, 
+      wage: { livingCostWeight: 0.05, taxCostWeight: 0.05 } 
+    }
   },
 
   { 
@@ -153,7 +173,12 @@ export const BUILDINGS = [
     epoch: 2, 
     cat: 'industry', 
     requiresTech: 'brewing',
-    visual: { icon: 'Wine', color: 'bg-purple-800', text: 'text-purple-200' } 
+    visual: { icon: 'Wine', color: 'bg-purple-800', text: 'text-purple-200' },
+    // Tier 3 奢侈品建筑：高波动性、高敏感度配置
+    marketConfig: { 
+      price: { livingCostWeight: 0.4, taxCostWeight: 0.5 }, 
+      wage: { livingCostWeight: 0.25, taxCostWeight: 0.25 } 
+    }
   },
 
   { 
@@ -227,14 +252,19 @@ export const BUILDINGS = [
     name: "铁矿井", 
     desc: "深入岩层采集铁矿，需要工具维护。", 
     baseCost: { plank: 120, food: 220 }, 
-    input: { tools: 0.08 }, 
+    input: { tools: 0.04 }, 
     output: { iron: 0.35 }, 
     jobs: { miner: 5, capitalist: 1 }, 
     owner: 'capitalist',
     epoch: 2, 
     cat: 'gather', 
     requiresTech: 'ironworking',
-    visual: { icon: 'Mountain', color: 'bg-zinc-700', text: 'text-zinc-200' } 
+    visual: { icon: 'Mountain', color: 'bg-zinc-700', text: 'text-zinc-200' },
+    // Tier 2 工业加工建筑：标准平衡配置
+    marketConfig: { 
+      price: { livingCostWeight: 0.2, taxCostWeight: 0.25 }, 
+      wage: { livingCostWeight: 0.1, taxCostWeight: 0.1 } 
+    }
   },
 
   { 
@@ -254,16 +284,21 @@ export const BUILDINGS = [
   { 
     id: 'coal_mine', 
     name: "煤矿", 
-    desc: "开采地下煤炭，需要工具维护。", 
+    desc: "开采地下煤炭，工业能源基石。", 
     baseCost: { plank: 200, tools: 60 }, 
-    input: { tools: 0.08 }, 
+    input: {}, 
     output: { coal: 0.45 }, 
     jobs: { miner: 6, capitalist: 1 }, 
     owner: 'capitalist',
     epoch: 6, 
     cat: 'gather', 
     requiresTech: 'coal_gasification',
-    visual: { icon: 'Flame', color: 'bg-slate-700', text: 'text-slate-100' } 
+    visual: { icon: 'Flame', color: 'bg-slate-700', text: 'text-slate-100' },
+    // Tier 2 工业能源建筑：标准平衡配置，移除tools消耗防止死锁
+    marketConfig: { 
+      price: { livingCostWeight: 0.2, taxCostWeight: 0.25 }, 
+      wage: { livingCostWeight: 0.1, taxCostWeight: 0.1 } 
+    }
   },
 
   // ========== 居住与行政建筑 ==========
@@ -305,9 +340,9 @@ export const BUILDINGS = [
   { 
     id: 'town_hall', 
     name: "市政厅", 
-    desc: "官员办公地，增加行政容量，需要维护。", 
+    desc: "官员办公地，增加行政容量，需要少量维护。", 
     baseCost: { brick: 200, plank: 200 }, 
-    input: { brick: 0.20, papyrus: 0.10 }, 
+    input: { brick: 0.20, papyrus: 0.02 }, 
     output: { admin: 3.00 }, 
     jobs: { official: 5 }, 
     epoch: 3, 
@@ -401,7 +436,12 @@ export const BUILDINGS = [
     epoch: 1, 
     requiresTech: 'tools',
     cat: 'industry', 
-    visual: { icon: 'Hammer', color: 'bg-amber-900', text: 'text-amber-300' } 
+    visual: { icon: 'Hammer', color: 'bg-amber-900', text: 'text-amber-300' },
+    // Tier 2 工业加工建筑：标准平衡配置
+    marketConfig: { 
+      price: { livingCostWeight: 0.2, taxCostWeight: 0.25 }, 
+      wage: { livingCostWeight: 0.1, taxCostWeight: 0.1 } 
+    }
   },
   
   { 
@@ -430,7 +470,12 @@ export const BUILDINGS = [
     epoch: 1, 
     cat: 'industry', 
     requiresTech: 'bronze_working',
-    visual: { icon: 'Anvil', color: 'bg-orange-800', text: 'text-amber-200' } 
+    visual: { icon: 'Anvil', color: 'bg-orange-800', text: 'text-amber-200' },
+    // Tier 3 奢侈品/高科技建筑：高波动性配置
+    marketConfig: { 
+      price: { livingCostWeight: 0.3, taxCostWeight: 0.35 }, 
+      wage: { livingCostWeight: 0.2, taxCostWeight: 0.2 } 
+    }
   },
 
   { 
