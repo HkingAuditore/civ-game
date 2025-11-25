@@ -459,6 +459,25 @@ export const BUILDINGS = [
     visual: { icon: 'Factory', color: 'bg-red-900', text: 'text-red-300' } 
   },
   { 
+    id: 'stone_tool_workshop', 
+    name: "石器作坊", 
+    desc: "用燧石和木料打制粗糙的工具。", 
+    baseCost: { wood: 40, stone: 25 }, 
+    input: { wood: 1.0, stone: 0.8 }, 
+    output: { tools: 0.5 }, 
+    jobs: { artisan: 2 }, 
+    owner: 'artisan',
+    epoch: 0, 
+    cat: 'industry', 
+    requiresTech: 'tool_making',
+    visual: { icon: 'Hammer', color: 'bg-stone-700', text: 'text-stone-200' },
+    // Tier 2 工业加工建筑：标准平衡配置
+    marketConfig: { 
+      price: { livingCostWeight: 0.2, taxCostWeight: 0.25 }, 
+      wage: { livingCostWeight: 0.1, taxCostWeight: 0.1 } 
+    }
+  },
+  { 
     id: 'bronze_foundry', 
     name: "青铜铸坊", 
     desc: "熔炼铜与木炭，制造精良工具。", 
@@ -472,6 +491,25 @@ export const BUILDINGS = [
     requiresTech: 'bronze_working',
     visual: { icon: 'Anvil', color: 'bg-orange-800', text: 'text-amber-200' },
     // Tier 3 奢侈品/高科技建筑：高波动性配置
+    marketConfig: { 
+      price: { livingCostWeight: 0.3, taxCostWeight: 0.35 }, 
+      wage: { livingCostWeight: 0.2, taxCostWeight: 0.2 } 
+    }
+  },
+  { 
+    id: 'iron_tool_workshop', 
+    name: "铁器铺", 
+    desc: "以铁为原料，锻造坚固耐用的工具。", 
+    baseCost: { plank: 150, brick: 80 }, 
+    input: { wood: 0.5, iron: 0.8 }, 
+    output: { tools: 1.5 }, 
+    jobs: { artisan: 3 }, 
+    owner: 'artisan',
+    epoch: 2, 
+    cat: 'industry', 
+    requiresTech: 'ironworking',
+    visual: { icon: 'Cog', color: 'bg-zinc-800', text: 'text-zinc-200' },
+    // Tier 3 高科技建筑：高敏感度配置
     marketConfig: { 
       price: { livingCostWeight: 0.3, taxCostWeight: 0.35 }, 
       wage: { livingCostWeight: 0.2, taxCostWeight: 0.2 } 

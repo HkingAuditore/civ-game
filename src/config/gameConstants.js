@@ -66,7 +66,10 @@ export const RESOURCES = {
     // Tier 2 工业资源：标准平衡配置
     marketConfig: { supplyDemandWeight: 1.0, inventoryTargetDays: 15.0, inventoryPriceImpact: 0.3 }
   },
-
+  tools: { name: "工具", icon: 'Anvil', color: "text-blue-300", basePrice: 12.5, minPrice: 1.25, maxPrice: 125, defaultOwner: 'artisan', unlockEpoch: 0, unlockTech: 'bronze_working', tags: ['industrial'],
+    // Tier 3 奢侈品/高科技资源：高波动性配置
+    marketConfig: { supplyDemandWeight: 1.3, inventoryTargetDays: 10.0, inventoryPriceImpact: 0.4 }
+  },
   
   // 青铜时代资源
   plank: { name: "木板", icon: 'Hammer', color: "text-amber-600", basePrice: 7.5, minPrice: 0.75, maxPrice: 75, defaultOwner: 'worker', unlockEpoch: 1, unlockTech: 'tools', tags: ['industrial'],
@@ -77,10 +80,7 @@ export const RESOURCES = {
     // Tier 2 工业资源：标准平衡配置
     marketConfig: { supplyDemandWeight: 1.0, inventoryTargetDays: 15.0, inventoryPriceImpact: 0.3 }
   },
-  tools: { name: "工具", icon: 'Anvil', color: "text-blue-300", basePrice: 12.5, minPrice: 1.25, maxPrice: 125, defaultOwner: 'artisan', unlockEpoch: 1, unlockTech: 'bronze_working', tags: ['industrial'],
-    // Tier 3 奢侈品/高科技资源：高波动性配置
-    marketConfig: { supplyDemandWeight: 1.3, inventoryTargetDays: 10.0, inventoryPriceImpact: 0.4 }
-  },
+
     dye: { name: "染料", icon: 'Droplets', color: "text-pink-500", basePrice: 7.5, minPrice: 0.75, maxPrice: 75, defaultOwner: 'artisan', unlockEpoch: 1, tags: ['industrial', 'raw_material'] },
   
   // 古典时代
