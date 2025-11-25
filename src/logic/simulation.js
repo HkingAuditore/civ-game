@@ -754,9 +754,9 @@ export const simulateTick = ({
       let netIncome = grossIncome;
       
       if (taxAmount > 0) {
-        // 正税率：从销售收入中扣除税款
-        netIncome = grossIncome - taxAmount;
-        taxBreakdown.industryTax += taxAmount;
+        // 这是一个消费税，不由生产者承担。
+        // netIncome = grossIncome - taxAmount;
+        // taxBreakdown.industryTax += taxAmount;
       } else if (taxAmount < 0) {
         // 负税率（补贴）：从国库支付补贴
         const subsidyAmount = Math.abs(taxAmount);
@@ -1100,8 +1100,9 @@ export const simulateTick = ({
         const paid = Math.min(available, due);
         wealth[key] = available - paid;
         taxBreakdown.headTax += paid;
-        // 记录人头税支出（单独统计，不计入生活支出）
+        // 记录人头税支出
         roleHeadTaxPaid[key] = (roleHeadTaxPaid[key] || 0) + paid;
+        roleExpense[key] = (roleExpense[key] || 0) + paid;
       } else {
         const subsidyNeeded = -due;
         const treasury = res.silver || 0;
@@ -1683,7 +1684,8 @@ export const simulateTick = ({
 
       if (isTradableResource(resKey)) {
         const price = getPrice(resKey);
-        const affordable = price > 0 ? Math.min(requirement, (wealth[key] || 0) / price) : requirement;
+        const priceWithTax = price * (1 + getResourceTaxRate(resKey));
+        const affordable = priceWithTax > 0 ? Math.min(requirement, (wealth[key] || 0) / priceWithTax) : requirement;
         const amount = Math.min(requirement, available, affordable);
         // 先不统计需求，等实际消费后再统计
         if (amount > 0) {
