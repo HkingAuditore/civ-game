@@ -40,8 +40,8 @@ const RESOURCE_GROUPS = {
 const ALL_GROUPED_RESOURCES = new Set(Object.values(RESOURCE_GROUPS).flatMap(g => g.keys));
 
 // 紧凑型资源税卡片
-const ResourceTaxCard = ({ resourceKey, info, rate, hasSupply, onChange }) => {
-  // 当税率为负时，作为“交易补贴”运作
+const ResourceTaxCard = ({ resourceKey, info, rate, hasSupply, draftRate, onDraftChange, onCommit }) => {
+  // 当税率为负时，作为"交易补贴"运作
   const currentRate = rate ?? 0;
   const isSubsidy = currentRate < 0;
   const displayValue = Math.abs(currentRate * 100).toFixed(0);
@@ -69,20 +69,26 @@ const ResourceTaxCard = ({ resourceKey, info, rate, hasSupply, onChange }) => {
           </span>
         </div>
       </div>
-      {/* 控制区：滑动条 */}
+      {/* 控制区：输入框 */}
       <input
-        type="range"
-        min="-1.0" // 允许负税率（补贴）
-        max="2.0" // 最大税率200%
+        type="text"
+        inputMode="decimal"
         step="0.01"
-        value={currentRate}
-        onChange={(e) => onChange(resourceKey, e.target.value)}
-        className={`w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer range-sm ${sliderColor}`}
+        value={draftRate ?? ((currentRate * 100).toFixed(0))}
+        onChange={(e) => onDraftChange(resourceKey, e.target.value)}
+        onBlur={() => onCommit(resourceKey)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            onCommit(resourceKey);
+            e.target.blur();
+          }
+        }}
+        className="w-full bg-gray-900/70 border border-gray-600 text-[11px] text-gray-200 rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
+        placeholder="税率%"
       />
     </div>
   );
 };
-
 // 营业税卡片组件
 const BusinessTaxCard = ({ building, multiplier, buildingCount, draftMultiplier, onDraftChange, onCommit }) => {
   const base = building.businessTaxBase ?? 0.1; // 默认税基
@@ -206,6 +212,7 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
   const resourceRates = taxPolicies?.resourceTaxRates || {};
   const businessRates = taxPolicies?.businessTaxRates || {};
   const [headDrafts, setHeadDrafts] = React.useState({});
+  const [resourceDrafts, setResourceDrafts] = React.useState({});
   const [businessDrafts, setBusinessDrafts] = React.useState({});
   const [activeTaxTab, setActiveTaxTab] = React.useState('head'); // 'head', 'resource', 'business'
   
@@ -254,17 +261,28 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
     });
   };
 
-  const handleResourceTaxChange = (key, value) => {
-    if (!onUpdateTaxPolicies) return;
-    const parsed = parseFloat(value);
+  const handleResourceDraftChange = (key, raw) => {
+    setResourceDrafts(prev => ({ ...prev, [key]: raw }));
+  };
+
+  const commitResourceDraft = (key) => {
+    if (resourceDrafts[key] === undefined) return;
+    const parsed = parseFloat(resourceDrafts[key]);
     const numeric = Number.isNaN(parsed) ? 0 : parsed;
+    // 将百分比转换为小数（例如：50% -> 0.5）
+    const rateValue = numeric / 100;
     onUpdateTaxPolicies(prev => ({
       ...prev,
       resourceTaxRates: {
         ...(prev?.resourceTaxRates || {}),
-        [key]: numeric,
+        [key]: rateValue,
       },
     }));
+    setResourceDrafts(prev => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
   };
 
   const handleBusinessDraftChange = (key, raw) => {
@@ -302,20 +320,31 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
     });
   }, [epoch, techsUnlocked]);
 
-  const marketResourceKeys = Object.entries(market?.supply || {})
-    .filter(([, amount]) => amount > 0)
-    .map(([key]) => key);
-
+  // 使用固定顺序：按资源组和资源定义顺序排列，避免跳变
   const orderedResourceKeys = React.useMemo(() => {
     if (unlockedResourceKeys.length === 0) return [];
-    const ordered = [...marketResourceKeys];
-    unlockedResourceKeys.forEach((key) => {
+    
+    // 按照资源组的顺序和组内资源的定义顺序排列
+    const ordered = [];
+    
+    // 先添加分组内的资源
+    Object.values(RESOURCE_GROUPS).forEach(group => {
+      group.keys.forEach(key => {
+        if (unlockedResourceKeys.includes(key)) {
+          ordered.push(key);
+        }
+      });
+    });
+    
+    // 再添加未分组的资源
+    unlockedResourceKeys.forEach(key => {
       if (!ordered.includes(key)) {
         ordered.push(key);
       }
     });
+    
     return ordered;
-  }, [marketResourceKeys, unlockedResourceKeys]);
+  }, [unlockedResourceKeys]);
 
   const taxableResources = orderedResourceKeys
     .map(key => [key, RESOURCES[key]])
@@ -443,7 +472,9 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
               info={info}
               rate={resourceRates[key]}
               hasSupply={(market?.supply?.[key] || 0) > 0}
-              onChange={handleResourceTaxChange}
+              draftRate={resourceDrafts[key]}
+              onDraftChange={handleResourceDraftChange}
+              onCommit={commitResourceDraft}
             />
           ))}
         </div>
@@ -586,7 +617,9 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
                           info={info}
                           rate={resourceRates[key]}
                           hasSupply={(market?.supply?.[key] || 0) > 0}
-                          onChange={handleResourceTaxChange}
+                          draftRate={resourceDrafts[key]}
+                          onDraftChange={handleResourceDraftChange}
+                          onCommit={commitResourceDraft}
                         />
                       ))}
                     </div>
