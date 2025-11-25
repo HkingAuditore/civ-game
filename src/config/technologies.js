@@ -35,10 +35,10 @@ export const TECHS = [
   {
     id: 'animal_husbandry',
     name: "畜牧业",
-    desc: "驯养牲畜，每日额外获得 1 点粮食。",
+    desc: "驯养牲畜，每日额外获得 20 点粮食。",
     cost: { science: 80 },
     epoch: 0,
-    effects: { passive: { food: 1 } },
+    effects: { passive: { food: 20 } },
   },
   {
     id: 'pottery',
@@ -79,21 +79,14 @@ export const TECHS = [
     epoch: 0,
     effects: { maxPop: 10 },
   },
-  {
-    id: 'spirit_dances',
-    name: "祭祀舞蹈",
-    desc: "每日额外获得 0.3 文化。",
-    cost: { science: 140 },
-    epoch: 0,
-    effects: { passive: { culture: 0.3 } },
-  },
+
   {
     id: 'river_fishing',
     name: "河湾捕鱼",
-    desc: "每日额外获得 1 粮食与 0.2 银币。",
+    desc: "每日额外获得 10 粮食与 0.2 银币。",
     cost: { science: 150 },
     epoch: 0,
-    effects: { passive: { food: 1, silver: 0.2 } },
+    effects: { passive: { food: 10, silver: 0.2 } },
   },
   {
     id: 'wheel',
@@ -153,12 +146,13 @@ export const TECHS = [
     epoch: 1,
     effects: { buildings: { granary: 0.25 }, maxPop: 5 },
   },
+
   {
     id: 'ritual_priesthood',
     name: "仪式司祭",
     desc: "礼拜设施文化产出提升 15%。",
     cost: { science: 340 },
-    epoch: 1,
+    epoch: 3,
     effects: { buildings: { church: 0.15 } },
   },
 

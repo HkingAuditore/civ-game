@@ -66,9 +66,9 @@ export const RESOURCES = {
     // Tier 2 工业资源：标准平衡配置
     marketConfig: { supplyDemandWeight: 1.0, inventoryTargetDays: 15.0, inventoryPriceImpact: 0.3 }
   },
-  tools: { name: "工具", icon: 'Anvil', color: "text-blue-300", basePrice: 12.5, minPrice: 1.25, maxPrice: 125, defaultOwner: 'artisan', unlockEpoch: 0, unlockTech: 'bronze_working', tags: ['industrial'],
+  tools: { name: "工具", icon: 'Anvil', color: "text-blue-300", basePrice: 12.5, minPrice: 1.25, maxPrice: 125, defaultOwner: 'artisan', unlockEpoch: 0, unlockTech: 'tool_making', tags: ['industrial'],
     // Tier 3 奢侈品/高科技资源：高波动性配置
-    marketConfig: { supplyDemandWeight: 1.3, inventoryTargetDays: 10.0, inventoryPriceImpact: 0.4 }
+    marketConfig: { supplyDemandWeight: 1.3, inventoryTargetDays: 30.0, inventoryPriceImpact: 0.4 }
   },
   
   // 青铜时代资源
@@ -127,7 +127,7 @@ export const RESOURCES = {
   // 特殊资源
   silver: { name: "银币", icon: 'Coins', color: "text-slate-200", type: 'currency', basePrice: 1, minPrice: 1, maxPrice: 1, unlockEpoch: 0, tags: ['currency'] },
   science: { name: "科研", icon: 'Cpu', color: "text-cyan-400", basePrice: 5, minPrice: 0.5, maxPrice: 50, defaultOwner: 'official', unlockEpoch: 0, tags: ['special', 'manufactured'] },
-  culture: { name: "文化", icon: 'ScrollText', color: "text-pink-400", basePrice: 8.5, minPrice: 0.85, maxPrice: 85, defaultOwner: 'cleric', unlockEpoch: 1, tags: ['special', 'manufactured'] },
+  culture: { name: "文化", icon: 'ScrollText', color: "text-pink-400", basePrice: 2.0, minPrice: 0.25, maxPrice: 10, defaultOwner: 'cleric', unlockEpoch: 1, unlockTech: 'amphitheater_design', tags: ['special', 'manufactured'] },
   
   // 虚拟资源
   admin: { name: "行政力", icon: 'Scale', color: "text-purple-300", type: 'virtual', tags: ['special'] },

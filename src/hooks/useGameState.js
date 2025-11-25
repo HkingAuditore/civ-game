@@ -24,7 +24,7 @@ const INITIAL_RESOURCES = {
   steel: 0,
   silver: 200, 
   science: 0, 
-  culture: 0, 
+  culture: 300, 
   admin: 0 
 };
 
