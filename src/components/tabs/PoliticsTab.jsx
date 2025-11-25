@@ -51,19 +51,19 @@ const ResourceTaxCard = ({ resourceKey, info, rate, hasSupply, draftRate, onDraf
 
   return (
     <div 
-      className={`bg-gray-900/40 p-2.5 rounded-lg border flex flex-col justify-between transition-opacity ${
+      className={`bg-gray-900/40 p-2 rounded-lg border flex flex-col justify-between transition-opacity ${
         hasSupply ? 'border-gray-700/60' : 'border-gray-800/50 opacity-50'
       }`}
     >
       <div>
         {/* 头部：Icon + 名称 + 缺货标记 */}
-        <div className="flex items-center gap-2 mb-1">
+        <div className="flex items-center gap-1.5 mb-0.5">
           <Icon name={info.icon || 'Box'} size={14} className={info.color || 'text-gray-400'} />
           <span className="font-semibold text-gray-300 text-xs flex-grow whitespace-nowrap overflow-hidden text-ellipsis">{info.name}</span>
           {!hasSupply && <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" title="当前无市场供应"></div>}
         </div>
         {/* 状态栏：当前税率/补贴 */}
-        <div className="text-center my-1">
+        <div className="text-center my-0.5">
           <span className={`${valueColor} text-lg`}>
             {isSubsidy ? `补贴 ${displayValue}` : `${displayValue}`}<span className="text-xs">%</span>
           </span>
@@ -83,7 +83,7 @@ const ResourceTaxCard = ({ resourceKey, info, rate, hasSupply, draftRate, onDraf
             e.target.blur();
           }
         }}
-        className="w-full bg-gray-900/70 border border-gray-600 text-[11px] text-gray-200 rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
+        className="w-full bg-gray-900/70 border border-gray-600 text-[11px] text-gray-200 rounded px-1.5 py-0.5 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
         placeholder="税率%"
       />
     </div>
@@ -104,14 +104,14 @@ const BusinessTaxCard = ({ building, multiplier, buildingCount, draftMultiplier,
   
   return (
     <div 
-      className={`bg-gray-900/40 p-2.5 rounded-lg border ${borderColor} flex flex-col justify-between transition-all ${
+      className={`bg-gray-900/40 p-1.5 rounded-lg border ${borderColor} flex flex-col gap-1 transition-all ${
         buildingCount > 0 ? '' : 'opacity-50'
       }`}
     >
       <div>
         {/* 头部：Icon + 名称 + 建筑数量 */}
-        <div className="flex items-center gap-2 mb-1">
-          <div className={`${bgColor} ${textColor} p-1 rounded`}>
+        <div className="flex items-center gap-1 mb-0.5">
+          <div className={`${bgColor} ${textColor} p-0.5 rounded`}>
             <Icon name={building.visual?.icon || 'Building'} size={14} />
           </div>
           <span className="font-semibold text-gray-300 text-xs flex-grow whitespace-nowrap overflow-hidden text-ellipsis">
@@ -121,25 +121,25 @@ const BusinessTaxCard = ({ building, multiplier, buildingCount, draftMultiplier,
         </div>
         
         {/* 状态栏：当前税率/补贴 */}
-        <div className="text-center my-1.5">
+        <div className="text-center my-0.5">
           {isSubsidy ? (
             <div className="flex items-center justify-center gap-1">
-              <Icon name="TrendingDown" size={14} className="text-green-400" />
-              <span className={`${valueColor} text-base font-semibold`}>
+              <Icon name="TrendingDown" size={12} className="text-green-400" />
+              <span className={`${valueColor} text-sm font-semibold`}>
                 补贴 {Math.abs(finalRate).toFixed(2)}
               </span>
             </div>
           ) : isTax ? (
             <div className="flex items-center justify-center gap-1">
-              <Icon name="TrendingUp" size={14} className="text-yellow-400" />
-              <span className={`${valueColor} text-base font-semibold`}>
+              <Icon name="TrendingUp" size={12} className="text-yellow-400" />
+              <span className={`${valueColor} text-sm font-semibold`}>
                 {finalRate.toFixed(2)}
               </span>
             </div>
           ) : (
             <span className="text-gray-500 text-sm">无税收</span>
           )}
-          <div className="text-[10px] text-gray-500 mt-0.5">银币/建筑/次 (基{base.toFixed(2)})</div>
+          <div className="text-[10px] text-gray-500 mt-0">银币/建筑/次 (基{base.toFixed(2)})</div>
         </div>
       </div>
       
@@ -157,7 +157,7 @@ const BusinessTaxCard = ({ building, multiplier, buildingCount, draftMultiplier,
             e.target.blur();
           }
         }}
-        className="w-full bg-gray-900/70 border border-gray-600 text-[11px] text-gray-200 rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
+        className="w-full bg-gray-900/70 border border-gray-600 text-[11px] text-gray-200 rounded px-1.5 py-0 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
         placeholder="税率系数"
       />
     </div>
@@ -398,19 +398,19 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
     return (
       <div 
         key={key} 
-        className={`bg-gray-900/40 p-2 rounded-md border text-xs flex flex-col gap-2 ${
+        className={`bg-gray-900/40 p-1.5 rounded-md border text-xs flex flex-col gap-1 ${
           hasPopulation ? (isSubsidy ? 'border-green-700/60' : isTax ? 'border-yellow-700/60' : 'border-gray-700/60') : 'border-gray-800 opacity-60'
         }`}
       >
         {/* 第一行：Icon, 名称, 人口 */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1">
           <Icon name={stratumInfo.icon || 'User'} size={14} className="text-gray-400" />
           <span className="font-semibold text-gray-300 flex-grow">{stratumInfo.name || key}</span>
           <span className="text-gray-500 text-[10px] font-mono">{population.toLocaleString()} 人</span>
         </div>
 
         {/* 第二行：税率显示（带补贴/征税标识） */}
-        <div className="flex items-center justify-center gap-1">
+        <div className="flex items-center justify-center gap-0.5">
           {isSubsidy ? (
             <>
               <Icon name="TrendingDown" size={12} className="text-green-400" />
@@ -433,7 +433,7 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
         </div>
 
         {/* 第三行：输入框 */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           <input
             type="text"
             inputMode="decimal"
@@ -447,7 +447,7 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
                 e.target.blur();
               }
             }}
-            className="w-full bg-gray-900/70 border border-gray-600 text-[11px] text-gray-200 rounded px-1 py-0.5 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
+            className="w-full bg-gray-900/70 border border-gray-600 text-[11px] text-gray-200 rounded px-1 py-0 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
             placeholder="税率系数"
           />
         </div>
@@ -464,7 +464,7 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
     return (
       <div key={group.name} className="mb-4">
         <h5 className="text-xs font-semibold text-gray-400 mb-2">{group.name}</h5>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-2">
           {groupResources.map(([key, info]) => (
             <ResourceTaxCard
               key={key}
@@ -567,7 +567,7 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
                 return (
                   <div key={group.name}>
                     <h5 className="text-xs font-semibold text-gray-400 mb-2">{group.name}</h5>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-1.5">
                       {groupStrata.map(renderStratumCard)}
                     </div>
                   </div>
@@ -582,7 +582,7 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
                 return (
                   <div>
                     <h5 className="text-xs font-semibold text-gray-400 mb-2">其他</h5>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-1.5">
                       {ungroupedStrata.map(renderStratumCard)}
                     </div>
                   </div>
@@ -609,7 +609,7 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
                 return (
                    <div key="other-resources" className="mb-4">
                     <h5 className="text-xs font-semibold text-gray-400 mb-2">其他</h5>
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-2">
                       {ungroupedResources.map(([key, info]) => (
                         <ResourceTaxCard
                           key={key}
@@ -645,7 +645,7 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
                 return (
                   <div key={catKey} className="mb-4">
                     <h5 className="text-xs font-semibold text-gray-400 mb-2">{catInfo.name}</h5>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
                       {catInfo.buildings.map(building => (
                         <BusinessTaxCard
                           key={building.id}
