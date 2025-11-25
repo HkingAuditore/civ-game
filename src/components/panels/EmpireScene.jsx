@@ -233,21 +233,25 @@ export default function EmpireScene({
         .star-twinkle { animation: twinkle 3s ease-in-out infinite; }
         .float-particle { animation: float-up 3s ease-out infinite; }
         .shimmer-effect { animation: shimmer 2s ease-in-out infinite; }
+        
+        /* 平滑颜色过渡 */
+        path, circle, ellipse, rect, line { transition: fill 2s ease-in-out, stroke 2s ease-in-out, opacity 2s ease-in-out; }
       `}</style>
 
       {/* 主画布 */}
       <svg 
         viewBox="0 0 200 120" 
         preserveAspectRatio="xMidYMax slice" 
-        className="w-full h-full transition-colors duration-1000 block" 
+        className="w-full h-full block" 
         style={{
-          background: `linear-gradient(to bottom, ${skyState.from}, ${skyState.to})`
+          background: `linear-gradient(to bottom, ${skyState.from}, ${skyState.to})`,
+          transition: 'background 2s ease-in-out'
         }}
       >
         
         {/* === 天空层 === */}
         <g id="sky">
-          <g style={{ opacity: skyState.starOpacity }}>
+          <g style={{ opacity: skyState.starOpacity, transition: 'opacity 3s ease-in-out' }}>
             {[...Array(15)].map((_, i) => (
               <circle key={`s${i}`} cx={Math.random()*200} cy={Math.random()*60} r={Math.random()*0.6+0.2} fill="#fff" className="star-twinkle" style={{animationDelay:`${i*0.2}s`}} />
             ))}
@@ -271,16 +275,28 @@ export default function EmpireScene({
         {/* === 远景层 (SVG 路径同步上移 15px) === */}
         <defs>
           <linearGradient id="mountainGrad1" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor="#546e7a" />
-            <stop offset="100%" stopColor="#37474f" />
+            <stop offset="0%" stopColor="#546e7a">
+              <animate attributeName="stop-color" dur="2s" fill="freeze" />
+            </stop>
+            <stop offset="100%" stopColor="#37474f">
+              <animate attributeName="stop-color" dur="2s" fill="freeze" />
+            </stop>
           </linearGradient>
           <linearGradient id="mountainGrad2" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor="#607d8b" />
-            <stop offset="100%" stopColor="#455a64" />
+            <stop offset="0%" stopColor="#607d8b">
+              <animate attributeName="stop-color" dur="2s" fill="freeze" />
+            </stop>
+            <stop offset="100%" stopColor="#455a64">
+              <animate attributeName="stop-color" dur="2s" fill="freeze" />
+            </stop>
           </linearGradient>
           <linearGradient id="groundGrad" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor={seasonConfig.ground[0]} />
-            <stop offset="100%" stopColor={seasonConfig.ground[1]} />
+            <stop offset="0%" stopColor={seasonConfig.ground[0]}>
+              <animate attributeName="stop-color" dur="2s" fill="freeze" />
+            </stop>
+            <stop offset="100%" stopColor={seasonConfig.ground[1]}>
+              <animate attributeName="stop-color" dur="2s" fill="freeze" />
+            </stop>
           </linearGradient>
           <radialGradient id="sunGlow">
              <stop offset="0%" stopColor="#fff176" stopOpacity="0.8"/>
@@ -297,7 +313,7 @@ export default function EmpireScene({
         </g>
 
         {/* === 地面层 (从 Y=85 开始, 原 100) === */}
-        <path d="M-10,85 Q100,83 210,85 L210,140 L-10,140 Z" fill="url(#groundGrad)" />
+        <path d="M-10,85 Q100,83 210,85 L210,140 L-10,140 Z" fill="url(#groundGrad)" style={{transition: 'fill 2s ease-in-out'}} />
 
         {/* === 新版植被层 === */}
         {vegetation.map((v) => (
@@ -471,7 +487,7 @@ export default function EmpireScene({
         {/* === 天气特效层 === */}
         <g id="weather">
            {isCloudy && (
-             <g opacity="0.8">
+             <g opacity="0.8" style={{transition: 'opacity 2s ease-in-out'}}>
                <g className="cloud-anim" style={{animationDuration: `${60/windSpeed}s`}}>
                  <ellipse cx="20" cy="25" rx="12" ry="6" fill={skyState.cloudColor} opacity="0.7" />
                  <ellipse cx="30" cy="23" rx="15" ry="7" fill={skyState.cloudColor} opacity="0.8" />
@@ -563,8 +579,13 @@ export default function EmpireScene({
              </g>
            )}
 
-           {stability < 40 && (
-             <rect x="0" y="0" width="200" height="120" fill="#000" opacity="0.15" />
+           {stability < 70 && (
+             <rect 
+               x="0" y="0" width="200" height="120" 
+               fill="#000" 
+               opacity={Math.max(0, (70 - stability) / 200)}
+               style={{transition: 'opacity 3s ease-in-out'}}
+             />
            )}
         </g>
       </svg>

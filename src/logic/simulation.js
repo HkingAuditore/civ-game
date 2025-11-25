@@ -73,22 +73,13 @@ const calculateResourceCost = (
     return PRICE_FLOOR;
   };
 
-  const wageValues = Object.values(currentWages || {}).filter(value => Number.isFinite(value) && value > 0);
-  const avgWage = wageValues.length > 0
-    ? wageValues.reduce((sum, value) => sum + value, 0) / wageValues.length
-    : BASE_WAGE_REFERENCE;
-
   const resolveWage = (role) => {
-    // 使用 wageLivingCosts 而不是 priceLivingCosts 来计算工资底线
-    const livingFloor = Math.max(
-      BASE_WAGE_REFERENCE * 0.8,
-      (wageLivingCosts?.[role] || 0) * 1.05
-    );
     const wage = currentWages?.[role];
     if (Number.isFinite(wage) && wage > 0) {
-      return Math.max(wage, livingFloor);
+      return wage;
     }
-    return Math.max(avgWage, livingFloor);
+    // Use static BASE_WAGE_REFERENCE (1) instead of global avgWage fallback
+    return BASE_WAGE_REFERENCE;
   };
 
   const basePrice = getBasePrice(resourceKey);
@@ -133,9 +124,9 @@ const calculateResourceCost = (
     }
   }
 
-  const wageInflationFactor = Math.max(0.5, avgWage / BASE_WAGE_REFERENCE);
-  const fallback = Math.max(basePrice, basePrice * wageInflationFactor);
-  return Math.max(PRICE_FLOOR, fallback);
+  // New Fallback: Use base price as the cost anchor for raw materials,
+  // avoiding all wage-driven inflation for resources without primary buildings
+  return basePrice;
 };
 
 const computeLivingCosts = (
