@@ -4,6 +4,11 @@
 // 通用组件
 export { Icon, FloatingText } from './common/UIComponents';
 
+// 布局组件
+export { StatusBar } from './layout/StatusBar';
+export { BottomNav } from './layout/BottomNav';
+export { GameControls } from './layout/GameControls';
+
 // 游戏组件
 export { CityMap } from './game/CityMap';
 
