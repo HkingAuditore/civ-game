@@ -597,7 +597,7 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
 
             {/* 资源税部分 */}
             {activeTaxTab === 'resource' && (
-              <div className="max-h-[500px] overflow-y-auto pr-2">
+              <div className="max-h-[60vh] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
                 <h4 className="text-xs font-semibold text-gray-400 mb-1">资源交易税</h4>
                 <p className="text-[11px] text-gray-500 mb-3">对市场交易的资源，按成交额收取或补贴固定比例的资金。税收将计入国库，补贴将由国库支出。</p>
               
@@ -696,38 +696,79 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
               {catInfo.name}
             </h3>
 
-            {/* 政令列表 */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {/* 政令列表 - 紧凑布局 */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-2">
               {categoryDecrees.map((decree) => (
                 <div
                   key={decree.id}
-                  className={`p-4 rounded-lg border transition-all ${
+                  className={`group relative p-2 rounded-lg border transition-all ${
                     decree.active
                       ? 'bg-green-900/20 border-green-600 shadow-lg'
-                      : 'bg-gray-700/50 border-gray-600 hover:border-gray-500'
+                      : 'bg-gray-700/50 border-gray-600 hover:border-purple-500 hover:shadow-lg'
                   }`}
                 >
-                  {/* 政令头部 */}
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1">
-                      <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                        {decree.name}
-                        {decree.active && (
-                          <span className="px-2 py-0.5 bg-green-600 text-white text-xs rounded">
-                            生效中
-                          </span>
-                        )}
-                      </h4>
-                      <p className="text-xs text-gray-400 mt-1">{decree.desc}</p>
+                  {/* 政令头部 - 紧凑版 */}
+                  <div className="flex flex-col items-center mb-2">
+                    <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-1 ${
+                      decree.active ? 'bg-green-900/40' : 'bg-purple-900/30'
+                    }`}>
+                      {decree.active ? (
+                        <Icon name="Check" size={24} className="text-green-400" />
+                      ) : (
+                        <Icon name="FileText" size={24} className="text-purple-400" />
+                      )}
                     </div>
+                    <h4 className="text-xs font-bold text-white text-center leading-tight">{decree.name}</h4>
+                    {decree.active && (
+                      <span className="text-[10px] text-green-400 mt-0.5">生效中</span>
+                    )}
                   </div>
 
-                  {/* 政令效果 */}
-                  <div className="space-y-2 mb-3">
+                  {/* 简化的关键信息 */}
+                  <div className="space-y-1 text-[10px] mb-2">
+                    {decree.effects && decree.effects.length > 0 && (
+                      <div className="bg-green-900/30 rounded px-1.5 py-1 text-center text-green-300">
+                        {decree.effects.length}项正面效果
+                      </div>
+                    )}
+                    {decree.drawbacks && decree.drawbacks.length > 0 && (
+                      <div className="bg-red-900/30 rounded px-1.5 py-1 text-center text-red-300">
+                        {decree.drawbacks.length}项负面效果
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 切换按钮 - 紧凑版 */}
+                  <button
+                    onClick={() => onToggle(decree.id)}
+                    className={`w-full px-2 py-1 rounded text-[10px] font-semibold transition-all ${
+                      decree.active
+                        ? 'bg-red-600 hover:bg-red-500 text-white'
+                        : 'bg-green-600 hover:bg-green-500 text-white'
+                    }`}
+                  >
+                    <div className="flex items-center justify-center gap-1">
+                      <Icon name={decree.active ? "X" : "Check"} size={10} />
+                      {decree.active ? '废除' : '颁布'}
+                    </div>
+                  </button>
+
+                  {/* 悬停显示详细信息 - 桌面端 */}
+                  <div className="hidden lg:block absolute left-full top-0 ml-2 w-80 bg-gray-800 border border-gray-600 rounded-lg shadow-2xl p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none">
+                    <h4 className="text-sm font-bold text-white mb-1 flex items-center gap-2">
+                      {decree.name}
+                      {decree.active && (
+                        <span className="px-2 py-0.5 bg-green-600 text-white text-xs rounded">
+                          生效中
+                        </span>
+                      )}
+                    </h4>
+                    <p className="text-xs text-gray-400 mb-2">{decree.desc}</p>
+
                     {/* 正面效果 */}
                     {decree.effects && decree.effects.length > 0 && (
-                      <div className="p-2 bg-green-900/20 rounded">
-                        <p className="text-xs text-gray-400 mb-1">正面效果：</p>
+                      <div className="bg-green-900/30 rounded px-2 py-1.5 mb-2">
+                        <div className="text-[10px] text-gray-400 mb-1">正面效果</div>
                         <div className="space-y-1">
                           {decree.effects.map((effect, idx) => (
                             <div key={idx} className="flex items-center gap-1 text-xs">
@@ -741,8 +782,8 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
 
                     {/* 负面效果 */}
                     {decree.drawbacks && decree.drawbacks.length > 0 && (
-                      <div className="p-2 bg-red-900/20 rounded">
-                        <p className="text-xs text-gray-400 mb-1">负面效果：</p>
+                      <div className="bg-red-900/30 rounded px-2 py-1.5">
+                        <div className="text-[10px] text-gray-400 mb-1">负面效果</div>
                         <div className="space-y-1">
                           {decree.drawbacks.map((drawback, idx) => (
                             <div key={idx} className="flex items-center gap-1 text-xs">
@@ -754,28 +795,6 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
                       </div>
                     )}
                   </div>
-
-                  {/* 切换按钮 */}
-                  <button
-                    onClick={() => onToggle(decree.id)}
-                    className={`w-full px-4 py-2 rounded text-sm font-semibold transition-all ${
-                      decree.active
-                        ? 'bg-red-600 hover:bg-red-500 text-white'
-                        : 'bg-green-600 hover:bg-green-500 text-white'
-                    }`}
-                  >
-                    {decree.active ? (
-                      <span className="flex items-center justify-center gap-2">
-                        <Icon name="X" size={14} />
-                        废除政令
-                      </span>
-                    ) : (
-                      <span className="flex items-center justify-center gap-2">
-                        <Icon name="Check" size={14} />
-                        颁布政令
-                      </span>
-                    )}
-                  </button>
                 </div>
               ))}
             </div>

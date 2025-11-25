@@ -123,7 +123,7 @@ export const DiplomacyTab = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 h-[calc(100vh-300px)]">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 h-[400px] lg:h-[600px]">
         <div className="bg-gray-800/40 rounded-lg border border-gray-700 flex flex-col overflow-hidden">
           <div className="px-3 py-2 border-b border-gray-700/80 text-[11px] uppercase tracking-wide text-gray-400 flex items-center justify-between">
             <span>国家列表</span>
@@ -178,7 +178,7 @@ export const DiplomacyTab = ({
           </div>
         </div>
 
-        <div className="xl:col-span-2 space-y-4 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500">
+        <div className="xl:col-span-2 space-y-4 max-h-[400px] lg:max-h-[600px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500">
           {selectedNation ? (
             <>
               <div className="bg-gray-800/60 p-4 rounded-lg border border-gray-700">
@@ -272,8 +272,8 @@ export const DiplomacyTab = ({
                     />
                   </div>
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs text-gray-300">
+                <div className="overflow-x-auto -mx-4 px-4">
+                  <table className="w-full min-w-[800px] text-xs text-gray-300">
                     <thead>
                       <tr className="text-gray-400">
                         <th className="text-left py-1">资源</th>
