@@ -920,6 +920,7 @@ export const WikiModal = ({ show, onClose }) => {
   const [selectedCategory, setSelectedCategory] = useState(CATEGORY_CONFIG[0].id);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedEntryId, setSelectedEntryId] = useState(null);
+  const [showSidebar, setShowSidebar] = useState(true); // 移动端控制侧边栏显示
 
   useEffect(() => {
     if (!show) return;
@@ -950,6 +951,12 @@ export const WikiModal = ({ show, onClose }) => {
     entries.find((entry) => entry.id === selectedEntryId) ||
     filteredEntries[0];
 
+  // 选择条目时在移动端自动切换到内容视图
+  const handleSelectEntry = (entryId) => {
+    setSelectedEntryId(entryId);
+    setShowSidebar(false);
+  };
+
   if (!show) return null;
 
   return (
@@ -973,9 +980,9 @@ export const WikiModal = ({ show, onClose }) => {
           </button>
         </div>
 
-        <div className="flex flex-1 overflow-hidden">
-          {/* 侧边栏 - 移动端可滚动 */}
-          <aside className="w-full sm:w-72 border-r border-gray-800 bg-gray-900/60 flex flex-col overflow-y-auto sm:overflow-visible">
+        <div className="flex flex-1 overflow-hidden relative">
+          {/* 侧边栏 - 移动端条件显示 */}
+          <aside className={`${showSidebar ? 'flex' : 'hidden'} lg:flex w-full lg:w-72 border-r border-gray-800 bg-gray-900/60 flex-col overflow-y-auto absolute lg:relative inset-0 lg:inset-auto z-10`}>
             {/* 侧边栏分类按钮 - 移动端紧凑 */}
             <div className="grid grid-cols-2 gap-1 sm:gap-2 p-2 sm:p-4">
               {CATEGORY_CONFIG.map((category) => {
@@ -1029,7 +1036,7 @@ export const WikiModal = ({ show, onClose }) => {
                     <button
                       key={entry.id}
                       type="button"
-                      onClick={() => setSelectedEntryId(entry.id)}
+                      onClick={() => handleSelectEntry(entry.id)}
                       className={`w-full text-left px-2 sm:px-3 py-1.5 sm:py-2.5 rounded-lg sm:rounded-xl border transition-all ${
                         isActive
                           ? 'bg-indigo-900/30 border-indigo-500/40 shadow-sm'
@@ -1051,11 +1058,19 @@ export const WikiModal = ({ show, onClose }) => {
           </aside>
 
           {/* 内容区域 - 移动端全屏 */}
-          <section className="flex-1 flex flex-col bg-gray-900/30 overflow-hidden">
+          <section className={`${showSidebar ? 'hidden' : 'flex'} lg:flex flex-1 flex-col bg-gray-900/30 overflow-hidden`}>
             {selectedEntry ? (
               <>
-                {/* 头部 - 移动端紧凑 */}
+                {/* 头部 - 移动端紧凑，带返回按钮 */}
                 <div className="p-3 sm:p-6 border-b border-gray-800 bg-gray-800/20">
+                  {/* 移动端返回按钮 */}
+                  <button
+                    onClick={() => setShowSidebar(true)}
+                    className="lg:hidden mb-2 flex items-center gap-1 text-indigo-400 hover:text-indigo-300 text-xs"
+                  >
+                    <Icon name="ChevronLeft" size={14} />
+                    <span>返回目录</span>
+                  </button>
                   <div className="flex items-center gap-2 sm:gap-4">
                     <div className="p-2 sm:p-3 rounded-lg sm:rounded-2xl bg-gray-800 shadow-lg border border-gray-700">
                       <Icon name={selectedEntry.icon || 'Book'} size={20} className={`${selectedEntry.iconColor} sm:w-8 sm:h-8`} />
