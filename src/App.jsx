@@ -508,6 +508,8 @@ function GameApp({ gameState }) {
             gameState={gameState}
             onBuy={actions.buyBuilding}
             onSell={actions.sellBuilding}
+            taxPolicies={gameState.taxPolicies}
+            onUpdateTaxPolicies={gameState.setTaxPolicies}
           />        )}
       </BottomSheet>
 
@@ -531,6 +533,8 @@ function GameApp({ gameState }) {
             activeBuffs={gameState.activeBuffs}
             activeDebuffs={gameState.activeDebuffs}
             dayScale={gameState.gameSpeed}
+          taxPolicies={gameState.taxPolicies}
+          onUpdateTaxPolicies={gameState.setTaxPolicies}
             onClose={closeSheet}
           />
         )}
@@ -697,6 +701,8 @@ function GameApp({ gameState }) {
           army={gameState.army}
           history={gameState.history}
           onClose={() => gameState.setResourceDetailView(null)}
+          taxPolicies={gameState.taxPolicies}
+          onUpdateTaxPolicies={gameState.setTaxPolicies}
         />
       )}
 

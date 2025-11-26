@@ -2,6 +2,7 @@
 // 展示库存、市场趋势以及可视化的产业链信息
 
 import React, { useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Icon } from '../common/UIComponents';
 import { SimpleLineChart } from '../common/SimpleLineChart';
 import { RESOURCES, STRATA, BUILDINGS, UNIT_TYPES, INDUSTRY_CHAINS } from '../../config';
@@ -235,8 +236,11 @@ export const ResourceDetailModal = ({
   army = {},
   history = {},
   onClose,
+  taxPolicies,
+  onUpdateTaxPolicies,
 }) => {
   const [activeTab, setActiveTab] = useState(TAB_OPTIONS[0].id);
+  const [isAnimatingOut, setIsAnimatingOut] = useState(false);
   const resourceDef = RESOURCES[resourceKey];
   const isSilver = resourceKey === 'silver';
 
@@ -244,6 +248,26 @@ export const ResourceDetailModal = ({
     const history = market?.priceHistory?.[resourceKey];
     return history ? [...history] : [];
   }, [market, resourceKey]);
+
+  const [draftTaxRate, setDraftTaxRate] = useState(null);
+
+  const currentTaxRate = taxPolicies?.resourceTaxRates?.[resourceKey] ?? 0;
+
+  const handleTaxDraftChange = (raw) => {
+    setDraftTaxRate(raw);
+  };
+
+  const commitTaxDraft = () => {
+    if (draftTaxRate === null || !onUpdateTaxPolicies) return;
+    const parsed = parseFloat(draftTaxRate);
+    const numeric = Number.isNaN(parsed) ? 0 : parsed;
+    const rateValue = numeric / 100; // Convert percentage to decimal
+    onUpdateTaxPolicies(prev => ({
+      ...prev,
+      resourceTaxRates: { ...(prev?.resourceTaxRates || {}), [resourceKey]: rateValue },
+    }));
+    setDraftTaxRate(null);
+  };
 
   const supplyHistoryData = useMemo(() => {
     const history = market?.supplyHistory?.[resourceKey];
@@ -335,6 +359,15 @@ export const ResourceDetailModal = ({
 
   if (!resourceKey || !resourceDef) return null;
 
+  const handleClose = () => {
+    setIsAnimatingOut(true);
+    setTimeout(() => {
+      onClose();
+    }, 300);
+  };
+
+  const animationClass = isAnimatingOut ? 'animate-sheet-out' : 'animate-sheet-in';
+
   const treasuryHistory = history?.treasury || [];
   const taxHistory = history?.tax || [];
   const latestTreasury = treasuryHistory.length
@@ -361,66 +394,106 @@ export const ResourceDetailModal = ({
   const latestDemand = demandHistoryData[demandHistoryData.length - 1] ?? marketDemand;
   const activeTabMeta = TAB_OPTIONS.find(tab => tab.id === activeTab);
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4">
-      <div className="flex w-full max-w-6xl max-h-[92vh] flex-col overflow-hidden rounded-2xl border border-gray-700 bg-gray-900 shadow-2xl">
-        <div className="flex items-center justify-between border-b border-gray-800 bg-gradient-to-r from-gray-900 to-gray-800 p-6">
-          <div className="flex items-center gap-3">
-            <div className="rounded-2xl border border-gray-700 bg-gray-900/60 p-4">
-              <Icon name={resourceDef.icon} size={28} className={resourceDef.color} />
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex items-end justify-center lg:items-center">
+      {/* 遮罩层 */}
+      <div className="absolute inset-0 bg-black/70 animate-fade-in" onClick={handleClose}></div>
+
+      {/* 内容面板 */}
+      <div className={`relative w-full max-w-4xl bg-gray-800 border-t-2 lg:border-2 border-gray-700 rounded-t-2xl lg:rounded-2xl shadow-2xl flex flex-col max-h-[92vh] ${animationClass} lg:animate-slide-up`}>
+        {/* 头部 */}
+        <div className="flex-shrink-0 p-3 border-b border-gray-700 bg-gradient-to-r from-gray-900 to-gray-800">
+          <div className="flex items-center gap-2">
+            <div className="w-10 h-10 border border-gray-700 bg-gray-900/60 rounded-lg flex items-center justify-center flex-shrink-0">
+              <Icon name={resourceDef.icon} size={24} className={resourceDef.color} />
             </div>
-            <div>
-              <h2 className="text-2xl font-bold text-white">{resourceDef.name}</h2>
-              <p className="text-sm text-gray-400">
-                当前库存 {inventory.toFixed(1)} {isSilver ? '· 财政资源（非交易品）' : `· 市场价 ${marketPrice.toFixed(2)} 银币`}
+            <div className="flex-1 min-w-0">
+              <h2 className="text-base font-bold text-white leading-tight">{resourceDef.name}</h2>
+              <p className="text-[10px] text-gray-400 leading-tight truncate">
+                库存 {inventory.toFixed(1)} {isSilver ? '· 财政资源' : `· 价格 ${marketPrice.toFixed(2)}`}
               </p>
             </div>
+            <button onClick={handleClose} className="p-2 rounded-full hover:bg-gray-700 flex-shrink-0">
+              <Icon name="X" size={18} className="text-gray-400" />
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg p-2 text-gray-400 hover:bg-gray-800 hover:text-white"
-            aria-label="关闭"
-          >
-            <Icon name="X" size={20} />
-          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto">
           {isSilver ? (
-            <div className="space-y-6 p-6">
-              <div className="grid gap-4 md:grid-cols-3">
-                <div className="rounded-2xl border border-yellow-500/30 bg-yellow-500/5 p-4">
-                  <p className="text-xs uppercase tracking-wide text-yellow-300/80">国库银币</p>
-                  <p className="mt-2 text-3xl font-bold text-yellow-200">{latestTreasury.toFixed(0)}</p>
-                  <p className="mt-2 text-sm text-yellow-200/80">
-                    当前储备 {(resources[resourceKey] || 0).toFixed(0)}
+            <div className="space-y-3 p-3">
+              {/* 财政概览 */}
+              <div className="grid gap-2 grid-cols-2">
+                <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-2">
+                  <p className="text-[9px] uppercase tracking-wide text-yellow-300/80 leading-none">国库银币</p>
+                  <p className="mt-1 text-lg font-bold text-yellow-200 font-mono leading-none">{latestTreasury.toFixed(0)}</p>
+                  <p className="mt-1 text-[9px] text-yellow-200/80 leading-none">
+                    储备 {(resources[resourceKey] || 0).toFixed(0)}
                   </p>
                 </div>
-                <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4">
-                  <p className="text-xs uppercase tracking-wide text-emerald-300/80">每日税收</p>
-                  <p className="mt-2 text-3xl font-bold text-emerald-200">
+                <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-2">
+                  <p className="text-[9px] uppercase tracking-wide text-emerald-300/80 leading-none">每日税收</p>
+                  <p className="mt-1 text-lg font-bold text-emerald-200 font-mono leading-none">
                     {formatAmount(latestTax)}
                   </p>
-                  <p className="mt-2 text-sm text-emerald-200/80">最新估算净税额</p>
-                </div>
-                <div className="rounded-2xl border border-blue-500/30 bg-blue-500/5 p-4">
-                  <p className="text-xs uppercase tracking-wide text-blue-200/80">财政说明</p>
-                  <p className="mt-2 text-sm text-blue-100/80 leading-relaxed">
-                    银币为非交易资源，仅通过税收、事件和政策流动，下面的走势可帮助你判断财政稳定性。
-                  </p>
+                  <p className="mt-1 text-[9px] text-emerald-200/80 leading-none">净税额估算</p>
                 </div>
               </div>
-              <div className="grid gap-6 md:grid-cols-2">
-                <div className="rounded-2xl border border-gray-800 bg-gray-950/60 p-5">
-                  <div className="mb-4 flex items-center justify-between">
+              <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-2">
+                <p className="text-[9px] uppercase tracking-wide text-blue-200/80 leading-none mb-1">财政说明</p>
+                <p className="text-[10px] text-blue-100/80 leading-relaxed">
+                  银币为非交易资源，仅通过税收、事件和政策流动，下面的走势可帮助你判断财政稳定性。
+                </p>
+              </div>
+              {/* 交易税调整 */}
+              {!isSilver && onUpdateTaxPolicies && (
+                <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3">
+                  <p className="text-[9px] uppercase tracking-wide text-emerald-300/80 leading-none mb-2">交易税调整</p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      step="1"
+                      value={draftTaxRate ?? (currentTaxRate * 100).toFixed(0)}
+                      onChange={(e) => handleTaxDraftChange(e.target.value)}
+                      onBlur={commitTaxDraft}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          commitTaxDraft();
+                          e.target.blur();
+                        }
+                      }}
+                      className="w-24 bg-gray-800/70 border border-gray-600 text-sm text-gray-200 rounded px-2 py-1 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 text-center"
+                      placeholder="税率%"
+                    />
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-emerald-200">
+                        当前税率: {(currentTaxRate * 100).toFixed(0)}%
+                      </p>
+                      <p className="text-[10px] text-gray-400">
+                        对市场交易额征税。负数为补贴。
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-2">
+                <p className="text-[9px] uppercase tracking-wide text-blue-200/80 leading-none mb-1">财政说明</p>
+                <p className="text-[10px] text-blue-100/80 leading-relaxed">
+                  银币为非交易资源，仅通过税收、事件和政策流动，下面的走势可帮助你判断财政稳定性。
+                </p>
+              </div>
+              {/* 走势图 */}
+              <div className="space-y-2">
+                <div className="rounded-lg border border-gray-700 bg-gray-900/60 p-2">
+                  <div className="mb-2 flex items-center justify-between">
                     <div>
-                      <p className="text-xs uppercase tracking-wide text-gray-500">国库资金走势</p>
-                      <p className="text-xl font-semibold text-white">
+                      <p className="text-[9px] uppercase tracking-wide text-gray-500 leading-none">国库资金走势</p>
+                      <p className="text-sm font-semibold text-white leading-tight mt-0.5">
                         当前 {(resources[resourceKey] || 0).toFixed(0)} 银币
                       </p>
                     </div>
-                    <Icon name="Coins" className="text-yellow-200" />
+                    <Icon name="Coins" size={16} className="text-yellow-200" />
                   </div>
                   <SimpleLineChart
                     data={treasuryHistory}
@@ -428,15 +501,15 @@ export const ResourceDetailModal = ({
                     label="银币"
                   />
                 </div>
-                <div className="rounded-2xl border border-gray-800 bg-gray-950/60 p-5">
-                  <div className="mb-4 flex items-center justify-between">
+                <div className="rounded-lg border border-gray-700 bg-gray-900/60 p-2">
+                  <div className="mb-2 flex items-center justify-between">
                     <div>
-                      <p className="text-xs uppercase tracking-wide text-gray-500">每日净税收走势</p>
-                      <p className="text-xl font-semibold text-white">
+                      <p className="text-[9px] uppercase tracking-wide text-gray-500 leading-none">每日净税收走势</p>
+                      <p className="text-sm font-semibold text-white leading-tight mt-0.5">
                         当前 {formatAmount(latestTax)} / 日
                       </p>
                     </div>
-                    <Icon name="Activity" className="text-emerald-300" />
+                    <Icon name="Activity" size={16} className="text-emerald-300" />
                   </div>
                   <SimpleLineChart
                     data={taxHistory}
@@ -448,28 +521,66 @@ export const ResourceDetailModal = ({
             </div>
           ) : (
             <div className="flex h-full flex-col">
-              <div className="border-b border-gray-800 bg-gray-900/70 px-6 pt-4">
-            <div className="flex flex-wrap items-center gap-3">
-              {TAB_OPTIONS.map(tab => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  className={`rounded-full px-4 py-1.5 text-sm font-semibold ${
-                    tab.id === activeTab
-                      ? 'bg-emerald-500/20 text-emerald-300'
-                      : 'text-gray-400 hover:text-white'
-                  }`}
-                  onClick={() => setActiveTab(tab.id)}
-                >
-                  {tab.label}
-                </button>
-              ))}
-              {activeTabMeta && (
-                <span className="text-sm text-gray-500">{activeTabMeta.description}</span>
-              )}
-            </div>
+              {/* 标签页 */}
+              <div className="border-b border-gray-700 bg-gray-900/70 px-3 pt-2 flex-shrink-0">
+                <div className="flex items-center gap-2 overflow-x-auto pb-2">
+                  {TAB_OPTIONS.map(tab => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      className={`rounded-full px-3 py-1 text-[10px] font-semibold whitespace-nowrap ${
+                        tab.id === activeTab
+                          ? 'bg-emerald-500/20 text-emerald-300'
+                          : 'text-gray-400 hover:text-white'
+                      }`}
+                      onClick={() => setActiveTab(tab.id)}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+                {activeTabMeta && (
+                  <p className="text-[9px] text-gray-500 pb-1 leading-tight">{activeTabMeta.description}</p>
+                )}
               </div>
-              <div className="flex-1 space-y-6 p-6">
+              <div className="flex-1 space-y-3 p-3 overflow-y-auto">
+            {/* 交易税调整 - 非银币资源 */}
+            {!isSilver && onUpdateTaxPolicies && (
+              <div className="rounded-2xl border border-emerald-500/30 bg-emerald-950/40 p-4">
+                <p className="text-xs uppercase tracking-wide text-gray-500 mb-2">交易税调整</p>
+                <div className="flex items-center gap-4">
+                  <div className="flex-1">
+                    <input
+                      type="range"
+                      min="-100"
+                      max="200"
+                      step="1"
+                      value={draftTaxRate ?? (currentTaxRate * 100).toFixed(0)}
+                      onChange={(e) => handleTaxDraftChange(e.target.value)}
+                      onMouseUp={commitTaxDraft}
+                      onTouchEnd={commitTaxDraft}
+                      className="w-full accent-emerald-500"
+                    />
+                  </div>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={draftTaxRate ?? (currentTaxRate * 100).toFixed(0)}
+                    onChange={(e) => handleTaxDraftChange(e.target.value)}
+                    onBlur={commitTaxDraft}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        commitTaxDraft();
+                        e.target.blur();
+                      }
+                    }}
+                    className="w-20 bg-gray-800/70 border border-gray-600 text-lg font-mono text-gray-200 rounded-lg px-2 py-1 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 text-center"
+                  />
+                  <span className="text-lg font-semibold text-emerald-300">%</span>
+                </div>
+                <p className="text-xs text-gray-400 mt-2">对该资源的市场交易额征税。负数代表政府进行补贴。</p>
+              </div>
+            )}
             {activeTab === 'market' && (
               <div className="space-y-6">
                 <div className="grid gap-4 md:grid-cols-3">
@@ -787,6 +898,7 @@ export const ResourceDetailModal = ({
         )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

@@ -132,6 +132,10 @@ export const StatusBar = ({
               <span className={`font-mono ${netSilverClass} hidden sm:inline`}>
                 {netSilverPerDay >= 0 ? '+' : ''}{netSilverPerDay.toFixed(1)}
               </span>
+              {/* 移动端显示总税收 */}
+              <span className={`font-mono text-green-300 sm:hidden`}>
+                +{taxes.total.toFixed(1)}
+              </span>
             </button>
           </button>
 
@@ -196,13 +200,7 @@ export const StatusBar = ({
             <span className="text-[10px] text-amber-200 font-semibold">市场</span>
           </button>
 
-          {/* 更多资源按钮（移动端） */}
-          <button
-            onClick={() => setShowResourcesExpanded(!showResourcesExpanded)}
-            className="sm:hidden flex items-center justify-center w-8 h-8 bg-gray-800/40 rounded-full border border-gray-700/50 flex-shrink-0"
-          >
-            <Icon name={showResourcesExpanded ? 'ChevronUp' : 'ChevronDown'} size={16} />
-          </button>
+
           </div>
 
           {/* 右侧：游戏控制按钮（桌面端） */}
@@ -213,39 +211,7 @@ export const StatusBar = ({
           )}
         </div>
 
-        {/* 展开的资源列表（移动端） */}
-        {showResourcesExpanded && (
-          <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2 animate-slide-up relative z-[40]">
-            {visibleResources.map(([key, info]) => {
-              const amount = gameState.resources[key] || 0;
-              const rate = gameState.rates[key] || 0;
-              const price = gameState.market?.prices?.[key] ?? info.basePrice ?? 1;
-              
-              return (
-                <button
-                  key={key}
-                  onClick={() => onResourceDetailClick(key)}
-                  className="flex items-center justify-between bg-gray-800/60 backdrop-blur-sm px-2.5 py-2 rounded-lg border border-gray-700/50 hover:border-gray-600/70 transition-all"
-                >
-                  <div className="flex items-center gap-1.5">
-                    <Icon name={info.icon} size={14} className={info.color} />
-                    <span className="text-xs text-gray-300">{info.name}</span>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-mono text-xs font-bold text-white">
-                      {formatNumber(amount)}
-                    </div>
-                    {rate !== 0 && (
-                      <div className={`text-[10px] font-mono ${rate > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {rate > 0 ? '+' : ''}{rate.toFixed(1)}
-                      </div>
-                    )}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        )}
+ 
 
         {/* 税收详情弹窗 */}
         {showTaxDetail && (

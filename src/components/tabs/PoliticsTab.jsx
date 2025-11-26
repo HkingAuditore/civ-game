@@ -72,7 +72,7 @@ const ResourceTaxCard = ({ resourceKey, info, rate, hasSupply, draftRate, onDraf
       {/* 控制区：输入框 */}
       <input
         type="text"
-        inputMode="decimal"
+        inputMode="numeric"
         step="0.01"
         value={draftRate ?? ((currentRate * 100).toFixed(0))}
         onChange={(e) => onDraftChange(resourceKey, e.target.value)}

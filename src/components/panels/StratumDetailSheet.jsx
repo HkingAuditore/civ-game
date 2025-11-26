@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Icon } from '../common/UIComponents';
 import { STRATA, RESOURCES } from '../../config';
 import { formatEffectDetails } from '../../utils/effectFormatter';
@@ -19,10 +19,13 @@ export const StratumDetailSheet = ({
   activeBuffs = [],
   activeDebuffs = [],
   dayScale = 1,
+  taxPolicies,
+  onUpdateTaxPolicies,
   onClose,
 }) => {
   const safeDayScale = Math.max(dayScale, 0.0001);
   const stratum = STRATA[stratumKey];
+  const [draftMultiplier, setDraftMultiplier] = useState(null);
   
   if (!stratum) {
     return (
@@ -43,6 +46,26 @@ export const StratumDetailSheet = ({
   const expensePerCapita = totalExpense / Math.max(count, 1);
   const netIncomePerCapita = incomePerCapita - expensePerCapita;
   const shortages = classShortages[stratumKey] || [];
+  const headTaxMultiplier = taxPolicies?.headTaxRates?.[stratumKey] ?? 1;
+
+  const handleDraftChange = (raw) => {
+    setDraftMultiplier(raw);
+  };
+
+  const commitDraft = () => {
+    if (draftMultiplier === null || !onUpdateTaxPolicies) return;
+    const parsed = parseFloat(draftMultiplier);
+    const numeric = Number.isNaN(parsed) ? 1 : parsed; // 如果输入无效，重置为1
+    onUpdateTaxPolicies(prev => ({
+      ...prev,
+      headTaxRates: {
+        ...(prev?.headTaxRates || {}),
+        [stratumKey]: numeric,
+      },
+    }));
+    setDraftMultiplier(null);
+  };
+
 
   const getApprovalColor = (value) => {
     if (value >= 70) return 'text-green-400';
@@ -117,6 +140,49 @@ export const StratumDetailSheet = ({
           <div className="text-sm font-bold text-yellow-300 font-mono leading-none">{wealthValue.toFixed(0)}</div>
         </div>
       </div>
+
+      {/* 人头税调整 */}
+      {onUpdateTaxPolicies && (
+        <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
+          <h3 className="text-[10px] font-bold text-white mb-1.5 flex items-center gap-1">
+            <Icon name="Sliders" size={12} className="text-yellow-400" />
+            人头税调整
+          </h3>
+          <div className="grid grid-cols-2 gap-2 items-center">
+            <div>
+              <div className="text-[9px] text-gray-400 mb-0.5 leading-none">税率系数</div>
+              <input
+                type="text"
+                inputMode="decimal"
+                step="0.05"
+                value={draftMultiplier ?? headTaxMultiplier}
+                onChange={(e) => handleDraftChange(e.target.value)}
+                onBlur={commitDraft}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    commitDraft();
+                    e.target.blur();
+                  }
+                }}
+                className="w-full bg-gray-900/70 border border-gray-600 text-sm text-gray-200 rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
+                placeholder="税率系数"
+              />
+            </div>
+            <div>
+              <div className="text-[9px] text-gray-400 mb-0.5 leading-none">实际税额 (每人每日)</div>
+              <div className="bg-gray-800/50 rounded px-2 py-1.5 text-center">
+                <span className={`text-sm font-bold font-mono ${
+                  (stratum.headTaxBase * headTaxMultiplier) >= 0 ? 'text-yellow-300' : 'text-green-300'
+                }`}>
+                  {((stratum.headTaxBase || 0.01) * headTaxMultiplier).toFixed(3)}
+                </span>
+                <Icon name="Coins" size={12} className="inline-block ml-1 text-yellow-400" />
+              </div>
+            </div>
+          </div>
+          <p className="text-[10px] text-gray-500 mt-1.5">实际税额 = 阶层基准税额 × 税率系数。负数系数代表补贴。</p>
+        </div>
+      )}
 
       {/* 收支情况 */}
       <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
