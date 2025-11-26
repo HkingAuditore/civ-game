@@ -89,45 +89,27 @@ export const DiplomacyTab = ({
   };
 
   return (
-    <div className="space-y-4">
-      <div className="bg-indigo-900/20 border border-indigo-500/30 p-4 rounded-lg">
-        <div className="flex items-start gap-3">
-          <Icon name="Info" size={18} className="text-indigo-300 flex-shrink-0 mt-0.5" />
-          <div className="text-xs text-gray-200 space-y-1">
-            <p>
-              外交关系决定即时套利贸易与战争爆发。保持高关系可获取更低的进口成本，而敌对国家会主动宣战。
-            </p>
-            <p>
-              开战后可通过军事胜利累积战争分数，逼迫敌国赔款和平；若劣势，则需要支付银币才能脱身。
-            </p>
-          </div>
+    <div className="space-y-2">
+      {/* 精简的统计信息 - 仅在桌面端显示 */}
+      <div className="hidden md:flex gap-2 text-xs">
+        <div className="bg-gray-800/60 px-2 py-1 rounded border border-gray-700">
+          <span className="text-gray-400">国家:</span>
+          <span className="text-white font-bold ml-1">{visibleNations.length}</span>
+        </div>
+        <div className="bg-green-900/20 px-2 py-1 rounded border border-green-600/20">
+          <span className="text-gray-400">盟友:</span>
+          <span className="text-green-300 font-bold ml-1">{totalAllies}</span>
+        </div>
+        <div className="bg-red-900/20 px-2 py-1 rounded border border-red-600/30">
+          <span className="text-gray-400">战争:</span>
+          <span className="text-red-300 font-bold ml-1">{totalWars}</span>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="bg-gray-800/60 p-3 rounded border border-gray-700">
-          <p className="text-xs text-gray-400 mb-1">可见国家</p>
-          <p className="text-lg font-bold text-white">{visibleNations.length}</p>
-        </div>
-        <div className="bg-green-900/20 p-3 rounded border border-green-600/20">
-          <p className="text-xs text-gray-400 mb-1">盟友</p>
-          <p className="text-lg font-bold text-green-300">{totalAllies}</p>
-        </div>
-        <div className="bg-red-900/20 p-3 rounded border border-red-600/30">
-          <p className="text-xs text-gray-400 mb-1">战争中</p>
-          <p className="text-lg font-bold text-red-300">{totalWars}</p>
-        </div>
-        <div className="bg-blue-900/20 p-3 rounded border border-blue-600/30">
-          <p className="text-xs text-gray-400 mb-1">贸易套利金额</p>
-          <p className="text-lg font-bold text-blue-300">{tradeAmount}</p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 h-[400px] lg:h-[600px]">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-3 h-[calc(100vh-180px)] md:h-[600px]">
         <div className="bg-gray-800/40 rounded-lg border border-gray-700 flex flex-col overflow-hidden">
-          <div className="px-3 py-2 border-b border-gray-700/80 text-[11px] uppercase tracking-wide text-gray-400 flex items-center justify-between">
-            <span>国家列表</span>
-            <span className="text-gray-500 text-[10px]">点击行以查看详情</span>
+          <div className="px-2 py-1.5 border-b border-gray-700/80 text-[10px] uppercase tracking-wide text-gray-400">
+            国家列表
           </div>
           <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-900 hover:scrollbar-thumb-gray-500">
             {visibleNations.map((nation, idx) => {
@@ -137,112 +119,68 @@ export const DiplomacyTab = ({
                 <button
                   key={nation.id}
                   onClick={() => setSelectedNationId(nation.id)}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors border-b border-gray-700/60 focus:outline-none ${
-                    isSelected ? 'bg-blue-900/30' : 'hover:bg-gray-800/60'
+                  className={`w-full flex items-center gap-2 px-2 py-1.5 text-left transition-colors border-b border-gray-700/60 focus:outline-none ${
+                    isSelected ? 'bg-blue-900/30 border-l-2 border-l-blue-400' : 'hover:bg-gray-800/60'
                   } ${idx === visibleNations.length - 1 ? 'border-b-0' : ''}`}
-                  title={nation.desc}
                 >
-                  <div
-                    className={`w-10 h-10 rounded-full bg-gray-900/80 flex items-center justify-center border ${
-                      isSelected ? 'border-blue-400' : 'border-gray-700'
-                    }`}
-                  >
-                    <Icon name="Flag" size={16} className={nation.color || 'text-gray-300'} />
-                  </div>
+                  <Icon name="Flag" size={14} className={nation.color || 'text-gray-300'} />
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-white truncate">{nation.name}</span>
-                      <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${relation.bg} ${relation.color}`}>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-semibold text-white truncate">{nation.name}</span>
+                      <span className={`px-1 py-0.5 rounded text-[9px] ${relation.bg} ${relation.color}`}>
                         {relation.label}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2 text-[11px] text-gray-400">
-                      <span className="truncate">{nation.type}</span>
-                      <span>关系 {Math.round(nation.relation || 0)}</span>
-                    </div>
                   </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <span className={`text-xs font-mono ${relation.color}`}>{Math.round(nation.relation || 0)}</span>
-                    <Icon
-                      name={nation.isAtWar ? 'Swords' : 'ShieldCheck'}
-                      size={14}
-                      className={nation.isAtWar ? 'text-red-400' : 'text-green-400'}
-                    />
-                  </div>
+                  <Icon
+                    name={nation.isAtWar ? 'Swords' : 'ShieldCheck'}
+                    size={12}
+                    className={nation.isAtWar ? 'text-red-400' : 'text-green-400'}
+                  />
                 </button>
               );
             })}
             {visibleNations.length === 0 && (
-              <div className="p-4 text-sm text-gray-400">当前时代暂无可接触的国家。</div>
+              <div className="p-3 text-xs text-gray-400">当前时代暂无可接触的国家。</div>
             )}
           </div>
         </div>
 
-        <div className="xl:col-span-2 space-y-4 max-h-[400px] lg:max-h-[600px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500">
+        <div className="xl:col-span-2 space-y-2 max-h-[calc(100vh-180px)] md:max-h-[600px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500">
           {selectedNation ? (
             <>
-              <div className="bg-gray-800/60 p-4 rounded-lg border border-gray-700">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                      <Icon name="Globe" size={14} className="text-amber-300" />
-                      {selectedNation.name}
-                      {selectedRelation && (
-                        <span className={`px-2 py-0.5 text-[11px] rounded ${selectedRelation.bg} ${selectedRelation.color}`}>
-                          {selectedRelation.label}
-                        </span>
-                      )}
-                    </h3>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      {selectedNation.type} · 时代 {selectedNation.appearEpoch ?? 0}-{selectedNation.expireEpoch ?? '∞'}
-                    </p>
+              <div className="bg-gray-800/60 p-2 rounded-lg border border-gray-700">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <div className="flex items-center gap-1.5">
+                    <Icon name="Globe" size={14} className="text-amber-300" />
+                    <h3 className="text-sm font-bold text-white">{selectedNation.name}</h3>
+                    {selectedRelation && (
+                      <span className={`px-1.5 py-0.5 text-[9px] rounded ${selectedRelation.bg} ${selectedRelation.color}`}>
+                        {selectedRelation.label}
+                      </span>
+                    )}
                   </div>
-                  <div className="flex items-center gap-1 text-xs font-semibold">
-                    <Icon
-                      name={selectedNation.isAtWar ? 'Swords' : 'ShieldCheck'}
-                      size={14}
-                      className={selectedNation.isAtWar ? 'text-red-400' : 'text-green-400'}
-                    />
-                    <span className={selectedNation.isAtWar ? 'text-red-300' : 'text-green-300'}>
-                      {selectedNation.isAtWar ? '战争状态' : '和平状态'}
-                    </span>
-                  </div>
+                  <Icon
+                    name={selectedNation.isAtWar ? 'Swords' : 'ShieldCheck'}
+                    size={14}
+                    className={selectedNation.isAtWar ? 'text-red-400' : 'text-green-400'}
+                  />
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3 text-xs">
-                  <div className="bg-gray-900/40 rounded p-2">
-                    <p className="text-gray-400">关系</p>
-                    <p className={`text-lg font-bold ${selectedRelation?.color ?? 'text-white'}`}>
-                      {Math.round(selectedNation.relation || 0)}
-                    </p>
-                  </div>
-                  <div className="bg-gray-900/40 rounded p-2">
-                    <p className="text-gray-400">财富</p>
-                    <p className="text-white font-mono">{Math.floor(selectedNation.wealth || 0)}</p>
-                  </div>
-                  <div className="bg-gray-900/40 rounded p-2">
-                    <p className="text-gray-400">市场波动</p>
-                    <p className="text-white font-mono">{(selectedNation.marketVolatility || 0).toFixed(2)}</p>
-                  </div>
-                  <div className="bg-gray-900/40 rounded p-2">
-                    <p className="text-gray-400">侵略性</p>
-                    <p className="text-white font-mono">{(selectedNation.aggression || 0).toFixed(2)}</p>
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-2 mt-3 text-xs">
+                <div className="flex gap-1.5 text-xs">
                   <button
-                    className="px-3 py-1.5 bg-green-600 hover:bg-green-500 rounded text-white flex items-center justify-center gap-1"
+                    className="flex-1 px-2 py-1.5 bg-green-600 hover:bg-green-500 rounded text-white flex items-center justify-center gap-1"
                     onClick={() => handleSimpleAction(selectedNation.id, 'gift')}
                   >
                     <Icon name="Gift" size={12} /> 礼物
                   </button>
                   <button
-                    className="px-3 py-1.5 bg-yellow-600 hover:bg-yellow-500 rounded text-white flex items-center justify-center gap-1"
+                    className="flex-1 px-2 py-1.5 bg-yellow-600 hover:bg-yellow-500 rounded text-white flex items-center justify-center gap-1"
                     onClick={() => handleSimpleAction(selectedNation.id, 'demand')}
                   >
                     <Icon name="ShieldAlert" size={12} /> 索要
                   </button>
                   <button
-                    className={`px-3 py-1.5 rounded text-white flex items-center justify-center gap-1 ${
+                    className={`flex-1 px-2 py-1.5 rounded text-white flex items-center justify-center gap-1 ${
                       selectedNation.isAtWar ? 'bg-purple-600 hover:bg-purple-500' : 'bg-red-600 hover:bg-red-500'
                     }`}
                     onClick={() =>
@@ -255,167 +193,108 @@ export const DiplomacyTab = ({
                 </div>
               </div>
 
-              <div className="bg-gray-800/60 p-4 rounded-lg border border-gray-700">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                    <Icon name="BarChart" size={14} className="text-blue-300" />
-                    即时套利贸易 · {selectedNation.name}
+              <div className="bg-gray-800/60 p-2 rounded-lg border border-gray-700">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-xs font-bold text-white flex items-center gap-1">
+                    <Icon name="BarChart" size={12} className="text-blue-300" />
+                    即时套利贸易
                   </h3>
-                  <div className="flex items-center gap-2 text-xs text-gray-400">
+                  <div className="flex items-center gap-1 text-[10px] text-gray-400">
                     <span>批量</span>
                     <input
                       type="number"
                       min="1"
-                      className="w-16 bg-gray-900/70 border border-gray-700 rounded px-2 py-0.5 text-right text-white"
+                      className="w-12 bg-gray-900/70 border border-gray-700 rounded px-1 py-0.5 text-right text-white text-[10px]"
                       value={tradeAmount}
                       onChange={(e) => setTradeAmount(Math.max(1, Number(e.target.value) || 1))}
                     />
                   </div>
                 </div>
-                <div className="-mx-4">
-                  <table className="w-full text-xs text-gray-300">
-                    <thead>
-                      <tr className="text-gray-400 text-[10px]">
-                        <th className="text-left py-1 px-1">资源</th>
-                        <th className="text-left py-1 px-1">对方库存</th>
-                        <th className="text-left py-1 px-1">缺口/盈余</th>
-                        <th className="text-left py-1 px-1">本地价</th>
-                        <th className="text-left py-1 px-1">外国价</th>
-                        <th className="text-left py-1 px-1">差价</th>
-                        <th className="text-right py-1 px-1 w-[120px]">操作</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {tradableResources.map(([key, res]) => {
-                        const local = getLocalPrice(key);
-                        const foreign = calculateForeignPrice(key, selectedNation, daysElapsed);
-                        const diff = foreign - local;
-                        const profitable = diff > 0;
-                        const nationInventory = (selectedNation.inventory || {})[key] || 0;
-                        const tradeStatus = calculateTradeStatus(key, selectedNation, daysElapsed);
-                        const shortageCapacity = Math.floor(tradeStatus.shortageAmount);
-                        const surplusCapacity = Math.floor(tradeStatus.surplusAmount);
-                        const canExport = tradeStatus.isShortage && shortageCapacity > 0;
-                        const canImport = tradeStatus.isSurplus && surplusCapacity > 0;
-                        const inventoryClass = tradeStatus.isShortage
-                          ? 'text-red-400'
-                          : tradeStatus.isSurplus
-                          ? 'text-green-400'
-                          : 'text-gray-400';
-                        
-                        return (
-                          <tr key={key} className="border-t border-gray-700/50 hover:bg-gray-700/30">
-                            <td className="py-1 px-1">{res.name}</td>
-                            <td className="py-1 px-1">
-                              <div className="flex flex-col leading-tight">
-                                <span className={`font-mono ${inventoryClass}`}>
-                                  {nationInventory.toFixed(0)}
-                                </span>
-                                <span className="text-[10px] text-gray-500">
-                                  (目标: {Math.round(tradeStatus.target)})
-                                </span>
-                              </div>
-                            </td>
-                            <td className="py-1 px-1">
-                              {tradeStatus.isShortage && shortageCapacity > 0 && (
-                                <span className="text-red-400 font-mono text-[11px]">
-                                  缺口: {shortageCapacity}
-                                </span>
-                              )}
-                              {tradeStatus.isSurplus && surplusCapacity > 0 && (
-                                <span className="text-green-400 font-mono text-[11px]">
-                                  盈余: {surplusCapacity}
-                                </span>
-                              )}
-                              {!tradeStatus.isShortage && !tradeStatus.isSurplus && (
-                                <span className="text-gray-500 text-[11px]">-</span>
-                              )}
-                            </td>
-                            <td className="py-1 px-1 text-gray-400 font-mono">{local.toFixed(2)}</td>
-                            <td
-                              className={`py-1 px-1 ${
-                                profitable ? 'text-green-300' : 'text-red-300'
-                              } font-mono`}
-                            >
-                              {foreign.toFixed(2)}
-                            </td>
-                            <td
-                              className={`py-1 px-1 font-mono ${
-                                profitable ? 'text-green-400' : 'text-red-400'
-                              }`}
-                            >
-                              {diff >= 0 ? '+' : ''}
-                              {diff.toFixed(2)}
-                            </td>
-                            <td className="py-1 px-1 text-right">
-                              <div className="flex items-center gap-1 justify-end">
-                                <button
-                                  className="px-1.5 py-0.5 bg-teal-600 hover:bg-teal-500 rounded text-white flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-                                  onClick={() => handleTrade(key, false)}
-                                  disabled={!canExport}
-                                  title={canExport ? "对方有缺口，可以出口" : "对方无缺口，无法出口"}
-                                >
-                                  <Icon name="ArrowUpRight" size={12} /> 出口
-                                </button>
-                                <button
-                                  className="px-1.5 py-0.5 bg-purple-600 hover:bg-purple-500 rounded text-white flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-                                  onClick={() => handleTrade(key, true)}
-                                  disabled={!canImport}
-                                  title={canImport ? "对方有盈余，可以进口" : "对方无盈余，无法进口"}
-                                >
-                                  <Icon name="ArrowDownLeft" size={12} /> 进口
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                <div className="space-y-1">
+                  {tradableResources.map(([key, res]) => {
+                    const local = getLocalPrice(key);
+                    const foreign = calculateForeignPrice(key, selectedNation, daysElapsed);
+                    const diff = foreign - local;
+                    const profitable = diff > 0;
+                    const nationInventory = (selectedNation.inventory || {})[key] || 0;
+                    const tradeStatus = calculateTradeStatus(key, selectedNation, daysElapsed);
+                    const shortageCapacity = Math.floor(tradeStatus.shortageAmount);
+                    const surplusCapacity = Math.floor(tradeStatus.surplusAmount);
+                    const canExport = tradeStatus.isShortage && shortageCapacity > 0;
+                    const canImport = tradeStatus.isSurplus && surplusCapacity > 0;
+                    
+                    // 如果既不能出口也不能进口，则不显示该资源
+                    if (!canExport && !canImport) return null;
+                    
+                    return (
+                      <div key={key} className="bg-gray-900/40 rounded p-1.5 border border-gray-700/50">
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-1.5">
+                            <Icon name={res.icon || 'Box'} size={12} className={res.color || 'text-gray-400'} />
+                            <span className="text-xs font-semibold text-white">{res.name}</span>
+                          </div>
+                          <div className="flex items-center gap-1 text-[10px]">
+                            {tradeStatus.isShortage && (
+                              <span className="text-red-400 font-mono">缺{shortageCapacity}</span>
+                            )}
+                            {tradeStatus.isSurplus && (
+                              <span className="text-green-400 font-mono">余{surplusCapacity}</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between text-[10px]">
+                          <div className="flex gap-2 text-gray-400">
+                            <span>本地: <span className="text-white font-mono">{local.toFixed(1)}</span></span>
+                            <span>外国: <span className={`font-mono ${profitable ? 'text-green-300' : 'text-red-300'}`}>{foreign.toFixed(1)}</span></span>
+                            <span className={`font-mono ${profitable ? 'text-green-400' : 'text-red-400'}`}>
+                              {diff >= 0 ? '+' : ''}{diff.toFixed(1)}
+                            </span>
+                          </div>
+                          <div className="flex gap-1">
+                            {canExport && (
+                              <button
+                                className="px-1.5 py-0.5 bg-teal-600 hover:bg-teal-500 rounded text-white flex items-center gap-0.5"
+                                onClick={() => handleTrade(key, false)}
+                              >
+                                <Icon name="ArrowUpRight" size={10} /> 出口
+                              </button>
+                            )}
+                            {canImport && (
+                              <button
+                                className="px-1.5 py-0.5 bg-purple-600 hover:bg-purple-500 rounded text-white flex items-center gap-0.5"
+                                onClick={() => handleTrade(key, true)}
+                              >
+                                <Icon name="ArrowDownLeft" size={10} /> 进口
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
               {selectedNation.isAtWar && (
-                <div className="bg-gray-800/60 p-4 rounded-lg border border-gray-700">
-                  <h3 className="text-sm font-bold text-white flex items-center gap-2 mb-2">
-                    <Icon name="AlertTriangle" size={14} className="text-red-300" />
-                    和平谈判 · {selectedNation.name}
+                <div className="bg-red-900/20 p-2 rounded-lg border border-red-600/30">
+                  <h3 className="text-xs font-bold text-white flex items-center gap-1 mb-1.5">
+                    <Icon name="AlertTriangle" size={12} className="text-red-300" />
+                    战争状态
                   </h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-gray-300">
-                    <div className="bg-red-900/20 p-2 rounded border border-red-600/30">
-                      <p className="text-gray-400">战争分数</p>
-                      <p className="text-lg font-bold text-red-300">
-                        {selectedNation.warScore?.toFixed(0) || 0}
-                      </p>
-                    </div>
-                    <div className="bg-gray-900/40 p-2 rounded border border-gray-700">
-                      <p className="text-gray-400">持续天数</p>
-                      <p className="text-lg font-bold text-white">
-                        {selectedNation.warDuration || 0}
-                      </p>
-                    </div>
-                    <div className="bg-gray-900/40 p-2 rounded border border-gray-700">
-                      <p className="text-gray-400">敌军损失</p>
-                      <p className="text-lg font-bold text-white">
-                        {selectedNation.enemyLosses || 0}
-                      </p>
-                    </div>
-                    <div className="bg-gray-900/40 p-2 rounded border border-gray-700">
-                      <p className="text-gray-400">剩余财富</p>
-                      <p className="text-lg font-bold text-white">
-                        {Math.floor(selectedNation.wealth || 0)}
-                      </p>
+                  <div className="flex items-center justify-between text-[10px] mb-1.5">
+                    <div className="flex gap-2 text-gray-300">
+                      <span>分数: <span className="text-red-300 font-bold">{selectedNation.warScore?.toFixed(0) || 0}</span></span>
+                      <span>天数: <span className="text-white font-bold">{selectedNation.warDuration || 0}</span></span>
+                      <span>损失: <span className="text-white font-bold">{selectedNation.enemyLosses || 0}</span></span>
                     </div>
                   </div>
-                  <p className="text-xs text-gray-400 mt-2">{renderPeaceHint(selectedNation)}</p>
-                  <div className="flex flex-wrap gap-2 mt-3">
-                    <button
-                      className="px-3 py-2 bg-red-600 hover:bg-red-500 text-white rounded text-xs font-semibold"
-                      onClick={() => handleSimpleAction(selectedNation.id, 'peace')}
-                    >
-                      提出和平协议
-                    </button>
-                  </div>
+                  <p className="text-[10px] text-gray-400 mb-1.5">{renderPeaceHint(selectedNation)}</p>
+                  <button
+                    className="w-full px-2 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded text-xs font-semibold"
+                    onClick={() => handleSimpleAction(selectedNation.id, 'peace')}
+                  >
+                    提出和平协议
+                  </button>
                 </div>
               )}
             </>
