@@ -2,22 +2,26 @@
 // 使用拆分后的钩子和组件，保持代码简洁
 
 import React, { useEffect, useRef, useState } from 'react';
-import { GAME_SPEEDS, EPOCHS, RESOURCES, STRATA, calculateArmyFoodNeed } from './config';
+import { GAME_SPEEDS, EPOCHS, RESOURCES, STRATA, calculateArmyFoodNeed, BUILDINGS } from './config';
 import { getCalendarInfo } from './utils/calendar';
 import { useGameState, useGameLoop, useGameActions } from './hooks';
 import {
   Icon,
-  FloatingText,
-  StatusBar,
-  BottomNav,
-  GameControls,
-  ResourcePanel,
+  FloatingText
+} from './components/common/UIComponents';
+import { StatusBar } from './components/layout/StatusBar';
+import { BottomNav } from './components/layout/BottomNav';
+import { GameControls } from './components/layout/GameControls';
+import { BottomSheet } from './components/tabs/BottomSheet';
+import { BuildingDetails } from './components/tabs/BuildingDetails';
+import {
   StrataPanel,
   LogPanel,
   SettingsPanel,
   EmpireScene,
   BuildTab,
   MilitaryTab,
+  ResourcePanel,
   TechTab,
   PoliticsTab,
   DiplomacyTab,
@@ -34,27 +38,9 @@ import {
  * 文明崛起主应用组件
  * 整合所有游戏系统和UI组件
  */
-export default function RiseOfCivs() {
+export default function App() {
   // 使用自定义钩子管理状态
   const gameState = useGameState();
-  
-  // 添加日志函数
-  const addLog = (msg) => {
-    if (gameState?.setLogs) {
-      gameState.setLogs(prev => [msg, ...prev].slice(0, 8));
-    }
-  };
-  
-  // 使用游戏循环钩子（必须在所有条件判断之前调用）
-  useGameLoop(gameState, addLog);
-  
-  // 使用操作函数钩子（必须在所有条件判断之前调用）
-  const actions = useGameActions(gameState, addLog);
-  
-  // UI 状态管理（必须在所有条件判断之前调用）
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isWikiOpen, setIsWikiOpen] = useState(false);
-  const [showEmpireScene, setShowEmpireScene] = useState(false); // 移动端EmpireScene折叠状态
   
   // 调试：检查gameState是否正确初始化（所有 Hooks 调用完毕后再进行条件判断）
   if (!gameState) {
@@ -67,6 +53,31 @@ export default function RiseOfCivs() {
     </div>;
   }
   
+  // 将所有依赖 gameState 的逻辑移到这个组件中
+  return <GameApp gameState={gameState} />;
+}
+
+/**
+ * 游戏主应用渲染组件
+ * 仅在 gameState 初始化成功后渲染
+ */
+function GameApp({ gameState }) {
+  // 添加日志函数
+  const addLog = (msg) => {
+    if (gameState?.setLogs) {
+      gameState.setLogs(prev => [msg, ...prev].slice(0, 8));
+    }
+  };
+
+  // 现在 gameState 肯定存在，可以安全调用这些钩子
+  useGameLoop(gameState, addLog);
+  const actions = useGameActions(gameState, addLog);
+
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isWikiOpen, setIsWikiOpen] = useState(false);
+  const [showEmpireScene, setShowEmpireScene] = useState(false);
+  const [activeSheet, setActiveSheet] = useState({ type: null, data: null });
+
   // 处理庆典效果选择
   const handleFestivalSelect = (selectedEffect) => {
     if (!selectedEffect) return;
@@ -122,6 +133,17 @@ export default function RiseOfCivs() {
       silver: (prev.silver || 0) + 1 
     }));
   };
+
+  // 新增：处理显示建筑详情的函数
+  const handleShowBuildingDetails = (buildingId) => {
+    const building = BUILDINGS.find(b => b.id === buildingId);
+    if (building) {
+      setActiveSheet({ type: 'building', data: building });
+    }
+  };
+
+  // 新增：关闭 BottomSheet 的函数
+  const closeSheet = () => setActiveSheet({ type: null, data: null });
 
   // 计算税收和军队相关数据
   const taxes = gameState.taxes || { total: 0, breakdown: { headTax: 0, industryTax: 0, subsidy: 0 }, efficiency: 1 };
@@ -260,7 +282,7 @@ export default function RiseOfCivs() {
           </aside>
 
           {/* 中间内容区 - 主操作面板 */}
-          <section className="lg:col-span-8 space-y-3 sm:space-y-4 order-1 lg:order-2">
+          <section className="lg:col-span-8 space-y-3 sm:space-y-4 order-1 lg:order-2 relative z-10">
           {/* 移动端：快速信息面板（紧凑设计） */}
             <div className="lg:hidden space-y-2">
               {/* 帝国场景卡片（可折叠） */}
@@ -422,6 +444,7 @@ export default function RiseOfCivs() {
                   onBuy={actions.buyBuilding}
                   onSell={actions.sellBuilding}
                   market={gameState.market}
+                  onShowDetails={handleShowBuildingDetails} // 补上缺失的 onShowDetails 属性
                 />
               )}
 
@@ -514,32 +537,32 @@ export default function RiseOfCivs() {
                 <Icon name="Lightbulb" size={14} />
                 统治指南
               </h4>
-              <p>• <span className="text-white">阶层即兵源与劳力</span>：岗位由建筑创造，人口自动填补并转化为对应阶层，留意阶层需求免得怠工。</p>
-              <p>• <span className="text-white">行政容量 vs 行政压力</span>：行政容量代表政府能处理的事务上限，行政压力则是当前消耗；若压力超过容量，税收与政策效率都会下降，记得通过建筑、科技或政令提升容量。</p>
-              <p>• <span className="text-white">银币驱动经济</span>：绝大多数资源都在市场流通，你的仓库存货来自用银币在当前价格买入，银币短缺会导致供应断档。</p>
-              <p>• <span className="text-white">掌控节奏</span>：在研究、政令、外交之间保持平衡，时代升级前先确保文化与行政容量足够，避免管理崩溃。</p>
+              <p>• <span className="text-white">市场是经济核心</span>：所有资源（除银币）都在市场流通。建筑产出资源会增加市场供应，而阶层与军队消耗资源会增加市场需求。供需关系决定价格，价格反过来影响阶层财富和国家税收。</p>
+              <p>• <span className="text-white">国库与库存</span>：你的国库只储存银币。所有建设、研究、招募所需的资源，若库存不足，都会<span className="text-yellow-300">自动消耗银币</span>从市场按当前价格购买。因此，银币是维持国家运转的命脉。</p>
+              <p>• <span className="text-white">三大税收来源</span>：在【政令】面板调整税率。<b>人头税</b>直接向各阶层收税，但会降低其财富和满意度；<b>交易税</b>对市场上的资源交易抽成，高价商品是主要税源；<b>营业税</b>对建筑每次产出征税，可精准打击高利润产业。</p>
+              <p>• <span className="text-white">补贴亦是工具</span>：将税率设为负数即为补贴。补贴可以扶持关键产业、提升阶层满意度或压低某种生活必需品的价格，是重要的宏观调控手段。</p>
             </div>
 
             <div className="bg-emerald-900/20 backdrop-blur-sm border border-emerald-500/20 p-4 rounded-xl text-xs text-gray-200 space-y-3 shadow-md">
               <h4 className="font-bold text-emerald-300 flex items-center gap-2">
                 <Icon name="BookOpen" size={14} />
-                新手教程
+                新手入门
               </h4>
               <div className="space-y-1">
-                <p className="text-white font-semibold">1. 稳固开局</p>
-                <p>在【建设】面板先补足农田与伐木场，保持粮食与木材正增长，同时关注人口上限。</p>
+                <p className="text-white font-semibold">1. 理解市场与银币</p>
+                <p>你的首要目标是<span className="text-yellow-300">确保银币正增长</span>。点击顶部的银币收入，查看税收详情。初期税收主要来自人头税。记住，所有非银币资源都通过市场交易，你的任何消耗都会自动花费银币购买。</p>
               </div>
               <div className="space-y-1">
-                <p className="text-white font-semibold">2. 了解市场</p>
-                <p>查看右下角的市场价格，记住：<span className="text-white">所有实物资源都在市场</span>，你的仓库只是用银币按价格买来的存货。每当建造、生产或研究需要材料时，系统会自动消耗库存；若库存不足，就会立刻用银币在市场补货。</p>
+                <p className="text-white font-semibold">2. 调整税收</p>
+                <p>前往【政令】面板的<span className="text-green-300">税收政策</span>。初期可适当提高富裕阶层（如地主）的<span className="text-white">人头税系数</span>来增加收入。观察顶部的银币净收入变化，找到平衡点，避免过度压榨导致阶层财富下降。</p>
               </div>
               <div className="space-y-1">
-                <p className="text-white font-semibold">3. 推进科技与时代</p>
-                <p>用图书馆产生科研，研究能解锁新建筑与增益；满足时代要求后支付资源和银币升级，新的外交对手与产业链也会出现。</p>
+                <p className="text-white font-semibold">3. 发展产业链</p>
+                <p>建设【工业】建筑（如砖厂、工具铺）来生产高价值商品。这不仅能满足后续发展需要，还能通过<span className="text-white">交易税</span>和<span className="text-white">营业税</span>创造巨额财政收入。高价商品是你的主要税基。</p>
               </div>
               <div className="space-y-1">
-                <p className="text-white font-semibold">4. 调整政令与外交</p>
-                <p>政令提供强大但有代价的加成，记得观察阶层好感；通过外交或贸易获取稀缺资源，比盲目扩军更省成本。</p>
+                <p className="text-white font-semibold">4. 关注阶层需求</p>
+                <p>点击左侧的阶层可以查看详情。满足他们的<span className="text-blue-300">消费需求</span>能提升其财富和满意度，从而让你能征收更多的税。例如，为工匠提供啤酒和家具，他们会变得更富有，你的人头税收入也会随之增加。</p>
               </div>
             </div>
           </aside>
@@ -552,6 +575,22 @@ export default function RiseOfCivs() {
         onTabChange={(tab) => gameState.setActiveTab(tab)}
         epoch={gameState.epoch}
       />
+
+      {/* 渲染 BottomSheet/Modal */}
+      <BottomSheet
+        isOpen={activeSheet.type === 'building'}
+        onClose={closeSheet}
+        title={activeSheet.data?.name || '建筑详情'}
+        showHeader={false}
+      >
+        {activeSheet.type === 'building' && (
+          <BuildingDetails 
+            building={activeSheet.data} 
+            gameState={gameState}
+            onBuy={actions.buyBuilding}
+            onSell={actions.sellBuilding}
+          />        )}
+      </BottomSheet>
 
       {/* 战斗结果模态框 */}
       {gameState.battleResult && (

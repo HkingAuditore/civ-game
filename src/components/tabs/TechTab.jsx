@@ -1,7 +1,8 @@
 // 科技标签页组件
 // 显示科技树和时代升级功能
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Icon } from '../common/UIComponents';
 import { TECHS, EPOCHS, BUILDINGS } from '../../config';
 import { RESOURCES } from '../../config';
@@ -34,6 +35,77 @@ const TECH_BUILDING_UNLOCKS = BUILDINGS.reduce((acc, building) => {
 }, {});
 
 /**
+ * 科技悬浮提示框 (使用 Portal)
+ */
+const TechTooltip = ({ tech, status, resources, market, anchorElement }) => {
+  if (!tech || !anchorElement) return null;
+
+  const [position, setPosition] = useState({ top: 0, left: 0 });
+  const tooltipRef = useRef(null);
+
+  useEffect(() => {
+    if (anchorElement && tooltipRef.current) {
+      const anchorRect = anchorElement.getBoundingClientRect();
+      const tooltipRect = tooltipRef.current.getBoundingClientRect();
+      
+      let top = anchorRect.top;
+      let left = anchorRect.right + 8; // 默认在右侧
+
+      // 如果右侧空间不足，则显示在左侧
+      if (left + tooltipRect.width > window.innerWidth) {
+        left = anchorRect.left - tooltipRect.width - 8;
+      }
+
+      // 确保不会超出窗口顶部
+      if (top < 0) top = 0;
+      // 确保不会超出窗口底部
+      if (top + tooltipRect.height > window.innerHeight) {
+        top = window.innerHeight - tooltipRect.height;
+      }
+
+      setPosition({ top, left });
+    }
+  }, [anchorElement]);
+
+  const silverCost = calculateSilverCost(tech.cost, market);
+
+  return createPortal(
+    <div
+      ref={tooltipRef}
+      className="fixed w-80 bg-gray-800 border border-gray-600 rounded-lg shadow-2xl p-3 z-[9999] pointer-events-none animate-fade-in-fast"
+      style={{ top: `${position.top}px`, left: `${position.left}px` }}
+    >
+      <h5 className="text-sm font-bold text-white mb-1 flex items-center gap-1">
+        {tech.name}
+        {status === 'unlocked' && <Icon name="Check" size={14} className="text-green-400" />}
+      </h5>
+      <p className="text-xs text-gray-400 mb-2">{tech.desc}</p>
+
+      {tech.effect && <div className="bg-blue-900/30 rounded px-2 py-1.5 mb-2"><div className="text-[10px] text-gray-400 mb-1">特殊效果</div><p className="text-xs text-blue-300">{tech.effect}</p></div>}
+
+      {TECH_BUILDING_UNLOCKS[tech.id]?.length > 0 && <div className="bg-amber-900/30 rounded px-2 py-1.5 mb-2"><div className="text-[10px] text-gray-400 mb-1">解锁建筑</div><p className="text-xs text-amber-300">{TECH_BUILDING_UNLOCKS[tech.id].join('、')}</p></div>}
+
+      {status !== 'unlocked' && (
+        <div className="bg-gray-900/50 rounded px-2 py-1.5">
+          <div className="text-[10px] text-gray-400 mb-1">研究成本</div>
+          {Object.entries(tech.cost).map(([resource, cost]) => (
+            <div key={resource} className="flex justify-between text-xs">
+              <span className="text-gray-300">{RESOURCES[resource]?.name || resource}</span>
+              <span className={(resources[resource] || 0) >= cost ? 'text-green-400' : 'text-red-400'}>{cost} ({resources[resource] || 0})</span>
+            </div>
+          ))}
+          <div className="flex justify-between text-xs pt-1 border-t border-gray-700 mt-1">
+            <span className="text-gray-300">总计</span>
+            <span className={(resources.silver || 0) >= silverCost ? 'text-green-400' : 'text-red-400'}>{formatSilverCost(silverCost)}</span>
+          </div>
+        </div>
+      )}
+    </div>,
+    document.body
+  );
+};
+
+/**
  * 科技标签页组件
  * 显示科技树和时代升级
  * @param {Array} techsUnlocked - 已解锁的科技数组
@@ -54,6 +126,8 @@ export const TechTab = ({
   canUpgradeEpoch,
   market,
 }) => {
+  const [hoveredTech, setHoveredTech] = useState({ tech: null, element: null });
+
   /**
    * 检查科技是否可研究
    * @param {Object} tech - 科技对象
@@ -390,6 +464,8 @@ export const TechTab = ({
                           return (
                             <div
                               key={tech.id}
+                              onMouseEnter={(e) => setHoveredTech({ tech, element: e.currentTarget })}
+                              onMouseLeave={() => setHoveredTech({ tech: null, element: null })}
                               className={`group relative p-2 rounded-lg border transition-all ${
                                 status === 'unlocked'
                                   ? 'bg-green-900/20 border-green-600'
@@ -449,53 +525,6 @@ export const TechTab = ({
                                   </div>
                                 </button>
                               )}
-
-                              {/* 悬停显示详细信息 - 桌面端 */}
-                              <div className="hidden lg:block absolute left-full top-0 ml-2 w-80 bg-gray-800 border border-gray-600 rounded-lg shadow-2xl p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none">
-                                <h5 className="text-sm font-bold text-white mb-1 flex items-center gap-1">
-                                  {tech.name}
-                                  {status === 'unlocked' && (
-                                    <Icon name="Check" size={14} className="text-green-400" />
-                                  )}
-                                </h5>
-                                <p className="text-xs text-gray-400 mb-2">{tech.desc}</p>
-
-                                {tech.effect && (
-                                  <div className="bg-blue-900/30 rounded px-2 py-1.5 mb-2">
-                                    <div className="text-[10px] text-gray-400 mb-1">特殊效果</div>
-                                    <p className="text-xs text-blue-300">{tech.effect}</p>
-                                  </div>
-                                )}
-
-                                {TECH_BUILDING_UNLOCKS[tech.id]?.length > 0 && (
-                                  <div className="bg-amber-900/30 rounded px-2 py-1.5 mb-2">
-                                    <div className="text-[10px] text-gray-400 mb-1">解锁建筑</div>
-                                    <p className="text-xs text-amber-300">
-                                      {TECH_BUILDING_UNLOCKS[tech.id].join('、')}
-                                    </p>
-                                  </div>
-                                )}
-
-                                {status !== 'unlocked' && (
-                                  <div className="bg-gray-900/50 rounded px-2 py-1.5">
-                                    <div className="text-[10px] text-gray-400 mb-1">研究成本</div>
-                                    {Object.entries(tech.cost).map(([resource, cost]) => (
-                                      <div key={resource} className="flex justify-between text-xs">
-                                        <span className="text-gray-300">{RESOURCES[resource]?.name || resource}</span>
-                                        <span className={(resources[resource] || 0) >= cost ? 'text-green-400' : 'text-red-400'}>
-                                          {cost} ({resources[resource] || 0})
-                                        </span>
-                                      </div>
-                                    ))}
-                                    <div className="flex justify-between text-xs pt-1 border-t border-gray-700 mt-1">
-                                      <span className="text-gray-300">总计</span>
-                                      <span className={(resources.silver || 0) >= silverCost ? 'text-green-400' : 'text-red-400'}>
-                                        {formatSilverCost(silverCost)}
-                                      </span>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
                             </div>
                           );
                         })}
@@ -512,6 +541,15 @@ export const TechTab = ({
           })}
         </div>
       </div>
+
+      {/* 悬浮提示框 Portal */}
+      <TechTooltip
+        tech={hoveredTech.tech}
+        anchorElement={hoveredTech.element}
+        status={hoveredTech.tech ? getTechStatus(hoveredTech.tech) : null}
+        resources={resources}
+        market={market}
+      />
     </div>
   );
 };

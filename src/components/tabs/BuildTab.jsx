@@ -1,11 +1,259 @@
 // 建设标签页组件
 // 显示可建造的建筑列表
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Icon } from '../common/UIComponents';
 import { BUILDINGS, RESOURCES, STRATA } from '../../config';
 import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
 import { filterUnlockedResources } from '../../utils/resources';
+
+/**
+ * 建筑悬浮提示框 (使用 Portal)
+ */
+const BuildingTooltip = ({ building, count, epoch, techsUnlocked, jobFill, anchorElement, cost, resources }) => {
+  if (!building || !anchorElement) return null;
+
+  const [position, setPosition] = useState({ top: 0, left: 0 });
+  const tooltipRef = useRef(null);
+
+  useEffect(() => {
+    if (anchorElement && tooltipRef.current) {
+      const anchorRect = anchorElement.getBoundingClientRect();
+      const tooltipRect = tooltipRef.current.getBoundingClientRect();
+      
+      let top = anchorRect.top;
+      let left = anchorRect.right + 8; // 默认在右侧
+
+      if (left + tooltipRect.width > window.innerWidth) {
+        left = anchorRect.left - tooltipRect.width - 8;
+      }
+
+      if (top < 0) top = 0;
+      if (top + tooltipRect.height > window.innerHeight) {
+        top = window.innerHeight - tooltipRect.height;
+      }
+
+      setPosition({ top, left });
+    }
+  }, [anchorElement]);
+
+  return createPortal(
+    <div
+      ref={tooltipRef}
+      className="fixed w-72 bg-gray-800 border border-gray-600 rounded-lg shadow-2xl p-3 z-[9999] pointer-events-none animate-fade-in-fast"
+      style={{ top: `${position.top}px`, left: `${position.left}px` }}
+    >
+      <h4 className="text-sm font-bold text-white mb-1">{building.name}</h4>
+      <p className="text-xs text-gray-300 mb-2">{building.desc}</p>
+
+      {building.owner && (
+        <div className="text-[10px] text-yellow-200 bg-yellow-900/40 border border-yellow-600/40 rounded px-2 py-1 mb-2 inline-flex items-center gap-1">
+          <Icon name="User" size={10} className="text-yellow-300" />
+          业主: {STRATA[building.owner]?.name || building.owner}
+        </div>
+      )}
+
+      {cost && Object.keys(cost).length > 0 && (
+        <div className="bg-gray-900/50 rounded px-2 py-1.5 mb-2 text-xs">
+          <div className="text-[10px] text-gray-300 mb-1">下一个建造成本</div>
+          {Object.entries(cost).map(([res, val]) => {
+            const hasEnough = (resources[res] || 0) >= val;
+            return (
+              <div key={`cost-${res}`} className="flex justify-between">
+                <span className="text-gray-200">{RESOURCES[res]?.name || res}</span>
+                <span className={`font-mono ${hasEnough ? 'text-green-400' : 'text-red-400'}`}>
+                  {val}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {(() => {
+        const unlockedOutput = filterUnlockedResources(building.output, epoch, techsUnlocked);
+        const unlockedInput = filterUnlockedResources(building.input, epoch, techsUnlocked);
+        if (Object.keys(unlockedOutput).length === 0 && Object.keys(unlockedInput).length === 0) return null;
+        return (
+          <div className="bg-gray-900/50 rounded px-2 py-1.5 mb-2 text-xs">
+            <div className="text-[10px] text-gray-300 mb-1">资源流/个</div>
+            {Object.entries(unlockedOutput).map(([res, val]) => (
+              <div key={`out-${res}`} className="flex justify-between">
+                <span className="text-gray-200">{RESOURCES[res]?.name || res}</span>
+                <span className="text-green-400 font-mono">+{val}</span>
+              </div>
+            ))}
+            {Object.entries(unlockedInput).map(([res, val]) => (
+              <div key={`in-${res}`} className="flex justify-between">
+                <span className="text-gray-200">{RESOURCES[res]?.name || res}</span>
+                <span className="text-red-400 font-mono">-{val}</span>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+
+      {building.jobs && (
+        <div className="bg-gray-900/50 rounded px-2 py-1.5 mb-2 text-xs">
+          <div className="text-[10px] text-gray-300 mb-1">岗位</div>
+          {Object.entries(building.jobs).map(([job, perBuilding]) => {
+            const required = perBuilding * count;
+            const assigned = jobFill?.[building.id]?.[job] ?? 0;
+            const fillPercent = required > 0 ? Math.min(1, assigned / required) * 100 : 0;
+            return (
+              <div key={job} className="mb-1">
+                <div className="flex justify-between"><span className="text-gray-200">{STRATA[job]?.name || job}</span><span className="font-mono text-gray-200">{Math.round(assigned)}/{Math.round(required)}</span></div>
+                <div className="w-full bg-gray-700 rounded-full h-1 mt-0.5"><div className="h-1 rounded-full bg-blue-500" style={{ width: `${fillPercent}%` }}></div></div>
+              </div>);
+          })}
+        </div>
+      )}
+      <div className="text-[10px] text-center text-gray-400 pt-1 border-t border-gray-700">点击查看完整数据与交互</div>
+    </div>,
+    document.body
+  );
+};
+
+/**
+ * 紧凑型建筑卡片
+ * @param {Object} building - 建筑数据
+ * @param {number} count - 拥有数量
+ * @param {boolean} affordable - 是否可购买
+ * @param {number} silverCost - 银币成本
+ * @param {number} ownerIncome - 业主收益
+ * @param {Function} onBuy - 购买回调
+ * @param {Function} onSell - 出售回调
+ * @param {Function} onShowDetails - 显示详情回调
+ */
+const CompactBuildingCard = ({
+  building,
+  count,
+  affordable,
+  silverCost,
+  ownerIncome,
+  onBuy,
+  onSell,
+  onShowDetails,
+  cost, // 新增：接收建造成本
+  // 新增 props 以支持详细悬浮窗
+  onMouseEnter,
+  onMouseLeave,
+  epoch,
+  techsUnlocked,
+  jobFill,
+  resources,
+}) => {
+  const VisualIcon = Icon;
+  const incomeColor = ownerIncome > 0 ? 'text-green-400' : ownerIncome < 0 ? 'text-red-400' : 'text-gray-400';
+
+  return (
+    <div 
+      className="group relative flex flex-col h-full bg-gray-800/60 border border-gray-700 rounded-lg p-2 text-center transition-all hover:border-blue-500 hover:bg-gray-800/80 hover:shadow-lg"
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+    >
+      {/* 点击区域，用于显示详情 */}
+      <div
+        className="flex-grow flex flex-col items-center cursor-pointer"
+        onClick={() => onShowDetails(building.id)}
+      >
+        <div className="w-12 h-12 rounded-full flex items-center justify-center mb-2 bg-gradient-to-br from-gray-700/80 to-gray-900/80 border border-gray-600/50 shadow-inner">
+          <VisualIcon name={building.visual.icon} size={24} className={`${building.visual.text} drop-shadow-sm`} />
+        </div>
+        <h4 className="text-xs font-bold text-white leading-tight flex-grow mb-1">{building.name}</h4>
+        <p className="text-sm font-bold text-blue-300 drop-shadow-sm">×{count}</p>
+      </div>
+
+      {/* 岗位饱和度与资源总览 */}
+      {count > 0 && (
+        <div className="space-y-1.5 text-[10px] my-1.5">
+          {/* 岗位饱和度 */}
+          {building.jobs && Object.keys(building.jobs).length > 0 && (
+            <div className="bg-gray-900/40 rounded px-1.5 py-1">
+              <div className="flex items-center justify-start mb-1">
+                <span className="text-gray-400">岗位</span>
+              </div>
+              {Object.entries(building.jobs).slice(0, 2).map(([job, perBuilding]) => {
+                const required = perBuilding * count;
+                const assigned = jobFill?.[building.id]?.[job] ?? 0;
+                const fillPercent = required > 0 ? Math.min(1, assigned / required) * 100 : 0;
+                return (
+                  <div key={job} className="flex items-center gap-1.5" title={`${STRATA[job]?.name}: ${Math.round(assigned)}/${Math.round(required)}`}>
+                    <Icon name={STRATA[job]?.icon || 'User'} size={10} className="text-blue-400 flex-shrink-0" />
+                    <div className="w-full bg-gray-700 rounded-full h-1.5">
+                      <div className="h-1.5 rounded-full bg-green-500" style={{ width: `${fillPercent}%` }}></div>
+                    </div>
+                    <span className="font-mono text-[10px] text-gray-300 w-12 text-right">{Math.round(assigned)}/{Math.round(required)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {/* 资源产出 */}
+          {(() => {
+            const unlockedOutput = filterUnlockedResources(building.output, epoch, techsUnlocked);
+            if (Object.keys(unlockedOutput).length === 0) return null;
+            return (
+              <div className="bg-gray-900/40 rounded px-1.5 py-1">
+                <div className="flex items-center justify-start mb-1">
+                  <span className="text-gray-400">产出</span>
+                </div>
+                <div className="flex flex-wrap gap-1 justify-center">
+                  {Object.entries(unlockedOutput).slice(0, 2).map(([res, val]) => {
+                    // 计算总岗位需求和总分配人数
+                    const totalRequired = Object.values(building.jobs || {}).reduce((sum, per) => sum + per * count, 0);
+                    const totalAssigned = Object.values(jobFill?.[building.id] || {}).reduce((sum, num) => sum + num, 0);
+                    
+                    // 计算有效工作建筑的比例
+                    const workingRatio = totalRequired > 0 ? Math.min(1, totalAssigned / totalRequired) : 1;
+                    
+                    // 计算实际总产量
+                    const actualTotalOutput = val * count * workingRatio;
+
+                    return (
+                      <div key={res} className="flex items-center gap-0.5 text-green-300" title={`${RESOURCES[res]?.name} - 单个产出: ${val} / 实际总产出: ${actualTotalOutput.toFixed(1)}`}>
+                        <Icon name={RESOURCES[res]?.icon || 'Box'} size={10} />
+                        <span className="font-mono text-xs">+{actualTotalOutput.toFixed(1)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* 操作按钮 */}
+      <div className="mt-2 space-y-1">
+        <button
+          onClick={(e) => { e.stopPropagation(); onBuy(building.id); }}
+          disabled={!affordable}
+          className={`w-full px-2 py-1.5 rounded text-[10px] font-semibold transition-all ${
+            affordable
+              ? 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white shadow-sm hover:shadow-md'
+              : 'bg-gray-700 text-gray-400 cursor-not-allowed'
+          } flex items-center justify-center gap-1`}
+        >
+          <Icon name="Plus" size={10} />
+          <span className={!affordable ? 'text-red-300' : ''}>{formatSilverCost(silverCost)}</span>
+        </button>
+        
+        {count > 0 && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onSell(building.id); }}
+            className="w-full px-2 py-1.5 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white rounded text-[10px] font-semibold transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-1"
+          >
+            <Icon name="Minus" size={10} />
+            <span>拆除</span>
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
 
 /**
  * 建设标签页组件
@@ -26,8 +274,11 @@ export const BuildTab = ({
   jobFill = {},
   onBuy, 
   onSell,
+  onShowDetails, // 新增：用于打开详情页的回调
   market,
 }) => {
+  const [hoveredBuilding, setHoveredBuilding] = useState({ building: null, element: null });
+
   const NON_TRADE_KEYS = new Set(['maxPop']);
   const getResourcePrice = (key) => {
     if (!key || key === 'silver') return 1;
@@ -155,197 +406,53 @@ export const BuildTab = ({
 
             {/* 建筑列表 - 紧凑布局 */}
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-2">
-              {categoryBuildings.filter(b => isBuildingAvailable(b)).map(b => {
-                const cost = calculateCost(b);
+              {categoryBuildings.filter(b => isBuildingAvailable(b)).map(building => {
+                const cost = calculateCost(building);
                 const silverCost = calculateSilverCost(cost, market);
                 const hasMaterials = Object.entries(cost).every(([res, val]) => (resources[res] || 0) >= val);
                 const hasSilver = (resources.silver || 0) >= silverCost;
                 const affordable = hasMaterials && hasSilver;
-                const count = buildings[b.id] || 0;
-                const VisualIcon = Icon;
-                const ownerIncomePerBuilding = getOwnerIncomePerBuilding(b);
-                const jobIncomePerBuilding = getJobIncomePerBuilding(b, ownerIncomePerBuilding);
-
+                const count = buildings[building.id] || 0;
+                const ownerIncome = getOwnerIncomePerBuilding(building);
+                
                 return (
-                  <div 
-                    key={b.id}
-                    className={`group relative p-2 rounded-lg border transition-all ${
-                      affordable 
-                        ? 'bg-gray-700 border-gray-600 hover:border-blue-500 hover:shadow-lg' 
-                        : 'bg-gray-700/50 border-gray-700'
-                    }`}
-                  >
-                    {/* 建筑头部 - 紧凑版 */}
-                    <div className="flex flex-col items-center mb-2">
-                      <div className={`p-2 rounded ${b.visual.color} mb-1`}>
-                        <VisualIcon name={b.visual.icon} size={20} className={b.visual.text} />
-                      </div>
-                      <h4 className="text-xs font-bold text-white text-center leading-tight">{b.name}</h4>
-                      <p className="text-[10px] text-gray-400">×{count}</p>
-                    </div>
-
-                    {/* 简化的关键信息 */}
-                    <div className="space-y-1 text-[10px] mb-2">
-                      {(() => {
-                        const unlockedOutput = filterUnlockedResources(b.output, epoch, techsUnlocked);
-                        const unlockedInput = filterUnlockedResources(b.input, epoch, techsUnlocked);
-                        const hasResources = Object.keys(unlockedOutput).length > 0 || Object.keys(unlockedInput).length > 0;
-                        
-                        return hasResources && (
-                          <div className="bg-gray-900/40 rounded px-1.5 py-1 text-center">
-                            {Object.entries(unlockedOutput).slice(0, 2).map(([res, val]) => (
-                              <div key={`out-${res}`} className="text-green-400">
-                                +{val} {RESOURCES[res]?.name || res}
-                              </div>
-                            ))}
-                            {Object.keys(unlockedOutput).length > 2 && (
-                              <div className="text-gray-500">+{Object.keys(unlockedOutput).length - 2}项...</div>
-                            )}
-                          </div>
-                        );
-                      })()}
-
-                      {b.jobs && (
-                        <div className="bg-gray-900/40 rounded px-1.5 py-1 text-center">
-                          <div className="text-blue-400">
-                            {Object.keys(b.jobs).length}个岗位
-                          </div>
-                          {ownerIncomePerBuilding !== 0 && (
-                            <div className={ownerIncomePerBuilding >= 0 ? 'text-green-400' : 'text-red-400'}>
-                              {ownerIncomePerBuilding >= 0 ? '+' : ''}{ownerIncomePerBuilding.toFixed(1)}银/日
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* 操作按钮 - 紧凑版 */}
-                    <div className="space-y-1">
-                      <button
-                        onClick={() => onBuy(b.id)}
-                        disabled={!affordable}
-                        className={`w-full px-2 py-1 rounded text-[10px] font-semibold transition-colors ${
-                          affordable
-                            ? 'bg-green-600 hover:bg-green-500 text-white'
-                            : 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                        }`}
-                      >
-                        <div className="flex items-center justify-center gap-1">
-                          <Icon name="Plus" size={10} />
-                          <span className={!hasSilver ? 'text-red-300' : ''}>
-                            {formatSilverCost(silverCost)}
-                          </span>
-                        </div>
-                      </button>
-                      
-                      {count > 0 && (
-                        <button
-                          onClick={() => onSell(b.id)}
-                          className="w-full px-2 py-1 bg-red-600 hover:bg-red-500 text-white rounded text-[10px] font-semibold transition-colors flex items-center justify-center gap-1"
-                        >
-                          <Icon name="Minus" size={10} />
-                          拆除
-                        </button>
-                      )}
-                    </div>
-                    
-                    {/* 悬停显示详细信息 - 桌面端 */}
-                    <div className="hidden lg:block absolute left-full top-0 ml-2 w-80 bg-gray-800 border border-gray-600 rounded-lg shadow-2xl p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none">
-                      <h4 className="text-sm font-bold text-white mb-1">{b.name}</h4>
-                      <p className="text-xs text-gray-400 mb-2">{b.desc}</p>
-                      
-                      {b.owner && (
-                        <div className="text-[10px] text-yellow-300 bg-yellow-900/40 border border-yellow-600/40 rounded px-2 py-1 mb-2 inline-flex items-center gap-1">
-                          <Icon name="User" size={10} className="text-yellow-400" />
-                          业主: {STRATA[b.owner]?.name || b.owner}
-                        </div>
-                      )}
-                      
-                      {(() => {
-                        const unlockedOutput = filterUnlockedResources(b.output, epoch, techsUnlocked);
-                        const unlockedInput = filterUnlockedResources(b.input, epoch, techsUnlocked);
-                        const hasResources = Object.keys(unlockedOutput).length > 0 || Object.keys(unlockedInput).length > 0;
-                        
-                        return hasResources && (
-                          <div className="bg-gray-900/50 rounded px-2 py-1.5 mb-2">
-                            <div className="text-[10px] text-gray-400 mb-1">资源流（每日）</div>
-                            {Object.entries(unlockedOutput).map(([res, val]) => (
-                              <div key={`out-${res}`} className="flex justify-between text-xs">
-                                <span className="text-gray-300">{RESOURCES[res]?.name || res}</span>
-                                <span className="text-green-400">+{val}</span>
-                              </div>
-                            ))}
-                            {Object.entries(unlockedInput).map(([res, val]) => (
-                              <div key={`in-${res}`} className="flex justify-between text-xs">
-                                <span className="text-gray-300">{RESOURCES[res]?.name || res}</span>
-                                <span className="text-red-400">-{val}</span>
-                              </div>
-                            ))}
-                          </div>
-                        );
-                      })()}
-                      
-                      {b.jobs && (
-                        <div className="bg-gray-900/50 rounded px-2 py-1.5 mb-2">
-                          <div className="text-[10px] text-gray-400 mb-1">岗位与收益</div>
-                          {Object.entries(b.jobs).map(([job, perBuilding]) => {
-                            const requiredExact = perBuilding * count;
-                            const assignedRaw = jobFill?.[b.id]?.[job] ?? 0;
-                            const assignedExact = Math.min(assignedRaw, requiredExact);
-                            const fillPercent = requiredExact > 0 ? Math.min(1, assignedExact / Math.max(requiredExact, 1)) : 0;
-                            const requiredDisplay = Math.round(requiredExact);
-                            const assignedDisplay = Math.min(requiredDisplay, Math.round(assignedExact));
-                            const income = jobIncomePerBuilding.find(j => j.job === job)?.perCapitaIncome ?? 0;
-                            return (
-                              <div key={job} className="mb-1">
-                                <div className="flex justify-between text-xs">
-                                  <span className="text-gray-300">
-                                    {STRATA[job]?.name || job} ({assignedDisplay}/{requiredDisplay})
-                                  </span>
-                                  <span className="text-blue-400">
-                                    {income >= 0 ? '+' : ''}{income.toFixed(2)}银/日
-                                  </span>
-                                </div>
-                                <div className="w-full bg-gray-700 rounded-full h-1 mt-0.5">
-                                  <div className="h-1 rounded-full bg-blue-400" style={{ width: `${fillPercent * 100}%` }} />
-                                </div>
-                              </div>
-                            );
-                          })}
-                          <div className="flex justify-between text-xs pt-1 border-t border-gray-700 mt-1">
-                            <span className="text-gray-300">业主收益</span>
-                            <span className={ownerIncomePerBuilding >= 0 ? 'text-green-400' : 'text-red-400'}>
-                              {ownerIncomePerBuilding >= 0 ? '+' : ''}{ownerIncomePerBuilding.toFixed(2)}银/日
-                            </span>
-                          </div>
-                        </div>
-                      )}
-                      
-                      <div className="bg-gray-900/50 rounded px-2 py-1.5">
-                        <div className="text-[10px] text-gray-400 mb-1">建造成本</div>
-                        {Object.entries(cost).map(([res, val]) => (
-                          <div key={res} className="flex justify-between text-xs">
-                            <span className="text-gray-300">{RESOURCES[res]?.name || res}</span>
-                            <span className={(resources[res] || 0) >= val ? 'text-green-400' : 'text-red-400'}>
-                              {val} ({(resources[res] || 0).toFixed(1)})
-                            </span>
-                          </div>
-                        ))}
-                        <div className="flex justify-between text-xs pt-1 border-t border-gray-700 mt-1">
-                          <span className="text-gray-300">总计</span>
-                          <span className={hasSilver ? 'text-green-400' : 'text-red-400'}>
-                            {formatSilverCost(silverCost)}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  <CompactBuildingCard
+                    key={building.id}
+                    building={building}
+                    count={count}
+                    affordable={affordable}
+                    silverCost={silverCost}
+                    ownerIncome={ownerIncome}
+                    cost={cost}
+                    onBuy={onBuy}
+                    onSell={onSell}
+                    onMouseEnter={(e) => setHoveredBuilding({ building, element: e.currentTarget, cost, resources })}
+                    onMouseLeave={() => setHoveredBuilding({ building: null, element: null })}
+                    // 传递额外 props 给悬浮窗
+                    epoch={epoch}
+                    techsUnlocked={techsUnlocked}
+                    jobFill={jobFill}
+                    resources={resources}
+                    onShowDetails={onShowDetails}
+                  />
                 );
               })}
             </div>
           </div>
         );
       })}
+
+      {/* 悬浮提示框 Portal */}
+      <BuildingTooltip
+        building={hoveredBuilding.building}
+        anchorElement={hoveredBuilding.element}
+        count={hoveredBuilding.building ? (buildings[hoveredBuilding.building.id] || 0) : 0}
+        epoch={epoch}
+        techsUnlocked={techsUnlocked}
+        jobFill={jobFill}
+        cost={hoveredBuilding.cost}
+        resources={resources}
+      />
     </div>
   );
 };
