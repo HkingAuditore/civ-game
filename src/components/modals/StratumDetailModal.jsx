@@ -29,16 +29,39 @@ const AllStrataSummary = ({
   classInfluence,
   activeBuffs,
   activeDebuffs,
+  stability,
   onClose
 }) => {
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[100] p-4">
       <div className="bg-gray-800 rounded-lg border-2 border-gray-700 max-w-4xl w-full max-h-[90vh] flex flex-col">
-        <div className="p-6 border-b border-gray-700">
-          <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-bold text-white">社会阶层总览</h2>
-            <button onClick={onClose} className="p-2 hover:bg-gray-700 rounded-lg">
-              <Icon name="X" size={24} className="text-gray-400" />
+        <div className="p-4 md:p-6 border-b border-gray-700">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <h2 className="text-xl md:text-2xl font-bold text-white">社会阶层总览</h2>
+              {/* 稳定度显示 */}
+              <div className="flex items-center gap-2 mt-2">
+                <Icon 
+                  name="Heart" 
+                  size={16} 
+                  className={`flex-shrink-0 ${
+                    stability >= 70 ? 'text-green-400' : 
+                    stability >= 40 ? 'text-yellow-400' : 
+                    'text-red-400 animate-pulse'
+                  }`}
+                />
+                <span className="text-sm text-gray-300">总体稳定度:</span>
+                <span className={`text-sm font-bold ${
+                  stability >= 70 ? 'text-green-400' : 
+                  stability >= 40 ? 'text-yellow-400' : 
+                  'text-red-400'
+                }`}>
+                  {Math.floor(stability)}%
+                </span>
+              </div>
+            </div>
+            <button onClick={onClose} className="p-2 hover:bg-gray-700 rounded-lg flex-shrink-0">
+              <Icon name="X" size={20} className="text-gray-400" />
             </button>
           </div>
         </div>
@@ -142,6 +165,7 @@ export const StratumDetailModal = ({
   epoch = 0,
   techsUnlocked = [],
   history = {},
+  stability = 50,
   onClose,
 }) => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -154,6 +178,7 @@ export const StratumDetailModal = ({
         classInfluence={classInfluence}
         activeBuffs={activeBuffs}
         activeDebuffs={activeDebuffs}
+        stability={stability}
         onClose={onClose}
       />
     );
@@ -207,22 +232,42 @@ export const StratumDetailModal = ({
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[100] p-4">
       <div className="bg-gray-800 rounded-lg border-2 border-gray-700 max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden">
         {/* 模态框头部 */}
-        <div className="p-6 border-b border-gray-700 bg-gradient-to-r from-purple-900/50 to-blue-900/50">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-gray-700 rounded-lg">
-                <Icon name={stratum.icon} size={32} className="text-blue-400" />
+        <div className="p-4 md:p-6 border-b border-gray-700 bg-gradient-to-r from-purple-900/50 to-blue-900/50">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-2 md:gap-3 flex-1 min-w-0">
+              <div className="p-2 md:p-3 bg-gray-700 rounded-lg flex-shrink-0">
+                <Icon name={stratum.icon} size={24} className="text-blue-400 md:w-8 md:h-8" />
               </div>
-              <div>
-                <h2 className="text-2xl font-bold text-white">{stratum.name}</h2>
-                <p className="text-sm text-gray-300 mt-1">{stratum.description}</p>
+              <div className="flex-1 min-w-0">
+                <h2 className="text-lg md:text-2xl font-bold text-white">{stratum.name}</h2>
+                <p className="text-xs md:text-sm text-gray-300 mt-1">{stratum.description}</p>
+                {/* 稳定度显示 */}
+                <div className="flex items-center gap-1.5 md:gap-2 mt-2">
+                  <Icon 
+                    name="Heart" 
+                    size={14} 
+                    className={`flex-shrink-0 ${
+                      stability >= 70 ? 'text-green-400' : 
+                      stability >= 40 ? 'text-yellow-400' : 
+                      'text-red-400 animate-pulse'
+                    }`}
+                  />
+                  <span className="text-xs text-gray-400 whitespace-nowrap">总体稳定度:</span>
+                  <span className={`text-xs md:text-sm font-bold ${
+                    stability >= 70 ? 'text-green-400' : 
+                    stability >= 40 ? 'text-yellow-400' : 
+                    'text-red-400'
+                  }`}>
+                    {Math.floor(stability)}%
+                  </span>
+                </div>
               </div>
             </div>
             <button
               onClick={onClose}
-              className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
+              className="p-2 hover:bg-gray-700 rounded-lg transition-colors flex-shrink-0"
             >
-              <Icon name="X" size={24} className="text-gray-400" />
+              <Icon name="X" size={20} className="text-gray-400 md:w-6 md:h-6" />
             </button>
           </div>
         </div>
