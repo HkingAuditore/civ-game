@@ -272,17 +272,17 @@ export const DiplomacyTab = ({
                     />
                   </div>
                 </div>
-                <div className="overflow-x-auto -mx-4 px-4">
-                  <table className="w-full min-w-[800px] text-xs text-gray-300">
+                <div className="-mx-4">
+                  <table className="w-full text-xs text-gray-300">
                     <thead>
-                      <tr className="text-gray-400">
-                        <th className="text-left py-1">资源</th>
-                        <th className="text-left py-1">对方库存</th>
-                        <th className="text-left py-1">缺口/盈余</th>
-                        <th className="text-left py-1">本地价格</th>
-                        <th className="text-left py-1">外国价格</th>
-                        <th className="text-left py-1">差价</th>
-                        <th className="text-right py-1">操作</th>
+                      <tr className="text-gray-400 text-[10px]">
+                        <th className="text-left py-1 px-1">资源</th>
+                        <th className="text-left py-1 px-1">对方库存</th>
+                        <th className="text-left py-1 px-1">缺口/盈余</th>
+                        <th className="text-left py-1 px-1">本地价</th>
+                        <th className="text-left py-1 px-1">外国价</th>
+                        <th className="text-left py-1 px-1">差价</th>
+                        <th className="text-right py-1 px-1 w-[120px]">操作</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -304,9 +304,9 @@ export const DiplomacyTab = ({
                           : 'text-gray-400';
                         
                         return (
-                          <tr key={key} className="border-t border-gray-700/50">
-                            <td className="py-1">{res.name}</td>
-                            <td className="py-1">
+                          <tr key={key} className="border-t border-gray-700/50 hover:bg-gray-700/30">
+                            <td className="py-1 px-1">{res.name}</td>
+                            <td className="py-1 px-1">
                               <div className="flex flex-col leading-tight">
                                 <span className={`font-mono ${inventoryClass}`}>
                                   {nationInventory.toFixed(0)}
@@ -316,7 +316,7 @@ export const DiplomacyTab = ({
                                 </span>
                               </div>
                             </td>
-                            <td className="py-1">
+                            <td className="py-1 px-1">
                               {tradeStatus.isShortage && shortageCapacity > 0 && (
                                 <span className="text-red-400 font-mono text-[11px]">
                                   缺口: {shortageCapacity}
@@ -331,26 +331,26 @@ export const DiplomacyTab = ({
                                 <span className="text-gray-500 text-[11px]">-</span>
                               )}
                             </td>
-                            <td className="py-1 text-gray-400">{local.toFixed(2)}</td>
+                            <td className="py-1 px-1 text-gray-400 font-mono">{local.toFixed(2)}</td>
                             <td
-                              className={`py-1 ${
+                              className={`py-1 px-1 ${
                                 profitable ? 'text-green-300' : 'text-red-300'
                               } font-mono`}
                             >
                               {foreign.toFixed(2)}
                             </td>
                             <td
-                              className={`py-1 font-mono ${
+                              className={`py-1 px-1 font-mono ${
                                 profitable ? 'text-green-400' : 'text-red-400'
                               }`}
                             >
                               {diff >= 0 ? '+' : ''}
                               {diff.toFixed(2)}
                             </td>
-                            <td className="py-1 text-right">
+                            <td className="py-1 px-1 text-right">
                               <div className="flex items-center gap-1 justify-end">
                                 <button
-                                  className="px-2 py-1 bg-teal-600 hover:bg-teal-500 rounded text-white flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  className="px-1.5 py-0.5 bg-teal-600 hover:bg-teal-500 rounded text-white flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
                                   onClick={() => handleTrade(key, false)}
                                   disabled={!canExport}
                                   title={canExport ? "对方有缺口，可以出口" : "对方无缺口，无法出口"}
@@ -358,7 +358,7 @@ export const DiplomacyTab = ({
                                   <Icon name="ArrowUpRight" size={12} /> 出口
                                 </button>
                                 <button
-                                  className="px-2 py-1 bg-purple-600 hover:bg-purple-500 rounded text-white flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  className="px-1.5 py-0.5 bg-purple-600 hover:bg-purple-500 rounded text-white flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
                                   onClick={() => handleTrade(key, true)}
                                   disabled={!canImport}
                                   title={canImport ? "对方有盈余，可以进口" : "对方无盈余，无法进口"}

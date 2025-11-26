@@ -91,7 +91,7 @@ export const StatusBar = ({
               if (window.innerWidth < 1024 && onEmpireSceneClick) {
                 onEmpireSceneClick();
               } else {
-                setShowResourcesExpanded(!showResourcesExpanded);
+                // setShowResourcesExpanded(!showResourcesExpanded);
               }
             }}
             className="flex items-center gap-1.5 sm:gap-2 bg-gray-800/40 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full border border-gray-700/50 hover:bg-gray-800/60 transition-colors"
