@@ -247,14 +247,22 @@ function GameApp({ gameState }) {
           
           {/* 左侧边栏 - 桌面端显示 */}
           <aside className="hidden lg:block lg:col-span-2 space-y-4 order-2 lg:order-1">
-            {/* 资源面板 */}
-            <ResourcePanel 
-              resources={gameState.resources} 
-              rates={gameState.rates} 
-              market={gameState.market}
-              epoch={gameState.epoch}
-              onDetailClick={(key) => gameState.setResourceDetailView(key)}
-            />
+            {/* 资源面板 - 使用 Grid 布局优化排版 */}
+            <div className="bg-gray-900/60 backdrop-blur-md rounded-xl border border-white/10 shadow-glass p-3">
+              <div className="flex items-center gap-2 mb-3">
+                <Icon name="Package" size={16} className="text-amber-400" />
+                <h3 className="text-sm font-bold text-white">国内市场</h3>
+              </div>
+              <div className="grid grid-cols-1 gap-1">
+                <ResourcePanel 
+                  resources={gameState.resources} 
+                  rates={gameState.rates} 
+                  market={gameState.market}
+                  epoch={gameState.epoch}
+                  onDetailClick={(key) => gameState.setResourceDetailView(key)}
+                />
+              </div>
+            </div>
 
             {/* 社会阶层面板 */}
             <StrataPanel 
@@ -351,6 +359,7 @@ function GameApp({ gameState }) {
                     if (!resource) return null;
                     const amount = gameState.resources[key] || 0;
                     const rate = gameState.rates[key] || 0;
+                    const price = gameState.market?.prices?.[key] ?? (resource.basePrice || 1);
                     return (
                       <button
                         key={key}
@@ -361,6 +370,10 @@ function GameApp({ gameState }) {
                           <Icon name={resource.icon} size={16} className={resource.color} />
                           <span className="text-[9px] text-gray-400 truncate w-full text-center">{resource.name}</span>
                           <span className="text-[10px] font-bold text-white">{Math.round(amount)}</span>
+                          <div className="flex items-center justify-center gap-0.5 text-[9px] text-slate-300">
+                            <span>{price.toFixed(1)}</span>
+                            <Icon name="Coins" size={9} className="text-yellow-400" />
+                          </div>
                           <span className={`text-[9px] ${rate >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                             {rate >= 0 ? '+' : ''}{rate.toFixed(1)}
                           </span>
