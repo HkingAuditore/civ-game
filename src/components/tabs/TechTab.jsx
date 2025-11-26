@@ -91,7 +91,7 @@ const TechTooltip = ({ tech, status, resources, market, anchorElement }) => {
           {Object.entries(tech.cost).map(([resource, cost]) => (
             <div key={resource} className="flex justify-between text-xs">
               <span className="text-gray-300">{RESOURCES[resource]?.name || resource}</span>
-              <span className={(resources[resource] || 0) >= cost ? 'text-green-400' : 'text-red-400'}>{cost} ({resources[resource] || 0})</span>
+              <span className={(resources[resource] || 0) >= cost ? 'text-green-400' : 'text-red-400'}>{Math.round(cost)} ({Math.round(resources[resource] || 0)})</span>
             </div>
           ))}
           <div className="flex justify-between text-xs pt-1 border-t border-gray-700 mt-1">

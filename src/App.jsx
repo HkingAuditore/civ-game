@@ -342,6 +342,13 @@ function GameApp({ gameState }) {
                     classInfluence={gameState.classInfluence}
                     stability={gameState.stability}
                     population={gameState.population}
+                    activeBuffs={gameState.activeBuffs}
+                    activeDebuffs={gameState.activeDebuffs}
+                    classWealth={gameState.classWealth}
+                    classWealthDelta={gameState.classWealthDelta}
+                    classShortages={gameState.classShortages}
+                    classIncome={gameState.classIncome}
+                    classExpense={gameState.classExpense}
                     onDetailClick={(key) => gameState.setStratumDetailView(key)}
                   />
                 </div>
@@ -354,7 +361,15 @@ function GameApp({ gameState }) {
                   <span className="text-xs font-semibold text-white">关键资源</span>
                 </div>
                 <div className="grid grid-cols-4 gap-1">
-                  {['food', 'wood', 'stone', 'iron', 'science', 'culture'].map((key) => {
+                  {Object.keys(RESOURCES)
+                    .filter(key => {
+                      if (key === 'silver') return false; // 银币在顶部有单独显示，此处排除
+                      const resource = RESOURCES[key];
+                      const requiredEpochIndex = resource.requiredEpoch ? EPOCHS.findIndex(e => e.id === resource.requiredEpoch) : 0;
+                      return gameState.epoch >= requiredEpochIndex;
+                    })
+                    .sort((a, b) => (RESOURCES[a].order || 99) - (RESOURCES[b].order || 99)) // 按预设顺序排序
+                    .map((key) => {
                     const resource = RESOURCES[key];
                     if (!resource) return null;
                     const amount = gameState.resources[key] || 0;
