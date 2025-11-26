@@ -15,6 +15,7 @@ export { CityMap } from './game/CityMap';
 // 面板组件
 export { ResourcePanel } from './panels/ResourcePanel';
 export { StrataPanel } from './panels/StrataPanel';
+export { StratumDetailSheet } from './panels/StratumDetailSheet';
 export { LogPanel } from './panels/LogPanel';
 export { SettingsPanel } from './panels/SettingsPanel';
 export { default as EmpireScene } from './panels/EmpireScene';

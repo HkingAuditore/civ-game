@@ -16,6 +16,7 @@ import { BottomSheet } from './components/tabs/BottomSheet';
 import { BuildingDetails } from './components/tabs/BuildingDetails';
 import {
   StrataPanel,
+  StratumDetailSheet,
   LogPanel,
   SettingsPanel,
   EmpireScene,
@@ -33,6 +34,9 @@ import {
   TutorialModal,
   WikiModal,
 } from './components';
+import { UnitDetailSheet } from './components/panels/UnitDetailSheet';
+import { TechDetailSheet } from './components/panels/TechDetailSheet';
+import { DecreeDetailSheet } from './components/panels/DecreeDetailSheet';
 
 /**
  * 文明崛起主应用组件
@@ -73,6 +77,7 @@ function GameApp({ gameState }) {
   useGameLoop(gameState, addLog);
   const actions = useGameActions(gameState, addLog);
   const [showStrata, setShowStrata] = useState(false);
+  const [showMarket, setShowMarket] = useState(false);  // 新增：控制国内市场弹窗
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isWikiOpen, setIsWikiOpen] = useState(false);
@@ -146,6 +151,26 @@ function GameApp({ gameState }) {
   // 新增：关闭 BottomSheet 的函数
   const closeSheet = () => setActiveSheet({ type: null, data: null });
 
+  // 处理阶层详情点击
+  const handleStratumDetailClick = (stratumKey) => {
+    setActiveSheet({ type: 'stratum', data: stratumKey });
+  };
+
+  // 处理军事单位详情点击
+  const handleShowUnitDetails = (unit) => {
+    setActiveSheet({ type: 'unit', data: unit });
+  };
+
+  // 处理科技详情点击
+  const handleShowTechDetails = (tech, status) => {
+    setActiveSheet({ type: 'tech', data: { tech, status } });
+  };
+
+  // 处理政策详情点击
+  const handleShowDecreeDetails = (decree) => {
+    setActiveSheet({ type: 'decree', data: decree });
+  };
+
   // 计算税收和军队相关数据
   const taxes = gameState.taxes || { total: 0, breakdown: { headTax: 0, industryTax: 0, subsidy: 0 }, efficiency: 1 };
   const dayScale = Math.max(gameState.gameSpeed || 0, 0.0001);
@@ -197,6 +222,9 @@ function GameApp({ gameState }) {
         armyFoodNeed={armyFoodNeed}
         onResourceDetailClick={(key) => gameState.setResourceDetailView(key)}
         onPopulationDetailClick={() => gameState.setPopulationDetailView(true)}
+        onStrataClick={() => setShowStrata(true)}  // 新增：打开社会阶层弹窗
+        onMarketClick={() => setShowMarket(true)}  // 新增：打开国内市场弹窗
+        onEmpireSceneClick={() => setShowEmpireScene(true)}  // 新增：点击日期按钮弹出帝国场景
         gameControls={
           <GameControls
             isPaused={gameState.isPaused}
@@ -278,7 +306,8 @@ function GameApp({ gameState }) {
               classShortages={gameState.classShortages}
               classIncome={gameState.classIncome}
               classExpense={gameState.classExpense}
-              onDetailClick={(key) => gameState.setStratumDetailView(key)}
+              dayScale={gameState.gameSpeed}
+              onDetailClick={handleStratumDetailClick}
             />
 
             {/* 手动采集按钮 */}
@@ -292,114 +321,6 @@ function GameApp({ gameState }) {
 
           {/* 中间内容区 - 主操作面板 */}
           <section className="lg:col-span-8 space-y-3 sm:space-y-4 order-1 lg:order-2 relative z-10">
-          {/* 移动端：快速信息面板（紧凑设计）*/}
-            <div className="lg:hidden space-y-2">
-              {/* 帝国场景卡片（可折叠） */}
-              <button
-                onClick={() => setShowEmpireScene(!showEmpireScene)}
-                className="w-full bg-gray-900/60 backdrop-blur-md rounded-lg border border-white/10 p-2 flex items-center justify-between hover:bg-gray-900/70 transition-colors"
-              >
-                <div className="flex items-center gap-2">
-                  <Icon name="Image" size={14} className="text-blue-400" />
-                  <span className="text-xs font-semibold text-white">帝国场景</span>
-                  <span className="text-[10px] text-gray-400">
-                    {calendar.season} · {gameState.population}人
-                  </span>
-                </div>
-                <Icon name={showEmpireScene ? "ChevronUp" : "ChevronDown"} size={14} className="text-gray-400" />
-              </button>
-              
-              {showEmpireScene && (
-                <div className="bg-gray-900/60 backdrop-blur-md rounded-lg border border-white/10 shadow-glass overflow-hidden">
-                  <EmpireScene
-                    daysElapsed={gameState.daysElapsed}
-                    season={calendar.season}
-                    population={gameState.population}
-                    stability={gameState.stability}
-                    wealth={gameState.resources.silver}
-                    epoch={gameState.epoch}
-                  />
-                </div>
-              )}
-
-              {/* 社会阶层面板（可折叠） */}
-              <button
-                onClick={() => setShowStrata(!showStrata)}
-                className="w-full bg-gray-900/60 backdrop-blur-md rounded-lg border border-white/10 p-2 flex items-center justify-between hover:bg-gray-900/70 transition-colors"
-              >
-                <div className="flex items-center gap-2">
-                  <Icon name="Users" size={14} className="text-purple-400" />
-                  <span className="text-xs font-semibold text-white">社会阶层</span>
-                </div>
-                <Icon name={showStrata ? "ChevronUp" : "ChevronDown"} size={14} className="text-gray-400" />
-              </button>
-
-              {showStrata && (
-                <div className="bg-gray-900/60 backdrop-blur-md rounded-lg border border-white/10 shadow-glass overflow-hidden p-2">
-                  <StrataPanel
-                    popStructure={gameState.popStructure}
-                    classApproval={gameState.classApproval}
-                    classInfluence={gameState.classInfluence}
-                    stability={gameState.stability}
-                    population={gameState.population}
-                    activeBuffs={gameState.activeBuffs}
-                    activeDebuffs={gameState.activeDebuffs}
-                    classWealth={gameState.classWealth}
-                    classWealthDelta={gameState.classWealthDelta}
-                    classShortages={gameState.classShortages}
-                    classIncome={gameState.classIncome}
-                    classExpense={gameState.classExpense}
-                    onDetailClick={(key) => gameState.setStratumDetailView(key)}
-                  />
-                </div>
-              )}
-
-              {/* 资源快速查看 */}
-              <div className="bg-gray-900/60 backdrop-blur-md rounded-lg border border-white/10 p-2">
-                <div className="flex items-center gap-1 mb-2">
-                  <Icon name="Package" size={14} className="text-amber-400" />
-                  <span className="text-xs font-semibold text-white">关键资源</span>
-                </div>
-                <div className="grid grid-cols-4 gap-1">
-                  {Object.keys(RESOURCES)
-                    .filter(key => {
-                      if (key === 'silver') return false; // 银币在顶部有单独显示，此处排除
-                      const resource = RESOURCES[key];
-                      const requiredEpochIndex = resource.requiredEpoch ? EPOCHS.findIndex(e => e.id === resource.requiredEpoch) : 0;
-                      return gameState.epoch >= requiredEpochIndex;
-                    })
-                    .sort((a, b) => (RESOURCES[a].order || 99) - (RESOURCES[b].order || 99)) // 按预设顺序排序
-                    .map((key) => {
-                    const resource = RESOURCES[key];
-                    if (!resource) return null;
-                    const amount = gameState.resources[key] || 0;
-                    const rate = gameState.rates[key] || 0;
-                    const price = gameState.market?.prices?.[key] ?? (resource.basePrice || 1);
-                    return (
-                      <button
-                        key={key}
-                        onClick={() => gameState.setResourceDetailView(key)}
-                        className="bg-gray-800/60 rounded p-1.5 hover:bg-gray-700/60 transition-colors border border-gray-700/50"
-                      >
-                        <div className="flex flex-col items-center gap-0.5">
-                          <Icon name={resource.icon} size={16} className={resource.color} />
-                          <span className="text-[9px] text-gray-400 truncate w-full text-center">{resource.name}</span>
-                          <span className="text-[10px] font-bold text-white">{Math.round(amount)}</span>
-                          <div className="flex items-center justify-center gap-0.5 text-[9px] text-slate-300">
-                            <span>{price.toFixed(1)}</span>
-                            <Icon name="Coins" size={9} className="text-yellow-400" />
-                          </div>
-                          <span className={`text-[9px] ${rate >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                            {rate >= 0 ? '+' : ''}{rate.toFixed(1)}
-                          </span>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
             {/* 标签页容器 */}
             <div className="bg-gray-900/60 backdrop-blur-md rounded-xl border border-white/10 shadow-glass overflow-hidden min-h-[500px] animate-fade-in">
               {/* 桌面端标签页导航 */}
@@ -488,6 +409,7 @@ function GameApp({ gameState }) {
                   militaryWageRatio={gameState.militaryWageRatio}
                   onUpdateWageRatio={gameState.setMilitaryWageRatio}
                   techsUnlocked={gameState.techsUnlocked}
+                  onShowUnitDetails={handleShowUnitDetails}
                 />
               )}
 
@@ -502,6 +424,7 @@ function GameApp({ gameState }) {
                   onUpgradeEpoch={actions.upgradeEpoch}
                   canUpgradeEpoch={actions.canUpgradeEpoch}
                   market={gameState.market}
+                  onShowTechDetails={handleShowTechDetails}
                 />
               )}
 
@@ -517,6 +440,7 @@ function GameApp({ gameState }) {
                   market={gameState.market}
                   epoch={gameState.epoch}
                   techsUnlocked={gameState.techsUnlocked}
+                  onShowDecreeDetails={handleShowDecreeDetails}
                 />
               )}
 
@@ -611,6 +535,153 @@ function GameApp({ gameState }) {
             onBuy={actions.buyBuilding}
             onSell={actions.sellBuilding}
           />        )}
+      </BottomSheet>
+
+      {/* 阶层详情 BottomSheet */}
+      <BottomSheet
+        isOpen={activeSheet.type === 'stratum'}
+        onClose={closeSheet}
+        title="阶层详情"
+        showHeader={true}
+      >
+        {activeSheet.type === 'stratum' && (
+          <StratumDetailSheet
+            stratumKey={activeSheet.data}
+            popStructure={gameState.popStructure}
+            classApproval={gameState.classApproval}
+            classInfluence={gameState.classInfluence}
+            classWealth={gameState.classWealth}
+            classIncome={gameState.classIncome}
+            classExpense={gameState.classExpense}
+            classShortages={gameState.classShortages}
+            activeBuffs={gameState.activeBuffs}
+            activeDebuffs={gameState.activeDebuffs}
+            dayScale={gameState.gameSpeed}
+            onClose={closeSheet}
+          />
+        )}
+      </BottomSheet>
+
+      {/* 军事单位详情底部面板 */}
+      <BottomSheet
+        isOpen={activeSheet.type === 'unit'}
+        onClose={closeSheet}
+        title="单位详情"
+        showHeader={true}
+      >
+        {activeSheet.type === 'unit' && (
+          <UnitDetailSheet
+            unit={activeSheet.data}
+            resources={gameState.resources}
+            market={gameState.market}
+            militaryWageRatio={gameState.militaryWageRatio}
+            army={gameState.army}
+            onRecruit={actions.recruitUnit}
+            onDisband={actions.disbandUnit}
+            onClose={closeSheet}
+          />
+        )}
+      </BottomSheet>
+
+      {/* 科技详情底部面板 */}
+      <BottomSheet
+        isOpen={activeSheet.type === 'tech'}
+        onClose={closeSheet}
+        title="科技详情"
+        showHeader={true}
+      >
+        {activeSheet.type === 'tech' && activeSheet.data && (
+          <TechDetailSheet
+            tech={activeSheet.data.tech}
+            status={activeSheet.data.status}
+            resources={gameState.resources}
+            market={gameState.market}
+            onResearch={actions.researchTech}
+            onClose={closeSheet}
+          />
+        )}
+      </BottomSheet>
+
+      {/* 政策详情底部面板 */}
+      <BottomSheet
+        isOpen={activeSheet.type === 'decree'}
+        onClose={closeSheet}
+        title="政策详情"
+        showHeader={true}
+      >
+        {activeSheet.type === 'decree' && (
+          <DecreeDetailSheet
+            decree={activeSheet.data}
+            onToggle={actions.toggleDecree}
+            onClose={closeSheet}
+          />
+        )}
+      </BottomSheet>
+
+      {/* 社会阶层底部面板（移动端） */}
+      <BottomSheet
+        isOpen={showStrata}
+        onClose={() => setShowStrata(false)}
+        title="社会阶层"
+        showHeader={true}
+      >
+        <StrataPanel
+          popStructure={gameState.popStructure}
+          classApproval={gameState.classApproval}
+          classInfluence={gameState.classInfluence}
+          stability={gameState.stability}
+          population={gameState.population}
+          activeBuffs={gameState.activeBuffs}
+          activeDebuffs={gameState.activeDebuffs}
+          classWealth={gameState.classWealth}
+          classWealthDelta={gameState.classWealthDelta}
+          classShortages={gameState.classShortages}
+          classIncome={gameState.classIncome}
+          classExpense={gameState.classExpense}
+          dayScale={gameState.gameSpeed}
+          onDetailClick={handleStratumDetailClick}
+          hideTitle={true}
+        />
+      </BottomSheet>
+
+      {/* 国内市场底部面板（移动端） */}
+      <BottomSheet
+        isOpen={showMarket}
+        onClose={() => setShowMarket(false)}
+        title="国内市场"
+        showHeader={true}
+      >
+        <div className="space-y-2">
+          <ResourcePanel 
+            resources={gameState.resources} 
+            rates={gameState.rates} 
+            market={gameState.market}
+            epoch={gameState.epoch}
+            onDetailClick={(key) => {
+              setShowMarket(false);
+              gameState.setResourceDetailView(key);
+            }}
+          />
+        </div>
+      </BottomSheet>
+
+      {/* 帝国场景底部面板（移动端） */}
+      <BottomSheet
+        isOpen={showEmpireScene}
+        onClose={() => setShowEmpireScene(false)}
+        title={`帝国场景 - ${calendar.season} · 第${calendar.year}年`}
+        showHeader={true}
+      >
+        <div className="bg-gray-900/60 backdrop-blur-md rounded-lg border border-white/10 shadow-glass overflow-hidden">
+          <EmpireScene
+            daysElapsed={gameState.daysElapsed}
+            season={calendar.season}
+            population={gameState.population}
+            stability={gameState.stability}
+            wealth={gameState.resources.silver}
+            epoch={gameState.epoch}
+          />
+        </div>
       </BottomSheet>
 
       {/* 战斗结果模态框 */}

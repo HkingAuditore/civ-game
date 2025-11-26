@@ -175,7 +175,7 @@ const BusinessTaxCard = ({ building, multiplier, buildingCount, draftMultiplier,
  * @param {Object} buildings - 当前建筑数量
  * @param {number} epoch - 当前时代编号
  */
-export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicies, popStructure = {}, buildings = {}, market = {}, epoch = 0, techsUnlocked = [] }) => {
+export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicies, popStructure = {}, buildings = {}, market = {}, epoch = 0, techsUnlocked = [], onShowDecreeDetails }) => {
   // 按类别分组政令
   const categories = {
     economy: { name: '经济政策', icon: 'Coins', color: 'text-yellow-400' },
@@ -701,7 +701,8 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
               {categoryDecrees.map((decree) => (
                 <div
                   key={decree.id}
-                  className={`group relative p-2 rounded-lg border transition-all ${
+                  onClick={() => onShowDecreeDetails && onShowDecreeDetails(decree)}
+                  className={`group relative p-2 rounded-lg border transition-all cursor-pointer ${
                     decree.active
                       ? 'bg-green-900/20 border-green-600 shadow-lg'
                       : 'bg-gray-700/50 border-gray-600 hover:border-purple-500 hover:shadow-lg'
@@ -740,7 +741,7 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
 
                   {/* 切换按钮 - 紧凑版 */}
                   <button
-                    onClick={() => onToggle(decree.id)}
+                    onClick={(e) => { e.stopPropagation(); onToggle(decree.id); }}
                     className={`w-full px-2 py-1 rounded text-[10px] font-semibold transition-all ${
                       decree.active
                         ? 'bg-red-600 hover:bg-red-500 text-white'

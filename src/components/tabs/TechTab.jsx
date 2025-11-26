@@ -65,7 +65,7 @@ const TechTooltip = ({ tech, status, resources, market, anchorElement }) => {
 
       setPosition({ top, left });
     }
-  }, [anchorElement]);
+  }, [anchorElement, tech]);
 
   const silverCost = calculateSilverCost(tech.cost, market);
 
@@ -125,6 +125,7 @@ export const TechTab = ({
   onUpgradeEpoch,
   canUpgradeEpoch,
   market,
+  onShowTechDetails, // 新增：显示科技详情回调
 }) => {
   const [hoveredTech, setHoveredTech] = useState({ tech: null, element: null });
   const canHover = window.matchMedia('(hover: hover)').matches;
@@ -471,7 +472,8 @@ export const TechTab = ({
                               key={tech.id}
                               onMouseEnter={(e) => handleMouseEnter(e, tech)}
                               onMouseLeave={() => canHover && setHoveredTech({ tech: null, element: null })}
-                              className={`group relative p-2 rounded-lg border transition-all ${
+                              onClick={() => onShowTechDetails && onShowTechDetails(tech, status)}
+                              className={`group relative p-2 rounded-lg border transition-all cursor-pointer ${
                                 status === 'unlocked'
                                   ? 'bg-green-900/20 border-green-600'
                                   : affordable
@@ -514,7 +516,7 @@ export const TechTab = ({
                                 </div>
                               ) : (
                                 <button
-                                  onClick={() => onResearch(tech.id)}
+                                  onClick={(e) => { e.stopPropagation(); onResearch(tech.id); }}
                                   disabled={!affordable}
                                   className={`w-full px-2 py-1 rounded text-[10px] font-semibold transition-colors ${
                                     affordable

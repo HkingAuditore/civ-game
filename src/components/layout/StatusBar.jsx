@@ -18,6 +18,9 @@ export const StatusBar = ({
   armyFoodNeed,
   onResourceDetailClick,
   onPopulationDetailClick,
+  onStrataClick,  // 新增：点击社会阶层按钮的回调
+  onMarketClick,  // 新增：点击国内市场按钮的回调
+  onEmpireSceneClick,  // 新增：点击日期按钮弹出帝国场景的回调
   // 游戏控制相关props
   gameControls,
 }) => {
@@ -81,9 +84,16 @@ export const StatusBar = ({
             </div>
           </div>
 
-          {/* 时间显示 */}
+          {/* 时间显示 - 移动端点击弹出帝国场景 */}
           <button
-            onClick={() => setShowResourcesExpanded(!showResourcesExpanded)}
+            onClick={() => {
+              // 移动端点击弹出帝国场景，桌面端展开资源列表
+              if (window.innerWidth < 1024 && onEmpireSceneClick) {
+                onEmpireSceneClick();
+              } else {
+                setShowResourcesExpanded(!showResourcesExpanded);
+              }
+            }}
             className="flex items-center gap-1.5 sm:gap-2 bg-gray-800/40 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full border border-gray-700/50 hover:bg-gray-800/60 transition-colors"
           >
             <Icon name="Calendar" size={14} className="text-blue-300 sm:w-4 sm:h-4" />
@@ -165,6 +175,26 @@ export const StatusBar = ({
               / {gameState.adminCap}
             </span>
           </div>
+
+          {/* 社会阶层按钮（移动端） */}
+          <button
+            onClick={onStrataClick}
+            className="lg:hidden flex items-center gap-1.5 bg-gradient-to-r from-purple-900/30 to-purple-800/20 backdrop-blur-sm px-2.5 py-1.5 rounded-full border border-purple-600/30 hover:border-purple-500/50 transition-all flex-shrink-0"
+            title="社会阶层"
+          >
+            <Icon name="Users" size={14} className="text-purple-300" />
+            <span className="text-[10px] text-purple-200 font-semibold">阶层</span>
+          </button>
+
+          {/* 国内市场按钮（移动端） */}
+          <button
+            onClick={onMarketClick}
+            className="lg:hidden flex items-center gap-1.5 bg-gradient-to-r from-amber-900/30 to-amber-800/20 backdrop-blur-sm px-2.5 py-1.5 rounded-full border border-amber-600/30 hover:border-amber-500/50 transition-all flex-shrink-0"
+            title="国内市场"
+          >
+            <Icon name="Package" size={14} className="text-amber-300" />
+            <span className="text-[10px] text-amber-200 font-semibold">市场</span>
+          </button>
 
           {/* 更多资源按钮（移动端） */}
           <button

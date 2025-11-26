@@ -29,9 +29,10 @@ export const StrataPanel = ({
   classExpense = {},
   onDetailClick,
   dayScale = 1,
+  hideTitle = false,  // 新增：是否隐藏标题
 }) => {
   const safeDayScale = Math.max(dayScale, 0.0001);
-  const [viewMode, setViewMode] = useState('card');
+  // 移除viewMode状态，因为我们将根据屏幕尺寸自动切换
   const getApprovalColor = (value) => {
     if (value >= 70) return 'text-green-400';
     if (value >= 40) return 'text-yellow-400';
@@ -77,27 +78,27 @@ export const StrataPanel = ({
     safeDayScale,
   ]);
   return (
-    <div className="bg-gray-800 p-3 rounded-lg border border-gray-700 shadow-lg min-h-[460px] flex flex-col">
+    <div className="bg-gray-800 p-1.5 rounded-lg border border-gray-700 shadow-lg min-h-[460px] flex flex-col">
       {/* 标题和稳定度 */}
-      <div className="flex flex-wrap items-center justify-between mb-2 gap-2 flex-shrink-0">
-        <h3 className="text-sm font-bold text-gray-300 flex items-center gap-2">
-          <Icon name="Users" size={16} />
-          社会阶层
-        </h3>
+      {!hideTitle && (
+        <div className="flex flex-wrap items-center justify-between mb-1 gap-1.5 flex-shrink-0">
+          <h3 className="text-xs font-bold text-gray-300 flex items-center gap-1.5">
+            <Icon name="Users" size={14} />
+            社会阶层
+          </h3>
 
-        <div className="flex items-center gap-2">
           {/* 稳定度指示器 */}
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-0.5">
             <Icon 
               name="TrendingUp" 
-              size={14} 
+              size={12} 
               className={
                 stability >= 70 ? 'text-green-400' :
                 stability >= 40 ? 'text-yellow-400' :
                 'text-red-400'
               } 
             />
-            <span className={`text-xs font-bold ${
+            <span className={`text-[10px] font-bold ${
               stability >= 70 ? 'text-green-400' :
               stability >= 40 ? 'text-yellow-400' :
               'text-red-400'
@@ -105,89 +106,132 @@ export const StrataPanel = ({
               {stability.toFixed(0)}%
             </span>
           </div>
-
-          {/* 视图切换 */}
-          <div className="flex items-center gap-1 bg-gray-700/50 rounded-full p-0.5">
-            <button
-              className={`px-2 py-1 rounded-full text-[11px] flex items-center gap-1 transition-colors ${
-                viewMode === 'card'
-                  ? 'bg-gray-900 text-white'
-                  : 'text-gray-300 hover:text-white'
-              }`}
-              onClick={() => setViewMode('card')}
-              title="卡片视图"
-            >
-              <Icon name="List" size={12} />
-              卡片
-            </button>
-            <button
-              className={`px-2 py-1 rounded-full text-[11px] flex items-center gap-1 transition-colors ${
-                viewMode === 'table'
-                  ? 'bg-gray-900 text-white'
-                  : 'text-gray-300 hover:text-white'
-              }`}
-              onClick={() => setViewMode('table')}
-              title="表格视图"
-            >
-              <Icon name="Table" size={12} />
-              表格
-            </button>
-          </div>
         </div>
-      </div>
+      )}
 
       {/* 阶层列表 - 使用自定义滚动条样式 */}
       <div
-        className="flex-1 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500"
+        className="flex-1 overflow-y-auto pr-0.5 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500"
         style={{ maxHeight: 'calc(100vh - 520px)', minHeight: '300px' }}
       >
-        {viewMode === 'card' ? (
-          <div className="space-y-1">
-            {strataData.map(
-              ({
-                key,
-                info,
-                count,
-                approval,
-                influence,
-                wealthValue,
-                incomePerCapita,
-                expensePerCapita,
-                netIncomePerCapita,
-                shortages,
-              }) => (
+        {/* 移动端和小窗口：网格布局 - 使用好感度作为背景填充 */}
+        <div className="lg:hidden grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-1">
+          {strataData.map((strata) => {
+            // 计算好感度对应的背景颜色
+            const getApprovalBgGradient = (approval) => {
+              if (approval >= 70) {
+                return `linear-gradient(to right, rgba(34, 197, 94, 0.15) 0%, rgba(34, 197, 94, 0.15) ${approval}%, rgba(31, 41, 55, 0.5) ${approval}%, rgba(31, 41, 55, 0.5) 100%)`;
+              } else if (approval >= 40) {
+                return `linear-gradient(to right, rgba(234, 179, 8, 0.15) 0%, rgba(234, 179, 8, 0.15) ${approval}%, rgba(31, 41, 55, 0.5) ${approval}%, rgba(31, 41, 55, 0.5) 100%)`;
+              } else {
+                return `linear-gradient(to right, rgba(239, 68, 68, 0.15) 0%, rgba(239, 68, 68, 0.15) ${approval}%, rgba(31, 41, 55, 0.5) ${approval}%, rgba(31, 41, 55, 0.5) 100%)`;
+              }
+            };
+
+            return (
+              <div
+                key={`grid-${strata.key}`}
+                className="relative rounded overflow-hidden hover:scale-[1.02] transition-transform cursor-pointer border border-gray-600/50 shadow-sm"
+                style={{
+                  background: getApprovalBgGradient(strata.approval),
+                }}
+                onClick={() => onDetailClick && onDetailClick(strata.key)}
+              >
+                {/* 卡片内容 */}
+                <div className="relative z-10 p-1">
+                  {/* 头部：图标、阶层名称 */}
+                  <div className="flex items-center gap-1 mb-1">
+                    <div className="w-6 h-6 bg-gray-800/60 rounded flex items-center justify-center flex-shrink-0">
+                      <Icon name={strata.info.icon} size={12} className="text-gray-200" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[10px] font-bold text-white truncate leading-tight">{strata.info.name}</div>
+                      <div className="text-[8px] text-gray-300 font-mono leading-none">{strata.count}</div>
+                    </div>
+                    {/* 短缺闪烁图标 */}
+                    {strata.shortages.length > 0 && (
+                      <div className="flex-shrink-0">
+                        <Icon 
+                          name="AlertTriangle" 
+                          size={10} 
+                          className="text-red-400 animate-pulse drop-shadow-[0_0_3px_rgba(248,113,113,0.8)]" 
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 每日人均净收入 */}
+                  <div className="bg-gray-900/60 rounded px-1 py-0.5 backdrop-blur-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[8px] text-gray-400 leading-none">净收入</span>
+                      <span
+                        className={`text-[9px] font-bold font-mono leading-none ${
+                          strata.netIncomePerCapita >= 0 ? 'text-green-300' : 'text-red-300'
+                        }`}
+                      >
+                        {strata.netIncomePerCapita >= 0 ? '+' : ''}
+                        {strata.netIncomePerCapita.toFixed(1)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          {strataData.length === 0 && (
+            <div className="col-span-full text-center text-gray-500 text-[10px] py-4">
+              暂无可显示的阶层数据。
+            </div>
+          )}
+        </div>
+
+        {/* 桌面端大窗口：卡片布局 */}
+        <div className="hidden lg:block space-y-0.5">
+          {strataData.map(
+            ({
+              key,
+              info,
+              count,
+              approval,
+              influence,
+              wealthValue,
+              incomePerCapita,
+              expensePerCapita,
+              netIncomePerCapita,
+              shortages,
+            }) => (
                 <div
                   key={key}
-                  className="bg-gray-700/50 p-1.5 rounded hover:bg-gray-700 transition-colors cursor-pointer"
+                  className="bg-gray-700/50 p-1 rounded hover:bg-gray-700 transition-colors cursor-pointer"
                   onClick={() => onDetailClick && onDetailClick(key)}
                 >
                   {/* 阶层名称、人口和好感度 - 合并为一行 */}
                   <div className="flex items-center justify-between mb-0.5">
-                    <div className="flex items-center gap-1.5">
-                      <Icon name={info.icon} size={12} className="text-gray-400" />
-                      <span className="text-xs font-semibold text-gray-200">{info.name}</span>
-                      <span className="text-[10px] text-gray-500">{count}人</span>
+                    <div className="flex items-center gap-1">
+                      <Icon name={info.icon} size={10} className="text-gray-400" />
+                      <span className="text-[10px] font-semibold text-gray-200">{info.name}</span>
+                      <span className="text-[8px] text-gray-500">{count}人</span>
                     </div>
-                    <span className={`text-[10px] font-semibold ${getApprovalColor(approval)}`}>
+                    <span className={`text-[9px] font-semibold font-mono ${getApprovalColor(approval)}`}>
                       {approval.toFixed(0)}%
                     </span>
                   </div>
 
-                  {/* 收入、支出与净增（人均） */}
-                  <div className="grid grid-cols-3 gap-1 text-[10px] mb-0.5 bg-gray-900/30 px-1.5 py-0.5 rounded">
-                    <div className="flex items-center gap-1" title="人均日收入">
+                  {/* 收入、支出与净增（人均） - 更紧凑 */}
+                  <div className="grid grid-cols-3 gap-0.5 text-[8px] mb-0.5 bg-gray-900/30 px-1 py-0.5 rounded">
+                    <div className="flex items-center gap-0.5" title="人均日收入">
                       <span className="text-gray-500">收</span>
                       <span className="text-green-300 font-mono">
-                        +{incomePerCapita.toFixed(2)}
+                        +{incomePerCapita.toFixed(1)}
                       </span>
                     </div>
-                    <div className="flex items-center gap-1 justify-center" title="人均日支出">
+                    <div className="flex items-center gap-0.5 justify-center" title="人均日支出">
                       <span className="text-gray-500">支</span>
                       <span className="text-red-300 font-mono">
-                        -{expensePerCapita.toFixed(2)}
+                        -{expensePerCapita.toFixed(1)}
                       </span>
                     </div>
-                    <div className="flex items-center gap-1 justify-end" title="人均日净增">
+                    <div className="flex items-center gap-0.5 justify-end" title="人均日净增">
                       <span className="text-gray-500">净</span>
                       <span
                         className={`font-mono ${
@@ -195,16 +239,16 @@ export const StrataPanel = ({
                         }`}
                       >
                         {netIncomePerCapita > 0 ? '+' : ''}
-                        {netIncomePerCapita.toFixed(2)}
+                        {netIncomePerCapita.toFixed(1)}
                       </span>
                     </div>
                   </div>
 
-                  {/* 好感度进度条 */}
+                  {/* 好感度进度条 - 更细 */}
                   <div className="mb-0.5">
-                    <div className="w-full bg-gray-600 rounded-full h-1">
+                    <div className="w-full bg-gray-600 rounded-full h-0.5">
                       <div
-                        className={`h-1 rounded-full transition-all ${
+                        className={`h-0.5 rounded-full transition-all ${
                           approval >= 70 ? 'bg-green-500' : approval >= 40 ? 'bg-yellow-500' : 'bg-red-500'
                         }`}
                         style={{ width: `${approval}%` }}
@@ -212,19 +256,19 @@ export const StrataPanel = ({
                     </div>
                   </div>
 
-                  {/* 影响力和财富 */}
-                  <div className="flex items-center justify-between text-[10px] mb-0.5">
-                    <div className="flex items-center gap-2">
+                  {/* 影响力和财富 - 更紧凑 */}
+                  <div className="flex items-center justify-between text-[8px]">
+                    <div className="flex items-center gap-1">
                       <span className="text-gray-400">影响</span>
-                      <span className="text-purple-400 font-semibold">{influence.toFixed(1)}</span>
+                      <span className="text-purple-400 font-semibold font-mono">{influence.toFixed(1)}</span>
                     </div>
-                    <div className="flex items-center gap-1" title="阶层总财富">
-                      <Icon name="Coins" size={10} className="text-yellow-400" />
-                      <span className="text-gray-200 font-mono">{wealthValue.toFixed(1)}</span>
+                    <div className="flex items-center gap-0.5" title="阶层总财富">
+                      <Icon name="Coins" size={8} className="text-yellow-400" />
+                      <span className="text-gray-200 font-mono">{wealthValue.toFixed(0)}</span>
                     </div>
                   </div>
 
-                  {/* 短缺资源提示 */}
+                  {/* 短缺资源提示 - 更紧凑 */}
                   {shortages.length > 0 && (() => {
                     const hasOutOfStock = shortages.some((s) => {
                       const reason = typeof s === 'string' ? 'outOfStock' : s.reason;
@@ -259,11 +303,11 @@ export const StrataPanel = ({
 
                     return (
                       <div
-                        className={`flex items-center gap-1 text-[10px] text-red-300 flex-wrap ${labelBg} border ${labelBorder} rounded px-1.5 py-1 mt-0.5`}
+                        className={`flex items-center gap-0.5 text-[8px] text-red-300 flex-wrap ${labelBg} border ${labelBorder} rounded px-1 py-0.5 mt-0.5`}
                       >
-                        <Icon name={labelIcon} size={12} className="text-red-400 animate-pulse" />
+                        <Icon name={labelIcon} size={10} className="text-red-400 animate-pulse" />
                         <span className="text-red-200 font-semibold">{labelText}:</span>
-                        <div className="flex items-center gap-1 flex-wrap">
+                        <div className="flex items-center gap-0.5 flex-wrap">
                           {shortages.map((shortage, idx) => {
                             const resKey = typeof shortage === 'string' ? shortage : shortage.resource;
                             const reason = typeof shortage === 'string' ? 'outOfStock' : shortage.reason;
@@ -294,12 +338,12 @@ export const StrataPanel = ({
                             return (
                               <span
                                 key={`${key}-${resKey}-${idx}`}
-                                className={`px-1 py-0.5 ${bgColor} border ${borderColor} rounded flex items-center gap-0.5 animate-pulse`}
+                                className={`px-0.5 py-0.5 ${bgColor} border ${borderColor} rounded flex items-center gap-0.5 animate-pulse`}
                                 title={`${res?.name || resKey} ${reasonText}`}
                               >
-                                <Icon name={reasonIcon} size={10} className="text-red-200" />
-                                <Icon name={res?.icon || 'HelpCircle'} size={11} className="text-red-200" />
-                                <span className="text-red-100 font-medium text-[9px]">{res?.name || resKey}</span>
+                                <Icon name={reasonIcon} size={8} className="text-red-200" />
+                                <Icon name={res?.icon || 'HelpCircle'} size={9} className="text-red-200" />
+                                <span className="text-red-100 font-medium text-[8px]">{res?.name || resKey}</span>
                               </span>
                             );
                           })}
@@ -310,84 +354,26 @@ export const StrataPanel = ({
                 </div>
               )
             )}
-          </div>
-        ) : (
-          <div className="bg-gray-900/40 rounded-lg border border-gray-700 overflow-x-auto">
-            <table className="w-full text-[11px] text-gray-300">
-              <thead className="text-gray-400 text-[10px] uppercase tracking-wide">
-                <tr>
-                  <th className="text-left px-3 py-2 font-semibold">阶层</th>
-                  <th className="text-right px-3 py-2 font-semibold">人口</th>
-                  <th className="text-right px-3 py-2 font-semibold">好感</th>
-                  <th className="text-right px-3 py-2 font-semibold">影响</th>
-                  <th className="text-right px-3 py-2 font-semibold">财富</th>
-                  <th className="text-right px-3 py-2 font-semibold">收入</th>
-                </tr>
-              </thead>
-              <tbody>
-                {strataData.map((strata) => (
-                  <tr
-                    key={`table-${strata.key}`}
-                    className="border-t border-gray-800 hover:bg-gray-800/60 cursor-pointer"
-                    style={{ height: '28px' }}
-                    onClick={() => onDetailClick && onDetailClick(strata.key)}
-                  >
-                    <td className="px-3 py-1.5 text-gray-200">
-                      <div className="flex items-center gap-1.5">
-                        <Icon name={strata.info.icon} size={12} className="text-gray-400" />
-                        <span className="font-semibold">{strata.info.name}</span>
-                      </div>
-                    </td>
-                    <td className="px-3 py-1.5 text-right font-mono text-gray-300">{strata.count}</td>
-                    <td className={`px-3 py-1.5 text-right font-mono ${getApprovalColor(strata.approval)}`}>
-                      {strata.approval.toFixed(0)}%
-                    </td>
-                    <td className="px-3 py-1.5 text-right font-mono text-purple-300">
-                      {strata.influence.toFixed(1)}
-                    </td>
-                    <td className="px-3 py-1.5 text-right font-mono text-gray-200">
-                      {strata.wealthValue.toFixed(1)}
-                    </td>
-                    <td
-                      className={`px-3 py-1.5 text-right font-mono ${
-                        strata.netIncomePerCapita >= 0 ? 'text-green-300' : 'text-red-300'
-                      }`}
-                    >
-                      {strata.netIncomePerCapita >= 0 ? '+' : ''}
-                      {strata.netIncomePerCapita.toFixed(2)}
-                    </td>
-                  </tr>
-                ))}
-                {strataData.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="px-3 py-4 text-center text-gray-500">
-                      暂无可显示的阶层数据。
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
+        </div>
       </div>
 
       {/* 当前效果 - 更紧凑 */}
-      <div className="mt-1.5 pt-1.5 border-t border-gray-700 flex-shrink-0">
-        <h4 className="text-[10px] font-bold text-gray-400 mb-1 flex items-center gap-1">
-          <Icon name="Activity" size={12} />
+      <div className="mt-1 pt-1 border-t border-gray-700 flex-shrink-0">
+        <h4 className="text-[9px] font-bold text-gray-400 mb-0.5 flex items-center gap-0.5">
+          <Icon name="Activity" size={10} />
           当前效果
         </h4>
-        <div className="space-y-0.5 text-[10px] max-h-20 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
+        <div className="space-y-0.5 text-[8px] max-h-16 overflow-y-auto pr-0.5 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
           {activeBuffs.map((buff, index) => {
             const details = formatEffectDetails(buff);
             return (
               <div key={`buff-${index}`} className="text-green-400 leading-tight">
-                <div className="flex items-center gap-1">
-                  <Icon name="ArrowUp" size={10} />
+                <div className="flex items-center gap-0.5">
+                  <Icon name="ArrowUp" size={8} />
                   <span className="font-semibold">{buff.desc || '满意加成'}</span>
                 </div>
                 {details.length > 0 && (
-                  <div className="text-gray-300 ml-3 text-[9px]">{details.join('，')}</div>
+                  <div className="text-gray-300 ml-2 text-[7px]">{details.join('，')}</div>
                 )}
               </div>
             );
@@ -396,18 +382,18 @@ export const StrataPanel = ({
             const details = formatEffectDetails(debuff);
             return (
               <div key={`debuff-${index}`} className="text-red-400 leading-tight">
-                <div className="flex items-center gap-1">
-                  <Icon name="ArrowDown" size={10} />
+                <div className="flex items-center gap-0.5">
+                  <Icon name="ArrowDown" size={8} />
                   <span className="font-semibold">{debuff.desc || '不满惩罚'}</span>
                 </div>
                 {details.length > 0 && (
-                  <div className="text-gray-300 ml-3 text-[9px]">{details.join('，')}</div>
+                  <div className="text-gray-300 ml-2 text-[7px]">{details.join('，')}</div>
                 )}
               </div>
             );
           })}
           {activeBuffs.length === 0 && activeDebuffs.length === 0 && (
-            <span className="text-gray-500 text-[10px] italic">无有效效果</span>
+            <span className="text-gray-500 text-[8px] italic">无有效效果</span>
           )}
         </div>
       </div>
@@ -415,9 +401,9 @@ export const StrataPanel = ({
       {/* 查看详情按钮 - 更紧凑 */}
       <button
         onClick={() => onDetailClick && onDetailClick('all')}
-        className="w-full mt-1.5 px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 text-[10px] rounded transition-colors flex items-center justify-center gap-1 flex-shrink-0"
+        className="w-full mt-1 px-1.5 py-0.5 bg-gray-700 hover:bg-gray-600 text-gray-300 text-[9px] rounded transition-colors flex items-center justify-center gap-0.5 flex-shrink-0"
       >
-        <Icon name="Info" size={10} />
+        <Icon name="Info" size={9} />
         查看详细信息
       </button>
     </div>

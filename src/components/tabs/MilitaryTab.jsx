@@ -36,7 +36,7 @@ const UnitTooltip = ({ unit, resources, market, militaryWageRatio, anchorElement
 
       setPosition({ top, left });
     }
-  }, [anchorElement]);
+  }, [anchorElement, unit]);
 
   const silverCost = calculateSilverCost(unit.recruitCost, market);
   const foodPrice = market?.prices?.food ?? (RESOURCES.food?.basePrice || 1);
@@ -116,6 +116,7 @@ export const MilitaryTab = ({
   militaryWageRatio = 1,
   onUpdateWageRatio,
   techsUnlocked = [],
+  onShowUnitDetails, // 新增：显示单位详情回调
 }) => {
   const [hoveredUnit, setHoveredUnit] = useState({ unit: null, element: null });
   const canHover = window.matchMedia('(hover: hover)').matches;
@@ -289,7 +290,8 @@ export const MilitaryTab = ({
                 key={unitId}
                 onMouseEnter={(e) => handleMouseEnter(e, unit)}
                 onMouseLeave={() => canHover && setHoveredUnit({ unit: null, element: null })}
-                className={`group relative p-2 rounded-lg border transition-all ${
+                onClick={() => onShowUnitDetails && onShowUnitDetails(unit)}
+                className={`group relative p-2 rounded-lg border transition-all cursor-pointer ${
                   affordable
                     ? 'bg-gray-700 border-gray-600 hover:border-red-500 hover:shadow-lg'
                     : 'bg-gray-700/50 border-gray-700'
@@ -325,7 +327,7 @@ export const MilitaryTab = ({
                 {/* 操作按钮 - 紧凑版 */}
                 <div className="space-y-1">
                   <button
-                    onClick={() => onRecruit(unitId)}
+                    onClick={(e) => { e.stopPropagation(); onRecruit(unitId); }}
                     disabled={!affordable}
                     className={`w-full px-2 py-1 rounded text-[10px] font-semibold transition-colors ${
                       affordable
@@ -343,7 +345,7 @@ export const MilitaryTab = ({
 
                   {(army[unitId] || 0) > 0 && (
                     <button
-                      onClick={() => onDisband(unitId)}
+                      onClick={(e) => { e.stopPropagation(); onDisband(unitId); }}
                       className="w-full px-2 py-1 bg-red-600 hover:bg-red-500 text-white rounded text-[10px] font-semibold transition-colors flex items-center justify-center gap-1"
                     >
                       <Icon name="Minus" size={10} />

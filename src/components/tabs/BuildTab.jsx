@@ -36,7 +36,7 @@ const BuildingTooltip = ({ building, count, epoch, techsUnlocked, jobFill, ancho
 
       setPosition({ top, left });
     }
-  }, [anchorElement]);
+  }, [anchorElement, building, count]);
 
   return createPortal(
     <div
@@ -149,7 +149,7 @@ const CompactBuildingCard = ({
 
   return (
     <div 
-      className="group relative flex flex-col h-full bg-gray-800/60 border border-gray-700 rounded-lg p-2 text-center transition-all hover:border-blue-500 hover:bg-gray-800/80 hover:shadow-lg"
+      className="group relative flex flex-col h-full bg-gray-800/60 border border-gray-700 rounded p-1.5 text-center transition-all hover:border-blue-500 hover:bg-gray-800/80 hover:shadow-lg"
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
@@ -158,51 +158,45 @@ const CompactBuildingCard = ({
         className="flex-grow flex flex-col items-center cursor-pointer"
         onClick={() => onShowDetails(building.id)}
       >
-        <div className="w-10 h-10 rounded-full flex items-center justify-center mb-1.5 bg-gradient-to-br from-gray-700/80 to-gray-900/80 border border-gray-600/50 shadow-inner">
-          <VisualIcon name={building.visual.icon} size={20} className={`${building.visual.text} drop-shadow-sm`} />
+        <div className="w-8 h-8 rounded-full flex items-center justify-center mb-1 bg-gradient-to-br from-gray-700/80 to-gray-900/80 border border-gray-600/50 shadow-inner">
+          <VisualIcon name={building.visual.icon} size={16} className={`${building.visual.text} drop-shadow-sm`} />
         </div>
-        <div className="flex items-baseline gap-1">
-          <h4 className="text-xs font-bold text-white leading-tight">{building.name}</h4>
-          <p className="text-[11px] font-bold text-blue-300 drop-shadow-sm">×{count}</p>
+        <div className="flex items-baseline gap-0.5">
+          <h4 className="text-[10px] font-bold text-white leading-tight truncate max-w-[60px]">{building.name}</h4>
+          {count > 0 && <p className="text-[9px] font-bold text-blue-300 drop-shadow-sm">×{count}</p>}
         </div>
       </div>
 
-      {/* 岗位饱和度与资源总览 */}
+      {/* 岗位饱和度与资源总览 - 仅在有建筑时显示，且更紧凑 */}
       {count > 0 && (
-        <div className="space-y-1.5 text-[10px] my-1.5">
-          {/* 岗位饱和度 */}
+        <div className="space-y-0.5 text-[9px] my-1">
+          {/* 岗位饱和度 - 只显示进度条，不显示标签 */}
           {building.jobs && Object.keys(building.jobs).length > 0 && (
-            <div className="bg-gray-900/40 rounded px-1.5 py-1">
-              <div className="flex items-center justify-start mb-1">
-                <span className="text-gray-400">岗位</span>
-              </div>
-              {Object.entries(building.jobs).slice(0, 2).map(([job, perBuilding]) => {
+            <div className="bg-gray-900/40 rounded px-1 py-0.5">
+              {Object.entries(building.jobs).slice(0, 1).map(([job, perBuilding]) => {
                 const required = perBuilding * count;
                 const assigned = jobFill?.[building.id]?.[job] ?? 0;
                 const fillPercent = required > 0 ? Math.min(1, assigned / required) * 100 : 0;
                 return (
-                  <div key={job} className="flex items-center gap-1.5" title={`${STRATA[job]?.name}: ${Math.round(assigned)}/${Math.round(required)}`}>
-                    <Icon name={STRATA[job]?.icon || 'User'} size={10} className="text-gray-400 flex-shrink-0" />
-                    <div className="w-full bg-gray-700 rounded-full h-1.5">
-                      <div className="h-1.5 rounded-full bg-green-500" style={{ width: `${fillPercent}%` }}></div>
+                  <div key={job} className="flex items-center gap-0.5" title={`${STRATA[job]?.name}: ${Math.round(assigned)}/${Math.round(required)}`}>
+                    <Icon name={STRATA[job]?.icon || 'User'} size={8} className="text-gray-400 flex-shrink-0" />
+                    <div className="flex-1 bg-gray-700 rounded-full h-1">
+                      <div className="h-1 rounded-full bg-green-500" style={{ width: `${fillPercent}%` }}></div>
                     </div>
-                    <span className="font-mono text-[10px] text-gray-300 w-12 text-right">{Math.round(assigned)}/{Math.round(required)}</span>
+                    <span className="font-mono text-[8px] text-gray-300 whitespace-nowrap">{Math.round(assigned)}/{Math.round(required)}</span>
                   </div>
                 );
               })}
             </div>
           )}
-          {/* 资源产出 */}
+          {/* 资源产出 - 更紧凑的显示 */}
           {(() => {
             const unlockedOutput = filterUnlockedResources(building.output, epoch, techsUnlocked);
             if (Object.keys(unlockedOutput).length === 0) return null;
             return (
-              <div className="bg-gray-900/40 rounded px-1.5 py-1">
-                <div className="flex items-center justify-start mb-1">
-                  <span className="text-gray-400">产出</span>
-                </div>
-                <div className="flex flex-wrap gap-1 justify-center">
-                  {Object.entries(unlockedOutput).slice(0, 2).map(([res, val]) => {
+              <div className="bg-gray-900/40 rounded px-1 py-0.5">
+                <div className="flex flex-wrap gap-0.5 justify-center">
+                  {Object.entries(unlockedOutput).slice(0, 1).map(([res, val]) => {
                     // 计算总岗位需求和总分配人数
                     const totalRequired = Object.values(building.jobs || {}).reduce((sum, per) => sum + per * count, 0);
                     const totalAssigned = Object.values(jobFill?.[building.id] || {}).reduce((sum, num) => sum + num, 0);
@@ -215,8 +209,8 @@ const CompactBuildingCard = ({
 
                     return (
                       <div key={res} className="flex items-center gap-0.5 text-green-300" title={`${RESOURCES[res]?.name} - 单个产出: ${val} / 实际总产出: ${actualTotalOutput.toFixed(1)}`}>
-                        <Icon name={RESOURCES[res]?.icon || 'Box'} size={10} />
-                        <span className="font-mono text-xs">+{actualTotalOutput.toFixed(1)}</span>
+                        <Icon name={RESOURCES[res]?.icon || 'Box'} size={8} />
+                        <span className="font-mono text-[9px]">+{actualTotalOutput.toFixed(0)}</span>
                       </div>
                     );
                   })}
@@ -227,28 +221,28 @@ const CompactBuildingCard = ({
         </div>
       )}
 
-      {/* 操作按钮 */}
-      <div className="mt-2 space-y-1">
+      {/* 操作按钮 - 更紧凑 */}
+      <div className="mt-1 space-y-0.5">
         <button
           onClick={(e) => { e.stopPropagation(); onBuy(building.id); }}
           disabled={!affordable}
-          className={`w-full px-2 py-1 rounded text-[10px] font-semibold transition-all ${
+          className={`w-full px-1.5 py-0.5 rounded text-[9px] font-semibold transition-all ${
             affordable
               ? 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white shadow-sm hover:shadow-md'
               : 'bg-gray-700 text-gray-400 cursor-not-allowed'
-          } flex items-center justify-center gap-1`}
+          } flex items-center justify-center gap-0.5`}
         >
-          <Icon name="Plus" size={10} />
+          <Icon name="Plus" size={8} />
           <span className={!affordable ? 'text-red-300' : ''}>{formatSilverCost(silverCost)}</span>
         </button>
         
         {count > 0 && (
           <button
             onClick={(e) => { e.stopPropagation(); onSell(building.id); }}
-            className="w-full px-2 py-1 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white rounded text-[10px] font-semibold transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-1"
+            className="w-full px-1.5 py-0.5 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white rounded text-[9px] font-semibold transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-0.5"
           >
-            <Icon name="Minus" size={10} />
-            <span>拆除</span>
+            <Icon name="Minus" size={8} />
+            <span>拆</span>
           </button>
         )}
       </div>
@@ -437,7 +431,7 @@ export const BuildTab = ({
             </h3>
 
             {/* 建筑列表 - 紧凑布局 */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-2">
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10 gap-1.5">
               {categoryBuildings.filter(b => isBuildingAvailable(b)).map(building => {
                 const cost = calculateCost(building);
                 const silverCost = calculateSilverCost(cost, market);
