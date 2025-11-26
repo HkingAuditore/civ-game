@@ -38,60 +38,54 @@ export const ResourcePanel = ({
   };
 
   return (
-    <div className="bg-gray-800 p-3 rounded-lg border border-gray-700 shadow-lg">
-      {/* 标题 */}
-      <h3 className="text-sm font-bold mb-2 text-gray-300 flex items-center gap-2">
-        <Icon name="Package" size={16} />
-        资源
-      </h3>
-
-      {/* 资源列表 */}
-      <div className="space-y-1">
-        {Object.entries(RESOURCES).map(([key, info]) => {
-          // 跳过虚拟资源和货币类资源
-          if (info.type === 'virtual' || info.type === 'currency') return null;
-          if (typeof info.unlockEpoch === 'number' && info.unlockEpoch > epoch) return null;
-          
-          const amount = resources[key] || 0;
-          const rate = rates[key] || 0;
-          const price = getPrice(key);
-          return (
-            <div key={key} className="text-xs">
-              <div
-                className="flex items-center justify-between hover:bg-gray-700/50 p-1 rounded transition-colors cursor-pointer"
-                onClick={() => onDetailClick && onDetailClick(key)}
-                title="点击查看详情"
-              >
-                {/* 资源图标和名称 */}
-                <div className="flex items-center gap-1.5">
-                  <Icon name={info.icon} size={14} className={info.color} />
-                  <span className="text-gray-300">{info.name}</span>
-                </div>
-
-                {/* 资源数量和速率 */}
-                <div className="flex items-center gap-3">
-                  <span className="font-mono font-bold text-white min-w-[50px] text-right">
-                    {formatCompactNumber(amount)}
-                  </span>
-                  <span className="px-1.5 py-0.5 rounded bg-slate-700/70 text-[10px] text-slate-200 font-mono">
-                  {price.toFixed(2)} 银币
-                  </span>
-                  {rate !== 0 && (
-                    <span 
-                      className={`text-xs font-mono ${
-                        rate > 0 ? 'text-green-400' : 'text-red-400'
-                      }`}
-                    >
-                    {rate > 0 ? '+' : ''}{rate.toFixed(1)}/日
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-          );
-        })}
+    // 重构：移除外部容器和标题，使用 Grid 布局来精确对齐所有列
+    <div className="space-y-1">
+      {/* 新增：列标题 */}
+      <div className="grid grid-cols-[1fr,auto,auto,auto] items-center gap-x-2 text-[10px] text-gray-400 px-1 pb-1 border-b border-gray-700/50">
+        <span className="text-left">资源</span>
+        <span className="min-w-[45px] text-right">市场库存</span>
+        <span className="min-w-[55px] text-right">市场价</span>
+        <span className="min-w-[45px] text-right">产出/日</span>
       </div>
 
+      {/* 资源列表 */}
+      {Object.entries(RESOURCES).map(([key, info]) => {
+        // 跳过虚拟资源和货币类资源
+        if (info.type === 'virtual' || info.type === 'currency') return null;
+        if (typeof info.unlockEpoch === 'number' && info.unlockEpoch > epoch) return null;
+        
+        const amount = resources[key] || 0;
+        const rate = rates[key] || 0;
+        const price = getPrice(key);
+        return (
+          <div
+            key={key}
+            className="grid grid-cols-[1fr,auto,auto,auto] items-center gap-x-2 text-xs hover:bg-gray-700/50 p-1 rounded transition-colors cursor-pointer"
+            onClick={() => onDetailClick && onDetailClick(key)}
+            title="点击查看详情"
+          >
+            {/* 1. 资源图标和名称 (自动撑开) */}
+            <div className="flex items-center gap-1.5 overflow-hidden">
+              <Icon name={info.icon} size={14} className={`${info.color} flex-shrink-0`} />
+              <span className="text-gray-300 truncate">{info.name}</span>
+            </div>
+            {/* 2. 资源数量 (右对齐) */}
+            <span className="font-mono font-bold text-white min-w-[45px] text-right">
+              {formatCompactNumber(amount)}
+            </span>
+            {/* 3. 价格 (右对齐) */}
+            <div className="flex items-center justify-end gap-0.5 font-mono text-slate-300 min-w-[55px] text-[10px]">
+              <span>{price.toFixed(2)}</span>
+              <Icon name="Coins" size={10} className="text-yellow-400" />
+            </div>
+
+            {/* 4. 增长率 (右对齐) */}
+            <span className={`font-mono min-w-[45px] text-right ${rate > 0 ? 'text-green-400' : 'text-red-400'}`}>
+              {rate !== 0 ? `${rate > 0 ? '+' : ''}${rate.toFixed(1)}` : ''}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 };
