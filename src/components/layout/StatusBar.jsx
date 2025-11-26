@@ -25,10 +25,11 @@ export const StatusBar = ({
   const [showResourcesExpanded, setShowResourcesExpanded] = useState(false);
   
   const calendar = getCalendarInfo(gameState.daysElapsed || 0);
-  const dayScale = Math.max(gameState.gameSpeed || 0, 0.0001);
+  // 移除 dayScale，因为 netSilverPerDay 已经是每日净收入
   const foodPrice = gameState.market?.prices?.food ?? (RESOURCES.food?.basePrice || 1);
   const wageRatio = gameState.militaryWageRatio || 1;
-  const silverUpkeepPerDay = (armyFoodNeed * foodPrice * wageRatio) / dayScale;
+  // 军饷维护已经是每日计算好的
+  const silverUpkeepPerDay = armyFoodNeed * foodPrice * wageRatio;
   
   const netSilverClass = netSilverPerDay >= 0 ? 'text-green-300' : 'text-red-300';
   const netChipClasses = netSilverPerDay >= 0
@@ -228,27 +229,25 @@ export const StatusBar = ({
             <div className="text-xs text-gray-400 space-y-2">
               <div className="flex justify-between py-1 border-b border-gray-800">
                 <span>人头税</span>
-                <span className="text-yellow-200 font-mono">
-                  +{((taxes.breakdown?.headTax || 0) / dayScale).toFixed(2)}
-                </span>
+                <span className="text-yellow-200 font-mono">+{taxes.breakdown?.headTax?.toFixed(2) || '0.00'}</span>
               </div>
               <div className="flex justify-between py-1 border-b border-gray-800">
                 <span>交易税</span>
                 <span className="text-yellow-200 font-mono">
-                  +{((taxes.breakdown?.industryTax || 0) / dayScale).toFixed(2)}
+                  +{taxes.breakdown?.industryTax?.toFixed(2) || '0.00'}
                 </span>
               </div>
               <div className="flex justify-between py-1 border-b border-gray-800">
                 <span>营业税</span>
                 <span className="text-yellow-200 font-mono">
-                  +{((taxes.breakdown?.businessTax || 0) / dayScale).toFixed(2)}
+                  +{taxes.breakdown?.businessTax?.toFixed(2) || '0.00'}
                 </span>
               </div>
               {taxes.breakdown?.subsidy > 0 && (
                 <div className="flex justify-between py-1 border-b border-gray-800">
                   <span>补助支出</span>
                   <span className="text-red-300 font-mono">
-                    -{(taxes.breakdown.subsidy / dayScale).toFixed(2)}
+                    -{taxes.breakdown.subsidy.toFixed(2)}
                   </span>
                 </div>
               )}

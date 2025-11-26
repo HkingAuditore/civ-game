@@ -149,12 +149,11 @@ function GameApp({ gameState }) {
   // 计算税收和军队相关数据
   const taxes = gameState.taxes || { total: 0, breakdown: { headTax: 0, industryTax: 0, subsidy: 0 }, efficiency: 1 };
   const dayScale = Math.max(gameState.gameSpeed || 0, 0.0001);
-  const taxesPerDay = taxes.total / dayScale;
   const armyFoodNeed = calculateArmyFoodNeed(gameState.army || {});
   const foodPrice = gameState.market?.prices?.food ?? (RESOURCES.food?.basePrice || 1);
   const wageRatio = gameState.militaryWageRatio || 1;
-  const silverUpkeepPerDay = (armyFoodNeed * foodPrice * wageRatio) / dayScale;
-  const netSilverPerDay = taxesPerDay - silverUpkeepPerDay;
+  const silverUpkeepPerDay = armyFoodNeed * foodPrice * wageRatio;
+  const netSilverPerDay = taxes.total - silverUpkeepPerDay;
   const netSilverClass = netSilverPerDay >= 0 ? 'text-green-300' : 'text-red-300';
   const netChipClasses = netSilverPerDay >= 0
     ? 'text-green-300 bg-green-900/20 hover:bg-green-900/40'
@@ -272,7 +271,6 @@ function GameApp({ gameState }) {
               classIncome={gameState.classIncome}
               classExpense={gameState.classExpense}
               onDetailClick={(key) => gameState.setStratumDetailView(key)}
-              dayScale={dayScale}
             />
 
             {/* 手动采集按钮 */}
@@ -337,7 +335,6 @@ function GameApp({ gameState }) {
                     stability={gameState.stability}
                     population={gameState.population}
                     onDetailClick={(key) => gameState.setStratumDetailView(key)}
-                    dayScale={dayScale}
                   />
                 </div>
               )}

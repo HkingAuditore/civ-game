@@ -60,6 +60,21 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell }) => {
     return outputValue - inputValue - wageCost;
   };
 
+  // 修改：计算业主的“人均收入”
+  const getOwnerPerCapitaIncome = (b) => {
+    const profit = getOwnerIncomePerBuilding(b); // 这是纯利润
+    let ownerWagesPerBuilding = 0;
+    let ownerWorkersPerBuilding = 1; // 默认为1，防止除以0
+
+    if (b.owner && b.jobs?.[b.owner]) {
+      ownerWorkersPerBuilding = b.jobs[b.owner];
+      ownerWagesPerBuilding = (market?.wages?.[b.owner] || 0) * ownerWorkersPerBuilding;
+    }
+
+    const totalIncomePerBuilding = profit + ownerWagesPerBuilding;
+    return totalIncomePerBuilding / ownerWorkersPerBuilding;
+  };
+
   const calculateCost = (b) => {
     const currentCount = buildings[b.id] || 0;
     const cost = {};
@@ -69,7 +84,8 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell }) => {
     return cost;
   };
 
-  const ownerIncome = getOwnerIncomePerBuilding(building);
+  const ownerProfit = getOwnerIncomePerBuilding(building);
+  const ownerPerCapitaIncome = getOwnerPerCapitaIncome(building);
   const nextCost = calculateCost(building);
   const nextSilverCost = calculateSilverCost(nextCost, market);
   const unlockedOutput = filterUnlockedResources(building.output, epoch, techsUnlocked);
@@ -77,6 +93,11 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell }) => {
   const hasMaterials = Object.entries(nextCost).every(([res, val]) => (resources[res] || 0) >= val);
   const hasSilver = (resources.silver || 0) >= nextSilverCost;
   const canAffordNext = hasMaterials && hasSilver;
+
+  // 计算总的业主岗位数量
+  const totalOwnerWorkers = (building.jobs?.[building.owner] || 0) * count;
+  // 计算总收益
+  const totalIncomeForClass = ownerPerCapitaIncome * totalOwnerWorkers;
 
   return (
     <div className="space-y-4">
@@ -105,18 +126,24 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell }) => {
         </div>
         <div className="bg-gray-900/50 p-3 rounded-lg border border-gray-700/80">
           <div className="flex items-center justify-center gap-1 text-xs text-gray-400 mb-1">
-            <span>业主收益/个</span> <Icon name="Coins" size={12} className="text-yellow-400" />
+            <span>业主人均收入</span> <Icon name="Coins" size={12} className="text-yellow-400" />
           </div>
-          <div className={`text-2xl font-bold ${ownerIncome >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-            {ownerIncome.toFixed(1)}
+          <div className={`text-2xl font-bold ${ownerPerCapitaIncome >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+            {ownerPerCapitaIncome.toFixed(2)}
+          </div>
+          <div className="text-[10px] text-gray-500 -mt-1">
+            (每人)
           </div>
         </div>
         <div className="bg-gray-900/50 p-3 rounded-lg border border-gray-700/80">
           <div className="flex items-center justify-center gap-1 text-xs text-gray-400 mb-1">
-            <span>总收益</span> <Icon name="Coins" size={12} className="text-yellow-400" />
+            <span>阶层总收入</span> <Icon name="Coins" size={12} className="text-yellow-400" />
           </div>
-          <div className={`text-2xl font-bold ${ownerIncome * count >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-            {(ownerIncome * count).toFixed(1)}
+          <div className={`text-2xl font-bold ${totalIncomeForClass >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+            {totalIncomeForClass.toFixed(1)}
+          </div>
+          <div className="text-[10px] text-gray-500 -mt-1">
+            (共 {Math.round(totalOwnerWorkers)} 人)
           </div>
         </div>
       </div>

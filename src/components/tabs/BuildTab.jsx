@@ -158,11 +158,13 @@ const CompactBuildingCard = ({
         className="flex-grow flex flex-col items-center cursor-pointer"
         onClick={() => onShowDetails(building.id)}
       >
-        <div className="w-12 h-12 rounded-full flex items-center justify-center mb-2 bg-gradient-to-br from-gray-700/80 to-gray-900/80 border border-gray-600/50 shadow-inner">
-          <VisualIcon name={building.visual.icon} size={24} className={`${building.visual.text} drop-shadow-sm`} />
+        <div className="w-10 h-10 rounded-full flex items-center justify-center mb-1.5 bg-gradient-to-br from-gray-700/80 to-gray-900/80 border border-gray-600/50 shadow-inner">
+          <VisualIcon name={building.visual.icon} size={20} className={`${building.visual.text} drop-shadow-sm`} />
         </div>
-        <h4 className="text-xs font-bold text-white leading-tight flex-grow mb-1">{building.name}</h4>
-        <p className="text-sm font-bold text-blue-300 drop-shadow-sm">×{count}</p>
+        <div className="flex items-baseline gap-1">
+          <h4 className="text-xs font-bold text-white leading-tight">{building.name}</h4>
+          <p className="text-[11px] font-bold text-blue-300 drop-shadow-sm">×{count}</p>
+        </div>
       </div>
 
       {/* 岗位饱和度与资源总览 */}
@@ -230,7 +232,7 @@ const CompactBuildingCard = ({
         <button
           onClick={(e) => { e.stopPropagation(); onBuy(building.id); }}
           disabled={!affordable}
-          className={`w-full px-2 py-1.5 rounded text-[10px] font-semibold transition-all ${
+          className={`w-full px-2 py-1 rounded text-[10px] font-semibold transition-all ${
             affordable
               ? 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white shadow-sm hover:shadow-md'
               : 'bg-gray-700 text-gray-400 cursor-not-allowed'
@@ -243,7 +245,7 @@ const CompactBuildingCard = ({
         {count > 0 && (
           <button
             onClick={(e) => { e.stopPropagation(); onSell(building.id); }}
-            className="w-full px-2 py-1.5 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white rounded text-[10px] font-semibold transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-1"
+            className="w-full px-2 py-1 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white rounded text-[10px] font-semibold transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-1"
           >
             <Icon name="Minus" size={10} />
             <span>拆除</span>
@@ -307,6 +309,31 @@ export const BuildTab = ({
       return sum + wage * perBuilding;
     }, 0);
     return outputValue - inputValue - wageCost;
+  };
+
+  // 新增：计算考虑了工作效率的实际人均收入
+  const getActualOwnerPerCapitaIncome = (building, count) => {
+    if (count === 0) return 0;
+
+    // 1. 计算建筑的有效工作比例
+    const totalRequired = Object.values(building.jobs || {}).reduce((sum, per) => sum + per * count, 0);
+    const totalAssigned = Object.values(jobFill?.[building.id] || {}).reduce((sum, num) => sum + num, 0);
+    const workingRatio = totalRequired > 0 ? Math.min(1, totalAssigned / totalRequired) : 1;
+
+    // 2. 计算实际产出和投入价值
+    const actualOutputValue = Object.entries(building.output || {}).reduce((sum, [res, val]) => sum + getResourcePrice(res) * val * workingRatio, 0);
+    const actualInputValue = Object.entries(building.input || {}).reduce((sum, [res, val]) => sum + getResourcePrice(res) * val * workingRatio, 0);
+
+    // 3. 计算实际薪资成本（只给已分配的工人发薪水）
+    const actualWageCost = Object.entries(jobFill?.[building.id] || {}).reduce((sum, [job, assignedCount]) => {
+      const wage = market?.wages?.[job] ?? 0;
+      return sum + wage * (assignedCount / count); // 平均到每个建筑
+    }, 0);
+
+    const actualProfitPerBuilding = actualOutputValue - actualInputValue - actualWageCost;
+    const ownerWage = (building.owner && market?.wages?.[building.owner]) ? (market.wages[building.owner] * (building.jobs[building.owner] || 0)) : 0;
+    const ownerWorkers = building.jobs?.[building.owner] || 1;
+    return (actualProfitPerBuilding + ownerWage) / ownerWorkers;
   };
 
   const getJobIncomePerBuilding = (building, ownerIncome) => {
@@ -418,7 +445,7 @@ export const BuildTab = ({
                 const hasSilver = (resources.silver || 0) >= silverCost;
                 const affordable = hasMaterials && hasSilver;
                 const count = buildings[building.id] || 0;
-                const ownerIncome = getOwnerIncomePerBuilding(building);
+                const actualIncome = getActualOwnerPerCapitaIncome(building, count);
                 
                 return (
                   <CompactBuildingCard
@@ -427,7 +454,7 @@ export const BuildTab = ({
                     count={count}
                     affordable={affordable}
                     silverCost={silverCost}
-                    ownerIncome={ownerIncome}
+                    ownerIncome={actualIncome} // 传递实际收入
                     cost={cost}
                     onBuy={onBuy}
                     onSell={onSell}
