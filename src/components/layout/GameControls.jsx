@@ -22,6 +22,7 @@ export const GameControls = ({
   onTutorial,
   onWiki,
   autoSaveAvailable,
+  menuDirection = 'down', // 'up' or 'down'
 }) => {
   const [isGameMenuOpen, setIsGameMenuOpen] = useState(false);
   const [isLoadMenuOpen, setIsLoadMenuOpen] = useState(false);
@@ -106,18 +107,24 @@ export const GameControls = ({
           className="px-3 py-2 bg-slate-700/60 hover:bg-slate-600/60 backdrop-blur-sm border border-slate-500/50 rounded-xl transition-all flex items-center gap-2 text-xs font-semibold text-slate-200 shadow-md hover:shadow-lg"
           title="存档菜单"
         >
-          <Icon name="Menu" size={14} />
-          <span className="hidden sm:inline">存档</span>
+  <Icon name="Menu" size={14} className="text-slate-200" />
+          <span className="hidden lg:inline">存档</span>
         </button>
         
         {isGameMenuOpen && (
-          <div className="absolute right-0 mt-2 w-44 rounded-xl border border-slate-700/70 bg-slate-900/95 backdrop-blur-md shadow-glass py-1 z-[70] animate-slide-up">
+          <div className={`
+            absolute right-0 w-44 rounded-xl border border-slate-700/70 bg-slate-900/95 backdrop-blur-md shadow-glass py-1 z-[70] animate-slide-up
+            ${menuDirection === 'up' 
+              ? 'bottom-full mb-2 origin-bottom-right' 
+              : 'top-full mt-2 origin-top-right'
+            }
+          `}>
             <button
               onClick={() => { onSave(); setIsGameMenuOpen(false); }}
-              className="w-full flex items-center justify-between px-4 py-2 text-xs font-semibold text-green-300 hover:bg-slate-700/60 transition-colors"
+              className="w-full flex items-center px-4 py-2 text-xs font-semibold text-green-300 hover:bg-slate-700/60 transition-colors"
             >
-              <span>保存进度</span>
               <Icon name="Save" size={14} />
+              <span className="ml-2">保存进度</span>
             </button>
             
             <div className="relative">
@@ -125,7 +132,10 @@ export const GameControls = ({
                 onClick={() => setIsLoadMenuOpen(!isLoadMenuOpen)}
                 className="w-full flex items-center justify-between px-4 py-2 text-xs font-semibold text-purple-200 hover:bg-slate-700/60 transition-colors"
               >
-                <span>读取存档</span>
+                <div className="flex items-center">
+                  <Icon name="Upload" size={14} />
+                  <span className="ml-2">读取存档</span>
+                </div>
                 <Icon name={isLoadMenuOpen ? 'ChevronDown' : 'ChevronRight'} size={12} />
               </button>
               
@@ -133,10 +143,10 @@ export const GameControls = ({
                 <div className="absolute right-full top-0 mr-1 w-40 rounded-xl border border-slate-700/70 bg-slate-800/95 backdrop-blur-md shadow-glass py-1 animate-slide-up">
                   <button
                     onClick={() => { onLoadManual(); setIsGameMenuOpen(false); setIsLoadMenuOpen(false); }}
-                    className="w-full flex items-center justify-between px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700/60 transition-colors"
+                    className="w-full flex items-center px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700/60 transition-colors"
                   >
-                    <span>手动存档</span>
-                    <Icon name="FileText" size={12} />
+                    <Icon name="Upload" size={12} />
+                    <span className="ml-2">手动存档</span>
                   </button>
                   <button
                     onClick={() => { 
@@ -150,12 +160,12 @@ export const GameControls = ({
                     className={`
                       w-full flex items-center justify-between px-4 py-2 text-xs font-semibold transition-colors
                       ${autoSaveAvailable 
-                        ? 'text-amber-200 hover:bg-slate-700/60' 
+                        ? 'text-amber-200 hover:bg-slate-700/60'
                         : 'text-gray-500 cursor-not-allowed'
                       }
                     `}
                   >
-                    <span>自动存档</span>
+                    <span className="ml-2">自动存档</span>
                     <Icon name="Clock" size={12} />
                   </button>
                 </div>
@@ -164,10 +174,10 @@ export const GameControls = ({
             
             <button
               onClick={() => { onSettings(); setIsGameMenuOpen(false); }}
-              className="w-full flex items-center justify-between px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700/60 transition-colors"
+              className="w-full flex items-center px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700/60 transition-colors"
             >
-              <span>存档设置</span>
-              <Icon name="Sliders" size={14} />
+              <Icon name="Settings" size={14} />
+              <span className="ml-2">存档设置</span>
             </button>
             
             <div className="my-1 h-px bg-slate-700"></div>
@@ -179,10 +189,10 @@ export const GameControls = ({
                   setIsGameMenuOpen(false);
                 }
               }}
-              className="w-full flex items-center justify-between px-4 py-2 text-xs font-semibold text-red-300 hover:bg-slate-700/60 transition-colors"
+              className="w-full flex items-center px-4 py-2 text-xs font-semibold text-red-300 hover:bg-slate-700/60 transition-colors"
             >
-              <span>重置游戏</span>
-              <Icon name="Trash2" size={14} />
+              <Icon name="RefreshCw" size={14} />
+              <span className="ml-2">重置游戏</span>
             </button>
           </div>
         )}
@@ -196,24 +206,30 @@ export const GameControls = ({
           title="帮助与指南"
         >
           <Icon name="HelpCircle" size={14} />
-          <span className="hidden sm:inline">帮助</span>
+          <span className="hidden lg:inline">帮助</span>
         </button>
         
         {isHelpMenuOpen && (
-          <div className="absolute right-0 mt-2 w-40 rounded-xl border border-slate-700/70 bg-slate-900/95 backdrop-blur-md shadow-glass py-1 z-[70] animate-slide-up">
+          <div className={`
+            absolute right-0 w-40 rounded-xl border border-slate-700/70 bg-slate-900/95 backdrop-blur-md shadow-glass py-1 z-[70] animate-slide-up
+            ${menuDirection === 'up' 
+              ? 'bottom-full mb-2 origin-bottom-right' 
+              : 'top-full mt-2 origin-top-right'
+            }
+          `}>
             <button
               onClick={() => { onTutorial(); setIsHelpMenuOpen(false); }}
-              className="w-full flex items-center justify-between px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700/60 transition-colors"
+              className="w-full flex items-center px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700/60 transition-colors"
             >
-              <span>新手教程</span>
               <Icon name="BookOpen" size={12} />
+              <span className="ml-2">新手教程</span>
             </button>
             <button
               onClick={() => { onWiki(); setIsHelpMenuOpen(false); }}
-              className="w-full flex items-center justify-between px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700/60 transition-colors"
+              className="w-full flex items-center px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700/60 transition-colors"
             >
-              <span>文明百科</span>
               <Icon name="Book" size={12} />
+              <span className="ml-2">文明百科</span>
             </button>
           </div>
         )}

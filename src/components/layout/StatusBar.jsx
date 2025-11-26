@@ -56,7 +56,7 @@ export const StatusBar = ({
     .slice(0, 6); // 移动端只显示前6个
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-[60] bg-gray-900/80 backdrop-blur-md border-b border-white/10 shadow-glass">
+    <header className="bg-gray-900/80 backdrop-blur-md border-b border-white/10 shadow-glass">
       <div className="max-w-[1920px] mx-auto px-3 sm:px-4 py-2 sm:py-3 relative">
         {/* 第一行：Logo、时代、时间 */}
         <div className="flex items-center justify-between gap-2 sm:gap-4 mb-2">
@@ -151,7 +151,7 @@ export const StatusBar = ({
           </div>
 
           {/* 行政力 */}
-          <div className="flex items-center gap-1.5 bg-gradient-to-r from-indigo-900/30 to-indigo-800/20 backdrop-blur-sm px-2.5 sm:px-3 py-1.5 rounded-full border border-indigo-600/30 flex-shrink-0">
+          <div className="hidden lg:flex items-center gap-1.5 bg-gradient-to-r from-indigo-900/30 to-indigo-800/20 backdrop-blur-sm px-2.5 sm:px-3 py-1.5 rounded-full border border-indigo-600/30 flex-shrink-0">
             <Icon 
               name="Scale" 
               size={14} 
