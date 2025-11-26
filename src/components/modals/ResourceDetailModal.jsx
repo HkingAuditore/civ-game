@@ -551,32 +551,27 @@ export const ResourceDetailModal = ({
                 <div className="flex items-center gap-4">
                   <div className="flex-1">
                     <input
-                      type="range"
-                      min="-100"
-                      max="200"
-                      step="1"
+                      type="text"
+                      inputMode="decimal"
                       value={draftTaxRate ?? (currentTaxRate * 100).toFixed(0)}
                       onChange={(e) => handleTaxDraftChange(e.target.value)}
-                      onMouseUp={commitTaxDraft}
-                      onTouchEnd={commitTaxDraft}
-                      className="w-full accent-emerald-500"
+                      onBlur={commitTaxDraft}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          commitTaxDraft();
+                          e.target.blur();
+                        }
+                      }}
+                      className="w-24 bg-gray-800/70 border border-gray-600 text-lg font-mono text-gray-200 rounded-lg px-2 py-1 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 text-center"
                     />
+                    <span className="text-lg font-semibold text-emerald-300">%</span>
                   </div>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={draftTaxRate ?? (currentTaxRate * 100).toFixed(0)}
-                    onChange={(e) => handleTaxDraftChange(e.target.value)}
-                    onBlur={commitTaxDraft}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        commitTaxDraft();
-                        e.target.blur();
-                      }
-                    }}
-                    className="w-20 bg-gray-800/70 border border-gray-600 text-lg font-mono text-gray-200 rounded-lg px-2 py-1 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 text-center"
-                  />
-                  <span className="text-lg font-semibold text-emerald-300">%</span>
+                  <div className="text-right">
+                    <p className={`text-lg font-bold ${currentTaxRate > 0 ? 'text-yellow-300' : currentTaxRate < 0 ? 'text-green-300' : 'text-gray-400'}`}>
+                      {currentTaxRate > 0 ? '征税' : currentTaxRate < 0 ? '补贴' : '无'}
+                    </p>
+                    <p className="text-xs text-gray-400">当前状态</p>
+                  </div>
                 </div>
                 <p className="text-xs text-gray-400 mt-2">对该资源的市场交易额征税。负数代表政府进行补贴。</p>
               </div>
@@ -592,7 +587,7 @@ export const ResourceDetailModal = ({
                     </p>
                   </div>
                   <div className="rounded-2xl border border-gray-800 bg-gray-950/60 p-4">
-                    <p className="text-xs uppercase tracking-wide text-gray-500">市场状态</p>
+                    <p className="text-xs uppercase tracking-wide text-gray-500">市场价</p>
                     <div className="mt-2 flex items-center gap-3 text-white">
                       <span className="text-3xl font-bold">{marketPrice.toFixed(2)}</span>
                       <span

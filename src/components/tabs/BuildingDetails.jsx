@@ -199,11 +199,15 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, taxPolicie
               <div className="text-[10px] text-gray-400 mb-0.5 leading-none">实际税额 (每次产出)</div>
               <div className="bg-gray-800/50 rounded px-2 py-1.5 text-center">
                 <span className={`text-sm font-bold font-mono ${
-                  actualBusinessTax >= 0 ? 'text-yellow-300' : 'text-green-300'
+                  actualBusinessTax > 0 ? 'text-yellow-300' : actualBusinessTax < 0 ? 'text-green-300' : 'text-gray-400'
                 }`}>
-                  {actualBusinessTax.toFixed(3)}
+                  {actualBusinessTax < 0 ? '补贴 ' : ''}{Math.abs(actualBusinessTax).toFixed(3)}
                 </span>
-                <Icon name="Coins" size={12} className="inline-block ml-1 text-yellow-400" />
+                <Icon 
+                  name={actualBusinessTax > 0 ? "TrendingUp" : actualBusinessTax < 0 ? "TrendingDown" : "Coins"} 
+                  size={12} 
+                  className={`inline-block ml-1 ${actualBusinessTax > 0 ? 'text-yellow-400' : actualBusinessTax < 0 ? 'text-green-400' : 'text-gray-500'}`} 
+                />
               </div>
             </div>
           </div>

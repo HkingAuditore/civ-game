@@ -1066,7 +1066,7 @@ export const WikiModal = ({ show, onClose }) => {
                   {/* 移动端返回按钮 */}
                   <button
                     onClick={() => setShowSidebar(true)}
-                    className="lg:hidden mb-2 flex items-center gap-1 text-indigo-400 hover:text-indigo-300 text-xs"
+                    className="lg:hidden mb-2 flex items-center gap-1 text-indigo-300 hover:text-white text-xs font-semibold bg-indigo-900/30 hover:bg-indigo-900/60 border border-indigo-500/40 rounded-full px-3 py-1 transition-all"
                   >
                     <Icon name="ChevronLeft" size={14} />
                     <span>返回目录</span>
