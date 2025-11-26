@@ -402,47 +402,47 @@ export const ResourceDetailModal = ({
       {/* 内容面板 */}
       <div className={`relative w-full max-w-4xl bg-gray-800 border-t-2 lg:border-2 border-gray-700 rounded-t-2xl lg:rounded-2xl shadow-2xl flex flex-col max-h-[92vh] ${animationClass} lg:animate-slide-up`}>
         {/* 头部 */}
-        <div className="flex-shrink-0 p-3 border-b border-gray-700 bg-gradient-to-r from-gray-900 to-gray-800">
+        <div className="flex-shrink-0 p-2 lg:p-3 border-b border-gray-700 bg-gradient-to-r from-gray-900 to-gray-800">
           <div className="flex items-center gap-2">
-            <div className="w-10 h-10 border border-gray-700 bg-gray-900/60 rounded-lg flex items-center justify-center flex-shrink-0">
-              <Icon name={resourceDef.icon} size={24} className={resourceDef.color} />
+            <div className="w-9 h-9 lg:w-10 lg:h-10 border border-gray-700 bg-gray-900/60 rounded-lg flex items-center justify-center flex-shrink-0">
+              <Icon name={resourceDef.icon} size={20} className={resourceDef.color} />
             </div>
             <div className="flex-1 min-w-0">
-              <h2 className="text-base font-bold text-white leading-tight">{resourceDef.name}</h2>
-              <p className="text-[10px] text-gray-400 leading-tight truncate">
+              <h2 className="text-sm lg:text-base font-bold text-white leading-tight">{resourceDef.name}</h2>
+              <p className="text-[9px] lg:text-[10px] text-gray-400 leading-tight truncate">
                 库存 {inventory.toFixed(1)} {isSilver ? '· 财政资源' : `· 价格 ${marketPrice.toFixed(2)}`}
               </p>
             </div>
-            <button onClick={handleClose} className="p-2 rounded-full hover:bg-gray-700 flex-shrink-0">
-              <Icon name="X" size={18} className="text-gray-400" />
+            <button onClick={handleClose} className="p-1.5 lg:p-2 rounded-full hover:bg-gray-700 flex-shrink-0">
+              <Icon name="X" size={16} className="text-gray-400" />
             </button>
           </div>
         </div>
 
         <div className="flex-1 overflow-y-auto">
           {isSilver ? (
-            <div className="space-y-3 p-3">
+            <div className="space-y-2 lg:space-y-3 p-2 lg:p-3">
               {/* 财政概览 */}
-              <div className="grid gap-2 grid-cols-2">
-                <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-2">
-                  <p className="text-[9px] uppercase tracking-wide text-yellow-300/80 leading-none">国库银币</p>
-                  <p className="mt-1 text-lg font-bold text-yellow-200 font-mono leading-none">{latestTreasury.toFixed(0)}</p>
-                  <p className="mt-1 text-[9px] text-yellow-200/80 leading-none">
+              <div className="grid gap-1.5 lg:gap-2 grid-cols-2">
+                <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-2 lg:p-2.5">
+                  <p className="text-[8px] lg:text-[9px] uppercase tracking-wide text-yellow-300/80 leading-none">国库银币</p>
+                  <p className="mt-1 text-base lg:text-lg font-bold text-yellow-200 font-mono leading-none">{latestTreasury.toFixed(0)}</p>
+                  <p className="mt-0.5 lg:mt-1 text-[8px] lg:text-[9px] text-yellow-200/80 leading-none">
                     储备 {(resources[resourceKey] || 0).toFixed(0)}
                   </p>
                 </div>
-                <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-2">
-                  <p className="text-[9px] uppercase tracking-wide text-emerald-300/80 leading-none">每日税收</p>
-                  <p className="mt-1 text-lg font-bold text-emerald-200 font-mono leading-none">
+                <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-2 lg:p-2.5">
+                  <p className="text-[8px] lg:text-[9px] uppercase tracking-wide text-emerald-300/80 leading-none">每日税收</p>
+                  <p className="mt-1 text-base lg:text-lg font-bold text-emerald-200 font-mono leading-none">
                     {formatAmount(latestTax)}
                   </p>
-                  <p className="mt-1 text-[9px] text-emerald-200/80 leading-none">净税额估算</p>
+                  <p className="mt-0.5 lg:mt-1 text-[8px] lg:text-[9px] text-emerald-200/80 leading-none">净税额估算</p>
                 </div>
               </div>
               <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-2">
-                <p className="text-[9px] uppercase tracking-wide text-blue-200/80 leading-none mb-1">财政说明</p>
-                <p className="text-[10px] text-blue-100/80 leading-relaxed">
-                  银币为非交易资源，仅通过税收、事件和政策流动，下面的走势可帮助你判断财政稳定性。
+                <p className="text-[8px] lg:text-[9px] uppercase tracking-wide text-blue-200/80 leading-none mb-0.5 lg:mb-1">财政说明</p>
+                <p className="text-[9px] lg:text-[10px] text-blue-100/80 leading-snug lg:leading-relaxed">
+                  银币为非交易资源,仅通过税收、事件和政策流动,下面的走势可帮助你判断财政稳定性。
                 </p>
               </div>
               {/* 交易税调整 */}
@@ -478,22 +478,22 @@ export const ResourceDetailModal = ({
                 </div>
               )}
               <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-2">
-                <p className="text-[9px] uppercase tracking-wide text-blue-200/80 leading-none mb-1">财政说明</p>
-                <p className="text-[10px] text-blue-100/80 leading-relaxed">
-                  银币为非交易资源，仅通过税收、事件和政策流动，下面的走势可帮助你判断财政稳定性。
+                <p className="text-[8px] lg:text-[9px] uppercase tracking-wide text-blue-200/80 leading-none mb-0.5 lg:mb-1">财政说明</p>
+                <p className="text-[9px] lg:text-[10px] text-blue-100/80 leading-snug lg:leading-relaxed">
+                  银币为非交易资源,仅通过税收、事件和政策流动,下面的走势可帮助你判断财政稳定性。
                 </p>
               </div>
               {/* 走势图 */}
-              <div className="space-y-2">
+              <div className="space-y-1.5 lg:space-y-2">
                 <div className="rounded-lg border border-gray-700 bg-gray-900/60 p-2">
-                  <div className="mb-2 flex items-center justify-between">
+                  <div className="mb-1.5 lg:mb-2 flex items-center justify-between">
                     <div>
-                      <p className="text-[9px] uppercase tracking-wide text-gray-500 leading-none">国库资金走势</p>
-                      <p className="text-sm font-semibold text-white leading-tight mt-0.5">
+                      <p className="text-[8px] lg:text-[9px] uppercase tracking-wide text-gray-500 leading-none">国库资金走势</p>
+                      <p className="text-xs lg:text-sm font-semibold text-white leading-tight mt-0.5">
                         当前 {(resources[resourceKey] || 0).toFixed(0)} 银币
                       </p>
                     </div>
-                    <Icon name="Coins" size={16} className="text-yellow-200" />
+                    <Icon name="Coins" size={14} className="text-yellow-200" />
                   </div>
                   <SimpleLineChart
                     data={treasuryHistory}
@@ -502,14 +502,14 @@ export const ResourceDetailModal = ({
                   />
                 </div>
                 <div className="rounded-lg border border-gray-700 bg-gray-900/60 p-2">
-                  <div className="mb-2 flex items-center justify-between">
+                  <div className="mb-1.5 lg:mb-2 flex items-center justify-between">
                     <div>
-                      <p className="text-[9px] uppercase tracking-wide text-gray-500 leading-none">每日净税收走势</p>
-                      <p className="text-sm font-semibold text-white leading-tight mt-0.5">
+                      <p className="text-[8px] lg:text-[9px] uppercase tracking-wide text-gray-500 leading-none">每日净税收走势</p>
+                      <p className="text-xs lg:text-sm font-semibold text-white leading-tight mt-0.5">
                         当前 {formatAmount(latestTax)} / 日
                       </p>
                     </div>
-                    <Icon name="Activity" size={16} className="text-emerald-300" />
+                    <Icon name="Activity" size={14} className="text-emerald-300" />
                   </div>
                   <SimpleLineChart
                     data={taxHistory}
@@ -522,13 +522,13 @@ export const ResourceDetailModal = ({
           ) : (
             <div className="flex h-full flex-col">
               {/* 标签页 */}
-              <div className="border-b border-gray-700 bg-gray-900/70 px-3 pt-2 flex-shrink-0">
-                <div className="flex items-center gap-2 overflow-x-auto pb-2">
+              <div className="border-b border-gray-700 bg-gray-900/70 px-2 lg:px-3 pt-1.5 lg:pt-2 flex-shrink-0">
+                <div className="flex items-center gap-1.5 lg:gap-2 overflow-x-auto pb-1.5 lg:pb-2">
                   {TAB_OPTIONS.map(tab => (
                     <button
                       key={tab.id}
                       type="button"
-                      className={`rounded-full px-3 py-1 text-[10px] font-semibold whitespace-nowrap ${
+                      className={`rounded-full px-2.5 lg:px-3 py-1 text-[9px] lg:text-[10px] font-semibold whitespace-nowrap ${
                         tab.id === activeTab
                           ? 'bg-emerald-500/20 text-emerald-300'
                           : 'text-gray-400 hover:text-white'
@@ -540,16 +540,16 @@ export const ResourceDetailModal = ({
                   ))}
                 </div>
                 {activeTabMeta && (
-                  <p className="text-[9px] text-gray-500 pb-1 leading-tight">{activeTabMeta.description}</p>
+                  <p className="text-[8px] lg:text-[9px] text-gray-500 pb-1 leading-tight">{activeTabMeta.description}</p>
                 )}
               </div>
-              <div className="flex-1 space-y-3 p-3 overflow-y-auto">
+              <div className="flex-1 space-y-2 lg:space-y-3 p-2 lg:p-3 overflow-y-auto">
             {/* 交易税调整 - 非银币资源 */}
             {!isSilver && onUpdateTaxPolicies && (
-              <div className="rounded-2xl border border-emerald-500/30 bg-emerald-950/40 p-4">
-                <p className="text-xs uppercase tracking-wide text-gray-500 mb-2">交易税调整</p>
-                <div className="flex items-center gap-4">
-                  <div className="flex-1">
+              <div className="rounded-xl lg:rounded-2xl border border-emerald-500/30 bg-emerald-950/40 p-2.5 lg:p-4">
+                <p className="text-[10px] lg:text-xs uppercase tracking-wide text-gray-500 mb-1.5 lg:mb-2">交易税调整</p>
+                <div className="flex items-center gap-2 lg:gap-4">
+                  <div className="flex items-center gap-1">
                     <input
                       type="text"
                       inputMode="decimal"
@@ -562,36 +562,36 @@ export const ResourceDetailModal = ({
                           e.target.blur();
                         }
                       }}
-                      className="w-24 bg-gray-800/70 border border-gray-600 text-lg font-mono text-gray-200 rounded-lg px-2 py-1 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 text-center"
+                      className="w-16 lg:w-24 bg-gray-800/70 border border-gray-600 text-base lg:text-lg font-mono text-gray-200 rounded-lg px-1.5 lg:px-2 py-1 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 text-center"
                     />
-                    <span className="text-lg font-semibold text-emerald-300">%</span>
+                    <span className="text-base lg:text-lg font-semibold text-emerald-300">%</span>
                   </div>
-                  <div className="text-right">
-                    <p className={`text-lg font-bold ${currentTaxRate > 0 ? 'text-yellow-300' : currentTaxRate < 0 ? 'text-green-300' : 'text-gray-400'}`}>
+                  <div className="text-right flex-1">
+                    <p className={`text-base lg:text-lg font-bold ${currentTaxRate > 0 ? 'text-yellow-300' : currentTaxRate < 0 ? 'text-green-300' : 'text-gray-400'}`}>
                       {currentTaxRate > 0 ? '征税' : currentTaxRate < 0 ? '补贴' : '无'}
                     </p>
-                    <p className="text-xs text-gray-400">当前状态</p>
+                    <p className="text-[10px] lg:text-xs text-gray-400">当前状态</p>
                   </div>
                 </div>
-                <p className="text-xs text-gray-400 mt-2">对该资源的市场交易额征税。负数代表政府进行补贴。</p>
+                <p className="text-[10px] lg:text-xs text-gray-400 mt-1.5 lg:mt-2">对该资源的市场交易额征税。负数代表政府进行补贴。</p>
               </div>
             )}
             {activeTab === 'market' && (
-              <div className="space-y-6">
-                <div className="grid gap-4 md:grid-cols-3">
-                  <div className="rounded-2xl border border-gray-800 bg-gray-950/60 p-4">
-                    <p className="text-xs uppercase tracking-wide text-gray-500">库存概览</p>
-                    <p className="mt-2 text-3xl font-bold text-white">{inventory.toFixed(1)}</p>
-                    <p className="mt-2 text-sm text-gray-400">
+              <div className="space-y-3 lg:space-y-6">
+                <div className="grid grid-cols-2 gap-2 lg:gap-4">
+                  <div className="rounded-xl lg:rounded-2xl border border-gray-800 bg-gray-950/60 p-2.5 lg:p-4">
+                    <p className="text-[10px] lg:text-xs uppercase tracking-wide text-gray-500">库存概览</p>
+                    <p className="mt-1 lg:mt-2 text-2xl lg:text-3xl font-bold text-white">{inventory.toFixed(1)}</p>
+                    <p className="mt-1 lg:mt-2 text-xs lg:text-sm text-gray-400">
                       日净变化 {formatAmount((latestSupply - latestDemand) || 0)}
                     </p>
                   </div>
-                  <div className="rounded-2xl border border-gray-800 bg-gray-950/60 p-4">
-                    <p className="text-xs uppercase tracking-wide text-gray-500">市场价</p>
-                    <div className="mt-2 flex items-center gap-3 text-white">
-                      <span className="text-3xl font-bold">{marketPrice.toFixed(2)}</span>
+                  <div className="rounded-xl lg:rounded-2xl border border-gray-800 bg-gray-950/60 p-2.5 lg:p-4">
+                    <p className="text-[10px] lg:text-xs uppercase tracking-wide text-gray-500">市场价</p>
+                    <div className="mt-1 lg:mt-2 flex items-center gap-2 lg:gap-3 text-white">
+                      <span className="text-2xl lg:text-3xl font-bold">{marketPrice.toFixed(2)}</span>
                       <span
-                        className={`flex items-center gap-1 text-sm ${
+                        className={`flex items-center gap-0.5 lg:gap-1 text-xs lg:text-sm ${
                           priceTrend > 0
                             ? 'text-emerald-400'
                             : priceTrend < 0
@@ -599,109 +599,80 @@ export const ResourceDetailModal = ({
                             : 'text-gray-400'
                         }`}
                       >
-                        <Icon name={priceTrend >= 0 ? 'ArrowUp' : 'ArrowDown'} size={16} />
+                        <Icon name={priceTrend >= 0 ? 'ArrowUp' : 'ArrowDown'} size={14} />
                         {priceTrend >= 0 ? '+' : ''}
                         {formatAmount(priceTrend)}
                       </span>
                     </div>
-                    <p className="mt-2 text-sm text-gray-400">近两日价格变化</p>
-                  </div>
-                  <div className="rounded-2xl border border-gray-800 bg-gray-950/60 p-4">
-                    <p className="text-xs uppercase tracking-wide text-gray-500">供需对比</p>
-                    <div className="mt-2 flex items-center gap-6 text-sm">
-                      <div>
-                        <p className="text-gray-400">供给</p>
-                        <p className="text-xl font-semibold text-emerald-300">{formatAmount(marketSupply)}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-400">需求</p>
-                        <p className="text-xl font-semibold text-rose-300">{formatAmount(marketDemand)}</p>
-                      </div>
-                    </div>
-                    <p className="mt-2 text-sm text-gray-400">
-                      缺口 {formatAmount(marketSupply - marketDemand)}
-                    </p>
+                    <p className="mt-1 lg:mt-2 text-xs lg:text-sm text-gray-400">近两日价格变化</p>
                   </div>
                 </div>
-                <div className="grid gap-6 lg:grid-cols-2">
-                  <div className="rounded-2xl border border-gray-800 bg-gray-950/60 p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-xs uppercase tracking-wide text-gray-500">价格走势</p>
-                        <p className="text-xl font-semibold text-white">
-                          当前价格 {marketPrice.toFixed(2)} 银币
+                {/* 价格走势和供需走势 - 同行展示 */}
+                <div className="grid grid-cols-2 gap-2 lg:gap-3">
+                  {/* 价格走势图 */}
+                  <div className="rounded-xl lg:rounded-2xl border border-gray-800 bg-gray-950/60 p-2 lg:p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-[10px] lg:text-xs uppercase tracking-wide text-gray-500">价格走势</p>
+                      <Icon name="TrendingUp" size={14} className="text-sky-300" />
+                    </div>
+                    <MarketTrendChart
+                      series={[
+                        {
+                          label: '市场价（银币）',
+                          color: '#60a5fa',
+                          data: priceHistoryData,
+                        },
+                      ]}
+                    />
+                    <div className="mt-2 grid grid-cols-2 gap-1.5">
+                      <div className="rounded-lg border border-gray-800/60 bg-gray-900/60 p-1.5 text-center">
+                        <p className="text-[9px] lg:text-[10px] text-gray-500">当前价格</p>
+                        <p className="text-sm lg:text-base font-bold text-white">{marketPrice.toFixed(2)}</p>
+                      </div>
+                      <div className="rounded-lg border border-gray-800/60 bg-gray-900/60 p-1.5 text-center">
+                        <p className="text-[9px] lg:text-[10px] text-gray-500">日变化</p>
+                        <p className={`text-sm lg:text-base font-bold ${
+                          priceTrend > 0 ? 'text-emerald-300' : priceTrend < 0 ? 'text-rose-300' : 'text-white'
+                        }`}>
+                          {priceTrend >= 0 ? '+' : ''}{formatAmount(priceTrend)}
                         </p>
                       </div>
-                      <Icon name="TrendingUp" className="text-sky-300" />
-                    </div>
-                    <div className="mt-4">
-                      <MarketTrendChart
-                        series={[
-                          {
-                            label: '市场价（银币）',
-                            color: '#60a5fa',
-                            data: priceHistoryData,
-                          },
-                        ]}
-                      />
-                    </div>
-                    <div className="mt-4 flex flex-wrap gap-6 text-sm text-gray-400">
-                      <span>
-                        当前价格 <span className="text-white">{marketPrice.toFixed(2)}</span> 银币
-                      </span>
-                      <span>
-                        日变化{' '}
-                        <span
-                          className={
-                            priceTrend > 0
-                              ? 'text-emerald-300'
-                              : priceTrend < 0
-                              ? 'text-rose-300'
-                              : 'text-white'
-                          }
-                        >
-                          {priceTrend >= 0 ? '+' : ''}
-                          {formatAmount(priceTrend)}
-                        </span>
-                      </span>
                     </div>
                   </div>
-                  <div className="rounded-2xl border border-gray-800 bg-gray-950/60 p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-xs uppercase tracking-wide text-gray-500">供需走势</p>
-                        <p className="text-xl font-semibold text-white">
-                          净供需 {formatAmount((latestSupply || 0) - (latestDemand || 0))}
-                        </p>
+
+                  {/* 供需走势图 */}
+                  <div className="rounded-xl lg:rounded-2xl border border-gray-800 bg-gray-950/60 p-2 lg:p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-[10px] lg:text-xs uppercase tracking-wide text-gray-500">供需走势</p>
+                      <Icon name="Activity" size={14} className="text-emerald-300" />
+                    </div>
+                    <MarketTrendChart
+                      series={[
+                        {
+                          label: '供给',
+                          color: '#34d399',
+                          data: supplyHistoryData,
+                        },
+                        {
+                          label: '需求',
+                          color: '#f87171',
+                          data: demandHistoryData,
+                        },
+                      ]}
+                    />
+                    <div className="mt-2 grid grid-cols-3 gap-1.5">
+                      <div className="rounded-lg border border-gray-800/60 bg-gray-900/60 p-1.5 text-center">
+                        <p className="text-[9px] lg:text-[10px] text-gray-500">供给</p>
+                        <p className="text-sm lg:text-base font-bold text-emerald-300">{formatAmount(latestSupply)}</p>
                       </div>
-                      <Icon name="Activity" className="text-emerald-300" />
-                    </div>
-                    <div className="mt-4">
-                      <MarketTrendChart
-                        series={[
-                          {
-                            label: '供给',
-                            color: '#34d399',
-                            data: supplyHistoryData,
-                          },
-                          {
-                            label: '需求',
-                            color: '#f87171',
-                            data: demandHistoryData,
-                          },
-                        ]}
-                      />
-                    </div>
-                    <div className="mt-4 flex flex-wrap gap-6 text-sm text-gray-400">
-                      <span>
-                        最新供给 <span className="text-emerald-300">{formatAmount(latestSupply)}</span>
-                      </span>
-                      <span>
-                        最新需求 <span className="text-rose-300">{formatAmount(latestDemand)}</span>
-                      </span>
-                      <span>
-                        净供需 <span className="text-white">{formatAmount((latestSupply || 0) - (latestDemand || 0))}</span>
-                      </span>
+                      <div className="rounded-lg border border-gray-800/60 bg-gray-900/60 p-1.5 text-center">
+                        <p className="text-[9px] lg:text-[10px] text-gray-500">需求</p>
+                        <p className="text-sm lg:text-base font-bold text-rose-300">{formatAmount(latestDemand)}</p>
+                      </div>
+                      <div className="rounded-lg border border-gray-800/60 bg-gray-900/60 p-1.5 text-center">
+                        <p className="text-[9px] lg:text-[10px] text-gray-500">净供需</p>
+                        <p className="text-sm lg:text-base font-bold text-white">{formatAmount((latestSupply || 0) - (latestDemand || 0))}</p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -709,114 +680,114 @@ export const ResourceDetailModal = ({
             )}
 
             {activeTab === 'analysis' && (
-              <div className="grid gap-6 lg:grid-cols-2">
-                <div className="rounded-2xl border border-gray-800 bg-gray-950/60 p-5">
+              <div className="grid gap-3 lg:gap-6 lg:grid-cols-2">
+                <div className="rounded-xl lg:rounded-2xl border border-gray-800 bg-gray-950/60 p-3 lg:p-5">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-xs uppercase tracking-wide text-gray-500">需求构成</p>
-                      <p className="text-xl font-semibold text-white">总需求 {formatAmount(totalDemand)}</p>
+                      <p className="text-[10px] lg:text-xs uppercase tracking-wide text-gray-500">需求构成</p>
+                      <p className="text-base lg:text-xl font-semibold text-white">总需求 {formatAmount(totalDemand)}</p>
                     </div>
-                    <Icon name="TrendingUp" className="text-rose-300" />
+                    <Icon name="TrendingUp" size={18} className="text-rose-300" />
                   </div>
-                  <div className="mt-4 space-y-4">
+                  <div className="mt-2 lg:mt-4 space-y-2 lg:space-y-4">
                     <div>
-                      <p className="text-sm font-semibold text-gray-300">社会阶层</p>
-                      <div className="mt-2 space-y-2">
+                      <p className="text-xs lg:text-sm font-semibold text-gray-300">社会阶层</p>
+                      <div className="mt-1.5 lg:mt-2 space-y-1.5 lg:space-y-2">
                         {stratumDemand.length ? (
                           stratumDemand.map(item => (
                             <div
                               key={item.key}
-                              className="flex items-center justify-between rounded-xl border border-gray-800/60 bg-gray-900/60 p-3"
+                              className="flex items-center justify-between rounded-lg lg:rounded-xl border border-gray-800/60 bg-gray-900/60 p-2 lg:p-3"
                             >
-                              <div className="flex items-center gap-3">
-                                <div className="rounded-xl bg-gray-900/80 p-2">
-                                  <Icon name={item.icon} size={18} className="text-amber-300" />
+                              <div className="flex items-center gap-2 lg:gap-3">
+                                <div className="rounded-lg lg:rounded-xl bg-gray-900/80 p-1.5 lg:p-2">
+                                  <Icon name={item.icon} size={16} className="text-amber-300" />
                                 </div>
                                 <div>
-                                  <p className="text-sm font-semibold text-white">{item.name}</p>
-                                  <p className="text-xs text-gray-500">{item.formula}</p>
+                                  <p className="text-xs lg:text-sm font-semibold text-white">{item.name}</p>
+                                  <p className="text-[10px] lg:text-xs text-gray-500">{item.formula}</p>
                                 </div>
                               </div>
-                              <p className="text-base font-bold text-rose-200">{formatAmount(item.amount)}</p>
+                              <p className="text-sm lg:text-base font-bold text-rose-200">{formatAmount(item.amount)}</p>
                             </div>
                           ))
                         ) : (
-                          <p className="text-sm text-gray-500">暂无有效需求</p>
+                          <p className="text-xs lg:text-sm text-gray-500">暂无有效需求</p>
                         )}
                       </div>
                     </div>
                     <div>
-                      <p className="text-sm font-semibold text-gray-300">建筑/工坊</p>
-                      <div className="mt-2 space-y-2">
+                      <p className="text-xs lg:text-sm font-semibold text-gray-300">建筑/工坊</p>
+                      <div className="mt-1.5 lg:mt-2 space-y-1.5 lg:space-y-2">
                         {buildingDemand.length ? (
                           buildingDemand.map(item => (
                             <div
                               key={item.id}
-                              className="flex items-center justify-between rounded-xl border border-gray-800/60 bg-gray-900/60 p-3"
+                              className="flex items-center justify-between rounded-lg lg:rounded-xl border border-gray-800/60 bg-gray-900/60 p-2 lg:p-3"
                             >
                               <div>
-                                <p className="text-sm font-semibold text-white">{item.name}</p>
-                                <p className="text-xs text-gray-500">{item.formula}</p>
+                                <p className="text-xs lg:text-sm font-semibold text-white">{item.name}</p>
+                                <p className="text-[10px] lg:text-xs text-gray-500">{item.formula}</p>
                               </div>
-                              <p className="text-base font-bold text-rose-200">{formatAmount(item.amount)}</p>
+                              <p className="text-sm lg:text-base font-bold text-rose-200">{formatAmount(item.amount)}</p>
                             </div>
                           ))
                         ) : (
-                          <p className="text-sm text-gray-500">暂无建筑需求</p>
+                          <p className="text-xs lg:text-sm text-gray-500">暂无建筑需求</p>
                         )}
                       </div>
                     </div>
                     <div>
-                      <p className="text-sm font-semibold text-gray-300">军需</p>
-                      <div className="mt-2 space-y-2">
+                      <p className="text-xs lg:text-sm font-semibold text-gray-300">军需</p>
+                      <div className="mt-1.5 lg:mt-2 space-y-1.5 lg:space-y-2">
                         {armyDemand.length ? (
                           armyDemand.map(item => (
                             <div
                               key={item.id}
-                              className="flex items-center justify-between rounded-xl border border-gray-800/60 bg-gray-900/60 p-3"
+                              className="flex items-center justify-between rounded-lg lg:rounded-xl border border-gray-800/60 bg-gray-900/60 p-2 lg:p-3"
                             >
                               <div>
-                                <p className="text-sm font-semibold text-white">{item.name}</p>
-                                <p className="text-xs text-gray-500">{item.formula}</p>
+                                <p className="text-xs lg:text-sm font-semibold text-white">{item.name}</p>
+                                <p className="text-[10px] lg:text-xs text-gray-500">{item.formula}</p>
                               </div>
-                              <p className="text-base font-bold text-rose-200">{formatAmount(item.amount)}</p>
+                              <p className="text-sm lg:text-base font-bold text-rose-200">{formatAmount(item.amount)}</p>
                             </div>
                           ))
                         ) : (
-                          <p className="text-sm text-gray-500">暂无军队消耗</p>
+                          <p className="text-xs lg:text-sm text-gray-500">暂无军队消耗</p>
                         )}
                       </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-gray-800 bg-gray-950/60 p-5">
+                <div className="rounded-xl lg:rounded-2xl border border-gray-800 bg-gray-950/60 p-3 lg:p-5">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-xs uppercase tracking-wide text-gray-500">生产来源</p>
-                      <p className="text-xl font-semibold text-white">总供给 {formatAmount(totalSupply)}</p>
+                      <p className="text-[10px] lg:text-xs uppercase tracking-wide text-gray-500">生产来源</p>
+                      <p className="text-base lg:text-xl font-semibold text-white">总供给 {formatAmount(totalSupply)}</p>
                     </div>
-                    <Icon name="TrendingDown" className="text-emerald-300" />
+                    <Icon name="TrendingDown" size={18} className="text-emerald-300" />
                   </div>
-                  <div className="mt-4 space-y-2">
+                  <div className="mt-2 lg:mt-4 space-y-1.5 lg:space-y-2">
                     {buildingSupply.length ? (
                       buildingSupply.map(item => (
                         <div
                           key={item.id}
-                          className="flex items-center justify-between rounded-xl border border-gray-800/60 bg-gray-900/60 p-3"
+                          className="flex items-center justify-between rounded-lg lg:rounded-xl border border-gray-800/60 bg-gray-900/60 p-2 lg:p-3"
                         >
                           <div>
-                            <p className="text-sm font-semibold text-white">{item.name}</p>
-                            <p className="text-xs text-gray-500">{item.formula}</p>
+                            <p className="text-xs lg:text-sm font-semibold text-white">{item.name}</p>
+                            <p className="text-[10px] lg:text-xs text-gray-500">{item.formula}</p>
                           </div>
-                          <p className="text-base font-bold text-emerald-200">{formatAmount(item.amount)}</p>
+                          <p className="text-sm lg:text-base font-bold text-emerald-200">{formatAmount(item.amount)}</p>
                         </div>
                       ))
                     ) : (
-                      <p className="text-sm text-gray-500">暂无建筑供给</p>
+                      <p className="text-xs lg:text-sm text-gray-500">暂无建筑供给</p>
                     )}
                   </div>
-                  <div className="mt-4 rounded-xl border border-gray-800/60 bg-gray-900/60 p-4 text-sm text-gray-400">
+                  <div className="mt-2 lg:mt-4 rounded-lg lg:rounded-xl border border-gray-800/60 bg-gray-900/60 p-2.5 lg:p-4 text-xs lg:text-sm text-gray-400">
                     本地产出 {formatAmount(totalSupply)} · 市场供给 {formatAmount(marketSupply)} · 缺口{' '}
                     {formatAmount(totalDemand - marketSupply)}
                   </div>
@@ -825,24 +796,24 @@ export const ResourceDetailModal = ({
             )}
 
             {activeTab === 'chain' && (
-              <div className="rounded-2xl border border-gray-800 bg-gray-950/60 p-5">
+              <div className="rounded-xl lg:rounded-2xl border border-gray-800 bg-gray-950/60 p-3 lg:p-5">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs uppercase tracking-wide text-gray-500">产业链流程</p>
-                    <p className="text-xl font-semibold text-white">上下游位置</p>
+                    <p className="text-[10px] lg:text-xs uppercase tracking-wide text-gray-500">产业链流程</p>
+                    <p className="text-base lg:text-xl font-semibold text-white">上下游位置</p>
                   </div>
                 </div>
-                <div className="mt-4 space-y-4">
+                <div className="mt-2 lg:mt-4 space-y-2 lg:space-y-4">
                   {chainFlows.length ? (
                     chainFlows.map(flow => (
-                      <div key={flow.id} className="rounded-2xl border border-gray-800/60 bg-gray-900/60 p-4">
+                      <div key={flow.id} className="rounded-xl lg:rounded-2xl border border-gray-800/60 bg-gray-900/60 p-3 lg:p-4">
                         <div className="flex items-center justify-between">
                           <div>
-                            <p className="text-lg font-semibold text-white">{flow.name}</p>
-                            <p className="text-sm text-gray-400">{flow.desc}</p>
+                            <p className="text-base lg:text-lg font-semibold text-white">{flow.name}</p>
+                            <p className="text-xs lg:text-sm text-gray-400">{flow.desc}</p>
                           </div>
                         </div>
-                        <div className="mt-4 flex flex-wrap items-center gap-4">
+                        <div className="mt-2 lg:mt-4 flex flex-wrap items-center gap-2 lg:gap-4">
                           <div className="flex flex-wrap gap-2">
                             {(flow.inputs.length ? flow.inputs : [null]).map((inputKey, index) => {
                               const resource = inputKey ? RESOURCES[inputKey] : null;
@@ -856,14 +827,14 @@ export const ResourceDetailModal = ({
                               );
                             })}
                           </div>
-                          <Icon name="ArrowRight" className="text-gray-500" />
+                          <Icon name="ArrowRight" size={16} className="text-gray-500" />
                           <ChainNode
                             resourceKey={resourceKey}
                             label={resourceDef.name}
                             subLabel="当前资源"
                             highlight
                           />
-                          <Icon name="ArrowRight" className="text-gray-500" />
+                          <Icon name="ArrowRight" size={16} className="text-gray-500" />
                           <div className="flex flex-wrap gap-2">
                             {(flow.outputs.length ? flow.outputs : [null]).map((outputKey, index) => {
                               const resource = outputKey ? RESOURCES[outputKey] : null;
@@ -881,7 +852,7 @@ export const ResourceDetailModal = ({
                       </div>
                     ))
                   ) : (
-                    <div className="rounded-xl border border-gray-800/60 bg-gray-900/60 p-6 text-center text-sm text-gray-500">
+                    <div className="rounded-lg lg:rounded-xl border border-gray-800/60 bg-gray-900/60 p-4 lg:p-6 text-center text-xs lg:text-sm text-gray-500">
                       暂未发现该资源的产业链数据。
                     </div>
                   )}
