@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Icon } from '../common/UIComponents';
 import { STRATA } from '../../config';
 import { SimpleLineChart } from '../common/SimpleLineChart';
@@ -11,7 +12,18 @@ export const PopulationDetailModal = ({
   popStructure = {},
   history = {},
 }) => {
+  const [isAnimatingOut, setIsAnimatingOut] = useState(false);
+
   if (!isOpen) return null;
+
+  const handleClose = () => {
+    setIsAnimatingOut(true);
+    setTimeout(() => {
+      onClose();
+    }, 300);
+  };
+
+  const animationClass = isAnimatingOut ? 'animate-sheet-out' : 'animate-sheet-in';
 
   const populationHistory = history?.population || [];
   const entries = Object.keys(STRATA)
@@ -29,67 +41,70 @@ export const PopulationDetailModal = ({
     .filter(item => item.count > 0)
     .sort((a, b) => b.count - a.count);
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4">
-      <div className="w-full max-w-4xl rounded-2xl border border-gray-700 bg-gray-900 shadow-2xl">
-        <div className="flex items-center justify-between border-b border-gray-800 bg-gray-900/70 p-6">
-          <div className="flex items-center gap-3">
-            <div className="rounded-2xl border border-blue-500/40 bg-blue-500/10 p-3">
-              <Icon name="Users" className="text-blue-300" />
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex items-end justify-center lg:items-center">
+      {/* 遮罩层 */}
+      <div className="absolute inset-0 bg-black/70 animate-fade-in" onClick={handleClose}></div>
+
+      {/* 内容面板 */}
+      <div className={`relative w-full max-w-2xl bg-gray-800 border-t-2 lg:border-2 border-gray-700 rounded-t-2xl lg:rounded-2xl shadow-2xl flex flex-col max-h-[90vh] ${animationClass} lg:animate-slide-up`}>
+        {/* 头部 */}
+        <div className="flex-shrink-0 p-3 border-b border-gray-700 bg-gray-900/70">
+          <div className="flex items-center gap-2">
+            <div className="w-10 h-10 bg-blue-500/10 border border-blue-500/40 rounded-lg flex items-center justify-center flex-shrink-0">
+              <Icon name="Users" size={24} className="text-blue-300" />
             </div>
-            <div>
-              <h2 className="text-2xl font-bold text-white">人口详情</h2>
-              <p className="text-sm text-gray-400">
+            <div className="flex-1 min-w-0">
+              <h2 className="text-base font-bold text-white leading-tight">人口详情</h2>
+              <p className="text-[10px] text-gray-400 leading-tight">
                 当前人口 {population} / {maxPop}
               </p>
             </div>
+            <button onClick={handleClose} className="p-2 rounded-full hover:bg-gray-700 flex-shrink-0">
+              <Icon name="X" size={18} className="text-gray-400" />
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg p-2 text-gray-400 hover:bg-gray-800 hover:text-white"
-            aria-label="关闭"
-          >
-            <Icon name="X" size={20} />
-          </button>
         </div>
 
-        <div className="space-y-6 p-6">
-          <div className="rounded-2xl border border-gray-800 bg-gray-950/60 p-5">
-            <div className="mb-4 flex items-center justify-between">
+        {/* 内容 */}
+        <div className="flex-1 overflow-y-auto p-3 space-y-3">
+          {/* 人口趋势 */}
+          <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
+            <div className="mb-1.5 flex items-center justify-between">
               <div>
-                <p className="text-xs uppercase tracking-wide text-gray-500">总人口变化趋势</p>
-                <p className="text-xl font-semibold text-white">
+                <p className="text-[9px] uppercase tracking-wide text-gray-500 leading-none">总人口变化趋势</p>
+                <p className="text-sm font-semibold text-white leading-tight mt-0.5">
                   当前 {population} 人 · 上限 {maxPop}
                 </p>
               </div>
-              <Icon name="Activity" className="text-blue-300" />
+              <Icon name="Activity" size={16} className="text-blue-300" />
             </div>
             <SimpleLineChart data={populationHistory} color="#60a5fa" label="人口" />
           </div>
 
-          <div className="rounded-2xl border border-gray-800 bg-gray-950/60 p-5">
-            <div className="mb-4 flex items-center justify-between">
+          {/* 阶层构成 */}
+          <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
+            <div className="mb-1.5 flex items-center justify-between">
               <div>
-                <p className="text-xs uppercase tracking-wide text-gray-500">阶层构成</p>
-                <p className="text-xl font-semibold text-white">当前活跃阶层</p>
+                <p className="text-[9px] uppercase tracking-wide text-gray-500 leading-none">阶层构成</p>
+                <p className="text-sm font-semibold text-white leading-tight mt-0.5">当前活跃阶层</p>
               </div>
-              <Icon name="Layers" className="text-purple-300" />
+              <Icon name="Layers" size={16} className="text-purple-300" />
             </div>
-            <div className="space-y-3">
+            <div className="space-y-2">
               {entries.length ? (
                 entries.map(item => (
                   <div key={item.key}>
-                    <div className="flex items-center justify-between text-sm text-gray-300">
-                      <div className="flex items-center gap-2">
-                        <Icon name={item.icon} size={16} className="text-amber-300" />
-                        <span>{item.name}</span>
+                    <div className="flex items-center justify-between text-[10px] text-gray-300">
+                      <div className="flex items-center gap-1.5">
+                        <Icon name={item.icon} size={14} className="text-amber-300" />
+                        <span className="leading-none">{item.name}</span>
                       </div>
-                      <div className="text-xs text-gray-400">
+                      <div className="text-[9px] text-gray-400 font-mono leading-none">
                         {item.count} 人 · {item.percent.toFixed(1)}%
                       </div>
                     </div>
-                    <div className="mt-1 h-2 rounded-full bg-gray-800">
+                    <div className="mt-1 h-1.5 rounded-full bg-gray-800">
                       <div
                         className="h-full rounded-full bg-gradient-to-r from-blue-400 to-purple-500"
                         style={{ width: `${Math.min(item.percent, 100)}%` }}
@@ -98,22 +113,23 @@ export const PopulationDetailModal = ({
                   </div>
                 ))
               ) : (
-                <p className="text-sm text-gray-500">暂无社会阶层数据。</p>
+                <p className="text-[10px] text-gray-500 text-center py-2">暂无社会阶层数据。</p>
               )}
             </div>
           </div>
         </div>
 
-        <div className="border-t border-gray-800 bg-gray-900/70 p-4">
+        {/* 底部按钮 */}
+        <div className="flex-shrink-0 p-3 border-t border-gray-700 bg-gray-800/50">
           <button
-            type="button"
-            onClick={onClose}
-            className="w-full rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white transition-colors hover:bg-blue-500"
+            onClick={handleClose}
+            className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-bold transition-colors"
           >
             关闭
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

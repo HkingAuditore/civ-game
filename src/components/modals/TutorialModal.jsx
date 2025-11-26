@@ -2,6 +2,7 @@
 // 提供多步骤引导，帮助新玩家了解游戏机制
 
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Icon } from '../common/UIComponents';
 import { TUTORIAL_STEPS } from '../../config/tutorialSteps';
 
@@ -14,6 +15,7 @@ import { TUTORIAL_STEPS } from '../../config/tutorialSteps';
  */
 export const TutorialModal = ({ show, onComplete, onSkip, onOpenWiki }) => {
   const [currentStep, setCurrentStep] = useState(0);
+  const [isAnimatingOut, setIsAnimatingOut] = useState(false);
 
   if (!show) return null;
 
@@ -24,7 +26,10 @@ export const TutorialModal = ({ show, onComplete, onSkip, onOpenWiki }) => {
 
   const handleNext = () => {
     if (isLastStep) {
-      onComplete();
+      setIsAnimatingOut(true);
+      setTimeout(() => {
+        onComplete();
+      }, 300);
     } else {
       setCurrentStep(prev => prev + 1);
     }
@@ -37,68 +42,75 @@ export const TutorialModal = ({ show, onComplete, onSkip, onOpenWiki }) => {
   };
 
   const handleSkip = () => {
-    onSkip();
+    setIsAnimatingOut(true);
+    setTimeout(() => {
+      onSkip();
+    }, 300);
   };
 
-  return (
-    <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-[100] p-4 sm:p-4 p-0">
-      <div className="bg-gray-900/95 backdrop-blur rounded-xl border-2 border-blue-500/50 max-w-3xl w-full shadow-2xl">
+  const animationClass = isAnimatingOut ? 'animate-sheet-out' : 'animate-sheet-in';
+
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex items-end justify-center lg:items-center">
+      {/* 遮罩层 */}
+      <div className="absolute inset-0 bg-black/90 animate-fade-in"></div>
+
+      {/* 内容面板 */}
+      <div className={`relative w-full max-w-3xl bg-gray-900/95 backdrop-blur border-t-2 lg:border-2 border-blue-500/50 rounded-t-2xl lg:rounded-2xl shadow-2xl flex flex-col max-h-[92vh] ${animationClass} lg:animate-slide-up`}>
         {/* 进度条 */}
-        <div className="h-2 bg-gray-800 rounded-t-xl overflow-hidden">
+        <div className="h-1.5 bg-gray-800 rounded-t-2xl lg:rounded-t-xl overflow-hidden flex-shrink-0">
           <div
             className="h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-300"
             style={{ width: `${((currentStep + 1) / tutorialSteps.length) * 100}%` }}
           />
         </div>
 
-        {/* 模态框头部 */}
-        <div className="p-6 border-b border-gray-700">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-gray-800 rounded-lg">
-                <Icon name={currentStepData.icon} size={32} className={currentStepData.iconColor} />
-              </div>
-              <div>
-                <h2 className="text-2xl font-bold text-white">{currentStepData.title}</h2>
-                <p className="text-sm text-gray-400 mt-1">
-                  步骤 {currentStep + 1} / {tutorialSteps.length}
-                </p>
-              </div>
+        {/* 头部 */}
+        <div className="flex-shrink-0 p-3 border-b border-gray-700">
+          <div className="flex items-center gap-2">
+            <div className="w-10 h-10 bg-gray-800 rounded-lg flex items-center justify-center flex-shrink-0">
+              <Icon name={currentStepData.icon} size={24} className={currentStepData.iconColor} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-base font-bold text-white leading-tight">{currentStepData.title}</h2>
+              <p className="text-[10px] text-gray-400 leading-tight">
+                步骤 {currentStep + 1} / {tutorialSteps.length}
+              </p>
             </div>
             <button
               onClick={handleSkip}
-              className="px-3 py-1.5 text-sm text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+              className="px-2 py-1 text-[10px] text-gray-400 hover:text-white hover:bg-gray-800 rounded transition-colors flex-shrink-0"
             >
-              跳过教程
+              跳过
             </button>
           </div>
         </div>
 
-        {/* 模态框内容 */}
-        <div className="p-8 min-h-[400px]">
+        {/* 内容 */}
+        <div className="flex-1 overflow-y-auto p-3">
           <StepContent step={currentStepData} onOpenWiki={onOpenWiki} isLastStep={isLastStep} />
         </div>
 
-        {/* 模态框底部按钮 */}
-        <div className="p-6 border-t border-gray-700 flex items-center justify-between">
+        {/* 底部按钮 */}
+        <div className="flex-shrink-0 p-3 border-t border-gray-700 flex items-center justify-between gap-2">
           <button
             onClick={handlePrev}
             disabled={isFirstStep}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-colors ${
+            className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
               isFirstStep
                 ? 'text-gray-600 cursor-not-allowed'
                 : 'text-white bg-gray-700 hover:bg-gray-600'
             }`}
           >
-            <Icon name="ChevronLeft" size={16} />
-            上一步
+            <Icon name="ChevronLeft" size={14} />
+            <span className="hidden sm:inline">上一步</span>
           </button>
 
-          <div className="flex gap-2">
+          <div className="flex gap-1.5">
             {tutorialSteps.map((_, index) => (
               <div
                 key={index}
-                className={`w-2 h-2 rounded-full transition-colors ${
+                className={`w-1.5 h-1.5 rounded-full transition-colors ${
                   index === currentStep ? 'bg-blue-500' : 'bg-gray-700'
                 }`}
               />
@@ -107,23 +119,24 @@ export const TutorialModal = ({ show, onComplete, onSkip, onOpenWiki }) => {
 
           <button
             onClick={handleNext}
-            className="flex items-center gap-2 px-6 py-2 rounded-lg font-semibold bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white transition-all shadow-lg"
+            className="flex items-center gap-1 px-4 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white transition-all shadow-lg"
           >
             {isLastStep ? (
               <>
-                <Icon name="Play" size={16} />
+                <Icon name="Play" size={14} />
                 开始游戏
               </>
             ) : (
               <>
-                下一步
-                <Icon name="ChevronRight" size={16} />
+                <span className="hidden sm:inline">下一步</span>
+                <Icon name="ChevronRight" size={14} />
               </>
             )}
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
@@ -138,47 +151,47 @@ const StepContent = ({ step, onOpenWiki, isLastStep }) => {
   if (!step) return null;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       {step.lead && (
-        <p className="text-lg text-white font-semibold">
+        <p className="text-sm text-white font-semibold leading-tight">
           {step.lead}
         </p>
       )}
 
       {step.paragraphs?.map((text, idx) => (
-        <p key={idx} className="text-gray-300 leading-relaxed">
+        <p key={idx} className="text-[11px] text-gray-300 leading-relaxed">
           {text}
         </p>
       ))}
 
       {step.cards?.length > 0 && (
-        <div className="space-y-3">
+        <div className="space-y-1.5">
           {step.cards.map((card, idx) => (
-            <div key={`${card.title}-${idx}`} className="bg-gray-700/50 p-3 rounded-lg">
-              <p className="text-white font-semibold mb-2 flex items-center gap-2">
-                {card.icon && <Icon name={card.icon} size={16} className={card.iconColor || 'text-white'} />}
+            <div key={`${card.title}-${idx}`} className="bg-gray-700/50 p-2 rounded-lg border border-gray-600">
+              <p className="text-[11px] text-white font-semibold mb-1 flex items-center gap-1.5 leading-tight">
+                {card.icon && <Icon name={card.icon} size={14} className={card.iconColor || 'text-white'} />}
                 {card.title}
               </p>
-              <p className="text-sm text-gray-300">{card.text}</p>
+              <p className="text-[10px] text-gray-300 leading-relaxed">{card.text}</p>
             </div>
           ))}
         </div>
       )}
 
       {step.callouts?.length > 0 && (
-        <div className="space-y-3">
+        <div className="space-y-1.5">
           {step.callouts.map((callout, idx) => {
             const tone = toneStyles[callout.tone] || { container: 'bg-gray-800/40 border-gray-700', text: 'text-gray-200' };
             return (
               <div
                 key={`${callout.title}-${idx}`}
-                className={`p-4 rounded-lg border ${tone.container} ${tone.text}`}
+                className={`p-2 rounded-lg border ${tone.container} ${tone.text}`}
               >
-                <p className="text-sm font-semibold flex items-center gap-2 text-white">
-                  {callout.icon && <Icon name={callout.icon} size={16} className="text-current" />}
+                <p className="text-[10px] font-semibold flex items-center gap-1.5 text-white leading-tight">
+                  {callout.icon && <Icon name={callout.icon} size={14} className="text-current" />}
                   {callout.title}
                 </p>
-                <p className="text-sm mt-2">
+                <p className="text-[10px] mt-1 leading-relaxed">
                   {callout.text}
                 </p>
               </div>
@@ -188,18 +201,18 @@ const StepContent = ({ step, onOpenWiki, isLastStep }) => {
       )}
 
       {step.wikiPrompt && (
-        <div className="bg-indigo-900/30 border border-indigo-500/40 p-4 rounded-lg space-y-3">
-          <p className="text-indigo-200 flex items-center gap-2 text-sm">
-            <Icon name="BookOpen" size={16} className="text-indigo-300" />
+        <div className="bg-indigo-900/30 border border-indigo-500/40 p-2 rounded-lg space-y-2">
+          <p className="text-indigo-200 flex items-center gap-1.5 text-[10px] leading-tight">
+            <Icon name="BookOpen" size={14} className="text-indigo-300" />
             {step.wikiPrompt.text}
           </p>
           {typeof onOpenWiki === 'function' && (
             <button
               type="button"
               onClick={onOpenWiki}
-              className="px-4 py-2 rounded-lg bg-indigo-600/30 border border-indigo-500/50 text-sm font-semibold text-indigo-100 hover:bg-indigo-600/50 transition-colors flex items-center gap-2 max-w-xs"
+              className="px-3 py-1.5 rounded-lg bg-indigo-600/30 border border-indigo-500/50 text-[10px] font-semibold text-indigo-100 hover:bg-indigo-600/50 transition-colors flex items-center gap-1.5"
             >
-              <Icon name="Book" size={16} />
+              <Icon name="Book" size={14} />
               {step.wikiPrompt.buttonLabel || '查看百科'}
             </button>
           )}
@@ -207,13 +220,13 @@ const StepContent = ({ step, onOpenWiki, isLastStep }) => {
       )}
 
       {step.footerNote && (
-        <p className="text-center text-lg text-yellow-300 font-bold mt-6">
+        <p className="text-center text-sm text-yellow-300 font-bold mt-3 leading-tight">
           {step.footerNote}
         </p>
       )}
 
       {isLastStep && !step.footerNote && (
-        <p className="text-center text-lg text-yellow-300 font-bold mt-6">
+        <p className="text-center text-sm text-yellow-300 font-bold mt-3 leading-tight">
           祝你好运，伟大的统治者！
         </p>
       )}

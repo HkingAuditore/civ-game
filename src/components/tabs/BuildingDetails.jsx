@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Icon } from '../common/UIComponents';
 import { RESOURCES, STRATA } from '../../config';
 import { filterUnlockedResources } from '../../utils/resources';
@@ -40,11 +40,12 @@ const InfoRow = ({ label, value, valueClass = 'text-white' }) => (
  * @param {Object} building - 建筑数据
  * @param {Object} gameState - 完整的游戏状态
  */
-export const BuildingDetails = ({ building, gameState, onBuy, onSell }) => {
+export const BuildingDetails = ({ building, gameState, onBuy, onSell, taxPolicies, onUpdateTaxPolicies }) => {
   if (!building || !gameState) return null;
 
   const { resources, epoch, techsUnlocked, market, buildings, jobFill } = gameState;
   const count = buildings[building.id] || 0;
+  const [draftMultiplier, setDraftMultiplier] = useState(null);
 
   // --- 复用计算逻辑 ---
   // --- 复用 BuildTab 中的计算逻辑 ---
@@ -99,6 +100,25 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell }) => {
   // 计算总收益
   const totalIncomeForClass = ownerPerCapitaIncome * totalOwnerWorkers;
 
+  // 营业税逻辑
+  const businessTaxMultiplier = taxPolicies?.businessTaxRates?.[building.id] ?? 1;
+  const businessTaxBase = building.businessTaxBase ?? 0.1;
+  const actualBusinessTax = businessTaxBase * businessTaxMultiplier;
+
+  const handleDraftChange = (raw) => {
+    setDraftMultiplier(raw);
+  };
+
+  const commitDraft = () => {
+    if (draftMultiplier === null || !onUpdateTaxPolicies) return;
+    const parsed = parseFloat(draftMultiplier);
+    const numeric = Number.isNaN(parsed) ? 1 : parsed; // 如果输入无效，重置为1
+    onUpdateTaxPolicies(prev => ({
+      ...prev,
+      businessTaxRates: { ...(prev?.businessTaxRates || {}), [building.id]: numeric },
+    }));
+    setDraftMultiplier(null);
+  };
   return (
     <div className="space-y-4">
       {/* 头部 */}
@@ -147,6 +167,51 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell }) => {
           </div>
         </div>
       </div>
+
+      {/* 营业税调整 */}
+      {onUpdateTaxPolicies && (
+        <div className="bg-gray-900/50 p-3 rounded-lg border border-gray-700/80">
+          <h4 className="text-xs font-semibold text-gray-300 mb-2 flex items-center gap-1.5">
+            <Icon name="Sliders" size={16} className="text-yellow-400" />
+            营业税调整
+          </h4>
+          <div className="grid grid-cols-2 gap-2 items-center">
+            <div>
+              <div className="text-[10px] text-gray-400 mb-0.5 leading-none">税率系数</div>
+              <input
+                type="text"
+                inputMode="decimal"
+                step="0.05"
+                value={draftMultiplier ?? businessTaxMultiplier}
+                onChange={(e) => handleDraftChange(e.target.value)}
+                onBlur={commitDraft}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    commitDraft();
+                    e.target.blur();
+                  }
+                }}
+                className="w-full bg-gray-800/70 border border-gray-600 text-sm text-gray-200 rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
+                placeholder="税率系数"
+              />
+            </div>
+            <div>
+              <div className="text-[10px] text-gray-400 mb-0.5 leading-none">实际税额 (每次产出)</div>
+              <div className="bg-gray-800/50 rounded px-2 py-1.5 text-center">
+                <span className={`text-sm font-bold font-mono ${
+                  actualBusinessTax >= 0 ? 'text-yellow-300' : 'text-green-300'
+                }`}>
+                  {actualBusinessTax.toFixed(3)}
+                </span>
+                <Icon name="Coins" size={12} className="inline-block ml-1 text-yellow-400" />
+              </div>
+            </div>
+          </div>
+          <p className="text-[10px] text-gray-500 mt-1.5">
+            实际税额 = 建筑基准税额({businessTaxBase.toFixed(2)}) × 税率系数。负数系数代表补贴。
+          </p>
+        </div>
+      )}
 
       {/* 详细信息 - 两列布局 */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
