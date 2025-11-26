@@ -72,6 +72,7 @@ function GameApp({ gameState }) {
   // 现在 gameState 肯定存在，可以安全调用这些钩子
   useGameLoop(gameState, addLog);
   const actions = useGameActions(gameState, addLog);
+  const [showStrata, setShowStrata] = useState(false);
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isWikiOpen, setIsWikiOpen] = useState(false);
@@ -190,7 +191,7 @@ function GameApp({ gameState }) {
       ))}
 
       {/* 顶部状态栏 - 包含游戏控制（桌面端） */}
-      <StatusBar
+      <div className="fixed top-0 left-0 right-0 z-50">        <StatusBar
         gameState={gameState}
         taxes={taxes}
         netSilverPerDay={netSilverPerDay}
@@ -214,10 +215,11 @@ function GameApp({ gameState }) {
           />
         }
       />
-
+      </div>
       {/* 移动端游戏控制 - 浮动按钮（移到底部，避免与顶部栏重叠） */}
-      <div className="lg:hidden fixed bottom-20 right-2 z-[60]">
-        <div className="flex flex-col gap-2 scale-90 origin-bottom-right">
+      <div className="lg:hidden fixed bottom-24 right-4 z-40">
+        {/* flex-col-reverse 会将子元素的堆叠顺序反转，从而使下拉菜单向上弹出 */}
+        <div className="flex flex-col-reverse gap-2 scale-95 origin-bottom-right">
           <GameControls
             isPaused={gameState.isPaused}
             gameSpeed={gameState.gameSpeed}
@@ -230,13 +232,14 @@ function GameApp({ gameState }) {
             onReset={() => gameState.resetGame()}
             onTutorial={handleReopenTutorial}
             onWiki={() => setIsWikiOpen(true)}
+            menuDirection="up"
             autoSaveAvailable={autoSaveAvailable}
           />
         </div>
       </div>
 
       {/* 占位符 - 避免内容被固定头部遮挡 */}
-      <div className="h-32 lg:h-32"></div>
+      <div className="h-24 lg:h-32"></div>
 
       {/* 主内容区域 - 移动端优先布局 */}
       <main className="max-w-[1920px] mx-auto px-3 sm:px-4 py-4 pb-24 lg:pb-4">
@@ -283,7 +286,7 @@ function GameApp({ gameState }) {
 
           {/* 中间内容区 - 主操作面板 */}
           <section className="lg:col-span-8 space-y-3 sm:space-y-4 order-1 lg:order-2 relative z-10">
-          {/* 移动端：快速信息面板（紧凑设计） */}
+          {/* 移动端：快速信息面板（紧凑设计）*/}
             <div className="lg:hidden space-y-2">
               {/* 帝国场景卡片（可折叠） */}
               <button
@@ -313,38 +316,31 @@ function GameApp({ gameState }) {
                 </div>
               )}
 
-              {/* 社会阶层快速查看 */}
-              <div className="bg-gray-900/60 backdrop-blur-md rounded-lg border border-white/10 p-2">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-1">
-                    <Icon name="Users" size={14} className="text-purple-400" />
-                    <span className="text-xs font-semibold text-white">社会阶层</span>
-                  </div>
-                  <span className="text-[10px] text-gray-400">点击查看详情</span>
+              {/* 社会阶层面板（可折叠） */}
+              <button
+                onClick={() => setShowStrata(!showStrata)}
+                className="w-full bg-gray-900/60 backdrop-blur-md rounded-lg border border-white/10 p-2 flex items-center justify-between hover:bg-gray-900/70 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <Icon name="Users" size={14} className="text-purple-400" />
+                  <span className="text-xs font-semibold text-white">社会阶层</span>
                 </div>
-                <div className="grid grid-cols-4 gap-1">
-                  {Object.entries(gameState.popStructure || {}).slice(0, 8).map(([key, count]) => {
-                    const stratum = STRATA[key];
-                    if (!stratum || count === 0) return null;
-                    const approval = gameState.classApproval?.[key] || 0;
-                    const approvalColor = approval >= 60 ? 'text-green-400' : approval >= 30 ? 'text-yellow-400' : 'text-red-400';
-                    return (
-                      <button
-                        key={key}
-                        onClick={() => gameState.setStratumDetailView(key)}
-                        className="bg-gray-800/60 rounded p-1.5 hover:bg-gray-700/60 transition-colors border border-gray-700/50"
-                      >
-                        <div className="flex flex-col items-center gap-0.5">
-                          <Icon name={stratum.icon} size={16} className="text-gray-300" />
-                          <span className="text-[9px] text-gray-400 truncate w-full text-center">{stratum.name}</span>
-                          <span className="text-[10px] font-bold text-white">{count}</span>
-                          <span className={`text-[9px] ${approvalColor}`}>{Math.round(approval)}%</span>
-                        </div>
-                      </button>
-                    );
-                  })}
+                <Icon name={showStrata ? "ChevronUp" : "ChevronDown"} size={14} className="text-gray-400" />
+              </button>
+
+              {showStrata && (
+                <div className="bg-gray-900/60 backdrop-blur-md rounded-lg border border-white/10 shadow-glass overflow-hidden p-2">
+                  <StrataPanel
+                    popStructure={gameState.popStructure}
+                    classApproval={gameState.classApproval}
+                    classInfluence={gameState.classInfluence}
+                    stability={gameState.stability}
+                    population={gameState.population}
+                    onDetailClick={(key) => gameState.setStratumDetailView(key)}
+                    dayScale={dayScale}
+                  />
                 </div>
-              </div>
+              )}
 
               {/* 资源快速查看 */}
               <div className="bg-gray-900/60 backdrop-blur-md rounded-lg border border-white/10 p-2">

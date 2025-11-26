@@ -127,6 +127,11 @@ export const TechTab = ({
   market,
 }) => {
   const [hoveredTech, setHoveredTech] = useState({ tech: null, element: null });
+  const canHover = window.matchMedia('(hover: hover)').matches;
+
+  const handleMouseEnter = (e, tech) => {
+    if (canHover) setHoveredTech({ tech, element: e.currentTarget });
+  };
 
   /**
    * 检查科技是否可研究
@@ -464,8 +469,8 @@ export const TechTab = ({
                           return (
                             <div
                               key={tech.id}
-                              onMouseEnter={(e) => setHoveredTech({ tech, element: e.currentTarget })}
-                              onMouseLeave={() => setHoveredTech({ tech: null, element: null })}
+                              onMouseEnter={(e) => handleMouseEnter(e, tech)}
+                              onMouseLeave={() => canHover && setHoveredTech({ tech: null, element: null })}
                               className={`group relative p-2 rounded-lg border transition-all ${
                                 status === 'unlocked'
                                   ? 'bg-green-900/20 border-green-600'

@@ -99,7 +99,8 @@ import {
   Table,
   Paintbrush,
   Droplets,
-  Building
+  Building,
+  Menu
 } from 'lucide-react';
 
 export const iconMap = {
@@ -204,6 +205,7 @@ export const iconMap = {
   Download,
   Table,
   Building,
+  Menu,
   Horse: Users
 };
 

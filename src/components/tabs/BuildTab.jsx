@@ -180,7 +180,7 @@ const CompactBuildingCard = ({
                 const fillPercent = required > 0 ? Math.min(1, assigned / required) * 100 : 0;
                 return (
                   <div key={job} className="flex items-center gap-1.5" title={`${STRATA[job]?.name}: ${Math.round(assigned)}/${Math.round(required)}`}>
-                    <Icon name={STRATA[job]?.icon || 'User'} size={10} className="text-blue-400 flex-shrink-0" />
+                    <Icon name={STRATA[job]?.icon || 'User'} size={10} className="text-gray-400 flex-shrink-0" />
                     <div className="w-full bg-gray-700 rounded-full h-1.5">
                       <div className="h-1.5 rounded-full bg-green-500" style={{ width: `${fillPercent}%` }}></div>
                     </div>
@@ -278,6 +278,11 @@ export const BuildTab = ({
   market,
 }) => {
   const [hoveredBuilding, setHoveredBuilding] = useState({ building: null, element: null });
+  const canHover = window.matchMedia('(hover: hover)').matches;
+
+  const handleMouseEnter = (e, building, cost, resources) => {
+    if (canHover) setHoveredBuilding({ building, element: e.currentTarget, cost, resources });
+  };
 
   const NON_TRADE_KEYS = new Set(['maxPop']);
   const getResourcePrice = (key) => {
@@ -426,8 +431,8 @@ export const BuildTab = ({
                     cost={cost}
                     onBuy={onBuy}
                     onSell={onSell}
-                    onMouseEnter={(e) => setHoveredBuilding({ building, element: e.currentTarget, cost, resources })}
-                    onMouseLeave={() => setHoveredBuilding({ building: null, element: null })}
+                    onMouseEnter={(e) => handleMouseEnter(e, building, cost, resources)}
+                    onMouseLeave={() => canHover && setHoveredBuilding({ building: null, element: null })}
                     // 传递额外 props 给悬浮窗
                     epoch={epoch}
                     techsUnlocked={techsUnlocked}

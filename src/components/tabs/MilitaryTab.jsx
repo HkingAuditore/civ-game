@@ -118,6 +118,11 @@ export const MilitaryTab = ({
   techsUnlocked = [],
 }) => {
   const [hoveredUnit, setHoveredUnit] = useState({ unit: null, element: null });
+  const canHover = window.matchMedia('(hover: hover)').matches;
+
+  const handleMouseEnter = (e, unit) => {
+    if (canHover) setHoveredUnit({ unit, element: e.currentTarget });
+  };
 
   // 计算军队统计信息
   const totalUnits = Object.values(army).reduce((sum, count) => sum + count, 0);
@@ -282,8 +287,8 @@ export const MilitaryTab = ({
             return (
               <div
                 key={unitId}
-                onMouseEnter={(e) => setHoveredUnit({ unit, element: e.currentTarget })}
-                onMouseLeave={() => setHoveredUnit({ unit: null, element: null })}
+                onMouseEnter={(e) => handleMouseEnter(e, unit)}
+                onMouseLeave={() => canHover && setHoveredUnit({ unit: null, element: null })}
                 className={`group relative p-2 rounded-lg border transition-all ${
                   affordable
                     ? 'bg-gray-700 border-gray-600 hover:border-red-500 hover:shadow-lg'
