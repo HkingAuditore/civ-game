@@ -110,97 +110,81 @@ export const StatusBar = ({
 
         {/* 第二行：关键数据胶囊 + 游戏控制（桌面端） */}
         <div className="flex items-center justify-between gap-1.5 sm:gap-3 pb-1">
-          {/* 左侧：关键数据胶囊 */}
-          <div className="flex items-center gap-1.5 sm:gap-3 overflow-x-auto scrollbar-hide flex-1">
-          {/* 银币 */}
-          <button
-            onClick={() => onResourceDetailClick('silver')}
-            className="flex items-center gap-1.5 bg-gradient-to-r from-yellow-900/30 to-yellow-800/20 backdrop-blur-sm px-2.5 sm:px-3 py-1.5 rounded-full border border-yellow-600/30 hover:border-yellow-500/50 transition-all flex-shrink-0 group"
-          >
-            <Icon name="Coins" size={14} className="text-yellow-300 sm:w-4 sm:h-4" />
-            <span className="font-mono text-xs sm:text-sm font-bold text-yellow-200">
-              {formatNumber(gameState.resources.silver || 0)}
-            </span>
+          {/* 左侧：关键数据胶囊 - 使用flex-wrap确保换行而非滚动 */}
+          <div className="flex items-center gap-1.5 sm:gap-3 flex-wrap flex-1">
+            {/* 银币 - 移动端紧凑显示 */}
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowTaxDetail(!showTaxDetail);
-              }}
-              className={`flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full transition-colors ${netChipClasses}`}
+              onClick={() => onResourceDetailClick('silver')}
+              className="flex items-center gap-1 sm:gap-1.5 bg-gradient-to-r from-yellow-900/30 to-yellow-800/20 backdrop-blur-sm px-2 sm:px-3 py-1.5 rounded-full border border-yellow-600/30 hover:border-yellow-500/50 transition-all flex-shrink-0 group"
             >
-              <Icon name={netTrendIcon} size={10} />
-              <span className={`font-mono ${netSilverClass} hidden sm:inline`}>
-                {netSilverPerDay >= 0 ? '+' : ''}{netSilverPerDay.toFixed(1)}
+              <Icon name="Coins" size={14} className="text-yellow-300 sm:w-4 sm:h-4" />
+              <span className="font-mono text-xs sm:text-sm font-bold text-yellow-200">
+                {formatNumber(gameState.resources.silver || 0)}
               </span>
-              {/* 移动端显示总税收 */}
-              <span className={`font-mono text-green-300 sm:hidden`}>
-                +{taxes.total.toFixed(1)}
-              </span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowTaxDetail(!showTaxDetail);
+                }}
+                className={`flex items-center gap-0.5 text-[10px] px-1 sm:px-1.5 py-0.5 rounded-full transition-colors ${netChipClasses}`}
+              >
+                <Icon name={netTrendIcon} size={10} />
+                <span className={`font-mono ${netSilverClass}`}>
+                  {netSilverPerDay >= 0 ? '+' : ''}{netSilverPerDay.toFixed(0)}
+                </span>
+              </button>
             </button>
-          </button>
 
-          {/* 人口 */}
-          <button
-            onClick={onPopulationDetailClick}
-            className="flex items-center gap-1.5 bg-gradient-to-r from-blue-900/30 to-blue-800/20 backdrop-blur-sm px-2.5 sm:px-3 py-1.5 rounded-full border border-blue-600/30 hover:border-blue-500/50 transition-all flex-shrink-0"
-          >
-            <Icon name="Users" size={14} className="text-blue-300 sm:w-4 sm:h-4" />
-            <span className="font-mono text-xs sm:text-sm font-bold text-blue-200">
-              {gameState.population}
-            </span>
-            <span className="text-[10px] text-gray-400 hidden sm:inline">
-              / {gameState.maxPop}
-            </span>
-          </button>
+            {/* 人口 - 始终显示上限 */}
+            <button
+              onClick={onPopulationDetailClick}
+              className="flex items-center gap-1 sm:gap-1.5 bg-gradient-to-r from-blue-900/30 to-blue-800/20 backdrop-blur-sm px-2 sm:px-3 py-1.5 rounded-full border border-blue-600/30 hover:border-blue-500/50 transition-all flex-shrink-0"
+            >
+              <Icon name="Users" size={14} className="text-blue-300 sm:w-4 sm:h-4" />
+              <div className="flex items-baseline gap-0.5">
+                <span className="font-mono text-xs sm:text-sm font-bold text-blue-200">
+                  {formatNumber(gameState.population)}
+                </span>
+                <span className="text-[9px] sm:text-[10px] text-gray-400">
+                  /{formatNumber(gameState.maxPop)}
+                </span>
+              </div>
+            </button>
 
-          {/* 稳定度 */}
-          <div className="flex items-center gap-1.5 bg-gradient-to-r from-purple-900/30 to-purple-800/20 backdrop-blur-sm px-2.5 sm:px-3 py-1.5 rounded-full border border-purple-600/30 flex-shrink-0">
-            <Icon 
-              name="Heart" 
-              size={14} 
-              className={`${gameState.stability >= 70 ? 'text-green-400' : gameState.stability >= 40 ? 'text-yellow-400' : 'text-red-400 animate-pulse'} sm:w-4 sm:h-4`}
-            />
-            <span className="font-mono text-xs sm:text-sm font-bold text-purple-200">
-              {Math.floor(gameState.stability)}%
-            </span>
-          </div>
+            {/* 社会阶层按钮 - 移动端必显 */}
+            <button
+              onClick={onStrataClick}
+              className="lg:hidden flex items-center gap-1 bg-gradient-to-r from-purple-900/30 to-purple-800/20 backdrop-blur-sm px-2 py-1.5 rounded-full border border-purple-600/30 hover:border-purple-500/50 transition-all flex-shrink-0"
+              title="社会阶层"
+            >
+              <Icon name="Users" size={14} className="text-purple-300" />
+              <span className="text-[10px] text-purple-200 font-semibold">阶层</span>
+            </button>
 
-          {/* 行政力 */}
-          <div className="hidden lg:flex items-center gap-1.5 bg-gradient-to-r from-indigo-900/30 to-indigo-800/20 backdrop-blur-sm px-2.5 sm:px-3 py-1.5 rounded-full border border-indigo-600/30 flex-shrink-0">
-            <Icon 
-              name="Scale" 
-              size={14} 
-              className={`${gameState.adminStrain > gameState.adminCap ? 'text-red-400 animate-pulse' : 'text-indigo-300'} sm:w-4 sm:h-4`}
-            />
-            <span className="font-mono text-xs sm:text-sm font-bold text-indigo-200">
-              {Math.floor(gameState.adminStrain)}
-            </span>
-            <span className="text-[10px] text-gray-400 hidden sm:inline">
-              / {gameState.adminCap}
-            </span>
-          </div>
+            {/* 国内市场按钮 - 移动端必显 */}
+            <button
+              onClick={onMarketClick}
+              className="lg:hidden flex items-center gap-1 bg-gradient-to-r from-amber-900/30 to-amber-800/20 backdrop-blur-sm px-2 py-1.5 rounded-full border border-amber-600/30 hover:border-amber-500/50 transition-all flex-shrink-0"
+              title="国内市场"
+            >
+              <Icon name="Package" size={14} className="text-amber-300" />
+              <span className="text-[10px] text-amber-200 font-semibold">市场</span>
+            </button>
 
-          {/* 社会阶层按钮（移动端） */}
-          <button
-            onClick={onStrataClick}
-            className="lg:hidden flex items-center gap-1.5 bg-gradient-to-r from-purple-900/30 to-purple-800/20 backdrop-blur-sm px-2.5 py-1.5 rounded-full border border-purple-600/30 hover:border-purple-500/50 transition-all flex-shrink-0"
-            title="社会阶层"
-          >
-            <Icon name="Users" size={14} className="text-purple-300" />
-            <span className="text-[10px] text-purple-200 font-semibold">阶层</span>
-          </button>
-
-          {/* 国内市场按钮（移动端） */}
-          <button
-            onClick={onMarketClick}
-            className="lg:hidden flex items-center gap-1.5 bg-gradient-to-r from-amber-900/30 to-amber-800/20 backdrop-blur-sm px-2.5 py-1.5 rounded-full border border-amber-600/30 hover:border-amber-500/50 transition-all flex-shrink-0"
-            title="国内市场"
-          >
-            <Icon name="Package" size={14} className="text-amber-300" />
-            <span className="text-[10px] text-amber-200 font-semibold">市场</span>
-          </button>
-
-
+            {/* 行政力 - 桌面端显示 */}
+            <div className="hidden lg:flex items-center gap-1.5 bg-gradient-to-r from-indigo-900/30 to-indigo-800/20 backdrop-blur-sm px-2.5 sm:px-3 py-1.5 rounded-full border border-indigo-600/30 flex-shrink-0">
+              <Icon 
+                name="Scale" 
+                size={14} 
+                className={`${gameState.adminStrain > gameState.adminCap ? 'text-red-400 animate-pulse' : 'text-indigo-300'} sm:w-4 sm:h-4`}
+              />
+              <span className="font-mono text-xs sm:text-sm font-bold text-indigo-200">
+                {Math.floor(gameState.adminStrain)}
+              </span>
+              <span className="text-[10px] text-gray-400 hidden sm:inline">
+                / {gameState.adminCap}
+              </span>
+            </div>
           </div>
 
           {/* 右侧：游戏控制按钮（桌面端） */}

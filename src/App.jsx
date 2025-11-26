@@ -686,6 +686,7 @@ function GameApp({ gameState }) {
           epoch={gameState.epoch}
           techsUnlocked={gameState.techsUnlocked}
           history={gameState.history}
+          stability={gameState.stability}
           onClose={() => gameState.setStratumDetailView(null)}
         />
       )}
