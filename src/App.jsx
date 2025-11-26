@@ -346,32 +346,6 @@ function GameApp({ gameState }) {
                 ))}
               </div>
 
-              {/* 移动端：当前标签页标题 */}
-              <div className="lg:hidden flex items-center justify-center py-3 border-b border-white/10 bg-gray-800/30">
-                <div className="flex items-center gap-2">
-                  <Icon 
-                    name={
-                      gameState.activeTab === 'build' ? 'Hammer' :
-                      gameState.activeTab === 'military' ? 'Swords' :
-                      gameState.activeTab === 'tech' ? 'Cpu' :
-                      gameState.activeTab === 'politics' ? 'Gavel' :
-                      'Globe'
-                    } 
-                    size={20} 
-                    className="text-blue-400"
-                  />
-                  <h2 className="text-lg font-bold text-white">
-                    {
-                      gameState.activeTab === 'build' ? '建设' :
-                      gameState.activeTab === 'military' ? '军事' :
-                      gameState.activeTab === 'tech' ? '科技' :
-                      gameState.activeTab === 'politics' ? '政令' :
-                      '外交'
-                    }
-                  </h2>
-                </div>
-              </div>
-
               {/* 标签页内容 */}
               <div className="p-3 sm:p-4">
               {/* 建设标签页 */}
