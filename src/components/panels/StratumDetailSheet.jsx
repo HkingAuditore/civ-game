@@ -172,11 +172,17 @@ export const StratumDetailSheet = ({
               <div className="text-[9px] text-gray-400 mb-0.5 leading-none">实际税额 (每人每日)</div>
               <div className="bg-gray-800/50 rounded px-2 py-1.5 text-center">
                 <span className={`text-sm font-bold font-mono ${
-                  (stratum.headTaxBase * headTaxMultiplier) >= 0 ? 'text-yellow-300' : 'text-green-300'
+                  (stratum.headTaxBase * headTaxMultiplier) > 0 ? 'text-yellow-300' : (stratum.headTaxBase * headTaxMultiplier) < 0 ? 'text-green-300' : 'text-gray-400'
                 }`}>
-                  {((stratum.headTaxBase || 0.01) * headTaxMultiplier).toFixed(3)}
+                  {(stratum.headTaxBase * headTaxMultiplier) < 0 ? '补贴 ' : ''}{Math.abs((stratum.headTaxBase || 0.01) * headTaxMultiplier).toFixed(3)}
                 </span>
-                <Icon name="Coins" size={12} className="inline-block ml-1 text-yellow-400" />
+                <Icon 
+                  name={(stratum.headTaxBase * headTaxMultiplier) > 0 ? "TrendingUp" : (stratum.headTaxBase * headTaxMultiplier) < 0 ? "TrendingDown" : "Coins"} 
+                  size={12} 
+                  className={`inline-block ml-1 ${
+                    (stratum.headTaxBase * headTaxMultiplier) > 0 ? 'text-yellow-400' : (stratum.headTaxBase * headTaxMultiplier) < 0 ? 'text-green-400' : 'text-gray-500'
+                  }`} 
+                />
               </div>
             </div>
           </div>
