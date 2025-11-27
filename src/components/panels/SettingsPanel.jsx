@@ -3,6 +3,7 @@
 
 import React from 'react';
 import { Icon } from '../common/UIComponents';
+import { useSound } from '../../hooks';
 
 export const SettingsPanel = ({
   isAutoSaveEnabled,
@@ -17,6 +18,7 @@ export const SettingsPanel = ({
   isSaving,
   onClose,
 }) => {
+  const { enabled: soundEnabled, volume, toggleSound, setVolume, playSound, SOUND_TYPES } = useSound();
   // 格式化上次自动存档时间
   const renderLastAutoSave = () => {
     if (!lastAutoSaveTime) return '尚未自动存档';
@@ -130,6 +132,89 @@ export const SettingsPanel = ({
       <div className="text-[11px] text-gray-400 flex items-center gap-2">
         <span className={`w-2 h-2 rounded-full ${autoSaveAvailable ? 'bg-emerald-400' : 'bg-gray-500'}`} />
         {autoSaveAvailable ? '检测到自动存档，可随时读取。' : '尚未生成自动存档。'}
+      </div>
+
+      {/* 音效设置 */}
+      <div className="border-t border-gray-700 pt-4 space-y-4">
+        <h4 className="text-sm font-bold text-gray-200 flex items-center gap-2">
+          <Icon name="Volume2" size={16} /> 音效设置
+        </h4>
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between text-xs text-gray-300">
+            <span>游戏音效</span>
+            <span className={soundEnabled ? 'text-emerald-300' : 'text-gray-500'}>
+              {soundEnabled ? '已启用' : '已关闭'}
+            </span>
+          </div>
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              className="sr-only peer"
+              checked={soundEnabled}
+              onChange={() => {
+                toggleSound();
+                // 播放测试音效
+                if (!soundEnabled) {
+                  setTimeout(() => playSound(SOUND_TYPES.SUCCESS), 100);
+                }
+              }}
+            />
+            <div className="w-10 h-5 bg-gray-700 rounded-full peer peer-checked:bg-emerald-600 transition-colors" />
+            <div className={`absolute left-1 top-1 w-3 h-3 rounded-full bg-white transition-transform ${soundEnabled ? 'translate-x-5' : ''}`} />
+          </label>
+        </div>
+
+        {soundEnabled && (
+          <div className="space-y-2 text-xs text-gray-300">
+            <div className="flex items-center justify-between">
+              <span>音效音量</span>
+              <span>{Math.round(volume * 100)}%</span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              value={volume * 100}
+              onChange={(e) => setVolume(Number(e.target.value) / 100)}
+              className="w-full accent-emerald-500"
+            />
+          </div>
+        )}
+
+        {soundEnabled && (
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <button
+              type="button"
+              onClick={() => playSound(SOUND_TYPES.CLICK)}
+              className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-gray-700/50 hover:bg-gray-700 border border-gray-600 text-gray-300 transition-colors"
+            >
+              点击
+            </button>
+            <button
+              type="button"
+              onClick={() => playSound(SOUND_TYPES.SUCCESS)}
+              className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-gray-700/50 hover:bg-gray-700 border border-gray-600 text-gray-300 transition-colors"
+            >
+              成功
+            </button>
+            <button
+              type="button"
+              onClick={() => playSound(SOUND_TYPES.BUILD)}
+              className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-gray-700/50 hover:bg-gray-700 border border-gray-600 text-gray-300 transition-colors"
+            >
+              建造
+            </button>
+            <button
+              type="button"
+              onClick={() => playSound(SOUND_TYPES.BATTLE)}
+              className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-gray-700/50 hover:bg-gray-700 border border-gray-600 text-gray-300 transition-colors"
+            >
+              战斗
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

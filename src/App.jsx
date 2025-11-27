@@ -4,7 +4,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { GAME_SPEEDS, EPOCHS, RESOURCES, STRATA, calculateArmyFoodNeed, BUILDINGS } from './config';
 import { getCalendarInfo } from './utils/calendar';
-import { useGameState, useGameLoop, useGameActions } from './hooks';
+import { useGameState, useGameLoop, useGameActions, useSound } from './hooks';
 import {
   Icon,
   FloatingText
@@ -76,6 +76,7 @@ function GameApp({ gameState }) {
   // 现在 gameState 肯定存在，可以安全调用这些钩子
   useGameLoop(gameState, addLog);
   const actions = useGameActions(gameState, addLog);
+  const { playSound, SOUND_TYPES } = useSound();
   const [showStrata, setShowStrata] = useState(false);
   const [showMarket, setShowMarket] = useState(false);  // 新增：控制国内市场弹窗
 

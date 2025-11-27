@@ -4,6 +4,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Icon } from '../common/UIComponents';
 import { GAME_SPEEDS } from '../../config';
+import { useSound } from '../../hooks';
 
 /**
  * 游戏控制面板组件
@@ -30,6 +31,8 @@ export const GameControls = ({
   
   const gameMenuRef = useRef(null);
   const helpMenuRef = useRef(null);
+  
+  const { playSound, SOUND_TYPES } = useSound();
 
   // 点击外部关闭菜单
   useEffect(() => {
@@ -52,7 +55,10 @@ export const GameControls = ({
       <div className="flex items-center rounded-xl border border-gray-700/50 bg-gray-800/40 backdrop-blur-sm overflow-hidden shadow-md">
         {/* 暂停/继续按钮 */}
         <button
-          onClick={onPauseToggle}
+          onClick={() => {
+            playSound(SOUND_TYPES.CLICK);
+            onPauseToggle();
+          }}
           className={`
             px-3 py-2 transition-all flex items-center gap-2 text-xs font-bold
             ${isPaused
@@ -73,6 +79,7 @@ export const GameControls = ({
           <button
             key={speed}
             onClick={() => {
+              playSound(SOUND_TYPES.CLICK);
               onSpeedChange(speed);
               if (isPaused) onPauseToggle();
             }}

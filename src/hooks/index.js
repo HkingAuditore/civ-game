@@ -4,3 +4,4 @@
 export { useGameState } from './useGameState';
 export { useGameLoop } from './useGameLoop';
 export { useGameActions } from './useGameActions';
+export { useSound } from './useSound';

@@ -4,6 +4,7 @@
 import { BUILDINGS, EPOCHS, RESOURCES, TECHS, MILITARY_ACTIONS, UNIT_TYPES } from '../config';
 import { calculateArmyAdminCost, calculateArmyPopulation, simulateBattle, calculateBattlePower } from '../config';
 import { calculateForeignPrice, calculateTradeStatus } from '../utils/foreignTrade';
+import { generateSound, SOUND_TYPES } from '../config/sounds';
 
 /**
  * 游戏操作钩子
@@ -95,6 +96,14 @@ export const useGameActions = (gameState, addLog) => {
     setResources(newRes);
     setEpoch(epoch + 1);
     addLog(`🎉 文明进入 ${nextEpoch.name}！`);
+    
+    // 播放升级音效
+    try {
+      const soundGenerator = generateSound(SOUND_TYPES.LEVEL_UP);
+      if (soundGenerator) soundGenerator();
+    } catch (e) {
+      console.warn('Failed to play level up sound:', e);
+    }
   };
 
   // ========== 建筑管理 ==========
@@ -137,6 +146,14 @@ export const useGameActions = (gameState, addLog) => {
     setResources(newRes);
     setBuildings(prev => ({ ...prev, [id]: (prev[id] || 0) + 1 }));
     addLog(`建造了 ${b.name}`);
+    
+    // 播放建造音效
+    try {
+      const soundGenerator = generateSound(SOUND_TYPES.BUILD);
+      if (soundGenerator) soundGenerator();
+    } catch (e) {
+      console.warn('Failed to play build sound:', e);
+    }
   };
 
   /**
@@ -207,6 +224,14 @@ export const useGameActions = (gameState, addLog) => {
     setResources(newRes);
     setTechsUnlocked(prev => [...prev, id]);
     addLog(`✓ 研究完成：${tech.name}`);
+    
+    // 播放研究音效
+    try {
+      const soundGenerator = generateSound(SOUND_TYPES.RESEARCH);
+      if (soundGenerator) soundGenerator();
+    } catch (e) {
+      console.warn('Failed to play research sound:', e);
+    }
   };
 
   // ========== 政令管理 ==========
@@ -482,6 +507,14 @@ export const useGameActions = (gameState, addLog) => {
     });
 
     addLog(result.victory ? `⚔️ 针对 ${targetNation.name} 的行动取得胜利！` : `💀 对 ${targetNation.name} 的进攻受挫。`);
+    
+    // 播放战斗音效
+    try {
+      const soundGenerator = generateSound(result.victory ? SOUND_TYPES.VICTORY : SOUND_TYPES.BATTLE);
+      if (soundGenerator) soundGenerator();
+    } catch (e) {
+      console.warn('Failed to play battle sound:', e);
+    }
   };
 
   // ========== 外交系统 ==========
