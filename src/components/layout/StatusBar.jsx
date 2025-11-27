@@ -111,10 +111,11 @@ export const StatusBar = ({
         {/* 第二行：关键数据胶囊 + 游戏控制（桌面端） */}
         <div className="flex items-center justify-between gap-1.5 sm:gap-3 pb-1">
           {/* 左侧：关键数据胶囊 - 使用flex-wrap确保换行而非滚动 */}
-          <div className="flex items-center gap-1.5 sm:gap-3 flex-wrap flex-1">
+          <div className="relative flex items-center gap-1.5 sm:gap-3 flex-wrap flex-1">
             {/* 银币 - 移动端紧凑显示 */}
             <button
               onClick={() => onResourceDetailClick('silver')}
+              onMouseEnter={() => setShowTaxDetail(true)}
               className="flex items-center gap-1 sm:gap-1.5 bg-gradient-to-r from-yellow-900/30 to-yellow-800/20 backdrop-blur-sm px-2 sm:px-3 py-1.5 rounded-full border border-yellow-600/30 hover:border-yellow-500/50 transition-all flex-shrink-0 group"
             >
               <Icon name="Coins" size={14} className="text-yellow-300 sm:w-4 sm:h-4" />
@@ -124,7 +125,7 @@ export const StatusBar = ({
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  setShowTaxDetail(!showTaxDetail);
+                  setShowTaxDetail(prev => !prev);
                 }}
                 className={`flex items-center gap-0.5 text-[10px] px-1 sm:px-1.5 py-0.5 rounded-full transition-colors ${netChipClasses}`}
               >
@@ -134,6 +135,59 @@ export const StatusBar = ({
                 </span>
               </button>
             </button>
+
+            {/* 税收详情弹窗 - 移到这里，并使用 left-0 定位 */}
+            {showTaxDetail && (
+              <div 
+                onMouseLeave={() => setShowTaxDetail(false)}
+                className="absolute top-full left-0 mt-2 w-72 bg-gray-900/95 backdrop-blur-md border border-gray-700/70 rounded-xl p-4 shadow-glass z-[40] animate-slide-up"
+              >
+                <div className="flex items-center justify-between text-sm text-gray-300 mb-3">
+                  <span className="font-semibold">财政收支 (每日)</span>
+                  <button onClick={() => setShowTaxDetail(false)}>
+                    <Icon name="X" size={16} className="text-gray-400 hover:text-white" />
+                  </button>
+                </div>
+                <div className="text-xs text-gray-400 space-y-2">
+                  <div className="flex justify-between py-1 border-b border-gray-800">
+                    <span>人头税</span>
+                    <span className="text-yellow-200 font-mono">+{taxes.breakdown?.headTax?.toFixed(2) || '0.00'}</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-gray-800">
+                    <span>交易税</span>
+                    <span className="text-yellow-200 font-mono">
+                      +{taxes.breakdown?.industryTax?.toFixed(2) || '0.00'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-gray-800">
+                    <span>营业税</span>
+                    <span className="text-yellow-200 font-mono">
+                      +{taxes.breakdown?.businessTax?.toFixed(2) || '0.00'}
+                    </span>
+                  </div>
+                  {taxes.breakdown?.subsidy > 0 && (
+                    <div className="flex justify-between py-1 border-b border-gray-800">
+                      <span>补助支出</span>
+                      <span className="text-red-300 font-mono">
+                        -{taxes.breakdown.subsidy.toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex justify-between py-1 border-b border-gray-800">
+                    <span>军饷维护</span>
+                    <span className="text-red-300 font-mono">
+                      -{silverUpkeepPerDay.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between pt-2 font-semibold">
+                    <span className="text-white">净收益</span>
+                    <span className={`${netSilverClass} font-mono text-sm`}>
+                      {netSilverPerDay >= 0 ? '+' : ''}{netSilverPerDay.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* 人口 - 始终显示上限 */}
             <button
@@ -195,63 +249,6 @@ export const StatusBar = ({
           )}
         </div>
 
- 
-
-        {/* 税收详情弹窗 */}
-        {showTaxDetail && (
-          <div className="absolute top-full right-4 mt-2 w-72 bg-gray-900/95 backdrop-blur-md border border-gray-700/70 rounded-xl p-4 shadow-glass z-[40] animate-slide-up">
-            <div className="flex items-center justify-between text-sm text-gray-300 mb-3">
-              <span className="font-semibold">财政收支 (每日)</span>
-              <button onClick={() => setShowTaxDetail(false)}>
-                <Icon name="X" size={16} className="text-gray-400 hover:text-white" />
-              </button>
-            </div>
-            <div className="text-xs text-gray-400 space-y-2">
-              <div className="flex justify-between py-1 border-b border-gray-800">
-                <span>人头税</span>
-                <span className="text-yellow-200 font-mono">+{taxes.breakdown?.headTax?.toFixed(2) || '0.00'}</span>
-              </div>
-              <div className="flex justify-between py-1 border-b border-gray-800">
-                <span>交易税</span>
-                <span className="text-yellow-200 font-mono">
-                  +{taxes.breakdown?.industryTax?.toFixed(2) || '0.00'}
-                </span>
-              </div>
-              <div className="flex justify-between py-1 border-b border-gray-800">
-                <span>营业税</span>
-                <span className="text-yellow-200 font-mono">
-                  +{taxes.breakdown?.businessTax?.toFixed(2) || '0.00'}
-                </span>
-              </div>
-              {taxes.breakdown?.subsidy > 0 && (
-                <div className="flex justify-between py-1 border-b border-gray-800">
-                  <span>补助支出</span>
-                  <span className="text-red-300 font-mono">
-                    -{taxes.breakdown.subsidy.toFixed(2)}
-                  </span>
-                </div>
-              )}
-              <div className="flex justify-between py-1 border-b border-gray-800">
-                <span>军饷维护</span>
-                <span className="text-red-300 font-mono">
-                  -{silverUpkeepPerDay.toFixed(2)}
-                </span>
-              </div>
-              <div className="flex justify-between py-1 border-b border-gray-800">
-                <span>行政效率</span>
-                <span className="text-blue-300 font-mono">
-                  {(taxes.efficiency * 100).toFixed(0)}%
-                </span>
-              </div>
-              <div className="flex justify-between pt-2 font-semibold">
-                <span className="text-white">净收益</span>
-                <span className={`${netSilverClass} font-mono text-sm`}>
-                  {netSilverPerDay >= 0 ? '+' : ''}{netSilverPerDay.toFixed(2)}
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </header>
   );
