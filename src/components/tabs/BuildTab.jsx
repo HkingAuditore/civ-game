@@ -173,7 +173,7 @@ const CompactBuildingCard = ({
           {/* 岗位饱和度 - 只显示进度条，不显示标签 */}
           {building.jobs && Object.keys(building.jobs).length > 0 && (
             <div className="bg-gray-900/40 rounded px-1 py-0.5">
-              {Object.entries(building.jobs).slice(0, 1).map(([job, perBuilding]) => {
+              {Object.entries(building.jobs).map(([job, perBuilding]) => {
                 const required = perBuilding * count;
                 const assigned = jobFill?.[building.id]?.[job] ?? 0;
                 const fillPercent = required > 0 ? Math.min(1, assigned / required) * 100 : 0;
@@ -196,7 +196,7 @@ const CompactBuildingCard = ({
             return (
               <div className="bg-gray-900/40 rounded px-1 py-0.5">
                 <div className="flex flex-wrap gap-0.5 justify-center">
-                  {Object.entries(unlockedOutput).slice(0, 1).map(([res, val]) => {
+                  {Object.entries(unlockedOutput).map(([res, val]) => {
                     // 计算总岗位需求和总分配人数
                     const totalRequired = Object.values(building.jobs || {}).reduce((sum, per) => sum + per * count, 0);
                     const totalAssigned = Object.values(jobFill?.[building.id] || {}).reduce((sum, num) => sum + num, 0);
