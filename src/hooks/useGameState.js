@@ -255,6 +255,7 @@ export const useGameState = () => {
     businessTaxRates: buildDefaultBusinessTaxRates(),
   });
   const [jobFill, setJobFill] = useState({});
+  const [jobsAvailable, setJobsAvailable] = useState({}); // 各阶层可用岗位数量
   const [market, setMarket] = useState(buildInitialMarket());
 
   useEffect(() => {
@@ -610,6 +611,8 @@ export const useGameState = () => {
     setTaxPolicies,
     jobFill,
     setJobFill,
+    jobsAvailable,
+    setJobsAvailable,
     saveGame,
     loadGame,
     hasAutoSave,

@@ -174,7 +174,7 @@ function GameApp({ gameState }) {
 
   // 计算税收和军队相关数据
   const taxes = gameState.taxes || { total: 0, breakdown: { headTax: 0, industryTax: 0, subsidy: 0 }, efficiency: 1 };
-  const dayScale = Math.max(gameState.gameSpeed || 0, 0.0001);
+  const dayScale = 1; // 收入计算已不受gameSpeed影响，固定为1
   const armyFoodNeed = calculateArmyFoodNeed(gameState.army || {});
   const foodPrice = gameState.market?.prices?.food ?? (RESOURCES.food?.basePrice || 1);
   const wageRatio = gameState.militaryWageRatio || 1;
@@ -304,11 +304,11 @@ function GameApp({ gameState }) {
               activeDebuffs={gameState.activeDebuffs}
               classWealth={gameState.classWealth}
               classWealthDelta={gameState.classWealthDelta}
-              classShortages={gameState.classShortages}
-              classIncome={gameState.classIncome}
-              classExpense={gameState.classExpense}
-              dayScale={gameState.gameSpeed}
-              onDetailClick={handleStratumDetailClick}
+            classShortages={gameState.classShortages}
+            classIncome={gameState.classIncome}
+            classExpense={gameState.classExpense}
+            dayScale={1}
+            onDetailClick={handleStratumDetailClick}
             />
 
             {/* 手动采集按钮 */}
@@ -416,6 +416,8 @@ function GameApp({ gameState }) {
                   epoch={gameState.epoch}
                   techsUnlocked={gameState.techsUnlocked}
                   onShowDecreeDetails={handleShowDecreeDetails}
+                  jobFill={gameState.jobFill}
+                  jobsAvailable={gameState.jobsAvailable}
                 />
               )}
 
@@ -533,7 +535,7 @@ function GameApp({ gameState }) {
             classShortages={gameState.classShortages}
             activeBuffs={gameState.activeBuffs}
             activeDebuffs={gameState.activeDebuffs}
-            dayScale={gameState.gameSpeed}
+            dayScale={1}
           taxPolicies={gameState.taxPolicies}
           onUpdateTaxPolicies={gameState.setTaxPolicies}
             onClose={closeSheet}
@@ -614,11 +616,11 @@ function GameApp({ gameState }) {
           activeDebuffs={gameState.activeDebuffs}
           classWealth={gameState.classWealth}
           classWealthDelta={gameState.classWealthDelta}
-          classShortages={gameState.classShortages}
-          classIncome={gameState.classIncome}
-          classExpense={gameState.classExpense}
-          dayScale={gameState.gameSpeed}
-          onDetailClick={handleStratumDetailClick}
+            classShortages={gameState.classShortages}
+            classIncome={gameState.classIncome}
+            classExpense={gameState.classExpense}
+            dayScale={1}
+            onDetailClick={handleStratumDetailClick}
           hideTitle={true}
         />
       </BottomSheet>
