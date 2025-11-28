@@ -4,7 +4,8 @@
 import { useEffect, useRef } from 'react';
 import { simulateTick } from '../logic/simulation';
 import { calculateArmyMaintenance, UNIT_TYPES, STRATA } from '../config';
-import { getRandomFestivalEffects } from '../config/festivalEffects';
+import { getRandomFestivalEffects } from '../config/festivalEffects'; 
+import { initCheatCodes } from './cheatCodes';
 import { getCalendarInfo } from '../utils/calendar';
 
 /**
@@ -159,6 +160,11 @@ export const useGameLoop = (gameState, addLog) => {
 
   // 游戏核心循环
   useEffect(() => {
+    // 初始化作弊码系统
+    if (process.env.NODE_ENV !== 'production') {
+      initCheatCodes(gameState, addLog);
+    }
+
     // 暂停时不设置游戏循环定时器，但自动保存定时器需要单独处理
     if (isPaused) {
       // 设置独立的自动保存定时器
