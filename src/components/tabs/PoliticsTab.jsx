@@ -175,7 +175,7 @@ const BusinessTaxCard = ({ building, multiplier, buildingCount, draftMultiplier,
  * @param {Object} buildings - 当前建筑数量
  * @param {number} epoch - 当前时代编号
  */
-export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicies, popStructure = {}, buildings = {}, market = {}, epoch = 0, techsUnlocked = [], onShowDecreeDetails }) => {
+export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicies, popStructure = {}, buildings = {}, market = {}, epoch = 0, techsUnlocked = [], onShowDecreeDetails, jobFill = {}, jobsAvailable = {} }) => {
   // 按类别分组政令
   const categories = {
     economy: { name: '经济政策', icon: 'Coins', color: 'text-yellow-400' },
@@ -232,10 +232,18 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
     });
   }, [epoch, techsUnlocked]);
 
-  const strataToDisplay = React.useMemo(
-    () => unlockedStrataKeys,
-    [unlockedStrataKeys]
-  );
+  // 筛选出有岗位提供的阶层（用于人头税面板显示）
+  const strataToDisplay = React.useMemo(() => {
+    return unlockedStrataKeys.filter(key => {
+      // 失业者总是显示
+      if (key === 'unemployed') {
+        return true;
+      }
+      // 只显示有岗位供应的阶层（即建筑提供了该阶层的岗位）
+      const jobSlots = jobsAvailable[key] || 0;
+      return jobSlots > 0;
+    });
+  }, [unlockedStrataKeys, jobsAvailable]);
 
   // 处理人头税临时输入变化的逻辑
   const handleHeadDraftChange = (key, raw) => {
@@ -499,11 +507,178 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
       </div>
 
       {/* 税收政策调节 */}
-      {/* {onUpdateTaxPolicies && (
+      {onUpdateTaxPolicies && (
         <div className="bg-gray-800/50 p-4 rounded-lg border border-gray-700">
-          ...
+          <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300">
+            <Icon name="DollarSign" size={16} className="text-yellow-400" />
+            税收政策调节
+          </h3>
+
+          {/* 标签页切换 */}
+          <div className="flex gap-2 mb-4 border-b border-gray-700">
+            <button
+              onClick={() => setActiveTaxTab('head')}
+              className={`px-4 py-2 text-sm font-semibold transition-all ${
+                activeTaxTab === 'head'
+                  ? 'text-yellow-300 border-b-2 border-yellow-400'
+                  : 'text-gray-400 hover:text-gray-300'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Icon name="Users" size={14} />
+                人头税
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTaxTab('resource')}
+              className={`px-4 py-2 text-sm font-semibold transition-all ${
+                activeTaxTab === 'resource'
+                  ? 'text-blue-300 border-b-2 border-blue-400'
+                  : 'text-gray-400 hover:text-gray-300'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Icon name="Package" size={14} />
+                资源税
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTaxTab('business')}
+              className={`px-4 py-2 text-sm font-semibold transition-all ${
+                activeTaxTab === 'business'
+                  ? 'text-green-300 border-b-2 border-green-400'
+                  : 'text-gray-400 hover:text-gray-300'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Icon name="Building" size={14} />
+                营业税
+              </div>
+            </button>
+          </div>
+
+          {/* 人头税面板 */}
+          {activeTaxTab === 'head' && (
+            <div className="space-y-4">
+              <div className="bg-blue-900/20 border border-blue-500/30 p-3 rounded-lg text-xs text-blue-100">
+                <p className="flex items-center gap-2 mb-1">
+                  <Icon name="Info" size={12} className="text-blue-400" />
+                  <span className="font-semibold">人头税说明</span>
+                </p>
+                <p>对各阶层人口征收的税收。税率系数越高，税收越多，但可能影响阶层满意度。</p>
+              </div>
+
+              {/* 按阶层分组显示 */}
+              {Object.entries(STRATA_GROUPS).map(([groupKey, groupInfo]) => {
+                const groupStrata = strataToDisplay.filter(key => groupInfo.keys.includes(key));
+                if (groupStrata.length === 0) return null;
+
+                return (
+                  <div key={groupKey}>
+                    <h4 className="text-xs font-semibold text-gray-400 mb-2">{groupInfo.name}</h4>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
+                      {groupStrata.map(key => renderStratumCard(key))}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* 未分组的阶层 */}
+              {strataToDisplay.filter(key => !allGroupKeys.has(key)).length > 0 && (
+                <div>
+                  <h4 className="text-xs font-semibold text-gray-400 mb-2">其他阶层</h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
+                    {strataToDisplay.filter(key => !allGroupKeys.has(key)).map(key => renderStratumCard(key))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 资源税面板 */}
+          {activeTaxTab === 'resource' && (
+            <div className="space-y-4">
+              <div className="bg-blue-900/20 border border-blue-500/30 p-3 rounded-lg text-xs text-blue-100">
+                <p className="flex items-center gap-2 mb-1">
+                  <Icon name="Info" size={12} className="text-blue-400" />
+                  <span className="font-semibold">资源税说明</span>
+                </p>
+                <p>对市场交易的资源征收的税收。税率为正时征税，为负时作为补贴。仅对有市场供应的资源生效。</p>
+              </div>
+
+              {/* 按资源分组显示 */}
+              {Object.values(RESOURCE_GROUPS).map(group => renderResourceGroup(group, taxableResources))}
+
+              {/* 未分组的资源 */}
+              {taxableResources.filter(([key]) => !ALL_GROUPED_RESOURCES.has(key)).length > 0 && (
+                <div>
+                  <h5 className="text-xs font-semibold text-gray-400 mb-2">其他资源</h5>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-2">
+                    {taxableResources
+                      .filter(([key]) => !ALL_GROUPED_RESOURCES.has(key))
+                      .map(([key, info]) => (
+                        <ResourceTaxCard
+                          key={key}
+                          resourceKey={key}
+                          info={info}
+                          rate={resourceRates[key]}
+                          hasSupply={(market?.supply?.[key] || 0) > 0}
+                          draftRate={resourceDrafts[key]}
+                          onDraftChange={handleResourceDraftChange}
+                          onCommit={commitResourceDraft}
+                        />
+                      ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 营业税面板 */}
+          {activeTaxTab === 'business' && (
+            <div className="space-y-4">
+              <div className="bg-blue-900/20 border border-blue-500/30 p-3 rounded-lg text-xs text-blue-100">
+                <p className="flex items-center gap-2 mb-1">
+                  <Icon name="Info" size={12} className="text-blue-400" />
+                  <span className="font-semibold">营业税说明</span>
+                </p>
+                <p>对建筑经营征收的税收。税率系数越高，每个建筑每次运营时缴纳的税收越多。</p>
+              </div>
+
+              {/* 按建筑类别显示 */}
+              {Object.entries(buildingsByCategory).map(([catKey, catInfo]) => {
+                if (catInfo.buildings.length === 0) return null;
+
+                return (
+                  <div key={catKey}>
+                    <h4 className="text-xs font-semibold text-gray-400 mb-2">{catInfo.name}</h4>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
+                      {catInfo.buildings.map(building => (
+                        <BusinessTaxCard
+                          key={building.id}
+                          building={building}
+                          multiplier={businessRates[building.id]}
+                          buildingCount={buildings[building.id] || 0}
+                          draftMultiplier={businessDrafts[building.id]}
+                          onDraftChange={handleBusinessDraftChange}
+                          onCommit={commitBusinessDraft}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {builtBuildings.length === 0 && (
+                <div className="text-center text-gray-500 py-8">
+                  <Icon name="Building" size={32} className="mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">暂无已建造的建筑</p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
-      )} */}
+      )}
 
       {unlockedDecrees.length === 0 && (
         <div className="bg-yellow-900/20 border border-yellow-600/30 p-4 rounded-lg text-xs text-yellow-100">

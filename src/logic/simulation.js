@@ -1013,7 +1013,7 @@ export const simulateTick = ({
   const estimateRoleNetIncome = (role) => {
     const wage = getExpectedWage(role);
     const headBase = STRATA[role]?.headTaxBase ?? 0.01;
-    const taxCost = headBase * gameSpeed * getHeadTaxRate(role) * effectiveTaxModifier;
+    const taxCost = headBase * getHeadTaxRate(role) * effectiveTaxModifier;
     return wage - Math.max(0, taxCost);
   };
 
@@ -1066,7 +1066,7 @@ export const simulateTick = ({
 
   Object.entries(passiveGains).forEach(([resKey, amountPerDay]) => {
     if (!amountPerDay) return;
-    const gain = amountPerDay * gameSpeed;
+    const gain = amountPerDay;
     const current = res[resKey] || 0;
     if (gain >= 0) {
       res[resKey] = current + gain;
@@ -1095,7 +1095,7 @@ export const simulateTick = ({
     }
     const headRate = getHeadTaxRate(key);
     const headBase = STRATA[key]?.headTaxBase ?? 0.01;
-    const due = count * headBase * gameSpeed * headRate * effectiveTaxModifier;
+    const due = count * headBase * headRate * effectiveTaxModifier;
     if (due !== 0) {
       const available = wealth[key] || 0;
       if (due > 0) {
@@ -1134,7 +1134,7 @@ export const simulateTick = ({
       wealth[ownerKey] = STRATA[ownerKey]?.startingWealth || 0;
     }
 
-    let multiplier = 1.0 * gameSpeed;
+    let multiplier = 1.0;
     const currentEpoch = EPOCHS[epoch];
 
     if (currentEpoch && currentEpoch.bonuses) {
@@ -1647,7 +1647,7 @@ export const simulateTick = ({
   const baseArmyWage = armyFoodNeed * foodPrice * wageMultiplier;
 
   if (baseArmyWage > 0) {
-    const wageDue = baseArmyWage * gameSpeed;
+    const wageDue = baseArmyWage;
     const available = res.silver || 0;
     if (available >= wageDue) {
       res.silver = available - wageDue;
@@ -1696,7 +1696,7 @@ export const simulateTick = ({
       }
       
       // 基础需求量
-      let requirement = perCapita * count * gameSpeed * needsRequirementMultiplier;
+      let requirement = perCapita * count * needsRequirementMultiplier;
       if (requirement <= 0) continue;
       
       // 应用需求弹性调整
@@ -1730,7 +1730,7 @@ export const simulateTick = ({
         
         // 确保需求不会变成负数或过大
         requirement = Math.max(0, requirement);
-        requirement = Math.min(requirement, perCapita * count * gameSpeed * needsRequirementMultiplier * 3); // 最多3倍
+        requirement = Math.min(requirement, perCapita * count * needsRequirementMultiplier * 3); // 最多3倍
       }
       const available = res[resKey] || 0;
       let satisfied = 0;
@@ -1847,7 +1847,7 @@ export const simulateTick = ({
       }
       if (d.id === 'tithe') {
         if (popStructure.cleric > 0) classApproval.cleric = Math.max(0, (classApproval.cleric || 50) - 10);
-        const titheDue = (popStructure.cleric || 0) * 2 * gameSpeed * effectiveTaxModifier;
+        const titheDue = (popStructure.cleric || 0) * 2 * effectiveTaxModifier;
         if (titheDue > 0) {
           const available = wealth.cleric || 0;
           const paid = Math.min(available, titheDue);
@@ -1870,7 +1870,7 @@ export const simulateTick = ({
     // Tax Burden Logic
     const headRate = getHeadTaxRate(key);
     const headBase = STRATA[key]?.headTaxBase ?? 0.01;
-    const taxPerCapita = Math.max(0, headBase * gameSpeed * headRate * effectiveTaxModifier);
+    const taxPerCapita = Math.max(0, headBase * headRate * effectiveTaxModifier);
     const incomePerCapita = (roleWagePayout[key] || 0) / Math.max(1, count);
     if (incomePerCapita > 0.001 && taxPerCapita > incomePerCapita * 0.5) {
       targetApproval = Math.min(targetApproval, 40); // Tax burden cap
@@ -2295,6 +2295,36 @@ export const simulateTick = ({
 
   const demandPopulation = Math.max(0, nextPopulation ?? population ?? 0);
   
+  // === 辅助函数：计算最低利润率 ===
+  // 根据成本价、基础价格和库存情况，动态计算生产者应得的最低利润率
+  const calculateMinProfitMargin = (costPrice, basePrice, inventoryRatio) => {
+    // 1. 基础利润率：根据成本价与基础价格的比例
+    // 如果成本价远低于基础价格（如粮食），说明资源有较高的市场价值，应该有更高的利润率
+    const costToBasePriceRatio = costPrice / basePrice;
+    
+    if (costToBasePriceRatio < 0.3) {
+      // 成本价很低（<30% basePrice），如粮食
+      // 基础利润率：200%-500%（确保价格接近basePrice）
+      // 例如：costPrice=0.1, basePrice=1.6, ratio=0.0625
+      // 目标：让 costPrice * (1 + margin) ≈ basePrice
+      // margin = (basePrice / costPrice) - 1 = 15 (1500%)
+      // 但我们限制在合理范围内
+      return Math.min(5.0, (basePrice / costPrice) - 1) * 0.8; // 80%的差价作为利润
+    } else if (costToBasePriceRatio < 0.6) {
+      // 成本价中等（30%-60% basePrice）
+      // 基础利润率：50%-100%
+      return 0.5 + (0.6 - costToBasePriceRatio) * 1.5;
+    } else if (costToBasePriceRatio < 0.9) {
+      // 成本价较高（60%-90% basePrice）
+      // 基础利润率：20%-50%
+      return 0.2 + (0.9 - costToBasePriceRatio) * 1.0;
+    } else {
+      // 成本价接近或超过基础价格（>90% basePrice）
+      // 基础利润率：10%-20%（保证基本利润）
+      return 0.1 + Math.max(0, 1.0 - costToBasePriceRatio) * 1.0;
+    }
+  };
+  
   // 获取全局默认的市场参数（作为 fallback）
   const defaultMarketInfluence = ECONOMIC_INFLUENCE?.market || {};
   const defaultSupplyDemandWeight = Math.max(0, defaultMarketInfluence.supplyDemandWeight ?? 1);
@@ -2390,9 +2420,9 @@ export const simulateTick = ({
       const businessTaxBase = building.businessTaxBase ?? 0.1;
       const businessTaxCost = businessTaxBase * businessTaxMultiplier;
       
-      // 计算业主生活需求成本（如果是自营）
+      // 计算业主生活需求成本
       let ownerLivingCost = 0;
-      if (isSelfOwned && building.owner) {
+      if (building.owner) {
         const ownerLivingCostBase = resourceSpecificWageLivingCosts[building.owner] || 0;
         ownerLivingCost = ownerLivingCostBase * (building.jobs[building.owner] || 0);
       }
@@ -2401,43 +2431,36 @@ export const simulateTick = ({
       const totalCost = inputCost + laborCost + businessTaxCost + ownerLivingCost;
       const costPrice = totalCost / outputAmount;
       
-      // 计算出售价格浮动：主要看库存天数，次要看供需
-      // 库存天数影响（权重70%）
+      // === 三层价格模型 ===
+      // 1. 计算供需调整系数（基于库存天数）
       const inventoryRatio = inventoryDays / inventoryTargetDays;
-      let inventoryMultiplier = 1.0;
+      let priceMultiplier = 1.0;
+      
       if (inventoryRatio < 0.5) {
         // 库存紧张，大幅涨价
-        inventoryMultiplier = 1.0 + (1.0 - inventoryRatio * 2) * 5.0; // 最高6倍
+        priceMultiplier = 1.0 + (1.0 - inventoryRatio * 2) * 5.0; // 最高6倍
       } else if (inventoryRatio < 1.0) {
         // 库存偏低，适度涨价
-        inventoryMultiplier = 1.0 + (1.0 - inventoryRatio) * 1.0; // 1.0-2.0倍
+        priceMultiplier = 1.0 + (1.0 - inventoryRatio) * 1.0; // 1.0-2.0倍
       } else if (inventoryRatio > 2.0) {
         // 库存积压，大幅降价
-        inventoryMultiplier = 1.0 - (inventoryRatio - 2.0) * 0.3; // 最低0.1倍
-        inventoryMultiplier = Math.max(0.1, inventoryMultiplier);
+        priceMultiplier = 1.0 - (inventoryRatio - 2.0) * 0.3; // 最低0.1倍
+        priceMultiplier = Math.max(0.1, priceMultiplier);
       } else if (inventoryRatio > 1.0) {
         // 库存充足，适度降价
-        inventoryMultiplier = 1.0 - (inventoryRatio - 1.0) * 0.3; // 0.7-1.0倍
+        priceMultiplier = 1.0 - (inventoryRatio - 1.0) * 0.3; // 0.7-1.0倍
       }
       
-      // 供需影响（权重30%）
-      const supplyDemandRatio = adjustedDemand / Math.max(sup, 1);
-      let supplyDemandMultiplier = 1.0;
-      if (supplyDemandRatio > 1.5) {
-        // 供不应求，涨价
-        supplyDemandMultiplier = 1.0 + (supplyDemandRatio - 1.0) * 0.5 * supplyDemandWeight;
-      } else if (supplyDemandRatio < 0.7) {
-        // 供过于求，降价
-        supplyDemandMultiplier = 1.0 - (1.0 - supplyDemandRatio) * 0.3 * supplyDemandWeight;
-      }
+      // 2. 获取基础价格（市场认可的合理价格）
+      const basePrice = getBasePrice(resource);
       
-      // 综合浮动倍率（库存70% + 供需30%）
-      const priceMultiplier = inventoryMultiplier * 0.7 + supplyDemandMultiplier * 0.3;
+      // 3. 计算市场价格（基于basePrice和供需关系）
+      let marketBasedPrice = basePrice * priceMultiplier;
       
-      // 出售价格 = 成本价 × 浮动倍率，限制在10%-1000%之间
-      let sellingPrice = costPrice * priceMultiplier;
-      sellingPrice = Math.max(sellingPrice, costPrice * 0.1);
-      sellingPrice = Math.min(sellingPrice, costPrice * 10.0);
+      // 4. 最终价格 = 市场价格（允许低于成本价）
+      // 当供过于求时，价格可能低于成本，生产者会亏损
+      // 这会促使生产者减产或转行，实现市场自我调节
+      let sellingPrice = marketBasedPrice;
       
       // 不超过物价限额
       const minPrice = resourceDef.minPrice ?? PRICE_FLOOR;
@@ -2465,8 +2488,35 @@ export const simulateTick = ({
       });
       marketPrice = weightedSum / totalOutput;
     } else {
-      // 如果没有建筑生产，使用基础价格
-      marketPrice = getBasePrice(resource);
+      // 如果没有建筑生产，根据库存情况调整基础价格
+      const basePrice = getBasePrice(resource);
+      const inventoryRatio = inventoryDays / inventoryTargetDays;
+      let priceMultiplier = 1.0;
+      
+      if (inventoryRatio < 0.5) {
+        // 库存紧张，大幅涨价
+        priceMultiplier = 1.0 + (1.0 - inventoryRatio * 2) * 5.0; // 最高6倍
+      } else if (inventoryRatio < 1.0) {
+        // 库存偏低，适度涨价
+        priceMultiplier = 1.0 + (1.0 - inventoryRatio) * 1.0; // 1.0-2.0倍
+      } else if (inventoryRatio > 2.0) {
+        // 库存积压，大幅降价
+        priceMultiplier = 1.0 - (inventoryRatio - 2.0) * 0.3; // 最低0.1倍
+        priceMultiplier = Math.max(0.1, priceMultiplier);
+      } else if (inventoryRatio > 1.0) {
+        // 库存充足，适度降价
+        priceMultiplier = 1.0 - (inventoryRatio - 1.0) * 0.3; // 0.7-1.0倍
+      }
+      
+      marketPrice = basePrice * priceMultiplier;
+      
+      // 限制价格范围
+      const minPrice = resourceDef.minPrice ?? PRICE_FLOOR;
+      const maxPrice = resourceDef.maxPrice;
+      marketPrice = Math.max(marketPrice, minPrice);
+      if (maxPrice !== undefined) {
+        marketPrice = Math.min(marketPrice, maxPrice);
+      }
     }
     
     // 平滑处理
@@ -2549,7 +2599,7 @@ export const simulateTick = ({
     const netIncomePerCapita = netIncome / Math.max(1, pop);
     const roleWage = updatedWages[role] || getExpectedWage(role);
     const headTaxBase = STRATA[role]?.headTaxBase ?? 0.01;
-    const taxCostPerCapita = headTaxBase * gameSpeed * getHeadTaxRate(role) * effectiveTaxModifier;
+    const taxCostPerCapita = headTaxBase * getHeadTaxRate(role) * effectiveTaxModifier;
     const disposableWage = roleWage - taxCostPerCapita;
     const lastTickIncome = getLastTickNetIncomePerCapita(role);
     const historicalIncomePerCapita = lastTickIncome !== null ? lastTickIncome : perCapDelta;
@@ -2724,6 +2774,7 @@ export const simulateTick = ({
     classIncome: roleWagePayout,
     classExpense: roleExpense,
     jobFill: buildingJobFill,
+    jobsAvailable,
     taxes,
     needsShortages: classShortages,
     needsReport,

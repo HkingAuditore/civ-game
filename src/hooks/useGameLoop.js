@@ -64,6 +64,8 @@ export const useGameLoop = (gameState, addLog) => {
     setMilitaryQueue,
     jobFill,
     setJobFill,
+    jobsAvailable,
+    setJobsAvailable,
     setDaysElapsed,
     daysElapsed,
     militaryWageRatio,
@@ -98,6 +100,7 @@ export const useGameLoop = (gameState, addLog) => {
     classWealth,
     army,
     jobFill,
+    jobsAvailable,
     activeBuffs,
     activeDebuffs,
     taxPolicies,
@@ -152,7 +155,7 @@ export const useGameLoop = (gameState, addLog) => {
       lastAutoSaveTime,
       merchantState,
     };
-  }, [resources, market, buildings, population, popStructure, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, army, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState]);
+  }, [resources, market, buildings, population, popStructure, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, army, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState]);
 
   // 游戏核心循环
   useEffect(() => {
@@ -385,6 +388,9 @@ export const useGameLoop = (gameState, addLog) => {
       }
       if (result.jobFill) {
         setJobFill(result.jobFill);
+      }
+      if (result.jobsAvailable) {
+        setJobsAvailable(result.jobsAvailable);
       }
       // 每次 Tick 推进 1 天（而非 gameSpeed 天）
       // 加速效果通过增加 Tick 频率实现，而非增加每次推进的天数
