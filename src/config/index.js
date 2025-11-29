@@ -20,6 +20,7 @@ export {
   calculateCounterBonus,
   calculateArmyMaintenance,
   calculateArmyAdminCost,
+  calculateArmyCapacityNeed,
   calculateArmyPopulation,
   simulateBattle
 } from './militaryUnits';

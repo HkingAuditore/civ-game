@@ -1,5 +1,5 @@
 import { BUILDINGS, STRATA, EPOCHS, RESOURCES, TECHS, ECONOMIC_INFLUENCE } from '../config';
-import { calculateArmyPopulation, calculateArmyFoodNeed } from '../config';
+import { calculateArmyPopulation, calculateArmyFoodNeed, calculateArmyCapacityNeed } from '../config';
 import { isResourceUnlocked } from '../utils/resources';
 import { calculateForeignPrice } from '../utils/foreignTrade';
 
@@ -564,6 +564,7 @@ export const simulateTick = ({
   taxPolicies,
   army = {},
   militaryWageRatio = 1,
+  militaryQueue = [],
   nations = [],
   tick = 0,
   techsUnlocked = [],
@@ -572,6 +573,7 @@ export const simulateTick = ({
   classNeedsHistory,
   merchantState = { pendingTrades: [], lastTradeTime: 0 },
 }) => {
+  console.log('[TICK START]', tick);
   const res = { ...resources };
   const priceMap = { ...(market?.prices || {}) };
   const policies = taxPolicies || {};
@@ -789,10 +791,16 @@ export const simulateTick = ({
   const roleVacancyTargets = {};
   let totalMaxPop = 5;
   let adminCapacity = 20;
+  let militaryCapacity = 0; // 新增：军事容量
   totalMaxPop += extraMaxPop;
   adminCapacity += extraAdminCapacity;
   const armyPopulationDemand = calculateArmyPopulation(army);
   const armyFoodNeed = calculateArmyFoodNeed(army);
+  
+  // 计算当前军队数量（包括训练中的）
+  const currentArmyCount = Object.values(army).reduce((sum, count) => sum + count, 0);
+  const trainingArmyCount = (militaryQueue || []).length;
+  const totalArmyCount = currentArmyCount + trainingArmyCount;
 
   ROLE_PRIORITY.forEach(role => jobsAvailable[role] = 0);
   ROLE_PRIORITY.forEach(role => {
@@ -833,11 +841,13 @@ export const simulateTick = ({
     });
   };
 
+  console.log('[TICK] Processing buildings...');
   BUILDINGS.forEach(b => {
     const count = builds[b.id] || 0;
     if (count > 0) {
       if (b.output?.maxPop) totalMaxPop += (b.output.maxPop * count);
       if (b.output?.admin) adminCapacity += (b.output.admin * count);
+      if (b.output?.militaryCapacity) militaryCapacity += (b.output.militaryCapacity * count); // 新增：从建筑获取军事容量
       if (b.jobs) {
         for (let role in b.jobs) jobsAvailable[role] += (b.jobs[role] * count);
       }
@@ -851,6 +861,7 @@ export const simulateTick = ({
       }
     }
   });
+  console.log('[TICK] Buildings processed. militaryCapacity:', militaryCapacity);
 
   // Calculate potential resources: resources from buildings that are unlocked (can be built)
   const potentialResources = new Set();
@@ -874,11 +885,15 @@ export const simulateTick = ({
     totalMaxPop = Math.max(0, totalMaxPop * multiplier);
   }
 
-  if (armyPopulationDemand > 0) {
-    jobsAvailable.soldier = (jobsAvailable.soldier || 0) + armyPopulationDemand;
+  // 军人岗位只根据当前士兵数量（包括正在招募中的）创建，不再由建筑提供
+  console.log('[TICK] Adding soldier jobs. totalArmyCount:', totalArmyCount);
+  if (totalArmyCount > 0) {
+    jobsAvailable.soldier = (jobsAvailable.soldier || 0) + totalArmyCount;
   }
+  console.log('[TICK] Soldier jobs added. jobsAvailable.soldier:', jobsAvailable.soldier);
 
   // 职业持久化：基于上一帧状态进行增减，而非每帧重置
+  console.log('[TICK] Starting population allocation...');
   const hasPreviousPopStructure = previousPopStructure && Object.keys(previousPopStructure).length > 0;
   const popStructure = {};
   
@@ -1125,6 +1140,7 @@ export const simulateTick = ({
 
   const forcedLabor = decrees.some(d => d.id === 'forced_labor' && d.active);
 
+  console.log('[TICK] Starting production loop...');
   BUILDINGS.forEach(b => {
     const count = builds[b.id] || 0;
     if (count === 0) return;
@@ -1658,9 +1674,12 @@ export const simulateTick = ({
     }
   }
 
+  console.log('[TICK] Production loop completed.');
+  
   // Add all tracked income (civilian + military) to the wealth of each class
   applyRoleIncomeToWealth();
 
+  console.log('[TICK] Starting needs calculation...');
   const needsReport = {};
   const classShortages = {};
   Object.keys(STRATA).forEach(key => {
@@ -2239,6 +2258,7 @@ export const simulateTick = ({
   res.silver = (res.silver || 0) + totalCollectedTax;
   rates.silver = (rates.silver || 0) + totalCollectedTax;
 
+  console.log('[TICK] Starting price and wage updates...');
   const updatedPrices = { ...priceMap };
   const updatedWages = {};
   const wageSmoothing = 0.35;
@@ -2625,9 +2645,9 @@ export const simulateTick = ({
     ? activeRoleMetrics.reduce((sum, r) => sum + (r.potentialIncome * r.pop), 0) / totalMigratablePop
     : 0;
 
-  // 寻找收入低于平均水平的源职业
+  // 寻找收入低于平均水平的源职业（排除军人，军人不能转职到其他岗位）
   const sourceCandidate = activeRoleMetrics
-    .filter(r => r.pop > 0 && (r.potentialIncome < averagePotentialIncome * 0.7 || r.perCapDelta < -0.5))
+    .filter(r => r.pop > 0 && r.role !== 'soldier' && (r.potentialIncome < averagePotentialIncome * 0.7 || r.perCapDelta < -0.5))
     .reduce((lowest, current) => {
       if (!lowest) return current;
       if (current.potentialIncome < lowest.potentialIncome) return current;
@@ -2747,12 +2767,14 @@ export const simulateTick = ({
     },
   };
 
+  console.log('[TICK END]', tick, 'militaryCapacity:', militaryCapacity);
   return {
     resources: res,
     rates,
     popStructure,
     maxPop: totalMaxPop,
     adminCap: adminCapacity,
+    militaryCapacity, // 新增：军事容量
     adminStrain: currentAdminStrain,
     population: nextPopulation,
     classApproval,

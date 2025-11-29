@@ -374,6 +374,7 @@ function GameApp({ gameState }) {
                   epoch={gameState.epoch}
                   population={gameState.population}
                   adminCap={gameState.adminCap}
+                  buildings={gameState.buildings}
                   nations={gameState.nations}
                   selectedTarget={gameState.selectedTarget}
                   onRecruit={actions.recruitUnit}

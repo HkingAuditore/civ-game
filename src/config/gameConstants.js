@@ -468,4 +468,7 @@ export const RESOURCES = {
   
   // 人口上限
   maxPop: { name: "人口上限", icon: 'Users', color: "text-blue-400", type: 'virtual', tags: ['special'] },
+  
+  // 军事容量
+  militaryCapacity: { name: "军事容量", icon: 'Shield', color: "text-red-400", type: 'virtual', tags: ['special'] },
 };

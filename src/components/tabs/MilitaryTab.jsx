@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '../common/UIComponents';
-import { UNIT_TYPES, calculateArmyAdminCost, calculateArmyPopulation, calculateArmyMaintenance, calculateArmyFoodNeed, calculateBattlePower, RESOURCES, MILITARY_ACTIONS } from '../../config';
+import { UNIT_TYPES, BUILDINGS, calculateArmyAdminCost, calculateArmyCapacityNeed, calculateArmyPopulation, calculateArmyMaintenance, calculateArmyFoodNeed, calculateBattlePower, RESOURCES, MILITARY_ACTIONS } from '../../config';
 import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
 import { filterUnlockedResources } from '../../utils/resources';
 
@@ -106,6 +106,7 @@ export const MilitaryTab = ({
   epoch,
   population,
   adminCap,
+  buildings = {}, // 新增：建筑列表，用于计算军事容量
   nations = [],
   selectedTarget,
   onRecruit,
@@ -127,7 +128,18 @@ export const MilitaryTab = ({
 
   // 计算军队统计信息
   const totalUnits = Object.values(army).reduce((sum, count) => sum + count, 0);
-  const armyAdmin = calculateArmyAdminCost(army);
+  const trainingCount = (militaryQueue || []).length;
+  const totalArmyCount = totalUnits + trainingCount;
+  
+  // 计算军事容量
+  let militaryCapacity = 0;
+  Object.entries(buildings).forEach(([buildingId, count]) => {
+    const building = BUILDINGS.find(b => b.id === buildingId);
+    if (building && building.output?.militaryCapacity) {
+      militaryCapacity += building.output.militaryCapacity * count;
+    }
+  });
+  
   const armyPop = calculateArmyPopulation(army);
   const maxArmyPop = Math.floor(population * 0.3);
   const maintenance = calculateArmyMaintenance(army);
@@ -168,8 +180,8 @@ export const MilitaryTab = ({
     const silverCost = calculateSilverCost(unit.recruitCost, market);
     if ((resources.silver || 0) < silverCost) return false;
     
-    // 检查行政力
-    if (armyAdmin + unit.adminCost > adminCap) return false;
+    // 检查军事容量
+    if (totalArmyCount + 1 > militaryCapacity) return false;
     
     // 检查人口
     if (armyPop + unit.populationCost > maxArmyPop) return false;
@@ -196,14 +208,14 @@ export const MilitaryTab = ({
             <p className="text-lg font-bold text-white">{totalUnits}</p>
           </div>
 
-          {/* 行政力消耗 */}
+          {/* 军事容量 */}
           <div className="bg-gray-700/50 p-3 rounded">
             <div className="flex items-center gap-2 mb-1">
-              <Icon name="Briefcase" size={14} className="text-purple-400" />
-              <span className="text-xs text-gray-400">行政力</span>
+              <Icon name="Castle" size={14} className="text-red-400" />
+              <span className="text-xs text-gray-400">军事容量</span>
             </div>
-            <p className="text-lg font-bold text-white">
-              {armyAdmin} / {adminCap}
+            <p className={`text-lg font-bold ${totalArmyCount > militaryCapacity ? 'text-red-400' : 'text-white'}`}>
+              {totalArmyCount} / {militaryCapacity}
             </p>
           </div>
 

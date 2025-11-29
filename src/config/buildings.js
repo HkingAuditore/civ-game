@@ -619,4 +619,40 @@ export const BUILDINGS = [
     requiresTech: 'charter_companies',
     visual: { icon: 'Ship', color: 'bg-indigo-900', text: 'text-indigo-200' } 
   },
+
+  // ========== 军事建筑 ==========
+  { 
+    id: 'barracks', 
+    name: "兵营", 
+    desc: "训练和驻扎军队的基地，提供军事容量。", 
+    baseCost: { wood: 80, stone: 40 }, 
+    output: { militaryCapacity: 10 }, 
+    epoch: 0, 
+    cat: 'military', 
+    visual: { icon: 'Shield', color: 'bg-red-900', text: 'text-red-200' } 
+  },
+
+  { 
+    id: 'training_ground', 
+    name: "训练场", 
+    desc: "专业的军事训练设施，大幅提升军事容量。", 
+    baseCost: { plank: 150, brick: 80, iron: 30 }, 
+    output: { militaryCapacity: 20 }, 
+    epoch: 2, 
+    cat: 'military', 
+    requiresTech: 'military_training',
+    visual: { icon: 'Swords', color: 'bg-red-800', text: 'text-red-100' } 
+  },
+
+  { 
+    id: 'fortress', 
+    name: "要塞", 
+    desc: "坚固的军事堡垒，可容纳大量军队。", 
+    baseCost: { brick: 300, iron: 150, steel: 50 }, 
+    output: { militaryCapacity: 40 }, 
+    epoch: 4, 
+    cat: 'military', 
+    requiresTech: 'fortification',
+    visual: { icon: 'Castle', color: 'bg-red-950', text: 'text-red-100' } 
+  },
 ];

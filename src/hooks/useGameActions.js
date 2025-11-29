@@ -2,7 +2,7 @@
 // 包含所有游戏操作函数，如建造建筑、研究科技、升级时代等
 
 import { BUILDINGS, EPOCHS, RESOURCES, TECHS, MILITARY_ACTIONS, UNIT_TYPES } from '../config';
-import { calculateArmyAdminCost, calculateArmyPopulation, simulateBattle, calculateBattlePower } from '../config';
+import { calculateArmyAdminCost, calculateArmyCapacityNeed, calculateArmyPopulation, simulateBattle, calculateBattlePower } from '../config';
 import { calculateForeignPrice, calculateTradeStatus } from '../utils/foreignTrade';
 import { generateSound, SOUND_TYPES } from '../config/sounds';
 
@@ -29,6 +29,7 @@ export const useGameActions = (gameState, addLog) => {
     setClicks,
     army,
     setArmy,
+    militaryQueue,
     setMilitaryQueue,
     adminCap,
     setBattleResult,
@@ -319,10 +320,22 @@ export const useGameActions = (gameState, addLog) => {
       return;
     }
 
-    // 检查行政力
-    const currentArmyAdmin = calculateArmyAdminCost(army);
-    if (currentArmyAdmin + unit.adminCost > adminCap) {
-      addLog(`行政力不足，无法维持更多军队`);
+    // 检查军事容量（包括当前军队和训练队列）
+    const currentArmyCount = Object.values(army).reduce((sum, count) => sum + count, 0);
+    const trainingCount = militaryQueue.length;
+    const totalArmyCount = currentArmyCount + trainingCount;
+    
+    // 从建筑计算军事容量
+    let militaryCapacity = 0;
+    Object.entries(buildings).forEach(([buildingId, count]) => {
+      const building = BUILDINGS.find(b => b.id === buildingId);
+      if (building && building.output?.militaryCapacity) {
+        militaryCapacity += building.output.militaryCapacity * count;
+      }
+    });
+    
+    if (totalArmyCount + 1 > militaryCapacity) {
+      addLog(`军事容量不足，需要建造更多兵营（当前：${totalArmyCount}/${militaryCapacity}）`);
       return;
     }
     

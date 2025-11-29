@@ -437,4 +437,20 @@ export const TECHS = [
     epoch: 6,
     effects: { buildings: { factory: 0.25 } },
   },
+  
+  // 军事科技
+  {
+    id: 'military_training',
+    name: "军事训练",
+    desc: "解锁训练场，提供更多军事容量。",
+    cost: { science: 800 },
+    epoch: 2,
+  },
+  {
+    id: 'fortification',
+    name: "要塞工程",
+    desc: "解锁要塞，大幅提升军事容量。",
+    cost: { science: 2400 },
+    epoch: 4,
+  },
 ];

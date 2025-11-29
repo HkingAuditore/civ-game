@@ -23,7 +23,6 @@ export const UNIT_TYPES = {
     trainingTime: 2, // 秒
     
     // 限制
-    adminCost: 1,
     populationCost: 1,
     
     // 特殊能力
@@ -51,7 +50,6 @@ export const UNIT_TYPES = {
     maintenanceCost: { food: 0.4, silver: 0.15 },
     trainingTime: 3,
     
-    adminCost: 1.5,
     populationCost: 1,
     
     abilities: ['远程攻击'],
@@ -78,7 +76,6 @@ export const UNIT_TYPES = {
     maintenanceCost: { food: 0.55, silver: 0.35 },
     trainingTime: 4,
     
-    adminCost: 2,
     populationCost: 1,
     
     abilities: ['反骑兵'],
@@ -104,7 +101,6 @@ export const UNIT_TYPES = {
     maintenanceCost: { food: 0.65, silver: 0.45 },
     trainingTime: 5,
     
-    adminCost: 2.5,
     populationCost: 1,
     
     abilities: ['远程攻击', '高机动'],
@@ -130,7 +126,6 @@ export const UNIT_TYPES = {
     maintenanceCost: { food: 1.0, silver: 0.8 },
     trainingTime: 6,
     
-    adminCost: 3,
     populationCost: 1,
     
     abilities: ['快速移动', '冲锋'],
@@ -157,7 +152,6 @@ export const UNIT_TYPES = {
     maintenanceCost: { food: 0.8, silver: 0.6 },
     trainingTime: 8,
     
-    adminCost: 3.5,
     populationCost: 1,
     
     abilities: ['重甲', '坚守'],
@@ -183,7 +177,6 @@ export const UNIT_TYPES = {
     maintenanceCost: { food: 0.7, silver: 0.5 },
     trainingTime: 7,
     
-    adminCost: 3,
     populationCost: 1,
     
     abilities: ['远程攻击', '穿甲'],
@@ -209,7 +202,6 @@ export const UNIT_TYPES = {
     maintenanceCost: { food: 1.6, silver: 1.3 },
     trainingTime: 10,
     
-    adminCost: 5,
     populationCost: 1,
     
     abilities: ['重甲', '冲锋', '贵族'],
@@ -236,7 +228,6 @@ export const UNIT_TYPES = {
     maintenanceCost: { food: 1.0, silver: 0.8, tools: 0.1 },
     trainingTime: 9,
     
-    adminCost: 4,
     populationCost: 1,
     
     abilities: ['火器', '齐射'],
@@ -262,7 +253,6 @@ export const UNIT_TYPES = {
     maintenanceCost: { food: 1.5, silver: 1.5, tools: 0.3 },
     trainingTime: 15,
     
-    adminCost: 8,
     populationCost: 3,
     
     abilities: ['攻城', '范围伤害'],
@@ -288,7 +278,6 @@ export const UNIT_TYPES = {
     maintenanceCost: { food: 1.8, silver: 1.5, tools: 0.15 },
     trainingTime: 12,
     
-    adminCost: 6,
     populationCost: 1,
     
     abilities: ['火器', '快速移动'],
@@ -315,7 +304,6 @@ export const UNIT_TYPES = {
     maintenanceCost: { food: 1.5, silver: 1.2, tools: 0.2 },
     trainingTime: 10,
     
-    adminCost: 5,
     populationCost: 1,
     
     abilities: ['现代武器', '战术训练'],
@@ -341,7 +329,6 @@ export const UNIT_TYPES = {
     maintenanceCost: { food: 2.2, silver: 2.8, tools: 0.6 },
     trainingTime: 20,
     
-    adminCost: 10,
     populationCost: 3,
     
     abilities: ['重甲', '机动', '现代武器'],
@@ -366,7 +353,6 @@ export const UNIT_TYPES = {
     maintenanceCost: { food: 2.5, silver: 2.0, tools: 0.4 },
     trainingTime: 18,
     
-    adminCost: 12,
     populationCost: 4,
     
     abilities: ['远程攻击', '范围伤害', '精确打击'],
@@ -604,9 +590,9 @@ export const calculateArmyMaintenance = (army) => {
   return maintenance;
 };
 
-// 计算军队行政成本
-export const calculateArmyAdminCost = (army) => {
-  let totalAdminCost = 0;
+// 计算军队所需军事容量（每个单位占用1点容量）
+export const calculateArmyCapacityNeed = (army) => {
+  let totalCapacity = 0;
   
   Object.entries(army).forEach(([unitId, count]) => {
     if (count <= 0) return;
@@ -614,10 +600,16 @@ export const calculateArmyAdminCost = (army) => {
     const unit = UNIT_TYPES[unitId];
     if (!unit) return;
     
-    totalAdminCost += unit.adminCost * count;
+    // 每个单位占用1点军事容量
+    totalCapacity += count;
   });
   
-  return totalAdminCost;
+  return totalCapacity;
+};
+
+// 为了向后兼容，保留旧函数名但调用新函数
+export const calculateArmyAdminCost = (army) => {
+  return calculateArmyCapacityNeed(army);
 };
 
 // 计算军队人口占用

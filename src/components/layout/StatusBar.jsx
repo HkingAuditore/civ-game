@@ -122,18 +122,18 @@ export const StatusBar = ({
               <span className="font-mono text-xs sm:text-sm font-bold text-yellow-200">
                 {formatNumber(gameState.resources.silver || 0)}
               </span>
-              <button
+              <div
                 onClick={(e) => {
                   e.stopPropagation();
                   setShowTaxDetail(prev => !prev);
                 }}
-                className={`flex items-center gap-0.5 text-[10px] px-1 sm:px-1.5 py-0.5 rounded-full transition-colors ${netChipClasses}`}
+                className={`flex items-center gap-0.5 text-[10px] px-1 sm:px-1.5 py-0.5 rounded-full transition-colors cursor-pointer ${netChipClasses}`}
               >
                 <Icon name={netTrendIcon} size={10} />
                 <span className={`font-mono ${netSilverClass}`}>
                   {netSilverPerDay >= 0 ? '+' : ''}{netSilverPerDay.toFixed(0)}
                 </span>
-              </button>
+              </div>
             </button>
 
             {/* 税收详情弹窗 - 移到这里，并使用 left-0 定位 */}
