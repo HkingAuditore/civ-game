@@ -143,8 +143,6 @@ export const MilitaryTab = ({
     }
   });
   
-  const armyPop = calculateArmyPopulation(army);
-  const maxArmyPop = Math.floor(population * 0.3);
   const maintenance = calculateArmyMaintenance(army);
   // 军饷只计算实际在编军人（已完成训练的），不包括训练队列中的
   const totalFoodNeed = calculateArmyFoodNeed(army);
@@ -187,9 +185,6 @@ export const MilitaryTab = ({
     // 检查军事容量
     if (totalArmyCount + 1 > militaryCapacity) return false;
     
-    // 检查人口
-    if (armyPop + unit.populationCost > maxArmyPop) return false;
-    
     return true;
   };
 
@@ -219,11 +214,6 @@ export const MilitaryTab = ({
     // 检查军事容量
     if (totalArmyCount + 1 > militaryCapacity) {
       return `军事容量不足（${totalArmyCount}/${militaryCapacity}），需要建造更多兵营`;
-    }
-    
-    // 检查人口
-    if (armyPop + unit.populationCost > maxArmyPop) {
-      return `军队规模已达人口上限（${maxArmyPop}人）`;
     }
     
     return '';
@@ -256,17 +246,6 @@ export const MilitaryTab = ({
             </div>
             <p className={`text-lg font-bold ${totalArmyCount > militaryCapacity ? 'text-red-400' : 'text-white'}`}>
               {totalArmyCount} / {militaryCapacity}
-            </p>
-          </div>
-
-          {/* 人口占用 */}
-          <div className="bg-gray-700/50 p-3 rounded">
-            <div className="flex items-center gap-2 mb-1">
-              <Icon name="UserCheck" size={14} className="text-green-400" />
-              <span className="text-xs text-gray-400">人口占用</span>
-            </div>
-            <p className="text-lg font-bold text-white">
-              {armyPop} / {maxArmyPop}
             </p>
           </div>
 

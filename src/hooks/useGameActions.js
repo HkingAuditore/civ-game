@@ -340,14 +340,6 @@ export const useGameActions = (gameState, addLog) => {
       return;
     }
     
-    // 检查人口
-    const currentArmyPop = calculateArmyPopulation(army);
-    const maxArmyPop = Math.floor(population * 0.3); // 最多30%人口当兵
-    if (currentArmyPop + unit.populationCost > maxArmyPop) {
-      addLog(`军队规模已达人口上限（${maxArmyPop}人）`);
-      return;
-    }
-    
     // 扣除资源
     const newRes = { ...resources };
     for (let resource in unit.recruitCost) {
