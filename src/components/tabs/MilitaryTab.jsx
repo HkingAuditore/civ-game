@@ -193,6 +193,42 @@ export const MilitaryTab = ({
     return true;
   };
 
+  /**
+   * 获取不能招募的原因
+   * @param {Object} unit - 单位对象
+   * @returns {string} 不能招募的原因，如果可以招募则返回空字符串
+   */
+  const getRecruitDisabledReason = (unit) => {
+    // 检查时代
+    if (unit.epoch > epoch) {
+      return `需要升级到 ${EPOCHS[unit.epoch].name}`;
+    }
+    
+    // 检查资源
+    for (let resource in unit.recruitCost) {
+      if ((resources[resource] || 0) < unit.recruitCost[resource]) {
+        return `资源不足：缺少 ${RESOURCES[resource]?.name || resource}`;
+      }
+    }
+
+    const silverCost = calculateSilverCost(unit.recruitCost, market);
+    if ((resources.silver || 0) < silverCost) {
+      return `银币不足：需要 ${silverCost.toFixed(1)} 银币`;
+    }
+    
+    // 检查军事容量
+    if (totalArmyCount + 1 > militaryCapacity) {
+      return `军事容量不足（${totalArmyCount}/${militaryCapacity}），需要建造更多兵营`;
+    }
+    
+    // 检查人口
+    if (armyPop + unit.populationCost > maxArmyPop) {
+      return `军队规模已达人口上限（${maxArmyPop}人）`;
+    }
+    
+    return '';
+  };
+
   return (
     <div className="space-y-4">
       {/* 军队概览 */}
@@ -345,6 +381,7 @@ export const MilitaryTab = ({
                   <button
                     onClick={(e) => { e.stopPropagation(); onRecruit(unitId); }}
                     disabled={!affordable}
+                    title={!affordable ? getRecruitDisabledReason(unit) : '点击招募'}
                     className={`w-full px-2 py-1 rounded text-[10px] font-semibold transition-colors ${
                       affordable
                         ? 'bg-green-600 hover:bg-green-500 text-white'
