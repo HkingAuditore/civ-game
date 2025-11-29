@@ -797,10 +797,10 @@ export const simulateTick = ({
   const armyPopulationDemand = calculateArmyPopulation(army);
   const armyFoodNeed = calculateArmyFoodNeed(army);
   
-  // 计算当前军队数量（包括训练中的）
+  // 计算当前军队数量（只包括已完成训练的）
   const currentArmyCount = Object.values(army).reduce((sum, count) => sum + count, 0);
-  const trainingArmyCount = (militaryQueue || []).length;
-  const totalArmyCount = currentArmyCount + trainingArmyCount;
+  // 训练队列数量将在后面单独处理
+  const totalArmyCount = currentArmyCount;
 
   ROLE_PRIORITY.forEach(role => jobsAvailable[role] = 0);
   ROLE_PRIORITY.forEach(role => {
@@ -885,10 +885,14 @@ export const simulateTick = ({
     totalMaxPop = Math.max(0, totalMaxPop * multiplier);
   }
 
-  // 军人岗位只根据当前士兵数量（包括正在招募中的）创建，不再由建筑提供
-  console.log('[TICK] Adding soldier jobs. totalArmyCount:', totalArmyCount);
-  if (totalArmyCount > 0) {
-    jobsAvailable.soldier = (jobsAvailable.soldier || 0) + totalArmyCount;
+  // 军人岗位包括：已有军队 + 等待人员的岗位 + 训练中的岗位
+  const waitingCount = (militaryQueue || []).filter(item => item.status === 'waiting').length;
+  const trainingCount = (militaryQueue || []).filter(item => item.status === 'training').length;
+  // 总岗位需求 = 现有军队 + 等待招募的 + 正在训练的
+  const soldierJobsNeeded = currentArmyCount + waitingCount + trainingCount;
+  console.log('[TICK] Adding soldier jobs. currentArmy:', currentArmyCount, 'waiting:', waitingCount, 'training:', trainingCount, 'total:', soldierJobsNeeded);
+  if (soldierJobsNeeded > 0) {
+    jobsAvailable.soldier = (jobsAvailable.soldier || 0) + soldierJobsNeeded;
   }
   console.log('[TICK] Soldier jobs added. jobsAvailable.soldier:', jobsAvailable.soldier);
 
@@ -1037,6 +1041,9 @@ export const simulateTick = ({
     const slots = Math.max(0, jobsAvailable[role] || 0);
     const current = popStructure[role] || 0;
     const vacancy = Math.max(0, slots - current);
+    if (role === 'soldier') {
+      console.log('[SOLDIER VACANCY] slots:', slots, 'current:', current, 'vacancy:', vacancy);
+    }
     if (vacancy <= 0) return null;
     return {
       role,
@@ -1050,6 +1057,8 @@ export const simulateTick = ({
       if (b.netIncome !== a.netIncome) return b.netIncome - a.netIncome;
       return a.priorityIndex - b.priorityIndex;
     });
+  
+  console.log('[VACANCY RANKING]', vacancyRanking.map(v => `${v.role}:${v.vacancy}`).join(', '));
 
   vacancyRanking.forEach(entry => {
     const availableUnemployed = popStructure.unemployed || 0;
@@ -1064,6 +1073,10 @@ export const simulateTick = ({
 
     popStructure[entry.role] = (popStructure[entry.role] || 0) + hiring;
     popStructure.unemployed = Math.max(0, availableUnemployed - hiring);
+
+    if (entry.role === 'soldier') {
+      console.log('[SOLDIER HIRING] hired:', hiring, 'new soldier count:', popStructure[entry.role]);
+    }
 
     if (perCapWealth > 0) {
       const transfer = perCapWealth * hiring;

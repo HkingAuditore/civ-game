@@ -379,6 +379,7 @@ function GameApp({ gameState }) {
                   selectedTarget={gameState.selectedTarget}
                   onRecruit={actions.recruitUnit}
                   onDisband={actions.disbandUnit}
+                  onCancelTraining={actions.cancelTraining}
                   onSelectTarget={gameState.setSelectedTarget}
                   onLaunchBattle={actions.launchBattle}
                   market={gameState.market}

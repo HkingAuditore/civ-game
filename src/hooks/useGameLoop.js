@@ -62,6 +62,7 @@ export const useGameLoop = (gameState, addLog) => {
     activeDebuffs,
     army,
     setArmy,
+    militaryQueue,
     setMilitaryQueue,
     jobFill,
     setJobFill,
@@ -100,6 +101,7 @@ export const useGameLoop = (gameState, addLog) => {
     nations,
     classWealth,
     army,
+    militaryQueue,
     jobFill,
     jobsAvailable,
     activeBuffs,
@@ -139,6 +141,7 @@ export const useGameLoop = (gameState, addLog) => {
       nations,
       classWealth,
       army,
+      militaryQueue,
       jobFill,
       activeBuffs,
       activeDebuffs,
@@ -156,7 +159,7 @@ export const useGameLoop = (gameState, addLog) => {
       lastAutoSaveTime,
       merchantState,
     };
-  }, [resources, market, buildings, population, popStructure, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, army, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState]);
+  }, [resources, market, buildings, population, popStructure, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState]);
 
   // 游戏核心循环
   useEffect(() => {
@@ -438,13 +441,43 @@ export const useGameLoop = (gameState, addLog) => {
       
       // 处理训练队列
       setMilitaryQueue(prev => {
-        const updated = prev.map(item => ({
-          ...item,
-          remainingTime: item.remainingTime - 1
-        }));
+        // 检查当前soldier岗位的填补情况
+        const currentSoldierPop = result.popStructure?.soldier || 0;
+        const currentArmyCount = Object.values(current.army).reduce((sum, count) => sum + count, 0);
+        
+        // 计算有多少岗位可以用于新训练
+        // 只计算已有军队和正在训练的，waiting状态的就是等待转为training的
+        const waitingCount = prev.filter(item => item.status === 'waiting').length;
+        const trainingCount = prev.filter(item => item.status === 'training').length;
+        const occupiedJobs = currentArmyCount + trainingCount;
+        const availableJobsForNewTraining = Math.max(0, currentSoldierPop - occupiedJobs);
+        
+        console.log('[TRAINING QUEUE] currentSoldierPop:', currentSoldierPop, 'currentArmyCount:', currentArmyCount, 'waitingCount:', waitingCount, 'trainingCount:', trainingCount, 'occupiedJobs:', occupiedJobs, 'availableJobsForNewTraining:', availableJobsForNewTraining);
+        
+        // 将等待中的项转为训练中（如果有可用岗位）
+        let jobsToFill = availableJobsForNewTraining;
+        const updated = prev.map(item => {
+          if (item.status === 'waiting' && jobsToFill > 0) {
+            jobsToFill--;
+            addLog(`✓ ${UNIT_TYPES[item.unitId].name} 开始训练，需要 ${item.totalTime} 秒`);
+            return {
+              ...item,
+              status: 'training',
+              remainingTime: item.totalTime
+            };
+          }
+          // 只对训练中的项进行倒计时
+          if (item.status === 'training') {
+            return {
+              ...item,
+              remainingTime: item.remainingTime - 1
+            };
+          }
+          return item;
+        });
         
         // 找出已完成的训练
-        const completed = updated.filter(item => item.remainingTime <= 0);
+        const completed = updated.filter(item => item.status === 'training' && item.remainingTime <= 0);
         if (completed.length > 0) {
           // 将完成的单位加入军队
           setArmy(prevArmy => {
@@ -461,8 +494,8 @@ export const useGameLoop = (gameState, addLog) => {
           });
         }
         
-        // 返回未完成的训练
-        return updated.filter(item => item.remainingTime > 0);
+        // 返回未完成的训练（排除已完成的）
+        return updated.filter(item => !(item.status === 'training' && item.remainingTime <= 0));
       });
     }, tickInterval); // 根据游戏速度动态调整执行频率
 

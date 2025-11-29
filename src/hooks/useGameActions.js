@@ -322,8 +322,9 @@ export const useGameActions = (gameState, addLog) => {
 
     // 检查军事容量（包括当前军队和训练队列）
     const currentArmyCount = Object.values(army).reduce((sum, count) => sum + count, 0);
-    const trainingCount = militaryQueue.length;
-    const totalArmyCount = currentArmyCount + trainingCount;
+    const waitingCount = militaryQueue.filter(item => item.status === 'waiting').length;
+    const trainingCount = militaryQueue.filter(item => item.status === 'training').length;
+    const totalArmyCount = currentArmyCount + waitingCount + trainingCount;
     
     // 从建筑计算军事容量
     let militaryCapacity = 0;
@@ -355,13 +356,15 @@ export const useGameActions = (gameState, addLog) => {
     newRes.silver = Math.max(0, (newRes.silver || 0) - silverCost);
     setResources(newRes);
     
-    // 加入训练队列
+    // 加入训练队列，状态为等待人员
     setMilitaryQueue(prev => [...prev, {
       unitId,
-      remainingTime: unit.trainingTime
+      status: 'waiting', // 等待人员填补岗位
+      remainingTime: unit.trainingTime, // 保存训练时长，等开始训练时使用
+      totalTime: unit.trainingTime
     }]);
     
-    addLog(`开始训练 ${unit.name}，需要 ${unit.trainingTime} 秒`);
+    addLog(`开始招募 ${unit.name}，等待人员填补岗位...`);
   };
 
   /**
@@ -376,6 +379,50 @@ export const useGameActions = (gameState, addLog) => {
       }));
       addLog(`解散了 ${UNIT_TYPES[unitId].name}`);
     }
+  };
+
+  /**
+   * 取消训练队列中的单位
+   * @param {number} queueIndex - 队列索引
+   */
+  const cancelTraining = (queueIndex) => {
+    setMilitaryQueue(prev => {
+      if (queueIndex < 0 || queueIndex >= prev.length) {
+        return prev;
+      }
+      
+      const item = prev[queueIndex];
+      const unit = UNIT_TYPES[item.unitId];
+      
+      // 移除该项
+      const newQueue = prev.filter((_, idx) => idx !== queueIndex);
+      
+      // 如果是等待状态或训练状态，返还部分资源（50%）
+      if (item.status === 'waiting' || item.status === 'training') {
+        const refundResources = {};
+        for (let resource in unit.recruitCost) {
+          refundResources[resource] = Math.floor(unit.recruitCost[resource] * 0.5);
+        }
+        
+        const silverCost = Object.entries(unit.recruitCost).reduce((sum, [resource, amount]) => {
+          return sum + amount * getMarketPrice(resource);
+        }, 0);
+        const refundSilver = Math.floor(silverCost * 0.5);
+        
+        setResources(prev => {
+          const newRes = { ...prev };
+          for (let resource in refundResources) {
+            newRes[resource] = (newRes[resource] || 0) + refundResources[resource];
+          }
+          newRes.silver = (newRes.silver || 0) + refundSilver;
+          return newRes;
+        });
+        
+        addLog(`取消训练 ${unit.name}，返还50%资源`);
+      }
+      
+      return newQueue;
+    });
   };
 
   /**
@@ -822,6 +869,7 @@ export const useGameActions = (gameState, addLog) => {
     // 军事
     recruitUnit,
     disbandUnit,
+    cancelTraining,
     launchBattle,
 
     // 外交
