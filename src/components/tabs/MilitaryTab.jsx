@@ -96,6 +96,7 @@ const UnitTooltip = ({ unit, resources, market, militaryWageRatio, anchorElement
  * @param {string} selectedTarget - 当前选中的战争目标
  * @param {Function} onRecruit - 招募单位回调
  * @param {Function} onDisband - 解散单位回调
+ * @param {Function} onCancelTraining - 取消训练回调
  * @param {Function} onSelectTarget - 设置目标
  * @param {Function} onLaunchBattle - 发起战斗回调
  */
@@ -111,6 +112,7 @@ export const MilitaryTab = ({
   selectedTarget,
   onRecruit,
   onDisband,
+  onCancelTraining, // 新增：取消训练回调
   onSelectTarget,
   onLaunchBattle,
   market,
@@ -128,8 +130,9 @@ export const MilitaryTab = ({
 
   // 计算军队统计信息
   const totalUnits = Object.values(army).reduce((sum, count) => sum + count, 0);
-  const trainingCount = (militaryQueue || []).length;
-  const totalArmyCount = totalUnits + trainingCount;
+  const waitingCount = (militaryQueue || []).filter(item => item.status === 'waiting').length;
+  const trainingCount = (militaryQueue || []).filter(item => item.status === 'training').length;
+  const totalArmyCount = totalUnits + waitingCount + trainingCount;
   
   // 计算军事容量
   let militaryCapacity = 0;
@@ -143,6 +146,7 @@ export const MilitaryTab = ({
   const armyPop = calculateArmyPopulation(army);
   const maxArmyPop = Math.floor(population * 0.3);
   const maintenance = calculateArmyMaintenance(army);
+  // 军饷只计算实际在编军人（已完成训练的），不包括训练队列中的
   const totalFoodNeed = calculateArmyFoodNeed(army);
   const foodPrice = market?.prices?.food ?? (RESOURCES.food?.basePrice || 1);
   const totalWage = totalFoodNeed * foodPrice * militaryWageRatio;
@@ -382,27 +386,56 @@ export const MilitaryTab = ({
           <div className="space-y-2">
             {militaryQueue.map((item, idx) => {
               const unit = UNIT_TYPES[item.unitId];
+              const isWaiting = item.status === 'waiting';
+              const progress = isWaiting ? 0 : ((item.totalTime - item.remainingTime) / item.totalTime) * 100;
+              
               return (
                 <div
                   key={idx}
-                  className="flex items-center justify-between bg-gray-700/50 p-2 rounded"
+                  className={`flex items-center justify-between p-2 rounded ${
+                    isWaiting ? 'bg-gray-700/30 border border-dashed border-gray-600' : 'bg-gray-700/50'
+                  }`}
                 >
                   <div className="flex items-center gap-2">
-                    <Icon name="User" size={14} className="text-blue-400" />
-                    <span className="text-sm text-white">{unit.name}</span>
+                    <Icon 
+                      name={isWaiting ? "UserPlus" : "User"} 
+                      size={14} 
+                      className={isWaiting ? "text-gray-400" : "text-blue-400"} 
+                    />
+                    <span className={`text-sm ${isWaiting ? 'text-gray-400' : 'text-white'}`}>
+                      {unit.name}
+                    </span>
+                    {isWaiting && (
+                      <span className="text-xs text-yellow-400">等待人员...</span>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-32 bg-gray-600 rounded-full h-2">
-                      <div
-                        className="bg-yellow-500 h-2 rounded-full transition-all"
-                        style={{
-                          width: `${((unit.trainingTime - item.remainingTime) / unit.trainingTime) * 100}%`,
-                        }}
-                      />
-                    </div>
-                    <span className="text-xs text-gray-400 w-12 text-right">
-                      {item.remainingTime}s
-                    </span>
+                    {!isWaiting && (
+                      <>
+                        <div className="w-32 bg-gray-600 rounded-full h-2">
+                          <div
+                            className="bg-yellow-500 h-2 rounded-full transition-all"
+                            style={{ width: `${progress}%` }}
+                          />
+                        </div>
+                        <span className="text-xs text-gray-400 w-12 text-right">
+                          {item.remainingTime}s
+                        </span>
+                      </>
+                    )}
+                    {isWaiting && (
+                      <span className="text-xs text-gray-500 w-44 text-right">
+                        需要人员填补军人岗位
+                      </span>
+                    )}
+                    {/* 取消按钮 */}
+                    <button
+                      onClick={() => onCancelTraining && onCancelTraining(idx)}
+                      className="ml-2 p-1 rounded hover:bg-red-900/30 text-red-400 hover:text-red-300 transition-colors"
+                      title="取消训练（返还50%资源）"
+                    >
+                      <Icon name="X" size={14} />
+                    </button>
                   </div>
                 </div>
               );
