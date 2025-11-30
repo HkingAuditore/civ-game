@@ -13,8 +13,9 @@ import { getCalendarInfo } from '../utils/calendar';
  * 处理游戏的核心循环逻辑
  * @param {Object} gameState - 游戏状态对象
  * @param {Function} addLog - 添加日志函数
+ * @param {Object} actions - 游戏操作函数集
  */
-export const useGameLoop = (gameState, addLog) => {
+export const useGameLoop = (gameState, addLog, actions) => {
   const {
     resources,
     setResources,
@@ -437,6 +438,68 @@ export const useGameLoop = (gameState, addLog) => {
       // 添加新日志
       if (result.logs.length) {
         setLogs(prev => [...result.logs, ...prev].slice(0, 8));
+        
+        // 检测外交事件并触发事件系统
+        if (actions && actions.triggerDiplomaticEvent) {
+          result.logs.forEach(log => {
+            // 检测宣战事件
+            if (log.includes('对你发动了战争')) {
+              const match = log.match(/⚠️ (.+) 对你发动了战争/);
+              if (match) {
+                const nationName = match[1];
+                const nation = result.nations?.find(n => n.name === nationName);
+                if (nation) {
+                  const { createWarDeclarationEvent } = require('../config/events');
+                  const event = createWarDeclarationEvent(nation, () => {
+                    // 宣战事件只需要确认，不需要额外操作
+                  });
+                  actions.triggerDiplomaticEvent(event);
+                }
+              }
+            }
+            
+            // 检测和平请求事件
+            if (log.includes('请求和平')) {
+              const match = log.match(/🤝 (.+) 请求和平，并支付了 (\d+) 银币/);
+              if (match) {
+                const nationName = match[1];
+                const tribute = parseInt(match[2], 10);
+                const nation = result.nations?.find(n => n.name === nationName);
+                if (nation) {
+                  const { createPeaceRequestEvent } = require('../config/events');
+                  const event = createPeaceRequestEvent(nation, tribute, () => {
+                    // 和平已经在simulation中处理，这里只需要确认
+                  });
+                  actions.triggerDiplomaticEvent(event);
+                }
+              }
+            }
+            
+            // 检测突袭事件（作为战斗事件）
+            if (log.includes('的突袭')) {
+              const match = log.match(/❗ (.+) 的突袭夺走了粮食 (\d+)、银币 (\d+)，人口损失 (\d+)/);
+              if (match) {
+                const nationName = match[1];
+                const foodLoss = parseInt(match[2], 10);
+                const silverLoss = parseInt(match[3], 10);
+                const popLoss = parseInt(match[4], 10);
+                const nation = result.nations?.find(n => n.name === nationName);
+                if (nation) {
+                  const { createBattleEvent } = require('../config/events');
+                  const battleResult = {
+                    victory: false,
+                    playerLosses: popLoss,
+                    enemyLosses: 0,
+                  };
+                  const event = createBattleEvent(nation, battleResult, () => {
+                    // 战斗结果已经在simulation中处理
+                  });
+                  actions.triggerDiplomaticEvent(event);
+                }
+              }
+            }
+          });
+        }
       }
       
       // 处理训练队列

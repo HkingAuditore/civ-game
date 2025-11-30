@@ -24,6 +24,7 @@ export const GameControls = ({
   onWiki,
   autoSaveAvailable,
   menuDirection = 'down', // 'up' or 'down'
+  onTriggerEvent, // 新增：触发事件的回调
 }) => {
   const [isGameMenuOpen, setIsGameMenuOpen] = useState(false);
   const [isLoadMenuOpen, setIsLoadMenuOpen] = useState(false);
@@ -204,6 +205,21 @@ export const GameControls = ({
           </div>
         )}
       </div>
+
+      {/* 事件测试按钮（仅开发测试用） */}
+      {onTriggerEvent && (
+        <button
+          onClick={() => {
+            playSound(SOUND_TYPES.CLICK);
+            onTriggerEvent();
+          }}
+          className="px-3 py-2 bg-yellow-600/20 hover:bg-yellow-600/40 backdrop-blur-sm border border-yellow-500/50 rounded-xl transition-all flex items-center gap-2 text-xs font-semibold text-yellow-300 shadow-md hover:shadow-lg"
+          title="触发随机事件（测试）"
+        >
+          <Icon name="Zap" size={14} />
+          <span className="hidden lg:inline">事件</span>
+        </button>
+      )}
 
       {/* 帮助菜单 */}
       <div className="relative" ref={helpMenuRef}>

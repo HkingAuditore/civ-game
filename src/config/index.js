@@ -12,6 +12,17 @@ export { COUNTRIES } from './countries';
 export { MILITARY_ACTIONS } from './militaryActions';
 export { TUTORIAL_STEPS } from './tutorialSteps';
 
+// 事件系统
+export { 
+  EVENTS, 
+  canTriggerEvent, 
+  getRandomEvent,
+  createWarDeclarationEvent,
+  createGiftEvent,
+  createPeaceRequestEvent,
+  createBattleEvent,
+} from './events';
+
 // 军事单位系统
 export { 
   UNIT_TYPES,

@@ -240,6 +240,10 @@ export const useGameState = () => {
     return !completed; // 如果没有记录，则显示教程
   });
 
+  // ========== 事件系统状态 ==========
+  const [currentEvent, setCurrentEvent] = useState(null); // 当前显示的事件
+  const [eventHistory, setEventHistory] = useState([]); // 事件历史记录
+
   // ========== UI状态 ==========
   const [logs, setLogs] = useState(["文明的黎明已至，第 1 年春季从这里开启，请分配你的人民工作吧。"]);
   const [clicks, setClicks] = useState([]);
@@ -349,6 +353,8 @@ export const useGameState = () => {
         activeFestivalEffects,
         lastFestivalYear,
         showTutorial,
+        currentEvent,
+        eventHistory,
         logs,
         clicks,
         rates,
@@ -435,6 +441,8 @@ export const useGameState = () => {
       setActiveFestivalEffects(data.activeFestivalEffects || []);
       setLastFestivalYear(data.lastFestivalYear || 1);
       setShowTutorial(data.showTutorial ?? true);
+      setCurrentEvent(data.currentEvent || null);
+      setEventHistory(data.eventHistory || []);
       setLogs(data.logs || []);
       setClicks(data.clicks || []);
       setRates(data.rates || {});
@@ -597,6 +605,12 @@ export const useGameState = () => {
     // 教程系统
     showTutorial,
     setShowTutorial,
+    
+    // 事件系统
+    currentEvent,
+    setCurrentEvent,
+    eventHistory,
+    setEventHistory,
     
     // UI
     logs,

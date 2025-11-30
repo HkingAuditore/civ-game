@@ -1,7 +1,7 @@
 // 游戏操作钩子
 // 包含所有游戏操作函数，如建造建筑、研究科技、升级时代等
 
-import { BUILDINGS, EPOCHS, RESOURCES, TECHS, MILITARY_ACTIONS, UNIT_TYPES } from '../config';
+import { BUILDINGS, EPOCHS, RESOURCES, TECHS, MILITARY_ACTIONS, UNIT_TYPES, EVENTS, getRandomEvent, createWarDeclarationEvent, createGiftEvent, createPeaceRequestEvent, createBattleEvent } from '../config';
 import { calculateArmyAdminCost, calculateArmyCapacityNeed, calculateArmyPopulation, simulateBattle, calculateBattlePower } from '../config';
 import { calculateForeignPrice, calculateTradeStatus } from '../utils/foreignTrade';
 import { generateSound, SOUND_TYPES } from '../config/sounds';
@@ -37,6 +37,15 @@ export const useGameActions = (gameState, addLog) => {
     setNations,
     setClassInfluenceShift,
     daysElapsed,
+    currentEvent,
+    setCurrentEvent,
+    eventHistory,
+    setEventHistory,
+    classApproval,
+    setClassApproval,
+    stability,
+    setStability,
+    setPopulation,
   } = gameState;
 
   const getMarketPrice = (resource) => {
@@ -839,6 +848,119 @@ export const useGameActions = (gameState, addLog) => {
     }
   };
 
+  // ========== 事件系统 ==========
+
+  /**
+   * 触发随机事件
+   */
+  const triggerRandomEvent = () => {
+    // 如果已经有事件在显示，不再触发新事件
+    if (currentEvent) return;
+
+    const event = getRandomEvent(gameState);
+    if (event) {
+      setCurrentEvent(event);
+      addLog(`⚠️ 事件：${event.name}`);
+      generateSound(SOUND_TYPES.EVENT);
+      // 事件触发时暂停游戏
+      gameState.setIsPaused(true);
+    }
+  };
+
+  /**
+   * 触发外交事件
+   * @param {Object} diplomaticEvent - 外交事件对象
+   */
+  const triggerDiplomaticEvent = (diplomaticEvent) => {
+    if (currentEvent) return; // 如果已有事件在显示，不触发
+    
+    setCurrentEvent(diplomaticEvent);
+    addLog(`⚠️ 外交事件：${diplomaticEvent.name}`);
+    generateSound(SOUND_TYPES.EVENT);
+    // 外交事件触发时暂停游戏
+    gameState.setIsPaused(true);
+  };
+
+  /**
+   * 处理事件选项
+   * @param {string} eventId - 事件ID
+   * @param {Object} option - 选择的选项
+   */
+  const handleEventOption = (eventId, option) => {
+    // 尝试从EVENTS中查找，如果找不到则使用currentEvent（用于外交事件）
+    let event = EVENTS.find(e => e.id === eventId);
+    if (!event && currentEvent && currentEvent.id === eventId) {
+      event = currentEvent;
+    }
+    if (!event) return;
+
+    const effects = option.effects;
+
+    // 应用资源效果
+    if (effects.resources) {
+      setResources(prev => {
+        const updated = { ...prev };
+        Object.entries(effects.resources).forEach(([resource, value]) => {
+          updated[resource] = Math.max(0, (updated[resource] || 0) + value);
+        });
+        return updated;
+      });
+    }
+
+    // 应用人口效果
+    if (effects.population) {
+      setPopulation(prev => Math.max(1, prev + effects.population));
+    }
+
+    // 应用稳定度效果
+    if (effects.stability) {
+      setStability(prev => Math.max(0, Math.min(100, prev + effects.stability)));
+    }
+
+    // 应用科技效果
+    if (effects.science) {
+      setResources(prev => ({
+        ...prev,
+        science: Math.max(0, (prev.science || 0) + effects.science)
+      }));
+    }
+
+    // 应用阶层支持度效果
+    if (effects.approval) {
+      setClassApproval(prev => {
+        const updated = { ...prev };
+        Object.entries(effects.approval).forEach(([stratum, value]) => {
+          updated[stratum] = Math.max(0, Math.min(100, (updated[stratum] || 50) + value));
+        });
+        return updated;
+      });
+    }
+
+    // 执行回调（用于外交事件）
+    if (option.callback && typeof option.callback === 'function') {
+      option.callback();
+    }
+
+    // 记录事件历史
+    setEventHistory(prev => [
+      {
+        eventId,
+        eventName: event.name,
+        optionId: option.id,
+        optionText: option.text,
+        timestamp: Date.now(),
+        day: daysElapsed,
+      },
+      ...prev
+    ].slice(0, 50)); // 保留最近50条记录
+
+    // 添加日志
+    addLog(`✅ 选择了「${option.text}」`);
+
+    // 清除当前事件
+    setCurrentEvent(null);
+  };
+
   // 返回所有操作函数
   return {
     // 时代
@@ -866,5 +988,10 @@ export const useGameActions = (gameState, addLog) => {
 
     // 外交
     handleDiplomaticAction,
+
+    // 事件
+    triggerRandomEvent,
+    triggerDiplomaticEvent,
+    handleEventOption,
   };
 };

@@ -37,6 +37,7 @@ import {
 import { UnitDetailSheet } from './components/panels/UnitDetailSheet';
 import { TechDetailSheet } from './components/panels/TechDetailSheet';
 import { DecreeDetailSheet } from './components/panels/DecreeDetailSheet';
+import { EventDetail } from './components/modals/EventDetail';
 
 /**
  * 文明崛起主应用组件
@@ -74,11 +75,26 @@ function GameApp({ gameState }) {
   };
 
   // 现在 gameState 肯定存在，可以安全调用这些钩子
-  useGameLoop(gameState, addLog);
   const actions = useGameActions(gameState, addLog);
+  useGameLoop(gameState, addLog, actions);
   const { playSound, SOUND_TYPES } = useSound();
   const [showStrata, setShowStrata] = useState(false);
   const [showMarket, setShowMarket] = useState(false);  // 新增：控制国内市场弹窗
+
+  // 事件系统：定期触发随机事件
+  useEffect(() => {
+    // 每30-60天随机触发一次事件
+    const eventCheckInterval = setInterval(() => {
+      if (!gameState.isPaused && !gameState.currentEvent) {
+        // 10%的几率触发事件
+        if (Math.random() < 0.1) {
+          actions.triggerRandomEvent();
+        }
+      }
+    }, 30000); // 每30秒检查一次
+
+    return () => clearInterval(eventCheckInterval);
+  }, [gameState.isPaused, gameState.currentEvent, actions]);
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isWikiOpen, setIsWikiOpen] = useState(false);
@@ -99,6 +115,12 @@ function GameApp({ gameState }) {
     
     // 关闭模态框
     gameState.setFestivalModal(null);
+  };
+
+  // 处理事件选项选择
+  const handleEventOption = (eventId, option) => {
+    actions.handleEventOption(eventId, option);
+    playSound(SOUND_TYPES.CLICK);
     gameState.setIsPaused(false);
     
     // 添加日志
@@ -240,6 +262,7 @@ function GameApp({ gameState }) {
             onTutorial={handleReopenTutorial}
             onWiki={() => setIsWikiOpen(true)}
             autoSaveAvailable={autoSaveAvailable}
+            onTriggerEvent={actions.triggerRandomEvent}
           />
         }
       />
@@ -262,6 +285,7 @@ function GameApp({ gameState }) {
             onWiki={() => setIsWikiOpen(true)}
             menuDirection="up"
             autoSaveAvailable={autoSaveAvailable}
+            onTriggerEvent={actions.triggerRandomEvent}
           />
         </div>
       </div>
@@ -732,6 +756,22 @@ function GameApp({ gameState }) {
           onSelect={handleFestivalSelect}
         />
       )}
+
+      {/* 事件系统底部面板 */}
+      <BottomSheet
+        isOpen={!!gameState.currentEvent}
+        onClose={() => gameState.setCurrentEvent(null)}
+        title="事件"
+        showHeader={true}
+      >
+        {gameState.currentEvent && (
+          <EventDetail
+            event={gameState.currentEvent}
+            onSelectOption={handleEventOption}
+            onClose={() => gameState.setCurrentEvent(null)}
+          />
+        )}
+      </BottomSheet>
 
       {/* 新手教程模态框 */}
       <TutorialModal

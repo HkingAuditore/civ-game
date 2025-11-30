@@ -241,6 +241,7 @@ export const SOUND_TYPES = {
   VICTORY: 'victory',
   LEVEL_UP: 'levelup',
   NOTIFICATION: 'notification',
+  EVENT: 'event',
 };
 
 /**
@@ -257,4 +258,5 @@ export const SOUND_DESCRIPTIONS = {
   [SOUND_TYPES.VICTORY]: '胜利音效',
   [SOUND_TYPES.LEVEL_UP]: '升级音效',
   [SOUND_TYPES.NOTIFICATION]: '通知音效',
+  [SOUND_TYPES.EVENT]: '事件音效',
 };
