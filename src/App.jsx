@@ -79,22 +79,33 @@ function GameApp({ gameState }) {
   useGameLoop(gameState, addLog, actions);
   const { playSound, SOUND_TYPES } = useSound();
   const [showStrata, setShowStrata] = useState(false);
+  const lastEventCheckDayRef = useRef(null);
   const [showMarket, setShowMarket] = useState(false);  // 新增：控制国内市场弹窗
 
-  // 事件系统：定期触发随机事件
+  // 事件系统：按游戏内天数定期触发随机事件
   useEffect(() => {
-    // 每30-60天随机触发一次事件
-    const eventCheckInterval = setInterval(() => {
-      if (!gameState.isPaused && !gameState.currentEvent) {
-        // 10%的几率触发事件
-        if (Math.random() < 0.1) {
-          actions.triggerRandomEvent();
-        }
-      }
-    }, 30000); // 每30秒检查一次
+  const currentDay = gameState.daysElapsed || 0;
 
-    return () => clearInterval(eventCheckInterval);
-  }, [gameState.isPaused, gameState.currentEvent, actions]);
+  // 初始化参考天数（避免刚载入就立刻触发）
+  if (lastEventCheckDayRef.current == null) {
+      lastEventCheckDayRef.current = currentDay;
+      return;
+  }
+
+  // 游戏暂停或已有事件时不触发新的随机事件
+  if (gameState.isPaused || gameState.currentEvent) return;
+
+  const deltaDays = currentDay - lastEventCheckDayRef.current;
+
+  // 每经过 20 个游戏内日检查一次，并以 10% 概率触发事件
+  if (deltaDays >= 20) {
+      lastEventCheckDayRef.current = currentDay;
+      if (Math.random() < 0.1) {
+      actions.triggerRandomEvent();
+      }
+  }
+  }, [gameState.daysElapsed, gameState.isPaused, gameState.currentEvent, actions]);
+
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isWikiOpen, setIsWikiOpen] = useState(false);
@@ -119,6 +130,7 @@ function GameApp({ gameState }) {
 
   // 处理事件选项选择
   const handleEventOption = (eventId, option) => {
+    const selectedEffect = option || {};
     actions.handleEventOption(eventId, option);
     playSound(SOUND_TYPES.CLICK);
     gameState.setIsPaused(false);
