@@ -165,6 +165,14 @@ export const StatusBar = ({
                       +{taxes.breakdown?.businessTax?.toFixed(2) || '0.00'}
                     </span>
                   </div>
+                  {taxes.breakdown?.warIndemnity > 0 && (
+                    <div className="flex justify-between py-1 border-b border-gray-800">
+                      <span>战争赔款</span>
+                      <span className="text-yellow-200 font-mono">
+                        +{taxes.breakdown.warIndemnity.toFixed(2)}
+                      </span>
+                    </div>
+                  )}
                   {taxes.breakdown?.subsidy > 0 && (
                     <div className="flex justify-between py-1 border-b border-gray-800">
                       <span>补助支出</span>

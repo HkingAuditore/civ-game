@@ -456,6 +456,9 @@ function GameApp({ gameState }) {
                   resources={gameState.resources}
                   daysElapsed={gameState.daysElapsed}
                   onDiplomaticAction={actions.handleDiplomaticAction}
+                  tradeRoutes={gameState.tradeRoutes}
+                  onTradeRouteAction={actions.handleTradeRouteAction}
+                  playerInstallmentPayment={gameState.playerInstallmentPayment}
                 />
               )}
             </div>

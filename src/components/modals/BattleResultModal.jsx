@@ -69,83 +69,89 @@ export const BattleResultModal = ({ result, onClose }) => {
         {/* 内容 */}
         <div className="flex-1 overflow-y-auto p-3 space-y-3">
           {/* 战斗统计 */}
-          <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
-            <h3 className="text-[10px] font-bold mb-1.5 flex items-center gap-1 text-white">
-              <Icon name="BarChart" size={12} className="text-blue-400" />
-              战斗统计
-            </h3>
-            <div className="grid grid-cols-2 gap-1.5">
-              <div className="bg-gray-800/50 p-1.5 rounded">
-                <p className="text-[9px] text-gray-400 mb-0.5 leading-none">我方战力</p>
-                <p className="text-sm font-bold text-blue-400 font-mono leading-none">
-                  {result.ourPower?.toFixed(0) || 0}
-                </p>
-              </div>
-              <div className="bg-gray-800/50 p-1.5 rounded">
-                <p className="text-[9px] text-gray-400 mb-0.5 leading-none">敌方战力</p>
-                <p className="text-sm font-bold text-red-400 font-mono leading-none">
-                  {result.enemyPower?.toFixed(0) || 0}
-                </p>
-              </div>
-              <div className="bg-gray-800/50 p-1.5 rounded">
-                <p className="text-[9px] text-gray-400 mb-0.5 leading-none">战力优势</p>
-                <p className={`text-sm font-bold font-mono leading-none ${
-                  result.powerRatio > 1 ? 'text-green-400' : 'text-red-400'
-                }`}>
-                  {result.powerRatio?.toFixed(2) || 0}x
-                </p>
-              </div>
-              <div className="bg-gray-800/50 p-1.5 rounded">
-                <p className="text-[9px] text-gray-400 mb-0.5 leading-none">战斗评分</p>
-                <p className="text-sm font-bold text-purple-400 font-mono leading-none">
-                  {result.score?.toFixed(0) || 0}
-                </p>
+          {(!result.isRaid || (result.isRaid && result.ourPower > 0)) && (
+            <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
+              <h3 className="text-[10px] font-bold mb-1.5 flex items-center gap-1 text-white">
+                <Icon name="BarChart" size={12} className="text-blue-400" />
+                战斗统计
+              </h3>
+              <div className="grid grid-cols-2 gap-1.5">
+                <div className="bg-gray-800/50 p-1.5 rounded">
+                  <p className="text-[9px] text-gray-400 mb-0.5 leading-none">我方战力</p>
+                  <p className="text-sm font-bold text-blue-400 font-mono leading-none">
+                    {result.ourPower?.toFixed(0) || 0}
+                  </p>
+                </div>
+                <div className="bg-gray-800/50 p-1.5 rounded">
+                  <p className="text-[9px] text-gray-400 mb-0.5 leading-none">敌方战力</p>
+                  <p className="text-sm font-bold text-red-400 font-mono leading-none">
+                    {result.enemyPower?.toFixed(0) || 0}
+                  </p>
+                </div>
+                <div className="bg-gray-800/50 p-1.5 rounded">
+                  <p className="text-[9px] text-gray-400 mb-0.5 leading-none">战力优势</p>
+                  <p className={`text-sm font-bold font-mono leading-none ${
+                    result.powerRatio > 1 ? 'text-green-400' : 'text-red-400'
+                  }`}>
+                    {result.powerRatio?.toFixed(2) || 0}x
+                  </p>
+                </div>
+                <div className="bg-gray-800/50 p-1.5 rounded">
+                  <p className="text-[9px] text-gray-400 mb-0.5 leading-none">战斗评分</p>
+                  <p className="text-sm font-bold text-purple-400 font-mono leading-none">
+                    {result.score?.toFixed(0) || 0}
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* 我方损失 */}
-          <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
-            <h3 className="text-[10px] font-bold mb-1.5 flex items-center gap-1 text-white">
-              <Icon name="Heart" size={12} className="text-red-400" />
-              我方损失
-            </h3>
-            {Object.keys(result.losses || result.attackerLosses || {}).length > 0 ? (
-              <div className="space-y-1">
-                {Object.entries(result.losses || result.attackerLosses || {}).map(([unitId, count]) => {
-                  const unit = UNIT_TYPES[unitId];
-                  return (
-                    <div
-                      key={unitId}
-                      className="flex items-center justify-between bg-red-900/20 border border-red-600/30 p-1.5 rounded"
-                    >
-                      <div className="flex items-center gap-1.5">
-                        <Icon name="User" size={12} className="text-red-400" />
-                        <span className="text-[10px] text-white leading-none">{unit.name}</span>
+          {(!result.isRaid || (result.isRaid && Object.keys(result.losses || result.defenderLosses || {}).length > 0)) && (
+            <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
+              <h3 className="text-[10px] font-bold mb-1.5 flex items-center gap-1 text-white">
+                <Icon name="Heart" size={12} className="text-red-400" />
+                我方损失
+              </h3>
+              {Object.keys(result.losses || result.defenderLosses || result.attackerLosses || {}).length > 0 ? (
+                <div className="space-y-1">
+                  {Object.entries(result.losses || result.defenderLosses || result.attackerLosses || {}).map(([unitId, count]) => {
+                    const unit = UNIT_TYPES[unitId];
+                    if (!unit || count === 0) return null;
+                    return (
+                      <div
+                        key={unitId}
+                        className="flex items-center justify-between bg-red-900/20 border border-red-600/30 p-1.5 rounded"
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <Icon name="User" size={12} className="text-red-400" />
+                          <span className="text-[10px] text-white leading-none">{unit.name}</span>
+                        </div>
+                        <span className="text-[10px] font-bold text-red-400 font-mono leading-none">-{count}</span>
                       </div>
-                      <span className="text-[10px] font-bold text-red-400 font-mono leading-none">-{count}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="text-center py-2 bg-green-900/20 border border-green-600/30 rounded">
-                <Icon name="Check" size={16} className="text-green-400 mx-auto mb-1" />
-                <p className="text-[10px] text-green-300 leading-tight">无损失！完美胜利！</p>
-              </div>
-            )}
-          </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-2 bg-green-900/20 border border-green-600/30 rounded">
+                  <Icon name="Check" size={16} className="text-green-400 mx-auto mb-1" />
+                  <p className="text-[10px] text-green-300 leading-tight">无损失！完美胜利！</p>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* 敌方损失 */}
-          {result.enemyLosses && Object.keys(result.enemyLosses).length > 0 && (
+          {(result.enemyLosses || result.attackerLosses) && Object.keys(result.enemyLosses || result.attackerLosses || {}).length > 0 && (
             <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
               <h3 className="text-[10px] font-bold mb-1.5 flex items-center gap-1 text-white">
                 <Icon name="Skull" size={12} className="text-gray-400" />
                 敌方损失
               </h3>
               <div className="space-y-1">
-                {Object.entries(result.enemyLosses).map(([unitId, count]) => {
+                {Object.entries(result.enemyLosses || result.attackerLosses || {}).map(([unitId, count]) => {
                   const unit = UNIT_TYPES[unitId];
+                  if (!unit || count === 0) return null;
                   return (
                     <div
                       key={unitId}
@@ -159,6 +165,46 @@ export const BattleResultModal = ({ result, onClose }) => {
                     </div>
                   );
                 })}
+              </div>
+            </div>
+          )}
+
+          {/* 资源损失（突袭事件） */}
+          {result.isRaid && (result.foodLoss > 0 || result.silverLoss > 0) && (
+            <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
+              <h3 className="text-[10px] font-bold mb-1.5 flex items-center gap-1 text-white">
+                <Icon name="AlertTriangle" size={12} className="text-red-400" />
+                资源损失
+              </h3>
+              <div className="grid grid-cols-2 gap-1.5">
+                {result.foodLoss > 0 && (
+                  <div className="flex items-center justify-between bg-red-900/20 border border-red-600/30 p-1.5 rounded">
+                    <span className="text-[10px] text-gray-300 leading-none">粮食</span>
+                    <span className="text-[10px] font-bold text-red-400 font-mono leading-none">-{result.foodLoss}</span>
+                  </div>
+                )}
+                {result.silverLoss > 0 && (
+                  <div className="flex items-center justify-between bg-red-900/20 border border-red-600/30 p-1.5 rounded">
+                    <span className="text-[10px] text-gray-300 leading-none">银币</span>
+                    <span className="text-[10px] font-bold text-red-400 font-mono leading-none">-{result.silverLoss}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* 人口损失（突袭事件） */}
+          {result.isRaid && result.popLoss > 0 && (
+            <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
+              <h3 className="text-[10px] font-bold mb-1.5 flex items-center gap-1 text-white">
+                <Icon name="Users" size={12} className="text-red-400" />
+                人口损失
+              </h3>
+              <div className="bg-red-900/20 border border-red-600/30 p-1.5 rounded">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-gray-300 leading-none">总人口</span>
+                  <span className="text-[10px] font-bold text-red-400 font-mono leading-none">-{result.popLoss}</span>
+                </div>
               </div>
             </div>
           )}
@@ -185,13 +231,13 @@ export const BattleResultModal = ({ result, onClose }) => {
           )}
 
           {/* 战斗描述 */}
-          {result.description && (
+          {/*result.description && (
             <div className="bg-gray-700/30 p-2 rounded border border-gray-600">
               <p className="text-[10px] text-gray-300 leading-relaxed">
                 {result.description}
               </p>
             </div>
-          )}
+          )*/}
         </div>
 
         {/* 底部按钮 */}
