@@ -98,7 +98,7 @@ function GameApp({ gameState }) {
   const deltaDays = currentDay - lastEventCheckDayRef.current;
 
   // 每经过 20 个游戏内日检查一次，并以 10% 概率触发事件
-  if (deltaDays >= 20) {
+  if (deltaDays >= 30) {
       lastEventCheckDayRef.current = currentDay;
       if (Math.random() < 0.1) {
       actions.triggerRandomEvent();
