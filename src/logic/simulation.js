@@ -35,6 +35,8 @@ const isTradableResource = (key) => {
   return !def.type || def.type !== 'virtual';
 };
 
+// 冷却：敌国主动求和间隔（天），约等于 1 个月
+const PEACE_REQUEST_COOLDOWN_DAYS = 30;
 const initializeWealth = (currentWealth = {}) => {
   const wealth = { ...currentWealth };
   Object.keys(STRATA).forEach((key) => {
@@ -2358,7 +2360,12 @@ export const simulateTick = ({
           }
         }
       }
-      if ((next.warScore || 0) > 12) {
+      const lastPeaceRequestDay = Number.isFinite(next.lastPeaceRequestDay)
+        ? next.lastPeaceRequestDay
+        : -Infinity;
+      const canRequestPeace =
+        (tick - lastPeaceRequestDay) >= PEACE_REQUEST_COOLDOWN_DAYS;
+      if ((next.warScore || 0) > 12 && canRequestPeace) {
         const willingness = Math.min(0.5, 0.03 + (next.warScore || 0) / 120 + (next.warDuration || 0) / 400) + Math.min(0.15, (next.enemyLosses || 0) / 500);
         if (Math.random() < willingness) {
           // 计算赔款金额，确保至少有一个合理的最小值
@@ -2371,7 +2378,8 @@ export const simulateTick = ({
           // 标记该国家正在请求和平，避免重复触发
           next.isPeaceRequesting = true;
           // 保存tribute值到nation对象，供事件系统使用
-          next.peaceTribute = tribute;
+           next.peaceTribute = tribute;
+           next.lastPeaceRequestDay = tick;
         }
       }
     } else if (next.warDuration) {

@@ -1266,7 +1266,48 @@ export const useGameActions = (gameState, addLog) => {
     }
     if (!event) return;
 
-    const effects = option.effects;
+    // ========= 事件效果解析（支持“概率”效果） =========
+    let effects = option.effects || {};
+
+    // 特例1：石器时代 - 陌生人的足迹 -> 设伏驱赶
+    // 文案中说明是“小概率战斗损失”，这里实现为：
+    // - 粮食消耗和好感/稳定度变化必然发生
+    // - 人口损失以 25% 概率发生
+    if (event.id === 'stone_age_stranger_footprints' && option.id === 'ambush_expel') {
+      const baseEffects = { ...effects };
+      const finalEffects = {};
+
+      if (baseEffects.resources) finalEffects.resources = baseEffects.resources;
+      if (baseEffects.stability) finalEffects.stability = baseEffects.stability;
+      if (baseEffects.approval) finalEffects.approval = baseEffects.approval;
+
+      if (baseEffects.population) {
+        const lossChance = 0.25;
+        if (Math.random() < lossChance) {
+          finalEffects.population = baseEffects.population;
+        }
+      }
+
+      effects = finalEffects;
+    }
+
+    // 特例2：探索时代 - 火药阴谋 -> “不过是些乌合之众。”
+    // 注释中说明“有一定概率触发负面事件”，这里实现为：
+    // - 50% 概率触发原本的严重后果
+    // - 50% 概率只产生轻微动荡
+    if (event.id === 'exploration_gunpowder_plot' && option.id === 'ignore_threat') {
+      const badChance = 0.5;
+      if (Math.random() < badChance) {
+        effects = option.effects || {};
+      } else {
+        effects = {
+          stability: -3,
+          approval: {
+            peasant: -3,
+          },
+        };
+      }
+    }
 
     // 应用资源效果
     if (effects.resources) {
