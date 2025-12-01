@@ -70,6 +70,13 @@ const buildInitialMerchantState = () => ({
   lastTradeTime: 0,
 });
 
+// 初始化贸易路线状态
+const buildInitialTradeRoutes = () => ({
+  // 贸易路线数组，每个路线包含：
+  // { nationId, resource, type: 'import'|'export', createdAt }
+  routes: [],
+});
+
 const isTradable = (resourceKey) => {
   if (resourceKey === 'silver') return false;
   const def = RESOURCES[resourceKey];
@@ -170,6 +177,8 @@ export const useGameState = () => {
   const [population, setPopulation] = useState(5);
   const [popStructure, setPopStructure] = useState({});
   const [maxPop, setMaxPop] = useState(10);
+  // 额外人口上限加成（如通过割地获得），不会被每日模拟覆盖
+  const [maxPopBonus, setMaxPopBonus] = useState(0);
 
   // ========== 建筑与科技状态 ==========
   const [buildings, setBuildings] = useState({});
@@ -232,6 +241,12 @@ export const useGameState = () => {
 
   // ========== 商人交易状态 ==========
   const [merchantState, setMerchantState] = useState(buildInitialMerchantState); // 商人交易状态：买入-持有-卖出周期
+
+  // ========== 贸易路线状态 ==========
+  const [tradeRoutes, setTradeRoutes] = useState(buildInitialTradeRoutes); // 玩家创建的贸易路线
+
+  // ========== 和平协议状态 ==========
+  const [playerInstallmentPayment, setPlayerInstallmentPayment] = useState(null); // 玩家的分期支付协议
 
   // ========== 教程系统状态 ==========
   const [showTutorial, setShowTutorial] = useState(() => {
@@ -314,6 +329,7 @@ export const useGameState = () => {
         population,
         popStructure,
         maxPop,
+        maxPopBonus,
         buildings,
         techsUnlocked,
         epoch,
@@ -363,6 +379,7 @@ export const useGameState = () => {
         jobFill,
         market,
         merchantState,
+        tradeRoutes,
         autoSaveInterval,
         isAutoSaveEnabled,
         lastAutoSaveTime: nextLastAuto,
@@ -402,6 +419,7 @@ export const useGameState = () => {
       setPopulation(data.population ?? 5);
       setPopStructure(data.popStructure || {});
       setMaxPop(data.maxPop ?? 10);
+      setMaxPopBonus(data.maxPopBonus || 0);
       setBuildings(data.buildings || {});
       setTechsUnlocked(data.techsUnlocked || []);
       setEpoch(data.epoch ?? 0);
@@ -459,6 +477,7 @@ export const useGameState = () => {
       setJobFill(data.jobFill || {});
       setMarket(data.market || buildInitialMarket());
       setMerchantState(data.merchantState || buildInitialMerchantState());
+      setTradeRoutes(data.tradeRoutes || buildInitialTradeRoutes());
       setAutoSaveInterval(data.autoSaveInterval ?? 60);
       setIsAutoSaveEnabled(data.isAutoSaveEnabled ?? true);
       setLastAutoSaveTime(data.lastAutoSaveTime || Date.now());
@@ -500,6 +519,8 @@ export const useGameState = () => {
     setPopStructure,
     maxPop,
     setMaxPop,
+    maxPopBonus,
+    setMaxPopBonus,
     
     // 建筑与科技
     buildings,
@@ -602,6 +623,10 @@ export const useGameState = () => {
     merchantState,
     setMerchantState,
     
+    // 贸易路线系统
+    tradeRoutes,
+    setTradeRoutes,
+    
     // 教程系统
     showTutorial,
     setShowTutorial,
@@ -611,6 +636,10 @@ export const useGameState = () => {
     setCurrentEvent,
     eventHistory,
     setEventHistory,
+    
+    // 和平协议
+    playerInstallmentPayment,
+    setPlayerInstallmentPayment,
     
     // UI
     logs,

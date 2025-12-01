@@ -3,10 +3,165 @@
 
 import { useEffect, useRef } from 'react';
 import { simulateTick } from '../logic/simulation';
-import { calculateArmyMaintenance, UNIT_TYPES, STRATA } from '../config';
+import { calculateArmyMaintenance, UNIT_TYPES, STRATA, RESOURCES } from '../config';
 import { getRandomFestivalEffects } from '../config/festivalEffects'; 
 import { initCheatCodes } from './cheatCodes';
 import { getCalendarInfo } from '../utils/calendar';
+import { calculateForeignPrice, calculateTradeStatus } from '../utils/foreignTrade';
+import { createEnemyPeaceRequestEvent } from '../config/events';
+
+/**
+ * 处理贸易路线的自动执行
+ * @param {Object} current - 当前游戏状态
+ * @param {Object} result - simulateTick的结果
+ * @param {Function} addLog - 添加日志函数
+ * @param {Function} setResources - 设置资源函数
+ * @param {Function} setNations - 设置国家函数
+ * @param {Function} setTradeRoutes - 设置贸易路线函数
+ */
+const processTradeRoutes = (current, result, addLog, setResources, setNations, setTradeRoutes) => {
+  const { tradeRoutes, nations, resources, daysElapsed, market } = current;
+  const routes = tradeRoutes.routes || [];
+  
+  // 贸易路线配置
+  const TRADE_SPEED = 0.05; // 每天传输盈余/缺口的5%
+  const MIN_TRADE_AMOUNT = 0.1; // 最小贸易量
+  
+  const routesToRemove = [];
+  const tradeLog = [];
+  
+  routes.forEach(route => {
+    const { nationId, resource, type } = route;
+    const nation = nations.find(n => n.id === nationId);
+    
+    if (!nation) {
+      routesToRemove.push(route);
+      return;
+    }
+    
+    // 检查是否处于战争，如果是则暂停贸易路线
+    if (nation.isAtWar) {
+      return; // 不移除路线，只是暂停
+    }
+    
+    // 获取贸易状态
+    const tradeStatus = calculateTradeStatus(resource, nation, daysElapsed);
+    const localPrice = market?.prices?.[resource] ?? (RESOURCES[resource]?.basePrice || 1);
+    const foreignPrice = calculateForeignPrice(resource, nation, daysElapsed);
+    
+    if (type === 'export') {
+      // 出口：我方有盈余，对方有缺口
+      // 不再自动关闭路线，只在条件不满足时暂停交易
+      if (!tradeStatus.isShortage || tradeStatus.shortageAmount <= 0) {
+        return; // 对方没有缺口，暂停贸易但保留路线
+      }
+      
+      // 计算我方盈余
+      const myInventory = resources[resource] || 0;
+      const myTarget = 500; // 简化：使用固定目标库存
+      const mySurplus = Math.max(0, myInventory - myTarget);
+      
+      if (mySurplus <= MIN_TRADE_AMOUNT) {
+        return; // 我方没有盈余，暂停贸易但保留路线
+      }
+      
+      // 计算本次出口量：取我方盈余和对方缺口的较小值，再乘以速度
+      const exportAmount = Math.min(mySurplus, tradeStatus.shortageAmount) * TRADE_SPEED;
+      
+      if (exportAmount < MIN_TRADE_AMOUNT) {
+        return;
+      }
+      
+      // 执行出口
+      const revenue = foreignPrice * exportAmount;
+      
+      setResources(prev => ({
+        ...prev,
+        silver: (prev.silver || 0) + revenue,
+        [resource]: Math.max(0, (prev[resource] || 0) - exportAmount),
+      }));
+      
+      setNations(prev => prev.map(n =>
+        n.id === nationId
+          ? {
+              ...n,
+              budget: Math.max(0, (n.budget || 0) - revenue),
+              inventory: {
+                ...n.inventory,
+                [resource]: ((n.inventory || {})[resource] || 0) + exportAmount,
+              },
+            }
+          : n
+      ));
+      
+      if (exportAmount >= 1) {
+        tradeLog.push(`🚢 出口 ${exportAmount.toFixed(1)} ${RESOURCES[resource]?.name || resource} 至 ${nation.name}，收入 ${revenue.toFixed(1)} 银币。`);
+      }
+      
+    } else if (type === 'import') {
+      // 进口：对方有盈余，我方有缺口
+      // 不再自动关闭路线，只在条件不满足时暂停交易
+      if (!tradeStatus.isSurplus || tradeStatus.surplusAmount <= 0) {
+        return; // 对方没有盈余，暂停贸易但保留路线
+      }
+      
+      // 计算本次进口量：对方盈余的一定比例
+      const importAmount = tradeStatus.surplusAmount * TRADE_SPEED;
+      
+      if (importAmount < MIN_TRADE_AMOUNT) {
+        return;
+      }
+      
+      // 执行进口
+      const cost = foreignPrice * importAmount;
+      
+      // 检查银币是否足够
+      if ((resources.silver || 0) < cost) {
+        return; // 银币不足，暂停贸易
+      }
+      
+      setResources(prev => ({
+        ...prev,
+        silver: Math.max(0, (prev.silver || 0) - cost),
+        [resource]: (prev[resource] || 0) + importAmount,
+      }));
+      
+      setNations(prev => prev.map(n =>
+        n.id === nationId
+          ? {
+              ...n,
+              budget: (n.budget || 0) + cost,
+              inventory: {
+                ...n.inventory,
+                [resource]: Math.max(0, ((n.inventory || {})[resource] || 0) - importAmount),
+              },
+            }
+          : n
+      ));
+      
+      if (importAmount >= 1) {
+        tradeLog.push(`🚢 进口 ${importAmount.toFixed(1)} ${RESOURCES[resource]?.name || resource} 从 ${nation.name}，支出 ${cost.toFixed(1)} 银币。`);
+      }
+    }
+  });
+  
+  // 移除无效的贸易路线
+  if (routesToRemove.length > 0) {
+    setTradeRoutes(prev => ({
+      ...prev,
+      routes: prev.routes.filter(route => 
+        !routesToRemove.some(r => 
+          r.nationId === route.nationId && 
+          r.resource === route.resource && 
+          r.type === route.type
+        )
+      )
+    }));
+  }
+  
+  // 添加日志
+  tradeLog.forEach(log => addLog(log));
+};
 
 /**
  * 游戏循环钩子
@@ -35,6 +190,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
     setNations,
     setPopStructure,
     setMaxPop,
+    maxPopBonus,
     setAdminCap,
     setAdminStrain,
     setRates,
@@ -86,6 +242,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
     saveGame,
     merchantState,
     setMerchantState,
+    tradeRoutes,
+    setTradeRoutes,
   } = gameState;
 
   // 使用ref保存最新状态，避免闭包问题
@@ -95,6 +253,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
     buildings,
     population,
     popStructure,
+    maxPopBonus,
     epoch,
     techsUnlocked,
     decrees,
@@ -120,6 +279,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
     isAutoSaveEnabled,
     lastAutoSaveTime,
     merchantState,
+    tradeRoutes,
+    actions,
   });
 
   const saveGameRef = useRef(gameState.saveGame);
@@ -136,6 +297,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
       population,
       epoch,
       popStructure,
+      maxPopBonus,
       techsUnlocked,
       decrees,
       gameSpeed,
@@ -159,8 +321,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
       isAutoSaveEnabled,
       lastAutoSaveTime,
       merchantState,
+      tradeRoutes,
+      actions,
     };
-  }, [resources, market, buildings, population, popStructure, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState]);
+  }, [resources, market, buildings, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, actions]);
 
   // 游戏核心循环
   useEffect(() => {
@@ -406,6 +570,51 @@ export const useGameLoop = (gameState, addLog, actions) => {
       // 加速效果通过增加 Tick 频率实现，而非增加每次推进的天数
       setDaysElapsed(prev => prev + 1);
       
+      // 处理贸易路线
+      if (current.tradeRoutes && current.tradeRoutes.routes && current.tradeRoutes.routes.length > 0) {
+        processTradeRoutes(current, result, addLog, setResources, setNations, setTradeRoutes);
+      }
+      
+      // 处理玩家的分期支付
+      if (gameState.playerInstallmentPayment && gameState.playerInstallmentPayment.remainingDays > 0) {
+        const payment = gameState.playerInstallmentPayment;
+        const paymentAmount = payment.amount;
+        
+        if ((current.resources.silver || 0) >= paymentAmount) {
+          setResources(prev => ({
+            ...prev,
+            silver: (prev.silver || 0) - paymentAmount
+          }));
+          
+          gameState.setPlayerInstallmentPayment(prev => ({
+            ...prev,
+            paidAmount: prev.paidAmount + paymentAmount,
+            remainingDays: prev.remainingDays - 1
+          }));
+          
+          if (payment.remainingDays === 1) {
+            addLog(`💰 你完成了所有分期赔款支付（共${payment.totalAmount}银币）。`);
+            gameState.setPlayerInstallmentPayment(null);
+          }
+        } else {
+          // 银币不足，违约
+          addLog(`⚠️ 银币不足，无法支付分期赔款！和平协议被破坏。`);
+          setNations(prev => prev.map(n =>
+            n.id === payment.nationId
+              ? {
+                  ...n,
+                  isAtWar: true,
+                  warStartDay: current.daysElapsed || 0,
+                  warDuration: 0,
+                  relation: Math.max(0, (n.relation || 0) - 50),
+                  peaceTreatyUntil: undefined,
+                }
+              : n
+          ));
+          gameState.setPlayerInstallmentPayment(null);
+        }
+      }
+      
       // 更新庆典效果，移除过期的短期效果
       if (activeFestivalEffects.length > 0) {
         const updatedEffects = activeFestivalEffects.filter(effect => {
@@ -440,8 +649,87 @@ export const useGameLoop = (gameState, addLog, actions) => {
         setLogs(prev => [...result.logs, ...prev].slice(0, 8));
         
         // 检测外交事件并触发事件系统
-        if (actions && actions.triggerDiplomaticEvent) {
-          result.logs.forEach(log => {
+        const currentActions = current.actions;
+        console.log('[EVENT DEBUG] actions:', !!currentActions, 'triggerDiplomaticEvent:', !!currentActions?.triggerDiplomaticEvent);
+        if (currentActions && currentActions.triggerDiplomaticEvent) {
+          console.log('[EVENT DEBUG] Checking logs:', result.logs);
+          console.log('[EVENT DEBUG] Total logs count:', result.logs.length);
+
+          // 先解析突袭事件日志，触发战斗结果弹窗
+          const raidLogEntry = Array.isArray(result.logs)
+            ? result.logs.find((log) => typeof log === 'string' && log.includes('RAID_EVENT'))
+            : null;
+          if (raidLogEntry && currentActions.setBattleResult) {
+            try {
+              const jsonStart = raidLogEntry.indexOf('{');
+              if (jsonStart !== -1) {
+                const raidJson = raidLogEntry.slice(jsonStart);
+                const raidData = JSON.parse(raidJson);
+
+                let description = `${raidData.nationName}发动了突袭！\n\n`;
+                if (raidData.victory) {
+                  description += '你的军队成功击退了突袭！\n\n';
+                  description += '战斗力对比：\n';
+                  description += `我方：${raidData.ourPower || 0}\n`;
+                  description += `敌方：${raidData.enemyPower || 0}\n`;
+                  if (raidData.battleReport && raidData.battleReport.length > 0) {
+                    description += '\n' + raidData.battleReport.join('\n');
+                  }
+                } else {
+                  if (!raidData.ourPower) {
+                    description += '你没有军队防御，突袭成功！\n\n';
+                  } else {
+                    description += '你的军队未能阻止突袭！\n\n';
+                    description += '战斗力对比：\n';
+                    description += `我方：${raidData.ourPower || 0}\n`;
+                    description += `敌方：${raidData.enemyPower || 0}\n`;
+                    if (raidData.battleReport && raidData.battleReport.length > 0) {
+                      description += '\n' + raidData.battleReport.join('\n');
+                    }
+                  }
+                  description += '\n突袭损失：\n';
+                  if (raidData.foodLoss > 0) description += `粮食：${raidData.foodLoss}\n`;
+                  if (raidData.silverLoss > 0) description += `银币：${raidData.silverLoss}\n`;
+                  if (raidData.popLoss > 0) description += `人口：${raidData.popLoss}\n`;
+                }
+
+                const battleResult = {
+                  victory: !!raidData.victory,
+                  missionName: `${raidData.nationName}的突袭`,
+                  missionDesc: raidData.victory
+                    ? '你成功击退了敌方的突袭！'
+                    : '敌方趁你不备发动了突袭！',
+                  nationName: raidData.nationName,
+                  ourPower: raidData.ourPower || 0,
+                  enemyPower: raidData.enemyPower || 0,
+                  powerRatio:
+                    (raidData.enemyPower || 0) > 0
+                      ? (raidData.ourPower || 0) / raidData.enemyPower
+                      : 0,
+                  score: 0,
+                  losses: raidData.defenderLosses || {},
+                  attackerLosses: raidData.attackerLosses || {},
+                  enemyLosses: raidData.attackerLosses || {},
+                  defenderLosses: raidData.defenderLosses || {},
+                  resourcesGained: {},
+                  description,
+                  foodLoss: raidData.foodLoss || 0,
+                  silverLoss: raidData.silverLoss || 0,
+                  popLoss: raidData.popLoss || 0,
+                  isRaid: true,
+                };
+
+                console.log('[EVENT DEBUG] Raid battle result created (pre-loop):', battleResult);
+                currentActions.setBattleResult(battleResult);
+              }
+            } catch (e) {
+              console.error('[EVENT DEBUG] Failed to parse raid event log:', e);
+            }
+          }
+
+          result.logs.forEach((log, index) => {
+            console.log(`[EVENT DEBUG] Log ${index}:`, log);
+            console.log(`[EVENT DEBUG] Log ${index} includes RAID_EVENT:`, log.includes('❗RAID_EVENT❗'));
             // 检测宣战事件
             if (log.includes('对你发动了战争')) {
               const match = log.match(/⚠️ (.+) 对你发动了战争/);
@@ -453,49 +741,139 @@ export const useGameLoop = (gameState, addLog, actions) => {
                   const event = createWarDeclarationEvent(nation, () => {
                     // 宣战事件只需要确认，不需要额外操作
                   });
-                  actions.triggerDiplomaticEvent(event);
+                  currentActions.triggerDiplomaticEvent(event);
                 }
               }
             }
             
             // 检测和平请求事件
             if (log.includes('请求和平')) {
-              const match = log.match(/🤝 (.+) 请求和平，并支付了 (\d+) 银币/);
+              console.log('[EVENT DEBUG] Peace request detected in log:', log);
+              const match = log.match(/🤝 (.+) 请求和平，愿意支付 (\d+) 银币作为赔款/);
+              console.log('[EVENT DEBUG] Regex match result:', match);
               if (match) {
                 const nationName = match[1];
                 const tribute = parseInt(match[2], 10);
+                console.log('[EVENT DEBUG] Looking for nation:', nationName);
+                console.log('[EVENT DEBUG] result.nations:', result.nations?.map(n => ({ name: n.name, isPeaceRequesting: n.isPeaceRequesting })));
                 const nation = result.nations?.find(n => n.name === nationName);
-                if (nation) {
-                  const { createPeaceRequestEvent } = require('../config/events');
-                  const event = createPeaceRequestEvent(nation, tribute, () => {
-                    // 和平已经在simulation中处理，这里只需要确认
+                console.log('[EVENT DEBUG] Found nation:', nation?.name, 'isPeaceRequesting:', nation?.isPeaceRequesting);
+                if (nation && nation.isPeaceRequesting) {
+                  console.log('[EVENT DEBUG] Creating peace request event...');
+                  console.log('[EVENT DEBUG] Parameters:', { 
+                    nation: nation.name, 
+                    nationId: nation.id,
+                    tribute, 
+                    warScore: nation.warScore || 0,
+                    population: nation.population 
                   });
-                  actions.triggerDiplomaticEvent(event);
+                  try {
+                    const event = createEnemyPeaceRequestEvent(
+                      nation, 
+                      tribute,
+                      nation.warScore || 0,
+                      (accepted, proposalType, amount) => {
+                        // 处理和平请求的回调
+                        if (accepted) {
+                          currentActions.handleEnemyPeaceAccept(nation.id, proposalType, amount || tribute);
+                        } else {
+                          currentActions.handleEnemyPeaceReject(nation.id);
+                        }
+                      }
+                    );
+                    console.log('[EVENT DEBUG] Event created:', event);
+                    console.log('[EVENT DEBUG] Calling triggerDiplomaticEvent...');
+                    currentActions.triggerDiplomaticEvent(event);
+                    console.log('[EVENT DEBUG] triggerDiplomaticEvent called');
+                  } catch (error) {
+                    console.error('[EVENT DEBUG] Error creating or triggering event:', error);
+                  }
+                  // 清除和平请求标志，避免重复触发
+                  setNations(prev => prev.map(n => 
+                    n.id === nation.id ? { ...n, isPeaceRequesting: false } : n
+                  ));
                 }
               }
             }
             
-            // 检测突袭事件（作为战斗事件）
-            if (log.includes('的突袭')) {
-              const match = log.match(/❗ (.+) 的突袭夺走了粮食 (\d+)、银币 (\d+)，人口损失 (\d+)/);
-              if (match) {
-                const nationName = match[1];
-                const foodLoss = parseInt(match[2], 10);
-                const silverLoss = parseInt(match[3], 10);
-                const popLoss = parseInt(match[4], 10);
-                const nation = result.nations?.find(n => n.name === nationName);
-                if (nation) {
-                  const { createBattleEvent } = require('../config/events');
+            // 检测突袭事件（使用BattleResultModal显示）
+            if (log.includes('❗RAID_EVENT❗')) {
+              console.log('[EVENT DEBUG] Raid detected in log:', log);
+              try {
+                // 解析JSON格式的突袭数据
+                const jsonStr = log.replace('❗RAID_EVENT❗', '');
+                const raidData = JSON.parse(jsonStr);
+                console.log('[EVENT DEBUG] Parsed raid data:', raidData);
+                
+                const nation = result.nations?.find(n => n.name === raidData.nationName);
+                console.log('[EVENT DEBUG] Found nation for raid:', nation?.name);
+                
+                if (nation && currentActions.setBattleResult) {
+                  console.log('[EVENT DEBUG] Creating raid battle result...');
+                  
+                  // 构造战斗描述
+                  let description = `${raidData.nationName}发动了突袭！\n\n`;
+                  
+                  if (raidData.victory) {
+                    // 玩家胜利
+                    description += '✓ 你的军队成功击退了突袭！\n\n';
+                    description += `战斗力对比：\n`;
+                    description += `我方：${raidData.ourPower}\n`;
+                    description += `敌方：${raidData.enemyPower}\n\n`;
+                    
+                    if (raidData.battleReport && raidData.battleReport.length > 0) {
+                      description += raidData.battleReport.join('\n');
+                    }
+                  } else {
+                    // 玩家失败
+                    if (raidData.ourPower === 0) {
+                      description += '✗ 你没有军队防御，突袭成功！\n\n';
+                    } else {
+                      description += '✗ 你的军队未能阻止突袭！\n\n';
+                      description += `战斗力对比：\n`;
+                      description += `我方：${raidData.ourPower}\n`;
+                      description += `敌方：${raidData.enemyPower}\n\n`;
+                      
+                      if (raidData.battleReport && raidData.battleReport.length > 0) {
+                        description += raidData.battleReport.join('\n') + '\n\n';
+                      }
+                    }
+                    
+                    description += `突袭损失：\n`;
+                    if (raidData.foodLoss > 0) description += `粮食：-${raidData.foodLoss}\n`;
+                    if (raidData.silverLoss > 0) description += `银币：-${raidData.silverLoss}\n`;
+                    if (raidData.popLoss > 0) description += `人口：-${raidData.popLoss}\n`;
+                  }
+                  
+                  // 构造符合BattleResultModal要求的battleResult对象
                   const battleResult = {
-                    victory: false,
-                    playerLosses: popLoss,
-                    enemyLosses: 0,
+                    victory: raidData.victory,
+                    missionName: `${raidData.nationName}的突袭`,
+                    missionDesc: raidData.victory ? '你成功击退了敌方的突袭！' : '敌方趁你不备发动了突袭！',
+                    nationName: raidData.nationName,
+                    ourPower: raidData.ourPower || 0,
+                    enemyPower: raidData.enemyPower || 0,
+                    powerRatio: raidData.enemyPower > 0 ? raidData.ourPower / raidData.enemyPower : 0,
+                    score: 0,
+                    losses: raidData.defenderLosses || {},
+                    attackerLosses: raidData.attackerLosses || {},
+                    enemyLosses: raidData.attackerLosses || {},
+                    defenderLosses: raidData.defenderLosses || {},
+                    resourcesGained: {}, // 突袭防御成功也没有战利品
+                    description,
+                    // 添加突袭特有的损失信息
+                    foodLoss: raidData.foodLoss || 0,
+                    silverLoss: raidData.silverLoss || 0,
+                    popLoss: raidData.popLoss || 0,
+                    isRaid: true, // 标记这是突袭事件
                   };
-                  const event = createBattleEvent(nation, battleResult, () => {
-                    // 战斗结果已经在simulation中处理
-                  });
-                  actions.triggerDiplomaticEvent(event);
+                  
+                  console.log('[EVENT DEBUG] Raid battle result created:', battleResult);
+                  currentActions.setBattleResult(battleResult);
+                  console.log('[EVENT DEBUG] setBattleResult called');
                 }
+              } catch (error) {
+                console.error('[EVENT DEBUG] Error parsing or processing raid event:', error);
               }
             }
           });

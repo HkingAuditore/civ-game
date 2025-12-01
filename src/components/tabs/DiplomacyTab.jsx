@@ -21,6 +21,9 @@ export const DiplomacyTab = ({
   resources = {},
   daysElapsed = 0,
   onDiplomaticAction,
+  tradeRoutes = { routes: [] },
+  onTradeRouteAction,
+  playerInstallmentPayment = null,
 }) => {
   const [selectedNationId, setSelectedNationId] = useState(null);
   const [tradeAmount, setTradeAmount] = useState(10);
@@ -61,10 +64,26 @@ export const DiplomacyTab = ({
   const totalAllies = visibleNations.filter((n) => (n.relation || 0) >= 80).length;
   const totalWars = visibleNations.filter((n) => n.isAtWar).length;
 
-  const handleTrade = (resourceKey, isImport = false) => {
-    if (!selectedNation || !onDiplomaticAction) return;
-    const action = isImport ? 'import' : 'trade';
-    onDiplomaticAction(selectedNation.id, action, { resource: resourceKey, amount: tradeAmount });
+  // 检查是否已存在贸易路线
+  const hasTradeRoute = (nationId, resourceKey, type) => {
+    if (!tradeRoutes || !tradeRoutes.routes || !Array.isArray(tradeRoutes.routes)) {
+      return false;
+    }
+    return tradeRoutes.routes.some(
+      route => route.nationId === nationId && route.resource === resourceKey && route.type === type
+    );
+  };
+
+  const handleTradeRoute = (resourceKey, type) => {
+    if (!selectedNation || !onTradeRouteAction) return;
+    const exists = hasTradeRoute(selectedNation.id, resourceKey, type);
+    if (exists) {
+      // 取消贸易路线
+      onTradeRouteAction(selectedNation.id, 'cancel', { resource: resourceKey, type });
+    } else {
+      // 创建贸易路线
+      onTradeRouteAction(selectedNation.id, 'create', { resource: resourceKey, type });
+    }
   };
 
   const handleSimpleAction = (nationId, action) => {
@@ -113,7 +132,8 @@ export const DiplomacyTab = ({
           </div>
           <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-900 hover:scrollbar-thumb-gray-500">
             {visibleNations.map((nation, idx) => {
-              const relation = relationInfo(nation.relation);
+              if (!nation) return null;
+              const relation = relationInfo(nation.relation || 0);
               const isSelected = nation.id === selectedNation?.id;
               return (
                 <button
@@ -126,16 +146,16 @@ export const DiplomacyTab = ({
                   <Icon name="Flag" size={14} className={nation.color || 'text-gray-300'} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-semibold text-white truncate">{nation.name}</span>
+                      <span className="text-xs font-semibold text-white truncate">{nation.name || '未知国家'}</span>
                       <span className={`px-1 py-0.5 rounded text-[9px] ${relation.bg} ${relation.color}`}>
                         {relation.label}
                       </span>
                     </div>
                   </div>
                   <Icon
-                    name={nation.isAtWar ? 'Swords' : 'ShieldCheck'}
+                    name={(nation.isAtWar === true) ? 'Swords' : 'ShieldCheck'}
                     size={12}
-                    className={nation.isAtWar ? 'text-red-400' : 'text-green-400'}
+                    className={(nation.isAtWar === true) ? 'text-red-400' : 'text-green-400'}
                   />
                 </button>
               );
@@ -153,7 +173,7 @@ export const DiplomacyTab = ({
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <div className="flex items-center gap-1.5">
                     <Icon name="Globe" size={14} className="text-amber-300" />
-                    <h3 className="text-sm font-bold text-white">{selectedNation.name}</h3>
+                    <h3 className="text-sm font-bold text-white">{selectedNation?.name || '未知国家'}</h3>
                     {selectedRelation && (
                       <span className={`px-1.5 py-0.5 text-[9px] rounded ${selectedRelation.bg} ${selectedRelation.color}`}>
                         {selectedRelation.label}
@@ -161,9 +181,9 @@ export const DiplomacyTab = ({
                     )}
                   </div>
                   <Icon
-                    name={selectedNation.isAtWar ? 'Swords' : 'ShieldCheck'}
+                    name={(selectedNation?.isAtWar === true) ? 'Swords' : 'ShieldCheck'}
                     size={14}
-                    className={selectedNation.isAtWar ? 'text-red-400' : 'text-green-400'}
+                    className={(selectedNation?.isAtWar === true) ? 'text-red-400' : 'text-green-400'}
                   />
                 </div>
                 <div className="flex gap-1.5 text-xs">
@@ -184,11 +204,11 @@ export const DiplomacyTab = ({
                       selectedNation.isAtWar ? 'bg-purple-600 hover:bg-purple-500' : 'bg-red-600 hover:bg-red-500'
                     }`}
                     onClick={() =>
-                      handleSimpleAction(selectedNation.id, selectedNation.isAtWar ? 'peace' : 'declare_war')
+                      handleSimpleAction(selectedNation.id, (selectedNation?.isAtWar === true) ? 'peace' : 'declare_war')
                     }
                   >
-                    <Icon name={selectedNation.isAtWar ? 'Flag' : 'Swords'} size={12} />
-                    {selectedNation.isAtWar ? '求和' : '宣战'}
+                    <Icon name={(selectedNation?.isAtWar === true) ? 'Flag' : 'Swords'} size={12} />
+                    {(selectedNation?.isAtWar === true) ? '求和' : '宣战'}
                   </button>
                 </div>
               </div>
@@ -196,35 +216,37 @@ export const DiplomacyTab = ({
               <div className="bg-gray-800/60 p-2 rounded-lg border border-gray-700">
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="text-xs font-bold text-white flex items-center gap-1">
-                    <Icon name="BarChart" size={12} className="text-blue-300" />
-                    即时套利贸易
+                    <Icon name="Route" size={12} className="text-blue-300" />
+                    贸易路线管理
                   </h3>
-                  <div className="flex items-center gap-1 text-[10px] text-gray-400">
-                    <span>批量</span>
-                    <input
-                      type="number"
-                      min="1"
-                      className="w-12 bg-gray-900/70 border border-gray-700 rounded px-1 py-0.5 text-right text-white text-[10px]"
-                      value={tradeAmount}
-                      onChange={(e) => setTradeAmount(Math.max(1, Number(e.target.value) || 1))}
-                    />
+                  <div className="text-[10px] text-gray-400">
+                    创建贸易路线以自动进出口资源
                   </div>
                 </div>
                 <div className="space-y-1">
                   {tradableResources.map(([key, res]) => {
+                    if (!selectedNation) return null;
                     const local = getLocalPrice(key);
                     const foreign = calculateForeignPrice(key, selectedNation, daysElapsed);
                     const diff = foreign - local;
-                    const profitable = diff > 0;
-                    const nationInventory = (selectedNation.inventory || {})[key] || 0;
-                    const tradeStatus = calculateTradeStatus(key, selectedNation, daysElapsed);
-                    const shortageCapacity = Math.floor(tradeStatus.shortageAmount);
-                    const surplusCapacity = Math.floor(tradeStatus.surplusAmount);
-                    const canExport = tradeStatus.isShortage && shortageCapacity > 0;
-                    const canImport = tradeStatus.isSurplus && surplusCapacity > 0;
+                    const tradeStatus = calculateTradeStatus(key, selectedNation, daysElapsed) || {};
+                    const shortageCapacity = Math.floor(tradeStatus.shortageAmount || 0);
+                    const surplusCapacity = Math.floor(tradeStatus.surplusAmount || 0);
                     
-                    // 如果既不能出口也不能进口，则不显示该资源
-                    if (!canExport && !canImport) return null;
+                    // 检查是否已解锁该资源
+                    const isUnlocked = (res.unlockEpoch ?? 0) <= epoch;
+                    // 如果未解锁，则不显示
+                    if (!isUnlocked) return null;
+                    
+                    // 检查是否处于战争
+                    const isAtWar = selectedNation?.isAtWar || false;
+                    
+                    // 检查是否已有贸易路线
+                    const hasExportRoute = hasTradeRoute(selectedNation.id, key, 'export');
+                    const hasImportRoute = hasTradeRoute(selectedNation.id, key, 'import');
+                    
+                    // 所有已解锁的资源都显示，允许创建出口或进口路线
+                    // 战争期间不能创建新路线，但已有路线仍然显示
                     
                     return (
                       <div key={key} className="bg-gray-900/40 rounded p-1.5 border border-gray-700/50">
@@ -245,28 +267,39 @@ export const DiplomacyTab = ({
                         <div className="flex items-center justify-between text-[10px]">
                           <div className="flex gap-2 text-gray-400">
                             <span>本地: <span className="text-white font-mono">{local.toFixed(1)}</span></span>
-                            <span>外国: <span className={`font-mono ${profitable ? 'text-green-300' : 'text-red-300'}`}>{foreign.toFixed(1)}</span></span>
-                            <span className={`font-mono ${profitable ? 'text-green-400' : 'text-red-400'}`}>
-                              {diff >= 0 ? '+' : ''}{diff.toFixed(1)}
-                            </span>
+                            <span>外国: <span className={`font-mono ${diff > 0 ? 'text-green-300' : 'text-red-300'}`}>{foreign.toFixed(1)}</span></span>
                           </div>
                           <div className="flex gap-1">
-                            {canExport && (
-                              <button
-                                className="px-1.5 py-0.5 bg-teal-600 hover:bg-teal-500 rounded text-white flex items-center gap-0.5"
-                                onClick={() => handleTrade(key, false)}
-                              >
-                                <Icon name="ArrowUpRight" size={10} /> 出口
-                              </button>
-                            )}
-                            {canImport && (
-                              <button
-                                className="px-1.5 py-0.5 bg-purple-600 hover:bg-purple-500 rounded text-white flex items-center gap-0.5"
-                                onClick={() => handleTrade(key, true)}
-                              >
-                                <Icon name="ArrowDownLeft" size={10} /> 进口
-                              </button>
-                            )}
+                            <button
+                              className={`px-1.5 py-0.5 rounded text-white flex items-center gap-0.5 ${
+                                hasExportRoute 
+                                  ? 'bg-red-600 hover:bg-red-500' 
+                                  : isAtWar
+                                  ? 'bg-gray-600 cursor-not-allowed'
+                                  : 'bg-teal-600 hover:bg-teal-500'
+                              }`}
+                              onClick={() => handleTradeRoute(key, 'export')}
+                              disabled={isAtWar && !hasExportRoute}
+                              title={isAtWar && !hasExportRoute ? '战争期间无法创建新贸易路线' : ''}
+                            >
+                              <Icon name={hasExportRoute ? 'X' : 'ArrowUpRight'} size={10} />
+                              {hasExportRoute ? '取消' : '出口'}
+                            </button>
+                            <button
+                              className={`px-1.5 py-0.5 rounded text-white flex items-center gap-0.5 ${
+                                hasImportRoute 
+                                  ? 'bg-red-600 hover:bg-red-500' 
+                                  : isAtWar
+                                  ? 'bg-gray-600 cursor-not-allowed'
+                                  : 'bg-purple-600 hover:bg-purple-500'
+                              }`}
+                              onClick={() => handleTradeRoute(key, 'import')}
+                              disabled={isAtWar && !hasImportRoute}
+                              title={isAtWar && !hasImportRoute ? '战争期间无法创建新贸易路线' : ''}
+                            >
+                              <Icon name={hasImportRoute ? 'X' : 'ArrowDownLeft'} size={10} />
+                              {hasImportRoute ? '取消' : '进口'}
+                            </button>
                           </div>
                         </div>
                       </div>
@@ -274,6 +307,24 @@ export const DiplomacyTab = ({
                   })}
                 </div>
               </div>
+
+              {selectedNation.peaceTreatyUntil && daysElapsed < selectedNation.peaceTreatyUntil && (
+                <div className="bg-green-900/20 p-2 rounded-lg border border-green-600/30 mb-2">
+                  <h3 className="text-xs font-bold text-white flex items-center gap-1 mb-1.5">
+                    <Icon name="HandHeart" size={12} className="text-green-300" />
+                    和平协议
+                  </h3>
+                  <p className="text-[10px] text-gray-300">
+                    剩余天数: <span className="text-green-300 font-bold">{selectedNation.peaceTreatyUntil - daysElapsed}</span>
+                  </p>
+                  {selectedNation.installmentPayment && (
+                    <p className="text-[10px] text-gray-300 mt-1">
+                      分期支付: 每天 <span className="text-yellow-300 font-bold">{selectedNation.installmentPayment.amount}</span> 银币
+                      （剩余 {selectedNation.installmentPayment.remainingDays} 天）
+                    </p>
+                  )}
+                </div>
+              )}
 
               {selectedNation.isAtWar && (
                 <div className="bg-red-900/20 p-2 rounded-lg border border-red-600/30">
@@ -295,6 +346,25 @@ export const DiplomacyTab = ({
                   >
                     提出和平协议
                   </button>
+                </div>
+              )}
+              
+              {playerInstallmentPayment && playerInstallmentPayment.nationId === selectedNation.id && (
+                <div className="bg-yellow-900/20 p-2 rounded-lg border border-yellow-600/30 mt-2">
+                  <h3 className="text-xs font-bold text-white flex items-center gap-1 mb-1.5">
+                    <Icon name="Coins" size={12} className="text-yellow-300" />
+                    你的分期支付
+                  </h3>
+                  <p className="text-[10px] text-gray-300">
+                  每天支付: <span className="text-yellow-300 font-bold">{playerInstallmentPayment.amount}</span> 银币
+                  </p>
+                  <p className="text-[10px] text-gray-300 mt-1">
+                  剩余天数: <span className="text-white font-bold">{playerInstallmentPayment.remainingDays}</span>
+                  </p>
+                  <p className="text-[10px] text-gray-300 mt-1">
+                  已支付: <span className="text-green-300 font-bold">{playerInstallmentPayment.paidAmount}</span> / 
+                    <span className="text-white font-bold"> {playerInstallmentPayment.totalAmount}</span> 银币
+                  </p>
                 </div>
               )}
             </>

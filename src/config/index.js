@@ -20,6 +20,8 @@ export {
   createWarDeclarationEvent,
   createGiftEvent,
   createPeaceRequestEvent,
+  createEnemyPeaceRequestEvent,
+  createPlayerPeaceProposalEvent,
   createBattleEvent,
 } from './events';
 

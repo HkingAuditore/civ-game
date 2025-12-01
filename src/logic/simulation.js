@@ -2,6 +2,7 @@ import { BUILDINGS, STRATA, EPOCHS, RESOURCES, TECHS, ECONOMIC_INFLUENCE } from 
 import { calculateArmyPopulation, calculateArmyFoodNeed, calculateArmyCapacityNeed } from '../config';
 import { isResourceUnlocked } from '../utils/resources';
 import { calculateForeignPrice } from '../utils/foreignTrade';
+import { simulateBattle, UNIT_TYPES } from '../config/militaryUnits';
 
 const ROLE_PRIORITY = [
   'official',
@@ -572,6 +573,7 @@ export const simulateTick = ({
   classWealthHistory,
   classNeedsHistory,
   merchantState = { pendingTrades: [], lastTradeTime: 0 },
+  maxPopBonus = 0,
 }) => {
   console.log('[TICK START]', tick);
   const res = { ...resources };
@@ -793,6 +795,7 @@ export const simulateTick = ({
   let adminCapacity = 20;
   let militaryCapacity = 0; // 新增：军事容量
   totalMaxPop += extraMaxPop;
+  totalMaxPop += maxPopBonus;
   adminCapacity += extraAdminCapacity;
   const armyPopulationDemand = calculateArmyPopulation(army);
   const armyFoodNeed = calculateArmyFoodNeed(army);
@@ -2123,6 +2126,8 @@ export const simulateTick = ({
   const efficiency = adminEfficiency * stabilityFactor;
 
   const visibleEpoch = epoch;
+  // 记录本回合来自战争赔款（含分期）的财政收入
+  let warIndemnityIncome = 0;
   const updatedNations = (nations || []).map(nation => {
     const next = { ...nation };
     const visible = visibleEpoch >= (nation.appearEpoch ?? 0) && (nation.expireEpoch == null || visibleEpoch <= nation.expireEpoch);
@@ -2195,31 +2200,178 @@ export const simulateTick = ({
         const disadvantage = Math.max(0, -(next.warScore || 0));
         const raidChance = Math.min(0.18, 0.02 + (next.aggression || 0.2) * 0.04 + disadvantage / 400);
         if (Math.random() < raidChance) {
+          // 生成敌方突袭军队
+          const aggressionFactor = 1 + (next.aggression || 0.2);
+          const warScoreFactor = 1 + Math.max(-0.5, (next.warScore || 0) / 120);
           const raidStrength = 0.05 + (next.aggression || 0.2) * 0.05 + disadvantage / 1200;
-          const foodLoss = Math.floor((res.food || 0) * raidStrength);
-          const silverLoss = Math.floor((res.silver || 0) * (raidStrength / 2));
-          if (foodLoss > 0) res.food = Math.max(0, (res.food || 0) - foodLoss);
-          if (silverLoss > 0) res.silver = Math.max(0, (res.silver || 0) - silverLoss);
-          const popLoss = Math.min(3, Math.max(1, Math.floor(raidStrength * 20)));
-          raidPopulationLoss += popLoss;
-          logs.push(`❗ ${next.name} 的突袭夺走了粮食 ${foodLoss}、银币 ${silverLoss}，人口损失 ${popLoss}。`);
+          
+          // 根据时代生成合适的突袭部队
+          const attackerArmy = {};
+          const enemyEpoch = Math.max(next.appearEpoch || 0, Math.min(epoch, next.expireEpoch ?? epoch));
+          
+          // 根据时代选择合适的兵种
+          let raidUnits = [];
+          if (enemyEpoch === 0) {
+            raidUnits = ['militia', 'archer'];
+          } else if (enemyEpoch === 1) {
+            raidUnits = ['swordsman', 'archer', 'cavalry'];
+          } else if (enemyEpoch === 2) {
+            raidUnits = ['musketeer', 'cavalry', 'cannon'];
+          } else {
+            raidUnits = ['rifleman', 'tank', 'artillery'];
+          }
+          
+          // 生成突袭部队（规模较小，2-5个单位）
+          const unitCount = Math.floor(2 + Math.random() * 4) * aggressionFactor * warScoreFactor;
+          raidUnits.forEach(unitId => {
+            if (UNIT_TYPES[unitId]) {
+              const count = Math.floor(unitCount * (0.5 + Math.random() * 0.5));
+              if (count > 0) {
+                attackerArmy[unitId] = count;
+              }
+            }
+          });
+          
+          // 玩家的防御军队（使用玩家当前的军队）
+          const defenderArmy = { ...army };
+          
+          // 如果玩家没有军队，突袭自动成功
+          const totalDefenders = Object.values(defenderArmy).reduce((sum, count) => sum + count, 0);
+          
+          if (totalDefenders === 0) {
+            // 没有防御军队，突袭成功
+            const foodLoss = Math.floor((res.food || 0) * raidStrength);
+            const silverLoss = Math.floor((res.silver || 0) * (raidStrength / 2));
+            if (foodLoss > 0) res.food = Math.max(0, (res.food || 0) - foodLoss);
+            if (silverLoss > 0) res.silver = Math.max(0, (res.silver || 0) - silverLoss);
+            const popLoss = Math.min(3, Math.max(1, Math.floor(raidStrength * 20)));
+            raidPopulationLoss += popLoss;
+            
+            // 生成战斗日志（JSON格式，方便解析）
+            const raidData = {
+              nationName: next.name,
+              victory: false, // 玩家失败
+              attackerArmy,
+              defenderArmy: {},
+              attackerLosses: {},
+              defenderLosses: {},
+              foodLoss,
+              silverLoss,
+              popLoss,
+              ourPower: 0,
+              enemyPower: 0,
+            };
+            const raidLog = `❗RAID_EVENT❗${JSON.stringify(raidData)}`;
+            console.log('[SIMULATION] Pushing raid log (no army):', raidLog);
+            logs.push(raidLog);
+            // 敌方突袭成功：玩家处于劣势，降低玩家对该国的战争分数
+            next.warScore = (next.warScore || 0) - 8;
+          } else {
+            // 有防御军队，进行战斗模拟
+            const attackerData = {
+              army: attackerArmy,
+              epoch: enemyEpoch,
+              militaryBuffs: 0.1, // 突袭方有小幅加成
+            };
+            
+            const defenderData = {
+              army: defenderArmy,
+              epoch: epoch,
+              militaryBuffs: 0, // 防御方没有加成（被突袭）
+              wealth: (res.food || 0) + (res.silver || 0) + (res.wood || 0),
+            };
+            
+            const battleResult = simulateBattle(attackerData, defenderData);
+            
+            // 应用战斗结果
+            let foodLoss = 0;
+            let silverLoss = 0;
+            let popLoss = 0;
+            
+            if (battleResult.victory) {
+              // 玩家失败，敌方掠夺资源
+              foodLoss = Math.floor((res.food || 0) * raidStrength);
+              silverLoss = Math.floor((res.silver || 0) * (raidStrength / 2));
+              if (foodLoss > 0) res.food = Math.max(0, (res.food || 0) - foodLoss);
+              if (silverLoss > 0) res.silver = Math.max(0, (res.silver || 0) - silverLoss);
+              popLoss = Math.min(3, Math.max(1, Math.floor(raidStrength * 20)));
+              raidPopulationLoss += popLoss;
+            }
+            
+            // 应用军队损失
+            Object.entries(battleResult.defenderLosses || {}).forEach(([unitId, count]) => {
+              if (army[unitId]) {
+                army[unitId] = Math.max(0, army[unitId] - count);
+              }
+            });
+
+            // 根据突袭结果调整战争分数和敌军损失统计
+            const enemyLossCount = Object.values(battleResult.attackerLosses || {}).reduce(
+              (sum, val) => sum + (val || 0),
+              0
+            );
+            if (enemyLossCount > 0) {
+              next.enemyLosses = (next.enemyLosses || 0) + enemyLossCount;
+            }
+
+            // 敌方胜利：玩家处于劣势；敌方失败：玩家取得优势
+            const raidScoreDelta = battleResult.victory ? -8 : 6;
+            next.warScore = (next.warScore || 0) + raidScoreDelta;
+
+            // 生成突袭战斗事件日志，供前端 BattleResultModal 使用
+            const raidData = {
+              nationName: next.name,
+              victory: !battleResult.victory, // 玩家是否胜利（simulateBattle 的 victory 表示进攻方胜利，这里取反）
+              attackerArmy,
+              defenderArmy,
+              attackerLosses: battleResult.attackerLosses || {},
+              defenderLosses: battleResult.defenderLosses || {},
+              foodLoss,
+              silverLoss,
+              popLoss,
+              ourPower: battleResult.defenderPower,
+              enemyPower: battleResult.attackerPower,
+              battleReport: battleResult.battleReport || [],
+            };
+            
+            // // 生成战斗日志（JSON格式，方便解析）
+            // const raidData = {
+            //   nationName: next.name,
+            //   victory: battleResult.victory, // 玩家是否胜利
+            //   attackerArmy,
+            //   defenderArmy,
+            //   attackerLosses: battleResult.attackerLosses || {},
+            //   defenderLosses: battleResult.defenderLosses || {},
+            //   foodLoss,
+            //   silverLoss,
+            //   popLoss,
+            //   ourPower: battleResult.defenderPower,
+            //   enemyPower: battleResult.attackerPower,
+            //   battleReport: battleResult.battleReport || [],
+            // };
+            // const raidLog = `❗RAID_EVENT❗${JSON.stringify(raidData)}`;
+            // console.log('[SIMULATION] Pushing raid log (with army):', raidLog);
+            // logs.push(raidLog);
+            const raidEventLog = `RAID_EVENT${JSON.stringify(raidData)}`;
+            console.log('[SIMULATION] Pushing raid log (with army):', raidEventLog);
+            logs.push(raidEventLog);
+          }
         }
       }
       if ((next.warScore || 0) > 12) {
         const willingness = Math.min(0.5, 0.03 + (next.warScore || 0) / 120 + (next.warDuration || 0) / 400) + Math.min(0.15, (next.enemyLosses || 0) / 500);
         if (Math.random() < willingness) {
-          const tribute = Math.min(next.wealth || 0, Math.max(50, Math.ceil((next.warScore || 0) * 30 + (next.enemyLosses || 0) * 2)));
-          if (tribute > 0) {
-            res.silver = (res.silver || 0) + tribute;
-            rates.silver = (rates.silver || 0) + tribute;
-            next.wealth = Math.max(0, (next.wealth || 0) - tribute);
-          }
-          logs.push(`🤝 ${next.name} 请求和平，并支付了 ${tribute} 银币。`);
-          next.isAtWar = false;
-          next.warScore = 0;
-          next.warDuration = 0;
-          next.enemyLosses = 0;
-          next.relation = Math.max(35, next.relation || 0);
+          // 计算赔款金额，确保至少有一个合理的最小值
+          const baseTribute = Math.ceil((next.warScore || 0) * 30 + (next.enemyLosses || 0) * 2);
+          const minTribute = Math.max(200, Math.floor((next.wealth || 800) * 0.1)); // 至少是财富的10%，最低200
+          const maxTribute = Math.floor((next.wealth || 800) * 0.8); // 最多是财富的80%
+          const tribute = Math.min(maxTribute, Math.max(minTribute, baseTribute));
+          // 只记录日志，不直接处理和平，让事件系统处理
+          logs.push(`🤝 ${next.name} 请求和平，愿意支付 ${tribute} 银币作为赔款。`);
+          // 标记该国家正在请求和平，避免重复触发
+          next.isPeaceRequesting = true;
+          // 保存tribute值到nation对象，供事件系统使用
+          next.peaceTribute = tribute;
         }
       }
     } else if (next.warDuration) {
@@ -2230,11 +2382,29 @@ export const simulateTick = ({
     const hostility = Math.max(0, (50 - relation) / 70);
     const unrest = stabilityValue < 35 ? 0.02 : 0;
     const declarationChance = visibleEpoch >= 1 ? Math.min(0.08, (aggression * 0.04) + (hostility * 0.04) + unrest) : 0;
-    if (!next.isAtWar && relation < 35 && Math.random() < declarationChance) {
+    
+    // 检查和平协议是否仍然有效
+    const hasPeaceTreaty = next.peaceTreatyUntil && tick < next.peaceTreatyUntil;
+    
+    if (!next.isAtWar && !hasPeaceTreaty && relation < 35 && Math.random() < declarationChance) {
       next.isAtWar = true;
       next.warStartDay = tick;
       next.warDuration = 0;
       logs.push(`⚠️ ${next.name} 对你发动了战争！`);
+    }
+    
+    // 处理分期支付赔款
+    if (next.installmentPayment && next.installmentPayment.remainingDays > 0) {
+      const payment = next.installmentPayment.amount;
+      res.silver = (res.silver || 0) + payment;
+      warIndemnityIncome += payment;
+      next.installmentPayment.paidAmount += payment;
+      next.installmentPayment.remainingDays -= 1;
+      
+      if (next.installmentPayment.remainingDays === 0) {
+        logs.push(`💰 ${next.name} 完成了所有分期赔款支付（共${next.installmentPayment.totalAmount}银币）。`);
+        delete next.installmentPayment;
+      }
     }
     return next;
   });
@@ -2268,8 +2438,11 @@ export const simulateTick = ({
   const collectedBusinessTax = taxBreakdown.businessTax * efficiency;
   const totalCollectedTax = collectedHeadTax + collectedIndustryTax + collectedBusinessTax;
 
-  res.silver = (res.silver || 0) + totalCollectedTax;
-  rates.silver = (rates.silver || 0) + totalCollectedTax;
+  // 将税收与战争赔款一并视为财政收入
+  const totalFiscalIncome = totalCollectedTax + warIndemnityIncome;
+
+  res.silver = (res.silver || 0) + totalFiscalIncome;
+  rates.silver = (rates.silver || 0) + totalFiscalIncome;
 
   console.log('[TICK] Starting price and wage updates...');
   const updatedPrices = { ...priceMap };
@@ -2768,7 +2941,7 @@ export const simulateTick = ({
     }
   }
 
-  const netTax = totalCollectedTax - taxBreakdown.subsidy;
+  const netTax = totalCollectedTax - taxBreakdown.subsidy + warIndemnityIncome;
   const taxes = {
     total: netTax,
     efficiency,
@@ -2777,6 +2950,7 @@ export const simulateTick = ({
       industryTax: collectedIndustryTax,
       businessTax: collectedBusinessTax,
       subsidy: taxBreakdown.subsidy,
+      warIndemnity: warIndemnityIncome,
     },
   };
 

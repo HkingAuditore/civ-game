@@ -1,7 +1,7 @@
 // 游戏操作钩子
 // 包含所有游戏操作函数，如建造建筑、研究科技、升级时代等
 
-import { BUILDINGS, EPOCHS, RESOURCES, TECHS, MILITARY_ACTIONS, UNIT_TYPES, EVENTS, getRandomEvent, createWarDeclarationEvent, createGiftEvent, createPeaceRequestEvent, createBattleEvent } from '../config';
+import { BUILDINGS, EPOCHS, RESOURCES, TECHS, MILITARY_ACTIONS, UNIT_TYPES, EVENTS, getRandomEvent, createWarDeclarationEvent, createGiftEvent, createPeaceRequestEvent, createEnemyPeaceRequestEvent, createPlayerPeaceProposalEvent, createBattleEvent } from '../config';
 import { calculateArmyAdminCost, calculateArmyCapacityNeed, calculateArmyPopulation, simulateBattle, calculateBattlePower } from '../config';
 import { calculateForeignPrice, calculateTradeStatus } from '../utils/foreignTrade';
 import { generateSound, SOUND_TYPES } from '../config/sounds';
@@ -46,6 +46,10 @@ export const useGameActions = (gameState, addLog) => {
     stability,
     setStability,
     setPopulation,
+    setMaxPop,
+    setMaxPopBonus,
+    tradeRoutes,
+    setTradeRoutes,
   } = gameState;
 
   const getMarketPrice = (resource) => {
@@ -329,26 +333,6 @@ export const useGameActions = (gameState, addLog) => {
       return;
     }
 
-    // 检查军事容量（包括当前军队和训练队列）
-    const currentArmyCount = Object.values(army).reduce((sum, count) => sum + count, 0);
-    const waitingCount = militaryQueue.filter(item => item.status === 'waiting').length;
-    const trainingCount = militaryQueue.filter(item => item.status === 'training').length;
-    const totalArmyCount = currentArmyCount + waitingCount + trainingCount;
-    
-    // 从建筑计算军事容量
-    let militaryCapacity = 0;
-    Object.entries(buildings).forEach(([buildingId, count]) => {
-      const building = BUILDINGS.find(b => b.id === buildingId);
-      if (building && building.output?.militaryCapacity) {
-        militaryCapacity += building.output.militaryCapacity * count;
-      }
-    });
-    
-    if (totalArmyCount + 1 > militaryCapacity) {
-      addLog(`军事容量不足，需要建造更多兵营（当前：${totalArmyCount}/${militaryCapacity}）`);
-      return;
-    }
-    
     // 扣除资源
     const newRes = { ...resources };
     for (let resource in unit.recruitCost) {
@@ -770,6 +754,13 @@ export const useGameActions = (gameState, addLog) => {
       }
 
       case 'declare_war':
+        // 检查和平协议是否仍然有效
+        if (targetNation.peaceTreatyUntil && daysElapsed < targetNation.peaceTreatyUntil) {
+          const remainingDays = targetNation.peaceTreatyUntil - daysElapsed;
+          addLog(`无法宣战：与 ${targetNation.name} 的和平协议还有 ${remainingDays} 天有效期。`);
+          return;
+        }
+        
         setNations(prev => prev.map(n =>
           n.id === nationId
             ? {
@@ -780,6 +771,7 @@ export const useGameActions = (gameState, addLog) => {
                 warStartDay: daysElapsed,
                 warDuration: 0,
                 enemyLosses: 0,
+                peaceTreatyUntil: undefined, // 清除和平协议
               }
             : n
         ));
@@ -794,57 +786,430 @@ export const useGameActions = (gameState, addLog) => {
         const warScore = targetNation.warScore || 0;
         const warDuration = targetNation.warDuration || 0;
         const enemyLosses = targetNation.enemyLosses || 0;
-        if (warScore < 0) {
-          const payment = Math.max(100, Math.ceil(Math.abs(warScore) * 30 + warDuration * 5));
-          if ((resources.silver || 0) < payment) {
-            addLog('银币不足，无法支付赔款。');
-            return;
+        
+        // 触发玩家和平提议事件
+        const peaceEvent = createPlayerPeaceProposalEvent(
+          targetNation,
+          warScore,
+          warDuration,
+          enemyLosses,
+          (proposalType, amount) => {
+            handlePlayerPeaceProposal(nationId, proposalType, amount);
           }
-          setResources(prev => ({ ...prev, silver: prev.silver - payment }));
-          setNations(prev => prev.map(n =>
-            n.id === nationId
-              ? {
-                  ...n,
-                  isAtWar: false,
-                  warScore: 0,
-                  warDuration: 0,
-                  enemyLosses: 0,
-                  wealth: (n.wealth || 0) + payment,
-                  relation: 30,
-                }
-              : n
-          ));
-          addLog(`你支付 ${payment} 银币，与 ${targetNation.name} 达成和平。`);
-        } else if (warScore > 0) {
-          const willingness = (warScore / 80) + Math.min(0.5, enemyLosses / 200) + Math.min(0.3, warDuration / 200);
-          if (willingness > 0.8 || (targetNation.wealth || 0) <= 0) {
-            const tribute = Math.min(targetNation.wealth || 0, Math.ceil(warScore * 40 + enemyLosses * 2));
-            setResources(prev => ({ ...prev, silver: prev.silver + tribute }));
-            setNations(prev => prev.map(n =>
-              n.id === nationId
-                ? {
-                    ...n,
-                    wealth: Math.max(0, (n.wealth || 0) - tribute),
-                    isAtWar: false,
-                    warScore: 0,
-                    warDuration: 0,
-                    enemyLosses: 0,
-                    relation: clampRelation((n.relation || 0) + 10),
-                  }
-                : n
-            ));
-            addLog(`${targetNation.name} 支付 ${tribute} 银币换取和平。`);
-          } else {
-            addLog(`${targetNation.name} 拒绝了当前的停战条件。`);
-          }
-        } else {
-          addLog('战局尚未出现明显胜负，对方拒绝和平。');
-        }
+        );
+        triggerDiplomaticEvent(peaceEvent);
         break;
       }
 
       default:
         break;
+    }
+  };
+
+  // ========== 和平协议处理 ==========
+
+  /**
+   * 处理敌方和平请求被接受
+   * @param {string} nationId - 国家ID
+   * @param {string} proposalType - 提议类型
+   * @param {number} amount - 金额或人口数量
+   */
+  const handleEnemyPeaceAccept = (nationId, proposalType, amount) => {
+    const clampRelation = (value) => Math.max(0, Math.min(100, value));
+    const targetNation = nations.find(n => n.id === nationId);
+    if (!targetNation) return;
+    
+    const peaceTreatyUntil = daysElapsed + 365; // 和平协议持续一年
+    
+    if (proposalType === 'installment') {
+      // 分期支付赔款
+      setNations(prev => prev.map(n =>
+        n.id === nationId
+          ? {
+              ...n,
+              isAtWar: false,
+              warScore: 0,
+              warDuration: 0,
+              enemyLosses: 0,
+              isPeaceRequesting: false,
+              relation: Math.max(35, n.relation || 0),
+              peaceTreatyUntil,
+              installmentPayment: {
+                amount: amount, // 每天支付的金额
+                remainingDays: 365,
+                totalAmount: amount * 365,
+                paidAmount: 0,
+              },
+            }
+          : n
+      ));
+      addLog(`你接受了和平协议，${targetNation.name}将每天支付 ${amount} 银币，持续一年（共${amount * 365}银币）。`);
+    } else if (proposalType === 'population') {
+      // 提供人口（玩家获得人口与人口上限）
+      setMaxPopBonus(prev => prev + amount);
+      setPopulation(prev => prev + amount);
+      setNations(prev => prev.map(n =>
+        n.id === nationId
+          ? {
+              ...n,
+              isAtWar: false,
+              warScore: 0,
+              warDuration: 0,
+              enemyLosses: 0,
+              isPeaceRequesting: false,
+              population: Math.max(100, (n.population || 1000) - amount),
+              relation: Math.max(35, n.relation || 0),
+              peaceTreatyUntil,
+            }
+          : n
+      ));
+      addLog(`你接受了和平协议，${targetNation.name}提供了 ${amount} 人口。`);
+    } else {
+      // 标准赔款或更多赔款
+      setResources(prev => ({ ...prev, silver: (prev.silver || 0) + amount }));
+      setNations(prev => prev.map(n =>
+        n.id === nationId
+          ? {
+              ...n,
+              isAtWar: false,
+              warScore: 0,
+              warDuration: 0,
+              enemyLosses: 0,
+              isPeaceRequesting: false,
+              wealth: Math.max(0, (n.wealth || 0) - amount),
+              relation: Math.max(35, n.relation || 0),
+              peaceTreatyUntil,
+            }
+          : n
+      ));
+      addLog(`你接受了和平协议，${targetNation.name}支付了 ${amount} 银币。`);
+    }
+  };
+
+  /**
+   * 处理敌方和平请求被拒绝
+   * @param {string} nationId - 国家ID
+   */
+  const handleEnemyPeaceReject = (nationId) => {
+    setNations(prev => prev.map(n =>
+      n.id === nationId
+        ? {
+            ...n,
+            isPeaceRequesting: false,
+          }
+        : n
+    ));
+    addLog(`你拒绝了${nations.find(n => n.id === nationId)?.name || '敌国'}的和平请求，战争继续。`);
+  };
+
+  /**
+   * 处理玩家和平提议
+   * @param {string} nationId - 国家ID
+   * @param {string} proposalType - 提议类型
+   * @param {number} amount - 金额
+   */
+  const handlePlayerPeaceProposal = (nationId, proposalType, amount) => {
+    if (proposalType === 'cancel') {
+      addLog('你取消了和平谈判。');
+      return;
+    }
+
+    const targetNation = nations.find(n => n.id === nationId);
+    if (!targetNation) return;
+
+    const clampRelation = (value) => Math.max(0, Math.min(100, value));
+    const warScore = targetNation.warScore || 0;
+    const warDuration = targetNation.warDuration || 0;
+    const enemyLosses = targetNation.enemyLosses || 0;
+    const peaceTreatyUntil = daysElapsed + 365; // 和平协议持续一年
+
+    // 根据提议类型处理
+    if (proposalType === 'demand_high') {
+      // 要求高额赔款，成功率较低
+      const willingness = (warScore / 100) + Math.min(0.4, enemyLosses / 250) + Math.min(0.2, warDuration / 250);
+      if (willingness > 0.7 || (targetNation.wealth || 0) <= 0) {
+        setResources(prev => ({ ...prev, silver: (prev.silver || 0) + amount }));
+        setNations(prev => prev.map(n =>
+          n.id === nationId
+            ? {
+                ...n,
+                wealth: Math.max(0, (n.wealth || 0) - amount),
+                isAtWar: false,
+                warScore: 0,
+                warDuration: 0,
+                enemyLosses: 0,
+                relation: clampRelation((n.relation || 0) + 5),
+                peaceTreatyUntil,
+              }
+            : n
+        ));
+        addLog(`${targetNation.name} 接受了你的高额赔款要求，支付 ${amount} 银币换取和平。`);
+      } else {
+        addLog(`${targetNation.name} 拒绝了你的高额赔款要求。`);
+      }
+    } else if (proposalType === 'demand_installment') {
+      // 要求分期支付赔款
+      const willingness = (warScore / 90) + Math.min(0.45, enemyLosses / 220) + Math.min(0.25, warDuration / 220);
+      if (willingness > 0.65) {
+        setNations(prev => prev.map(n =>
+          n.id === nationId
+            ? {
+                ...n,
+                isAtWar: false,
+                warScore: 0,
+                warDuration: 0,
+                enemyLosses: 0,
+                relation: clampRelation((n.relation || 0) + 8),
+                peaceTreatyUntil,
+                installmentPayment: {
+                  amount: amount, // 每天支付的金额
+                  remainingDays: 365,
+                  totalAmount: amount * 365,
+                  paidAmount: 0,
+                },
+              }
+            : n
+        ));
+        addLog(`${targetNation.name} 接受了分期支付协议，将每天支付 ${amount} 银币，持续一年（共${amount * 365}银币）。`);
+      } else {
+        addLog(`${targetNation.name} 拒绝了分期支付要求。`);
+      }
+    } else if (proposalType === 'demand_population') {
+      // 要求提供人口（玩家获得人口与人口上限）
+      const willingness = (warScore / 95) + Math.min(0.42, enemyLosses / 230) + Math.min(0.23, warDuration / 230);
+      if (willingness > 0.68) {
+        setMaxPopBonus(prev => prev + amount);
+        setPopulation(prev => prev + amount);
+        setNations(prev => prev.map(n =>
+          n.id === nationId
+            ? {
+                ...n,
+                isAtWar: false,
+                warScore: 0,
+                warDuration: 0,
+                enemyLosses: 0,
+                population: Math.max(100, (n.population || 1000) - amount),
+                relation: clampRelation((n.relation || 0) + 7),
+                peaceTreatyUntil,
+              }
+            : n
+        ));
+        addLog(`${targetNation.name} 接受了和平协议，提供了 ${amount} 人口。`);
+      } else {
+        addLog(`${targetNation.name} 拒绝了提供人口的要求。`);
+      }
+    } else if (proposalType === 'demand_standard' || proposalType === 'demand_tribute') {
+      // 要求标准赔款
+      const willingness = (warScore / 80) + Math.min(0.5, enemyLosses / 200) + Math.min(0.3, warDuration / 200);
+      if (willingness > 0.6 || (targetNation.wealth || 0) <= 0) {
+        setResources(prev => ({ ...prev, silver: (prev.silver || 0) + amount }));
+        setNations(prev => prev.map(n =>
+          n.id === nationId
+            ? {
+                ...n,
+                wealth: Math.max(0, (n.wealth || 0) - amount),
+                isAtWar: false,
+                warScore: 0,
+                warDuration: 0,
+                enemyLosses: 0,
+                relation: clampRelation((n.relation || 0) + 10),
+                peaceTreatyUntil,
+              }
+            : n
+        ));
+        addLog(`${targetNation.name} 接受了和平协议，支付 ${amount} 银币。`);
+      } else {
+        addLog(`${targetNation.name} 拒绝了你的赔款要求。`);
+      }
+    } else if (proposalType === 'peace_only') {
+      // 无条件和平，成功率较高
+      const willingness = Math.max(0.3, (warScore / 60) + Math.min(0.4, enemyLosses / 150));
+      if (willingness > 0.5) {
+        setNations(prev => prev.map(n =>
+          n.id === nationId
+            ? {
+                ...n,
+                isAtWar: false,
+                warScore: 0,
+                warDuration: 0,
+                enemyLosses: 0,
+                relation: clampRelation((n.relation || 0) + 15),
+                peaceTreatyUntil,
+              }
+            : n
+        ));
+        addLog(`${targetNation.name} 接受了和平协议，战争结束。`);
+      } else {
+        addLog(`${targetNation.name} 拒绝了和平提议。`);
+      }
+    } else if (proposalType === 'pay_installment') {
+      // 玩家分期支付赔款
+      setNations(prev => prev.map(n =>
+        n.id === nationId
+          ? {
+              ...n,
+              isAtWar: false,
+              warScore: 0,
+              warDuration: 0,
+              enemyLosses: 0,
+              relation: clampRelation(28),
+              peaceTreatyUntil,
+            }
+          : n
+      ));
+      // 设置玩家的分期支付
+      gameState.setPlayerInstallmentPayment({
+        nationId,
+        amount: amount,
+        remainingDays: 365,
+        totalAmount: amount * 365,
+        paidAmount: 0,
+      });
+      addLog(`你与 ${targetNation.name} 达成和平，将每天支付 ${amount} 银币，持续一年（共${amount * 365}银币）。`);
+    } else if (proposalType === 'offer_population') {
+      // 玩家提供人口
+      if (population < amount) {
+        addLog('人口不足，无法提供。');
+        return;
+      }
+      setMaxPopBonus(prev => prev - amount);
+      setPopulation(prev => Math.max(1, prev - amount));
+      setNations(prev => prev.map(n =>
+        n.id === nationId
+          ? {
+              ...n,
+              isAtWar: false,
+              warScore: 0,
+              warDuration: 0,
+              enemyLosses: 0,
+              population: (n.population || 1000) + amount,
+              relation: clampRelation(27),
+              peaceTreatyUntil,
+            }
+          : n
+      ));
+      addLog(`你提供 ${amount} 人口，与 ${targetNation.name} 达成和平。`);
+    } else if (proposalType === 'pay_standard' || proposalType === 'pay_high') {
+      // 玩家支付赔款求和
+      if ((resources.silver || 0) < amount) {
+        addLog('银币不足，无法支付赔款。');
+        return;
+      }
+      setResources(prev => ({ ...prev, silver: (prev.silver || 0) - amount }));
+      setNations(prev => prev.map(n =>
+        n.id === nationId
+          ? {
+              ...n,
+              isAtWar: false,
+              warScore: 0,
+              warDuration: 0,
+              enemyLosses: 0,
+              wealth: (n.wealth || 0) + amount,
+              relation: clampRelation(proposalType === 'pay_high' ? 25 : 30),
+              peaceTreatyUntil,
+            }
+          : n
+      ));
+      addLog(`你支付 ${amount} 银币，与 ${targetNation.name} 达成和平。`);
+    }
+  };
+
+  // ========== 贸易路线系统 ==========
+
+  /**
+   * 处理贸易路线操作
+   * @param {string} nationId - 目标国家ID
+   * @param {string} action - 操作类型：'create' 或 'cancel'
+   * @param {Object} payload - 操作参数 { resource, type: 'import'|'export' }
+   */
+  const handleTradeRouteAction = (nationId, action, payload = {}) => {
+    const targetNation = nations.find(n => n.id === nationId);
+    if (!targetNation) return;
+
+    const { resource: resourceKey, type } = payload;
+    if (!resourceKey || !type) return;
+
+    // 检查资源是否有效
+    if (!RESOURCES[resourceKey] || RESOURCES[resourceKey].type === 'virtual' || resourceKey === 'silver') {
+      addLog('该资源无法创建贸易路线。');
+      return;
+    }
+
+    // 检查资源是否已解锁
+    const resourceDef = RESOURCES[resourceKey];
+    if ((resourceDef.unlockEpoch ?? 0) > epoch) {
+      addLog(`${resourceDef.name} 尚未解锁，无法创建贸易路线。`);
+      return;
+    }
+
+    if (action === 'create') {
+      // 检查是否处于战争
+      if (targetNation.isAtWar) {
+        addLog(`与 ${targetNation.name} 处于战争状态，无法创建贸易路线。`);
+        return;
+      }
+
+      // 检查是否已存在相同的贸易路线
+      const exists = tradeRoutes.routes.some(
+        route => route.nationId === nationId && route.resource === resourceKey && route.type === type
+      );
+      if (exists) {
+        addLog(`已存在该贸易路线。`);
+        return;
+      }
+
+      // 检查贸易条件
+      const tradeStatus = calculateTradeStatus(resourceKey, targetNation, daysElapsed);
+      if (type === 'export') {
+        // 出口：对方需要有缺口
+        if (!tradeStatus.isShortage || tradeStatus.shortageAmount <= 0) {
+          addLog(`${targetNation.name} 对 ${resourceDef.name} 没有缺口，无法创建出口路线。`);
+          return;
+        }
+      } else if (type === 'import') {
+        // 进口：对方需要有盈余
+        if (!tradeStatus.isSurplus || tradeStatus.surplusAmount <= 0) {
+          addLog(`${targetNation.name} 对 ${resourceDef.name} 没有盈余，无法创建进口路线。`);
+          return;
+        }
+      }
+
+      // 创建贸易路线
+      setTradeRoutes(prev => ({
+        ...prev,
+        routes: [
+          ...prev.routes,
+          {
+            nationId,
+            resource: resourceKey,
+            type,
+            createdAt: daysElapsed,
+          }
+        ]
+      }));
+
+      const typeText = type === 'export' ? '出口' : '进口';
+      addLog(`✅ 已创建 ${resourceDef.name} 的${typeText}贸易路线至 ${targetNation.name}。`);
+
+    } else if (action === 'cancel') {
+      // 取消贸易路线
+      const routeExists = tradeRoutes.routes.some(
+        route => route.nationId === nationId && route.resource === resourceKey && route.type === type
+      );
+      if (!routeExists) {
+        addLog(`该贸易路线不存在。`);
+        return;
+      }
+
+      setTradeRoutes(prev => ({
+        ...prev,
+        routes: prev.routes.filter(
+          route => !(route.nationId === nationId && route.resource === resourceKey && route.type === type)
+        )
+      }));
+
+      const typeText = type === 'export' ? '出口' : '进口';
+      addLog(`❌ 已取消 ${resourceDef.name} 的${typeText}贸易路线至 ${targetNation.name}。`);
     }
   };
 
@@ -872,13 +1237,20 @@ export const useGameActions = (gameState, addLog) => {
    * @param {Object} diplomaticEvent - 外交事件对象
    */
   const triggerDiplomaticEvent = (diplomaticEvent) => {
-    if (currentEvent) return; // 如果已有事件在显示，不触发
+    console.log('[TRIGGER EVENT] Called with event:', diplomaticEvent);
+    console.log('[TRIGGER EVENT] Current event:', currentEvent);
+    if (currentEvent) {
+      console.log('[TRIGGER EVENT] Blocked: already have an event showing');
+      return; // 如果已有事件在显示，不触发
+    }
     
+    console.log('[TRIGGER EVENT] Setting current event...');
     setCurrentEvent(diplomaticEvent);
     addLog(`⚠️ 外交事件：${diplomaticEvent.name}`);
     generateSound(SOUND_TYPES.EVENT);
     // 外交事件触发时暂停游戏
     gameState.setIsPaused(true);
+    console.log('[TRIGGER EVENT] Event triggered successfully');
   };
 
   /**
@@ -988,10 +1360,19 @@ export const useGameActions = (gameState, addLog) => {
 
     // 外交
     handleDiplomaticAction,
+    handleEnemyPeaceAccept,
+    handleEnemyPeaceReject,
+    handlePlayerPeaceProposal,
+
+    // 贸易路线
+    handleTradeRouteAction,
 
     // 事件
     triggerRandomEvent,
     triggerDiplomaticEvent,
     handleEventOption,
+    
+    // 战斗结果
+    setBattleResult,
   };
 };

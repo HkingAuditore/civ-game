@@ -1,5 +1,6 @@
 import React from 'react';
 import { Icon } from '../common/UIComponents';
+import { RESOURCES, STRATA } from '../../config';
 
 /**
  * 事件详情组件
@@ -11,6 +12,9 @@ import { Icon } from '../common/UIComponents';
 export const EventDetail = ({ event, onSelectOption, onClose }) => {
   if (!event) return null;
 
+  const getResourceName = (key) => (RESOURCES && RESOURCES[key]?.name) || key;
+  const getStratumName = (key) => (STRATA && STRATA[key]?.name) || key;
+
   const handleOptionClick = (option) => {
     onSelectOption(event.id, option);
     onClose();
@@ -20,11 +24,13 @@ export const EventDetail = ({ event, onSelectOption, onClose }) => {
     <div className="space-y-4">
       {/* 事件头部 */}
       <div className="flex items-start gap-4">
-        <div className={`flex-shrink-0 w-16 h-16 rounded-lg flex items-center justify-center shadow-lg ${
-          event.isDiplomaticEvent 
-            ? 'bg-gradient-to-br from-blue-500 to-purple-600' 
-            : 'bg-gradient-to-br from-yellow-500 to-orange-600'
-        }`}>
+        <div
+          className={`flex-shrink-0 w-16 h-16 rounded-lg flex items-center justify-center shadow-lg ${
+            event.isDiplomaticEvent
+              ? 'bg-gradient-to-br from-blue-500 to-purple-600'
+              : 'bg-gradient-to-br from-yellow-500 to-orange-600'
+          }`}
+        >
           <Icon name={event.icon} size={32} className="text-white" />
         </div>
         <div className="flex-1">
@@ -40,11 +46,7 @@ export const EventDetail = ({ event, onSelectOption, onClose }) => {
       {/* 概览图片（如果有） */}
       {event.image && (
         <div className="w-full h-48 bg-gray-700 rounded-lg overflow-hidden">
-          <img 
-            src={event.image} 
-            alt={event.name}
-            className="w-full h-full object-cover"
-          />
+          <img src={event.image} alt={event.name} className="w-full h-full object-cover" />
         </div>
       )}
 
@@ -55,7 +57,7 @@ export const EventDetail = ({ event, onSelectOption, onClose }) => {
 
       {/* 事件选项 */}
       <div className="space-y-3">
-        <h3 className="text-lg font-semibold text-white mb-3">选择你的行动：</h3>
+        <h3 className="text-lg font-semibold text-white mb-3">选择你的行动</h3>
         {event.options.map((option) => (
           <button
             key={option.id}
@@ -70,72 +72,85 @@ export const EventDetail = ({ event, onSelectOption, onClose }) => {
                 {option.description && (
                   <p className="text-gray-400 text-sm mb-2">{option.description}</p>
                 )}
-                
+
                 {/* 效果预览 */}
                 <div className="flex flex-wrap gap-2 mt-2">
                   {/* 资源效果 */}
-                  {option.effects.resources && Object.entries(option.effects.resources).map(([resource, value]) => (
-                    <span
-                      key={resource}
-                      className={`text-xs px-2 py-1 rounded ${
-                        value > 0 ? 'bg-green-900/50 text-green-300' : 'bg-red-900/50 text-red-300'
-                      }`}
-                    >
-                      {resource}: {value > 0 ? '+' : ''}{value}
-                    </span>
-                  ))}
-                  
+                  {option.effects.resources &&
+                    Object.entries(option.effects.resources).map(([resource, value]) => (
+                      <span
+                        key={resource}
+                        className={`text-xs px-2 py-1 rounded ${
+                          value > 0 ? 'bg-green-900/50 text-green-300' : 'bg-red-900/50 text-red-300'
+                        }`}
+                      >
+                        {getResourceName(resource)}: {value > 0 ? '+' : ''}
+                        {value}
+                      </span>
+                    ))}
+
                   {/* 人口效果 */}
                   {option.effects.population && (
                     <span
                       className={`text-xs px-2 py-1 rounded ${
-                        option.effects.population > 0 ? 'bg-green-900/50 text-green-300' : 'bg-red-900/50 text-red-300'
+                        option.effects.population > 0
+                          ? 'bg-green-900/50 text-green-300'
+                          : 'bg-red-900/50 text-red-300'
                       }`}
                     >
-                      人口: {option.effects.population > 0 ? '+' : ''}{option.effects.population}
+                      人口: {option.effects.population > 0 ? '+' : ''}
+                      {option.effects.population}
                     </span>
                   )}
-                  
+
                   {/* 稳定度效果 */}
                   {option.effects.stability && (
                     <span
                       className={`text-xs px-2 py-1 rounded ${
-                        option.effects.stability > 0 ? 'bg-green-900/50 text-green-300' : 'bg-red-900/50 text-red-300'
+                        option.effects.stability > 0
+                          ? 'bg-green-900/50 text-green-300'
+                          : 'bg-red-900/50 text-red-300'
                       }`}
                     >
-                      稳定度: {option.effects.stability > 0 ? '+' : ''}{option.effects.stability}
+                      稳定度: {option.effects.stability > 0 ? '+' : ''}
+                      {option.effects.stability}
                     </span>
                   )}
-                  
+
                   {/* 科技效果 */}
                   {option.effects.science && (
                     <span
                       className={`text-xs px-2 py-1 rounded ${
-                        option.effects.science > 0 ? 'bg-green-900/50 text-green-300' : 'bg-red-900/50 text-red-300'
+                        option.effects.science > 0
+                          ? 'bg-green-900/50 text-green-300'
+                          : 'bg-red-900/50 text-red-300'
                       }`}
                     >
-                      科技: {option.effects.science > 0 ? '+' : ''}{option.effects.science}
+                      科技: {option.effects.science > 0 ? '+' : ''}
+                      {option.effects.science}
                     </span>
                   )}
-                  
+
                   {/* 阶层支持度效果 */}
-                  {option.effects.approval && Object.entries(option.effects.approval).map(([stratum, value]) => (
-                    <span
-                      key={stratum}
-                      className={`text-xs px-2 py-1 rounded ${
-                        value > 0 ? 'bg-green-900/50 text-green-300' : 'bg-red-900/50 text-red-300'
-                      }`}
-                    >
-                      {stratum}支持度: {value > 0 ? '+' : ''}{value}
-                    </span>
-                  ))}
+                  {option.effects.approval &&
+                    Object.entries(option.effects.approval).map(([stratum, value]) => (
+                      <span
+                        key={stratum}
+                        className={`text-xs px-2 py-1 rounded ${
+                          value > 0 ? 'bg-green-900/50 text-green-300' : 'bg-red-900/50 text-red-300'
+                        }`}
+                      >
+                        {getStratumName(stratum)}支持度: {value > 0 ? '+' : ''}
+                        {value}
+                      </span>
+                    ))}
                 </div>
               </div>
-              
-              <Icon 
-                name="ChevronRight" 
-                size={20} 
-                className="text-gray-500 group-hover:text-yellow-400 transition-colors flex-shrink-0 mt-1" 
+
+              <Icon
+                name="ChevronRight"
+                size={20}
+                className="text-gray-500 group-hover:text-yellow-400 transition-colors flex-shrink-0 mt-1"
               />
             </div>
           </button>
@@ -154,3 +169,4 @@ export const EventDetail = ({ event, onSelectOption, onClose }) => {
     </div>
   );
 };
+

@@ -293,10 +293,9 @@ export const MilitaryTab = ({
             <span>军饷倍率</span>
             <input
               type="number"
-              min="0"
               step="0.1"
               value={militaryWageRatio}
-              onChange={(e) => onUpdateWageRatio && onUpdateWageRatio(Math.max(0, parseFloat(e.target.value) || 0))}
+              onChange={(e) => onUpdateWageRatio && onUpdateWageRatio(parseFloat(e.target.value) || 0)}
               className="w-20 bg-gray-900/60 border border-gray-700 rounded px-2 py-0.5 text-xs text-gray-100"
             />
             <span className="text-gray-500">军饷 = 食粮需求 × 粮价 × 倍率</span>

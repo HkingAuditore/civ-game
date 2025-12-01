@@ -207,7 +207,7 @@ export const GameControls = ({
       </div>
 
       {/* 事件测试按钮（仅开发测试用） */}
-      {onTriggerEvent && (
+      {/* {onTriggerEvent && (
         <button
           onClick={() => {
             playSound(SOUND_TYPES.CLICK);
@@ -219,7 +219,7 @@ export const GameControls = ({
           <Icon name="Zap" size={14} />
           <span className="hidden lg:inline">事件</span>
         </button>
-      )}
+      )} */}
 
       {/* 帮助菜单 */}
       <div className="relative" ref={helpMenuRef}>
