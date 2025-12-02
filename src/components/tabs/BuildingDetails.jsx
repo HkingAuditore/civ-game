@@ -246,9 +246,13 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, taxPolicie
 
               return (
                 <div key={job} className={index > 0 ? "pt-2 mt-2 border-t border-gray-700/60" : ""}>
-                  <div className="flex justify-between items-center text-xs mb-1">
+                  <div className="flex justify-between items-center text-xs mb-0.5">
                     <span className="text-gray-200 font-semibold">{STRATA[job]?.name || job}</span>
                     <span className="text-yellow-300 font-mono">薪资: {wage.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-[11px] text-gray-400 mb-1">
+                    <span>每栋提供 {perBuilding}</span>
+                    <span>当前总计 {Math.round(requiredExact)}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-full bg-gray-700 rounded-full h-2">

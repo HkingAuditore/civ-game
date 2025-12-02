@@ -102,9 +102,16 @@ const BuildingTooltip = ({ building, count, epoch, techsUnlocked, jobFill, ancho
             const assigned = jobFill?.[building.id]?.[job] ?? 0;
             const fillPercent = required > 0 ? Math.min(1, assigned / required) * 100 : 0;
             return (
-              <div key={job} className="mb-1">
-                <div className="flex justify-between"><span className="text-gray-200">{STRATA[job]?.name || job}</span><span className="font-mono text-gray-200">{Math.round(assigned)}/{Math.round(required)}</span></div>
-                <div className="w-full bg-gray-700 rounded-full h-1 mt-0.5"><div className="h-1 rounded-full bg-blue-500" style={{ width: `${fillPercent}%` }}></div></div>
+              <div key={job} className="mb-1.5">
+                <div className="flex justify-between text-[11px] text-gray-300">
+                  <span className="text-gray-200 font-semibold">{STRATA[job]?.name || job}</span>
+                  <span className="font-mono text-gray-200">{Math.round(assigned)}/{Math.round(required)}</span>
+                </div>
+                <div className="flex justify-between text-[10px] text-gray-500 mb-0.5">
+                  <span>每栋 {perBuilding}</span>
+                  <span>总计 {Math.round(required)}</span>
+                </div>
+                <div className="w-full bg-gray-700 rounded-full h-1"><div className="h-1 rounded-full bg-blue-500" style={{ width: `${fillPercent}%` }}></div></div>
               </div>);
           })}
         </div>
