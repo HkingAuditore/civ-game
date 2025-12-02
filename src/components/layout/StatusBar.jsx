@@ -15,6 +15,7 @@ export const StatusBar = ({
   gameState,
   taxes,
   netSilverPerDay,
+  tradeStats = { income: 0, expense: 0 },
   armyFoodNeed,
   onResourceDetailClick,
   onPopulationDetailClick,
@@ -34,12 +35,19 @@ export const StatusBar = ({
   // 军饷维护已经是每日计算好的
   const silverUpkeepPerDay = armyFoodNeed * foodPrice * wageRatio;
   
+  const tradeIncome = tradeStats?.income || 0;
+  const tradeExpense = tradeStats?.expense || 0;
+  const tradeNet = tradeIncome - tradeExpense;
   const netSilverClass = netSilverPerDay >= 0 ? 'text-green-300' : 'text-red-300';
   const netChipClasses = netSilverPerDay >= 0
     ? 'text-green-300 bg-green-900/20 hover:bg-green-900/40'
     : 'text-red-300 bg-red-900/20 hover:bg-red-900/40';
   const netTrendIcon = netSilverPerDay >= 0 ? 'TrendingUp' : 'TrendingDown';
-  
+  const tradeNetClass = tradeNet >= 0 ? 'text-emerald-300' : 'text-red-300';
+  const tradeChipClasses = tradeNet >= 0
+    ? 'text-emerald-300 bg-emerald-900/20 border-emerald-500/30'
+    : 'text-red-300 bg-red-900/20 border-red-500/30';
+
   // 获取当前时代的主题色
   const epochColor = EPOCHS[gameState.epoch]?.color || 'text-blue-400';
   
@@ -134,6 +142,14 @@ export const StatusBar = ({
                   {netSilverPerDay >= 0 ? '+' : ''}{netSilverPerDay.toFixed(0)}
                 </span>
               </div>
+              {Math.abs(tradeNet) >= 0.1 && (
+                <div className={`hidden sm:flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full border ${tradeChipClasses}`}>
+                  <Icon name="Ship" size={10} className={tradeNet >= 0 ? 'text-emerald-300' : 'text-red-300'} />
+                  <span className={`font-mono ${tradeNetClass}`}>
+                    {tradeNet >= 0 ? '+' : ''}{tradeNet.toFixed(0)}
+                  </span>
+                </div>
+              )}
             </button>
 
             {/* 税收详情弹窗 - 移到这里，并使用 left-0 定位 */}
@@ -164,6 +180,17 @@ export const StatusBar = ({
                     <span className="text-yellow-200 font-mono">
                       +{taxes.breakdown?.businessTax?.toFixed(2) || '0.00'}
                     </span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-gray-800">
+                    <span>贸易路线</span>
+                    <div className="text-right">
+                      <span className={`${tradeNetClass} font-mono block`}>
+                        {tradeNet >= 0 ? '+' : ''}{tradeNet.toFixed(2)}
+                      </span>
+                      <span className="text-[10px] text-gray-500">
+                        收 {tradeIncome.toFixed(1)} / 支 {tradeExpense.toFixed(1)}
+                      </span>
+                    </div>
                   </div>
                   {taxes.breakdown?.warIndemnity > 0 && (
                     <div className="flex justify-between py-1 border-b border-gray-800">

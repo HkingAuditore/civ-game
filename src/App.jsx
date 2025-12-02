@@ -213,7 +213,9 @@ function GameApp({ gameState }) {
   const foodPrice = gameState.market?.prices?.food ?? (RESOURCES.food?.basePrice || 1);
   const wageRatio = gameState.militaryWageRatio || 1;
   const silverUpkeepPerDay = armyFoodNeed * foodPrice * wageRatio;
-  const netSilverPerDay = taxes.total - silverUpkeepPerDay;
+  const tradeStats = gameState.tradeStats || { income: 0, expense: 0 };
+  const tradeNet = (tradeStats.income || 0) - (tradeStats.expense || 0);
+  const netSilverPerDay = taxes.total + tradeNet - silverUpkeepPerDay;
   const netSilverClass = netSilverPerDay >= 0 ? 'text-green-300' : 'text-red-300';
   const netChipClasses = netSilverPerDay >= 0
     ? 'text-green-300 bg-green-900/20 hover:bg-green-900/40'
@@ -254,6 +256,7 @@ function GameApp({ gameState }) {
         gameState={gameState}
         taxes={taxes}
         netSilverPerDay={netSilverPerDay}
+        tradeStats={tradeStats}
         armyFoodNeed={armyFoodNeed}
         onResourceDetailClick={(key) => gameState.setResourceDetailView(key)}
         onPopulationDetailClick={() => gameState.setPopulationDetailView(true)}
@@ -570,6 +573,7 @@ function GameApp({ gameState }) {
             classApproval={gameState.classApproval}
             classInfluence={gameState.classInfluence}
             classWealth={gameState.classWealth}
+            classWealthDelta={gameState.classWealthDelta}
             classIncome={gameState.classIncome}
             classExpense={gameState.classExpense}
             classShortages={gameState.classShortages}

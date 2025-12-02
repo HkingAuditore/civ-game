@@ -13,6 +13,7 @@ export const StratumDetailSheet = ({
   classApproval,
   classInfluence,
   classWealth,
+  classWealthDelta = {},
   classIncome,
   classExpense,
   classShortages,
@@ -44,7 +45,11 @@ export const StratumDetailSheet = ({
   const totalExpense = (classExpense[stratumKey] || 0) / safeDayScale;
   const incomePerCapita = totalIncome / Math.max(count, 1);
   const expensePerCapita = totalExpense / Math.max(count, 1);
-  const netIncomePerCapita = incomePerCapita - expensePerCapita;
+  const totalNetWealthChange = (classWealthDelta[stratumKey] || 0) / safeDayScale;
+  const netIncomePerCapita =
+    totalNetWealthChange !== undefined && totalNetWealthChange !== null
+      ? totalNetWealthChange / Math.max(count, 1)
+      : incomePerCapita - expensePerCapita;
   const shortages = classShortages[stratumKey] || [];
   const headTaxMultiplier = taxPolicies?.headTaxRates?.[stratumKey] ?? 1;
 

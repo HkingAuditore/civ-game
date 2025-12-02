@@ -49,7 +49,11 @@ export const StrataPanel = ({
         const totalExpense = (classExpense[key] || 0) / safeDayScale;
         const incomePerCapita = totalIncome / Math.max(count, 1);
         const expensePerCapita = totalExpense / Math.max(count, 1);
-        const netIncomePerCapita = incomePerCapita - expensePerCapita;
+        const netWealthDelta = (classWealthDelta[key] || 0) / safeDayScale;
+        const netIncomePerCapita =
+          netWealthDelta !== undefined && netWealthDelta !== null
+            ? netWealthDelta / Math.max(count, 1)
+            : incomePerCapita - expensePerCapita;
         const shortages = classShortages[key] || [];
 
         return {

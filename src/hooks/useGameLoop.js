@@ -22,14 +22,16 @@ import { createEnemyPeaceRequestEvent } from '../config/events';
 const processTradeRoutes = (current, result, addLog, setResources, setNations, setTradeRoutes) => {
   const { tradeRoutes, nations, resources, daysElapsed, market } = current;
   const routes = tradeRoutes.routes || [];
-  
+
   // 贸易路线配置
   const TRADE_SPEED = 0.05; // 每天传输盈余/缺口的5%
   const MIN_TRADE_AMOUNT = 0.1; // 最小贸易量
-  
+
   const routesToRemove = [];
   const tradeLog = [];
-  
+  let totalIncome = 0;
+  let totalExpense = 0;
+
   routes.forEach(route => {
     const { nationId, resource, type } = route;
     const nation = nations.find(n => n.id === nationId);
@@ -80,7 +82,8 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
         silver: (prev.silver || 0) + revenue,
         [resource]: Math.max(0, (prev[resource] || 0) - exportAmount),
       }));
-      
+      totalIncome += revenue;
+
       setNations(prev => prev.map(n =>
         n.id === nationId
           ? {
@@ -125,7 +128,8 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
         silver: Math.max(0, (prev.silver || 0) - cost),
         [resource]: (prev[resource] || 0) + importAmount,
       }));
-      
+      totalExpense += cost;
+
       setNations(prev => prev.map(n =>
         n.id === nationId
           ? {
@@ -161,6 +165,7 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
   
   // 添加日志
   tradeLog.forEach(log => addLog(log));
+  return { income: totalIncome, expense: totalExpense };
 };
 
 /**
@@ -242,6 +247,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
     setMerchantState,
     tradeRoutes,
     setTradeRoutes,
+    tradeStats,
+    setTradeStats,
   } = gameState;
 
   // 使用ref保存最新状态，避免闭包问题
@@ -279,6 +286,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
     merchantState,
     tradeRoutes,
     actions,
+    tradeStats,
   });
 
   const saveGameRef = useRef(gameState.saveGame);
@@ -321,8 +329,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
       merchantState,
       tradeRoutes,
       actions,
+      tradeStats,
     };
-  }, [resources, market, buildings, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, actions]);
+  }, [resources, market, buildings, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, tradeStats, actions]);
 
   // 游戏核心循环
   useEffect(() => {
@@ -566,10 +575,15 @@ export const useGameLoop = (gameState, addLog, actions) => {
       // 加速效果通过增加 Tick 频率实现，而非增加每次推进的天数
       setDaysElapsed(prev => prev + 1);
       
-      // 处理贸易路线
+      // 处理贸易路线并记录收支
+      let tradeSummary = { income: 0, expense: 0 };
       if (current.tradeRoutes && current.tradeRoutes.routes && current.tradeRoutes.routes.length > 0) {
-        processTradeRoutes(current, result, addLog, setResources, setNations, setTradeRoutes);
+        const summary = processTradeRoutes(current, result, addLog, setResources, setNations, setTradeRoutes);
+        if (summary) {
+          tradeSummary = summary;
+        }
       }
+      setTradeStats(tradeSummary);
       
       // 处理玩家的分期支付
       if (gameState.playerInstallmentPayment && gameState.playerInstallmentPayment.remainingDays > 0) {
