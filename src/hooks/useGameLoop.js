@@ -407,6 +407,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
         if (amount <= 0) return;
         adjustedResources[resource] = Math.max(0, (adjustedResources[resource] || 0) - amount);
       });
+      setResources(adjustedResources);
 
       const adjustedClassWealth = { ...result.classWealth };
       const adjustedTotalWealth = Object.values(adjustedClassWealth).reduce((sum, val) => sum + val, 0);
