@@ -607,10 +607,6 @@ export const calculateArmyCapacityNeed = (army) => {
   return totalCapacity;
 };
 
-// 为了向后兼容，保留旧函数名但调用新函数
-export const calculateArmyAdminCost = (army) => {
-  return calculateArmyCapacityNeed(army);
-};
 
 // 计算军队人口占用
 export const calculateArmyPopulation = (army) => {

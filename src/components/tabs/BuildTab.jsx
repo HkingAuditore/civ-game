@@ -381,7 +381,7 @@ export const BuildTab = ({
   const categories = {
     gather: { name: '采集与农业', icon: 'Wheat', color: 'text-yellow-400' },
     industry: { name: '工业生产', icon: 'Factory', color: 'text-blue-400' },
-    civic: { name: '居住与行政', icon: 'Home', color: 'text-green-400' },
+    civic: { name: '居住建筑', icon: 'Home', color: 'text-green-400' },
     military: { name: '军事建筑', icon: 'Swords', color: 'text-red-400' },
   };
   const categoryFilters = [

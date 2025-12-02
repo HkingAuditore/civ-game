@@ -14,7 +14,6 @@ const EPOCH_BONUS_LABELS = {
   cultureBonus: { label: '文化产出', type: 'percent' },
   scienceBonus: { label: '科研产出', type: 'percent' },
   militaryBonus: { label: '军事力量', type: 'percent' },
-  adminBonus: { label: '行政容量', type: 'flat' },
 };
 
 const formatBonusValue = (key, value) => {

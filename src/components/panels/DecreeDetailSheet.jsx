@@ -124,11 +124,10 @@ export const DecreeDetailSheet = ({
         </div>
         <p className="text-xs text-gray-400 leading-relaxed">
           {isActive 
-            ? '政策效果正在影响你的国家。你可以随时废除该政策，但不会退还行政成本。'
-            : '点击“颁布”按钮即可激活该政策。激活后政策效果将立即生效。'
+            ? '政策效果正在影响你的国家。你可以随时废除该政策。'
+            : '点击"颁布"按钮即可激活该政策。激活后政策效果将立即生效。'
           }
-        </p>
-      </div>
+        </p>      </div>
 
       {/* 操作按钮 */}
       <div className="pt-2">

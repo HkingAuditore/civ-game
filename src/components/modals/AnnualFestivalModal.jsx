@@ -79,10 +79,6 @@ export const AnnualFestivalModal = ({ festivalOptions, year, epoch, onSelect }) 
       details.push(`人口上限 +${effects.maxPop}`);
     }
     
-    if (effects.admin) {
-      details.push(`行政容量 +${effects.admin}`);
-    }
-    
     return details;
   };
 

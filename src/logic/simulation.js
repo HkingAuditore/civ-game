@@ -647,7 +647,6 @@ export const simulateTick = ({
   const passiveGains = {};
   let extraMaxPop = 0;
   let maxPopPercent = 0;
-  let extraAdminCapacity = 0;
   let productionBonus = 0;
   let industryBonus = 0;
   let taxBonus = 0;
@@ -691,9 +690,7 @@ export const simulateTick = ({
         extraMaxPop += value;
       }
     }
-    if (effects.admin) {
-      extraAdminCapacity += effects.admin;
-    }
+
     if (effects.production) {
       productionBonus += effects.production;
     }
@@ -795,11 +792,9 @@ export const simulateTick = ({
   const directIncomeApplied = {};
   const roleVacancyTargets = {};
   let totalMaxPop = 5;
-  let adminCapacity = 20;
   let militaryCapacity = 0; // 新增：军事容量
   totalMaxPop += extraMaxPop;
   totalMaxPop += maxPopBonus;
-  adminCapacity += extraAdminCapacity;
   const armyPopulationDemand = calculateArmyPopulation(army);
   const armyFoodNeed = calculateArmyFoodNeed(army);
   
@@ -852,7 +847,6 @@ export const simulateTick = ({
     const count = builds[b.id] || 0;
     if (count > 0) {
       if (b.output?.maxPop) totalMaxPop += (b.output.maxPop * count);
-      if (b.output?.admin) adminCapacity += (b.output.admin * count);
       if (b.output?.militaryCapacity) militaryCapacity += (b.output.militaryCapacity * count); // 新增：从建筑获取军事容量
       if (b.jobs) {
         for (let role in b.jobs) jobsAvailable[role] += (b.jobs[role] * count);
@@ -1091,7 +1085,6 @@ export const simulateTick = ({
     }
   });
 
-  let currentAdminStrain = 0;
   const classApproval = {};
   const classInfluence = {};
   const classWealthResult = {};
@@ -1123,7 +1116,6 @@ export const simulateTick = ({
     const count = popStructure[key] || 0;
     if (count === 0) return;
     const def = STRATA[key];
-    if (def.admin > 0) currentAdminStrain += count * def.admin;
     if (wealth[key] === undefined) {
       wealth[key] = def.startingWealth || 0;
     }
@@ -1324,7 +1316,7 @@ export const simulateTick = ({
     let producesTradableOutput = false;
     if (b.output) {
       for (const [resKey, perUnit] of Object.entries(b.output)) {
-        if (resKey === 'maxPop' || resKey === 'admin') continue;
+        if (resKey === 'maxPop') continue;
         if (!isTradableResource(resKey)) continue;
         producesTradableOutput = true;
         const perMultiplierAmount = perUnit * count;
@@ -1502,7 +1494,7 @@ export const simulateTick = ({
           amount *= variationFactor;
         }
         
-        if (resKey === 'maxPop' || resKey === 'admin') {
+        if (resKey === 'maxPop') {
           res[resKey] = (res[resKey] || 0) + amount;
           continue;
         }
@@ -1877,7 +1869,6 @@ export const simulateTick = ({
 
   decrees.forEach(d => {
     if (d.active) {
-      currentAdminStrain += d.cost.admin;
       if (d.id === 'forced_labor') {
         if (popStructure.serf > 0) classApproval.serf = Math.max(0, (classApproval.serf || 50) - 20);
         if (popStructure.miner > 0) classApproval.miner = Math.max(0, (classApproval.miner || 50) - 15);
@@ -1988,17 +1979,6 @@ export const simulateTick = ({
     classApproval.unemployed = Math.min(100, previousApproval.unemployed + 5);
   }
 
-
-  let epochAdminBonus = 0;
-  if (epoch > 0 && EPOCHS[epoch].bonuses.adminBonus) {
-    epochAdminBonus = EPOCHS[epoch].bonuses.adminBonus;
-  }
-
-  adminCapacity += epochAdminBonus;
-  res.admin = adminCapacity - currentAdminStrain;
-  const adminEfficiency = res.admin < 0 ? 0.5 : 1.0;
-
-  res.admin = Math.max(0, res.admin);
 
   let nextPopulation = population;
   let raidPopulationLoss = 0;
@@ -2126,7 +2106,7 @@ export const simulateTick = ({
 
   const stabilityValue = Math.max(0, Math.min(100, 50 + stabilityModifier * 100));
   const stabilityFactor = Math.min(1.5, Math.max(0.5, 1 + (stabilityValue - 50) / 100));
-  const efficiency = adminEfficiency * stabilityFactor;
+  const efficiency = stabilityFactor;
 
   const visibleEpoch = epoch;
   // 记录本回合来自战争赔款（含分期）的财政收入
@@ -3004,9 +2984,7 @@ export const simulateTick = ({
     rates,
     popStructure,
     maxPop: totalMaxPop,
-    adminCap: adminCapacity,
     militaryCapacity, // 新增：军事容量
-    adminStrain: currentAdminStrain,
     population: nextPopulation,
     classApproval,
     classInfluence,

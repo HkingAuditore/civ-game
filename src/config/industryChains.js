@@ -330,7 +330,7 @@ export const INDUSTRY_CHAINS = {
       {
         stage: 'consumption',
         name: "社会应用",
-        consumers: ['education', 'research', 'administration'],
+        consumers: ['education', 'research'],
         input: ['culture', 'science'],
       }
     ],

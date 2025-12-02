@@ -4,7 +4,6 @@ const EFFECT_LABELS = {
   industryBonus: { label: '工业产出', type: 'percent' },
   stability: { label: '稳定度', type: 'percent' },
   taxIncome: { label: '税收', type: 'percent' },
-  adminBonus: { label: '行政容量', type: 'flat' },
   militaryPower: { label: '军事力量', type: 'percent' },
   cultureBonus: { label: '文化产出', type: 'percent' },
   scienceBonus: { label: '科研产出', type: 'percent' },

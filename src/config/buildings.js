@@ -139,8 +139,8 @@ export const BUILDINGS = [
     cat: 'gather', 
     requiresTech: 'papyrus_cultivation',
     visual: { icon: 'ScrollText', color: 'bg-lime-800', text: 'text-lime-200' },
-    // Tier 1 基础生产建筑：高稳定性配置，防止纸张价格波动导致行政崩溃
-    marketConfig: { 
+    // Tier 1 基础生产建筑：高稳定性配置，防止纸张价格波动
+    marketConfig: {
       price: { livingCostWeight: 0.1, taxCostWeight: 0.15 }, 
       wage: { livingCostWeight: 0.05, taxCostWeight: 0.05 } 
     }
@@ -301,7 +301,7 @@ export const BUILDINGS = [
     }
   },
 
-  // ========== 居住与行政建筑 ==========
+// ========== 居住建筑 ==========
   { 
     id: 'hut', 
     name: "简陋小屋", 
@@ -340,10 +340,10 @@ export const BUILDINGS = [
   { 
     id: 'town_hall', 
     name: "市政厅", 
-    desc: "官员办公地，增加行政容量，需要少量维护。", 
+    desc: "官员办公地，提供官员岗位，需要少量维护。", 
     baseCost: { brick: 200, plank: 200 }, 
     input: { brick: 0.20, papyrus: 0.02 }, 
-    output: { admin: 3.00 }, 
+    output: {}, 
     jobs: { official: 5 }, 
     epoch: 3, 
     cat: 'civic', 

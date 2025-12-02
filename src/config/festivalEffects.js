@@ -79,13 +79,12 @@ export const FESTIVAL_EFFECTS = {
     {
       id: 'stone_tribal_unity',
       name: '部落团结',
-      description: '加强部落凝聚力，提升稳定度和行政容量',
+      description: '加强部落凝聚力，提升稳定度',
       icon: 'Heart',
       type: 'temporary',
       duration: 360,
       effects: {
         stability: 0.2,
-        admin: 3
       },
       flavorText: '氏族间的纷争暂时平息，所有人为了生存团结一致。'
     },
@@ -219,13 +218,11 @@ export const FESTIVAL_EFFECTS = {
     },
     {
       id: 'bronze_merchant_guild',
-      name: '商人行会',
-      description: '成立商人组织，永久提升税收和行政',
-      icon: 'Coins',
-      type: 'permanent',
+      name: '商人公会',
+      description: '成立商人组织，永久提升税收',
+      icon: 'Coins',      type: 'permanent',
       effects: {
         taxIncome: 0.12,
-        admin: 5
       },
       flavorText: '商人们联合起来，建立了规范的贸易秩序。'
     },
@@ -321,19 +318,17 @@ export const FESTIVAL_EFFECTS = {
       effects: {
         scienceBonus: 0.12,
         cultureBonus: 0.12,
-        admin: 6
       },
       flavorText: '无数卷轴和书籍汇聚于此，成为知识的殿堂。'
     },
     {
       id: 'classical_senate_reform',
       name: '元老院改革',
-      description: '改革政治体制，提升行政和稳定度',
+      description: '改革政治体制，提升稳定度',
       icon: 'Scale',
       type: 'temporary',
       duration: 360,
       effects: {
-        admin: 10,
         stability: 0.25
       },
       flavorText: '元老们通过新的法案，政府运作更加高效。'
@@ -439,11 +434,11 @@ export const FESTIVAL_EFFECTS = {
     {
       id: 'feudal_guild_system',
       name: '行会制度',
-      description: '建立完善的行会体系，永久提升行政效率',
+      description: '建立完善的行会体系，提升生产效率',
       icon: 'Users',
       type: 'permanent',
       effects: {
-        admin: 8 // 行政容量 +8
+        production: 0.05 // 生产效率 +5%
       },
       flavorText: '工匠们组成行会，规范了生产标准和质量控制。'
     },
@@ -457,7 +452,6 @@ export const FESTIVAL_EFFECTS = {
       effects: {
         militaryBonus: 0.25,
         stability: 0.2,
-        admin: 5
       },
       flavorText: '高耸的城堡守护着领地，成为权力的象征。'
     },
@@ -511,7 +505,6 @@ export const FESTIVAL_EFFECTS = {
       type: 'permanent',
       effects: {
         taxIncome: 0.18,
-        admin: 6
       },
       flavorText: '国王授予城镇市场特权，商业活动更加活跃。'
     },
@@ -538,7 +531,6 @@ export const FESTIVAL_EFFECTS = {
       effects: {
         production: 0.2,
         maxPop: 18,
-        admin: 8,
         stability: 0.18
       },
       flavorText: '封建体系运转良好，王国进入稳定发展期。'
@@ -633,7 +625,6 @@ export const FESTIVAL_EFFECTS = {
       effects: {
         cultureBonus: 0.15,
         scienceBonus: 0.15,
-        admin: 8
       },
       flavorText: '印刷机让知识快速传播，文明进入新纪元。'
     },
@@ -697,13 +688,12 @@ export const FESTIVAL_EFFECTS = {
     {
       id: 'enlightenment_salon_culture',
       name: '沙龙文化',
-      description: '知识分子聚会，文化和行政效率提升',
+      description: '知识分子聚会，文化效率提升',
       icon: 'Coffee',
       type: 'temporary',
       duration: 360,
       effects: {
         cultureBonus: 0.35,
-        admin: 5
       },
       flavorText: '贵族沙龙中，思想家们讨论着自由、平等和理性。'
     },
@@ -716,20 +706,18 @@ export const FESTIVAL_EFFECTS = {
       effects: {
         scienceBonus: 0.12,
         cultureBonus: 0.12,
-        admin: 10
       },
       flavorText: '普及教育让更多人获得知识，这将改变整个社会。'
     },
     {
       id: 'enlightenment_constitution',
       name: '宪法制定',
-      description: '颁布宪法，稳定度和行政大幅提升',
+      description: '颁布宪法，稳定度大幅提升',
       icon: 'FileText',
       type: 'temporary',
       duration: 360,
       effects: {
         stability: 0.35,
-        admin: 12,
         cultureBonus: 0.2
       },
       flavorText: '成文法保障公民权利，社会更加稳定有序。'
@@ -795,7 +783,6 @@ export const FESTIVAL_EFFECTS = {
       effects: {
         stability: 0.15,
         cultureBonus: 0.12,
-        admin: 8
       },
       flavorText: '人人生而平等，这一理念深入人心。'
     },
@@ -810,7 +797,6 @@ export const FESTIVAL_EFFECTS = {
         scienceBonus: 0.35,
         cultureBonus: 0.35,
         stability: 0.25,
-        admin: 10
       },
       flavorText: '理性之光驱散蒙昧，人类文明进入新纪元。'
     }
@@ -868,7 +854,6 @@ export const FESTIVAL_EFFECTS = {
       effects: {
         taxIncome: 0.35,
         production: 0.3,
-        admin: 10
       },
       flavorText: '铁路连接各地，货物和人员快速流动。'
     },
@@ -888,12 +873,11 @@ export const FESTIVAL_EFFECTS = {
     {
       id: 'industrial_telegraph_system',
       name: '电报系统',
-      description: '建立电报网络，行政和贸易效率提升',
+      description: '建立电报网络，贸易效率提升',
       icon: 'Radio',
       type: 'temporary',
       duration: 360,
       effects: {
-        admin: 15,
         taxIncome: 0.25,
         stability: 0.2
       },
@@ -923,7 +907,6 @@ export const FESTIVAL_EFFECTS = {
         maxPop: 30,
         industry: 0.25,
         taxIncome: 0.3,
-        admin: 12
       },
       flavorText: '人们涌入城市，工厂和商店如雨后春笋。'
     },
@@ -996,7 +979,6 @@ export const FESTIVAL_EFFECTS = {
         production: 0.15,
         scienceBonus: 0.15,
         cultureBonus: 0.15,
-        admin: 15
       },
       flavorText: '互联网和计算机技术彻底改变了社会运作方式。'
     },
@@ -1024,7 +1006,6 @@ export const FESTIVAL_EFFECTS = {
         scienceBonus: 0.2,
         cultureBonus: 0.18,
         taxIncome: 0.2,
-        admin: 12
       },
       flavorText: '信息高速公路连接世界，知识无远弗届。'
     },
@@ -1052,7 +1033,6 @@ export const FESTIVAL_EFFECTS = {
         scienceBonus: 0.25,
         production: 0.2,
         industry: 0.2,
-        admin: 15
       },
       flavorText: '人工智能改变了一切，机器学会思考。'
     },
@@ -1094,7 +1074,6 @@ export const FESTIVAL_EFFECTS = {
         scienceBonus: 0.45,
         cultureBonus: 0.4,
         production: 0.3,
-        admin: 18,
         stability: 0.25
       },
       flavorText: '大数据和云计算重塑世界，人类进入新纪元。'

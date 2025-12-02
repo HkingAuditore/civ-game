@@ -233,20 +233,6 @@ export const StatusBar = ({
               <span className="text-[10px] text-amber-200 font-semibold">市场</span>
             </button>
 
-            {/* 行政力 - 桌面端显示 */}
-            <div className="hidden lg:flex items-center gap-1.5 bg-gradient-to-r from-indigo-900/30 to-indigo-800/20 backdrop-blur-sm px-2.5 sm:px-3 py-1.5 rounded-full border border-indigo-600/30 flex-shrink-0">
-              <Icon 
-                name="Scale" 
-                size={14} 
-                className={`${gameState.adminStrain > gameState.adminCap ? 'text-red-400 animate-pulse' : 'text-indigo-300'} sm:w-4 sm:h-4`}
-              />
-              <span className="font-mono text-xs sm:text-sm font-bold text-indigo-200">
-                {Math.floor(gameState.adminStrain)}
-              </span>
-              <span className="text-[10px] text-gray-400 hidden sm:inline">
-                / {gameState.adminCap}
-              </span>
-            </div>
           </div>
 
           {/* 右侧：游戏控制按钮（桌面端） */}

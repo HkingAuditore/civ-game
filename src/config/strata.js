@@ -9,7 +9,6 @@
  * - weight: 权重（影响分配优先级）
  * - tax: 税收贡献（每人每秒）
  * - headTaxBase: 头税基准（银币/人/日）
- * - admin: 行政影响（正值为压力，负值为容量）
  * - desc: 描述
  * - wealthWeight: 财富权重
  * - influenceBase: 基础影响力
@@ -24,7 +23,6 @@ export const STRATA = {
     weight: 1, 
     tax: 1,
     headTaxBase: 0.01,
-    admin: 1, 
     desc: "社会的基础，提供稳定的粮食和兵源。",
     wealthWeight: 1,
     influenceBase: 0.5,
@@ -43,7 +41,6 @@ export const STRATA = {
     weight: 0.8,
     tax: 1.2,
     headTaxBase: 0.02,
-    admin: 0.8,
     desc: "专职砍伐木材，维系城市建设。",
     wealthWeight: 1,
     influenceBase: 0.4,
@@ -62,7 +59,6 @@ export const STRATA = {
     weight: 0.5, 
     tax: 2,
     headTaxBase: 0.015,
-    admin: 0.8, 
     desc: "依附于地主的农民，产出归地主所有。",
     wealthWeight: 0.5,
     influenceBase: 0.3,
@@ -82,7 +78,6 @@ export const STRATA = {
     weight: 2, 
     tax: 3,
     headTaxBase: 0.03,
-    admin: 1.5, 
     desc: "工业时代的基石，推动生产力发展。",
     wealthWeight: 2,
     influenceBase: 1,
@@ -101,7 +96,6 @@ export const STRATA = {
     weight: 1.5,
     tax: 3.5,
     headTaxBase: 0.035,
-    admin: 1.2,
     desc: "技艺精湛的手工业者，负责加工铜器与印刷制品。",
     wealthWeight: 2.5,
     influenceBase: 1.2,
@@ -120,7 +114,6 @@ export const STRATA = {
     weight: 1.2,
     tax: 2.5,
     headTaxBase: 0.025,
-    admin: 1.2,
     desc: "深入地下采集矿石，承担艰苦劳动。",
     wealthWeight: 1.5,
     influenceBase: 0.8,
@@ -139,7 +132,6 @@ export const STRATA = {
     weight: 6,
     tax: 5,
     headTaxBase: 0.09,
-    admin: 2,
     desc: "控制贸易网络的阶层，主宽港口与市场。",
     wealthWeight: 8,
     influenceBase: 3.5,
@@ -168,7 +160,6 @@ export const STRATA = {
     weight: 4,
     tax: 3,
     headTaxBase: 0.06,
-    admin: 1.5,
     desc: "探索时代的海员与测绘师，推动航海扩张。",
     wealthWeight: 3,
     influenceBase: 2.5,
@@ -187,7 +178,6 @@ export const STRATA = {
     weight: 2.5,
     tax: 2,
     headTaxBase: 0.04,
-    admin: 1.2,
     desc: "记录知识的学者，为图书馆与学院服务。",
     wealthWeight: 2.5,
     influenceBase: 1.5,
@@ -206,7 +196,6 @@ export const STRATA = {
     weight: 3, 
     tax: 1,
     headTaxBase: 0.04,
-    admin: 2, 
     desc: "维护国家安全，但也可能造成动荡。",
     wealthWeight: 2,
     influenceBase: 2,
@@ -225,7 +214,6 @@ export const STRATA = {
     weight: 4, 
     tax: 0.5,
     headTaxBase: 0.05,
-    admin: 1, 
     desc: "提供信仰和文化，安抚民心。",
     wealthWeight: 3,
     influenceBase: 3,
@@ -245,16 +233,15 @@ export const STRATA = {
     weight: 5, 
     tax: 2,
     headTaxBase: 0.08,
-    admin: -5,  // 负值表示增加行政容量
-    desc: "行政管理者，增加行政容量。",
+    desc: "政府管理者。",
     wealthWeight: 5,
     influenceBase: 4,
     startingWealth: 80,
     defaultResource: 'science',
     needs: { delicacies: 0.385, cloth: 0.12, papyrus: 0.08, coffee: 0.04, furniture: 0.06, stone: 0.02, fine_clothes: 0.06, culture: 0.09},
     buffs: {
-      satisfied: { desc: "吏治清明", adminBonus: 5, taxIncome: 0.1 },
-      dissatisfied: { desc: "官员腐败", adminBonus: -3, taxIncome: -0.2 }
+      satisfied: { desc: "吏治清明", taxIncome: 0.1 },
+      dissatisfied: { desc: "官员腐败", taxIncome: -0.2 }
     }
   },
   
@@ -264,7 +251,6 @@ export const STRATA = {
     weight: 10, 
     tax: 5,
     headTaxBase: 0.07,
-    admin: 3, 
     desc: "传统精英，掌控土地和农业。",
     wealthWeight: 10,
     influenceBase: 5,
@@ -283,7 +269,6 @@ export const STRATA = {
     weight: 15, 
     tax: 8,
     headTaxBase: 0.08,
-    admin: 4, 
     desc: "工业精英，提供投资和工业加成。",
     wealthWeight: 20,
     influenceBase: 6,
@@ -302,7 +287,6 @@ export const STRATA = {
     weight: 8, 
     tax: 2,
     headTaxBase: 0.09,
-    admin: 2, 
     desc: "军事贵族，强大的战斗力。",
     wealthWeight: 8,
     influenceBase: 4,
@@ -321,7 +305,6 @@ export const STRATA = {
     weight: 7,
     tax: 6,
     headTaxBase: 0.1,
-    admin: 2.5,
     desc: "掌控蒸汽与机器的技术阶层。",
     wealthWeight: 6,
     influenceBase: 3.5,
@@ -340,7 +323,6 @@ export const STRATA = {
     weight: 0.2,
     tax: 1,
     headTaxBase: 0.01,
-    admin: 0.5,
     desc: "暂时没有工作的平民，如果得不到安排会渐渐不满。",
     wealthWeight: 0.2,
     influenceBase: 0.3,

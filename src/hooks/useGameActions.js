@@ -2,7 +2,7 @@
 // 包含所有游戏操作函数，如建造建筑、研究科技、升级时代等
 
 import { BUILDINGS, EPOCHS, RESOURCES, TECHS, MILITARY_ACTIONS, UNIT_TYPES, EVENTS, getRandomEvent, createWarDeclarationEvent, createGiftEvent, createPeaceRequestEvent, createEnemyPeaceRequestEvent, createPlayerPeaceProposalEvent, createBattleEvent } from '../config';
-import { calculateArmyAdminCost, calculateArmyCapacityNeed, calculateArmyPopulation, simulateBattle, calculateBattlePower } from '../config';
+import { calculateArmyCapacityNeed, calculateArmyPopulation, simulateBattle, calculateBattlePower } from '../config';
 import { calculateForeignPrice, calculateTradeStatus } from '../utils/foreignTrade';
 import { generateSound, SOUND_TYPES } from '../config/sounds';
 import { getEnemyUnitsForEpoch } from '../config/militaryActions';
@@ -32,7 +32,6 @@ export const useGameActions = (gameState, addLog) => {
     setArmy,
     militaryQueue,
     setMilitaryQueue,
-    adminCap,
     setBattleResult,
     nations,
     setNations,

@@ -24,8 +24,7 @@ const INITIAL_RESOURCES = {
   steel: 0,
   silver: 200, 
   science: 0, 
-  culture: 300, 
-  admin: 0 
+  culture: 300
 };
 
 const buildInitialWealth = () => {
@@ -230,10 +229,6 @@ export const useGameState = () => {
   const [populationDetailView, setPopulationDetailView] = useState(false);
   const [history, setHistory] = useState(buildInitialHistory());
 
-  // ========== 行政管理状态 ==========
-  const [adminStrain, setAdminStrain] = useState(0);
-  const [adminCap, setAdminCap] = useState(50);
-
   // ========== 时间状态 ==========
   const [daysElapsed, setDaysElapsed] = useState(0);
 
@@ -367,8 +362,6 @@ export const useGameState = () => {
         classShortages,
         populationDetailView,
         history,
-        adminStrain,
-        adminCap,
         daysElapsed,
         army,
         militaryQueue,
@@ -457,8 +450,6 @@ export const useGameState = () => {
       setClassShortages(data.classShortages || {});
       setPopulationDetailView(data.populationDetailView || false);
       setHistory(data.history || buildInitialHistory());
-      setAdminStrain(data.adminStrain || 0);
-      setAdminCap(data.adminCap || 50);
       setDaysElapsed(data.daysElapsed || 0);
       setArmy(data.army || {});
       setMilitaryQueue(data.militaryQueue || []);
@@ -604,12 +595,6 @@ export const useGameState = () => {
     setPopulationDetailView,
     history,
     setHistory,
-    
-    // 行政管理
-    adminStrain,
-    setAdminStrain,
-    adminCap,
-    setAdminCap,
     
     // 军事系统
     army,
