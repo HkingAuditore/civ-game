@@ -73,7 +73,7 @@ export const NATION_DECREE_SYNERGIES = {
   silk_empire: {
     enhanced_decrees: {
       aristocratic_rule: {
-        bonus: { adminCapacity: 0.1, efficiency: 0.15 },
+        bonus: { efficiency: 0.15 },
         desc: "中央集权传统提升贵族统治效率",
       },
       guild_charter: {
@@ -171,8 +171,8 @@ export const CLASS_DECREE_FEEDBACK = {
     
     noble: {
       affects_decrees: ['feudal_privileges', 'aristocratic_rule', 'officer_corps'],
-      high_approval_bonus: { stability: 10, adminCapacity: 0.1 },
-      low_approval_penalty: { stability: -15, adminCapacity: -0.15 },
+      high_approval_bonus: { stability: 10 },
+      low_approval_penalty: { stability: -15 },
     },
     
     scholar: {

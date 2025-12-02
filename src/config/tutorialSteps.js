@@ -100,12 +100,6 @@ export const TUTORIAL_STEPS = [
         title: '时代升级',
         text: '满足条件后可以升级时代（原始→古典→中世纪→工业→现代），每个时代都会带来新的解锁。',
       },
-      {
-        icon: 'Scale',
-        iconColor: 'text-purple-400',
-        title: '行政容量',
-        text: '注意行政压力不要超过行政容量，否则税收和政策效率会下降。',
-      },
     ],
   },
   {

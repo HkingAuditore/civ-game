@@ -191,8 +191,6 @@ export const useGameLoop = (gameState, addLog, actions) => {
     setPopStructure,
     setMaxPop,
     maxPopBonus,
-    setAdminCap,
-    setAdminStrain,
     setRates,
     setTaxes,
     setClassApproval,
@@ -519,10 +517,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
       // 更新所有状态
       setPopStructure(result.popStructure);
       setMaxPop(result.maxPop);
-      setAdminCap(result.adminCap);
-      setAdminStrain(result.adminStrain);
-      setResources(adjustedResources);
-      // 由于现在每次 Tick 都是 1 天的产出，rates 已经是每天的速率，无需再除以 gameSpeed
+      setRates(result.rates);      // 由于现在每次 Tick 都是 1 天的产出，rates 已经是每天的速率，无需再除以 gameSpeed
       setRates(result.rates || {});
       setClassApproval(result.classApproval);
       const adjustedInfluence = { ...(result.classInfluence || {}) };

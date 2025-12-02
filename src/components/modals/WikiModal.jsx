@@ -271,39 +271,6 @@ const MECHANICS_GUIDES = [
     ]
   },
   {
-    id: 'mech_admin',
-    name: '行政与管理',
-    icon: 'Scale',
-    summary: '行政容量、压力与效率的关系',
-    content: [
-      { type: 'h4', text: '1. 行政容量 (Capacity)' },
-      { type: 'p', text: '代表政府治理国家的能力上限。主要来源：市政厅建筑、科技、特定阶层（如官员）的加成。' },
-      { type: 'h4', text: '2. 行政压力 (Strain)' },
-      { type: 'p', text: '代表国家当前的运转负担。来源包括：' },
-      { type: 'list', items: [
-        '人口规模：人口越多，管理越难。',
-        '军队规模：维持常备军需要大量行政力。',
-        '政令数量：激活的政令越多，行政负担越重。',
-        '建筑数量：大量建筑需要管理和维护。'
-      ]},
-      { type: 'h4', text: '3. 超限惩罚' },
-      { type: 'p', text: '当行政压力 > 行政容量时，国家进入"行政过载"状态。后果包括：' },
-      { type: 'list', items: [
-        '税收效率大幅下降（收不上税）。',
-        '政令效果减弱。',
-        '社会稳定度逐渐降低。',
-        '建筑生产效率下降。'
-      ]},
-      { type: 'h4', text: '4. 提升行政容量的方法' },
-      { type: 'list', items: [
-        '建造市政厅：每个市政厅提供大量行政容量',
-        '研究行政科技：解锁更高效的管理方式',
-        '满足官员需求：官员满意时提供行政加成',
-        '颁布相关政令：某些政令可以提升行政效率'
-      ]}
-    ]
-  },
-  {
     id: 'mech_military',
     name: '军事与战争',
     icon: 'Swords',
@@ -324,7 +291,6 @@ const MECHANICS_GUIDES = [
       { type: 'p', text: '战斗胜利可以掠夺敌国资源（粮食、银币等）。压倒性胜利（战力比 > 2:1）能大幅减少己方伤亡并增加战利品。' },
       { type: 'h4', text: '4. 军队管理' },
       { type: 'list', items: [
-        '行政限制：每个单位消耗行政力，总消耗不能超过行政容量',
         '人口限制：军队人口不能超过总人口的30%',
         '维护成本：每个单位每秒消耗资源（粮食、黄金等）',
         '训练时间：高级单位需要更长的训练时间',
@@ -443,12 +409,10 @@ const MECHANICS_GUIDES = [
         '文化政令：影响科研和文化产出',
         '社会政令：影响阶层关系和稳定度'
       ]},
-      { type: 'h4', text: '2. 政令成本' },
+      { type: 'h4', text: '2. 政令管理' },
       { type: 'list', items: [
-        '每个政令需要消耗行政力激活',
-        '激活的政令越多，行政压力越大',
-        '可以随时取消政令，但不退还行政成本',
-        '合理选择政令避免行政过载'
+        '可以随时激活或取消政令',
+        '合理选择政令以获得最佳效果'
       ]},
       { type: 'h4', text: '3. 政令效果' },
       { type: 'p', text: '政令通常有正面效果和负面代价：' },
@@ -489,8 +453,7 @@ const MECHANICS_GUIDES = [
         '采集建筑：农田、伐木场、采石场、矿场等，生产基础资源',
         '工业建筑：锯木厂、砖窑、铁匠铺等，加工原料为成品',
         '民生建筑：房屋、市场、图书馆等，提供人口和服务',
-        '军事建筑：兵营、马厩、攻城工坊等，训练军队',
-        '行政建筑：市政厅、法院等，提供行政容量'
+        '军事建筑：兵营、马厩、攻城工坊等，训练军队'
       ]},
       { type: 'h4', text: '2. 生产机制' },
       { type: 'list', items: [
@@ -550,8 +513,7 @@ const MECHANICS_GUIDES = [
         '资源产出加成：采集、生产、科研、文化等',
         '军事加成：军事力量、招募速度等',
         '经济加成：贸易收益、税收等',
-        '社会加成：稳定度、人口增长等',
-        '行政加成：行政容量、效率等'
+        '社会加成：稳定度、人口增长等'
       ]},
       { type: 'h4', text: '4. 选择策略' },
       { type: 'list', items: [
@@ -620,7 +582,6 @@ const MECHANICS_GUIDES = [
       ]},
       { type: 'h4', text: '6. 常见陷阱' },
       { type: 'list', items: [
-        '过度扩张：人口和建筑增长过快导致行政过载',
         '资源失衡：某种资源严重短缺影响发展',
         '忽视军事：没有军队容易被邻国攻击',
         '过度征税：高税率导致阶层不满和人口流失',
@@ -643,7 +604,7 @@ const CATEGORY_CONFIG = [
 const BUILDING_CATEGORY_LABELS = {
   gather: '采集与农业',
   industry: '工业生产',
-  civic: '民生与行政',
+  civic: '民生建筑',
   military: '军事设施',
 };
 
@@ -780,7 +741,6 @@ const flattenEffects = (source, prefix = '') => {
       else if(key === 'cultureBonus') cnKey = '文化产出';
       else if(key === 'industry') cnKey = '工业效率';
       else if(key === 'gather') cnKey = '采集效率';
-      else if(key === 'admin') cnKey = '行政容量';
       else if(key === 'maxPop') cnKey = '人口上限';
       
       const nextPrefix = prefix ? `${prefix} › ${cnKey}` : cnKey;
@@ -1167,7 +1127,6 @@ const renderEconomyDetails = (data) => {
     data.weight !== undefined && { label: '分配权重', value: formatNumber(data.weight) },
     data.tax !== undefined && { label: '税收贡献 (每人)', value: formatNumber(data.tax) },
     data.headTaxBase !== undefined && { label: '人头税基准', value: `${formatNumber(data.headTaxBase)} 银币/日` },
-    data.admin !== undefined && { label: '行政压力', value: formatNumber(data.admin) },
     data.wealthWeight !== undefined && { label: '财富系数', value: formatNumber(data.wealthWeight) },
     data.influenceBase !== undefined && { label: '基础影响力', value: formatNumber(data.influenceBase) },
     data.startingWealth !== undefined && { label: '初始财富', value: `${formatNumber(data.startingWealth)} 银币` },
@@ -1217,7 +1176,6 @@ const renderMilitaryDetails = (data) => {
   const rows = [
     data.category && { label: '兵种类别', value: UNIT_CATEGORY_LABELS[data.category] || data.category },
     data.epoch !== undefined && { label: '解锁时代', value: formatEpoch(data.epoch) },
-    data.adminCost !== undefined && { label: '行政消耗', value: formatNumber(data.adminCost) },
     data.populationCost !== undefined && { label: '人口占用', value: formatNumber(data.populationCost) },
     data.trainingTime !== undefined && { label: '训练时间 (秒)', value: formatNumber(data.trainingTime) },
     data.attack !== undefined && { label: '攻击力', value: formatNumber(data.attack) },
@@ -1265,7 +1223,6 @@ const renderDecreeDetails = (data) => {
   const rows = [
     data.category && { label: '政令类别', value: data.category === 'economy' ? '经济' : data.category === 'military' ? '军事' : data.category === 'culture' ? '文化' : '社会' },
     data.unlockEpoch !== undefined && { label: '解锁时代', value: formatEpoch(data.unlockEpoch) },
-    data.cost && { label: '行政消耗', value: flattenEffects(data.cost).join('，') },
   ].filter(Boolean);
 
   return (

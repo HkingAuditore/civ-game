@@ -32,7 +32,6 @@ export {
   calculateBattlePower,
   calculateCounterBonus,
   calculateArmyMaintenance,
-  calculateArmyAdminCost,
   calculateArmyCapacityNeed,
   calculateArmyPopulation,
   simulateBattle

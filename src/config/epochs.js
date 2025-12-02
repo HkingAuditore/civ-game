@@ -62,10 +62,9 @@ export const EPOCHS = [
     req: { science: 4500, population: 170, culture: 600 },
     cost: { food: 1800, wood: 1000, brick: 500, iron: 250, papyrus: 100, silver: 300 },
     bonuses: { 
-      desc: "骑士与庄园秩序成熟，行政和文化发展加速。",
+      desc: "骑士与庄园秩序成熟，文化发展加速。",
       gatherBonus: 0.25,
-      cultureBonus: 0.2,
-      adminBonus: 5
+      cultureBonus: 0.2
     }
   },
   { 
@@ -94,8 +93,7 @@ export const EPOCHS = [
     bonuses: { 
       desc: "理性与出版自由蔓延，文化科研全面提升。",
       cultureBonus: 0.3,
-      scienceBonus: 0.3,
-      adminBonus: 8
+      scienceBonus: 0.3
     }
   },
   { 

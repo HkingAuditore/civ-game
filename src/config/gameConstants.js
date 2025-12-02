@@ -464,8 +464,6 @@ export const RESOURCES = {
   },
   
   // 虚拟资源
-  admin: { name: "行政力", icon: 'Scale', color: "text-purple-300", type: 'virtual', tags: ['special'] },
-  
   // 人口上限
   maxPop: { name: "人口上限", icon: 'Users', color: "text-blue-400", type: 'virtual', tags: ['special'] },
   

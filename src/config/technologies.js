@@ -216,10 +216,10 @@ export const TECHS = [
   {
     id: 'republican_code',
     name: "共和法典",
-    desc: "行政容量 +10。",
+    desc: "提升法律体系。",
     cost: { science: 560 },
     epoch: 2,
-    effects: { admin: 10 },
+    effects: {},
   },
   {
     id: 'road_system',
@@ -250,10 +250,10 @@ export const TECHS = [
   {
     id: 'bureaucracy',
     name: "官僚制度",
-    desc: "解锁市政厅，行政容量 +10。",
+    desc: "解锁市政厅。",
     cost: { science: 1200 },
     epoch: 3,
-    effects: { admin: 10 },
+    effects: {},
   },
   {
     id: 'three_field_system',
@@ -316,10 +316,10 @@ export const TECHS = [
   {
     id: 'colonial_ledgers',
     name: "殖民档案",
-    desc: "行政容量 +10。",
+    desc: "提升殖民地管理。",
     cost: { science: 2200 },
     epoch: 4,
-    effects: { admin: 10 },
+    effects: {},
   },
   {
     id: 'spice_monopolies',
@@ -366,10 +366,10 @@ export const TECHS = [
   {
     id: 'social_contract',
     name: "社会契约",
-    desc: "行政容量 +15。",
+    desc: "提升社会组织效率。",
     cost: { science: 4000 },
     epoch: 5,
-    effects: { admin: 15 },
+    effects: {},
   },
   {
     id: 'salon_debates',

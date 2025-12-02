@@ -396,8 +396,7 @@ export const COUNTRIES = [
       },
     },
     specialAbilities: [
-      { type: 'culture_influence', value: 0.3, desc: "文化影响力 +30%" },
-      { type: 'admin_efficiency', value: 0.2, desc: "行政效率 +20%" }
+      { type: 'culture_influence', value: 0.3, desc: "文化影响力 +30%" }
     ],
   },
   {

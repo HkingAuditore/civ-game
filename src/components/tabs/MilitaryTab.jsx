@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '../common/UIComponents';
-import { UNIT_TYPES, BUILDINGS, calculateArmyAdminCost, calculateArmyCapacityNeed, calculateArmyPopulation, calculateArmyMaintenance, calculateArmyFoodNeed, calculateBattlePower, RESOURCES, MILITARY_ACTIONS } from '../../config';
+import { UNIT_TYPES, BUILDINGS, calculateArmyCapacityNeed, calculateArmyPopulation, calculateArmyMaintenance, calculateArmyFoodNeed, calculateBattlePower, RESOURCES, MILITARY_ACTIONS } from '../../config';
 import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
 import { filterUnlockedResources } from '../../utils/resources';
 
@@ -91,7 +91,6 @@ const UnitTooltip = ({ unit, resources, market, militaryWageRatio, anchorElement
  * @param {Object} resources - 资源对象
  * @param {number} epoch - 当前时代
  * @param {number} population - 总人口
- * @param {number} adminCap - 行政力上限
  * @param {Array} nations - 国家列表
  * @param {string} selectedTarget - 当前选中的战争目标
  * @param {Function} onRecruit - 招募单位回调
@@ -106,7 +105,6 @@ export const MilitaryTab = ({
   resources,
   epoch,
   population,
-  adminCap,
   buildings = {}, // 新增：建筑列表，用于计算军事容量
   nations = [],
   selectedTarget,
