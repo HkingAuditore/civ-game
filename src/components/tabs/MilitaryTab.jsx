@@ -149,7 +149,12 @@ export const MilitaryTab = ({
   const foodPrice = market?.prices?.food ?? (RESOURCES.food?.basePrice || 1);
   const totalWage = totalFoodNeed * foodPrice * militaryWageRatio;
   const playerPower = calculateBattlePower(army, epoch);
-  const warringNations = (nations || []).filter((nation) => nation.isAtWar);
+  // 只显示可见且处于战争状态的国家
+  const warringNations = (nations || []).filter((nation) => 
+    nation.isAtWar && 
+    epoch >= (nation.appearEpoch ?? 0) && 
+    (nation.expireEpoch == null || epoch <= nation.expireEpoch)
+  );
   const activeNation =
     warringNations.find((nation) => nation.id === selectedTarget) || warringNations[0] || null;
 
@@ -503,6 +508,8 @@ export const MilitaryTab = ({
                   <span>战争分数：{activeNation.warScore || 0}</span>
                   <span>敌军损失：{activeNation.enemyLosses || 0}</span>
                   <span>财富：{Math.floor(activeNation.wealth || 0)}</span>
+                  <span>军事实力：{Math.floor((activeNation.militaryStrength ?? 1.0) * 100)}%</span>
+                  <span>人口：{Math.floor(activeNation.population || 1000)}</span>
                 </div>
               )}
             </div>

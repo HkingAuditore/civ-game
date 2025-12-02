@@ -149,6 +149,9 @@ const buildInitialNations = () => {
     const wealth = nation.wealth ?? 800;
     const budget = Math.floor(wealth * 0.5);
     
+    // 初始化基础人口（用于战后恢复）
+    const basePopulation = 1000 + Math.floor(Math.random() * 500); // 1000-1500
+    
     return {
       ...nation,
       relation: 50,
@@ -160,6 +163,13 @@ const buildInitialNations = () => {
       enemyLosses: 0,
       warDuration: 0,
       warStartDay: null,
+      militaryStrength: 1.0, // 初始军事实力为满值
+      population: basePopulation, // 初始人口
+      economyTraits: {
+        ...nation.economyTraits,
+        baseWealth: wealth, // 保存基础财富用于恢复
+        basePopulation, // 保存基础人口用于恢复
+      },
     };
   });
 };

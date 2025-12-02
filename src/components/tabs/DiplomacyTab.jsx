@@ -337,6 +337,7 @@ export const DiplomacyTab = ({
                       <span>分数: <span className="text-red-300 font-bold">{selectedNation.warScore?.toFixed(0) || 0}</span></span>
                       <span>天数: <span className="text-white font-bold">{selectedNation.warDuration || 0}</span></span>
                       <span>损失: <span className="text-white font-bold">{selectedNation.enemyLosses || 0}</span></span>
+                      <span>实力: <span className={`font-bold ${(selectedNation.militaryStrength ?? 1.0) > 0.7 ? 'text-green-300' : (selectedNation.militaryStrength ?? 1.0) > 0.4 ? 'text-yellow-300' : 'text-red-300'}`}>{Math.floor((selectedNation.militaryStrength ?? 1.0) * 100)}%</span></span>
                     </div>
                   </div>
                   <p className="text-[10px] text-gray-400 mb-1.5">{renderPeaceHint(selectedNation)}</p>
