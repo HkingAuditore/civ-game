@@ -5,6 +5,7 @@ import { BUILDINGS, EPOCHS, RESOURCES, TECHS, MILITARY_ACTIONS, UNIT_TYPES, EVEN
 import { calculateArmyAdminCost, calculateArmyCapacityNeed, calculateArmyPopulation, simulateBattle, calculateBattlePower } from '../config';
 import { calculateForeignPrice, calculateTradeStatus } from '../utils/foreignTrade';
 import { generateSound, SOUND_TYPES } from '../config/sounds';
+import { getEnemyUnitsForEpoch } from '../config/militaryActions';
 
 /**
  * 游戏操作钩子
@@ -47,7 +48,6 @@ export const useGameActions = (gameState, addLog) => {
     setStability,
     setPopulation,
     setMaxPop,
-    setMaxPopBonus,
     tradeRoutes,
     setTradeRoutes,
   } = gameState;
@@ -444,22 +444,43 @@ export const useGameActions = (gameState, addLog) => {
       militaryBuffs: 0,
     };
 
+    // 计算敌方时代（基于国家的出现和消失时代）
+    const enemyEpoch = Math.max(targetNation.appearEpoch || 0, Math.min(epoch, targetNation.expireEpoch ?? epoch));
+    
+    // 计算敌方军事实力（受战争消耗影响）
+    const militaryStrength = targetNation.militaryStrength ?? 1.0; // 1.0 = 满实力，随战争降低
+    const wealthFactor = Math.max(0.3, Math.min(1.5, (targetNation.wealth || 500) / 800)); // 财富影响兵力
     const aggressionFactor = 1 + (targetNation.aggression || 0.2);
     const warScoreFactor = 1 + Math.max(-0.5, (targetNation.warScore || 0) / 120);
+    
+    // 综合实力系数：军事实力 × 财富 × 侵略性 × 战争分数
+    const overallStrength = militaryStrength * wealthFactor * aggressionFactor * warScoreFactor;
+    
+    // 根据敌方时代和行动类型获取兵种池
+    const unitScale = mission.unitScale || 'medium';
+    const availableUnits = getEnemyUnitsForEpoch(enemyEpoch, unitScale);
+    
+    // 生成敌方军队
     const defenderArmy = {};
-    (mission.enemyUnits || []).forEach(enemy => {
-      const min = Math.max(0, enemy.min || 0);
-      const max = Math.max(min, enemy.max || min);
-      const baseCount = min + Math.random() * (max - min + 1);
-      const scaled = Math.floor(baseCount * aggressionFactor * warScoreFactor);
-      if (scaled > 0) {
-        defenderArmy[enemy.unit] = (defenderArmy[enemy.unit] || 0) + scaled;
+    const baseCount = mission.baseUnitCount || { min: 10, max: 15 };
+    const totalUnitsBase = baseCount.min + Math.random() * (baseCount.max - baseCount.min);
+    const enemyTotalUnits = Math.floor(totalUnitsBase * overallStrength);
+    
+    // 将总兵力分配到各兵种
+    availableUnits.forEach((unitId, index) => {
+      if (UNIT_TYPES[unitId]) {
+        // 每个兵种分配一定比例的兵力，带有随机性
+        const ratio = 0.5 + Math.random() * 0.8; // 0.5-1.3的随机比例
+        const count = Math.floor((enemyTotalUnits / availableUnits.length) * ratio);
+        if (count > 0) {
+          defenderArmy[unitId] = count;
+        }
       }
     });
 
     const defenderData = {
       army: defenderArmy,
-      epoch: Math.max(targetNation.appearEpoch || 0, Math.min(epoch, targetNation.expireEpoch ?? epoch)),
+      epoch: enemyEpoch,
       militaryBuffs: mission.enemyBuff || 0,
       wealth: targetNation.wealth || 500,
     };
@@ -524,13 +545,30 @@ export const useGameActions = (gameState, addLog) => {
       ? (mission.winScore || 10)
       : -(mission.loseScore || 8);
 
+    // 计算军事实力损失（基于伤亡和财富损失）
+    const militaryStrengthDamage = result.victory
+      ? Math.min(0.15, enemyLossCount * 0.005 + wealthDamage / 10000) // 每次胜利最多削弱15%
+      : 0;
+    
+    // 计算人口损失（战争消耗）
+    const populationLoss = result.victory
+      ? Math.floor(enemyLossCount * 0.8) // 每个士兵损失对应0.8人口损失
+      : 0;
+
     setNations(prev => prev.map(n => {
       if (n.id !== nationId) return n;
+      const currentStrength = n.militaryStrength ?? 1.0;
+      const newStrength = Math.max(0.2, currentStrength - militaryStrengthDamage); // 最低保持20%实力
+      const currentPopulation = n.population ?? 1000;
+      const newPopulation = Math.max(100, currentPopulation - populationLoss); // 最低保持100人口
+      
       return {
         ...n,
         wealth: Math.max(0, (n.wealth || 0) - wealthDamage),
         warScore: (n.warScore || 0) + warScoreDelta,
         enemyLosses: (n.enemyLosses || 0) + enemyLossCount,
+        militaryStrength: newStrength,
+        population: newPopulation,
       };
     }));
 
@@ -845,24 +883,24 @@ export const useGameActions = (gameState, addLog) => {
       ));
       addLog(`你接受了和平协议，${targetNation.name}将每天支付 ${amount} 银币，持续一年（共${amount * 365}银币）。`);
     } else if (proposalType === 'population') {
-      // 提供人口（玩家获得人口与人口上限）
-      setMaxPopBonus(prev => prev + amount);
-      setPopulation(prev => prev + amount);
-      setNations(prev => prev.map(n =>
-        n.id === nationId
-          ? {
-              ...n,
-              isAtWar: false,
-              warScore: 0,
-              warDuration: 0,
-              enemyLosses: 0,
-              isPeaceRequesting: false,
-              population: Math.max(100, (n.population || 1000) - amount),
-              relation: Math.max(35, n.relation || 0),
-              peaceTreatyUntil,
-            }
-          : n
-      ));
+      // 提供人口
+        setMaxPop(prev => prev + amount);
+        setPopulation(prev => prev + amount);
+        setNations(prev => prev.map(n =>
+            n.id === nationId
+            ? {
+                ...n,
+                isAtWar: false,
+                warScore: 0,
+                warDuration: 0,
+                enemyLosses: 0,
+                isPeaceRequesting: false,
+                population: Math.max(100, (n.population || 1000) - amount),
+                relation: Math.max(35, n.relation || 0),
+                peaceTreatyUntil,
+                }
+            : n
+        ));
       addLog(`你接受了和平协议，${targetNation.name}提供了 ${amount} 人口。`);
     } else {
       // 标准赔款或更多赔款
@@ -975,10 +1013,10 @@ export const useGameActions = (gameState, addLog) => {
         addLog(`${targetNation.name} 拒绝了分期支付要求。`);
       }
     } else if (proposalType === 'demand_population') {
-      // 要求提供人口（玩家获得人口与人口上限）
+      // 要求提供人口
       const willingness = (warScore / 95) + Math.min(0.42, enemyLosses / 230) + Math.min(0.23, warDuration / 230);
       if (willingness > 0.68) {
-        setMaxPopBonus(prev => prev + amount);
+        setMaxPop(prev => prev + amount);
         setPopulation(prev => prev + amount);
         setNations(prev => prev.map(n =>
           n.id === nationId
@@ -1072,7 +1110,7 @@ export const useGameActions = (gameState, addLog) => {
         addLog('人口不足，无法提供。');
         return;
       }
-      setMaxPopBonus(prev => prev - amount);
+      setMaxPop(prev => Math.max(1, prev - amount));
       setPopulation(prev => Math.max(1, prev - amount));
       setNations(prev => prev.map(n =>
         n.id === nationId
@@ -1258,58 +1296,17 @@ export const useGameActions = (gameState, addLog) => {
    * @param {string} eventId - 事件ID
    * @param {Object} option - 选择的选项
    */
-  const handleEventOption = (eventId, option) => {
-    // 尝试从EVENTS中查找，如果找不到则使用currentEvent（用于外交事件）
-    let event = EVENTS.find(e => e.id === eventId);
-    if (!event && currentEvent && currentEvent.id === eventId) {
-      event = currentEvent;
-    }
-    if (!event) return;
+const handleEventOption = (eventId, option) => {
+  // 尝试从EVENTS中查找，如果找不到则使用currentEvent（用于外交事件）
+  let event = EVENTS.find(e => e.id === eventId);
+  if (!event && currentEvent && currentEvent.id === eventId) {
+    event = currentEvent;
+  }
+  if (!event) return;
 
-    // ========= 事件效果解析（支持“概率”效果） =========
-    let effects = option.effects || {};
-
-    // 特例1：石器时代 - 陌生人的足迹 -> 设伏驱赶
-    // 文案中说明是“小概率战斗损失”，这里实现为：
-    // - 粮食消耗和好感/稳定度变化必然发生
-    // - 人口损失以 25% 概率发生
-    if (event.id === 'stone_age_stranger_footprints' && option.id === 'ambush_expel') {
-      const baseEffects = { ...effects };
-      const finalEffects = {};
-
-      if (baseEffects.resources) finalEffects.resources = baseEffects.resources;
-      if (baseEffects.stability) finalEffects.stability = baseEffects.stability;
-      if (baseEffects.approval) finalEffects.approval = baseEffects.approval;
-
-      if (baseEffects.population) {
-        const lossChance = 0.25;
-        if (Math.random() < lossChance) {
-          finalEffects.population = baseEffects.population;
-        }
-      }
-
-      effects = finalEffects;
-    }
-
-    // 特例2：探索时代 - 火药阴谋 -> “不过是些乌合之众。”
-    // 注释中说明“有一定概率触发负面事件”，这里实现为：
-    // - 50% 概率触发原本的严重后果
-    // - 50% 概率只产生轻微动荡
-    if (event.id === 'exploration_gunpowder_plot' && option.id === 'ignore_threat') {
-      const badChance = 0.5;
-      if (Math.random() < badChance) {
-        effects = option.effects || {};
-      } else {
-        effects = {
-          stability: -3,
-          approval: {
-            peasant: -3,
-          },
-        };
-      }
-    }
-
-    // 应用资源效果
+  // 通用效果应用函数
+  const applyEffects = (effects = {}) => {
+    // 资源
     if (effects.resources) {
       setResources(prev => {
         const updated = { ...prev };
@@ -1320,59 +1317,82 @@ export const useGameActions = (gameState, addLog) => {
       });
     }
 
-    // 应用人口效果
+    // 人口
     if (effects.population) {
       setPopulation(prev => Math.max(1, prev + effects.population));
     }
 
-    // 应用稳定度效果
+    // 稳定度
     if (effects.stability) {
       setStability(prev => Math.max(0, Math.min(100, prev + effects.stability)));
     }
 
-    // 应用科技效果
+    // 科技
     if (effects.science) {
       setResources(prev => ({
         ...prev,
-        science: Math.max(0, (prev.science || 0) + effects.science)
+        science: Math.max(0, (prev.science || 0) + effects.science),
       }));
     }
 
-    // 应用阶层支持度效果
+    // 阶层支持度
     if (effects.approval) {
       setClassApproval(prev => {
         const updated = { ...prev };
         Object.entries(effects.approval).forEach(([stratum, value]) => {
-          updated[stratum] = Math.max(0, Math.min(100, (updated[stratum] || 50) + value));
+          updated[stratum] = Math.max(
+            0,
+            Math.min(100, (updated[stratum] || 50) + value),
+          );
         });
         return updated;
       });
     }
-
-    // 执行回调（用于外交事件）
-    if (option.callback && typeof option.callback === 'function') {
-      option.callback();
-    }
-
-    // 记录事件历史
-    setEventHistory(prev => [
-      {
-        eventId,
-        eventName: event.name,
-        optionId: option.id,
-        optionText: option.text,
-        timestamp: Date.now(),
-        day: daysElapsed,
-      },
-      ...prev
-    ].slice(0, 50)); // 保留最近50条记录
-
-    // 添加日志
-    addLog(`✅ 选择了「${option.text}」`);
-
-    // 清除当前事件
-    setCurrentEvent(null);
   };
+
+  // 基础效果（必然发生）
+  const baseEffects = option.effects || {};
+
+  // 概率效果：randomEffects: [{ chance, effects }, ...]
+  const randomEffects = Array.isArray(option.randomEffects)
+    ? option.randomEffects
+    : [];
+
+  // 先应用基础效果
+  applyEffects(baseEffects);
+
+  // 再逐条按概率叠加 randomEffects
+  randomEffects.forEach(re => {
+    const chance = typeof re.chance === 'number' ? re.chance : 0;
+    if (chance > 0 && Math.random() < chance) {
+      applyEffects(re.effects || {});
+    }
+  });
+
+  // 执行回调（用于外交事件）
+  if (option.callback && typeof option.callback === 'function') {
+    option.callback();
+  }
+
+  // 记录事件历史
+  setEventHistory(prev => [
+    {
+      eventId,
+      eventName: event.name,
+      optionId: option.id,
+      optionText: option.text,
+      timestamp: Date.now(),
+      day: daysElapsed,
+    },
+    ...prev,
+  ].slice(0, 50));
+
+  // 添加日志
+  addLog(`你选择了「${option.text}」`);
+
+  // 清除当前事件
+  setCurrentEvent(null);
+};
 
   // 返回所有操作函数
   return {

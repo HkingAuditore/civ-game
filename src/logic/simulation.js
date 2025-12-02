@@ -3,6 +3,7 @@ import { calculateArmyPopulation, calculateArmyFoodNeed, calculateArmyCapacityNe
 import { isResourceUnlocked } from '../utils/resources';
 import { calculateForeignPrice } from '../utils/foreignTrade';
 import { simulateBattle, UNIT_TYPES } from '../config/militaryUnits';
+import { getEnemyUnitsForEpoch } from '../config/militaryActions';
 
 const ROLE_PRIORITY = [
   'official',
@@ -2133,7 +2134,17 @@ export const simulateTick = ({
   const updatedNations = (nations || []).map(nation => {
     const next = { ...nation };
     const visible = visibleEpoch >= (nation.appearEpoch ?? 0) && (nation.expireEpoch == null || visibleEpoch <= nation.expireEpoch);
-    if (!visible) return next;
+    if (!visible) {
+      // 当国家因时代变化而不可见时，清除战争状态和相关数据
+      if (next.isAtWar) {
+        next.isAtWar = false;
+        next.warDuration = 0;
+        next.warScore = 0;
+        next.warStartDay = undefined;
+        logs.push(`🕊️ 随着时代变迁，与 ${next.name} 的战争已成为历史。`);
+      }
+      return next;
+    }
     
     // ========== 外国经济模拟 ==========
     // 初始化库存和预算（如果不存在）
@@ -2203,31 +2214,28 @@ export const simulateTick = ({
         const raidChance = Math.min(0.18, 0.02 + (next.aggression || 0.2) * 0.04 + disadvantage / 400);
         if (Math.random() < raidChance) {
           // 生成敌方突袭军队
+          const enemyEpoch = Math.max(next.appearEpoch || 0, Math.min(epoch, next.expireEpoch ?? epoch));
+          const militaryStrength = next.militaryStrength ?? 1.0; // 军事实力
+          const wealthFactor = Math.max(0.3, Math.min(1.5, (next.wealth || 500) / 800)); // 财富影响
           const aggressionFactor = 1 + (next.aggression || 0.2);
           const warScoreFactor = 1 + Math.max(-0.5, (next.warScore || 0) / 120);
           const raidStrength = 0.05 + (next.aggression || 0.2) * 0.05 + disadvantage / 1200;
           
-          // 根据时代生成合适的突袭部队
+          // 综合实力系数
+          const overallStrength = militaryStrength * wealthFactor * aggressionFactor * warScoreFactor;
+          
+          // 根据时代和实力生成突袭部队
           const attackerArmy = {};
-          const enemyEpoch = Math.max(next.appearEpoch || 0, Math.min(epoch, next.expireEpoch ?? epoch));
+          const raidUnits = getEnemyUnitsForEpoch(enemyEpoch, 'light'); // 突袭使用轻型兵种
           
-          // 根据时代选择合适的兵种
-          let raidUnits = [];
-          if (enemyEpoch === 0) {
-            raidUnits = ['militia', 'archer'];
-          } else if (enemyEpoch === 1) {
-            raidUnits = ['swordsman', 'archer', 'cavalry'];
-          } else if (enemyEpoch === 2) {
-            raidUnits = ['musketeer', 'cavalry', 'cannon'];
-          } else {
-            raidUnits = ['rifleman', 'tank', 'artillery'];
-          }
+          // 生成突袭部队（规模较小，基础2-6个单位）
+          const baseUnitCount = 2 + Math.random() * 4;
+          const totalUnits = Math.floor(baseUnitCount * overallStrength);
           
-          // 生成突袭部队（规模较小，2-5个单位）
-          const unitCount = Math.floor(2 + Math.random() * 4) * aggressionFactor * warScoreFactor;
           raidUnits.forEach(unitId => {
             if (UNIT_TYPES[unitId]) {
-              const count = Math.floor(unitCount * (0.5 + Math.random() * 0.5));
+              const ratio = 0.5 + Math.random() * 0.8;
+              const count = Math.floor((totalUnits / raidUnits.length) * ratio);
               if (count > 0) {
                 attackerArmy[unitId] = count;
               }
@@ -2414,6 +2422,34 @@ export const simulateTick = ({
         delete next.installmentPayment;
       }
     }
+    
+    // ========== 战后恢复机制 ==========
+    // 和平状态下，国家逐渐恢复军事实力、财富和人口
+    if (!next.isAtWar) {
+      // 军事实力恢复：每tick恢复0.5%，约200 ticks（约3-4分钟）恢复满
+      const currentStrength = next.militaryStrength ?? 1.0;
+      if (currentStrength < 1.0) {
+        const recoveryRate = 0.005; // 每tick恢复0.5%
+        next.militaryStrength = Math.min(1.0, currentStrength + recoveryRate);
+      }
+      
+      // 财富恢复：基于国家基础财富，逐渐恢复
+      const baseWealth = next.economyTraits?.baseWealth || (next.wealth || 800);
+      const currentWealth = next.wealth || 0;
+      if (currentWealth < baseWealth) {
+        const wealthRecoveryRate = Math.max(1, baseWealth * 0.002); // 每tick恢复0.2%
+        next.wealth = Math.min(baseWealth, currentWealth + wealthRecoveryRate);
+      }
+      
+      // 人口恢复：基于国家基础人口，逐渐恢复
+      const basePopulation = next.economyTraits?.basePopulation || 1000;
+      const currentPopulation = next.population ?? basePopulation;
+      if (currentPopulation < basePopulation) {
+        const populationRecoveryRate = Math.max(1, basePopulation * 0.003); // 每tick恢复0.3%
+        next.population = Math.min(basePopulation, currentPopulation + populationRecoveryRate);
+      }
+    }
+    
     return next;
   });
 
