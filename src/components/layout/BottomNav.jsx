@@ -10,61 +10,87 @@ import { EPOCHS } from '../../config';
  * 仅在移动端显示，提供快速切换标签页的功能
  */
 export const BottomNav = ({ activeTab, onTabChange, epoch = 0 }) => {
-  // 获取当前时代的主题色
-  const epochColor = EPOCHS[epoch]?.color || 'text-blue-400';
-  
   const tabs = [
-    { id: 'build', label: '建设', icon: 'Hammer', color: 'from-amber-600 to-amber-800' },
-    { id: 'military', label: '军事', icon: 'Swords', color: 'from-red-600 to-red-800' },
-    { id: 'tech', label: '科技', icon: 'Cpu', color: 'from-cyan-600 to-cyan-800' },
-    { id: 'politics', label: '政令', icon: 'Gavel', color: 'from-purple-600 to-purple-800' },
-    { id: 'diplo', label: '外交', icon: 'Globe', color: 'from-blue-600 to-blue-800' },
+    {
+      id: 'build',
+      label: '建设',
+      icon: 'Hammer',
+      indicator: 'from-amber-300 via-amber-200 to-amber-300',
+    },
+    {
+      id: 'military',
+      label: '军事',
+      icon: 'Swords',
+      indicator: 'from-red-300 via-red-200 to-red-300',
+    },
+    {
+      id: 'tech',
+      label: '科技',
+      icon: 'Cpu',
+      indicator: 'from-cyan-300 via-cyan-200 to-cyan-300',
+    },
+    {
+      id: 'politics',
+      label: '政令',
+      icon: 'Gavel',
+      indicator: 'from-purple-300 via-purple-200 to-purple-300',
+    },
+    {
+      id: 'diplo',
+      label: '外交',
+      icon: 'Globe',
+      indicator: 'from-blue-300 via-blue-200 to-blue-300',
+    },
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-gray-900/90 backdrop-blur-md border-t border-white/10 shadow-glass pb-safe-bottom">
-      <div className="flex items-center justify-around px-2 py-2">
-        {tabs.map((tab) => {
+    <nav
+      className={`fixed bottom-0 left-0 right-0 z-50 lg:hidden pb-safe-bottom border-t border-ancient-gold/20 shadow-metal-md backdrop-blur-md bg-gradient-to-r from-ancient-ink/95 via-gray-950/90 to-ancient-ink/95`}
+      role="tablist"
+      aria-label="主标签切换"
+    >
+      <div className="relative max-w-2xl mx-auto px-3 py-2 flex items-stretch">
+        {tabs.map((tab, index) => {
           const isActive = activeTab === tab.id;
           
           return (
-            <button
-              key={tab.id}
-              onClick={() => onTabChange(tab.id)}
-              className={`
-                relative flex flex-col items-center justify-center gap-1 
-                px-3 py-2 rounded-xl transition-all duration-300 min-w-[64px]
-                ${isActive 
-                  ? `bg-gradient-to-br ${tab.color} shadow-glow-md scale-105` 
-                  : 'hover:bg-gray-800/50 active:scale-95'
-                }
-              `}
-            >
-              {/* 图标 */}
-              <div className={`
-                transition-transform duration-300
-                ${isActive ? 'scale-110' : ''}
-              `}>
+            <React.Fragment key={tab.id}>
+              <button
+                type="button"
+                role="tab"
+                aria-label={tab.label}
+                aria-selected={isActive}
+                onClick={() => onTabChange(tab.id)}
+                className={`
+                  relative flex-1 min-w-[56px] h-full flex flex-col items-center justify-center gap-1
+                  px-3 py-2 transition-colors duration-150 text-[10px] font-semibold tracking-wide
+                  ${isActive 
+                    ? 'bg-white/10 text-white shadow-inner border border-white/10'
+                    : 'text-white/65 hover:text-white border border-transparent'
+                  }
+                `}
+              >
+                {/* 图标 */}
                 <Icon 
                   name={tab.icon} 
                   size={20} 
-                  className={isActive ? 'text-white' : 'text-gray-400'}
+                  className={isActive ? 'text-white drop-shadow' : 'text-white/70'}
                 />
-              </div>
-              
-              {/* 标签文字 */}
-              <span className={`
-                text-[10px] font-bold transition-colors
-                ${isActive ? 'text-white' : 'text-gray-500'}
-              `}>
-                {tab.label}
-              </span>
-              
-              {/* 激活指示器 */}
-              {isActive && (
-                <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-8 h-1 bg-white rounded-full shadow-glow-sm animate-pulse" />
+                
+                {/* 标签文字 */}
+                <span className="uppercase tracking-[0.2em] text-[9px]">
+                  {tab.label}
+                </span>
+                
+                {/* 激活指示器 */}
+                {isActive && (
+                  <div className={`absolute -bottom-0.5 left-0 right-0 h-0.5 bg-gradient-to-r ${tab.indicator}`} />
+                )}
+              </button>
+              {index < tabs.length - 1 && (
+                <span className="w-px bg-white/10 mx-1 my-1" aria-hidden="true" />
               )}
-            </button>
+            </React.Fragment>
           );
         })}
       </div>
