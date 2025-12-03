@@ -1,6 +1,50 @@
 // Cheat Codes System for Civilization Game
 // Usage: Open browser console and type window.cheat.help() to see all available commands
 
+import { EPOCHS } from '../config';
+
+const EPOCH_ALIASES = {
+  stone: 0,
+  ancient: 0,
+  bronze: 1,
+  classical: 2,
+  antique: 2,
+  medieval: 3,
+  feudal: 3,
+  renaissance: 4,
+  exploration: 4,
+  enlightenment: 5,
+  industrial: 6,
+  modern: 7,
+};
+
+const resolveEpochIndex = (value) => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const idx = Math.floor(value);
+    return idx >= 0 && idx < EPOCHS.length ? idx : null;
+  }
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) return null;
+    if (!Number.isNaN(Number(normalized))) {
+      const idx = Math.floor(Number(normalized));
+      if (idx >= 0 && idx < EPOCHS.length) return idx;
+    }
+    if (EPOCH_ALIASES.hasOwnProperty(normalized)) {
+      return EPOCH_ALIASES[normalized];
+    }
+    const exactMatch = EPOCHS.findIndex((epoch) => epoch.name === value);
+    if (exactMatch !== -1) return exactMatch;
+  }
+  return null;
+};
+
+const getNumericEpoch = (epochValue = 0) => {
+  if (typeof epochValue === 'number') return epochValue;
+  const resolved = resolveEpochIndex(epochValue);
+  return resolved ?? 0;
+};
+
 /**
  * Initialize cheat codes system
  * @param {Object} gameState - The game state object
@@ -45,8 +89,8 @@ export const initCheatCodes = (gameState, addLog) => {
       console.log('  cheat.richEmpire()          - Make all classes wealthy');
       console.log('');
       console.log('%cEpoch:', 'color: #ffff00; font-weight: bold;');
-      console.log('  cheat.nextEpoch()           - Advance to next epoch');
-      console.log('  cheat.setEpoch(epochName)   - Set specific epoch (ancient/classical/medieval/renaissance/industrial/modern)');
+      console.log('  cheat.nextEpoch()                - Advance to next epoch');
+      console.log('  cheat.setEpoch(idOrName)         - Set epoch by index (0-6) or alias (stone/bronze/classical/medieval/renaissance/enlightenment/industrial/modern)');
       console.log('');
       console.log('%cTime:', 'color: #ffff00; font-weight: bold;');
       console.log('  cheat.skipDays(days)        - Skip forward in time');
@@ -331,13 +375,13 @@ export const initCheatCodes = (gameState, addLog) => {
      * Advance to next epoch
      */
     nextEpoch: () => {
-      const epochs = ['ancient', 'classical', 'medieval', 'renaissance', 'industrial', 'modern'];
-      const currentIndex = epochs.indexOf(gameState.epoch);
-      if (currentIndex < epochs.length - 1) {
-        const nextEpoch = epochs[currentIndex + 1];
-        gameState.setEpoch(nextEpoch);
-        addLog(`🏛️ 作弊码：进入 ${nextEpoch} 时代`);
-        console.log(`✅ Advanced to ${nextEpoch} epoch`);
+      const currentIndex = getNumericEpoch(gameState.epoch);
+      if (currentIndex < EPOCHS.length - 1) {
+        const nextIdx = currentIndex + 1;
+        gameState.setEpoch(nextIdx);
+        const nextName = EPOCHS[nextIdx]?.name || `时代 ${nextIdx}`;
+        addLog(`🏛️ 作弊码：进入 ${nextName}`);
+        console.log(`✅ Advanced to epoch #${nextIdx} (${nextName})`);
       } else {
         console.log(`⚠️ Already at the final epoch`);
       }
@@ -346,15 +390,16 @@ export const initCheatCodes = (gameState, addLog) => {
     /**
      * Set specific epoch
      */
-    setEpoch: (epochName) => {
-      const validEpochs = ['ancient', 'classical', 'medieval', 'renaissance', 'industrial', 'modern'];
-      if (validEpochs.includes(epochName)) {
-        gameState.setEpoch(epochName);
-        addLog(`🏛️ 作弊码：设置时代为 ${epochName}`);
-        console.log(`✅ Set epoch to ${epochName}`);
-      } else {
-        console.log(`❌ Invalid epoch. Valid options: ${validEpochs.join(', ')}`);
+    setEpoch: (epochIdentifier) => {
+      const targetIndex = resolveEpochIndex(epochIdentifier);
+      if (targetIndex === null) {
+        console.log(`❌ Invalid epoch "${epochIdentifier}". Use index (0-${EPOCHS.length - 1}) or aliases: ${Object.keys(EPOCH_ALIASES).join(', ')}`);
+        return;
       }
+      gameState.setEpoch(targetIndex);
+      const epochName = EPOCHS[targetIndex]?.name || `时代 ${targetIndex}`;
+      addLog(`🏛️ 作弊码：设置时代为 ${epochName}`);
+      console.log(`✅ Set epoch to #${targetIndex} (${epochName})`);
     },
 
     /**

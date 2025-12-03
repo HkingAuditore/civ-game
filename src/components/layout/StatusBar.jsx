@@ -68,7 +68,7 @@ export const StatusBar = ({
     .slice(0, 6); // 移动端只显示前6个
 
   return (
-    <header className="relative glass-epic border-b border-ancient-gold/20 shadow-epic overflow-visible">
+    <header className="relative glass-epic border-b border-theme-border shadow-epic overflow-visible">
       {/* 动态背景装饰 */}
       <div className="absolute inset-0 bg-gradient-to-r from-ancient-ink/50 via-ancient-stone/30 to-ancient-ink/50 opacity-50 overflow-hidden" />
       <div className="absolute inset-0 animate-shimmer overflow-hidden" style={{ backgroundImage: 'linear-gradient(90deg, transparent 0%, rgba(212, 175, 55, 0.1) 50%, transparent 100%)', backgroundSize: '200% 100%' }} />

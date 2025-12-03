@@ -252,7 +252,7 @@ function GameApp({ gameState }) {
   };
 
   return (
-    <div className="min-h-screen font-epic text-gray-100 transition-all duration-1000 relative">
+    <div className="min-h-screen font-epic text-theme-text transition-all duration-1000 relative">
       {/* Epic Background Pattern */}
       <AncientPattern opacity={0.03} className="fixed inset-0 z-0 text-ancient-gold" />
       {/* 浮动文本 */}
@@ -265,35 +265,36 @@ function GameApp({ gameState }) {
       ))}
 
       {/* 顶部状态栏 - 包含游戏控制（桌面端） */}
-      <div className="fixed top-0 left-0 right-0 z-50 glass-epic border-b border-ancient-gold/20">        <StatusBar
-        gameState={gameState}
-        taxes={taxes}
-        netSilverPerDay={netSilverPerDay}
-        tradeStats={tradeStats}
-        armyFoodNeed={armyFoodNeed}
-        onResourceDetailClick={(key) => gameState.setResourceDetailView(key)}
-        onPopulationDetailClick={() => gameState.setPopulationDetailView(true)}
-        onStrataClick={() => setShowStrata(true)}  // 新增：打开社会阶层弹窗
-        onMarketClick={() => setShowMarket(true)}  // 新增：打开国内市场弹窗
-        onEmpireSceneClick={() => setShowEmpireScene(true)}  // 新增：点击日期按钮弹出帝国场景
-        gameControls={
-          <GameControls
-            isPaused={gameState.isPaused}
-            gameSpeed={gameState.gameSpeed}
-            onPauseToggle={() => gameState.setIsPaused(!gameState.isPaused)}
-            onSpeedChange={(speed) => gameState.setGameSpeed(speed)}
-            onSave={handleManualSave}
-            onLoadManual={handleLoadManual}
-            onLoadAuto={handleLoadAuto}
-            onSettings={() => setIsSettingsOpen(true)}
-            onReset={() => gameState.resetGame()}
-            onTutorial={handleReopenTutorial}
-            onWiki={() => setIsWikiOpen(true)}
-            autoSaveAvailable={autoSaveAvailable}
-            onTriggerEvent={actions.triggerRandomEvent}
-          />
-        }
-      />
+      <div className="fixed top-0 left-0 right-0 z-50 glass-epic border-b border-theme-border">
+        <StatusBar
+          gameState={gameState}
+          taxes={taxes}
+          netSilverPerDay={netSilverPerDay}
+          tradeStats={tradeStats}
+          armyFoodNeed={armyFoodNeed}
+          onResourceDetailClick={(key) => gameState.setResourceDetailView(key)}
+          onPopulationDetailClick={() => gameState.setPopulationDetailView(true)}
+          onStrataClick={() => setShowStrata(true)}  // 新增：打开社会阶层弹窗
+          onMarketClick={() => setShowMarket(true)}  // 新增：打开国内市场弹窗
+          onEmpireSceneClick={() => setShowEmpireScene(true)}  // 新增：点击日期按钮弹出帝国场景
+          gameControls={
+            <GameControls
+              isPaused={gameState.isPaused}
+              gameSpeed={gameState.gameSpeed}
+              onPauseToggle={() => gameState.setIsPaused(!gameState.isPaused)}
+              onSpeedChange={(speed) => gameState.setGameSpeed(speed)}
+              onSave={handleManualSave}
+              onLoadManual={handleLoadManual}
+              onLoadAuto={handleLoadAuto}
+              onSettings={() => setIsSettingsOpen(true)}
+              onReset={() => gameState.resetGame()}
+              onTutorial={handleReopenTutorial}
+              onWiki={() => setIsWikiOpen(true)}
+              autoSaveAvailable={autoSaveAvailable}
+              onTriggerEvent={actions.triggerRandomEvent}
+            />
+          }
+        />
       </div>
       {/* 移动端游戏控制 - 浮动按钮（移到底部，避免与顶部栏重叠） */}
       <div className="lg:hidden fixed bottom-24 right-4 z-40">
@@ -379,7 +380,7 @@ function GameApp({ gameState }) {
           {/* 中间内容区 - 主操作面板 */}
           <section className="lg:col-span-8 space-y-3 sm:space-y-4 order-1 lg:order-2">
             {/* 标签页容器 */}
-            <div className="relative glass-epic rounded-2xl border border-ancient-gold/20 shadow-monument overflow-hidden min-h-[500px] animate-epic-entrance">
+            <div className="relative glass-epic rounded-2xl border border-theme-border shadow-monument overflow-hidden min-h-[500px] animate-epic-entrance">
               {/* 背景装饰 */}
               <AncientPattern opacity={0.02} className="absolute inset-0 text-ancient-gold" />
               <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-ancient-gold/50 to-transparent" />
@@ -810,6 +811,8 @@ function GameApp({ gameState }) {
         title="事件"
         showHeader={true}
         preventBackdropClose={true}
+        showCloseButton={!Boolean(gameState.currentEvent?.options?.length)}
+        preventEscapeClose={Boolean(gameState.currentEvent?.options?.length)}
       >
         {gameState.currentEvent && (
           <EventDetail

@@ -7,6 +7,7 @@ import { Icon } from '../common/UIComponents';
 import { TECHS, EPOCHS, BUILDINGS } from '../../config';
 import { RESOURCES } from '../../config';
 import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
+import { getEpochTheme } from '../../config/epicTheme';
 
 const EPOCH_BONUS_LABELS = {
   gatherBonus: { label: '采集产出', type: 'percent' },
@@ -32,6 +33,58 @@ const TECH_BUILDING_UNLOCKS = BUILDINGS.reduce((acc, building) => {
   acc[techId].push(building.name || building.id);
   return acc;
 }, {});
+
+const clampAlpha = (value) => Math.min(1, Math.max(0, value));
+
+const hexToRgba = (hex, alpha = 1) => {
+  if (typeof hex !== 'string') return `rgba(255, 255, 255, ${clampAlpha(alpha)})`;
+  const sanitized = hex.replace('#', '');
+  const normalized =
+    sanitized.length === 3
+      ? sanitized
+          .split('')
+          .map((char) => char + char)
+          .join('')
+      : sanitized;
+  const numeric = Number.parseInt(normalized, 16);
+  if (Number.isNaN(numeric)) return `rgba(255, 255, 255, ${clampAlpha(alpha)})`;
+  const r = (numeric >> 16) & 255;
+  const g = (numeric >> 8) & 255;
+  const b = numeric & 255;
+  return `rgba(${r}, ${g}, ${b}, ${clampAlpha(alpha)})`;
+};
+
+const parseRgbValues = (value) =>
+  value
+    .replace(/rgba?\(/, '')
+    .replace(')', '')
+    .split(',')
+    .map((part) => parseFloat(part.trim()))
+    .filter((num) => !Number.isNaN(num));
+
+const applyAlpha = (color, alpha = 1) => {
+  const clamped = clampAlpha(alpha);
+  if (!color) return `rgba(255, 255, 255, ${clamped})`;
+  const normalized = color.trim();
+  if (normalized.startsWith('#')) {
+    return hexToRgba(normalized, clamped);
+  }
+  if (normalized.startsWith('rgba')) {
+    const values = parseRgbValues(normalized);
+    if (values.length >= 3) {
+      const [r, g, b] = values;
+      return `rgba(${r}, ${g}, ${b}, ${clamped})`;
+    }
+  }
+  if (normalized.startsWith('rgb')) {
+    const values = parseRgbValues(normalized);
+    if (values.length >= 3) {
+      const [r, g, b] = values;
+      return `rgba(${r}, ${g}, ${b}, ${clamped})`;
+    }
+  }
+  return normalized;
+};
 
 /**
  * 科技悬浮提示框 (使用 Portal)
@@ -248,29 +301,77 @@ export const TechTab = ({
     });
   };
 
-  const nextEpochInfo = epoch < EPOCHS.length - 1 ? EPOCHS[epoch + 1] : null;
+  const safeEpochIndex = typeof epoch === 'number' && epoch >= 0 && epoch < EPOCHS.length ? epoch : 0;
+  const currentEpoch = EPOCHS[safeEpochIndex];
+  const nextEpochInfo = safeEpochIndex < EPOCHS.length - 1 ? EPOCHS[safeEpochIndex + 1] : null;
   const nextEpochSilverCost = nextEpochInfo ? calculateSilverCost(nextEpochInfo.cost, market) : 0;
   const hasNextEpochSilver = nextEpochInfo ? (resources.silver || 0) >= nextEpochSilverCost : true;
+  const upgradeThemeIndex = Math.min(safeEpochIndex + 1, EPOCHS.length - 1);
+  const upgradeCardTheme = getEpochTheme(upgradeThemeIndex);
+  const upgradeAccentColor = upgradeCardTheme?.accentColor || upgradeCardTheme?.primaryColor;
+
+  const upgradeCardStyles = useMemo(() => {
+    if (!upgradeCardTheme) return {};
+    return {
+      backgroundImage: `linear-gradient(135deg, ${applyAlpha(
+        upgradeCardTheme.secondaryColor || upgradeCardTheme.primaryColor,
+        0.35
+      )}, ${applyAlpha(upgradeCardTheme.primaryColor, 0.85)})`,
+      borderColor: upgradeCardTheme.borderColor || upgradeCardTheme.primaryColor,
+      boxShadow: `0 20px 45px ${
+        upgradeCardTheme.glowColor || applyAlpha(upgradeCardTheme.primaryColor, 0.4)
+      }`,
+    };
+  }, [upgradeCardTheme]);
+
+  const upgradeButtonStyles = useMemo(() => {
+    if (!upgradeCardTheme) return {};
+    return {
+      backgroundImage: `linear-gradient(90deg, ${applyAlpha(
+        upgradeCardTheme.secondaryColor || upgradeCardTheme.primaryColor,
+        0.95
+      )}, ${applyAlpha(upgradeCardTheme.primaryColor, 0.95)})`,
+      color: upgradeCardTheme.textColor || '#fff',
+      borderColor: upgradeCardTheme.borderColor || upgradeCardTheme.primaryColor,
+      boxShadow: `0 12px 30px ${
+        upgradeCardTheme.glowColor || applyAlpha(upgradeCardTheme.primaryColor, 0.35)
+      }`,
+    };
+  }, [upgradeCardTheme]);
+
+  const isNextEpochAvailable = epoch < EPOCHS.length - 1 && !!nextEpochInfo;
+  const canTriggerUpgrade = isNextEpochAvailable && canUpgradeEpoch() && hasNextEpochSilver;
 
   return (
     <div className="space-y-4">
       {/* 时代升级区域 */}
-      <div className="bg-gradient-to-r from-purple-900/50 to-blue-900/50 p-4 rounded-lg border-2 border-purple-500/50">
+      <div
+        className="relative p-4 rounded-2xl border-2 shadow-epic overflow-hidden transition-all"
+        style={upgradeCardStyles}
+      >
         <div className="flex items-center justify-between mb-3">
           <div>
             <h3 className="text-lg font-bold text-white flex items-center gap-2">
-              <Icon name="Crown" size={20} className="text-yellow-400" />
-              当前时代：{EPOCHS[epoch].name}
+              <Icon
+                name="Crown"
+                size={20}
+                className="drop-shadow"
+                style={{ color: upgradeAccentColor }}
+              />
+              当前时代：{currentEpoch?.name || '未知时代'}
             </h3>
             <p className="text-xs text-gray-300 mt-1">
-              {EPOCHS[epoch].description}
+              {currentEpoch?.description || ''}
             </p>
           </div>
           
-          {epoch < EPOCHS.length - 1 && nextEpochInfo && (
+          {isNextEpochAvailable && (
             <div className="text-right">
               <p className="text-xs text-gray-400 mb-1">下一时代</p>
-              <p className="text-sm font-bold text-purple-300">
+              <p
+                className="text-sm font-bold"
+                style={{ color: upgradeCardTheme?.textColor || '#fff' }}
+              >
                 {nextEpochInfo.name}
               </p>
             </div>
@@ -278,11 +379,11 @@ export const TechTab = ({
         </div>
 
         {/* 时代加成 */}
-        {EPOCHS[epoch].bonuses && (
+            {currentEpoch?.bonuses && (
           <div className="mb-3 p-3 bg-black/20 rounded">
             <p className="text-xs text-gray-400 mb-2">当前时代加成：</p>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-              {Object.entries(EPOCHS[epoch].bonuses).map(([key, value]) => (
+              {Object.entries(currentEpoch.bonuses).map(([key, value]) => (
                 key === 'desc' ? null : (
                   <div key={key} className="flex items-center gap-1 text-xs">
                     <Icon name="TrendingUp" size={12} className="text-green-400" />
@@ -298,7 +399,7 @@ export const TechTab = ({
         )}
 
         {/* 升级按钮 */}
-        {epoch < EPOCHS.length - 1 && nextEpochInfo && (
+        {isNextEpochAvailable && (
           <div>
             <div className="mb-2">
               <p className="text-xs text-gray-400 mb-1">升级要求：</p>
@@ -361,18 +462,19 @@ export const TechTab = ({
                     {formatSilverCost(nextEpochSilverCost)}
                   </span>
                 </div>
-              </div>
+            </div>
 
             <button
               onClick={onUpgradeEpoch}
-              disabled={!canUpgradeEpoch() || !hasNextEpochSilver}
-              className={`w-full px-4 py-3 rounded-lg text-sm font-bold transition-all ${
-                canUpgradeEpoch() && hasNextEpochSilver
-                  ? 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white shadow-lg'
-                  : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+              disabled={!canTriggerUpgrade}
+              className={`w-full px-4 py-3 rounded-lg text-sm font-bold transition-all border-2 ${
+                canTriggerUpgrade
+                  ? 'shadow-lg'
+                  : 'bg-gray-600 text-gray-400 cursor-not-allowed border-gray-600'
               }`}
+              style={canTriggerUpgrade ? upgradeButtonStyles : undefined}
             >
-              {canUpgradeEpoch() && hasNextEpochSilver ? (
+              {canTriggerUpgrade ? (
                 <span className="flex items-center justify-center gap-2">
                   <Icon name="ArrowUp" size={16} />
                   升级到 {nextEpochInfo.name}

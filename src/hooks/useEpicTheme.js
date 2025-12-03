@@ -19,6 +19,8 @@ export const useEpicTheme = (epochId) => {
     // 应用背景图案
     const pattern = getBackgroundPattern(theme.bgPattern);
     document.body.style.backgroundImage = `${theme.bgGradient}, url("${pattern}")`;
+    document.body.style.backgroundColor = theme.bgColor || '#0f0a08';
+    document.body.style.color = theme.textColor || '';
     document.body.style.backgroundAttachment = 'fixed';
     document.body.style.backgroundSize = 'cover, 100px 100px';
     

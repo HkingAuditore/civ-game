@@ -45,7 +45,7 @@ export const BottomNav = ({ activeTab, onTabChange, epoch = 0 }) => {
 
   return (
     <nav
-      className={`fixed bottom-0 left-0 right-0 z-50 lg:hidden pb-safe-bottom border-t border-ancient-gold/20 shadow-metal-md backdrop-blur-md bg-gradient-to-r from-ancient-ink/95 via-gray-950/90 to-ancient-ink/95`}
+      className={`fixed bottom-0 left-0 right-0 z-50 lg:hidden pb-safe-bottom border-t border-theme-border shadow-metal-md backdrop-blur-md bg-gradient-to-r from-ancient-ink/95 via-gray-950/90 to-ancient-ink/95`}
       role="tablist"
       aria-label="主标签切换"
     >

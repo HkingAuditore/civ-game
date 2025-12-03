@@ -68,16 +68,10 @@ export const ResourcePanel = ({
             
             {/* 资源名称和图标 */}
             <div className="flex items-center gap-1.5 overflow-hidden relative z-10">
-              <div className="relative w-7 h-7 rounded-lg bg-ancient-ink/60 border border-ancient-gold/20 flex items-center justify-center shadow-inner">
-                <Icon name={info.icon} size={14} className={`${info.color} relative`} />
-                <div className="absolute inset-0 rounded-lg border border-ancient-gold/10 opacity-0 group-hover:opacity-100 transition-opacity" />
-              </div>
+              <Icon name={info.icon} size={16} className={`${info.color} shrink-0`} />
               <div className="flex-1 min-w-0">
                 <p className="text-[11px] text-ancient-parchment font-semibold truncate leading-tight group-hover:text-ancient">
                   {info.name}
-                </p>
-                <p className="text-[9px] text-ancient-stone opacity-70 font-mono leading-tight">
-                  {info.categoryLabel || info.category || '通用'}
                 </p>
               </div>
             </div>

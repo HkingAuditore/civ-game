@@ -10,11 +10,24 @@ import { Icon } from '../common/UIComponents';
  * @param {string} title - 标题
  * @param {boolean} [showHeader=true] - 是否显示头部
  * @param {boolean} [preventBackdropClose=false] - 是否禁止点击背景关闭
+ * @param {boolean} [showCloseButton=true] - 是否显示右上角关闭按钮
+ * @param {boolean} [preventEscapeClose=false] - 是否禁止按下 Escape 关闭
  */
-export const BottomSheet = ({ isOpen, onClose, children, title, showHeader = true, preventBackdropClose = false }) => {
+export const BottomSheet = ({
+  isOpen,
+  onClose,
+  children,
+  title,
+  showHeader = true,
+  preventBackdropClose = false,
+  showCloseButton = true,
+  preventEscapeClose = false
+}) => {
   const [isAnimatingOut, setIsAnimatingOut] = useState(false);
 
   useEffect(() => {
+    if (preventEscapeClose) return undefined;
+
     const handleEscape = (e) => {
       if (e.key === 'Escape') {
         handleClose();
@@ -22,7 +35,7 @@ export const BottomSheet = ({ isOpen, onClose, children, title, showHeader = tru
     };
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, []);
+  }, [preventEscapeClose]);
 
   const handleClose = () => {
     setIsAnimatingOut(true);
@@ -56,15 +69,24 @@ export const BottomSheet = ({ isOpen, onClose, children, title, showHeader = tru
           <>
             <div className="flex-shrink-0 p-4 border-b border-theme-border flex items-center justify-between">
               <h3 className="text-lg font-bold text-white">{title}</h3>
-              <button onClick={handleClose} className="p-2 rounded-full hover:bg-gray-700">
-                <Icon name="X" size={20} className="text-gray-400" />
-              </button>
+              {showCloseButton && (
+                <button onClick={handleClose} className="p-2 rounded-full hover:bg-gray-700">
+                  <Icon name="X" size={20} className="text-gray-400" />
+                </button>
+              )}
             </div>
             <div className="flex-1 p-4 overflow-y-auto">{children}</div>
           </>
         ) : (
           <div className="relative flex-1 p-4 overflow-y-auto">
-            <button onClick={handleClose} className="absolute top-3 right-3 z-10 p-2 rounded-full bg-gray-900/50 hover:bg-gray-700/80 transition-colors"><Icon name="X" size={20} className="text-gray-400" /></button>
+            {showCloseButton && (
+              <button
+                onClick={handleClose}
+                className="absolute top-3 right-3 z-10 p-2 rounded-full bg-gray-900/50 hover:bg-gray-700/80 transition-colors"
+              >
+                <Icon name="X" size={20} className="text-gray-400" />
+              </button>
+            )}
             {children}
           </div>
         )}

@@ -492,19 +492,6 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
 
   return (
     <div className="space-y-4">
-      {/* 政令说明 */}
-      <div className="bg-blue-900/20 border border-blue-500/30 p-4 rounded-lg">
-        <div className="flex items-start gap-3">
-          <Icon name="Info" size={20} className="text-blue-400 flex-shrink-0 mt-0.5" />
-          <div>
-            <h3 className="text-sm font-bold text-blue-300 mb-1">关于政令</h3>
-            <p className="text-xs text-gray-300">
-              政令是国家的政策方针，可以带来各种加成或减益。激活的政令会立即生效，
-              但某些政令可能会影响社会阶层的满意度。请根据国家发展需要谨慎选择。
-            </p>
-          </div>
-        </div>
-      </div>
 
       {/* 税收政策调节 */}
       {onUpdateTaxPolicies && (

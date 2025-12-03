@@ -13,6 +13,12 @@ export const EPOCH_THEMES = {
     secondaryColor: '#92400e',
     accentColor: '#fbbf24',
     bgGradient: 'linear-gradient(135deg, #1a1410 0%, #2c1810 50%, #1a1410 100%)',
+    bgColor: '#1a1410',
+    surfaceColor: 'rgba(34, 24, 14, 0.92)',
+    surfaceAltColor: 'rgba(61, 36, 21, 0.85)',
+    surfaceMutedColor: 'rgba(32, 22, 14, 0.7)',
+    surfaceTranslucent: 'rgba(32, 22, 14, 0.55)',
+    textMutedColor: 'rgba(254, 243, 199, 0.7)',
     bgPattern: 'stone',
     textColor: '#fef3c7',
     borderColor: 'rgba(217, 119, 6, 0.4)',
@@ -29,6 +35,12 @@ export const EPOCH_THEMES = {
     secondaryColor: '#9a3412',
     accentColor: '#fb923c',
     bgGradient: 'linear-gradient(135deg, #1c1410 0%, #2d1c10 50%, #1c1410 100%)',
+    bgColor: '#1c1410',
+    surfaceColor: 'rgba(40, 22, 12, 0.92)',
+    surfaceAltColor: 'rgba(70, 30, 12, 0.85)',
+    surfaceMutedColor: 'rgba(38, 21, 12, 0.68)',
+    surfaceTranslucent: 'rgba(38, 21, 12, 0.52)',
+    textMutedColor: 'rgba(254, 215, 170, 0.7)',
     bgPattern: 'bronze',
     textColor: '#fed7aa',
     borderColor: 'rgba(234, 88, 12, 0.4)',
@@ -45,6 +57,12 @@ export const EPOCH_THEMES = {
     secondaryColor: '#991b1b',
     accentColor: '#f87171',
     bgGradient: 'linear-gradient(135deg, #1a1010 0%, #2c1010 50%, #1a1010 100%)',
+    bgColor: '#1a1010',
+    surfaceColor: 'rgba(36, 14, 14, 0.92)',
+    surfaceAltColor: 'rgba(58, 18, 18, 0.85)',
+    surfaceMutedColor: 'rgba(34, 12, 12, 0.68)',
+    surfaceTranslucent: 'rgba(34, 12, 12, 0.52)',
+    textMutedColor: 'rgba(254, 202, 202, 0.75)',
     bgPattern: 'marble',
     textColor: '#fecaca',
     borderColor: 'rgba(220, 38, 38, 0.4)',
@@ -61,6 +79,12 @@ export const EPOCH_THEMES = {
     secondaryColor: '#5b21b6',
     accentColor: '#a78bfa',
     bgGradient: 'linear-gradient(135deg, #14101a 0%, #1c102c 50%, #14101a 100%)',
+    bgColor: '#14101a',
+    surfaceColor: 'rgba(24, 16, 32, 0.92)',
+    surfaceAltColor: 'rgba(34, 20, 48, 0.85)',
+    surfaceMutedColor: 'rgba(20, 12, 28, 0.68)',
+    surfaceTranslucent: 'rgba(20, 12, 28, 0.52)',
+    textMutedColor: 'rgba(233, 213, 255, 0.75)',
     bgPattern: 'castle',
     textColor: '#e9d5ff',
     borderColor: 'rgba(124, 58, 237, 0.4)',
@@ -77,6 +101,12 @@ export const EPOCH_THEMES = {
     secondaryColor: '#155e75',
     accentColor: '#22d3ee',
     bgGradient: 'linear-gradient(135deg, #10141a 0%, #102c2c 50%, #10141a 100%)',
+    bgColor: '#10141a',
+    surfaceColor: 'rgba(14, 26, 32, 0.9)',
+    surfaceAltColor: 'rgba(18, 38, 44, 0.85)',
+    surfaceMutedColor: 'rgba(12, 22, 28, 0.66)',
+    surfaceTranslucent: 'rgba(12, 22, 28, 0.5)',
+    textMutedColor: 'rgba(207, 250, 254, 0.75)',
     bgPattern: 'compass',
     textColor: '#cffafe',
     borderColor: 'rgba(8, 145, 178, 0.4)',
@@ -93,6 +123,12 @@ export const EPOCH_THEMES = {
     secondaryColor: '#1e40af',
     accentColor: '#60a5fa',
     bgGradient: 'linear-gradient(135deg, #10141a 0%, #101c2c 50%, #10141a 100%)',
+    bgColor: '#10141a',
+    surfaceColor: 'rgba(18, 28, 48, 0.9)',
+    surfaceAltColor: 'rgba(20, 38, 66, 0.85)',
+    surfaceMutedColor: 'rgba(14, 24, 40, 0.66)',
+    surfaceTranslucent: 'rgba(14, 24, 40, 0.5)',
+    textMutedColor: 'rgba(219, 234, 254, 0.78)',
     bgPattern: 'book',
     textColor: '#dbeafe',
     borderColor: 'rgba(37, 99, 235, 0.4)',
@@ -109,6 +145,12 @@ export const EPOCH_THEMES = {
     secondaryColor: '#3730a3',
     accentColor: '#818cf8',
     bgGradient: 'linear-gradient(135deg, #12141a 0%, #1c1c2c 50%, #12141a 100%)',
+    bgColor: '#12141a',
+    surfaceColor: 'rgba(18, 18, 32, 0.92)',
+    surfaceAltColor: 'rgba(24, 26, 46, 0.85)',
+    surfaceMutedColor: 'rgba(16, 18, 30, 0.68)',
+    surfaceTranslucent: 'rgba(16, 18, 30, 0.52)',
+    textMutedColor: 'rgba(224, 231, 255, 0.8)',
     bgPattern: 'gear',
     textColor: '#e0e7ff',
     borderColor: 'rgba(79, 70, 229, 0.4)',
@@ -125,6 +167,12 @@ export const EPOCH_THEMES = {
     secondaryColor: '#6d28d9',
     accentColor: '#a78bfa',
     bgGradient: 'linear-gradient(135deg, #14101a 0%, #1c142c 50%, #14101a 100%)',
+    bgColor: '#14101a',
+    surfaceColor: 'rgba(22, 16, 32, 0.92)',
+    surfaceAltColor: 'rgba(32, 18, 48, 0.85)',
+    surfaceMutedColor: 'rgba(18, 10, 32, 0.68)',
+    surfaceTranslucent: 'rgba(18, 10, 32, 0.52)',
+    textMutedColor: 'rgba(237, 233, 254, 0.8)',
     bgPattern: 'circuit',
     textColor: '#ede9fe',
     borderColor: 'rgba(139, 92, 246, 0.3)',
@@ -152,9 +200,17 @@ export const applyEpochTheme = (epochId) => {
   root.style.setProperty('--theme-secondary', theme.secondaryColor);
   root.style.setProperty('--theme-accent', theme.accentColor);
   root.style.setProperty('--theme-text', theme.textColor);
+  root.style.setProperty('--theme-text-muted', theme.textMutedColor || 'rgba(255, 255, 255, 0.75)');
   root.style.setProperty('--theme-border', theme.borderColor);
+  root.style.setProperty('--theme-highlight', theme.metalHighlight || theme.accentColor);
   root.style.setProperty('--theme-glow', theme.glowColor);
   root.style.setProperty('--theme-bg-gradient', theme.bgGradient);
+  root.style.setProperty('--theme-bg', theme.bgColor || '#0f0a08');
+  root.style.setProperty('--theme-surface', theme.surfaceColor || 'rgba(34, 24, 14, 0.92)');
+  root.style.setProperty('--theme-surface-alt', theme.surfaceAltColor || theme.surfaceColor || 'rgba(34, 24, 14, 0.85)');
+  root.style.setProperty('--theme-surface-muted', theme.surfaceMutedColor || 'rgba(34, 24, 14, 0.65)');
+  root.style.setProperty('--theme-surface-trans', theme.surfaceTranslucent || 'rgba(34, 24, 14, 0.5)');
+  root.style.setProperty('--theme-shadow', theme.shadowDepth || '0 4px 12px rgba(0, 0, 0, 0.5)');
 };
 
 /**
