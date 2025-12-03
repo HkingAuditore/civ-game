@@ -104,11 +104,10 @@ export const GameControls = ({
               {speed > 1 && <Icon name="FastForward" size={12} />}
             </div>
           </button>
-        ))}}
+        ))}
       </div>
 
-      {/* 存档菜单 */}
-      <div className="relative" ref={gameMenuRef}>
+      {/* 存档菜单 */}      <div className="relative" ref={gameMenuRef}>
         <button
           onClick={() => setIsGameMenuOpen(!isGameMenuOpen)}
           className="px-3 py-2 glass-ancient border border-ancient-gold/20 rounded-xl transition-all flex items-center gap-2 text-xs font-semibold text-ancient-parchment shadow-epic hover:border-ancient-gold/40 hover:glow-gold min-h-[40px]"
@@ -124,10 +123,9 @@ export const GameControls = ({
             menuDirection === 'up' 
               ? 'bottom-full mb-2 origin-bottom-right' 
               : 'top-full mt-2 origin-top-right'
-          )}>}
+          )}>
             <button
-              onClick={() => { onSave(); setIsGameMenuOpen(false); }}
-              className="w-full flex items-center px-4 py-2 text-xs font-semibold text-green-300 hover:bg-ancient-gold/10 transition-colors rounded-lg"
+              onClick={() => { onSave(); setIsGameMenuOpen(false); }}              className="w-full flex items-center px-4 py-2 text-xs font-semibold text-green-300 hover:bg-ancient-gold/10 transition-colors rounded-lg"
             >
               <Icon name="Save" size={14} />
               <span className="ml-2">保存进度</span>
@@ -235,10 +233,9 @@ export const GameControls = ({
             menuDirection === 'up' 
               ? 'bottom-full mb-2 origin-bottom-right' 
               : 'top-full mt-2 origin-top-right'
-          )}>}
+          )}>
             <button
-              onClick={() => { onTutorial(); setIsHelpMenuOpen(false); }}
-              className="w-full flex items-center px-4 py-2 text-xs font-semibold text-ancient-parchment hover:bg-ancient-gold/10 transition-colors rounded-lg"
+              onClick={() => { onTutorial(); setIsHelpMenuOpen(false); }}              className="w-full flex items-center px-4 py-2 text-xs font-semibold text-ancient-parchment hover:bg-ancient-gold/10 transition-colors rounded-lg"
             >
               <Icon name="BookOpen" size={12} />
               <span className="ml-2">新手教程</span>

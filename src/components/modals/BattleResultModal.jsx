@@ -28,77 +28,101 @@ export const BattleResultModal = ({ result, onClose }) => {
   const animationClass = isAnimatingOut ? 'animate-sheet-out' : 'animate-sheet-in';
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-end justify-center lg:items-center">
+    <div className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center p-2">
       {/* 遮罩层 */}
-      <div className="absolute inset-0 bg-black/70 animate-fade-in" onClick={handleClose}></div>
+      <div className="absolute inset-0 bg-ancient-ink/90 backdrop-blur-sm animate-fade-in" onClick={handleClose}></div>
 
       {/* 内容面板 */}
-      <div className={`relative w-full max-w-2xl bg-gray-800 border-t-2 lg:border-2 border-gray-700 rounded-t-2xl lg:rounded-2xl shadow-2xl flex flex-col max-h-[90vh] ${animationClass} lg:animate-slide-up`}>
+      <div className={`relative w-full max-w-2xl glass-monument border-2 border-ancient-gold/40 rounded-t-2xl lg:rounded-2xl shadow-monument flex flex-col max-h-[90vh] overflow-hidden ${animationClass} lg:animate-slide-up`}>
+        <div className="absolute inset-0 bg-gradient-to-br from-ancient-ink/80 via-ancient-stone/20 to-ancient-ink/70 opacity-70" />
+        <div className="absolute inset-0 opacity-[0.04] pointer-events-none">
+          <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
+            <pattern id="battle-result-pattern" x="0" y="0" width="80" height="80" patternUnits="userSpaceOnUse">
+              <circle cx="10" cy="10" r="1" fill="currentColor" className="text-ancient-gold/50" />
+              <circle cx="70" cy="70" r="1" fill="currentColor" className="text-ancient-gold/30" />
+              <path d="M0 0 L80 0 L80 80" stroke="currentColor" strokeWidth="0.4" className="text-ancient-gold/10" fill="none" />
+            </pattern>
+            <rect width="100%" height="100%" fill="url(#battle-result-pattern)" />
+          </svg>
+        </div>
+
+        <div className="relative z-10 flex flex-col h-full">
         {/* 头部 */}
-        <div className={`flex-shrink-0 p-3 border-b border-gray-700 ${
-          result.victory 
-            ? 'bg-gradient-to-r from-green-900/50 to-blue-900/50' 
-            : 'bg-gradient-to-r from-red-900/50 to-gray-900/50'
-        }`}>
-          <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-gray-700 rounded-lg flex items-center justify-center flex-shrink-0">
-              <Icon 
-                name={result.victory ? 'Trophy' : 'Skull'} 
-                size={24} 
-                className={result.victory ? 'text-yellow-400' : 'text-red-400'} 
+        <div
+          className={`flex-shrink-0 p-4 border-b border-ancient-gold/20 ${
+            result.victory
+              ? 'bg-gradient-to-r from-emerald-900/40 to-blue-900/30'
+              : 'bg-gradient-to-r from-red-900/50 to-ancient-ink/60'
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-xl bg-ancient-ink/60 border border-ancient-gold/30 flex items-center justify-center flex-shrink-0 shadow-inner">
+              <Icon
+                name={result.victory ? 'Trophy' : 'Skull'}
+                size={26}
+                className={result.victory ? 'text-ancient-gold' : 'text-red-400'}
               />
             </div>
             <div className="flex-1 min-w-0">
-              <h2 className="text-base font-bold text-white leading-tight">
-                {result.victory ? '🎉 战斗胜利！' : '💀 战斗失败...'}
+              <h2 className="text-lg font-bold text-ancient leading-tight flex items-center gap-2">
+                {result.victory ? '?? ?????' : '?? ????...'}
+                {typeof result.score === 'number' && (
+                  <span className="px-2 py-0.5 text-[10px] rounded-full border border-ancient-gold/30 text-ancient-parchment bg-ancient-ink/40">
+                    ?? {result.score.toFixed(0)}
+                  </span>
+                )}
               </h2>
-              <p className="text-[10px] text-gray-300 leading-tight truncate">
-                {result.missionName || '军事行动'} {result.missionDifficulty && `（${result.missionDifficulty}）`}
-                {result.nationName && ` · 目标：${result.nationName}`}
+              <p className="text-[11px] text-ancient-parchment opacity-80 leading-tight truncate">
+                {result.missionName || '????'} {result.missionDifficulty && `????${result.missionDifficulty}?`}
+                {result.nationName && ` ? ???${result.nationName}`}
               </p>
             </div>
-            <button onClick={handleClose} className="p-2 rounded-full hover:bg-gray-700 flex-shrink-0">
-              <Icon name="X" size={18} className="text-gray-400" />
+            <button
+              onClick={handleClose}
+              className="p-2 rounded-full hover:bg-ancient-gold/10 transition-colors flex-shrink-0 text-ancient-stone"
+            >
+              <Icon name="X" size={18} />
             </button>
           </div>
           {result.missionDesc && (
-            <p className="text-[10px] text-gray-400 mt-1.5 leading-tight">{result.missionDesc}</p>
+            <p className="text-[11px] text-ancient-stone mt-2 leading-snug">{result.missionDesc}</p>
           )}
         </div>
-
         {/* 内容 */}
-        <div className="flex-1 overflow-y-auto p-3 space-y-3">
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {/* 战斗统计 */}
           {(!result.isRaid || (result.isRaid && result.ourPower > 0)) && (
-            <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
-              <h3 className="text-[10px] font-bold mb-1.5 flex items-center gap-1 text-white">
-                <Icon name="BarChart" size={12} className="text-blue-400" />
+            <div className="glass-ancient rounded-xl border border-ancient-gold/20 p-3 shadow-ancient">
+              <h3 className="text-[11px] font-bold mb-2 flex items-center gap-1 text-ancient-parchment">
+                <Icon name="BarChart" size={14} className="text-ancient-gold" />
                 战斗统计
               </h3>
-              <div className="grid grid-cols-2 gap-1.5">
-                <div className="bg-gray-800/50 p-1.5 rounded">
-                  <p className="text-[9px] text-gray-400 mb-0.5 leading-none">我方战力</p>
-                  <p className="text-sm font-bold text-blue-400 font-mono leading-none">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-ancient-ink/50 border border-ancient-gold/10 rounded-lg p-2">
+                  <p className="text-[10px] text-ancient-stone mb-1 leading-none">我方战力</p>
+                  <p className="text-base font-bold text-ancient font-mono leading-none">
                     {result.ourPower?.toFixed(0) || 0}
                   </p>
                 </div>
-                <div className="bg-gray-800/50 p-1.5 rounded">
-                  <p className="text-[9px] text-gray-400 mb-0.5 leading-none">敌方战力</p>
-                  <p className="text-sm font-bold text-red-400 font-mono leading-none">
+                <div className="bg-ancient-ink/50 border border-ancient-gold/10 rounded-lg p-2">
+                  <p className="text-[10px] text-ancient-stone mb-1 leading-none">敌方战力</p>
+                  <p className="text-base font-bold text-red-400 font-mono leading-none">
                     {result.enemyPower?.toFixed(0) || 0}
                   </p>
                 </div>
-                <div className="bg-gray-800/50 p-1.5 rounded">
-                  <p className="text-[9px] text-gray-400 mb-0.5 leading-none">战力优势</p>
-                  <p className={`text-sm font-bold font-mono leading-none ${
-                    result.powerRatio > 1 ? 'text-green-400' : 'text-red-400'
-                  }`}>
+                <div className="bg-ancient-ink/50 border border-ancient-gold/10 rounded-lg p-2">
+                  <p className="text-[10px] text-ancient-stone mb-1 leading-none">战力优势</p>
+                  <p
+                    className={`text-base font-bold font-mono leading-none ${
+                      result.powerRatio > 1 ? 'text-green-400' : 'text-red-400'
+                    }`}
+                  >
                     {result.powerRatio?.toFixed(2) || 0}x
                   </p>
                 </div>
-                <div className="bg-gray-800/50 p-1.5 rounded">
-                  <p className="text-[9px] text-gray-400 mb-0.5 leading-none">战斗评分</p>
-                  <p className="text-sm font-bold text-purple-400 font-mono leading-none">
+                <div className="bg-ancient-ink/50 border border-ancient-gold/10 rounded-lg p-2">
+                  <p className="text-[10px] text-ancient-stone mb-1 leading-none">战斗评分</p>
+                  <p className="text-base font-bold text-purple-400 font-mono leading-none">
                     {result.score?.toFixed(0) || 0}
                   </p>
                 </div>
@@ -248,6 +272,7 @@ export const BattleResultModal = ({ result, onClose }) => {
           >
             确定
           </button>
+        </div>
         </div>
       </div>
     </div>,
