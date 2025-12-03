@@ -1,16 +1,34 @@
-# React + Vite
+# 哈耶克的文明：市场经济
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+一款史诗级经济策略游戏，以奥地利经济学派代表人物哈耶克的自由市场理念为核心，让玩家建立和管理自己的文明帝国。
 
-Currently, two official plugins are available:
+## 游戏特色
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- 🏛️ **自由市场经济** - 体验真实的市场经济运作机制
+- 📈 **资源管理** - 管理多种资源，建立完整的产业链
+- 🎯 **科技发展** - 研究科技，推动文明进步
+- ⚔️ **军事外交** - 建立军队，与其他国家进行外交互动
+- 👥 **社会阶层** - 管理不同社会阶层，维持社会稳定
 
-## React Compiler
+## 技术栈
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- React 19 + Vite
+- Tailwind CSS
+- Lucide React Icons
 
-## Expanding the ESLint configuration
+## 开发
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+```bash
+# 安装依赖
+npm install
+
+# 启动开发服务器
+npm run dev
+
+# 构建生产版本
+npm run build
+```
+
+## 游戏说明
+
+详细的游戏指南请查看 `/ai_reports` 目录下的文档。

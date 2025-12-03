@@ -135,7 +135,7 @@ export default {
         'safe-bottom': 'env(safe-area-inset-bottom)',
         'thumb': '48px', // 最小可点击区域
       },
-      // 自定义阴影 - Epic Shadows
+      // 自定义阴影 - Epic Shadows with Metal Effects
       boxShadow: {
         'glass': '0 2px 12px 0 rgba(0, 0, 0, 0.3), inset 0 0 0 1px var(--theme-border)',
         'glow-sm': '0 0 10px rgba(59, 130, 246, 0.5)',
@@ -149,6 +149,26 @@ export default {
         'glow-gold-intense': '0 0 15px rgba(212, 175, 55, 0.5), 0 0 30px rgba(212, 175, 55, 0.3), 0 0 45px rgba(212, 175, 55, 0.2)',
         'glow-bronze': '0 0 10px rgba(205, 127, 50, 0.3), 0 0 20px rgba(205, 127, 50, 0.2)',
         'glow-empire': '0 0 15px rgba(139, 0, 0, 0.4), 0 0 30px rgba(139, 0, 0, 0.2)',
+        // Metal Texture Shadows - 金属质感阴影
+        'metal-sm': '0 2px 8px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2), inset 0 -1px 0 rgba(0, 0, 0, 0.3)',
+        'metal-md': '0 4px 16px rgba(0, 0, 0, 0.5), inset 0 2px 0 rgba(255, 255, 255, 0.25), inset 0 -2px 0 rgba(0, 0, 0, 0.35)',
+        'metal-lg': '0 8px 24px rgba(0, 0, 0, 0.6), inset 0 3px 0 rgba(255, 255, 255, 0.3), inset 0 -3px 0 rgba(0, 0, 0, 0.4)',
+        'metal-xl': '0 12px 32px rgba(0, 0, 0, 0.7), inset 0 4px 0 rgba(255, 255, 255, 0.35), inset 0 -4px 0 rgba(0, 0, 0, 0.5)',
+        // Depth Shadows - 深度立体阴影
+        'depth-sm': '0 2px 4px rgba(0, 0, 0, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2)',
+        'depth-md': '0 4px 8px rgba(0, 0, 0, 0.4), 0 8px 16px rgba(0, 0, 0, 0.3)',
+        'depth-lg': '0 8px 16px rgba(0, 0, 0, 0.5), 0 16px 32px rgba(0, 0, 0, 0.4)',
+        'depth-xl': '0 12px 24px rgba(0, 0, 0, 0.6), 0 24px 48px rgba(0, 0, 0, 0.5)',
+        // Embossed Effect - 浮雕效果
+        'emboss': 'inset 0 1px 0 rgba(255, 255, 255, 0.3), inset 0 -1px 0 rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.3)',
+        'emboss-deep': 'inset 0 2px 0 rgba(255, 255, 255, 0.4), inset 0 -2px 0 rgba(0, 0, 0, 0.5), 0 4px 8px rgba(0, 0, 0, 0.4)',
+        // Gold Metal - 金色金属
+        'gold-metal': '0 4px 16px rgba(0, 0, 0, 0.5), inset 0 2px 0 rgba(255, 235, 180, 0.4), inset 0 -2px 0 rgba(139, 90, 0, 0.4), 0 0 20px rgba(212, 175, 55, 0.3)',
+        'gold-metal-intense': '0 8px 24px rgba(0, 0, 0, 0.6), inset 0 3px 0 rgba(255, 235, 180, 0.5), inset 0 -3px 0 rgba(139, 90, 0, 0.5), 0 0 30px rgba(212, 175, 55, 0.5)',
+        // Bronze Metal - 青铜金属
+        'bronze-metal': '0 4px 16px rgba(0, 0, 0, 0.5), inset 0 2px 0 rgba(255, 200, 150, 0.3), inset 0 -2px 0 rgba(100, 50, 20, 0.4), 0 0 15px rgba(205, 127, 50, 0.3)',
+        // Steel Metal - 钢铁金属
+        'steel-metal': '0 4px 16px rgba(0, 0, 0, 0.6), inset 0 2px 0 rgba(255, 255, 255, 0.3), inset 0 -2px 0 rgba(0, 0, 0, 0.5), 0 0 10px rgba(200, 200, 220, 0.2)',
       },
     },
   },

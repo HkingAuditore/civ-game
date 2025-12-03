@@ -1,4 +1,3 @@
-import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client';
 import './index.css'
 import App from './App.jsx'
@@ -19,9 +18,7 @@ if (!rootElement) {
 } else {
   try {
     createRoot(rootElement).render(
-      <StrictMode>
-        <App />
-      </StrictMode>,
+      <App />
     );
     console.log('App rendered successfully');
   } catch (error) {

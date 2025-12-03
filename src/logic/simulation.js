@@ -2095,6 +2095,25 @@ export const simulateTick = ({
     }
   });
 
+  // Calculate weighted average of class approval based on influence share
+  let weightedApprovalSum = 0;
+  let totalWeight = 0;
+  
+  Object.keys(STRATA).forEach(key => {
+    const count = popStructure[key] || 0;
+    if (count === 0) return;
+    const approval = classApproval[key] || 50;
+    const influence = classInfluence[key] || 0;
+    const influenceShare = totalInfluence > 0 ? influence / totalInfluence : 0;
+    
+    weightedApprovalSum += approval * influenceShare;
+    totalWeight += influenceShare;
+  });
+  
+  // Base stability from weighted average of class approval
+  let baseStability = totalWeight > 0 ? weightedApprovalSum : 50;
+  
+  // Add buff/debuff modifiers
   let stabilityModifier = 0;
   newActiveBuffs.forEach(buff => {
     if (buff.stability) stabilityModifier += buff.stability;
@@ -2104,7 +2123,8 @@ export const simulateTick = ({
   });
   stabilityModifier -= extraStabilityPenalty;
 
-  const stabilityValue = Math.max(0, Math.min(100, 50 + stabilityModifier * 100));
+  // Final stability value: base + modifiers, clamped to 0-100
+  const stabilityValue = Math.max(0, Math.min(100, baseStability + stabilityModifier));
   const stabilityFactor = Math.min(1.5, Math.max(0.5, 1 + (stabilityValue - 50) / 100));
   const efficiency = stabilityFactor;
 

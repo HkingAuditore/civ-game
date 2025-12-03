@@ -6,7 +6,7 @@
  * 每个时代都有独特的视觉风格，包括颜色、背景、装饰等
  */
 export const EPOCH_THEMES = {
-  // 石器时代 - Stone Age
+  // 石器时代 - Stone Age (Enhanced Metal Texture)
   0: {
     name: '石器时代',
     primaryColor: '#d97706', // Amber
@@ -15,12 +15,14 @@ export const EPOCH_THEMES = {
     bgGradient: 'linear-gradient(135deg, #1a1410 0%, #2c1810 50%, #1a1410 100%)',
     bgPattern: 'stone',
     textColor: '#fef3c7',
-    borderColor: 'rgba(217, 119, 6, 0.3)',
-    glowColor: 'rgba(217, 119, 6, 0.4)',
+    borderColor: 'rgba(217, 119, 6, 0.4)',
+    glowColor: 'rgba(217, 119, 6, 0.5)',
+    metalHighlight: 'rgba(251, 191, 36, 0.3)',
+    shadowDepth: '0 4px 12px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(217, 119, 6, 0.3)',
     atmosphere: 'primitive',
     icon: '🪨',
   },
-  // 青铜时代 - Bronze Age
+  // 青铜时代 - Bronze Age (Enhanced Bronze Metal)
   1: {
     name: '青铜时代',
     primaryColor: '#ea580c', // Orange
@@ -29,12 +31,14 @@ export const EPOCH_THEMES = {
     bgGradient: 'linear-gradient(135deg, #1c1410 0%, #2d1c10 50%, #1c1410 100%)',
     bgPattern: 'bronze',
     textColor: '#fed7aa',
-    borderColor: 'rgba(234, 88, 12, 0.3)',
-    glowColor: 'rgba(234, 88, 12, 0.4)',
+    borderColor: 'rgba(234, 88, 12, 0.4)',
+    glowColor: 'rgba(234, 88, 12, 0.5)',
+    metalHighlight: 'rgba(251, 146, 60, 0.35)',
+    shadowDepth: '0 4px 12px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(205, 127, 50, 0.4)',
     atmosphere: 'ancient',
     icon: '⚱️',
   },
-  // 古典时代 - Classical Age
+  // 古典时代 - Classical Age (Enhanced Gold & Marble)
   2: {
     name: '古典时代',
     primaryColor: '#dc2626', // Red
@@ -43,12 +47,14 @@ export const EPOCH_THEMES = {
     bgGradient: 'linear-gradient(135deg, #1a1010 0%, #2c1010 50%, #1a1010 100%)',
     bgPattern: 'marble',
     textColor: '#fecaca',
-    borderColor: 'rgba(220, 38, 38, 0.3)',
-    glowColor: 'rgba(220, 38, 38, 0.4)',
+    borderColor: 'rgba(220, 38, 38, 0.4)',
+    glowColor: 'rgba(220, 38, 38, 0.5)',
+    metalHighlight: 'rgba(248, 113, 113, 0.3)',
+    shadowDepth: '0 6px 16px rgba(0, 0, 0, 0.6), 0 3px 8px rgba(220, 38, 38, 0.4)',
     atmosphere: 'classical',
     icon: '🏛️',
   },
-  // 中世纪 - Medieval Age
+  // 中世纪 - Medieval Age (Enhanced Steel & Purple Metal)
   3: {
     name: '中世纪',
     primaryColor: '#7c3aed', // Purple
@@ -57,12 +63,14 @@ export const EPOCH_THEMES = {
     bgGradient: 'linear-gradient(135deg, #14101a 0%, #1c102c 50%, #14101a 100%)',
     bgPattern: 'castle',
     textColor: '#e9d5ff',
-    borderColor: 'rgba(124, 58, 237, 0.3)',
-    glowColor: 'rgba(124, 58, 237, 0.4)',
+    borderColor: 'rgba(124, 58, 237, 0.4)',
+    glowColor: 'rgba(124, 58, 237, 0.5)',
+    metalHighlight: 'rgba(167, 139, 250, 0.35)',
+    shadowDepth: '0 6px 16px rgba(0, 0, 0, 0.6), 0 3px 8px rgba(124, 58, 237, 0.4)',
     atmosphere: 'medieval',
     icon: '🏰',
   },
-  // 探索时代 - Age of Exploration
+  // 探索时代 - Age of Exploration (Enhanced Ocean Metal)
   4: {
     name: '探索时代',
     primaryColor: '#0891b2', // Cyan
@@ -71,12 +79,14 @@ export const EPOCH_THEMES = {
     bgGradient: 'linear-gradient(135deg, #10141a 0%, #102c2c 50%, #10141a 100%)',
     bgPattern: 'compass',
     textColor: '#cffafe',
-    borderColor: 'rgba(8, 145, 178, 0.3)',
-    glowColor: 'rgba(8, 145, 178, 0.4)',
+    borderColor: 'rgba(8, 145, 178, 0.4)',
+    glowColor: 'rgba(8, 145, 178, 0.5)',
+    metalHighlight: 'rgba(34, 211, 238, 0.35)',
+    shadowDepth: '0 6px 16px rgba(0, 0, 0, 0.6), 0 3px 8px rgba(8, 145, 178, 0.4)',
     atmosphere: 'exploration',
     icon: '🧭',
   },
-  // 启蒙时代 - Age of Enlightenment
+  // 启蒙时代 - Age of Enlightenment (Enhanced Sapphire Metal)
   5: {
     name: '启蒙时代',
     primaryColor: '#2563eb', // Blue
@@ -85,12 +95,14 @@ export const EPOCH_THEMES = {
     bgGradient: 'linear-gradient(135deg, #10141a 0%, #101c2c 50%, #10141a 100%)',
     bgPattern: 'book',
     textColor: '#dbeafe',
-    borderColor: 'rgba(37, 99, 235, 0.3)',
-    glowColor: 'rgba(37, 99, 235, 0.4)',
+    borderColor: 'rgba(37, 99, 235, 0.4)',
+    glowColor: 'rgba(37, 99, 235, 0.5)',
+    metalHighlight: 'rgba(96, 165, 250, 0.35)',
+    shadowDepth: '0 6px 16px rgba(0, 0, 0, 0.6), 0 3px 8px rgba(37, 99, 235, 0.4)',
     atmosphere: 'enlightenment',
     icon: '📚',
   },
-  // 工业时代 - Industrial Age
+  // 工业时代 - Industrial Age (Enhanced Iron & Steel)
   6: {
     name: '工业时代',
     primaryColor: '#4f46e5', // Indigo
@@ -99,8 +111,10 @@ export const EPOCH_THEMES = {
     bgGradient: 'linear-gradient(135deg, #12141a 0%, #1c1c2c 50%, #12141a 100%)',
     bgPattern: 'gear',
     textColor: '#e0e7ff',
-    borderColor: 'rgba(79, 70, 229, 0.3)',
-    glowColor: 'rgba(79, 70, 229, 0.4)',
+    borderColor: 'rgba(79, 70, 229, 0.4)',
+    glowColor: 'rgba(79, 70, 229, 0.5)',
+    metalHighlight: 'rgba(129, 140, 248, 0.35)',
+    shadowDepth: '0 8px 20px rgba(0, 0, 0, 0.7), 0 4px 10px rgba(79, 70, 229, 0.4)',
     atmosphere: 'industrial',
     icon: '⚙️',
   },

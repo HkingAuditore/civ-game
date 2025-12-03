@@ -85,8 +85,8 @@ export const StatusBar = ({
               </div>
             </div>
             <div className="hidden sm:block">
-              <h1 className="font-epic font-bold text-sm sm:text-lg leading-none text-monument">
-                文明崛起
+              <h1 className="font-epic font-bold text-xs sm:text-base leading-none text-monument">
+                哈耶克的文明：市场经济
               </h1>
               <span className={`text-[10px] sm:text-xs font-bold uppercase text-ancient tracking-wider`}>
                 {EPOCHS[gameState.epoch]?.name}

@@ -5,4 +5,4 @@ export { useGameState } from './useGameState';
 export { useGameLoop } from './useGameLoop';
 export { useGameActions } from './useGameActions';
 export { useSound } from './useSound';
-export { default as useEpicTheme, useEpochClasses, getEpochStyles } from './useEpicTheme';
+export { useEpicTheme, useEpochClasses, getEpochStyles } from './useEpicTheme';

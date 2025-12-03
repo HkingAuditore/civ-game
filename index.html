@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <meta name="description" content="文明崛起 - 史诗级历史策略游戏，建立你的帝国，书写历史传奇" />
+    <meta name="description" content="哈耶克的文明：市场经济 - 史诗级经济策略游戏，建立自由市场帝国，书写经济传奇" />
     <meta name="theme-color" content="#2c1810" />
     
     <!-- Epic Fonts - Historical Typography -->
@@ -12,7 +12,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;800&family=Cinzel+Decorative:wght@700;900&family=Noto+Serif+SC:wght@400;500;600;700;900&display=swap" rel="stylesheet">
     
-    <title>文明崛起 - 史诗传奇</title>
+    <title>哈耶克的文明：市场经济</title>
     
     <style>
       /* Loading Screen - Epic Entry */
@@ -79,7 +79,7 @@
   <body>
     <!-- Epic Loading Screen -->
     <div id="loading-screen">
-      <h1 class="loading-title">文明崛起</h1>
+      <h1 class="loading-title">哈耶克的文明：市场经济</h1>
       <div class="loading-spinner"></div>
     </div>
     
@@ -93,7 +93,14 @@
           const loadingScreen = document.getElementById('loading-screen');
           if (loadingScreen) {
             loadingScreen.classList.add('hidden');
-            setTimeout(() => loadingScreen.remove(), 500);
+            setTimeout(() => {
+              loadingScreen.remove();
+              // Check if app loaded successfully
+              const root = document.getElementById('root');
+              if (root && root.childElementCount === 0) {
+                root.innerHTML = '<div style="color: #d4af37; background: #1a1410; padding: 20px; font-family: sans-serif; text-align: center; height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center;"><h1>加载失败</h1><p>应用程序未能正确启动。</p><p style="font-size: 0.8em; opacity: 0.7;">可能原因：资源文件加载失败或路径配置错误。</p><p style="font-size: 0.8em; opacity: 0.7;">请尝试刷新页面或联系管理员。</p></div>';
+              }
+            }, 500);
           }
         }, 500);
       });

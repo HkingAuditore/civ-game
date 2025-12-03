@@ -54,14 +54,14 @@ export const BUTTON_STYLES = {
     lg: 'px-6 py-3 text-lg min-h-[48px]',
   },
   
-  // 颜色变体
+  // 颜色变体 - Enhanced Metal Texture
   variants: {
-    primary: 'glass-epic border-2 border-ancient-gold/30 text-ancient-gold hover:border-ancient-gold/50 hover:glow-gold active:scale-95',
-    secondary: 'glass-ancient border border-ancient-stone/30 text-ancient-parchment hover:border-ancient-stone/50 hover:bg-ancient-stone/20 active:scale-95',
-    success: 'glass-ancient border-2 border-green-500/30 text-green-300 hover:border-green-500/50 hover:bg-green-500/10 active:scale-95',
-    warning: 'glass-ancient border-2 border-orange-500/30 text-orange-300 hover:border-orange-500/50 hover:bg-orange-500/10 active:scale-95',
-    danger: 'glass-ancient border-2 border-red-500/30 text-red-300 hover:border-red-500/50 hover:bg-red-500/10 active:scale-95',
-    ghost: 'bg-transparent border border-ancient-gold/20 text-ancient-gold hover:bg-ancient-gold/10 hover:border-ancient-gold/40 active:scale-95',
+    primary: 'glass-epic border-2 border-ancient-gold/30 text-ancient-gold hover:border-ancient-gold/50 hover:shadow-gold-metal active:scale-95 shadow-metal-md',
+    secondary: 'glass-ancient border border-ancient-stone/30 text-ancient-parchment hover:border-ancient-stone/50 hover:bg-ancient-stone/20 active:scale-95 shadow-metal-sm',
+    success: 'glass-ancient border-2 border-green-500/30 text-green-300 hover:border-green-500/50 hover:bg-green-500/10 active:scale-95 shadow-depth-sm',
+    warning: 'glass-ancient border-2 border-orange-500/30 text-orange-300 hover:border-orange-500/50 hover:bg-orange-500/10 active:scale-95 shadow-bronze-metal',
+    danger: 'glass-ancient border-2 border-red-500/30 text-red-300 hover:border-red-500/50 hover:bg-red-500/10 active:scale-95 shadow-depth-sm',
+    ghost: 'bg-transparent border border-ancient-gold/20 text-ancient-gold hover:bg-ancient-gold/10 hover:border-ancient-gold/40 active:scale-95 hover:shadow-glow-gold',
   },
   
   // 禁用状态
@@ -73,16 +73,16 @@ export const CARD_STYLES = {
   // 基础样式
   base: 'rounded-xl transition-all duration-300',
   
-  // 变体
+  // 变体 - Enhanced Metal Texture
   variants: {
-    default: 'glass-ancient border border-ancient-gold/20',
-    epic: 'glass-epic border-2 border-ancient-gold/30 shadow-epic',
-    monument: 'glass-monument border-2 border-ancient-gold/40 shadow-monument',
-    flat: 'bg-ancient-ink/50 border border-ancient-stone/20',
+    default: 'glass-ancient border border-ancient-gold/20 shadow-metal-sm',
+    epic: 'glass-epic border-2 border-ancient-gold/30 shadow-metal-md',
+    monument: 'glass-monument border-2 border-ancient-gold/40 shadow-metal-lg',
+    flat: 'bg-ancient-ink/50 border border-ancient-stone/20 shadow-depth-sm',
   },
   
-  // 悬停效果
-  hover: 'hover:border-ancient-gold/40 hover:shadow-glow-gold',
+  // 悬停效果 - Enhanced Glow
+  hover: 'hover:border-ancient-gold/40 hover:shadow-gold-glow-intense hover:shadow-metal-md',
   
   // 内边距
   padding: {
@@ -98,9 +98,9 @@ export const MODAL_STYLES = {
   // 遮罩层
   overlay: 'fixed inset-0 bg-ancient-ink/80 backdrop-blur-sm z-50 flex items-center justify-center p-4',
   
-  // 容器（移动端和桌面端统一）
+  // 容器（移动端和桌面端统一）- Enhanced Metal Frame
   container: {
-    base: 'relative w-full max-w-2xl glass-epic border-2 border-ancient-gold/30 rounded-2xl shadow-monument flex flex-col max-h-[90vh]',
+    base: 'relative w-full max-w-2xl glass-epic border-2 border-ancient-gold/30 rounded-2xl shadow-metal-xl shadow-depth-xl flex flex-col max-h-[90vh]',
     sm: 'max-w-md',
     md: 'max-w-2xl',
     lg: 'max-w-4xl',
@@ -135,15 +135,15 @@ export const INPUT_STYLES = {
 
 // ==================== 徽章样式 ====================
 export const BADGE_STYLES = {
-  base: 'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold',
+  base: 'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold shadow-emboss',
   
   variants: {
-    default: 'bg-ancient-stone/20 text-ancient-parchment border border-ancient-stone/30',
-    primary: 'bg-ancient-gold/20 text-ancient-gold border border-ancient-gold/30',
-    success: 'bg-green-500/20 text-green-300 border border-green-500/30',
-    warning: 'bg-orange-500/20 text-orange-300 border border-orange-500/30',
-    danger: 'bg-red-500/20 text-red-300 border border-red-500/30',
-    info: 'bg-blue-500/20 text-blue-300 border border-blue-500/30',
+    default: 'bg-ancient-stone/20 text-ancient-parchment border border-ancient-stone/30 shadow-metal-sm',
+    primary: 'bg-ancient-gold/20 text-ancient-gold border border-ancient-gold/30 shadow-gold-metal',
+    success: 'bg-green-500/20 text-green-300 border border-green-500/30 shadow-depth-sm',
+    warning: 'bg-orange-500/20 text-orange-300 border border-orange-500/30 shadow-bronze-metal',
+    danger: 'bg-red-500/20 text-red-300 border border-red-500/30 shadow-depth-sm',
+    info: 'bg-blue-500/20 text-blue-300 border border-blue-500/30 shadow-steel-metal',
   },
 };
 
