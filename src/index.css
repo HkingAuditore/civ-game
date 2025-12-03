@@ -2,39 +2,129 @@
 @tailwind components;
 @tailwind utilities;
 
-/* 自定义滚动条样式 */
+/* Epic Historical Theme - Custom CSS Variables */
+@layer base {
+  :root {
+    /* Epic Color Palette - Inspired by ancient civilizations */
+    --color-ancient-gold: #d4af37;
+    --color-bronze: #cd7f32;
+    --color-marble: #f5f5dc;
+    --color-stone: #8b7355;
+    --color-parchment: #f4e8d0;
+    --color-ink: #2c1810;
+    --color-royal-purple: #6a0dad;
+    --color-empire-red: #8b0000;
+    
+    /* Texture overlays */
+    --texture-paper: url("data:image/svg+xml,%3Csvg width='100' height='100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' /%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23noise)' opacity='0.05'/%3E%3C/svg%3E");
+    
+    /* Shadow depths for layered UI */
+    --shadow-ancient: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(139, 115, 85, 0.2);
+    --shadow-epic: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(212, 175, 55, 0.1);
+    --shadow-monument: 0 20px 50px -12px rgba(0, 0, 0, 0.7), 0 10px 20px -5px rgba(139, 0, 0, 0.2);
+  }
+  
+  body {
+    @apply antialiased;
+    font-family: 'Cinzel', 'Georgia', serif;
+    background: linear-gradient(135deg, #1a1410 0%, #2c1810 50%, #1a1410 100%);
+    background-attachment: fixed;
+    position: relative;
+  }
+  
+  /* Ancient paper texture overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image: var(--texture-paper);
+    opacity: 0.03;
+    pointer-events: none;
+    z-index: 1;
+  }
+  
+  /* Epic border decorations */
+  body::after {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border: 2px solid rgba(212, 175, 55, 0.1);
+    border-image: linear-gradient(45deg, 
+      transparent 0%, 
+      rgba(212, 175, 55, 0.3) 25%, 
+      rgba(205, 127, 50, 0.3) 50%, 
+      rgba(212, 175, 55, 0.3) 75%, 
+      transparent 100%) 1;
+    pointer-events: none;
+    z-index: 2;
+  }
+}
+
+/* Custom Scrollbar - Ancient Scroll Style */
 @layer utilities {
-  /* Webkit浏览器（Chrome, Safari, Edge）的滚动条样式 */
+  /* Webkit browsers (Chrome, Safari, Edge) */
+  .scrollbar-ancient::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .scrollbar-ancient::-webkit-scrollbar-track {
+    background: linear-gradient(to right, #2c1810, #3d2415, #2c1810);
+    border-radius: 4px;
+    box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.5);
+  }
+
+  .scrollbar-ancient::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, #cd7f32, #d4af37, #cd7f32);
+    border-radius: 4px;
+    border: 1px solid rgba(212, 175, 55, 0.3);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  }
+
+  .scrollbar-ancient::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(135deg, #d4af37, #f4e8d0, #d4af37);
+    box-shadow: 0 0 8px rgba(212, 175, 55, 0.6);
+  }
+
+  /* Thin scrollbar variant */
   .scrollbar-thin::-webkit-scrollbar {
     width: 6px;
+    height: 6px;
   }
 
   .scrollbar-thin::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  .scrollbar-track-gray-800::-webkit-scrollbar-track {
-    background: #1f2937;
+    background: rgba(44, 24, 16, 0.3);
     border-radius: 3px;
   }
 
-  .scrollbar-thumb-gray-600::-webkit-scrollbar-thumb {
-    background: #4b5563;
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: rgba(212, 175, 55, 0.4);
     border-radius: 3px;
   }
 
   .scrollbar-thin:hover::-webkit-scrollbar-thumb,
-  .hover\:scrollbar-thumb-gray-500:hover::-webkit-scrollbar-thumb {
-    background: #6b7280;
+  .hover\:scrollbar-thumb-gold:hover::-webkit-scrollbar-thumb {
+    background: rgba(212, 175, 55, 0.7);
   }
 
-  /* Firefox的滚动条样式 */
+  /* Firefox scrollbar */
+  .scrollbar-ancient {
+    scrollbar-width: thin;
+    scrollbar-color: #d4af37 #2c1810;
+  }
+
   .scrollbar-thin {
     scrollbar-width: thin;
-    scrollbar-color: #4b5563 #1f2937;
+    scrollbar-color: rgba(212, 175, 55, 0.4) rgba(44, 24, 16, 0.3);
   }
 
-  /* 隐藏滚动条 */
+  /* Hide scrollbar */
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
@@ -42,5 +132,337 @@
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
+  }
+  
+  /* Epic Glass Morphism - Ancient Stone Effect */
+  .glass-ancient {
+    background: linear-gradient(135deg, 
+      rgba(44, 24, 16, 0.85) 0%, 
+      rgba(61, 36, 21, 0.75) 50%, 
+      rgba(44, 24, 16, 0.85) 100%);
+    backdrop-filter: blur(12px) saturate(150%);
+    border: 1px solid rgba(212, 175, 55, 0.2);
+    box-shadow: var(--shadow-ancient),
+                inset 0 1px 0 rgba(212, 175, 55, 0.1),
+                inset 0 -1px 0 rgba(0, 0, 0, 0.3);
+  }
+  
+  .glass-epic {
+    background: linear-gradient(135deg, 
+      rgba(26, 20, 16, 0.9) 0%, 
+      rgba(44, 24, 16, 0.85) 50%, 
+      rgba(26, 20, 16, 0.9) 100%);
+    backdrop-filter: blur(16px) saturate(180%);
+    border: 2px solid rgba(212, 175, 55, 0.3);
+    box-shadow: var(--shadow-epic),
+                inset 0 2px 0 rgba(212, 175, 55, 0.15),
+                inset 0 -2px 0 rgba(0, 0, 0, 0.4);
+  }
+  
+  /* Monument-level importance */
+  .glass-monument {
+    background: linear-gradient(135deg, 
+      rgba(26, 20, 16, 0.95) 0%, 
+      rgba(44, 24, 16, 0.9) 25%,
+      rgba(61, 36, 21, 0.9) 50%,
+      rgba(44, 24, 16, 0.9) 75%,
+      rgba(26, 20, 16, 0.95) 100%);
+    backdrop-filter: blur(20px) saturate(200%);
+    border: 3px solid rgba(212, 175, 55, 0.4);
+    box-shadow: var(--shadow-monument),
+                inset 0 3px 0 rgba(212, 175, 55, 0.2),
+                inset 0 -3px 0 rgba(0, 0, 0, 0.5);
+  }
+  
+  /* Epic Glow Effects */
+  .glow-gold {
+    box-shadow: 0 0 10px rgba(212, 175, 55, 0.3),
+                0 0 20px rgba(212, 175, 55, 0.2),
+                0 0 30px rgba(212, 175, 55, 0.1);
+  }
+  
+  .glow-gold-intense {
+    box-shadow: 0 0 15px rgba(212, 175, 55, 0.5),
+                0 0 30px rgba(212, 175, 55, 0.3),
+                0 0 45px rgba(212, 175, 55, 0.2);
+  }
+  
+  .glow-bronze {
+    box-shadow: 0 0 10px rgba(205, 127, 50, 0.3),
+                0 0 20px rgba(205, 127, 50, 0.2);
+  }
+  
+  .glow-empire {
+    box-shadow: 0 0 15px rgba(139, 0, 0, 0.4),
+                0 0 30px rgba(139, 0, 0, 0.2);
+  }
+  
+  /* Ancient Border Decorations */
+  .border-ancient {
+    border-image: linear-gradient(135deg, 
+      rgba(212, 175, 55, 0.3), 
+      rgba(205, 127, 50, 0.5), 
+      rgba(212, 175, 55, 0.3)) 1;
+  }
+  
+  .border-epic {
+    position: relative;
+    border: 2px solid transparent;
+    background: linear-gradient(135deg, rgba(26, 20, 16, 0.9), rgba(44, 24, 16, 0.85)) padding-box,
+                linear-gradient(135deg, #d4af37, #cd7f32, #d4af37) border-box;
+  }
+  
+  /* Corner Ornaments */
+  .corner-ornament::before,
+  .corner-ornament::after {
+    content: '';
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    border: 2px solid rgba(212, 175, 55, 0.4);
+  }
+  
+  .corner-ornament::before {
+    top: -2px;
+    left: -2px;
+    border-right: none;
+    border-bottom: none;
+  }
+  
+  .corner-ornament::after {
+    bottom: -2px;
+    right: -2px;
+    border-left: none;
+    border-top: none;
+  }
+  
+  /* Epic Animations */
+  @keyframes shimmer {
+    0% {
+      background-position: -1000px 0;
+    }
+    100% {
+      background-position: 1000px 0;
+    }
+  }
+  
+  @keyframes pulse-gold {
+    0%, 100% {
+      box-shadow: 0 0 10px rgba(212, 175, 55, 0.3);
+    }
+    50% {
+      box-shadow: 0 0 20px rgba(212, 175, 55, 0.6);
+    }
+  }
+  
+  @keyframes float {
+    0%, 100% {
+      transform: translateY(0px);
+    }
+    50% {
+      transform: translateY(-10px);
+    }
+  }
+  
+  @keyframes fade-in-up {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  @keyframes slide-in-right {
+    from {
+      opacity: 0;
+      transform: translateX(50px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+  
+  @keyframes scale-in {
+    from {
+      opacity: 0;
+      transform: scale(0.9);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+  
+  .animate-shimmer {
+    background: linear-gradient(90deg, 
+      transparent 0%, 
+      rgba(212, 175, 55, 0.2) 50%, 
+      transparent 100%);
+    background-size: 1000px 100%;
+    animation: shimmer 3s infinite;
+  }
+  
+  .animate-pulse-gold {
+    animation: pulse-gold 2s ease-in-out infinite;
+  }
+  
+  .animate-float {
+    animation: float 3s ease-in-out infinite;
+  }
+  
+  .animate-fade-in-up {
+    animation: fade-in-up 0.6s ease-out;
+  }
+  
+  .animate-slide-in-right {
+    animation: slide-in-right 0.5s ease-out;
+  }
+  
+  .animate-scale-in {
+    animation: scale-in 0.4s ease-out;
+  }
+  
+  /* Text Effects - Ancient Inscriptions */
+  .text-ancient {
+    color: var(--color-ancient-gold);
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5),
+                 0 0 10px rgba(212, 175, 55, 0.3);
+    font-weight: 600;
+    letter-spacing: 0.05em;
+  }
+  
+  .text-epic {
+    background: linear-gradient(135deg, #d4af37, #f4e8d0, #d4af37);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    text-shadow: 0 2px 8px rgba(212, 175, 55, 0.4);
+    font-weight: 700;
+    letter-spacing: 0.08em;
+  }
+  
+  .text-monument {
+    background: linear-gradient(135deg, #d4af37 0%, #f4e8d0 25%, #cd7f32 50%, #f4e8d0 75%, #d4af37 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    background-size: 200% auto;
+    animation: shimmer 4s linear infinite;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  
+  /* Button Styles - Epic Actions */
+  .btn-ancient {
+    @apply glass-ancient px-6 py-3 rounded-lg font-semibold;
+    @apply transition-all duration-300 ease-out;
+    @apply hover:glow-gold hover:scale-105;
+    @apply active:scale-95;
+    color: var(--color-ancient-gold);
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .btn-ancient::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.2), transparent);
+    transition: left 0.5s;
+  }
+  
+  .btn-ancient:hover::before {
+    left: 100%;
+  }
+  
+  .btn-epic {
+    @apply glass-epic px-8 py-4 rounded-xl font-bold;
+    @apply transition-all duration-300 ease-out;
+    @apply hover:glow-gold-intense hover:scale-110;
+    @apply active:scale-95;
+    background: linear-gradient(135deg, rgba(212, 175, 55, 0.2), rgba(205, 127, 50, 0.2));
+    color: var(--color-ancient-gold);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  
+  /* Card Styles - Historical Documents */
+  .card-ancient {
+    @apply glass-ancient rounded-xl p-6;
+    @apply transition-all duration-300;
+    @apply hover:glow-gold hover:-translate-y-1;
+    position: relative;
+  }
+  
+  .card-epic {
+    @apply glass-epic rounded-2xl p-8;
+    @apply transition-all duration-500;
+    @apply hover:glow-gold-intense hover:-translate-y-2;
+    @apply corner-ornament;
+    position: relative;
+  }
+  
+  /* Divider - Ancient Separator */
+  .divider-ancient {
+    height: 2px;
+    background: linear-gradient(90deg, 
+      transparent 0%, 
+      rgba(212, 175, 55, 0.3) 20%, 
+      rgba(205, 127, 50, 0.5) 50%, 
+      rgba(212, 175, 55, 0.3) 80%, 
+      transparent 100%);
+    position: relative;
+  }
+  
+  .divider-ancient::before {
+    content: '◆';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: var(--color-ancient-gold);
+    background: rgba(26, 20, 16, 0.9);
+    padding: 0 12px;
+    font-size: 12px;
+  }
+  
+  /* Responsive Typography */
+  @media (max-width: 640px) {
+    .text-monument {
+      font-size: 1.25rem;
+    }
+    
+    .text-epic {
+      font-size: 1rem;
+    }
+  }
+  
+  @media (min-width: 1024px) {
+    .text-monument {
+      font-size: 2rem;
+    }
+  }
+  
+  /* Print Styles - For documentation */
+  @media print {
+    body::before,
+    body::after {
+      display: none;
+    }
+    
+    .glass-ancient,
+    .glass-epic,
+    .glass-monument {
+      background: white;
+      border: 1px solid #ccc;
+    }
   }
 }

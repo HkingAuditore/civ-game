@@ -4,11 +4,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { GAME_SPEEDS, EPOCHS, RESOURCES, STRATA, calculateArmyFoodNeed, BUILDINGS } from './config';
 import { getCalendarInfo } from './utils/calendar';
-import { useGameState, useGameLoop, useGameActions, useSound } from './hooks';
+import { useGameState, useGameLoop, useGameActions, useSound, useEpicTheme } from './hooks';
 import {
   Icon,
   FloatingText
 } from './components/common/UIComponents';
+import { EpicCard, DiamondDivider, AncientPattern } from './components/common/EpicDecorations';
 import { StatusBar } from './components/layout/StatusBar';
 import { BottomNav } from './components/layout/BottomNav';
 import { GameControls } from './components/layout/GameControls';
@@ -67,6 +68,9 @@ export default function App() {
  * 仅在 gameState 初始化成功后渲染
  */
 function GameApp({ gameState }) {
+  // 应用史诗主题
+  const epicTheme = useEpicTheme(gameState.epoch);
+  
   // 添加日志函数
   const addLog = (msg) => {
     if (gameState?.setLogs) {
@@ -248,7 +252,9 @@ function GameApp({ gameState }) {
   };
 
   return (
-    <div className={`min-h-screen font-sans text-gray-100 ${EPOCHS[gameState.epoch].bg} transition-colors duration-1000`}>
+    <div className="min-h-screen font-epic text-gray-100 transition-all duration-1000 relative">
+      {/* Epic Background Pattern */}
+      <AncientPattern opacity={0.03} className="fixed inset-0 z-0 text-ancient-gold" />
       {/* 浮动文本 */}
       {gameState.clicks.map(c => (
         <FloatingText 
@@ -259,7 +265,7 @@ function GameApp({ gameState }) {
       ))}
 
       {/* 顶部状态栏 - 包含游戏控制（桌面端） */}
-      <div className="fixed top-0 left-0 right-0 z-50">        <StatusBar
+      <div className="fixed top-0 left-0 right-0 z-50 glass-epic border-b border-ancient-gold/20">        <StatusBar
         gameState={gameState}
         taxes={taxes}
         netSilverPerDay={netSilverPerDay}

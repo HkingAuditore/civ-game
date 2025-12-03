@@ -1,13 +1,102 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>civ-game</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="description" content="文明崛起 - 史诗级历史策略游戏，建立你的帝国，书写历史传奇" />
+    <meta name="theme-color" content="#2c1810" />
+    
+    <!-- Epic Fonts - Historical Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;800&family=Cinzel+Decorative:wght@700;900&family=Noto+Serif+SC:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+    
+    <title>文明崛起 - 史诗传奇</title>
+    
+    <style>
+      /* Loading Screen - Epic Entry */
+      #loading-screen {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(135deg, #1a1410 0%, #2c1810 50%, #1a1410 100%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        transition: opacity 0.5s ease-out;
+      }
+      
+      #loading-screen.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+      
+      .loading-title {
+        font-family: 'Cinzel Decorative', 'Noto Serif SC', serif;
+        font-size: 3rem;
+        font-weight: 900;
+        background: linear-gradient(135deg, #d4af37 0%, #f4e8d0 25%, #cd7f32 50%, #f4e8d0 75%, #d4af37 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        background-size: 200% auto;
+        animation: shimmer 3s linear infinite;
+        margin-bottom: 2rem;
+        letter-spacing: 0.2em;
+        text-align: center;
+      }
+      
+      .loading-spinner {
+        width: 60px;
+        height: 60px;
+        border: 4px solid rgba(212, 175, 55, 0.2);
+        border-top-color: #d4af37;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+      
+      @keyframes shimmer {
+        0% { background-position: -200% center; }
+        100% { background-position: 200% center; }
+      }
+      
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+      
+      @media (max-width: 640px) {
+        .loading-title {
+          font-size: 2rem;
+        }
+      }
+    </style>
   </head>
   <body>
+    <!-- Epic Loading Screen -->
+    <div id="loading-screen">
+      <h1 class="loading-title">文明崛起</h1>
+      <div class="loading-spinner"></div>
+    </div>
+    
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+    
+    <script>
+      // Hide loading screen when app is ready
+      window.addEventListener('load', () => {
+        setTimeout(() => {
+          const loadingScreen = document.getElementById('loading-screen');
+          if (loadingScreen) {
+            loadingScreen.classList.add('hidden');
+            setTimeout(() => loadingScreen.remove(), 500);
+          }
+        }, 500);
+      });
+    </script>
   </body>
 </html>
