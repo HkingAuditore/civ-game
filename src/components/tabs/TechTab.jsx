@@ -404,7 +404,7 @@ export const TechTab = ({
           <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer select-none">
             <input
               type="checkbox"
-              className="form-checkbox rounded border-gray-600 text-purple-400 focus:ring-purple-500"
+              className="form-checkbox rounded border-ancient-gold/30 text-purple-400 focus:ring-purple-500"
               checked={showUnresearchedOnly}
               onChange={(e) => setShowUnresearchedOnly(e.target.checked)}
             />
@@ -412,7 +412,7 @@ export const TechTab = ({
           </label>
           <button
             onClick={handleToggleAll}
-            className="text-xs px-3 py-1.5 rounded border border-gray-600 text-gray-200 hover:border-purple-400 hover:text-white transition-colors"
+            className="text-xs px-3 py-1.5 rounded border border-ancient-gold/30 text-ancient-parchment hover:border-purple-400 hover:text-ancient transition-colors"
           >
             {areAllVisibleExpanded ? '全部折叠' : '全部展开'}
           </button>
@@ -476,8 +476,8 @@ export const TechTab = ({
                                 status === 'unlocked'
                                   ? 'bg-green-900/20 border-green-600'
                                   : affordable
-                                  ? 'bg-gray-700 border-gray-600 hover:border-blue-500 hover:shadow-lg'
-                                  : 'bg-gray-700/50 border-gray-700'
+                                  ? 'glass-ancient border border-ancient-gold/30 hover:border-blue-400/70 hover:shadow-glow-gold'
+                                  : 'bg-gray-700/50 border border-ancient-gold/20'
                               }`}
                             >
                               {/* 科技头部 - 紧凑版 */}

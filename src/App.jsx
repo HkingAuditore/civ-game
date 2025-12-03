@@ -328,7 +328,7 @@ function GameApp({ gameState }) {
           
           {/* 左侧边栏 - 桌面端显示 */}
           <aside className="hidden lg:block lg:col-span-2 space-y-4 order-2 lg:order-1">
-            {/* 资源面板 - 使用 Grid 布局优化排版 */}
+            {/* 国内市场面板 */}
             <EpicCard variant="ancient" className="p-3 animate-fade-in-up">
               <div className="flex items-center gap-2 mb-3">
                 <div className="relative">
@@ -338,15 +338,13 @@ function GameApp({ gameState }) {
                 <h3 className="text-sm font-bold text-ancient">国内市场</h3>
               </div>
               <DiamondDivider className="text-ancient-gold/50 mb-3" />
-              <div className="grid grid-cols-1 gap-1">
-                <ResourcePanel 
-                  resources={gameState.resources} 
-                  rates={gameState.rates} 
-                  market={gameState.market}
-                  epoch={gameState.epoch}
-                  onDetailClick={(key) => gameState.setResourceDetailView(key)}
-                />
-              </div>
+              <ResourcePanel 
+                resources={gameState.resources} 
+                rates={gameState.rates} 
+                market={gameState.market}
+                epoch={gameState.epoch}
+                onDetailClick={(key) => gameState.setResourceDetailView(key)}
+              />
             </EpicCard>
 
             {/* 社会阶层面板 */}
@@ -708,18 +706,16 @@ function GameApp({ gameState }) {
         title="国内市场"
         showHeader={true}
       >
-        <div className="space-y-2">
-          <ResourcePanel 
-            resources={gameState.resources} 
-            rates={gameState.rates} 
-            market={gameState.market}
-            epoch={gameState.epoch}
-            onDetailClick={(key) => {
-              setShowMarket(false);
-              gameState.setResourceDetailView(key);
-            }}
-          />
-        </div>
+        <ResourcePanel 
+          resources={gameState.resources} 
+          rates={gameState.rates} 
+          market={gameState.market}
+          epoch={gameState.epoch}
+          onDetailClick={(key) => {
+            setShowMarket(false);
+            gameState.setResourceDetailView(key);
+          }}
+        />
       </BottomSheet>
 
       {/* 帝国场景底部面板（移动端） */}

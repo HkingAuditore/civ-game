@@ -55,7 +55,7 @@ const BuildingTooltip = ({ building, count, epoch, techsUnlocked, jobFill, ancho
       )}
 
       {cost && Object.keys(cost).length > 0 && (
-        <div className="bg-gray-900/50 rounded px-2 py-1.5 mb-2 text-xs">
+        <div className="glass-ancient rounded px-2 py-1.5 mb-2 text-xs border border-ancient-gold/20">
           <div className="text-[10px] text-gray-300 mb-1">下一个建造成本</div>
           {Object.entries(cost).map(([res, val]) => {
             const hasEnough = (resources[res] || 0) >= val;
@@ -76,7 +76,7 @@ const BuildingTooltip = ({ building, count, epoch, techsUnlocked, jobFill, ancho
         const unlockedInput = filterUnlockedResources(building.input, epoch, techsUnlocked);
         if (Object.keys(unlockedOutput).length === 0 && Object.keys(unlockedInput).length === 0) return null;
         return (
-          <div className="bg-gray-900/50 rounded px-2 py-1.5 mb-2 text-xs">
+          <div className="glass-ancient rounded px-2 py-1.5 mb-2 text-xs border border-ancient-gold/20">
             <div className="text-[10px] text-gray-300 mb-1">资源流/个</div>
             {Object.entries(unlockedOutput).map(([res, val]) => (
               <div key={`out-${res}`} className="flex justify-between">
@@ -95,7 +95,7 @@ const BuildingTooltip = ({ building, count, epoch, techsUnlocked, jobFill, ancho
       })()}
 
       {building.jobs && (
-        <div className="bg-gray-900/50 rounded px-2 py-1.5 mb-2 text-xs">
+        <div className="glass-ancient rounded px-2 py-1.5 mb-2 text-xs border border-ancient-gold/20">
           <div className="text-[10px] text-gray-300 mb-1">岗位</div>
           {Object.entries(building.jobs).map(([job, perBuilding]) => {
             const required = perBuilding * count;
@@ -152,11 +152,11 @@ const CompactBuildingCard = ({
   resources,
 }) => {
   const VisualIcon = Icon;
-  const incomeColor = ownerIncome > 0 ? 'text-green-400' : ownerIncome < 0 ? 'text-red-400' : 'text-gray-400';
+  const incomeColor = ownerIncome > 0 ? 'text-green-400' : ownerIncome < 0 ? 'text-red-400' : 'text-ancient-stone';
 
   return (
     <div 
-      className="group relative flex flex-col h-full bg-gray-800/60 border border-gray-700 rounded p-1.5 text-center transition-all hover:border-blue-500 hover:bg-gray-800/80 hover:shadow-lg"
+      className="group relative flex flex-col h-full glass-ancient border border-ancient-gold/30 rounded-xl p-2 text-center transition-all hover:border-ancient-gold/50 hover:shadow-glow-gold"
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
@@ -165,12 +165,12 @@ const CompactBuildingCard = ({
         className="flex-grow flex flex-col items-center cursor-pointer"
         onClick={() => onShowDetails(building.id)}
       >
-        <div className="w-8 h-8 rounded-full flex items-center justify-center mb-1 bg-gradient-to-br from-gray-700/80 to-gray-900/80 border border-gray-600/50 shadow-inner">
+        <div className="w-9 h-9 rounded-full flex items-center justify-center mb-1 bg-ancient-ink/70 border border-ancient-gold/30 shadow-inner">
           <VisualIcon name={building.visual.icon} size={16} className={`${building.visual.text} drop-shadow-sm`} />
         </div>
         <div className="flex items-baseline gap-0.5">
-          <h4 className="text-[10px] font-bold text-white leading-tight truncate max-w-[60px]">{building.name}</h4>
-          {count > 0 && <p className="text-[9px] font-bold text-blue-300 drop-shadow-sm">×{count}</p>}
+          <h4 className="text-[11px] font-bold text-ancient-parchment leading-tight truncate max-w-[70px]">{building.name}</h4>
+          {count > 0 && <p className="text-[9px] font-bold text-ancient-gold drop-shadow-sm">×{count}</p>}
         </div>
       </div>
 
@@ -430,7 +430,7 @@ export const BuildTab = ({
         const categoryBuildings = BUILDINGS.filter(b => b.cat === catKey);
         
         return (
-          <div key={catKey} className="bg-gray-800/50 p-4 rounded-lg border border-gray-700">
+          <div key={catKey} className="glass-ancient p-4 rounded-xl border border-ancient-gold/30">
             {/* 类别标题 */}
             <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300">
               <Icon name={catInfo.icon} size={16} className={catInfo.color} />

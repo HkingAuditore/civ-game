@@ -326,8 +326,8 @@ export const MilitaryTab = ({
                 onClick={() => onShowUnitDetails && onShowUnitDetails(unit)}
                 className={`group relative p-2 rounded-lg border transition-all cursor-pointer ${
                   affordable
-                    ? 'bg-gray-700 border-gray-600 hover:border-red-500 hover:shadow-lg'
-                    : 'bg-gray-700/50 border-gray-700'
+                    ? 'glass-ancient border border-ancient-gold/30 hover:border-red-500/60 hover:shadow-glow-gold'
+                    : 'bg-gray-700/50 border border-ancient-gold/20'
                 }`}
               >
                 {/* 单位头部 - 紧凑版 */}
