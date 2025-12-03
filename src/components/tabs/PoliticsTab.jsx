@@ -472,7 +472,7 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
     return (
       <div key={group.name} className="mb-4">
         <h5 className="text-xs font-semibold text-gray-400 mb-2">{group.name}</h5>
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-2">
           {groupResources.map(([key, info]) => (
             <ResourceTaxCard
               key={key}
@@ -502,10 +502,10 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
           </h3>
 
           {/* 标签页切换 */}
-          <div className="flex gap-2 mb-4 border-b border-gray-700">
+          <div className="flex flex-wrap gap-2 mb-4 border-b border-gray-700">
             <button
               onClick={() => setActiveTaxTab('head')}
-              className={`px-4 py-2 text-sm font-semibold transition-all ${
+              className={`flex-1 min-w-[90px] px-4 py-2 text-sm font-semibold transition-all ${
                 activeTaxTab === 'head'
                   ? 'text-yellow-300 border-b-2 border-yellow-400'
                   : 'text-gray-400 hover:text-gray-300'
@@ -518,7 +518,7 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
             </button>
             <button
               onClick={() => setActiveTaxTab('resource')}
-              className={`px-4 py-2 text-sm font-semibold transition-all ${
+              className={`flex-1 min-w-[90px] px-4 py-2 text-sm font-semibold transition-all ${
                 activeTaxTab === 'resource'
                   ? 'text-blue-300 border-b-2 border-blue-400'
                   : 'text-gray-400 hover:text-gray-300'
@@ -531,7 +531,7 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
             </button>
             <button
               onClick={() => setActiveTaxTab('business')}
-              className={`px-4 py-2 text-sm font-semibold transition-all ${
+              className={`flex-1 min-w-[90px] px-4 py-2 text-sm font-semibold transition-all ${
                 activeTaxTab === 'business'
                   ? 'text-green-300 border-b-2 border-green-400'
                   : 'text-gray-400 hover:text-gray-300'
@@ -600,7 +600,7 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
               {taxableResources.filter(([key]) => !ALL_GROUPED_RESOURCES.has(key)).length > 0 && (
                 <div>
                   <h5 className="text-xs font-semibold text-gray-400 mb-2">其他资源</h5>
-                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-2">
                     {taxableResources
                       .filter(([key]) => !ALL_GROUPED_RESOURCES.has(key))
                       .map(([key, info]) => (
