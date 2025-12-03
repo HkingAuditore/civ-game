@@ -4,8 +4,8 @@ import react from '@vitejs/plugin-react'
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
-  // 使用根路径，确保在测试环境中正确加载资源
-  base: '/',
+  // GitHub Pages 部署路径配置
+  base: '/civ-game/',
   build: {
     // 确保生成正确的资源路径
     assetsDir: 'assets',
