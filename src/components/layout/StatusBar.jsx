@@ -68,20 +68,27 @@ export const StatusBar = ({
     .slice(0, 6); // 移动端只显示前6个
 
   return (
-    <header className="bg-gray-900/80 backdrop-blur-md border-b border-white/10 shadow-glass">
-      <div className="max-w-[1920px] mx-auto px-3 sm:px-4 py-2 sm:py-3 relative">
+    <header className="relative glass-epic border-b border-ancient-gold/20 shadow-epic overflow-visible">
+      {/* 动态背景装饰 */}
+      <div className="absolute inset-0 bg-gradient-to-r from-ancient-ink/50 via-ancient-stone/30 to-ancient-ink/50 opacity-50 overflow-hidden" />
+      <div className="absolute inset-0 animate-shimmer overflow-hidden" style={{ backgroundImage: 'linear-gradient(90deg, transparent 0%, rgba(212, 175, 55, 0.1) 50%, transparent 100%)', backgroundSize: '200% 100%' }} />
+      
+      <div className="max-w-[1920px] mx-auto px-3 sm:px-4 py-2 sm:py-3 relative z-10">
         {/* 第一行：Logo、时代、时间 */}
         <div className="flex items-center justify-between gap-2 sm:gap-4 mb-2">
           {/* Logo 和时代 */}
           <div className="flex items-center gap-2 sm:gap-3">
-            <div className={`bg-gradient-to-br from-blue-600 to-blue-800 p-1.5 sm:p-2 rounded-lg shadow-glow-sm`}>
-              <Icon name="Globe" size={16} className="sm:w-5 sm:h-5" />
+            <div className="relative group">
+              <div className="absolute inset-0 bg-gradient-to-br from-ancient-gold to-ancient-bronze rounded-lg blur-md opacity-50 group-hover:opacity-75 transition-opacity" />
+              <div className="relative bg-gradient-to-br from-ancient-gold/20 to-ancient-bronze/20 p-1.5 sm:p-2 rounded-lg border border-ancient-gold/30 shadow-glow-gold animate-pulse-gold">
+                <Icon name="Globe" size={16} className="sm:w-5 sm:h-5 text-ancient-gold" />
+              </div>
             </div>
             <div className="hidden sm:block">
-              <h1 className="font-bold text-sm sm:text-lg leading-none text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400">
+              <h1 className="font-epic font-bold text-sm sm:text-lg leading-none text-monument">
                 文明崛起
               </h1>
-              <span className={`text-[10px] sm:text-xs font-bold uppercase ${epochColor}`}>
+              <span className={`text-[10px] sm:text-xs font-bold uppercase text-ancient tracking-wider`}>
                 {EPOCHS[gameState.epoch]?.name}
               </span>
             </div>
@@ -102,14 +109,14 @@ export const StatusBar = ({
                 // setShowResourcesExpanded(!showResourcesExpanded);
               }
             }}
-            className="flex items-center gap-1.5 sm:gap-2 bg-gray-800/40 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full border border-gray-700/50 hover:bg-gray-800/60 transition-colors"
+            className="relative group flex items-center gap-1.5 sm:gap-2 glass-ancient px-2 sm:px-3 py-1 sm:py-1.5 rounded-full border border-ancient-gold/20 hover:border-ancient-gold/40 hover:shadow-glow-gold transition-all"
           >
-            <Icon name="Calendar" size={14} className="text-blue-300 sm:w-4 sm:h-4" />
+            <Icon name="Calendar" size={14} className="text-ancient-gold sm:w-4 sm:h-4" />
             <div className="text-[10px] sm:text-xs leading-tight">
-              <div className="font-bold text-white">
+              <div className="font-bold text-ancient">
                 第 {calendar.year} 年 · {calendar.season}
               </div>
-              <div className="text-[9px] sm:text-[10px] text-gray-400 hidden sm:block">
+              <div className="text-[9px] sm:text-[10px] text-ancient-bronze hidden sm:block">
                 {calendar.monthName}{calendar.day}日 · 速度 x{gameState.gameSpeed}
               </div>
             </div>
@@ -124,10 +131,11 @@ export const StatusBar = ({
             <button
               onClick={() => onResourceDetailClick('silver')}
               onMouseEnter={() => setShowTaxDetail(true)}
-              className="flex items-center gap-1 sm:gap-1.5 bg-gradient-to-r from-yellow-900/30 to-yellow-800/20 backdrop-blur-sm px-2 sm:px-3 py-1.5 rounded-full border border-yellow-600/30 hover:border-yellow-500/50 transition-all flex-shrink-0 group"
+              className="relative flex items-center gap-1 sm:gap-1.5 glass-ancient px-2 sm:px-3 py-1.5 rounded-full border border-ancient-gold/30 hover:border-ancient-gold/60 hover:shadow-glow-gold transition-all flex-shrink-0 group overflow-hidden"
             >
-              <Icon name="Coins" size={14} className="text-yellow-300 sm:w-4 sm:h-4" />
-              <span className="font-mono text-xs sm:text-sm font-bold text-yellow-200">
+              <div className="absolute inset-0 bg-gradient-to-r from-ancient-gold/10 via-ancient-gold/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+              <Icon name="Coins" size={14} className="text-ancient-gold sm:w-4 sm:h-4 relative z-10" />
+              <span className="font-mono text-xs sm:text-sm font-bold text-ancient relative z-10">
                 {formatNumber(gameState.resources.silver || 0)}
               </span>
               <div
@@ -156,7 +164,7 @@ export const StatusBar = ({
             {showTaxDetail && (
               <div 
                 onMouseLeave={() => setShowTaxDetail(false)}
-                className="absolute top-full left-0 mt-2 w-72 bg-gray-900/95 backdrop-blur-md border border-gray-700/70 rounded-xl p-4 shadow-glass z-[40] animate-slide-up"
+                className="absolute top-full left-0 mt-2 w-72 bg-gray-900/95 backdrop-blur-md border border-gray-700/70 rounded-xl p-4 shadow-glass z-[60] animate-slide-up"
               >
                 <div className="flex items-center justify-between text-sm text-gray-300 mb-3">
                   <span className="font-semibold">财政收支 (每日)</span>
@@ -227,10 +235,11 @@ export const StatusBar = ({
             {/* 人口 - 始终显示上限 */}
             <button
               onClick={onPopulationDetailClick}
-              className="flex items-center gap-1 sm:gap-1.5 bg-gradient-to-r from-blue-900/30 to-blue-800/20 backdrop-blur-sm px-2 sm:px-3 py-1.5 rounded-full border border-blue-600/30 hover:border-blue-500/50 transition-all flex-shrink-0"
+              className="relative group flex items-center gap-1 sm:gap-1.5 glass-ancient px-2 sm:px-3 py-1.5 rounded-full border border-blue-400/30 hover:border-blue-400/60 hover:shadow-glow transition-all flex-shrink-0 overflow-hidden"
             >
-              <Icon name="Users" size={14} className="text-blue-300 sm:w-4 sm:h-4" />
-              <div className="flex items-baseline gap-0.5">
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 via-blue-400/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+              <Icon name="Users" size={14} className="text-blue-300 sm:w-4 sm:h-4 relative z-10" />
+              <div className="flex items-baseline gap-0.5 relative z-10">
                 <span className="font-mono text-xs sm:text-sm font-bold text-blue-200">
                   {formatNumber(gameState.population)}
                 </span>

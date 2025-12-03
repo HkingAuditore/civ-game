@@ -41,11 +41,11 @@ export const ResourcePanel = ({
     // 重构：移除外部容器和标题，使用 Grid 布局来精确对齐所有列
     <div className="space-y-1">
       {/* 新增：列标题 */}
-      <div className="grid grid-cols-[1fr,auto,auto,auto] items-center gap-x-2 text-[10px] text-gray-400 px-1 pb-1 border-b border-gray-700/50">
-        <span className="text-left">资源</span>
-        <span className="min-w-[45px] text-right">市场库存</span>
-        <span className="min-w-[55px] text-right">市场价</span>
-        <span className="min-w-[45px] text-right">产出/日</span>
+      <div className="grid grid-cols-[1fr,auto,auto,auto] items-center gap-x-2 text-[10px] text-ancient-bronze px-1 pb-1 border-b border-ancient-gold/20">
+        <span className="text-left font-semibold">资源</span>
+        <span className="min-w-[45px] text-right font-semibold">库存</span>
+        <span className="min-w-[55px] text-right font-semibold">价格</span>
+        <span className="min-w-[45px] text-right font-semibold">产出</span>
       </div>
 
       {/* 资源列表 */}
@@ -60,27 +60,33 @@ export const ResourcePanel = ({
         return (
           <div
             key={key}
-            className="grid grid-cols-[1fr,auto,auto,auto] items-center gap-x-2 text-xs hover:bg-gray-700/50 p-1 rounded transition-colors cursor-pointer"
+            className="relative group grid grid-cols-[1fr,auto,auto,auto] items-center gap-x-2 text-xs p-1 rounded transition-all cursor-pointer overflow-hidden hover:shadow-glow-gold"
             onClick={() => onDetailClick && onDetailClick(key)}
             title="点击查看详情"
           >
+            {/* 悬停背景效果 */}
+            <div className="absolute inset-0 bg-gradient-to-r from-ancient-gold/5 via-ancient-gold/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className="absolute inset-0 border border-ancient-gold/0 group-hover:border-ancient-gold/20 rounded transition-colors" />
             {/* 1. 资源图标和名称 (自动撑开) */}
-            <div className="flex items-center gap-1.5 overflow-hidden">
-              <Icon name={info.icon} size={14} className={`${info.color} flex-shrink-0`} />
-              <span className="text-gray-300 truncate">{info.name}</span>
+            <div className="flex items-center gap-1.5 overflow-hidden relative z-10">
+              <div className="relative">
+                <div className="absolute inset-0 blur-sm opacity-50 group-hover:opacity-75 transition-opacity" style={{ color: info.color }} />
+                <Icon name={info.icon} size={14} className={`${info.color} flex-shrink-0 relative`} />
+              </div>
+              <span className="text-gray-200 group-hover:text-ancient truncate transition-colors">{info.name}</span>
             </div>
             {/* 2. 资源数量 (右对齐) */}
-            <span className="font-mono font-bold text-white min-w-[45px] text-right">
+            <span className="font-mono font-bold text-white min-w-[45px] text-right relative z-10 group-hover:text-ancient transition-colors">
               {formatCompactNumber(amount)}
             </span>
             {/* 3. 价格 (右对齐) */}
-            <div className="flex items-center justify-end gap-0.5 font-mono text-slate-300 min-w-[55px] text-[10px]">
+            <div className="flex items-center justify-end gap-0.5 font-mono text-slate-300 min-w-[55px] text-[10px] relative z-10 group-hover:text-ancient-gold transition-colors">
               <span>{price.toFixed(2)}</span>
-              <Icon name="Coins" size={10} className="text-yellow-400" />
+              <Icon name="Coins" size={10} className="text-ancient-gold" />
             </div>
 
             {/* 4. 增长率 (右对齐) */}
-            <span className={`font-mono min-w-[45px] text-right ${rate > 0 ? 'text-green-400' : 'text-red-400'}`}>
+            <span className={`font-mono min-w-[45px] text-right relative z-10 transition-all ${rate > 0 ? 'text-green-400 group-hover:text-green-300' : rate < 0 ? 'text-red-400 group-hover:text-red-300' : 'text-gray-500'}`}>
               {rate !== 0 ? `${rate > 0 ? '+' : ''}${rate.toFixed(1)}` : ''}
             </span>
           </div>
