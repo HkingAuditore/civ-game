@@ -20,19 +20,27 @@ import { createEnemyPeaceRequestEvent } from '../config/events';
  * @param {Function} setTradeRoutes - 设置贸易路线函数
  */
 const processTradeRoutes = (current, result, addLog, setResources, setNations, setTradeRoutes) => {
-  const { tradeRoutes, nations, resources, daysElapsed, market } = current;
+  const { tradeRoutes, nations, resources, daysElapsed, market, popStructure } = current;
   const routes = tradeRoutes.routes || [];
 
   // 贸易路线配置
   const TRADE_SPEED = 0.05; // 每天传输盈余/缺口的5%
   const MIN_TRADE_AMOUNT = 0.1; // 最小贸易量
 
+  // 获取在岗商人数量，决定有多少条贸易路线有效
+  const merchantCount = popStructure?.merchant || 0;
+  
   const routesToRemove = [];
   const tradeLog = [];
   let totalIncome = 0;
   let totalExpense = 0;
 
-  routes.forEach(route => {
+  // 只处理前 merchantCount 条贸易路线（有多少个商人在岗就让多少条贸易路线有用）
+  routes.forEach((route, index) => {
+    // 如果超过商人数量，则跳过该贸易路线
+    if (index >= merchantCount) {
+      return;
+    }
     const { nationId, resource, type } = route;
     const nation = nations.find(n => n.id === nationId);
     
@@ -74,21 +82,23 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
         return;
       }
       
-      // 执行出口
-      const revenue = foreignPrice * exportAmount;
+      // 执行出口：从国内购买（localPrice）→ 到国外卖出（foreignPrice）
+      const purchaseCost = localPrice * exportAmount;  // 国内购买成本
+      const saleRevenue = foreignPrice * exportAmount;  // 国外销售收入
+      const profit = saleRevenue - purchaseCost;  // 净利润
       
       setResources(prev => ({
         ...prev,
-        silver: (prev.silver || 0) + revenue,
+        silver: (prev.silver || 0) + profit,
         [resource]: Math.max(0, (prev[resource] || 0) - exportAmount),
       }));
-      totalIncome += revenue;
+      totalIncome += profit;
 
       setNations(prev => prev.map(n =>
         n.id === nationId
           ? {
               ...n,
-              budget: Math.max(0, (n.budget || 0) - revenue),
+              budget: Math.max(0, (n.budget || 0) - saleRevenue),
               inventory: {
                 ...n.inventory,
                 [resource]: ((n.inventory || {})[resource] || 0) + exportAmount,
@@ -98,7 +108,8 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
       ));
       
       if (exportAmount >= 1) {
-        tradeLog.push(`🚢 出口 ${exportAmount.toFixed(1)} ${RESOURCES[resource]?.name || resource} 至 ${nation.name}，收入 ${revenue.toFixed(1)} 银币。`);
+        const profitText = profit >= 0 ? `盈利 ${profit.toFixed(1)}` : `亏损 ${Math.abs(profit).toFixed(1)}`;
+        tradeLog.push(`🚢 出口 ${exportAmount.toFixed(1)} ${RESOURCES[resource]?.name || resource} 至 ${nation.name}（国内价 ${localPrice.toFixed(1)} → 国外价 ${foreignPrice.toFixed(1)}），${profitText} 银币。`);
       }
       
     } else if (type === 'import') {
@@ -115,26 +126,29 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
         return;
       }
       
-      // 执行进口
-      const cost = foreignPrice * importAmount;
+      // 执行进口：从国外购买（foreignPrice）→ 到国内卖出（localPrice）
+      const purchaseCost = foreignPrice * importAmount;  // 国外购买成本
+      const saleRevenue = localPrice * importAmount;  // 国内销售收入
+      const profit = saleRevenue - purchaseCost;  // 净利润
       
-      // 检查银币是否足够
-      if ((resources.silver || 0) < cost) {
+      // 检查银币是否足够支付购买成本
+      if ((resources.silver || 0) < purchaseCost) {
         return; // 银币不足，暂停贸易
       }
       
       setResources(prev => ({
         ...prev,
-        silver: Math.max(0, (prev.silver || 0) - cost),
+        silver: (prev.silver || 0) + profit,
         [resource]: (prev[resource] || 0) + importAmount,
       }));
-      totalExpense += cost;
+      totalExpense += purchaseCost;
+      totalIncome += saleRevenue;
 
       setNations(prev => prev.map(n =>
         n.id === nationId
           ? {
               ...n,
-              budget: (n.budget || 0) + cost,
+              budget: (n.budget || 0) + purchaseCost,
               inventory: {
                 ...n.inventory,
                 [resource]: Math.max(0, ((n.inventory || {})[resource] || 0) - importAmount),
@@ -144,7 +158,8 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
       ));
       
       if (importAmount >= 1) {
-        tradeLog.push(`🚢 进口 ${importAmount.toFixed(1)} ${RESOURCES[resource]?.name || resource} 从 ${nation.name}，支出 ${cost.toFixed(1)} 银币。`);
+        const profitText = profit >= 0 ? `盈利 ${profit.toFixed(1)}` : `亏损 ${Math.abs(profit).toFixed(1)}`;
+        tradeLog.push(`🚢 进口 ${importAmount.toFixed(1)} ${RESOURCES[resource]?.name || resource} 从 ${nation.name}（国外价 ${foreignPrice.toFixed(1)} → 国内价 ${localPrice.toFixed(1)}），${profitText} 银币。`);
       }
     }
   });

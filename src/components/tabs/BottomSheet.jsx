@@ -9,8 +9,9 @@ import { Icon } from '../common/UIComponents';
  * @param {React.ReactNode} children - 内容
  * @param {string} title - 标题
  * @param {boolean} [showHeader=true] - 是否显示头部
+ * @param {boolean} [preventBackdropClose=false] - 是否禁止点击背景关闭
  */
-export const BottomSheet = ({ isOpen, onClose, children, title, showHeader = true }) => {
+export const BottomSheet = ({ isOpen, onClose, children, title, showHeader = true, preventBackdropClose = false }) => {
   const [isAnimatingOut, setIsAnimatingOut] = useState(false);
 
   useEffect(() => {
@@ -44,7 +45,7 @@ export const BottomSheet = ({ isOpen, onClose, children, title, showHeader = tru
       {/* 遮罩层 */}
       <div
         className="absolute inset-0 bg-black/60 animate-fade-in"
-        onClick={handleClose}
+        onClick={preventBackdropClose ? undefined : handleClose}
       ></div>
 
       {/* 内容面板 */}

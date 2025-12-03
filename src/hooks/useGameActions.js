@@ -47,8 +47,10 @@ export const useGameActions = (gameState, addLog) => {
     setStability,
     setPopulation,
     setMaxPop,
+    setMaxPopBonus,
     tradeRoutes,
     setTradeRoutes,
+    jobsAvailable,
   } = gameState;
 
   const getMarketPrice = (resource) => {
@@ -883,7 +885,7 @@ export const useGameActions = (gameState, addLog) => {
       addLog(`你接受了和平协议，${targetNation.name}将每天支付 ${amount} 银币，持续一年（共${amount * 365}银币）。`);
     } else if (proposalType === 'population') {
       // 提供人口
-        setMaxPop(prev => prev + amount);
+        setMaxPopBonus(prev => prev + amount);
         setPopulation(prev => prev + amount);
         setNations(prev => prev.map(n =>
             n.id === nationId
@@ -1015,7 +1017,7 @@ export const useGameActions = (gameState, addLog) => {
       // 要求提供人口
       const willingness = (warScore / 95) + Math.min(0.42, enemyLosses / 230) + Math.min(0.23, warDuration / 230);
       if (willingness > 0.68) {
-        setMaxPop(prev => prev + amount);
+        setMaxPopBonus(prev => prev + amount);
         setPopulation(prev => prev + amount);
         setNations(prev => prev.map(n =>
           n.id === nationId
@@ -1109,7 +1111,7 @@ export const useGameActions = (gameState, addLog) => {
         addLog('人口不足，无法提供。');
         return;
       }
-      setMaxPop(prev => Math.max(1, prev - amount));
+      setMaxPopBonus(prev => Math.max(-population + 1, prev - amount));
       setPopulation(prev => Math.max(1, prev - amount));
       setNations(prev => prev.map(n =>
         n.id === nationId
@@ -1180,6 +1182,14 @@ export const useGameActions = (gameState, addLog) => {
     }
 
     if (action === 'create') {
+      // 检查贸易路线数量是否超过商人岗位上限（只有当有商人岗位时才检查）
+      const merchantJobLimit = jobsAvailable?.merchant || 0;
+      const currentRouteCount = tradeRoutes.routes.length;
+      if (merchantJobLimit > 0 && currentRouteCount >= merchantJobLimit) {
+        addLog(`贸易路线数量已达上限（${merchantJobLimit}），需要更多商人岗位。请建造更多贸易站。`);
+        return;
+      }
+
       // 检查是否处于战争
       if (targetNation.isAtWar) {
         addLog(`与 ${targetNation.name} 处于战争状态，无法创建贸易路线。`);
