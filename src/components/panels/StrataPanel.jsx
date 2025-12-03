@@ -123,6 +123,29 @@ export const StrataPanel = ({
           </div>
         </div>
       )}
+      
+      {/* 移动端稳定度显示（当标题隐藏时） */}
+      {hideTitle && (
+        <div className="flex items-center justify-center gap-1.5 mb-1.5 flex-shrink-0 bg-ancient-ink/30 rounded-lg px-2 py-1 border border-ancient-gold/20">
+          <span className="text-[10px] text-ancient-stone">总体稳定度</span>
+          <Icon 
+            name="TrendingUp" 
+            size={12} 
+            className={
+              stability >= 70 ? 'text-green-400' :
+              stability >= 40 ? 'text-yellow-400' :
+              'text-red-400'
+            } 
+          />
+          <span className={`text-[11px] font-bold ${
+            stability >= 70 ? 'text-green-400' :
+            stability >= 40 ? 'text-yellow-400' :
+            'text-red-400'
+          }`}>
+            {stability.toFixed(0)}%
+          </span>
+        </div>
+      )}
 
       {/* 阶层列表 - 使用自定义滚动条样式 */}
       <div
