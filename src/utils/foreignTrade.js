@@ -95,8 +95,13 @@ export const calculateTradeStatus = (resourceKey, nation = {}, daysElapsed = 0) 
   const offset = getResourceKeyOffset(resourceKey);
   const factor = Math.sin(daysElapsed * 0.05 + offset);
   const dynamicTarget = baseTarget * (1 + factor * volatility);
-  const shortageThreshold = dynamicTarget * 0.5;
-  const surplusThreshold = dynamicTarget * 1.5;
+  
+  // 修改阈值逻辑：以目标库存为中心，低于目标为缺口，高于目标为盈余
+  // 这样可以确保总有贸易机会
+  const shortageThreshold = dynamicTarget * 0.9;  // 低于90%目标视为缺口
+  const surplusThreshold = dynamicTarget * 1.1;   // 高于110%目标视为盈余
+  
+  // 计算缺口和盈余的具体数量
   const shortageAmount = Math.max(0, shortageThreshold - inventory);
   const surplusAmount = Math.max(0, inventory - surplusThreshold);
 

@@ -24,6 +24,8 @@ export const DiplomacyTab = ({
   tradeRoutes = { routes: [] },
   onTradeRouteAction,
   playerInstallmentPayment = null,
+  jobsAvailable = {},
+  popStructure = {},
 }) => {
   const [selectedNationId, setSelectedNationId] = useState(null);
   const [tradeAmount, setTradeAmount] = useState(10);
@@ -63,6 +65,12 @@ export const DiplomacyTab = ({
 
   const totalAllies = visibleNations.filter((n) => (n.relation || 0) >= 80).length;
   const totalWars = visibleNations.filter((n) => n.isAtWar).length;
+
+  // 获取商人岗位信息
+  const merchantJobLimit = jobsAvailable?.merchant || 0;
+  const merchantCount = popStructure?.merchant || 0;
+  const currentRouteCount = tradeRoutes.routes.length;
+  const activeRouteCount = Math.min(currentRouteCount, merchantCount);
 
   // 检查是否已存在贸易路线
   const hasTradeRoute = (nationId, resourceKey, type) => {
@@ -122,6 +130,17 @@ export const DiplomacyTab = ({
         <div className="bg-red-900/20 px-2 py-1 rounded border border-red-600/30">
           <span className="text-gray-400">战争:</span>
           <span className="text-red-300 font-bold ml-1">{totalWars}</span>
+        </div>
+        <div className="bg-blue-900/20 px-2 py-1 rounded border border-blue-600/20">
+          <span className="text-gray-400">贸易路线:</span>
+          <span className={`font-bold ml-1 ${
+            activeRouteCount < currentRouteCount ? 'text-yellow-300' : 'text-blue-300'
+          }`}>{activeRouteCount}/{currentRouteCount}</span>
+          <span className="text-gray-500 text-[10px] ml-1">(上限:{merchantJobLimit})</span>
+        </div>
+        <div className="bg-amber-900/20 px-2 py-1 rounded border border-amber-600/20">
+          <span className="text-gray-400">商人在岗:</span>
+          <span className="text-amber-300 font-bold ml-1">{merchantCount}/{merchantJobLimit}</span>
         </div>
       </div>
 
@@ -220,9 +239,37 @@ export const DiplomacyTab = ({
                     贸易路线管理
                   </h3>
                   <div className="text-[10px] text-gray-400">
-                    创建贸易路线以自动进出口资源
+                    <div>创建贸易路线以自动进出口资源</div>
+                    <div className="mt-0.5">
+                      <span className={activeRouteCount < currentRouteCount ? 'text-yellow-400' : 'text-blue-400'}>
+                        有效路线: {activeRouteCount}/{currentRouteCount}
+                      </span>
+                      <span className="text-gray-500 mx-1">|</span>
+                      <span className={currentRouteCount >= merchantJobLimit ? 'text-red-400' : 'text-green-400'}>
+                        上限: {merchantJobLimit}
+                      </span>
+                      <span className="text-gray-500 mx-1">|</span>
+                      <span className="text-amber-400">
+                        商人: {merchantCount}/{merchantJobLimit}
+                      </span>
+                    </div>
                   </div>
                 </div>
+                
+                {/* 警告提示 */}
+                {activeRouteCount < currentRouteCount && (
+                  <div className="mb-2 p-2 bg-yellow-900/30 border border-yellow-600/30 rounded text-[10px] text-yellow-300">
+                    <Icon name="AlertTriangle" size={12} className="inline mr-1" />
+                    当前有 {currentRouteCount - activeRouteCount} 条贸易路线未激活。需要更多商人在岗才能激活所有路线。
+                  </div>
+                )}
+                {currentRouteCount >= merchantJobLimit && (
+                  <div className="mb-2 p-2 bg-red-900/30 border border-red-600/30 rounded text-[10px] text-red-300">
+                    <Icon name="AlertCircle" size={12} className="inline mr-1" />
+                    贸易路线数量已达上限。建造更多贸易站以增加商人岗位上限。
+                  </div>
+                )}
+                
                 <div className="space-y-1">
                   {tradableResources.map(([key, res]) => {
                     if (!selectedNation) return null;

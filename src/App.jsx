@@ -126,6 +126,13 @@ function GameApp({ gameState }) {
     
     // 关闭模态框
     gameState.setFestivalModal(null);
+    
+    // 恢复游戏
+    gameState.setIsPaused(false);
+    
+    // 添加日志
+    const effectType = selectedEffect.type === 'permanent' ? '永久' : '短期';
+    addLog(`🎊 庆典效果「${selectedEffect.name}」已激活！（${effectType}）`);
   };
 
   // 处理事件选项选择
@@ -473,6 +480,8 @@ function GameApp({ gameState }) {
                   tradeRoutes={gameState.tradeRoutes}
                   onTradeRouteAction={actions.handleTradeRouteAction}
                   playerInstallmentPayment={gameState.playerInstallmentPayment}
+                  jobsAvailable={gameState.jobsAvailable}
+                  popStructure={gameState.popStructure}
                 />
               )}
             </div>
@@ -781,6 +790,7 @@ function GameApp({ gameState }) {
         onClose={() => gameState.setCurrentEvent(null)}
         title="事件"
         showHeader={true}
+        preventBackdropClose={true}
       >
         {gameState.currentEvent && (
           <EventDetail
