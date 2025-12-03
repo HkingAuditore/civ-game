@@ -4,6 +4,23 @@
 // 通用组件
 export { Icon, FloatingText } from './common/UIComponents';
 
+// 统一UI组件
+export {
+  Button,
+  Card,
+  Modal,
+  Input,
+  Badge,
+  Divider,
+  ListItem,
+  ProgressBar,
+  Tabs,
+  InfoCard as UnifiedInfoCard,
+  CollapsibleCard as UnifiedCollapsibleCard,
+  ActionCard as UnifiedActionCard,
+  StatsGrid,
+} from './common/UnifiedUI';
+
 // 动态效果组件
 export {
   FloatingParticles,
