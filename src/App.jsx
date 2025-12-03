@@ -329,11 +329,15 @@ function GameApp({ gameState }) {
           {/* 左侧边栏 - 桌面端显示 */}
           <aside className="hidden lg:block lg:col-span-2 space-y-4 order-2 lg:order-1">
             {/* 资源面板 - 使用 Grid 布局优化排版 */}
-            <div className="bg-gray-900/60 backdrop-blur-md rounded-xl border border-white/10 shadow-glass p-3">
+            <EpicCard variant="ancient" className="p-3 animate-fade-in-up">
               <div className="flex items-center gap-2 mb-3">
-                <Icon name="Package" size={16} className="text-amber-400" />
-                <h3 className="text-sm font-bold text-white">国内市场</h3>
+                <div className="relative">
+                  <div className="absolute inset-0 bg-ancient-gold blur-md opacity-50" />
+                  <Icon name="Package" size={16} className="text-ancient-gold relative" />
+                </div>
+                <h3 className="text-sm font-bold text-ancient">国内市场</h3>
               </div>
+              <DiamondDivider className="text-ancient-gold/50 mb-3" />
               <div className="grid grid-cols-1 gap-1">
                 <ResourcePanel 
                   resources={gameState.resources} 
@@ -343,7 +347,7 @@ function GameApp({ gameState }) {
                   onDetailClick={(key) => gameState.setResourceDetailView(key)}
                 />
               </div>
-            </div>
+            </EpicCard>
 
             {/* 社会阶层面板 */}
             <StrataPanel 
@@ -366,18 +370,24 @@ function GameApp({ gameState }) {
             {/* 手动采集按钮 */}
             <button 
               onClick={manualGather} 
-              className="w-full py-3 bg-gradient-to-r from-emerald-700 to-emerald-600 hover:from-emerald-600 hover:to-emerald-500 rounded-xl font-bold shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
+              className="relative w-full py-3 btn-epic rounded-xl font-bold shadow-epic active:scale-95 transition-all flex items-center justify-center gap-2 overflow-hidden group"
             >
-              <Icon name="Pickaxe" size={16} /> 手动采集
+              <div className="absolute inset-0 bg-gradient-to-r from-emerald-600/20 via-emerald-500/30 to-emerald-600/20 animate-shimmer" />
+              <Icon name="Pickaxe" size={16} className="relative z-10" /> 
+              <span className="relative z-10">手动采集</span>
             </button>
           </aside>
 
           {/* 中间内容区 - 主操作面板 */}
-          <section className="lg:col-span-8 space-y-3 sm:space-y-4 order-1 lg:order-2 relative z-10">
+          <section className="lg:col-span-8 space-y-3 sm:space-y-4 order-1 lg:order-2">
             {/* 标签页容器 */}
-            <div className="bg-gray-900/60 backdrop-blur-md rounded-xl border border-white/10 shadow-glass overflow-hidden min-h-[500px] animate-fade-in">
+            <div className="relative glass-epic rounded-2xl border border-ancient-gold/20 shadow-monument overflow-hidden min-h-[500px] animate-epic-entrance">
+              {/* 背景装饰 */}
+              <AncientPattern opacity={0.02} className="absolute inset-0 text-ancient-gold" />
+              <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-ancient-gold/50 to-transparent" />
               {/* 桌面端标签页导航 */}
-              <div className="hidden lg:flex border-b border-white/10 bg-gray-800/30 overflow-x-auto">
+              <div className="hidden lg:flex border-b border-ancient-gold/20 bg-gradient-to-r from-ancient-ink/50 via-ancient-stone/30 to-ancient-ink/50 overflow-x-auto relative">
+                <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-ancient-gold/30 to-transparent" />
                 {[
                   { id: 'build', label: '建设', icon: 'Hammer' },
                   { id: 'military', label: '军事', icon: 'Swords' },
@@ -388,19 +398,26 @@ function GameApp({ gameState }) {
                   <button
                     key={tab.id}
                     onClick={() => gameState.setActiveTab(tab.id)}
-                    className={`flex-1 min-w-[80px] py-3 flex items-center justify-center gap-2 text-sm font-bold transition-all ${
+                    className={`relative flex-1 min-w-[80px] py-3 flex items-center justify-center gap-2 text-sm font-bold transition-all group ${
                       gameState.activeTab === tab.id 
-                        ? 'bg-gray-700/50 text-white border-b-2 border-blue-500 shadow-glow-sm' 
-                        : 'text-gray-400 hover:bg-gray-800/30 hover:text-gray-200'
+                        ? 'text-ancient border-b-2 border-ancient-gold shadow-glow-gold' 
+                        : 'text-gray-400 hover:text-ancient-gold'
                     }`}
                   >
-                    <Icon name={tab.icon} size={16} /> {tab.label}
+                    {gameState.activeTab === tab.id && (
+                      <div className="absolute inset-0 bg-gradient-to-b from-ancient-gold/10 to-transparent" />
+                    )}
+                    <Icon name={tab.icon} size={16} className="relative z-10" /> 
+                    <span className="relative z-10">{tab.label}</span>
+                    {gameState.activeTab !== tab.id && (
+                      <div className="absolute inset-0 bg-ancient-gold/0 group-hover:bg-ancient-gold/5 transition-colors" />
+                    )}
                   </button>
                 ))}
               </div>
 
               {/* 标签页内容 */}
-              <div className="p-3 sm:p-4">
+              <div className="p-3 sm:p-4 relative">
               {/* 建设标签页 */}
               {gameState.activeTab === 'build' && (
                 <BuildTab

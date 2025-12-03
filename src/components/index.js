@@ -4,6 +4,32 @@
 // 通用组件
 export { Icon, FloatingText } from './common/UIComponents';
 
+// 动态效果组件
+export {
+  FloatingParticles,
+  LightSweep,
+  PulseRing,
+  GridBackground,
+  DynamicGradient,
+  BorderGlow,
+  StarField,
+  HoverCard,
+  ProgressGlow,
+  RippleEffect,
+  EpicBackground,
+} from './common/DynamicEffects';
+
+// 增强卡片组件
+export {
+  EnhancedCard,
+  InfoCard,
+  ListCard,
+  CollapsibleCard,
+  ActionCard,
+  ProgressCard,
+  CardGrid,
+} from './common/EnhancedCards';
+
 // 布局组件
 export { StatusBar } from './layout/StatusBar';
 export { BottomNav } from './layout/BottomNav';
