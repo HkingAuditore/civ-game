@@ -2,7 +2,7 @@
 // 使用拆分后的钩子和组件，保持代码简洁
 
 import React, { useEffect, useRef, useState } from 'react';
-import { GAME_SPEEDS, EPOCHS, RESOURCES, STRATA, calculateArmyFoodNeed, BUILDINGS } from './config';
+import { GAME_SPEEDS, EPOCHS, RESOURCES, STRATA, calculateArmyFoodNeed, BUILDINGS, EVENTS } from './config';
 import { getCalendarInfo } from './utils/calendar';
 import { useGameState, useGameLoop, useGameActions, useSound, useEpicTheme } from './hooks';
 import {
@@ -141,14 +141,25 @@ function GameApp({ gameState }) {
 
   // 处理事件选项选择
   const handleEventOption = (eventId, option) => {
-    const selectedEffect = option || {};
+    const selectedOption = option || {};
+    const currentEvent =
+      gameState.currentEvent && gameState.currentEvent.id === eventId
+        ? gameState.currentEvent
+        : null;
+    const fallbackEvent = currentEvent || EVENTS.find(evt => evt.id === eventId);
+    const eventName = fallbackEvent?.name;
+    const optionText = selectedOption.text;
+
     actions.handleEventOption(eventId, option);
     playSound(SOUND_TYPES.CLICK);
     gameState.setIsPaused(false);
-    
-    // 添加日志
-    const effectType = selectedEffect.type === 'permanent' ? '永久' : '短期';
-    addLog(`🎊 庆典效果「${selectedEffect.name}」已激活！（${effectType}）`);
+
+    if (eventName) {
+      const detail = optionText ? `「${optionText}」` : '所选方案';
+      addLog(`📜 事件「${eventName}」已执行${detail}`);
+    } else if (optionText) {
+      addLog(`📜 已执行事件选项「${optionText}」`);
+    }
   };
   
   // 处理教程完成

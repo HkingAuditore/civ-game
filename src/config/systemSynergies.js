@@ -169,13 +169,13 @@ export const CLASS_DECREE_FEEDBACK = {
       low_approval_penalty: { categories: { gather: -0.2 } },
     },
     
-    noble: {
+    landowner: {
       affects_decrees: ['feudal_privileges', 'aristocratic_rule', 'officer_corps'],
       high_approval_bonus: { stability: 10 },
       low_approval_penalty: { stability: -15 },
     },
     
-    scholar: {
+    scribe: {
       affects_decrees: ['public_education', 'university_charter', 'research_grants'],
       high_approval_bonus: { scienceBonus: 0.2 },
       low_approval_penalty: { scienceBonus: -0.25 },
@@ -216,20 +216,20 @@ export const CHAIN_CLASS_INTERACTION = {
   },
 
   knowledge_chain: {
-    primary_classes: ['scribe', 'scholar', 'cleric'],
+    primary_classes: ['scribe', 'cleric'],
     development_effects: {
-      level_1: { classApproval: { scribe: 10, scholar: 5 }, culture: 0.1 },
-      level_2: { classApproval: { scribe: 15, scholar: 10 }, culture: 0.2, science: 0.1 },
-      level_3: { classApproval: { scribe: 20, scholar: 15 }, culture: 0.3, science: 0.2, influence: { scholar: 0.15 } },
+      level_1: { classApproval: { scribe: 10 }, culture: 0.1 },
+      level_2: { classApproval: { scribe: 15 }, culture: 0.2, science: 0.1 },
+      level_3: { classApproval: { scribe: 20 }, culture: 0.3, science: 0.2, influence: { scribe: 0.15 } },
     },
   },
 
   luxury_chain: {
-    primary_classes: ['merchant', 'noble', 'artisan'],
+    primary_classes: ['merchant', 'landowner', 'artisan'],
     development_effects: {
-      level_1: { classApproval: { merchant: 10, noble: 5 }, wealth: { merchant: 15 } },
-      level_2: { classApproval: { merchant: 20, noble: 10 }, wealth: { merchant: 30, noble: 20 } },
-      level_3: { classApproval: { merchant: 30, noble: 15 }, wealth: { merchant: 50, noble: 35 }, influence: { merchant: 0.2 } },
+      level_1: { classApproval: { merchant: 10, landowner: 5 }, wealth: { merchant: 15 } },
+      level_2: { classApproval: { merchant: 20, landowner: 10 }, wealth: { merchant: 30, landowner: 20 } },
+      level_3: { classApproval: { merchant: 30, landowner: 15 }, wealth: { merchant: 50, landowner: 35 }, influence: { merchant: 0.2 } },
     },
   },
 
@@ -247,11 +247,11 @@ export const CHAIN_CLASS_INTERACTION = {
   },
 
   military_chain: {
-    primary_classes: ['soldier', 'noble', 'engineer'],
+    primary_classes: ['soldier', 'knight', 'engineer'],
     development_effects: {
       level_1: { classApproval: { soldier: 5 }, militaryPower: 0.1 },
-      level_2: { classApproval: { soldier: 10, noble: 5 }, militaryPower: 0.2 },
-      level_3: { classApproval: { soldier: 15, noble: 10 }, militaryPower: 0.3, stability: 5 },
+      level_2: { classApproval: { soldier: 10, knight: 5 }, militaryPower: 0.2 },
+      level_3: { classApproval: { soldier: 15, knight: 10 }, militaryPower: 0.3, stability: 5 },
     },
   },
 };
@@ -272,7 +272,7 @@ export const DECREE_COMBINATIONS = {
     {
       decrees: ['public_education', 'university_charter', 'research_grants'],
       name: "学术繁荣",
-      bonus: { scienceBonus: 0.5, cultureBonus: 0.3, classApproval: { scholar: 30 } },
+      bonus: { scienceBonus: 0.5, cultureBonus: 0.3, classApproval: { scribe: 30 } },
       desc: "全面的教育和科研政策推动文明进步",
     },
     {
@@ -286,7 +286,7 @@ export const DECREE_COMBINATIONS = {
       decrees: ['land_reform', 'equality_decree', 'welfare_system'],
       name: "社会革命",
       bonus: { classApproval: { peasant: 40, worker: 35 }, stability: 20, populationGrowth: 0.3 },
-      penalty: { classApproval: { noble: -50, landowner: -50 }, passive: { silver: -8 } },
+      penalty: { classApproval: { knight: -50, landowner: -50 }, passive: { silver: -8 } },
       desc: "彻底的社会改革重塑阶级结构",
     },
     {
@@ -353,28 +353,28 @@ export const EPOCH_SYSTEM_EFFECTS = {
   
   3: { // 封建时代
     available_chains: ['food_chain', 'wood_chain', 'mining_chain', 'knowledge_chain', 'military_chain', 'textile_chain'],
-    class_structure: { serf: 0.3, peasant: 0.2, artisan: 0.15, noble: 0.05, landowner: 0.1, soldier: 0.1, cleric: 0.1 },
+    class_structure: { serf: 0.3, peasant: 0.2, artisan: 0.15, knight: 0.05, landowner: 0.1, soldier: 0.1, cleric: 0.1 },
     decree_efficiency: 1.0,
     new_mechanics: ['feudal_system', 'religious_influence'],
   },
   
   4: { // 探索时代
     available_chains: ['food_chain', 'wood_chain', 'mining_chain', 'knowledge_chain', 'military_chain', 'luxury_chain', 'textile_chain'],
-    class_structure: { peasant: 0.25, worker: 0.2, merchant: 0.2, artisan: 0.15, navigator: 0.1, noble: 0.1 },
+    class_structure: { peasant: 0.25, worker: 0.2, merchant: 0.2, artisan: 0.15, navigator: 0.1, landowner: 0.1 },
     decree_efficiency: 1.1,
     new_mechanics: ['colonial_trade', 'naval_power'],
   },
   
   5: { // 启蒙时代
     available_chains: ['all'],
-    class_structure: { worker: 0.25, merchant: 0.2, scholar: 0.15, artisan: 0.15, peasant: 0.15, noble: 0.1 },
+    class_structure: { worker: 0.25, merchant: 0.2, scribe: 0.15, artisan: 0.15, peasant: 0.15, landowner: 0.1 },
     decree_efficiency: 1.2,
     new_mechanics: ['enlightenment', 'scientific_revolution'],
   },
   
   6: { // 工业时代
     available_chains: ['all'],
-    class_structure: { worker: 0.35, engineer: 0.15, capitalist: 0.1, merchant: 0.15, peasant: 0.15, scholar: 0.1 },
+    class_structure: { worker: 0.35, engineer: 0.15, capitalist: 0.1, merchant: 0.15, peasant: 0.15, scribe: 0.1 },
     decree_efficiency: 1.3,
     new_mechanics: ['industrialization', 'mass_production'],
   },
