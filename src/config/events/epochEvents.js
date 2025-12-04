@@ -3107,6 +3107,8 @@ export const EPOCH_EVENTS = [
             peasant: -15,
             landowner: -20,
           },
+          nationRelation: { all: 20 },
+          nationAggression: { all: -0.15 },
         },
         randomEffects: [
           {
@@ -3117,6 +3119,7 @@ export const EPOCH_EVENTS = [
                 science: 0.05,
               },
               stability: 15,
+              nationRelation: { random: 10 },
             },
             description: '贸易带来繁荣，西学东渐！',
           },
@@ -3161,6 +3164,8 @@ export const EPOCH_EVENTS = [
             merchant: -30,
             official: 10,
           },
+          nationRelation: { all: -30 },
+          nationAggression: { all: 0.2 },
         },
         randomEffects: [
           {
@@ -3171,8 +3176,9 @@ export const EPOCH_EVENTS = [
               },
               populationPercent: -0.012,
               stability: -30,
+              triggerWar: 'strongest',
             },
-            description: '外国舰队炮轰港口，损失惨重！',
+            description: '外国舰队炮轰港口，列强联军入侵！',
           },
         ],
       },

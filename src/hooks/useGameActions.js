@@ -1198,6 +1198,29 @@ export const useGameActions = (gameState, addLog) => {
         return;
       }
 
+      // Check relation-based trade route limit
+      const nationRelation = targetNation.relation || 0;
+      const getMaxTradeRoutesForRelation = (relation) => {
+        if (relation >= 80) return 4; // Allied
+        if (relation >= 60) return 3; // Friendly
+        if (relation >= 40) return 2; // Neutral
+        if (relation >= 20) return 1; // Cold
+        return 0; // Hostile - no trade
+      };
+      const maxRoutesWithNation = getMaxTradeRoutesForRelation(nationRelation);
+      const currentRoutesWithNation = tradeRoutes.routes.filter(r => r.nationId === nationId).length;
+      
+      if (maxRoutesWithNation === 0) {
+        addLog(`与 ${targetNation.name} 关系敌对（${nationRelation}），无法建立贸易路线。请先改善关系至少达到20。`);
+        return;
+      }
+      
+      if (currentRoutesWithNation >= maxRoutesWithNation) {
+        const relationLabels = { 0: '敌对', 1: '冷淡', 2: '中立', 3: '友好', 4: '盟友' };
+        addLog(`与 ${targetNation.name} 的贸易路线已达关系上限（${currentRoutesWithNation}/${maxRoutesWithNation}条，关系${relationLabels[maxRoutesWithNation]}）。提升关系可增加贸易路线数量。`);
+        return;
+      }
+
       // 检查是否已存在相同的贸易路线
       const exists = tradeRoutes.routes.some(
         route => route.nationId === nationId && route.resource === resourceKey && route.type === type
@@ -1525,6 +1548,164 @@ const handleEventOption = (eventId, option) => {
 		// Building production modifier: affects building output
 		if (effects.buildingProductionMod) {
 			registerBuildingProductionEffect(effects.buildingProductionMod);
+		}
+
+		// ========== Diplomatic Effects ==========
+		// Helper function to resolve nation selector
+		const resolveNationSelector = (selector) => {
+			const visibleNations = nations.filter(n => n.visible !== false);
+			if (!visibleNations.length) return [];
+			
+			switch (selector) {
+				case 'random':
+					return [visibleNations[Math.floor(Math.random() * visibleNations.length)]];
+				case 'all':
+					return visibleNations;
+				case 'hostile':
+					return visibleNations.filter(n => (n.relation || 50) < 30);
+				case 'friendly':
+					return visibleNations.filter(n => (n.relation || 50) >= 60);
+				case 'strongest':
+					return [visibleNations.reduce((a, b) => (a.wealth || 0) > (b.wealth || 0) ? a : b)];
+				case 'weakest':
+					return [visibleNations.reduce((a, b) => (a.wealth || 0) < (b.wealth || 0) ? a : b)];
+				default:
+					// Direct nation id
+					const nation = visibleNations.find(n => n.id === selector);
+					return nation ? [nation] : [];
+			}
+		};
+
+		// Nation relation modifier: { nationId/selector: change }
+		if (effects.nationRelation) {
+			const excludeList = effects.nationRelation.exclude || [];
+			setNations(prev => {
+				const updated = [...prev];
+				Object.entries(effects.nationRelation).forEach(([selector, change]) => {
+					if (selector === 'exclude') return;
+					const targets = resolveNationSelector(selector);
+					targets.forEach(target => {
+						if (excludeList.includes(target.id)) return;
+						const idx = updated.findIndex(n => n.id === target.id);
+						if (idx >= 0) {
+							const oldRelation = updated[idx].relation || 50;
+							updated[idx] = {
+								...updated[idx],
+								relation: Math.max(0, Math.min(100, oldRelation + change)),
+							};
+							addLog(`与 ${updated[idx].name} 的关系${change > 0 ? '改善' : '恶化'}了 ${Math.abs(change)} 点`);
+						}
+					});
+				});
+				return updated;
+			});
+		}
+
+		// Nation aggression modifier: { nationId/selector: change }
+		if (effects.nationAggression) {
+			setNations(prev => {
+				const updated = [...prev];
+				Object.entries(effects.nationAggression).forEach(([selector, change]) => {
+					const targets = resolveNationSelector(selector);
+					targets.forEach(target => {
+						const idx = updated.findIndex(n => n.id === target.id);
+						if (idx >= 0) {
+							const oldAggression = updated[idx].aggression || 0.5;
+							updated[idx] = {
+								...updated[idx],
+								aggression: Math.max(0, Math.min(1, oldAggression + change)),
+							};
+						}
+					});
+				});
+				return updated;
+			});
+		}
+
+		// Nation wealth modifier: { nationId/selector: change }
+		if (effects.nationWealth) {
+			setNations(prev => {
+				const updated = [...prev];
+				Object.entries(effects.nationWealth).forEach(([selector, change]) => {
+					const targets = resolveNationSelector(selector);
+					targets.forEach(target => {
+						const idx = updated.findIndex(n => n.id === target.id);
+						if (idx >= 0) {
+							const oldWealth = updated[idx].wealth || 1000;
+							updated[idx] = {
+								...updated[idx],
+								wealth: Math.max(0, oldWealth + change),
+							};
+						}
+					});
+				});
+				return updated;
+			});
+		}
+
+		// Nation market volatility modifier: { nationId/selector: change }
+		if (effects.nationMarketVolatility) {
+			setNations(prev => {
+				const updated = [...prev];
+				Object.entries(effects.nationMarketVolatility).forEach(([selector, change]) => {
+					const targets = resolveNationSelector(selector);
+					targets.forEach(target => {
+						const idx = updated.findIndex(n => n.id === target.id);
+						if (idx >= 0) {
+							const oldVolatility = updated[idx].marketVolatility || 0.3;
+							updated[idx] = {
+								...updated[idx],
+								marketVolatility: Math.max(0.1, Math.min(0.8, oldVolatility + change)),
+							};
+						}
+					});
+				});
+				return updated;
+			});
+		}
+
+		// Trigger war with a nation
+		if (effects.triggerWar) {
+			const targets = resolveNationSelector(effects.triggerWar);
+			if (targets.length > 0) {
+				const target = targets[0];
+				setNations(prev => prev.map(n =>
+					n.id === target.id
+						? {
+								...n,
+								relation: 0,
+								isAtWar: true,
+								warScore: 0,
+								warStartDay: daysElapsed,
+								warDuration: 0,
+								enemyLosses: 0,
+								peaceTreatyUntil: undefined,
+							}
+						: n
+				));
+				addLog(`⚔️ ${target.name} 向我方宣战！`);
+			}
+		}
+
+		// Trigger peace with a nation
+		if (effects.triggerPeace) {
+			const targets = resolveNationSelector(effects.triggerPeace);
+			if (targets.length > 0) {
+				const target = targets[0];
+				setNations(prev => prev.map(n =>
+					n.id === target.id && n.isAtWar
+						? {
+								...n,
+								isAtWar: false,
+								warScore: 0,
+								warDuration: 0,
+								enemyLosses: 0,
+								peaceTreatyUntil: daysElapsed + 365,
+							}
+						: n
+				));
+				addLog(`🕊️ 与 ${target.name} 的战争结束，签订和平协议`);
+			}
 		}
   };
 

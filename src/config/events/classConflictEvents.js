@@ -1332,7 +1332,7 @@ export const CLASS_CONFLICT_EVENTS = [
         effects: {
           resourcePercent: {
             silver: -0.005,
-            culture: 40,
+            culture: 0.04,
           },
           stability: 8,
           approval: {
@@ -1463,6 +1463,8 @@ export const CLASS_CONFLICT_EVENTS = [
             soldier: 10,
             merchant: -25,
           },
+          nationRelation: { strongest: -40 },
+          nationAggression: { strongest: 0.25 },
         },
         randomEffects: [
           {
@@ -1470,7 +1472,9 @@ export const CLASS_CONFLICT_EVENTS = [
             effects: {
               stability: -30,
               populationPercent: -0.012,
+              triggerWar: 'strongest',
             },
+            description: '外国舰队来犯，战争爆发！',
           },
         ],
       },
@@ -1504,7 +1508,18 @@ export const CLASS_CONFLICT_EVENTS = [
             official: 10,
             merchant: 5,
           },
+          nationRelation: { strongest: -5 },
         },
+        randomEffects: [
+          {
+            chance: 0.4,
+            effects: {
+              nationRelation: { strongest: 10 },
+              stability: 5,
+            },
+            description: '谈判取得进展，外商同意适度减少贸易。',
+          },
+        ],
       },
     ],
   },
@@ -1624,7 +1639,7 @@ export const CLASS_CONFLICT_EVENTS = [
         description: '支持保守派，维护稳定但可能错失发展机遇。',
         effects: {
           resourcePercent: {
-            culture: 50,
+            culture: 0.05,
           },
           stability: 10,
           approval: {
@@ -1759,6 +1774,8 @@ export const CLASS_CONFLICT_EVENTS = [
             merchant: -25,
             scribe: -20,
           },
+          nationRelation: { all: -35 },
+          nationAggression: { all: 0.25 },
         },
         randomEffects: [
           {
@@ -1769,7 +1786,9 @@ export const CLASS_CONFLICT_EVENTS = [
               resourcePercent: {
                 silver: -0.04,
               },
+              triggerWar: 'strongest',
             },
+            description: '八国联军入侵！首都沦陷！',
           },
         ],
       },
@@ -1788,6 +1807,8 @@ export const CLASS_CONFLICT_EVENTS = [
             cleric: 15,
             merchant: 20,
           },
+          nationRelation: { all: 25 },
+          nationAggression: { all: -0.15 },
         },
       },
       {
@@ -2792,7 +2813,7 @@ export const CLASS_CONFLICT_EVENTS = [
         description: '宣布报道合法，调查被揭露的腐败。',
         effects: {
           resourcePercent: {
-            culture: 60,
+            culture: 0.06,
           },
           stability: -5,
           approval: {
@@ -3095,7 +3116,7 @@ export const CLASS_CONFLICT_EVENTS = [
         effects: {
           resourcePercent: {
             silver: -0.02,
-            culture: 50,
+            culture: 0.05,
           },
           stability: 5,
           approval: {
@@ -3166,7 +3187,7 @@ export const CLASS_CONFLICT_EVENTS = [
         description: '支持宗教改革，可能引发与传统势力的冲突。',
         effects: {
           resourcePercent: {
-            culture: 50,
+            culture: 0.05,
           },
           stability: -10,
           approval: {
@@ -3183,7 +3204,7 @@ export const CLASS_CONFLICT_EVENTS = [
         description: '允许两派共存，国家保持中立。',
         effects: {
           resourcePercent: {
-            culture: 30,
+            culture: 0.03,
           },
           stability: -5,
           approval: {
