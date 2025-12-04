@@ -173,7 +173,7 @@ export const STRATA = {
   },
 
   scribe: {
-    name: "抄写员",
+    name: "学者",
     icon: 'Feather',
     weight: 2.5,
     tax: 2,

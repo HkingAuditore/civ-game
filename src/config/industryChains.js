@@ -592,7 +592,7 @@ export const CHAIN_DEVELOPMENT_PATHS = {
         id: 'elite_research',
         name: "精英研究",
         desc: "集中资源培养顶尖人才",
-        requirements: { epoch: 4, workers: { scholar: 15 } },
+        requirements: { epoch: 4, workers: { scribe: 15 } },
         effects: { science: 0.6, tech_speed: 0.3, cost: 0.3 },
       },
     ],

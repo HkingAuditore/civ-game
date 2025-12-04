@@ -101,6 +101,23 @@ import {
   Droplets,
   Building,
   Menu,
+  // 事件系统需要的图标
+  CloudRain,
+  Globe2,
+  Waves,
+  Palette,
+  Theater,
+  Scroll,
+  Fence,
+  Newspaper,
+  GraduationCap,
+  HandHeart,
+  Vote,
+  Drama,
+  Church,
+  Library,
+  Microscope,
+  Syringe,
   // 新增必要图标
   LayoutGrid,
   Sun,
@@ -276,6 +293,25 @@ export const iconMap = {
   Building,
   Menu,
   Horse: Users, // Fallback
+  
+  // 事件系统需要的图标
+  CloudRain,
+  Globe2,
+  Waves,
+  Palette,
+  Theater,
+  Scroll,
+  Fence,
+  Newspaper,
+  GraduationCap,
+  HandHeart,
+  Vote,
+  Drama,
+  Church,
+  Library,
+  Microscope,
+  Syringe,
+  Pitchfork: Pickaxe, // Fallback - no pitchfork in lucide
   
   // 新增必要图标
   LayoutGrid,

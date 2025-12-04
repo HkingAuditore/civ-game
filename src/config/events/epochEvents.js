@@ -2194,7 +2194,7 @@ export const EPOCH_EVENTS = [
   {
     id: 'ritual_reform',
     name: '礼制改革',
-    icon: '📜',
+    icon: 'Scroll',
     description: '一位博学的官员上书朝廷，建议制定完整的礼仪制度来规范社会秩序。"礼者，天地之序也。"他认为通过明确的等级礼仪，可以让社会和谐稳定。',
     triggerConditions: {
       minEpoch: 1,
@@ -2259,7 +2259,7 @@ export const EPOCH_EVENTS = [
   {
     id: 'wandering_sage',
     name: '周游列国的圣人',
-    icon: '👴',
+    icon: 'User',
     description: '一位白发苍苍的老者带着一群弟子来到国境。据说他曾是某国的大司寇，因政见不合而离开。他宣扬"仁义礼智信"，希望能找到愿意采纳其学说的君主。',
     triggerConditions: {
       minEpoch: 2,
@@ -2327,7 +2327,7 @@ export const EPOCH_EVENTS = [
   {
     id: 'great_wall_project',
     name: '万里长城工程',
-    icon: '🧱',
+    icon: 'Building',
     description: '为抵御北方游牧民族的侵扰，将军们提议修建一条横跨边境的巨大城墙，将各段旧城墙连接起来。这将是史无前例的工程，需要征调大量民夫。',
     triggerConditions: {
       minEpoch: 2,
@@ -2428,7 +2428,7 @@ export const EPOCH_EVENTS = [
   {
     id: 'vassal_rebellion',
     name: '诸侯叛乱',
-    icon: '⚔️',
+    icon: 'Swords',
     description: '朝廷推行削减诸侯封地的政策引发强烈反弹。数位封疆大吏联合起来，以"清君侧"为名举兵反叛。叛军声势浩大，直逼京师。',
     triggerConditions: {
       minEpoch: 2,
@@ -2516,7 +2516,7 @@ export const EPOCH_EVENTS = [
   {
     id: 'frontier_general_rebellion',
     name: '边将叛乱',
-    icon: '🐎',
+    icon: 'Horse',
     description: '一位手握重兵的边境将军突然起兵造反。这位将军本是皇帝的宠臣，掌管多个边镇，麾下精兵强将无数。叛军势如破竹，京城危在旦夕！',
     triggerConditions: {
       minEpoch: 3,
@@ -2641,7 +2641,7 @@ export const EPOCH_EVENTS = [
   {
     id: 'disarm_generals',
     name: '杯酒释兵权',
-    icon: '🍷',
+    icon: 'Wine',
     description: '新建立的王朝担忧武将拥兵自重，重蹈前朝覆辙。皇帝设宴款待功臣宿将，在酒酣耳热之际暗示他们交出兵权，以享富贵。',
     triggerConditions: {
       minEpoch: 3,
@@ -2714,7 +2714,7 @@ export const EPOCH_EVENTS = [
   {
     id: 'radical_reform',
     name: '激进的变法',
-    icon: '📋',
+    icon: 'FileText',
     description: '一位锐意进取的大臣提出全面改革方案："天变不足畏，祖宗不足法，人言不足恤！"他主张推行青苗法、免役法、保甲法等新政，引发朝野激烈争论。',
     triggerConditions: {
       minEpoch: 3,
@@ -2802,7 +2802,7 @@ export const EPOCH_EVENTS = [
   {
     id: 'emperor_personal_campaign',
     name: '皇帝亲征',
-    icon: '👑',
+    icon: 'Crown',
     description: '北方游牧民族再次入侵，年轻的皇帝不顾群臣劝阻，执意要御驾亲征。宦官们也在一旁怂恿，说这是建立不世功业的大好机会。',
     triggerConditions: {
       minEpoch: 3,
@@ -2908,7 +2908,7 @@ export const EPOCH_EVENTS = [
   {
     id: 'grand_secretary_reform',
     name: '首辅改革',
-    icon: '⚖️',
+    icon: 'Scale',
     description: '一位铁腕首辅大臣主持朝政，推行"一条鞭法"简化税制，清丈全国土地，严厉打击贪腐。他的改革触动了既得利益者的蛋糕。',
     triggerConditions: {
       minEpoch: 4,
@@ -2993,8 +2993,8 @@ export const EPOCH_EVENTS = [
   {
     id: 'universal_taxation',
     name: '官绅一体纳粮',
-    icon: '💰',
-    description: '长期以来，官员和有功名的士绅享有免税特权，导致税负集中在普通百姓身上。一位强势的君主决定打破这一惯例，要求所有人一体纳税。',
+    icon: 'Coins',
+    description: '长期以来，官员和有功名的士绅享有免税特权，导致税负集中在普通百姓身上。是否要打破这一惯例，要求所有人一体纳税。',
     triggerConditions: {
       minEpoch: 4,
       maxEpoch: 6,
@@ -3082,7 +3082,7 @@ export const EPOCH_EVENTS = [
   {
     id: 'black_ships',
     name: '黑船来航',
-    icon: '🚢',
+    icon: 'Ship',
     description: '几艘冒着黑烟的巨大铁甲船出现在港口外，船上的外国人带来了通商的要求。他们的大炮射程远超我国任何武器，令人胆寒。是开国还是攘夷？',
     triggerConditions: {
       minEpoch: 5,
@@ -3183,8 +3183,8 @@ export const EPOCH_EVENTS = [
   {
     id: 'defenestration',
     name: '掷出窗外事件',
-    icon: '🪟',
-    description: '宗教和政治矛盾激化！一群愤怒的新教贵族冲入王宫，将几名代表中央权威的天主教官员从窗户扔了出去。这一暴力行为点燃了积蓄已久的火药桶。',
+    icon: 'Landmark',
+    description: '宗教和政治矛盾激化！一群愤怒的新宗教贵族冲入王宫，将几名代表中央权威的传统宗教官员从窗户扔了出去。这一暴力行为点燃了积蓄已久的火药桶。',
     triggerConditions: {
       minEpoch: 3,
       maxEpoch: 5,
@@ -3215,7 +3215,7 @@ export const EPOCH_EVENTS = [
             chance: 0.5,
             effects: {
               stability: -40,
-              populationPercent: -0.012,
+              populationPercent: -0.1,
             },
             description: '全面内战爆发！',
           },

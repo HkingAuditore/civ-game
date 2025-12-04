@@ -2,6 +2,7 @@
 // Usage: Open browser console and type window.cheat.help() to see all available commands
 
 import { EPOCHS } from '../config';
+import { EVENTS, BASE_EVENTS, CLASS_CONFLICT_EVENTS, EPOCH_EVENTS, ECONOMIC_EVENTS } from '../config/events';
 
 const EPOCH_ALIASES = {
   stone: 0,
@@ -104,6 +105,13 @@ export const initCheatCodes = (gameState, addLog) => {
       console.log('  cheat.resetPrices()         - Reset all market prices to base');
       console.log('  cheat.crashMarket()         - Set all prices to minimum');
       console.log('  cheat.boomMarket()          - Set all prices to maximum');
+      console.log('');
+      console.log('%cEvents:', 'color: #ff9900; font-weight: bold;');
+      console.log('  cheat.listEvents(category)      - List all events (category: base/class/epoch/economic/all)');
+      console.log('  cheat.searchEvent(keyword)      - Search events by name or ID');
+      console.log('  cheat.triggerEvent(eventId)     - Trigger a specific event by ID');
+      console.log('  cheat.getEventInfo(eventId)     - Get detailed info of an event');
+      console.log('  cheat.clearEvent()              - Clear/dismiss current event');
       console.log('');
       console.log('%cGod Mode:', 'color: #ff00ff; font-weight: bold;');
       console.log('  cheat.godMode()             - Enable everything!');
@@ -525,22 +533,6 @@ export const initCheatCodes = (gameState, addLog) => {
     },
 
     /**
-     * God mode - enable everything
-     */
-    godMode: () => {
-      window.cheat.addAll(10000);
-      window.cheat.unlockAllTech();
-      window.cheat.superArmy();
-      window.cheat.maxStability();
-      window.cheat.maxApproval();
-      window.cheat.richEmpire();
-      window.cheat.maxBuildings();
-      window.cheat.addPopulation(10000);
-      addLog(`👑 作弊码：上帝模式已启用！`);
-      console.log(`%c👑 GOD MODE ACTIVATED!`, 'color: #ff00ff; font-size: 20px; font-weight: bold;');
-    },
-
-    /**
      * Get current game state
      */
     getState: () => {
@@ -555,6 +547,173 @@ export const initCheatCodes = (gameState, addLog) => {
       console.log('Class Approval:', gameState.classApproval);
       console.log('Days Elapsed:', gameState.daysElapsed);
       return gameState;
+    },
+
+    // ========== Event Debug Commands ==========
+
+    /**
+     * List all events by category
+     * @param {string} category - Event category (base/class/epoch/economic/all)
+     */
+    listEvents: (category = 'all') => {
+      const categoryMap = {
+        base: { events: BASE_EVENTS, name: 'Base Events' },
+        class: { events: CLASS_CONFLICT_EVENTS, name: 'Class Conflict Events' },
+        epoch: { events: EPOCH_EVENTS, name: 'Epoch Events' },
+        economic: { events: ECONOMIC_EVENTS, name: 'Economic Events' },
+        all: { events: EVENTS, name: 'All Events' },
+      };
+
+      const cat = category.toLowerCase();
+      if (!categoryMap[cat]) {
+        console.log(`❌ Invalid category. Use: base, class, epoch, economic, or all`);
+        return;
+      }
+
+      const { events, name } = categoryMap[cat];
+      console.log(`%c📋 ${name} (${events.length} total):`, 'color: #ff9900; font-size: 14px; font-weight: bold;');
+      
+      events.forEach((event, index) => {
+        const epochInfo = event.triggerConditions?.minEpoch !== undefined 
+          ? ` [Epoch ${event.triggerConditions.minEpoch}+]` 
+          : '';
+        console.log(`  ${index + 1}. ${event.id} - ${event.name}${epochInfo}`);
+      });
+
+      console.log(`\n%cTip: Use cheat.getEventInfo('eventId') to see details`, 'color: #888;');
+      return events.map(e => ({ id: e.id, name: e.name }));
+    },
+
+    /**
+     * Search events by keyword
+     * @param {string} keyword - Search keyword
+     */
+    searchEvent: (keyword) => {
+      if (!keyword) {
+        console.log('❌ Please provide a search keyword');
+        return;
+      }
+
+      const lowerKeyword = keyword.toLowerCase();
+      const results = EVENTS.filter(event => 
+        event.id.toLowerCase().includes(lowerKeyword) ||
+        event.name.toLowerCase().includes(lowerKeyword) ||
+        (event.description && event.description.toLowerCase().includes(lowerKeyword))
+      );
+
+      if (results.length === 0) {
+        console.log(`❌ No events found matching "${keyword}"`);
+        return [];
+      }
+
+      console.log(`%c🔍 Found ${results.length} events matching "${keyword}":`, 'color: #ff9900; font-size: 14px; font-weight: bold;');
+      results.forEach((event, index) => {
+        console.log(`  ${index + 1}. ${event.id} - ${event.name}`);
+        if (event.description) {
+          console.log(`     ${event.description.substring(0, 80)}...`);
+        }
+      });
+
+      return results.map(e => ({ id: e.id, name: e.name }));
+    },
+
+    /**
+     * Get detailed info of an event
+     * @param {string} eventId - Event ID
+     */
+    getEventInfo: (eventId) => {
+      const event = EVENTS.find(e => e.id === eventId);
+      if (!event) {
+        console.log(`❌ Event "${eventId}" not found`);
+        console.log(`%cTip: Use cheat.searchEvent('keyword') to find events`, 'color: #888;');
+        return null;
+      }
+
+      console.log(`%c📜 Event: ${event.name}`, 'color: #ff9900; font-size: 16px; font-weight: bold;');
+      console.log(`  ID: ${event.id}`);
+      console.log(`  Description: ${event.description || 'N/A'}`);
+      
+      if (event.triggerConditions) {
+        console.log('%c  Trigger Conditions:', 'color: #ffff00;');
+        Object.entries(event.triggerConditions).forEach(([key, value]) => {
+          console.log(`    ${key}: ${JSON.stringify(value)}`);
+        });
+      }
+
+      if (event.options && event.options.length > 0) {
+        console.log('%c  Options:', 'color: #00ff00;');
+        event.options.forEach((opt, idx) => {
+          console.log(`    ${idx + 1}. ${opt.text}`);
+          if (opt.effects) {
+            console.log(`       Effects:`, opt.effects);
+          }
+        });
+      }
+
+      return event;
+    },
+
+    /**
+     * Trigger a specific event by ID
+     * @param {string} eventId - Event ID to trigger
+     */
+    triggerEvent: (eventId) => {
+      const event = EVENTS.find(e => e.id === eventId);
+      if (!event) {
+        console.log(`❌ Event "${eventId}" not found`);
+        console.log(`%cTip: Use cheat.listEvents() or cheat.searchEvent('keyword') to find events`, 'color: #888;');
+        return false;
+      }
+
+      if (gameState.currentEvent) {
+        console.log(`⚠️ An event is already active. Use cheat.clearEvent() first.`);
+        return false;
+      }
+
+      // Trigger the event
+      gameState.setCurrentEvent(event);
+      gameState.setIsPaused(true);
+      
+      addLog(`🎭 作弊码：触发事件 - ${event.name}`);
+      console.log(`%c✅ Triggered event: ${event.name}`, 'color: #00ff00; font-size: 14px;');
+      console.log(`   ID: ${event.id}`);
+      console.log(`   Description: ${event.description || 'N/A'}`);
+      
+      return true;
+    },
+
+    /**
+     * Clear/dismiss current event
+     */
+    clearEvent: () => {
+      if (!gameState.currentEvent) {
+        console.log(`⚠️ No active event to clear`);
+        return false;
+      }
+
+      const eventName = gameState.currentEvent.name;
+      gameState.setCurrentEvent(null);
+      
+      addLog(`🎭 作弊码：清除事件 - ${eventName}`);
+      console.log(`%c✅ Cleared event: ${eventName}`, 'color: #00ff00;');
+      
+      return true;
+    },
+
+    /**
+     * God mode - enable everything
+     */
+    godMode: () => {
+      window.cheat.addAll(10000);
+      window.cheat.unlockAllTech();
+      window.cheat.superArmy();
+      window.cheat.maxStability();
+      window.cheat.maxApproval();
+      window.cheat.richEmpire();
+      window.cheat.maxBuildings();
+      window.cheat.addPopulation(10000);
+      addLog(`👑 作弊码：上帝模式已启用！`);
+      console.log(`%c👑 GOD MODE ACTIVATED!`, 'color: #ff00ff; font-size: 20px; font-weight: bold;');
     }
   };
 
