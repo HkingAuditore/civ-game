@@ -224,9 +224,9 @@ function GameApp({ gameState }) {
   const foodPrice = gameState.market?.prices?.food ?? (RESOURCES.food?.basePrice || 1);
   const wageRatio = gameState.militaryWageRatio || 1;
   const silverUpkeepPerDay = armyFoodNeed * foodPrice * wageRatio;
-  const tradeStats = gameState.tradeStats || { income: 0, expense: 0 };
-  const tradeNet = (tradeStats.income || 0) - (tradeStats.expense || 0);
-  const netSilverPerDay = taxes.total + tradeNet - silverUpkeepPerDay;
+  const tradeStats = gameState.tradeStats || { tradeTax: 0 };
+  const tradeTax = tradeStats.tradeTax || 0;
+  const netSilverPerDay = taxes.total + tradeTax - silverUpkeepPerDay;
   const netSilverClass = netSilverPerDay >= 0 ? 'text-green-300' : 'text-red-300';
   const netChipClasses = netSilverPerDay >= 0
     ? 'text-green-300 bg-green-900/20 hover:bg-green-900/40'
@@ -338,7 +338,6 @@ function GameApp({ gameState }) {
                 </div>
                 <h3 className="text-sm font-bold text-ancient">国内市场</h3>
               </div>
-              <DiamondDivider className="text-ancient-gold/50 mb-3" />
               <ResourcePanel 
                 resources={gameState.resources} 
                 rates={gameState.rates} 
