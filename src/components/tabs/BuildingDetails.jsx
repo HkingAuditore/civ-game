@@ -40,6 +40,13 @@ const InfoRow = ({ label, value, valueClass = 'text-white' }) => (
  * @param {Object} building - 建筑数据
  * @param {Object} gameState - 完整的游戏状态
  */
+const formatCompactCost = (value) => {
+  if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M';
+  if (value >= 10000) return (value / 1000).toFixed(0) + 'k';
+  if (value >= 1000) return (value / 1000).toFixed(1) + 'k';
+  return Math.floor(value).toString();
+};
+
 export const BuildingDetails = ({ building, gameState, onBuy, onSell, taxPolicies, onUpdateTaxPolicies }) => {
   if (!building || !gameState) return null;
 
@@ -94,6 +101,8 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, taxPolicie
   const hasMaterials = Object.entries(nextCost).every(([res, val]) => (resources[res] || 0) >= val);
   const hasSilver = (resources.silver || 0) >= nextSilverCost;
   const canAffordNext = hasMaterials && hasSilver;
+
+  const compactSilverCost = formatCompactCost(nextSilverCost);
 
   // 计算总的业主岗位数量
   const totalOwnerWorkers = (building.jobs?.[building.owner] || 0) * count;
@@ -299,12 +308,21 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, taxPolicie
         <button
           onClick={() => onBuy && onBuy(building.id)}
           disabled={!canAffordNext}
-          className="w-full px-4 py-3 rounded-lg text-sm font-bold transition-all bg-green-600 hover:bg-green-500 text-white shadow-lg hover:shadow-green-500/30 disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed disabled:shadow-none flex items-center justify-center gap-2"
+          className="w-full px-4 py-3 rounded-lg text-xs sm:text-sm font-bold transition-all bg-green-600 hover:bg-green-500 text-white shadow-lg hover:shadow-green-500/30 disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed disabled:shadow-none flex items-center justify-center gap-2"
         >
           <Icon name="Plus" size={16} />
-          <div className="flex items-center gap-1">
-            <span>购买</span>
-            <span className="font-mono">({formatSilverCost(nextSilverCost)})</span>
+          <div className="flex flex-col items-center sm:flex-row sm:items-center gap-0 sm:gap-1 leading-tight whitespace-nowrap sm:whitespace-normal">
+            <span className="tracking-wide">建造</span>
+            <span className="font-mono text-[11px] sm:text-sm opacity-90 flex items-center gap-0.5">
+              <span className="inline-flex items-center gap-0.5 sm:hidden">
+                <Icon name="Coins" size={10} className="text-yellow-300" />
+                {compactSilverCost}
+              </span>
+              <span className="hidden sm:inline-flex items-center gap-0.5">
+                <Icon name="Coins" size={12} className="text-yellow-300" />
+                ({formatSilverCost(nextSilverCost)})
+              </span>
+            </span>
           </div>
         </button>
         

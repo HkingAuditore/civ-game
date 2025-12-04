@@ -169,11 +169,9 @@ export const StatusBar = ({
       <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-ancient-gold/50 to-transparent" />
       
       <div 
-        className="max-w-[1920px] mx-auto px-2 sm:px-4 py-1.5 sm:py-2 relative z-10 overflow-x-auto overflow-y-visible cursor-grab active:cursor-grabbing select-none"
+        className="status-bar-scroll max-w-[1920px] mx-auto px-2 sm:px-4 py-1.5 sm:py-2 relative z-10 overflow-x-auto overflow-y-visible cursor-grab active:cursor-grabbing select-none"
         style={{ 
           WebkitOverflowScrolling: 'touch',
-          scrollbarWidth: 'none',
-          msOverflowStyle: 'none',
         }}
         onMouseDown={(e) => {
           const container = e.currentTarget;

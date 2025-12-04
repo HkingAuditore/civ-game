@@ -132,6 +132,21 @@
     scrollbar-color: var(--theme-primary, #d97706) var(--theme-surface, rgba(34, 24, 14, 0.85));
     scrollbar-width: thin;
   }
+
+  .status-bar-scroll {
+    scrollbar-width: thin;
+  }
+
+  @media (max-width: 768px) {
+    .status-bar-scroll {
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+
+    .status-bar-scroll::-webkit-scrollbar {
+      display: none;
+    }
+  }
 }
 
 /* Custom Scrollbar - Ancient Scroll Style */
