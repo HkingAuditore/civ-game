@@ -171,8 +171,8 @@ const CompactBuildingCard = ({
         className="flex-grow flex flex-col items-center cursor-pointer"
         onClick={() => onShowDetails(building.id)}
       >
-        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center mb-0.5 bg-ancient-ink/70 border border-ancient-gold/20 shadow-inner">
-          <VisualIcon name={building.visual.icon} size={14} className={`${building.visual.text} drop-shadow-sm`} />
+        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center mb-0.5 icon-metal-container">
+          <VisualIcon name={building.visual.icon} size={14} className={`${building.visual.text} icon-metal`} />
         </div>
         <div className="flex items-baseline gap-0.5">
           <h4 className="text-[10px] font-bold text-ancient-parchment leading-tight truncate max-w-[60px]">{building.name}</h4>

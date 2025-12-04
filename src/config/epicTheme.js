@@ -72,111 +72,112 @@ export const EPOCH_THEMES = {
     atmosphere: 'classical',
     icon: '🏛️',
   },
-  // 中世纪 - Medieval Age (Enhanced Steel & Purple Metal)
+  // 中世纪 - Medieval Age (Enhanced Royal Purple & Stone)
   3: {
     name: '中世纪',
-    primaryColor: '#7c3aed', // Purple
-    secondaryColor: '#5b21b6',
-    accentColor: '#a78bfa',
-    bgGradient: 'linear-gradient(135deg, #14101a 0%, #1c102c 50%, #14101a 100%)',
+    primaryColor: '#6b21a8', // 皇家紫 Royal Purple
+    secondaryColor: '#581c87',
+    accentColor: '#a855f7',
+    bgGradient: 'linear-gradient(135deg, #14101a 0%, #1e1028 50%, #14101a 100%)',
     bgColor: '#14101a',
-    surfaceColor: 'rgba(24, 16, 32, 0.92)',
-    surfaceAltColor: 'rgba(34, 20, 48, 0.85)',
-    surfaceMutedColor: 'rgba(20, 12, 28, 0.68)',
-    surfaceTranslucent: 'rgba(20, 12, 28, 0.52)',
-    textMutedColor: 'rgba(233, 213, 255, 0.75)',
+    surfaceColor: 'rgba(24, 16, 34, 0.92)',
+    surfaceAltColor: 'rgba(36, 22, 50, 0.85)',
+    surfaceMutedColor: 'rgba(20, 14, 28, 0.68)',
+    surfaceTranslucent: 'rgba(20, 14, 28, 0.52)',
+    textMutedColor: 'rgba(243, 232, 255, 0.75)',
     bgPattern: 'castle',
-    textColor: '#e9d5ff',
-    borderColor: 'rgba(124, 58, 237, 0.4)',
-    glowColor: 'rgba(124, 58, 237, 0.5)',
-    metalHighlight: 'rgba(167, 139, 250, 0.35)',
-    shadowDepth: '0 6px 16px rgba(0, 0, 0, 0.6), 0 3px 8px rgba(124, 58, 237, 0.4)',
+    textColor: '#f3e8ff',
+    borderColor: 'rgba(107, 33, 168, 0.4)',
+    glowColor: 'rgba(107, 33, 168, 0.5)',
+    metalHighlight: 'rgba(168, 85, 247, 0.35)',
+    shadowDepth: '0 6px 16px rgba(0, 0, 0, 0.6), 0 3px 8px rgba(107, 33, 168, 0.4)',
     atmosphere: 'medieval',
     icon: '🏰',
   },
-  // 探索时代 - Age of Exploration (Enhanced Ocean Metal)
+  // 探索时代 - Age of Exploration (Enhanced Navy Blue & Gold)
   4: {
     name: '探索时代',
-    primaryColor: '#0891b2', // Cyan
-    secondaryColor: '#155e75',
-    accentColor: '#22d3ee',
-    bgGradient: 'linear-gradient(135deg, #10141a 0%, #102c2c 50%, #10141a 100%)',
-    bgColor: '#10141a',
-    surfaceColor: 'rgba(14, 26, 32, 0.9)',
-    surfaceAltColor: 'rgba(18, 38, 44, 0.85)',
-    surfaceMutedColor: 'rgba(12, 22, 28, 0.66)',
-    surfaceTranslucent: 'rgba(12, 22, 28, 0.5)',
-    textMutedColor: 'rgba(207, 250, 254, 0.75)',
+    primaryColor: '#1e3a5f', // 海军蓝 Navy Blue
+    secondaryColor: '#0c2340',
+    accentColor: '#d4a574', // 航海金
+    bgGradient: 'linear-gradient(135deg, #0c1420 0%, #152238 50%, #0c1420 100%)',
+    bgColor: '#0c1420',
+    surfaceColor: 'rgba(16, 28, 44, 0.92)',
+    surfaceAltColor: 'rgba(22, 40, 60, 0.85)',
+    surfaceMutedColor: 'rgba(14, 24, 38, 0.68)',
+    surfaceTranslucent: 'rgba(14, 24, 38, 0.52)',
+    textMutedColor: 'rgba(226, 232, 240, 0.75)',
     bgPattern: 'compass',
-    textColor: '#cffafe',
-    borderColor: 'rgba(8, 145, 178, 0.4)',
-    glowColor: 'rgba(8, 145, 178, 0.5)',
-    metalHighlight: 'rgba(34, 211, 238, 0.35)',
-    shadowDepth: '0 6px 16px rgba(0, 0, 0, 0.6), 0 3px 8px rgba(8, 145, 178, 0.4)',
+    textColor: '#e2e8f0',
+    borderColor: 'rgba(30, 58, 95, 0.5)',
+    glowColor: 'rgba(212, 165, 116, 0.4)',
+    metalHighlight: 'rgba(212, 165, 116, 0.35)',
+    shadowDepth: '0 6px 16px rgba(0, 0, 0, 0.6), 0 3px 8px rgba(30, 58, 95, 0.4)',
     atmosphere: 'exploration',
     icon: '🧭',
   },
-  // 启蒙时代 - Age of Enlightenment (Enhanced Sapphire Metal)
+  // 启蒙时代 - Age of Enlightenment (Enhanced Warm Gold & Brown)
   5: {
     name: '启蒙时代',
-    primaryColor: '#2563eb', // Blue
-    secondaryColor: '#1e40af',
-    accentColor: '#60a5fa',
-    bgGradient: 'linear-gradient(135deg, #10141a 0%, #101c2c 50%, #10141a 100%)',
-    bgColor: '#10141a',
-    surfaceColor: 'rgba(18, 28, 48, 0.9)',
-    surfaceAltColor: 'rgba(20, 38, 66, 0.85)',
-    surfaceMutedColor: 'rgba(14, 24, 40, 0.66)',
-    surfaceTranslucent: 'rgba(14, 24, 40, 0.5)',
-    textMutedColor: 'rgba(219, 234, 254, 0.78)',
+    primaryColor: '#b8860b', // 暗金黄 Dark Goldenrod
+    secondaryColor: '#8b6914',
+    accentColor: '#f0c14b', // 明亮金
+    bgGradient: 'linear-gradient(135deg, #1a1612 0%, #2c2418 50%, #1a1612 100%)',
+    bgColor: '#1a1612',
+    surfaceColor: 'rgba(32, 26, 18, 0.92)',
+    surfaceAltColor: 'rgba(48, 38, 24, 0.85)',
+    surfaceMutedColor: 'rgba(28, 22, 16, 0.68)',
+    surfaceTranslucent: 'rgba(28, 22, 16, 0.52)',
+    textMutedColor: 'rgba(253, 246, 227, 0.78)',
     bgPattern: 'book',
-    textColor: '#dbeafe',
-    borderColor: 'rgba(37, 99, 235, 0.4)',
-    glowColor: 'rgba(37, 99, 235, 0.5)',
-    metalHighlight: 'rgba(96, 165, 250, 0.35)',
-    shadowDepth: '0 6px 16px rgba(0, 0, 0, 0.6), 0 3px 8px rgba(37, 99, 235, 0.4)',
+    textColor: '#fdf6e3',
+    borderColor: 'rgba(184, 134, 11, 0.45)',
+    glowColor: 'rgba(184, 134, 11, 0.5)',
+    metalHighlight: 'rgba(240, 193, 75, 0.35)',
+    shadowDepth: '0 6px 16px rgba(0, 0, 0, 0.6), 0 3px 8px rgba(184, 134, 11, 0.4)',
     atmosphere: 'enlightenment',
     icon: '📚',
   },
-  // 工业时代 - Industrial Age (Enhanced Iron & Steel)
+  // 工业时代 - Industrial Age (Enhanced Iron & Steel Gray)
   6: {
     name: '工业时代',
-    primaryColor: '#4f46e5', // Indigo
-    secondaryColor: '#3730a3',
-    accentColor: '#818cf8',
-    bgGradient: 'linear-gradient(135deg, #12141a 0%, #1c1c2c 50%, #12141a 100%)',
-    bgColor: '#12141a',
-    surfaceColor: 'rgba(18, 18, 32, 0.92)',
-    surfaceAltColor: 'rgba(24, 26, 46, 0.85)',
-    surfaceMutedColor: 'rgba(16, 18, 30, 0.68)',
-    surfaceTranslucent: 'rgba(16, 18, 30, 0.52)',
-    textMutedColor: 'rgba(224, 231, 255, 0.8)',
+    primaryColor: '#52525b', // 钢铁灰 Zinc Gray
+    secondaryColor: '#3f3f46',
+    accentColor: '#a1a1aa', // 亮银
+    bgGradient: 'linear-gradient(135deg, #18181b 0%, #27272a 50%, #18181b 100%)',
+    bgColor: '#18181b',
+    surfaceColor: 'rgba(28, 28, 32, 0.92)',
+    surfaceAltColor: 'rgba(42, 42, 48, 0.85)',
+    surfaceMutedColor: 'rgba(24, 24, 28, 0.68)',
+    surfaceTranslucent: 'rgba(24, 24, 28, 0.52)',
+    textMutedColor: 'rgba(228, 228, 231, 0.8)',
     bgPattern: 'gear',
-    textColor: '#e0e7ff',
-    borderColor: 'rgba(79, 70, 229, 0.4)',
-    glowColor: 'rgba(79, 70, 229, 0.5)',
-    metalHighlight: 'rgba(129, 140, 248, 0.35)',
-    shadowDepth: '0 8px 20px rgba(0, 0, 0, 0.7), 0 4px 10px rgba(79, 70, 229, 0.4)',
+    textColor: '#e4e4e7',
+    borderColor: 'rgba(82, 82, 91, 0.5)',
+    glowColor: 'rgba(161, 161, 170, 0.4)',
+    metalHighlight: 'rgba(161, 161, 170, 0.35)',
+    shadowDepth: '0 8px 20px rgba(0, 0, 0, 0.7), 0 4px 10px rgba(82, 82, 91, 0.4)',
     atmosphere: 'industrial',
     icon: '⚙️',
   },
-  // 现代 - Modern Age
+  // 现代 - Modern Age (Enhanced Cyan Tech)
   7: {
     name: '现代',
-    primaryColor: '#8b5cf6', // Violet
-    secondaryColor: '#6d28d9',
-    accentColor: '#a78bfa',
-    bgGradient: 'linear-gradient(135deg, #14101a 0%, #1c142c 50%, #14101a 100%)',
-    bgColor: '#14101a',
-    surfaceColor: 'rgba(22, 16, 32, 0.92)',
-    surfaceAltColor: 'rgba(32, 18, 48, 0.85)',
-    surfaceMutedColor: 'rgba(18, 10, 32, 0.68)',
-    surfaceTranslucent: 'rgba(18, 10, 32, 0.52)',
-    textMutedColor: 'rgba(237, 233, 254, 0.8)',
+    primaryColor: '#0891b2', // 科技青 Cyan
+    secondaryColor: '#0e7490',
+    accentColor: '#22d3ee', // 亮青色
+    bgGradient: 'linear-gradient(135deg, #0f1419 0%, #0c1a20 50%, #0f1419 100%)',
+    bgColor: '#0f1419',
+    surfaceColor: 'rgba(16, 26, 32, 0.92)',
+    surfaceAltColor: 'rgba(20, 36, 44, 0.85)',
+    surfaceMutedColor: 'rgba(14, 22, 28, 0.68)',
+    surfaceTranslucent: 'rgba(14, 22, 28, 0.52)',
+    textMutedColor: 'rgba(207, 250, 254, 0.8)',
     bgPattern: 'circuit',
-    textColor: '#ede9fe',
-    borderColor: 'rgba(139, 92, 246, 0.3)',
-    glowColor: 'rgba(139, 92, 246, 0.4)',
+    textColor: '#cffafe',
+    borderColor: 'rgba(8, 145, 178, 0.4)',
+    glowColor: 'rgba(34, 211, 238, 0.4)',
+    metalHighlight: 'rgba(34, 211, 238, 0.35)',
     atmosphere: 'modern',
     icon: '🏙️',
   },
@@ -257,10 +258,10 @@ export const BACKGROUND_PATTERNS = {
     <svg width="100" height="100" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <pattern id="castle-pattern" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse">
-          <rect x="0" y="30" width="10" height="10" fill="rgba(124, 58, 237, 0.08)" />
-          <rect x="15" y="30" width="10" height="10" fill="rgba(124, 58, 237, 0.08)" />
-          <rect x="30" y="30" width="10" height="10" fill="rgba(124, 58, 237, 0.08)" />
-          <path d="M5 30 L5 20 M20 30 L20 20 M35 30 L35 20" stroke="rgba(124, 58, 237, 0.1)" stroke-width="1" />
+          <rect x="0" y="30" width="10" height="10" fill="rgba(107, 33, 168, 0.08)" />
+          <rect x="15" y="30" width="10" height="10" fill="rgba(107, 33, 168, 0.08)" />
+          <rect x="30" y="30" width="10" height="10" fill="rgba(107, 33, 168, 0.08)" />
+          <path d="M5 30 L5 20 M20 30 L20 20 M35 30 L35 20" stroke="rgba(107, 33, 168, 0.1)" stroke-width="1" />
         </pattern>
       </defs>
       <rect width="100" height="100" fill="url(#castle-pattern)" />
@@ -270,9 +271,9 @@ export const BACKGROUND_PATTERNS = {
     <svg width="100" height="100" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <pattern id="compass-pattern" x="0" y="0" width="60" height="60" patternUnits="userSpaceOnUse">
-          <circle cx="30" cy="30" r="20" stroke="rgba(8, 145, 178, 0.08)" stroke-width="1" fill="none" />
-          <path d="M30 10 L30 50 M10 30 L50 30" stroke="rgba(8, 145, 178, 0.1)" stroke-width="1" />
-          <path d="M30 30 L35 20 L30 25 L25 20 Z" fill="rgba(8, 145, 178, 0.12)" />
+          <circle cx="30" cy="30" r="20" stroke="rgba(30, 58, 95, 0.1)" stroke-width="1" fill="none" />
+          <path d="M30 10 L30 50 M10 30 L50 30" stroke="rgba(30, 58, 95, 0.12)" stroke-width="1" />
+          <path d="M30 30 L35 20 L30 25 L25 20 Z" fill="rgba(212, 165, 116, 0.15)" />
         </pattern>
       </defs>
       <rect width="100" height="100" fill="url(#compass-pattern)" />
@@ -282,8 +283,8 @@ export const BACKGROUND_PATTERNS = {
     <svg width="100" height="100" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <pattern id="book-pattern" x="0" y="0" width="50" height="50" patternUnits="userSpaceOnUse">
-          <rect x="10" y="10" width="20" height="30" stroke="rgba(37, 99, 235, 0.1)" stroke-width="1" fill="none" />
-          <path d="M15 15 L25 15 M15 20 L25 20 M15 25 L25 25" stroke="rgba(37, 99, 235, 0.08)" stroke-width="0.5" />
+          <rect x="10" y="10" width="20" height="30" stroke="rgba(184, 134, 11, 0.12)" stroke-width="1" fill="none" />
+          <path d="M15 15 L25 15 M15 20 L25 20 M15 25 L25 25" stroke="rgba(184, 134, 11, 0.1)" stroke-width="0.5" />
         </pattern>
       </defs>
       <rect width="100" height="100" fill="url(#book-pattern)" />
@@ -293,12 +294,12 @@ export const BACKGROUND_PATTERNS = {
     <svg width="100" height="100" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <pattern id="gear-pattern" x="0" y="0" width="60" height="60" patternUnits="userSpaceOnUse">
-          <circle cx="30" cy="30" r="12" stroke="rgba(79, 70, 229, 0.1)" stroke-width="2" fill="none" />
-          <circle cx="30" cy="30" r="6" fill="rgba(79, 70, 229, 0.08)" />
-          <rect x="28" y="18" width="4" height="6" fill="rgba(79, 70, 229, 0.1)" />
-          <rect x="28" y="36" width="4" height="6" fill="rgba(79, 70, 229, 0.1)" />
-          <rect x="18" y="28" width="6" height="4" fill="rgba(79, 70, 229, 0.1)" />
-          <rect x="36" y="28" width="6" height="4" fill="rgba(79, 70, 229, 0.1)" />
+          <circle cx="30" cy="30" r="12" stroke="rgba(82, 82, 91, 0.15)" stroke-width="2" fill="none" />
+          <circle cx="30" cy="30" r="6" fill="rgba(82, 82, 91, 0.1)" />
+          <rect x="28" y="18" width="4" height="6" fill="rgba(161, 161, 170, 0.12)" />
+          <rect x="28" y="36" width="4" height="6" fill="rgba(161, 161, 170, 0.12)" />
+          <rect x="18" y="28" width="6" height="4" fill="rgba(161, 161, 170, 0.12)" />
+          <rect x="36" y="28" width="6" height="4" fill="rgba(161, 161, 170, 0.12)" />
         </pattern>
       </defs>
       <rect width="100" height="100" fill="url(#gear-pattern)" />
@@ -308,10 +309,10 @@ export const BACKGROUND_PATTERNS = {
     <svg width="100" height="100" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <pattern id="circuit-pattern" x="0" y="0" width="50" height="50" patternUnits="userSpaceOnUse">
-          <path d="M0 25 L15 25 M35 25 L50 25 M25 0 L25 15 M25 35 L25 50" stroke="rgba(139, 92, 246, 0.1)" stroke-width="1" />
-          <circle cx="25" cy="25" r="3" fill="rgba(139, 92, 246, 0.12)" />
-          <rect x="13" y="23" width="4" height="4" fill="rgba(139, 92, 246, 0.1)" />
-          <rect x="33" y="23" width="4" height="4" fill="rgba(139, 92, 246, 0.1)" />
+          <path d="M0 25 L15 25 M35 25 L50 25 M25 0 L25 15 M25 35 L25 50" stroke="rgba(8, 145, 178, 0.12)" stroke-width="1" />
+          <circle cx="25" cy="25" r="3" fill="rgba(34, 211, 238, 0.15)" />
+          <rect x="13" y="23" width="4" height="4" fill="rgba(8, 145, 178, 0.12)" />
+          <rect x="33" y="23" width="4" height="4" fill="rgba(8, 145, 178, 0.12)" />
         </pattern>
       </defs>
       <rect width="100" height="100" fill="url(#circuit-pattern)" />

@@ -495,7 +495,7 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
 
       {/* 税收政策调节 */}
       {onUpdateTaxPolicies && (
-        <div className="bg-gray-800/50 p-4 rounded-lg border border-gray-700">
+        <div className="glass-ancient p-4 rounded-xl border border-ancient-gold/30">
           <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300">
             <Icon name="DollarSign" size={16} className="text-yellow-400" />
             税收政策调节
@@ -685,7 +685,7 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
         if (categoryDecrees.length === 0) return null;
 
         return (
-          <div key={catKey} className="bg-gray-800/50 p-4 rounded-lg border border-gray-700">
+          <div key={catKey} className="glass-ancient p-4 rounded-xl border border-ancient-gold/30">
             {/* 类别标题 */}
             <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300">
               <Icon name={catInfo.icon} size={16} className={catInfo.color} />
@@ -706,13 +706,11 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
                 >
                   {/* 政令头部 - 紧凑版 */}
                   <div className="flex flex-col items-center mb-2">
-                    <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-1 ${
-                      decree.active ? 'bg-green-900/40' : 'bg-purple-900/30'
-                    }`}>
+                    <div className="w-12 h-12 icon-metal-container icon-metal-container-lg rounded-lg flex items-center justify-center mb-1">
                       {decree.active ? (
-                        <Icon name="Check" size={24} className="text-green-400" />
+                        <Icon name="Check" size={24} className="text-green-400 icon-metal-green" />
                       ) : (
-                        <Icon name="FileText" size={24} className="text-purple-400" />
+                        <Icon name="FileText" size={24} className="text-purple-400 icon-metal-purple" />
                       )}
                     </div>
                     <h4 className="text-xs font-bold text-white text-center leading-tight">{decree.name}</h4>
@@ -800,7 +798,7 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
       })}
 
       {/* 当前生效的政令统计 */}
-      <div className="bg-gray-800/50 p-4 rounded-lg border border-gray-700">
+      <div className="glass-ancient p-4 rounded-xl border border-ancient-gold/30">
         <h3 className="text-sm font-bold mb-2 flex items-center gap-2 text-gray-300">
           <Icon name="FileText" size={16} className="text-blue-400" />
           政令统计

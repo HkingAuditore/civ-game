@@ -34,7 +34,7 @@ const AllStrataSummary = ({
 }) => {
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[100] p-4">
-      <div className="bg-gray-800 rounded-lg border-2 border-gray-700 max-w-4xl w-full max-h-[90vh] flex flex-col">
+      <div className="glass-epic rounded-xl border-2 border-ancient-gold/30 max-w-4xl w-full max-h-[90vh] flex flex-col shadow-metal-xl">
         <div className="p-4 md:p-6 border-b border-gray-700">
           <div className="flex items-start justify-between gap-3">
             <div className="flex-1 min-w-0">
@@ -235,8 +235,8 @@ export const StratumDetailModal = ({
         <div className="p-3 md:p-4 border-b border-ancient-gold/20 bg-gradient-to-r from-purple-900/30 via-ancient-ink/50 to-blue-900/30">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-start gap-2 md:gap-3 flex-1 min-w-0">
-              <div className="p-2 md:p-2.5 glass-ancient rounded-lg flex-shrink-0 border border-ancient-gold/30 animate-breathe-glow">
-                <Icon name={stratum.icon} size={22} className="text-ancient-gold md:w-7 md:h-7" />
+              <div className="p-2 md:p-2.5 icon-metal-container icon-metal-container-lg flex-shrink-0 animate-breathe-glow">
+                <Icon name={stratum.icon} size={22} className="text-ancient-gold icon-metal-gold md:w-7 md:h-7" />
               </div>
               <div className="flex-1 min-w-0">
                 <h2 className="text-lg md:text-2xl font-bold text-white">{stratum.name}</h2>

@@ -400,12 +400,12 @@ export const ResourceDetailModal = ({
       <div className="absolute inset-0 bg-black/70 animate-fade-in" onClick={handleClose}></div>
 
       {/* 内容面板 */}
-      <div className={`relative w-full max-w-4xl bg-gray-800 border-t-2 lg:border-2 border-gray-700 rounded-t-2xl lg:rounded-2xl shadow-2xl flex flex-col max-h-[92vh] ${animationClass} lg:animate-slide-up`}>
+<div className={`relative w-full max-w-4xl glass-epic border-t-2 lg:border-2 border-ancient-gold/30 rounded-t-2xl lg:rounded-2xl shadow-metal-xl flex flex-col max-h-[92vh] ${animationClass} lg:animate-slide-up`}>
         {/* 头部 */}
         <div className="flex-shrink-0 p-2 lg:p-3 border-b border-gray-700 bg-gradient-to-r from-gray-900 to-gray-800">
           <div className="flex items-center gap-2">
-            <div className="w-9 h-9 lg:w-10 lg:h-10 border border-gray-700 bg-gray-900/60 rounded-lg flex items-center justify-center flex-shrink-0">
-              <Icon name={resourceDef.icon} size={20} className={resourceDef.color} />
+            <div className="w-9 h-9 lg:w-10 lg:h-10 icon-metal-container icon-metal-container-lg flex-shrink-0">
+              <Icon name={resourceDef.icon} size={20} className={`${resourceDef.color} icon-metal`} />
             </div>
             <div className="flex-1 min-w-0">
               <h2 className="text-sm lg:text-base font-bold text-white leading-tight">{resourceDef.name}</h2>

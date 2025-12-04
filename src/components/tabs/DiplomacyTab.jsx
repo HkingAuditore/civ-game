@@ -183,7 +183,7 @@ export const DiplomacyTab = ({
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-3 h-[calc(100vh-180px)] md:h-[600px]">
-        <div className="bg-gray-800/40 rounded-lg border border-gray-700 flex flex-col overflow-hidden">
+        <div className="glass-ancient rounded-xl border border-ancient-gold/30 flex flex-col overflow-hidden">
           <div className="px-2 py-1.5 border-b border-gray-700/80 text-[10px] uppercase tracking-wide text-gray-400">
             国家列表
           </div>
@@ -531,7 +531,7 @@ export const DiplomacyTab = ({
               )}
             </>
           ) : (
-            <div className="bg-gray-800/50 p-4 rounded-lg border border-gray-700 text-sm text-gray-400">
+            <div className="glass-ancient p-4 rounded-xl border border-ancient-gold/30 text-sm text-gray-400">
               请选择一个国家以查看贸易与谈判选项。
             </div>
           )}

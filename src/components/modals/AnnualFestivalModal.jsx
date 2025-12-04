@@ -88,7 +88,7 @@ export const AnnualFestivalModal = ({ festivalOptions, year, epoch, onSelect }) 
       <div className="absolute inset-0 bg-black/80 animate-fade-in"></div>
 
       {/* 内容面板 */}
-      <div className={`relative w-full max-w-4xl bg-gray-800 border-t-2 lg:border-2 border-yellow-500/50 rounded-t-2xl lg:rounded-2xl shadow-2xl flex flex-col max-h-[92vh] ${animationClass} lg:animate-slide-up`}>
+<div className={`relative w-full max-w-4xl glass-epic border-t-2 lg:border-2 border-ancient-gold/40 rounded-t-2xl lg:rounded-2xl shadow-metal-xl flex flex-col max-h-[92vh] ${animationClass} lg:animate-slide-up`}>
         {/* 头部 */}
         <div className="flex-shrink-0 p-3 border-b border-gray-700 bg-gradient-to-r from-yellow-900/50 via-orange-900/50 to-red-900/50">
           <div className="text-center">

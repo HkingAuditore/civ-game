@@ -46,13 +46,11 @@ export const TechDetailSheet = ({
     <div className="space-y-2">
       {/* 头部：科技名称和图标 */}
       <div className="flex items-center gap-2 pb-2 border-b border-gray-700">
-        <div className={`w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 ${
-          isUnlocked ? 'bg-green-900/30' : 'bg-blue-900/30'
-        }`}>
+        <div className="w-12 h-12 icon-metal-container icon-metal-container-lg rounded-lg flex items-center justify-center flex-shrink-0">
           {isUnlocked ? (
-            <Icon name="Check" size={24} className="text-green-400" />
+            <Icon name="Check" size={24} className="text-green-400 icon-metal-green" />
           ) : (
-            <Icon name="Lightbulb" size={24} className="text-blue-400" />
+            <Icon name="Lightbulb" size={24} className="text-blue-400 icon-metal-blue" />
           )}
         </div>
         <div className="flex-1 min-w-0">

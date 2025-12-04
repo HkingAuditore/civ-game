@@ -47,12 +47,12 @@ export const PopulationDetailModal = ({
       <div className="absolute inset-0 bg-black/70 animate-fade-in" onClick={handleClose}></div>
 
       {/* 内容面板 */}
-      <div className={`relative w-full max-w-2xl bg-gray-800 border-t-2 lg:border-2 border-gray-700 rounded-t-2xl lg:rounded-2xl shadow-2xl flex flex-col max-h-[90vh] ${animationClass} lg:animate-slide-up`}>
+<div className={`relative w-full max-w-2xl glass-epic border-t-2 lg:border-2 border-ancient-gold/30 rounded-t-2xl lg:rounded-2xl shadow-metal-xl flex flex-col max-h-[90vh] ${animationClass} lg:animate-slide-up`}>
         {/* 头部 */}
         <div className="flex-shrink-0 p-3 border-b border-gray-700 bg-gray-900/70">
           <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-blue-500/10 border border-blue-500/40 rounded-lg flex items-center justify-center flex-shrink-0">
-              <Icon name="Users" size={24} className="text-blue-300" />
+            <div className="w-10 h-10 icon-metal-container icon-metal-container-lg flex-shrink-0">
+              <Icon name="Users" size={24} className="text-blue-300 icon-metal-blue" />
             </div>
             <div className="flex-1 min-w-0">
               <h2 className="text-base font-bold text-white leading-tight">人口详情</h2>

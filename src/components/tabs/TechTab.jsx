@@ -496,7 +496,7 @@ export const TechTab = ({
       </div>
 
       {/* 科技树 */}
-      <div className="bg-gray-800/50 p-4 rounded-lg border border-gray-700">
+      <div className="glass-ancient p-4 rounded-xl border border-ancient-gold/30">
         <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300">
           <Icon name="Lightbulb" size={16} className="text-yellow-400" />
           科技树
@@ -584,11 +584,11 @@ export const TechTab = ({
                             >
                               {/* 科技头部 - 紧凑版 */}
                               <div className="flex flex-col items-center mb-2">
-                                <div className="w-12 h-12 bg-blue-900/30 rounded-full flex items-center justify-center mb-1">
+                                <div className="w-12 h-12 icon-metal-container icon-metal-container-lg rounded-lg flex items-center justify-center mb-1">
                                   {status === 'unlocked' ? (
-                                    <Icon name="Check" size={24} className="text-green-400" />
+                                    <Icon name="Check" size={24} className="text-green-400 icon-metal-green" />
                                   ) : (
-                                    <Icon name="Lightbulb" size={24} className="text-blue-400" />
+                                    <Icon name="Lightbulb" size={24} className="text-blue-400 icon-metal-blue" />
                                   )}
                                 </div>
                                 <h5 className="text-xs font-bold text-white text-center leading-tight">{tech.name}</h5>

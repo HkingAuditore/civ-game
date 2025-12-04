@@ -225,7 +225,7 @@ export const MilitaryTab = ({
   return (
     <div className="space-y-4">
       {/* 军队概览 */}
-      <div className="bg-gray-800/50 p-4 rounded-lg border border-gray-700">
+      <div className="glass-ancient p-4 rounded-xl border border-ancient-gold/30">
         <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300">
           <Icon name="Shield" size={16} className="text-red-400" />
           军队概览
@@ -307,7 +307,7 @@ export const MilitaryTab = ({
       </div>
 
       {/* 招募单位 */}
-      <div className="bg-gray-800/50 p-4 rounded-lg border border-gray-700">
+      <div className="glass-ancient p-4 rounded-xl border border-ancient-gold/30">
         <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300">
           <Icon name="Plus" size={16} className="text-green-400" />
           招募单位
@@ -332,8 +332,8 @@ export const MilitaryTab = ({
               >
                 {/* 单位头部 - 紧凑版 */}
                 <div className="flex flex-col items-center mb-2">
-                  <div className="w-12 h-12 bg-red-900/30 rounded-full flex items-center justify-center mb-1">
-                    <Icon name="Swords" size={24} className="text-red-400" />
+                  <div className="w-12 h-12 icon-metal-container icon-metal-container-lg rounded-lg flex items-center justify-center mb-1">
+                    <Icon name="Swords" size={24} className="text-red-400 icon-metal-red" />
                   </div>
                   <h4 className="text-xs font-bold text-white text-center leading-tight">{unit.name}</h4>
                   <p className="text-[10px] text-gray-400">×{army[unitId] || 0}</p>
@@ -395,7 +395,7 @@ export const MilitaryTab = ({
 
       {/* 训练队列 */}
       {militaryQueue.length > 0 && (
-        <div className="bg-gray-800/50 p-4 rounded-lg border border-gray-700">
+        <div className="glass-ancient p-4 rounded-xl border border-ancient-gold/30">
           <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300">
             <Icon name="Clock" size={16} className="text-yellow-400" />
             训练队列
@@ -463,7 +463,7 @@ export const MilitaryTab = ({
       )}
 
       {/* 军事行动 */}
-      <div className="bg-gray-800/50 p-4 rounded-lg border border-gray-700">
+      <div className="glass-ancient p-4 rounded-xl border border-ancient-gold/30">
         <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300">
           <Icon name="Swords" size={16} className="text-red-400" />
           军事行动

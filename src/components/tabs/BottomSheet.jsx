@@ -63,7 +63,7 @@ export const BottomSheet = ({
 
       {/* 内容面板 */}
       <div
-        className={`relative w-full max-w-2xl bg-gray-800 border-t-2 lg:border-2 border-gray-700 rounded-t-2xl lg:rounded-2xl shadow-2xl flex flex-col max-h-[85vh] ${animationClass} lg:animate-slide-up`}
+        className={`relative w-full max-w-2xl glass-epic border-t-2 lg:border-2 border-ancient-gold/30 rounded-t-2xl lg:rounded-2xl shadow-metal-xl flex flex-col max-h-[85vh] ${animationClass} lg:animate-slide-up`}
       >
         {showHeader ? (
           <>

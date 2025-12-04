@@ -43,8 +43,8 @@ export const UnitDetailSheet = ({
     <div className="space-y-2">
       {/* 头部：单位名称和图标 */}
       <div className="flex items-center gap-2 pb-2 border-b border-gray-700">
-        <div className="w-12 h-12 bg-red-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
-          <Icon name="Swords" size={24} className="text-red-400" />
+        <div className="w-12 h-12 icon-metal-container icon-metal-container-lg rounded-lg flex items-center justify-center flex-shrink-0">
+          <Icon name="Swords" size={24} className="text-red-400 icon-metal-red" />
         </div>
         <div className="flex-1 min-w-0">
           <h2 className="text-lg font-bold text-white leading-tight">{unit.name}</h2>
