@@ -168,6 +168,7 @@ import {
   UserCircle,
   Undo,
   Redo,
+  Dices,
 } from 'lucide-react';
 
 export const iconMap = {
@@ -343,6 +344,7 @@ export const iconMap = {
   UserCircle,
   Undo,
   Redo,
+  Dices,
 };
 
 export const getIcon = (name) => iconMap[name];
