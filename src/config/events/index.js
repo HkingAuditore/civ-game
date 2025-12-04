@@ -5,6 +5,7 @@ import { BASE_EVENTS } from './baseEvents';
 import { CLASS_CONFLICT_EVENTS } from './classConflictEvents';
 import { EPOCH_EVENTS } from './epochEvents';
 import { economicEvents as ECONOMIC_EVENTS } from './economicEvents';
+import { STATIC_DIPLOMATIC_EVENTS } from './staticDiplomaticEvents';
 import { canTriggerEvent, getRandomEvent as getRandomEventFromList } from './eventUtils';
 import {
   createWarDeclarationEvent,
@@ -16,7 +17,7 @@ import {
 } from './diplomaticEvents';
 
 // Combine all events into a single array
-export const EVENTS = [...BASE_EVENTS, ...CLASS_CONFLICT_EVENTS, ...EPOCH_EVENTS, ...ECONOMIC_EVENTS];
+export const EVENTS = [...BASE_EVENTS, ...CLASS_CONFLICT_EVENTS, ...EPOCH_EVENTS, ...ECONOMIC_EVENTS, ...STATIC_DIPLOMATIC_EVENTS];
 
 // Re-export event utility functions
 export { canTriggerEvent };
@@ -37,4 +38,4 @@ export {
 };
 
 // Re-export individual event arrays for potential direct access
-export { BASE_EVENTS, CLASS_CONFLICT_EVENTS, EPOCH_EVENTS, ECONOMIC_EVENTS };
+export { BASE_EVENTS, CLASS_CONFLICT_EVENTS, EPOCH_EVENTS, ECONOMIC_EVENTS, STATIC_DIPLOMATIC_EVENTS };

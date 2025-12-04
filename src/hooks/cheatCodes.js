@@ -2,7 +2,7 @@
 // Usage: Open browser console and type window.cheat.help() to see all available commands
 
 import { EPOCHS } from '../config';
-import { EVENTS, BASE_EVENTS, CLASS_CONFLICT_EVENTS, EPOCH_EVENTS, ECONOMIC_EVENTS } from '../config/events';
+import { EVENTS, BASE_EVENTS, CLASS_CONFLICT_EVENTS, EPOCH_EVENTS, ECONOMIC_EVENTS, STATIC_DIPLOMATIC_EVENTS } from '../config/events';
 
 const EPOCH_ALIASES = {
   stone: 0,
@@ -107,7 +107,7 @@ export const initCheatCodes = (gameState, addLog) => {
       console.log('  cheat.boomMarket()          - Set all prices to maximum');
       console.log('');
       console.log('%cEvents:', 'color: #ff9900; font-weight: bold;');
-      console.log('  cheat.listEvents(category)      - List all events (category: base/class/epoch/economic/all)');
+console.log('  cheat.listEvents(category)      - List all events (category: base/class/epoch/economic/diplomatic/all)');
       console.log('  cheat.searchEvent(keyword)      - Search events by name or ID');
       console.log('  cheat.triggerEvent(eventId)     - Trigger a specific event by ID');
       console.log('  cheat.getEventInfo(eventId)     - Get detailed info of an event');
@@ -561,12 +561,13 @@ export const initCheatCodes = (gameState, addLog) => {
         class: { events: CLASS_CONFLICT_EVENTS, name: 'Class Conflict Events' },
         epoch: { events: EPOCH_EVENTS, name: 'Epoch Events' },
         economic: { events: ECONOMIC_EVENTS, name: 'Economic Events' },
+        diplomatic: { events: STATIC_DIPLOMATIC_EVENTS, name: 'Diplomatic Events' },
         all: { events: EVENTS, name: 'All Events' },
       };
 
       const cat = category.toLowerCase();
       if (!categoryMap[cat]) {
-        console.log(`❌ Invalid category. Use: base, class, epoch, economic, or all`);
+        console.log(`❌ Invalid category. Use: base, class, epoch, economic, diplomatic, or all`);
         return;
       }
 

@@ -571,6 +571,7 @@ triggerConditions: { minPopulation: 200, minEpoch: 2, maxEpoch: 5 },
           resourceDemandMod: { spice: -0.3, cloth: -0.2 },
           approval: { artisan: 15, capitalist: 10 },
           stability: -3,
+          nationRelation: { hostile: -10 },
         },
       },
       {
@@ -580,6 +581,7 @@ triggerConditions: { minPopulation: 200, minEpoch: 2, maxEpoch: 5 },
           approval: { merchant: 10, official: -10 },
           resourceDemandMod: { spice: 0.1 },
           stability: -5,
+          nationRelation: { hostile: -15 },
         },
       },
       {
@@ -588,6 +590,7 @@ triggerConditions: { minPopulation: 200, minEpoch: 2, maxEpoch: 5 },
         effects: {
           resourcePercent: { silver: -0.03 },
           approval: { official: 5 },
+          nationRelation: { hostile: 5 },
         },
         randomEffects: [
           {
@@ -595,7 +598,9 @@ triggerConditions: { minPopulation: 200, minEpoch: 2, maxEpoch: 5 },
             effects: {
               resourceDemandMod: { spice: 0.2, cloth: 0.15 },
               stability: 5,
+              nationRelation: { hostile: 20 },
             },
+            description: '谈判成功，禁运解除！',
           },
         ],
       },
@@ -748,6 +753,445 @@ triggerConditions: { minPopulation: 150, minEpoch: 2, maxEpoch: 5 },
             },
           },
         ],
+      },
+    ],
+  },
+
+  // ========== Historical Neta: Tulip Mania Style ==========
+  {
+    id: 'tulip_mania',
+    name: '郁金香狂热',
+    icon: 'Flower',
+    description: '一种异域花卉突然在贵族间风靡，价格疯涨。一颗稀有品种的球茎竟然能换一栋房子！所有人都想从中牟利。',
+    triggerConditions: { minPopulation: 200, minEpoch: 4, maxEpoch: 5 },
+    options: [
+      {
+        id: 'join_speculation',
+        text: '国库也买入一些',
+        effects: {
+          resourcePercent: { silver: -0.06 },
+        },
+        randomEffects: [
+          {
+            chance: 0.3,
+            effects: {
+              resourcePercent: { silver: 0.12 },
+              approval: { merchant: 15, landowner: 10 },
+            },
+            description: '价格继续上涨，大赚一笔！',
+          },
+          {
+            chance: 0.5,
+            effects: {
+              resourcePercent: { silver: -0.1 },
+              stability: -15,
+              approval: { merchant: -20, peasant: -10 },
+            },
+            description: '泡沫破裂！国库损失惨重！',
+          },
+        ],
+      },
+      {
+        id: 'ban_trading',
+        text: '禁止投机性交易',
+        effects: {
+          approval: { merchant: -25, landowner: -15 },
+          stability: 5,
+        },
+      },
+      {
+        id: 'tax_transactions',
+        text: '对交易征收重税',
+        effects: {
+          resourcePercent: { silver: 0.04 },
+          approval: { merchant: -15 },
+        },
+      },
+    ],
+  },
+
+  // ========== Historical Neta: South Sea Bubble Style ==========
+  {
+    id: 'south_sea_bubble',
+    name: '南海泡沫',
+    icon: 'Ship',
+    description: '一家声称垄断远洋贸易特权的公司股价飙升，连牛顿那样的天才都投入了毕生积蓄。"我能计算天体运行，却算不出人类的疯狂。"',
+    triggerConditions: { minPopulation: 250, minEpoch: 5, maxEpoch: 6 },
+    options: [
+      {
+        id: 'invest_heavily',
+        text: '大量购入股票',
+        effects: {
+          resourcePercent: { silver: -0.08 },
+        },
+        randomEffects: [
+          {
+            chance: 0.25,
+            effects: {
+              resourcePercent: { silver: 0.15 },
+              approval: { capitalist: 20 },
+            },
+            description: '股价继续攀升！',
+          },
+          {
+            chance: 0.6,
+            effects: {
+              resourcePercent: { silver: -0.12 },
+              stability: -20,
+              approval: { capitalist: -25, merchant: -15 },
+            },
+            description: '泡沫破裂，血本无归！',
+          },
+        ],
+      },
+      {
+        id: 'regulate_market',
+        text: '加强市场监管',
+        effects: {
+          resourcePercent: { silver: -0.02 },
+          approval: { capitalist: -15, official: 10 },
+          stability: 8,
+        },
+      },
+      {
+        id: 'let_it_crash',
+        text: '静观其变',
+        effects: {},
+        randomEffects: [
+          {
+            chance: 0.7,
+            effects: {
+              stability: -15,
+              approval: { merchant: -20, capitalist: -20 },
+            },
+            description: '泡沫破裂，经济动荡！',
+          },
+        ],
+      },
+    ],
+  },
+
+  // ========== Historical Neta: Hanseatic League Style ==========
+  {
+    id: 'merchant_league',
+    name: '商人同盟',
+    icon: 'Handshake',
+    description: '几个主要港口城市的商人结成同盟，控制了大部分海上贸易。他们请求特权，作为回报将为国家提供贷款和舰船。',
+    triggerConditions: { minPopulation: 200, minEpoch: 3, maxEpoch: 5 },
+    options: [
+      {
+        id: 'grant_privileges',
+        text: '授予贸易特权',
+        effects: {
+          resourcePercent: { silver: 0.06 },
+          approval: { merchant: 30, capitalist: 20, artisan: -15 },
+          buildingProductionMod: { dockyard: 0.25 },
+          nationRelation: { all: 10 },
+        },
+      },
+      {
+        id: 'partial_cooperation',
+        text: '有限度合作',
+        effects: {
+          resourcePercent: { silver: 0.03 },
+          approval: { merchant: 10, official: 5 },
+        },
+      },
+      {
+        id: 'reject_league',
+        text: '拒绝，维护王权',
+        effects: {
+          approval: { merchant: -25, official: 15, soldier: 10 },
+          stability: -5,
+        },
+      },
+    ],
+  },
+
+  // ========== Historical Neta: East India Company Style ==========
+  {
+    id: 'trading_company',
+    name: '特许贸易公司',
+    icon: 'Building',
+    description: '富商们请求成立一家特许贸易公司，垄断与东方/西方的贸易。他们承诺向王室缴纳丰厚的特许费。',
+    triggerConditions: { minPopulation: 250, minEpoch: 4, maxEpoch: 6 },
+    options: [
+      {
+        id: 'charter_company',
+        text: '批准成立',
+        effects: {
+          resourcePercent: { silver: 0.08 },
+          approval: { merchant: 25, capitalist: 30, artisan: -10 },
+          resourceDemandMod: { spice: 0.4, cloth: 0.3 },
+          nationRelation: { random: 15 },
+        },
+      },
+      {
+        id: 'state_monopoly',
+        text: '改为国营贸易',
+        effects: {
+          resourcePercent: { silver: 0.05 },
+          approval: { merchant: -20, official: 15 },
+          buildingProductionMod: { dockyard: 0.15 },
+        },
+      },
+      {
+        id: 'free_trade',
+        text: '实行自由贸易',
+        effects: {
+          approval: { merchant: 15, capitalist: -10 },
+          resourceDemandMod: { spice: 0.2 },
+          nationRelation: { all: 5 },
+        },
+      },
+    ],
+  },
+
+  // ========== Historical Neta: Great Famine Style ==========
+  {
+    id: 'great_famine',
+    name: '大饥荒',
+    icon: 'Skull',
+    description: '连年歉收导致严重饥荒，饿殍遍野。更糟的是，粮商们趁机囤积居奇，哄抬物价。政府必须采取紧急措施。',
+    triggerConditions: { minPopulation: 150, minEpoch: 2, maxEpoch: 5 },
+    options: [
+      {
+        id: 'free_distribution',
+        text: '开仓放粮，赈济灾民',
+        effects: {
+          resourcePercent: { food: -0.1, silver: -0.03 },
+          populationPercent: -0.02,
+          approval: { peasant: 25, serf: 20, merchant: -15 },
+          stability: 10,
+        },
+      },
+      {
+        id: 'import_grain',
+        text: '紧急进口粮食',
+        effects: {
+          resourcePercent: { silver: -0.08 },
+          populationPercent: -0.015,
+          approval: { merchant: 10, peasant: 10 },
+          nationRelation: { friendly: 10 },
+          nationWealth: { friendly: 200 },
+        },
+      },
+      {
+        id: 'let_market_handle',
+        text: '让市场自行调节',
+        effects: {
+          populationPercent: -0.05,
+          stability: -20,
+          approval: { peasant: -30, serf: -25, merchant: 10 },
+        },
+      },
+    ],
+  },
+
+  // ========== Historical Neta: Salt Tax Rebellion Style ==========
+  {
+    id: 'salt_tax_rebellion',
+    name: '盐税暴动',
+    icon: 'AlertTriangle',
+    description: '为增加财政收入而提高的盐税引发了民间强烈不满。沿海地区出现大规模走私，内陆则爆发了抗税暴动。',
+    triggerConditions: { minPopulation: 150, minEpoch: 2, maxEpoch: 5 },
+    options: [
+      {
+        id: 'lower_tax',
+        text: '降低盐税',
+        effects: {
+          resourcePercent: { silver: -0.04 },
+          approval: { peasant: 20, merchant: 15 },
+          stability: 10,
+        },
+      },
+      {
+        id: 'suppress_rebellion',
+        text: '镇压暴动',
+        effects: {
+          resourcePercent: { silver: -0.02 },
+          populationPercent: -0.01,
+          approval: { peasant: -25, soldier: 10 },
+          stability: -10,
+        },
+      },
+      {
+        id: 'reform_salt_system',
+        text: '改革盐政',
+        effects: {
+          resourcePercent: { silver: -0.03 },
+          approval: { official: 10, merchant: 5, peasant: 10 },
+          stability: 5,
+        },
+      },
+    ],
+  },
+
+  // ========== Historical Neta: Coinage Debasement ==========
+  {
+    id: 'coin_debasement',
+    name: '铸币减重',
+    icon: 'Coins',
+    description: '财政紧张，大臣建议铸造成色不足的货币来应急。"反正百姓也分不出来。"但如果被发现，后果不堪设想。',
+    triggerConditions: { minPopulation: 150, minEpoch: 2, maxEpoch: 5 },
+    options: [
+      {
+        id: 'debase_secretly',
+        text: '秘密进行',
+        effects: {
+          resourcePercent: { silver: 0.06 },
+        },
+        randomEffects: [
+          {
+            chance: 0.6,
+            effects: {
+              stability: -25,
+              approval: { merchant: -30, peasant: -20 },
+              resourceDemandMod: { iron: 0.3, copper: 0.2 },
+            },
+            description: '秘密败露！物价飞涨！',
+          },
+        ],
+      },
+      {
+        id: 'open_devaluation',
+        text: '公开宣布货币贬值',
+        effects: {
+          resourcePercent: { silver: 0.04 },
+          stability: -10,
+          approval: { merchant: -15, peasant: -10, official: 5 },
+        },
+      },
+      {
+        id: 'find_alternatives',
+        text: '另寻财源',
+        effects: {
+          approval: { official: 10 },
+        },
+      },
+    ],
+  },
+
+  // ========== Historical Neta: Enclosure Movement Style ==========
+  {
+    id: 'enclosure_movement',
+    name: '圈地运动',
+    icon: 'Fence',
+    description: '地主们请求将公共牧场圈为私有，用于养羊生产羊毛。"羊吃人"的说法开始流传，失地农民何去何从？',
+    triggerConditions: { minPopulation: 200, minEpoch: 4, maxEpoch: 6 },
+    options: [
+      {
+        id: 'allow_enclosure',
+        text: '批准圈地',
+        effects: {
+          resourceDemandMod: { cloth: 0.3 },
+          buildingProductionMod: { loom_house: 0.2 },
+          approval: { landowner: 25, capitalist: 15, peasant: -30, serf: -25 },
+          stability: -10,
+        },
+      },
+      {
+        id: 'compensate_peasants',
+        text: '圈地但补偿农民',
+        effects: {
+          resourcePercent: { silver: -0.05 },
+          resourceDemandMod: { cloth: 0.2 },
+          approval: { landowner: 10, peasant: -10 },
+          stability: -3,
+        },
+      },
+      {
+        id: 'protect_commons',
+        text: '保护公地',
+        effects: {
+          approval: { peasant: 20, serf: 15, landowner: -20, capitalist: -15 },
+          stability: 5,
+        },
+      },
+    ],
+  },
+
+  // ========== Historical Neta: Railroad Mania Style ==========
+  {
+    id: 'railroad_mania',
+    name: '铁路狂热',
+    icon: 'Train',
+    description: '新发明的铁路引发投资狂潮，无数公司成立，股票价格疯涨。每个人都想修一条铁路，不管是否有实际需求。',
+    triggerConditions: { minPopulation: 300, minEpoch: 6, maxEpoch: 7 },
+    options: [
+      {
+        id: 'encourage_investment',
+        text: '鼓励投资',
+        effects: {
+          buildingProductionMod: { industry: 0.25 },
+          approval: { capitalist: 25, engineer: 20, worker: 10 },
+        },
+        randomEffects: [
+          {
+            chance: 0.5,
+            effects: {
+              stability: -15,
+              approval: { capitalist: -20 },
+              resourcePercent: { silver: -0.05 },
+            },
+            description: '泡沫破裂，许多公司破产！',
+          },
+        ],
+      },
+      {
+        id: 'state_railways',
+        text: '国家统一规划',
+        effects: {
+          resourcePercent: { silver: -0.06 },
+          buildingProductionMod: { industry: 0.15 },
+          approval: { official: 15, capitalist: -10 },
+          stability: 5,
+        },
+      },
+      {
+        id: 'cautious_approach',
+        text: '谨慎观望',
+        effects: {
+          approval: { capitalist: -10, engineer: -5 },
+        },
+      },
+    ],
+  },
+
+  // ========== Historical Neta: Bank Run Style ==========
+  {
+    id: 'bank_run',
+    name: '银行挤兑',
+    icon: 'Landmark',
+    description: '谣言四起，说某家大钱庄资不抵债。恐慌的储户蜂拥而至要求提款，钱庄门前排起长龙。如果不干预，恐慌可能蔓延到整个金融体系。',
+    triggerConditions: { minPopulation: 250, minEpoch: 4, maxEpoch: 6 },
+    options: [
+      {
+        id: 'bailout',
+        text: '国库出资救助',
+        effects: {
+          resourcePercent: { silver: -0.08 },
+          approval: { merchant: 15, capitalist: 20, peasant: -10 },
+          stability: 10,
+        },
+      },
+      {
+        id: 'let_it_fail',
+        text: '任其倒闭',
+        effects: {
+          approval: { merchant: -25, capitalist: -30, peasant: 5 },
+          stability: -15,
+          buildingProductionMod: { industry: -0.1 },
+        },
+      },
+      {
+        id: 'temporary_closure',
+        text: '临时关闭所有钱庄',
+        effects: {
+          approval: { merchant: -15, official: 10 },
+          stability: -5,
+          buildingProductionMod: { industry: -0.05 },
+        },
       },
     ],
   },

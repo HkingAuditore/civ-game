@@ -1441,7 +1441,7 @@ export const BASE_EVENTS = [
             food: -0.015,
             wood: -0.008,
           },
-          culture: 20,
+          culture: 0.02,
           stability: 5,
           approval: {
             peasant: 8,
@@ -1563,7 +1563,7 @@ export const BASE_EVENTS = [
         description: '认为这是神灵的恩赐，将其供奉起来。',
         effects: {
           resourcePercent: {
-            culture: 40,
+            culture: 0.04,
           },
           stability: 8,
           approval: {
@@ -1609,7 +1609,7 @@ export const BASE_EVENTS = [
           resourcePercent: {
             food: -0.006,
             science: 0.08,
-            culture: 70,
+            culture: 0.07,
           },
           populationPercent: -0.015,
           stability: 5,
@@ -1668,12 +1668,11 @@ export const BASE_EVENTS = [
         description: '投入大量劳力，快速获得资源，但可能引发劳工不满。',
         effects: {
           resourcePercent: {
-            copper: 150,
+            copper: 0.15,
             iron: 0.012,
             wood: -0.01,
           },
-          populationPercent: -0.015, // 艰苦劳作可能导致人口损失
-          stability: -5,
+          populationPercent: -0.015,          stability: -5,
           approval: {
             miner: 15,
             peasant: -8,
@@ -1701,7 +1700,7 @@ export const BASE_EVENTS = [
         description: '防止其他部落发现，但短期内只能小规模开采。',
         effects: {
           resourcePercent: {
-            copper: 50,
+            copper: 0.05,
             iron: 0.016,
           },
           stability: -3,
@@ -1990,8 +1989,8 @@ export const BASE_EVENTS = [
         description: '公开支持哲学家的学说，推动科学与文化发展，但会激怒神职人员。',
         effects: {
           resourcePercent: {
-            science: 250,
-            culture: 150,
+            science: 0.25,
+            culture: 0.15,
           },
           approval: {
             scribe: 20,
@@ -2118,7 +2117,7 @@ export const BASE_EVENTS = [
         effects: {
           resourcePercent: {
             silver: -0.03,
-            culture: 200,
+            culture: 0.20,
           },
           stability: 8,
           approval: {
@@ -2424,8 +2423,8 @@ export const BASE_EVENTS = [
         effects: {
           resourcePercent: {
             silver: -0.012,
-            science: 300,
-            culture: 200,
+            science: 0.30,
+            culture: 0.20,
           },
           approval: {
             scribe: 25,
@@ -2440,7 +2439,7 @@ export const BASE_EVENTS = [
         description: '让教会来管理大学，确保其教学内容符合教义。',
         effects: {
           resourcePercent: {
-            culture: 150,
+            culture: 0.15,
           },
           stability: 5,
           approval: {
@@ -2582,6 +2581,8 @@ export const BASE_EVENTS = [
             navigator: -25,
             merchant: -10,
           },
+          nationRelation: { random: 15 },
+          nationWealth: { random: 200 },
         },
       },
     ],
@@ -2608,7 +2609,7 @@ export const BASE_EVENTS = [
         effects: {
           resourcePercent: {
             silver: -0.05,
-            culture: 350,
+            culture: 0.35,
             science: 0.08,
           },
           stability: 10,

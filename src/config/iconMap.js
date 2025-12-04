@@ -132,6 +132,7 @@ import {
   Layers,
   Moon,
   Cloud,
+  CloudLightning,
   Umbrella,
   Map,
   MapPin,
@@ -186,6 +187,8 @@ import {
   Undo,
   Redo,
   Dices,
+  Flower,
+  Flower2,
 } from 'lucide-react';
 
 export const iconMap = {
@@ -312,7 +315,6 @@ export const iconMap = {
   Microscope,
   Syringe,
   Pitchfork: Pickaxe, // Fallback - no pitchfork in lucide
-  
   // 新增必要图标
   LayoutGrid,
   Sun,
@@ -381,6 +383,9 @@ export const iconMap = {
   Undo,
   Redo,
   Dices,
+  Flower,
+  Flower2,
+  CloudLightning,
 };
 
 export const getIcon = (name) => iconMap[name];
