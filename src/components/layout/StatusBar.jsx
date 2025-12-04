@@ -364,10 +364,10 @@ export const StatusBar = ({
                 <Icon name="Users" size={10} className="text-blue-300" />
               </div>
               <div className="flex items-baseline gap-0.5 relative z-10">
-                <span className="font-mono text-[11px] font-bold text-blue-200">
+                <span className="font-mono text-[13px] font-bold text-blue-200">
                   {formatNumber(gameState.population)}
                 </span>
-                <span className="text-[8px] text-ancient-stone">
+                <span className="text-[11px] font-bold text-ancient-gold">
                   /{formatNumber(gameState.maxPop)}
                 </span>
               </div>
