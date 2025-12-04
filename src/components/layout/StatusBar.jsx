@@ -36,8 +36,8 @@ export const StatusBar = ({
     if (!taxDetailButtonRef.current) return null;
     const rect = taxDetailButtonRef.current.getBoundingClientRect();
     return {
-      top: rect.bottom + 8 + window.scrollY,
-      left: rect.left + rect.width / 2 + window.scrollX,
+      top: rect.bottom + 8,
+      left: rect.left + rect.width / 2,
     };
   };
   
