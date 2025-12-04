@@ -437,7 +437,7 @@ export const MilitaryTab = ({
                           />
                         </div>
                         <span className="text-xs text-gray-400 w-12 text-right">
-                          {item.remainingTime}s
+                          {item.remainingTime}天
                         </span>
                       </>
                     )}

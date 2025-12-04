@@ -47,8 +47,8 @@ export const GameControls = ({
     const offset = 8;
     const isUp = direction === 'up';
     return {
-      top: (isUp ? rect.top - offset : rect.bottom + offset) + window.scrollY,
-      left: rect.right + window.scrollX,
+      top: isUp ? rect.top - offset : rect.bottom + offset,
+      left: rect.right,
       translateY: isUp ? '-100%' : '0',
     };
   };
