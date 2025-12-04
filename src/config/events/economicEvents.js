@@ -15,7 +15,7 @@ export const economicEvents = [
     name: '贸易繁荣',
     icon: 'Coins',
     description: '远方商队带来了大量货物和金银，市场一片繁荣。商人们摩拳擦掌，准备大展身手。',
-    conditions: { minPopulation: 100, minEpoch: 1 },
+triggerConditions: { minPopulation: 100, minEpoch: 1, maxEpoch: 5 },
     options: [
       {
         id: 'encourage_trade',
@@ -53,7 +53,7 @@ export const economicEvents = [
     name: '丝路复兴',
     icon: 'Compass',
     description: '通往西域的商路重新开通，丝绸、香料、珠宝源源不断地流入。这是千载难逢的商机！',
-    conditions: { minPopulation: 200, minEpoch: 2 },
+triggerConditions: { minPopulation: 200, minEpoch: 2, maxEpoch: 4 },
     options: [
       {
         id: 'embrace_trade',
@@ -92,7 +92,7 @@ export const economicEvents = [
     name: '丰收庆典',
     icon: 'Wheat',
     description: '今年风调雨顺，五谷丰登。农民们载歌载舞，庆祝这来之不易的丰收。',
-    conditions: { minPopulation: 50 },
+    triggerConditions: { minPopulation: 50 },
     options: [
       {
         id: 'celebrate',
@@ -129,7 +129,7 @@ export const economicEvents = [
     name: '蝗灾来袭',
     icon: 'AlertTriangle',
     description: '遮天蔽日的蝗虫席卷而来，所过之处寸草不生。这是天降的灾祸！',
-    conditions: { minPopulation: 80 },
+    triggerConditions: { minPopulation: 80 },
     options: [
       {
         id: 'organize_extermination',
@@ -170,7 +170,7 @@ export const economicEvents = [
     name: '技术革新',
     icon: 'Lightbulb',
     description: '工匠们发明了新的生产工具，大大提高了效率。这项发明很快在各地传播开来。',
-    conditions: { minPopulation: 150, minEpoch: 2 },
+triggerConditions: { minPopulation: 150, minEpoch: 2, maxEpoch: 5 },
     options: [
       {
         id: 'promote_innovation',
@@ -207,7 +207,7 @@ export const economicEvents = [
     name: '矿脉发现',
     icon: 'Gem',
     description: '勘探者在边远地区发现了丰富的矿藏。消息传开后，大批人涌向矿区。',
-    conditions: { minPopulation: 120, minEpoch: 1 },
+triggerConditions: { minPopulation: 120, minEpoch: 1, maxEpoch: 5 },
     options: [
       {
         id: 'state_mining',
@@ -245,7 +245,7 @@ export const economicEvents = [
     name: '奢侈风潮',
     icon: 'Sparkles',
     description: '贵族们开始追捧来自远方的奢侈品，攀比之风愈演愈烈。',
-    conditions: { minPopulation: 200, minEpoch: 2 },
+triggerConditions: { minPopulation: 200, minEpoch: 2, maxEpoch: 5 },
     options: [
       {
         id: 'encourage_luxury',
@@ -284,7 +284,7 @@ export const economicEvents = [
     name: '茶与咖啡',
     icon: 'Coffee',
     description: '一种神奇的饮品从东方/西方传入，据说能提神醒脑。很快这种饮品风靡全国。',
-    conditions: { minPopulation: 180, minEpoch: 3 },
+triggerConditions: { minPopulation: 180, minEpoch: 3, maxEpoch: 6 },
     options: [
       {
         id: 'promote_drink',
@@ -322,7 +322,7 @@ export const economicEvents = [
     name: '货币危机',
     icon: 'AlertTriangle',
     description: '市面上流通的钱币成色不足，物价飞涨，民怨沸腾。必须采取措施稳定币值。',
-    conditions: { minPopulation: 150, minEpoch: 2 },
+triggerConditions: { minPopulation: 150, minEpoch: 2, maxEpoch: 5 },
     options: [
       {
         id: 'mint_new_coins',
@@ -360,7 +360,7 @@ export const economicEvents = [
     name: '钱庄兴起',
     icon: 'Landmark',
     description: '精明的商人开始经营钱庄，提供存款和借贷服务。这种新式商业引发了不少争议。',
-    conditions: { minPopulation: 250, minEpoch: 3 },
+triggerConditions: { minPopulation: 250, minEpoch: 3, maxEpoch: 5 },
     options: [
       {
         id: 'support_banking',
@@ -398,7 +398,7 @@ export const economicEvents = [
     name: '劳工短缺',
     icon: 'Users',
     description: '战争、瘟疫或迁徙导致劳动力严重不足，许多田地荒芜，工坊停工。',
-    conditions: { minPopulation: 100 },
+    triggerConditions: { minPopulation: 100 },
     options: [
       {
         id: 'increase_wages',
@@ -436,7 +436,7 @@ export const economicEvents = [
     name: '行会纷争',
     icon: 'Handshake',
     description: '各行会为了争夺市场和利益，发生了激烈的冲突。街头巷尾充斥着争吵和斗殴。',
-    conditions: { minPopulation: 180, minEpoch: 2 },
+triggerConditions: { minPopulation: 180, minEpoch: 2, maxEpoch: 4 },
     options: [
       {
         id: 'mediate',
@@ -475,7 +475,7 @@ export const economicEvents = [
     name: '森林枯竭',
     icon: 'Trees',
     description: '多年的砍伐使得森林面积锐减，木材价格飙升，连柴火都变得稀缺。',
-    conditions: { minPopulation: 200, minEpoch: 2 },
+triggerConditions: { minPopulation: 200, minEpoch: 2, maxEpoch: 5 },
     options: [
       {
         id: 'plant_trees',
@@ -522,7 +522,7 @@ export const economicEvents = [
     name: '盐荒',
     icon: 'Droplets',
     description: '盐业生产出了问题，这种生活必需品变得奇货可居。民间怨声载道。',
-    conditions: { minPopulation: 100 },
+    triggerConditions: { minPopulation: 100 },
     options: [
       {
         id: 'government_distribution',
@@ -560,7 +560,7 @@ export const economicEvents = [
     name: '外国禁运',
     icon: 'Globe',
     description: '邻国宣布对我国实施贸易禁运，许多商品无法进口，价格大涨。',
-    conditions: { minPopulation: 200, minEpoch: 2 },
+triggerConditions: { minPopulation: 200, minEpoch: 2, maxEpoch: 5 },
     options: [
       {
         id: 'develop_domestic',
@@ -607,7 +607,7 @@ export const economicEvents = [
     name: '新航路发现',
     icon: 'Ship',
     description: '探险家发现了通往富饶之地的新航路，这将彻底改变贸易格局。',
-    conditions: { minPopulation: 250, minEpoch: 4 },
+triggerConditions: { minPopulation: 250, minEpoch: 4, maxEpoch: 5 },
     options: [
       {
         id: 'fund_expedition',
@@ -654,7 +654,7 @@ export const economicEvents = [
     name: '投机泡沫',
     icon: 'TrendingUp',
     description: '某种商品的价格被疯狂炒作，人人都想从中获利。这场狂热能持续多久？',
-    conditions: { minPopulation: 250, minEpoch: 3 },
+triggerConditions: { minPopulation: 250, minEpoch: 3, maxEpoch: 6 },
     options: [
       {
         id: 'join_speculation',
@@ -712,7 +712,7 @@ export const economicEvents = [
     name: '伪币集团',
     icon: 'Shield',
     description: '官府查获了一个大规模的伪币制造集团，市面上的假币数量惊人。',
-    conditions: { minPopulation: 150, minEpoch: 2 },
+triggerConditions: { minPopulation: 150, minEpoch: 2, maxEpoch: 5 },
     options: [
       {
         id: 'harsh_punishment',

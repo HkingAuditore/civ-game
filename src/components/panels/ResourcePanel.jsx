@@ -114,7 +114,7 @@ export const ResourcePanel = ({
               <button
                 key={key}
                 onClick={() => onDetailClick && onDetailClick(key)}
-                className="relative group p-2 rounded-lg transition-all touch-feedback card-epic-hover
+                className="relative group w-full min-w-0 p-2 rounded-lg transition-all touch-feedback card-epic-hover
                   bg-gradient-to-br from-ancient-ink/60 via-transparent to-ancient-ink/40
                   border border-ancient-gold/15 hover:border-ancient-gold/40
                   hover:shadow-glow-gold overflow-hidden"
@@ -127,7 +127,7 @@ export const ResourcePanel = ({
                 <div className="relative z-10">
                   {/* 第一行：图标 + 名称 + 趋势 */}
                   <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 min-w-0">
                       <div className={`icon-epic-frame icon-frame-xs ${getIconFrameClass(key)}`}>
                         <Icon name={info.icon} size={12} className={info.color || 'text-ancient-parchment'} />
                       </div>
@@ -144,12 +144,12 @@ export const ResourcePanel = ({
                   </div>
                   
                   {/* 第三行：价格 + 产出 */}
-                  <div className="flex items-center justify-between mt-1 font-bold text-[11px]">
-                    <span className="text-ancient-stone flex items-center gap-0.5">
+                  <div className="flex items-center justify-between gap-1 mt-1 font-bold text-[11px] min-w-0">
+                    <span className="text-ancient-stone flex items-center gap-0.5 min-w-0 truncate">
                       <Icon name="Coins" size={8} className="text-ancient-gold/70" />
                       {price.toFixed(1)}
                     </span>
-                    <span className={`font-mono ${rate > 0 ? 'text-green-400' : rate < 0 ? 'text-red-400' : 'text-ancient-stone/50'}`}>
+                    <span className={`font-mono text-right ${rate > 0 ? 'text-green-400' : rate < 0 ? 'text-red-400' : 'text-ancient-stone/50'}`}>
                       {rate !== 0 ? `${rate > 0 ? '+' : ''}${rate.toFixed(1)}` : '--'}
                     </span>
                   </div>
