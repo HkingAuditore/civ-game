@@ -499,15 +499,48 @@ export const useGameActions = (gameState, addLog) => {
           }
         });
       };
+      
+      // Add battle result loot (from simulateBattle)
       mergeLoot(result.loot || {});
-      Object.entries(mission.loot || {}).forEach(([resource, range]) => {
-        if (!Array.isArray(range) || range.length < 2) return;
-        const [min, max] = range;
-        const amount = Math.floor(min + Math.random() * (max - min + 1));
-        if (amount > 0) {
-          combinedLoot[resource] = (combinedLoot[resource] || 0) + amount;
-        }
-      });
+      
+      // Calculate proportional loot based on lootConfig if available
+      if (mission.lootConfig) {
+        const enemyWealth = targetNation.wealth || 500;
+        Object.entries(mission.lootConfig).forEach(([resource, config]) => {
+          const playerAmount = resources?.[resource] || 0;
+          
+          // Base amount from enemy wealth percentage
+          const enemyBaseLoot = Math.floor(enemyWealth * config.enemyPercent);
+          
+          // Scale based on player's own resources (late game scaling)
+          // The more resources you have, the more you can capture and transport
+          const playerScaledLoot = Math.floor(playerAmount * config.playerPercent);
+          
+          // Final loot is calculated considering both factors
+          // Minimum is baseMin, max is enemyBaseLoot, scale up with player resources
+          const baseMin = config.baseMin || 10;
+          const scaledAmount = Math.max(baseMin, Math.min(enemyBaseLoot, Math.max(enemyBaseLoot * 0.5, playerScaledLoot)));
+          
+          // Add some randomness (±20%)
+          const randomFactor = 0.8 + Math.random() * 0.4;
+          const finalAmount = Math.floor(scaledAmount * randomFactor);
+          
+          if (finalAmount > 0) {
+            combinedLoot[resource] = (combinedLoot[resource] || 0) + finalAmount;
+          }
+        });
+      } else {
+        // Fallback to legacy loot ranges
+        Object.entries(mission.loot || {}).forEach(([resource, range]) => {
+          if (!Array.isArray(range) || range.length < 2) return;
+          const [min, max] = range;
+          const amount = Math.floor(min + Math.random() * (max - min + 1));
+          if (amount > 0) {
+            combinedLoot[resource] = (combinedLoot[resource] || 0) + amount;
+          }
+        });
+      }
+      
       resourcesGained = combinedLoot;
 
       if (Object.keys(combinedLoot).length > 0) {
@@ -905,6 +938,26 @@ export const useGameActions = (gameState, addLog) => {
             : n
         ));
       addLog(`你接受了和平协议，${targetNation.name}提供了 ${amount} 人口。`);
+    } else if (proposalType === 'open_market') {
+      // 开放市场 - 战败国在N天内不限制贸易路线数量
+      const openMarketUntil = daysElapsed + amount; // amount为天数
+      const yearsCount = Math.round(amount / 365);
+      setNations(prev => prev.map(n =>
+        n.id === nationId
+          ? {
+              ...n,
+              isAtWar: false,
+              warScore: 0,
+              warDuration: 0,
+              enemyLosses: 0,
+              isPeaceRequesting: false,
+              relation: Math.max(35, n.relation || 0),
+              peaceTreatyUntil,
+              openMarketUntil, // 开放市场截止日期
+            }
+          : n
+      ));
+      addLog(`你接受了和平协议，${targetNation.name}将在${yearsCount}年内开放市场，不限制我方贸易路线数量。`);
     } else {
       // 标准赔款或更多赔款
       setResources(prev => ({ ...prev, silver: (prev.silver || 0) + amount }));
@@ -1083,6 +1136,30 @@ export const useGameActions = (gameState, addLog) => {
       } else {
         addLog(`${targetNation.name} 拒绝了和平提议。`);
       }
+    } else if (proposalType === 'demand_open_market') {
+      // 要求开放市场 - 战败国在N天内不限制贸易路线数量
+      const willingness = (warScore / 85) + Math.min(0.45, enemyLosses / 210) + Math.min(0.25, warDuration / 210);
+      if (willingness > 0.6) {
+        const openMarketUntil = daysElapsed + amount; // amount为天数
+        const yearsCount = Math.round(amount / 365);
+        setNations(prev => prev.map(n =>
+          n.id === nationId
+            ? {
+                ...n,
+                isAtWar: false,
+                warScore: 0,
+                warDuration: 0,
+                enemyLosses: 0,
+                relation: clampRelation((n.relation || 0) + 10),
+                peaceTreatyUntil,
+                openMarketUntil, // 开放市场截止日期
+              }
+            : n
+        ));
+        addLog(`${targetNation.name} 接受了和平协议，将在${yearsCount}年内开放市场，不限制我方贸易路线数量。`);
+      } else {
+        addLog(`${targetNation.name} 拒绝了开放市场的要求。`);
+      }
     } else if (proposalType === 'pay_installment') {
       // 玩家分期支付赔款
       setNations(prev => prev.map(n =>
@@ -1198,27 +1275,32 @@ export const useGameActions = (gameState, addLog) => {
         return;
       }
 
-      // Check relation-based trade route limit
-      const nationRelation = targetNation.relation || 0;
-      const getMaxTradeRoutesForRelation = (relation) => {
-        if (relation >= 80) return 4; // Allied
-        if (relation >= 60) return 3; // Friendly
-        if (relation >= 40) return 2; // Neutral
-        if (relation >= 20) return 1; // Cold
-        return 0; // Hostile - no trade
-      };
-      const maxRoutesWithNation = getMaxTradeRoutesForRelation(nationRelation);
-      const currentRoutesWithNation = tradeRoutes.routes.filter(r => r.nationId === nationId).length;
+      // Check if open market is active (defeated nation allows unlimited trade)
+      const isOpenMarketActive = targetNation.openMarketUntil && daysElapsed < targetNation.openMarketUntil;
       
-      if (maxRoutesWithNation === 0) {
-        addLog(`与 ${targetNation.name} 关系敌对（${nationRelation}），无法建立贸易路线。请先改善关系至少达到20。`);
-        return;
-      }
-      
-      if (currentRoutesWithNation >= maxRoutesWithNation) {
-        const relationLabels = { 0: '敌对', 1: '冷淡', 2: '中立', 3: '友好', 4: '盟友' };
-        addLog(`与 ${targetNation.name} 的贸易路线已达关系上限（${currentRoutesWithNation}/${maxRoutesWithNation}条，关系${relationLabels[maxRoutesWithNation]}）。提升关系可增加贸易路线数量。`);
-        return;
+      // Check relation-based trade route limit (skip if open market is active)
+      if (!isOpenMarketActive) {
+        const nationRelation = targetNation.relation || 0;
+        const getMaxTradeRoutesForRelation = (relation) => {
+          if (relation >= 80) return 4; // Allied
+          if (relation >= 60) return 3; // Friendly
+          if (relation >= 40) return 2; // Neutral
+          if (relation >= 20) return 1; // Cold
+          return 0; // Hostile - no trade
+        };
+        const maxRoutesWithNation = getMaxTradeRoutesForRelation(nationRelation);
+        const currentRoutesWithNation = tradeRoutes.routes.filter(r => r.nationId === nationId).length;
+        
+        if (maxRoutesWithNation === 0) {
+          addLog(`与 ${targetNation.name} 关系敌对（${nationRelation}），无法建立贸易路线。请先改善关系至少达到20。`);
+          return;
+        }
+        
+        if (currentRoutesWithNation >= maxRoutesWithNation) {
+          const relationLabels = { 0: '敌对', 1: '冷淡', 2: '中立', 3: '友好', 4: '盟友' };
+          addLog(`与 ${targetNation.name} 的贸易路线已达关系上限（${currentRoutesWithNation}/${maxRoutesWithNation}条，关系${relationLabels[maxRoutesWithNation]}）。提升关系可增加贸易路线数量。`);
+          return;
+        }
       }
 
       // 检查是否已存在相同的贸易路线

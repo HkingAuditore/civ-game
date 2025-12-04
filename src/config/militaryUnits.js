@@ -489,16 +489,30 @@ export const simulateBattle = (attackerData, defenderData) => {
     defenderLosses[unitId] = Math.floor(count * defenderLossRate);
   });
   
-  // 计算掠夺资源
+  // 计算掠夺资源（按比例计算，考虑敌方财富）
   let loot = {};
   if (victory) {
-    const lootMultiplier = decisive ? 0.3 : 0.15;
+    // Base loot multiplier depends on victory type
+    const baseLootMultiplier = decisive ? 0.08 : 0.04; // 8% or 4% of enemy wealth
+    const wealthBasedLoot = defenderWealth * baseLootMultiplier;
+    
+    // Diversified loot based on enemy wealth with proportional scaling
+    // The formula ensures loot scales with game progress while remaining meaningful
     loot = {
-      food: Math.floor(defenderWealth * lootMultiplier * 0.4),
-      wood: Math.floor(defenderWealth * lootMultiplier * 0.2),
-      silver: Math.floor(defenderWealth * lootMultiplier * 0.3),
-      iron: Math.floor(defenderWealth * lootMultiplier * 0.1)
+      food: Math.floor(wealthBasedLoot * 0.25),    // 25% of loot value
+      wood: Math.floor(wealthBasedLoot * 0.12),    // 12% of loot value
+      stone: Math.floor(wealthBasedLoot * 0.08),   // 8% of loot value
+      silver: Math.floor(wealthBasedLoot * 0.30),  // 30% of loot value
+      iron: Math.floor(wealthBasedLoot * 0.10),    // 10% of loot value
+      copper: Math.floor(wealthBasedLoot * 0.05),  // 5% of loot value
+      cloth: Math.floor(wealthBasedLoot * 0.05),   // 5% of loot value
+      tools: Math.floor(wealthBasedLoot * 0.05),   // 5% of loot value
     };
+    
+    // Remove zero or negative values
+    Object.keys(loot).forEach(key => {
+      if (loot[key] <= 0) delete loot[key];
+    });
   }
   
   return {

@@ -100,7 +100,12 @@ import {
   Paintbrush,
   Droplets,
   Building,
+  Building2,
   Menu,
+  Axe,
+  TreeDeciduous,
+  Music,
+  Tractor,
   // 事件系统需要的图标
   CloudRain,
   Globe2,
@@ -294,7 +299,12 @@ export const iconMap = {
   Download,
   Table,
   Building,
+  Building2,
   Menu,
+  Axe,
+  TreeDeciduous,
+  Music,
+  Tractor,
   Horse: Users, // Fallback
   
   // 事件系统需要的图标

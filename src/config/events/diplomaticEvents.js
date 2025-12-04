@@ -4,6 +4,10 @@
 // 分期赔款总额相对一次性赔款的倍率（保证总额更高）
 const INSTALLMENT_TOTAL_MULTIPLIER = 3;
 
+// 开放市场持续时间（天数）
+const OPEN_MARKET_DURATION_YEARS = 3; // 3年
+const OPEN_MARKET_DURATION_DAYS = OPEN_MARKET_DURATION_YEARS * 365; // 1095天
+
 /**
  * 创建外交事件 - 敌国宣战
  * @param {Object} nation - 宣战的国家
@@ -108,6 +112,13 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
       callback: () => callback(true, 'population', populationDemand),
     });
     options.push({
+      id: 'demand_open_market',
+      text: '要求开放市场',
+      description: `要求${nation.name}在${OPEN_MARKET_DURATION_YEARS}年内开放市场，不限制我方贸易路线数量`,
+      effects: {},
+      callback: () => callback(true, 'open_market', OPEN_MARKET_DURATION_DAYS),
+    });
+    options.push({
       id: 'accept_standard',
       text: '接受标准和平',
       description: `接受${tribute}银币赔款，快速结束战争`,
@@ -150,6 +161,13 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
       description: `要求割让人口上限 ${populationDemand}（附带等量人口）`,
       effects: {},
       callback: () => callback(true, 'population', populationDemand),
+    });
+    options.push({
+      id: 'demand_open_market',
+      text: '要求开放市场',
+      description: `要求${nation.name}在${OPEN_MARKET_DURATION_YEARS}年内开放市场，不限制我方贸易路线数量`,
+      effects: {},
+      callback: () => callback(true, 'open_market', OPEN_MARKET_DURATION_DAYS),
     });
   } else {
     // 僵持：可以接受或继续战争
@@ -239,6 +257,13 @@ export function createPlayerPeaceProposalEvent(nation, warScore, warDuration, en
       callback: () => callback('demand_population', populationDemand),
     });
     options.push({
+      id: 'demand_open_market',
+      text: '要求开放市场',
+      description: `要求${nation.name}在${OPEN_MARKET_DURATION_YEARS}年内开放市场，不限制我方贸易路线数量`,
+      effects: {},
+      callback: () => callback('demand_open_market', OPEN_MARKET_DURATION_DAYS),
+    });
+    options.push({
       id: 'demand_standard',
       text: '要求标准赔款',
       description: `要求${standardTribute}银币赔款（较易接受）`,
@@ -280,6 +305,13 @@ export function createPlayerPeaceProposalEvent(nation, warScore, warDuration, en
       description: `要求割让人口上限 ${populationDemand}（附带等量人口）`,
       effects: {},
       callback: () => callback('demand_population', populationDemand),
+    });
+    options.push({
+      id: 'demand_open_market',
+      text: '要求开放市场',
+      description: `要求${nation.name}在${OPEN_MARKET_DURATION_YEARS}年内开放市场，不限制我方贸易路线数量`,
+      effects: {},
+      callback: () => callback('demand_open_market', OPEN_MARKET_DURATION_DAYS),
     });
     options.push({
       id: 'peace_only',

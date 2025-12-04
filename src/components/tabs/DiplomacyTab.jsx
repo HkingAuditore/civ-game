@@ -295,7 +295,11 @@ export const DiplomacyTab = ({
                 {/* Calculate relation-based trade route limits for selected nation */}
                 {(() => {
                   const nationRelation = selectedNation?.relation || 0;
-                  const maxRoutesWithNation = getMaxTradeRoutesForRelation(nationRelation);
+                  // Check if open market is active (defeated nation must allow unlimited trade)
+                  const isOpenMarketActive = selectedNation?.openMarketUntil && daysElapsed < selectedNation.openMarketUntil;
+                  const openMarketRemainingDays = isOpenMarketActive ? selectedNation.openMarketUntil - daysElapsed : 0;
+                  // If open market is active, no relation limit; otherwise use normal calculation
+                  const maxRoutesWithNation = isOpenMarketActive ? 999 : getMaxTradeRoutesForRelation(nationRelation);
                   const currentRoutesWithNation = getRouteCountWithNation(tradeRoutes.routes, selectedNation?.id);
                   const canCreateMore = currentRoutesWithNation < maxRoutesWithNation && currentRouteCount < merchantJobLimit;
                   
@@ -325,24 +329,31 @@ export const DiplomacyTab = ({
                       </div>
                       
                       {/* Relation-based trade route limit info */}
-                      <div className="mb-2 p-2 bg-indigo-900/30 border border-indigo-600/30 rounded">
+                      <div className={`mb-2 p-2 rounded border ${isOpenMarketActive ? 'bg-green-900/30 border-green-600/30' : 'bg-indigo-900/30 border-indigo-600/30'}`}>
                         <div className="flex items-center justify-between text-[10px]">
-                          <span className="text-indigo-300 flex items-center gap-1">
-                            <Icon name="Heart" size={10} />
+                          <span className={`flex items-center gap-1 ${isOpenMarketActive ? 'text-green-300' : 'text-indigo-300'}`}>
+                            <Icon name={isOpenMarketActive ? 'Store' : 'Heart'} size={10} />
                             与 {selectedNation?.name} 的贸易路线
                           </span>
-                          <span className={currentRoutesWithNation >= maxRoutesWithNation ? 'text-red-300' : 'text-green-300'}>
-                            {currentRoutesWithNation}/{maxRoutesWithNation}
+                          <span className={isOpenMarketActive ? 'text-green-300' : (currentRoutesWithNation >= maxRoutesWithNation ? 'text-red-300' : 'text-green-300')}>
+                            {isOpenMarketActive ? `${currentRoutesWithNation}/无限制` : `${currentRoutesWithNation}/${maxRoutesWithNation}`}
                           </span>
                         </div>
-                        <div className="text-[9px] text-gray-400 mt-1">
-                          关系值 {nationRelation} → 最多 {maxRoutesWithNation} 条路线
-                          {maxRoutesWithNation === 0 && <span className="text-red-400 ml-1">(敌对无法贸易)</span>}
-                          {maxRoutesWithNation === 1 && <span className="text-yellow-400 ml-1">(冷淡)</span>}
-                          {maxRoutesWithNation === 2 && <span className="text-gray-300 ml-1">(中立)</span>}
-                          {maxRoutesWithNation === 3 && <span className="text-blue-400 ml-1">(友好)</span>}
-                          {maxRoutesWithNation === 4 && <span className="text-green-400 ml-1">(盟友)</span>}
-                        </div>
+                        {isOpenMarketActive ? (
+                          <div className="text-[9px] text-green-400 mt-1">
+                            🏪 开放市场协议生效中！剩余 {Math.ceil(openMarketRemainingDays / 365)} 年 {openMarketRemainingDays % 365} 天
+                            <span className="text-green-300 ml-1">(贸易路线不受关系限制)</span>
+                          </div>
+                        ) : (
+                          <div className="text-[9px] text-gray-400 mt-1">
+                            关系值 {nationRelation} → 最多 {maxRoutesWithNation} 条路线
+                            {maxRoutesWithNation === 0 && <span className="text-red-400 ml-1">(敌对无法贸易)</span>}
+                            {maxRoutesWithNation === 1 && <span className="text-yellow-400 ml-1">(冷淡)</span>}
+                            {maxRoutesWithNation === 2 && <span className="text-gray-300 ml-1">(中立)</span>}
+                            {maxRoutesWithNation === 3 && <span className="text-blue-400 ml-1">(友好)</span>}
+                            {maxRoutesWithNation === 4 && <span className="text-green-400 ml-1">(盟友)</span>}
+                          </div>
+                        )}
                       </div>
                 
                       {/* 警告提示 */}

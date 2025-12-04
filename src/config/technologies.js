@@ -453,4 +453,174 @@ export const TECHS = [
     cost: { science: 2400 },
     epoch: 4,
   },
+
+  // ========== 高级工业科技 ==========
+  
+  // 纺织产业升级科技
+  {
+    id: 'mechanized_weaving',
+    name: "机械织布",
+    desc: "解锁纺织厂，水力驱动的飞梭织机大幅提升布料产量。",
+    cost: { science: 3000 },
+    epoch: 5,
+    effects: { buildings: { loom_house: 0.20, tailor_workshop: 0.15 } },
+  },
+  {
+    id: 'assembly_line',
+    name: "流水线生产",
+    desc: "解锁服装工厂，标准化分工使产量翻倍。",
+    cost: { science: 5800 },
+    epoch: 6,
+    effects: { buildings: { textile_mill: 0.25, garment_factory: 0.20 } },
+  },
+  
+  // 木材加工产业升级科技
+  {
+    id: 'hydraulic_sawing',
+    name: "水力锯切",
+    desc: "解锁木材加工厂，水轮驱动的圆锯效率远超手工。",
+    cost: { science: 2800 },
+    epoch: 5,
+    effects: { buildings: { sawmill: 0.25, lumber_camp: 0.15 } },
+  },
+  {
+    id: 'mass_production',
+    name: "大规模生产",
+    desc: "解锁家具工厂，标准化零件实现批量生产。",
+    cost: { science: 5600 },
+    epoch: 6,
+    effects: { buildings: { lumber_mill: 0.20, furniture_workshop: 0.25 } },
+  },
+  
+  // 冶金产业升级科技
+  {
+    id: 'advanced_metallurgy',
+    name: "先进冶金",
+    desc: "解锁冶金工坊，改良熔炉与合金配方提升工具质量。",
+    cost: { science: 2200 },
+    epoch: 4,
+    effects: { buildings: { iron_tool_workshop: 0.20, bronze_foundry: 0.15 } },
+  },
+  {
+    id: 'bessemer_process',
+    name: "贝塞麦炼钢法",
+    desc: "解锁钢铁联合体，吹入空气快速去碳，钢铁产量剧增。",
+    cost: { science: 6200 },
+    epoch: 6,
+    effects: { buildings: { steel_foundry: 0.30, metallurgy_workshop: 0.25 } },
+  },
+  
+  // 建材产业升级科技
+  {
+    id: 'industrial_ceramics',
+    name: "工业陶瓷",
+    desc: "解锁建材厂，环形窑与传送带实现连续烧制。",
+    cost: { science: 2600 },
+    epoch: 5,
+    effects: { buildings: { brickworks: 0.25 } },
+  },
+  {
+    id: 'standardized_construction',
+    name: "标准化建筑",
+    desc: "解锁预制构件厂，预制构件加速建设、降低成本。",
+    cost: { science: 5400 },
+    epoch: 6,
+    effects: { buildings: { building_materials_plant: 0.25 }, maxPop: 15 },
+  },
+  
+  // 食品加工产业升级科技
+  {
+    id: 'food_preservation',
+    name: "食品保鲜",
+    desc: "解锁罐头厂，密封罐装技术延长食品保质期。",
+    cost: { science: 5000 },
+    epoch: 6,
+    effects: { buildings: { culinary_kitchen: 0.25 } },
+  },
+  {
+    id: 'distillation',
+    name: "蒸馏技术",
+    desc: "解锁蒸馏酒厂，分离提纯出高度烈酒。",
+    cost: { science: 3200 },
+    epoch: 5,
+    effects: { buildings: { brewery: 0.30 } },
+  },
+  
+  // 造纸印刷产业升级科技
+  {
+    id: 'wood_pulp_process',
+    name: "木浆造纸",
+    desc: "解锁造纸厂，木材纤维取代手工纸浆，产量倍增。",
+    cost: { science: 2900 },
+    epoch: 5,
+    effects: { buildings: { reed_works: 0.30 } },
+  },
+  {
+    id: 'mass_media',
+    name: "大众传媒",
+    desc: "解锁出版社，报纸杂志覆盖全民，舆论力量崛起。",
+    cost: { science: 5500 },
+    epoch: 6,
+    effects: { buildings: { printing_house: 0.30, publishing_house: 0.20 } },
+  },
+  
+  // 高级采集科技
+  {
+    id: 'deep_shaft_mining',
+    name: "深井采矿",
+    desc: "解锁工业矿场，蒸汽泵排水、铁轨运矿，开采深层矿脉。",
+    cost: { science: 5200 },
+    epoch: 6,
+    effects: { buildings: { mine: 0.25, coal_mine: 0.20 } },
+  },
+  {
+    id: 'agricultural_machinery',
+    name: "农业机械",
+    desc: "解锁机械化农场，蒸汽拖拉机与收割机解放大量人力。",
+    cost: { science: 5600 },
+    epoch: 6,
+    effects: { buildings: { farm: 0.25, large_estate: 0.30 } },
+  },
+  {
+    id: 'steam_logging',
+    name: "蒸汽伐木",
+    desc: "解锁伐木公司，蒸汽锯与窄轨铁路运输原木。",
+    cost: { science: 5000 },
+    epoch: 6,
+    effects: { buildings: { lumber_camp: 0.30 } },
+  },
+  
+  // 高级文化与城市科技
+  {
+    id: 'higher_education',
+    name: "高等教育",
+    desc: "解锁大学，系统化培养专业人才。",
+    cost: { science: 3500 },
+    epoch: 5,
+    effects: { buildings: { library: 0.20, navigator_school: 0.20 } },
+  },
+  {
+    id: 'grand_arts',
+    name: "高雅艺术",
+    desc: "解锁歌剧院，戏剧与音乐的殿堂。",
+    cost: { science: 3800 },
+    epoch: 5,
+    effects: { buildings: { amphitheater: 0.25, church: 0.15 } },
+  },
+  {
+    id: 'urban_architecture',
+    name: "城市建筑学",
+    desc: "解锁公寓楼，多层建筑容纳更多城市人口。",
+    cost: { science: 5800 },
+    epoch: 6,
+    effects: { buildings: { house: 0.20 }, maxPop: 20 },
+  },
+  {
+    id: 'financial_capitalism',
+    name: "金融资本主义",
+    desc: "解锁证券交易所，股票与债券调配社会资本。",
+    cost: { science: 6500 },
+    epoch: 6,
+    effects: { buildings: { trade_port: 0.20, rail_depot: 0.15 }, passive: { silver: 2 } },
+  },
 ];

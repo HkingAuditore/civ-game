@@ -657,4 +657,357 @@ export const BUILDINGS = [
     requiresTech: 'fortification',
     visual: { icon: 'Castle', color: 'bg-red-950', text: 'text-red-100' } 
   },
+
+  // ========== 高级工业建筑（后期生产形式） ==========
+  
+  // 纺织产业升级线
+  { 
+    id: 'textile_mill', 
+    name: "纺织厂", 
+    desc: "水力驱动的纺织机，大幅提升布料和成衣产量。", 
+    baseCost: { brick: 180, plank: 120, tools: 60 }, 
+    input: { food: 0.80, dye: 0.30 }, 
+    output: { cloth: 3.50, fine_clothes: 0.60 }, 
+    jobs: { worker: 6, artisan: 2, capitalist: 1 }, 
+    owner: 'capitalist',
+    epoch: 5, 
+    cat: 'industry', 
+    requiresTech: 'mechanized_weaving',
+    visual: { icon: 'Shirt', color: 'bg-indigo-700', text: 'text-indigo-100' },
+    marketConfig: { 
+      price: { livingCostWeight: 0.25, taxCostWeight: 0.30 }, 
+      wage: { livingCostWeight: 0.15, taxCostWeight: 0.15 } 
+    }
+  },
+  
+  { 
+    id: 'garment_factory', 
+    name: "服装工厂", 
+    desc: "蒸汽动力缝纫机的大规模成衣生产线。", 
+    baseCost: { brick: 350, steel: 150, tools: 100 }, 
+    input: { cloth: 2.50, dye: 0.50, coal: 0.30 }, 
+    output: { fine_clothes: 2.80, culture: 0.30 }, 
+    jobs: { worker: 12, artisan: 3, engineer: 1, capitalist: 1 }, 
+    owner: 'capitalist',
+    epoch: 6, 
+    cat: 'industry', 
+    requiresTech: 'assembly_line',
+    visual: { icon: 'Factory', color: 'bg-indigo-900', text: 'text-indigo-100' },
+    marketConfig: { 
+      price: { livingCostWeight: 0.30, taxCostWeight: 0.35 }, 
+      wage: { livingCostWeight: 0.20, taxCostWeight: 0.20 } 
+    }
+  },
+  
+  // 木材加工产业升级线
+  { 
+    id: 'lumber_mill', 
+    name: "木材加工厂", 
+    desc: "水力锯木机与烘干设备，高效生产优质木板。", 
+    baseCost: { brick: 160, plank: 100, tools: 50 }, 
+    input: { wood: 3.00 }, 
+    output: { plank: 5.50 }, 
+    jobs: { worker: 5, artisan: 1, capitalist: 1 }, 
+    owner: 'capitalist',
+    epoch: 5, 
+    cat: 'industry', 
+    requiresTech: 'hydraulic_sawing',
+    visual: { icon: 'Axe', color: 'bg-amber-700', text: 'text-amber-100' },
+    marketConfig: { 
+      price: { livingCostWeight: 0.20, taxCostWeight: 0.25 }, 
+      wage: { livingCostWeight: 0.12, taxCostWeight: 0.12 } 
+    }
+  },
+  
+  { 
+    id: 'furniture_factory', 
+    name: "家具工厂", 
+    desc: "流水线生产标准化家具，满足城市中产阶级需求。", 
+    baseCost: { brick: 280, steel: 120, tools: 80 }, 
+    input: { plank: 2.50, cloth: 0.80, coal: 0.25 }, 
+    output: { furniture: 3.50, culture: 0.20 }, 
+    jobs: { worker: 8, artisan: 2, engineer: 1, capitalist: 1 }, 
+    owner: 'capitalist',
+    epoch: 6, 
+    cat: 'industry', 
+    requiresTech: 'mass_production',
+    visual: { icon: 'Armchair', color: 'bg-amber-900', text: 'text-amber-100' },
+    marketConfig: { 
+      price: { livingCostWeight: 0.28, taxCostWeight: 0.32 }, 
+      wage: { livingCostWeight: 0.18, taxCostWeight: 0.18 } 
+    }
+  },
+  
+  // 冶金产业升级线
+  { 
+    id: 'metallurgy_workshop', 
+    name: "冶金工坊", 
+    desc: "改良的熔炉与锻造技术，高效生产精良工具。", 
+    baseCost: { brick: 200, iron: 100, tools: 60 }, 
+    input: { iron: 1.50, copper: 0.30, wood: 0.80 }, 
+    output: { tools: 3.00 }, 
+    jobs: { worker: 4, artisan: 2, engineer: 1 }, 
+    owner: 'artisan',
+    epoch: 4, 
+    cat: 'industry', 
+    requiresTech: 'advanced_metallurgy',
+    visual: { icon: 'Anvil', color: 'bg-zinc-700', text: 'text-zinc-100' },
+    marketConfig: { 
+      price: { livingCostWeight: 0.25, taxCostWeight: 0.30 }, 
+      wage: { livingCostWeight: 0.15, taxCostWeight: 0.15 } 
+    }
+  },
+  
+  { 
+    id: 'steel_works', 
+    name: "钢铁联合体", 
+    desc: "垂直整合的大型钢铁企业，从矿石到成品一条龙生产。", 
+    baseCost: { brick: 500, steel: 250, tools: 150 }, 
+    input: { iron: 1.20, coal: 1.00 }, 
+    output: { steel: 1.20, tools: 0.80 }, 
+    jobs: { worker: 15, engineer: 4, capitalist: 2 }, 
+    owner: 'capitalist',
+    epoch: 6, 
+    cat: 'industry', 
+    requiresTech: 'bessemer_process',
+    visual: { icon: 'Factory', color: 'bg-gray-800', text: 'text-gray-100' },
+    marketConfig: { 
+      price: { livingCostWeight: 0.30, taxCostWeight: 0.35 }, 
+      wage: { livingCostWeight: 0.20, taxCostWeight: 0.20 } 
+    }
+  },
+  
+  // 建材产业升级线
+  { 
+    id: 'building_materials_plant', 
+    name: "建材厂", 
+    desc: "规模化生产砖块和预制建材，加速城市建设。", 
+    baseCost: { brick: 200, plank: 100, tools: 50 }, 
+    input: { stone: 2.00, wood: 0.60, coal: 0.20 }, 
+    output: { brick: 4.00 }, 
+    jobs: { worker: 6, engineer: 1, capitalist: 1 }, 
+    owner: 'capitalist',
+    epoch: 5, 
+    cat: 'industry', 
+    requiresTech: 'industrial_ceramics',
+    visual: { icon: 'Building2', color: 'bg-red-800', text: 'text-red-100' },
+    marketConfig: { 
+      price: { livingCostWeight: 0.20, taxCostWeight: 0.25 }, 
+      wage: { livingCostWeight: 0.12, taxCostWeight: 0.12 } 
+    }
+  },
+  
+  { 
+    id: 'prefab_factory', 
+    name: "预制构件厂", 
+    desc: "生产标准化建筑构件，革命性地改变建筑行业。", 
+    baseCost: { brick: 400, steel: 200, tools: 100 }, 
+    input: { brick: 1.50, steel: 0.60, coal: 0.40 }, 
+    output: { brick: 5.00, maxPop: 1 }, 
+    jobs: { worker: 10, engineer: 2, capitalist: 1 }, 
+    owner: 'capitalist',
+    epoch: 6, 
+    cat: 'industry', 
+    requiresTech: 'standardized_construction',
+    visual: { icon: 'Building', color: 'bg-slate-700', text: 'text-slate-100' },
+    marketConfig: { 
+      price: { livingCostWeight: 0.28, taxCostWeight: 0.32 }, 
+      wage: { livingCostWeight: 0.18, taxCostWeight: 0.18 } 
+    }
+  },
+  
+  // 食品加工产业升级线
+  { 
+    id: 'cannery', 
+    name: "罐头厂", 
+    desc: "革命性的食品保存技术，将珍馐装罐长期保存。", 
+    baseCost: { brick: 250, steel: 100, tools: 60 }, 
+    input: { food: 2.50, iron: 0.30, coal: 0.25 }, 
+    output: { delicacies: 3.50 }, 
+    jobs: { worker: 8, artisan: 2, engineer: 1, capitalist: 1 }, 
+    owner: 'capitalist',
+    epoch: 6, 
+    cat: 'industry', 
+    requiresTech: 'food_preservation',
+    visual: { icon: 'Package', color: 'bg-orange-800', text: 'text-orange-100' },
+    marketConfig: { 
+      price: { livingCostWeight: 0.22, taxCostWeight: 0.28 }, 
+      wage: { livingCostWeight: 0.14, taxCostWeight: 0.14 } 
+    }
+  },
+  
+  { 
+    id: 'distillery', 
+    name: "蒸馏酒厂", 
+    desc: "工业化的酿酒设施，生产高度烈酒供出口贸易。", 
+    baseCost: { brick: 220, copper: 80, tools: 50 }, 
+    input: { food: 2.00, coal: 0.20 }, 
+    output: { ale: 3.50, silver: 0.80 }, 
+    jobs: { worker: 5, artisan: 2, capitalist: 1 }, 
+    owner: 'capitalist',
+    epoch: 5, 
+    cat: 'industry', 
+    requiresTech: 'distillation',
+    visual: { icon: 'Wine', color: 'bg-purple-700', text: 'text-purple-100' },
+    marketConfig: { 
+      price: { livingCostWeight: 0.35, taxCostWeight: 0.40 }, 
+      wage: { livingCostWeight: 0.22, taxCostWeight: 0.22 } 
+    }
+  },
+  
+  // 造纸印刷产业升级线
+  { 
+    id: 'paper_mill', 
+    name: "造纸厂", 
+    desc: "工业化造纸设备，用木浆大规模生产纸张。", 
+    baseCost: { brick: 180, plank: 100, tools: 50 }, 
+    input: { wood: 1.50, coal: 0.15 }, 
+    output: { papyrus: 1.80 }, 
+    jobs: { worker: 5, engineer: 1, capitalist: 1 }, 
+    owner: 'capitalist',
+    epoch: 5, 
+    cat: 'industry', 
+    requiresTech: 'wood_pulp_process',
+    visual: { icon: 'ScrollText', color: 'bg-lime-700', text: 'text-lime-100' },
+    marketConfig: { 
+      price: { livingCostWeight: 0.18, taxCostWeight: 0.22 }, 
+      wage: { livingCostWeight: 0.10, taxCostWeight: 0.10 } 
+    }
+  },
+  
+  { 
+    id: 'publishing_house', 
+    name: "出版社", 
+    desc: "现代印刷与发行一体化，传播知识启迪民智。", 
+    baseCost: { brick: 300, steel: 80, papyrus: 100 }, 
+    input: { papyrus: 1.00, coffee: 0.20, coal: 0.15 }, 
+    output: { science: 2.50, culture: 1.00 }, 
+    jobs: { scribe: 4, artisan: 2, engineer: 1, capitalist: 1 }, 
+    owner: 'capitalist',
+    epoch: 6, 
+    cat: 'industry', 
+    requiresTech: 'mass_media',
+    visual: { icon: 'Newspaper', color: 'bg-cyan-800', text: 'text-cyan-100' },
+    marketConfig: { 
+      price: { livingCostWeight: 0.25, taxCostWeight: 0.30 }, 
+      wage: { livingCostWeight: 0.18, taxCostWeight: 0.18 } 
+    }
+  },
+  
+  // 高级采集建筑
+  { 
+    id: 'industrial_mine', 
+    name: "工业矿场", 
+    desc: "蒸汽动力的深井采矿设备，大幅提升矿石产量。", 
+    baseCost: { brick: 350, steel: 200, tools: 100 }, 
+    input: { tools: 0.15, coal: 0.30 }, 
+    output: { iron: 1.20, copper: 0.40 }, 
+    jobs: { miner: 10, engineer: 2, capitalist: 1 }, 
+    owner: 'capitalist',
+    epoch: 6, 
+    cat: 'gather', 
+    requiresTech: 'deep_shaft_mining',
+    visual: { icon: 'Mountain', color: 'bg-zinc-800', text: 'text-zinc-100' },
+    marketConfig: { 
+      price: { livingCostWeight: 0.25, taxCostWeight: 0.30 }, 
+      wage: { livingCostWeight: 0.15, taxCostWeight: 0.15 } 
+    }
+  },
+  
+  { 
+    id: 'mechanized_farm', 
+    name: "机械化农场", 
+    desc: "蒸汽拖拉机与收割机，农业产量飞跃式提升。", 
+    baseCost: { brick: 200, steel: 150, tools: 80 }, 
+    input: { tools: 0.10, coal: 0.20 }, 
+    output: { food: 15.00 }, 
+    jobs: { peasant: 4, worker: 4, engineer: 1, capitalist: 1 }, 
+    owner: 'capitalist',
+    epoch: 6, 
+    cat: 'gather', 
+    requiresTech: 'agricultural_machinery',
+    visual: { icon: 'Tractor', color: 'bg-green-800', text: 'text-green-100' },
+    marketConfig: { 
+      price: { livingCostWeight: 0.18, taxCostWeight: 0.22 }, 
+      wage: { livingCostWeight: 0.10, taxCostWeight: 0.10 } 
+    }
+  },
+  
+  { 
+    id: 'logging_company', 
+    name: "伐木公司", 
+    desc: "配备蒸汽锯和运输铁路的大型伐木企业。", 
+    baseCost: { brick: 180, steel: 100, tools: 60 }, 
+    input: { tools: 0.08, coal: 0.15 }, 
+    output: { wood: 8.00 }, 
+    jobs: { lumberjack: 6, worker: 4, engineer: 1, capitalist: 1 }, 
+    owner: 'capitalist',
+    epoch: 6, 
+    cat: 'gather', 
+    requiresTech: 'steam_logging',
+    visual: { icon: 'TreeDeciduous', color: 'bg-emerald-700', text: 'text-emerald-100' },
+    marketConfig: { 
+      price: { livingCostWeight: 0.15, taxCostWeight: 0.20 }, 
+      wage: { livingCostWeight: 0.08, taxCostWeight: 0.08 } 
+    }
+  },
+  
+  // 高级居住建筑
+  { 
+    id: 'apartment_block', 
+    name: "公寓楼", 
+    desc: "多层住宅建筑，容纳大量城市人口。", 
+    baseCost: { brick: 400, steel: 100, plank: 150 }, 
+    output: { maxPop: 15 }, 
+    epoch: 6, 
+    cat: 'civic', 
+    requiresTech: 'urban_architecture',
+    visual: { icon: 'Building2', color: 'bg-slate-600', text: 'text-slate-100' } 
+  },
+  
+  // 高级文化建筑
+  { 
+    id: 'university', 
+    name: "大学", 
+    desc: "高等学府，培养工程师和学者，产出大量科研。", 
+    baseCost: { brick: 400, plank: 200, papyrus: 100 }, 
+    input: { papyrus: 0.30, coffee: 0.20, delicacies: 0.15 }, 
+    output: { science: 3.00, culture: 0.80 }, 
+    jobs: { scribe: 4, engineer: 2, official: 2 }, 
+    owner: 'official',
+    epoch: 5, 
+    cat: 'civic', 
+    requiresTech: 'higher_education',
+    visual: { icon: 'GraduationCap', color: 'bg-blue-900', text: 'text-blue-100' } 
+  },
+  
+  { 
+    id: 'opera_house', 
+    name: "歌剧院", 
+    desc: "华丽的艺术殿堂，展示文明的文化成就。", 
+    baseCost: { brick: 350, plank: 150, furniture: 80 }, 
+    input: { fine_clothes: 0.25, delicacies: 0.20 }, 
+    output: { culture: 3.50, silver: 1.00 }, 
+    jobs: { cleric: 4, artisan: 2, merchant: 1 }, 
+    owner: 'cleric',
+    epoch: 5, 
+    cat: 'civic', 
+    requiresTech: 'grand_arts',
+    visual: { icon: 'Music', color: 'bg-rose-800', text: 'text-rose-100' } 
+  },
+  
+  { 
+    id: 'stock_exchange', 
+    name: "证券交易所", 
+    desc: "金融资本的神经中枢，调配全国资金流向。", 
+    baseCost: { brick: 500, steel: 150, papyrus: 100 }, 
+    input: { papyrus: 0.20, coffee: 0.15 }, 
+    output: { silver: 5.00, culture: 0.50 }, 
+    jobs: { merchant: 6, scribe: 2, capitalist: 2 }, 
+    owner: 'capitalist',
+    epoch: 6, 
+    cat: 'civic', 
+    requiresTech: 'financial_capitalism',
+    visual: { icon: 'TrendingUp', color: 'bg-emerald-900', text: 'text-emerald-100' } 
+  },
 ];
