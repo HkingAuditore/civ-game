@@ -436,14 +436,13 @@ export const StrataPanel = ({
         </div>
       </div>
 
-      {/* 查看详情按钮 - 更紧凑 */}
-      <button
-        onClick={() => onDetailClick && onDetailClick('all')}
-        className="w-full mt-1 px-1.5 py-0.5 glass-ancient hover:bg-ancient-gold/20 text-ancient-parchment text-[9px] rounded-lg transition-all border border-ancient-gold/30 hover:border-ancient-gold/50 flex items-center justify-center gap-0.5 flex-shrink-0 hover:shadow-glow-gold"
-      >
-        <Icon name="Info" size={9} className="text-ancient-gold" />
-        查看详细信息
-      </button>
+      {/* 提示文字 - 替代无效的详情按钮 */}
+      <div className="mt-1 px-1.5 py-1 bg-ancient-ink/30 rounded-lg border border-ancient-gold/10 flex-shrink-0">
+        <p className="text-[8px] text-ancient-stone text-center flex items-center justify-center gap-1">
+          <Icon name="Info" size={8} className="text-ancient-gold/60" />
+          点击任意阶层卡片查看详细信息
+        </p>
+      </div>
       </div>
     </div>
   );

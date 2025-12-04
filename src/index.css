@@ -423,6 +423,208 @@
   .animate-scale-in {
     animation: scale-in 0.4s ease-out;
   }
+
+  /* ==================== 新增动画特效 ==================== */
+  
+  /* 闪烁金光效果 */
+  @keyframes sparkle {
+    0%, 100% { opacity: 0; transform: scale(0) rotate(0deg); }
+    50% { opacity: 1; transform: scale(1) rotate(180deg); }
+  }
+  
+  /* 波纹扩散效果 */
+  @keyframes ripple {
+    0% { transform: scale(0.8); opacity: 1; }
+    100% { transform: scale(2); opacity: 0; }
+  }
+  
+  /* 心跳效果 */
+  @keyframes heartbeat {
+    0%, 100% { transform: scale(1); }
+    25% { transform: scale(1.05); }
+    50% { transform: scale(1); }
+    75% { transform: scale(1.08); }
+  }
+  
+  /* 呼吸发光效果 */
+  @keyframes breathe-glow {
+    0%, 100% { 
+      box-shadow: 0 0 8px var(--theme-glow, rgba(212, 175, 55, 0.3)),
+                  inset 0 0 4px var(--theme-glow, rgba(212, 175, 55, 0.1));
+    }
+    50% { 
+      box-shadow: 0 0 16px var(--theme-glow, rgba(212, 175, 55, 0.5)),
+                  0 0 24px var(--theme-glow, rgba(212, 175, 55, 0.2)),
+                  inset 0 0 8px var(--theme-glow, rgba(212, 175, 55, 0.2));
+    }
+  }
+  
+  /* 数字跳动效果 */
+  @keyframes number-pop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+  }
+  
+  /* 滑入弹跳效果 */
+  @keyframes slide-bounce {
+    0% { transform: translateY(20px); opacity: 0; }
+    60% { transform: translateY(-5px); opacity: 1; }
+    100% { transform: translateY(0); opacity: 1; }
+  }
+  
+  /* 摇晃提示效果 */
+  @keyframes shake-alert {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-2px); }
+    20%, 40%, 60%, 80% { transform: translateX(2px); }
+  }
+  
+  /* 旋转闪耀效果 */
+  @keyframes spin-glow {
+    0% { transform: rotate(0deg); filter: brightness(1); }
+    50% { filter: brightness(1.3); }
+    100% { transform: rotate(360deg); filter: brightness(1); }
+  }
+  
+  /* 渐显淡出循环 */
+  @keyframes fade-pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+  }
+  
+  /* 边框流动效果 */
+  @keyframes border-flow {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+  
+  /* 动画工具类 */
+  .animate-sparkle {
+    animation: sparkle 1.5s ease-in-out infinite;
+  }
+  
+  .animate-ripple {
+    animation: ripple 1s ease-out;
+  }
+  
+  .animate-heartbeat {
+    animation: heartbeat 1.5s ease-in-out infinite;
+  }
+  
+  .animate-breathe-glow {
+    animation: breathe-glow 3s ease-in-out infinite;
+  }
+  
+  .animate-number-pop {
+    animation: number-pop 0.3s ease-out;
+  }
+  
+  .animate-slide-bounce {
+    animation: slide-bounce 0.5s ease-out;
+  }
+  
+  .animate-shake-alert {
+    animation: shake-alert 0.5s ease-in-out;
+  }
+  
+  .animate-spin-glow {
+    animation: spin-glow 2s linear infinite;
+  }
+  
+  .animate-fade-pulse {
+    animation: fade-pulse 2s ease-in-out infinite;
+  }
+  
+  /* 交互动效增强 */
+  .hover-lift {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+  }
+  
+  .hover-lift:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3), 0 0 15px var(--theme-glow, rgba(212, 175, 55, 0.2));
+  }
+  
+  .hover-glow {
+    transition: box-shadow 0.3s ease;
+  }
+  
+  .hover-glow:hover {
+    box-shadow: 0 0 20px var(--theme-glow, rgba(212, 175, 55, 0.4));
+  }
+  
+  .hover-scale {
+    transition: transform 0.2s ease;
+  }
+  
+  .hover-scale:hover {
+    transform: scale(1.05);
+  }
+  
+  .hover-scale:active {
+    transform: scale(0.98);
+  }
+  
+  /* 资源变化动画 */
+  .resource-increase {
+    animation: number-pop 0.3s ease-out;
+    color: #22c55e !important;
+  }
+  
+  .resource-decrease {
+    animation: shake-alert 0.3s ease-out;
+    color: #ef4444 !important;
+  }
+  
+  /* 边框流动效果 */
+  .border-flow {
+    background: linear-gradient(90deg, 
+      var(--theme-border, rgba(212, 175, 55, 0.2)) 0%,
+      var(--theme-accent, rgba(251, 191, 36, 0.5)) 25%,
+      var(--theme-border, rgba(212, 175, 55, 0.2)) 50%,
+      var(--theme-accent, rgba(251, 191, 36, 0.5)) 75%,
+      var(--theme-border, rgba(212, 175, 55, 0.2)) 100%);
+    background-size: 200% 100%;
+    animation: border-flow 3s linear infinite;
+  }
+  
+  /* 加载动画 */
+  .loading-dots::after {
+    content: '';
+    animation: loading-dots 1.5s steps(4, end) infinite;
+  }
+  
+  @keyframes loading-dots {
+    0% { content: ''; }
+    25% { content: '.'; }
+    50% { content: '..'; }
+    75% { content: '...'; }
+  }
+  
+  /* 卡片入场动画（依序延迟） */
+  .stagger-1 { animation-delay: 0.05s; }
+  .stagger-2 { animation-delay: 0.1s; }
+  .stagger-3 { animation-delay: 0.15s; }
+  .stagger-4 { animation-delay: 0.2s; }
+  .stagger-5 { animation-delay: 0.25s; }
+  .stagger-6 { animation-delay: 0.3s; }
+  
+  /* 通知/徽章动画 */
+  .badge-pulse {
+    position: relative;
+  }
+  
+  .badge-pulse::after {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: inherit;
+    background: inherit;
+    animation: ripple 1.5s ease-out infinite;
+    z-index: -1;
+  }
   
   /* Text Effects - Ancient Inscriptions */
   .text-ancient {
@@ -662,3 +864,480 @@
     box-shadow: var(--shadow-monument) !important;
   }
 }
+
+/* ==================== 新增：增强史诗感和移动端优化样式 ==================== */
+
+@layer utilities {
+  /* 紧凑信息展示网格 - 减少滚动 */
+  .info-grid-compact {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+    gap: 4px;
+  }
+  
+  .info-grid-compact-sm {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
+    gap: 3px;
+  }
+
+  /* 史诗图标框架样式 - 适配游戏画面 */
+  .icon-epic-frame {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, 
+      var(--theme-surface-alt, rgba(61, 36, 21, 0.8)) 0%,
+      var(--theme-surface, rgba(44, 24, 16, 0.9)) 50%,
+      var(--theme-surface-alt, rgba(61, 36, 21, 0.8)) 100%);
+    border: 1px solid var(--theme-border, rgba(212, 175, 55, 0.3));
+    border-radius: 6px;
+    box-shadow: 
+      0 2px 4px rgba(0, 0, 0, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+    transition: all 0.2s ease;
+  }
+  
+  .icon-epic-frame:hover {
+    border-color: var(--theme-accent, rgba(251, 191, 36, 0.5));
+    box-shadow: 
+      0 4px 8px rgba(0, 0, 0, 0.4),
+      0 0 12px var(--theme-glow, rgba(212, 175, 55, 0.3)),
+      inset 0 1px 0 rgba(255, 255, 255, 0.15),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.3);
+  }
+
+  /* 图标尺寸变体 */
+  .icon-frame-xs { width: 24px; height: 24px; padding: 3px; }
+  .icon-frame-sm { width: 28px; height: 28px; padding: 4px; }
+  .icon-frame-md { width: 32px; height: 32px; padding: 5px; }
+  .icon-frame-lg { width: 40px; height: 40px; padding: 6px; }
+
+  /* 资源图标特殊样式 */
+  .resource-icon-gold { border-color: rgba(212, 175, 55, 0.5); background: linear-gradient(135deg, rgba(212, 175, 55, 0.15), rgba(205, 127, 50, 0.1)); }
+  .resource-icon-food { border-color: rgba(34, 197, 94, 0.4); background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(22, 163, 74, 0.08)); }
+  .resource-icon-wood { border-color: rgba(139, 115, 85, 0.5); background: linear-gradient(135deg, rgba(139, 115, 85, 0.15), rgba(101, 67, 33, 0.1)); }
+  .resource-icon-stone { border-color: rgba(156, 163, 175, 0.4); background: linear-gradient(135deg, rgba(156, 163, 175, 0.1), rgba(107, 114, 128, 0.08)); }
+  .resource-icon-iron { border-color: rgba(107, 114, 128, 0.5); background: linear-gradient(135deg, rgba(107, 114, 128, 0.15), rgba(75, 85, 99, 0.1)); }
+  .resource-icon-military { border-color: rgba(239, 68, 68, 0.4); background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(220, 38, 38, 0.08)); }
+
+  /* 紧凑徽章样式 */
+  .badge-compact {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px 6px;
+    font-size: 9px;
+    font-weight: 600;
+    border-radius: 4px;
+    background: var(--theme-surface-trans, rgba(32, 22, 14, 0.5));
+    border: 1px solid var(--theme-border, rgba(212, 175, 55, 0.2));
+    white-space: nowrap;
+  }
+
+  /* 信息条目紧凑样式 */
+  .stat-item-compact {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 6px;
+    background: var(--theme-surface-trans, rgba(32, 22, 14, 0.4));
+    border-radius: 4px;
+    border: 1px solid var(--theme-border, rgba(212, 175, 55, 0.15));
+    font-size: 10px;
+  }
+
+  /* 史诗卡片悬浮增强 */
+  .card-epic-hover {
+    transition: all 0.3s ease;
+  }
+  
+  .card-epic-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: 
+      0 8px 20px rgba(0, 0, 0, 0.4),
+      0 0 20px var(--theme-glow, rgba(212, 175, 55, 0.2)),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+
+  /* 移动端优化滚动容器 */
+  .scroll-container-mobile {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    scroll-behavior: smooth;
+  }
+
+  /* 水平滚动容器 - 用于紧凑展示 */
+  .scroll-x-compact {
+    display: flex;
+    overflow-x: auto;
+    gap: 6px;
+    padding: 4px 0;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  
+  .scroll-x-compact::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* 折叠面板头部 */
+  .collapse-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: var(--theme-surface-alt, rgba(61, 36, 21, 0.6));
+    border: 1px solid var(--theme-border, rgba(212, 175, 55, 0.2));
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .collapse-header:hover {
+    background: var(--theme-surface, rgba(44, 24, 16, 0.8));
+    border-color: var(--theme-accent, rgba(251, 191, 36, 0.4));
+  }
+
+  /* 史诗装饰线 */
+  .epic-divider {
+    height: 1px;
+    background: linear-gradient(90deg, 
+      transparent 0%, 
+      var(--theme-border, rgba(212, 175, 55, 0.3)) 20%, 
+      var(--theme-accent, rgba(251, 191, 36, 0.5)) 50%, 
+      var(--theme-border, rgba(212, 175, 55, 0.3)) 80%, 
+      transparent 100%);
+    margin: 8px 0;
+  }
+
+  .epic-divider-vertical {
+    width: 1px;
+    height: 100%;
+    background: linear-gradient(180deg, 
+      transparent 0%, 
+      var(--theme-border, rgba(212, 175, 55, 0.3)) 20%, 
+      var(--theme-accent, rgba(251, 191, 36, 0.5)) 50%, 
+      var(--theme-border, rgba(212, 175, 55, 0.3)) 80%, 
+      transparent 100%);
+  }
+
+  /* 状态指示器增强 */
+  .status-indicator {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    animation: pulse 2s ease-in-out infinite;
+  }
+  
+  .status-indicator-positive { background: #22c55e; box-shadow: 0 0 6px rgba(34, 197, 94, 0.6); }
+  .status-indicator-negative { background: #ef4444; box-shadow: 0 0 6px rgba(239, 68, 68, 0.6); }
+  .status-indicator-warning { background: #eab308; box-shadow: 0 0 6px rgba(234, 179, 8, 0.6); }
+  .status-indicator-neutral { background: #6b7280; box-shadow: 0 0 4px rgba(107, 114, 128, 0.4); }
+
+  /* 进度条史诗风格 */
+  .progress-epic {
+    height: 4px;
+    background: var(--theme-surface-trans, rgba(32, 22, 14, 0.6));
+    border-radius: 2px;
+    overflow: hidden;
+    border: 1px solid var(--theme-border, rgba(212, 175, 55, 0.2));
+  }
+  
+  .progress-epic-bar {
+    height: 100%;
+    background: linear-gradient(90deg, 
+      var(--theme-secondary, #92400e), 
+      var(--theme-primary, #d97706), 
+      var(--theme-accent, #fbbf24));
+    border-radius: 2px;
+    transition: width 0.3s ease;
+    box-shadow: 0 0 8px var(--theme-glow, rgba(217, 119, 6, 0.5));
+  }
+
+  /* 数值变化动画 */
+  .value-change-positive {
+    color: #22c55e;
+    animation: value-flash-green 0.5s ease-out;
+  }
+  
+  .value-change-negative {
+    color: #ef4444;
+    animation: value-flash-red 0.5s ease-out;
+  }
+
+  @keyframes value-flash-green {
+    0% { background-color: rgba(34, 197, 94, 0.3); }
+    100% { background-color: transparent; }
+  }
+  
+  @keyframes value-flash-red {
+    0% { background-color: rgba(239, 68, 68, 0.3); }
+    100% { background-color: transparent; }
+  }
+
+  /* 移动端触摸反馈 */
+  .touch-feedback {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  
+  .touch-feedback:active {
+    transform: scale(0.98);
+    opacity: 0.9;
+  }
+
+  /* 浮动工具提示优化 */
+  .tooltip-epic {
+    position: absolute;
+    z-index: 100;
+    padding: 8px 12px;
+    background: var(--theme-surface-alt, rgba(26, 20, 16, 0.95));
+    border: 1px solid var(--theme-border, rgba(212, 175, 55, 0.4));
+    border-radius: 8px;
+    font-size: 11px;
+    color: var(--theme-text, #fef3c7);
+    box-shadow: 
+      0 4px 16px rgba(0, 0, 0, 0.5),
+      0 0 12px var(--theme-glow, rgba(212, 175, 55, 0.2));
+    backdrop-filter: blur(8px);
+    max-width: 280px;
+    pointer-events: none;
+  }
+
+  /* 标签栏紧凑样式 */
+  .tab-compact {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 6px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+    background: transparent;
+    border: 1px solid transparent;
+  }
+  
+  .tab-compact:hover {
+    background: var(--theme-surface-trans, rgba(32, 22, 14, 0.5));
+    border-color: var(--theme-border, rgba(212, 175, 55, 0.2));
+  }
+  
+  .tab-compact.active {
+    background: linear-gradient(135deg, 
+      var(--theme-surface, rgba(44, 24, 16, 0.8)),
+      var(--theme-surface-alt, rgba(61, 36, 21, 0.7)));
+    border-color: var(--theme-accent, rgba(251, 191, 36, 0.4));
+    color: var(--theme-accent, #fbbf24);
+    box-shadow: 
+      0 2px 8px rgba(0, 0, 0, 0.3),
+      0 0 12px var(--theme-glow, rgba(212, 175, 55, 0.2));
+  }
+
+  /* 紧凑按钮组 */
+  .btn-group-compact {
+    display: inline-flex;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid var(--theme-border, rgba(212, 175, 55, 0.2));
+  }
+  
+  .btn-group-compact > button {
+    padding: 4px 8px;
+    font-size: 10px;
+    background: var(--theme-surface-trans, rgba(32, 22, 14, 0.5));
+    border: none;
+    border-right: 1px solid var(--theme-border, rgba(212, 175, 55, 0.2));
+    transition: all 0.2s ease;
+  }
+  
+  .btn-group-compact > button:last-child {
+    border-right: none;
+  }
+  
+  .btn-group-compact > button:hover,
+  .btn-group-compact > button.active {
+    background: var(--theme-surface, rgba(44, 24, 16, 0.8));
+  }
+
+  /* 面板折叠动画 */
+  .panel-collapse {
+    overflow: hidden;
+    transition: max-height 0.3s ease-out, opacity 0.3s ease-out;
+  }
+  
+  .panel-collapse.collapsed {
+    max-height: 0;
+    opacity: 0;
+  }
+  
+  .panel-collapse.expanded {
+    max-height: 2000px;
+    opacity: 1;
+  }
+}
+
+/* ==================== 移动端响应式优化 ==================== */
+
+@media (max-width: 640px) {
+  /* 移动端基础优化 */
+  body {
+    font-size: 14px;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* 底部安全区域 */
+  .pb-safe {
+    padding-bottom: max(env(safe-area-inset-bottom), 16px);
+  }
+
+  /* 更紧凑的间距 */
+  .glass-ancient,
+  .glass-epic,
+  .glass-monument {
+    padding: 8px !important;
+  }
+
+  /* 优化触摸目标大小 */
+  button,
+  [role="button"],
+  .clickable {
+    min-height: 40px;
+    min-width: 40px;
+  }
+
+  /* Build tab buttons stay compact even on small screens */
+  .build-tab button {
+    min-height: auto;
+    min-width: auto;
+  }
+
+  /* Game control buttons can shrink below default 40px */
+  .game-controls button {
+    min-height: auto;
+    min-width: auto;
+  }
+
+  /* 移动端卡片优化 */
+  .card-mobile {
+    padding: 10px;
+    border-radius: 10px;
+  }
+
+  /* 移动端信息密度增加 */
+  .text-compact-mobile {
+    font-size: 10px;
+    line-height: 1.3;
+  }
+
+  /* 隐藏移动端不必要元素 */
+  .hide-mobile {
+    display: none !important;
+  }
+}
+
+/* ==================== 平板响应式 ==================== */
+
+@media (min-width: 641px) and (max-width: 1023px) {
+  .glass-ancient,
+  .glass-epic,
+  .glass-monument {
+    padding: 12px !important;
+  }
+}
+
+/* ==================== 桌面端增强 ==================== */
+
+@media (min-width: 1024px) {
+  /* 桌面端悬浮效果增强 */
+  .hover-lift:hover {
+    transform: translateY(-4px);
+    box-shadow: 
+      0 12px 30px rgba(0, 0, 0, 0.4),
+      0 0 25px var(--theme-glow, rgba(212, 175, 55, 0.25));
+  }
+
+  /* 桌面端信息展示优化 */
+  .info-row-desktop {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+
+  /* 显示桌面端专有元素 */
+  .show-desktop {
+    display: block !important;
+  }
+}
+
+/* ==================== 特殊主题适配 ==================== */
+
+/* 石器时代特殊效果 */
+[data-epoch="0"] .glass-epic {
+  background: linear-gradient(135deg, 
+    rgba(26, 20, 16, 0.92) 0%, 
+    rgba(44, 28, 16, 0.88) 50%, 
+    rgba(26, 20, 16, 0.92) 100%);
+}
+
+/* 青铜时代特殊效果 */
+[data-epoch="1"] .glass-epic {
+  background: linear-gradient(135deg, 
+    rgba(28, 20, 16, 0.92) 0%, 
+    rgba(45, 28, 16, 0.88) 50%, 
+    rgba(28, 20, 16, 0.92) 100%);
+}
+
+/* 古典时代特殊效果 */
+[data-epoch="2"] .glass-epic {
+  background: linear-gradient(135deg, 
+    rgba(26, 16, 16, 0.92) 0%, 
+    rgba(44, 16, 16, 0.88) 50%, 
+    rgba(26, 16, 16, 0.92) 100%);
+}
+
+/* 中世纪特殊效果 */
+[data-epoch="3"] .glass-epic {
+  background: linear-gradient(135deg, 
+    rgba(20, 16, 26, 0.92) 0%, 
+    rgba(28, 16, 44, 0.88) 50%, 
+    rgba(20, 16, 26, 0.92) 100%);
+}
+
+/* 探索时代特殊效果 */
+[data-epoch="4"] .glass-epic {
+  background: linear-gradient(135deg, 
+    rgba(16, 20, 26, 0.92) 0%, 
+    rgba(16, 44, 44, 0.88) 50%, 
+    rgba(16, 20, 26, 0.92) 100%);
+}
+
+/* 启蒙时代特殊效果 */
+[data-epoch="5"] .glass-epic {
+  background: linear-gradient(135deg, 
+    rgba(16, 20, 26, 0.92) 0%, 
+    rgba(16, 28, 44, 0.88) 50%, 
+    rgba(16, 20, 26, 0.92) 100%);
+}
+
+/* 工业时代特殊效果 */
+[data-epoch="6"] .glass-epic {
+  background: linear-gradient(135deg, 
+    rgba(18, 20, 26, 0.92) 0%, 
+    rgba(28, 28, 44, 0.88) 50%, 
+    rgba(18, 20, 26, 0.92) 100%);
+}
+
+/* 现代特殊效果 */
+[data-epoch="7"] .glass-epic {
+  background: linear-gradient(135deg, 
+    rgba(20, 16, 26, 0.92) 0%, 
+    rgba(28, 20, 44, 0.88) 50%, 
+    rgba(20, 16, 26, 0.92) 100%);
+}
+
+/* ==================== 打印样式保留 ==================== */

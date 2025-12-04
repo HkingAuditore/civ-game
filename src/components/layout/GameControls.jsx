@@ -1,16 +1,16 @@
-// 游戏控制面板组件
-// 包含速度控制、暂停、存档、帮助等功能
+// 游戏控制面板组件 - 史诗风格重构
+// 紧凑设计，突出历史感
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Icon } from '../common/UIComponents';
-import { Button } from '../common/UnifiedUI';
 import { GAME_SPEEDS } from '../../config';
 import { useSound } from '../../hooks';
 import { cn } from '../../config/unifiedStyles';
 
 /**
- * 游戏控制面板组件
- * 包含游戏速度控制、暂停、存档、帮助等功能
+ * 游戏控制面板组件 - 史诗风格
+ * 紧凑设计，减少空间占用
  */
 export const GameControls = ({
   isPaused,
@@ -25,37 +25,114 @@ export const GameControls = ({
   onTutorial,
   onWiki,
   autoSaveAvailable,
-  menuDirection = 'down', // 'up' or 'down'
-  onTriggerEvent, // 新增：触发事件的回调
+  menuDirection = 'down',
+  onTriggerEvent,
 }) => {
   const [isGameMenuOpen, setIsGameMenuOpen] = useState(false);
   const [isLoadMenuOpen, setIsLoadMenuOpen] = useState(false);
   const [isHelpMenuOpen, setIsHelpMenuOpen] = useState(false);
-  
-  const gameMenuRef = useRef(null);
-  const helpMenuRef = useRef(null);
+  const [gameMenuPos, setGameMenuPos] = useState(null);
+  const [helpMenuPos, setHelpMenuPos] = useState(null);
+
+  const gameMenuButtonRef = useRef(null);
+  const helpMenuButtonRef = useRef(null);
+  const gameMenuContentRef = useRef(null);
+  const helpMenuContentRef = useRef(null);
   
   const { playSound, SOUND_TYPES } = useSound();
+
+  const getMenuPosition = (element, direction = 'down') => {
+    if (!element) return null;
+    const rect = element.getBoundingClientRect();
+    const offset = 8;
+    const isUp = direction === 'up';
+    return {
+      top: (isUp ? rect.top - offset : rect.bottom + offset) + window.scrollY,
+      left: rect.right + window.scrollX,
+      translateY: isUp ? '-100%' : '0',
+    };
+  };
+
+  const updateGameMenuPosition = () => {
+    if (!gameMenuButtonRef.current) return;
+    const pos = getMenuPosition(gameMenuButtonRef.current, menuDirection);
+    if (pos) setGameMenuPos(pos);
+  };
+
+  const updateHelpMenuPosition = () => {
+    if (!helpMenuButtonRef.current) return;
+    const pos = getMenuPosition(helpMenuButtonRef.current, menuDirection);
+    if (pos) setHelpMenuPos(pos);
+  };
+
+  useLayoutEffect(() => {
+    if (!isGameMenuOpen) return undefined;
+    updateGameMenuPosition();
+    const handle = () => updateGameMenuPosition();
+    window.addEventListener('resize', handle);
+    window.addEventListener('scroll', handle, true);
+    return () => {
+      window.removeEventListener('resize', handle);
+      window.removeEventListener('scroll', handle, true);
+    };
+  }, [isGameMenuOpen, menuDirection]);
+
+  useLayoutEffect(() => {
+    if (!isHelpMenuOpen) return undefined;
+    updateHelpMenuPosition();
+    const handle = () => updateHelpMenuPosition();
+    window.addEventListener('resize', handle);
+    window.addEventListener('scroll', handle, true);
+    return () => {
+      window.removeEventListener('resize', handle);
+      window.removeEventListener('scroll', handle, true);
+    };
+  }, [isHelpMenuOpen, menuDirection]);
 
   // 点击外部关闭菜单
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (gameMenuRef.current && !gameMenuRef.current.contains(event.target)) {
+      const target = event.target;
+      if (
+        isGameMenuOpen &&
+        !gameMenuButtonRef.current?.contains(target) &&
+        !gameMenuContentRef.current?.contains(target)
+      ) {
         setIsGameMenuOpen(false);
         setIsLoadMenuOpen(false);
       }
-      if (helpMenuRef.current && !helpMenuRef.current.contains(event.target)) {
+      if (
+        isHelpMenuOpen &&
+        !helpMenuButtonRef.current?.contains(target) &&
+        !helpMenuContentRef.current?.contains(target)
+      ) {
         setIsHelpMenuOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [isGameMenuOpen, isHelpMenuOpen]);
+
+  const handleGameMenuToggle = () => {
+    if (!isGameMenuOpen) {
+      updateGameMenuPosition();
+    } else {
+      setIsLoadMenuOpen(false);
+    }
+    setIsGameMenuOpen((prev) => !prev);
+  };
+
+  const handleHelpMenuToggle = () => {
+    if (!isHelpMenuOpen) {
+      updateHelpMenuPosition();
+    }
+    setIsHelpMenuOpen((prev) => !prev);
+  };
 
   return (
-    <div className="flex items-center gap-1.5 sm:gap-2">
-      {/* 游戏速度控制 */}
-      <div className="flex items-center rounded-xl border border-ancient-gold/20 glass-ancient overflow-hidden shadow-epic">
+    <div className="game-controls flex items-stretch sm:items-center gap-0.5 sm:gap-1.5 h-8 sm:h-7">
+      {/* 游戏速度控制 - 紧凑设计 */}
+      <div className="flex items-center h-full rounded-md sm:rounded-lg border border-ancient-gold/20 glass-ancient shadow-ancient">
         {/* 暂停/继续按钮 */}
         <button
           onClick={() => {
@@ -63,192 +140,210 @@ export const GameControls = ({
             onPauseToggle();
           }}
           className={cn(
-            'px-3 py-2 transition-all flex items-center gap-2 text-xs font-bold min-h-[40px]',
+            'h-full px-1.5 sm:px-2 transition-all flex items-center justify-center gap-1 text-[9px] sm:text-[10px] font-bold touch-feedback',
             isPaused
-              ? 'glass-ancient border-r border-green-500/30 text-green-300 hover:bg-green-500/10'
-              : 'glass-ancient border-r border-orange-500/30 text-orange-300 hover:bg-orange-500/10'
+              ? 'bg-green-500/10 border-r border-green-500/30 text-green-300 hover:bg-green-500/20'
+              : 'bg-orange-500/10 border-r border-orange-500/30 text-orange-300 hover:bg-orange-500/20'
           )}
           title={isPaused ? '继续游戏' : '暂停游戏'}
         >
-          <Icon name={isPaused ? 'Play' : 'Pause'} size={14} />
+          <Icon name={isPaused ? 'Play' : 'Pause'} size={10} className="sm:w-3 sm:h-3 flex-shrink-0" />
           <span className="hidden sm:inline">{isPaused ? '继续' : '暂停'}</span>
         </button>
         
-        <div className="w-px h-5 bg-ancient-gold/20 self-center"></div>
-        
         {/* 速度选择按钮 */}
-        {GAME_SPEEDS.map((speed) => (
-          <button
-            key={speed}
-            onClick={() => {
-              playSound(SOUND_TYPES.CLICK);
-              onSpeedChange(speed);
-              if (isPaused) onPauseToggle();
-            }}
-            disabled={isPaused}
-            className={cn(
-              'px-3 py-2 text-xs font-bold transition-all min-h-[40px]',
-              isPaused
-                ? 'text-ancient-stone/50 cursor-not-allowed'
-                : 'hover:bg-ancient-gold/10',
-              gameSpeed === speed && !isPaused
-                ? 'bg-gradient-to-b from-ancient-gold/30 to-ancient-bronze/20 text-ancient-gold border-x border-ancient-gold/30'
-                : isPaused
-                ? ''
-                : 'text-ancient-parchment'
-            )}
-            title={isPaused ? '请先继续游戏' : `${speed}倍速`}
-          >
-            <div className="flex items-center gap-1">
-              <span>{speed}x</span>
-              {speed > 1 && <Icon name="FastForward" size={12} />}
-            </div>
-          </button>
-        ))}
+        <div className="flex items-center h-full">
+          {GAME_SPEEDS.map((speed, idx) => (
+            <button
+              key={speed}
+              onClick={() => {
+                playSound(SOUND_TYPES.CLICK);
+                onSpeedChange(speed);
+                if (isPaused) onPauseToggle();
+              }}
+              disabled={isPaused}
+              className={cn(
+                'h-full px-1.5 sm:px-2 text-[9px] sm:text-[10px] font-bold transition-all flex items-center justify-center touch-feedback',
+                idx > 0 && 'border-l border-ancient-gold/10',
+                isPaused
+                  ? 'text-ancient-stone/40 cursor-not-allowed'
+                  : 'hover:bg-ancient-gold/10',
+                gameSpeed === speed && !isPaused
+                  ? 'bg-gradient-to-b from-ancient-gold/25 to-ancient-bronze/15 text-ancient-gold'
+                  : isPaused
+                  ? ''
+                  : 'text-ancient-parchment/80'
+              )}
+              title={isPaused ? '请先继续游戏' : `${speed}倍速`}
+            >
+              {speed}x
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* 存档菜单 */}      <div className="relative" ref={gameMenuRef}>
+      {/* 存档菜单 */}
+      <div className="flex h-full">
         <button
-          onClick={() => setIsGameMenuOpen(!isGameMenuOpen)}
-          className="px-3 py-2 glass-ancient border border-ancient-gold/20 rounded-xl transition-all flex items-center gap-2 text-xs font-semibold text-ancient-parchment shadow-epic hover:border-ancient-gold/40 hover:glow-gold min-h-[40px]"
+          ref={gameMenuButtonRef}
+          onClick={handleGameMenuToggle}
+          className="h-full px-2 glass-ancient border border-ancient-gold/20 rounded-md sm:rounded-lg transition-all flex items-center justify-center text-ancient-parchment shadow-ancient hover:border-ancient-gold/40 hover:shadow-glow-gold touch-feedback"
           title="存档菜单"
         >
-          <Icon name="Menu" size={14} className="text-ancient-gold" />
-          <span className="hidden lg:inline">存档</span>
+          <Icon name="Menu" size={12} className="sm:w-3.5 sm:h-3.5 text-ancient-gold" />
         </button>
-        
-        {isGameMenuOpen && (
-          <div className={cn(
-            'absolute right-0 w-44 rounded-xl border border-ancient-gold/30 glass-epic shadow-monument py-1 z-[70] animate-slide-up',
-            menuDirection === 'up' 
-              ? 'bottom-full mb-2 origin-bottom-right' 
-              : 'top-full mt-2 origin-top-right'
-          )}>
-            <button
-              onClick={() => { onSave(); setIsGameMenuOpen(false); }}              className="w-full flex items-center px-4 py-2 text-xs font-semibold text-green-300 hover:bg-ancient-gold/10 transition-colors rounded-lg"
-            >
-              <Icon name="Save" size={14} />
-              <span className="ml-2">保存进度</span>
-            </button>
-            
-            <div className="relative">
-              <button
-                onClick={() => setIsLoadMenuOpen(!isLoadMenuOpen)}
-                className="w-full flex items-center justify-between px-4 py-2 text-xs font-semibold text-purple-300 hover:bg-ancient-gold/10 transition-colors rounded-lg"
+        {isGameMenuOpen && gameMenuPos &&
+          createPortal(
+            <div className="pointer-events-none fixed inset-0 z-40">
+              <div
+                className="absolute"
+                style={{
+                  top: gameMenuPos.top,
+                  left: gameMenuPos.left,
+                  transform: `translate(-100%, ${gameMenuPos.translateY})`,
+                }}
               >
-                <div className="flex items-center">
-                  <Icon name="Upload" size={14} />
-                  <span className="ml-2">读取存档</span>
-                </div>
-                <Icon name={isLoadMenuOpen ? 'ChevronDown' : 'ChevronRight'} size={12} />
-              </button>
-              
-              {isLoadMenuOpen && (
-                <div className="absolute right-full top-0 mr-1 w-40 rounded-xl border border-ancient-gold/30 glass-epic shadow-monument py-1 animate-slide-up">
+                <div
+                  ref={gameMenuContentRef}
+                  className={cn(
+                    'relative w-40 rounded-lg border border-ancient-gold/30 glass-epic shadow-monument py-1 pointer-events-auto animate-slide-up',
+                    menuDirection === 'up' ? 'origin-bottom-right' : 'origin-top-right'
+                  )}
+                >
                   <button
-                    onClick={() => { onLoadManual(); setIsGameMenuOpen(false); setIsLoadMenuOpen(false); }}
-                    className="w-full flex items-center px-4 py-2 text-xs font-semibold text-ancient-parchment hover:bg-ancient-gold/10 transition-colors rounded-lg"
+                    onClick={() => { onSave(); setIsGameMenuOpen(false); }}
+                    className="w-full flex items-center px-3 py-2 text-[10px] font-semibold text-green-300 hover:bg-ancient-gold/10 transition-colors rounded touch-feedback"
                   >
-                    <Icon name="Upload" size={12} />
-                    <span className="ml-2">手动存档</span>
+                    <Icon name="Save" size={12} />
+                    <span className="ml-2">保存进度</span>
                   </button>
+                  
+                  <div className="relative">
+                    <button
+                      onClick={() => setIsLoadMenuOpen(!isLoadMenuOpen)}
+                      className="w-full flex items-center justify-between px-3 py-2 text-[10px] font-semibold text-purple-300 hover:bg-ancient-gold/10 transition-colors rounded touch-feedback"
+                    >
+                      <div className="flex items-center">
+                        <Icon name="Upload" size={12} />
+                        <span className="ml-2">读取存档</span>
+                      </div>
+                      <Icon name={isLoadMenuOpen ? 'ChevronDown' : 'ChevronRight'} size={10} />
+                    </button>
+                    
+                    {isLoadMenuOpen && (
+                      <div className={cn(
+                        'absolute w-36 rounded-lg border border-ancient-gold/30 glass-epic shadow-monument py-1 animate-slide-up',
+                        menuDirection === 'up'
+                          ? 'right-full bottom-0 mr-1 origin-bottom-right'
+                          : 'right-full top-0 mr-1 origin-top-right'
+                      )}>
+                        <button
+                          onClick={() => { onLoadManual(); setIsGameMenuOpen(false); setIsLoadMenuOpen(false); }}
+                          className="w-full flex items-center px-3 py-2 text-[10px] font-semibold text-ancient-parchment hover:bg-ancient-gold/10 transition-colors rounded touch-feedback"
+                        >
+                          <Icon name="Upload" size={10} />
+                          <span className="ml-2">手动存档</span>
+                        </button>
+                        <button
+                          onClick={() => { 
+                            if (autoSaveAvailable) {
+                              onLoadAuto(); 
+                              setIsGameMenuOpen(false); 
+                              setIsLoadMenuOpen(false);
+                            }
+                          }}
+                          disabled={!autoSaveAvailable}
+                          className={cn(
+                            'w-full flex items-center justify-between px-3 py-2 text-[10px] font-semibold transition-colors rounded touch-feedback',
+                            autoSaveAvailable 
+                              ? 'text-amber-300 hover:bg-ancient-gold/10'
+                              : 'text-ancient-stone/40 cursor-not-allowed'
+                          )}
+                        >
+                          <span className="ml-2">自动存档</span>
+                          <Icon name="Clock" size={10} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <button
+                    onClick={() => { onSettings(); setIsGameMenuOpen(false); }}
+                    className="w-full flex items-center px-3 py-2 text-[10px] font-semibold text-ancient-parchment hover:bg-ancient-gold/10 transition-colors rounded touch-feedback"
+                  >
+                    <Icon name="Settings" size={12} />
+                    <span className="ml-2">存档设置</span>
+                  </button>
+                  
+                  <div className="my-1 h-px bg-gradient-to-r from-transparent via-ancient-gold/30 to-transparent mx-2"></div>
+                  
                   <button
                     onClick={() => { 
-                      if (autoSaveAvailable) {
-                        onLoadAuto(); 
-                        setIsGameMenuOpen(false); 
-                        setIsLoadMenuOpen(false);
+                      if (window.confirm('确定要重置游戏吗？所有进度将丢失。')) {
+                        onReset(); 
+                        setIsGameMenuOpen(false);
                       }
                     }}
-                    disabled={!autoSaveAvailable}
-                    className={cn(
-                      'w-full flex items-center justify-between px-4 py-2 text-xs font-semibold transition-colors rounded-lg',
-                      autoSaveAvailable 
-                        ? 'text-amber-300 hover:bg-ancient-gold/10'
-                        : 'text-ancient-stone/50 cursor-not-allowed'
-                    )}
+                    className="w-full flex items-center px-3 py-2 text-[10px] font-semibold text-red-300 hover:bg-red-500/10 transition-colors rounded touch-feedback"
                   >
-                    <span className="ml-2">自动存档</span>
-                    <Icon name="Clock" size={12} />
+                    <Icon name="RefreshCw" size={12} />
+                    <span className="ml-2">重置游戏</span>
                   </button>
                 </div>
-              )}
-            </div>
-            
-            <button
-              onClick={() => { onSettings(); setIsGameMenuOpen(false); }}
-              className="w-full flex items-center px-4 py-2 text-xs font-semibold text-ancient-parchment hover:bg-ancient-gold/10 transition-colors rounded-lg"
-            >
-              <Icon name="Settings" size={14} />
-              <span className="ml-2">存档设置</span>
-            </button>
-            
-            <div className="my-1 h-px bg-gradient-to-r from-transparent via-ancient-gold/30 to-transparent"></div>
-            
-            <button
-              onClick={() => { 
-                if (confirm('确定要重置游戏吗？所有进度将丢失！')) {
-                  onReset(); 
-                  setIsGameMenuOpen(false);
-                }
-              }}
-              className="w-full flex items-center px-4 py-2 text-xs font-semibold text-red-300 hover:bg-red-500/10 transition-colors rounded-lg"
-            >
-              <Icon name="RefreshCw" size={14} />
-              <span className="ml-2">重置游戏</span>
-            </button>
-          </div>
-        )}
+              </div>
+            </div>,
+            document.body
+          )}
       </div>
 
-      {/* 事件测试按钮（仅开发测试用） */}
-      {/* {onTriggerEvent && (
-        <button
-          onClick={() => {
-            playSound(SOUND_TYPES.CLICK);
-            onTriggerEvent();
-          }}
-          className="px-3 py-2 bg-yellow-600/20 hover:bg-yellow-600/40 backdrop-blur-sm border border-yellow-500/50 rounded-xl transition-all flex items-center gap-2 text-xs font-semibold text-yellow-300 shadow-md hover:shadow-lg"
-          title="触发随机事件（测试）"
-        >
-          <Icon name="Zap" size={14} />
-          <span className="hidden lg:inline">事件</span>
-        </button>
-      )} */}
-
       {/* 帮助菜单 */}
-      <div className="relative" ref={helpMenuRef}>
+      <div className="flex h-full">
         <button
-          onClick={() => setIsHelpMenuOpen(!isHelpMenuOpen)}
-          className="px-3 py-2 glass-ancient border border-blue-500/30 rounded-xl transition-all flex items-center gap-2 text-xs font-semibold text-blue-300 shadow-epic hover:border-blue-500/50 hover:bg-blue-500/10 min-h-[40px]"
+          ref={helpMenuButtonRef}
+          onClick={handleHelpMenuToggle}
+          className="h-full px-2 glass-ancient border border-blue-500/30 rounded-md sm:rounded-lg transition-all flex items-center justify-center text-blue-300 shadow-ancient hover:border-blue-500/50 hover:bg-blue-500/10 touch-feedback"
           title="帮助与指南"
         >
-          <Icon name="HelpCircle" size={14} />
-          <span className="hidden lg:inline">帮助</span>
+          <Icon name="HelpCircle" size={12} className="sm:w-3.5 sm:h-3.5" />
         </button>
         
-        {isHelpMenuOpen && (
-          <div className={cn(
-            'absolute right-0 w-40 rounded-xl border border-ancient-gold/30 glass-epic shadow-monument py-1 z-[70] animate-slide-up',
-            menuDirection === 'up' 
-              ? 'bottom-full mb-2 origin-bottom-right' 
-              : 'top-full mt-2 origin-top-right'
-          )}>
-            <button
-              onClick={() => { onTutorial(); setIsHelpMenuOpen(false); }}              className="w-full flex items-center px-4 py-2 text-xs font-semibold text-ancient-parchment hover:bg-ancient-gold/10 transition-colors rounded-lg"
-            >
-              <Icon name="BookOpen" size={12} />
-              <span className="ml-2">新手教程</span>
-            </button>
-            <button
-              onClick={() => { onWiki(); setIsHelpMenuOpen(false); }}
-              className="w-full flex items-center px-4 py-2 text-xs font-semibold text-ancient-parchment hover:bg-ancient-gold/10 transition-colors rounded-lg"
-            >
-              <Icon name="Book" size={12} />
-              <span className="ml-2">文明百科</span>
-            </button>
-          </div>
-        )}
+        {isHelpMenuOpen && helpMenuPos &&
+          createPortal(
+            <div className="pointer-events-none fixed inset-0 z-40">
+              <div
+                className="absolute"
+                style={{
+                  top: helpMenuPos.top,
+                  left: helpMenuPos.left,
+                  transform: `translate(-100%, ${helpMenuPos.translateY})`,
+                }}
+              >
+                <div
+                  ref={helpMenuContentRef}
+                  className={cn(
+                    'w-36 rounded-lg border border-ancient-gold/30 glass-epic shadow-monument py-1 pointer-events-auto animate-slide-up',
+                    menuDirection === 'up' ? 'origin-bottom-right' : 'origin-top-right'
+                  )}
+                >
+                  <button
+                    onClick={() => { onTutorial(); setIsHelpMenuOpen(false); }}
+                    className="w-full flex items-center px-3 py-2 text-[10px] font-semibold text-ancient-parchment hover:bg-ancient-gold/10 transition-colors rounded touch-feedback"
+                  >
+                    <Icon name="BookOpen" size={10} />
+                    <span className="ml-2">新手教程</span>
+                  </button>
+                  <button
+                    onClick={() => { onWiki(); setIsHelpMenuOpen(false); }}
+                    className="w-full flex items-center px-3 py-2 text-[10px] font-semibold text-ancient-parchment hover:bg-ancient-gold/10 transition-colors rounded touch-feedback"
+                  >
+                    <Icon name="Book" size={10} />
+                    <span className="ml-2">文明百科</span>
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )}
       </div>
     </div>
   );

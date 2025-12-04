@@ -1,98 +1,145 @@
-// 底部导航栏组件 - 移动端专用
-// 固定在底部，方便单手操作
+// 底部导航栏组件 - 史诗金属风格
+// 固定在底部，使用时代主题色背景，恢复金属质感和tab颜色区分
 
 import React from 'react';
 import { Icon } from '../common/UIComponents';
-import { EPOCHS } from '../../config';
+
+// Tab配置，包含独特的颜色主题
+const TAB_CONFIG = {
+  build: { 
+    label: '建设', 
+    icon: 'Hammer',
+    color: 'from-amber-500 to-yellow-600',
+    glow: 'shadow-amber-500/40',
+    text: 'text-amber-400',
+    border: 'border-amber-500/50'
+  },
+  military: { 
+    label: '军事', 
+    icon: 'Swords',
+    color: 'from-red-500 to-rose-600',
+    glow: 'shadow-red-500/40',
+    text: 'text-red-400',
+    border: 'border-red-500/50'
+  },
+  tech: { 
+    label: '科技', 
+    icon: 'Cpu',
+    color: 'from-cyan-500 to-blue-600',
+    glow: 'shadow-cyan-500/40',
+    text: 'text-cyan-400',
+    border: 'border-cyan-500/50'
+  },
+  politics: { 
+    label: '政令', 
+    icon: 'Gavel',
+    color: 'from-purple-500 to-violet-600',
+    glow: 'shadow-purple-500/40',
+    text: 'text-purple-400',
+    border: 'border-purple-500/50'
+  },
+  diplo: { 
+    label: '外交', 
+    icon: 'Globe',
+    color: 'from-emerald-500 to-green-600',
+    glow: 'shadow-emerald-500/40',
+    text: 'text-emerald-400',
+    border: 'border-emerald-500/50'
+  },
+};
 
 /**
- * 底部导航栏组件
- * 仅在移动端显示，提供快速切换标签页的功能
+ * 底部导航栏组件 - 史诗金属风格
+ * 移动端专用，使用时代主题色背景
  */
 export const BottomNav = ({ activeTab, onTabChange, epoch = 0 }) => {
-  const tabs = [
-    {
-      id: 'build',
-      label: '建设',
-      icon: 'Hammer',
-      indicator: 'from-amber-300 via-amber-200 to-amber-300',
-    },
-    {
-      id: 'military',
-      label: '军事',
-      icon: 'Swords',
-      indicator: 'from-red-300 via-red-200 to-red-300',
-    },
-    {
-      id: 'tech',
-      label: '科技',
-      icon: 'Cpu',
-      indicator: 'from-cyan-300 via-cyan-200 to-cyan-300',
-    },
-    {
-      id: 'politics',
-      label: '政令',
-      icon: 'Gavel',
-      indicator: 'from-purple-300 via-purple-200 to-purple-300',
-    },
-    {
-      id: 'diplo',
-      label: '外交',
-      icon: 'Globe',
-      indicator: 'from-blue-300 via-blue-200 to-blue-300',
-    },
-  ];
+  const tabs = Object.entries(TAB_CONFIG).map(([id, config]) => ({ id, ...config }));
 
   return (
     <nav
-      className={`fixed bottom-0 left-0 right-0 z-50 lg:hidden pb-safe-bottom border-t border-theme-border shadow-metal-md backdrop-blur-md bg-gradient-to-r from-ancient-ink/95 via-gray-950/90 to-ancient-ink/95`}
+      className="fixed bottom-0 left-0 right-0 z-50 lg:hidden"
       role="tablist"
       aria-label="主标签切换"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
     >
-      <div className="relative max-w-2xl mx-auto px-3 py-2 flex items-stretch">
-        {tabs.map((tab, index) => {
-          const isActive = activeTab === tab.id;
-          
-          return (
-            <React.Fragment key={tab.id}>
+      {/* 时代主题色背景层 */}
+      <div className="absolute inset-0">
+        {/* 主背景 - 使用时代主题色 */}
+        <div 
+          className="absolute inset-0 backdrop-blur-lg"
+          style={{
+            background: `linear-gradient(to top, var(--theme-background, rgb(17, 24, 39)) 0%, color-mix(in srgb, var(--theme-surface, rgb(31, 41, 55)) 95%, transparent) 50%, color-mix(in srgb, var(--theme-surface-alt, rgb(55, 65, 81)) 90%, transparent) 100%)`
+          }}
+        />
+        {/* 顶部金属高光 - 使用时代主题色 */}
+        <div 
+          className="absolute top-0 left-0 right-0 h-px"
+          style={{
+            background: `linear-gradient(to right, transparent, var(--theme-accent, rgb(212, 175, 55)) 50%, transparent)`
+          }}
+        />
+        <div className="absolute top-[1px] left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+        {/* 金属纹理 */}
+        <div className="absolute inset-0 opacity-[0.03]" style={{
+          backgroundImage: `repeating-linear-gradient(90deg, transparent, transparent 1px, rgba(255,255,255,0.03) 1px, rgba(255,255,255,0.03) 2px)`
+        }} />
+      </div>
+      
+      {/* 导航内容 */}
+      <div className="relative max-w-lg mx-auto px-1">
+        <div className="flex items-stretch justify-around h-14">
+          {tabs.map((tab) => {
+            const isActive = activeTab === tab.id;
+            
+            return (
               <button
+                key={tab.id}
                 type="button"
                 role="tab"
                 aria-label={tab.label}
                 aria-selected={isActive}
                 onClick={() => onTabChange(tab.id)}
                 className={`
-                  relative flex-1 min-w-[56px] h-full flex flex-col items-center justify-center gap-1
-                  px-3 py-2 transition-colors duration-150 text-[10px] font-semibold tracking-wide
-                  ${isActive 
-                    ? 'bg-white/10 text-white shadow-inner border border-white/10'
-                    : 'text-white/65 hover:text-white border border-transparent'
-                  }
+                  relative flex flex-col items-center justify-center flex-1
+                  transition-all duration-200 ease-out
+                  ${isActive ? 'scale-105' : 'active:scale-95'}
                 `}
               >
-                {/* 图标 */}
-                <Icon 
-                  name={tab.icon} 
-                  size={20} 
-                  className={isActive ? 'text-white drop-shadow' : 'text-white/70'}
-                />
+                {/* 激活状态背景 */}
+                {isActive && (
+                  <>
+                    {/* 发光效果 */}
+                    <div className={`absolute inset-x-1 top-1 bottom-1 rounded-lg bg-gradient-to-b ${tab.color} opacity-15 blur-sm`} />
+                    {/* 背景容器 */}
+                    <div className={`absolute inset-x-1 top-1 bottom-1 rounded-lg bg-gradient-to-b ${tab.color} opacity-20 border ${tab.border}`} />
+                    {/* 顶部高亮条 */}
+                    <div className={`absolute top-0 left-1/4 right-1/4 h-0.5 rounded-full bg-gradient-to-r ${tab.color}`} />
+                  </>
+                )}
+                
+                {/* 图标容器 */}
+                <div className={`
+                  relative z-10 p-1 rounded-md transition-all duration-200
+                  ${isActive ? '' : 'text-gray-500'}
+                `}>
+                  <Icon 
+                    name={tab.icon} 
+                    size={isActive ? 20 : 18} 
+                    className={`transition-all duration-200 ${isActive ? tab.text : ''}`}
+                  />
+                </div>
                 
                 {/* 标签文字 */}
-                <span className="uppercase tracking-[0.2em] text-[9px]">
+                <span className={`
+                  relative z-10 text-[9px] font-bold mt-0.5 transition-all duration-200
+                  ${isActive ? tab.text : 'text-gray-500'}
+                `}>
                   {tab.label}
                 </span>
-                
-                {/* 激活指示器 */}
-                {isActive && (
-                  <div className={`absolute -bottom-0.5 left-0 right-0 h-0.5 bg-gradient-to-r ${tab.indicator}`} />
-                )}
               </button>
-              {index < tabs.length - 1 && (
-                <span className="w-px bg-white/10 mx-1 my-1" aria-hidden="true" />
-              )}
-            </React.Fragment>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
     </nav>
   );

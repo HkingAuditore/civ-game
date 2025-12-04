@@ -69,6 +69,16 @@ const buildInitialMerchantState = () => ({
   lastTradeTime: 0,
 });
 
+const DEFAULT_EVENT_EFFECT_SETTINGS = {
+  approval: { duration: 30, decayRate: 0.04 },
+  stability: { duration: 30, decayRate: 0.04 },
+};
+
+const buildInitialEventEffects = () => ({
+  approval: [],
+  stability: [],
+});
+
 // 初始化贸易路线状态
 const buildInitialTradeRoutes = () => ({
   // 贸易路线数组，每个路线包含：
@@ -228,6 +238,8 @@ export const useGameState = () => {
   const [classShortages, setClassShortages] = useState({});
   const [populationDetailView, setPopulationDetailView] = useState(false);
   const [history, setHistory] = useState(buildInitialHistory());
+  const [eventEffectSettings, setEventEffectSettings] = useState(DEFAULT_EVENT_EFFECT_SETTINGS);
+  const [activeEventEffects, setActiveEventEffects] = useState(buildInitialEventEffects());
 
   // ========== 时间状态 ==========
   const [daysElapsed, setDaysElapsed] = useState(0);
@@ -385,6 +397,8 @@ export const useGameState = () => {
         merchantState,
         tradeRoutes,
         tradeStats,
+        eventEffectSettings,
+        activeEventEffects,
         autoSaveInterval,
         isAutoSaveEnabled,
         lastAutoSaveTime: nextLastAuto,
@@ -481,10 +495,12 @@ export const useGameState = () => {
       setMarket(data.market || buildInitialMarket());
       setMerchantState(data.merchantState || buildInitialMerchantState());
       setTradeRoutes(data.tradeRoutes || buildInitialTradeRoutes());
-    setTradeStats(data.tradeStats || { tradeTax: 0 });
+      setTradeStats(data.tradeStats || { tradeTax: 0 });
       setAutoSaveInterval(data.autoSaveInterval ?? 60);
       setIsAutoSaveEnabled(data.isAutoSaveEnabled ?? true);
       setLastAutoSaveTime(data.lastAutoSaveTime || Date.now());
+      setEventEffectSettings(data.eventEffectSettings || DEFAULT_EVENT_EFFECT_SETTINGS);
+      setActiveEventEffects(data.activeEventEffects || buildInitialEventEffects());
       addLogEntry(source === 'auto' ? '📂 自动存档读取成功！' : '📂 读取存档成功！');
     } catch (error) {
       console.error('Load game failed:', error);
@@ -598,6 +614,10 @@ export const useGameState = () => {
     setPopulationDetailView,
     history,
     setHistory,
+    eventEffectSettings,
+    setEventEffectSettings,
+    activeEventEffects,
+    setActiveEventEffects,
     
     // 军事系统
     army,

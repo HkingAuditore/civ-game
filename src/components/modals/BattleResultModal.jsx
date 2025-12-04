@@ -65,16 +65,17 @@ export const BattleResultModal = ({ result, onClose }) => {
             </div>
             <div className="flex-1 min-w-0">
               <h2 className="text-lg font-bold text-ancient leading-tight flex items-center gap-2">
-                {result.victory ? '?? ?????' : '?? ????...'}
+                {result.victory ? '战斗胜利' : '战斗失利…'}
                 {typeof result.score === 'number' && (
                   <span className="px-2 py-0.5 text-[10px] rounded-full border border-ancient-gold/30 text-ancient-parchment bg-ancient-ink/40">
-                    ?? {result.score.toFixed(0)}
+                    评分 {result.score.toFixed(0)}
                   </span>
                 )}
               </h2>
               <p className="text-[11px] text-ancient-parchment opacity-80 leading-tight truncate">
-                {result.missionName || '????'} {result.missionDifficulty && `????${result.missionDifficulty}?`}
-                {result.nationName && ` ? ???${result.nationName}`}
+                {result.missionName || '未知任务'}
+                {result.missionDifficulty && ` · 难度${result.missionDifficulty}`}
+                {result.nationName && ` · 对手：${result.nationName}`}
               </p>
             </div>
             <button

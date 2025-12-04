@@ -133,6 +133,14 @@ const BuildingTooltip = ({ building, count, epoch, techsUnlocked, jobFill, ancho
  * @param {Function} onSell - 出售回调
  * @param {Function} onShowDetails - 显示详情回调
  */
+// 更紧凑的价格格式化函数
+const formatCompactCost = (value) => {
+  if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M';
+  if (value >= 10000) return (value / 1000).toFixed(0) + 'k';
+  if (value >= 1000) return (value / 1000).toFixed(1) + 'k';
+  return Math.floor(value).toString();
+};
+
 const CompactBuildingCard = ({
   building,
   count,
@@ -142,8 +150,7 @@ const CompactBuildingCard = ({
   onBuy,
   onSell,
   onShowDetails,
-  cost, // 新增：接收建造成本
-  // 新增 props 以支持详细悬浮窗
+  cost,
   onMouseEnter,
   onMouseLeave,
   epoch,
@@ -152,11 +159,10 @@ const CompactBuildingCard = ({
   resources,
 }) => {
   const VisualIcon = Icon;
-  const incomeColor = ownerIncome > 0 ? 'text-green-400' : ownerIncome < 0 ? 'text-red-400' : 'text-ancient-stone';
 
   return (
     <div 
-      className="group relative flex flex-col h-full glass-ancient border border-ancient-gold/30 rounded-xl p-2 text-center transition-all hover:border-ancient-gold/50 hover:shadow-glow-gold"
+      className="group relative flex flex-col h-full glass-ancient border border-ancient-gold/20 rounded-lg p-1.5 text-center transition-all hover:border-ancient-gold/40 hover:shadow-glow-gold"
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
@@ -165,12 +171,12 @@ const CompactBuildingCard = ({
         className="flex-grow flex flex-col items-center cursor-pointer"
         onClick={() => onShowDetails(building.id)}
       >
-        <div className="w-9 h-9 rounded-full flex items-center justify-center mb-1 bg-ancient-ink/70 border border-ancient-gold/30 shadow-inner">
-          <VisualIcon name={building.visual.icon} size={16} className={`${building.visual.text} drop-shadow-sm`} />
+        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center mb-0.5 bg-ancient-ink/70 border border-ancient-gold/20 shadow-inner">
+          <VisualIcon name={building.visual.icon} size={14} className={`${building.visual.text} drop-shadow-sm`} />
         </div>
         <div className="flex items-baseline gap-0.5">
-          <h4 className="text-[11px] font-bold text-ancient-parchment leading-tight truncate max-w-[70px]">{building.name}</h4>
-          {count > 0 && <p className="text-[9px] font-bold text-ancient-gold drop-shadow-sm">×{count}</p>}
+          <h4 className="text-[10px] font-bold text-ancient-parchment leading-tight truncate max-w-[60px]">{building.name}</h4>
+          {count > 0 && <p className="text-[8px] font-bold text-ancient-gold">×{count}</p>}
         </div>
       </div>
 
@@ -228,28 +234,31 @@ const CompactBuildingCard = ({
         </div>
       )}
 
-      {/* 操作按钮 - 更紧凑 */}
-      <div className="mt-1 space-y-0.5">
+      {/* 操作按钮 - 上下排布 */}
+      <div className="mt-auto pt-0.5 flex flex-col gap-0.5">
         <button
           onClick={(e) => { e.stopPropagation(); onBuy(building.id); }}
           disabled={!affordable}
-          className={`w-full px-1.5 py-0.5 rounded text-[9px] font-semibold transition-all ${
+          className={`w-full px-1 py-0.5 rounded text-[7px] font-semibold transition-all ${
             affordable
-              ? 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white shadow-sm hover:shadow-md'
-              : 'bg-gray-700 text-gray-400 cursor-not-allowed'
+              ? 'bg-green-600/80 hover:bg-green-500 text-white'
+              : 'bg-gray-700/60 text-gray-400 cursor-not-allowed'
           } flex items-center justify-center gap-0.5`}
+          title={`建造: ${silverCost.toFixed(0)} 银币`}
         >
-          <Icon name="Plus" size={8} />
-          <span className={!affordable ? 'text-red-300' : ''}>{formatSilverCost(silverCost)}</span>
+          <Icon name="Plus" size={8} className="flex-shrink-0" />
+          <Icon name="Coins" size={8} className="text-yellow-300 opacity-80 flex-shrink-0" />
+          <span className={`truncate ${!affordable ? 'text-red-300' : ''}`}>{formatCompactCost(silverCost)}</span>
         </button>
         
         {count > 0 && (
           <button
             onClick={(e) => { e.stopPropagation(); onSell(building.id); }}
-            className="w-full px-1.5 py-0.5 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white rounded text-[9px] font-semibold transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-0.5"
+            className="w-full px-1 py-0.5 bg-red-600/80 hover:bg-red-500 text-white rounded text-[7px] font-semibold transition-all flex items-center justify-center gap-0.5"
+            title="拆除"
           >
             <Icon name="Minus" size={8} />
-            <span>拆</span>
+            <span>拆除</span>
           </button>
         )}
       </div>
@@ -405,7 +414,7 @@ export const BuildTab = ({
       : Object.entries(categories).filter(([key]) => key === activeCategory);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 build-tab">
       <div className="flex flex-wrap gap-2 pb-1 border-b border-gray-700/60 mb-3">
         {categoryFilters.map((filter) => {
           const isActive = filter.key === activeCategory;
@@ -437,8 +446,8 @@ export const BuildTab = ({
               {catInfo.name}
             </h3>
 
-            {/* 建筑列表 - 紧凑布局 */}
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10 gap-1.5">
+            {/* 建筑列表 - 更紧凑布局 */}
+            <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-9 2xl:grid-cols-11 gap-1">
               {categoryBuildings.filter(b => isBuildingAvailable(b)).map(building => {
                 const cost = calculateCost(building);
                 const silverCost = calculateSilverCost(cost, market);
