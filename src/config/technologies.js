@@ -99,6 +99,14 @@ export const TECHS = [
 
   // 青铜时代
   {
+    id: 'sailing',
+    name: "航海术",
+    desc: "解锁船坞建设，开启海上贸易与军事行动。",
+    cost: { science: 350 },
+    epoch: 1,
+    effects: {},
+  },
+  {
     id: 'tools',
     name: "铜制工具",
     desc: "允许建造锯木厂，工业效率 +5%。",
