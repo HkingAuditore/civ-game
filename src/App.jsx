@@ -264,8 +264,8 @@ function GameApp({ gameState }) {
         />
       ))}
 
-      {/* 顶部状态栏 - 包含游戏控制（桌面端） */}
-      <div className="fixed top-0 left-0 right-0 z-50 glass-epic border-b border-theme-border">
+      {/* 顶部状态栏 - 史诗风格 */}
+      <div className="fixed top-0 left-0 right-0 z-50">
         <StatusBar
           gameState={gameState}
           taxes={taxes}
@@ -296,10 +296,9 @@ function GameApp({ gameState }) {
           }
         />
       </div>
-      {/* 移动端游戏控制 - 浮动按钮（移到底部，避免与顶部栏重叠） */}
-      <div className="lg:hidden fixed bottom-24 right-4 z-40">
-        {/* flex-col-reverse 会将子元素的堆叠顺序反转，从而使下拉菜单向上弹出 */}
-        <div className="flex flex-col-reverse gap-2 scale-95 origin-bottom-right">
+      {/* 移动端游戏控制 - 位于底部导航栏右上方，留有间距 */}
+      <div className="lg:hidden fixed bottom-[68px] right-2 z-40" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+        <div className="scale-[0.9] origin-bottom-right">
           <GameControls
             isPaused={gameState.isPaused}
             gameSpeed={gameState.gameSpeed}
@@ -319,25 +318,18 @@ function GameApp({ gameState }) {
         </div>
       </div>
 
-      {/* 占位符 - 避免内容被固定头部遮挡 */}
-      <div className="h-24 lg:h-32"></div>
+      {/* 占位符 - 避免内容被固定头部遮挡 - 优化高度 */}
+      <div className="h-14 sm:h-16 lg:h-20"></div>
 
       {/* 主内容区域 - 移动端优先布局 */}
-      <main className="max-w-[1920px] mx-auto px-3 sm:px-4 py-4 pb-24 lg:pb-4">
+      <main className="max-w-[1920px] mx-auto px-2 sm:px-4 py-2 sm:py-4 pb-24 lg:pb-4" data-epoch={gameState.epoch}>
         {/* 移动端：单列布局，桌面端：三列布局 */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-4">
           
           {/* 左侧边栏 - 桌面端显示 */}
           <aside className="hidden lg:block lg:col-span-2 space-y-4 order-2 lg:order-1">
-            {/* 国内市场面板 */}
-            <EpicCard variant="ancient" className="p-3 animate-fade-in-up">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="relative">
-                  <div className="absolute inset-0 bg-ancient-gold blur-md opacity-50" />
-                  <Icon name="Package" size={16} className="text-ancient-gold relative" />
-                </div>
-                <h3 className="text-sm font-bold text-ancient">国内市场</h3>
-              </div>
+            {/* 国内市场面板 - 紧凑设计 */}
+            <EpicCard variant="ancient" className="p-2 animate-fade-in-up">
               <ResourcePanel 
                 resources={gameState.resources} 
                 rates={gameState.rates} 
@@ -383,9 +375,9 @@ function GameApp({ gameState }) {
               {/* 背景装饰 */}
               <AncientPattern opacity={0.02} className="absolute inset-0 text-ancient-gold" />
               <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-ancient-gold/50 to-transparent" />
-              {/* 桌面端标签页导航 */}
-              <div className="hidden lg:flex border-b border-ancient-gold/20 bg-gradient-to-r from-ancient-ink/50 via-ancient-stone/30 to-ancient-ink/50 overflow-x-auto relative">
-                <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-ancient-gold/30 to-transparent" />
+              {/* 桌面端标签页导航 - 使用时代主题色 */}
+              <div className="hidden lg:flex border-b border-theme-border bg-gradient-to-r from-theme-surface/60 via-theme-surface-alt/40 to-theme-surface/60 overflow-x-auto relative">
+                <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-theme-accent/40 to-transparent" />
                 {[
                   { id: 'build', label: '建设', icon: 'Hammer' },
                   { id: 'military', label: '军事', icon: 'Swords' },
@@ -396,19 +388,23 @@ function GameApp({ gameState }) {
                   <button
                     key={tab.id}
                     onClick={() => gameState.setActiveTab(tab.id)}
-                    className={`relative flex-1 min-w-[80px] py-3 flex items-center justify-center gap-2 text-sm font-bold transition-all group ${
+                    className={`relative flex-1 min-w-[80px] py-2.5 flex items-center justify-center gap-2 text-sm font-bold transition-all group ${
                       gameState.activeTab === tab.id 
-                        ? 'text-ancient border-b-2 border-ancient-gold shadow-glow-gold' 
-                        : 'text-gray-400 hover:text-ancient-gold'
+                        ? 'border-b-2 shadow-glow' 
+                        : 'text-gray-400 hover:text-theme-accent'
                     }`}
+                    style={gameState.activeTab === tab.id ? {
+                      color: 'var(--theme-accent)',
+                      borderColor: 'var(--theme-primary)',
+                    } : {}}
                   >
                     {gameState.activeTab === tab.id && (
-                      <div className="absolute inset-0 bg-gradient-to-b from-ancient-gold/10 to-transparent" />
+                      <div className="absolute inset-0 bg-gradient-to-b from-theme-primary/15 to-transparent" />
                     )}
                     <Icon name={tab.icon} size={16} className="relative z-10" /> 
                     <span className="relative z-10">{tab.label}</span>
                     {gameState.activeTab !== tab.id && (
-                      <div className="absolute inset-0 bg-ancient-gold/0 group-hover:bg-ancient-gold/5 transition-colors" />
+                      <div className="absolute inset-0 bg-theme-primary/0 group-hover:bg-theme-primary/5 transition-colors" />
                     )}
                   </button>
                 ))}
@@ -526,40 +522,37 @@ function GameApp({ gameState }) {
             {/* 日志面板 */}
             <LogPanel logs={gameState.logs} />
             
-            {/* 游戏提示 */}
-            <div className="bg-blue-900/20 backdrop-blur-sm border border-blue-500/20 p-4 rounded-xl text-xs text-gray-300 space-y-2 shadow-md">
-              <h4 className="font-bold text-blue-300 flex items-center gap-2">
-                <Icon name="Lightbulb" size={14} />
-                统治指南
-              </h4>
-              <p>• <span className="text-white">市场是经济核心</span>：所有资源（除银币）都在市场流通。建筑产出资源会增加市场供应，而阶层与军队消耗资源会增加市场需求。供需关系决定价格，价格反过来影响阶层财富和国家税收。</p>
-              <p>• <span className="text-white">国库与库存</span>：你的国库只储存银币。所有建设、研究、招募所需的资源，若库存不足，都会<span className="text-yellow-300">自动消耗银币</span>从市场按当前价格购买。因此，银币是维持国家运转的命脉。</p>
-              <p>• <span className="text-white">三大税收来源</span>：在【政令】面板调整税率。<b>人头税</b>直接向各阶层收税，但会降低其财富和满意度；<b>交易税</b>对市场上的资源交易抽成，高价商品是主要税源；<b>营业税</b>对建筑每次产出征税，可精准打击高利润产业。</p>
-              <p>• <span className="text-white">补贴亦是工具</span>：将税率设为负数即为补贴。补贴可以扶持关键产业、提升阶层满意度或压低某种生活必需品的价格，是重要的宏观调控手段。</p>
-            </div>
+            {/* 游戏提示 - 紧凑折叠设计 */}
+            <details className="glass-ancient rounded-xl border border-blue-500/20 shadow-md group">
+              <summary className="px-3 py-2 cursor-pointer flex items-center justify-between text-xs font-bold text-blue-300 hover:text-blue-200 transition-colors">
+                <span className="flex items-center gap-2">
+                  <Icon name="Lightbulb" size={12} />
+                  统治指南
+                </span>
+                <Icon name="ChevronDown" size={12} className="transform group-open:rotate-180 transition-transform" />
+              </summary>
+              <div className="px-3 pb-3 text-[10px] text-gray-300 space-y-1.5">
+                <p>• <span className="text-white">市场是经济核心</span>：供需关系决定价格，影响税收。</p>
+                <p>• <span className="text-white">国库与库存</span>：银币是命脉，资源不足会自动购买。</p>
+                <p>• <span className="text-white">三大税收</span>：人头税、交易税、营业税各有作用。</p>
+              </div>
+            </details>
 
-            <div className="bg-emerald-900/20 backdrop-blur-sm border border-emerald-500/20 p-4 rounded-xl text-xs text-gray-200 space-y-3 shadow-md">
-              <h4 className="font-bold text-emerald-300 flex items-center gap-2">
-                <Icon name="BookOpen" size={14} />
-                新手入门
-              </h4>
-              <div className="space-y-1">
-                <p className="text-white font-semibold">1. 理解市场与银币</p>
-                <p>你的首要目标是<span className="text-yellow-300">确保银币正增长</span>。点击顶部的银币收入，查看税收详情。初期税收主要来自人头税。记住，所有非银币资源都通过市场交易，你的任何消耗都会自动花费银币购买。</p>
+            <details className="glass-ancient rounded-xl border border-emerald-500/20 shadow-md group">
+              <summary className="px-3 py-2 cursor-pointer flex items-center justify-between text-xs font-bold text-emerald-300 hover:text-emerald-200 transition-colors">
+                <span className="flex items-center gap-2">
+                  <Icon name="BookOpen" size={12} />
+                  新手入门
+                </span>
+                <Icon name="ChevronDown" size={12} className="transform group-open:rotate-180 transition-transform" />
+              </summary>
+              <div className="px-3 pb-3 text-[10px] text-gray-200 space-y-1.5">
+                <p><span className="text-white font-semibold">1.</span> 确保银币正增长</p>
+                <p><span className="text-white font-semibold">2.</span> 在政令面板调整税率</p>
+                <p><span className="text-white font-semibold">3.</span> 建设工业赚取税收</p>
+                <p><span className="text-white font-semibold">4.</span> 满足阶层消费需求</p>
               </div>
-              <div className="space-y-1">
-                <p className="text-white font-semibold">2. 调整税收</p>
-                <p>前往【政令】面板的<span className="text-green-300">税收政策</span>。初期可适当提高富裕阶层（如地主）的<span className="text-white">人头税系数</span>来增加收入。观察顶部的银币净收入变化，找到平衡点，避免过度压榨导致阶层财富下降。</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-white font-semibold">3. 发展产业链</p>
-                <p>建设【工业】建筑（如砖厂、工具铺）来生产高价值商品。这不仅能满足后续发展需要，还能通过<span className="text-white">交易税</span>和<span className="text-white">营业税</span>创造巨额财政收入。高价商品是你的主要税基。</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-white font-semibold">4. 关注阶层需求</p>
-                <p>点击左侧的阶层可以查看详情。满足他们的<span className="text-blue-300">消费需求</span>能提升其财富和满意度，从而让你能征收更多的税。例如，为工匠提供啤酒和家具，他们会变得更富有，你的人头税收入也会随之增加。</p>
-              </div>
-            </div>
+            </details>
           </aside>
         </div>
       </main>
@@ -706,11 +699,12 @@ function GameApp({ gameState }) {
         title="国内市场"
         showHeader={true}
       >
-        <ResourcePanel 
-          resources={gameState.resources} 
-          rates={gameState.rates} 
+        <ResourcePanel
+          resources={gameState.resources}
+          rates={gameState.rates}
           market={gameState.market}
           epoch={gameState.epoch}
+          title="资源总览"
           onDetailClick={(key) => {
             setShowMarket(false);
             gameState.setResourceDetailView(key);
@@ -856,6 +850,8 @@ function GameApp({ gameState }) {
               onAutoLoad={handleLoadAuto}
               autoSaveAvailable={autoSaveAvailable}
               isSaving={gameState.isSaving}
+              timeSettings={gameState.eventEffectSettings}
+              onTimeSettingsChange={gameState.setEventEffectSettings}
               onClose={() => setIsSettingsOpen(false)}
             />
           </div>

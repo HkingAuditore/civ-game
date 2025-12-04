@@ -189,6 +189,76 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
   return { tradeTax: totalTradeTax };
 };
 
+const processTimedEventEffects = (effectState = {}, settings = {}) => {
+  const approvalEffects = Array.isArray(effectState.approval) ? effectState.approval : [];
+  const stabilityEffects = Array.isArray(effectState.stability) ? effectState.stability : [];
+  const approvalModifiers = {};
+  let stabilityModifier = 0;
+  const nextApprovalEffects = [];
+  const nextStabilityEffects = [];
+
+  const clampDecay = (value, fallback) => {
+    if (typeof value !== 'number' || Number.isNaN(value)) return fallback;
+    return Math.min(0.95, Math.max(0, value));
+  };
+
+  const approvalDurationDefault = Math.max(1, settings?.approval?.duration || 30);
+  const approvalDecayDefault = clampDecay(settings?.approval?.decayRate ?? 0.04, 0.04);
+  const stabilityDurationDefault = Math.max(1, settings?.stability?.duration || 30);
+  const stabilityDecayDefault = clampDecay(settings?.stability?.decayRate ?? 0.04, 0.04);
+
+  approvalEffects.forEach(effect => {
+    const currentValue = typeof effect.currentValue === 'number' ? effect.currentValue : 0;
+    const remainingDays = effect.remainingDays ?? approvalDurationDefault;
+    if (remainingDays <= 0 || Math.abs(currentValue) < 0.001) {
+      return;
+    }
+    const stratum = effect.stratum;
+    if (!stratum) {
+      return;
+    }
+    approvalModifiers[stratum] = (approvalModifiers[stratum] || 0) + currentValue;
+    const decayRate = clampDecay(effect.decayRate, approvalDecayDefault);
+    const nextValue = currentValue * (1 - decayRate);
+    const nextRemaining = remainingDays - 1;
+    if (nextRemaining > 0 && Math.abs(nextValue) >= 0.001) {
+      nextApprovalEffects.push({
+        ...effect,
+        currentValue: nextValue,
+        remainingDays: nextRemaining,
+      });
+    }
+  });
+
+  stabilityEffects.forEach(effect => {
+    const currentValue = typeof effect.currentValue === 'number' ? effect.currentValue : 0;
+    const remainingDays = effect.remainingDays ?? stabilityDurationDefault;
+    if (remainingDays <= 0 || Math.abs(currentValue) < 0.001) {
+      return;
+    }
+    stabilityModifier += currentValue;
+    const decayRate = clampDecay(effect.decayRate, stabilityDecayDefault);
+    const nextValue = currentValue * (1 - decayRate);
+    const nextRemaining = remainingDays - 1;
+    if (nextRemaining > 0 && Math.abs(nextValue) >= 0.001) {
+      nextStabilityEffects.push({
+        ...effect,
+        currentValue: nextValue,
+        remainingDays: nextRemaining,
+      });
+    }
+  });
+
+  return {
+    approvalModifiers,
+    stabilityModifier,
+    nextEffects: {
+      approval: nextApprovalEffects,
+      stability: nextStabilityEffects,
+    },
+  };
+};
+
 /**
  * 游戏循环钩子
  * 处理游戏的核心循环逻辑
@@ -270,6 +340,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
     setTradeRoutes,
     tradeStats,
     setTradeStats,
+    activeEventEffects,
+    setActiveEventEffects,
+    eventEffectSettings,
   } = gameState;
 
   // 使用ref保存最新状态，避免闭包问题
@@ -308,6 +381,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
     tradeRoutes,
     actions,
     tradeStats,
+    activeEventEffects,
+    eventEffectSettings,
   });
 
   const saveGameRef = useRef(gameState.saveGame);
@@ -351,8 +426,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
       tradeRoutes,
       actions,
       tradeStats,
+      activeEventEffects,
+      eventEffectSettings,
     };
-  }, [resources, market, buildings, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, tradeStats, actions]);
+  }, [resources, market, buildings, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, tradeStats, actions, activeEventEffects, eventEffectSettings]);
 
   // 游戏核心循环
   useEffect(() => {
@@ -422,12 +499,22 @@ export const useGameLoop = (gameState, addLog, actions) => {
       // 如果这里不归一化，simulateTick 内部会再次乘以 gameSpeed，导致倍率叠加
       // 例如：5倍速时，频率已经是 5 倍（200ms/次），如果再传 gameSpeed=5，
       // 实际速度会变成 25 倍（5×5），这是错误的
+      const { approvalModifiers, stabilityModifier, nextEffects } = processTimedEventEffects(
+        current.activeEventEffects,
+        current.eventEffectSettings,
+      );
       const result = simulateTick({
         ...current,
         tick: current.daysElapsed || 0,
         gameSpeed: 1, // 强制归一化为 1，防止倍率叠加
         activeFestivalEffects: current.activeFestivalEffects || [],
+        eventApprovalModifiers: approvalModifiers,
+        eventStabilityModifier: stabilityModifier,
       });
+
+      const hadActiveEffects =
+        (current.activeEventEffects?.approval?.length || 0) > 0 ||
+        (current.activeEventEffects?.stability?.length || 0) > 0;
 
       const maintenance = calculateArmyMaintenance(army);
       const adjustedResources = { ...result.resources };
@@ -438,6 +525,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
         adjustedResources[resource] = Math.max(0, (adjustedResources[resource] || 0) - amount);
       });
       setResources(adjustedResources);
+
+      if (hadActiveEffects) {
+        setActiveEventEffects(nextEffects);
+      }
 
       const adjustedClassWealth = { ...result.classWealth };
       const adjustedTotalWealth = Object.values(adjustedClassWealth).reduce((sum, val) => sum + val, 0);

@@ -577,6 +577,8 @@ export const simulateTick = ({
   classNeedsHistory,
   merchantState = { pendingTrades: [], lastTradeTime: 0 },
   maxPopBonus = 0,
+  eventApprovalModifiers = {},
+  eventStabilityModifier = 0,
 }) => {
   console.log('[TICK START]', tick);
   const res = { ...resources };
@@ -1968,6 +1970,10 @@ export const simulateTick = ({
     }
     
     // Gradual adjustment
+    const eventBonus = eventApprovalModifiers?.[key] || 0;
+    if (eventBonus) {
+      targetApproval += eventBonus;
+    }
     const currentApproval = classApproval[key] || 50;
     const adjustmentSpeed = 0.08; // How slowly approval changes per tick
     let newApproval = currentApproval + (targetApproval - currentApproval) * adjustmentSpeed;
@@ -2112,6 +2118,9 @@ export const simulateTick = ({
   
   // Base stability from weighted average of class approval
   let baseStability = totalWeight > 0 ? weightedApprovalSum : 50;
+  if (eventStabilityModifier) {
+    baseStability += eventStabilityModifier;
+  }
   
   // Add buff/debuff modifiers
   let stabilityModifier = 0;

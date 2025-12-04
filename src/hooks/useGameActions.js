@@ -51,6 +51,8 @@ export const useGameActions = (gameState, addLog) => {
     tradeRoutes,
     setTradeRoutes,
     jobsAvailable,
+    eventEffectSettings,
+    setActiveEventEffects,
   } = gameState;
 
   const getMarketPrice = (resource) => {
@@ -1311,9 +1313,60 @@ const handleEventOption = (eventId, option) => {
   if (!event && currentEvent && currentEvent.id === eventId) {
     event = currentEvent;
   }
-  if (!event) return;
+	if (!event) return;
 
-  // 通用效果应用函数
+	const approvalSettings = eventEffectSettings?.approval || {};
+	const stabilitySettings = eventEffectSettings?.stability || {};
+	const clampDecay = (value, fallback) => {
+		if (typeof value !== 'number' || Number.isNaN(value)) return fallback;
+		return Math.min(0.95, Math.max(0, value));
+	};
+
+	const registerApprovalEffect = (changes = {}) => {
+		if (!changes || typeof setActiveEventEffects !== 'function') return;
+		const entries = Object.entries(changes).filter(([, value]) => typeof value === 'number' && value !== 0);
+		if (!entries.length) return;
+		const duration = Math.max(1, approvalSettings.duration || 30);
+		const decayRate = clampDecay(approvalSettings.decayRate ?? 0.04, 0.04);
+		const timestamp = Date.now();
+		setActiveEventEffects(prev => {
+			const next = {
+				approval: [...(prev?.approval || [])],
+				stability: [...(prev?.stability || [])],
+			};
+			entries.forEach(([stratum, value]) => {
+				next.approval.push({
+					id: `approval_${timestamp}_${stratum}_${Math.random()}`,
+					stratum,
+					currentValue: value,
+					remainingDays: duration,
+					decayRate,
+				});
+			});
+			return next;
+		});
+	};
+
+	const registerStabilityEffect = (value) => {
+		if (typeof value !== 'number' || value === 0 || typeof setActiveEventEffects !== 'function') return;
+		const duration = Math.max(1, stabilitySettings.duration || 30);
+		const decayRate = clampDecay(stabilitySettings.decayRate ?? 0.04, 0.04);
+		const timestamp = Date.now();
+		setActiveEventEffects(prev => ({
+			approval: [...(prev?.approval || [])],
+			stability: [
+				...(prev?.stability || []),
+				{
+					id: `stability_${timestamp}_${Math.random()}`,
+					currentValue: value,
+					remainingDays: duration,
+					decayRate,
+				},
+			],
+		}));
+	};
+
+	// 通用效果应用函数
   const applyEffects = (effects = {}) => {
     // 资源
     if (effects.resources) {
@@ -1331,10 +1384,11 @@ const handleEventOption = (eventId, option) => {
       setPopulation(prev => Math.max(1, prev + effects.population));
     }
 
-    // 稳定度
-    if (effects.stability) {
-      setStability(prev => Math.max(0, Math.min(100, prev + effects.stability)));
-    }
+		// 稳定度
+		if (effects.stability) {
+			setStability(prev => Math.max(0, Math.min(100, prev + effects.stability)));
+			registerStabilityEffect(effects.stability);
+		}
 
     // 科技
     if (effects.science) {
@@ -1344,19 +1398,20 @@ const handleEventOption = (eventId, option) => {
       }));
     }
 
-    // 阶层支持度
-    if (effects.approval) {
-      setClassApproval(prev => {
-        const updated = { ...prev };
-        Object.entries(effects.approval).forEach(([stratum, value]) => {
-          updated[stratum] = Math.max(
-            0,
-            Math.min(100, (updated[stratum] || 50) + value),
-          );
-        });
-        return updated;
-      });
-    }
+		// 阶层支持度
+		if (effects.approval) {
+			setClassApproval(prev => {
+				const updated = { ...prev };
+				Object.entries(effects.approval).forEach(([stratum, value]) => {
+					updated[stratum] = Math.max(
+						0,
+						Math.min(100, (updated[stratum] || 50) + value),
+					);
+				});
+				return updated;
+			});
+			registerApprovalEffect(effects.approval);
+		}
   };
 
   // 基础效果（必然发生）

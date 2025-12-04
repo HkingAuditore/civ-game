@@ -17,8 +17,34 @@ export const SettingsPanel = ({
   autoSaveAvailable,
   isSaving,
   onClose,
+  timeSettings,
+  onTimeSettingsChange,
 }) => {
   const { enabled: soundEnabled, volume, toggleSound, setVolume, playSound, SOUND_TYPES } = useSound();
+  const approvalSettings = timeSettings?.approval || {};
+  const stabilitySettings = timeSettings?.stability || {};
+  const approvalDuration = Math.max(5, approvalSettings.duration || 30);
+  const stabilityDuration = Math.max(5, stabilitySettings.duration || 30);
+  const approvalDecay = Math.max(0, Math.min(0.95, approvalSettings.decayRate ?? 0.04));
+  const stabilityDecay = Math.max(0, Math.min(0.95, stabilitySettings.decayRate ?? 0.04));
+
+  const updateTimeSetting = (type, key, value) => {
+    if (typeof onTimeSettingsChange !== 'function') return;
+    onTimeSettingsChange(prev => {
+      const next = {
+        approval: { duration: approvalDuration, decayRate: approvalDecay },
+        stability: { duration: stabilityDuration, decayRate: stabilityDecay },
+        ...(prev || {}),
+      };
+      next[type] = {
+        duration: next[type]?.duration ?? (type === 'approval' ? approvalDuration : stabilityDuration),
+        decayRate: next[type]?.decayRate ?? (type === 'approval' ? approvalDecay : stabilityDecay),
+        ...next[type],
+        [key]: value,
+      };
+      return next;
+    });
+  };
   // 格式化上次自动存档时间
   const renderLastAutoSave = () => {
     if (!lastAutoSaveTime) return '尚未自动存档';
@@ -132,6 +158,69 @@ export const SettingsPanel = ({
       <div className="text-[11px] text-gray-400 flex items-center gap-2">
         <span className={`w-2 h-2 rounded-full ${autoSaveAvailable ? 'bg-emerald-400' : 'bg-gray-500'}`} />
         {autoSaveAvailable ? '检测到自动存档，可随时读取。' : '尚未生成自动存档。'}
+      </div>
+
+      <div className="border-t border-gray-700 pt-4 space-y-4">
+        <h4 className="text-sm font-bold text-gray-200 flex items-center gap-2">
+          <Icon name="Clock" size={16} /> 时间设置
+        </h4>
+        <p className="text-[11px] text-gray-400">
+          调整事件奖励的持续时间与消退速度，确保阶层好感度与稳定度不会在一个 Tick 内立即归零。
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs text-gray-300">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span>阶层好感持续</span>
+              <span>{approvalDuration} 天</span>
+            </div>
+            <input
+              type="range"
+              min={5}
+              max={180}
+              value={approvalDuration}
+              onChange={(e) => updateTimeSetting('approval', 'duration', Number(e.target.value))}
+              className="w-full accent-emerald-500"
+            />
+            <div className="flex items-center justify-between">
+              <span>消退速度</span>
+              <span>{Math.round(approvalDecay * 100)}% / 天</span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={50}
+              value={Math.round(approvalDecay * 100)}
+              onChange={(e) => updateTimeSetting('approval', 'decayRate', Number(e.target.value) / 100)}
+              className="w-full accent-emerald-500"
+            />
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span>稳定度持续</span>
+              <span>{stabilityDuration} 天</span>
+            </div>
+            <input
+              type="range"
+              min={5}
+              max={180}
+              value={stabilityDuration}
+              onChange={(e) => updateTimeSetting('stability', 'duration', Number(e.target.value))}
+              className="w-full accent-blue-500"
+            />
+            <div className="flex items-center justify-between">
+              <span>消退速度</span>
+              <span>{Math.round(stabilityDecay * 100)}% / 天</span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={50}
+              value={Math.round(stabilityDecay * 100)}
+              onChange={(e) => updateTimeSetting('stability', 'decayRate', Number(e.target.value) / 100)}
+              className="w-full accent-blue-500"
+            />
+          </div>
+        </div>
       </div>
 
       {/* 音效设置 */}

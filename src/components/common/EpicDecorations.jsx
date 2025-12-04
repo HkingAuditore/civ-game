@@ -417,6 +417,214 @@ export const ResourceIconFrame = ({ children, rarity = 'common', className = '' 
   );
 };
 
+/**
+ * 新增：紧凑标题组件 - 用于面板标题
+ * 带图标和史诗装饰的标题
+ */
+export const EpicPanelTitle = ({ icon, title, subtitle, className = '', actions }) => {
+  return (
+    <div className={`flex items-center justify-between gap-2 pb-2 mb-2 border-b border-ancient-gold/20 ${className}`}>
+      <div className="flex items-center gap-2">
+        {icon && (
+          <div className="icon-epic-frame icon-frame-sm">
+            <span className="text-ancient-gold">{icon}</span>
+          </div>
+        )}
+        <div>
+          <h3 className="text-xs sm:text-sm font-bold text-ancient tracking-wide">{title}</h3>
+          {subtitle && <p className="text-[9px] text-ancient-stone">{subtitle}</p>}
+        </div>
+      </div>
+      {actions && <div className="flex items-center gap-1">{actions}</div>}
+    </div>
+  );
+};
+
+/**
+ * 新增：史诗进度条 - 用于各种进度显示
+ */
+export const EpicProgressBar = ({ 
+  value, 
+  max = 100, 
+  variant = 'gold', 
+  size = 'md',
+  showLabel = false,
+  label = '',
+  className = '' 
+}) => {
+  const percentage = Math.min(100, Math.max(0, (value / max) * 100));
+  
+  const variants = {
+    gold: 'from-ancient-bronze via-ancient-gold to-amber-400',
+    green: 'from-green-600 via-green-500 to-green-400',
+    red: 'from-red-600 via-red-500 to-red-400',
+    blue: 'from-blue-600 via-blue-500 to-blue-400',
+    purple: 'from-purple-600 via-purple-500 to-purple-400',
+  };
+  
+  const sizes = {
+    xs: 'h-1',
+    sm: 'h-1.5',
+    md: 'h-2',
+    lg: 'h-3',
+  };
+  
+  return (
+    <div className={`w-full ${className}`}>
+      {showLabel && (
+        <div className="flex justify-between text-[9px] mb-0.5">
+          <span className="text-ancient-stone">{label}</span>
+          <span className="text-ancient-parchment font-mono">{percentage.toFixed(0)}%</span>
+        </div>
+      )}
+      <div className={`w-full ${sizes[size]} rounded-full bg-ancient-ink/60 overflow-hidden border border-ancient-gold/20`}>
+        <div 
+          className={`h-full rounded-full bg-gradient-to-r ${variants[variant]} transition-all duration-500 shadow-glow-gold`}
+          style={{ width: `${percentage}%` }}
+        />
+      </div>
+    </div>
+  );
+};
+
+/**
+ * 新增：史诗徽章组件
+ */
+export const EpicBadge = ({ 
+  children, 
+  variant = 'default', 
+  size = 'sm',
+  icon,
+  glow = false,
+  className = '' 
+}) => {
+  const variants = {
+    default: 'bg-ancient-stone/20 text-ancient-parchment border-ancient-stone/30',
+    gold: 'bg-ancient-gold/20 text-ancient-gold border-ancient-gold/40',
+    green: 'bg-green-500/20 text-green-300 border-green-500/30',
+    red: 'bg-red-500/20 text-red-300 border-red-500/30',
+    blue: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+    purple: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
+  };
+  
+  const sizes = {
+    xs: 'text-[8px] px-1 py-0.5',
+    sm: 'text-[9px] px-1.5 py-0.5',
+    md: 'text-[10px] px-2 py-1',
+    lg: 'text-xs px-2.5 py-1',
+  };
+  
+  const glowStyles = glow ? 'animate-pulse-gold' : '';
+  
+  return (
+    <span className={`
+      inline-flex items-center gap-1 rounded-md border font-semibold
+      ${variants[variant]} ${sizes[size]} ${glowStyles} ${className}
+    `}>
+      {icon && <span className="w-3 h-3 flex items-center justify-center">{icon}</span>}
+      {children}
+    </span>
+  );
+};
+
+/**
+ * 新增：史诗信息卡片 - 用于紧凑展示单条信息
+ */
+export const EpicInfoCard = ({ 
+  icon, 
+  label, 
+  value, 
+  trend,
+  trendIcon,
+  className = '' 
+}) => {
+  const getTrendColor = () => {
+    if (!trend) return '';
+    if (trend > 0) return 'text-green-400';
+    if (trend < 0) return 'text-red-400';
+    return 'text-ancient-stone';
+  };
+
+  return (
+    <div className={`flex items-center gap-2 p-2 glass-ancient rounded-lg border border-ancient-gold/15 ${className}`}>
+      {icon && (
+        <div className="icon-epic-frame icon-frame-xs flex-shrink-0">
+          {icon}
+        </div>
+      )}
+      <div className="flex-1 min-w-0">
+        <div className="text-[9px] text-ancient-stone truncate">{label}</div>
+        <div className="flex items-center gap-1">
+          <span className="text-sm font-bold font-mono text-ancient">{value}</span>
+          {(trend !== undefined && trend !== null) && (
+            <span className={`text-[9px] font-mono flex items-center ${getTrendColor()}`}>
+              {trendIcon}
+              {trend > 0 ? '+' : ''}{trend}
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/**
+ * 新增：史诗分割线 - 带装饰的分割线
+ */
+export const EpicDivider = ({ 
+  variant = 'simple', 
+  className = '' 
+}) => {
+  if (variant === 'ornate') {
+    return (
+      <div className={`relative h-4 flex items-center justify-center ${className}`}>
+        <div className="absolute inset-x-0 top-1/2 h-px bg-gradient-to-r from-transparent via-ancient-gold/40 to-transparent" />
+        <div className="relative bg-ancient-ink/80 px-2">
+          <svg width="16" height="8" viewBox="0 0 16 8" className="text-ancient-gold">
+            <path d="M0 4 L4 0 L8 4 L12 0 L16 4 L12 8 L8 4 L4 8 Z" fill="currentColor" opacity="0.6" />
+          </svg>
+        </div>
+      </div>
+    );
+  }
+  
+  return (
+    <div className={`h-px bg-gradient-to-r from-transparent via-ancient-gold/30 to-transparent ${className}`} />
+  );
+};
+
+/**
+ * 新增：悬浮工具提示容器
+ */
+export const EpicTooltip = ({ 
+  children, 
+  content, 
+  position = 'top',
+  className = '' 
+}) => {
+  const positions = {
+    top: 'bottom-full left-1/2 -translate-x-1/2 mb-2',
+    bottom: 'top-full left-1/2 -translate-x-1/2 mt-2',
+    left: 'right-full top-1/2 -translate-y-1/2 mr-2',
+    right: 'left-full top-1/2 -translate-y-1/2 ml-2',
+  };
+
+  return (
+    <div className={`relative group ${className}`}>
+      {children}
+      <div className={`
+        absolute ${positions[position]} z-50
+        opacity-0 invisible group-hover:opacity-100 group-hover:visible
+        transition-all duration-200 pointer-events-none
+      `}>
+        <div className="tooltip-epic">
+          {content}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default {
   CornerOrnament,
   DiamondDivider,
@@ -428,4 +636,11 @@ export default {
   EpicCard,
   AnimatedBorder,
   ResourceIconFrame,
+  // 新增导出
+  EpicPanelTitle,
+  EpicProgressBar,
+  EpicBadge,
+  EpicInfoCard,
+  EpicDivider,
+  EpicTooltip,
 };
