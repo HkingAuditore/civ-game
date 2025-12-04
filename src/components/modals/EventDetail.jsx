@@ -134,6 +134,81 @@ export const EventDetail = ({ event, onSelectOption, onClose }) => {
                       </span>
                     ))}
                 </div>
+
+                {/* 随机效果预览 */}
+                {option.randomEffects && option.randomEffects.length > 0 && (
+                  <div className="mt-2 pt-2 border-t border-ancient-gold/10">
+                    <div className="flex items-center gap-1 mb-1.5">
+<Icon name="Dices" size={10} className="text-yellow-400" />
+                      <span className="text-[10px] text-yellow-400 font-medium">可能的额外效果</span>
+                    </div>
+                    {option.randomEffects.map((randomEffect, idx) => (
+                      <div key={idx} className="mb-1.5 last:mb-0">
+                        <span className="text-[9px] text-yellow-300/70 font-medium">
+                          {Math.round(randomEffect.chance * 100)}% 概率：
+                        </span>
+                        <div className="flex flex-wrap gap-1 mt-0.5">
+                          {/* 随机效果 - 资源 */}
+                          {randomEffect.effects.resources &&
+                            Object.entries(randomEffect.effects.resources).map(([resource, value]) => (
+                              <span
+                                key={`rand-res-${idx}-${resource}`}
+                                className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded ${
+                                  value > 0 ? 'bg-green-900/30 text-green-400 border border-green-500/30' : 'bg-red-900/30 text-red-400 border border-red-500/30'
+                                }`}
+                              >
+                                <Icon name={RESOURCES[resource]?.icon || 'Package'} size={9} />
+                                <span>{getResourceName(resource)}</span>
+                                <span className="font-mono font-bold">{value > 0 ? '+' : ''}{value}</span>
+                              </span>
+                            ))}
+                          {/* 随机效果 - 人口 */}
+                          {randomEffect.effects.population && (
+                            <span
+                              className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded ${
+                                randomEffect.effects.population > 0
+                                  ? 'bg-green-900/30 text-green-400 border border-green-500/30'
+                                  : 'bg-red-900/30 text-red-400 border border-red-500/30'
+                              }`}
+                            >
+                              <Icon name="Users" size={9} />
+                              <span>人口</span>
+                              <span className="font-mono font-bold">{randomEffect.effects.population > 0 ? '+' : ''}{randomEffect.effects.population}</span>
+                            </span>
+                          )}
+                          {/* 随机效果 - 稳定度 */}
+                          {randomEffect.effects.stability && (
+                            <span
+                              className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded ${
+                                randomEffect.effects.stability > 0
+                                  ? 'bg-green-900/30 text-green-400 border border-green-500/30'
+                                  : 'bg-red-900/30 text-red-400 border border-red-500/30'
+                              }`}
+                            >
+                              <Icon name="TrendingUp" size={9} />
+                              <span>稳定</span>
+                              <span className="font-mono font-bold">{randomEffect.effects.stability > 0 ? '+' : ''}{randomEffect.effects.stability}</span>
+                            </span>
+                          )}
+                          {/* 随机效果 - 阶层支持度 */}
+                          {randomEffect.effects.approval &&
+                            Object.entries(randomEffect.effects.approval).map(([stratum, value]) => (
+                              <span
+                                key={`rand-app-${idx}-${stratum}`}
+                                className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded ${
+                                  value > 0 ? 'bg-blue-900/30 text-blue-400 border border-blue-500/30' : 'bg-orange-900/30 text-orange-400 border border-orange-500/30'
+                                }`}
+                              >
+                                <Icon name={STRATA[stratum]?.icon || 'User'} size={9} />
+                                <span>{getStratumName(stratum)}</span>
+                                <span className="font-mono font-bold">{value > 0 ? '+' : ''}{value}</span>
+                              </span>
+                            ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <Icon
