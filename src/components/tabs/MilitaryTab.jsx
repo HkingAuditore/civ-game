@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '../common/UIComponents';
-import { UNIT_TYPES, BUILDINGS, calculateArmyCapacityNeed, calculateArmyPopulation, calculateArmyMaintenance, calculateArmyFoodNeed, calculateBattlePower, RESOURCES, MILITARY_ACTIONS } from '../../config';
+import { UNIT_TYPES, BUILDINGS, calculateArmyCapacityNeed, calculateArmyPopulation, calculateArmyMaintenance, calculateArmyFoodNeed, calculateBattlePower, RESOURCES, MILITARY_ACTIONS, TECHS } from '../../config';
 import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
 import { filterUnlockedResources } from '../../utils/resources';
 
@@ -522,10 +522,20 @@ export const MilitaryTab = ({
                   (sum, unit) => sum + (unit.max || unit.min || 0),
                   0
                 );
+                // Check if required tech is unlocked
+                const hasRequiredTech = !action.requiresTech || techsUnlocked.includes(action.requiresTech);
+                const requiredTechName = action.requiresTech 
+                  ? TECHS.find(t => t.id === action.requiresTech)?.name || action.requiresTech 
+                  : null;
+                
                 return (
                   <div
                     key={action.id}
-                    className="p-3 rounded-lg border border-gray-700 bg-gray-900/40 flex flex-col gap-3"
+                    className={`p-3 rounded-lg border flex flex-col gap-3 ${
+                      hasRequiredTech 
+                        ? 'border-gray-700 bg-gray-900/40' 
+                        : 'border-gray-800 bg-gray-900/20 opacity-60'
+                    }`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div>
@@ -534,10 +544,16 @@ export const MilitaryTab = ({
                           <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-700 text-gray-200">
                             {action.difficulty}
                           </span>
+                          {!hasRequiredTech && (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-900/50 text-red-300">
+                              <Icon name="Lock" size={10} className="inline mr-1" />
+                              需要{requiredTechName}
+                            </span>
+                          )}
                         </h4>
                         <p className="text-xs text-gray-400 mt-1">{action.desc}</p>
                       </div>
-                      <Icon name="Target" size={18} className="text-red-300" />
+                      <Icon name="Target" size={18} className={hasRequiredTech ? 'text-red-300' : 'text-gray-500'} />
                     </div>
 
                     <div className="space-y-2 text-xs text-gray-300">
@@ -574,11 +590,11 @@ export const MilitaryTab = ({
 
                     <button
                       onClick={() => onLaunchBattle(action.id, activeNation?.id)}
-                      disabled={totalUnits === 0 || !activeNation}
+                      disabled={totalUnits === 0 || !activeNation || !hasRequiredTech}
                       className="px-3 py-2 bg-red-600 hover:bg-red-500 disabled:bg-gray-600 disabled:text-gray-300 disabled:cursor-not-allowed text-white rounded text-sm font-semibold transition-colors flex items-center justify-center gap-2"
                     >
                       <Icon name="Sword" size={14} />
-                      发起攻击
+                      {hasRequiredTech ? '发起攻击' : `需研发${requiredTechName}`}
                     </button>
                   </div>
                 );

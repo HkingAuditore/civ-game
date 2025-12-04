@@ -135,6 +135,7 @@ export const MILITARY_ACTIONS = [
     unitScale: 'medium',
     baseUnitCount: { min: 12, max: 18 },
     enemyUnits: [],
+    requiresTech: 'bronze_working', // 需要青铜冶炼 - 正规军队需要金属武器
     // 正面攻势主要获取：军事物资、金属、工业品
     lootConfig: {
       // 基础资源
@@ -184,6 +185,7 @@ export const MILITARY_ACTIONS = [
     unitScale: 'heavy',
     baseUnitCount: { min: 15, max: 25 },
     enemyUnits: [],
+    requiresTech: 'fortification', // 需要防御工事科技 - 知道如何建城才知道如何攻城
     // 围城压制 - 攻陷城市后获取所有类型资源的丰厚战利品
     lootConfig: {
       // 基础资源 - 城市储备
@@ -236,7 +238,7 @@ export const MILITARY_ACTIONS = [
     unitScale: 'medium',
     baseUnitCount: { min: 8, max: 14 },
     enemyUnits: [],
-    requiresTech: 'shipbuilding',
+    requiresTech: 'sailing', // 需要航海术
     // 海上劫掠 - 主要获取贸易品和进口货物
     lootConfig: {
       // 贸易货物 - 主要目标
@@ -277,6 +279,7 @@ export const MILITARY_ACTIONS = [
     unitScale: 'heavy',
     baseUnitCount: { min: 12, max: 20 },
     enemyUnits: [],
+    requiresTech: 'military_training', // 需要军事训练 - 系统性破坏需要有组织的军队
     // 焦土战术 - 主要破坏敌方资源，自己获取较少但敌方损失大
     lootConfig: {
       // 抢先掠夺的物资
