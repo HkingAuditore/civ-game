@@ -72,11 +72,19 @@ const buildInitialMerchantState = () => ({
 const DEFAULT_EVENT_EFFECT_SETTINGS = {
   approval: { duration: 30, decayRate: 0.04 },
   stability: { duration: 30, decayRate: 0.04 },
+  // Economic effect settings - longer duration, slower decay
+  resourceDemand: { duration: 60, decayRate: 0.02 },      // Resource demand modifier
+  stratumDemand: { duration: 60, decayRate: 0.02 },       // Stratum consumption modifier
+  buildingProduction: { duration: 45, decayRate: 0.025 }, // Building production modifier
 };
 
 const buildInitialEventEffects = () => ({
   approval: [],
   stability: [],
+  // Economic effects: array of { target, currentValue, remainingDays, decayRate, source }
+  resourceDemand: [],      // target: resource key, currentValue: percentage modifier (e.g., 0.2 = +20%)
+  stratumDemand: [],       // target: stratum key, currentValue: percentage modifier
+  buildingProduction: [],  // target: building category or id, currentValue: percentage modifier
 });
 
 // 初始化贸易路线状态

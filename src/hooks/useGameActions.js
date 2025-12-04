@@ -1366,9 +1366,86 @@ const handleEventOption = (eventId, option) => {
 		}));
 	};
 
+	// Economic effect settings
+	const resourceDemandSettings = eventEffectSettings?.resourceDemand || { duration: 60, decayRate: 0.02 };
+	const stratumDemandSettings = eventEffectSettings?.stratumDemand || { duration: 60, decayRate: 0.02 };
+	const buildingProductionSettings = eventEffectSettings?.buildingProduction || { duration: 45, decayRate: 0.025 };
+
+	// Register resource demand modifier effect
+	// resourceDemandMod: { resourceKey: percentModifier } e.g., { cloth: 0.2 } = +20% cloth demand
+	const registerResourceDemandEffect = (mods = {}) => {
+		if (!mods || typeof setActiveEventEffects !== 'function') return;
+		const entries = Object.entries(mods).filter(([, value]) => typeof value === 'number' && value !== 0);
+		if (!entries.length) return;
+		const duration = Math.max(1, resourceDemandSettings.duration || 60);
+		const decayRate = clampDecay(resourceDemandSettings.decayRate ?? 0.02, 0.02);
+		const timestamp = Date.now();
+		setActiveEventEffects(prev => ({
+			...prev,
+			resourceDemand: [
+				...(prev?.resourceDemand || []),
+				...entries.map(([target, value]) => ({
+					id: `resourceDemand_${timestamp}_${target}_${Math.random()}`,
+					target,
+					currentValue: value,
+					remainingDays: duration,
+					decayRate,
+				})),
+			],
+		}));
+	};
+
+	// Register stratum demand modifier effect
+	// stratumDemandMod: { stratumKey: percentModifier } e.g., { noble: 0.15 } = +15% noble consumption
+	const registerStratumDemandEffect = (mods = {}) => {
+		if (!mods || typeof setActiveEventEffects !== 'function') return;
+		const entries = Object.entries(mods).filter(([, value]) => typeof value === 'number' && value !== 0);
+		if (!entries.length) return;
+		const duration = Math.max(1, stratumDemandSettings.duration || 60);
+		const decayRate = clampDecay(stratumDemandSettings.decayRate ?? 0.02, 0.02);
+		const timestamp = Date.now();
+		setActiveEventEffects(prev => ({
+			...prev,
+			stratumDemand: [
+				...(prev?.stratumDemand || []),
+				...entries.map(([target, value]) => ({
+					id: `stratumDemand_${timestamp}_${target}_${Math.random()}`,
+					target,
+					currentValue: value,
+					remainingDays: duration,
+					decayRate,
+				})),
+			],
+		}));
+	};
+
+	// Register building production modifier effect
+	// buildingProductionMod: { buildingIdOrCat: percentModifier } e.g., { farm: 0.1, gather: -0.05 }
+	const registerBuildingProductionEffect = (mods = {}) => {
+		if (!mods || typeof setActiveEventEffects !== 'function') return;
+		const entries = Object.entries(mods).filter(([, value]) => typeof value === 'number' && value !== 0);
+		if (!entries.length) return;
+		const duration = Math.max(1, buildingProductionSettings.duration || 45);
+		const decayRate = clampDecay(buildingProductionSettings.decayRate ?? 0.025, 0.025);
+		const timestamp = Date.now();
+		setActiveEventEffects(prev => ({
+			...prev,
+			buildingProduction: [
+				...(prev?.buildingProduction || []),
+				...entries.map(([target, value]) => ({
+					id: `buildingProduction_${timestamp}_${target}_${Math.random()}`,
+					target,
+					currentValue: value,
+					remainingDays: duration,
+					decayRate,
+				})),
+			],
+		}));
+	};
+
 	// 通用效果应用函数
   const applyEffects = (effects = {}) => {
-    // 资源
+    // 资源（固定值）
     if (effects.resources) {
       setResources(prev => {
         const updated = { ...prev };
@@ -1379,9 +1456,30 @@ const handleEventOption = (eventId, option) => {
       });
     }
 
-    // 人口
+    // 资源（百分比变化）- resourcePercent: { food: -0.05 } 表示减少5%的食物
+    if (effects.resourcePercent) {
+      setResources(prev => {
+        const updated = { ...prev };
+        Object.entries(effects.resourcePercent).forEach(([resource, percent]) => {
+          const currentValue = updated[resource] || 0;
+          const change = Math.floor(currentValue * percent);
+          updated[resource] = Math.max(0, currentValue + change);
+        });
+        return updated;
+      });
+    }
+
+    // 人口（固定值）
     if (effects.population) {
       setPopulation(prev => Math.max(1, prev + effects.population));
+    }
+
+    // 人口（百分比变化）- populationPercent: -0.1 表示减少10%的人口
+    if (effects.populationPercent) {
+      setPopulation(prev => {
+        const change = Math.floor(prev * effects.populationPercent);
+        return Math.max(1, prev + change);
+      });
     }
 
 		// 稳定度
@@ -1411,6 +1509,22 @@ const handleEventOption = (eventId, option) => {
 				return updated;
 			});
 			registerApprovalEffect(effects.approval);
+		}
+
+		// Economic effects - timed modifiers that decay over time
+		// Resource demand modifier: affects how much of a resource is consumed
+		if (effects.resourceDemandMod) {
+			registerResourceDemandEffect(effects.resourceDemandMod);
+		}
+
+		// Stratum demand modifier: affects how much a specific stratum consumes
+		if (effects.stratumDemandMod) {
+			registerStratumDemandEffect(effects.stratumDemandMod);
+		}
+
+		// Building production modifier: affects building output
+		if (effects.buildingProductionMod) {
+			registerBuildingProductionEffect(effects.buildingProductionMod);
 		}
   };
 

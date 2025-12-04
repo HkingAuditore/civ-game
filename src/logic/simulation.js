@@ -579,6 +579,10 @@ export const simulateTick = ({
   maxPopBonus = 0,
   eventApprovalModifiers = {},
   eventStabilityModifier = 0,
+  // Economic modifiers from events
+  eventResourceDemandModifiers = {},   // { resourceKey: percentModifier }
+  eventStratumDemandModifiers = {},    // { stratumKey: percentModifier }
+  eventBuildingProductionModifiers = {}, // { buildingIdOrCat: percentModifier }
 }) => {
   console.log('[TICK START]', tick);
   const res = { ...resources };
@@ -1209,6 +1213,17 @@ export const simulateTick = ({
     if (categoryBonus && categoryBonus !== 1) {
       multiplier *= categoryBonus;
     }
+    
+    // Apply event building production modifiers
+    // Check for specific building modifier first, then category modifier
+    const buildingSpecificMod = eventBuildingProductionModifiers[b.id] || 0;
+    const buildingCategoryMod = eventBuildingProductionModifiers[b.cat] || 0;
+    // Also check for 'all' modifier that affects all buildings
+    const buildingAllMod = eventBuildingProductionModifiers['all'] || 0;
+    const totalEventMod = buildingSpecificMod + buildingCategoryMod + buildingAllMod;
+    if (totalEventMod !== 0) {
+      multiplier *= (1 + totalEventMod);
+    }
     const buildingBonus = buildingBonuses[b.id];
     if (buildingBonus && buildingBonus !== 1) {
       multiplier *= buildingBonus;
@@ -1730,6 +1745,18 @@ export const simulateTick = ({
       // 基础需求量
       let requirement = perCapita * count * needsRequirementMultiplier;
       if (requirement <= 0) continue;
+      
+      // Apply event economic modifiers
+      // 1. Resource-specific demand modifier (e.g., cloth demand +20%)
+      const resourceDemandMod = eventResourceDemandModifiers[resKey] || 0;
+      if (resourceDemandMod !== 0) {
+        requirement *= (1 + resourceDemandMod);
+      }
+      // 2. Stratum-specific demand modifier (e.g., noble consumption +15%)
+      const stratumDemandMod = eventStratumDemandModifiers[key] || 0;
+      if (stratumDemandMod !== 0) {
+        requirement *= (1 + stratumDemandMod);
+      }
       
       // 应用需求弹性调整
       if (isTradableResource(resKey)) {

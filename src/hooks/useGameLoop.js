@@ -192,10 +192,21 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
 const processTimedEventEffects = (effectState = {}, settings = {}) => {
   const approvalEffects = Array.isArray(effectState.approval) ? effectState.approval : [];
   const stabilityEffects = Array.isArray(effectState.stability) ? effectState.stability : [];
+  const resourceDemandEffects = Array.isArray(effectState.resourceDemand) ? effectState.resourceDemand : [];
+  const stratumDemandEffects = Array.isArray(effectState.stratumDemand) ? effectState.stratumDemand : [];
+  const buildingProductionEffects = Array.isArray(effectState.buildingProduction) ? effectState.buildingProduction : [];
+  
   const approvalModifiers = {};
   let stabilityModifier = 0;
+  const resourceDemandModifiers = {};   // { resourceKey: totalModifier }
+  const stratumDemandModifiers = {};    // { stratumKey: totalModifier }
+  const buildingProductionModifiers = {}; // { buildingIdOrCat: totalModifier }
+  
   const nextApprovalEffects = [];
   const nextStabilityEffects = [];
+  const nextResourceDemandEffects = [];
+  const nextStratumDemandEffects = [];
+  const nextBuildingProductionEffects = [];
 
   const clampDecay = (value, fallback) => {
     if (typeof value !== 'number' || Number.isNaN(value)) return fallback;
@@ -206,7 +217,14 @@ const processTimedEventEffects = (effectState = {}, settings = {}) => {
   const approvalDecayDefault = clampDecay(settings?.approval?.decayRate ?? 0.04, 0.04);
   const stabilityDurationDefault = Math.max(1, settings?.stability?.duration || 30);
   const stabilityDecayDefault = clampDecay(settings?.stability?.decayRate ?? 0.04, 0.04);
+  const resourceDemandDurationDefault = Math.max(1, settings?.resourceDemand?.duration || 60);
+  const resourceDemandDecayDefault = clampDecay(settings?.resourceDemand?.decayRate ?? 0.02, 0.02);
+  const stratumDemandDurationDefault = Math.max(1, settings?.stratumDemand?.duration || 60);
+  const stratumDemandDecayDefault = clampDecay(settings?.stratumDemand?.decayRate ?? 0.02, 0.02);
+  const buildingProductionDurationDefault = Math.max(1, settings?.buildingProduction?.duration || 45);
+  const buildingProductionDecayDefault = clampDecay(settings?.buildingProduction?.decayRate ?? 0.025, 0.025);
 
+  // Process approval effects
   approvalEffects.forEach(effect => {
     const currentValue = typeof effect.currentValue === 'number' ? effect.currentValue : 0;
     const remainingDays = effect.remainingDays ?? approvalDurationDefault;
@@ -230,6 +248,7 @@ const processTimedEventEffects = (effectState = {}, settings = {}) => {
     }
   });
 
+  // Process stability effects
   stabilityEffects.forEach(effect => {
     const currentValue = typeof effect.currentValue === 'number' ? effect.currentValue : 0;
     const remainingDays = effect.remainingDays ?? stabilityDurationDefault;
@@ -249,12 +268,84 @@ const processTimedEventEffects = (effectState = {}, settings = {}) => {
     }
   });
 
+  // Process resource demand effects
+  resourceDemandEffects.forEach(effect => {
+    const currentValue = typeof effect.currentValue === 'number' ? effect.currentValue : 0;
+    const remainingDays = effect.remainingDays ?? resourceDemandDurationDefault;
+    if (remainingDays <= 0 || Math.abs(currentValue) < 0.001) {
+      return;
+    }
+    const target = effect.target;
+    if (!target) return;
+    resourceDemandModifiers[target] = (resourceDemandModifiers[target] || 0) + currentValue;
+    const decayRate = clampDecay(effect.decayRate, resourceDemandDecayDefault);
+    const nextValue = currentValue * (1 - decayRate);
+    const nextRemaining = remainingDays - 1;
+    if (nextRemaining > 0 && Math.abs(nextValue) >= 0.001) {
+      nextResourceDemandEffects.push({
+        ...effect,
+        currentValue: nextValue,
+        remainingDays: nextRemaining,
+      });
+    }
+  });
+
+  // Process stratum demand effects
+  stratumDemandEffects.forEach(effect => {
+    const currentValue = typeof effect.currentValue === 'number' ? effect.currentValue : 0;
+    const remainingDays = effect.remainingDays ?? stratumDemandDurationDefault;
+    if (remainingDays <= 0 || Math.abs(currentValue) < 0.001) {
+      return;
+    }
+    const target = effect.target;
+    if (!target) return;
+    stratumDemandModifiers[target] = (stratumDemandModifiers[target] || 0) + currentValue;
+    const decayRate = clampDecay(effect.decayRate, stratumDemandDecayDefault);
+    const nextValue = currentValue * (1 - decayRate);
+    const nextRemaining = remainingDays - 1;
+    if (nextRemaining > 0 && Math.abs(nextValue) >= 0.001) {
+      nextStratumDemandEffects.push({
+        ...effect,
+        currentValue: nextValue,
+        remainingDays: nextRemaining,
+      });
+    }
+  });
+
+  // Process building production effects
+  buildingProductionEffects.forEach(effect => {
+    const currentValue = typeof effect.currentValue === 'number' ? effect.currentValue : 0;
+    const remainingDays = effect.remainingDays ?? buildingProductionDurationDefault;
+    if (remainingDays <= 0 || Math.abs(currentValue) < 0.001) {
+      return;
+    }
+    const target = effect.target;
+    if (!target) return;
+    buildingProductionModifiers[target] = (buildingProductionModifiers[target] || 0) + currentValue;
+    const decayRate = clampDecay(effect.decayRate, buildingProductionDecayDefault);
+    const nextValue = currentValue * (1 - decayRate);
+    const nextRemaining = remainingDays - 1;
+    if (nextRemaining > 0 && Math.abs(nextValue) >= 0.001) {
+      nextBuildingProductionEffects.push({
+        ...effect,
+        currentValue: nextValue,
+        remainingDays: nextRemaining,
+      });
+    }
+  });
+
   return {
     approvalModifiers,
     stabilityModifier,
+    resourceDemandModifiers,
+    stratumDemandModifiers,
+    buildingProductionModifiers,
     nextEffects: {
       approval: nextApprovalEffects,
       stability: nextStabilityEffects,
+      resourceDemand: nextResourceDemandEffects,
+      stratumDemand: nextStratumDemandEffects,
+      buildingProduction: nextBuildingProductionEffects,
     },
   };
 };
@@ -499,7 +590,14 @@ export const useGameLoop = (gameState, addLog, actions) => {
       // 如果这里不归一化，simulateTick 内部会再次乘以 gameSpeed，导致倍率叠加
       // 例如：5倍速时，频率已经是 5 倍（200ms/次），如果再传 gameSpeed=5，
       // 实际速度会变成 25 倍（5×5），这是错误的
-      const { approvalModifiers, stabilityModifier, nextEffects } = processTimedEventEffects(
+      const { 
+        approvalModifiers, 
+        stabilityModifier, 
+        resourceDemandModifiers,
+        stratumDemandModifiers,
+        buildingProductionModifiers,
+        nextEffects 
+      } = processTimedEventEffects(
         current.activeEventEffects,
         current.eventEffectSettings,
       );
@@ -510,6 +608,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
         activeFestivalEffects: current.activeFestivalEffects || [],
         eventApprovalModifiers: approvalModifiers,
         eventStabilityModifier: stabilityModifier,
+        // Economic modifiers from events
+        eventResourceDemandModifiers: resourceDemandModifiers,
+        eventStratumDemandModifiers: stratumDemandModifiers,
+        eventBuildingProductionModifiers: buildingProductionModifiers,
       });
 
       const hadActiveEffects =
