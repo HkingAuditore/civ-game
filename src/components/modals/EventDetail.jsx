@@ -1,6 +1,6 @@
 import React from 'react';
 import { Icon } from '../common/UIComponents';
-import { RESOURCES, STRATA } from '../../config';
+import { RESOURCES, STRATA, BUILDINGS } from '../../config';
 
 /**
  * 事件详情组件 - 史诗风格
@@ -14,6 +14,12 @@ export const EventDetail = ({ event, onSelectOption, onClose }) => {
 
   const getResourceName = (key) => (RESOURCES && RESOURCES[key]?.name) || key;
   const getStratumName = (key) => (STRATA && STRATA[key]?.name) || key;
+
+  // Format percentage value for display (e.g., 0.05 -> "+5%", -0.03 -> "-3%")
+  const formatPercent = (value) => {
+    const percent = Math.round(value * 100);
+    return `${percent > 0 ? '+' : ''}${percent}%`;
+  };
 
   const handleOptionClick = (option) => {
     onSelectOption(event.id, option);
@@ -74,7 +80,7 @@ export const EventDetail = ({ event, onSelectOption, onClose }) => {
 
                 {/* 效果预览 - 显示完整文字标签 */}
                 <div className="flex flex-wrap gap-1.5 mt-2">
-                  {/* 资源效果 - 显示资源名称 */}
+                  {/* 资源效果（固定值） - 显示资源名称 */}
                   {option.effects.resources &&
                     Object.entries(option.effects.resources).map(([resource, value]) => (
                       <span
@@ -89,7 +95,22 @@ export const EventDetail = ({ event, onSelectOption, onClose }) => {
                       </span>
                     ))}
 
-                  {/* 人口效果 - 显示"人口"标签 */}
+                  {/* 资源效果（百分比） - 显示资源名称和百分比 */}
+                  {option.effects.resourcePercent &&
+                    Object.entries(option.effects.resourcePercent).map(([resource, value]) => (
+                      <span
+                        key={`pct-${resource}`}
+                        className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${
+                          value > 0 ? 'bg-green-900/50 text-green-300 border border-green-500/40' : 'bg-red-900/50 text-red-300 border border-red-500/40'
+                        }`}
+                      >
+                        <Icon name={RESOURCES[resource]?.icon || 'Package'} size={10} />
+                        <span className="font-medium">{getResourceName(resource)}</span>
+                        <span className="font-mono font-bold">{formatPercent(value)}</span>
+                      </span>
+                    ))}
+
+                  {/* 人口效果（固定值） - 显示"人口"标签 */}
                   {option.effects.population && (
                     <span
                       className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${
@@ -101,6 +122,21 @@ export const EventDetail = ({ event, onSelectOption, onClose }) => {
                       <Icon name="Users" size={10} />
                       <span className="font-medium">人口</span>
                       <span className="font-mono font-bold">{option.effects.population > 0 ? '+' : ''}{option.effects.population}</span>
+                    </span>
+                  )}
+
+                  {/* 人口效果（百分比） - 显示"人口"标签和百分比 */}
+                  {option.effects.populationPercent && (
+                    <span
+                      className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${
+                        option.effects.populationPercent > 0
+                          ? 'bg-green-900/50 text-green-300 border border-green-500/40'
+                          : 'bg-red-900/50 text-red-300 border border-red-500/40'
+                      }`}
+                    >
+                      <Icon name="Users" size={10} />
+                      <span className="font-medium">人口</span>
+                      <span className="font-mono font-bold">{formatPercent(option.effects.populationPercent)}</span>
                     </span>
                   )}
 
@@ -133,6 +169,63 @@ export const EventDetail = ({ event, onSelectOption, onClose }) => {
                         <span className="font-mono font-bold">{value > 0 ? '+' : ''}{value}</span>
                       </span>
                     ))}
+
+                  {/* 经济效果 - 资源需求修正 (时效性) */}
+                  {option.effects.resourceDemandMod &&
+                    Object.entries(option.effects.resourceDemandMod).map(([resource, value]) => (
+                      <span
+                        key={`demand-${resource}`}
+                        className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${
+                          value > 0 ? 'bg-purple-900/50 text-purple-300 border border-purple-500/40' : 'bg-cyan-900/50 text-cyan-300 border border-cyan-500/40'
+                        }`}
+                        title="此效果会随时间衰减"
+                      >
+                        <Icon name="TrendingUp" size={10} />
+                        <span className="font-medium">{getResourceName(resource)}需求</span>
+                        <span className="font-mono font-bold">{formatPercent(value)}</span>
+                        <Icon name="Clock" size={8} className="opacity-60" />
+                      </span>
+                    ))}
+
+                  {/* 经济效果 - 阶层消费修正 (时效性) */}
+                  {option.effects.stratumDemandMod &&
+                    Object.entries(option.effects.stratumDemandMod).map(([stratum, value]) => (
+                      <span
+                        key={`stratumDemand-${stratum}`}
+                        className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${
+                          value > 0 ? 'bg-purple-900/50 text-purple-300 border border-purple-500/40' : 'bg-cyan-900/50 text-cyan-300 border border-cyan-500/40'
+                        }`}
+                        title="此效果会随时间衰减"
+                      >
+                        <Icon name="ShoppingCart" size={10} />
+                        <span className="font-medium">{getStratumName(stratum)}消费</span>
+                        <span className="font-mono font-bold">{formatPercent(value)}</span>
+                        <Icon name="Clock" size={8} className="opacity-60" />
+                      </span>
+                    ))}
+
+                  {/* 经济效果 - 建筑产量修正 (时效性) */}
+                  {option.effects.buildingProductionMod &&
+                    Object.entries(option.effects.buildingProductionMod).map(([target, value]) => {
+                      // Try to find building name, fallback to category name or raw key
+                      const building = BUILDINGS.find(b => b.id === target);
+                      const categoryNames = { gather: '采集类', industry: '工业类', civic: '民用类', all: '所有' };
+                      const displayName = building?.name || categoryNames[target] || target;
+                      return (
+                        <span
+                          key={`production-${target}`}
+                          className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${
+                            value > 0 ? 'bg-emerald-900/50 text-emerald-300 border border-emerald-500/40' : 'bg-rose-900/50 text-rose-300 border border-rose-500/40'
+                          }`}
+                          title="此效果会随时间衰减"
+                        >
+                          <Icon name="Factory" size={10} />
+                          <span className="font-medium">{displayName}产量</span>
+                          <span className="font-mono font-bold">{formatPercent(value)}</span>
+                          <Icon name="Clock" size={8} className="opacity-60" />
+                        </span>
+                      );
+                    })}
                 </div>
 
                 {/* 随机效果预览 */}
@@ -148,7 +241,7 @@ export const EventDetail = ({ event, onSelectOption, onClose }) => {
                           {Math.round(randomEffect.chance * 100)}% 概率：
                         </span>
                         <div className="flex flex-wrap gap-1 mt-0.5">
-                          {/* 随机效果 - 资源 */}
+                          {/* 随机效果 - 资源（固定值） */}
                           {randomEffect.effects.resources &&
                             Object.entries(randomEffect.effects.resources).map(([resource, value]) => (
                               <span
@@ -162,7 +255,21 @@ export const EventDetail = ({ event, onSelectOption, onClose }) => {
                                 <span className="font-mono font-bold">{value > 0 ? '+' : ''}{value}</span>
                               </span>
                             ))}
-                          {/* 随机效果 - 人口 */}
+                          {/* 随机效果 - 资源（百分比） */}
+                          {randomEffect.effects.resourcePercent &&
+                            Object.entries(randomEffect.effects.resourcePercent).map(([resource, value]) => (
+                              <span
+                                key={`rand-res-pct-${idx}-${resource}`}
+                                className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded ${
+                                  value > 0 ? 'bg-green-900/30 text-green-400 border border-green-500/30' : 'bg-red-900/30 text-red-400 border border-red-500/30'
+                                }`}
+                              >
+                                <Icon name={RESOURCES[resource]?.icon || 'Package'} size={9} />
+                                <span>{getResourceName(resource)}</span>
+                                <span className="font-mono font-bold">{formatPercent(value)}</span>
+                              </span>
+                            ))}
+                          {/* 随机效果 - 人口（固定值） */}
                           {randomEffect.effects.population && (
                             <span
                               className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded ${
@@ -174,6 +281,20 @@ export const EventDetail = ({ event, onSelectOption, onClose }) => {
                               <Icon name="Users" size={9} />
                               <span>人口</span>
                               <span className="font-mono font-bold">{randomEffect.effects.population > 0 ? '+' : ''}{randomEffect.effects.population}</span>
+                            </span>
+                          )}
+                          {/* 随机效果 - 人口（百分比） */}
+                          {randomEffect.effects.populationPercent && (
+                            <span
+                              className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded ${
+                                randomEffect.effects.populationPercent > 0
+                                  ? 'bg-green-900/30 text-green-400 border border-green-500/30'
+                                  : 'bg-red-900/30 text-red-400 border border-red-500/30'
+                              }`}
+                            >
+                              <Icon name="Users" size={9} />
+                              <span>人口</span>
+                              <span className="font-mono font-bold">{formatPercent(randomEffect.effects.populationPercent)}</span>
                             </span>
                           )}
                           {/* 随机效果 - 稳定度 */}

@@ -13,7 +13,7 @@ export const CLASS_CONFLICT_EVENTS = [
     description: '城中面包价格一夜之间翻了三倍！愤怒的妇女们聚集在市场上高喊："我们的孩子在挨饿！"商人们则辩称是粮食歉收所致。一些激进者已经开始砸毁商铺橱窗。',
     triggerConditions: {
       minEpoch: 3,
-      minPopulation: 200,
+      minPopulation: 50,
       classConditions: {
         peasant: {
           maxApproval: 50,
@@ -29,8 +29,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '"面包价格不得超过昨日！"',
         description: '强制实施价格管制，平息民愤但激怒商人。',
         effects: {
-          resources: {
-            silver: -80,
+          resourcePercent: {
+            silver: -0.005,
           },
           stability: 8,
           approval: {
@@ -46,9 +46,9 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '开放国库粮仓',
         description: '用国库储备平抑物价，但消耗大量资源。',
         effects: {
-          resources: {
-            food: -200,
-            silver: -50,
+          resourcePercent: {
+            food: -0.015,
+            silver: -0.012,
           },
           stability: 15,
           approval: {
@@ -75,7 +75,7 @@ export const CLASS_CONFLICT_EVENTS = [
           {
             chance: 0.4,
             effects: {
-              population: -30,
+              populationPercent: -0.01,
               stability: -25,
             },
           },
@@ -126,8 +126,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '挑拨离间',
         description: '秘密散布谣言，让工人和农民互相猜疑。',
         effects: {
-          resources: {
-            silver: -60,
+          resourcePercent: {
+            silver: -0.04,
           },
           stability: 5,
           approval: {
@@ -142,8 +142,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '先发制人：宣布改革',
         description: '在他们提出要求之前主动改善待遇，化解潜在危机。',
         effects: {
-          resources: {
-            silver: -200,
+          resourcePercent: {
+            silver: -0.03,
           },
           stability: 10,
           approval: {
@@ -183,8 +183,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '支持改革！',
         description: '站在农民一边，强行推动土地重新分配。这将永远改变权力格局。',
         effects: {
-          resources: {
-            food: 150,
+          resourcePercent: {
+            food: 0.05,
           },
           stability: -20,
           approval: {
@@ -226,7 +226,7 @@ export const CLASS_CONFLICT_EVENTS = [
           {
             chance: 0.3,
             effects: {
-              population: -10,
+              populationPercent: -0.03,
               stability: -15,
               approval: {
                 peasant: -20,
@@ -247,7 +247,7 @@ export const CLASS_CONFLICT_EVENTS = [
     description: '国库空虚，财政大臣提出两套方案：一是向所有人征收统一人头税；二是按财富比例征收累进税。富人们强烈反对后者，声称"这是惩罚成功"；而普通民众则高喊"让富人付出应有的份额！"',
     triggerConditions: {
       minEpoch: 4,
-      resources: {
+      resourcePercent: {
         silver: { max: 300 },
       },
       classConditions: {
@@ -265,8 +265,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '实施累进税制',
         description: '富人多缴，穷人少缴。公平但可能导致资本外流。',
         effects: {
-          resources: {
-            silver: 300,
+          resourcePercent: {
+            silver: 0.05,
           },
           stability: -8,
           approval: {
@@ -283,8 +283,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '实施人头税',
         description: '人人平等缴纳。简单粗暴，但对穷人负担更重。',
         effects: {
-          resources: {
-            silver: 200,
+          resourcePercent: {
+            silver: 0.012,
           },
           stability: -15,
           approval: {
@@ -300,8 +300,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '混合税制',
         description: '基础人头税加上对高收入者的附加税，试图两边讨好。',
         effects: {
-          resources: {
-            silver: 250,
+          resourcePercent: {
+            silver: 0.045,
           },
           stability: -3,
           approval: {
@@ -325,7 +325,7 @@ export const CLASS_CONFLICT_EVENTS = [
     triggerConditions: {
       minEpoch: 2,
       maxEpoch: 3,
-      minPopulation: 150,
+      minPopulation: 40,
       classConditions: {
         serf: {
           minPop: 30,
@@ -342,11 +342,11 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '调集大军镇压',
         description: '用武力粉碎叛乱，杀一儆百。',
         effects: {
-          resources: {
-            food: -150,
-            silver: -200,
+          resourcePercent: {
+            food: -0.05,
+            silver: -0.03,
           },
-          population: -50,
+          populationPercent: -0.015,
           stability: 10,
           approval: {
             serf: -30,
@@ -361,8 +361,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '承诺释放部分奴隶',
         description: '以和平方式瓦解叛军，但将动摇奴隶制的根基。',
         effects: {
-          resources: {
-            silver: -100,
+          resourcePercent: {
+            silver: -0.02,
           },
           stability: -10,
           approval: {
@@ -378,8 +378,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '收买叛军首领',
         description: '用金钱和赦免令瓦解叛军领导层。',
         effects: {
-          resources: {
-            silver: -250,
+          resourcePercent: {
+            silver: -0.012,
           },
           stability: 5,
           approval: {
@@ -417,8 +417,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '"先下手为强！"',
         description: '逮捕所有嫌疑人，不管有没有确凿证据。',
         effects: {
-          resources: {
-            silver: -100,
+          resourcePercent: {
+            silver: -0.02,
           },
           stability: 15,
           approval: {
@@ -434,8 +434,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '公开审判',
         description: '将阴谋公之于众，让民众做见证。',
         effects: {
-          resources: {
-            silver: -50,
+          resourcePercent: {
+            silver: -0.012,
           },
           stability: 5,
           approval: {
@@ -487,8 +487,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '政府紧急注资',
         description: '用国库资金拯救银行，防止系统性崩溃。',
         effects: {
-          resources: {
-            silver: -400,
+          resourcePercent: {
+            silver: -0.05,
           },
           stability: 10,
           approval: {
@@ -504,8 +504,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '"太大而不能倒？不存在的。"',
         description: '让市场自行调整，投机者自食其果。',
         effects: {
-          resources: {
-            silver: -100,
+          resourcePercent: {
+            silver: -0.02,
           },
           stability: -25,
           approval: {
@@ -521,8 +521,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '担保小额存款',
         description: '只保护普通储户，让大投资者承担损失。',
         effects: {
-          resources: {
-            silver: -200,
+          resourcePercent: {
+            silver: -0.03,
           },
           stability: -5,
           approval: {
@@ -558,8 +558,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '铁腕镇压',
         description: '逮捕所有参与者，关闭该港口，杀鸡儆猴。',
         effects: {
-          resources: {
-            silver: 100,
+          resourcePercent: {
+            silver: 0.008,
           },
           stability: -20,
           approval: {
@@ -575,8 +575,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '废除垄断令',
         description: '承认错误，恢复自由贸易。虽然丢面子，但能恢复秩序。',
         effects: {
-          resources: {
-            silver: -80,
+          resourcePercent: {
+            silver: -0.005,
           },
           stability: 10,
           approval: {
@@ -591,8 +591,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '象征性让步',
         description: '降低茶税但维持垄断，试图敷衍了事。',
         effects: {
-          resources: {
-            silver: -30,
+          resourcePercent: {
+            silver: -0.008,
           },
           stability: -5,
           approval: {
@@ -630,8 +630,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '派兵保护工厂',
         description: '工业化不可阻挡，但这会激化与工匠的矛盾。',
         effects: {
-          resources: {
-            silver: -80,
+          resourcePercent: {
+            silver: -0.005,
           },
           stability: 5,
           approval: {
@@ -647,8 +647,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '限制机械化速度',
         description: '要求工厂主逐步引入机器，给工匠适应的时间。',
         effects: {
-          resources: {
-            science: -50,
+          resourcePercent: {
+            science: -0.05,
           },
           stability: 8,
           approval: {
@@ -664,9 +664,9 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '开办转业培训',
         description: '用国库资金帮助工匠学习操作新机器。',
         effects: {
-          resources: {
-            silver: -150,
-            science: 30,
+          resourcePercent: {
+            silver: -0.025,
+            science: 0.03,
           },
           stability: 10,
           approval: {
@@ -707,9 +707,9 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '顺应潮流，颁布宪法',
         description: '自上而下的改革，在保留部分权力的同时迎接新时代。',
         effects: {
-          resources: {
-            science: 100,
-            culture: 80,
+          resourcePercent: {
+            science: 0.08,
+            culture: 0.06,
           },
           stability: -10,
           approval: {
@@ -741,7 +741,7 @@ export const CLASS_CONFLICT_EVENTS = [
           {
             chance: 0.35,
             effects: {
-              population: -20,
+              populationPercent: -0.012,
               stability: -25,
             },
           },
@@ -802,8 +802,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '重新调查此案',
         description: '追求真相和正义，但会动摇军方威信。',
         effects: {
-          resources: {
-            silver: -100,
+          resourcePercent: {
+            silver: -0.02,
           },
           stability: -10,
           approval: {
@@ -856,8 +856,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '拆分垄断企业',
         description: '强制将大企业分解，恢复市场竞争。',
         effects: {
-          resources: {
-            silver: 150,
+          resourcePercent: {
+            silver: 0.03,
           },
           stability: -10,
           approval: {
@@ -886,8 +886,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '"市场自会调节。"',
         description: '相信自由市场的力量，不干预。',
         effects: {
-          resources: {
-            silver: 100,
+          resourcePercent: {
+            silver: 0.008,
           },
           stability: -8,
           approval: {
@@ -910,7 +910,7 @@ export const CLASS_CONFLICT_EVENTS = [
     description: '财政危机迫使你召开三级会议。但第三等级——商人、工匠、农民的代表——要求按人头投票而非按等级投票。"我们代表95%的人口，凭什么只有三分之一的投票权？"贵族和教士坚决反对。',
     triggerConditions: {
       minEpoch: 4,
-      resources: {
+      resourcePercent: {
         silver: { max: 200 },
       },
       classConditions: {
@@ -931,8 +931,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '支持按人头投票',
         description: '站在多数人一边，这将彻底改变权力结构。',
         effects: {
-          resources: {
-            silver: 100,
+          resourcePercent: {
+            silver: 0.008,
           },
           stability: -15,
           approval: {
@@ -951,8 +951,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '维持传统投票方式',
         description: '安抚贵族和教会，但第三等级可能采取激进行动。',
         effects: {
-          resources: {
-            silver: 50,
+          resourcePercent: {
+            silver: 0.012,
           },
           stability: -10,
           approval: {
@@ -1017,8 +1017,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '大规模逮捕抗议者',
         description: '填满监狱，但这可能让运动获得更多同情。',
         effects: {
-          resources: {
-            silver: -100,
+          resourcePercent: {
+            silver: -0.02,
           },
           stability: -15,
           approval: {
@@ -1034,8 +1034,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '废除盐税',
         description: '承认失败，但能平息抗议并赢得民心。',
         effects: {
-          resources: {
-            silver: -150,
+          resourcePercent: {
+            silver: -0.025,
           },
           stability: 15,
           approval: {
@@ -1051,8 +1051,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '与智者谈判',
         description: '邀请他进行对话，寻求妥协方案。',
         effects: {
-          resources: {
-            silver: -50,
+          resourcePercent: {
+            silver: -0.012,
           },
           stability: 5,
           approval: {
@@ -1091,9 +1091,9 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '拥抱新思想',
         description: '支持这股新兴力量，推动社会现代化。',
         effects: {
-          resources: {
-            science: 120,
-            culture: 80,
+          resourcePercent: {
+            science: 0.08,
+            culture: 0.06,
           },
           stability: -5,
           approval: {
@@ -1110,8 +1110,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '加强出版审查',
         description: '压制"危险思想"的传播，维护传统秩序。',
         effects: {
-          resources: {
-            science: -50,
+          resourcePercent: {
+            science: -0.05,
           },
           stability: 8,
           approval: {
@@ -1127,8 +1127,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '收编这股力量',
         description: '任命一些温和派学者为官员，削弱运动的锋芒。',
         effects: {
-          resources: {
-            silver: -100,
+          resourcePercent: {
+            silver: -0.02,
           },
           stability: 3,
           approval: {
@@ -1177,7 +1177,7 @@ export const CLASS_CONFLICT_EVENTS = [
           {
             chance: 0.3,
             effects: {
-              population: -30,
+              populationPercent: -0.01,
               stability: -30,
             },
           },
@@ -1188,8 +1188,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '给他更多权力和荣誉',
         description: '用高位厚禄拉拢他，但这会让他更加尾大不掉。',
         effects: {
-          resources: {
-            silver: -150,
+          resourcePercent: {
+            silver: -0.025,
           },
           stability: 5,
           approval: {
@@ -1205,9 +1205,9 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '秘密组建亲卫队',
         description: '培养只忠于你的武装力量，以防万一。',
         effects: {
-          resources: {
-            silver: -200,
-            food: -100,
+          resourcePercent: {
+            silver: -0.03,
+            food: -0.03,
           },
           stability: 3,
           approval: {
@@ -1228,8 +1228,8 @@ export const CLASS_CONFLICT_EVENTS = [
     description: '连年天灾导致全国性饥荒，饿殍遍野。然而，地主的粮仓里堆满了粮食，商人正在囤积居奇。愤怒的饥民已经开始抢劫粮车，"打开粮仓，否则我们就自己来！"',
     triggerConditions: {
       minEpoch: 2,
-      minPopulation: 200,
-      resources: {
+      minPopulation: 50,
+      resourcePercent: {
         food: { max: 100 },
       },
     },
@@ -1239,8 +1239,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '征用私人粮食',
         description: '强制地主和商人交出囤粮，救济灾民。',
         effects: {
-          resources: {
-            food: 300,
+          resourcePercent: {
+            food: 0.03,
           },
           stability: 5,
           approval: {
@@ -1256,9 +1256,9 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '用国库购买粮食',
         description: '高价收购粮食分发，维护市场秩序但财政大出血。',
         effects: {
-          resources: {
-            food: 200,
-            silver: -400,
+          resourcePercent: {
+            food: 0.01,
+            silver: -0.05,
           },
           stability: 8,
           approval: {
@@ -1273,7 +1273,7 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '"饥荒会自己结束的。"',
         description: '不干预市场，让价格机制发挥作用。后果自负。',
         effects: {
-          population: -80,
+          populationPercent: -0.025,
           stability: -25,
           approval: {
             peasant: -40,
@@ -1312,11 +1312,11 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '祝福他们出征',
         description: '顺应宗教热情，但农业劳动力会大幅减少。',
         effects: {
-          resources: {
-            food: -150,
-            culture: 80,
+          resourcePercent: {
+            food: -0.05,
+            culture: 0.06,
           },
-          population: -40,
+          populationPercent: -0.012,
           stability: 10,
           approval: {
             cleric: 25,
@@ -1330,8 +1330,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '引导他们从事慈善',
         description: '说服传教士将热情转向帮助穷人，而非远征。',
         effects: {
-          resources: {
-            silver: -80,
+          resourcePercent: {
+            silver: -0.005,
             culture: 40,
           },
           stability: 8,
@@ -1346,8 +1346,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '禁止这场运动',
         description: '强制农民返回田间，但会激怒教会和信徒。',
         effects: {
-          resources: {
-            food: 50,
+          resourcePercent: {
+            food: 0.02,
           },
           stability: -10,
           approval: {
@@ -1386,9 +1386,9 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '补贴农民',
         description: '用国库补贴农民，让他们能以低价卖粮而不亏本。',
         effects: {
-          resources: {
-            silver: -200,
-            food: 100,
+          resourcePercent: {
+            silver: -0.03,
+            food: 0.035,
           },
           stability: 10,
           approval: {
@@ -1402,8 +1402,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '强制限价',
         description: '规定农产品最高售价，保护城市居民利益。',
         effects: {
-          resources: {
-            food: -50,
+          resourcePercent: {
+            food: -0.02,
           },
           stability: -5,
           approval: {
@@ -1418,8 +1418,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '让双方自行谈判',
         description: '组织城乡代表会议，政府只做调解人。',
         effects: {
-          resources: {
-            silver: -30,
+          resourcePercent: {
+            silver: -0.008,
           },
           stability: 3,
           approval: {
@@ -1453,8 +1453,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '严禁鸦片，销毁存货',
         description: '当众销毁没收的鸦片，冒与外邦开战的风险。',
         effects: {
-          resources: {
-            silver: -100,
+          resourcePercent: {
+            silver: -0.02,
           },
           stability: 10,
           approval: {
@@ -1469,7 +1469,7 @@ export const CLASS_CONFLICT_EVENTS = [
             chance: 0.4,
             effects: {
               stability: -30,
-              population: -20,
+              populationPercent: -0.012,
             },
           },
         ],
@@ -1479,8 +1479,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '合法化并征税',
         description: '既然禁不住，不如管起来收税。但这在道德上很难辩护。',
         effects: {
-          resources: {
-            silver: 200,
+          resourcePercent: {
+            silver: 0.012,
           },
           stability: -10,
           approval: {
@@ -1496,8 +1496,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '外交谈判',
         description: '尝试通过谈判让外国商人自愿减少贸易。缓慢但安全。',
         effects: {
-          resources: {
-            silver: -50,
+          resourcePercent: {
+            silver: -0.012,
           },
           stability: 3,
           approval: {
@@ -1535,8 +1535,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '废除行会特权',
         description: '实现自由竞争，促进创新，但得罪传统工匠。',
         effects: {
-          resources: {
-            science: 60,
+          resourcePercent: {
+            science: 0.05,
           },
           stability: -10,
           approval: {
@@ -1565,7 +1565,7 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '加强行会权力',
         description: '维护传统，保护工匠利益，但可能阻碍发展。',
         effects: {
-          resources: {
+          resourcePercent: {
             science: -30,
           },
           stability: 8,
@@ -1604,9 +1604,9 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '全力支持改革派',
         description: '大刀阔斧推行新政，冒着激进变革的风险。',
         effects: {
-          resources: {
-            science: 100,
-            silver: -100,
+          resourcePercent: {
+            science: 0.08,
+            silver: -0.02,
           },
           stability: -15,
           approval: {
@@ -1623,7 +1623,7 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '维护传统',
         description: '支持保守派，维护稳定但可能错失发展机遇。',
         effects: {
-          resources: {
+          resourcePercent: {
             culture: 50,
           },
           stability: 10,
@@ -1676,7 +1676,7 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '通过劳动法',
         description: '立法规定八小时工作制，工人阶级的历史性胜利。',
         effects: {
-          resources: {
+          resourcePercent: {
             science: -30,
           },
           stability: 10,
@@ -1717,7 +1717,7 @@ export const CLASS_CONFLICT_EVENTS = [
           {
             chance: 0.3,
             effects: {
-              population: -15,
+              populationPercent: -0.01,
               stability: -20,
             },
           },
@@ -1764,10 +1764,10 @@ export const CLASS_CONFLICT_EVENTS = [
           {
             chance: 0.5,
             effects: {
-              population: -50,
+              populationPercent: -0.015,
               stability: -30,
-              resources: {
-                silver: -300,
+              resourcePercent: {
+                silver: -0.04,
               },
             },
           },
@@ -1778,8 +1778,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '坚决镇压',
         description: '保护外国人和少数信仰者，维护国际关系。',
         effects: {
-          resources: {
-            silver: -100,
+          resourcePercent: {
+            silver: -0.02,
           },
           stability: 10,
           approval: {
@@ -1830,10 +1830,10 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '举办盛大竞技表演',
         description: '花费巨资举办壮观的表演，转移民众注意力。',
         effects: {
-          resources: {
-            silver: -250,
-            food: -100,
-            culture: 80,
+          resourcePercent: {
+            silver: -0.012,
+            food: -0.03,
+            culture: 0.06,
           },
           stability: 15,
           approval: {
@@ -1849,8 +1849,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '发放免费粮食',
         description: '直接解决饥饿问题，但可能养成依赖。',
         effects: {
-          resources: {
-            food: -200,
+          resourcePercent: {
+            food: -0.015,
           },
           stability: 12,
           approval: {
@@ -1865,8 +1865,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '正视问题根源',
         description: '拒绝粉饰太平，着手解决根本问题。艰难但诚实。',
         effects: {
-          resources: {
-            silver: -150,
+          resourcePercent: {
+            silver: -0.025,
           },
           stability: -5,
           approval: {
@@ -1902,8 +1902,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '满足他们的要求',
         description: '花钱买平安，但这会助长他们的嚣张气焰。',
         effects: {
-          resources: {
-            silver: -300,
+          resourcePercent: {
+            silver: -0.04,
           },
           stability: 10,
           approval: {
@@ -1930,7 +1930,7 @@ export const CLASS_CONFLICT_EVENTS = [
           {
             chance: 0.25,
             effects: {
-              population: -5,
+              populationPercent: -0.015,
               stability: -25,
               approval: {
                 soldier: -20,
@@ -1944,8 +1944,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '改革禁卫军制度',
         description: '答应部分要求，但同时削减禁卫军规模和特权。',
         effects: {
-          resources: {
-            silver: -150,
+          resourcePercent: {
+            silver: -0.025,
           },
           stability: 5,
           approval: {
@@ -1984,8 +1984,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '签署宪章',
         description: '限制王权，但避免内战，可能为法治开创先例。',
         effects: {
-          resources: {
-            culture: 100,
+          resourcePercent: {
+            culture: 0.08,
           },
           stability: 10,
           approval: {
@@ -2001,11 +2001,11 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '拒绝并召集王军',
         description: '宁可开战也不向威胁低头。',
         effects: {
-          resources: {
-            silver: -200,
-            food: -150,
+          resourcePercent: {
+            silver: -0.03,
+            food: -0.05,
           },
-          population: -30,
+          populationPercent: -0.01,
           stability: -20,
           approval: {
             landowner: -35,
@@ -2020,8 +2020,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '假意接受，暗中分化',
         description: '签字后秘密拉拢部分贵族，伺机废除宪章。',
         effects: {
-          resources: {
-            silver: -100,
+          resourcePercent: {
+            silver: -0.02,
           },
           stability: -5,
           approval: {
@@ -2063,8 +2063,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '强制地主降租',
         description: '站在佃农一边，用法令限制地租上限。',
         effects: {
-          resources: {
-            food: 100,
+          resourcePercent: {
+            food: 0.035,
           },
           stability: 5,
           approval: {
@@ -2094,8 +2094,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '居中调停',
         description: '召集双方谈判，寻求双方都能接受的方案。',
         effects: {
-          resources: {
-            silver: -50,
+          resourcePercent: {
+            silver: -0.012,
           },
           stability: 3,
           approval: {
@@ -2118,7 +2118,7 @@ export const CLASS_CONFLICT_EVENTS = [
     description: '国库空虚，财政大臣提出一个"妙计"：在新铸的银币中掺入更多铜，表面看起来一样，实际含银量减少一半。这样我们就能用同样的银子铸出两倍的钱！但如果被发现...',
     triggerConditions: {
       minEpoch: 2,
-      resources: {
+      resourcePercent: {
         silver: { max: 150 },
       },
     },
@@ -2128,8 +2128,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '批准货币减值计划',
         description: '短期解决财政危机，但可能引发通货膨胀和信任危机。',
         effects: {
-          resources: {
-            silver: 300,
+          resourcePercent: {
+            silver: 0.05,
           },
           stability: -8,
           approval: {
@@ -2157,8 +2157,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '老实加税',
         description: '痛苦但诚实的解决方案。',
         effects: {
-          resources: {
-            silver: 150,
+          resourcePercent: {
+            silver: 0.03,
           },
           stability: -5,
           approval: {
@@ -2173,8 +2173,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '削减开支',
         description: '勒紧裤腰带，裁减官员和军队。',
         effects: {
-          resources: {
-            silver: 80,
+          resourcePercent: {
+            silver: 0.02,
           },
           stability: -3,
           approval: {
@@ -2212,7 +2212,7 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '允许审判继续',
         description: '顺应民意和教会，但可能助长迷信和冤案。',
         effects: {
-          resources: {
+          resourcePercent: {
             culture: -30,
           },
           stability: 5,
@@ -2226,7 +2226,7 @@ export const CLASS_CONFLICT_EVENTS = [
           {
             chance: 0.4,
             effects: {
-              population: -5,
+              populationPercent: -0.015,
               stability: -10,
             },
           },
@@ -2237,8 +2237,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '要求确凿证据',
         description: '坚持法律程序，需要真正的证据才能定罪。',
         effects: {
-          resources: {
-            science: 30,
+          resourcePercent: {
+            science: 0.03,
           },
           stability: -5,
           approval: {
@@ -2254,8 +2254,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '释放被告',
         description: '宣布指控荒谬，释放所有被告。这会激怒很多人。',
         effects: {
-          resources: {
-            science: 50,
+          resourcePercent: {
+            science: 0.05,
           },
           stability: -15,
           approval: {
@@ -2309,8 +2309,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '分化瓦解',
         description: '秘密拉拢一方，许诺好处让他们背叛盟友。',
         effects: {
-          resources: {
-            silver: -150,
+          resourcePercent: {
+            silver: -0.025,
           },
           stability: 3,
           approval: {
@@ -2377,7 +2377,7 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '支持幼子',
         description: '打破传统，选择更有能力者。但这会树立危险的先例。',
         effects: {
-          resources: {
+          resourcePercent: {
             culture: -30,
           },
           stability: -10,
@@ -2414,8 +2414,8 @@ export const CLASS_CONFLICT_EVENTS = [
     description: '饥饿的民众冲进面包店和粮仓，抢夺一切能吃的东西。暴动正在蔓延——妇女们走在最前面，喊着"面包！我们要面包！"城市卫队不知所措，等待你的命令。',
     triggerConditions: {
       minEpoch: 3,
-      minPopulation: 150,
-      resources: {
+      minPopulation: 40,
+      resourcePercent: {
         food: { max: 80 },
       },
       classConditions: {
@@ -2433,8 +2433,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '开放粮仓',
         description: '将国家储备分发给民众，解燃眉之急。',
         effects: {
-          resources: {
-            food: -150,
+          resourcePercent: {
+            food: -0.05,
           },
           stability: 15,
           approval: {
@@ -2449,7 +2449,7 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '军事镇压',
         description: '出动军队恢复秩序，不惜流血。',
         effects: {
-          population: -25,
+          populationPercent: -0.01,
           stability: -15,
           approval: {
             peasant: -35,
@@ -2464,8 +2464,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '惩罚囤积居奇者',
         description: '将矛头指向商人和地主，没收他们的粮食。',
         effects: {
-          resources: {
-            food: 200,
+          resourcePercent: {
+            food: 0.01,
           },
           stability: -5,
           approval: {
@@ -2503,8 +2503,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '彻底调查',
         description: '不管牵扯到谁都要查到底。',
         effects: {
-          resources: {
-            silver: -80,
+          resourcePercent: {
+            silver: -0.005,
           },
           stability: -5,
           approval: {
@@ -2574,11 +2574,11 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '血腥镇压',
         description: '集合骑士和军队，杀鸡儆猴。',
         effects: {
-          resources: {
-            silver: -150,
-            food: -100,
+          resourcePercent: {
+            silver: -0.025,
+            food: -0.03,
           },
-          population: -60,
+          populationPercent: -0.02,
           stability: 5,
           approval: {
             peasant: -40,
@@ -2608,10 +2608,10 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '分化瓦解',
         description: '许诺赦免放下武器者，孤立核心分子。',
         effects: {
-          resources: {
-            silver: -80,
+          resourcePercent: {
+            silver: -0.005,
           },
-          population: -20,
+          populationPercent: -0.012,
           stability: 0,
           approval: {
             peasant: -5,
@@ -2675,7 +2675,7 @@ export const CLASS_CONFLICT_EVENTS = [
           {
             chance: 0.4,
             effects: {
-              population: -20,
+              populationPercent: -0.012,
               stability: -25,
             },
           },
@@ -2722,9 +2722,9 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '支持圈地',
         description: '以提高生产效率的名义，允许并保护圈地行为。',
         effects: {
-          resources: {
-            food: 150,
-            science: 30,
+          resourcePercent: {
+            food: 0.05,
+            science: 0.03,
           },
           stability: -15,
           approval: {
@@ -2753,8 +2753,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '要求赔偿失地农民',
         description: '允许圈地但要求地主补偿被驱逐的农民。',
         effects: {
-          resources: {
-            food: 80,
+          resourcePercent: {
+            food: 0.03,
           },
           stability: -5,
           approval: {
@@ -2791,7 +2791,7 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '保护新闻自由',
         description: '宣布报道合法，调查被揭露的腐败。',
         effects: {
-          resources: {
+          resourcePercent: {
             culture: 60,
           },
           stability: -5,
@@ -2808,7 +2808,7 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '关闭报社',
         description: '以"散布谣言"为由查封报社，逮捕编辑。',
         effects: {
-          resources: {
+          resourcePercent: {
             culture: -40,
           },
           stability: 5,
@@ -2825,7 +2825,7 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '加强媒体管理',
         description: '不追究此事，但设立审查委员会"规范"报道。',
         effects: {
-          resources: {
+          resourcePercent: {
             culture: -20,
           },
           stability: 3,
@@ -2863,8 +2863,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '废除包税制',
         description: '收回征税权，建立国家税务机构。',
         effects: {
-          resources: {
-            silver: -100,
+          resourcePercent: {
+            silver: -0.02,
           },
           stability: 8,
           approval: {
@@ -2880,8 +2880,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '限制包税人权力',
         description: '设立规则限制其收取的金额，但保留制度。',
         effects: {
-          resources: {
-            silver: -30,
+          resourcePercent: {
+            silver: -0.008,
           },
           stability: 3,
           approval: {
@@ -2896,7 +2896,7 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '镇压抗税者',
         description: '杀一儆百，确保税收不受影响。',
         effects: {
-          population: -15,
+          populationPercent: -0.01,
           stability: -10,
           approval: {
             peasant: -30,
@@ -2950,7 +2950,7 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '加剧清洗',
         description: '"革命尚未成功！"扩大打击范围。',
         effects: {
-          population: -40,
+          populationPercent: -0.012,
           stability: -15,
           approval: {
             peasant: 15,
@@ -2966,7 +2966,7 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '转移矛头',
         description: '将恐怖对准革命领袖自身，"革命吞噬自己的孩子"。',
         effects: {
-          population: -10,
+          populationPercent: -0.03,
           stability: 5,
           approval: {
             peasant: -5,
@@ -3003,8 +3003,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '大规模国家干预',
         description: '政府入市购买股票，稳定金融系统。',
         effects: {
-          resources: {
-            silver: -500,
+          resourcePercent: {
+            silver: -0.005,
           },
           stability: 10,
           approval: {
@@ -3034,8 +3034,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '保护小投资者',
         description: '只帮助普通人，让大资本家自生自灭。',
         effects: {
-          resources: {
-            silver: -200,
+          resourcePercent: {
+            silver: -0.03,
           },
           stability: -5,
           approval: {
@@ -3073,10 +3073,10 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '推行全民教育',
         description: '建立国家学校体系，所有儿童必须上学。',
         effects: {
-          resources: {
-            silver: -300,
-            science: 150,
-            culture: 100,
+          resourcePercent: {
+            silver: -0.04,
+            science: 0.08,
+            culture: 0.08,
           },
           stability: -5,
           approval: {
@@ -3093,8 +3093,8 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '维持教会办学',
         description: '将教育继续交给教会，国家给予补贴。',
         effects: {
-          resources: {
-            silver: -100,
+          resourcePercent: {
+            silver: -0.02,
             culture: 50,
           },
           stability: 5,
@@ -3111,9 +3111,9 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '只教育精英',
         description: '建立有限的精英学校，培养统治阶层。',
         effects: {
-          resources: {
-            silver: -150,
-            science: 80,
+          resourcePercent: {
+            silver: -0.025,
+            science: 0.06,
           },
           stability: 3,
           approval: {
@@ -3165,7 +3165,7 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '支持改革派',
         description: '支持宗教改革，可能引发与传统势力的冲突。',
         effects: {
-          resources: {
+          resourcePercent: {
             culture: 50,
           },
           stability: -10,
@@ -3182,7 +3182,7 @@ export const CLASS_CONFLICT_EVENTS = [
         text: '宣布宗教宽容',
         description: '允许两派共存，国家保持中立。',
         effects: {
-          resources: {
+          resourcePercent: {
             culture: 30,
           },
           stability: -5,

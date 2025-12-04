@@ -705,6 +705,7 @@ function GameApp({ gameState }) {
           market={gameState.market}
           epoch={gameState.epoch}
           title="资源总览"
+          showDetailedMobile={true}
           onDetailClick={(key) => {
             setShowMarket(false);
             gameState.setResourceDetailView(key);

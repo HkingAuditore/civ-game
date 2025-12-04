@@ -9,7 +9,7 @@ export const BASE_EVENTS = [
     image: null, // 可以添加图片路径
     description: '一场可怕的瘟疫在城市中蔓延，人们惊恐不安。医者们束手无策，死亡人数不断攀升。你必须立即采取行动来控制疫情。',
     triggerConditions: {
-      minPopulation: 500,
+      minPopulation: 80,
       minEpoch: 1,
     },
     options: [
@@ -18,11 +18,11 @@ export const BASE_EVENTS = [
         text: '实施严格隔离',
         description: '封锁疫区，限制人员流动',
         effects: {
-          resources: {
-            food: -100,
-            silver: -50,
+          resourcePercent: {
+            food: -0.03,
+            silver: -0.012,
           },
-          population: -50,
+          populationPercent: -0.015,
           stability: -5,
           approval: {
             peasant: -10,
@@ -36,14 +36,14 @@ export const BASE_EVENTS = [
         text: '组织祈祷仪式',
         description: '向神明祈求庇佑，安抚民心',
         effects: {
-          resources: {
-            silver: -20,
+          resourcePercent: {
+            silver: -0.005,
           },
-          population: -100,
+          populationPercent: -0.03,
           stability: 5,
           approval: {
             peasant: 10,
-            clergy: 15,
+            cleric: 15,
             
           },
         },
@@ -53,7 +53,7 @@ export const BASE_EVENTS = [
         text: '听天由命',
         description: '让瘟疫自然消退',
         effects: {
-          population: -200,
+          populationPercent: -0.01,
           stability: -15,
           approval: {
             peasant: -20,
@@ -79,12 +79,12 @@ export const BASE_EVENTS = [
         text: '进行贸易',
         description: '用黄金购买他们的货物',
         effects: {
-          resources: {
-            silver: -100,
-            delicacies: 50,
-            furniture: 50,
-            fine_clothes: 50,
-            tools: 30,
+          resourcePercent: {
+            silver: -0.02,
+            delicacies: 0.02,
+            furniture: 0.02,
+            fine_clothes: 0.02,
+            tools: 0.008,
           },
           approval: {
             merchant: 15,
@@ -97,8 +97,8 @@ export const BASE_EVENTS = [
         text: '征收关税',
         description: '允许他们交易，但要收取高额税金',
         effects: {
-          resources: {
-            silver: 50,
+          resourcePercent: {
+            silver: 0.012,
           },
           approval: {
             merchant: -10,
@@ -134,8 +134,8 @@ export const BASE_EVENTS = [
         text: '储存粮食',
         description: '将多余的粮食储存起来以备不时之需',
         effects: {
-          resources: {
-            food: 300,
+          resourcePercent: {
+            food: 0.03,
           },
           approval: {
             peasant: 10,
@@ -147,9 +147,9 @@ export const BASE_EVENTS = [
         text: '出售粮食',
         description: '趁价格好的时候卖出粮食换取黄金',
         effects: {
-          resources: {
-            food: 100,
-            silver: 150,
+          resourcePercent: {
+            food: 0.035,
+            silver: 0.03,
           },
           approval: {
             merchant: 15,
@@ -162,9 +162,9 @@ export const BASE_EVENTS = [
         text: '举办庆典',
         description: '举办盛大的丰收庆典，与民同乐',
         effects: {
-          resources: {
-            food: 50,
-            silver: -30,
+          resourcePercent: {
+            food: 0.02,
+            silver: -0.008,
           },
           stability: 10,
           approval: {
@@ -193,11 +193,11 @@ export const BASE_EVENTS = [
         text: '大力推广',
         description: '投入大量资源推广新技术',
         effects: {
-          resources: {
-            silver: -200,
-            tools: -50,
+          resourcePercent: {
+            silver: -0.03,
+            tools: -0.01,
           },
-          science: 50,
+          science: 0.05,
           approval: {
             artisan: 20,
             merchant: 10,
@@ -209,10 +209,10 @@ export const BASE_EVENTS = [
         text: '逐步应用',
         description: '小规模试点，逐步推广',
         effects: {
-          resources: {
-            silver: -50,
+          resourcePercent: {
+            silver: -0.012,
           },
-          science: 20,
+          science: 0.02,
           approval: {
             artisan: 10,
           },
@@ -223,10 +223,10 @@ export const BASE_EVENTS = [
         text: '技术垄断',
         description: '将技术作为国家机密，限制传播',
         effects: {
-          resources: {
-            silver: 100,
+          resourcePercent: {
+            silver: 0.008,
           },
-          science: 10,
+          science: 0.01,
           stability: -5,
           approval: {
             artisan: -15,
@@ -243,7 +243,7 @@ export const BASE_EVENTS = [
     image: null,
     description: '一场突如其来的自然灾害袭击了你的领地。洪水冲毁了农田，暴风摧毁了建筑，许多人失去了家园。',
     triggerConditions: {
-      minPopulation: 300,
+      minPopulation: 60,
     },
     options: [
       {
@@ -251,10 +251,10 @@ export const BASE_EVENTS = [
         text: '紧急救援',
         description: '动用国库资源进行紧急救援',
         effects: {
-          resources: {
-            silver: -150,
-            food: -100,
-            wood: -100,
+          resourcePercent: {
+            silver: -0.025,
+            food: -0.03,
+            wood: -0.02,
           },
           stability: 5,
           approval: {
@@ -269,10 +269,10 @@ export const BASE_EVENTS = [
         text: '重建家园',
         description: '组织人力重建被毁的建筑',
         effects: {
-          resources: {
-            silver: -100,
-            wood: -150,
-            stone: -100,
+          resourcePercent: {
+            silver: -0.02,
+            wood: -0.025,
+            stone: -0.02,
           },
           approval: {
             peasant: 15,
@@ -285,8 +285,8 @@ export const BASE_EVENTS = [
         text: '最低限度援助',
         description: '只提供基本的救援物资',
         effects: {
-          resources: {
-            food: -50,
+          resourcePercent: {
+            food: -0.02,
           },
           stability: -10,
           approval: {
@@ -321,8 +321,8 @@ export const BASE_EVENTS = [
         text: '从仓库中分粮',
         description: '动用库存粮食平抚农民情绪。',
         effects: {
-          resources: {
-            food: -120,
+          resourcePercent: {
+            food: -0.01,
           },
           stability: 5,
           approval: {
@@ -335,8 +335,8 @@ export const BASE_EVENTS = [
         text: '组织集体狩猎',
         description: '鼓励农民进入荒野狩猎，以劳动换取补给。',
         effects: {
-          resources: {
-            food: 60,
+          resourcePercent: {
+            food: 0.01,
           },
           stability: -3,
           approval: {
@@ -393,8 +393,8 @@ export const BASE_EVENTS = [
         text: '赠予长老礼物',
         description: '以私下馈赠换取支持。',
         effects: {
-          resources: {
-            silver: -40,
+          resourcePercent: {
+            silver: -0.028,
           },
           stability: 2,
           approval: {
@@ -438,9 +438,9 @@ export const BASE_EVENTS = [
         text: '投资改善矿井安全',
         description: '加固支架、修缮通风，降低事故风险。',
         effects: {
-          resources: {
-            wood: -80,
-            stone: -60,
+          resourcePercent: {
+            wood: -0.06,
+            stone: -0.045,
           },
           stability: 6,
           approval: {
@@ -454,8 +454,8 @@ export const BASE_EVENTS = [
         text: '提高矿工待遇',
         description: '用额外报酬换取安静。',
         effects: {
-          resources: {
-            silver: -120,
+          resourcePercent: {
+            silver: -0.022,
           },
           stability: 3,
           approval: {
@@ -499,8 +499,8 @@ export const BASE_EVENTS = [
         text: '大开贸易之门',
         description: '给予商人更多自由和保护。',
         effects: {
-          resources: {
-            silver: 200,
+          resourcePercent: {
+            silver: 0.012,
           },
           stability: -3,
           approval: {
@@ -514,8 +514,8 @@ export const BASE_EVENTS = [
         text: '适度征收商路税',
         description: '从商贸繁荣中为国库抽取一份。',
         effects: {
-          resources: {
-            silver: 120,
+          resourcePercent: {
+            silver: 0.028,
           },
           stability: 1,
           approval: {
@@ -563,10 +563,10 @@ export const BASE_EVENTS = [
         text: '资助学术集会',
         description: '为学者提供纸草和津贴，鼓励他们著书立说。',
         effects: {
-          resources: {
+          resourcePercent: {
             papyrus: -80,
-            silver: -100,
-            science: 120,
+            silver: -0.02,
+            science: 0.08,
           },
           approval: {
             scribe: 15,
@@ -681,9 +681,9 @@ export const BASE_EVENTS = [
         text: '举办比武大会',
         description: '以公开竞赛的方式安抚骑士与军队的虚荣。',
         effects: {
-          resources: {
-            food: -150,
-            silver: -120,
+          resourcePercent: {
+            food: -0.05,
+            silver: -0.022,
           },
           stability: 6,
           approval: {
@@ -740,8 +740,8 @@ export const BASE_EVENTS = [
         text: '下令整顿修道院',
         description: '没收部分财产，要求简朴生活。',
         effects: {
-          resources: {
-            silver: 150,
+          resourcePercent: {
+            silver: 0.03,
           },
           stability: 4,
           approval: {
@@ -767,8 +767,8 @@ export const BASE_EVENTS = [
         text: '对教会资产征收特别税',
         description: '以维护信仰纯洁为名，收取“圣洁贡金”。',
         effects: {
-          resources: {
-            silver: 80,
+          resourcePercent: {
+            silver: 0.02,
           },
           stability: -2,
           approval: {
@@ -800,8 +800,8 @@ export const BASE_EVENTS = [
         text: '授予皇室特许状',
         description: '以官方垄断公司形式承认既成事实。',
         effects: {
-          resources: {
-            silver: 250,
+          resourcePercent: {
+            silver: 0.045,
           },
           stability: 3,
           approval: {
@@ -829,8 +829,8 @@ export const BASE_EVENTS = [
         text: '提高远洋进口关税',
         description: '以高税率换取财政盈余。',
         effects: {
-          resources: {
-            silver: 180,
+          resourcePercent: {
+            silver: 0.035,
           },
           stability: -2,
           approval: {
@@ -864,8 +864,8 @@ export const BASE_EVENTS = [
         text: '派专员调查',
         description: '承诺改善条件，暂时安抚骚动。',
         effects: {
-          resources: {
-            silver: -120,
+          resourcePercent: {
+            silver: -0.022,
           },
           stability: 5,
           approval: {
@@ -892,8 +892,8 @@ export const BASE_EVENTS = [
         text: '降低海外矿区税率',
         description: '让殖民地保留更多利润。',
         effects: {
-          resources: {
-            silver: -80,
+          resourcePercent: {
+            silver: -0.005,
           },
           stability: 3,
           approval: {
@@ -929,9 +929,9 @@ export const BASE_EVENTS = [
         text: '默许公开辩论',
         description: '允许思想在一定范围内自由传播。',
         effects: {
-          resources: {
-            science: 160,
-            culture: 120,
+          resourcePercent: {
+            science: 0.08,
+            culture: 0.08,
           },
           stability: -6,
           approval: {
@@ -957,8 +957,8 @@ export const BASE_EVENTS = [
         text: '邀请部分学者入仕',
         description: '用官职与津贴吸纳激进学者。',
         effects: {
-          resources: {
-            silver: -150,
+          resourcePercent: {
+            silver: -0.025,
           },
           stability: 5,
           approval: {
@@ -992,9 +992,9 @@ export const BASE_EVENTS = [
         text: '资助创新沙龙',
         description: '鼓励他们提出新的工艺与金融工具。',
         effects: {
-          resources: {
-            silver: -180,
-            science: 120,
+          resourcePercent: {
+            silver: -0.028,
+            science: 0.08,
           },
           approval: {
             engineer: 15,
@@ -1019,8 +1019,8 @@ export const BASE_EVENTS = [
         text: '对咖啡征收奢侈税',
         description: '借新潮饮品获取额外税收。',
         effects: {
-          resources: {
-            silver: 90,
+          resourcePercent: {
+            silver: 0.02,
           },
           approval: {
             merchant: -8,
@@ -1053,8 +1053,8 @@ export const BASE_EVENTS = [
         text: '部分接受诉求',
         description: '象征性提高工资，并承诺改善安全条件。',
         effects: {
-          resources: {
-            silver: -250,
+          resourcePercent: {
+            silver: -0.012,
           },
           stability: 6,
           approval: {
@@ -1113,8 +1113,8 @@ export const BASE_EVENTS = [
         text: '鼓励他们继续投资工厂',
         description: '通过减税与荣誉头衔引导资本投向生产。',
         effects: {
-          resources: {
-            science: 80,
+          resourcePercent: {
+            science: 0.06,
           },
           stability: 4,
           approval: {
@@ -1128,8 +1128,8 @@ export const BASE_EVENTS = [
         text: '征收暴利税',
         description: '对近期暴涨的利润额外征税，以缓解贫富差距。',
         effects: {
-          resources: {
-            silver: 260,
+          resourcePercent: {
+            silver: 0.045,
           },
           stability: -5,
           approval: {
@@ -1144,8 +1144,8 @@ export const BASE_EVENTS = [
         text: '敦促资本家出资兴办福利',
         description: '以捐款形式建设工人公寓与诊所。',
         effects: {
-          resources: {
-            silver: -150,
+          resourcePercent: {
+            silver: -0.025,
           },
           stability: 8,
           approval: {
@@ -1184,8 +1184,8 @@ export const BASE_EVENTS = [
         text: '解释为自然现象',
         description: '让学者向公众解释这只是天文现象，推动科学精神。',
         effects: {
-          resources: {
-            science: 150,
+          resourcePercent: {
+            science: 0.08,
           },
           approval: {
             scribe: 15,
@@ -1229,11 +1229,11 @@ export const BASE_EVENTS = [
         text: '倾力资助！',
         description: '赌一把大的，为这个可能改变未来的项目提供所有必要的支持。',
         effects: {
-          resources: {
-            silver: -500,
-            iron: -150,
-            tools: -80,
-            science: 400,
+          resourcePercent: {
+            silver: -0.005,
+            iron: -0.025,
+            tools: -0.06,
+            science: 0.08,
           },
           approval: {
             engineer: 20,
@@ -1247,10 +1247,10 @@ export const BASE_EVENTS = [
         text: '提供有限的支持',
         description: '给予少量资源让他先做个模型看看，降低风险。',
         effects: {
-          resources: {
-            silver: -150,
-            wood: -100,
-            science: 150,
+          resourcePercent: {
+            silver: -0.025,
+            wood: -0.02,
+            science: 0.08,
           },
           approval: {
             engineer: 10,
@@ -1279,7 +1279,7 @@ export const BASE_EVENTS = [
     image: null,
     description: '连日的暴雨导致河水泛滥，淹没了大片农田和村庄。你的子民正处于水深火热之中，急需救援。',
     triggerConditions: {
-      minPopulation: 100,
+      minPopulation: 30,
     },
     options: [
       {
@@ -1287,12 +1287,12 @@ export const BASE_EVENTS = [
         text: '组织大规模救援',
         description: '动用国库，全力救援灾民，重建家园。',
         effects: {
-          resources: {
-            silver: -200,
-            food: -150,
-            wood: -100,
+          resourcePercent: {
+            silver: -0.03,
+            food: -0.05,
+            wood: -0.02,
           },
-          population: -20,
+          populationPercent: -0.012,
           stability: 10,
           approval: {
             peasant: 25,
@@ -1305,11 +1305,11 @@ export const BASE_EVENTS = [
         text: '加固堤坝，亡羊补牢',
         description: '优先保护重要城市和工业区，放弃部分偏远地区。',
         effects: {
-          resources: {
-            stone: -200,
-            wood: -150,
+          resourcePercent: {
+            stone: -0.03,
+            wood: -0.025,
           },
-          population: -50,
+          populationPercent: -0.015,
           stability: -5,
           approval: {
             peasant: -15,
@@ -1323,7 +1323,7 @@ export const BASE_EVENTS = [
         text: '让河水自然退去',
         description: '相信自然的力量，不进行大规模干预以保存实力。',
         effects: {
-          population: -100,
+          populationPercent: -0.03,
           stability: -15,
           approval: {
             peasant: -30,
@@ -1342,7 +1342,7 @@ export const BASE_EVENTS = [
     triggerConditions: {
       minEpoch: 0,
       maxEpoch: 0,
-      resources: {
+      resourcePercent: {
         food: { max: 100 }, // 当食物储备低于100时更容易触发
       },
     },
@@ -1352,9 +1352,9 @@ export const BASE_EVENTS = [
         text: '开发水源',
         description: '投入劳力开发，增加食物产出，人口增长加快。',
         effects: {
-          resources: {
-            wood: -30,
-            food: 80,
+          resourcePercent: {
+            wood: -0.022,
+            food: 0.03,
           },
           maxPop: 8,
           stability: 5,
@@ -1368,8 +1368,8 @@ export const BASE_EVENTS = [
         text: '秘密保护',
         description: '仅供少数人使用，防止其他部落发现。',
         effects: {
-          resources: {
-            food: 20, // 少量私用
+          resourcePercent: {
+            food: 0.01, // 少量私用
           },
           stability: -3,
           approval: {
@@ -1408,8 +1408,8 @@ export const BASE_EVENTS = [
         text: '设伏驱逐',
         description: '派遣战士设伏，警告对方。',
         effects: {
-          resources: {
-            food: -20,
+          resourcePercent: {
+            food: -0.008,
           },
 
           
@@ -1422,7 +1422,7 @@ export const BASE_EVENTS = [
             chance: 0.25, // 0~1 之间的概率
             effects: {
                  // 小概率战斗损失
-                population: -1,
+                populationPercent: -0.003,
                 stability: -5,
                 approval: {
                     peasant: -5,
@@ -1437,9 +1437,9 @@ export const BASE_EVENTS = [
         text: '留下礼物',
         description: '在足迹附近留下食物和工具，表达善意。',
         effects: {
-          resources: {
-            food: -40,
-            wood: -10,
+          resourcePercent: {
+            food: -0.015,
+            wood: -0.008,
           },
           culture: 20,
           stability: 5,
@@ -1454,8 +1454,8 @@ export const BASE_EVENTS = [
         text: '加强巡逻',
         description: '增加巡逻队，但避免直接接触。',
         effects: {
-          resources: {
-            food: -15,
+          resourcePercent: {
+            food: -0.006,
           },
           stability: -2,
           approval: {
@@ -1475,7 +1475,7 @@ export const BASE_EVENTS = [
       minEpoch: 0,
       maxEpoch: 0,
       minPopulation: 20,
-      resources: {
+      resourcePercent: {
         food: { max: 150 }, // 当食物储备低于150时更容易触发
       },
     },
@@ -1485,11 +1485,11 @@ export const BASE_EVENTS = [
         text: '分配稀缺物资',
         description: '严格分配食物和木材，确保每个人都能活下去。',
         effects: {
-          resources: {
-            food: -150,
-            wood: -80,
+          resourcePercent: {
+            food: -0.05,
+            wood: -0.06,
           },
-          population: -5, // 仍有少量损失
+          populationPercent: -0.015, // 仍有少量损失
           stability: 10,
           approval: {
             peasant: 15,
@@ -1501,9 +1501,9 @@ export const BASE_EVENTS = [
         text: '鼓励冒险狩猎',
         description: '派遣更多猎人深入危险区域，寻找食物。',
         effects: {
-          population: -10,
-          resources: {
-            food: 100,
+          populationPercent: -0.03,
+          resourcePercent: {
+            food: 0.035,
           },
           stability: -8,
           approval: {
@@ -1517,7 +1517,7 @@ export const BASE_EVENTS = [
         text: '削减老弱口粮',
         description: '优先保障青壮年，牺牲部分老弱。',
         effects: {
-          population: -20,
+          populationPercent: -0.012,
           stability: -20,
           approval: {
             peasant: -30,
@@ -1536,7 +1536,7 @@ export const BASE_EVENTS = [
     triggerConditions: {
       minEpoch: 0,
       maxEpoch: 0,
-      resources: {
+      resourcePercent: {
         science: { max: 50 }, // 当科研点数较低时更容易触发
       },
     },
@@ -1546,9 +1546,9 @@ export const BASE_EVENTS = [
         text: '交给工匠研究',
         description: '鼓励工匠尝试用这些石头制作工具。',
         effects: {
-          resources: {
-            wood: -15,
-            science: 60,
+          resourcePercent: {
+            wood: -0.012,
+            science: 0.05,
           },
           stability: 3,
           approval: {
@@ -1562,7 +1562,7 @@ export const BASE_EVENTS = [
         text: '视为神物供奉',
         description: '认为这是神灵的恩赐，将其供奉起来。',
         effects: {
-          resources: {
+          resourcePercent: {
             culture: 40,
           },
           stability: 8,
@@ -1596,7 +1596,7 @@ export const BASE_EVENTS = [
       maxEpoch: 0,
       minPopulation: 25,
       minStability: 50,
-      resources: {
+      resourcePercent: {
         science: { max: 100 }, // 当科研点数较低时更容易触发
       },
     },
@@ -1606,12 +1606,12 @@ export const BASE_EVENTS = [
         text: '派遣探险队',
         description: '组织一支精锐的探险队，去验证传说的真实性。',
         effects: {
-          resources: {
-            food: -60,
-            science: 100,
+          resourcePercent: {
+            food: -0.006,
+            science: 0.08,
             culture: 70,
           },
-          population: -5,
+          populationPercent: -0.015,
           stability: 5,
           approval: {
             soldier: 15,
@@ -1623,7 +1623,7 @@ export const BASE_EVENTS = [
         text: '禁止探索',
         description: '认为这只是无稽之谈，禁止年轻人冒险。',
         effects: {
-          resources: {
+          resourcePercent: {
             culture: -20,
           },
           stability: 3,
@@ -1638,8 +1638,8 @@ export const BASE_EVENTS = [
         text: '鼓励口述传承',
         description: '将传说作为文化遗产，鼓励长老们讲述，但不进行实际探索。',
         effects: {
-          resources: {
-            culture: 80,
+          resourcePercent: {
+            culture: 0.06,
           },
           stability: 6,
           approval: {
@@ -1667,12 +1667,12 @@ export const BASE_EVENTS = [
         text: '立即开采',
         description: '投入大量劳力，快速获得资源，但可能引发劳工不满。',
         effects: {
-          resources: {
+          resourcePercent: {
             copper: 150,
-            iron: 50,
-            wood: -50,
+            iron: 0.012,
+            wood: -0.01,
           },
-          population: -5, // 艰苦劳作可能导致人口损失
+          populationPercent: -0.015, // 艰苦劳作可能导致人口损失
           stability: -5,
           approval: {
             miner: 15,
@@ -1685,9 +1685,9 @@ export const BASE_EVENTS = [
         text: '谨慎规划与研究',
         description: '先研究更高效的开采技术，确保可持续发展，但速度较慢。',
         effects: {
-          resources: {
-            science: 80,
-            silver: -30,
+          resourcePercent: {
+            science: 0.06,
+            silver: -0.008,
           },
           approval: {
             scribe: 10,
@@ -1700,9 +1700,9 @@ export const BASE_EVENTS = [
         text: '秘密封锁',
         description: '防止其他部落发现，但短期内只能小规模开采。',
         effects: {
-          resources: {
+          resourcePercent: {
             copper: 50,
-            iron: 20,
+            iron: 0.016,
           },
           stability: -3,
           approval: {
@@ -1734,11 +1734,11 @@ export const BASE_EVENTS = [
         text: '派遣军队护送',
         description: '消耗军事力量，但获得贸易收益和外交声望。',
         effects: {
-          resources: {
-            silver: 100,
-            food: -30,
+          resourcePercent: {
+            silver: 0.008,
+            food: -0.01,
           },
-          population: -2, // 护送途中可能发生战斗损失
+          populationPercent: -0.006, // 护送途中可能发生战斗损失
           stability: 5,
           approval: {
             merchant: 20,
@@ -1751,9 +1751,9 @@ export const BASE_EVENTS = [
         text: '提供物资援助',
         description: '消耗资源，但建立友好关系，为未来贸易铺路。',
         effects: {
-          resources: {
-            food: -50,
-            wood: -20,
+          resourcePercent: {
+            food: -0.02,
+            wood: -0.015,
           },
           stability: 3,
           approval: {
@@ -1786,7 +1786,7 @@ export const BASE_EVENTS = [
       minEpoch: 1,
       maxEpoch: 1,
       minPopulation: 50,
-      resources: {
+      resourcePercent: {
         food: { max: 200 }, // 当食物储备低于200时更容易触发
       },
     },
@@ -1796,10 +1796,10 @@ export const BASE_EVENTS = [
         text: '修建简易水渠',
         description: '投入劳力，从远处引水缓解旱情，但需要时间。',
         effects: {
-          resources: {
-            wood: -80,
-            stone: -40,
-            food: 50, // 立即获得少量，长期效果在游戏循环中体现
+          resourcePercent: {
+            wood: -0.06,
+            stone: -0.03,
+            food: 0.02, // 立即获得少量，长期效果在游戏循环中体现
           },
           stability: 8,
           approval: {
@@ -1813,10 +1813,10 @@ export const BASE_EVENTS = [
         text: '组织大规模狩猎/采集',
         description: '派遣更多人外出寻找食物，但有风险，可能造成人员伤亡。',
         effects: {
-          resources: {
-            food: 120,
+          resourcePercent: {
+            food: 0.04,
           },
-          population: -8,
+          populationPercent: -0.025,
           stability: -5,
           approval: {
             peasant: -10,
@@ -1829,8 +1829,8 @@ export const BASE_EVENTS = [
         text: '向邻近部落施压',
         description: '派遣军队向邻近部落施压，要求他们提供粮食，但可能引发外交冲突。',
         effects: {
-          resources: {
-            food: 150,
+          resourcePercent: {
+            food: 0.05,
           },
           stability: -10,
           approval: {
@@ -1863,8 +1863,8 @@ export const BASE_EVENTS = [
         text: '册封为国师',
         description: '利用其影响力巩固统治，提升文化和稳定。',
         effects: {
-          resources: {
-            culture: 100,
+          resourcePercent: {
+            culture: 0.08,
           },
           stability: 10,
           approval: {
@@ -1892,8 +1892,8 @@ export const BASE_EVENTS = [
         text: '质疑其神启',
         description: '挑战其权威，可能导致民众信仰动摇，但能维护理性。',
         effects: {
-          resources: {
-            science: 50,
+          resourcePercent: {
+            science: 0.05,
           },
           stability: -15,
           approval: {
@@ -1939,9 +1939,9 @@ export const BASE_EVENTS = [
         text: '派遣使者谈判',
         description: '寻求和平解决方案，可能需要付出一些代价，但能避免战争。',
         effects: {
-          resources: {
-            silver: -50,
-            food: -30,
+          resourcePercent: {
+            silver: -0.012,
+            food: -0.01,
           },
           stability: 5,
           approval: {
@@ -1955,9 +1955,9 @@ export const BASE_EVENTS = [
         text: '加强边境防御',
         description: '避免直接冲突，但可能导致长期对峙和资源消耗。',
         effects: {
-          resources: {
-            wood: -100,
-            stone: -50,
+          resourcePercent: {
+            wood: -0.02,
+            stone: -0.01,
           },
           stability: -3,
           approval: {
@@ -1989,7 +1989,7 @@ export const BASE_EVENTS = [
         text: '拥抱理性思辨',
         description: '公开支持哲学家的学说，推动科学与文化发展，但会激怒神职人员。',
         effects: {
-          resources: {
+          resourcePercent: {
             science: 250,
             culture: 150,
           },
@@ -2005,9 +2005,9 @@ export const BASE_EVENTS = [
         text: '组织公开辩论',
         description: '让哲学家与祭司进行公开辩论，这可能会引发社会思想动荡。',
         effects: {
-          resources: {
-            science: 100,
-            culture: 80,
+          resourcePercent: {
+            science: 0.08,
+            culture: 0.06,
           },
           stability: -8,
           approval: {
@@ -2040,7 +2040,7 @@ export const BASE_EVENTS = [
     triggerConditions: {
       minEpoch: 2,
       maxEpoch: 2,
-      minPopulation: 120,
+      minPopulation: 35,
       classConditions: {
         official: { minPop: 3 },
         merchant: { minPop: 5 },
@@ -2052,8 +2052,8 @@ export const BASE_EVENTS = [
         text: '颁布公正的法典',
         description: '组织抄写员和官员编纂法典，明确所有阶层的权利与义务。',
         effects: {
-          resources: {
-            silver: -150,
+          resourcePercent: {
+            silver: -0.025,
             papyrus: -50,
           },
           stability: 15,
@@ -2070,8 +2070,8 @@ export const BASE_EVENTS = [
         text: '制定一部有利于精英的法律',
         description: '法典条文向贵族和地主倾斜，以巩固他们的支持。',
         effects: {
-          resources: {
-            silver: -80,
+          resourcePercent: {
+            silver: -0.005,
           },
           stability: -5,
           approval: {
@@ -2116,8 +2116,8 @@ export const BASE_EVENTS = [
         text: '慷慨解囊，举办盛大演出',
         description: '投入巨资打造一场空前绝后的演出，这将极大地提升文化声望。',
         effects: {
-          resources: {
-            silver: -200,
+          resourcePercent: {
+            silver: -0.03,
             culture: 200,
           },
           stability: 8,
@@ -2133,9 +2133,9 @@ export const BASE_EVENTS = [
         text: '提供有限的赞助',
         description: '给予少量资金，让他们举办一场小规模的演出。',
         effects: {
-          resources: {
-            silver: -80,
-            culture: 80,
+          resourcePercent: {
+            silver: -0.005,
+            culture: 0.06,
           },
           approval: {
             cleric: 5,
@@ -2148,7 +2148,7 @@ export const BASE_EVENTS = [
         text: '“戏剧不过是无聊的消遣”',
         description: '认为这是浪费资源，拒绝了剧作家的请求。',
         effects: {
-          resources: {
+          resourcePercent: {
             culture: -50,
           },
           approval: {
@@ -2168,7 +2168,7 @@ export const BASE_EVENTS = [
     triggerConditions: {
       minEpoch: 2,
       maxEpoch: 2,
-      minPopulation: 150,
+      minPopulation: 40,
     },
     options: [
       {
@@ -2176,10 +2176,10 @@ export const BASE_EVENTS = [
         text: '不惜代价，建造奇观！',
         description: '投入巨量资源建造引水渠，这将是一项不朽的功绩。',
         effects: {
-          resources: {
-            silver: -400,
-            stone: -300,
-            brick: -150,
+          resourcePercent: {
+            silver: -0.05,
+            stone: -0.08,
+            brick: -0.06,
           },
           maxPop: 25,
           stability: 15,
@@ -2195,9 +2195,9 @@ export const BASE_EVENTS = [
         text: '先修建一段试试',
         description: '建造一个小型版本，以较低的成本缓解部分供水压力。',
         effects: {
-          resources: {
-            silver: -150,
-            stone: -120,
+          resourcePercent: {
+            silver: -0.025,
+            stone: -0.08,
           },
           maxPop: 10,
           stability: 5,
@@ -2212,8 +2212,8 @@ export const BASE_EVENTS = [
         text: '“多挖几口井不就行了？”',
         description: '认为引水渠成本过高，选择用更传统的方式解决问题。',
         effects: {
-          resources: {
-            wood: -50,
+          resourcePercent: {
+            wood: -0.01,
           },
           stability: -5,
           approval: {
@@ -2244,8 +2244,8 @@ export const BASE_EVENTS = [
         text: '授予特许状',
         description: '承认行会的地位，这将提升工业产出和工匠的支持，但可能损害商人的利益。',
         effects: {
-          resources: {
-            culture: 120,
+          resourcePercent: {
+            culture: 0.08,
           },
           stability: 5,
           approval: {
@@ -2259,8 +2259,8 @@ export const BASE_EVENTS = [
         text: '加以管制',
         description: '允许行会存在，但必须接受官员的严格监管，这让你能更好地控制市场。',
         effects: {
-          resources: {
-            silver: 80,
+          resourcePercent: {
+            silver: 0.02,
           },
           stability: -3,
           approval: {
@@ -2303,11 +2303,11 @@ export const BASE_EVENTS = [
         text: '资助圣战！',
         description: '提供资金和士兵，这可能会带来荣耀和财富，但也可能是一场灾难。',
         effects: {
-          resources: {
-            silver: -300,
-            food: -200,
+          resourcePercent: {
+            silver: -0.04,
+            food: -0.015,
           },
-          population: -15,
+          populationPercent: -0.01,
           approval: {
             knight: 25,
             cleric: 20,
@@ -2376,8 +2376,8 @@ export const BASE_EVENTS = [
         text: '准许以钱代役',
         description: '允许封臣支付一笔“盾牌钱”来免除兵役。这能充实国库，但开了个坏头。',
         effects: {
-          resources: {
-            silver: 250,
+          resourcePercent: {
+            silver: 0.045,
           },
           stability: -5,
           approval: {
@@ -2410,7 +2410,7 @@ export const BASE_EVENTS = [
     triggerConditions: {
       minEpoch: 3,
       maxEpoch: 3,
-      minPopulation: 200,
+      minPopulation: 50,
       classConditions: {
         scribe: { minPop: 5 },
         cleric: { minPop: 5 },
@@ -2422,8 +2422,8 @@ export const BASE_EVENTS = [
         text: '授予大学特许状',
         description: '为大学提供土地和资金，这将极大地推动科学和文化的发展。',
         effects: {
-          resources: {
-            silver: -250,
+          resourcePercent: {
+            silver: -0.012,
             science: 300,
             culture: 200,
           },
@@ -2439,7 +2439,7 @@ export const BASE_EVENTS = [
         text: '置于教会管辖之下',
         description: '让教会来管理大学，确保其教学内容符合教义。',
         effects: {
-          resources: {
+          resourcePercent: {
             culture: 150,
           },
           stability: 5,
@@ -2472,7 +2472,7 @@ export const BASE_EVENTS = [
     triggerConditions: {
       minEpoch: 3,
       maxEpoch: 4,
-      minPopulation: 150,
+      minPopulation: 40,
       // 可以在游戏循环中设置一个全局的“瘟疫”状态来触发
     },
     options: [
@@ -2481,11 +2481,11 @@ export const BASE_EVENTS = [
         text: '雇佣他作为市政医生',
         description: '授予他官方身份和资金，让他放手治疗病人。',
         effects: {
-          resources: {
-            silver: -100,
-            science: 80,
+          resourcePercent: {
+            silver: -0.02,
+            science: 0.06,
           },
-          population: 10, // 象征性地恢复一些人口
+          populationPercent: 0.03, // 象征性地恢复一些人口
           stability: 5,
           approval: {
             peasant: 15,
@@ -2498,7 +2498,7 @@ export const BASE_EVENTS = [
         text: '允许他行医，但自负盈亏',
         description: '不干涉他的行为，让他自己向病人收费。',
         effects: {
-          population: 5,
+          populationPercent: 0.015,
           stability: -3,
           approval: {
             peasant: 5,
@@ -2511,7 +2511,7 @@ export const BASE_EVENTS = [
         text: '以“江湖骗子”之名驱逐',
         description: '认为他的方法是巫术和欺骗，将其赶出领地。',
         effects: {
-          population: -10,
+          populationPercent: -0.03,
           stability: -8,
           approval: {
             peasant: -15,
@@ -2540,13 +2540,13 @@ export const BASE_EVENTS = [
         text: '倾国之力，建立殖民地！',
         description: '组织一支庞大的殖民船队，去新大陆建立永久定居点。',
         effects: {
-          resources: {
-            silver: -500,
-            food: -300,
+          resourcePercent: {
+            silver: -0.005,
+            food: -0.02,
             plank: -200,
-            tools: -100,
+            tools: -0.004,
           },
-          population: -20,
+          populationPercent: -0.012,
           approval: {
             navigator: 25,
             merchant: 20,
@@ -2559,11 +2559,11 @@ export const BASE_EVENTS = [
         text: '建立一个小型贸易前哨',
         description: '先派遣一小队人建立贸易站，与当地土著进行贸易，降低风险。',
         effects: {
-          resources: {
-            silver: -200,
+          resourcePercent: {
+            silver: -0.03,
             plank: -80,
           },
-          population: -5,
+          populationPercent: -0.015,
           approval: {
             navigator: 15,
             merchant: 15,
@@ -2575,8 +2575,8 @@ export const BASE_EVENTS = [
         text: '将航海图卖给邻国',
         description: '认为远征风险太高，不如将地图卖掉换取眼前的利益。',
         effects: {
-          resources: {
-            silver: 400,
+          resourcePercent: {
+            silver: 0.02,
           },
           approval: {
             navigator: -25,
@@ -2606,10 +2606,10 @@ export const BASE_EVENTS = [
         text: '不惜代价，赞助杰作！',
         description: '为这位巨匠提供一切所需，他的作品将成为国家的象征。',
         effects: {
-          resources: {
-            silver: -400,
+          resourcePercent: {
+            silver: -0.05,
             culture: 350,
-            science: 150,
+            science: 0.08,
           },
           stability: 10,
           approval: {
@@ -2624,9 +2624,9 @@ export const BASE_EVENTS = [
         text: '委托一幅肖像画',
         description: '提供一笔小额赞助，让他为你画一幅肖像，以示鼓励。',
         effects: {
-          resources: {
-            silver: -120,
-            culture: 100,
+          resourcePercent: {
+            silver: -0.022,
+            culture: 0.08,
           },
           approval: {
             scribe: 8,
@@ -2667,8 +2667,8 @@ export const BASE_EVENTS = [
         text: '授予私人银行特许状',
         description: '允许他们自由经营，这将极大地促进商业，但可能让他们的影响力失控。',
         effects: {
-          resources: {
-            silver: 150, // 他们支付的特许费用
+          resourcePercent: {
+            silver: 0.03, // 他们支付的特许费用
           },
           stability: -5,
           approval: {
@@ -2683,8 +2683,8 @@ export const BASE_EVENTS = [
         text: '建立国家银行',
         description: '将银行业务收归国有，由官员管理，以确保国家对金融的控制。',
         effects: {
-          resources: {
-            silver: -300, // 启动资金
+          resourcePercent: {
+            silver: -0.04, // 启动资金
           },
           stability: 10,
           approval: {
@@ -2728,8 +2728,8 @@ export const BASE_EVENTS = [
         text: '签订长期合约',
         description: '将他们编入常备军。他们战力强大，但军饷高昂且忠诚堪忧。',
         effects: {
-          resources: {
-            silver: -400, // 签约费
+          resourcePercent: {
+            silver: -0.05, // 签约费
           },
           // 可以在游戏循环中增加一个高额的军队维护费debuff
           stability: -8,
@@ -2744,8 +2744,8 @@ export const BASE_EVENTS = [
         text: '雇佣他们打一场仗',
         description: '支付一笔费用，让他们为你解决一个眼前的军事麻烦。',
         effects: {
-          resources: {
-            silver: -250,
+          resourcePercent: {
+            silver: -0.012,
           },
           // 可以触发一个特殊的、玩家优势较高的战斗事件
           approval: {
@@ -2796,8 +2796,8 @@ export const BASE_EVENTS = [
         text: '发布公开警告，加强戒备',
         description: '宣布全城戒严，增加卫兵巡逻，让他们不敢轻举妄动。',
         effects: {
-          resources: {
-            silver: -100,
+          resourcePercent: {
+            silver: -0.02,
           },
           stability: 5,
           approval: {
@@ -2818,7 +2818,7 @@ export const BASE_EVENTS = [
             {
             chance: 0.25, // 0~1 之间的概率
             effects: {
-                population: -15,
+                populationPercent: -0.01,
                 stability: -20,
                 approval: {
                     peasant: -10,
