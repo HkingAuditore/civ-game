@@ -482,7 +482,7 @@ export const economicEvents = [
         text: '植树造林，休养生息',
         effects: {
           resourcePercent: { silver: -0.03 },
-          buildingProductionMod: { sawmill: -0.3 },
+          buildingProductionMod: { lumber_camp: -0.3 },
           resourceDemandMod: { wood: -0.2 },
           approval: { peasant: 5 },
           stability: 5,
@@ -491,7 +491,7 @@ export const economicEvents = [
           {
             chance: 0.5,
             effects: {
-              buildingProductionMod: { sawmill: 0.2 }, // Forest recovers
+              buildingProductionMod: { lumber_camp: 0.2 }, // Forest recovers
             },
           },
         ],
