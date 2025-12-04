@@ -324,10 +324,10 @@ function GameApp({ gameState }) {
       {/* 主内容区域 - 移动端优先布局 */}
       <main className="max-w-[1920px] mx-auto px-2 sm:px-4 py-2 sm:py-4 pb-24 lg:pb-4" data-epoch={gameState.epoch}>
         {/* 移动端：单列布局，桌面端：三列布局 */}
-        <div className="grid grid-cols-1 md:grid-cols-7 lg:grid-cols-12 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-[2fr_8fr] lg:grid-cols-12 gap-3 sm:gap-4">
           
           {/* 左侧边栏 - 桌面端显示 */}
-          <aside className="hidden md:block md:col-span-3 lg:col-span-2 space-y-4 order-2 md:order-1 lg:order-1">
+          <aside className="hidden md:block md:col-span-1 lg:col-span-2 space-y-4 order-2 md:order-1 lg:order-1">
             {/* 国内市场面板 - 紧凑设计 */}
             <EpicCard variant="ancient" className="p-2 animate-fade-in-up">
               <ResourcePanel 
@@ -369,7 +369,7 @@ function GameApp({ gameState }) {
           </aside>
 
           {/* 中间内容区 - 主操作面板 */}
-          <section className="md:col-span-4 lg:col-span-8 space-y-3 sm:space-y-4 order-1 md:order-2 lg:order-2">
+          <section className="md:col-span-1 lg:col-span-8 space-y-3 sm:space-y-4 order-1 md:order-2 lg:order-2">
             {/* 标签页容器 */}
             <div className="relative glass-epic rounded-2xl border border-theme-border shadow-monument overflow-hidden min-h-[500px] animate-epic-entrance">
               {/* 背景装饰 */}

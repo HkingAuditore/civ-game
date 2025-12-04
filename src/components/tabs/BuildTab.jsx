@@ -239,7 +239,7 @@ const CompactBuildingCard = ({
         <button
           onClick={(e) => { e.stopPropagation(); onBuy(building.id); }}
           disabled={!affordable}
-          className={`w-full px-1 py-0.5 rounded text-[7px] font-semibold transition-all ${
+          className={`w-full px-1 py-0.5 rounded text-[10px] font-semibold transition-all ${
             affordable
               ? 'bg-green-600/80 hover:bg-green-500 text-white'
               : 'bg-gray-700/60 text-gray-400 cursor-not-allowed'
@@ -254,7 +254,7 @@ const CompactBuildingCard = ({
         {count > 0 && (
           <button
             onClick={(e) => { e.stopPropagation(); onSell(building.id); }}
-            className="w-full px-1 py-0.5 bg-red-600/80 hover:bg-red-500 text-white rounded text-[7px] font-semibold transition-all flex items-center justify-center gap-0.5"
+            className="w-full px-1 py-0.5 bg-red-600/80 hover:bg-red-500 text-white rounded text-[10px] font-semibold transition-all flex items-center justify-center gap-0.5"
             title="拆除"
           >
             <Icon name="Minus" size={8} />

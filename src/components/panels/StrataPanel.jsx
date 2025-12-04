@@ -153,7 +153,7 @@ export const StrataPanel = ({
         style={{ maxHeight: 'calc(100vh - 520px)', minHeight: '300px' }}
       >
         {/* 移动端和小窗口：网格布局 - 使用好感度作为背景填充 */}
-        <div className="lg:hidden grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-1.5">
+        <div className="md:hidden grid grid-cols-3 sm:grid-cols-4 gap-1.5">
           {strataData.map((strata) => {
             // 计算好感度对应的背景颜色
             const getApprovalBgGradient = (approval) => {
@@ -224,7 +224,7 @@ export const StrataPanel = ({
         </div>
 
         {/* 桌面端大窗口：卡片布局 */}
-        <div className="hidden lg:block space-y-1">
+        <div className="hidden md:block space-y-1">
           {strataData.map(
             ({
               key,

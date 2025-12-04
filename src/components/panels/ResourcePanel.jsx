@@ -159,31 +159,25 @@ export const ResourcePanel = ({
         </div>
       )}
 
-        {/* 列表视图 - 极简压缩版 */}
+{/* 列表视图 - 极简压缩版 */}
 {viewMode === 'list' && (
   <div className="space-y-1">
     {/* 
-      Grid 响应式定义:
-      1. 默认/极窄模式: [20px图标 _ 1fr库存 _ 1fr价格] -> 3列，无名称，无产出
-      2. 宽屏模式 (xl): [20px图标 _ 1.5fr名称 _ 0.8fr库存 _ 1fr价格 _ 1fr产出] -> 5列，全显示
+      Grid 响应式定义 (优化后):
+      1. 极简模式: [20px图标 _ 1.3fr库存 _ 1fr价格] -> 库存权重加大
+      2. 宽屏模式: [20px图标 _ 1.5fr名称 _ 1fr库存 _ 1fr价格 _ 1fr产出] -> 库存列宽由0.8提升至1
     */}
-    <div className="grid grid-cols-[20px_1fr_1fr] xl:grid-cols-[20px_1.5fr_0.8fr_1fr_1fr] items-center gap-x-1 text-[9px] text-ancient-stone px-1.5 pb-1 opacity-70">
-      
-      {/* 
-        表头处理：
-        - 极简模式下：第1列是图标位（空），后面直接跟“库存”、“价格”
-        - 宽屏模式下：需要把“资源”文字显示出来，并占位
-       */}
+    <div className="grid grid-cols-[20px_1.3fr_1fr] xl:grid-cols-[20px_1.5fr_1fr_1fr_1fr] items-center gap-x-3 text-[9px] text-ancient-stone px-1.5 pb-1 opacity-70">
       
       {/* Col 1 & 2: 资源名称 (默认隐藏，xl显示) */}
       <span className="hidden xl:col-span-2 xl:inline pl-0.5 whitespace-nowrap overflow-hidden">
         资源
       </span>
-      {/* 极简模式下的占位符 (xl隐藏) - 保持图标列对齐 */}
+      {/* 极简模式占位符 */}
       <span className="xl:hidden w-5"></span>
 
       {/* Col 3: 库存 */}
-      <span className="text-right whitespace-nowrap px-1">库存</span>
+      <span className="text-right whitespace-nowrap">库存</span>
       
       {/* Col 4: 价格 */}
       <span className="text-right whitespace-nowrap">价格</span>
@@ -208,35 +202,35 @@ export const ResourcePanel = ({
         <button
           key={key}
           onClick={() => onDetailClick && onDetailClick(key)}
-          // Grid 定义必须与表头完全一致
-          className="w-full relative group grid grid-cols-[20px_1fr_1fr] xl:grid-cols-[20px_1.5fr_0.8fr_1fr_1fr] items-center gap-x-1 text-xs p-1.5 rounded-lg transition-all cursor-pointer overflow-hidden border border-ancient-gold/10 hover:border-ancient-gold/30 hover:bg-ancient-gold/5 hover:shadow-glow-gold touch-feedback"
+          // Grid 比例与表头保持一致
+          className="w-full relative group grid grid-cols-[20px_1.3fr_1fr] xl:grid-cols-[20px_1.5fr_1fr_1fr_1fr] items-center gap-x-3 text-xs p-1.5 rounded-lg transition-all cursor-pointer overflow-hidden border border-ancient-gold/10 hover:border-ancient-gold/30 hover:bg-ancient-gold/5 hover:shadow-glow-gold touch-feedback"
         >
           <div className="absolute inset-0 bg-gradient-to-r from-ancient-gold/0 via-ancient-gold/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
           
-          {/* 列 1: 图标 (永远显示) */}
+          {/* 列 1: 图标 */}
           <div className={`icon-epic-frame icon-frame-xs flex-shrink-0 relative z-10 ${getIconFrameClass(key)}`}>
             <Icon name={info.icon} size={11} className={info.color || 'text-ancient-parchment'} />
           </div>
 
-          {/* 列 2: 名称 (极简模式 hidden, 宽屏 flex) */}
+          {/* 列 2: 名称 (极简 hidden) */}
           <div className="hidden xl:flex flex-col gap-0.5 overflow-hidden relative z-10 min-w-0">
             <span className="text-[10px] text-ancient-parchment font-semibold truncate leading-tight group-hover:text-ancient text-left">
               {info.name}
             </span>
           </div>
 
-          {/* 列 3: 库存 (永远显示) */}
-          <span className="font-mono font-bold text-ancient-parchment text-right relative z-10 group-hover:text-ancient text-[11px] whitespace-nowrap truncate px-1">
+          {/* 列 3: 库存 (修正: 移除 px-1, 增加 tracking-tight, 调整字号) */}
+          <span className="font-mono font-bold text-ancient-parchment text-right relative z-10 group-hover:text-ancient text-[11px] whitespace-nowrap truncate tracking-tight">
             {formatCompactNumber(amount)}
           </span>
 
-          {/* 列 4: 价格 (永远显示 - 你的新需求) */}
+          {/* 列 4: 价格 */}
           <div className="flex items-center justify-end gap-0.5 font-mono text-ancient-stone opacity-80 text-[9px] relative z-10 group-hover:text-ancient-gold whitespace-nowrap overflow-hidden">
             <span>{price.toFixed(1)}</span>
             <Icon name="Coins" size={8} className="text-ancient-gold/70 flex-shrink-0" />
           </div>
 
-          {/* 列 5: 产出 (极简模式 hidden, 宽屏 block) */}
+          {/* 列 5: 产出 (极简 hidden) */}
           <span className={`hidden xl:block font-mono text-right relative z-10 transition-colors text-[10px] truncate ${rateColorClass}`}>
             {rateDisplay}
           </span>
