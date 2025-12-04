@@ -502,7 +502,7 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
           </h3>
 
           {/* 标签页切换 */}
-          <div className="flex flex-wrap gap-2 mb-4 border-b border-gray-700">
+          <div className="flex flex-nowrap gap-2 mb-4 border-b border-gray-700 overflow-x-auto scrollbar-thin">
             <button
               onClick={() => setActiveTaxTab('head')}
               className={`flex-1 min-w-[90px] px-4 py-2 text-sm font-semibold transition-all ${
