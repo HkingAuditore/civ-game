@@ -20,7 +20,7 @@ import { createEnemyPeaceRequestEvent } from '../config/events';
  * @param {Function} setTradeRoutes - 设置贸易路线函数
  */
 const processTradeRoutes = (current, result, addLog, setResources, setNations, setTradeRoutes) => {
-  const { tradeRoutes, nations, resources, daysElapsed, market, popStructure } = current;
+  const { tradeRoutes, nations, resources, daysElapsed, market, popStructure, taxPolicies } = current;
   const routes = tradeRoutes.routes || [];
 
   // 贸易路线配置
@@ -32,8 +32,7 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
   
   const routesToRemove = [];
   const tradeLog = [];
-  let totalIncome = 0;
-  let totalExpense = 0;
+  let totalTradeTax = 0; // 玩家获得的贸易税
 
   // 只处理前 merchantCount 条贸易路线（有多少个商人在岗就让多少条贸易路线有用）
   routes.forEach((route, index) => {
@@ -60,8 +59,8 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
     const foreignPrice = calculateForeignPrice(resource, nation, daysElapsed);
     
     if (type === 'export') {
-      // 出口：我方有盈余，对方有缺口
-      // 不再自动关闭路线，只在条件不满足时暂停交易
+      // 出口：商人在国内以国内价购买，在国外以国外价卖出
+      // 玩家只赚取商人在国内购买时的交易税
       if (!tradeStatus.isShortage || tradeStatus.shortageAmount <= 0) {
         return; // 对方没有缺口，暂停贸易但保留路线
       }
@@ -82,23 +81,29 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
         return;
       }
       
-      // 执行出口：从国内购买（localPrice）→ 到国外卖出（foreignPrice）
-      const purchaseCost = localPrice * exportAmount;  // 国内购买成本
-      const saleRevenue = foreignPrice * exportAmount;  // 国外销售收入
-      const profit = saleRevenue - purchaseCost;  // 净利润
+      // 商人在国内购买资源
+      const domesticPurchaseCost = localPrice * exportAmount;  // 商人在国内的购买成本
+      const taxRate = taxPolicies?.resourceTaxRates?.[resource] || 0; // 获取该资源的交易税率
+      const tradeTax = domesticPurchaseCost * taxRate; // 玩家获得的交易税
       
+      // 商人在国外销售
+      const foreignSaleRevenue = foreignPrice * exportAmount;  // 商人在国外的销售收入
+      const merchantProfit = foreignSaleRevenue - domesticPurchaseCost; // 商人获得的利润
+      
+      // 更新玩家资源：扣除出口的资源，获得交易税
       setResources(prev => ({
         ...prev,
-        silver: (prev.silver || 0) + profit,
+        silver: (prev.silver || 0) + tradeTax,
         [resource]: Math.max(0, (prev[resource] || 0) - exportAmount),
       }));
-      totalIncome += profit;
+      totalTradeTax += tradeTax;
 
+      // 更新外国：支付给商人，获得资源
       setNations(prev => prev.map(n =>
         n.id === nationId
           ? {
               ...n,
-              budget: Math.max(0, (n.budget || 0) - saleRevenue),
+              budget: Math.max(0, (n.budget || 0) - foreignSaleRevenue),
               inventory: {
                 ...n.inventory,
                 [resource]: ((n.inventory || {})[resource] || 0) + exportAmount,
@@ -108,13 +113,12 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
       ));
       
       if (exportAmount >= 1) {
-        const profitText = profit >= 0 ? `盈利 ${profit.toFixed(1)}` : `亏损 ${Math.abs(profit).toFixed(1)}`;
-        tradeLog.push(`🚢 出口 ${exportAmount.toFixed(1)} ${RESOURCES[resource]?.name || resource} 至 ${nation.name}（国内价 ${localPrice.toFixed(1)} → 国外价 ${foreignPrice.toFixed(1)}），${profitText} 银币。`);
+        tradeLog.push(`🚢 出口 ${exportAmount.toFixed(1)} ${RESOURCES[resource]?.name || resource} 至 ${nation.name}：商人国内购 ${domesticPurchaseCost.toFixed(1)} 银币（税 ${tradeTax.toFixed(1)}），国外售 ${foreignSaleRevenue.toFixed(1)} 银币，商人赚 ${merchantProfit.toFixed(1)} 银币。`);
       }
       
     } else if (type === 'import') {
-      // 进口：对方有盈余，我方有缺口
-      // 不再自动关闭路线，只在条件不满足时暂停交易
+      // 进口：商人在国外以国外价购买，在国内以国内价卖出
+      // 玩家只赚取商人在国内销售时的交易税
       if (!tradeStatus.isSurplus || tradeStatus.surplusAmount <= 0) {
         return; // 对方没有盈余，暂停贸易但保留路线
       }
@@ -126,29 +130,32 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
         return;
       }
       
-      // 执行进口：从国外购买（foreignPrice）→ 到国内卖出（localPrice）
-      const purchaseCost = foreignPrice * importAmount;  // 国外购买成本
-      const saleRevenue = localPrice * importAmount;  // 国内销售收入
-      const profit = saleRevenue - purchaseCost;  // 净利润
+      // 商人在国外购买资源
+      const foreignPurchaseCost = foreignPrice * importAmount;  // 商人在国外的购买成本
       
-      // 检查银币是否足够支付购买成本
-      if ((resources.silver || 0) < purchaseCost) {
-        return; // 银币不足，暂停贸易
-      }
+      // 商人在国内销售
+      const domesticSaleRevenue = localPrice * importAmount;  // 商人在国内的销售收入
+      const taxRate = taxPolicies?.resourceTaxRates?.[resource] || 0; // 获取该资源的交易税率
+      const tradeTax = domesticSaleRevenue * taxRate; // 玩家获得的交易税
+      const merchantProfit = domesticSaleRevenue - foreignPurchaseCost; // 商人获得的利润
       
+      // 商人需要有足够资金从国外购买（这里简化处理，假设商人总有足够资金）
+      // 实际上商人的资金来自于之前的交易利润，这里不做详细模拟
+      
+      // 更新玩家资源：增加进口的资源，获得交易税
       setResources(prev => ({
         ...prev,
-        silver: (prev.silver || 0) + profit,
+        silver: (prev.silver || 0) + tradeTax,
         [resource]: (prev[resource] || 0) + importAmount,
       }));
-      totalExpense += purchaseCost;
-      totalIncome += saleRevenue;
+      totalTradeTax += tradeTax;
 
+      // 更新外国：收到商人支付，失去资源
       setNations(prev => prev.map(n =>
         n.id === nationId
           ? {
               ...n,
-              budget: (n.budget || 0) + purchaseCost,
+              budget: (n.budget || 0) + foreignPurchaseCost,
               inventory: {
                 ...n.inventory,
                 [resource]: Math.max(0, ((n.inventory || {})[resource] || 0) - importAmount),
@@ -158,8 +165,7 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
       ));
       
       if (importAmount >= 1) {
-        const profitText = profit >= 0 ? `盈利 ${profit.toFixed(1)}` : `亏损 ${Math.abs(profit).toFixed(1)}`;
-        tradeLog.push(`🚢 进口 ${importAmount.toFixed(1)} ${RESOURCES[resource]?.name || resource} 从 ${nation.name}（国外价 ${foreignPrice.toFixed(1)} → 国内价 ${localPrice.toFixed(1)}），${profitText} 银币。`);
+        tradeLog.push(`🚢 进口 ${importAmount.toFixed(1)} ${RESOURCES[resource]?.name || resource} 从 ${nation.name}：商人国外购 ${foreignPurchaseCost.toFixed(1)} 银币，国内售 ${domesticSaleRevenue.toFixed(1)} 银币（税 ${tradeTax.toFixed(1)}），商人赚 ${merchantProfit.toFixed(1)} 银币。`);
       }
     }
   });
@@ -180,7 +186,7 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
   
   // 添加日志
   tradeLog.forEach(log => addLog(log));
-  return { income: totalIncome, expense: totalExpense };
+  return { tradeTax: totalTradeTax };
 };
 
 /**
@@ -590,15 +596,15 @@ export const useGameLoop = (gameState, addLog, actions) => {
       // 加速效果通过增加 Tick 频率实现，而非增加每次推进的天数
       setDaysElapsed(prev => prev + 1);
       
-      // 处理贸易路线并记录收支
-      let tradeSummary = { income: 0, expense: 0 };
+      // 处理贸易路线并记录贸易税收入
+      let tradeTax = 0;
       if (current.tradeRoutes && current.tradeRoutes.routes && current.tradeRoutes.routes.length > 0) {
         const summary = processTradeRoutes(current, result, addLog, setResources, setNations, setTradeRoutes);
         if (summary) {
-          tradeSummary = summary;
+          tradeTax = summary.tradeTax || 0;
         }
       }
-      setTradeStats(tradeSummary);
+      setTradeStats({ tradeTax });
       
       // 处理玩家的分期支付
       if (gameState.playerInstallmentPayment && gameState.playerInstallmentPayment.remainingDays > 0) {

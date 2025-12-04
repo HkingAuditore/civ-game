@@ -249,7 +249,7 @@ export const useGameState = () => {
 
   // ========== 贸易路线状态 ==========
   const [tradeRoutes, setTradeRoutes] = useState(buildInitialTradeRoutes); // 玩家创建的贸易路线
-  const [tradeStats, setTradeStats] = useState({ income: 0, expense: 0 }); // 每日贸易路线收支
+  const [tradeStats, setTradeStats] = useState({ tradeTax: 0 }); // 每日贸易路线税收
 
   // ========== 和平协议状态 ==========
   const [playerInstallmentPayment, setPlayerInstallmentPayment] = useState(null); // 玩家的分期支付协议
@@ -481,7 +481,7 @@ export const useGameState = () => {
       setMarket(data.market || buildInitialMarket());
       setMerchantState(data.merchantState || buildInitialMerchantState());
       setTradeRoutes(data.tradeRoutes || buildInitialTradeRoutes());
-      setTradeStats(data.tradeStats || { income: 0, expense: 0 });
+    setTradeStats(data.tradeStats || { tradeTax: 0 });
       setAutoSaveInterval(data.autoSaveInterval ?? 60);
       setIsAutoSaveEnabled(data.isAutoSaveEnabled ?? true);
       setLastAutoSaveTime(data.lastAutoSaveTime || Date.now());
