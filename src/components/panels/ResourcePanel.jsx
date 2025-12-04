@@ -159,69 +159,92 @@ export const ResourcePanel = ({
         </div>
       )}
 
-      {/* 列表视图 - 传统表格样式 */}
-      {viewMode === 'list' && (
-        <div className="space-y-1">
-          {/* 列表表头 - 资源名优先，后三列固定宽度确保显示 */}
-          <div className="grid grid-cols-[minmax(0,1fr)_minmax(40px,auto)_minmax(40px,auto)_minmax(48px,auto)] sm:grid-cols-[minmax(0,1fr)_minmax(50px,auto)_minmax(50px,auto)_minmax(60px,auto)] items-center gap-x-1 sm:gap-x-2 text-[9px] text-ancient-stone px-1.5 pb-1 opacity-70">
-            <span>资源</span>
-            <span className="text-right">库存</span>
-            <span className="text-right">价格</span>
-            <span className="text-right">产出</span>
-          </div>
+        {/* 列表视图 - 极简压缩版 */}
+{viewMode === 'list' && (
+  <div className="space-y-1">
+    {/* 
+      Grid 响应式定义:
+      1. 默认/极窄模式: [20px图标 _ 1fr库存 _ 1fr价格] -> 3列，无名称，无产出
+      2. 宽屏模式 (xl): [20px图标 _ 1.5fr名称 _ 0.8fr库存 _ 1fr价格 _ 1fr产出] -> 5列，全显示
+    */}
+    <div className="grid grid-cols-[20px_1fr_1fr] xl:grid-cols-[20px_1.5fr_0.8fr_1fr_1fr] items-center gap-x-1 text-[9px] text-ancient-stone px-1.5 pb-1 opacity-70">
+      
+      {/* 
+        表头处理：
+        - 极简模式下：第1列是图标位（空），后面直接跟“库存”、“价格”
+        - 宽屏模式下：需要把“资源”文字显示出来，并占位
+       */}
+      
+      {/* Col 1 & 2: 资源名称 (默认隐藏，xl显示) */}
+      <span className="hidden xl:col-span-2 xl:inline pl-0.5 whitespace-nowrap overflow-hidden">
+        资源
+      </span>
+      {/* 极简模式下的占位符 (xl隐藏) - 保持图标列对齐 */}
+      <span className="xl:hidden w-5"></span>
+
+      {/* Col 3: 库存 */}
+      <span className="text-right whitespace-nowrap px-1">库存</span>
+      
+      {/* Col 4: 价格 */}
+      <span className="text-right whitespace-nowrap">价格</span>
+      
+      {/* Col 5: 产出 (默认隐藏，xl显示) */}
+      <span className="hidden xl:block text-right whitespace-nowrap">产出</span>
+    </div>
+    
+    {visibleResources.map(([key, info]) => {
+      const amount = resources[key] || 0;
+      const rate = rates[key] || 0;
+      const price = getPrice(key);
+      const rateDisplay = rate !== 0 ? `${rate > 0 ? '+' : ''}${rate.toFixed(1)}` : '--';
+      const rateColorClass =
+        rate > 0
+          ? 'text-green-400 group-hover:text-green-300'
+          : rate < 0
+          ? 'text-red-400 group-hover:text-red-300'
+          : 'text-ancient-stone opacity-50';
+
+      return (
+        <button
+          key={key}
+          onClick={() => onDetailClick && onDetailClick(key)}
+          // Grid 定义必须与表头完全一致
+          className="w-full relative group grid grid-cols-[20px_1fr_1fr] xl:grid-cols-[20px_1.5fr_0.8fr_1fr_1fr] items-center gap-x-1 text-xs p-1.5 rounded-lg transition-all cursor-pointer overflow-hidden border border-ancient-gold/10 hover:border-ancient-gold/30 hover:bg-ancient-gold/5 hover:shadow-glow-gold touch-feedback"
+        >
+          <div className="absolute inset-0 bg-gradient-to-r from-ancient-gold/0 via-ancient-gold/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
           
-          {visibleResources.map(([key, info]) => {
-            const amount = resources[key] || 0;
-            const rate = rates[key] || 0;
-            const price = getPrice(key);
+          {/* 列 1: 图标 (永远显示) */}
+          <div className={`icon-epic-frame icon-frame-xs flex-shrink-0 relative z-10 ${getIconFrameClass(key)}`}>
+            <Icon name={info.icon} size={11} className={info.color || 'text-ancient-parchment'} />
+          </div>
 
-            return (
-              <button
-                key={key}
-                onClick={() => onDetailClick && onDetailClick(key)}
-                className="w-full relative group grid grid-cols-[minmax(0,1fr)_minmax(40px,auto)_minmax(40px,auto)_minmax(48px,auto)] sm:grid-cols-[minmax(0,1fr)_minmax(50px,auto)_minmax(50px,auto)_minmax(60px,auto)] items-center gap-x-1 sm:gap-x-2 text-xs p-1.5 rounded-lg transition-all cursor-pointer overflow-hidden border border-ancient-gold/10 hover:border-ancient-gold/30 hover:bg-ancient-gold/5 hover:shadow-glow-gold touch-feedback"
-              >
-                <div className="absolute inset-0 bg-gradient-to-r from-ancient-gold/0 via-ancient-gold/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                
-                {/* 资源名称和图标 - 优先获取剩余空间 */}
-                <div className="flex items-center gap-1.5 overflow-hidden relative z-10 min-w-0">
-                  <div className={`icon-epic-frame icon-frame-xs flex-shrink-0 ${getIconFrameClass(key)}`}>
-                    <Icon name={info.icon} size={11} className={info.color || 'text-ancient-parchment'} />
-                  </div>
-                  <span className="text-[10px] text-ancient-parchment font-semibold truncate leading-tight group-hover:text-ancient">
-                    {info.name}
-                  </span>
-                </div>
+          {/* 列 2: 名称 (极简模式 hidden, 宽屏 flex) */}
+          <div className="hidden xl:flex flex-col gap-0.5 overflow-hidden relative z-10 min-w-0">
+            <span className="text-[10px] text-ancient-parchment font-semibold truncate leading-tight group-hover:text-ancient text-left">
+              {info.name}
+            </span>
+          </div>
 
-                {/* 库存 */}
-                <span className="font-mono font-bold text-ancient-parchment text-right relative z-10 group-hover:text-ancient text-[11px]">
-                  {formatCompactNumber(amount)}
-                </span>
+          {/* 列 3: 库存 (永远显示) */}
+          <span className="font-mono font-bold text-ancient-parchment text-right relative z-10 group-hover:text-ancient text-[11px] whitespace-nowrap truncate px-1">
+            {formatCompactNumber(amount)}
+          </span>
 
-                {/* 价格 */}
-                <div className="flex items-center justify-end gap-0.5 font-mono text-ancient-stone opacity-80 text-[9px] relative z-10 group-hover:text-ancient-gold">
-                  <span>{price.toFixed(1)}</span>
-                  <Icon name="Coins" size={8} className="text-ancient-gold/70 flex-shrink-0" />
-                </div>
+          {/* 列 4: 价格 (永远显示 - 你的新需求) */}
+          <div className="flex items-center justify-end gap-0.5 font-mono text-ancient-stone opacity-80 text-[9px] relative z-10 group-hover:text-ancient-gold whitespace-nowrap overflow-hidden">
+            <span>{price.toFixed(1)}</span>
+            <Icon name="Coins" size={8} className="text-ancient-gold/70 flex-shrink-0" />
+          </div>
 
-                {/* 产出速率 */}
-                <span
-                  className={`font-mono text-right relative z-10 transition-colors text-[10px] ${
-                    rate > 0
-                      ? 'text-green-400 group-hover:text-green-300'
-                      : rate < 0
-                      ? 'text-red-400 group-hover:text-red-300'
-                      : 'text-ancient-stone opacity-50'
-                  }`}
-                >
-                  {rate !== 0 ? `${rate > 0 ? '+' : ''}${rate.toFixed(1)}` : '--'}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
+          {/* 列 5: 产出 (极简模式 hidden, 宽屏 block) */}
+          <span className={`hidden xl:block font-mono text-right relative z-10 transition-colors text-[10px] truncate ${rateColorClass}`}>
+            {rateDisplay}
+          </span>
+        </button>
+      );
+    })}
+  </div>
+)}
       {/* 底部汇总 */}
       <div className="epic-divider" />
       <div className="flex items-center justify-between text-[9px] text-ancient-stone px-1">
@@ -229,7 +252,7 @@ export const ResourcePanel = ({
           <Icon name="Info" size={10} className="text-ancient-gold/70" />
           点击资源查看详情
         </span>
-        <span className="font-mono">{visibleResources.length} 种资源</span>
+        {/* <span className="font-mono">{visibleResources.length} 种资源</span> */}
       </div>
     </div>
   );
