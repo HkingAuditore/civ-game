@@ -1003,69 +1003,62 @@
   
   /* 基础金属图标 - 带有金属光泽和立体感 */
   .icon-metal {
-    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5))
-            drop-shadow(0 0 4px var(--theme-glow, rgba(212, 175, 55, 0.3)));
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4))
+            drop-shadow(0 0 2px var(--theme-glow, rgba(212, 175, 55, 0.15)));
     transition: all 0.2s ease;
   }
   
   .icon-metal:hover {
-    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6))
-            drop-shadow(0 0 8px var(--theme-glow, rgba(212, 175, 55, 0.5)));
+    filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.5))
+            drop-shadow(0 0 4px var(--theme-glow, rgba(212, 175, 55, 0.25)));
   }
 
   /* 金色金属图标 */
   .icon-metal-gold {
-    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5))
-            drop-shadow(0 0 6px rgba(212, 175, 55, 0.4))
-            drop-shadow(0 0 2px rgba(255, 235, 180, 0.3));
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4))
+            drop-shadow(0 0 3px rgba(212, 175, 55, 0.2));
     color: var(--theme-accent, #fbbf24);
   }
 
   /* 青铜金属图标 */
   .icon-metal-bronze {
-    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5))
-            drop-shadow(0 0 5px rgba(205, 127, 50, 0.4))
-            drop-shadow(0 0 2px rgba(255, 180, 120, 0.2));
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4))
+            drop-shadow(0 0 3px rgba(205, 127, 50, 0.2));
     color: #cd7f32;
   }
 
   /* 钢铁金属图标 */
   .icon-metal-steel {
-    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6))
-            drop-shadow(0 0 4px rgba(161, 161, 170, 0.3))
-            drop-shadow(0 0 2px rgba(255, 255, 255, 0.2));
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5))
+            drop-shadow(0 0 2px rgba(161, 161, 170, 0.15));
     color: #a1a1aa;
   }
 
   /* 红色金属图标（军事） */
   .icon-metal-red {
-    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5))
-            drop-shadow(0 0 5px rgba(248, 113, 113, 0.4))
-            drop-shadow(0 0 2px rgba(255, 150, 150, 0.3));
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4))
+            drop-shadow(0 0 3px rgba(248, 113, 113, 0.2));
     color: #f87171;
   }
 
   /* 蓝色金属图标（科技） */
   .icon-metal-blue {
-    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5))
-            drop-shadow(0 0 5px rgba(96, 165, 250, 0.4))
-            drop-shadow(0 0 2px rgba(150, 200, 255, 0.3));
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4))
+            drop-shadow(0 0 3px rgba(96, 165, 250, 0.2));
     color: #60a5fa;
   }
 
   /* 紫色金属图标（政策） */
   .icon-metal-purple {
-    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5))
-            drop-shadow(0 0 5px rgba(168, 85, 247, 0.4))
-            drop-shadow(0 0 2px rgba(200, 150, 255, 0.3));
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4))
+            drop-shadow(0 0 3px rgba(168, 85, 247, 0.2));
     color: #a855f7;
   }
 
   /* 绿色金属图标 */
   .icon-metal-green {
-    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5))
-            drop-shadow(0 0 5px rgba(74, 222, 128, 0.4))
-            drop-shadow(0 0 2px rgba(150, 255, 180, 0.3));
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4))
+            drop-shadow(0 0 3px rgba(74, 222, 128, 0.2));
     color: #4ade80;
   }
 
@@ -1078,28 +1071,24 @@
       var(--theme-surface-alt, rgba(61, 36, 21, 0.9)) 0%,
       var(--theme-surface, rgba(44, 24, 16, 0.95)) 50%,
       var(--theme-surface-alt, rgba(61, 36, 21, 0.9)) 100%);
-    border: 1px solid var(--theme-border, rgba(212, 175, 55, 0.4));
+    border: 1px solid var(--theme-border, rgba(212, 175, 55, 0.35));
     border-radius: 8px;
     padding: 6px;
     box-shadow: 
-      0 2px 6px rgba(0, 0, 0, 0.4),
-      0 0 12px var(--theme-glow, rgba(212, 175, 55, 0.15)),
-      inset 0 1px 0 rgba(255, 255, 255, 0.15),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.3),
-      inset 1px 0 0 var(--theme-highlight, rgba(212, 175, 55, 0.1)),
-      inset -1px 0 0 rgba(0, 0, 0, 0.2);
+      0 2px 4px rgba(0, 0, 0, 0.35),
+      0 0 6px var(--theme-glow, rgba(212, 175, 55, 0.08)),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.25);
     transition: all 0.2s ease;
   }
 
   .icon-metal-container:hover {
-    border-color: var(--theme-accent, rgba(251, 191, 36, 0.6));
+    border-color: var(--theme-accent, rgba(251, 191, 36, 0.5));
     box-shadow: 
-      0 4px 10px rgba(0, 0, 0, 0.5),
-      0 0 16px var(--theme-glow, rgba(212, 175, 55, 0.3)),
-      inset 0 1px 0 rgba(255, 255, 255, 0.2),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.35),
-      inset 1px 0 0 var(--theme-highlight, rgba(212, 175, 55, 0.15)),
-      inset -1px 0 0 rgba(0, 0, 0, 0.25);
+      0 3px 6px rgba(0, 0, 0, 0.4),
+      0 0 8px var(--theme-glow, rgba(212, 175, 55, 0.15)),
+      inset 0 1px 0 rgba(255, 255, 255, 0.12),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.3);
   }
 
   /* 大型金属图标容器（用于面板标题） */
@@ -1108,12 +1097,10 @@
     border-radius: 10px;
     border-width: 2px;
     box-shadow: 
-      0 4px 10px rgba(0, 0, 0, 0.5),
-      0 0 20px var(--theme-glow, rgba(212, 175, 55, 0.2)),
-      inset 0 2px 0 rgba(255, 255, 255, 0.2),
-      inset 0 -2px 0 rgba(0, 0, 0, 0.4),
-      inset 2px 0 0 var(--theme-highlight, rgba(212, 175, 55, 0.15)),
-      inset -2px 0 0 rgba(0, 0, 0, 0.25);
+      0 3px 8px rgba(0, 0, 0, 0.4),
+      0 0 10px var(--theme-glow, rgba(212, 175, 55, 0.1)),
+      inset 0 1px 0 rgba(255, 255, 255, 0.15),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.3);
   }
 
   /* 金属徽章样式 */

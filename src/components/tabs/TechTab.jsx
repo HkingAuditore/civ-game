@@ -318,8 +318,8 @@ export const TechTab = ({
         0.35
       )}, ${applyAlpha(upgradeCardTheme.primaryColor, 0.85)})`,
       borderColor: upgradeCardTheme.borderColor || upgradeCardTheme.primaryColor,
-      boxShadow: `0 20px 45px ${
-        upgradeCardTheme.glowColor || applyAlpha(upgradeCardTheme.primaryColor, 0.4)
+      boxShadow: `0 8px 20px ${
+        upgradeCardTheme.glowColor || applyAlpha(upgradeCardTheme.primaryColor, 0.25)
       }`,
     };
   }, [upgradeCardTheme]);
@@ -333,8 +333,8 @@ export const TechTab = ({
       )}, ${applyAlpha(upgradeCardTheme.primaryColor, 0.95)})`,
       color: upgradeCardTheme.textColor || '#fff',
       borderColor: upgradeCardTheme.borderColor || upgradeCardTheme.primaryColor,
-      boxShadow: `0 12px 30px ${
-        upgradeCardTheme.glowColor || applyAlpha(upgradeCardTheme.primaryColor, 0.35)
+      boxShadow: `0 4px 12px ${
+        upgradeCardTheme.glowColor || applyAlpha(upgradeCardTheme.primaryColor, 0.2)
       }`,
     };
   }, [upgradeCardTheme]);

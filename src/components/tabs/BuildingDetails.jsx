@@ -132,8 +132,8 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, taxPolicie
     <div className="space-y-4">
       {/* 头部 */}
       <div className="flex items-start gap-4 p-1">
-        <div className={`flex-shrink-0 w-16 h-16 rounded-lg ${building.visual.color} flex items-center justify-center shadow-lg`}>
-          <Icon name={building.visual.icon} size={36} className={building.visual.text} />
+        <div className={`flex-shrink-0 w-16 h-16 rounded-lg ${building.visual.color} flex items-center justify-center icon-metal-container icon-metal-container-lg`}>
+          <Icon name={building.visual.icon} size={36} className={`${building.visual.text} icon-metal`} />
         </div>
         <div className="flex-1">
           <h3 className="text-xl font-bold text-white">{building.name}</h3>
