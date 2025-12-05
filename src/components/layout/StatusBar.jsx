@@ -236,10 +236,7 @@ export const StatusBar = ({
               <Icon name={seasonInfo.icon} size={12} className={seasonInfo.color} />
               <div className="text-[9px] sm:text-[10px] leading-tight">
                 <span className="font-bold text-ancient-parchment">
-                  Y{calendar.year} · {calendar.season}
-                </span>
-                <span className="hidden sm:inline text-ancient-stone ml-1">
-                  x{gameState.gameSpeed}
+                  {calendar.year}年 · {calendar.season}
                 </span>
               </div>
             </button>

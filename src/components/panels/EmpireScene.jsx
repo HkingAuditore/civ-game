@@ -74,7 +74,7 @@ export default function EmpireScene({
   // 2. 季节配置
   const seasonConfig = useMemo(() => {
     const configs = {
-      '春季': { 
+      '春': { 
         ground: ['#8bc34a', '#c5e1a5'], 
         grass: '#8bc34a', 
         bush: '#7cb342', 
@@ -85,7 +85,7 @@ export default function EmpireScene({
         mountain1: ['#6b8e7f', '#4a6b5c'], 
         mountain2: ['#7fa89b', '#5d7f72']
       },
-      '夏季': { 
+      '夏': { 
         ground: ['#558b2f', '#8bc34a'], 
         grass: '#558b2f', 
         bush: '#33691e', 
@@ -96,7 +96,7 @@ export default function EmpireScene({
         mountain1: ['#546e7a', '#37474f'], 
         mountain2: ['#607d8b', '#455a64']
       },
-      '秋季': { 
+      '秋': { 
         ground: ['#d7ccc8', '#efebe9'], 
         grass: '#d7ccc8', 
         bush: '#ffb74d', 
@@ -107,7 +107,7 @@ export default function EmpireScene({
         mountain1: ['#8d6e63', '#5d4037'], 
         mountain2: ['#a1887f', '#6d4c41']
       },
-      '冬季': { 
+      '冬': { 
         ground: ['#eceff1', '#ffffff'], 
         grass: '#cfd8dc', 
         bush: '#b0bec5', 
