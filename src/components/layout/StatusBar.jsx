@@ -47,6 +47,8 @@ export const StatusBar = ({
   const silverUpkeepPerDay = armyFoodNeed * foodPrice * wageRatio;
   
   const tradeTax = tradeStats?.tradeTax || 0;
+  const policyIncome = taxes.breakdown?.policyIncome || 0;
+  const policyExpense = taxes.breakdown?.policyExpense || 0;
   const netSilverClass = netSilverPerDay >= 0 ? 'text-green-300' : 'text-red-300';
   const tradeTaxClass = tradeTax >= 0 ? 'text-emerald-300' : 'text-red-300';
 
@@ -320,6 +322,12 @@ export const StatusBar = ({
                             <span className="text-ancient-stone">关税</span>
                             <span className={`${tradeTaxClass} font-mono`}>{tradeTax >= 0 ? '+' : ''}{tradeTax.toFixed(1)}</span>
                           </div>
+                          {policyIncome > 0 && (
+                            <div className="stat-item-compact">
+                              <span className="text-ancient-stone">政令收益</span>
+                              <span className="text-green-300 font-mono">+{policyIncome.toFixed(1)}</span>
+                            </div>
+                          )}
 
                           <div className="epic-divider" />
 
@@ -332,6 +340,12 @@ export const StatusBar = ({
                             <div className="stat-item-compact">
                               <span className="text-ancient-stone">补助支出</span>
                               <span className="text-red-300 font-mono">-{taxes.breakdown.subsidy.toFixed(1)}</span>
+                            </div>
+                          )}
+                          {policyExpense > 0 && (
+                            <div className="stat-item-compact">
+                              <span className="text-ancient-stone">政令支出</span>
+                              <span className="text-red-300 font-mono">-{policyExpense.toFixed(1)}</span>
                             </div>
                           )}
 

@@ -766,7 +766,11 @@ export const useGameLoop = (gameState, addLog, actions) => {
       setActiveBuffs(result.activeBuffs);
       setActiveDebuffs(result.activeDebuffs);
       setStability(result.stability);
-      setTaxes(result.taxes || { total: 0, breakdown: { headTax: 0, industryTax: 0, subsidy: 0 }, efficiency: 1 });
+      setTaxes(result.taxes || {
+        total: 0,
+        breakdown: { headTax: 0, industryTax: 0, subsidy: 0, policyIncome: 0, policyExpense: 0 },
+        efficiency: 1,
+      });
       setMarket(adjustedMarket);
       setClassShortages(result.needsShortages || {});
       setMerchantState(prev => {
