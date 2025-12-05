@@ -874,6 +874,10 @@ export const useGameActions = (gameState, addLog) => {
           warScore,
           warDuration,
           enemyLosses,
+          {
+            population,
+            wealth: resources?.silver || 0,
+          },
           (proposalType, amount) => {
             handlePlayerPeaceProposal(nationId, proposalType, amount);
           }

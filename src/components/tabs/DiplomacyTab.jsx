@@ -37,6 +37,16 @@ const getRouteCountWithNation = (routes = [], nationId) => {
   return routes.filter(r => r.nationId === nationId).length;
 };
 
+const formatStatValue = (value, unit = '') => {
+  if (!Number.isFinite(value)) return `未知${unit}`;
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M${unit}`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K${unit}`;
+  return `${Math.max(0, Math.floor(value))}${unit}`;
+};
+
+// Keep in sync with base gift cost defined in useGameActions handleDiplomaticAction
+const BASE_GIFT_COST = 500;
+
 const getPreferredResources = (nation) => {
   if (!nation?.economyTraits?.resourceBias) return [];
   return Object.entries(nation.economyTraits.resourceBias)
@@ -258,6 +268,27 @@ export const DiplomacyTab = ({
                     </p>
                   </div>
                 )}
+
+                <div className="grid grid-cols-2 gap-1 mb-2 text-xs">
+                  <div className="p-2 rounded border border-blue-500/20 bg-blue-900/10 flex items-center justify-between">
+                    <div className="flex items-center gap-1 text-blue-200">
+                      <Icon name="Users" size={12} />
+                      人口
+                    </div>
+                    <span className="font-mono text-blue-100">
+                      {formatStatValue(selectedNation?.population, '')}
+                    </span>
+                  </div>
+                  <div className="p-2 rounded border border-amber-500/20 bg-amber-900/10 flex items-center justify-between">
+                    <div className="flex items-center gap-1 text-amber-200">
+                      <Icon name="Coins" size={12} />
+                      财富
+                    </div>
+                    <span className="font-mono text-amber-100">
+                      {formatStatValue(selectedNation?.wealth, ' 银')}
+                    </span>
+                  </div>
+                </div>
                 
                 <div className="flex gap-1.5 text-xs">
                   <button
@@ -283,6 +314,17 @@ export const DiplomacyTab = ({
                     <Icon name={(selectedNation?.isAtWar === true) ? 'Flag' : 'Swords'} size={12} />
                     {(selectedNation?.isAtWar === true) ? '求和' : '宣战'}
                   </button>
+                </div>
+                <div className="mt-1 text-[10px] text-gray-400 flex items-center justify-between">
+                  <span className="flex items-center gap-1">
+                    <Icon name="Coins" size={10} className="text-amber-300" />
+                    礼物成本：{BASE_GIFT_COST} 银币
+                  </span>
+                  {/* <span
+                    className={`font-mono ${((resources?.silver || 0) >= BASE_GIFT_COST) ? 'text-green-300' : 'text-red-300'}`}
+                  >
+                    库存 {Math.floor(resources?.silver || 0)}
+                  </span> */}
                 </div>
                 {selectedPreferences.length > 0 && (
                   <div className="mt-2">

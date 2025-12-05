@@ -250,8 +250,10 @@ export const ResourceDetailModal = ({
   }, [market, resourceKey]);
 
   const [draftTaxRate, setDraftTaxRate] = useState(null);
+  const [draftTariffMultiplier, setDraftTariffMultiplier] = useState(null);
 
   const currentTaxRate = taxPolicies?.resourceTaxRates?.[resourceKey] ?? 0;
+  const currentTariffMultiplier = taxPolicies?.resourceTariffMultipliers?.[resourceKey] ?? 1;
 
   const handleTaxDraftChange = (raw) => {
     setDraftTaxRate(raw);
@@ -267,6 +269,24 @@ export const ResourceDetailModal = ({
       resourceTaxRates: { ...(prev?.resourceTaxRates || {}), [resourceKey]: rateValue },
     }));
     setDraftTaxRate(null);
+  };
+
+  const handleTariffDraftChange = (raw) => {
+    setDraftTariffMultiplier(raw);
+  };
+
+  const commitTariffDraft = () => {
+    if (draftTariffMultiplier === null || !onUpdateTaxPolicies) return;
+    const parsed = parseFloat(draftTariffMultiplier);
+    const multiplier = Number.isNaN(parsed) ? 1 : Math.max(0, parsed);
+    onUpdateTaxPolicies(prev => ({
+      ...prev,
+      resourceTariffMultipliers: {
+        ...(prev?.resourceTariffMultipliers || {}),
+        [resourceKey]: multiplier,
+      },
+    }));
+    setDraftTariffMultiplier(null);
   };
 
   const supplyHistoryData = useMemo(() => {
@@ -574,6 +594,31 @@ export const ResourceDetailModal = ({
                   </div>
                 </div>
                 <p className="text-[10px] lg:text-xs text-gray-400 mt-1.5 lg:mt-2">对该资源的市场交易额征税。负数代表政府进行补贴。</p>
+                <div className="mt-2 lg:mt-3">
+                  <p className="text-[10px] lg:text-xs uppercase tracking-wide text-gray-500 mb-1">关税倍率</p>
+                  <div className="flex items-center gap-2 lg:gap-3">
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      step="0.1"
+                      value={draftTariffMultiplier ?? currentTariffMultiplier.toFixed(2)}
+                      onChange={(e) => handleTariffDraftChange(e.target.value)}
+                      onBlur={commitTariffDraft}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          commitTariffDraft();
+                          e.target.blur();
+                        }
+                      }}
+                      className="w-20 lg:w-28 bg-gray-800/70 border border-gray-600 text-base lg:text-lg font-mono text-gray-200 rounded-lg px-1.5 lg:px-2 py-1 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-center"
+                    />
+                    <div className="text-right flex-1">
+                      <p className="text-sm lg:text-base font-semibold text-indigo-200">{currentTariffMultiplier.toFixed(2)}×</p>
+                      <p className="text-[10px] lg:text-xs text-gray-400">当前倍率</p>
+                    </div>
+                  </div>
+                  <p className="text-[10px] lg:text-xs text-gray-400 mt-1">倍率越高，进出口时征收的关税越多。</p>
+                </div>
               </div>
             )}
             {activeTab === 'market' && (

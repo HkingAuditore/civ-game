@@ -76,7 +76,7 @@ export const ResourcePanel = ({
             <Icon name="Package" size={12} className="text-ancient-gold" />
           </div>
           {title && (
-            <span className="text-[10px] font-bold text-ancient tracking-wide uppercase">
+            <span className="text-[10px] font-bold text-ancient tracking-wide uppercase tab-title-serif">
               {title}
             </span>
           )}
@@ -196,7 +196,7 @@ export const ResourcePanel = ({
                       <div className={`icon-epic-frame icon-frame-xs flex-shrink-0 ${getIconFrameClass(key)}`}>
                         <Icon name={info.icon} size={11} className={info.color || 'text-ancient-parchment'} />
                       </div>
-                      <span className="text-[9px] sm:text-[10px] text-ancient-parchment font-semibold truncate leading-tight group-hover:text-ancient">
+                      <span className="text-[12px] sm:text-[15px] text-ancient-parchment font-semibold truncate leading-tight group-hover:text-ancient">
                         {info.name}
                       </span>
                     </div>
@@ -219,7 +219,7 @@ export const ResourcePanel = ({
             </>
           ) : (
             <>
-              <div className="grid grid-cols-[20px_1.3fr_1fr] xl:grid-cols-[20px_1.5fr_1fr_1fr_1fr] items-center gap-x-3 text-[9px] text-ancient-stone px-1.5 pb-1 opacity-70">
+              <div className="grid grid-cols-[20px_1.3fr_1fr] xl:grid-cols-[20px_1.5fr_1fr_1fr_1fr] items-center gap-x-3 text-[12px] text-ancient-gold px-1.5 pb-1 opacity-70">
                 <span className="hidden xl:col-span-2 xl:inline pl-0.5 whitespace-nowrap overflow-hidden">资源</span>
                 <span className="xl:hidden w-5" />
                 <span className="text-right whitespace-nowrap">库存</span>
@@ -252,7 +252,7 @@ export const ResourcePanel = ({
                     </div>
 
                     <div className="hidden xl:flex flex-col gap-0.5 overflow-hidden relative z-10 min-w-0">
-                      <span className="text-[10px] text-ancient-parchment font-semibold truncate leading-tight group-hover:text-ancient text-left">
+                      <span className="text-[13px] text-ancient-parchment font-semibold truncate leading-tight group-hover:text-ancient text-left">
                         {info.name}
                       </span>
                     </div>
@@ -261,7 +261,7 @@ export const ResourcePanel = ({
                       {formatCompactNumber(amount)}
                     </span>
 
-                    <div className="flex items-center justify-end gap-0.5 font-mono text-ancient-stone text-[11px] relative z-10 group-hover:text-ancient-gold whitespace-nowrap overflow-hidden">
+                    <div className="flex items-center justify-end gap-0.5 font-mono text-ancient-parchment text-[11px] relative z-10 group-hover:text-ancient-gold whitespace-nowrap overflow-hidden">
                       <span>{price.toFixed(1)}</span>
                       <Icon name="Coins" size={8} className="text-ancient-gold/70 flex-shrink-0" />
                     </div>

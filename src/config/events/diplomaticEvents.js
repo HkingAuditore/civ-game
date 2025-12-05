@@ -112,13 +112,6 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
       callback: () => callback(true, 'population', populationDemand),
     });
     options.push({
-      id: 'demand_open_market',
-      text: '要求开放市场',
-      description: `要求${nation.name}在${OPEN_MARKET_DURATION_YEARS}年内开放市场，不限制我方贸易路线数量`,
-      effects: {},
-      callback: () => callback(true, 'open_market', OPEN_MARKET_DURATION_DAYS),
-    });
-    options.push({
       id: 'accept_standard',
       text: '接受标准和平',
       description: `接受${tribute}银币赔款，快速结束战争`,
@@ -223,8 +216,27 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
  * @param {Function} callback - 回调函数
  * @returns {Object} - 外交事件对象
  */
-export function createPlayerPeaceProposalEvent(nation, warScore, warDuration, enemyLosses, callback) {
+export function createPlayerPeaceProposalEvent(
+  nation,
+  warScore,
+  warDuration,
+  enemyLosses,
+  playerState = {},
+  callback
+) {
   const options = [];
+  const playerPopulationBase = Math.max(
+    200,
+    playerState.population || playerState.maxPopulation || 1000
+  );
+  const calculateTerritoryOffer = (maxPercent, severityDivisor) => {
+    const warPressure = Math.abs(Math.min(warScore, 0)) / severityDivisor;
+    const durationPressure = Math.max(0, warDuration || 0) / 4000;
+    const severity = Math.min(maxPercent, Math.max(0.012, warPressure + durationPressure));
+    const capped = Math.floor(playerPopulationBase * severity);
+    const hardCap = Math.floor(playerPopulationBase * maxPercent);
+    return Math.max(3, Math.min(hardCap, capped));
+  };
   
   if (warScore > 15) {
     // 大胜：可以要求赔款
@@ -306,13 +318,7 @@ export function createPlayerPeaceProposalEvent(nation, warScore, warDuration, en
       effects: {},
       callback: () => callback('demand_population', populationDemand),
     });
-    options.push({
-      id: 'demand_open_market',
-      text: '要求开放市场',
-      description: `要求${nation.name}在${OPEN_MARKET_DURATION_YEARS}年内开放市场，不限制我方贸易路线数量`,
-      effects: {},
-      callback: () => callback('demand_open_market', OPEN_MARKET_DURATION_DAYS),
-    });
+    // 只有在大胜时才可要求开放市场
     options.push({
       id: 'peace_only',
       text: '无条件和平',
@@ -321,11 +327,11 @@ export function createPlayerPeaceProposalEvent(nation, warScore, warDuration, en
       callback: () => callback('peace_only', 0),
     });
   } else if (warScore < -10) {
-    // 大败：需要支付高额赔款
+    // Major defeat: player must offer substantial reparations
     const payment = Math.max(150, Math.ceil(Math.abs(warScore) * 35 + warDuration * 6));
     const highInstallmentTotal = Math.ceil(payment * INSTALLMENT_TOTAL_MULTIPLIER);
     const installmentAmount = Math.ceil(highInstallmentTotal / 365);
-    const populationOffer = Math.floor((nation.population || 1000) * 0.05);
+    const populationOffer = calculateTerritoryOffer(0.05, 320);
     
     options.push({
       id: 'pay_high',
@@ -353,7 +359,7 @@ export function createPlayerPeaceProposalEvent(nation, warScore, warDuration, en
     const payment = Math.max(100, Math.ceil(Math.abs(warScore) * 30 + warDuration * 5));
     const installmentTotal = Math.ceil(payment * INSTALLMENT_TOTAL_MULTIPLIER);
     const installmentAmount = Math.ceil(installmentTotal / 365);
-    const populationOffer = Math.floor((nation.population || 1000) * 0.03);
+    const populationOffer = calculateTerritoryOffer(0.03, 480);
     
     options.push({
       id: 'pay_standard',

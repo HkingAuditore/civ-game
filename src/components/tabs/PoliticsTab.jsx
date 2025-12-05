@@ -40,11 +40,24 @@ const RESOURCE_GROUPS = {
 const ALL_GROUPED_RESOURCES = new Set(Object.values(RESOURCE_GROUPS).flatMap(g => g.keys));
 
 // 紧凑型资源税卡片
-const ResourceTaxCard = ({ resourceKey, info, rate, hasSupply, draftRate, onDraftChange, onCommit }) => {
+const ResourceTaxCard = ({
+  resourceKey,
+  info,
+  rate,
+  hasSupply,
+  draftRate,
+  onDraftChange,
+  onCommit,
+  tariffMultiplier,
+  draftTariff,
+  onTariffDraftChange,
+  onTariffCommit,
+}) => {
   // 当税率为负时，作为"交易补贴"运作
   const currentRate = rate ?? 0;
   const isSubsidy = currentRate < 0;
   const displayValue = Math.abs(currentRate * 100).toFixed(0);
+  const currentTariff = Number.isFinite(tariffMultiplier) ? tariffMultiplier : 1;
 
   const valueColor = isSubsidy ? 'text-green-300' : 'text-blue-300';
   const sliderColor = isSubsidy ? 'accent-green-500' : 'accent-blue-500';
@@ -86,6 +99,29 @@ const ResourceTaxCard = ({ resourceKey, info, rate, hasSupply, draftRate, onDraf
         className="w-full bg-gray-900/70 border border-gray-600 text-[11px] text-gray-200 rounded px-1.5 py-0.5 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
         placeholder="税率%"
       />
+      <div className="mt-1.5 border-t border-gray-800/70 pt-1.5">
+        <div className="flex items-center justify-between text-[10px] text-gray-400 mb-0.5">
+          <span>关税倍率</span>
+          <span className="text-gray-200 font-mono text-xs">{currentTariff.toFixed(2)}×</span>
+        </div>
+        <input
+          type="text"
+          inputMode="decimal"
+          step="0.1"
+          value={draftTariff ?? currentTariff.toFixed(2)}
+          onChange={(e) => onTariffDraftChange(resourceKey, e.target.value)}
+          onBlur={() => onTariffCommit(resourceKey)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              onTariffCommit(resourceKey);
+              e.target.blur();
+            }
+          }}
+          className="w-full bg-gray-900/70 border border-gray-600 text-[11px] text-gray-200 rounded px-1.5 py-0.5 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-center"
+          placeholder="倍率"
+        />
+        {/* <p className="mt-0.5 text-[9px] text-gray-500">调节进出口交易税收强度。</p> */}
+      </div>
     </div>
   );
 };
@@ -210,9 +246,11 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
 
   const headRates = taxPolicies?.headTaxRates || {};
   const resourceRates = taxPolicies?.resourceTaxRates || {};
+  const resourceTariffs = taxPolicies?.resourceTariffMultipliers || {};
   const businessRates = taxPolicies?.businessTaxRates || {};
   const [headDrafts, setHeadDrafts] = React.useState({});
   const [resourceDrafts, setResourceDrafts] = React.useState({});
+  const [resourceTariffDrafts, setResourceTariffDrafts] = React.useState({});
   const [businessDrafts, setBusinessDrafts] = React.useState({});
   const [activeTaxTab, setActiveTaxTab] = React.useState('head'); // 'head', 'resource', 'business'
   
@@ -273,6 +311,10 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
     setResourceDrafts(prev => ({ ...prev, [key]: raw }));
   };
 
+  const handleResourceTariffDraftChange = (key, raw) => {
+    setResourceTariffDrafts(prev => ({ ...prev, [key]: raw }));
+  };
+
   const commitResourceDraft = (key) => {
     if (resourceDrafts[key] === undefined) return;
     const parsed = parseFloat(resourceDrafts[key]);
@@ -287,6 +329,24 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
       },
     }));
     setResourceDrafts(prev => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
+  const commitResourceTariffDraft = (key) => {
+    if (resourceTariffDrafts[key] === undefined) return;
+    const parsed = parseFloat(resourceTariffDrafts[key]);
+    const multiplier = Number.isNaN(parsed) ? 1 : Math.max(0, parsed);
+    onUpdateTaxPolicies?.(prev => ({
+      ...prev,
+      resourceTariffMultipliers: {
+        ...(prev?.resourceTariffMultipliers || {}),
+        [key]: multiplier,
+      },
+    }));
+    setResourceTariffDrafts(prev => {
       const next = { ...prev };
       delete next[key];
       return next;
@@ -481,8 +541,12 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
               rate={resourceRates[key]}
               hasSupply={(market?.supply?.[key] || 0) > 0}
               draftRate={resourceDrafts[key]}
+              tariffMultiplier={resourceTariffs[key] ?? 1}
+              draftTariff={resourceTariffDrafts[key]}
               onDraftChange={handleResourceDraftChange}
               onCommit={commitResourceDraft}
+              onTariffDraftChange={handleResourceTariffDraftChange}
+              onTariffCommit={commitResourceTariffDraft}
             />
           ))}
         </div>
@@ -604,20 +668,24 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
                     {taxableResources
                       .filter(([key]) => !ALL_GROUPED_RESOURCES.has(key))
                       .map(([key, info]) => (
-                        <ResourceTaxCard
-                          key={key}
-                          resourceKey={key}
-                          info={info}
-                          rate={resourceRates[key]}
-                          hasSupply={(market?.supply?.[key] || 0) > 0}
-                          draftRate={resourceDrafts[key]}
-                          onDraftChange={handleResourceDraftChange}
-                          onCommit={commitResourceDraft}
-                        />
-                      ))}
-                  </div>
+                    <ResourceTaxCard
+                      key={key}
+                      resourceKey={key}
+                      info={info}
+                      rate={resourceRates[key]}
+                      hasSupply={(market?.supply?.[key] || 0) > 0}
+                      draftRate={resourceDrafts[key]}
+                      tariffMultiplier={resourceTariffs[key] ?? 1}
+                      draftTariff={resourceTariffDrafts[key]}
+                      onDraftChange={handleResourceDraftChange}
+                      onCommit={commitResourceDraft}
+                      onTariffDraftChange={handleResourceTariffDraftChange}
+                      onTariffCommit={commitResourceTariffDraft}
+                    />
+                  ))}
                 </div>
-              )}
+              </div>
+            )}
             </div>
           )}
 

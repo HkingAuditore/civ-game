@@ -189,7 +189,7 @@ export const EPOCH_EVENTS = [
         description: '相信萨满，投入资源进行祭祀。',
         effects: {
           resourcePercent: {
-            food: -0.012,
+            food: -0.04,
             culture: 0.02,
           },
           stability: 10,

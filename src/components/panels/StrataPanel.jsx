@@ -97,7 +97,7 @@ export const StrataPanel = ({
       {/* 标题和稳定度 */}
       {!hideTitle && (
         <div className="flex flex-wrap items-center justify-between mb-1 gap-1.5 flex-shrink-0">
-          <h3 className="text-xs font-bold text-ancient flex items-center gap-1.5">
+          <h3 className="text-xs font-serif font-bold text-ancient flex items-center gap-1.5">
             <Icon name="Users" size={14} className="text-ancient-gold" />
             社会阶层
           </h3>
@@ -247,8 +247,8 @@ export const StrataPanel = ({
                   <div className="flex items-center justify-between mb-0.5">
                     <div className="flex items-center gap-1">
                       <Icon name={info.icon} size={10} className="text-ancient-gold" />
-                      <span className="text-[10px] font-semibold text-ancient-parchment">{info.name}</span>
-                      <span className="text-[8px] text-ancient-stone">{count}人</span>
+                      <span className="text-[11px] font-semibold text-ancient-parchment">{info.name}</span>
+                      <span className="text-[9px] text-ancient-stone">{count}人</span>
                     </div>
                     <span className={`text-[9px] font-semibold font-mono ${getApprovalColor(approval)}`}>
                       {approval.toFixed(0)}%
@@ -397,11 +397,11 @@ export const StrataPanel = ({
 
       {/* 当前效果 - 更紧凑 */}
       <div className="mt-1 pt-1 border-t border-ancient-gold/20 flex-shrink-0">
-        <h4 className="text-[9px] font-bold text-ancient-stone mb-0.5 flex items-center gap-0.5">
+        <h4 className="text-[14px] font-bold text-ancient-stone mb-0.5 flex items-center gap-0.5">
           <Icon name="Activity" size={10} className="text-ancient-gold" />
           当前效果
         </h4>
-        <div className="space-y-0.5 text-[8px] max-h-16 overflow-y-auto pr-0.5 scrollbar-thin scrollbar-thumb-ancient-gold/40 scrollbar-track-ancient-ink/30">
+        <div className="space-y-0.5 text-[12px] max-h-16 overflow-y-auto pr-0.5 scrollbar-thin scrollbar-thumb-ancient-gold/40 scrollbar-track-ancient-ink/30">
           {activeBuffs.map((buff, index) => {
             const details = formatEffectDetails(buff);
             return (
@@ -411,7 +411,7 @@ export const StrataPanel = ({
                   <span className="font-semibold">{buff.desc || '满意加成'}</span>
                 </div>
                 {details.length > 0 && (
-                  <div className="text-ancient-parchment opacity-80 ml-2 text-[7px]">{details.join('，')}</div>
+                  <div className="text-ancient-parchment opacity-80 ml-2 text-[10px]">{details.join('，')}</div>
                 )}
               </div>
             );
@@ -425,13 +425,13 @@ export const StrataPanel = ({
                   <span className="font-semibold">{debuff.desc || '不满惩罚'}</span>
                 </div>
                 {details.length > 0 && (
-                  <div className="text-ancient-parchment opacity-70 ml-2 text-[7px]">{details.join('，')}</div>
+                  <div className="text-ancient-parchment opacity-70 ml-2 text-[10px]">{details.join('，')}</div>
                 )}
               </div>
             );
           })}
           {activeBuffs.length === 0 && activeDebuffs.length === 0 && (
-            <span className="text-ancient-stone opacity-60 text-[8px] italic">无有效效果</span>
+            <span className="text-ancient-stone opacity-60 text-[10px] italic">无有效效果</span>
           )}
         </div>
       </div>

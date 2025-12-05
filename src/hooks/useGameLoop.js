@@ -84,11 +84,17 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
       // 商人在国内购买资源
       const domesticPurchaseCost = localPrice * exportAmount;  // 商人在国内的购买成本
       const taxRate = taxPolicies?.resourceTaxRates?.[resource] || 0; // 获取该资源的交易税率
-      const tradeTax = domesticPurchaseCost * taxRate; // 玩家获得的交易税
-      
+      const tariffMultiplier = Math.max(0, taxPolicies?.resourceTariffMultipliers?.[resource] ?? 1);
+      const effectiveTaxRate = taxRate * tariffMultiplier;
+      const tradeTax = domesticPurchaseCost * effectiveTaxRate; // 玩家获得的交易税
+
       // 商人在国外销售
       const foreignSaleRevenue = foreignPrice * exportAmount;  // 商人在国外的销售收入
-      const merchantProfit = foreignSaleRevenue - domesticPurchaseCost; // 商人获得的利润
+      const merchantProfit = foreignSaleRevenue - domesticPurchaseCost - tradeTax; // 商人获得的利润（含关税成本）
+
+      if (merchantProfit <= 0) {
+        return;
+      }
       
       // 更新玩家资源：扣除出口的资源，获得交易税
       setResources(prev => ({
@@ -136,8 +142,14 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
       // 商人在国内销售
       const domesticSaleRevenue = localPrice * importAmount;  // 商人在国内的销售收入
       const taxRate = taxPolicies?.resourceTaxRates?.[resource] || 0; // 获取该资源的交易税率
-      const tradeTax = domesticSaleRevenue * taxRate; // 玩家获得的交易税
-      const merchantProfit = domesticSaleRevenue - foreignPurchaseCost; // 商人获得的利润
+      const tariffMultiplier = Math.max(0, taxPolicies?.resourceTariffMultipliers?.[resource] ?? 1);
+      const effectiveTaxRate = taxRate * tariffMultiplier;
+      const tradeTax = domesticSaleRevenue * effectiveTaxRate; // 玩家获得的交易税
+      const merchantProfit = domesticSaleRevenue - foreignPurchaseCost - tradeTax; // 商人获得的利润（含关税成本）
+
+      if (merchantProfit <= 0) {
+        return;
+      }
       
       // 商人需要有足够资金从国外购买（这里简化处理，假设商人总有足够资金）
       // 实际上商人的资金来自于之前的交易利润，这里不做详细模拟

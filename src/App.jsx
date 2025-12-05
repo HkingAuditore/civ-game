@@ -413,7 +413,7 @@ function GameApp({ gameState }) {
                       <div className="absolute inset-0 bg-gradient-to-b from-theme-primary/15 to-transparent" />
                     )}
                     <Icon name={tab.icon} size={16} className="relative z-10" /> 
-                    <span className="relative z-10">{tab.label}</span>
+                    <span className="relative z-10 tab-title-serif">{tab.label}</span>
                     {gameState.activeTab !== tab.id && (
                       <div className="absolute inset-0 bg-theme-primary/0 group-hover:bg-theme-primary/5 transition-colors" />
                     )}

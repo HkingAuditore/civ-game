@@ -21,6 +21,100 @@ export const EventDetail = ({ event, onSelectOption, onClose }) => {
     return `${percent > 0 ? '+' : ''}${percent}%`;
   };
 
+  const nationSelectorLabels = {
+    random: '随机国家',
+    all: '所有国家',
+    hostile: '敌对国家',
+    friendly: '友好国家',
+    strongest: '最强国家',
+    weakest: '最弱国家',
+  };
+
+  const diplomaticStyles = {
+    relation: {
+      icon: 'Globe2',
+      labelSuffix: '关系',
+      positiveClass: 'bg-sky-900/50 text-sky-300 border border-sky-500/40',
+      negativeClass: 'bg-rose-900/50 text-rose-300 border border-rose-500/40',
+      formatter: (value) => `${value > 0 ? '+' : ''}${value}`,
+    },
+    aggression: {
+      icon: 'Flame',
+      labelSuffix: '侵略性',
+      positiveClass: 'bg-red-900/50 text-red-300 border border-red-500/40',
+      negativeClass: 'bg-green-900/50 text-green-300 border border-green-500/40',
+      formatter: (value) => formatPercent(value),
+    },
+    wealth: {
+      icon: 'Coins',
+      labelSuffix: '财富',
+      positiveClass: 'bg-amber-900/50 text-amber-200 border border-amber-500/40',
+      negativeClass: 'bg-slate-900/50 text-slate-200 border border-slate-500/40',
+      formatter: (value) => `${value > 0 ? '+' : ''}${value}`,
+    },
+    volatility: {
+      icon: 'Activity',
+      labelSuffix: '市场波动',
+      positiveClass: 'bg-orange-900/50 text-orange-300 border border-orange-500/40',
+      negativeClass: 'bg-cyan-900/50 text-cyan-300 border border-cyan-500/40',
+      formatter: (value) => formatPercent(value),
+    },
+  };
+
+  const getNationSelectorLabel = (selector, excludeList = []) => {
+    const label = nationSelectorLabels[selector] || `指定国家（${selector}）`;
+    if (selector === 'all' && excludeList.length > 0) {
+      const excludes = excludeList.map(item => nationSelectorLabels[item] || item).join('、');
+      return `${label}（排除：${excludes}）`;
+    }
+    return label;
+  };
+
+  const renderNationEffectBadges = (effectObject, type, keyPrefix) => {
+    if (!effectObject) return null;
+    const style = diplomaticStyles[type];
+    if (!style) return null;
+    const excludeList = Array.isArray(effectObject.exclude) ? effectObject.exclude : [];
+    const entries = Object.entries(effectObject).filter(([selector]) => selector !== 'exclude');
+    if (!entries.length) return null;
+    return entries.map(([selector, change], idx) => {
+      const label = getNationSelectorLabel(selector, excludeList);
+      const isPositive = change > 0;
+      const wrapperClass = isPositive ? style.positiveClass : style.negativeClass;
+      return (
+        <span
+          key={`${keyPrefix}-${type}-${selector}-${idx}`}
+          className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${wrapperClass}`}
+        >
+          <Icon name={style.icon} size={10} />
+          <span className="font-medium">{`${label}${style.labelSuffix || ''}`}</span>
+          <span className="font-mono font-bold">{style.formatter(change)}</span>
+        </span>
+      );
+    });
+  };
+
+  const renderTriggerBadge = (selector, type, keyPrefix) => {
+    if (!selector) return null;
+    const isWar = type === 'war';
+    const classes = isWar
+      ? 'bg-red-900/50 text-red-200 border border-red-500/40'
+      : 'bg-emerald-900/50 text-emerald-200 border border-emerald-500/40';
+    const iconName = isWar ? 'Swords' : 'HandHeart';
+    const actionLabel = isWar ? '立即开战' : '签署和平';
+    const label = getNationSelectorLabel(selector);
+    return (
+      <span
+        key={`${keyPrefix}-${type}`}
+        className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${classes}`}
+      >
+        <Icon name={iconName} size={10} />
+        <span className="font-medium">{label}</span>
+        <span className="font-mono font-bold">{actionLabel}</span>
+      </span>
+    );
+  };
+
   const handleOptionClick = (option) => {
     onSelectOption(event.id, option);
     onClose();
@@ -226,6 +320,13 @@ export const EventDetail = ({ event, onSelectOption, onClose }) => {
                         </span>
                       );
                     })}
+
+                  {renderNationEffectBadges(option.effects.nationRelation, 'relation', `option-${option.id}`)}
+                  {renderNationEffectBadges(option.effects.nationAggression, 'aggression', `option-${option.id}`)}
+                  {renderNationEffectBadges(option.effects.nationWealth, 'wealth', `option-${option.id}`)}
+                  {renderNationEffectBadges(option.effects.nationMarketVolatility, 'volatility', `option-${option.id}`)}
+                  {renderTriggerBadge(option.effects.triggerWar, 'war', `option-${option.id}`)}
+                  {renderTriggerBadge(option.effects.triggerPeace, 'peace', `option-${option.id}`)}
                 </div>
 
                 {/* 随机效果预览 */}
@@ -325,6 +426,12 @@ export const EventDetail = ({ event, onSelectOption, onClose }) => {
                                 <span className="font-mono font-bold">{value > 0 ? '+' : ''}{value}</span>
                               </span>
                             ))}
+                          {renderNationEffectBadges(randomEffect.effects.nationRelation, 'relation', `random-${option.id}-${idx}`)}
+                          {renderNationEffectBadges(randomEffect.effects.nationAggression, 'aggression', `random-${option.id}-${idx}`)}
+                          {renderNationEffectBadges(randomEffect.effects.nationWealth, 'wealth', `random-${option.id}-${idx}`)}
+                          {renderNationEffectBadges(randomEffect.effects.nationMarketVolatility, 'volatility', `random-${option.id}-${idx}`)}
+                          {renderTriggerBadge(randomEffect.effects.triggerWar, 'war', `random-${option.id}-${idx}`)}
+                          {renderTriggerBadge(randomEffect.effects.triggerPeace, 'peace', `random-${option.id}-${idx}`)}
                         </div>
                       </div>
                     ))}

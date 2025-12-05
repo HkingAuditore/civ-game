@@ -8,9 +8,9 @@ export default {
     extend: {
       // Epic Font Families
       fontFamily: {
-        'epic': ['Cinzel', 'Noto Serif SC', 'Georgia', 'serif'],
-        'decorative': ['Cinzel Decorative', 'Noto Serif SC', 'serif'],
-        'body': ['Noto Serif SC', 'Georgia', 'serif'],
+        'epic': ['Inter', 'Noto Sans SC', 'system-ui', 'sans-serif'],
+        'decorative': ['Cinzel', 'Noto Sans SC', 'system-ui', 'sans-serif'], // 保留Cinzel用于装饰性标题
+        'body': ['Inter', 'Noto Sans SC', 'system-ui', 'sans-serif'],
       },
       // 动画扩展 - Epic Animations
       animation: {
@@ -102,10 +102,10 @@ export default {
       colors: {
         // Epic Ancient Colors
         ancient: {
-          gold: '#d4af37',
+          gold: '#ffcf33ff',
           bronze: '#cd7f32',
           marble: '#f5f5dc',
-          stone: '#8b7355',
+          stone: '#edd7bbff',
           parchment: '#f4e8d0',
           ink: '#2c1810',
           'royal-purple': '#6a0dad',

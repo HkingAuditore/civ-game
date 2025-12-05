@@ -807,7 +807,7 @@
   }
   
   .divider-ancient::before {
-    content: '◆';
+    content: '\2727';
     position: absolute;
     top: 50%;
     left: 50%;
@@ -852,6 +852,17 @@
 }
 
 @layer components {
+  .tab-title-serif {
+    font-family: 'Cinzel', 'Georgia', serif;
+    letter-spacing: 0.08em;
+  }
+
+  .table-header-serif,
+  table thead th {
+    font-family: 'Cinzel', 'Georgia', serif;
+    letter-spacing: 0.05em;
+  }
+
   /* Era-aware remap for legacy gray utility classes */
   .bg-gray-950\/70,
   .bg-gray-950\/60,
