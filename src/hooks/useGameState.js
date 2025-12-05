@@ -165,6 +165,20 @@ const buildInitialNations = () => {
     // 初始化预算：基于财富
     const wealth = nation.wealth ?? 800;
     const budget = Math.floor(wealth * 0.5);
+    const appearEpoch = nation.appearEpoch ?? 0;
+    const wealthRating = Math.max(0.4, wealth / 800);
+    const baseVolatility = typeof nation.marketVolatility === 'number'
+      ? Math.min(0.9, Math.max(0.1, nation.marketVolatility))
+      : 0.3;
+    const populationLean = nation.culturalTraits?.agriculturalFocus ? 1.15 : 1;
+    const populationFactor = Math.min(2.5, Math.max(0.6, wealthRating * populationLean));
+    const wealthFactor = Math.min(
+      3.5,
+      Math.max(
+        0.5,
+        wealthRating * (1 + Math.max(0, appearEpoch) * 0.05)
+      )
+    );
     
     // 初始化基础人口（用于战后恢复）
     const basePopulation = 1000 + Math.floor(Math.random() * 500); // 1000-1500
@@ -182,6 +196,14 @@ const buildInitialNations = () => {
       warStartDay: null,
       militaryStrength: 1.0, // 初始军事实力为满值
       population: basePopulation, // 初始人口
+      wealthTemplate: wealth,
+      foreignPower: {
+        baseRating: wealthRating,
+        volatility: baseVolatility,
+        appearEpoch,
+        populationFactor,
+        wealthFactor,
+      },
       economyTraits: {
         ...nation.economyTraits,
         baseWealth: wealth, // 保存基础财富用于恢复

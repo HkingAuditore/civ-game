@@ -26,6 +26,13 @@ const ROLE_PRIORITY = [
 
 const JOB_MIGRATION_RATIO = 0.1;
 
+const clamp = (value, min, max) => {
+  if (!Number.isFinite(value)) return min;
+  if (value < min) return min;
+  if (value > max) return max;
+  return value;
+};
+
 
 const SPECIAL_TRADE_RESOURCES = new Set(['science', 'culture']);
 const isTradableResource = (key) => {
@@ -2178,6 +2185,9 @@ export const simulateTick = ({
   const visibleEpoch = epoch;
   // 记录本回合来自战争赔款（含分期）的财政收入
   let warIndemnityIncome = 0;
+  const playerPopulationBaseline = Math.max(5, population || 5);
+  const playerWealthBaseline = Math.max(100, (res.silver ?? resources?.silver ?? 0));
+
   const updatedNations = (nations || []).map(nation => {
     const next = { ...nation };
     const visible = visibleEpoch >= (nation.appearEpoch ?? 0) && (nation.expireEpoch == null || visibleEpoch <= nation.expireEpoch);
@@ -2191,6 +2201,73 @@ export const simulateTick = ({
         logs.push(`🕊️ 随着时代变迁，与 ${next.name} 的战争已成为历史。`);
       }
       return next;
+    }
+
+    next.foreignPower = { ...(next.foreignPower || {}) };
+    const foreignPowerProfile = next.foreignPower;
+    const templateWealth = next.wealthTemplate || next.wealth || 800;
+    if (foreignPowerProfile.baseRating == null) {
+      foreignPowerProfile.baseRating = Math.max(0.4, templateWealth / 800);
+    }
+    const resolvedVolatility = Math.min(
+      0.9,
+      Math.max(0.1, foreignPowerProfile.volatility ?? next.marketVolatility ?? 0.3)
+    );
+    foreignPowerProfile.volatility = resolvedVolatility;
+    if (foreignPowerProfile.appearEpoch == null) {
+      foreignPowerProfile.appearEpoch = next.appearEpoch ?? 0;
+    }
+    if (foreignPowerProfile.populationFactor == null) {
+      const agricultureBoost = next.culturalTraits?.agriculturalFocus ? 1.15 : 1;
+      foreignPowerProfile.populationFactor = clamp(
+        foreignPowerProfile.baseRating * agricultureBoost,
+        0.6,
+        2.5
+      );
+    }
+    if (foreignPowerProfile.wealthFactor == null) {
+      const eraBoost = 1 + Math.max(0, foreignPowerProfile.appearEpoch) * 0.05;
+      foreignPowerProfile.wealthFactor = clamp(
+        foreignPowerProfile.baseRating * eraBoost,
+        0.5,
+        3.5
+      );
+    }
+
+    if (!foreignPowerProfile.initializedAtTick) {
+      const eraGap = Math.max(0, visibleEpoch - (foreignPowerProfile.appearEpoch ?? 0));
+      const eraBonus = 1 + eraGap * 0.08;
+      const randomVariance = 0.9 + Math.random() * 0.25;
+      const popFactor = clamp(
+        foreignPowerProfile.populationFactor * eraBonus * randomVariance,
+        0.6,
+        2.5
+      );
+      const wealthFactor = clamp(
+        foreignPowerProfile.wealthFactor * eraBonus * randomVariance,
+        0.5,
+        3.5
+      );
+      const basePopInit = Math.max(3, Math.round(playerPopulationBaseline * popFactor));
+      const baseWealthInit = Math.max(100, Math.round(playerWealthBaseline * wealthFactor));
+      next.population = basePopInit;
+      next.wealth = baseWealthInit;
+      next.budget = Math.max(50, baseWealthInit * 0.5);
+      next.economyTraits = {
+        ...(next.economyTraits || {}),
+        basePopulation: basePopInit,
+        baseWealth: baseWealthInit,
+      };
+      foreignPowerProfile.populationFactor = popFactor;
+      foreignPowerProfile.wealthFactor = wealthFactor;
+      foreignPowerProfile.initializedAtTick = tick;
+      foreignPowerProfile.playerSnapshot = {
+        population: playerPopulationBaseline,
+        wealth: playerWealthBaseline,
+      };
+      if (!next.wealthTemplate) {
+        next.wealthTemplate = baseWealthInit;
+      }
     }
     
     // ========== 外国经济模拟 ==========
@@ -2475,31 +2552,59 @@ export const simulateTick = ({
     }
     
     // ========== 战后恢复机制 ==========
-    // 和平状态下，国家逐渐恢复军事实力、财富和人口
+    // 和平状态下，国家逐渐恢复军事实力
     if (!next.isAtWar) {
-      // 军事实力恢复：每tick恢复0.5%，约200 ticks（约3-4分钟）恢复满
       const currentStrength = next.militaryStrength ?? 1.0;
       if (currentStrength < 1.0) {
         const recoveryRate = 0.005; // 每tick恢复0.5%
         next.militaryStrength = Math.min(1.0, currentStrength + recoveryRate);
       }
-      
-      // 财富恢复：基于国家基础财富，逐渐恢复
-      const baseWealth = next.economyTraits?.baseWealth || (next.wealth || 800);
-      const currentWealth = next.wealth || 0;
-      if (currentWealth < baseWealth) {
-        const wealthRecoveryRate = Math.max(1, baseWealth * 0.002); // 每tick恢复0.2%
-        next.wealth = Math.min(baseWealth, currentWealth + wealthRecoveryRate);
-      }
-      
-      // 人口恢复：基于国家基础人口，逐渐恢复
-      const basePopulation = next.economyTraits?.basePopulation || 1000;
-      const currentPopulation = next.population ?? basePopulation;
-      if (currentPopulation < basePopulation) {
-        const populationRecoveryRate = Math.max(1, basePopulation * 0.003); // 每tick恢复0.3%
-        next.population = Math.min(basePopulation, currentPopulation + populationRecoveryRate);
-      }
     }
+
+    // ========== 人口与财富波动模型 ==========
+    const powerProfile = next.foreignPower || {};
+    const volatility = clamp(powerProfile.volatility ?? next.marketVolatility ?? 0.3, 0.1, 0.9);
+    const populationFactor = clamp(
+      powerProfile.populationFactor ?? powerProfile.baseRating ?? 1,
+      0.6,
+      2.5
+    );
+    const wealthFactor = clamp(
+      powerProfile.wealthFactor ?? (powerProfile.baseRating ? powerProfile.baseRating * 1.1 : 1.1),
+      0.5,
+      3.5
+    );
+    const eraMomentum = 1 + Math.max(0, epoch - (powerProfile.appearEpoch ?? 0)) * 0.03;
+    const desiredPopulation = Math.max(3, playerPopulationBaseline * populationFactor * eraMomentum);
+    const desiredWealth = Math.max(100, playerWealthBaseline * wealthFactor * eraMomentum);
+    
+    next.economyTraits = {
+      ...(next.economyTraits || {}),
+      basePopulation: desiredPopulation,
+      baseWealth: desiredWealth,
+    };
+
+    const currentPopulation = next.population ?? desiredPopulation;
+    const populationDriftRate = next.isAtWar ? 0.015 : 0.045;
+    const populationNoise = (Math.random() - 0.5) * volatility * desiredPopulation * 0.04;
+    let adjustedPopulation = currentPopulation + (desiredPopulation - currentPopulation) * populationDriftRate + populationNoise;
+    if (next.isAtWar) {
+      adjustedPopulation -= currentPopulation * 0.012;
+    }
+    next.population = Math.max(3, Math.round(adjustedPopulation));
+
+    const currentWealth = next.wealth ?? desiredWealth;
+    const wealthDriftRate = next.isAtWar ? 0.01 : 0.04;
+    const wealthNoise = (Math.random() - 0.5) * volatility * desiredWealth * 0.05;
+    let adjustedWealth = currentWealth + (desiredWealth - currentWealth) * wealthDriftRate + wealthNoise;
+    if (next.isAtWar) {
+      adjustedWealth -= currentWealth * 0.015;
+    }
+    next.wealth = Math.max(100, Math.round(adjustedWealth));
+
+    const dynamicBudgetTarget = next.wealth * 0.45;
+    const workingBudget = Number.isFinite(next.budget) ? next.budget : dynamicBudgetTarget;
+    next.budget = Math.max(0, workingBudget + (dynamicBudgetTarget - workingBudget) * 0.35);
     
     return next;
   });

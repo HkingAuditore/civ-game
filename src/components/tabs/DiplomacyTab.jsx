@@ -61,6 +61,137 @@ const getPreferredResources = (nation) => {
     }));
 };
 
+const CULTURAL_TRAIT_LABELS = {
+  // --- 适应与生存 ---
+  adaptability: '环境适应力',      // 比“适应性”更有生命力
+  austereLiving: '清苦自律',       // 对应斯巴达/斯多葛学派，比“简朴生活”更有哲学感
+  resourcefulSurvival: '绝境求生', // 体现利用有限资源的智慧
+  frontierSpirit: '开拓精神',      // 对应美国边疆历史
+  sacrificialCulture: '血祭传统',  // “献祭”略显中性，阿兹特克风格通常带血腥色彩
+
+  // --- 军事与战争 ---
+  ageRegiments: '年龄组兵制',      // 对应祖鲁 Impi 的同龄兵团制度
+  bushidoCode: '武士道',
+  cavalryTradition: '骑术传统',
+  conquistadorSpirit: '征服者',    // 西班牙特有
+  defensiveFocus: '城防重地',      // 比“防御重心”更像战略术语
+  flowerWars: '荣冠战争',          // 阿兹特克 Xochiyaoyotl 的意译，或保留“花之战争”
+  gunpowderEmpire: '火药帝国',
+  honorCode: '荣誉信条',
+  horseLordSupremacy: '马背霸权',  // 比“骑兵霸权”更有游牧感
+  janissarySystem: '耶尼切里制',   // 奥斯曼特有新军，比“近卫军”更准确
+  mercenaryArmy: '雇佣兵团',
+  militaryDiscipline: '军纪严明',
+  militaryFocus: '尚武之风',       // “军事聚焦”太生硬
+  militaryInnovation: '军事革新',
+  militaryPrecision: '兵贵精准',
+  militarySociety: '军国社会',
+  militaryTradition: '戎马传统',
+  mobilityFocus: '机动战术',
+  navalSupremacy: '海上霸主',
+  navalTradition: '航海传统',
+  raidingCulture: '掠夺成性',      // 维京/游牧风格
+  rapidConquest: '兵贵神速',       // 意译 Rapid Conquest
+  strategicDepth: '战略纵深',      // 如果有 vastTerritory 类似的
+
+  // --- 政治与统治 ---
+  autocraticRule: '独裁统治',
+  bureaucraticEfficiency: '吏治高效', // “官僚效率”太现代
+  bureaucraticState: '科层国家',      // 或“官僚体制”
+  celestialMandate: '天命所归',       // 中国特色
+  colonialEmpire: '殖民帝国',
+  democracyBirthplace: '民主摇篮',
+  democraticIdeals: '民主理想',
+  diplomaticMastery: '纵横捭阖',      // 极具外交手腕的雅称
+  diplomaticModifier: '外交修正',     // 游戏术语保留
+  divineKingship: '神授王权',
+  examSystem: '科举制度',             // 专指中国/东亚
+  helotSystem: '黑劳士制',            // 斯巴达特有奴隶制
+  imperialGrandeur: '帝国荣光',
+  imperialLegacy: '帝国遗产',
+  isolationism: '闭关锁国',           // 比“孤立主义”更有历史感
+  isolationist: '排外倾向',
+  junkertradition: '容克贵族',        // 普鲁士
+  laborTax: '徭役制度',               // 古代劳役税的专称
+  legalTradition: '法典传统',
+  manifestDestiny: '天命昭昭',        // 美国西进运动专有名词
+  multiculturalRule: '多元共治',
+  nobleRepublic: '贵族共和',          // 波兰立陶宛联邦
+  parliamentarySystem: '议会政治',
+  tributeSystem: '朝贡体系',          // 东方外交体系
+
+  // --- 经济与贸易 ---
+  agriculturalFocus: '农本思想',      // 或“重农传统”
+  cattleWealth: '牧群资产',           // 非洲游牧民族以牛为财
+  financialExpertise: '金融专长',
+  financialInnovation: '金融革新',
+  goldTrade: '黄金商路',
+  infrastructureFocus: '大兴土木',    // 比“基础设施”更生动
+  marketExpertise: '商贾优势',
+  mercantileTradition: '重商主义',
+  miningExpertise: '矿业专精',
+  navalCommerce: '海路通商',
+  peacefulTrade: '互市通商',
+  tradeProtection: '贸易壁垒',        // 或“保护主义”
+  tradingCompany: '特许商号',         // 对应东印度公司
+  tradingStyle: '贸易风格',
+  transaharaTrade: '穿越沙海',        // 跨撒哈拉贸易的雅称
+
+  // --- 文化、宗教与科技 ---
+  artisticPatronage: '文艺庇护',      // 对应文艺复兴时期的 Patronage
+  astronomyAdvanced: '观星造诣',      // 比“天文学精研”更古雅
+  cradle: '文明摇篮',
+  craftExcellence: '巧夺天工',        // 形容工艺
+  culturalHegemony: '文化霸权',
+  engineeringAdvanced: '工程卓越',
+  explorationBonus: '探索加成',
+  explorerSpirit: '探险精神',
+  floatingGardens: '水上圃田',        // 也就是“奇南帕”，避免与巴比伦“空中花园”混淆
+  ideologicalExport: '思潮输出',
+  industrialPioneer: '工业先驱',
+  islamicLearning: '伊斯兰治学',
+  missionaryZeal: '传教热忱',
+  monumentBuilding: '奇观建造',       // 游戏玩家通俗语
+  orthodoxCenter: '正教中心',
+  orthodoxFaith: '东正信仰',
+  philosophyCenter: '哲思圣地',
+  religiousFervor: '狂热信仰',
+  religiousFocus: '宗教核心',
+  religiousMission: '神圣使命',
+  religiousSyncretism: '三教合流',    // 意译 Syncretism，或“信仰融合”
+  religiousTolerance: '宗教宽容',
+  riverCivilization: '大河文明',
+  roadNetwork: '驰道网络',            // “道路”太普通，古称“驰道”或“驿路”
+  scientificAdvancement: '科学昌明',
+  seafaringMastery: '纵横四海',       // 航海精通的雅称
+  sunWorship: '太阳崇拜',
+  vastTerritory: '疆域辽阔',
+  writingInventor: '文字始祖',
+};
+
+const TRADE_STYLE_LABELS = {
+  aggressive: '激进型',
+  merchant: '商人型',
+  maritime: '海洋型',
+  monopolistic: '垄断型',
+  capitalist: '资本型',
+};
+
+const formatCulturalTraitValue = (trait, value) => {
+  if (typeof value === 'boolean') return '';
+  if (trait === 'tradingStyle' && typeof value === 'string') {
+    const styleLabel = TRADE_STYLE_LABELS[value] || value;
+    return ` (${styleLabel})`;
+  }
+  if (typeof value === 'number') {
+    return ` (${(value * 100).toFixed(0)}%)`;
+  }
+  if (value != null && value !== '') {
+    return ` (${value})`;
+  }
+  return '';
+};
+
 export const DiplomacyTab = ({
   nations = [],
   epoch = 0,
@@ -371,7 +502,7 @@ export const DiplomacyTab = ({
                 )}
                 
                 {/* 文化特性 */}
-                {selectedNation?.culturalTraits && Object.keys(selectedNation.culturalTraits).length > 0 && (
+                {/*selectedNation?.culturalTraits && Object.keys(selectedNation.culturalTraits).length > 0 && (
                   <div className="mt-2">
                     <div className="text-[10px] text-gray-400 uppercase tracking-wide mb-1 flex items-center gap-1">
                       <Icon name="Landmark" size={10} className="text-cyan-300" />
@@ -379,22 +510,27 @@ export const DiplomacyTab = ({
                     </div>
                     <div className="flex flex-wrap gap-1">
                       {Object.entries(selectedNation.culturalTraits).map(([trait, value]) => {
-                        // 将驼峰命名转换为可读格式
-                        const traitName = trait.replace(/([A-Z])/g, ' $1').trim();
-                        const displayValue = typeof value === 'boolean' ? '' : ` (${typeof value === 'number' ? (value * 100).toFixed(0) + '%' : value})`;
+                        const fallbackName = trait.replace(/([A-Z])/g, ' $1').trim();
+                        const normalizedName = fallbackName
+                          ? fallbackName.charAt(0).toUpperCase() + fallbackName.slice(1)
+                          : trait;
+                        const traitLabel = CULTURAL_TRAIT_LABELS[trait] || normalizedName;
+                        const traitValueLabel = formatCulturalTraitValue(trait, value);
+
                         return (
                           <span
                             key={trait}
                             className="px-2 py-0.5 rounded-full bg-cyan-900/30 border border-cyan-500/30 text-[10px] text-cyan-200"
-                            title={`${traitName}${displayValue}`}
+                            title={`${traitLabel}${traitValueLabel}`}
                           >
-                            {traitName}{displayValue}
+                            {traitLabel}
+                            {traitValueLabel}
                           </span>
                         );
                       })}
                     </div>
                   </div>
-                )}
+                )*/}
               </div>
 
               <div className="bg-gray-800/60 p-2 rounded-lg border border-gray-700">
