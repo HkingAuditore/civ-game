@@ -5,6 +5,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { Icon } from '../common/UIComponents';
 import { RESOURCES } from '../../config';
 import { calculateForeignPrice, calculateTradeStatus } from '../../utils/foreignTrade';
+import { FONT_USAGE, getTextStyles } from '../../config/unifiedStyles';
 
 const relationInfo = (relation = 0) => {
   if (relation >= 80) return { label: '盟友', color: 'text-green-300', bg: 'bg-green-900/20' };
@@ -297,29 +298,29 @@ export const DiplomacyTab = ({
   return (
     <div className="space-y-2">
       {/* 精简的统计信息 - 仅在桌面端显示 */}
-      <div className="hidden md:flex gap-2 text-xs">
+      <div className="hidden md:flex gap-2 text-xs font-body font-medium tracking-tight">
         <div className="bg-gray-800/60 px-2 py-1 rounded border border-gray-700">
           <span className="text-gray-400">国家:</span>
-          <span className="text-white font-bold ml-1">{visibleNations.length}</span>
+          <span className="text-white font-semibold ml-1">{visibleNations.length}</span>
         </div>
         <div className="bg-green-900/20 px-2 py-1 rounded border border-green-600/20">
           <span className="text-gray-400">盟友:</span>
-          <span className="text-green-300 font-bold ml-1">{totalAllies}</span>
+          <span className="text-green-300 font-bold ml-1 font-code">{totalAllies}</span>
         </div>
         <div className="bg-red-900/20 px-2 py-1 rounded border border-red-600/30">
           <span className="text-gray-400">战争:</span>
-          <span className="text-red-300 font-bold ml-1">{totalWars}</span>
+          <span className="text-red-300 font-bold ml-1 font-code">{totalWars}</span>
         </div>
         <div className="bg-blue-900/20 px-2 py-1 rounded border border-blue-600/20">
           <span className="text-gray-400">贸易路线:</span>
-          <span className={`font-bold ml-1 ${
+          <span className={`font-bold ml-1 font-code ${
             activeRouteCount < currentRouteCount ? 'text-yellow-300' : 'text-blue-300'
           }`}>{activeRouteCount}/{currentRouteCount}</span>
           <span className="text-gray-500 text-[10px] ml-1">(上限:{merchantJobLimit})</span>
         </div>
         <div className="bg-amber-900/20 px-2 py-1 rounded border border-amber-600/20">
           <span className="text-gray-400">商人在岗:</span>
-          <span className="text-amber-300 font-bold ml-1">{merchantCount}/{merchantJobLimit}</span>
+          <span className="text-amber-300 font-bold ml-1 font-code">{merchantCount}/{merchantJobLimit}</span>
         </div>
       </div>
 
@@ -344,8 +345,8 @@ export const DiplomacyTab = ({
                   <Icon name="Flag" size={14} className={nation.color || 'text-gray-300'} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-semibold text-white truncate">{nation.name || '未知国家'}</span>
-                      <span className={`px-1 py-0.5 rounded text-[9px] ${relation.bg} ${relation.color}`}>
+                      <span className="text-xs font-semibold text-white truncate font-decorative tracking-wide">{nation.name || '未知国家'}</span>
+                      <span className={`px-1 py-0.5 rounded text-[9px] font-body font-medium ${relation.bg} ${relation.color}`}>
                         {relation.label}
                       </span>
                     </div>
@@ -359,7 +360,7 @@ export const DiplomacyTab = ({
               );
             })}
             {visibleNations.length === 0 && (
-              <div className="p-3 text-xs text-gray-400">当前时代暂无可接触的国家。</div>
+              <div className="p-3 text-xs text-gray-400 font-body font-normal">当前时代暂无可接触的国家。</div>
             )}
           </div>
         </div>

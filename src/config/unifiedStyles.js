@@ -218,6 +218,171 @@ export const SHADOWS = {
   glowGold: 'shadow-glow-gold',
 };
 
+// ==================== 字体系统 ====================
+
+/**
+ * 字体系统配置
+ * 建立清晰的字体使用规范，避免衬线字体滥用
+ * - decorative: 衬线字体，用于标题、装饰性文字
+ * - body: 非衬线字体，用于正文、界面元素
+ * - code: 等宽字体，用于代码、数据展示
+ */
+export const FONT_STYLES = {
+  // 字体族配置
+  family: {
+    decorative: "'Cinzel', 'Noto Serif SC', 'Georgia', serif",
+    body: "'Inter', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+    code: "'JetBrains Mono', 'Cascadia Code', 'Consolas', 'Monaco', monospace",
+  },
+  
+  // 字号系统（响应式）
+  size: {
+    xs: '10px',     // 微小文字
+    sm: '12px',     // 小号文字
+    base: '14px',   // 基础正文
+    md: '16px',     // 中等正文
+    lg: '18px',     // 大号正文
+    xl: '20px',     // 标题等级4
+    '2xl': '24px',  // 标题等级3
+    '3xl': '28px',  // 标题等级2
+    '4xl': '32px',  // 标题等级1
+    '5xl': '36px',  // 特大标题
+  },
+  
+  // 字重配置
+  weight: {
+    thin: 300,
+    normal: 400,
+    medium: 500,
+    semibold: 600,
+    bold: 700,
+    black: 800,
+  },
+  
+  // 行高配置
+  leading: {
+    tight: 1.1,     // 紧密（标题）
+    snug: 1.25,    // 紧凑
+    normal: 1.5,   // 正常（正文）
+    relaxed: 1.75, // 宽松
+    loose: 2,      // 宽松（大段落）
+  },
+  
+  // 字间距配置
+  tracking: {
+    tighter: '-0.05em',
+    tight: '-0.025em',
+    normal: '0em',
+    wide: '0.025em',
+    wider: '0.05em',
+    widest: '0.1em',
+  },
+};
+
+// ==================== 字体使用规范 ====================
+
+/**
+ * 字体使用指南
+ * 1. 衬线字体（decorative）：用于标题、导航标签、国家名称、文化特性等装饰性文字
+ * 2. 非衬线字体（body）：用于正文、按钮文字、数据、描述性文字等界面元素
+ * 3. 等宽字体（code）：用于数值、代码、统计信息等需要对齐的内容
+ */
+export const FONT_USAGE = {
+  // 标题类 - 使用衬线字体
+  title: `font-decorative font-bold tracking-wide`, // Tailwind 类名
+  // 正文类 - 使用非衬线字体
+  body: `font-body font-normal tracking-normal leading-normal`, // Tailwind 类名
+  // 数据类 - 使用等宽字体
+  data: `font-code font-medium tracking-tight`, // Tailwind 类名
+  
+  // 组件级别字体规范
+  components: {
+    button: 'font-body font-semibold',
+    cardTitle: 'font-decorative font-bold',
+    cardBody: 'font-body font-normal',
+    tableHeader: 'font-decorative font-medium',
+    tableCell: 'font-body font-normal',
+    badge: 'font-body font-medium',
+    tooltip: 'font-body font-normal',
+    modalTitle: 'font-decorative font-bold',
+    modalBody: 'font-body font-normal',
+  },
+  
+  // 功能级别字体规范
+  functional: {
+    navigation: 'font-decorative font-medium',
+    statValue: 'font-code font-bold',
+    statLabel: 'font-body font-medium',
+    resourceName: 'font-decorative font-semibold',
+    resourceAmount: 'font-code font-medium',
+    countryName: 'font-decorative font-bold',
+    countryDescription: 'font-body font-normal',
+    actionText: 'font-body font-semibold',
+    hintText: 'font-body font-light',
+  },
+};
+
+// ==================== 字体工具函数 ====================
+
+/**
+ * 获取标题样式
+ * @param {'h1'|'h2'|'h3'|'h4'} level - 标题等级
+ * @param {boolean} decorative - 是否使用衬线字体（默认true）
+ * @returns {string} 样式类名
+ */
+export const getHeadingStyles = (level = 'h1', decorative = true) => {
+  const sizes = {
+    h1: 'text-4xl',
+    h2: 'text-3xl',
+    h3: 'text-2xl',
+    h4: 'text-xl',
+  };
+  
+  const weights = {
+    h1: 'font-black',
+    h2: 'font-bold',
+    h3: 'font-semibold',
+    h4: 'font-medium',
+  };
+  
+  const fontFamily = decorative ? 'font-decorative' : 'font-body';
+  
+  return `${fontFamily} ${sizes[level]} ${weights[level]} tracking-wide leading-tight`;
+};
+
+/**
+ * 获取文本样式
+ * @param {'xs'|'sm'|'base'|'md'|'lg'} size - 文字大小
+ * @param {'thin'|'normal'|'medium'|'semibold'|'bold'} weight - 字重
+ * @param {'decorative'|'body'|'code'} family - 字体族
+ * @returns {string} 样式类名
+ */
+export const getTextStyles = (size = 'base', weight = 'normal', family = 'body') => {
+  const sizeMap = {
+    xs: 'text-xs',
+    sm: 'text-sm',
+    base: 'text-base',
+    md: 'text-md',
+    lg: 'text-lg',
+  };
+  
+  const weightMap = {
+    thin: 'font-light',
+    normal: 'font-normal',
+    medium: 'font-medium',
+    semibold: 'font-semibold',
+    bold: 'font-bold',
+  };
+  
+  const familyMap = {
+    decorative: 'font-decorative',
+    body: 'font-body',
+    code: 'font-code',
+  };
+  
+  return `${familyMap[family]} ${sizeMap[size]} ${weightMap[weight]} tracking-normal leading-normal`;
+};
+
 // ==================== 辅助函数 ====================
 
 /**

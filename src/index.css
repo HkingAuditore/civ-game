@@ -41,7 +41,7 @@
   
   body {
     @apply antialiased;
-    font-family: 'Cinzel', 'Georgia', serif;
+    font-family: var(--font-epic), 'Inter', 'Noto Sans SC', 'system-ui', -apple-system, BlinkMacSystemFont, sans-serif;
     background: var(--theme-bg-gradient, linear-gradient(135deg, #1a1410 0%, #2c1810 50%, #1a1410 100%));
     background-color: var(--theme-bg, #1a1410);
     background-attachment: fixed;
