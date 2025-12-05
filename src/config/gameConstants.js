@@ -158,7 +158,7 @@ export const RESOURCES = {
   // 青铜时代资源
   plank: { 
     name: "木板", 
-    icon: 'Hammer', 
+    icon: 'TreeDeciduous', 
     color: "text-amber-600", 
     basePrice: 7.5, 
     minPrice: 0.75, 

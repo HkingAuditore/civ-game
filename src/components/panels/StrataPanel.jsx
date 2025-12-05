@@ -397,8 +397,8 @@ export const StrataPanel = ({
 
       {/* 当前效果 - 更紧凑 */}
       <div className="mt-1 pt-1 border-t border-ancient-gold/20 flex-shrink-0">
-        <h4 className="text-[14px] font-bold text-ancient-stone mb-0.5 flex items-center gap-0.5">
-          <Icon name="Activity" size={10} className="text-ancient-gold" />
+        <h4 className="text-[14px] font-serif font-bold text-ancient-stone mb-0.5 flex items-center gap-0.5">
+          <Icon name="Activity" size={10} className="text-ancient-gold " />
           当前效果
         </h4>
         <div className="space-y-0.5 text-[12px] max-h-16 overflow-y-auto pr-0.5 scrollbar-thin scrollbar-thumb-ancient-gold/40 scrollbar-track-ancient-ink/30">

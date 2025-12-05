@@ -2575,8 +2575,22 @@ export const simulateTick = ({
       3.5
     );
     const eraMomentum = 1 + Math.max(0, epoch - (powerProfile.appearEpoch ?? 0)) * 0.03;
-    const desiredPopulation = Math.max(3, playerPopulationBaseline * populationFactor * eraMomentum);
-    const desiredWealth = Math.max(100, playerWealthBaseline * wealthFactor * eraMomentum);
+    const templatePopulationBoost = Math.max(
+      1,
+      (next.wealthTemplate || 800) / Math.max(800, playerWealthBaseline) * 0.8
+    );
+    const templateWealthBoost = Math.max(
+      1,
+      (next.wealthTemplate || 800) / Math.max(800, playerWealthBaseline) * 1.1
+    );
+    const desiredPopulation = Math.max(
+      3,
+      playerPopulationBaseline * populationFactor * eraMomentum * templatePopulationBoost
+    );
+    const desiredWealth = Math.max(
+      100,
+      playerWealthBaseline * wealthFactor * eraMomentum * templateWealthBoost
+    );
     
     next.economyTraits = {
       ...(next.economyTraits || {}),
@@ -2585,7 +2599,8 @@ export const simulateTick = ({
     };
 
     const currentPopulation = next.population ?? desiredPopulation;
-    const populationDriftRate = next.isAtWar ? 0.015 : 0.045;
+    const driftMultiplier = clamp(1 + volatility * 0.6 + eraMomentum * 0.08, 1, 1.8);
+    const populationDriftRate = (next.isAtWar ? 0.032 : 0.12) * driftMultiplier;
     const populationNoise = (Math.random() - 0.5) * volatility * desiredPopulation * 0.04;
     let adjustedPopulation = currentPopulation + (desiredPopulation - currentPopulation) * populationDriftRate + populationNoise;
     if (next.isAtWar) {
@@ -2594,7 +2609,7 @@ export const simulateTick = ({
     next.population = Math.max(3, Math.round(adjustedPopulation));
 
     const currentWealth = next.wealth ?? desiredWealth;
-    const wealthDriftRate = next.isAtWar ? 0.01 : 0.04;
+    const wealthDriftRate = (next.isAtWar ? 0.03 : 0.11) * driftMultiplier;
     const wealthNoise = (Math.random() - 0.5) * volatility * desiredWealth * 0.05;
     let adjustedWealth = currentWealth + (desiredWealth - currentWealth) * wealthDriftRate + wealthNoise;
     if (next.isAtWar) {

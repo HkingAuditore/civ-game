@@ -146,7 +146,7 @@ export const AnnualFestivalModal = ({ festivalOptions, year, epoch, onSelect }) 
                       : 'border-gray-600 bg-gray-700/50'
                   }`}>
                     {/* 效果类型标签 */}
-                    <div className={`px-2 py-1 text-center text-[9px] font-bold ${
+                    <div className={`px-2 py-1 text-center text-[14px] font-bold ${
                       isPermanent
                         ? 'bg-gradient-to-r from-purple-600 to-purple-800 text-purple-100'
                         : 'bg-gradient-to-r from-yellow-600 to-orange-600 text-yellow-100'
@@ -192,7 +192,7 @@ export const AnnualFestivalModal = ({ festivalOptions, year, epoch, onSelect }) 
                         {effectDetails.map((detail, idx) => (
                           <div 
                             key={idx}
-                            className={`flex items-center gap-1.5 text-[9px] p-1 rounded ${
+                            className={`flex items-center gap-1.5 text-[11px] p-1 rounded ${
                               isPermanent 
                                 ? 'bg-purple-900/30 border border-purple-600/30' 
                                 : 'bg-yellow-900/30 border border-yellow-600/30'

@@ -211,8 +211,8 @@ export const StatusBar = ({
             
             {/* 时代标识 */}
             <div className="hidden sm:flex flex-col">
-              <span className="text-[9px] text-ancient-stone uppercase tracking-wider">哈耶克的文明</span>
-              <span className="text-[10px] font-bold text-ancient flex items-center gap-1">
+              <span className="text-[11px] font-bold text-ancient-stone uppercase tracking-wider  font-serif">哈耶克的文明</span>
+              <span className="text-[10px] font-bold text-ancient flex items-center gap-1  font-serif">
                 <span>{currentEpoch.icon || '🏛️'}</span>
                 {currentEpoch.name}
               </span>
@@ -235,7 +235,7 @@ export const StatusBar = ({
             >
               <Icon name={seasonInfo.icon} size={12} className={seasonInfo.color} />
               <div className="text-[9px] sm:text-[10px] leading-tight">
-                <span className="font-bold text-ancient-parchment">
+                <span className="font-bold text-ancient-parchment  font-serif">
                   {calendar.year}年 · {calendar.season}
                 </span>
               </div>

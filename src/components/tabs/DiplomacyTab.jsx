@@ -295,40 +295,39 @@ export const DiplomacyTab = ({
   };
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 font-body">
       {/* 精简的统计信息 - 仅在桌面端显示 */}
-      <div className="hidden md:flex gap-2 text-xs">
+      <div className="hidden md:flex gap-2 text-xs font-epic">
         <div className="bg-gray-800/60 px-2 py-1 rounded border border-gray-700">
-          <span className="text-gray-400">国家:</span>
-          <span className="text-white font-bold ml-1">{visibleNations.length}</span>
+          <span className="text-gray-400 font-body">国家:</span>
+          <span className="text-white font-semibold ml-1 font-epic">{visibleNations.length}</span>
         </div>
         <div className="bg-green-900/20 px-2 py-1 rounded border border-green-600/20">
-          <span className="text-gray-400">盟友:</span>
-          <span className="text-green-300 font-bold ml-1">{totalAllies}</span>
+          <span className="text-gray-400 font-body">盟友:</span>
+          <span className="text-green-300 font-semibold ml-1 font-epic">{totalAllies}</span>
         </div>
         <div className="bg-red-900/20 px-2 py-1 rounded border border-red-600/30">
-          <span className="text-gray-400">战争:</span>
-          <span className="text-red-300 font-bold ml-1">{totalWars}</span>
+          <span className="text-gray-400 font-body">战争:</span>
+          <span className="text-red-300 font-semibold ml-1 font-epic">{totalWars}</span>
         </div>
         <div className="bg-blue-900/20 px-2 py-1 rounded border border-blue-600/20">
-          <span className="text-gray-400">贸易路线:</span>
-          <span className={`font-bold ml-1 ${
+          <span className="text-gray-400 font-body">贸易路线:</span>
+          <span className={`font-semibold ml-1 font-epic ${
             activeRouteCount < currentRouteCount ? 'text-yellow-300' : 'text-blue-300'
           }`}>{activeRouteCount}/{currentRouteCount}</span>
-          <span className="text-gray-500 text-[10px] ml-1">(上限:{merchantJobLimit})</span>
+          <span className="text-gray-500 text-[10px] ml-1 font-body">(上限:{merchantJobLimit})</span>
         </div>
         <div className="bg-amber-900/20 px-2 py-1 rounded border border-amber-600/20">
-          <span className="text-gray-400">商人在岗:</span>
-          <span className="text-amber-300 font-bold ml-1">{merchantCount}/{merchantJobLimit}</span>
+          <span className="text-gray-400 font-body">商人在岗:</span>
+          <span className="text-amber-300 font-semibold ml-1 font-epic">{merchantCount}/{merchantJobLimit}</span>
         </div>
       </div>
 
 <div className="grid grid-cols-1 xl:grid-cols-3 gap-3 h-[calc(100vh-180px)] md:h-[900px]">
         <div className="glass-ancient rounded-xl border border-ancient-gold/30 flex flex-col overflow-hidden">
-          <div className="px-2 py-1.5 border-b border-gray-700/80 text-[10px] uppercase tracking-wide text-gray-400">
+      <div className="px-2 py-1.5 border-b border-gray-700/80 text-[15px] uppercase tracking-wide text-gray-400 font-serif font-bold">
             国家列表
-          </div>
-          <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-900 hover:scrollbar-thumb-gray-500">
+          </div>          <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-900 hover:scrollbar-thumb-gray-500">
             {visibleNations.map((nation, idx) => {
               if (!nation) return null;
               const relation = relationInfo(nation.relation || 0);
@@ -337,15 +336,15 @@ export const DiplomacyTab = ({
                 <button
                   key={nation.id}
                   onClick={() => setSelectedNationId(nation.id)}
-                  className={`w-full flex items-center gap-2 px-2 py-1.5 text-left transition-colors border-b border-gray-700/60 focus:outline-none ${
+                  className={`w-full flex items-center gap-2 px-2 py-1.5 text-left transition-colors border-b border-gray-700/60 focus:outline-none font-body ${
                     isSelected ? 'bg-blue-900/30 border-l-2 border-l-blue-400' : 'hover:bg-gray-800/60'
                   } ${idx === visibleNations.length - 1 ? 'border-b-0' : ''}`}
                 >
                   <Icon name="Flag" size={14} className={nation.color || 'text-gray-300'} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-semibold text-white truncate">{nation.name || '未知国家'}</span>
-                      <span className={`px-1 py-0.5 rounded text-[9px] ${relation.bg} ${relation.color}`}>
+                      <span className="text-xs font-semibold font-serif text-white truncate font-body">{nation.name || '未知国家'}</span>
+                      <span className={`px-1 py-0.5 rounded text-[9px] ${relation.bg} ${relation.color} font-epic`}>
                         {relation.label}
                       </span>
                     </div>
@@ -359,7 +358,7 @@ export const DiplomacyTab = ({
               );
             })}
             {visibleNations.length === 0 && (
-              <div className="p-3 text-xs text-gray-400">当前时代暂无可接触的国家。</div>
+              <div className="p-3 text-xs text-gray-400 font-body">当前时代暂无可接触的国家。</div>
             )}
           </div>
         </div>
@@ -371,14 +370,14 @@ export const DiplomacyTab = ({
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <div className="flex items-center gap-1.5">
                     <Icon name="Globe" size={14} className="text-amber-300" />
-                    <h3 className="text-sm font-bold text-white">{selectedNation?.name || '未知国家'}</h3>
+      <h3 className="text-sm font-bold text-white font-serif">{selectedNation?.name || '未知国家'}</h3>
                     {selectedNation?.type && (
-                      <span className="px-1.5 py-0.5 text-[9px] rounded bg-indigo-900/40 text-indigo-300 border border-indigo-500/30">
+                      <span className="px-1.5 py-0.5 text-[9px] rounded bg-indigo-900/40 text-indigo-300 border border-indigo-500/30 font-epic">
                         {selectedNation.type}
                       </span>
                     )}
                     {selectedRelation && (
-                      <span className={`px-1.5 py-0.5 text-[9px] rounded ${selectedRelation.bg} ${selectedRelation.color}`}>
+                      <span className={`px-1.5 py-0.5 text-[9px] rounded ${selectedRelation.bg} ${selectedRelation.color} font-epic`}>
                         {selectedRelation.label}
                       </span>
                     )}
@@ -393,49 +392,49 @@ export const DiplomacyTab = ({
                 {/* 国家描述 */}
                 {selectedNation?.desc && (
                   <div className="mb-2 p-2 bg-gray-900/40 rounded border border-gray-700/50">
-                    <p className="text-[11px] text-gray-300 leading-relaxed">
+                    <p className="text-[11px] text-gray-300 leading-relaxed font-body">
                       <Icon name="BookOpen" size={10} className="inline mr-1 text-amber-300" />
                       {selectedNation.desc}
                     </p>
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-1 mb-2 text-xs">
+                <div className="grid grid-cols-2 gap-1 mb-2 text-xs font-body">
                   <div className="p-2 rounded border border-blue-500/20 bg-blue-900/10 flex items-center justify-between">
-                    <div className="flex items-center gap-1 text-blue-200">
+                    <div className="flex items-center gap-1 text-blue-200 font-body">
                       <Icon name="Users" size={12} />
                       人口
                     </div>
-                    <span className="font-mono text-blue-100">
+                    <span className="font-mono text-blue-100 font-semibold font-epic">
                       {formatStatValue(selectedNation?.population, '')}
                     </span>
                   </div>
                   <div className="p-2 rounded border border-amber-500/20 bg-amber-900/10 flex items-center justify-between">
-                    <div className="flex items-center gap-1 text-amber-200">
+                    <div className="flex items-center gap-1 text-amber-200 font-body">
                       <Icon name="Coins" size={12} />
                       财富
                     </div>
-                    <span className="font-mono text-amber-100">
+                    <span className="font-mono text-amber-100 font-semibold font-epic">
                       {formatStatValue(selectedNation?.wealth, ' 银')}
                     </span>
                   </div>
                 </div>
                 
-                <div className="flex gap-1.5 text-xs">
+                <div className="flex gap-1.5 text-xs font-body">
                   <button
-                    className="flex-1 px-2 py-1.5 bg-green-600 hover:bg-green-500 rounded text-white flex items-center justify-center gap-1"
+                    className="flex-1 px-2 py-1.5 bg-green-600 hover:bg-green-500 rounded text-white flex items-center justify-center gap-1 font-semibold font-body"
                     onClick={() => handleSimpleAction(selectedNation.id, 'gift')}
                   >
                     <Icon name="Gift" size={12} /> 礼物
                   </button>
                   <button
-                    className="flex-1 px-2 py-1.5 bg-yellow-600 hover:bg-yellow-500 rounded text-white flex items-center justify-center gap-1"
+                    className="flex-1 px-2 py-1.5 bg-yellow-600 hover:bg-yellow-500 rounded text-white flex items-center justify-center gap-1 font-semibold font-body"
                     onClick={() => handleSimpleAction(selectedNation.id, 'demand')}
                   >
                     <Icon name="ShieldAlert" size={12} /> 索要
                   </button>
                   <button
-                    className={`flex-1 px-2 py-1.5 rounded text-white flex items-center justify-center gap-1 ${
+                    className={`flex-1 px-2 py-1.5 rounded text-white flex items-center justify-center gap-1 font-semibold font-body ${
                       selectedNation.isAtWar ? 'bg-purple-600 hover:bg-purple-500' : 'bg-red-600 hover:bg-red-500'
                     }`}
                     onClick={() =>
@@ -446,20 +445,15 @@ export const DiplomacyTab = ({
                     {(selectedNation?.isAtWar === true) ? '求和' : '宣战'}
                   </button>
                 </div>
-                <div className="mt-1 text-[10px] text-gray-400 flex items-center justify-between">
+                <div className="mt-1 text-[10px] text-gray-400 flex items-center justify-between font-epic">
                   <span className="flex items-center gap-1">
                     <Icon name="Coins" size={10} className="text-amber-300" />
                     礼物成本：{BASE_GIFT_COST} 银币
                   </span>
-                  {/* <span
-                    className={`font-mono ${((resources?.silver || 0) >= BASE_GIFT_COST) ? 'text-green-300' : 'text-red-300'}`}
-                  >
-                    库存 {Math.floor(resources?.silver || 0)}
-                  </span> */}
                 </div>
                 {selectedPreferences.length > 0 && (
                   <div className="mt-2">
-                    <div className="text-[10px] text-gray-400 uppercase tracking-wide mb-1 flex items-center gap-1">
+                    <div className="text-[10px] text-gray-400 uppercase tracking-wide mb-1 flex items-center gap-1 font-serif">
                       <Icon name="Package" size={10} className="text-amber-300" />
                       偏好资源
                     </div>
@@ -467,12 +461,12 @@ export const DiplomacyTab = ({
                       {selectedPreferences.slice(0, 4).map((pref) => (
                         <span
                           key={pref.key}
-                          className="px-2 py-0.5 rounded-full bg-gray-900/40 border border-amber-500/30 text-[10px] text-amber-100 flex items-center gap-1"
+                          className="px-2 py-0.5 rounded-full bg-gray-900/40 border border-amber-500/30 text-[10px] text-amber-100 flex items-center gap-1 font-body"
                           title={`倾向度 x${pref.bias.toFixed(1)}`}
                         >
                           <Icon name={pref.icon} size={10} className={pref.color || 'text-amber-200'} />
-                          <span className="font-semibold">{pref.name}</span>
-                          <span className="text-amber-300 font-mono text-[9px]">x{pref.bias.toFixed(1)}</span>
+                          <span className="font-body">{pref.name}</span>
+                          <span className="text-amber-300 font-mono text-[9px] font-epic">x{pref.bias.toFixed(1)}</span>
                         </span>
                       ))}
                     </div>
@@ -482,7 +476,7 @@ export const DiplomacyTab = ({
                 {/* 特殊能力 */}
                 {selectedNation?.specialAbilities && selectedNation.specialAbilities.length > 0 && (
                   <div className="mt-2">
-                    <div className="text-[10px] text-gray-400 uppercase tracking-wide mb-1 flex items-center gap-1">
+                    <div className="text-[10px] text-gray-400 uppercase tracking-wide mb-1 flex items-center gap-1 font-serif">
                       <Icon name="Sparkles" size={10} className="text-purple-300" />
                       国家特色
                     </div>
@@ -490,11 +484,11 @@ export const DiplomacyTab = ({
                       {selectedNation.specialAbilities.map((ability, idx) => (
                         <span
                           key={idx}
-                          className="px-2 py-0.5 rounded-full bg-purple-900/30 border border-purple-500/30 text-[10px] text-purple-200 flex items-center gap-1"
+                          className="px-2 py-0.5 rounded-full bg-purple-900/30 border border-purple-500/30 text-[10px] text-purple-200 flex items-center gap-1 font-body"
                           title={ability.desc}
                         >
                           <Icon name="Zap" size={10} className="text-purple-300" />
-                          <span>{ability.desc}</span>
+                          <span className="font-body">{ability.desc}</span>
                         </span>
                       ))}
                     </div>
@@ -548,13 +542,13 @@ export const DiplomacyTab = ({
                   return (
                     <>
                       <div className="flex items-center justify-between mb-2">
-                        <h3 className="text-xs font-bold text-white flex items-center gap-1">
+                        <h3 className="text-xs font-bold text-white flex items-center gap-1 font-serif">
                           <Icon name="Route" size={12} className="text-blue-300" />
                           贸易路线管理
                         </h3>
-                        <div className="text-[10px] text-gray-400">
-                          <div>创建贸易路线以自动进出口资源</div>
-                          <div className="mt-0.5">
+                        <div className="text-[10px] text-gray-400 font-body">
+                          <div className="font-body">创建贸易路线以自动进出口资源</div>
+                          <div className="mt-0.5 font-epic">
                             <span className={activeRouteCount < currentRouteCount ? 'text-yellow-400' : 'text-blue-400'}>
                               有效路线: {activeRouteCount}/{currentRouteCount}
                             </span>
@@ -563,31 +557,28 @@ export const DiplomacyTab = ({
                               商人上限: {merchantJobLimit}
                             </span>
                             <span className="text-gray-500 mx-1">|</span>
-                            <span className="text-amber-400">
-                              商人: {merchantCount}/{merchantJobLimit}
-                            </span>
+                            <span className="text-amber-400">商人在岗: {merchantCount}/{merchantJobLimit}</span>
                           </div>
-                        </div>
-                      </div>
+                        </div>                      </div>
                       
                       {/* Relation-based trade route limit info */}
                       <div className={`mb-2 p-2 rounded border ${isOpenMarketActive ? 'bg-green-900/30 border-green-600/30' : 'bg-indigo-900/30 border-indigo-600/30'}`}>
                         <div className="flex items-center justify-between text-[10px]">
-                          <span className={`flex items-center gap-1 ${isOpenMarketActive ? 'text-green-300' : 'text-indigo-300'}`}>
+                          <span className={`flex items-center gap-1 font-body ${isOpenMarketActive ? 'text-green-300' : 'text-indigo-300'}`}>
                             <Icon name={isOpenMarketActive ? 'Store' : 'Heart'} size={10} />
                             与 {selectedNation?.name} 的贸易路线
                           </span>
-                          <span className={isOpenMarketActive ? 'text-green-300' : (currentRoutesWithNation >= maxRoutesWithNation ? 'text-red-300' : 'text-green-300')}>
+                          <span className={`font-epic ${isOpenMarketActive ? 'text-green-300' : (currentRoutesWithNation >= maxRoutesWithNation ? 'text-red-300' : 'text-green-300')}`}>
                             {isOpenMarketActive ? `${currentRoutesWithNation}/无限制` : `${currentRoutesWithNation}/${maxRoutesWithNation}`}
                           </span>
                         </div>
                         {isOpenMarketActive ? (
-                          <div className="text-[9px] text-green-400 mt-1">
+                          <div className="text-[9px] text-green-400 mt-1 font-body">
                             🏪 开放市场协议生效中！剩余 {Math.ceil(openMarketRemainingDays / 365)} 年 {openMarketRemainingDays % 365} 天
                             <span className="text-green-300 ml-1">(贸易路线不受关系限制)</span>
                           </div>
                         ) : (
-                          <div className="text-[9px] text-gray-400 mt-1">
+                          <div className="text-[9px] text-gray-400 mt-1 font-body">
                             关系值 {nationRelation} → 最多 {maxRoutesWithNation} 条路线
                             {maxRoutesWithNation === 0 && <span className="text-red-400 ml-1">(敌对无法贸易)</span>}
                             {maxRoutesWithNation === 1 && <span className="text-yellow-400 ml-1">(冷淡)</span>}
@@ -600,25 +591,25 @@ export const DiplomacyTab = ({
                 
                       {/* 警告提示 */}
                       {activeRouteCount < currentRouteCount && (
-                        <div className="mb-2 p-2 bg-yellow-900/30 border border-yellow-600/30 rounded text-[10px] text-yellow-300">
+                        <div className="mb-2 p-2 bg-yellow-900/30 border border-yellow-600/30 rounded text-[10px] text-yellow-300 font-body">
                           <Icon name="AlertTriangle" size={12} className="inline mr-1" />
                           当前有 {currentRouteCount - activeRouteCount} 条贸易路线未激活。需要更多商人在岗才能激活所有路线。
                         </div>
                       )}
                       {currentRouteCount >= merchantJobLimit && (
-                        <div className="mb-2 p-2 bg-red-900/30 border border-red-600/30 rounded text-[10px] text-red-300">
+                        <div className="mb-2 p-2 bg-red-900/30 border border-red-600/30 rounded text-[10px] text-red-300 font-body">
                           <Icon name="AlertCircle" size={12} className="inline mr-1" />
                           贸易路线数量已达上限。建造更多贸易站以增加商人岗位上限。
                         </div>
                       )}
                       {currentRoutesWithNation >= maxRoutesWithNation && maxRoutesWithNation > 0 && (
-                        <div className="mb-2 p-2 bg-purple-900/30 border border-purple-600/30 rounded text-[10px] text-purple-300">
+                        <div className="mb-2 p-2 bg-purple-900/30 border border-purple-600/30 rounded text-[10px] text-purple-300 font-body">
                           <Icon name="UserX" size={12} className="inline mr-1" />
                           与 {selectedNation?.name} 的贸易路线已达关系上限（{maxRoutesWithNation}条）。提升关系可增加贸易路线数量。
                         </div>
                       )}
                       {maxRoutesWithNation === 0 && (
-                        <div className="mb-2 p-2 bg-red-900/30 border border-red-600/30 rounded text-[10px] text-red-300">
+                        <div className="mb-2 p-2 bg-red-900/30 border border-red-600/30 rounded text-[10px] text-red-300 font-body">
                           <Icon name="Ban" size={12} className="inline mr-1" />
                           与 {selectedNation?.name} 关系敌对，无法建立贸易路线。请改善关系至少达到20。
                         </div>
@@ -654,9 +645,9 @@ export const DiplomacyTab = ({
                               <div className="flex items-center justify-between mb-1">
                                 <div className="flex items-center gap-1.5">
                                   <Icon name={res.icon || 'Box'} size={12} className={res.color || 'text-gray-400'} />
-                                  <span className="text-xs font-semibold text-white">{res.name}</span>
+                                  <span className="text-xs font-semibold text-white font-body">{res.name}</span>
                                 </div>
-                                <div className="flex items-center gap-1 text-[10px]">
+                                <div className="flex items-center gap-1 text-[10px] font-epic">
                                   {tradeStatus.isShortage && (
                                     <span className="text-red-400 font-mono">缺{shortageCapacity}</span>
                                   )}
@@ -666,13 +657,13 @@ export const DiplomacyTab = ({
                                 </div>
                               </div>
                               <div className="flex items-center justify-between text-[10px]">
-                                <div className="flex gap-2 text-gray-400">
-                                  <span>本地: <span className="text-white font-mono">{local.toFixed(1)}</span></span>
-                                  <span>外国: <span className={`font-mono ${diff > 0 ? 'text-green-300' : 'text-red-300'}`}>{foreign.toFixed(1)}</span></span>
+                                <div className="flex gap-2 text-gray-400 font-body">
+                                  <span>本地: <span className="text-white font-mono font-epic">{local.toFixed(1)}</span></span>
+                                  <span>外国: <span className={`font-mono font-epic ${diff > 0 ? 'text-green-300' : 'text-red-300'}`}>{foreign.toFixed(1)}</span></span>
                                 </div>
                                 <div className="flex gap-1">
                                   <button
-                                    className={`px-1.5 py-0.5 rounded text-white flex items-center gap-0.5 ${
+                                    className={`px-1.5 py-0.5 rounded text-white flex items-center gap-0.5 font-body ${
                                       hasExportRoute 
                                         ? 'bg-red-600 hover:bg-red-500' 
                                         : (isAtWar || (relationBlocked && !hasExportRoute))
@@ -687,7 +678,7 @@ export const DiplomacyTab = ({
                                     {hasExportRoute ? '取消' : '出口'}
                                   </button>
                                   <button
-                                    className={`px-1.5 py-0.5 rounded text-white flex items-center gap-0.5 ${
+                                    className={`px-1.5 py-0.5 rounded text-white flex items-center gap-0.5 font-body ${
                                       hasImportRoute 
                                         ? 'bg-red-600 hover:bg-red-500' 
                                         : (isAtWar || (relationBlocked && !hasImportRoute))
@@ -712,18 +703,19 @@ export const DiplomacyTab = ({
                 })()}
               </div>
 
-              {selectedNation.peaceTreatyUntil && daysElapsed < selectedNation.peaceTreatyUntil && (                <div className="bg-green-900/20 p-2 rounded-lg border border-green-600/30 mb-2">
-                  <h3 className="text-xs font-bold text-white flex items-center gap-1 mb-1.5">
+              {selectedNation.peaceTreatyUntil && daysElapsed < selectedNation.peaceTreatyUntil && (
+                <div className="bg-green-900/20 p-2 rounded-lg border border-green-600/30 mb-2">
+                  <h3 className="text-xs font-bold text-white flex items-center gap-1 mb-1.5 font-serif">
                     <Icon name="HandHeart" size={12} className="text-green-300" />
                     和平协议
                   </h3>
-                  <p className="text-[10px] text-gray-300">
-                    剩余天数: <span className="text-green-300 font-bold">{selectedNation.peaceTreatyUntil - daysElapsed}</span>
+                  <p className="text-[10px] text-gray-300 font-body">
+                    剩余天数: <span className="text-green-300 font-semibold font-epic">{selectedNation.peaceTreatyUntil - daysElapsed}</span>
                   </p>
                   {selectedNation.installmentPayment && (
-                    <p className="text-[10px] text-gray-300 mt-1">
-                      分期支付: 每天 <span className="text-yellow-300 font-bold">{selectedNation.installmentPayment.amount}</span> 银币
-                      （剩余 {selectedNation.installmentPayment.remainingDays} 天）
+                    <p className="text-[10px] text-gray-300 mt-1 font-body">
+                      分期支付: 每天 <span className="text-yellow-300 font-semibold font-epic">{selectedNation.installmentPayment.amount}</span> 银币
+                      （剩余 <span className="text-white font-semibold font-epic">{selectedNation.installmentPayment.remainingDays}</span> 天）
                     </p>
                   )}
                 </div>
@@ -731,21 +723,21 @@ export const DiplomacyTab = ({
 
               {selectedNation.isAtWar && (
                 <div className="bg-red-900/20 p-2 rounded-lg border border-red-600/30">
-                  <h3 className="text-xs font-bold text-white flex items-center gap-1 mb-1.5">
+                  <h3 className="text-xs font-bold text-white flex items-center gap-1 mb-1.5 font-serif">
                     <Icon name="AlertTriangle" size={12} className="text-red-300" />
                     战争状态
                   </h3>
-                  <div className="flex items-center justify-between text-[10px] mb-1.5">
-                    <div className="flex gap-2 text-gray-300">
-                      <span>分数: <span className="text-red-300 font-bold">{selectedNation.warScore?.toFixed(0) || 0}</span></span>
-                      <span>天数: <span className="text-white font-bold">{selectedNation.warDuration || 0}</span></span>
-                      <span>损失: <span className="text-white font-bold">{selectedNation.enemyLosses || 0}</span></span>
-                      <span>实力: <span className={`font-bold ${(selectedNation.militaryStrength ?? 1.0) > 0.7 ? 'text-green-300' : (selectedNation.militaryStrength ?? 1.0) > 0.4 ? 'text-yellow-300' : 'text-red-300'}`}>{Math.floor((selectedNation.militaryStrength ?? 1.0) * 100)}%</span></span>
+                  <div className="flex items-center justify-between text-[10px] mb-1.5 font-body">
+                    <div className="flex gap-2 text-gray-300 font-body">
+                      <span>分数: <span className="text-red-300 font-semibold font-epic">{selectedNation.warScore?.toFixed(0) || 0}</span></span>
+                      <span>天数: <span className="text-white font-semibold font-epic">{selectedNation.warDuration || 0}</span></span>
+                      <span>损失: <span className="text-white font-semibold font-epic">{selectedNation.enemyLosses || 0}</span></span>
+                      <span>实力: <span className={`font-semibold font-epic ${(selectedNation.militaryStrength ?? 1.0) > 0.7 ? 'text-green-300' : (selectedNation.militaryStrength ?? 1.0) > 0.4 ? 'text-yellow-300' : 'text-red-300'}`}>{Math.floor((selectedNation.militaryStrength ?? 1.0) * 100)}%</span></span>
                     </div>
                   </div>
-                  <p className="text-[10px] text-gray-400 mb-1.5">{renderPeaceHint(selectedNation)}</p>
+                  <p className="text-[10px] text-gray-400 mb-1.5 font-body">{renderPeaceHint(selectedNation)}</p>
                   <button
-                    className="w-full px-2 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded text-xs font-semibold"
+                    className="w-full px-2 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded text-xs font-semibold font-body"
                     onClick={() => handleSimpleAction(selectedNation.id, 'peace')}
                   >
                     提出和平协议
@@ -755,25 +747,25 @@ export const DiplomacyTab = ({
               
               {playerInstallmentPayment && playerInstallmentPayment.nationId === selectedNation.id && (
                 <div className="bg-yellow-900/20 p-2 rounded-lg border border-yellow-600/30 mt-2">
-                  <h3 className="text-xs font-bold text-white flex items-center gap-1 mb-1.5">
+                  <h3 className="text-xs font-bold text-white flex items-center gap-1 mb-1.5 font-serif">
                     <Icon name="Coins" size={12} className="text-yellow-300" />
                     你的分期支付
                   </h3>
-                  <p className="text-[10px] text-gray-300">
-                  每天支付: <span className="text-yellow-300 font-bold">{playerInstallmentPayment.amount}</span> 银币
+                  <p className="text-[10px] text-gray-300 font-body">
+                    每天支付: <span className="text-yellow-300 font-semibold font-epic">{playerInstallmentPayment.amount}</span> 银币
                   </p>
-                  <p className="text-[10px] text-gray-300 mt-1">
-                  剩余天数: <span className="text-white font-bold">{playerInstallmentPayment.remainingDays}</span>
+                  <p className="text-[10px] text-gray-300 mt-1 font-body">
+                    剩余天数: <span className="text-white font-semibold font-epic">{playerInstallmentPayment.remainingDays}</span>
                   </p>
-                  <p className="text-[10px] text-gray-300 mt-1">
-                  已支付: <span className="text-green-300 font-bold">{playerInstallmentPayment.paidAmount}</span> / 
-                    <span className="text-white font-bold"> {playerInstallmentPayment.totalAmount}</span> 银币
+                  <p className="text-[10px] text-gray-300 mt-1 font-body">
+                    已支付: <span className="text-green-300 font-semibold font-epic">{playerInstallmentPayment.paidAmount}</span> / 
+                    <span className="text-white font-semibold font-epic"> {playerInstallmentPayment.totalAmount}</span> 银币
                   </p>
                 </div>
               )}
             </>
           ) : (
-            <div className="glass-ancient p-4 rounded-xl border border-ancient-gold/30 text-sm text-gray-400">
+            <div className="glass-ancient p-4 rounded-xl border border-ancient-gold/30 text-sm text-gray-400 font-body">
               请选择一个国家以查看贸易与谈判选项。
             </div>
           )}

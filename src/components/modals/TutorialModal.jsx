@@ -56,7 +56,7 @@ export const TutorialModal = ({ show, onComplete, onSkip, onOpenWiki }) => {
       <div className="absolute inset-0 bg-black/90 animate-fade-in"></div>
 
       {/* 内容面板 */}
-      <div className={`relative w-full max-w-3xl bg-gray-900/95 backdrop-blur border-t-2 lg:border-2 border-blue-500/50 rounded-t-2xl lg:rounded-2xl shadow-2xl flex flex-col max-h-[92vh] ${animationClass} lg:animate-slide-up`}>
+      <div className={`relative w-full max-w-3xl bg-gray-900/95 backdrop-blur border-t-2 lg:border-2 border-blue-500/50 rounded-t-2xl lg:rounded-2xl shadow-2xl flex flex-col max-h-[92vh] ${animationClass} lg:animate-slide-up font-sans`}>
         {/* 进度条 */}
         <div className="h-1.5 bg-gray-800 rounded-t-2xl lg:rounded-t-xl overflow-hidden flex-shrink-0">
           <div
@@ -72,14 +72,14 @@ export const TutorialModal = ({ show, onComplete, onSkip, onOpenWiki }) => {
               <Icon name={currentStepData.icon} size={24} className={currentStepData.iconColor} />
             </div>
             <div className="flex-1 min-w-0">
-              <h2 className="text-base font-bold text-white leading-tight">{currentStepData.title}</h2>
-              <p className="text-[10px] text-gray-400 leading-tight">
+              <h2 className="text-base font-bold text-white leading-tight  font-serif ">{currentStepData.title}</h2>
+              <p className="text-[10px] text-gray-400 leading-tight font-sans">
                 步骤 {currentStep + 1} / {tutorialSteps.length}
               </p>
             </div>
             <button
               onClick={handleSkip}
-              className="px-2 py-1 text-[10px] text-gray-400 hover:text-white hover:bg-gray-800 rounded transition-colors flex-shrink-0"
+              className="px-2 py-1 text-[14px] text-gray-400 hover:text-white hover:bg-gray-800 rounded transition-colors flex-shrink-0 font-sans"
             >
               跳过
             </button>
@@ -87,16 +87,16 @@ export const TutorialModal = ({ show, onComplete, onSkip, onOpenWiki }) => {
         </div>
 
         {/* 内容 */}
-        <div className="flex-1 overflow-y-auto p-3">
+        <div className="flex-1 overflow-y-auto p-3 font-sans">
           <StepContent step={currentStepData} onOpenWiki={onOpenWiki} isLastStep={isLastStep} />
         </div>
 
         {/* 底部按钮 */}
-        <div className="flex-shrink-0 p-3 border-t border-gray-700 flex items-center justify-between gap-2">
+        <div className="flex-shrink-0 p-3 border-t border-gray-700 flex items-center justify-between gap-2 font-sans">
           <button
             onClick={handlePrev}
             disabled={isFirstStep}
-            className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+            className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors font-sans ${
               isFirstStep
                 ? 'text-gray-600 cursor-not-allowed'
                 : 'text-white bg-gray-700 hover:bg-gray-600'
@@ -119,7 +119,7 @@ export const TutorialModal = ({ show, onComplete, onSkip, onOpenWiki }) => {
 
           <button
             onClick={handleNext}
-            className="flex items-center gap-1 px-4 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white transition-all shadow-lg"
+            className="flex items-center gap-1 px-4 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white transition-all shadow-lg font-sans"
           >
             {isLastStep ? (
               <>
@@ -153,13 +153,13 @@ const StepContent = ({ step, onOpenWiki, isLastStep }) => {
   return (
     <div className="space-y-2">
       {step.lead && (
-        <p className="text-sm text-white font-semibold leading-tight">
+        <p className="text-sm text-white font-semibold  font-serif leading-tight">
           {step.lead}
         </p>
       )}
 
       {step.paragraphs?.map((text, idx) => (
-        <p key={idx} className="text-[11px] text-gray-300 leading-relaxed">
+        <p key={idx} className="text-[12px] text-gray-300 leading-relaxed">
           {text}
         </p>
       ))}
@@ -168,11 +168,11 @@ const StepContent = ({ step, onOpenWiki, isLastStep }) => {
         <div className="space-y-1.5">
           {step.cards.map((card, idx) => (
             <div key={`${card.title}-${idx}`} className="bg-gray-700/50 p-2 rounded-lg border border-gray-600">
-              <p className="text-[11px] text-white font-semibold mb-1 flex items-center gap-1.5 leading-tight">
+              <p className="text-[14px] font-serif text-white font-semibold mb-1 flex items-center gap-1.5 leading-tight">
                 {card.icon && <Icon name={card.icon} size={14} className={card.iconColor || 'text-white'} />}
                 {card.title}
               </p>
-              <p className="text-[10px] text-gray-300 leading-relaxed">{card.text}</p>
+              <p className="text-[12px] text-gray-300 leading-relaxed">{card.text}</p>
             </div>
           ))}
         </div>
@@ -187,11 +187,11 @@ const StepContent = ({ step, onOpenWiki, isLastStep }) => {
                 key={`${callout.title}-${idx}`}
                 className={`p-2 rounded-lg border ${tone.container} ${tone.text}`}
               >
-                <p className="text-[10px] font-semibold flex items-center gap-1.5 text-white leading-tight">
+                <p className="text-[14px]  font-serif font-semibold flex items-center gap-1.5 text-white leading-tight">
                   {callout.icon && <Icon name={callout.icon} size={14} className="text-current" />}
                   {callout.title}
                 </p>
-                <p className="text-[10px] mt-1 leading-relaxed">
+                <p className="text-[12px] mt-1 leading-relaxed">
                   {callout.text}
                 </p>
               </div>
