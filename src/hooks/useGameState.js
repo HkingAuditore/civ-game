@@ -291,7 +291,7 @@ export const useGameState = () => {
   const [rates, setRates] = useState({});
   const [taxes, setTaxes] = useState({
     total: 0,
-    breakdown: { headTax: 0, industryTax: 0, subsidy: 0 },
+    breakdown: { headTax: 0, industryTax: 0, subsidy: 0, policyIncome: 0, policyExpense: 0 },
     efficiency: 1,
   });
   const [taxPolicies, setTaxPolicies] = useState({
@@ -491,7 +491,7 @@ export const useGameState = () => {
       setRates(data.rates || {});
       setTaxes(data.taxes || {
         total: 0,
-        breakdown: { headTax: 0, industryTax: 0, subsidy: 0 },
+        breakdown: { headTax: 0, industryTax: 0, subsidy: 0, policyIncome: 0, policyExpense: 0 },
         efficiency: 1,
       });
       setTaxPolicies(data.taxPolicies || {

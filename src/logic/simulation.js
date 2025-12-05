@@ -646,11 +646,15 @@ export const simulateTick = ({
     industryTax: 0,
     businessTax: 0,
     subsidy: 0,
+    policyIncome: 0,
+    policyExpense: 0,
   };
 
   const buildingBonuses = {};
   const categoryBonuses = { gather: 1, industry: 1, civic: 1, military: 1 };
   const passiveGains = {};
+  let decreeSilverIncome = 0;
+  let decreeSilverExpense = 0;
   let extraMaxPop = 0;
   let maxPopPercent = 0;
   let productionBonus = 0;
@@ -719,6 +723,12 @@ export const simulateTick = ({
 
   decrees.forEach(decree => {
     if (!decree || !decree.active || !decree.modifiers) return;
+    const passiveSilver = decree.modifiers?.passive?.silver || 0;
+    if (passiveSilver > 0) {
+      decreeSilverIncome += passiveSilver;
+    } else if (passiveSilver < 0) {
+      decreeSilverExpense += Math.abs(passiveSilver);
+    }
     applyEffects(decree.modifiers);
   });
 
@@ -3021,7 +3031,14 @@ export const simulateTick = ({
     }
   }
 
-  const netTax = totalCollectedTax - taxBreakdown.subsidy + warIndemnityIncome;
+  taxBreakdown.policyIncome = decreeSilverIncome;
+  taxBreakdown.policyExpense = decreeSilverExpense;
+
+  const netTax = totalCollectedTax
+    - taxBreakdown.subsidy
+    + warIndemnityIncome
+    + decreeSilverIncome
+    - decreeSilverExpense;
   const taxes = {
     total: netTax,
     efficiency,
@@ -3031,6 +3048,8 @@ export const simulateTick = ({
       businessTax: collectedBusinessTax,
       subsidy: taxBreakdown.subsidy,
       warIndemnity: warIndemnityIncome,
+      policyIncome: decreeSilverIncome,
+      policyExpense: decreeSilverExpense,
     },
   };
 
