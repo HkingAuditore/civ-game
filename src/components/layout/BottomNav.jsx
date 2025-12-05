@@ -131,7 +131,7 @@ export const BottomNav = ({ activeTab, onTabChange, epoch = 0 }) => {
                 
                 {/* 标签文字 */}
                 <span className={`
-                  relative z-10 text-[9px] font-bold mt-0.5 transition-all duration-200 tab-title-serif
+                  relative z-10 text-[9px] font-bold mt-0.5 transition-all duration-200 tab-title
                   ${isActive ? tab.text : 'text-gray-500'}
                 `}>
                   {tab.label}

@@ -8,9 +8,14 @@ export default {
     extend: {
       // Epic Font Families
       fontFamily: {
+        // 主要无衬线字体 - 用于正文、数据、按钮、小字号内容（便于阅读）
         'epic': ['Inter', 'Noto Sans SC', 'system-ui', 'sans-serif'],
-        'decorative': ['Cinzel', 'Noto Sans SC', 'system-ui', 'sans-serif'], // 保留Cinzel用于装饰性标题
         'body': ['Inter', 'Noto Sans SC', 'system-ui', 'sans-serif'],
+        'sans': ['Inter', 'Noto Sans SC', 'system-ui', 'sans-serif'],
+        // 装饰性衬线字体 - 用于大标题、品牌名称、强调性装饰文字（营造史诗感）
+        'decorative': ['Cinzel', 'Noto Serif SC', 'Georgia', 'serif'],
+        'serif': ['Cinzel', 'Noto Serif SC', 'Georgia', 'serif'],
+        'display': ['Cinzel Decorative', 'Noto Serif SC', 'Georgia', 'serif'],
       },
       // 动画扩展 - Epic Animations
       animation: {

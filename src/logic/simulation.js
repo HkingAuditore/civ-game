@@ -2188,7 +2188,7 @@ export const simulateTick = ({
   const playerPopulationBaseline = Math.max(5, population || 5);
   const playerWealthBaseline = Math.max(100, (res.silver ?? resources?.silver ?? 0));
 
-  const updatedNations = (nations || []).map(nation => {
+  let updatedNations = (nations || []).map(nation => {
     const next = { ...nation };
     const visible = visibleEpoch >= (nation.appearEpoch ?? 0) && (nation.expireEpoch == null || visibleEpoch <= nation.expireEpoch);
     if (!visible) {
@@ -2285,14 +2285,19 @@ export const simulateTick = ({
     const resourceBiasMap = next.economyTraits?.resourceBias || {};
     const foreignResourceKeys = Object.keys(RESOURCES).filter(isTradableResource);
     if (foreignResourceKeys.length > 0) {
-      foreignResourceKeys.forEach((resourceKey) => {
+    // 计算该国是否处于战争状态（与玩家或与其他AI国家）
+    const isInAnyWar = next.isAtWar || (next.foreignWars && Object.values(next.foreignWars).some(w => w?.isAtWar));
+    // 战争消耗系数：战争中的国家资源消耗增加30%-50%
+    const warConsumptionMultiplier = isInAnyWar ? (1.3 + (next.aggression || 0.2) * 0.5) : 1.0;
+    
+    foreignResourceKeys.forEach((resourceKey) => {
         const bias = resourceBiasMap[resourceKey] ?? 1;
         const currentStock = next.inventory[resourceKey] || 0;
-        // 使用固定的目标库存（避免目标不断变化造成“假稳定”）
+        // 使用固定的目标库存（避免目标不断变化造成"假稳定"）
         const targetInventory = 500;
         const baseProductionRate = 3.0 * gameSpeed; // 基础生产速率
-        const baseConsumptionRate = 3.0 * gameSpeed; // 基础消耗速率
-        const productionRate = baseProductionRate * bias;
+        // 基础消耗速率（战争时增加消耗）
+        const baseConsumptionRate = 3.0 * gameSpeed * warConsumptionMultiplier;        const productionRate = baseProductionRate * bias;
         const consumptionRate = baseConsumptionRate / Math.max(bias, 0.25);
         const stockRatio = currentStock / targetInventory;
         let productionAdjustment = 1.0;
@@ -2525,7 +2530,10 @@ export const simulateTick = ({
     const aggression = next.aggression ?? 0.2;
     const hostility = Math.max(0, (50 - relation) / 70);
     const unrest = stabilityValue < 35 ? 0.02 : 0;
-    const declarationChance = visibleEpoch >= 1 ? Math.min(0.08, (aggression * 0.04) + (hostility * 0.04) + unrest) : 0;
+    
+    // 侵略性强的国家更主动开战：aggression影响权重从0.04提升到0.08，并额外乘以侵略性系数
+    const aggressionBonus = aggression > 0.5 ? aggression * 0.06 : 0; // 高侵略性国家额外概率
+    const declarationChance = visibleEpoch >= 1 ? Math.min(0.15, (aggression * 0.08) + (hostility * 0.05) + unrest + aggressionBonus) : 0;
     
     // 检查和平协议是否仍然有效
     const hasPeaceTreaty = next.peaceTreatyUntil && tick < next.peaceTreatyUntil;
@@ -2534,7 +2542,9 @@ export const simulateTick = ({
       next.isAtWar = true;
       next.warStartDay = tick;
       next.warDuration = 0;
+      next.warDeclarationPending = true; // 标记需要触发宣战事件
       logs.push(`⚠️ ${next.name} 对你发动了战争！`);
+      logs.push(`WAR_DECLARATION_EVENT:${JSON.stringify({ nationId: next.id, nationName: next.name })}`);
     }
     
     // 处理分期支付赔款
@@ -2622,6 +2632,165 @@ export const simulateTick = ({
     next.budget = Math.max(0, workingBudget + (dynamicBudgetTarget - workingBudget) * 0.35);
     
     return next;
+  });
+
+  // ========== 国家间关系系统 ==========
+  // 初始化和更新国家之间的好感度
+  updatedNations = updatedNations.map(nation => {
+    // 初始化国家间关系对象
+    if (!nation.foreignRelations) {
+      nation.foreignRelations = {};
+    }
+    
+    // 与其他AI国家的关系自然波动
+    updatedNations.forEach(otherNation => {
+      if (otherNation.id === nation.id) return;
+      
+      // 初始化关系（基于两国的侵略性）
+      if (nation.foreignRelations[otherNation.id] === undefined) {
+        const avgAggression = ((nation.aggression || 0.3) + (otherNation.aggression || 0.3)) / 2;
+        nation.foreignRelations[otherNation.id] = Math.floor(50 - avgAggression * 30 + (Math.random() - 0.5) * 20);
+      }
+      
+      // 关系自然波动（每天有小概率变化）
+      if (Math.random() < 0.05) {
+        const change = (Math.random() - 0.5) * 6;
+        nation.foreignRelations[otherNation.id] = clamp(
+          (nation.foreignRelations[otherNation.id] || 50) + change,
+          0,
+          100
+        );
+      }
+    });
+    
+    return nation;
+  });
+
+  // ========== AI国家互相开战系统 ==========
+  // 检查是否有两个AI国家应该开战
+  const visibleNations = updatedNations.filter(n => 
+    epoch >= (n.appearEpoch ?? 0) && (n.expireEpoch == null || epoch <= n.expireEpoch)
+  );
+  
+  visibleNations.forEach(nation => {
+    // 检查是否已经在与其他AI国家交战
+    if (!nation.foreignWars) {
+      nation.foreignWars = {};
+    }
+    
+    visibleNations.forEach(otherNation => {
+      if (otherNation.id === nation.id) return;
+      if (nation.foreignWars[otherNation.id]?.isAtWar) return; // 已经在打了
+      
+      // 检查和平协议
+      const peaceUntil = nation.foreignWars[otherNation.id]?.peaceTreatyUntil || 0;
+      if (tick < peaceUntil) return;
+      
+      // 计算开战概率（基于关系和侵略性）
+      const relation = nation.foreignRelations?.[otherNation.id] ?? 50;
+      const aggression = nation.aggression ?? 0.3;
+      
+      // 只有低关系且高侵略性的国家才会主动开战
+      if (relation < 30 && aggression > 0.4) {
+        const warChance = Math.min(0.008, (aggression * 0.005) + ((30 - relation) / 1000));
+        
+        if (Math.random() < warChance) {
+          // 开战！
+          nation.foreignWars[otherNation.id] = {
+            isAtWar: true,
+            warStartDay: tick,
+            warScore: 0,
+          };
+          // 对方也标记为开战
+          if (!otherNation.foreignWars) {
+            otherNation.foreignWars = {};
+          }
+          otherNation.foreignWars[nation.id] = {
+            isAtWar: true,
+            warStartDay: tick,
+            warScore: 0,
+          };
+          logs.push(`📢 国际新闻：${nation.name} 向 ${otherNation.name} 宣战了！`);
+        }
+      }
+    });
+    
+    // 处理正在进行的AI vs AI战争
+    Object.keys(nation.foreignWars || {}).forEach(enemyId => {
+      const war = nation.foreignWars[enemyId];
+      if (!war?.isAtWar) return;
+      
+      const enemy = updatedNations.find(n => n.id === enemyId);
+      if (!enemy) return;
+      
+      // 战争消耗：双方财富和人口减少
+      nation.wealth = Math.max(100, (nation.wealth || 500) * 0.998);
+      nation.population = Math.max(10, (nation.population || 100) * 0.999);
+      enemy.wealth = Math.max(100, (enemy.wealth || 500) * 0.998);
+      enemy.population = Math.max(10, (enemy.population || 100) * 0.999);
+      
+      // 战斗结算（每20天一次）
+      if ((tick - war.warStartDay) % 20 === 0 && tick > war.warStartDay) {
+        const nationStrength = (nation.militaryStrength ?? 1.0) * (nation.population || 100) * (1 + (nation.aggression || 0.3));
+        const enemyStrength = (enemy.militaryStrength ?? 1.0) * (enemy.population || 100) * (1 + (enemy.aggression || 0.3));
+        
+        const totalStrength = nationStrength + enemyStrength;
+        const nationWinChance = nationStrength / totalStrength;
+        
+        if (Math.random() < nationWinChance) {
+          // nation胜利这轮
+          war.warScore = (war.warScore || 0) + 5;
+          enemy.foreignWars[nation.id].warScore = (enemy.foreignWars[nation.id].warScore || 0) - 5;
+          
+          // 获取战利品
+          const loot = Math.floor((enemy.wealth || 500) * 0.05);
+          nation.wealth = (nation.wealth || 500) + loot;
+          enemy.wealth = Math.max(100, (enemy.wealth || 500) - loot);
+        } else {
+          // enemy胜利这轮
+          war.warScore = (war.warScore || 0) - 5;
+          enemy.foreignWars[nation.id].warScore = (enemy.foreignWars[nation.id].warScore || 0) + 5;
+          
+          // enemy获取战利品
+          const loot = Math.floor((nation.wealth || 500) * 0.05);
+          enemy.wealth = (enemy.wealth || 500) + loot;
+          nation.wealth = Math.max(100, (nation.wealth || 500) - loot);
+        }
+        
+        // 检查是否应该结束战争
+        const absoluteWarScore = Math.abs(war.warScore || 0);
+        if (absoluteWarScore > 30 || Math.random() < 0.03) {
+          // 结束战争
+          const winner = (war.warScore || 0) > 0 ? nation : enemy;
+          const loser = winner.id === nation.id ? enemy : nation;
+          
+          // 胜者获取败者的人口和财富
+          const populationTransfer = Math.floor((loser.population || 100) * 0.05);
+          const wealthTransfer = Math.floor((loser.wealth || 500) * 0.1);
+          
+          winner.population = (winner.population || 100) + populationTransfer;
+          winner.wealth = (winner.wealth || 500) + wealthTransfer;
+          loser.population = Math.max(10, (loser.population || 100) - populationTransfer);
+          loser.wealth = Math.max(100, (loser.wealth || 500) - wealthTransfer);
+          
+          // 结束战争状态
+          nation.foreignWars[enemyId] = {
+            isAtWar: false,
+            peaceTreatyUntil: tick + 365,
+          };
+          enemy.foreignWars[nation.id] = {
+            isAtWar: false,
+            peaceTreatyUntil: tick + 365,
+          };
+          
+          // 关系变化
+          nation.foreignRelations[enemyId] = clamp((nation.foreignRelations[enemyId] || 50) - 20, 0, 100);
+          enemy.foreignRelations[nation.id] = clamp((enemy.foreignRelations[nation.id] || 50) - 20, 0, 100);
+          
+          logs.push(`📢 国际新闻：${winner.name} 在与 ${loser.name} 的战争中获胜！`);
+        }
+      }
+    });
   });
 
   if ((res.food || 0) > population * 1.5 && population < totalMaxPop) {
@@ -2945,10 +3114,27 @@ export const simulateTick = ({
     const prevPrice = priceMap[resource] || marketPrice;
     const smoothed = prevPrice + (marketPrice - prevPrice) * 0.1;
     
+    // 战争物价上涨：计算当前正在进行的战争数量对物价的影响
+    const warCount = updatedNations.filter(n => n.isAtWar).length;
+    // AI国家之间的战争也会影响物价（国际局势紧张）
+    let foreignWarCount = 0;
+    updatedNations.forEach(n => {
+      if (n.foreignWars) {
+        Object.values(n.foreignWars).forEach(war => {
+          if (war?.isAtWar) foreignWarCount++;
+        });
+      }
+    });
+    foreignWarCount = Math.floor(foreignWarCount / 2); // 每场战争被计算两次，需要除以2
+    
+    // 战争物价系数：每场与玩家的战争增加5%物价，每场AI间战争增加1%物价
+    const warPriceMultiplier = 1 + (warCount * 0.05) + (foreignWarCount * 0.01);
+    const warAdjustedPrice = smoothed * warPriceMultiplier;
+    
     // 应用价格限制
     const minPrice = resourceDef.minPrice ?? PRICE_FLOOR;
     const maxPrice = resourceDef.maxPrice;
-    let finalPrice = smoothed;
+    let finalPrice = warAdjustedPrice;
     finalPrice = Math.max(finalPrice, minPrice);
     if (maxPrice !== undefined) {
       finalPrice = Math.min(finalPrice, maxPrice);

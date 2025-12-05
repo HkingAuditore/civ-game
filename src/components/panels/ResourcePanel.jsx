@@ -76,7 +76,7 @@ export const ResourcePanel = ({
             <Icon name="Package" size={12} className="text-ancient-gold" />
           </div>
           {title && (
-            <span className="text-[10px] font-bold text-ancient tracking-wide uppercase tab-title-serif">
+            <span className="text-[10px] font-bold text-ancient tracking-wide uppercase tab-title">
               {title}
             </span>
           )}
@@ -219,7 +219,7 @@ export const ResourcePanel = ({
             </>
           ) : (
             <>
-              <div className="grid grid-cols-[20px_1.3fr_1fr] xl:grid-cols-[20px_1.5fr_1fr_1fr_1fr] items-center gap-x-3 text-[12px]  font-serif text-ancient-gold px-1.5 pb-1 opacity-70">
+              <div className="grid grid-cols-[20px_1.3fr_1fr] xl:grid-cols-[20px_1.5fr_1fr_1fr_1fr] items-center gap-x-3 text-[12px] text-ancient-gold px-1.5 pb-1 opacity-70">
                 <span className="hidden xl:col-span-2 xl:inline pl-0.5 whitespace-nowrap overflow-hidden">资源</span>
                 <span className="xl:hidden w-5" />
                 <span className="text-right whitespace-nowrap">库存</span>

@@ -153,7 +153,7 @@ export const EventDetail = ({ event, onSelectOption, onClose }) => {
 
       {/* 事件选项 */}
       <div className="space-y-2">
-        <h3 className="text-xs font-serif font-bold text-ancient-stone uppercase tracking-wider flex items-center gap-1.5 font-sans">
+        <h3 className="text-xs font-bold text-ancient-stone uppercase tracking-wider flex items-center gap-1.5">
           <Icon name="Target" size={12} className="text-ancient-gold " />
           选择你的行动
         </h3>

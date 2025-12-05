@@ -6,11 +6,28 @@
 // 使用Web Audio API生成简单的音效
 // 这样可以避免需要外部音频文件
 
+// 检查浏览器是否支持 AudioContext
+const AudioContextClass = typeof window !== 'undefined' 
+  ? (window.AudioContext || window.webkitAudioContext) 
+  : null;
+
 /**
  * 生成简单的音效
  */
 export const generateSound = (type) => {
-  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  // 如果浏览器不支持 AudioContext，返回一个空函数
+  if (!AudioContextClass) {
+    console.warn('AudioContext 不可用，音效功能已禁用');
+    return () => {};
+  }
+
+  let audioContext;
+  try {
+    audioContext = new AudioContextClass();
+  } catch (e) {
+    console.warn('无法创建 AudioContext:', e.message);
+    return () => {};
+  }
   
   const sounds = {
     // UI音效

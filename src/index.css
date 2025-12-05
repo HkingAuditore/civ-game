@@ -41,7 +41,7 @@
   
   body {
     @apply antialiased;
-    font-family: 'Cinzel', 'Georgia', serif;
+    font-family: 'Inter', 'Noto Sans SC', system-ui, sans-serif;
     background: var(--theme-bg-gradient, linear-gradient(135deg, #1a1410 0%, #2c1810 50%, #1a1410 100%));
     background-color: var(--theme-bg, #1a1410);
     background-attachment: fixed;
@@ -852,15 +852,36 @@
 }
 
 @layer components {
-  .tab-title-serif {
-    font-family: 'Cinzel', 'Georgia', serif;
+  /* 装饰性标题 - 衬线字体，适用于大字号(>=14px)装饰性标题、品牌文字 */
+  .title-decorative {
+    font-family: 'Cinzel', 'Noto Serif SC', 'Georgia', serif;
     letter-spacing: 0.08em;
   }
 
-  .table-header-serif,
-  table thead th {
-    font-family: 'Cinzel', 'Georgia', serif;
+  /* 保留旧类名作为别名，用于大字号标签标题的装饰性用途 */
+  .tab-title-serif {
+    font-family: 'Cinzel', 'Noto Serif SC', 'Georgia', serif;
+    letter-spacing: 0.08em;
+  }
+
+  /* 普通标签标题 - 无衬线字体，适用于小字号(<14px)标签、按钮、数据 */
+  .tab-title {
+    font-family: 'Inter', 'Noto Sans SC', system-ui, sans-serif;
     letter-spacing: 0.05em;
+  }
+
+  /* 表头装饰样式 - 仅用于大字号表格标题 */
+  .table-header-decorative {
+    font-family: 'Cinzel', 'Noto Serif SC', 'Georgia', serif;
+    letter-spacing: 0.05em;
+  }
+
+  /* 普通表头 - 无衬线字体，便于数据阅读 */
+  .table-header,
+  table thead th {
+    font-family: 'Inter', 'Noto Sans SC', system-ui, sans-serif;
+    letter-spacing: 0.03em;
+    font-weight: 600;
   }
 
   /* Era-aware remap for legacy gray utility classes */

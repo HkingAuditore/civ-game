@@ -97,7 +97,7 @@ export const StrataPanel = ({
       {/* 标题和稳定度 */}
       {!hideTitle && (
         <div className="flex flex-wrap items-center justify-between mb-1 gap-1.5 flex-shrink-0">
-          <h3 className="text-xs font-serif font-bold text-ancient flex items-center gap-1.5">
+          <h3 className="text-xs font-bold text-ancient flex items-center gap-1.5">
             <Icon name="Users" size={14} className="text-ancient-gold" />
             社会阶层
           </h3>
@@ -397,7 +397,7 @@ export const StrataPanel = ({
 
       {/* 当前效果 - 更紧凑 */}
       <div className="mt-1 pt-1 border-t border-ancient-gold/20 flex-shrink-0">
-        <h4 className="text-[14px] font-serif font-bold text-ancient-stone mb-0.5 flex items-center gap-0.5">
+        <h4 className="text-[14px] font-bold text-ancient-stone mb-0.5 flex items-center gap-0.5">
           <Icon name="Activity" size={10} className="text-ancient-gold " />
           当前效果
         </h4>

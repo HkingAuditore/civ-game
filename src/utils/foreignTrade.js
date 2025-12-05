@@ -27,18 +27,16 @@ export const calculateForeignPrice = (resourceKey, nation, tick = 0) => {
   // 获取当前库存
   const currentInventory = nation.inventory?.[resourceKey] || 0;
   
-  // 目标库存基准值（基于国家财富和时代动态调整）
+  // 目标库存基准值 - 与 simulation.js 和 calculateTradeStatus 保持一致
   const baseInventory = 500;
   
-  // 财富系数：财富越高，市场容量越大，价格越稳定
-  // wealth范围约为350-2600，系数范围约为0.35-2.6
-  const wealthFactor = Math.max(1, (nation.wealth || 1000) / 1000);
+  // 财富系数：轻微影响市场容量（限制范围避免过大波动）
+  const wealthFactor = Math.max(0.8, Math.min(1.5, (nation.wealth || 1000) / 1000));
   
-  // 时代系数：随着时代演进，市场容量指数增长
-  // epoch 0(石器)=1x, 1(青铜)=2x, 2(古典)=4x, 3(封建)=8x, 4(探索)=16x, 5(启蒙)=32x, 6(工业)=64x
-  // 最终在工业时代+高财富时，目标库存可达数十万（如：500 × 2.6 × 64 = 83,200）
+  // 时代系数：使用线性增长而非指数增长
+  // epoch 0=1x, 1=1.2x, 2=1.4x, 3=1.6x, 4=1.8x, 5=2x, 6=2.2x
   const epoch = nation.epoch || 0;
-  const epochFactor = Math.pow(2, epoch);
+  const epochFactor = 1 + epoch * 0.2;
   
   const targetInventory = baseInventory * wealthFactor * epochFactor;
   
@@ -55,12 +53,16 @@ export const calculateForeignPrice = (resourceKey, nation, tick = 0) => {
   const surplusMultiplier = 1 - Math.min(0.95, surplusPressure * 0.6);
   const inventoryFactor = shortageMultiplier * surplusMultiplier;
 
-  // ???????????????????????
+  // 偏差系数调整
   const normalizedBias = Math.max(0.6, Math.min(1.6, bias));
   const biasFactor = 1 + (normalizedBias - 1) * 0.25;
 
-  let price = base * biasFactor * inventoryFactor;
-  price = Math.max(base * 0.25, Math.min(base * 3, price));
+  // 战争物价上涨系数：战争中的国家物价上涨10%-25%
+  const isInAnyWar = nation.isAtWar || (nation.foreignWars && Object.values(nation.foreignWars).some(w => w?.isAtWar));
+  const warPriceFactor = isInAnyWar ? (1.1 + (nation.aggression || 0.2) * 0.3) : 1.0;
+
+  let price = base * biasFactor * inventoryFactor * warPriceFactor;
+  price = Math.max(base * 0.25, Math.min(base * 3.5, price)); // 战争时允许更高的价格上限
 
   return Math.max(0.5, parseFloat(price.toFixed(2)));
 };
@@ -78,15 +80,17 @@ const getResourceKeyOffset = (resourceKey = '') => {
  * @returns {{isShortage: boolean, isSurplus: boolean, shortageAmount: number, surplusAmount: number, target: number}}
  */
 export const calculateTradeStatus = (resourceKey, nation = {}, daysElapsed = 0) => {
-  // 基础目标库存（基于国家财富和时代动态调整）
+  // 基础目标库存 - 与 simulation.js 保持一致使用固定值
+  // simulation.js 中外国资源围绕 500 波动
   const baseInventory = 500;
   
-  // 财富系数：财富越高，市场容量越大
-  const wealthFactor = Math.max(1, (nation.wealth || 1000) / 1000);
+  // 财富系数：轻微影响市场容量（限制范围避免过大）
+  const wealthFactor = Math.max(0.8, Math.min(1.5, (nation.wealth || 1000) / 1000));
   
-  // 时代系数：随着时代演进，市场容量指数增长
+  // 时代系数：使用线性增长而非指数增长，避免产生巨大的目标库存
+  // epoch 0=1x, 1=1.2x, 2=1.4x, 3=1.6x, 4=1.8x, 5=2x, 6=2.2x
   const epoch = nation.epoch || 0;
-  const epochFactor = Math.pow(2, epoch);
+  const epochFactor = 1 + epoch * 0.2;
   
   const baseTarget = baseInventory * wealthFactor * epochFactor;
   const volatility =

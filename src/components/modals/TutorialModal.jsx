@@ -72,7 +72,7 @@ export const TutorialModal = ({ show, onComplete, onSkip, onOpenWiki }) => {
               <Icon name={currentStepData.icon} size={24} className={currentStepData.iconColor} />
             </div>
             <div className="flex-1 min-w-0">
-              <h2 className="text-base font-bold text-white leading-tight  font-serif ">{currentStepData.title}</h2>
+              <h2 className="text-base font-bold text-white leading-tight font-decorative">{currentStepData.title}</h2>
               <p className="text-[10px] text-gray-400 leading-tight font-sans">
                 步骤 {currentStep + 1} / {tutorialSteps.length}
               </p>
@@ -153,7 +153,7 @@ const StepContent = ({ step, onOpenWiki, isLastStep }) => {
   return (
     <div className="space-y-2">
       {step.lead && (
-        <p className="text-sm text-white font-semibold  font-serif leading-tight">
+        <p className="text-sm text-white font-semibold font-decorative leading-tight">
           {step.lead}
         </p>
       )}
@@ -168,7 +168,7 @@ const StepContent = ({ step, onOpenWiki, isLastStep }) => {
         <div className="space-y-1.5">
           {step.cards.map((card, idx) => (
             <div key={`${card.title}-${idx}`} className="bg-gray-700/50 p-2 rounded-lg border border-gray-600">
-              <p className="text-[14px] font-serif text-white font-semibold mb-1 flex items-center gap-1.5 leading-tight">
+              <p className="text-[14px] font-decorative text-white font-semibold mb-1 flex items-center gap-1.5 leading-tight">
                 {card.icon && <Icon name={card.icon} size={14} className={card.iconColor || 'text-white'} />}
                 {card.title}
               </p>
@@ -187,7 +187,7 @@ const StepContent = ({ step, onOpenWiki, isLastStep }) => {
                 key={`${callout.title}-${idx}`}
                 className={`p-2 rounded-lg border ${tone.container} ${tone.text}`}
               >
-                <p className="text-[14px]  font-serif font-semibold flex items-center gap-1.5 text-white leading-tight">
+                <p className="text-[14px] font-decorative font-semibold flex items-center gap-1.5 text-white leading-tight">
                   {callout.icon && <Icon name={callout.icon} size={14} className="text-current" />}
                   {callout.title}
                 </p>

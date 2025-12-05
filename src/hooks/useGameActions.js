@@ -834,6 +834,66 @@ export const useGameActions = (gameState, addLog) => {
         break;
       }
 
+      case 'provoke': {
+        // 挑拨关系：花费银币离间两个国家
+        const provokeCost = 300;
+        if ((resources.silver || 0) < provokeCost) {
+          addLog('银币不足，无法进行挑拨行动（需要300银币）。');
+          return;
+        }
+        
+        // 找到可以被离间的其他国家（与目标国有外交关系的国家）
+        const visibleNations = nations.filter(n => 
+          n.id !== nationId && 
+          epoch >= (n.appearEpoch ?? 0) && 
+          (n.expireEpoch == null || epoch <= n.expireEpoch)
+        );
+        
+        if (visibleNations.length === 0) {
+          addLog('没有其他国家可以被离间。');
+          return;
+        }
+        
+        // 随机选择一个国家作为离间目标
+        const otherNation = visibleNations[Math.floor(Math.random() * visibleNations.length)];
+        
+        // 成功率取决于玩家与目标国家的关系
+        const playerRelation = targetNation.relation || 50;
+        const successChance = Math.min(0.8, 0.3 + playerRelation / 200);
+        
+        setResources(prev => ({ ...prev, silver: prev.silver - provokeCost }));
+        
+        if (Math.random() < successChance) {
+          // 成功：降低两国之间的关系
+          const relationDamage = Math.floor(15 + Math.random() * 15);
+          
+          setNations(prev => prev.map(n => {
+            if (n.id === nationId) {
+              const newForeignRelations = { ...(n.foreignRelations || {}) };
+              newForeignRelations[otherNation.id] = Math.max(0, (newForeignRelations[otherNation.id] || 50) - relationDamage);
+              return { ...n, foreignRelations: newForeignRelations };
+            }
+            if (n.id === otherNation.id) {
+              const newForeignRelations = { ...(n.foreignRelations || {}) };
+              newForeignRelations[nationId] = Math.max(0, (newForeignRelations[nationId] || 50) - relationDamage);
+              return { ...n, foreignRelations: newForeignRelations };
+            }
+            return n;
+          }));
+          
+          addLog(`🕵️ 你成功离间了 ${targetNation.name} 与 ${otherNation.name} 的关系（-${relationDamage}）！`);
+        } else {
+          // 失败：被发现，与目标国家关系下降
+          setNations(prev => prev.map(n =>
+            n.id === nationId
+              ? { ...n, relation: clampRelation((n.relation || 0) - 15) }
+              : n
+          ));
+          addLog(`🕵️ 你的离间行动被 ${targetNation.name} 发现了，关系恶化！`);
+        }
+        break;
+      }
+
       case 'declare_war':
         // 检查和平协议是否仍然有效
         if (targetNation.peaceTreatyUntil && daysElapsed < targetNation.peaceTreatyUntil) {

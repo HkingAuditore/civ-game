@@ -422,7 +422,7 @@ export const BuildTab = ({
             <button
               key={filter.key}
               onClick={() => setActiveCategory(filter.key)}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold font-serif transition-colors ${
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
                 isActive
                   ? 'bg-blue-600 text-white shadow-inner'
                   : 'bg-gray-700/70 text-gray-300 hover:bg-gray-600/60'
@@ -441,7 +441,7 @@ export const BuildTab = ({
         return (
           <div key={catKey} className="glass-ancient p-4 rounded-xl border border-ancient-gold/30">
             {/* 类别标题 */}
-            <h3 className="text-sm font-bold mb-3 flex items-center gap-2  font-serif text-gray-300">
+            <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300">
               <Icon name={catInfo.icon} size={16} className={catInfo.color} />
               {catInfo.name}
             </h3>

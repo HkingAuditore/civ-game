@@ -927,7 +927,7 @@ export const WikiModal = ({ show, onClose }) => {
         <div className="flex items-center justify-between px-3 sm:px-6 py-2 sm:py-4 border-b border-gray-800 bg-gray-900">
           <div>
             <p className="text-[10px] sm:text-xs uppercase tracking-widest text-indigo-400 mb-0.5 sm:mb-1">CIVILIZATION KNOWLEDGE BASE</p>
-            <h2 className="text-base font-serif sm:text-2xl font-bold text-white flex items-center gap-1 sm:gap-2">
+            <h2 className="text-base font-decorative sm:text-2xl font-bold text-white flex items-center gap-1 sm:gap-2">
               <Icon name="BookOpen" size={18} className="text-indigo-300 sm:w-6 sm:h-6"/>
               文明百科全书
             </h2>

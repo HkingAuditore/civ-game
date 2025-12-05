@@ -833,8 +833,8 @@ export const ResourceDetailModal = ({
                     )}
                   </div>
                   <div className="mt-2 lg:mt-4 rounded-lg lg:rounded-xl border border-gray-800/60 bg-gray-900/60 p-2.5 lg:p-4 text-xs lg:text-sm text-gray-400">
-                    本地产出 {formatAmount(totalSupply)} · 市场供给 {formatAmount(marketSupply)} · 缺口{' '}
-                    {formatAmount(totalDemand - marketSupply)}
+                    本地产出 {formatAmount(totalSupply)} · 总需求 {formatAmount(totalDemand)} · 缺口{' '}
+                    {formatAmount(Math.max(0, totalDemand - totalSupply))}
                   </div>
                 </div>
               </div>

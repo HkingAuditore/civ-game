@@ -325,9 +325,10 @@ export const DiplomacyTab = ({
 
 <div className="grid grid-cols-1 xl:grid-cols-3 gap-3 h-[calc(100vh-180px)] md:h-[900px]">
         <div className="glass-ancient rounded-xl border border-ancient-gold/30 flex flex-col overflow-hidden">
-      <div className="px-2 py-1.5 border-b border-gray-700/80 text-[15px] uppercase tracking-wide text-gray-400 font-serif font-bold">
+      <div className="px-2 py-1.5 border-b border-gray-700/80 text-[15px] uppercase tracking-wide text-gray-400 font-decorative font-bold">
             国家列表
-          </div>          <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-900 hover:scrollbar-thumb-gray-500">
+          </div>
+            <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-900 hover:scrollbar-thumb-gray-500">
             {visibleNations.map((nation, idx) => {
               if (!nation) return null;
               const relation = relationInfo(nation.relation || 0);
@@ -343,7 +344,7 @@ export const DiplomacyTab = ({
                   <Icon name="Flag" size={14} className={nation.color || 'text-gray-300'} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-semibold font-serif text-white truncate font-body">{nation.name || '未知国家'}</span>
+                      <span className="text-xs font-semibold font-decorative text-white truncate">{nation.name || '未知国家'}</span>
                       <span className={`px-1 py-0.5 rounded text-[9px] ${relation.bg} ${relation.color} font-epic`}>
                         {relation.label}
                       </span>
@@ -365,12 +366,12 @@ export const DiplomacyTab = ({
 
 <div className="xl:col-span-2 space-y-2 max-h-[calc(100vh-180px)] md:max-h-[900px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500">
           {selectedNation ? (
-            <>
+            <React.Fragment>
               <div className="bg-gray-800/60 p-2 rounded-lg border border-gray-700">
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <div className="flex items-center gap-1.5">
                     <Icon name="Globe" size={14} className="text-amber-300" />
-      <h3 className="text-sm font-bold text-white font-serif">{selectedNation?.name || '未知国家'}</h3>
+      <h3 className="text-sm font-bold text-white font-decorative">{selectedNation?.name || '未知国家'}</h3>
                     {selectedNation?.type && (
                       <span className="px-1.5 py-0.5 text-[9px] rounded bg-indigo-900/40 text-indigo-300 border border-indigo-500/30 font-epic">
                         {selectedNation.type}
@@ -420,6 +421,58 @@ export const DiplomacyTab = ({
                   </div>
                 </div>
                 
+                {/* 大致兵力估算 - 关系越好越准确 */}
+                {(() => {
+                  const relation = selectedNation?.relation || 0;
+                  const baseStrength = (selectedNation?.militaryStrength ?? 1.0) * (selectedNation?.population || 100) * (1 + (selectedNation?.aggression || 0.3));
+                  // 关系影响情报准确度：关系越好，误差越小
+                  const accuracyFactor = Math.max(0.1, relation / 100); // 0.1 - 1.0
+                  const errorRange = 1 - accuracyFactor; // 0 - 0.9
+                  const estimatedStrength = Math.floor(baseStrength * (1 + (Math.random() - 0.5) * errorRange * 2));
+                  const strengthLabel = relation >= 60 ? `约 ${estimatedStrength}` : 
+                                        relation >= 40 ? `${Math.floor(estimatedStrength * 0.8)} - ${Math.floor(estimatedStrength * 1.2)}` :
+                                        relation >= 20 ? '情报不足' : '未知';
+                  return (
+                    <div className="p-2 rounded border border-red-500/20 bg-red-900/10 flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-1 text-red-200 font-body">
+                        <Icon name="Swords" size={12} />
+                        军事力量
+                      </div>
+                      <span className={`font-mono font-semibold font-epic ${
+                        relation >= 60 ? 'text-green-300' : 
+                        relation >= 40 ? 'text-yellow-300' : 
+                        'text-gray-400'
+                      }`}>
+                        {strengthLabel}
+                      </span>
+                    </div>
+                  );
+                })()}
+                
+                {/* 当前战争状态 */}
+                {selectedNation?.foreignWars && Object.keys(selectedNation.foreignWars).some(
+                  id => selectedNation.foreignWars[id]?.isAtWar
+                ) && (
+                  <div className="p-2 rounded border border-orange-500/20 bg-orange-900/10 mb-2">
+                    <div className="flex items-center gap-1 text-orange-200 font-body mb-1">
+                      <Icon name="Flame" size={12} />
+                      正在与其他国家交战
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {Object.keys(selectedNation.foreignWars)
+                        .filter(id => selectedNation.foreignWars[id]?.isAtWar)
+                        .map(enemyId => {
+                          const enemy = nations.find(n => n.id === enemyId);
+                          return enemy ? (
+                            <span key={enemyId} className="px-1.5 py-0.5 rounded bg-red-900/40 text-red-200 text-[10px] font-body">
+                              ⚔️ {enemy.name}
+                            </span>
+                          ) : null;
+                        })}
+                    </div>
+                  </div>
+                )}
+                
                 <div className="flex gap-1.5 text-xs font-body">
                   <button
                     className="flex-1 px-2 py-1.5 bg-green-600 hover:bg-green-500 rounded text-white flex items-center justify-center gap-1 font-semibold font-body"
@@ -445,15 +498,26 @@ export const DiplomacyTab = ({
                     {(selectedNation?.isAtWar === true) ? '求和' : '宣战'}
                   </button>
                 </div>
+                
+                {/* 挑拨关系按钮 */}
+                <div className="mt-1.5 flex gap-1.5 text-xs font-body">
+                  <button
+                    className="flex-1 px-2 py-1.5 bg-indigo-600 hover:bg-indigo-500 rounded text-white flex items-center justify-center gap-1 font-semibold font-body"
+                    onClick={() => handleSimpleAction(selectedNation.id, 'provoke')}
+                    title="花费银币离间该国与另一国家的关系"
+                  >
+                    <Icon name="MessageSquareWarning" size={12} /> 挑拨关系
+                  </button>
+                </div>
                 <div className="mt-1 text-[10px] text-gray-400 flex items-center justify-between font-epic">
                   <span className="flex items-center gap-1">
                     <Icon name="Coins" size={10} className="text-amber-300" />
-                    礼物成本：{BASE_GIFT_COST} 银币
+                    礼物成本：{BASE_GIFT_COST} 银币 | 挑拨成本：300 银币
                   </span>
                 </div>
                 {selectedPreferences.length > 0 && (
                   <div className="mt-2">
-                    <div className="text-[10px] text-gray-400 uppercase tracking-wide mb-1 flex items-center gap-1 font-serif">
+                    <div className="text-[10px] text-gray-400 uppercase tracking-wide mb-1 flex items-center gap-1 font-decorative">
                       <Icon name="Package" size={10} className="text-amber-300" />
                       偏好资源
                     </div>
@@ -476,7 +540,7 @@ export const DiplomacyTab = ({
                 {/* 特殊能力 */}
                 {selectedNation?.specialAbilities && selectedNation.specialAbilities.length > 0 && (
                   <div className="mt-2">
-                    <div className="text-[10px] text-gray-400 uppercase tracking-wide mb-1 flex items-center gap-1 font-serif">
+                    <div className="text-[10px] text-gray-400 uppercase tracking-wide mb-1 flex items-center gap-1 font-decorative">
                       <Icon name="Sparkles" size={10} className="text-purple-300" />
                       国家特色
                     </div>
@@ -540,9 +604,9 @@ export const DiplomacyTab = ({
                   const canCreateMore = currentRoutesWithNation < maxRoutesWithNation && currentRouteCount < merchantJobLimit;
                   
                   return (
-                    <>
+                    <React.Fragment>
                       <div className="flex items-center justify-between mb-2">
-                        <h3 className="text-xs font-bold text-white flex items-center gap-1 font-serif">
+                        <h3 className="text-xs font-bold text-white flex items-center gap-1 font-decorative">
                           <Icon name="Route" size={12} className="text-blue-300" />
                           贸易路线管理
                         </h3>
@@ -622,8 +686,11 @@ export const DiplomacyTab = ({
                           const foreign = calculateForeignPrice(key, selectedNation, daysElapsed);
                           const diff = foreign - local;
                           const tradeStatus = calculateTradeStatus(key, selectedNation, daysElapsed) || {};
-                          const shortageCapacity = Math.floor(tradeStatus.shortageAmount || 0);
-                          const surplusCapacity = Math.floor(tradeStatus.surplusAmount || 0);
+                          // 限制显示的缺口/盈余数值，避免显示过大的数字
+                          const rawShortage = Math.floor(tradeStatus.shortageAmount || 0);
+                          const rawSurplus = Math.floor(tradeStatus.surplusAmount || 0);
+                          const shortageCapacity = rawShortage > 9999 ? '9999+' : rawShortage;
+                          const surplusCapacity = rawSurplus > 9999 ? '9999+' : rawSurplus;
                           
                           // 检查是否已解锁该资源
                           const isUnlocked = (res.unlockEpoch ?? 0) <= epoch;
@@ -698,14 +765,14 @@ export const DiplomacyTab = ({
                           );
                         })}
                       </div>
-                    </>
+                    </React.Fragment>
                   );
                 })()}
               </div>
 
               {selectedNation.peaceTreatyUntil && daysElapsed < selectedNation.peaceTreatyUntil && (
                 <div className="bg-green-900/20 p-2 rounded-lg border border-green-600/30 mb-2">
-                  <h3 className="text-xs font-bold text-white flex items-center gap-1 mb-1.5 font-serif">
+                  <h3 className="text-xs font-bold text-white flex items-center gap-1 mb-1.5 font-decorative">
                     <Icon name="HandHeart" size={12} className="text-green-300" />
                     和平协议
                   </h3>
@@ -723,7 +790,7 @@ export const DiplomacyTab = ({
 
               {selectedNation.isAtWar && (
                 <div className="bg-red-900/20 p-2 rounded-lg border border-red-600/30">
-                  <h3 className="text-xs font-bold text-white flex items-center gap-1 mb-1.5 font-serif">
+                  <h3 className="text-xs font-bold text-white flex items-center gap-1 mb-1.5 font-decorative">
                     <Icon name="AlertTriangle" size={12} className="text-red-300" />
                     战争状态
                   </h3>
@@ -747,7 +814,7 @@ export const DiplomacyTab = ({
               
               {playerInstallmentPayment && playerInstallmentPayment.nationId === selectedNation.id && (
                 <div className="bg-yellow-900/20 p-2 rounded-lg border border-yellow-600/30 mt-2">
-                  <h3 className="text-xs font-bold text-white flex items-center gap-1 mb-1.5 font-serif">
+                  <h3 className="text-xs font-bold text-white flex items-center gap-1 mb-1.5 font-decorative">
                     <Icon name="Coins" size={12} className="text-yellow-300" />
                     你的分期支付
                   </h3>
@@ -763,7 +830,7 @@ export const DiplomacyTab = ({
                   </p>
                 </div>
               )}
-            </>
+            </React.Fragment>
           ) : (
             <div className="glass-ancient p-4 rounded-xl border border-ancient-gold/30 text-sm text-gray-400 font-body">
               请选择一个国家以查看贸易与谈判选项。

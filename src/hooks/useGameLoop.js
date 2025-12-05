@@ -970,8 +970,28 @@ export const useGameLoop = (gameState, addLog, actions) => {
           result.logs.forEach((log, index) => {
             console.log(`[EVENT DEBUG] Log ${index}:`, log);
             console.log(`[EVENT DEBUG] Log ${index} includes RAID_EVENT:`, log.includes('❗RAID_EVENT❗'));
-            // 检测宣战事件
-            if (log.includes('对你发动了战争')) {
+            
+            // 检测宣战事件（使用新的 WAR_DECLARATION_EVENT 标记）
+            if (log.includes('WAR_DECLARATION_EVENT:')) {
+              console.log('[EVENT DEBUG] War declaration detected:', log);
+              try {
+                const jsonStr = log.replace('WAR_DECLARATION_EVENT:', '');
+                const warData = JSON.parse(jsonStr);
+                const nation = result.nations?.find(n => n.id === warData.nationId);
+                if (nation) {
+                  const { createWarDeclarationEvent } = require('../config/events');
+                  const event = createWarDeclarationEvent(nation, () => {
+                    // 宣战事件只需要确认，不需要额外操作
+                    console.log('[EVENT DEBUG] War declaration acknowledged');
+                  });
+                  currentActions.triggerDiplomaticEvent(event);
+                }
+              } catch (e) {
+                console.error('[EVENT DEBUG] Failed to parse war declaration event:', e);
+              }
+            }
+            // 兼容旧的宣战检测逻辑
+            else if (log.includes('对你发动了战争') && !log.includes('WAR_DECLARATION_EVENT')) {
               const match = log.match(/⚠️ (.+) 对你发动了战争/);
               if (match) {
                 const nationName = match[1];
