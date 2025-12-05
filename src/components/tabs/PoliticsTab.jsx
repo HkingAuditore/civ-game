@@ -698,7 +698,7 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
                 <div
                   key={decree.id}
                   onClick={() => onShowDecreeDetails && onShowDecreeDetails(decree)}
-                  className={`group relative p-2 rounded-lg border transition-all cursor-pointer ${
+                  className={`group relative z-10 hover:z-30 focus-within:z-30 p-2 rounded-lg border transition-all cursor-pointer ${
                     decree.active
                       ? 'bg-green-900/20 border-green-600 shadow-lg'
                       : 'bg-gray-700/50 border-gray-600 hover:border-purple-500 hover:shadow-lg'

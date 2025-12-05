@@ -279,10 +279,11 @@ const MECHANICS_GUIDES = [
       { type: 'h4', text: '1. 兵种克制循环' },
       { type: 'p', text: '战场遵循严格的克制关系，利用好这一点可以以少胜多：' },
       { type: 'list', items: [
-        '骑兵 克制 弓箭手/远程 (+50%~80% 伤害)',
-        '弓箭手 克制 步兵 (+50% 伤害)',
-        '步兵/长矛兵 克制 骑兵 (+80% 伤害)',
-        '坦克/火炮 对旧时代单位有毁灭性打击。'
+        '步兵/长矛兵 克制 骑兵 (+60%~100% 伤害) - 长矛阵克制骑兵冲锋',
+        '骑兵 克制 弓箭手/火器 (+50%~90% 伤害) - 快速突袭，近身作战优势',
+        '弓箭手 克制 步兵 (+40%~70% 伤害) - 远程火力压制',
+        '火器 克制 步兵/骑兵 (+40%~80% 伤害) - 火力优势，但近战被骑兵克制',
+        '攻城器械 对建筑有效，但机动性差，被所有近战克制'
       ]},
       { type: 'h4', text: '2. 战斗力计算' },
       { type: 'p', text: '总战力 = (单位攻击+防御) × 数量 × 时代加成 × 克制修正。' },
@@ -1180,7 +1181,6 @@ const renderMilitaryDetails = (data) => {
     data.trainingTime !== undefined && { label: '训练时间 (秒)', value: formatNumber(data.trainingTime) },
     data.attack !== undefined && { label: '攻击力', value: formatNumber(data.attack) },
     data.defense !== undefined && { label: '防御力', value: formatNumber(data.defense) },
-    data.speed !== undefined && { label: '机动速度', value: formatNumber(data.speed) },
     data.range !== undefined && { label: '射程', value: formatNumber(data.range) },
   ].filter(Boolean);
 

@@ -1,10 +1,10 @@
 // 军事标签页组件
 // 显示可招募的兵种、当前军队和战斗功能
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useRef, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '../common/UIComponents';
-import { UNIT_TYPES, BUILDINGS, calculateArmyCapacityNeed, calculateArmyPopulation, calculateArmyMaintenance, calculateArmyFoodNeed, calculateBattlePower, RESOURCES, MILITARY_ACTIONS, TECHS } from '../../config';
+import { UNIT_TYPES, UNIT_CATEGORIES, BUILDINGS, calculateArmyMaintenance, calculateArmyFoodNeed, calculateBattlePower, RESOURCES, MILITARY_ACTIONS, TECHS, EPOCHS } from '../../config';
 import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
 import { filterUnlockedResources } from '../../utils/resources';
 
@@ -12,34 +12,44 @@ import { filterUnlockedResources } from '../../utils/resources';
  * 军事单位悬浮提示框 (使用 Portal)
  */
 const UnitTooltip = ({ unit, resources, market, militaryWageRatio, anchorElement }) => {
+  const tooltipRef = useRef(null);
+  const [tooltipSize, setTooltipSize] = useState({ width: 288, height: 400 }); // Default w-72 = 288px
+
+  // Update tooltip size after mount using useLayoutEffect
+  useLayoutEffect(() => {
+    if (tooltipRef.current) {
+      const rect = tooltipRef.current.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        setTooltipSize({ width: rect.width, height: rect.height });
+      }
+    }
+  }, [unit]); // Re-calculate when unit changes
+
+  // Calculate position based on anchor element
+  const position = useMemo(() => {
+    if (!anchorElement) return { top: 0, left: 0 };
+    
+    const anchorRect = anchorElement.getBoundingClientRect();
+    
+    let top = anchorRect.top;
+    let left = anchorRect.right + 8; // 默认在右侧
+
+    if (left + tooltipSize.width > window.innerWidth) {
+      left = anchorRect.left - tooltipSize.width - 8;
+    }
+
+    if (top < 0) top = 0;
+    if (top + tooltipSize.height > window.innerHeight) {
+      top = window.innerHeight - tooltipSize.height;
+    }
+
+    return { top, left };
+  }, [anchorElement, tooltipSize]);
+
+  // Early return after hooks
   if (!unit || !anchorElement) return null;
 
-  const [position, setPosition] = useState({ top: 0, left: 0 });
-  const tooltipRef = useRef(null);
-
-  useEffect(() => {
-    if (anchorElement && tooltipRef.current) {
-      const anchorRect = anchorElement.getBoundingClientRect();
-      const tooltipRect = tooltipRef.current.getBoundingClientRect();
-      
-      let top = anchorRect.top;
-      let left = anchorRect.right + 8; // 默认在右侧
-
-      if (left + tooltipRect.width > window.innerWidth) {
-        left = anchorRect.left - tooltipRect.width - 8;
-      }
-
-      if (top < 0) top = 0;
-      if (top + tooltipRect.height > window.innerHeight) {
-        top = window.innerHeight - tooltipRect.height;
-      }
-
-      setPosition({ top, left });
-    }
-  }, [anchorElement, unit]);
-
   const silverCost = calculateSilverCost(unit.recruitCost, market);
-  const foodPrice = market?.prices?.food ?? (RESOURCES.food?.basePrice || 1);
 
   return createPortal(
     <div
@@ -55,13 +65,70 @@ const UnitTooltip = ({ unit, resources, market, militaryWageRatio, anchorElement
         <div className="grid grid-cols-2 gap-2 text-xs">
           <div className="flex items-center gap-1"><Icon name="Sword" size={12} className="text-red-400" /><span className="text-gray-300">攻击:</span><span className="text-white">{unit.attack}</span></div>
           <div className="flex items-center gap-1"><Icon name="Shield" size={12} className="text-blue-400" /><span className="text-gray-300">防御:</span><span className="text-white">{unit.defense}</span></div>
-          <div className="flex items-center gap-1"><Icon name="Zap" size={12} className="text-yellow-400" /><span className="text-gray-300">速度:</span><span className="text-white">{unit.speed}</span></div>
           <div className="flex items-center gap-1"><Icon name="Clock" size={12} className="text-purple-400" /><span className="text-gray-300">训练:</span><span className="text-white">{unit.trainingTime}天</span></div>
         </div>
-        <div className="flex items-center gap-1 text-xs mt-2 pt-2 border-t border-gray-700">
-          <Icon name="Coins" size={12} className="text-yellow-400" />
-          <span className="text-gray-300">军饷:</span>
-          <span className="text-yellow-300">{((unit.maintenanceCost?.food || 0) * foodPrice * militaryWageRatio).toFixed(2)} 银币/日</span>
+        {/* 资源维护费 */}
+        <div className="text-xs mt-2 pt-2 border-t border-gray-700">
+          <div className="text-[10px] text-gray-400 mb-1">每日维护:</div>
+          <div className="flex flex-wrap gap-1">
+            {Object.entries(unit.maintenanceCost || {}).map(([res, cost]) => (
+              cost > 0 && (
+                <span key={res} className="text-[10px] px-1.5 py-0.5 bg-gray-800 rounded text-gray-300">
+                  {RESOURCES[res]?.name || res}: -{cost.toFixed(1)}
+                </span>
+              )
+            ))}
+          </div>
+          <div className="flex items-center gap-1 mt-1">
+            <Icon name="Coins" size={12} className="text-yellow-400" />
+            <span className="text-gray-300">军饷:</span>
+            <span className="text-yellow-300">{((unit.maintenanceCost?.silver || 0) * militaryWageRatio).toFixed(2)} 银币/日</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Counter relations */}
+      {(Object.keys(unit.counters || {}).length > 0 || (unit.weakAgainst || []).length > 0) && (
+        <div className="bg-gray-900/50 rounded px-2 py-1.5 mb-2">
+          <div className="text-[10px] text-gray-400 mb-1">克制关系</div>
+          {Object.keys(unit.counters || {}).length > 0 && (
+            <div className="flex flex-wrap gap-1 mb-1">
+              <span className="text-[10px] text-green-400">克制:</span>
+              {Object.entries(unit.counters).map(([cat, mult]) => (
+                <span key={cat} className="text-[10px] px-1.5 py-0.5 bg-green-900/40 rounded text-green-300">
+                  {UNIT_CATEGORIES[cat]?.name || cat} +{Math.round((mult - 1) * 100)}%
+                </span>
+              ))}
+            </div>
+          )}
+          {(unit.weakAgainst || []).length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              <span className="text-[10px] text-red-400">弱于:</span>
+              {unit.weakAgainst.map((cat) => (
+                <span key={cat} className="text-[10px] px-1.5 py-0.5 bg-red-900/40 rounded text-red-300">
+                  {UNIT_CATEGORIES[cat]?.name || cat}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Category and epoch info */}
+      <div className="bg-gray-900/50 rounded px-2 py-1.5 mb-2">
+        <div className="flex justify-between text-xs">
+          <span className="text-gray-400">兵种类型</span>
+          <span className={UNIT_CATEGORIES[unit.category]?.color || 'text-white'}>
+            {UNIT_CATEGORIES[unit.category]?.name || unit.category}
+          </span>
+        </div>
+        <div className="flex justify-between text-xs">
+          <span className="text-gray-400">解锁时代</span>
+          <span className="text-white">{EPOCHS[unit.epoch]?.name || `时代${unit.epoch}`}</span>
+        </div>
+        <div className="flex justify-between text-xs">
+          <span className="text-gray-400">淘汰阈值</span>
+          <span className="text-yellow-400">+{unit.obsoleteAfterEpochs || 2}个时代</span>
         </div>
       </div>
 
@@ -104,7 +171,7 @@ export const MilitaryTab = ({
   militaryQueue,
   resources,
   epoch,
-  population,
+  population: _population, // eslint-disable-line no-unused-vars -- Reserved for future use
   buildings = {}, // 新增：建筑列表，用于计算军事容量
   nations = [],
   selectedTarget,
@@ -306,6 +373,56 @@ export const MilitaryTab = ({
         </div>
       </div>
 
+      {/* 兵种克制关系 */}
+      <div className="glass-ancient p-3 rounded-xl border border-ancient-gold/30">
+        <h3 className="text-xs font-bold mb-2 flex items-center gap-2 text-gray-300">
+          <Icon name="Info" size={14} className="text-blue-400" />
+          兵种克制关系
+        </h3>
+        <div className="flex flex-wrap gap-3 text-[10px]">
+          <div className="flex items-center gap-1">
+            <span className="text-red-400 font-semibold">步兵</span>
+            <Icon name="ArrowRight" size={10} className="text-green-400" />
+            <span className="text-blue-400 font-semibold">骑兵</span>
+            <span className="text-gray-500 ml-1">(长矛克骑)</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-blue-400 font-semibold">骑兵</span>
+            <Icon name="ArrowRight" size={10} className="text-green-400" />
+            <span className="text-green-400 font-semibold">弓箭</span>
+            <span className="text-gray-500 ml-1">(快速突袭)</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-green-400 font-semibold">弓箭</span>
+            <Icon name="ArrowRight" size={10} className="text-green-400" />
+            <span className="text-red-400 font-semibold">步兵</span>
+            <span className="text-gray-500 ml-1">(远程压制)</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-yellow-400 font-semibold">火器</span>
+            <Icon name="ArrowRight" size={10} className="text-green-400" />
+            <span className="text-red-400 font-semibold">步兵</span>
+            <span className="text-gray-500">/</span>
+            <span className="text-blue-400 font-semibold">骑兵</span>
+            <span className="text-gray-500 ml-1">(火力优势)</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-blue-400 font-semibold">骑兵</span>
+            <Icon name="ArrowRight" size={10} className="text-green-400" />
+            <span className="text-yellow-400 font-semibold">火器</span>
+            <span className="text-gray-500 ml-1">(近身突袭)</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-orange-400 font-semibold">攻城</span>
+            <span className="text-gray-400">→ 攻城利器但机动性差</span>
+          </div>
+          <div className="flex items-center gap-1 border-l border-gray-700 pl-3">
+            <Icon name="AlertTriangle" size={10} className="text-yellow-400" />
+            <span className="text-yellow-400">落后超过2代的兵种将被淘汰</span>
+          </div>
+        </div>
+      </div>
+
       {/* 招募单位 */}
       <div className="glass-ancient p-4 rounded-xl border border-ancient-gold/30">
         <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300">
@@ -314,9 +431,22 @@ export const MilitaryTab = ({
         </h3>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-2">
-          {Object.entries(UNIT_TYPES).filter(([, unit]) => unit.epoch <= epoch).map(([unitId, unit]) => {
+          {Object.entries(UNIT_TYPES)
+            .filter(([, unit]) => {
+              // Filter by epoch unlock
+              if (unit.epoch > epoch) return false;
+              // Filter out obsolete units
+              const epochDiff = epoch - unit.epoch;
+              const obsoleteThreshold = unit.obsoleteAfterEpochs || 2;
+              return epochDiff <= obsoleteThreshold;
+            })
+            .map(([unitId, unit]) => {
             const silverCost = calculateSilverCost(unit.recruitCost, market);
             const affordable = canRecruit(unit);
+            
+            // Get category info for color
+            const categoryInfo = UNIT_CATEGORIES[unit.category] || {};
+            const categoryColor = categoryInfo.color || 'text-red-400';
 
             return (
               <div
@@ -333,10 +463,14 @@ export const MilitaryTab = ({
                 {/* 单位头部 - 紧凑版 */}
                 <div className="flex flex-col items-center mb-2">
                   <div className="w-12 h-12 icon-metal-container icon-metal-container-lg rounded-lg flex items-center justify-center mb-1">
-                    <Icon name="Swords" size={24} className="text-red-400 icon-metal-red" />
+                    <Icon name={unit.icon || 'Swords'} size={24} className={`${categoryColor} icon-metal-red`} />
                   </div>
-                  <h4 className="text-xs font-bold text-white text-center leading-tight">{unit.name}</h4>
+                  <h4 className="text-xs font-bold text-center leading-tight text-white">{unit.name}</h4>
                   <p className="text-[10px] text-gray-400">×{army[unitId] || 0}</p>
+                  {/* Category badge */}
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full mt-0.5 ${categoryInfo.color?.replace('text-', 'bg-').replace('-400', '-900/50')} ${categoryColor}`}>
+                    {categoryInfo.name}
+                  </span>
                 </div>
 
                 {/* 简化的关键属性 */}
@@ -345,16 +479,35 @@ export const MilitaryTab = ({
                     <span className="text-gray-400">攻/防</span>
                     <span className="text-white">{unit.attack}/{unit.defense}</span>
                   </div>
-                  <div className="bg-gray-900/40 rounded px-1.5 py-1 flex justify-between">
-                    <span className="text-gray-400">速度</span>
-                    <span className="text-yellow-400">{unit.speed}</span>
+                  {/* 维护费显示 */}
+                  <div className="bg-gray-900/40 rounded px-1.5 py-1">
+                    <div className="flex justify-between mb-0.5">
+                      <span className="text-gray-400">军饷</span>
+                      <span className="text-yellow-300 text-[9px]">
+                        {((unit.maintenanceCost?.silver || 0) * militaryWageRatio).toFixed(1)}银/日
+                      </span>
+                    </div>
+                    {Object.entries(unit.maintenanceCost || {}).filter(([r, c]) => r !== 'food' && r !== 'silver' && c > 0).length > 0 && (
+                      <div className="flex flex-wrap gap-0.5 text-[8px]">
+                        {Object.entries(unit.maintenanceCost || {}).filter(([r, c]) => r !== 'food' && r !== 'silver' && c > 0).map(([res, cost]) => (
+                          <span key={res} className="text-gray-400">
+                            {RESOURCES[res]?.name?.slice(0,1) || res}:{cost.toFixed(1)}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  <div className="bg-gray-900/40 rounded px-1.5 py-1 flex justify-between">
-                    <span className="text-gray-400">军饷</span>
-                    <span className="text-yellow-300">
-                      {((unit.maintenanceCost?.food || 0) * foodPrice * militaryWageRatio).toFixed(1)}银/日
-                    </span>
-                  </div>
+                  {/* Counter info */}
+                  {Object.keys(unit.counters || {}).length > 0 && (
+                    <div className="bg-green-900/30 rounded px-1.5 py-1 flex justify-between">
+                      <span className="text-green-400">克制</span>
+                      <span className="text-green-300 text-[9px]">
+                        {Object.entries(unit.counters).map(([cat, mult]) => 
+                          `${UNIT_CATEGORIES[cat]?.name || cat}+${Math.round((mult - 1) * 100)}%`
+                        ).join(', ')}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* 操作按钮 - 紧凑版 */}

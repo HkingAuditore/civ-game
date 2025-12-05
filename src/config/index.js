@@ -28,6 +28,8 @@ export {
 // 军事单位系统
 export { 
   UNIT_TYPES,
+  UNIT_CATEGORIES,
+  COUNTER_RELATIONS,
   calculateArmyFoodNeed,
   calculateBattlePower,
   calculateCounterBonus,

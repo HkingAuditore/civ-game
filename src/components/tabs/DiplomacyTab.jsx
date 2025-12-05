@@ -182,7 +182,7 @@ export const DiplomacyTab = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-3 h-[calc(100vh-180px)] md:h-[600px]">
+<div className="grid grid-cols-1 xl:grid-cols-3 gap-3 h-[calc(100vh-180px)] md:h-[900px]">
         <div className="glass-ancient rounded-xl border border-ancient-gold/30 flex flex-col overflow-hidden">
           <div className="px-2 py-1.5 border-b border-gray-700/80 text-[10px] uppercase tracking-wide text-gray-400">
             国家列表
@@ -223,7 +223,7 @@ export const DiplomacyTab = ({
           </div>
         </div>
 
-        <div className="xl:col-span-2 space-y-2 max-h-[calc(100vh-180px)] md:max-h-[600px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500">
+<div className="xl:col-span-2 space-y-2 max-h-[calc(100vh-180px)] md:max-h-[900px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500">
           {selectedNation ? (
             <>
               <div className="bg-gray-800/60 p-2 rounded-lg border border-gray-700">
@@ -231,6 +231,11 @@ export const DiplomacyTab = ({
                   <div className="flex items-center gap-1.5">
                     <Icon name="Globe" size={14} className="text-amber-300" />
                     <h3 className="text-sm font-bold text-white">{selectedNation?.name || '未知国家'}</h3>
+                    {selectedNation?.type && (
+                      <span className="px-1.5 py-0.5 text-[9px] rounded bg-indigo-900/40 text-indigo-300 border border-indigo-500/30">
+                        {selectedNation.type}
+                      </span>
+                    )}
                     {selectedRelation && (
                       <span className={`px-1.5 py-0.5 text-[9px] rounded ${selectedRelation.bg} ${selectedRelation.color}`}>
                         {selectedRelation.label}
@@ -243,6 +248,17 @@ export const DiplomacyTab = ({
                     className={(selectedNation?.isAtWar === true) ? 'text-red-400' : 'text-green-400'}
                   />
                 </div>
+                
+                {/* 国家描述 */}
+                {selectedNation?.desc && (
+                  <div className="mb-2 p-2 bg-gray-900/40 rounded border border-gray-700/50">
+                    <p className="text-[11px] text-gray-300 leading-relaxed">
+                      <Icon name="BookOpen" size={10} className="inline mr-1 text-amber-300" />
+                      {selectedNation.desc}
+                    </p>
+                  </div>
+                )}
+                
                 <div className="flex gap-1.5 text-xs">
                   <button
                     className="flex-1 px-2 py-1.5 bg-green-600 hover:bg-green-500 rounded text-white flex items-center justify-center gap-1"
@@ -286,6 +302,54 @@ export const DiplomacyTab = ({
                           <span className="text-amber-300 font-mono text-[9px]">x{pref.bias.toFixed(1)}</span>
                         </span>
                       ))}
+                    </div>
+                  </div>
+                )}
+                
+                {/* 特殊能力 */}
+                {selectedNation?.specialAbilities && selectedNation.specialAbilities.length > 0 && (
+                  <div className="mt-2">
+                    <div className="text-[10px] text-gray-400 uppercase tracking-wide mb-1 flex items-center gap-1">
+                      <Icon name="Sparkles" size={10} className="text-purple-300" />
+                      国家特色
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {selectedNation.specialAbilities.map((ability, idx) => (
+                        <span
+                          key={idx}
+                          className="px-2 py-0.5 rounded-full bg-purple-900/30 border border-purple-500/30 text-[10px] text-purple-200 flex items-center gap-1"
+                          title={ability.desc}
+                        >
+                          <Icon name="Zap" size={10} className="text-purple-300" />
+                          <span>{ability.desc}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {/* 文化特性 */}
+                {selectedNation?.culturalTraits && Object.keys(selectedNation.culturalTraits).length > 0 && (
+                  <div className="mt-2">
+                    <div className="text-[10px] text-gray-400 uppercase tracking-wide mb-1 flex items-center gap-1">
+                      <Icon name="Landmark" size={10} className="text-cyan-300" />
+                      文化特性
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {Object.entries(selectedNation.culturalTraits).map(([trait, value]) => {
+                        // 将驼峰命名转换为可读格式
+                        const traitName = trait.replace(/([A-Z])/g, ' $1').trim();
+                        const displayValue = typeof value === 'boolean' ? '' : ` (${typeof value === 'number' ? (value * 100).toFixed(0) + '%' : value})`;
+                        return (
+                          <span
+                            key={trait}
+                            className="px-2 py-0.5 rounded-full bg-cyan-900/30 border border-cyan-500/30 text-[10px] text-cyan-200"
+                            title={`${traitName}${displayValue}`}
+                          >
+                            {traitName}{displayValue}
+                          </span>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
