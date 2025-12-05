@@ -37,7 +37,7 @@ export const BASE_EVENTS = [
         description: '向神明祈求庇佑，安抚民心',
         effects: {
           resourcePercent: {
-            silver: -0.005,
+            silver: -0.012,
           },
           populationPercent: -0.03,
           stability: 5,
@@ -84,7 +84,7 @@ export const BASE_EVENTS = [
             delicacies: 0.02,
             furniture: 0.02,
             fine_clothes: 0.02,
-            tools: 0.008,
+            tools: 0.012,
           },
           approval: {
             merchant: 15,
@@ -164,7 +164,7 @@ export const BASE_EVENTS = [
         effects: {
           resourcePercent: {
             food: 0.02,
-            silver: -0.008,
+            silver: -0.012,
           },
           stability: 10,
           approval: {
@@ -195,7 +195,7 @@ export const BASE_EVENTS = [
         effects: {
           resourcePercent: {
             silver: -0.03,
-            tools: -0.01,
+            tools: -0.015,
           },
           science: 0.05,
           approval: {
@@ -224,7 +224,7 @@ export const BASE_EVENTS = [
         description: '将技术作为国家机密，限制传播',
         effects: {
           resourcePercent: {
-            silver: 0.008,
+            silver: 0.012,
           },
           science: 0.01,
           stability: -5,
@@ -322,7 +322,7 @@ export const BASE_EVENTS = [
         description: '动用库存粮食平抚农民情绪。',
         effects: {
           resourcePercent: {
-            food: -0.01,
+            food: -0.015,
           },
           stability: 5,
           approval: {
@@ -336,7 +336,7 @@ export const BASE_EVENTS = [
         description: '鼓励农民进入荒野狩猎，以劳动换取补给。',
         effects: {
           resourcePercent: {
-            food: 0.01,
+            food: 0.015,
           },
           stability: -3,
           approval: {
@@ -893,7 +893,7 @@ export const BASE_EVENTS = [
         description: '让殖民地保留更多利润。',
         effects: {
           resourcePercent: {
-            silver: -0.005,
+            silver: -0.012,
           },
           stability: 3,
           approval: {
@@ -1230,7 +1230,7 @@ export const BASE_EVENTS = [
         description: '赌一把大的，为这个可能改变未来的项目提供所有必要的支持。',
         effects: {
           resourcePercent: {
-            silver: -0.005,
+            silver: -0.012,
             iron: -0.025,
             tools: -0.06,
             science: 0.08,
@@ -1369,7 +1369,7 @@ export const BASE_EVENTS = [
         description: '仅供少数人使用，防止其他部落发现。',
         effects: {
           resourcePercent: {
-            food: 0.01, // 少量私用
+            food: 0.015, // 少量私用
           },
           stability: -3,
           approval: {
@@ -1409,7 +1409,7 @@ export const BASE_EVENTS = [
         description: '派遣战士设伏，警告对方。',
         effects: {
           resourcePercent: {
-            food: -0.008,
+            food: -0.012,
           },
 
           
@@ -1439,7 +1439,7 @@ export const BASE_EVENTS = [
         effects: {
           resourcePercent: {
             food: -0.015,
-            wood: -0.008,
+            wood: -0.012,
           },
           culture: 0.02,
           stability: 5,
@@ -1455,7 +1455,7 @@ export const BASE_EVENTS = [
         description: '增加巡逻队，但避免直接接触。',
         effects: {
           resourcePercent: {
-            food: -0.006,
+            food: -0.012,
           },
           stability: -2,
           approval: {
@@ -1607,7 +1607,7 @@ export const BASE_EVENTS = [
         description: '组织一支精锐的探险队，去验证传说的真实性。',
         effects: {
           resourcePercent: {
-            food: -0.006,
+            food: -0.012,
             science: 0.08,
             culture: 0.07,
           },
@@ -1670,7 +1670,7 @@ export const BASE_EVENTS = [
           resourcePercent: {
             copper: 0.15,
             iron: 0.012,
-            wood: -0.01,
+            wood: -0.015,
           },
           populationPercent: -0.015,          stability: -5,
           approval: {
@@ -1686,7 +1686,7 @@ export const BASE_EVENTS = [
         effects: {
           resourcePercent: {
             science: 0.06,
-            silver: -0.008,
+            silver: -0.012,
           },
           approval: {
             scribe: 10,
@@ -1734,8 +1734,8 @@ export const BASE_EVENTS = [
         description: '消耗军事力量，但获得贸易收益和外交声望。',
         effects: {
           resourcePercent: {
-            silver: 0.008,
-            food: -0.01,
+            silver: 0.012,
+            food: -0.015,
           },
           populationPercent: -0.006, // 护送途中可能发生战斗损失
           stability: 5,
@@ -1940,7 +1940,7 @@ export const BASE_EVENTS = [
         effects: {
           resourcePercent: {
             silver: -0.012,
-            food: -0.01,
+            food: -0.015,
           },
           stability: 5,
           approval: {
@@ -1956,7 +1956,7 @@ export const BASE_EVENTS = [
         effects: {
           resourcePercent: {
             wood: -0.02,
-            stone: -0.01,
+            stone: -0.015,
           },
           stability: -3,
           approval: {
@@ -2070,7 +2070,7 @@ export const BASE_EVENTS = [
         description: '法典条文向贵族和地主倾斜，以巩固他们的支持。',
         effects: {
           resourcePercent: {
-            silver: -0.005,
+            silver: -0.012,
           },
           stability: -5,
           approval: {
@@ -2133,7 +2133,7 @@ export const BASE_EVENTS = [
         description: '给予少量资金，让他们举办一场小规模的演出。',
         effects: {
           resourcePercent: {
-            silver: -0.005,
+            silver: -0.012,
             culture: 0.06,
           },
           approval: {
@@ -2212,7 +2212,7 @@ export const BASE_EVENTS = [
         description: '认为引水渠成本过高，选择用更传统的方式解决问题。',
         effects: {
           resourcePercent: {
-            wood: -0.01,
+            wood: -0.015,
           },
           stability: -5,
           approval: {
@@ -2540,10 +2540,10 @@ export const BASE_EVENTS = [
         description: '组织一支庞大的殖民船队，去新大陆建立永久定居点。',
         effects: {
           resourcePercent: {
-            silver: -0.005,
+            silver: -0.012,
             food: -0.02,
             plank: -200,
-            tools: -0.004,
+            tools: -0.012,
           },
           populationPercent: -0.012,
           approval: {

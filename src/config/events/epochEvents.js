@@ -22,7 +22,7 @@ export const EPOCH_EVENTS = [
         description: '动员所有战士，确保成功但风险更大。',
         effects: {
           resourcePercent: {
-            food: 0.01,
+            food: 0.015,
           },
           populationPercent: -0.015,
           approval: {
@@ -85,7 +85,7 @@ export const EPOCH_EVENTS = [
         effects: {
           resourcePercent: {
             science: 0.03,
-            food: -0.008,
+            food: -0.012,
           },
           approval: {
             cleric: 15,
@@ -189,7 +189,7 @@ export const EPOCH_EVENTS = [
         description: '相信萨满，投入资源进行祭祀。',
         effects: {
           resourcePercent: {
-            food: -0.008,
+            food: -0.012,
             culture: 0.02,
           },
           stability: 10,
@@ -215,8 +215,8 @@ export const EPOCH_EVENTS = [
         description: '进行较小规模的仪式，节省资源。',
         effects: {
           resourcePercent: {
-            food: -0.008,
-            culture: 0.005,
+            food: -0.012,
+            culture: 0.012,
           },
           approval: {
             cleric: -5,
@@ -283,7 +283,7 @@ export const EPOCH_EVENTS = [
         effects: {
           resourcePercent: {
             science: 0.02,
-            culture: 0.005,
+            culture: 0.012,
           },
           approval: {
             artisan: 10,
@@ -414,7 +414,7 @@ export const EPOCH_EVENTS = [
         effects: {
           resourcePercent: {
             science: 0.04,
-            culture: 0.01,
+            culture: 0.015,
           },
           approval: {
             cleric: -20,
@@ -568,7 +568,7 @@ export const EPOCH_EVENTS = [
         description: '成为联盟的正式成员。',
         effects: {
           resourcePercent: {
-            silver: 0.008,
+            silver: 0.012,
           },
           stability: 10,
           approval: {
@@ -873,7 +873,7 @@ export const EPOCH_EVENTS = [
         description: '人民需要娱乐，这有助于稳定。',
         effects: {
           resourcePercent: {
-            silver: -0.005,
+            silver: -0.012,
           },
           stability: 15,
           approval: {
@@ -934,7 +934,7 @@ export const EPOCH_EVENTS = [
         description: '亲自带领大军出征，追求最高荣耀。',
         effects: {
           resourcePercent: {
-            silver: -0.005,
+            silver: -0.012,
             culture: 0.06,
           },
           populationPercent: -0.025,
@@ -1292,7 +1292,7 @@ export const EPOCH_EVENTS = [
         effects: {
           resourcePercent: {
             silver: 0.02,
-            food: 0.01,
+            food: 0.015,
           },
           stability: -10,
           approval: {
@@ -1325,7 +1325,7 @@ export const EPOCH_EVENTS = [
         description: '先派传教士，以宗教感化原住民。',
         effects: {
           resourcePercent: {
-            silver: 0.008,
+            silver: 0.012,
             culture: 0.05,
           },
           approval: {
@@ -1864,7 +1864,7 @@ export const EPOCH_EVENTS = [
         effects: {
           populationPercent: 0.04,
           resourcePercent: {
-            silver: -0.005,
+            silver: -0.012,
             science: 0.03,
           },
           approval: {
@@ -2209,7 +2209,7 @@ export const EPOCH_EVENTS = [
         effects: {
           resourcePercent: {
             culture: 0.05,
-            silver: -0.008,
+            silver: -0.012,
           },
           stability: 20,
           approval: {
@@ -2412,7 +2412,7 @@ export const EPOCH_EVENTS = [
             chance: 0.3,
             effects: {
               resourcePercent: {
-                silver: -0.005,
+                silver: -0.012,
                 food: -0.03,
               },
               stability: -20,
@@ -2460,7 +2460,7 @@ export const EPOCH_EVENTS = [
             effects: {
               stability: 35,
               resourcePercent: {
-                silver: 0.008,
+                silver: 0.012,
               },
               approval: {
                 landowner: -20,
@@ -2673,7 +2673,7 @@ export const EPOCH_EVENTS = [
         description: '留用可信之人，遣散可疑者。',
         effects: {
           resourcePercent: {
-            silver: -0.005,
+            silver: -0.012,
           },
           stability: 15,
           approval: {
@@ -2728,7 +2728,7 @@ export const EPOCH_EVENTS = [
         description: '富国强兵，舍此无他！',
         effects: {
           resourcePercent: {
-            silver: 0.008,
+            silver: 0.012,
             culture: -0.03,
           },
           stability: -25,
@@ -2770,7 +2770,7 @@ export const EPOCH_EVENTS = [
         description: '先在部分地区试行，总结经验。',
         effects: {
           resourcePercent: {
-            silver: 0.008,
+            silver: 0.012,
           },
           stability: -5,
           approval: {
@@ -3024,7 +3024,7 @@ export const EPOCH_EVENTS = [
             chance: 0.4,
             effects: {
               resourcePercent: {
-                silver: 0.008,
+                silver: 0.012,
               },
               stability: 20,
             },
@@ -3115,7 +3115,7 @@ export const EPOCH_EVENTS = [
             chance: 0.5,
             effects: {
               resourcePercent: {
-                silver: 0.008,
+                silver: 0.012,
                 science: 0.05,
               },
               stability: 15,
@@ -3142,7 +3142,7 @@ export const EPOCH_EVENTS = [
         description: '只开放特定港口，严格管控。',
         effects: {
           resourcePercent: {
-            silver: 0.006,
+            silver: 0.012,
           },
           stability: -5,
           approval: {
