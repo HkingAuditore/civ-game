@@ -2585,6 +2585,61 @@ export const simulateTick = ({
       3.5
     );
     const eraMomentum = 1 + Math.max(0, epoch - (powerProfile.appearEpoch ?? 0)) * 0.03;
+    
+    // ========== AI独立发展系统 ==========
+    // AI国家有自己的发展轨迹，不完全依赖玩家水平
+    
+    // 1. 初始化AI自身的发展基准（首次设置）
+    if (!next.economyTraits?.ownBasePopulation) {
+      // 基于模板财富确定AI的起始规模
+      const templateWealth = next.wealthTemplate || 800;
+      const templateFactor = templateWealth / 800;
+      next.economyTraits = {
+        ...(next.economyTraits || {}),
+        ownBasePopulation: Math.max(5, Math.round(8 * templateFactor * (0.8 + Math.random() * 0.4))),
+        ownBaseWealth: Math.max(200, Math.round(500 * templateFactor * (0.8 + Math.random() * 0.4))),
+        developmentRate: 0.8 + (next.aggression || 0.3) * 0.3 + Math.random() * 0.4, // 发展速度因子
+        lastGrowthTick: tick,
+      };
+    }
+    
+    // 2. AI自身的时间发展（独立于玩家）
+    const ownBasePopulation = next.economyTraits.ownBasePopulation;
+    const ownBaseWealth = next.economyTraits.ownBaseWealth;
+    const developmentRate = next.economyTraits.developmentRate || 1.0;
+    
+    // 每100 tick进行一次独立发展检查
+    const ticksSinceLastGrowth = tick - (next.economyTraits.lastGrowthTick || 0);
+    if (ticksSinceLastGrowth >= 100) {
+      // AI的自然增长（不受玩家影响）
+      const growthChance = 0.3 * developmentRate; // 基础30%概率增长
+      if (Math.random() < growthChance && !next.isAtWar) {
+        // 人口自然增长 1-3
+        next.economyTraits.ownBasePopulation = Math.round(ownBasePopulation * (1.02 + Math.random() * 0.03));
+        // 财富自然增长 2-5%
+        next.economyTraits.ownBaseWealth = Math.round(ownBaseWealth * (1.02 + Math.random() * 0.05));
+      }
+      next.economyTraits.lastGrowthTick = tick;
+    }
+    
+    // 3. 时代加成（AI随时代自然变强）
+    const eraGrowthFactor = 1 + Math.max(0, epoch) * 0.15; // 每个时代+15%
+    
+    // 4. 计算AI的独立目标值
+    const aiOwnTargetPopulation = next.economyTraits.ownBasePopulation * eraGrowthFactor * populationFactor;
+    const aiOwnTargetWealth = next.economyTraits.ownBaseWealth * eraGrowthFactor * wealthFactor;
+    
+    // 5. 参考玩家水平作为软性边界（避免差距过大）
+    // 玩家参考影响：AI不会比玩家弱太多，也不会强太多
+    const playerInfluenceFactor = 0.3; // 玩家水平的影响权重（30%）
+    const playerTargetPopulation = playerPopulationBaseline * populationFactor * eraMomentum;
+    const playerTargetWealth = playerWealthBaseline * wealthFactor * eraMomentum;
+    
+    // 混合计算：70% AI自身发展 + 30% 参考玩家
+    const blendedTargetPopulation = aiOwnTargetPopulation * (1 - playerInfluenceFactor) + playerTargetPopulation * playerInfluenceFactor;
+    const blendedTargetWealth = aiOwnTargetWealth * (1 - playerInfluenceFactor) + playerTargetWealth * playerInfluenceFactor;
+    
+    // 6. 应用模板加成
     const templatePopulationBoost = Math.max(
       1,
       (next.wealthTemplate || 800) / Math.max(800, playerWealthBaseline) * 0.8
@@ -2593,13 +2648,15 @@ export const simulateTick = ({
       1,
       (next.wealthTemplate || 800) / Math.max(800, playerWealthBaseline) * 1.1
     );
+    
+    // 最终目标值
     const desiredPopulation = Math.max(
       3,
-      playerPopulationBaseline * populationFactor * eraMomentum * templatePopulationBoost
+      blendedTargetPopulation * templatePopulationBoost
     );
     const desiredWealth = Math.max(
       100,
-      playerWealthBaseline * wealthFactor * eraMomentum * templateWealthBoost
+      blendedTargetWealth * templateWealthBoost
     );
     
     next.economyTraits = {
@@ -2686,13 +2743,54 @@ export const simulateTick = ({
       const peaceUntil = nation.foreignWars[otherNation.id]?.peaceTreatyUntil || 0;
       if (tick < peaceUntil) return;
       
-      // 计算开战概率（基于关系和侵略性）
+      // ========== 战争决策AI改进 ==========
+      
+      // 1. 检查是否已经在与其他国家开战（避免多线作战）
+      const currentWarCount = Object.values(nation.foreignWars || {}).filter(w => w?.isAtWar).length;
+      const maxWarsAllowed = nation.aggression > 0.7 ? 2 : 1; // 高侵略性国家最多同时打2场
+      if (currentWarCount >= maxWarsAllowed) return;
+      
+      // 2. 检查自身状态是否适合开战
+      const myPopulation = nation.population || 100;
+      const myWealth = nation.wealth || 500;
+      const minPopulationForWar = 30; // 人口至少30才考虑开战
+      const minWealthForWar = 300;    // 财富至少300才考虑开战
+      if (myPopulation < minPopulationForWar || myWealth < minWealthForWar) return;
+      
+      // 3. 计算双方实力对比
+      const myStrength = (nation.militaryStrength ?? 1.0) * myPopulation * (1 + (nation.aggression || 0.3));
+      const enemyStrength = (otherNation.militaryStrength ?? 1.0) * (otherNation.population || 100) * (1 + (otherNation.aggression || 0.3));
+      const strengthRatio = myStrength / Math.max(1, enemyStrength);
+      
+      // 实力太弱不开战（除非侵略性极高的国家会冒险）
+      const minStrengthRatio = nation.aggression > 0.7 ? 0.5 : 0.7; // 高侵略性国家更敢冒险
+      if (strengthRatio < minStrengthRatio) return;
+      
+      // 4. 检查对方是否已经在与其他国家开战（趁火打劫的机会）
+      const enemyWarCount = Object.values(otherNation.foreignWars || {}).filter(w => w?.isAtWar).length;
+      const opportunityBonus = enemyWarCount > 0 ? 0.002 : 0; // 对方在打仗，增加开战欲望
+      
+      // 5. 计算开战概率（基于关系、侵略性、实力对比）
       const relation = nation.foreignRelations?.[otherNation.id] ?? 50;
       const aggression = nation.aggression ?? 0.3;
       
       // 只有低关系且高侵略性的国家才会主动开战
       if (relation < 30 && aggression > 0.4) {
-        const warChance = Math.min(0.008, (aggression * 0.005) + ((30 - relation) / 1000));
+        // 基础概率大幅降低，避免混战
+        let warChance = (aggression * 0.002) + ((30 - relation) / 3000);
+        
+        // 实力优势加成（实力越强越敢打）
+        if (strengthRatio > 1.5) {
+          warChance *= 1.5; // 实力碾压，更敢打
+        } else if (strengthRatio > 1.2) {
+          warChance *= 1.2; // 有优势
+        }
+        
+        // 趁火打劫加成
+        warChance += opportunityBonus;
+        
+        // 最大概率限制为0.3%（大幅降低）
+        warChance = Math.min(0.003, warChance);
         
         if (Math.random() < warChance) {
           // 开战！
@@ -2723,27 +2821,49 @@ export const simulateTick = ({
       const enemy = updatedNations.find(n => n.id === enemyId);
       if (!enemy) return;
       
-      // 战争消耗：双方财富和人口减少
-      nation.wealth = Math.max(100, (nation.wealth || 500) * 0.998);
-      nation.population = Math.max(10, (nation.population || 100) * 0.999);
-      enemy.wealth = Math.max(100, (enemy.wealth || 500) * 0.998);
-      enemy.population = Math.max(10, (enemy.population || 100) * 0.999);
+      // ========== 战争消耗改进：更真实的战争代价 ==========
+      // 战争持续时间影响消耗（战争越久消耗越大）
+      const warDuration = tick - (war.warStartDay || tick);
+      const warIntensity = Math.min(2.0, 1.0 + warDuration / 500); // 战争强度随时间增加，最高2倍
       
-      // 战斗结算（每20天一次）
-      if ((tick - war.warStartDay) % 20 === 0 && tick > war.warStartDay) {
+      // 基础消耗率（每tick）
+      // 财富消耗：0.5%~1% / tick（之前是0.2%）
+      const wealthDecayRate = 0.995 - (warIntensity * 0.003); // 0.995 ~ 0.989
+      // 人口消耗：0.2%~0.5% / tick（之前是0.1%）
+      const populationDecayRate = 0.998 - (warIntensity * 0.002); // 0.998 ~ 0.994
+      
+      // 多线作战惩罚
+      const nationWarCount = Object.values(nation.foreignWars || {}).filter(w => w?.isAtWar).length;
+      const enemyWarCount = Object.values(enemy.foreignWars || {}).filter(w => w?.isAtWar).length;
+      const nationMultiWarPenalty = Math.pow(0.998, nationWarCount - 1); // 每多一场战争额外消耗0.2%
+      const enemyMultiWarPenalty = Math.pow(0.998, enemyWarCount - 1);
+      
+      // 应用战争消耗
+      nation.wealth = Math.max(100, (nation.wealth || 500) * wealthDecayRate * nationMultiWarPenalty);
+      nation.population = Math.max(10, (nation.population || 100) * populationDecayRate * nationMultiWarPenalty);
+      enemy.wealth = Math.max(100, (enemy.wealth || 500) * wealthDecayRate * enemyMultiWarPenalty);
+      enemy.population = Math.max(10, (enemy.population || 100) * populationDecayRate * enemyMultiWarPenalty);
+      
+      // 战斗结算（每10天一次，更频繁）
+      if ((tick - war.warStartDay) % 10 === 0 && tick > war.warStartDay) {
         const nationStrength = (nation.militaryStrength ?? 1.0) * (nation.population || 100) * (1 + (nation.aggression || 0.3));
         const enemyStrength = (enemy.militaryStrength ?? 1.0) * (enemy.population || 100) * (1 + (enemy.aggression || 0.3));
         
         const totalStrength = nationStrength + enemyStrength;
         const nationWinChance = nationStrength / totalStrength;
         
+        // 战斗造成的额外伤亡（不论输赢双方都有损失）
+        const battleCasualty = 0.02 + Math.random() * 0.03; // 2%~5% 战斗伤亡
+        nation.population = Math.max(10, (nation.population || 100) * (1 - battleCasualty * (1 - nationWinChance)));
+        enemy.population = Math.max(10, (enemy.population || 100) * (1 - battleCasualty * nationWinChance));
+        
         if (Math.random() < nationWinChance) {
           // nation胜利这轮
           war.warScore = (war.warScore || 0) + 5;
           enemy.foreignWars[nation.id].warScore = (enemy.foreignWars[nation.id].warScore || 0) - 5;
           
-          // 获取战利品
-          const loot = Math.floor((enemy.wealth || 500) * 0.05);
+          // 获取战利品（增加到8%）
+          const loot = Math.floor((enemy.wealth || 500) * 0.08);
           nation.wealth = (nation.wealth || 500) + loot;
           enemy.wealth = Math.max(100, (enemy.wealth || 500) - loot);
         } else {
@@ -2752,21 +2872,26 @@ export const simulateTick = ({
           enemy.foreignWars[nation.id].warScore = (enemy.foreignWars[nation.id].warScore || 0) + 5;
           
           // enemy获取战利品
-          const loot = Math.floor((nation.wealth || 500) * 0.05);
+          const loot = Math.floor((nation.wealth || 500) * 0.08);
           enemy.wealth = (enemy.wealth || 500) + loot;
           nation.wealth = Math.max(100, (nation.wealth || 500) - loot);
         }
         
-        // 检查是否应该结束战争
+        // 检查是否应该结束战争（增加结束概率）
         const absoluteWarScore = Math.abs(war.warScore || 0);
-        if (absoluteWarScore > 30 || Math.random() < 0.03) {
+        // 一方实力严重不足时更倾向于求和
+        const nationExhausted = (nation.population || 100) < 30 || (nation.wealth || 500) < 200;
+        const enemyExhausted = (enemy.population || 100) < 30 || (enemy.wealth || 500) < 200;
+        const exhaustionEndChance = (nationExhausted || enemyExhausted) ? 0.15 : 0.05;
+        
+        if (absoluteWarScore > 25 || Math.random() < exhaustionEndChance) {
           // 结束战争
           const winner = (war.warScore || 0) > 0 ? nation : enemy;
           const loser = winner.id === nation.id ? enemy : nation;
           
-          // 胜者获取败者的人口和财富
-          const populationTransfer = Math.floor((loser.population || 100) * 0.05);
-          const wealthTransfer = Math.floor((loser.wealth || 500) * 0.1);
+          // 胜者获取败者的人口和财富（增加到10%人口和15%财富）
+          const populationTransfer = Math.floor((loser.population || 100) * 0.10);
+          const wealthTransfer = Math.floor((loser.wealth || 500) * 0.15);
           
           winner.population = (winner.population || 100) + populationTransfer;
           winner.wealth = (winner.wealth || 500) + wealthTransfer;
@@ -2783,11 +2908,13 @@ export const simulateTick = ({
             peaceTreatyUntil: tick + 365,
           };
           
-          // 关系变化
+          // 关系变化（输家对赢家更仇恨）
           nation.foreignRelations[enemyId] = clamp((nation.foreignRelations[enemyId] || 50) - 20, 0, 100);
           enemy.foreignRelations[nation.id] = clamp((enemy.foreignRelations[nation.id] || 50) - 20, 0, 100);
           
-          logs.push(`📢 国际新闻：${winner.name} 在与 ${loser.name} 的战争中获胜！`);
+          // 计算战争总损失用于日志
+          const warDurationDays = tick - (war.warStartDay || tick);
+          logs.push(`📢 国际新闻：${winner.name} 在与 ${loser.name} 历时${warDurationDays}天的战争中获胜！${loser.name} 损失惨重。`);
         }
       }
     });
@@ -3187,6 +3314,27 @@ export const simulateTick = ({
     return result;
   };
 
+  // 【修复】在转职评估前先执行商人交易，确保商人收入被正确计算
+  const previousMerchantWealth = classWealthResult.merchant || 0;
+  const updatedMerchantState = simulateMerchantTrade({
+    res,
+    wealth,
+    popStructure,
+    supply,
+    demand,
+    nations: updatedNations,
+    tick,
+    taxPolicies: policies,
+    taxBreakdown,
+    getLocalPrice: getPrice,
+    roleExpense,
+    roleWagePayout,
+    pendingTrades: merchantState.pendingTrades || [],
+    lastTradeTime: merchantState.lastTradeTime || 0,
+    gameSpeed,
+    logs,
+  });
+
   // 增强转职（Migration）逻辑：基于市场价格和潜在收益的职业流动
   const roleVacancies = {};
   ROLE_PRIORITY.forEach(role => {
@@ -3306,26 +3454,7 @@ export const simulateTick = ({
     }
   }
 
-  const previousMerchantWealth = classWealthResult.merchant || 0;
-  const updatedMerchantState = simulateMerchantTrade({
-    res,
-    wealth,
-    popStructure,
-    supply,
-    demand,
-    nations: updatedNations,
-    tick,
-    taxPolicies: policies,
-    taxBreakdown,
-    getLocalPrice: getPrice,
-    roleExpense,
-    roleWagePayout,
-    pendingTrades: merchantState.pendingTrades || [],
-    lastTradeTime: merchantState.lastTradeTime || 0,
-    gameSpeed,
-    logs,
-  });
-
+  // 商人交易已在转职逻辑前执行，这里只需应用收入到财富
   applyRoleIncomeToWealth();
 
   const updatedMerchantWealth = Math.max(0, wealth.merchant || 0);
