@@ -194,6 +194,7 @@ import {
   Dices,
   Flower,
   Flower2,
+  Crosshair,
 } from 'lucide-react';
 
 export const iconMap = {
@@ -305,7 +306,8 @@ export const iconMap = {
   TreeDeciduous,
   Music,
   Tractor,
-  Horse: Users, // Fallback
+  Horse: Navigation, // Fallback - use Navigation for cavalry
+  Crosshair, // For crossbowman
   
   // 事件系统需要的图标
   CloudRain,

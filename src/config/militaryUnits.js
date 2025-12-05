@@ -1,5 +1,19 @@
 // 军事单位配置文件
 
+/**
+ * 兵种克制关系说明:
+ * - 步兵(infantry) 克制 骑兵(cavalry) - 长矛阵/刺刀阵克制骑兵冲锋
+ * - 骑兵(cavalry) 克制 弓箭手(archer) - 快速机动追杀远程单位
+ * - 弓箭手(archer) 克制 步兵(infantry) - 远程火力压制步兵
+ * - 火器(gunpowder) 克制 步兵(infantry)和骑兵(cavalry) - 火力优势
+ * - 骑兵(cavalry) 近战克制 火器(gunpowder) - 近身后火器无法发挥优势
+ * - 攻城(siege) 被所有近战克制 - 机动性差，容易被突袭
+ * 
+ * 时代淘汰机制:
+ * - 每个兵种有 obsoleteAfterEpochs 属性
+ * - 当玩家时代超过兵种时代 + obsoleteAfterEpochs 时，该兵种不再显示
+ */
+
 // 兵种类型定义
 export const UNIT_TYPES = {
   // ============ 石器时代 (Epoch 0) ============
@@ -11,29 +25,23 @@ export const UNIT_TYPES = {
     icon: 'Users',
     category: 'infantry',
     
-    // 基础属性
     attack: 6,
     defense: 4,
     speed: 3,
     range: 1,
     
-    // 成本
     recruitCost: { food: 25, wood: 12 },
     maintenanceCost: { food: 0.35, silver: 0.12 },
-    trainingTime: 2, // 秒
+    trainingTime: 2,
     
-    // 限制
     populationCost: 1,
     
-    // 特殊能力
     abilities: ['快速征召'],
     
-    // 克制关系 (对特定兵种的伤害加成)
-    counters: { siege: 1.2 },  // 民兵可骚扰攻城器械
-    weakAgainst: ['cavalry', 'archer'],
+    counters: { cavalry: 1.2, siege: 1.3 },
+    weakAgainst: ['archer'],
     
-    // 时代淘汰设置：超过该时代差距后兵种效率大幅下降
-    obsoleteAfterEpochs: 2  // 2个时代后过时
+    obsoleteAfterEpochs: 2
   },
   
   slinger: {
@@ -41,7 +49,7 @@ export const UNIT_TYPES = {
     name: '投石兵',
     desc: '使用投石索的远程单位，对轻甲单位有效。',
     epoch: 0,
-    icon: 'Target',
+    icon: 'Circle',
     category: 'archer',
     
     attack: 6,
@@ -50,14 +58,14 @@ export const UNIT_TYPES = {
     range: 3,
     
     recruitCost: { food: 30, wood: 15, stone: 5 },
-    maintenanceCost: { food: 0.4, silver: 0.15 },
+    maintenanceCost: { food: 0.4, silver: 0.15, stone: 0.1 },
     trainingTime: 3,
     
     populationCost: 1,
     
     abilities: ['远程攻击'],
     
-    counters: { infantry: 1.3 },  // 对步兵有效
+    counters: { infantry: 1.4 },
     weakAgainst: ['cavalry'],
     
     obsoleteAfterEpochs: 2
@@ -69,7 +77,7 @@ export const UNIT_TYPES = {
     name: '长矛兵',
     desc: '装备青铜长矛的步兵，对骑兵有显著克制效果。',
     epoch: 1,
-    icon: 'Swords',
+    icon: 'Sword',
     category: 'infantry',
     
     attack: 12,
@@ -78,14 +86,14 @@ export const UNIT_TYPES = {
     range: 1,
     
     recruitCost: { food: 55, wood: 35, copper: 12 },
-    maintenanceCost: { food: 0.55, silver: 0.35 },
+    maintenanceCost: { food: 0.55, silver: 0.35, copper: 0.05 },
     trainingTime: 4,
     
     populationCost: 1,
     
     abilities: ['反骑兵'],
     
-    counters: { cavalry: 1.8 },  // 强克骑兵
+    counters: { cavalry: 1.8, siege: 1.2 },
     weakAgainst: ['archer'],
     
     obsoleteAfterEpochs: 2
@@ -105,14 +113,14 @@ export const UNIT_TYPES = {
     range: 4,
     
     recruitCost: { food: 65, wood: 45, silver: 25 },
-    maintenanceCost: { food: 0.65, silver: 0.45 },
+    maintenanceCost: { food: 0.65, silver: 0.45, wood: 0.2 },
     trainingTime: 5,
     
     populationCost: 1,
     
     abilities: ['远程攻击', '高机动'],
     
-    counters: { infantry: 1.5, siege: 1.3 },  // 克制步兵和攻城器械
+    counters: { infantry: 1.5, siege: 1.4 },
     weakAgainst: ['cavalry'],
     
     obsoleteAfterEpochs: 2
@@ -132,15 +140,17 @@ export const UNIT_TYPES = {
     range: 1,
     
     recruitCost: { food: 100, wood: 60, copper: 30, silver: 40 },
-    maintenanceCost: { food: 1.0, silver: 0.7 },
+    maintenanceCost: { food: 1.2, silver: 0.7, wood: 0.3 },
     trainingTime: 6,
     
     populationCost: 1,
     
     abilities: ['冲锋', '机动'],
     
-    counters: { archer: 1.5 },
-    weakAgainst: ['infantry']
+    counters: { archer: 1.6 },
+    weakAgainst: ['infantry'],
+    
+    obsoleteAfterEpochs: 2
   },
 
   // ============ 古典时代 (Epoch 2) ============
@@ -158,15 +168,17 @@ export const UNIT_TYPES = {
     range: 1,
     
     recruitCost: { food: 100, copper: 40, iron: 20, silver: 50 },
-    maintenanceCost: { food: 0.75, silver: 0.55 },
+    maintenanceCost: { food: 0.75, silver: 0.55, iron: 0.08 },
     trainingTime: 6,
     
     populationCost: 1,
     
     abilities: ['方阵', '坚守'],
     
-    counters: { cavalry: 1.6, infantry: 1.2 },
-    weakAgainst: ['archer']
+    counters: { cavalry: 1.7, siege: 1.3 },
+    weakAgainst: ['archer'],
+    
+    obsoleteAfterEpochs: 2
   },
 
   composite_archer: {
@@ -183,15 +195,17 @@ export const UNIT_TYPES = {
     range: 5,
     
     recruitCost: { food: 85, wood: 50, copper: 25, silver: 45 },
-    maintenanceCost: { food: 0.7, silver: 0.5 },
+    maintenanceCost: { food: 0.7, silver: 0.5, wood: 0.25, copper: 0.05 },
     trainingTime: 6,
     
     populationCost: 1,
     
     abilities: ['远程攻击', '穿甲'],
     
-    counters: { infantry: 1.6 },
-    weakAgainst: ['cavalry']
+    counters: { infantry: 1.6, siege: 1.3 },
+    weakAgainst: ['cavalry'],
+    
+    obsoleteAfterEpochs: 2
   },
 
   light_cavalry: {
@@ -199,7 +213,7 @@ export const UNIT_TYPES = {
     name: '轻骑兵',
     desc: '快速机动的骑兵单位，克制弓箭手。',
     epoch: 2,
-    icon: 'Horse',
+    icon: 'Navigation',
     category: 'cavalry',
     
     attack: 18,
@@ -208,15 +222,17 @@ export const UNIT_TYPES = {
     range: 1,
     
     recruitCost: { food: 120, silver: 60, iron: 25 },
-    maintenanceCost: { food: 1.0, silver: 0.8 },
+    maintenanceCost: { food: 1.2, silver: 0.8, iron: 0.06 },
     trainingTime: 7,
     
     populationCost: 1,
     
     abilities: ['快速移动', '冲锋'],
     
-    counters: { archer: 1.7 },
-    weakAgainst: ['infantry']
+    counters: { archer: 1.8 },
+    weakAgainst: ['infantry'],
+    
+    obsoleteAfterEpochs: 2
   },
 
   battering_ram: {
@@ -224,7 +240,7 @@ export const UNIT_TYPES = {
     name: '攻城槌',
     desc: '古典时代的攻城器械，对建筑极为有效。',
     epoch: 2,
-    icon: 'Bomb',
+    icon: 'Hammer',
     category: 'siege',
     
     attack: 30,
@@ -233,7 +249,7 @@ export const UNIT_TYPES = {
     range: 1,
     
     recruitCost: { food: 150, wood: 200, iron: 50, silver: 80 },
-    maintenanceCost: { food: 1.2, silver: 0.8 },
+    maintenanceCost: { food: 1.2, silver: 0.8, wood: 0.5, iron: 0.1 },
     trainingTime: 10,
     
     populationCost: 2,
@@ -241,7 +257,9 @@ export const UNIT_TYPES = {
     abilities: ['攻城'],
     
     counters: {},
-    weakAgainst: ['cavalry', 'archer']
+    weakAgainst: ['cavalry', 'archer', 'infantry'],
+    
+    obsoleteAfterEpochs: 2
   },
 
   // ============ 封建时代 (Epoch 3) ============
@@ -250,7 +268,7 @@ export const UNIT_TYPES = {
     name: '重甲步兵',
     desc: '装备锁子甲的精锐步兵，防御力强。',
     epoch: 3,
-    icon: 'Shield',
+    icon: 'ShieldAlert',
     category: 'infantry',
     
     attack: 20,
@@ -259,15 +277,17 @@ export const UNIT_TYPES = {
     range: 1,
     
     recruitCost: { food: 140, iron: 60, silver: 80 },
-    maintenanceCost: { food: 0.9, silver: 0.7 },
+    maintenanceCost: { food: 0.9, silver: 0.7, iron: 0.12 },
     trainingTime: 8,
     
     populationCost: 1,
     
     abilities: ['重甲', '坚守'],
     
-    counters: { cavalry: 1.5 },
-    weakAgainst: ['archer']
+    counters: { cavalry: 1.6, siege: 1.4 },
+    weakAgainst: ['archer'],
+    
+    obsoleteAfterEpochs: 2
   },
 
   crossbowman: {
@@ -275,7 +295,7 @@ export const UNIT_TYPES = {
     name: '弩兵',
     desc: '装备十字弩的远程单位，穿透力强。',
     epoch: 3,
-    icon: 'Target',
+    icon: 'Crosshair',
     category: 'archer',
     
     attack: 22,
@@ -284,15 +304,17 @@ export const UNIT_TYPES = {
     range: 5,
     
     recruitCost: { food: 110, wood: 70, iron: 45, silver: 55 },
-    maintenanceCost: { food: 0.8, silver: 0.6 },
+    maintenanceCost: { food: 0.8, silver: 0.6, wood: 0.15, iron: 0.1 },
     trainingTime: 7,
     
     populationCost: 1,
     
     abilities: ['远程攻击', '穿甲'],
     
-    counters: { infantry: 1.6, cavalry: 1.3 },
-    weakAgainst: []
+    counters: { infantry: 1.7, siege: 1.4 },
+    weakAgainst: ['cavalry'],
+    
+    obsoleteAfterEpochs: 2
   },
 
   knight: {
@@ -300,7 +322,7 @@ export const UNIT_TYPES = {
     name: '骑士',
     desc: '装备板甲的精锐骑兵，封建时代的主力。',
     epoch: 3,
-    icon: 'Shield',
+    icon: 'Crown',
     category: 'cavalry',
     
     attack: 28,
@@ -309,15 +331,17 @@ export const UNIT_TYPES = {
     range: 1,
     
     recruitCost: { food: 250, iron: 100, silver: 160 },
-    maintenanceCost: { food: 1.6, silver: 1.3 },
+    maintenanceCost: { food: 1.8, silver: 1.3, iron: 0.2 },
     trainingTime: 10,
     
     populationCost: 1,
     
     abilities: ['重甲', '冲锋', '贵族'],
     
-    counters: { archer: 1.8, infantry: 1.3 },
-    weakAgainst: ['infantry']
+    counters: { archer: 1.9 },
+    weakAgainst: ['infantry'],
+    
+    obsoleteAfterEpochs: 2
   },
 
   trebuchet: {
@@ -325,7 +349,7 @@ export const UNIT_TYPES = {
     name: '投石机',
     desc: '中世纪的重型攻城器械，可投掷巨石。',
     epoch: 3,
-    icon: 'Bomb',
+    icon: 'Mountain',
     category: 'siege',
     
     attack: 45,
@@ -334,15 +358,17 @@ export const UNIT_TYPES = {
     range: 6,
     
     recruitCost: { food: 200, wood: 250, iron: 80, silver: 150 },
-    maintenanceCost: { food: 1.5, silver: 1.2 },
+    maintenanceCost: { food: 1.5, silver: 1.2, wood: 0.8, iron: 0.15, stone: 0.3 },
     trainingTime: 12,
     
     populationCost: 3,
     
     abilities: ['攻城', '范围伤害'],
     
-    counters: { infantry: 1.5 },
-    weakAgainst: ['cavalry']
+    counters: { infantry: 1.3 },
+    weakAgainst: ['cavalry', 'archer'],
+    
+    obsoleteAfterEpochs: 2
   },
 
   // ============ 探索时代 (Epoch 4) ============
@@ -360,24 +386,26 @@ export const UNIT_TYPES = {
     range: 2,
     
     recruitCost: { food: 160, wood: 60, iron: 70, silver: 90 },
-    maintenanceCost: { food: 1.0, silver: 0.8 },
+    maintenanceCost: { food: 1.0, silver: 0.8, iron: 0.1 },
     trainingTime: 8,
     
     populationCost: 1,
     
     abilities: ['反骑兵', '方阵'],
     
-    counters: { cavalry: 2.0 },
-    weakAgainst: ['archer']
+    counters: { cavalry: 2.0, siege: 1.3 },
+    weakAgainst: ['archer', 'gunpowder'],
+    
+    obsoleteAfterEpochs: 2
   },
 
   arquebus: {
     id: 'arquebus',
     name: '火绳枪手',
-    desc: '早期火器部队，虽然装填慢但威力巨大。',
+    desc: '早期火器部队，虽然装填慢但威力巨大，克制传统步兵和骑兵。',
     epoch: 4,
-    icon: 'Zap',
-    category: 'archer',
+    icon: 'Flame',
+    category: 'gunpowder',  // 改为火器类别
     
     attack: 28,
     defense: 8,
@@ -385,23 +413,25 @@ export const UNIT_TYPES = {
     range: 4,
     
     recruitCost: { food: 140, iron: 60, tools: 30, silver: 100 },
-    maintenanceCost: { food: 0.9, silver: 0.8, tools: 0.1 },
+    maintenanceCost: { food: 0.9, silver: 0.8, iron: 0.08, tools: 0.15 },
     trainingTime: 9,
     
     populationCost: 1,
     
-    abilities: ['火器', '穿甲'],
+    abilities: ['火器', '穿甲', '装填缓慢'],
     
-    counters: { infantry: 1.5, cavalry: 1.4 },
-    weakAgainst: ['cavalry']
+    counters: { infantry: 1.5, cavalry: 1.4 },  // 火器克制步兵和骑兵
+    weakAgainst: ['cavalry'],  // 但被近身的骑兵克制
+    
+    obsoleteAfterEpochs: 2
   },
 
   cuirassier: {
     id: 'cuirassier',
     name: '胸甲骑兵',
-    desc: '装备胸甲的重装骑兵，探索时代的铁骑。',
+    desc: '装备胸甲的重装骑兵，可抵抗早期火器。',
     epoch: 4,
-    icon: 'Horse',
+    icon: 'Shield',
     category: 'cavalry',
     
     attack: 32,
@@ -410,15 +440,17 @@ export const UNIT_TYPES = {
     range: 1,
     
     recruitCost: { food: 300, iron: 120, silver: 200 },
-    maintenanceCost: { food: 1.8, silver: 1.5 },
+    maintenanceCost: { food: 2.0, silver: 1.5, iron: 0.25 },
     trainingTime: 11,
     
     populationCost: 1,
     
-    abilities: ['重甲', '冲锋'],
+    abilities: ['重甲', '冲锋', '抗火器'],
     
-    counters: { archer: 1.9, infantry: 1.4 },
-    weakAgainst: ['infantry']
+    counters: { archer: 1.9, gunpowder: 1.5 },  // 骑兵近身克制火器
+    weakAgainst: ['infantry'],
+    
+    obsoleteAfterEpochs: 2
   },
 
   bombard: {
@@ -435,25 +467,27 @@ export const UNIT_TYPES = {
     range: 6,
     
     recruitCost: { food: 250, iron: 150, tools: 60, silver: 200 },
-    maintenanceCost: { food: 1.8, silver: 1.5, tools: 0.2 },
+    maintenanceCost: { food: 1.8, silver: 1.5, iron: 0.3, tools: 0.25 },
     trainingTime: 14,
     
     populationCost: 3,
     
     abilities: ['攻城', '范围伤害', '火器'],
     
-    counters: { infantry: 1.7 },
-    weakAgainst: ['cavalry']
+    counters: { infantry: 1.5 },
+    weakAgainst: ['cavalry'],
+    
+    obsoleteAfterEpochs: 2
   },
 
   // ============ 启蒙时代 (Epoch 5) ============
   musketeer: {
     id: 'musketeer',
-    name: '火枪兵',
-    desc: '装备滑膛枪的步兵，线列战术的核心。',
+    name: '刺刀火枪兵',
+    desc: '装备滑膛枪和刺刀的步兵，可远程射击也可近战。',
     epoch: 5,
     icon: 'Zap',
-    category: 'infantry',
+    category: 'infantry',  // 火枪兵是步兵（有刺刀可近战）
     
     attack: 30,
     defense: 14,
@@ -461,24 +495,26 @@ export const UNIT_TYPES = {
     range: 3,
     
     recruitCost: { food: 180, iron: 70, tools: 40, silver: 110 },
-    maintenanceCost: { food: 1.1, silver: 1.0, tools: 0.15 },
+    maintenanceCost: { food: 1.1, silver: 1.0, iron: 0.1, tools: 0.18 },
     trainingTime: 9,
     
     populationCost: 1,
     
-    abilities: ['火器', '齐射'],
+    abilities: ['火器', '刺刀冲锋', '齐射'],
     
-    counters: { cavalry: 1.6, infantry: 1.3 },
-    weakAgainst: []
+    counters: { cavalry: 1.6, siege: 1.4 },  // 火枪兵有刺刀，克制骑兵
+    weakAgainst: ['gunpowder'],  // 被专业火器部队克制
+    
+    obsoleteAfterEpochs: 2
   },
 
   rifleman: {
     id: 'rifleman',
     name: '线膛枪手',
-    desc: '装备线膛枪的精确射手，射程更远。',
+    desc: '装备线膛枪的精确射手，射程远、精度高。',
     epoch: 5,
     icon: 'Target',
-    category: 'archer',
+    category: 'gunpowder',  // 改为火器类别
     
     attack: 35,
     defense: 10,
@@ -486,24 +522,26 @@ export const UNIT_TYPES = {
     range: 5,
     
     recruitCost: { food: 200, iron: 80, tools: 50, silver: 130 },
-    maintenanceCost: { food: 1.2, silver: 1.1, tools: 0.2 },
+    maintenanceCost: { food: 1.2, silver: 1.1, iron: 0.12, tools: 0.22 },
     trainingTime: 10,
     
     populationCost: 1,
     
     abilities: ['火器', '精确射击', '穿甲'],
     
-    counters: { infantry: 1.7, cavalry: 1.5 },
-    weakAgainst: []
+    counters: { infantry: 1.7, cavalry: 1.5, siege: 1.5 },  // 火器全面克制
+    weakAgainst: ['cavalry'],  // 被近身骑兵克制
+    
+    obsoleteAfterEpochs: 2
   },
 
   dragoon: {
     id: 'dragoon',
     name: '龙骑兵',
-    desc: '骑马的火枪兵，机动性和火力兼备。',
+    desc: '骑马机动的火枪兵，可下马作战，机动性和火力兼备。',
     epoch: 5,
-    icon: 'Horse',
-    category: 'cavalry',
+    icon: 'Navigation',
+    category: 'cavalry',  // 龙骑兵本质是骑兵
     
     attack: 35,
     defense: 18,
@@ -511,15 +549,17 @@ export const UNIT_TYPES = {
     range: 2,
     
     recruitCost: { food: 280, iron: 90, tools: 45, silver: 180 },
-    maintenanceCost: { food: 1.8, silver: 1.5, tools: 0.18 },
+    maintenanceCost: { food: 2.0, silver: 1.5, iron: 0.15, tools: 0.2 },
     trainingTime: 12,
     
     populationCost: 1,
     
-    abilities: ['火器', '快速移动'],
+    abilities: ['火器', '快速移动', '下马作战'],
     
-    counters: { archer: 1.8, infantry: 1.4 },
-    weakAgainst: []
+    counters: { archer: 1.8, gunpowder: 1.6 },  // 骑兵近身克制火器
+    weakAgainst: ['infantry'],
+    
+    obsoleteAfterEpochs: 2
   },
 
   cannon: {
@@ -536,24 +576,26 @@ export const UNIT_TYPES = {
     range: 7,
     
     recruitCost: { food: 300, iron: 180, tools: 80, silver: 250 },
-    maintenanceCost: { food: 2.0, silver: 1.8, tools: 0.3 },
+    maintenanceCost: { food: 2.0, silver: 1.8, iron: 0.35, tools: 0.35 },
     trainingTime: 15,
     
     populationCost: 3,
     
     abilities: ['攻城', '范围伤害', '火器'],
     
-    counters: { infantry: 1.9, archer: 1.8 },
-    weakAgainst: ['cavalry']
+    counters: { infantry: 1.7, gunpowder: 1.5 },
+    weakAgainst: ['cavalry'],
+    
+    obsoleteAfterEpochs: 2
   },
 
   // ============ 工业时代 (Epoch 6) ============
   line_infantry: {
     id: 'line_infantry',
     name: '线列步兵',
-    desc: '工业化训练的步兵，装备后装步枪。',
+    desc: '工业化训练的步兵，装备后装步枪和刺刀。',
     epoch: 6,
-    icon: 'Zap',
+    icon: 'Users',
     category: 'infantry',
     
     attack: 40,
@@ -562,24 +604,26 @@ export const UNIT_TYPES = {
     range: 4,
     
     recruitCost: { food: 250, iron: 100, tools: 60, silver: 160 },
-    maintenanceCost: { food: 1.4, silver: 1.3, tools: 0.25 },
+    maintenanceCost: { food: 1.4, silver: 1.3, iron: 0.15, tools: 0.28 },
     trainingTime: 10,
     
     populationCost: 1,
     
-    abilities: ['火器', '齐射', '战术训练'],
+    abilities: ['火器', '齐射', '刺刀冲锋'],
     
-    counters: { infantry: 1.5, cavalry: 1.6 },
-    weakAgainst: []
+    counters: { cavalry: 1.7, siege: 1.5 },
+    weakAgainst: ['gunpowder'],
+    
+    obsoleteAfterEpochs: 3
   },
 
   gatling: {
     id: 'gatling',
     name: '加特林机枪组',
-    desc: '早期机枪，火力密集，克制密集阵型。',
+    desc: '早期机枪，火力密集，克制密集阵型的步兵和骑兵。',
     epoch: 6,
     icon: 'Zap',
-    category: 'archer',
+    category: 'gunpowder',  // 改为火器类别
     
     attack: 50,
     defense: 12,
@@ -587,23 +631,25 @@ export const UNIT_TYPES = {
     range: 5,
     
     recruitCost: { food: 300, iron: 150, tools: 100, silver: 250 },
-    maintenanceCost: { food: 1.6, silver: 1.8, tools: 0.4 },
+    maintenanceCost: { food: 1.6, silver: 1.8, iron: 0.25, tools: 0.45 },
     trainingTime: 12,
     
     populationCost: 2,
     
     abilities: ['火器', '压制火力', '范围伤害'],
     
-    counters: { infantry: 2.0, cavalry: 1.8 },
-    weakAgainst: ['siege']
+    counters: { infantry: 2.0, cavalry: 1.8 },  // 机枪对步兵骑兵都有强克制
+    weakAgainst: ['siege'],  // 被火炮克制
+    
+    obsoleteAfterEpochs: 3
   },
 
   lancer: {
     id: 'lancer',
     name: '枪骑兵',
-    desc: '工业时代的精锐骑兵，适合侦察和追击。',
+    desc: '工业时代的精锐骑兵，适合侦察、追击和近身突袭火器阵地。',
     epoch: 6,
-    icon: 'Horse',
+    icon: 'Compass',
     category: 'cavalry',
     
     attack: 38,
@@ -612,15 +658,17 @@ export const UNIT_TYPES = {
     range: 1,
     
     recruitCost: { food: 320, iron: 100, tools: 50, silver: 200 },
-    maintenanceCost: { food: 2.0, silver: 1.6, tools: 0.2 },
+    maintenanceCost: { food: 2.2, silver: 1.6, iron: 0.12, tools: 0.22 },
     trainingTime: 11,
     
     populationCost: 1,
     
     abilities: ['冲锋', '快速移动', '侦察'],
     
-    counters: { archer: 1.9 },
-    weakAgainst: ['infantry']
+    counters: { archer: 1.9, gunpowder: 1.7 },  // 骑兵近身克制火器
+    weakAgainst: ['infantry'],
+    
+    obsoleteAfterEpochs: 3
   },
 
   artillery: {
@@ -637,24 +685,36 @@ export const UNIT_TYPES = {
     range: 8,
     
     recruitCost: { food: 400, iron: 250, tools: 120, silver: 350 },
-    maintenanceCost: { food: 2.5, silver: 2.2, tools: 0.5 },
+    maintenanceCost: { food: 2.5, silver: 2.2, iron: 0.5, tools: 0.55 },
     trainingTime: 18,
     
     populationCost: 4,
     
     abilities: ['攻城', '范围伤害', '精确打击'],
     
-    counters: { infantry: 2.2, archer: 2.0, siege: 1.5 },
-    weakAgainst: ['cavalry']
+    counters: { infantry: 2.0, gunpowder: 1.8, siege: 1.5 },
+    weakAgainst: ['cavalry'],
+    
+    obsoleteAfterEpochs: 3
   }
 };
 
 // 兵种类别定义
 export const UNIT_CATEGORIES = {
-  infantry: { name: '步兵', icon: 'Swords', color: 'text-red-400' },
-  archer: { name: '弓箭手', icon: 'Target', color: 'text-green-400' },
-  cavalry: { name: '骑兵', icon: 'Horse', color: 'text-blue-400' },
-  siege: { name: '攻城', icon: 'Bomb', color: 'text-orange-400' }
+  infantry: { name: '步兵', icon: 'Swords', color: 'text-red-400', description: '克制骑兵，被弓箭手/火器克制' },
+  archer: { name: '弓箭手', icon: 'Target', color: 'text-green-400', description: '克制步兵，被骑兵克制' },
+  cavalry: { name: '骑兵', icon: 'Navigation', color: 'text-blue-400', description: '克制弓箭手/火器，被步兵克制' },
+  gunpowder: { name: '火器', icon: 'Flame', color: 'text-yellow-400', description: '克制步兵/骑兵，近战被骑兵克制' },
+  siege: { name: '攻城', icon: 'Bomb', color: 'text-orange-400', description: '攻城利器，但机动性差' }
+};
+
+// 克制关系常量 (用于UI显示)
+export const COUNTER_RELATIONS = {
+  infantry: { counters: 'cavalry', weakAgainst: 'archer/gunpowder' },
+  archer: { counters: 'infantry', weakAgainst: 'cavalry' },
+  cavalry: { counters: 'archer/gunpowder', weakAgainst: 'infantry' },
+  gunpowder: { counters: 'infantry/cavalry', weakAgainst: 'cavalry(近战)' },
+  siege: { counters: null, weakAgainst: 'all' }
 };
 
 export const calculateArmyFoodNeed = (army = {}) => {
@@ -682,10 +742,21 @@ export const calculateBattlePower = (army, epoch, militaryBuffs = 0) => {
     // 基础战斗力 = (攻击力 + 防御力) * 数量
     let unitPower = (unit.attack + unit.defense) * count;
     
-    // 时代加成：高时代对低时代有压制效果
+    // 时代差距计算
     const epochDiff = epoch - unit.epoch;
-    if (epochDiff > 0) {
-      unitPower *= (1 + epochDiff * 0.1); // 每高一个时代+10%
+    
+    // 时代加成：高时代部队有科技优势
+    if (epochDiff > 0 && epochDiff <= (unit.obsoleteAfterEpochs || 2)) {
+      unitPower *= (1 + epochDiff * 0.05); // 每高一个时代+5%
+    }
+    
+    // 时代淘汰惩罚：超过淘汰时代后战斗力下降
+    const obsoleteThreshold = unit.obsoleteAfterEpochs || 2;
+    if (epochDiff > obsoleteThreshold) {
+      const obsoleteEpochs = epochDiff - obsoleteThreshold;
+      // 每超过1个时代，战斗力降低25%，最多降低75%
+      const penalty = Math.min(0.75, obsoleteEpochs * 0.25);
+      unitPower *= (1 - penalty);
     }
     
     totalPower += unitPower;
@@ -864,7 +935,7 @@ const generateBattleReport = (data) => {
   report.push(`敌方损失：${totalDefenderLoss} 人`);
   
   if (victory && loot) {
-    const lootItems = Object.entries(loot).filter(([k, v]) => v > 0).map(([k, v]) => `${k} ${v}`).join(', ');
+const lootItems = Object.entries(loot).filter(([, v]) => v > 0).map(([key, value]) => `${key} ${value}`).join(', ');
     if (lootItems) {
       report.push(`掠夺资源：${lootItems}`);
     }

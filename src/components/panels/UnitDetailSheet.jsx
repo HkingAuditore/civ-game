@@ -1,7 +1,9 @@
 import React from 'react';
 import { Icon } from '../common/UIComponents';
 import { RESOURCES } from '../../config';
+import { UNIT_CATEGORIES } from '../../config/militaryUnits';
 import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
+import { EPOCHS } from '../../config/epochs';
 
 /**
  * 军事单位详情底部面板组件
@@ -27,8 +29,9 @@ export const UnitDetailSheet = ({
   }
 
   const silverCost = calculateSilverCost(unit.recruitCost, market);
-  const foodPrice = market?.prices?.food ?? (RESOURCES.food?.basePrice || 1);
-  const dailyWage = ((unit.maintenanceCost?.food || 0) * foodPrice * militaryWageRatio);
+  // 军饷 = 银币维护费 × 军饷倍率
+  const baseSilverMaintenance = unit.maintenanceCost?.silver || 0;
+  const dailyWage = baseSilverMaintenance * militaryWageRatio;
   
   // 检查是否有足够的资源招募
   const canAfford = Object.entries(unit.recruitCost).every(
@@ -39,16 +42,25 @@ export const UnitDetailSheet = ({
   const currentCount = army[unit.id] || 0;
   const hasUnits = currentCount > 0;
 
+  // 获取类别信息
+  const categoryInfo = UNIT_CATEGORIES[unit.category] || {};
+  // 获取时代信息
+  const epochInfo = EPOCHS[unit.epoch] || {};
+
   return (
     <div className="space-y-2">
       {/* 头部：单位名称和图标 */}
       <div className="flex items-center gap-2 pb-2 border-b border-gray-700">
-        <div className="w-12 h-12 icon-metal-container icon-metal-container-lg rounded-lg flex items-center justify-center flex-shrink-0">
-          <Icon name="Swords" size={24} className="text-red-400 icon-metal-red" />
+        <div className={`w-12 h-12 icon-metal-container icon-metal-container-lg rounded-lg flex items-center justify-center flex-shrink-0`}>
+          <Icon name={unit.icon || 'Swords'} size={24} className={`${categoryInfo.color || 'text-red-400'} icon-metal-red`} />
         </div>
         <div className="flex-1 min-w-0">
           <h2 className="text-lg font-bold text-white leading-tight">{unit.name}</h2>
-          <p className="text-xs text-gray-400 leading-tight truncate">{unit.type}</p>
+          <div className="flex items-center gap-2 text-xs text-gray-400 leading-tight">
+            <span className={categoryInfo.color}>{categoryInfo.name || unit.type}</span>
+            <span>•</span>
+            <span>{epochInfo.name || `时代 ${unit.epoch}`}</span>
+          </div>
         </div>
       </div>
 
@@ -72,13 +84,13 @@ export const UnitDetailSheet = ({
           <div className="text-sm font-bold text-white font-mono leading-none">{unit.defense}</div>
         </div>
 
-        {/* 速度 */}
+        {/* 射程 */}
         <div className="bg-gray-700/50 rounded p-1.5 border border-gray-600">
           <div className="flex items-center gap-1 mb-0.5">
-            <Icon name="Zap" size={12} className="text-yellow-400" />
-            <span className="text-[9px] text-gray-400 leading-none">速度</span>
+            <Icon name="Target" size={12} className="text-green-400" />
+            <span className="text-[9px] text-gray-400 leading-none">射程</span>
           </div>
-          <div className="text-sm font-bold text-yellow-300 font-mono leading-none">{unit.speed}</div>
+          <div className="text-sm font-bold text-green-300 font-mono leading-none">{unit.range || 1}</div>
         </div>
 
         {/* 训练时间 */}
@@ -90,6 +102,75 @@ export const UnitDetailSheet = ({
           <div className="text-sm font-bold text-purple-300 font-mono leading-none">{unit.trainingTime}天</div>
         </div>
       </div>
+
+      {/* 克制关系 */}
+      <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
+        <h3 className="text-[10px] font-bold text-white mb-1.5 flex items-center gap-1">
+          <Icon name="Swords" size={12} className="text-yellow-400" />
+          克制关系
+        </h3>
+        <div className="grid grid-cols-2 gap-2">
+          {/* 克制 */}
+          <div className="bg-gray-800/40 rounded px-2 py-1.5">
+            <div className="flex items-center gap-1 mb-1">
+              <Icon name="ChevronUp" size={12} className="text-green-400" />
+              <span className="text-[9px] text-gray-400">克制</span>
+            </div>
+            <div className="text-xs">
+              {unit.counters && Object.keys(unit.counters).length > 0 ? (
+                Object.entries(unit.counters).map(([category, bonus]) => {
+                  const targetCategory = UNIT_CATEGORIES[category];
+                  return (
+                    <span key={category} className={`${targetCategory?.color || 'text-white'} mr-2`}>
+                      {targetCategory?.name || category} (+{Math.round((bonus - 1) * 100)}%)
+                    </span>
+                  );
+                })
+              ) : (
+                <span className="text-gray-500">无</span>
+              )}
+            </div>
+          </div>
+          {/* 被克制 */}
+          <div className="bg-gray-800/40 rounded px-2 py-1.5">
+            <div className="flex items-center gap-1 mb-1">
+              <Icon name="ChevronDown" size={12} className="text-red-400" />
+              <span className="text-[9px] text-gray-400">被克制</span>
+            </div>
+            <div className="text-xs">
+              {unit.weakAgainst && unit.weakAgainst.length > 0 ? (
+                unit.weakAgainst.map((category) => {
+                  const targetCategory = UNIT_CATEGORIES[category];
+                  return (
+                    <span key={category} className={`${targetCategory?.color || 'text-white'} mr-2`}>
+                      {targetCategory?.name || category}
+                    </span>
+                  );
+                })
+              ) : (
+                <span className="text-gray-500">无</span>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 特殊能力 */}
+      {unit.abilities && unit.abilities.length > 0 && (
+        <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
+          <h3 className="text-[10px] font-bold text-white mb-1.5 flex items-center gap-1">
+            <Icon name="Star" size={12} className="text-amber-400" />
+            特殊能力
+          </h3>
+          <div className="flex flex-wrap gap-1">
+            {unit.abilities.map((ability, index) => (
+              <span key={index} className="bg-amber-500/20 text-amber-300 text-[10px] px-2 py-0.5 rounded-full border border-amber-500/30">
+                {ability}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 招募成本 */}
       <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
@@ -136,13 +217,22 @@ export const UnitDetailSheet = ({
           维护成本（每日）
         </h3>
         <div className="bg-gray-800/40 rounded px-2 py-1.5">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[9px] text-gray-400">食粮需求</span>
-            <span className="text-xs font-bold text-white font-mono">{unit.maintenanceCost?.food || 0}</span>
+          {/* 资源消耗列表 */}
+          <div className="space-y-1 mb-2">
+            {Object.entries(unit.maintenanceCost || {}).map(([resource, cost]) => {
+              const resourceInfo = RESOURCES[resource];
+              if (!resourceInfo || cost <= 0) return null;
+              return (
+                <div key={resource} className="flex items-center justify-between">
+                  <span className="text-[9px] text-gray-400">{resourceInfo.name}</span>
+                  <span className="text-xs font-bold text-white font-mono">-{cost.toFixed(2)}/日</span>
+                </div>
+              );
+            })}
           </div>
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[9px] text-gray-400">粮价</span>
-            <span className="text-xs font-bold text-white font-mono">{foodPrice.toFixed(2)} 银币</span>
+          <div className="flex items-center justify-between mb-1 pt-1 border-t border-gray-700">
+            <span className="text-[9px] text-gray-400">基础银币维护</span>
+            <span className="text-xs font-bold text-white font-mono">{baseSilverMaintenance.toFixed(2)} 银币</span>
           </div>
           <div className="flex items-center justify-between mb-1">
             <span className="text-[9px] text-gray-400">军饷倍率</span>
@@ -151,7 +241,7 @@ export const UnitDetailSheet = ({
           <div className="flex items-center justify-between pt-1 border-t border-gray-700">
             <div className="flex items-center gap-1">
               <Icon name="Coins" size={12} className="text-yellow-400" />
-              <span className="text-xs text-gray-300">军饷</span>
+              <span className="text-xs text-gray-300">实际军饷</span>
             </div>
             <span className="text-sm font-bold text-yellow-300 font-mono">{dailyWage.toFixed(2)} 银币/日</span>
           </div>
@@ -178,6 +268,12 @@ export const UnitDetailSheet = ({
           </div>
           <span className="text-sm font-bold text-white font-mono">{currentCount} 个单位</span>
         </div>
+        {unit.populationCost && unit.populationCost > 1 && (
+          <div className="flex items-center justify-between mt-1 pt-1 border-t border-gray-700">
+            <span className="text-[9px] text-gray-400">人口占用</span>
+            <span className="text-xs text-white font-mono">{unit.populationCost} 人/单位</span>
+          </div>
+        )}
       </div>
 
       {/* 操作按钮 */}

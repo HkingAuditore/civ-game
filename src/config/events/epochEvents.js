@@ -1789,7 +1789,7 @@ export const EPOCH_EVENTS = [
         description: '大力投资科学研究。',
         effects: {
           resourcePercent: {
-            silver: -0.005,
+            silver: -0.05,
             science: 0.08,
           },
           approval: {
