@@ -1133,7 +1133,8 @@ export const simulateTick = ({
   });
 
   const zeroApprovalClasses = {};
-  const effectiveNeedsReduction = Math.max(0, Math.min(0.95, needsReduction || 0));
+  // 允许负的 needsReduction (即增加需求)，下限设为 -2 (需求翻3倍)，上限 0.95
+  const effectiveNeedsReduction = Math.max(-2, Math.min(0.95, needsReduction || 0));
   const needsRequirementMultiplier = 1 - effectiveNeedsReduction;
 
   Object.keys(STRATA).forEach(key => {
@@ -1914,15 +1915,24 @@ export const simulateTick = ({
     logs.push('劳动力因需求未满足而效率下降。');
   }
 
+  let decreeApprovalModifiers = {};
+
   decrees.forEach(d => {
     if (d.active) {
+      // 通用阶级满意度修正
+      if (d.modifiers && d.modifiers.approval) {
+        Object.entries(d.modifiers.approval).forEach(([strata, value]) => {
+           decreeApprovalModifiers[strata] = (decreeApprovalModifiers[strata] || 0) + value;
+        });
+      }
+
       if (d.id === 'forced_labor') {
-        if (popStructure.serf > 0) classApproval.serf = Math.max(0, (classApproval.serf || 50) - 20);
-        if (popStructure.miner > 0) classApproval.miner = Math.max(0, (classApproval.miner || 50) - 15);
-        if (popStructure.landowner > 0) classApproval.landowner = Math.min(100, (classApproval.landowner || 50) + 10);
+        // 强制劳役的特殊逻辑保留，作为额外惩罚，或者可以在配置中完全替代
+        // 这里保留是为了兼容旧配置，但建议在配置中定义 approval 修正
+        if (popStructure.serf > 0) classApproval.serf = Math.max(0, (classApproval.serf || 50) - 5); // 减弱硬编码惩罚
       }
       if (d.id === 'tithe') {
-        if (popStructure.cleric > 0) classApproval.cleric = Math.max(0, (classApproval.cleric || 50) - 10);
+        if (popStructure.cleric > 0) classApproval.cleric = Math.max(0, (classApproval.cleric || 50) - 2); // 减弱硬编码惩罚
         const titheDue = (popStructure.cleric || 0) * 2 * effectiveTaxModifier;
         if (titheDue > 0) {
           const available = wealth.cleric || 0;
@@ -2019,6 +2029,13 @@ export const simulateTick = ({
     if (eventBonus) {
       targetApproval += eventBonus;
     }
+    
+    // 应用政令满意度修正
+    const decreeBonus = decreeApprovalModifiers[key] || 0;
+    if (decreeBonus) {
+      targetApproval += decreeBonus;
+    }
+
     const currentApproval = classApproval[key] || 50;
     const adjustmentSpeed = 0.08; // How slowly approval changes per tick
     let newApproval = currentApproval + (targetApproval - currentApproval) * adjustmentSpeed;
