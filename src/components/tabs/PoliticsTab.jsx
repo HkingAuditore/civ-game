@@ -526,7 +526,7 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
             >
               <div className="flex items-center gap-2">
                 <Icon name="Package" size={14} />
-                资源税
+                交易税
               </div>
             </button>
             <button
@@ -582,13 +582,13 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
             </div>
           )}
 
-          {/* 资源税面板 */}
+          {/* 交易税面板 */}
           {activeTaxTab === 'resource' && (
             <div className="space-y-4">
               <div className="bg-blue-900/20 border border-blue-500/30 p-3 rounded-lg text-xs text-blue-100">
                 <p className="flex items-center gap-2 mb-1">
                   <Icon name="Info" size={12} className="text-blue-400" />
-                  <span className="font-semibold">资源税说明</span>
+                  <span className="font-semibold">交易税说明</span>
                 </p>
                 <p>对市场交易的资源征收的税收。税率为正时征税，为负时作为补贴。仅对有市场供应的资源生效。</p>
               </div>

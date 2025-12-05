@@ -55,7 +55,7 @@ export function createGiftEvent(nation, giftAmount, onAccept) {
         text: '接受礼物',
         description: `收下礼物，获得${giftAmount}银币`,
         effects: {
-          resourcePercent: {
+          resources: {
             silver: giftAmount,
           },
         },
@@ -91,7 +91,7 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
       text: '要求更多赔款',
       description: `要求${highTribute}银币赔款（比原提议多50%）`,
       effects: {
-        resourcePercent: {
+        resources: {
           silver: highTribute,
         },
       },
@@ -123,7 +123,7 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
       text: '接受标准和平',
       description: `接受${tribute}银币赔款，快速结束战争`,
       effects: {
-        resourcePercent: {
+        resources: {
           silver: tribute,
         },
       },
@@ -142,7 +142,7 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
       text: '接受和平',
       description: `结束战争，获得${tribute}银币赔款`,
       effects: {
-        resourcePercent: {
+        resources: {
           silver: tribute,
         },
       },
@@ -176,7 +176,7 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
       text: '接受和平',
       description: `结束战争，获得${tribute}银币赔款`,
       effects: {
-        resourcePercent: {
+        resources: {
           silver: tribute,
         },
       },

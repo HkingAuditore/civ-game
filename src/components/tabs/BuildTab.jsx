@@ -404,7 +404,7 @@ export const BuildTab = ({
     { key: 'all', label: '全部' },
     { key: 'gather', label: '采集' },
     { key: 'industry', label: '工业' },
-    { key: 'civic', label: '居住' },
+    { key: 'civic', label: '市政' },
     { key: 'military', label: '军事' },
   ];
   const [activeCategory, setActiveCategory] = useState('all');

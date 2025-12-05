@@ -2423,11 +2423,15 @@ export const simulateTick = ({
       if ((next.warScore || 0) > 12 && canRequestPeace) {
         const willingness = Math.min(0.5, 0.03 + (next.warScore || 0) / 120 + (next.warDuration || 0) / 400) + Math.min(0.15, (next.enemyLosses || 0) / 500);
         if (Math.random() < willingness) {
-          // 计算赔款金额，确保至少有一个合理的最小值
-          const baseTribute = Math.ceil((next.warScore || 0) * 30 + (next.enemyLosses || 0) * 2);
-          const minTribute = Math.max(200, Math.floor((next.wealth || 800) * 0.1)); // 至少是财富的10%，最低200
-          const maxTribute = Math.floor((next.wealth || 800) * 0.8); // 最多是财富的80%
-          const tribute = Math.min(maxTribute, Math.max(minTribute, baseTribute));
+          // 计算赔款金额，使用绝对值而不是财富百分比，避免晚期赔款溢出
+          const warScore = next.warScore || 0;
+          const enemyLosses = next.enemyLosses || 0;
+          const warDuration = next.warDuration || 0;
+          const baseTribute = Math.ceil(warScore * 35 + enemyLosses * 2.2 + warDuration * 4);
+          const minTribute = 200;
+          const hardCap = 8000 + Math.floor(warDuration * 8); // 根据战争时长略微提高上限
+          const availableWealth = Math.max(0, next.wealth || 0);
+          const tribute = Math.min(Math.min(hardCap, availableWealth), Math.max(minTribute, baseTribute));
           // 只记录日志，不直接处理和平，让事件系统处理
           logs.push(`🤝 ${next.name} 请求和平，愿意支付 ${tribute} 银币作为赔款。`);
           // 标记该国家正在请求和平，避免重复触发

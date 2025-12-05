@@ -6,6 +6,7 @@ import { calculateArmyCapacityNeed, calculateArmyPopulation, simulateBattle, cal
 import { calculateForeignPrice, calculateTradeStatus } from '../utils/foreignTrade';
 import { generateSound, SOUND_TYPES } from '../config/sounds';
 import { getEnemyUnitsForEpoch } from '../config/militaryActions';
+import { isResourceUnlocked } from '../utils/resources';
 
 /**
  * 游戏操作钩子
@@ -541,12 +542,18 @@ export const useGameActions = (gameState, addLog) => {
         });
       }
       
-      resourcesGained = combinedLoot;
+      const unlockedLoot = {};
+      Object.entries(combinedLoot).forEach(([resource, amount]) => {
+        if (amount > 0 && isResourceUnlocked(resource, epoch, techsUnlocked)) {
+          unlockedLoot[resource] = amount;
+        }
+      });
+      resourcesGained = unlockedLoot;
 
-      if (Object.keys(combinedLoot).length > 0) {
+      if (Object.keys(unlockedLoot).length > 0) {
         setResources(prev => {
           const updated = { ...prev };
-          Object.entries(combinedLoot).forEach(([resource, amount]) => {
+          Object.entries(unlockedLoot).forEach(([resource, amount]) => {
             updated[resource] = (updated[resource] || 0) + amount;
           });
           return updated;
