@@ -900,6 +900,7 @@ export const simulateTick = ({
     const multiplier = Math.max(0, 1 + maxPopPercent);
     totalMaxPop = Math.max(0, totalMaxPop * multiplier);
   }
+  totalMaxPop = Math.floor(totalMaxPop);
 
   // 军人岗位包括：已有军队 + 等待人员的岗位 + 训练中的岗位
   const waitingCount = (militaryQueue || []).filter(item => item.status === 'waiting').length;
@@ -2518,6 +2519,7 @@ export const simulateTick = ({
   if (totalForcedLoss > 0) {
     nextPopulation = Math.max(0, nextPopulation - totalForcedLoss);
   }
+  nextPopulation = Math.max(0, Math.floor(nextPopulation));
 
   Object.keys(res).forEach(k => {
     if (res[k] < 0) res[k] = 0;

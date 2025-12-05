@@ -1422,7 +1422,7 @@ export const BASE_EVENTS = [
             chance: 0.25, // 0~1 之间的概率
             effects: {
                  // 小概率战斗损失
-                populationPercent: -0.003,
+                populationPercent: -0.01,
                 stability: -5,
                 approval: {
                     peasant: -5,
