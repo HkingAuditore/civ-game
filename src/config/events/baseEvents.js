@@ -53,7 +53,7 @@ export const BASE_EVENTS = [
         text: '听天由命',
         description: '让瘟疫自然消退',
         effects: {
-          populationPercent: -0.01,
+          populationPercent: -0.1,
           stability: -15,
           approval: {
             peasant: -20,
