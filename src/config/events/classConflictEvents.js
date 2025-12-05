@@ -30,7 +30,7 @@ export const CLASS_CONFLICT_EVENTS = [
         description: '强制实施价格管制，平息民愤但激怒商人。',
         effects: {
           resourcePercent: {
-            silver: -0.005,
+            silver: -0.012,
           },
           stability: 8,
           approval: {
@@ -559,7 +559,7 @@ export const CLASS_CONFLICT_EVENTS = [
         description: '逮捕所有参与者，关闭该港口，杀鸡儆猴。',
         effects: {
           resourcePercent: {
-            silver: 0.008,
+            silver: 0.012,
           },
           stability: -20,
           approval: {
@@ -576,7 +576,7 @@ export const CLASS_CONFLICT_EVENTS = [
         description: '承认错误，恢复自由贸易。虽然丢面子，但能恢复秩序。',
         effects: {
           resourcePercent: {
-            silver: -0.005,
+            silver: -0.012,
           },
           stability: 10,
           approval: {
@@ -592,7 +592,7 @@ export const CLASS_CONFLICT_EVENTS = [
         description: '降低茶税但维持垄断，试图敷衍了事。',
         effects: {
           resourcePercent: {
-            silver: -0.008,
+            silver: -0.012,
           },
           stability: -5,
           approval: {
@@ -631,7 +631,7 @@ export const CLASS_CONFLICT_EVENTS = [
         description: '工业化不可阻挡，但这会激化与工匠的矛盾。',
         effects: {
           resourcePercent: {
-            silver: -0.005,
+            silver: -0.012,
           },
           stability: 5,
           approval: {
@@ -887,7 +887,7 @@ export const CLASS_CONFLICT_EVENTS = [
         description: '相信自由市场的力量，不干预。',
         effects: {
           resourcePercent: {
-            silver: 0.008,
+            silver: 0.012,
           },
           stability: -8,
           approval: {
@@ -932,7 +932,7 @@ export const CLASS_CONFLICT_EVENTS = [
         description: '站在多数人一边，这将彻底改变权力结构。',
         effects: {
           resourcePercent: {
-            silver: 0.008,
+            silver: 0.012,
           },
           stability: -15,
           approval: {
@@ -1257,7 +1257,7 @@ export const CLASS_CONFLICT_EVENTS = [
         description: '高价收购粮食分发，维护市场秩序但财政大出血。',
         effects: {
           resourcePercent: {
-            food: 0.01,
+            food: 0.015,
             silver: -0.05,
           },
           stability: 8,
@@ -1331,7 +1331,7 @@ export const CLASS_CONFLICT_EVENTS = [
         description: '说服传教士将热情转向帮助穷人，而非远征。',
         effects: {
           resourcePercent: {
-            silver: -0.005,
+            silver: -0.012,
             culture: 0.04,
           },
           stability: 8,
@@ -1419,7 +1419,7 @@ export const CLASS_CONFLICT_EVENTS = [
         description: '组织城乡代表会议，政府只做调解人。',
         effects: {
           resourcePercent: {
-            silver: -0.008,
+            silver: -0.012,
           },
           stability: 3,
           approval: {
@@ -2486,7 +2486,7 @@ export const CLASS_CONFLICT_EVENTS = [
         description: '将矛头指向商人和地主，没收他们的粮食。',
         effects: {
           resourcePercent: {
-            food: 0.01,
+            food: 0.015,
           },
           stability: -5,
           approval: {
@@ -2525,7 +2525,7 @@ export const CLASS_CONFLICT_EVENTS = [
         description: '不管牵扯到谁都要查到底。',
         effects: {
           resourcePercent: {
-            silver: -0.005,
+            silver: -0.012,
           },
           stability: -5,
           approval: {
@@ -2630,7 +2630,7 @@ export const CLASS_CONFLICT_EVENTS = [
         description: '许诺赦免放下武器者，孤立核心分子。',
         effects: {
           resourcePercent: {
-            silver: -0.005,
+            silver: -0.012,
           },
           populationPercent: -0.012,
           stability: 0,
@@ -2902,7 +2902,7 @@ export const CLASS_CONFLICT_EVENTS = [
         description: '设立规则限制其收取的金额，但保留制度。',
         effects: {
           resourcePercent: {
-            silver: -0.008,
+            silver: -0.012,
           },
           stability: 3,
           approval: {
@@ -3025,7 +3025,7 @@ export const CLASS_CONFLICT_EVENTS = [
         description: '政府入市购买股票，稳定金融系统。',
         effects: {
           resourcePercent: {
-            silver: -0.005,
+            silver: -0.012,
           },
           stability: 10,
           approval: {
