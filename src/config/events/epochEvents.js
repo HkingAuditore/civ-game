@@ -199,7 +199,8 @@ export const EPOCH_EVENTS = [
           resourcePercent: {
             food: -0.02,
           },
-          populationCapacity: 20,
+          population: 2,
+          stability: 3,
           approval: {
             peasant: 15,
             artisan: 10,
@@ -2306,16 +2307,13 @@ export const EPOCH_EVENTS = [
             silver: -0.015,
             science: 0.04,
           },
-          populationCapacity: 50,
-          resourceDemandMod: { iron: 0.3, coal: 0.25, wood: 0.2 },
+          populationPercent: 0.05,
+          stability: 5,
+          resourceDemandMod: { iron: 0.3, coal: 0.35, wood: 0.2, steel: 0.15 },
           approval: {
             worker: 20,
             merchant: -15,
             landowner: -10,
-          },
-          resourceDemandMod: {
-            steel: 0.15, // 铁路建设
-            coal: 0.1,
           },
         },
       },
@@ -2328,15 +2326,11 @@ export const EPOCH_EVENTS = [
             silver: -0.03,
             science: 0.03,
           },
-          populationCapacity: 30,
-          resourceDemandMod: { iron: 0.2, coal: 0.15, wood: 0.15 },
+          populationPercent: 0.03,
+          resourceDemandMod: { iron: 0.2, coal: 0.2, wood: 0.15, steel: 0.1 },
           approval: {
             merchant: 15,
             worker: 10,
-          },
-          resourceDemandMod: {
-            steel: 0.1, // 铁路建设
-            coal: 0.05,
           },
         },
       },
@@ -2348,12 +2342,9 @@ export const EPOCH_EVENTS = [
           resourcePercent: {
             science: 0.02,
           },
-          resourceDemandMod: { iron: 0.15, coal: 0.1 },
+          resourceDemandMod: { iron: 0.15, coal: 0.1, steel: 0.08 },
           approval: {
             merchant: 25,
-          },
-          resourceDemandMod: {
-            steel: 0.08, // 铁路建设
           },
         },
         randomEffects: [
@@ -2448,7 +2439,7 @@ export const EPOCH_EVENTS = [
           resourcePercent: {
             silver: -0.05,
           },
-          populationCapacity: 40,
+          populationPercent: 0.04,
           resourceDemandMod: { wood: 0.3, stone: 0.25, brick: 0.2 },
           stability: 10,
           approval: {
@@ -2467,7 +2458,7 @@ export const EPOCH_EVENTS = [
           resourcePercent: {
             silver: -0.02,
           },
-          populationCapacity: 20,
+          populationPercent: 0.02,
           approval: {
             merchant: 15,
             worker: 5,
