@@ -9,8 +9,48 @@ import { RESOURCES, STRATA, BUILDINGS } from '../../config';
  * @param {Function} onSelectOption - 选择选项的回调
  * @param {Function} onClose - 关闭回调
  */
-export const EventDetail = ({ event, onSelectOption, onClose }) => {
+export const EventDetail = ({ event, onSelectOption, onClose, nations = [] }) => {
   if (!event) return null;
+
+  // 获取可见国家列表
+  const visibleNations = nations.filter(n => n.visible !== false);
+
+  // 根据选择器解析出实际国家名称
+  const resolveNationNames = (selector) => {
+    if (!visibleNations.length) return null;
+    
+    switch (selector) {
+      case 'random':
+        return '（将随机选择一个国家）';
+      case 'all':
+        return `（${visibleNations.map(n => n.name).join('、')}）`;
+      case 'hostile': {
+        const hostiles = visibleNations.filter(n => (n.relation || 50) < 30);
+        if (hostiles.length === 0) return '（当前无敌对国家！此效果将无效）';
+        return `（${hostiles.map(n => n.name).join('、')}）`;
+      }
+      case 'friendly': {
+        const friendlies = visibleNations.filter(n => (n.relation || 50) >= 60);
+        if (friendlies.length === 0) return '（当前无友好国家！此效果将无效）';
+        return `（${friendlies.map(n => n.name).join('、')}）`;
+      }
+      case 'strongest': {
+        if (visibleNations.length === 0) return null;
+        const strongest = visibleNations.reduce((a, b) => (a.wealth || 0) > (b.wealth || 0) ? a : b);
+        return `（${strongest.name}）`;
+      }
+      case 'weakest': {
+        if (visibleNations.length === 0) return null;
+        const weakest = visibleNations.reduce((a, b) => (a.wealth || 0) < (b.wealth || 0) ? a : b);
+        return `（${weakest.name}）`;
+      }
+      default: {
+        // 可能是直接指定的国家ID
+        const nation = visibleNations.find(n => n.id === selector);
+        return nation ? `（${nation.name}）` : null;
+      }
+    }
+  };
 
   const getResourceName = (key) => (RESOURCES && RESOURCES[key]?.name) || key;
   const getStratumName = (key) => (STRATA && STRATA[key]?.name) || key;
@@ -62,10 +102,15 @@ export const EventDetail = ({ event, onSelectOption, onClose }) => {
   };
 
   const getNationSelectorLabel = (selector, excludeList = []) => {
-    const label = nationSelectorLabels[selector] || `指定国家（${selector}）`;
+    const baseLabel = nationSelectorLabels[selector] || `指定国家`;
+    const nationNames = resolveNationNames(selector);
+    let label = baseLabel;
+    if (nationNames) {
+      label = `${baseLabel}${nationNames}`;
+    }
     if (selector === 'all' && excludeList.length > 0) {
       const excludes = excludeList.map(item => nationSelectorLabels[item] || item).join('、');
-      return `${label}（排除：${excludes}）`;
+      label += `（排除：${excludes}）`;
     }
     return label;
   };

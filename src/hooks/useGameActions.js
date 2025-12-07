@@ -1839,21 +1839,50 @@ const handleEventOption = (eventId, option) => {
 			const targets = resolveNationSelector(effects.triggerWar);
 			if (targets.length > 0) {
 				const target = targets[0];
-				setNations(prev => prev.map(n =>
-					n.id === target.id
-						? {
-								...n,
-								relation: 0,
-								isAtWar: true,
-								warScore: 0,
-								warStartDay: daysElapsed,
-								warDuration: 0,
-								enemyLosses: 0,
-								peaceTreatyUntil: undefined,
-							}
-						: n
-				));
-				addLog(`⚔️ ${target.name} 向我方宣战！`);
+				// 检查和平协议是否仍然有效
+				if (target.peaceTreatyUntil && daysElapsed < target.peaceTreatyUntil) {
+					const remainingDays = target.peaceTreatyUntil - daysElapsed;
+					addLog(`⚠️ 与 ${target.name} 的和平协议仍在有效期内（剩余 ${remainingDays} 天），战争未能爆发。`);
+				} else if (target.isAtWar) {
+					// 已经在交战中，不重复处理
+					addLog(`⚠️ 与 ${target.name} 已经处于战争状态。`);
+				} else {
+					setNations(prev => prev.map(n =>
+						n.id === target.id
+							? {
+									...n,
+									relation: 0,
+									isAtWar: true,
+									warScore: 0,
+									warStartDay: daysElapsed,
+									warDuration: 0,
+									enemyLosses: 0,
+									peaceTreatyUntil: undefined,
+								}
+							: n
+					));
+					addLog(`⚔️ ${target.name} 向我方宣战！`);
+					
+					// 触发宣战事件对话框
+					if (triggerDiplomaticEvent) {
+						const warEvent = createWarDeclarationEvent(target, () => {
+							// 宣战事件只需要确认，不需要额外操作
+						});
+						triggerDiplomaticEvent(warEvent);
+					}
+				}
+			} else {
+				// 没有找到匹配的国家（例如没有敌对国家时选择'hostile'）
+				const selectorLabels = {
+					random: '随机国家',
+					all: '所有国家',
+					hostile: '敌对国家',
+					friendly: '友好国家',
+					strongest: '最强国家',
+					weakest: '最弱国家',
+				};
+				const label = selectorLabels[effects.triggerWar] || effects.triggerWar;
+				addLog(`⚠️ 无法发动战争：没有可用的${label}。`);
 			}
 		}
 

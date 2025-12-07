@@ -726,11 +726,45 @@ export const ResourceDetailModal = ({
 
             {activeTab === 'analysis' && (
               <div className="grid gap-3 lg:gap-6 lg:grid-cols-2">
+                {/* 实际供需对比提示卡片 */}
+                <div className="lg:col-span-2 rounded-xl border border-amber-500/30 bg-amber-950/20 p-2.5">
+                  <div className="flex items-start gap-2">
+                    <Icon name="AlertTriangle" size={14} className="text-amber-400 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-[10px] lg:text-xs text-amber-200 font-medium mb-1">供需数据说明</p>
+                      <p className="text-[9px] lg:text-[10px] text-amber-200/80 leading-relaxed">
+                        下方显示的是<span className="text-amber-300 font-semibold">基础供需构成</span>，用于帮助你理解供需来源。
+                        实际供需受政令、事件、价格弹性、阶层财富等因素影响，会有波动。
+                      </p>
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        <div className="flex items-center gap-2 px-2 py-1 bg-gray-900/60 rounded">
+                          <span className="text-[9px] text-gray-400">实际供给:</span>
+                          <span className="text-xs font-bold text-emerald-300">{formatAmount(latestSupply)}</span>
+                          {totalSupply > 0 && (
+                            <span className={`text-[8px] ${latestSupply > totalSupply ? 'text-green-400' : latestSupply < totalSupply ? 'text-red-400' : 'text-gray-400'}`}>
+                              ({latestSupply > totalSupply ? '+' : ''}{formatAmount(latestSupply - totalSupply)})
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 px-2 py-1 bg-gray-900/60 rounded">
+                          <span className="text-[9px] text-gray-400">实际需求:</span>
+                          <span className="text-xs font-bold text-rose-300">{formatAmount(latestDemand)}</span>
+                          {totalDemand > 0 && (
+                            <span className={`text-[8px] ${latestDemand > totalDemand ? 'text-red-400' : latestDemand < totalDemand ? 'text-green-400' : 'text-gray-400'}`}>
+                              ({latestDemand > totalDemand ? '+' : ''}{formatAmount(latestDemand - totalDemand)})
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="rounded-xl lg:rounded-2xl border border-gray-800 bg-gray-950/60 p-3 lg:p-5">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-[10px] lg:text-xs uppercase tracking-wide text-gray-500">需求构成</p>
-                      <p className="text-base lg:text-xl font-semibold text-white">总需求 {formatAmount(totalDemand)}</p>
+                      <p className="text-[10px] lg:text-xs uppercase tracking-wide text-gray-500">需求构成（基础值）</p>
+                      <p className="text-base lg:text-xl font-semibold text-white">基础需求 {formatAmount(totalDemand)}</p>
                     </div>
                     <Icon name="TrendingUp" size={18} className="text-rose-300" />
                   </div>
@@ -809,8 +843,8 @@ export const ResourceDetailModal = ({
                 <div className="rounded-xl lg:rounded-2xl border border-gray-800 bg-gray-950/60 p-3 lg:p-5">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-[10px] lg:text-xs uppercase tracking-wide text-gray-500">生产来源</p>
-                      <p className="text-base lg:text-xl font-semibold text-white">总供给 {formatAmount(totalSupply)}</p>
+                      <p className="text-[10px] lg:text-xs uppercase tracking-wide text-gray-500">生产来源（基础值）</p>
+                      <p className="text-base lg:text-xl font-semibold text-white">基础供给 {formatAmount(totalSupply)}</p>
                     </div>
                     <Icon name="TrendingDown" size={18} className="text-emerald-300" />
                   </div>
@@ -833,7 +867,7 @@ export const ResourceDetailModal = ({
                     )}
                   </div>
                   <div className="mt-2 lg:mt-4 rounded-lg lg:rounded-xl border border-gray-800/60 bg-gray-900/60 p-2.5 lg:p-4 text-xs lg:text-sm text-gray-400">
-                    本地产出 {formatAmount(totalSupply)} · 总需求 {formatAmount(totalDemand)} · 缺口{' '}
+                    基础产出 {formatAmount(totalSupply)} · 基础需求 {formatAmount(totalDemand)} · 基础缺口{' '}
                     {formatAmount(Math.max(0, totalDemand - totalSupply))}
                   </div>
                 </div>
