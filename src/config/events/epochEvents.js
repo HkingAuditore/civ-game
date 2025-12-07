@@ -29,6 +29,14 @@ export const EPOCH_EVENTS = [
             soldier: 15,
             peasant: 10,
           },
+          resourceDemandMod: {
+            food: 0.05, // 狩猎准备
+            wood: 0.03, // 制作工具
+          },
+          buildingProductionMod: {
+            lumber_camp: -0.05, // 劳动力转移
+            stone_tool_workshop: -0.05,
+          },
         },
         randomEffects: [
           {
@@ -52,6 +60,13 @@ export const EPOCH_EVENTS = [
           approval: {
             soldier: 10,
           },
+          resourceDemandMod: {
+            food: 0.02, // 狩猎准备
+            wood: 0.01, // 制作工具
+          },
+          buildingProductionMod: {
+            stone_tool_workshop: -0.02,
+          },
         },
       },
       {
@@ -63,6 +78,9 @@ export const EPOCH_EVENTS = [
           approval: {
             peasant: 5,
             soldier: -10,
+          },
+          stratumDemandMod: {
+            soldier: -0.05, // 猎人不满
           },
         },
       },
@@ -91,6 +109,10 @@ export const EPOCH_EVENTS = [
             cleric: 15,
             peasant: 5,
           },
+          resourceDemandMod: {
+            food: 0.02, // 供养长者
+          },
+          buildingProductionMod: { all: 0.02 }, // 火的利用提升效率
         },
       },
       {
@@ -106,6 +128,9 @@ export const EPOCH_EVENTS = [
             cleric: -20,
             soldier: 10,
           },
+          buildingProductionMod: {
+            stone_tool_workshop: 0.03, // 知识传播
+          },
         },
       },
       {
@@ -116,6 +141,9 @@ export const EPOCH_EVENTS = [
           approval: {
             cleric: -10,
             soldier: 5,
+          },
+          stratumDemandMod: {
+            cleric: -0.05, // 长者不满
           },
         },
       },
@@ -142,6 +170,10 @@ export const EPOCH_EVENTS = [
             soldier: 15,
             peasant: -10,
           },
+          resourceDemandMod: {
+            stone: 0.08, // 建造材料
+            food: 0.05,
+          },
         },
       },
       {
@@ -153,6 +185,9 @@ export const EPOCH_EVENTS = [
           approval: {
             peasant: 10,
             soldier: -5,
+          },
+          stratumDemandMod: {
+            peasant: 0.03, // 和谐共处
           },
         },
       },
@@ -168,6 +203,10 @@ export const EPOCH_EVENTS = [
           approval: {
             peasant: 15,
             artisan: 10,
+          },
+          resourceDemandMod: {
+            wood: 0.05, // 建造新住所
+            stone: 0.03,
           },
         },
       },
@@ -197,6 +236,10 @@ export const EPOCH_EVENTS = [
             cleric: 25,
             peasant: 5,
           },
+          resourceDemandMod: {
+            culture: 0.1, // 祭祀活动
+            food: 0.05, // 祭品
+          },
         },
         randomEffects: [
           {
@@ -221,6 +264,10 @@ export const EPOCH_EVENTS = [
           approval: {
             cleric: -5,
           },
+          resourceDemandMod: {
+            culture: 0.03, // 祭祀活动
+            food: 0.02, // 祭品
+          },
         },
       },
       {
@@ -232,6 +279,9 @@ export const EPOCH_EVENTS = [
           approval: {
             cleric: -20,
             soldier: 10,
+          },
+          stratumDemandMod: {
+            cleric: -0.1, // 萨满不满
           },
         },
       },
@@ -260,6 +310,10 @@ export const EPOCH_EVENTS = [
             cleric: -15,
             peasant: 10,
           },
+          resourceDemandMod: {
+            wood: 0.02, // 制作新工具
+            stone: 0.03,
+          },
         },
       },
       {
@@ -273,6 +327,9 @@ export const EPOCH_EVENTS = [
           approval: {
             cleric: 15,
             artisan: -15,
+          },
+          stratumDemandMod: {
+            artisan: -0.08, // 工匠不满
           },
         },
       },
@@ -288,6 +345,10 @@ export const EPOCH_EVENTS = [
           approval: {
             artisan: 10,
             scribe: 10,
+          },
+          resourceDemandMod: {
+            wood: 0.01, // 试验消耗
+            stone: 0.01,
           },
         },
       },
@@ -321,6 +382,10 @@ export const EPOCH_EVENTS = [
             artisan: 20,
             merchant: -10,
           },
+          resourceDemandMod: {
+            copper: 0.15, // 购买秘方
+            silver: 0.05,
+          },
         },
       },
       {
@@ -335,6 +400,9 @@ export const EPOCH_EVENTS = [
           approval: {
             artisan: 15,
             landowner: -10,
+          },
+          stratumDemandMod: {
+            peasant: 0.05, // 获得部分权利
           },
         },
       },
@@ -351,6 +419,9 @@ export const EPOCH_EVENTS = [
             soldier: 10,
             merchant: -15,
           },
+          stratumDemandMod: {
+            merchant: -0.08, // 商业信誉受损
+          },
         },
       },
       {
@@ -360,6 +431,9 @@ export const EPOCH_EVENTS = [
         effects: {
           approval: {
             artisan: 5,
+          },
+          stratumDemandMod: {
+            artisan: -0.03, // 错失良机
           },
         },
       },
@@ -389,6 +463,9 @@ export const EPOCH_EVENTS = [
             merchant: -20,
             scribe: -10,
           },
+          resourceDemandMod: {
+            papyrus: 0.1, // 神圣用途
+          },
         },
       },
       {
@@ -404,6 +481,9 @@ export const EPOCH_EVENTS = [
             cleric: 5,
             scribe: 15,
             merchant: -5,
+          },
+          resourceDemandMod: {
+            papyrus: 0.05, // 有限开放
           },
         },
       },
@@ -421,6 +501,9 @@ export const EPOCH_EVENTS = [
             merchant: 20,
             scribe: 25,
             artisan: 10,
+          },
+          resourceDemandMod: {
+            papyrus: 0.2, // 推广读写
           },
         },
       },
@@ -451,6 +534,10 @@ export const EPOCH_EVENTS = [
             peasant: -25,
             artisan: -15,
           },
+          resourceDemandMod: {
+            food: 0.1, // 劳役消耗
+            wood: 0.05, // 简易工具
+          },
         },
       },
       {
@@ -467,6 +554,10 @@ export const EPOCH_EVENTS = [
             artisan: 10,
             merchant: -5,
           },
+          resourceDemandMod: {
+            silver: 0.05, // 支付工资
+            food: 0.03, // 雇佣工人
+          },
         },
       },
       {
@@ -481,6 +572,10 @@ export const EPOCH_EVENTS = [
             landowner: -20,
             peasant: 20,
           },
+          resourceDemandMod: {
+            food: 0.02, // 贵族贡献
+            silver: 0.01,
+          },
         },
       },
       {
@@ -491,6 +586,9 @@ export const EPOCH_EVENTS = [
           approval: {
             peasant: -10,
             landowner: 5,
+          },
+          stratumDemandMod: {
+            peasant: -0.05, // 农民不满
           },
         },
       },
@@ -519,6 +617,10 @@ export const EPOCH_EVENTS = [
             landowner: 20,
             peasant: -20,
           },
+          resourceDemandMod: {
+            tools: 0.1, // 镇压消耗
+            food: 0.05,
+          },
         },
       },
       {
@@ -531,6 +633,10 @@ export const EPOCH_EVENTS = [
             landowner: -25,
             peasant: 15,
             artisan: 10,
+          },
+          resourceDemandMod: {
+            food: 0.08, // 释放奴隶
+            silver: 0.03,
           },
         },
       },
@@ -546,6 +652,9 @@ export const EPOCH_EVENTS = [
           approval: {
             landowner: -10,
             peasant: 5,
+          },
+          resourceDemandMod: {
+            food: 0.05, // 改善待遇
           },
         },
       },
@@ -576,6 +685,10 @@ export const EPOCH_EVENTS = [
             landowner: 10,
             soldier: -10,
           },
+          resourceDemandMod: {
+            silver: 0.05, // 联盟贡献
+            tools: 0.03, // 军事义务
+          },
         },
       },
       {
@@ -590,6 +703,9 @@ export const EPOCH_EVENTS = [
             merchant: 15,
             soldier: 5,
           },
+          resourceDemandMod: {
+            silver: 0.03, // 贸易合作
+          },
         },
       },
       {
@@ -601,6 +717,9 @@ export const EPOCH_EVENTS = [
           approval: {
             soldier: 15,
             merchant: -15,
+          },
+          stratumDemandMod: {
+            merchant: -0.08, // 错失贸易机会
           },
         },
       },
@@ -635,6 +754,10 @@ export const EPOCH_EVENTS = [
             cleric: -20,
             merchant: 10,
           },
+          resourceDemandMod: {
+            papyrus: 0.1, // 哲学著作
+            culture: 0.05,
+          },
         },
       },
       {
@@ -642,7 +765,7 @@ export const EPOCH_EVENTS = [
         text: '支持传统派',
         description: '祖先的美德才是社会的基石。',
         effects: {
-          xl: {
+          resourcePercent: {
             culture: 0.05,
           },
           stability: 10,
@@ -651,6 +774,9 @@ export const EPOCH_EVENTS = [
             scribe: -15,
             landowner: 15,
           },
+          resourceDemandMod: {
+            culture: 0.08, // 传统美德
+          },
         },
       },
       {
@@ -658,7 +784,7 @@ export const EPOCH_EVENTS = [
         text: '举办公开辩论',
         description: '让两派公平竞争，由民众评判。',
         effects: {
-          xl: {
+          resourcePercent: {
             culture: 0.03,
             science: 0.03,
           },
@@ -666,6 +792,9 @@ export const EPOCH_EVENTS = [
             scribe: 15,
             cleric: 5,
             peasant: 10,
+          },
+          resourceDemandMod: {
+            papyrus: 0.05, // 辩论记录
           },
         },
       },
@@ -679,6 +808,9 @@ export const EPOCH_EVENTS = [
             scribe: -30,
             cleric: -10,
             soldier: 10,
+          },
+          stratumDemandMod: {
+            scribe: -0.15, // 思想禁锢
           },
         },
       },
@@ -700,7 +832,7 @@ export const EPOCH_EVENTS = [
         text: '举办盛大运动会',
         description: '不惜代价展示国家实力。',
         effects: {
-          xl: {
+          resourcePercent: {
             silver: -0.04,
             culture: 0.08,
           },
@@ -709,6 +841,10 @@ export const EPOCH_EVENTS = [
             landowner: 20,
             soldier: 25,
             peasant: 15,
+          },
+          resourceDemandMod: {
+            food: 0.1, // 运动员和观众
+            silver: 0.05, // 组织费用
           },
         },
       },
@@ -726,6 +862,10 @@ export const EPOCH_EVENTS = [
             soldier: 15,
             peasant: 10,
           },
+          resourceDemandMod: {
+            food: 0.05, // 运动员和观众
+            silver: 0.02, // 组织费用
+          },
         },
       },
       {
@@ -737,6 +877,9 @@ export const EPOCH_EVENTS = [
             landowner: -15,
             soldier: -10,
             merchant: 10,
+          },
+          stratumDemandMod: {
+            landowner: -0.08, // 贵族不满
           },
         },
       },
@@ -766,6 +909,9 @@ export const EPOCH_EVENTS = [
             landowner: -30,
             cleric: -15,
           },
+          resourceDemandMod: {
+            papyrus: 0.15, // 法律文件
+          },
         },
       },
       {
@@ -779,6 +925,9 @@ export const EPOCH_EVENTS = [
             artisan: 15,
             landowner: -10,
           },
+          resourceDemandMod: {
+            food: 0.03, // 供养新居民
+          },
         },
       },
       {
@@ -791,6 +940,9 @@ export const EPOCH_EVENTS = [
             landowner: 20,
             peasant: -25,
             artisan: -20,
+          },
+          stratumDemandMod: {
+            peasant: -0.1, // 农民不满
           },
         },
       },
@@ -821,6 +973,9 @@ export const EPOCH_EVENTS = [
             peasant: 15,
             landowner: -15,
           },
+          resourceDemandMod: {
+            culture: 0.1, // 戏剧创作
+          },
         },
       },
       {
@@ -837,6 +992,9 @@ export const EPOCH_EVENTS = [
             soldier: 10,
             scribe: -20,
           },
+          stratumDemandMod: {
+            scribe: -0.1, // 艺术受限
+          },
         },
       },
       {
@@ -851,6 +1009,9 @@ export const EPOCH_EVENTS = [
             scribe: 15,
             peasant: 10,
             merchant: 10,
+          },
+          resourceDemandMod: {
+            culture: 0.08, // 艺术繁荣
           },
         },
       },
@@ -881,6 +1042,10 @@ export const EPOCH_EVENTS = [
             soldier: 15,
             cleric: -15,
           },
+          resourceDemandMod: {
+            food: 0.1, // 角斗士和观众
+            tools: 0.05, // 武器
+          },
         },
       },
       {
@@ -896,6 +1061,10 @@ export const EPOCH_EVENTS = [
             cleric: 10,
             peasant: 5,
           },
+          resourceDemandMod: {
+            stone: 0.05, // 建造材料
+            tools: 0.03,
+          },
         },
       },
       {
@@ -908,6 +1077,9 @@ export const EPOCH_EVENTS = [
             cleric: 25,
             peasant: -20,
             soldier: -15,
+          },
+          stratumDemandMod: {
+            peasant: -0.1, // 娱乐减少
           },
         },
       },
@@ -944,6 +1116,10 @@ export const EPOCH_EVENTS = [
             landowner: 15,
             peasant: -20,
           },
+          resourceDemandMod: {
+            food: 0.1, // 军队补给
+            tools: 0.08, // 武器
+          },
         },
         randomEffects: [
           {
@@ -978,6 +1154,10 @@ export const EPOCH_EVENTS = [
             cleric: 15,
             soldier: 10,
           },
+          resourceDemandMod: {
+            food: 0.05, // 军队补给
+            tools: 0.03, // 武器
+          },
         },
       },
       {
@@ -993,6 +1173,9 @@ export const EPOCH_EVENTS = [
             soldier: -10,
             merchant: -5,
           },
+          resourceDemandMod: {
+            silver: 0.05, // 资金支持
+          },
         },
       },
       {
@@ -1005,6 +1188,9 @@ export const EPOCH_EVENTS = [
             soldier: -15,
             merchant: 15,
             peasant: 10,
+          },
+          stratumDemandMod: {
+            cleric: -0.1, // 教会不满
           },
         },
       },
@@ -1036,6 +1222,10 @@ export const EPOCH_EVENTS = [
             peasant: -10,
             cleric: 10,
           },
+          resourceDemandMod: {
+            cloth: 0.1, // 隔离用品
+            food: 0.05, // 隔离区补给
+          },
         },
       },
       {
@@ -1049,6 +1239,9 @@ export const EPOCH_EVENTS = [
             peasant: 10,
             merchant: -20,
             cleric: -10,
+          },
+          stratumDemandMod: {
+            merchant: -0.1, // 商业受损
           },
         },
       },
@@ -1065,6 +1258,9 @@ export const EPOCH_EVENTS = [
             cleric: 25,
             peasant: 5,
           },
+          resourceDemandMod: {
+            culture: 0.08, // 宗教仪式
+          },
         },
       },
       {
@@ -1080,6 +1276,10 @@ export const EPOCH_EVENTS = [
           approval: {
             scribe: 20,
             cleric: -15,
+          },
+          resourceDemandMod: {
+            papyrus: 0.05, // 医疗记录
+            silver: 0.03, // 医疗开销
           },
         },
       },
@@ -1111,6 +1311,10 @@ export const EPOCH_EVENTS = [
             soldier: 15,
             peasant: -35,
           },
+          resourceDemandMod: {
+            tools: 0.15, // 镇压消耗
+            food: 0.08,
+          },
         },
       },
       {
@@ -1127,6 +1331,10 @@ export const EPOCH_EVENTS = [
             landowner: -20,
             artisan: 10,
           },
+          resourceDemandMod: {
+            silver: 0.05, // 谈判让步
+            food: 0.03,
+          },
         },
       },
       {
@@ -1137,6 +1345,9 @@ export const EPOCH_EVENTS = [
           stability: 5,
           approval: {
             peasant: 10,
+          },
+          stratumDemandMod: {
+            peasant: 0.05, // 暂时安抚
           },
         },
         randomEffects: [
@@ -1193,6 +1404,10 @@ export const EPOCH_EVENTS = [
             cleric: 10,
             peasant: 5,
           },
+          resourceDemandMod: {
+            food: 0.05, // 改善待遇
+            silver: 0.02, // 赎身费用
+          },
         },
       },
       {
@@ -1208,6 +1423,10 @@ export const EPOCH_EVENTS = [
             cleric: -25,
             merchant: 20,
             artisan: 15,
+          },
+          resourceDemandMod: {
+            silver: 0.05, // 市政建设
+            brick: 0.05,
           },
         },
       },
@@ -1238,6 +1457,10 @@ export const EPOCH_EVENTS = [
             merchant: -20,
             peasant: -10,
           },
+          resourceDemandMod: {
+            tools: 0.1, // 行会生产
+            cloth: 0.05,
+          },
         },
       },
       {
@@ -1253,6 +1476,10 @@ export const EPOCH_EVENTS = [
             merchant: 25,
             peasant: 15,
           },
+          resourceDemandMod: {
+            tools: 0.08, // 自由竞争
+            cloth: 0.03,
+          },
         },
       },
       {
@@ -1265,6 +1492,9 @@ export const EPOCH_EVENTS = [
             artisan: -5,
             merchant: 10,
             peasant: 5,
+          },
+          stratumDemandMod: {
+            artisan: -0.03, // 妥协
           },
         },
       },
@@ -1301,6 +1531,10 @@ export const EPOCH_EVENTS = [
             cleric: -20,
             peasant: -10,
           },
+          resourceDemandMod: {
+            food: 0.1, // 殖民者补给
+            tools: 0.08, // 武器
+          },
         },
       },
       {
@@ -1317,6 +1551,10 @@ export const EPOCH_EVENTS = [
             cleric: 10,
             soldier: -10,
           },
+          resourceDemandMod: {
+            spice: 0.1, // 贸易商品
+            silver: 0.05,
+          },
         },
       },
       {
@@ -1332,6 +1570,9 @@ export const EPOCH_EVENTS = [
             cleric: 30,
             merchant: 5,
           },
+          resourceDemandMod: {
+            culture: 0.1, // 传教活动
+          },
         },
       },
       {
@@ -1346,6 +1587,9 @@ export const EPOCH_EVENTS = [
           approval: {
             merchant: 10,
             cleric: 5,
+          },
+          resourceDemandMod: {
+            spice: 0.05, // 贸易商品
           },
         },
       },
@@ -1376,6 +1620,9 @@ export const EPOCH_EVENTS = [
             merchant: 20,
             cleric: -25,
           },
+          resourceDemandMod: {
+            papyrus: 0.15, // 印刷材料
+          },
         },
       },
       {
@@ -1391,6 +1638,9 @@ export const EPOCH_EVENTS = [
             cleric: 15,
             scribe: -10,
           },
+          resourceDemandMod: {
+            papyrus: 0.05, // 审查
+          },
         },
       },
       {
@@ -1403,6 +1653,9 @@ export const EPOCH_EVENTS = [
             cleric: 20,
             scribe: -35,
             merchant: -20,
+          },
+          stratumDemandMod: {
+            scribe: -0.15, // 思想禁锢
           },
         },
       },
@@ -1450,6 +1703,9 @@ export const EPOCH_EVENTS = [
             scribe: -20,
             peasant: -10,
           },
+          stratumDemandMod: {
+            scribe: -0.1, // 压制改革
+          },
         },
       },
       {
@@ -1463,6 +1719,9 @@ export const EPOCH_EVENTS = [
             scribe: 15,
             merchant: 25,
             peasant: 10,
+          },
+          resourceDemandMod: {
+            silver: 0.08, // 纳贡费用
           },
         },
       },
@@ -1493,6 +1752,10 @@ export const EPOCH_EVENTS = [
             soldier: 20,
             peasant: -15,
           },
+          resourceDemandMod: {
+            tools: 0.15, // 军事消耗
+            silver: 0.08, // 战争开销
+          },
         },
         randomEffects: [
           {
@@ -1516,6 +1779,10 @@ export const EPOCH_EVENTS = [
             merchant: 30,
             landowner: -10,
           },
+          resourceDemandMod: {
+            silver: 0.05, // 公司投资
+            plank: 0.05, // 造船
+          },
         },
       },
       {
@@ -1530,6 +1797,10 @@ export const EPOCH_EVENTS = [
           approval: {
             merchant: 15,
             scribe: 15,
+          },
+          resourceDemandMod: {
+            silver: 0.03, // 探险费用
+            science: 0.02,
           },
         },
       },
@@ -1558,6 +1829,9 @@ export const EPOCH_EVENTS = [
             peasant: 10,
             scribe: -25,
           },
+          resourceDemandMod: {
+            culture: 0.1, // 迷信活动
+          },
         },
       },
       {
@@ -1573,6 +1847,9 @@ export const EPOCH_EVENTS = [
             cleric: -10,
             peasant: -5,
           },
+          resourceDemandMod: {
+            silver: 0.02, // 调查费用
+          },
         },
       },
       {
@@ -1585,6 +1862,9 @@ export const EPOCH_EVENTS = [
             cleric: -30,
             scribe: 30,
             peasant: -15,
+          },
+          stratumDemandMod: {
+            cleric: -0.15, // 教会不满
           },
         },
       },
@@ -1621,6 +1901,10 @@ export const EPOCH_EVENTS = [
             cleric: -25,
             landowner: -15,
           },
+          resourceDemandMod: {
+            papyrus: 0.15, // 知识传播
+            silver: 0.05, // 资助
+          },
         },
       },
       {
@@ -1637,6 +1921,9 @@ export const EPOCH_EVENTS = [
             scribe: 5,
             cleric: 5,
           },
+          resourceDemandMod: {
+            papyrus: 0.08, // 审查成本
+          },
         },
       },
       {
@@ -1650,6 +1937,9 @@ export const EPOCH_EVENTS = [
             landowner: 15,
             scribe: -35,
             merchant: -15,
+          },
+          stratumDemandMod: {
+            scribe: -0.15, // 思想禁锢
           },
         },
       },
@@ -1681,6 +1971,10 @@ export const EPOCH_EVENTS = [
             landowner: 15,
             cleric: -15,
           },
+          resourceDemandMod: {
+            coffee: 0.1, // 咖啡消费
+            delicacies: 0.05,
+          },
         },
       },
       {
@@ -1696,6 +1990,9 @@ export const EPOCH_EVENTS = [
             scribe: -10,
             landowner: 5,
           },
+          resourceDemandMod: {
+            silver: 0.02, // 监控成本
+          },
         },
       },
       {
@@ -1708,6 +2005,9 @@ export const EPOCH_EVENTS = [
             scribe: -30,
             landowner: -20,
             cleric: 10,
+          },
+          stratumDemandMod: {
+            scribe: -0.15, // 思想压制
           },
         },
       },
@@ -1740,6 +2040,9 @@ export const EPOCH_EVENTS = [
             landowner: -25,
             cleric: -20,
           },
+          resourceDemandMod: {
+            papyrus: 0.15, // 理论传播
+          },
         },
       },
       {
@@ -1754,6 +2057,9 @@ export const EPOCH_EVENTS = [
             scribe: 10,
             landowner: -5,
           },
+          resourceDemandMod: {
+            papyrus: 0.05, // 学术研究
+          },
         },
       },
       {
@@ -1767,6 +2073,9 @@ export const EPOCH_EVENTS = [
             landowner: 15,
             scribe: -40,
             peasant: -15,
+          },
+          stratumDemandMod: {
+            scribe: -0.2, // 思想压制
           },
         },
       },
@@ -1797,6 +2106,10 @@ export const EPOCH_EVENTS = [
             merchant: 15,
             landowner: -10,
           },
+          resourceDemandMod: {
+            silver: 0.05, // 资助
+            papyrus: 0.1, // 研究材料
+          },
         },
       },
       {
@@ -1824,6 +2137,9 @@ export const EPOCH_EVENTS = [
           approval: {
             merchant: 15,
             scribe: 10,
+          },
+          resourceDemandMod: {
+            silver: 0.02, // 私人资助
           },
         },
       },
@@ -1855,6 +2171,10 @@ export const EPOCH_EVENTS = [
             cleric: -25,
             peasant: -15,
           },
+          resourceDemandMod: {
+            silver: 0.03, // 疫苗成本
+            science: 0.02,
+          },
         },
       },
       {
@@ -1871,6 +2191,10 @@ export const EPOCH_EVENTS = [
             scribe: 15,
             peasant: 5,
           },
+          resourceDemandMod: {
+            silver: 0.01, // 疫苗成本
+            science: 0.01,
+          },
         },
       },
       {
@@ -1882,6 +2206,9 @@ export const EPOCH_EVENTS = [
             cleric: 20,
             peasant: 10,
             scribe: -30,
+          },
+          stratumDemandMod: {
+            scribe: -0.15, // 科学受阻
           },
         },
       },
@@ -1916,6 +2243,10 @@ export const EPOCH_EVENTS = [
             merchant: -25,
             landowner: -15,
           },
+          resourceDemandMod: {
+            silver: 0.02, // 监管成本
+            tools: 0.05, // 安全设备
+          },
         },
       },
       {
@@ -1929,6 +2260,9 @@ export const EPOCH_EVENTS = [
           approval: {
             worker: 15,
             merchant: -5,
+          },
+          resourceDemandMod: {
+            silver: 0.01, // 改革成本
           },
         },
       },
@@ -1945,6 +2279,9 @@ export const EPOCH_EVENTS = [
             merchant: 25,
             worker: -30,
             artisan: -20,
+          },
+          stratumDemandMod: {
+            worker: -0.15, // 工人不满
           },
         },
       },
@@ -1970,10 +2307,15 @@ export const EPOCH_EVENTS = [
             science: 0.04,
           },
           populationCapacity: 50,
+          resourceDemandMod: { iron: 0.3, coal: 0.25, wood: 0.2 },
           approval: {
             worker: 20,
             merchant: -15,
             landowner: -10,
+          },
+          resourceDemandMod: {
+            steel: 0.15, // 铁路建设
+            coal: 0.1,
           },
         },
       },
@@ -1987,9 +2329,14 @@ export const EPOCH_EVENTS = [
             science: 0.03,
           },
           populationCapacity: 30,
+          resourceDemandMod: { iron: 0.2, coal: 0.15, wood: 0.15 },
           approval: {
             merchant: 15,
             worker: 10,
+          },
+          resourceDemandMod: {
+            steel: 0.1, // 铁路建设
+            coal: 0.05,
           },
         },
       },
@@ -2001,8 +2348,12 @@ export const EPOCH_EVENTS = [
           resourcePercent: {
             science: 0.02,
           },
+          resourceDemandMod: { iron: 0.15, coal: 0.1 },
           approval: {
             merchant: 25,
+          },
+          resourceDemandMod: {
+            steel: 0.08, // 铁路建设
           },
         },
         randomEffects: [
@@ -2034,11 +2385,16 @@ export const EPOCH_EVENTS = [
         description: '承认工人组织和集体谈判的权利。',
         effects: {
           stability: 5,
+          resourceDemandMod: { food: 0.15, cloth: 0.1 },
           approval: {
             worker: 40,
             artisan: 25,
             merchant: -30,
             landowner: -20,
+          },
+          resourceDemandMod: {
+            food: 0.1, // 工人消费
+            cloth: 0.05,
           },
         },
       },
@@ -2047,9 +2403,13 @@ export const EPOCH_EVENTS = [
         text: '有限承认',
         description: '允许工会存在，但限制其活动。',
         effects: {
+          resourceDemandMod: { food: 0.05 },
           approval: {
             worker: 15,
             merchant: -10,
+          },
+          resourceDemandMod: {
+            food: 0.05, // 工人消费
           },
         },
       },
@@ -2059,6 +2419,7 @@ export const EPOCH_EVENTS = [
         description: '工人结社是对社会秩序的威胁。',
         effects: {
           stability: -15,
+          resourceDemandMod: { food: -0.1 },
           approval: {
             merchant: 20,
             landowner: 15,
@@ -2088,6 +2449,7 @@ export const EPOCH_EVENTS = [
             silver: -0.05,
           },
           populationCapacity: 40,
+          resourceDemandMod: { wood: 0.3, stone: 0.25, brick: 0.2 },
           stability: 10,
           approval: {
             worker: 30,
@@ -2110,6 +2472,10 @@ export const EPOCH_EVENTS = [
             merchant: 15,
             worker: 5,
           },
+          resourceDemandMod: {
+            brick: 0.08, // 住房建设
+            steel: 0.03,
+          },
         },
       },
       {
@@ -2123,6 +2489,9 @@ export const EPOCH_EVENTS = [
             landowner: 15,
             worker: -30,
             peasant: -25,
+          },
+          stratumDemandMod: {
+            worker: -0.15, // 居民流离失所
           },
         },
       },
@@ -2144,6 +2513,7 @@ export const EPOCH_EVENTS = [
         description: '逮捕传播者，查禁书籍。',
         effects: {
           stability: 5,
+          resourceDemandMod: { food: -0.1 },
           approval: {
             landowner: 20,
             merchant: 15,
@@ -2161,10 +2531,15 @@ export const EPOCH_EVENTS = [
             silver: -0.03,
           },
           stability: 10,
+          resourceDemandMod: { food: 0.05, cloth: 0.08 },
           approval: {
             worker: 20,
             artisan: 15,
             merchant: -15,
+          },
+          resourceDemandMod: {
+            food: 0.05, // 改善生活
+            cloth: 0.03,
           },
         },
       },
@@ -2177,6 +2552,7 @@ export const EPOCH_EVENTS = [
             culture: 0.03,
           },
           stability: -15,
+          resourceDemandMod: { culture: 0.1 },
           approval: {
             worker: 25,
             scribe: 20,
@@ -2284,6 +2660,10 @@ export const EPOCH_EVENTS = [
             peasant: 10,
             merchant: -10,
           },
+          resourceDemandMod: {
+            papyrus: 0.1, // 讲学材料
+            silver: 0.05, // 聘请费用
+          },
         },
       },
       {
@@ -2353,6 +2733,10 @@ export const EPOCH_EVENTS = [
             worker: -35,
             serf: -40,
           },
+          resourceDemandMod: {
+            stone: 0.2, // 建造材料
+            food: 0.15, // 劳工补给
+          },
         },
         randomEffects: [
           {
@@ -2392,6 +2776,9 @@ export const EPOCH_EVENTS = [
           approval: {
             soldier: 15,
             peasant: -10,
+          },
+          stratumDemandMod: {
+            peasant: -0.05, // 弱者不满
           },
         },
       },
@@ -2453,6 +2840,10 @@ export const EPOCH_EVENTS = [
             official: 15,
             landowner: -30,
           },
+          resourceDemandMod: {
+            tools: 0.15, // 军事消耗
+            food: 0.1,
+          },
         },
         randomEffects: [
           {
@@ -2494,6 +2885,9 @@ export const EPOCH_EVENTS = [
             official: -20,
             soldier: -15,
           },
+          stratumDemandMod: {
+            official: -0.1, // 官员不满
+          },
         },
       },
       {
@@ -2506,6 +2900,9 @@ export const EPOCH_EVENTS = [
             landowner: 40,
             official: -30,
             peasant: -10,
+          },
+          stratumDemandMod: {
+            official: -0.15, // 官员不满
           },
         },
       },
@@ -2543,6 +2940,9 @@ export const EPOCH_EVENTS = [
             peasant: -25,
             merchant: -30,
           },
+          resourceDemandMod: {
+            silver: 0.05, // 逃亡消耗
+          },
         },
         randomEffects: [
           {
@@ -2570,6 +2970,10 @@ export const EPOCH_EVENTS = [
             soldier: 25,
             official: 20,
             peasant: 10,
+          },
+          resourceDemandMod: {
+            tools: 0.2, // 军事消耗
+            food: 0.15,
           },
         },
         randomEffects: [
@@ -2611,6 +3015,9 @@ export const EPOCH_EVENTS = [
             soldier: -15,
             peasant: -20,
             official: 10,
+          },
+          resourceDemandMod: {
+            silver: 0.08, // 借兵费用
           },
         },
         randomEffects: [
@@ -2665,6 +3072,9 @@ export const EPOCH_EVENTS = [
             landowner: 20,
             merchant: 15,
           },
+          resourceDemandMod: {
+            silver: 0.05, // 赏赐
+          },
         },
       },
       {
@@ -2681,6 +3091,9 @@ export const EPOCH_EVENTS = [
             knight: -15,
             official: 15,
           },
+          stratumDemandMod: {
+            soldier: -0.05, // 军方不满
+          },
         },
       },
       {
@@ -2692,6 +3105,9 @@ export const EPOCH_EVENTS = [
             soldier: 20,
             knight: 25,
             official: -10,
+          },
+          stratumDemandMod: {
+            official: -0.05, // 官员不满
           },
         },
         randomEffects: [
@@ -2739,6 +3155,10 @@ export const EPOCH_EVENTS = [
             peasant: 15,
             soldier: 20,
           },
+          resourceDemandMod: {
+            papyrus: 0.1, // 变法文件
+            silver: 0.05, // 推广费用
+          },
         },
         randomEffects: [
           {
@@ -2779,6 +3199,10 @@ export const EPOCH_EVENTS = [
             merchant: 10,
             peasant: 5,
           },
+          resourceDemandMod: {
+            papyrus: 0.05, // 试点文件
+            silver: 0.02,
+          },
         },
       },
       {
@@ -2792,6 +3216,9 @@ export const EPOCH_EVENTS = [
             landowner: 25,
             merchant: -15,
             peasant: -10,
+          },
+          stratumDemandMod: {
+            peasant: -0.05, // 农民不满
           },
         },
       },
@@ -2822,6 +3249,10 @@ export const EPOCH_EVENTS = [
           approval: {
             soldier: 30,
             official: -25,
+          },
+          resourceDemandMod: {
+            tools: 0.2, // 军事消耗
+            food: 0.15,
           },
         },
         randomEffects: [
@@ -2869,6 +3300,10 @@ export const EPOCH_EVENTS = [
           approval: {
             soldier: 15,
             official: 15,
+          },
+          resourceDemandMod: {
+            tools: 0.1, // 军事消耗
+            food: 0.08,
           },
         },
         randomEffects: [
@@ -2932,6 +3367,10 @@ export const EPOCH_EVENTS = [
             merchant: 20,
             worker: 15,
           },
+          resourceDemandMod: {
+            papyrus: 0.1, // 改革文件
+            silver: 0.05, // 推广费用
+          },
         },
         randomEffects: [
           {
@@ -2970,6 +3409,10 @@ export const EPOCH_EVENTS = [
             landowner: -15,
             peasant: 10,
           },
+          resourceDemandMod: {
+            papyrus: 0.05, // 改革文件
+            silver: 0.02,
+          },
         },
       },
       {
@@ -2983,6 +3426,10 @@ export const EPOCH_EVENTS = [
             landowner: 30,
             peasant: -20,
             merchant: -15,
+          },
+          resourceDemandMod: {
+            brick: 0.15, // 住房建设
+            steel: 0.08,
           },
         },
       },
@@ -3017,6 +3464,10 @@ export const EPOCH_EVENTS = [
             peasant: 30,
             worker: 25,
             merchant: 10,
+          },
+          resourceDemandMod: {
+            silver: 0.05, // 征税成本
+            papyrus: 0.03, // 记录
           },
         },
         randomEffects: [
@@ -3058,6 +3509,10 @@ export const EPOCH_EVENTS = [
             scribe: -10,
             peasant: 15,
           },
+          resourceDemandMod: {
+            silver: 0.02, // 改革成本
+            papyrus: 0.01,
+          },
         },
       },
       {
@@ -3072,6 +3527,9 @@ export const EPOCH_EVENTS = [
             scribe: 20,
             peasant: -20,
             worker: -15,
+          },
+          resourceDemandMod: {
+            papyrus: 0.05, // 讲学材料
           },
         },
       },
@@ -3150,6 +3608,10 @@ export const EPOCH_EVENTS = [
             official: 5,
             soldier: -10,
           },
+          resourceDemandMod: {
+            silver: 0.02, // 贸易商品
+            tools: 0.01,
+          },
         },
       },
       {
@@ -3215,6 +3677,10 @@ export const EPOCH_EVENTS = [
             landowner: -30,
             peasant: -20,
           },
+          resourceDemandMod: {
+            tools: 0.15, // 军事消耗
+            food: 0.1,
+          },
         },
         randomEffects: [
           {
@@ -3239,6 +3705,9 @@ export const EPOCH_EVENTS = [
             landowner: 15,
             merchant: 10,
           },
+          resourceDemandMod: {
+            silver: 0.03, // 谈判成本
+          },
         },
       },
       {
@@ -3256,6 +3725,9 @@ export const EPOCH_EVENTS = [
             merchant: 20,
             peasant: 15,
             worker: 10,
+          },
+          resourceDemandMod: {
+            culture: 0.05, // 宗教自由
           },
         },
       },

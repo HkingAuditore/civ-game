@@ -260,7 +260,7 @@ export const TECHS = [
   {
     id: 'bureaucracy',
     name: "官僚制度",
-    desc: "解锁市政厅，建立高效的行政管理体系。所有建筑效率 +5%，每日被动获得 0.3 文化。",
+    desc: "解锁市政厅，建立高效的行政管理体系。采集、工业、市政建筑效率 +5%，每日被动获得 0.3 文化。",
     cost: { science: 1200 },
     epoch: 3,
     effects: { categories: { gather: 0.05, industry: 0.05, civic: 0.05 }, passive: { culture: 0.3 } },
@@ -472,7 +472,7 @@ export const TECHS = [
   {
     id: 'mechanized_weaving',
     name: "机械织布",
-    desc: "解锁纺织厂，水力驱动的飞梭织机大幅提升布料产量。",
+    desc: "解锁织布坊和成衣作坊，水力驱动的飞梭织机大幅提升布料产量。织布坊效率 +20%，成衣作坊效率 +15%。",
     cost: { science: 3000 },
     epoch: 5,
     effects: { buildings: { loom_house: 0.20, tailor_workshop: 0.15 } },
@@ -480,7 +480,7 @@ export const TECHS = [
   {
     id: 'assembly_line',
     name: "流水线生产",
-    desc: "解锁服装工厂，标准化分工使产量翻倍。",
+    desc: "解锁纺织厂和服装工厂，标准化分工使产量大幅提升。纺织厂效率 +25%，服装工厂效率 +20%。",
     cost: { science: 5800 },
     epoch: 6,
     effects: { buildings: { textile_mill: 0.25, garment_factory: 0.20 } },
@@ -490,7 +490,7 @@ export const TECHS = [
   {
     id: 'hydraulic_sawing',
     name: "水力锯切",
-    desc: "解锁木材加工厂，水轮驱动的圆锯效率远超手工。",
+    desc: "解锁锯木厂和伐木场升级，水轮驱动的圆锯效率远超手工。锯木厂效率 +25%，伐木场效率 +15%。",
     cost: { science: 2800 },
     epoch: 5,
     effects: { buildings: { sawmill: 0.25, lumber_camp: 0.15 } },
@@ -498,7 +498,7 @@ export const TECHS = [
   {
     id: 'mass_production',
     name: "大规模生产",
-    desc: "解锁家具工厂，标准化零件实现批量生产。",
+    desc: "解锁木材加工厂和家具工坊，标准化零件实现批量生产。木材加工厂效率 +20%，家具工坊效率 +25%。",
     cost: { science: 5600 },
     epoch: 6,
     effects: { buildings: { lumber_mill: 0.20, furniture_workshop: 0.25 } },
@@ -508,7 +508,7 @@ export const TECHS = [
   {
     id: 'advanced_metallurgy',
     name: "先进冶金",
-    desc: "解锁冶金工坊，改良熔炉与合金配方提升工具质量。",
+    desc: "解锁铁器铺和青铜铸坊升级，改良熔炉与合金配方提升工具质量。铁器铺效率 +20%，青铜铸坊效率 +15%。",
     cost: { science: 2200 },
     epoch: 4,
     effects: { buildings: { iron_tool_workshop: 0.20, bronze_foundry: 0.15 } },
@@ -516,7 +516,7 @@ export const TECHS = [
   {
     id: 'bessemer_process',
     name: "贝塞麦炼钢法",
-    desc: "解锁钢铁联合体，吹入空气快速去碳，钢铁产量剧增。",
+    desc: "解锁炼钢厂和冶金工坊，吹入空气快速去碳，钢铁产量剧增。炼钢厂效率 +30%，冶金工坊效率 +25%。",
     cost: { science: 6200 },
     epoch: 6,
     effects: { buildings: { steel_foundry: 0.30, metallurgy_workshop: 0.25 } },
@@ -526,7 +526,7 @@ export const TECHS = [
   {
     id: 'industrial_ceramics',
     name: "工业陶瓷",
-    desc: "解锁建材厂，环形窑与传送带实现连续烧制。",
+    desc: "解锁砖窯升级，环形窑与传送带实现连续烧制。砖窯效率 +25%。",
     cost: { science: 2600 },
     epoch: 5,
     effects: { buildings: { brickworks: 0.25 } },
@@ -534,7 +534,7 @@ export const TECHS = [
   {
     id: 'standardized_construction',
     name: "标准化建筑",
-    desc: "解锁预制构件厂，预制构件加速建设、降低成本。",
+    desc: "解锁建材厂，预制构件加速建设、降低成本。建材厂效率 +25%，人口上限 +15。",
     cost: { science: 5400 },
     epoch: 6,
     effects: { buildings: { building_materials_plant: 0.25 }, maxPop: 15 },
@@ -570,7 +570,7 @@ export const TECHS = [
   {
     id: 'mass_media',
     name: "大众传媒",
-    desc: "解锁出版社，报纸杂志覆盖全民，舆论力量崛起。",
+    desc: "解锁印刷所和出版社，报纸杂志覆盖全民，舆论力量崛起。印刷所效率 +30%，出版社效率 +20%。",
     cost: { science: 5500 },
     epoch: 6,
     effects: { buildings: { printing_house: 0.30, publishing_house: 0.20 } },
@@ -630,7 +630,7 @@ export const TECHS = [
   {
     id: 'financial_capitalism',
     name: "金融资本主义",
-    desc: "解锁证券交易所，股票与债券调配社会资本。",
+    desc: "解锁证券交易所，股票与债券调配社会资本。贸易港效率 +20%，铁路枢纽效率 +15%，每日被动获得 2 银币。",
     cost: { science: 6500 },
     epoch: 6,
     effects: { buildings: { trade_port: 0.20, rail_depot: 0.15 }, passive: { silver: 2 } },
