@@ -33,8 +33,6 @@ export const BASE_EVENTS = [
           },
           buildingProductionMod: {
             market: -0.2,     // 市场和贸易活动受阻
-            trade_port: -0.2, // 港口贸易受阻
-            gather: -0.1,     // 采集活动减少
           },
         },
       },
@@ -55,14 +53,6 @@ export const BASE_EVENTS = [
           resourceDemandMod: {
             culture: 0.15,  // 宗教仪式需求增加
           },
-          stratumDemandMod: {
-            cleric: 0.1,    // 神职人员活动增加
-          },
-          buildingProductionMod: {
-            farm: -0.15,     // 农田生产受到影响
-            industry: -0.1,  // 工业生产受到影响
-            gather: -0.1,    // 采集活动减少
-          },
         },
       },
       {
@@ -77,12 +67,7 @@ export const BASE_EVENTS = [
             merchant: -15,
           },
           resourceDemandMod: {
-            cloth: 0.25,    // 医疗需求增加
             food: 0.15,     // 病人需要更多食物
-          },
-          stratumDemandMod: {
-            peasant: -0.2,  // 农民需求减少（生病）
-            worker: -0.15,  // 工人需求减少
           },
           buildingProductionMod: {
             all: -0.25,     // 所有建筑生产大幅下降
@@ -117,17 +102,12 @@ export const BASE_EVENTS = [
           },
           resourceDemandMod: {
             spice: 0.2,        // 香料需求增加
-            cloth: 0.15,       // 布料需求增加
-            delicacies: 0.1,   // 珍馐需求增加
           },
           stratumDemandMod: {
             merchant: 0.15,    // 商人活动增加
-            landowner: 0.1,    // 地主消费增加
           },
           buildingProductionMod: {
             market: 0.1,       // 市场活动增加
-            furniture_workshop: 0.05, // 奢侈品工坊
-            brewery: 0.05,     // 酿酒坊
           },
         },
       },
@@ -144,10 +124,6 @@ export const BASE_EVENTS = [
           },
           resourceDemandMod: {
             spice: 0.05,       // 贸易仍然进行但需求减少
-            cloth: 0.05,
-          },
-          buildingProductionMod: {
-            market: 0.05,      // 市场活动略微增加
           },
         },
       },
@@ -161,16 +137,11 @@ export const BASE_EVENTS = [
             merchant: -15,
             peasant: -5,
           },
-          resourceDemandMod: {
-            spice: -0.1,       // 外来商品需求减少
-            delicacies: -0.08, // 奢侈品需求减少
-          },
           stratumDemandMod: {
             merchant: -0.1,    // 商人活动减少
           },
           buildingProductionMod: {
             market: -0.1,     // 市场活动减少
-            trade_port: -0.1, // 港口贸易减少
           },
         },
       }    ],
@@ -198,14 +169,9 @@ export const BASE_EVENTS = [
           },
           resourceDemandMod: {
             food: -0.15,      // 食物供应充足，需求减少
-            wood: 0.1,        // 需要木材建造粮仓
-          },
-          stratumDemandMod: {
-            peasant: -0.1,    // 农民需求减少（食物充足）
           },
           buildingProductionMod: {
             farm: 0.2,        // 农田生产增加
-            gather: 0.1,      // 采集活动增加
           },
         },
       },
@@ -222,15 +188,11 @@ export const BASE_EVENTS = [
             merchant: 15,
             peasant: -5,
           },
-          resourceDemandMod: {
-            food: -0.1,       // 食物供应增加，需求减少
-          },
           stratumDemandMod: {
             merchant: 0.15,   // 商人活动增加
           },
           buildingProductionMod: {
             market: 0.15,     // 市场活动增加
-            farm: 0.1,        // 农田继续生产
           },
         },
       },
@@ -250,16 +212,6 @@ export const BASE_EVENTS = [
           },
           resourceDemandMod: {
             ale: 0.25,        // 庆典需要美酒
-            delicacies: 0.2,  // 需要珍馐
-            cloth: 0.15,      // 需要新衣服
-          },
-          stratumDemandMod: {
-            peasant: 0.15,    // 农民消费增加
-            worker: 0.1,      // 工人消费增加
-          },
-          buildingProductionMod: {
-            farm: 0.15,       // 农田生产庆祝
-            industry: 0.1,    // 工业生产庆祝用品
           },
         },
       }    ],
@@ -292,16 +244,9 @@ export const BASE_EVENTS = [
           },
           resourceDemandMod: {
             tools: 0.25,       // 新技术需要更多工具
-            iron: 0.15,        // 可能需要更多金属
-            science: 0.1,      // 科研需求增加
-          },
-          stratumDemandMod: {
-            artisan: 0.2,      // 工匠需求增加
-            engineer: 0.15,    // 工程师需求增加
           },
           buildingProductionMod: {
             industry: 0.15,    // 工业生产效率提升
-            all: 0.05,         // 所有建筑略微提升
           },
         },
       },
@@ -316,13 +261,6 @@ export const BASE_EVENTS = [
           science: 0.02,
           approval: {
             artisan: 10,
-          },
-          resourceDemandMod: {
-            tools: 0.1,        // 工具需求略微增加
-            science: 0.05,     // 科研需求略微增加
-          },
-          stratumDemandMod: {
-            artisan: 0.1,      // 工匠需求略微增加
           },
           buildingProductionMod: {
             industry: 0.08,     // 工业生产略微提升
@@ -344,11 +282,7 @@ export const BASE_EVENTS = [
             merchant: -10,
           },
           resourceDemandMod: {
-            tools: -0.05,      // 工具需求减少（技术不推广）
             science: -0.1,     // 科研需求减少
-          },
-          stratumDemandMod: {
-            artisan: -0.15,    // 工匠需求减少
           },
           buildingProductionMod: {
             industry: -0.05,    // 工业生产下降
@@ -383,16 +317,10 @@ export const BASE_EVENTS = [
           },
           resourceDemandMod: {
             food: 0.25,        // 灾民需要食物
-            cloth: 0.2,        // 需要衣物和帐篷
             wood: 0.3,         // 需要木材重建
-          },
-          stratumDemandMod: {
-            peasant: 0.2,      // 农民需求增加（基本需求）
           },
           buildingProductionMod: {
             farm: -0.3,        // 农田受损严重
-            lumber_camp: -0.25, // 采集活动减少
-            all: -0.1,         // 所有建筑受到影响
           },
         },
       },
@@ -412,13 +340,6 @@ export const BASE_EVENTS = [
           },
           resourceDemandMod: {
             wood: 0.4,         // 重建需要大量木材
-            stone: 0.35,       // 需要石料
-            brick: 0.3,        // 需要砖块
-            tools: 0.2,        // 需要工具
-          },
-          stratumDemandMod: {
-            worker: 0.25,      // 工人需求增加
-            artisan: 0.2,      // 工匠需求增加
           },
           buildingProductionMod: {
             farm: -0.2,        // 农田仍然受损
@@ -442,16 +363,9 @@ export const BASE_EVENTS = [
           },
           resourceDemandMod: {
             food: 0.35,        // 食物需求激增（供应不足）
-            cloth: 0.25,       // 衣物需求增加
-          },
-          stratumDemandMod: {
-            peasant: -0.3,     // 农民需求减少（死亡/迁徙）
-            worker: -0.2,      // 工人需求减少
           },
           buildingProductionMod: {
             farm: -0.4,        // 农田生产严重下降
-            lumber_camp: -0.35,     // 采集活动严重减少
-            industry: -0.25,   // 工业生产下降
           },
         },
       }    ],
@@ -487,15 +401,6 @@ export const BASE_EVENTS = [
           approval: {
             peasant: 18,
           },
-          resourceDemandMod: {
-            food: 0.1,      // 分发粮食后，人们消费更多
-          },
-          stratumDemandMod: {
-            peasant: 0.05,  // 农民活动增加
-          },
-          buildingProductionMod: {
-            farm: 0.1,     // 农场生产略微增加
-          },
         },
       },
       {
@@ -510,15 +415,6 @@ export const BASE_EVENTS = [
           approval: {
             peasant: 8,
           },
-          resourceDemandMod: {
-            tools: 0.15,    // 狩猎需要更多工具
-          },
-          stratumDemandMod: {
-            soldier: 0.1,   // 士兵/猎人活动增加
-          },
-          buildingProductionMod: {
-            lumber_camp: 0.1,    // 采集活动增加
-          },
         },
       },
       {
@@ -529,15 +425,6 @@ export const BASE_EVENTS = [
           stability: -8,
           approval: {
             peasant: -18,
-          },
-          resourceDemandMod: {
-            food: -0.1,     // 人们挨饿，粮食需求减少
-          },
-          stratumDemandMod: {
-            peasant: -0.15, // 农民活动减少
-          },
-          buildingProductionMod: {
-            farm: -0.15,     // 农场生产减少
           },
         },
       },    ],
@@ -2190,7 +2077,7 @@ export const BASE_EVENTS = [
         description: '认为这只是无稽之谈，禁止年轻人冒险。',
         effects: {
           resourcePercent: {
-            culture: -20,
+            culture: -0.2,
           },
           stability: 3,
           approval: {
@@ -2714,7 +2601,7 @@ export const BASE_EVENTS = [
         description: '认为这是浪费资源，拒绝了剧作家的请求。',
         effects: {
           resourcePercent: {
-            culture: -50,
+            culture: -0.5,
           },
           approval: {
             scribe: -10,

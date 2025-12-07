@@ -78,6 +78,43 @@ function GameApp({ gameState }) {
     }
   };
 
+  const formatFestivalEffects = (effects) => {
+    if (!effects) return '无特殊效果。';
+
+    const formatValue = (key, value) => {
+      const positive = value > 0 ? '+' : '';
+      if (['production', 'industry', 'cultureBonus', 'scienceBonus', 'taxIncome', 'militaryBonus', 'stability'].includes(key)) {
+        return `${positive}${(value * 100).toFixed(0)}%`;
+      }
+      return `${positive}${value}`;
+    };
+
+    const effectStrings = Object.entries(effects).map(([key, value]) => {
+      switch (key) {
+        case 'categories':
+          return Object.entries(value).map(([cat, val]) => {
+            const catName = BUILDINGS.find(b => b.category === cat)?.categoryName || cat;
+            return `${catName}类建筑产出 ${formatValue(key, val)}`;
+          }).join('，');
+        case 'maxPop':
+          return `人口上限 ${formatValue(key, value)}`;
+        default:
+          const label = {
+            production: '全局生产',
+            industry: '工业产出',
+            cultureBonus: '文化产出',
+            scienceBonus: '科研产出',
+            taxIncome: '税收收入',
+            militaryBonus: '军事力量',
+            stability: '稳定度',
+          }[key] || key;
+          return `${label} ${formatValue(key, value)}`;
+      }
+    });
+
+    return effectStrings.join('；');
+  };
+
   // 现在 gameState 肯定存在，可以安全调用这些钩子
   const actions = useGameActions(gameState, addLog);
   useGameLoop(gameState, addLog, actions);
@@ -85,6 +122,7 @@ function GameApp({ gameState }) {
   const [showStrata, setShowStrata] = useState(false);
   const lastEventCheckDayRef = useRef(null);
   const [showMarket, setShowMarket] = useState(false);  // 新增：控制国内市场弹窗
+  const [expandedFestival, setExpandedFestival] = useState(null);
 
   // 事件系统：按游戏内天数定期触发随机事件
   useEffect(() => {
@@ -136,7 +174,8 @@ function GameApp({ gameState }) {
     
     // 添加日志
     const effectType = selectedEffect.type === 'permanent' ? '永久' : '短期';
-    addLog(`🎊 庆典效果「${selectedEffect.name}」已激活！（${effectType}）`);
+    const effectsDetail = formatFestivalEffects(selectedEffect.effects);
+    addLog(`🎊 庆典「${selectedEffect.name}」(${effectType})激活：${effectsDetail}`);
   };
 
   // 处理事件选项选择
@@ -760,10 +799,13 @@ function GameApp({ gameState }) {
                     const activatedYear = Math.floor((effect.activatedAt || 0) / 360) + 1;
                     const isPermanent = effect.type === 'permanent';
                     const isExpired = !isPermanent && (gameState.daysElapsed - (effect.activatedAt || 0)) >= (effect.duration || 360);
+                    const uniqueKey = `${effect.id}-${index}`;
+                    const isExpanded = expandedFestival === uniqueKey;
+
                     return (
                       <div
-                        key={`${effect.id}-${index}`}
-                        className={`flex items-center gap-3 p-2 rounded-lg border ${
+                        key={uniqueKey}
+                        className={`p-2 rounded-lg border transition-all ${
                           isExpired 
                             ? 'bg-gray-800/40 border-gray-600/30 opacity-60' 
                             : isPermanent 
@@ -771,28 +813,41 @@ function GameApp({ gameState }) {
                               : 'bg-yellow-900/20 border-yellow-500/30'
                         }`}
                       >
-                        <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-                          isPermanent ? 'bg-purple-500/20' : 'bg-yellow-500/20'
-                        }`}>
-                          <Icon name={effect.icon || 'Star'} size={14} className={isPermanent ? 'text-purple-400' : 'text-yellow-400'} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-semibold text-ancient-parchment truncate">{effect.name}</span>
-                            <span className={`text-[9px] px-1.5 py-0.5 rounded ${
-                              isExpired 
-                                ? 'bg-gray-600/30 text-gray-400' 
-                                : isPermanent 
-                                  ? 'bg-purple-500/30 text-purple-300' 
-                                  : 'bg-yellow-500/30 text-yellow-300'
-                            }`}>
-                              {isExpired ? '已过期' : isPermanent ? '永久' : '短期'}
-                            </span>
+                        <div className="flex items-center gap-3">
+                          <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
+                            isPermanent ? 'bg-purple-500/20' : 'bg-yellow-500/20'
+                          }`}>
+                            <Icon name={effect.icon || 'Star'} size={14} className={isPermanent ? 'text-purple-400' : 'text-yellow-400'} />
                           </div>
-                          <div className="text-[10px] text-ancient-stone mt-0.5">
-                            第 {activatedYear} 年选择
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-semibold text-ancient-parchment truncate">{effect.name}</span>
+                              <span className={`text-[9px] px-1.5 py-0.5 rounded ${
+                                isExpired 
+                                  ? 'bg-gray-600/30 text-gray-400' 
+                                  : isPermanent 
+                                    ? 'bg-purple-500/30 text-purple-300' 
+                                    : 'bg-yellow-500/30 text-yellow-300'
+                              }`}>
+                                {isExpired ? '已过期' : isPermanent ? '永久' : '短期'}
+                              </span>
+                            </div>
+                            <div className="text-[10px] text-ancient-stone mt-0.5">
+                              第 {activatedYear} 年选择
+                            </div>
                           </div>
+                          <button
+                            onClick={() => setExpandedFestival(isExpanded ? null : uniqueKey)}
+                            className="text-[10px] text-gray-400 hover:text-white transition-colors p-1 rounded-md"
+                          >
+                            <Icon name={isExpanded ? "ChevronUp" : "ChevronDown"} size={12} />
+                          </button>
                         </div>
+                        {isExpanded && (
+                          <div className="mt-2 pt-2 border-t border-white/10 text-xs text-gray-300">
+                            <p><strong>效果：</strong>{formatFestivalEffects(effect.effects)}</p>
+                          </div>
+                        )}
                       </div>
                     );
                   })}

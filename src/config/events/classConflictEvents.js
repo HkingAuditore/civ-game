@@ -2438,7 +2438,7 @@ export const CLASS_CONFLICT_EVENTS = [
         description: '顺应民意和教会，但可能助长迷信和冤案。',
         effects: {
           resourcePercent: {
-            culture: -30,
+            culture: -0.3,
           },
           stability: 5,
           approval: {
@@ -2606,7 +2606,7 @@ export const CLASS_CONFLICT_EVENTS = [
         description: '打破传统，选择更有能力者。但这会树立危险的先例。',
         effects: {
           resourcePercent: {
-            culture: -30,
+            culture: -0.3,
           },
           stability: -10,
           approval: {
@@ -3085,7 +3085,7 @@ export const CLASS_CONFLICT_EVENTS = [
         description: '以"散布谣言"为由查封报社，逮捕编辑。',
         effects: {
           resourcePercent: {
-            culture: -40,
+            culture: -0.4,
           },
           stability: 5,
           approval: {
@@ -3106,7 +3106,7 @@ export const CLASS_CONFLICT_EVENTS = [
         description: '不追究此事，但设立审查委员会"规范"报道。',
         effects: {
           resourcePercent: {
-            culture: -20,
+            culture: -0.2,
           },
           stability: 3,
           approval: {

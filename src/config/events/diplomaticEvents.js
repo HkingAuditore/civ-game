@@ -83,7 +83,7 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
     const highInstallmentTotal = Math.ceil(highTribute * INSTALLMENT_TOTAL_MULTIPLIER);
     const installmentAmount = Math.ceil(highInstallmentTotal / 365); // 每天支付
     // 使用财富估算人口（假设每100财富对应约50人口）
-    const estimatedPopulation = Math.floor((nation.wealth || 800) / 100 * 50);
+    const estimatedPopulation = nation.population
     const populationDemand = Math.max(6, Math.floor(estimatedPopulation * 0.04)); // 要求4%人口，至少4人
     
     options.push({
@@ -112,6 +112,13 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
       callback: () => callback(true, 'population', populationDemand),
     });
     options.push({
+      id: 'demand_open_market',
+      text: '要求开放市场',
+      description: `要求${nation.name}在${OPEN_MARKET_DURATION_YEARS}年内开放市场，不限制我方贸易路线数量`,
+      effects: {},
+      callback: () => callback(true, 'open_market', OPEN_MARKET_DURATION_DAYS),
+    });
+    options.push({
       id: 'accept_standard',
       text: '接受标准和平',
       description: `接受${tribute}银币赔款，快速结束战争`,
@@ -127,7 +134,7 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
     const installmentTotal = Math.ceil(tribute * INSTALLMENT_TOTAL_MULTIPLIER);
     const installmentAmount = Math.ceil(installmentTotal / 365); // 每天支付
     // 使用财富估算人口（假设每100财富对应约50人口）
-    const estimatedPopulation = Math.floor((nation.wealth || 800) / 100 * 50);
+    const estimatedPopulation = nation.population;
     const populationDemand = Math.max(4, Math.floor(estimatedPopulation * 0.02)); // 要求2%人口，至少2人
     
     options.push({
@@ -155,13 +162,7 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
       effects: {},
       callback: () => callback(true, 'population', populationDemand),
     });
-    options.push({
-      id: 'demand_open_market',
-      text: '要求开放市场',
-      description: `要求${nation.name}在${OPEN_MARKET_DURATION_YEARS}年内开放市场，不限制我方贸易路线数量`,
-      effects: {},
-      callback: () => callback(true, 'open_market', OPEN_MARKET_DURATION_DAYS),
-    });
+
   } else {
     // 僵持：可以接受或继续战争
     options.push({
@@ -244,7 +245,7 @@ export function createPlayerPeaceProposalEvent(
     const standardTribute = Math.min(nation.wealth || 0, Math.ceil(warScore * 40 + enemyLosses * 2));
     const highInstallmentTotal = Math.ceil(highTribute * INSTALLMENT_TOTAL_MULTIPLIER);
     const installmentAmount = Math.ceil(highInstallmentTotal / 365);
-    const estimatedPopulation = Math.floor((nation.wealth || 800) / 100 * 50);
+    const estimatedPopulation = nation.population;
     const populationDemand = Math.max(5, Math.floor(estimatedPopulation * 0.03)); // 或 0.03
     
     options.push({
@@ -294,7 +295,7 @@ export function createPlayerPeaceProposalEvent(
     const tribute = Math.min(nation.wealth || 0, Math.ceil(warScore * 40 + enemyLosses * 2));
     const installmentTotal = Math.ceil(tribute * INSTALLMENT_TOTAL_MULTIPLIER);
     const installmentAmount = Math.ceil(installmentTotal / 365);
-    const estimatedPopulation = Math.floor((nation.wealth || 800) / 100 * 50);
+    const estimatedPopulation = nation.population;
     const populationDemand = Math.max(5, Math.floor(estimatedPopulation * 0.01)); // 或 0.03
     
     options.push({

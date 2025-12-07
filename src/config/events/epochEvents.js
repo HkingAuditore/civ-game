@@ -2163,7 +2163,7 @@ export const EPOCH_EVENTS = [
         effects: {
           population: 30,
           resourcePercent: {
-            silver: -0.025,
+            silver: -0.035,
             science: 0.04,
           },
           approval: {
