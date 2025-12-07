@@ -14,16 +14,24 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [] }) =>
 
   // 获取可见国家列表
   const visibleNations = nations.filter(n => n.visible !== false);
+  
+  // 获取事件中预解析的随机国家信息
+  const resolvedRandomNation = event._resolvedRandomNation;
 
   // 根据选择器解析出实际国家名称
   const resolveNationNames = (selector) => {
-    if (!visibleNations.length) return null;
+    if (!visibleNations.length && selector !== 'all') return null;
     
     switch (selector) {
       case 'random':
-        return '（将随机选择一个国家）';
+        // 使用事件生成时已确定的随机国家
+        if (resolvedRandomNation) {
+          return `（${resolvedRandomNation.name}）`;
+        }
+        return '（随机国家）';
       case 'all':
-        return `（${visibleNations.map(n => n.name).join('、')}）`;
+        // 目标是所有国家时，不显示具体国家名
+        return null;
       case 'hostile': {
         const hostiles = visibleNations.filter(n => (n.relation || 50) < 30);
         if (hostiles.length === 0) return '（当前无敌对国家！此效果将无效）';
@@ -45,7 +53,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [] }) =>
         return `（${weakest.name}）`;
       }
       default: {
-        // 可能是直接指定的国家ID
+        // 可能是直接指定的国家ID，或者是从random预解析来的国家ID
         const nation = visibleNations.find(n => n.id === selector);
         return nation ? `（${nation.name}）` : null;
       }

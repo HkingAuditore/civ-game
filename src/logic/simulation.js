@@ -1763,6 +1763,8 @@ export const simulateTick = ({
   console.log('[TICK] Starting needs calculation...');
   const needsReport = {};
   const classShortages = {};
+  // 收集各阶层的财富乘数（用于UI显示"谁吃到了buff"）
+  const stratumWealthMultipliers = {};
   Object.keys(STRATA).forEach(key => {
     const def = STRATA[key];
     const count = popStructure[key] || 0;
@@ -1829,6 +1831,10 @@ export const simulateTick = ({
         const wealthRatio = currentWealth / startingWealth;
         // 财富每增加100%，需求增加50%（可调整）
         const wealthMultiplier = 1 + (wealthRatio - 1) * 0.5;
+        // 记录财富乘数（取最后一次计算的值，用于UI显示）
+        if (!stratumWealthMultipliers[key] || Math.abs(wealthMultiplier - 1) > Math.abs(stratumWealthMultipliers[key] - 1)) {
+          stratumWealthMultipliers[key] = wealthMultiplier;
+        }
         
         // 2. 价格影响：当前价格相对于基础价格的变化
         const currentPrice = getPrice(resKey);
@@ -3628,6 +3634,8 @@ export const simulateTick = ({
         eventBuildingProduction: eventBuildingProductionModifiers,
         techBuildingBonus: buildingBonuses,
         techCategoryBonus: categoryBonuses,
+        // 阶层财富增长对需求的影响（财富越高需求越高）
+        stratumWealthMultiplier: stratumWealthMultipliers,
       },
     },
   };

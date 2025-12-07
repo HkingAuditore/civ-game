@@ -87,6 +87,86 @@ export function canTriggerEvent(event, gameState) {
 }
 
 /**
+ * 预解析事件中的随机国家选择器
+ * 在事件生成时就确定具体是哪个随机国家，并存储到事件对象中
+ * @param {Object} event - 事件对象
+ * @param {Array} nations - 国家数组
+ * @returns {Object} - 预解析后的事件对象（深拷贝）
+ */
+function resolveRandomNationInEvent(event, nations) {
+  if (!nations || nations.length === 0) return event;
+  
+  const visibleNations = nations.filter(n => n.visible !== false);
+  if (visibleNations.length === 0) return event;
+  
+  // 深拷贝事件对象，避免修改原始配置
+  const resolvedEvent = JSON.parse(JSON.stringify(event));
+  
+  // 为整个事件选择一个随机国家（同一事件中的 'random' 都指向同一个国家）
+  const randomNation = visibleNations[Math.floor(Math.random() * visibleNations.length)];
+  
+  // 存储预解析的随机国家信息到事件对象中
+  resolvedEvent._resolvedRandomNation = randomNation ? {
+    id: randomNation.id,
+    name: randomNation.name,
+  } : null;
+  
+  // 遍历所有选项，替换 'random' 选择器为具体的国家ID
+  if (resolvedEvent.options) {
+    resolvedEvent.options = resolvedEvent.options.map(option => {
+      const newOption = { ...option };
+      if (newOption.effects) {
+        newOption.effects = resolveRandomSelectorsInEffects(newOption.effects, randomNation);
+      }
+      if (newOption.randomEffects) {
+        newOption.randomEffects = newOption.randomEffects.map(re => ({
+          ...re,
+          effects: resolveRandomSelectorsInEffects(re.effects, randomNation),
+        }));
+      }
+      return newOption;
+    });
+  }
+  
+  return resolvedEvent;
+}
+
+/**
+ * 替换效果对象中的 'random' 选择器为具体的国家ID
+ */
+function resolveRandomSelectorsInEffects(effects, randomNation) {
+  if (!effects || !randomNation) return effects;
+  
+  const newEffects = { ...effects };
+  
+  // 处理外交效果中的 random 选择器
+  const diplomaticKeys = ['nationRelation', 'nationAggression', 'nationWealth', 'nationMarketVolatility'];
+  diplomaticKeys.forEach(key => {
+    if (newEffects[key] && typeof newEffects[key] === 'object') {
+      const newObj = { ...newEffects[key] };
+      if ('random' in newObj) {
+        newObj[randomNation.id] = newObj.random;
+        newObj._originalRandom = randomNation.id; // 标记这是从random解析来的
+        delete newObj.random;
+      }
+      newEffects[key] = newObj;
+    }
+  });
+  
+  // 处理 triggerWar 和 triggerPeace
+  if (newEffects.triggerWar === 'random') {
+    newEffects.triggerWar = randomNation.id;
+    newEffects._triggerWarFromRandom = true;
+  }
+  if (newEffects.triggerPeace === 'random') {
+    newEffects.triggerPeace = randomNation.id;
+    newEffects._triggerPeaceFromRandom = true;
+  }
+  
+  return newEffects;
+}
+
+/**
  * 获取可触发的随机事件
  * @param {Object} gameState - 游戏状态
  * @param {Array} events - 事件数组
@@ -98,5 +178,9 @@ export function getRandomEvent(gameState, events) {
   if (availableEvents.length === 0) return null;
   
   const randomIndex = Math.floor(Math.random() * availableEvents.length);
-  return availableEvents[randomIndex];
+  const selectedEvent = availableEvents[randomIndex];
+  
+  // 预解析随机国家，使同一事件中的所有 'random' 指向同一个国家
+  const nations = gameState.nations || [];
+  return resolveRandomNationInEvent(selectedEvent, nations);
 }

@@ -885,6 +885,22 @@ export const ResourceDetailModal = ({
                     }
                   });
                   
+                  // 5. 阶层财富增长对需求的影响（财富越高需求越高）
+                  Object.entries(sources.stratumWealthMultiplier || {}).forEach(([stratumKey, multiplier]) => {
+                    // multiplier是乘数，转换为百分比变化值
+                    const value = multiplier - 1;
+                    if (Math.abs(value) > 0.01) { // 只显示超过1%的变化
+                      activeModifiers.push({
+                        type: 'wealth-demand',
+                        source: '财富',
+                        target: STRATA[stratumKey]?.name || stratumKey,
+                        value,
+                        icon: 'TrendingUp',
+                        color: value > 0 ? 'amber' : 'green', // 财富增长导致需求增加用amber，减少用green
+                      });
+                    }
+                  });
+                  
                   // 去重（相同来源+目标+类型的合并）
                   const uniqueModifiers = activeModifiers.reduce((acc, mod) => {
                     const key = `${mod.type}-${mod.source}-${mod.target}`;
@@ -900,6 +916,8 @@ export const ResourceDetailModal = ({
                     blue: 'border-blue-500/30 bg-blue-950/30 text-blue-300',
                     purple: 'border-purple-500/30 bg-purple-950/30 text-purple-300',
                     cyan: 'border-cyan-500/30 bg-cyan-950/30 text-cyan-300',
+                    amber: 'border-amber-500/30 bg-amber-950/30 text-amber-300',
+                    green: 'border-green-500/30 bg-green-950/30 text-green-300',
                   };
                   
                   const typeLabels = {
@@ -908,13 +926,14 @@ export const ResourceDetailModal = ({
                     'stratum-demand': '阶层需求',
                     'production': '产出',
                     'category': '类别产出',
+                    'wealth-demand': '财富→需求',
                   };
                   
                   return (
                     <div className="lg:col-span-2 rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-2.5">
                       <div className="flex items-center gap-2 mb-2">
                         <Icon name="Zap" size={14} className="text-emerald-400" />
-                        <p className="text-[10px] lg:text-xs text-emerald-200 font-medium">当前生效的加成（谁吃到了Buff）</p>
+                        <p className="text-[10px] lg:text-xs text-emerald-200 font-medium">当前生效的加成</p>
                       </div>
                       <div className="grid gap-1.5 grid-cols-1 lg:grid-cols-2">
                         {uniqueModifiers.map((mod, idx) => (
