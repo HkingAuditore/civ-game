@@ -822,203 +822,45 @@ export const ResourceDetailModal = ({
             {activeTab === 'analysis' && (
               <div className="grid gap-3 lg:gap-6 lg:grid-cols-2">
 
-                {/* 当前资源的加成来源详情 */}
+                {/* 市场实际数据对比说明 */}
                 {(() => {
-                  const modifiers = market?.modifiers || {};
-                  const sources = modifiers.sources || {};
+                  const marketDemand = market?.demand?.[resourceKey] || 0;
+                  const marketSupply = market?.supply?.[resourceKey] || 0;
                   
-                  // 收集对当前资源有效的加成
-                  const activeModifiers = [];
+                  // 只有当市场有数据且与理论值差异超过5%时才显示
+                  const demandDiff = totalActualDemand > 0 ? Math.abs(marketDemand - totalActualDemand) / totalActualDemand : 0;
+                  const supplyDiff = totalActualSupply > 0 ? Math.abs(marketSupply - totalActualSupply) / totalActualSupply : 0;
                   
-                  // 1. 资源需求加成（政令+事件）
-                  const decreeResDemand = sources.decreeResourceDemand?.[resourceKey];
-                  const eventResDemand = sources.eventResourceDemand?.[resourceKey];
-                  if (decreeResDemand) {
-                    activeModifiers.push({
-                      type: 'demand',
-                      source: '政令',
-                      target: RESOURCES[resourceKey]?.name || resourceKey,
-                      value: decreeResDemand,
-                      icon: 'ScrollText',
-                      color: 'blue',
-                    });
-                  }
-                  if (eventResDemand) {
-                    activeModifiers.push({
-                      type: 'demand',
-                      source: '事件',
-                      target: RESOURCES[resourceKey]?.name || resourceKey,
-                      value: eventResDemand,
-                      icon: 'Sparkles',
-                      color: 'purple',
-                    });
-                  }
-                  
-                  // 2. 资源供给加成
-                  const decreeResSupply = sources.decreeResourceSupply?.[resourceKey];
-                  if (decreeResSupply) {
-                    activeModifiers.push({
-                      type: 'supply',
-                      source: '政令',
-                      target: RESOURCES[resourceKey]?.name || resourceKey,
-                      value: decreeResSupply,
-                      icon: 'ScrollText',
-                      color: 'blue',
-                    });
-                  }
-                  
-                  // 3. 阶层需求加成（影响所有资源）
-                  Object.entries(sources.decreeStratumDemand || {}).forEach(([stratumKey, value]) => {
-                    if (value !== 0) {
-                      activeModifiers.push({
-                        type: 'stratum-demand',
-                        source: '政令',
-                        target: STRATA[stratumKey]?.name || stratumKey,
-                        value,
-                        icon: 'ScrollText',
-                        color: 'blue',
-                      });
-                    }
-                  });
-                  Object.entries(sources.eventStratumDemand || {}).forEach(([stratumKey, value]) => {
-                    if (value !== 0) {
-                      activeModifiers.push({
-                        type: 'stratum-demand',
-                        source: '事件',
-                        target: STRATA[stratumKey]?.name || stratumKey,
-                        value,
-                        icon: 'Sparkles',
-                        color: 'purple',
-                      });
-                    }
-                  });
-                  
-                  // 4. 建筑产出加成（只显示与当前资源相关的建筑）
-                  const relevantBuildings = BUILDINGS.filter(b => 
-                    b.output?.[resourceKey] || b.input?.[resourceKey]
-                  );
-                  relevantBuildings.forEach(building => {
-                    const techBonus = sources.techBuildingBonus?.[building.id];
-                    const eventBonus = sources.eventBuildingProduction?.[building.id];
-                    const categoryBonus = sources.techCategoryBonus?.[building.cat];
-                    const eventCategoryBonus = sources.eventBuildingProduction?.[building.cat];
-                    
-                    if (techBonus && techBonus !== 1) {
-                      activeModifiers.push({
-                        type: 'production',
-                        source: '科技',
-                        target: building.name,
-                        value: techBonus - 1,
-                        icon: 'Microscope',
-                        color: 'cyan',
-                      });
-                    }
-                    if (eventBonus) {
-                      activeModifiers.push({
-                        type: 'production',
-                        source: '事件',
-                        target: building.name,
-                        value: eventBonus,
-                        icon: 'Sparkles',
-                        color: 'purple',
-                      });
-                    }
-                    if (categoryBonus && categoryBonus !== 1) {
-                      const catNames = { gather: '采集', industry: '工业', civic: '民用', military: '军事' };
-                      activeModifiers.push({
-                        type: 'category',
-                        source: '科技',
-                        target: `${catNames[building.cat] || building.cat}类(${building.name})`,
-                        value: categoryBonus - 1,
-                        icon: 'Microscope',
-                        color: 'cyan',
-                      });
-                    }
-                    if (eventCategoryBonus) {
-                      const catNames = { gather: '采集', industry: '工业', civic: '民用', military: '军事' };
-                      activeModifiers.push({
-                        type: 'category',
-                        source: '事件',
-                        target: `${catNames[building.cat] || building.cat}类(${building.name})`,
-                        value: eventCategoryBonus,
-                        icon: 'Sparkles',
-                        color: 'purple',
-                      });
-                    }
-                  });
-                  
-                  // 5. 阶层财富增长对需求的影响（财富越高需求越高）
-                  Object.entries(sources.stratumWealthMultiplier || {}).forEach(([stratumKey, multiplier]) => {
-                    // multiplier是乘数，转换为百分比变化值
-                    const value = multiplier - 1;
-                    if (Math.abs(value) > 0.01) { // 只显示超过1%的变化
-                      activeModifiers.push({
-                        type: 'wealth-demand',
-                        source: '财富',
-                        target: STRATA[stratumKey]?.name || stratumKey,
-                        value,
-                        icon: 'TrendingUp',
-                        color: value > 0 ? 'amber' : 'green', // 财富增长导致需求增加用amber，减少用green
-                      });
-                    }
-                  });
-                  
-                  // 去重（相同来源+目标+类型的合并）
-                  const uniqueModifiers = activeModifiers.reduce((acc, mod) => {
-                    const key = `${mod.type}-${mod.source}-${mod.target}`;
-                    if (!acc.find(m => `${m.type}-${m.source}-${m.target}` === key)) {
-                      acc.push(mod);
-                    }
-                    return acc;
-                  }, []);
-                  
-                  if (uniqueModifiers.length === 0) return null;
-                  
-                  const colorClasses = {
-                    blue: 'border-blue-500/30 bg-blue-950/30 text-blue-300',
-                    purple: 'border-purple-500/30 bg-purple-950/30 text-purple-300',
-                    cyan: 'border-cyan-500/30 bg-cyan-950/30 text-cyan-300',
-                    amber: 'border-amber-500/30 bg-amber-950/30 text-amber-300',
-                    green: 'border-green-500/30 bg-green-950/30 text-green-300',
-                  };
-                  
-                  const typeLabels = {
-                    'demand': '需求',
-                    'supply': '供给',
-                    'stratum-demand': '阶层需求',
-                    'production': '产出',
-                    'category': '类别产出',
-                    'wealth-demand': '财富→需求',
-                  };
-                  
-                  return (
-                    <div className="lg:col-span-2 rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-2.5">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Icon name="Zap" size={14} className="text-emerald-400" />
-                        <p className="text-[10px] lg:text-xs text-emerald-200 font-medium">当前生效的加成</p>
-                      </div>
-                      <div className="grid gap-1.5 grid-cols-1 lg:grid-cols-2">
-                        {uniqueModifiers.map((mod, idx) => (
-                          <div 
-                            key={idx} 
-                            className={`flex items-center gap-2 px-2 py-1.5 rounded-lg border ${colorClasses[mod.color] || colorClasses.blue}`}
-                          >
-                            <Icon name={mod.icon} size={12} className="flex-shrink-0" />
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-1">
-                                <span className="text-[9px] opacity-70">[{mod.source}]</span>
-                                <span className="text-[10px] font-medium truncate">{mod.target}</span>
-                              </div>
-                              <span className="text-[8px] opacity-60">{typeLabels[mod.type] || mod.type}</span>
+                  if ((marketDemand > 0 || marketSupply > 0) && (demandDiff > 0.05 || supplyDiff > 0.05)) {
+                    return (
+                      <div className="lg:col-span-2 rounded-xl border border-blue-500/30 bg-blue-950/20 p-2.5">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Icon name="Info" size={14} className="text-blue-400" />
+                          <p className="text-[10px] lg:text-xs text-blue-200 font-medium">市场实际数据</p>
+                        </div>
+                        <div className="grid gap-2 grid-cols-2">
+                          <div className="flex items-center justify-between px-2 py-1.5 rounded-lg border border-rose-500/30 bg-rose-950/30">
+                            <div>
+                              <span className="text-[10px] text-rose-300">市场消费量</span>
+                              <span className="text-[8px] text-gray-500 ml-1">vs 理论{formatAmount(totalActualDemand)}</span>
                             </div>
-                            <span className={`text-xs font-bold ${mod.value > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                              {mod.value > 0 ? '+' : ''}{(mod.value * 100).toFixed(0)}%
-                            </span>
+                            <span className="text-xs font-bold text-rose-400">{formatAmount(marketDemand)}</span>
                           </div>
-                        ))}
+                          <div className="flex items-center justify-between px-2 py-1.5 rounded-lg border border-emerald-500/30 bg-emerald-950/30">
+                            <div>
+                              <span className="text-[10px] text-emerald-300">市场供给量</span>
+                              <span className="text-[8px] text-gray-500 ml-1">vs 理论{formatAmount(totalActualSupply)}</span>
+                            </div>
+                            <span className="text-xs font-bold text-emerald-400">{formatAmount(marketSupply)}</span>
+                          </div>
+                        </div>
+                        <p className="text-[9px] text-gray-500 mt-1.5">
+                          理论值=人口需求×加成 | 市场值=实际交易量（受价格、购买力、库存影响）
+                        </p>
                       </div>
-                    </div>
-                  );
+                    );
+                  }
+                  return null;
                 })()}
 
                 <div className="rounded-xl lg:rounded-2xl border border-gray-800 bg-gray-950/60 p-3 lg:p-5">
@@ -1026,10 +868,10 @@ export const ResourceDetailModal = ({
                     <div>
                       <p className="text-[10px] lg:text-xs uppercase tracking-wide text-gray-500">需求构成</p>
                       <p className="text-base lg:text-xl font-semibold text-white">
-                        实际需求 {formatAmount(totalActualDemand)}
+                        理论需求 {formatAmount(totalActualDemand)}
                         {totalBaseDemand !== totalActualDemand && (
                           <span className="text-sm text-gray-500 ml-2">
-                            (基础: {formatAmount(totalBaseDemand)})
+                            (无加成: {formatAmount(totalBaseDemand)})
                           </span>
                         )}
                       </p>
@@ -1131,10 +973,10 @@ export const ResourceDetailModal = ({
                     <div>
                       <p className="text-[10px] lg:text-xs uppercase tracking-wide text-gray-500">生产来源</p>
                       <p className="text-base lg:text-xl font-semibold text-white">
-                        实际供给 {formatAmount(totalActualSupply)}
+                        理论产能 {formatAmount(totalActualSupply)}
                         {totalBaseSupply !== totalActualSupply && (
                           <span className="text-sm text-gray-500 ml-2">
-                            (基础: {formatAmount(totalBaseSupply)})
+                            (无加成: {formatAmount(totalBaseSupply)})
                           </span>
                         )}
                       </p>
@@ -1168,11 +1010,11 @@ export const ResourceDetailModal = ({
                     )}
                   </div>
                   <div className="mt-2 lg:mt-4 rounded-lg lg:rounded-xl border border-gray-800/60 bg-gray-900/60 p-2.5 lg:p-4 text-xs lg:text-sm text-gray-400">
-                    实际产出 {formatAmount(totalActualSupply)} · 实际需求 {formatAmount(totalActualDemand)} · 缺口{' '}
+                    理论产能 {formatAmount(totalActualSupply)} · 理论需求 {formatAmount(totalActualDemand)} · 理论缺口{' '}
                     {formatAmount(Math.max(0, totalActualDemand - totalActualSupply))}
                     {(totalBaseSupply !== totalActualSupply || totalBaseDemand !== totalActualDemand) && (
                       <span className="text-gray-500 ml-2">
-                        | 基础: {formatAmount(totalBaseSupply)} / {formatAmount(totalBaseDemand)}
+                        | 无加成: {formatAmount(totalBaseSupply)} / {formatAmount(totalBaseDemand)}
                       </span>
                     )}
                   </div>
