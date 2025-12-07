@@ -483,7 +483,7 @@ export const BASE_EVENTS = [
             cleric: 12,
           },
           resourceDemandMod: {
-            silver: 0.05,    // 礼物消费增加白银需求
+            culture: 0.03,    // 礼物交换增加文化需求
           },
           stratumDemandMod: {
             cleric: 0.1,     // 神职人员活动增加（接收礼物）
@@ -574,8 +574,8 @@ export const BASE_EVENTS = [
             miner: 15,
           },
           resourceDemandMod: {
-            silver: 0.08,    // 提高待遇增加白银流通
             food: 0.05,      // 矿工有更多钱购买食物
+            tools: 0.03,     // 矿工购买更好的工具
           },
           stratumDemandMod: {
             miner: 0.12,     // 矿工活动增加
