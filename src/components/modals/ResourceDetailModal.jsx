@@ -306,6 +306,10 @@ export const ResourceDetailModal = ({
     buildingDemand,
     armyDemand,
     buildingSupply,
+    totalBaseDemand,
+    totalBaseSupply,
+    totalActualDemand,
+    totalActualSupply,
   } = useMemo(() => {
     if (!resourceDef) {
       return {
@@ -313,19 +317,62 @@ export const ResourceDetailModal = ({
         buildingDemand: [],
         armyDemand: [],
         buildingSupply: [],
+        totalBaseDemand: 0,
+        totalBaseSupply: 0,
+        totalActualDemand: 0,
+        totalActualSupply: 0,
       };
     }
+
+    // 获取加成数据
+    const modifiers = market?.modifiers || {};
+    const sources = modifiers.sources || {};
+    
+    // 资源级别的加成
+    const decreeResDemandMod = sources.decreeResourceDemand?.[resourceKey] || 0;
+    const eventResDemandMod = sources.eventResourceDemand?.[resourceKey] || 0;
+    const decreeResSupplyMod = sources.decreeResourceSupply?.[resourceKey] || 0;
+    const resourceDemandMultiplier = 1 + decreeResDemandMod + eventResDemandMod;
+    const resourceSupplyMultiplier = 1 + decreeResSupplyMod;
+
+    let baseDemandTotal = 0;
+    let actualDemandTotal = 0;
+    let baseSupplyTotal = 0;
+    let actualSupplyTotal = 0;
 
     const stratumDemandList = Object.entries(STRATA).reduce((acc, [key, stratum]) => {
       const perCap = stratum.needs?.[resourceKey] || 0;
       const population = popStructure[key] || 0;
       if (!perCap || !population) return acc;
+      
+      const baseAmount = perCap * population;
+      baseDemandTotal += baseAmount;
+      
+      // 阶层级别的加成
+      const decreeStratumMod = sources.decreeStratumDemand?.[key] || 0;
+      const eventStratumMod = sources.eventStratumDemand?.[key] || 0;
+      const wealthMod = (sources.stratumWealthMultiplier?.[key] || 1) - 1;
+      const stratumMultiplier = 1 + decreeStratumMod + eventStratumMod + wealthMod;
+      
+      // 实际值 = 基础值 × 阶层加成 × 资源加成
+      const actualAmount = baseAmount * stratumMultiplier * resourceDemandMultiplier;
+      actualDemandTotal += actualAmount;
+      
+      // 收集加成信息用于显示
+      const modList = [];
+      if (decreeStratumMod !== 0) modList.push(`政令${decreeStratumMod > 0 ? '+' : ''}${(decreeStratumMod * 100).toFixed(0)}%`);
+      if (eventStratumMod !== 0) modList.push(`事件${eventStratumMod > 0 ? '+' : ''}${(eventStratumMod * 100).toFixed(0)}%`);
+      if (Math.abs(wealthMod) > 0.01) modList.push(`财富${wealthMod > 0 ? '+' : ''}${(wealthMod * 100).toFixed(0)}%`);
+      
       acc.push({
         key,
         name: stratum.name,
         icon: stratum.icon,
-        amount: perCap * population,
+        baseAmount,
+        amount: actualAmount,
         formula: `${population}人 × ${perCap}`,
+        mods: modList,
+        hasBonus: actualAmount !== baseAmount,
       });
       return acc;
     }, []);
@@ -334,11 +381,20 @@ export const ResourceDetailModal = ({
       const perBuilding = building.input?.[resourceKey] || 0;
       const count = buildings[building.id] || 0;
       if (!perBuilding || !count) return acc;
+      
+      const baseAmount = perBuilding * count;
+      baseDemandTotal += baseAmount;
+      // 建筑消耗暂无加成系统，直接使用基础值
+      const actualAmount = baseAmount * resourceDemandMultiplier;
+      actualDemandTotal += actualAmount;
+      
       acc.push({
         id: building.id,
         name: building.name,
-        amount: perBuilding * count,
+        baseAmount,
+        amount: actualAmount,
         formula: `${count} 座 × ${perBuilding}`,
+        hasBonus: actualAmount !== baseAmount,
       });
       return acc;
     }, []);
@@ -347,11 +403,34 @@ export const ResourceDetailModal = ({
       const perBuilding = building.output?.[resourceKey] || 0;
       const count = buildings[building.id] || 0;
       if (!perBuilding || !count) return acc;
+      
+      const baseAmount = perBuilding * count;
+      baseSupplyTotal += baseAmount;
+      
+      // 建筑产出加成
+      const techBuildingMod = (sources.techBuildingBonus?.[building.id] || 1) - 1;
+      const eventBuildingMod = sources.eventBuildingProduction?.[building.id] || 0;
+      const techCategoryMod = (sources.techCategoryBonus?.[building.cat] || 1) - 1;
+      const eventCategoryMod = sources.eventBuildingProduction?.[building.cat] || 0;
+      const buildingMultiplier = 1 + techBuildingMod + eventBuildingMod + techCategoryMod + eventCategoryMod;
+      
+      const actualAmount = baseAmount * buildingMultiplier * resourceSupplyMultiplier;
+      actualSupplyTotal += actualAmount;
+      
+      const modList = [];
+      if (techBuildingMod !== 0) modList.push(`科技${techBuildingMod > 0 ? '+' : ''}${(techBuildingMod * 100).toFixed(0)}%`);
+      if (eventBuildingMod !== 0) modList.push(`事件${eventBuildingMod > 0 ? '+' : ''}${(eventBuildingMod * 100).toFixed(0)}%`);
+      if (techCategoryMod !== 0) modList.push(`类别科技${techCategoryMod > 0 ? '+' : ''}${(techCategoryMod * 100).toFixed(0)}%`);
+      if (eventCategoryMod !== 0) modList.push(`类别事件${eventCategoryMod > 0 ? '+' : ''}${(eventCategoryMod * 100).toFixed(0)}%`);
+      
       acc.push({
         id: building.id,
         name: building.name,
-        amount: perBuilding * count,
+        baseAmount,
+        amount: actualAmount,
         formula: `${count} 座 × ${perBuilding}`,
+        mods: modList,
+        hasBonus: actualAmount !== baseAmount,
       });
       return acc;
     }, []);
@@ -360,11 +439,19 @@ export const ResourceDetailModal = ({
       const perUnit = unit.maintenanceCost?.[resourceKey] || 0;
       const count = army[id] || 0;
       if (!perUnit || !count) return acc;
+      
+      const baseAmount = perUnit * count;
+      baseDemandTotal += baseAmount;
+      const actualAmount = baseAmount * resourceDemandMultiplier;
+      actualDemandTotal += actualAmount;
+      
       acc.push({
         id,
         name: unit.name,
-        amount: perUnit * count,
+        baseAmount,
+        amount: actualAmount,
         formula: `${count} 队 × ${perUnit}`,
+        hasBonus: actualAmount !== baseAmount,
       });
       return acc;
     }, []);
@@ -374,8 +461,12 @@ export const ResourceDetailModal = ({
       buildingDemand: buildingDemandList,
       armyDemand: armyDemandList,
       buildingSupply: buildingSupplyList,
+      totalBaseDemand: baseDemandTotal,
+      totalBaseSupply: baseSupplyTotal,
+      totalActualDemand: actualDemandTotal,
+      totalActualSupply: actualSupplyTotal,
     };
-  }, [resourceDef, resourceKey, popStructure, buildings, army]);
+  }, [resourceDef, resourceKey, popStructure, buildings, army, market]);
 
   if (!resourceKey || !resourceDef) return null;
 
@@ -395,11 +486,7 @@ export const ResourceDetailModal = ({
     : resources[resourceKey] || 0;
   const latestTax = taxHistory.length ? taxHistory[taxHistory.length - 1] : 0;
 
-  const totalDemand =
-    stratumDemand.reduce((sum, item) => sum + item.amount, 0) +
-    buildingDemand.reduce((sum, item) => sum + item.amount, 0) +
-    armyDemand.reduce((sum, item) => sum + item.amount, 0);
-  const totalSupply = buildingSupply.reduce((sum, item) => sum + item.amount, 0);
+  // totalActualDemand 和 totalActualSupply 直接从 useMemo 中解构使用
 
   const inventory = resources[resourceKey] || 0;
   const marketSupply = market?.supply?.[resourceKey] || 0;
@@ -726,39 +813,6 @@ export const ResourceDetailModal = ({
 
             {activeTab === 'analysis' && (
               <div className="grid gap-3 lg:gap-6 lg:grid-cols-2">
-                {/* 实际供需对比提示卡片 */}
-                <div className="lg:col-span-2 rounded-xl border border-amber-500/30 bg-amber-950/20 p-2.5">
-                  <div className="flex items-start gap-2">
-                    <Icon name="AlertTriangle" size={14} className="text-amber-400 flex-shrink-0 mt-0.5" />
-                    <div className="flex-1">
-                      <p className="text-[10px] lg:text-xs text-amber-200 font-medium mb-1">供需数据说明</p>
-                      <p className="text-[9px] lg:text-[10px] text-amber-200/80 leading-relaxed">
-                        下方显示的是<span className="text-amber-300 font-semibold">基础供需构成</span>，用于帮助你理解供需来源。
-                        实际供需受政令、事件、价格弹性、阶层财富等因素影响，会有波动。
-                      </p>
-                      <div className="mt-2 grid grid-cols-2 gap-2">
-                        <div className="flex items-center gap-2 px-2 py-1 bg-gray-900/60 rounded">
-                          <span className="text-[9px] text-gray-400">实际供给:</span>
-                          <span className="text-xs font-bold text-emerald-300">{formatAmount(latestSupply)}</span>
-                          {totalSupply > 0 && (
-                            <span className={`text-[8px] ${latestSupply > totalSupply ? 'text-green-400' : latestSupply < totalSupply ? 'text-red-400' : 'text-gray-400'}`}>
-                              ({latestSupply > totalSupply ? '+' : ''}{formatAmount(latestSupply - totalSupply)})
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 px-2 py-1 bg-gray-900/60 rounded">
-                          <span className="text-[9px] text-gray-400">实际需求:</span>
-                          <span className="text-xs font-bold text-rose-300">{formatAmount(latestDemand)}</span>
-                          {totalDemand > 0 && (
-                            <span className={`text-[8px] ${latestDemand > totalDemand ? 'text-red-400' : latestDemand < totalDemand ? 'text-green-400' : 'text-gray-400'}`}>
-                              ({latestDemand > totalDemand ? '+' : ''}{formatAmount(latestDemand - totalDemand)})
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
 
                 {/* 当前资源的加成来源详情 */}
                 {(() => {
@@ -962,8 +1016,15 @@ export const ResourceDetailModal = ({
                 <div className="rounded-xl lg:rounded-2xl border border-gray-800 bg-gray-950/60 p-3 lg:p-5">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-[10px] lg:text-xs uppercase tracking-wide text-gray-500">需求构成（基础值）</p>
-                      <p className="text-base lg:text-xl font-semibold text-white">基础需求 {formatAmount(totalDemand)}</p>
+                      <p className="text-[10px] lg:text-xs uppercase tracking-wide text-gray-500">需求构成</p>
+                      <p className="text-base lg:text-xl font-semibold text-white">
+                        实际需求 {formatAmount(totalActualDemand)}
+                        {totalBaseDemand !== totalActualDemand && (
+                          <span className="text-sm text-gray-500 ml-2">
+                            (基础: {formatAmount(totalBaseDemand)})
+                          </span>
+                        )}
+                      </p>
                     </div>
                     <Icon name="TrendingUp" size={18} className="text-rose-300" />
                   </div>
@@ -975,7 +1036,7 @@ export const ResourceDetailModal = ({
                           stratumDemand.map(item => (
                             <div
                               key={item.key}
-                              className="flex items-center justify-between rounded-lg lg:rounded-xl border border-gray-800/60 bg-gray-900/60 p-2 lg:p-3"
+                              className={`flex items-center justify-between rounded-lg lg:rounded-xl border ${item.hasBonus ? 'border-amber-500/30 bg-amber-950/20' : 'border-gray-800/60 bg-gray-900/60'} p-2 lg:p-3`}
                             >
                               <div className="flex items-center gap-2 lg:gap-3">
                                 <div className="rounded-lg lg:rounded-xl bg-gray-900/80 p-1.5 lg:p-2">
@@ -984,9 +1045,17 @@ export const ResourceDetailModal = ({
                                 <div>
                                   <p className="text-xs lg:text-sm font-semibold text-white">{item.name}</p>
                                   <p className="text-[10px] lg:text-xs text-gray-500">{item.formula}</p>
+                                  {item.mods && item.mods.length > 0 && (
+                                    <p className="text-[9px] text-amber-400">{item.mods.join(' · ')}</p>
+                                  )}
                                 </div>
                               </div>
-                              <p className="text-sm lg:text-base font-bold text-rose-200">{formatAmount(item.amount)}</p>
+                              <div className="text-right">
+                                <p className="text-sm lg:text-base font-bold text-rose-200">{formatAmount(item.amount)}</p>
+                                {item.hasBonus && (
+                                  <p className="text-[9px] text-gray-500">基础: {formatAmount(item.baseAmount)}</p>
+                                )}
+                              </div>
                             </div>
                           ))
                         ) : (
@@ -1001,13 +1070,18 @@ export const ResourceDetailModal = ({
                           buildingDemand.map(item => (
                             <div
                               key={item.id}
-                              className="flex items-center justify-between rounded-lg lg:rounded-xl border border-gray-800/60 bg-gray-900/60 p-2 lg:p-3"
+                              className={`flex items-center justify-between rounded-lg lg:rounded-xl border ${item.hasBonus ? 'border-amber-500/30 bg-amber-950/20' : 'border-gray-800/60 bg-gray-900/60'} p-2 lg:p-3`}
                             >
                               <div>
                                 <p className="text-xs lg:text-sm font-semibold text-white">{item.name}</p>
                                 <p className="text-[10px] lg:text-xs text-gray-500">{item.formula}</p>
                               </div>
-                              <p className="text-sm lg:text-base font-bold text-rose-200">{formatAmount(item.amount)}</p>
+                              <div className="text-right">
+                                <p className="text-sm lg:text-base font-bold text-rose-200">{formatAmount(item.amount)}</p>
+                                {item.hasBonus && (
+                                  <p className="text-[9px] text-gray-500">基础: {formatAmount(item.baseAmount)}</p>
+                                )}
+                              </div>
                             </div>
                           ))
                         ) : (
@@ -1022,13 +1096,18 @@ export const ResourceDetailModal = ({
                           armyDemand.map(item => (
                             <div
                               key={item.id}
-                              className="flex items-center justify-between rounded-lg lg:rounded-xl border border-gray-800/60 bg-gray-900/60 p-2 lg:p-3"
+                              className={`flex items-center justify-between rounded-lg lg:rounded-xl border ${item.hasBonus ? 'border-amber-500/30 bg-amber-950/20' : 'border-gray-800/60 bg-gray-900/60'} p-2 lg:p-3`}
                             >
                               <div>
                                 <p className="text-xs lg:text-sm font-semibold text-white">{item.name}</p>
                                 <p className="text-[10px] lg:text-xs text-gray-500">{item.formula}</p>
                               </div>
-                              <p className="text-sm lg:text-base font-bold text-rose-200">{formatAmount(item.amount)}</p>
+                              <div className="text-right">
+                                <p className="text-sm lg:text-base font-bold text-rose-200">{formatAmount(item.amount)}</p>
+                                {item.hasBonus && (
+                                  <p className="text-[9px] text-gray-500">基础: {formatAmount(item.baseAmount)}</p>
+                                )}
+                              </div>
                             </div>
                           ))
                         ) : (
@@ -1042,8 +1121,15 @@ export const ResourceDetailModal = ({
                 <div className="rounded-xl lg:rounded-2xl border border-gray-800 bg-gray-950/60 p-3 lg:p-5">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-[10px] lg:text-xs uppercase tracking-wide text-gray-500">生产来源（基础值）</p>
-                      <p className="text-base lg:text-xl font-semibold text-white">基础供给 {formatAmount(totalSupply)}</p>
+                      <p className="text-[10px] lg:text-xs uppercase tracking-wide text-gray-500">生产来源</p>
+                      <p className="text-base lg:text-xl font-semibold text-white">
+                        实际供给 {formatAmount(totalActualSupply)}
+                        {totalBaseSupply !== totalActualSupply && (
+                          <span className="text-sm text-gray-500 ml-2">
+                            (基础: {formatAmount(totalBaseSupply)})
+                          </span>
+                        )}
+                      </p>
                     </div>
                     <Icon name="TrendingDown" size={18} className="text-emerald-300" />
                   </div>
@@ -1052,13 +1138,21 @@ export const ResourceDetailModal = ({
                       buildingSupply.map(item => (
                         <div
                           key={item.id}
-                          className="flex items-center justify-between rounded-lg lg:rounded-xl border border-gray-800/60 bg-gray-900/60 p-2 lg:p-3"
+                          className={`flex items-center justify-between rounded-lg lg:rounded-xl border ${item.hasBonus ? 'border-emerald-500/30 bg-emerald-950/20' : 'border-gray-800/60 bg-gray-900/60'} p-2 lg:p-3`}
                         >
                           <div>
                             <p className="text-xs lg:text-sm font-semibold text-white">{item.name}</p>
                             <p className="text-[10px] lg:text-xs text-gray-500">{item.formula}</p>
+                            {item.mods && item.mods.length > 0 && (
+                              <p className="text-[9px] text-emerald-400">{item.mods.join(' · ')}</p>
+                            )}
                           </div>
-                          <p className="text-sm lg:text-base font-bold text-emerald-200">{formatAmount(item.amount)}</p>
+                          <div className="text-right">
+                            <p className="text-sm lg:text-base font-bold text-emerald-200">{formatAmount(item.amount)}</p>
+                            {item.hasBonus && (
+                              <p className="text-[9px] text-gray-500">基础: {formatAmount(item.baseAmount)}</p>
+                            )}
+                          </div>
                         </div>
                       ))
                     ) : (
@@ -1066,8 +1160,13 @@ export const ResourceDetailModal = ({
                     )}
                   </div>
                   <div className="mt-2 lg:mt-4 rounded-lg lg:rounded-xl border border-gray-800/60 bg-gray-900/60 p-2.5 lg:p-4 text-xs lg:text-sm text-gray-400">
-                    基础产出 {formatAmount(totalSupply)} · 基础需求 {formatAmount(totalDemand)} · 基础缺口{' '}
-                    {formatAmount(Math.max(0, totalDemand - totalSupply))}
+                    实际产出 {formatAmount(totalActualSupply)} · 实际需求 {formatAmount(totalActualDemand)} · 缺口{' '}
+                    {formatAmount(Math.max(0, totalActualDemand - totalActualSupply))}
+                    {(totalBaseSupply !== totalActualSupply || totalBaseDemand !== totalActualDemand) && (
+                      <span className="text-gray-500 ml-2">
+                        | 基础: {formatAmount(totalBaseSupply)} / {formatAmount(totalBaseDemand)}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
