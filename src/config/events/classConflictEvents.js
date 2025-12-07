@@ -39,6 +39,14 @@ export const CLASS_CONFLICT_EVENTS = [
             merchant: -25,
             capitalist: -15,
           },
+          resourceDemandMod: {
+            food: -0.1, // 商人囤积，市场需求下降
+          },
+          buildingProductionMod: {
+            market: -0.15, // 市场交易受阻
+            factory: -0.1, // 工厂生产受影响
+            farm: -0.1,    // 农民出售意愿降低
+          },
         },
       },
       {
@@ -56,6 +64,9 @@ export const CLASS_CONFLICT_EVENTS = [
             worker: 20,
             merchant: 5,
           },
+          resourceDemandMod: {
+            food: -0.15, // 增加供给，降低需求压力
+          },
         },
       },
       {
@@ -69,6 +80,13 @@ export const CLASS_CONFLICT_EVENTS = [
             worker: -30,
             merchant: 10,
             landowner: 5,
+          },
+          stratumDemandMod: {
+            peasant: -0.2, // 饥饿导致消费能力下降
+            worker: -0.2,
+          },
+          buildingProductionMod: {
+            all: -0.2, // 社会动荡，全面生产下降
           },
         },
         randomEffects: [
@@ -119,6 +137,10 @@ export const CLASS_CONFLICT_EVENTS = [
             capitalist: -20,
             landowner: -15,
           },
+          stratumDemandMod: {
+            worker: 0.1, // 联盟增强了工人的议价能力和消费需求
+            peasant: 0.1,
+          },
         },
       },
       {
@@ -134,6 +156,10 @@ export const CLASS_CONFLICT_EVENTS = [
             worker: -10,
             peasant: -10,
             official: 8,
+          },
+          buildingProductionMod: {
+            farm: -0.05, // 互相猜疑影响协作
+            factory: -0.05,
           },
         },
       },
@@ -151,6 +177,10 @@ export const CLASS_CONFLICT_EVENTS = [
             peasant: 12,
             capitalist: -12,
             official: 5,
+          },
+          stratumDemandMod: {
+            worker: 0.05, // 待遇改善，消费增加
+            peasant: 0.05,
           },
         },
       },
@@ -194,6 +224,14 @@ export const CLASS_CONFLICT_EVENTS = [
             knight: -20,
             official: -10,
           },
+          stratumDemandMod: {
+            peasant: 0.2, // 获得土地，消费能力提升
+            landowner: -0.3, // 失去土地，消费能力下降
+          },
+          buildingProductionMod: {
+            farm: 0.15, // 小农场主生产积极性提高
+            large_estate: -0.3, // 贵族庄园被拆分或减产
+          },
         },
       },
       {
@@ -206,6 +244,14 @@ export const CLASS_CONFLICT_EVENTS = [
             peasant: 12,
             landowner: -15,
             official: 5,
+          },
+          stratumDemandMod: {
+            peasant: 0.05,
+            landowner: -0.1,
+          },
+          buildingProductionMod: {
+            farm: 0.05,
+            large_estate: -0.1,
           },
         },
       },
@@ -220,6 +266,9 @@ export const CLASS_CONFLICT_EVENTS = [
             worker: -15,
             landowner: 25,
             knight: 10,
+          },
+          buildingProductionMod: {
+            farm: -0.1, // 农民不满，生产效率下降
           },
         },
         randomEffects: [
@@ -276,6 +325,12 @@ export const CLASS_CONFLICT_EVENTS = [
             capitalist: -30,
             landowner: -15,
           },
+          stratumDemandMod: {
+            peasant: 0.1, // 穷人税负减轻，消费增加
+            worker: 0.08,
+            capitalist: -0.15, // 富人税负加重，消费减少
+            landowner: -0.1,
+          },
         },
       },
       {
@@ -309,6 +364,12 @@ export const CLASS_CONFLICT_EVENTS = [
             worker: 5,
             merchant: -8,
             capitalist: -10,
+          },
+          stratumDemandMod: {
+            peasant: 0.05,
+            worker: 0.04,
+            capitalist: -0.08,
+            landowner: -0.05,
           },
         },
       },
@@ -354,6 +415,10 @@ export const CLASS_CONFLICT_EVENTS = [
             soldier: 15,
             landowner: 20,
           },
+          buildingProductionMod: {
+            mine: -0.2, // 镇压导致矿区生产停滞
+            quarry: -0.15,
+          },
         },
       },
       {
@@ -371,6 +436,10 @@ export const CLASS_CONFLICT_EVENTS = [
             landowner: -30,
             merchant: -10,
           },
+          buildingProductionMod: {
+            mine: -0.1, // 释放奴隶导致短期劳动力短缺
+            quarry: -0.08,
+          },
         },
       },
       {
@@ -386,6 +455,10 @@ export const CLASS_CONFLICT_EVENTS = [
             serf: -10,
             peasant: -5,
             official: -10,
+          },
+          buildingProductionMod: {
+            mine: -0.05, // 生产效率因收买而暂时下降
+            quarry: -0.05,
           },
         },
       },
@@ -514,6 +587,10 @@ export const CLASS_CONFLICT_EVENTS = [
             peasant: 10,
             worker: 5,
           },
+          buildingProductionMod: {
+            market: -0.2, // 银行倒闭引发市场恐慌
+            factory: -0.15,
+          },
         },
       },
       {
@@ -530,6 +607,10 @@ export const CLASS_CONFLICT_EVENTS = [
             worker: 12,
             capitalist: -20,
             merchant: -10,
+          },
+          buildingProductionMod: {
+            market: -0.1, // 市场信心部分恢复
+            factory: -0.05,
           },
         },
       },
@@ -568,6 +649,10 @@ export const CLASS_CONFLICT_EVENTS = [
             worker: -15,
             soldier: 10,
           },
+          buildingProductionMod: {
+            trade_port: -0.25, // 关闭港口
+            market: -0.2,
+          },
         },
       },
       {
@@ -584,6 +669,10 @@ export const CLASS_CONFLICT_EVENTS = [
             peasant: 10,
             official: -15,
           },
+          buildingProductionMod: {
+            trade_port: 0.1, // 贸易恢复
+            market: 0.1,
+          },
         },
       },
       {
@@ -599,6 +688,10 @@ export const CLASS_CONFLICT_EVENTS = [
             merchant: -10,
             peasant: -5,
             official: 5,
+          },
+          buildingProductionMod: {
+            trade_port: -0.05, // 贸易依然受限
+            market: -0.05,
           },
         },
       },
@@ -640,6 +733,10 @@ export const CLASS_CONFLICT_EVENTS = [
             capitalist: 20,
             engineer: 15,
           },
+          buildingProductionMod: {
+            factory: 0.1, // 保护工厂，生产恢复
+            textile_mill: 0.1,
+          },
         },
       },
       {
@@ -657,6 +754,10 @@ export const CLASS_CONFLICT_EVENTS = [
             capitalist: -15,
             engineer: -10,
           },
+          buildingProductionMod: {
+            factory: -0.1, // 限制机械化，短期内降低了工厂效率
+            textile_mill: -0.1,
+          },
         },
       },
       {
@@ -673,6 +774,10 @@ export const CLASS_CONFLICT_EVENTS = [
             artisan: 12,
             worker: 15,
             capitalist: 5,
+          },
+          buildingProductionMod: {
+            school: 0.1, // 培训需要教育设施
+            library: 0.05,
           },
         },
       },
@@ -720,6 +825,10 @@ export const CLASS_CONFLICT_EVENTS = [
             cleric: -20,
             knight: -25,
           },
+          buildingProductionMod: {
+            university: 0.15, // 宪政思想推动高等教育
+            library: 0.1,
+          },
         },
       },
       {
@@ -735,6 +844,9 @@ export const CLASS_CONFLICT_EVENTS = [
             landowner: 20,
             cleric: 15,
             soldier: 10,
+          },
+          buildingProductionMod: {
+            all: -0.05, // 镇压造成社会生产效率下降
           },
         },
         randomEffects: [
@@ -795,6 +907,10 @@ export const CLASS_CONFLICT_EVENTS = [
             scribe: -25,
             merchant: -10,
           },
+          buildingProductionMod: {
+            barracks: -0.1, // 军方不满，影响训练
+            training_ground: -0.1,
+          },
         },
       },
       {
@@ -812,6 +928,10 @@ export const CLASS_CONFLICT_EVENTS = [
             scribe: 25,
             merchant: 10,
             peasant: 5,
+          },
+          buildingProductionMod: {
+            library: 0.1, // 思想自由促进学术
+            university: 0.1,
           },
         },
       },
@@ -866,6 +986,10 @@ export const CLASS_CONFLICT_EVENTS = [
             worker: 15,
             peasant: 10,
           },
+          buildingProductionMod: {
+            factory: -0.2, // 拆分导致短期生产混乱
+            steel_works: -0.2,
+          },
         },
       },
       {
@@ -878,6 +1002,10 @@ export const CLASS_CONFLICT_EVENTS = [
             capitalist: -15,
             merchant: 10,
             worker: 8,
+          },
+          buildingProductionMod: {
+            factory: -0.1, // 管制影响生产效率
+            steel_works: -0.1,
           },
         },
       },
@@ -895,6 +1023,10 @@ export const CLASS_CONFLICT_EVENTS = [
             merchant: -20,
             worker: -15,
             peasant: -10,
+          },
+          buildingProductionMod: {
+            factory: 0.1, // 垄断者为了利润最大化而提高生产效率
+            steel_works: 0.1,
           },
         },
       },
@@ -944,6 +1076,10 @@ export const CLASS_CONFLICT_EVENTS = [
             cleric: -30,
             knight: -25,
           },
+          buildingProductionMod: {
+            university: 0.15, // 宪政思想推动高等教育
+            library: 0.1,
+          },
         },
       },
       {
@@ -961,6 +1097,10 @@ export const CLASS_CONFLICT_EVENTS = [
             merchant: -20,
             landowner: 20,
             cleric: 15,
+          },
+          buildingProductionMod: {
+            farm: -0.1, // 农民不满，影响生产
+            factory: -0.1,
           },
         },
         randomEffects: [
@@ -1027,6 +1167,10 @@ export const CLASS_CONFLICT_EVENTS = [
             cleric: -15,
             soldier: 10,
           },
+          buildingProductionMod: {
+            farm: -0.15, // 逮捕导致劳动力减少
+            factory: -0.1,
+          },
         },
       },
       {
@@ -1044,6 +1188,10 @@ export const CLASS_CONFLICT_EVENTS = [
             cleric: 10,
             merchant: -10,
           },
+          buildingProductionMod: {
+            farm: 0.1, // 农民满意，生产增加
+            factory: 0.05,
+          },
         },
       },
       {
@@ -1059,6 +1207,10 @@ export const CLASS_CONFLICT_EVENTS = [
             peasant: 10,
             cleric: 15,
             official: 5,
+          },
+          buildingProductionMod: {
+            library: 0.05, // 谈判需要文书工作
+            market: 0.05,
           },
         },
       },
@@ -1103,6 +1255,10 @@ export const CLASS_CONFLICT_EVENTS = [
             landowner: -20,
             cleric: -25,
           },
+          buildingProductionMod: {
+            university: 0.1, // 新思想促进教育
+            library: 0.08,
+          },
         },
       },
       {
@@ -1120,6 +1276,10 @@ export const CLASS_CONFLICT_EVENTS = [
             landowner: 15,
             cleric: 20,
           },
+          buildingProductionMod: {
+            library: -0.15, // 审查压制学术
+            university: -0.1,
+          },
         },
       },
       {
@@ -1135,6 +1295,10 @@ export const CLASS_CONFLICT_EVENTS = [
             scribe: 5,
             merchant: 5,
             official: 10,
+          },
+          buildingProductionMod: {
+            library: 0.05,
+            university: 0.05,
           },
         },
       },
@@ -1198,6 +1362,10 @@ export const CLASS_CONFLICT_EVENTS = [
             peasant: -10,
             official: -15,
           },
+          buildingProductionMod: {
+            barracks: 0.1, // 将军权力更大，训练更严格
+            training_ground: 0.1,
+          },
         },
       },
       {
@@ -1213,6 +1381,10 @@ export const CLASS_CONFLICT_EVENTS = [
           approval: {
             soldier: -10,
             official: 10,
+          },
+          buildingProductionMod: {
+            barracks: 0.05, // 亲卫队也是军队
+            training_ground: 0.05,
           },
         },
       },
@@ -1249,6 +1421,10 @@ export const CLASS_CONFLICT_EVENTS = [
             landowner: -35,
             merchant: -30,
           },
+          buildingProductionMod: {
+            farm: 0.1, // 农民获得救济，生产恢复
+            factory: 0.05,
+          },
         },
       },
       {
@@ -1266,6 +1442,10 @@ export const CLASS_CONFLICT_EVENTS = [
             merchant: 20,
             landowner: 10,
           },
+          buildingProductionMod: {
+            market: 0.1, // 市场交易活跃
+            trade_port: 0.1,
+          },
         },
       },
       {
@@ -1280,6 +1460,9 @@ export const CLASS_CONFLICT_EVENTS = [
             worker: -35,
             merchant: 15,
             landowner: 10,
+          },
+          buildingProductionMod: {
+            all: -0.2, // 社会秩序崩溃，生产全面下降
           },
         },
       },
@@ -1560,6 +1743,11 @@ export const CLASS_CONFLICT_EVENTS = [
             merchant: 15,
             capitalist: 20,
           },
+          stratumDemandMod: {
+            peasant: -0.12, // 穷人税负加重，消费减少
+            worker: -0.1,
+            capitalist: 0.1, // 富人税负减轻，消费增加
+          },
         },
       },
       {
@@ -1630,6 +1818,10 @@ export const CLASS_CONFLICT_EVENTS = [
             official: -10,
             landowner: -25,
             cleric: -20,
+          },
+          buildingProductionMod: {
+            library: -0.1, // 思想压制
+            university: -0.1,
           },
         },
       },
@@ -1726,6 +1918,10 @@ export const CLASS_CONFLICT_EVENTS = [
             peasant: -20,
             capitalist: 20,
             soldier: 10,
+          },
+          buildingProductionMod: {
+            factory: -0.25, // 镇压引发更大规模的罢工
+            steel_works: -0.25,
           },
         },
         randomEffects: [
@@ -2094,6 +2290,10 @@ export const CLASS_CONFLICT_EVENTS = [
             landowner: -35,
             knight: -15,
           },
+          buildingProductionMod: {
+            farm: 0.1, // 农民满意，生产恢复
+            large_estate: -0.1,
+          },
         },
       },
       {
@@ -2158,6 +2358,10 @@ export const CLASS_CONFLICT_EVENTS = [
             capitalist: -25,
             peasant: -10,
             official: 10,
+          },
+          buildingProductionMod: {
+            barracks: -0.15, // 军队内部清洗，影响效率
+            training_ground: -0.1,
           },
         },
         randomEffects: [
@@ -2322,6 +2526,9 @@ export const CLASS_CONFLICT_EVENTS = [
             peasant: -20,
             worker: -15,
             merchant: -10,
+          },
+          buildingProductionMod: {
+            all: -0.1, // 社会动荡，生产下降
           },
         },
       },
@@ -2534,6 +2741,10 @@ export const CLASS_CONFLICT_EVENTS = [
             official: -20,
             merchant: 10,
           },
+          buildingProductionMod: {
+            factory: -0.05, // 调查影响生产
+            market: -0.05,
+          },
         },
       },
       {
@@ -2547,6 +2758,10 @@ export const CLASS_CONFLICT_EVENTS = [
             official: 10,
             worker: -5,
           },
+          buildingProductionMod: {
+            factory: 0.05, // 恢复部分生产
+            market: 0.05,
+          },
         },
       },
       {
@@ -2559,6 +2774,10 @@ export const CLASS_CONFLICT_EVENTS = [
             artisan: -20,
             worker: -15,
             official: 15,
+          },
+          buildingProductionMod: {
+            school: 0.1, // 培训需要教育设施
+            library: 0.05,
           },
         },
       },
@@ -2608,6 +2827,10 @@ export const CLASS_CONFLICT_EVENTS = [
             knight: 20,
             soldier: 15,
           },
+          buildingProductionMod: {
+            farm: -0.25, // 农民起义，农田生产停滞
+            large_estate: -0.3,
+          },
         },
       },
       {
@@ -2621,6 +2844,10 @@ export const CLASS_CONFLICT_EVENTS = [
             serf: 18,
             landowner: -30,
             knight: -20,
+          },
+          buildingProductionMod: {
+            university: 0.1, // 新思想促进教育
+            library: 0.05,
           },
         },
       },
@@ -2639,6 +2866,10 @@ export const CLASS_CONFLICT_EVENTS = [
             serf: -5,
             landowner: 5,
             official: 10,
+          },
+          buildingProductionMod: {
+            farm: -0.1, // 生产依然受影响
+            large_estate: -0.15,
           },
         },
       },
@@ -2677,6 +2908,10 @@ export const CLASS_CONFLICT_EVENTS = [
             capitalist: -35,
             merchant: -15,
           },
+          buildingProductionMod: {
+            factory: -0.1, // 工会合法化后，资本家可能会减少投资或生产
+            steel_works: -0.1,
+          },
         },
       },
       {
@@ -2712,6 +2947,10 @@ export const CLASS_CONFLICT_EVENTS = [
             worker: 10,
             capitalist: -10,
             official: 10,
+          },
+          buildingProductionMod: {
+            factory: -0.05, // 生产效率轻微下降
+            steel_works: -0.05,
           },
         },
       },
@@ -2754,6 +2993,10 @@ export const CLASS_CONFLICT_EVENTS = [
             peasant: -35,
             worker: 10,
           },
+          buildingProductionMod: {
+            farm: 0.1, // 圈地提高了土地利用效率
+            large_estate: 0.15,
+          },
         },
       },
       {
@@ -2766,6 +3009,10 @@ export const CLASS_CONFLICT_EVENTS = [
             peasant: 25,
             landowner: -30,
             capitalist: -15,
+          },
+          buildingProductionMod: {
+            farm: -0.05, // 维持现状，效率无提升
+            large_estate: -0.05,
           },
         },
       },
@@ -2782,6 +3029,10 @@ export const CLASS_CONFLICT_EVENTS = [
             peasant: 5,
             landowner: -15,
             worker: 8,
+          },
+          buildingProductionMod: {
+            farm: 0.05, // 效率略有提升
+            large_estate: 0.08,
           },
         },
       },
@@ -2822,6 +3073,10 @@ export const CLASS_CONFLICT_EVENTS = [
             peasant: 10,
             official: -25,
           },
+          buildingProductionMod: {
+            library: 0.1, // 思想自由促进学术
+            university: 0.1,
+          },
         },
       },
       {
@@ -2839,6 +3094,10 @@ export const CLASS_CONFLICT_EVENTS = [
             peasant: -15,
             official: 20,
           },
+          buildingProductionMod: {
+            library: -0.15, // 审查压制学术
+            university: -0.1,
+          },
         },
       },
       {
@@ -2854,6 +3113,10 @@ export const CLASS_CONFLICT_EVENTS = [
             scribe: -20,
             official: 15,
             merchant: 5,
+          },
+          buildingProductionMod: {
+            library: -0.05, // 审查依然存在
+            university: -0.05,
           },
         },
       },
@@ -2993,6 +3256,9 @@ export const CLASS_CONFLICT_EVENTS = [
             peasant: -5,
             official: 15,
             merchant: 10,
+          },
+          buildingProductionMod: {
+            all: -0.05, // 依然有动荡
           },
         },
       },
@@ -3179,6 +3445,9 @@ export const CLASS_CONFLICT_EVENTS = [
             peasant: -10,
             scribe: -15,
           },
+          buildingProductionMod: {
+            all: -0.1, // 宗教冲突影响生产
+          },
         },
       },
       {
@@ -3196,6 +3465,9 @@ export const CLASS_CONFLICT_EVENTS = [
             scribe: 20,
             landowner: -15,
           },
+          buildingProductionMod: {
+            all: -0.1, // 宗教冲突影响生产
+          },
         },
       },
       {
@@ -3212,6 +3484,9 @@ export const CLASS_CONFLICT_EVENTS = [
             merchant: 15,
             scribe: 15,
             peasant: 5,
+          },
+          buildingProductionMod: {
+            all: 0.05, // 宗教宽容促进社会活力
           },
         },
       },

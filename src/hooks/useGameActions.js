@@ -1996,7 +1996,7 @@ const handleEventOption = (eventId, option) => {
       Object.entries(effects.buildingProductionMod).forEach(([target, value]) => {
         // 尝试查找建筑名称，回退到分类名称或原始键
         const building = BUILDINGS.find(b => b.id === target);
-        const categoryNames = { gather: '采集类', industry: '工业类', civic: '民用类', all: '所有' };
+        const categoryNames = { gather: '采集类', industry: '工业类', civic: '市政类', all: '所有' };
         const displayName = building?.name || categoryNames[target] || target;
         const percent = Math.round(value * 100);
         descriptions.push(`${displayName}产量${percent > 0 ? '+' : ''}${percent}%`);

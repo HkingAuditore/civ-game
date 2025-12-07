@@ -303,7 +303,7 @@ export const EventDetail = ({ event, onSelectOption, onClose }) => {
                     Object.entries(option.effects.buildingProductionMod).map(([target, value]) => {
                       // Try to find building name, fallback to category name or raw key
                       const building = BUILDINGS.find(b => b.id === target);
-                      const categoryNames = { gather: '采集类', industry: '工业类', civic: '民用类', all: '所有' };
+                      const categoryNames = { gather: '采集类', industry: '工业类', civic: '市政类', all: '所有' };
                       const displayName = building?.name || categoryNames[target] || target;
                       return (
                         <span

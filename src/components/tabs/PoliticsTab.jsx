@@ -622,7 +622,7 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
     const categories = {
       gather: { name: '采集建筑', buildings: [] },
       industry: { name: '工业建筑', buildings: [] },
-      civic: { name: '民用建筑', buildings: [] },
+      civic: { name: '市政建筑', buildings: [] },
     };
     
     builtBuildings.forEach(building => {
