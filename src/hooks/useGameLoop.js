@@ -888,7 +888,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
       // 添加新日志
       if (result.logs.length) {
-        setLogs(prev => [...result.logs, ...prev].slice(0, 8));
+        setLogs(prev => [...result.logs, ...prev].slice(0, 128));
         
         // 检测外交事件并触发事件系统
         const currentActions = current.actions;
