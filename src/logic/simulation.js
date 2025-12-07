@@ -3604,5 +3604,31 @@ export const simulateTick = ({
     needsReport,
     nations: updatedNations,
     merchantState: updatedMerchantState,
+    // 加成修饰符数据，供UI显示"谁吃到了buff"
+    modifiers: {
+      // 需求修饰符
+      resourceDemand: { ...decreeResourceDemandMod, ...Object.fromEntries(
+        Object.entries(eventResourceDemandModifiers).map(([k, v]) => [k, (decreeResourceDemandMod[k] || 0) + v])
+      )},
+      stratumDemand: { ...decreeStratumDemandMod, ...Object.fromEntries(
+        Object.entries(eventStratumDemandModifiers).map(([k, v]) => [k, (decreeStratumDemandMod[k] || 0) + v])
+      )},
+      // 供给修饰符
+      resourceSupply: decreeResourceSupplyMod,
+      // 建筑产出修饰符
+      buildingProduction: { ...buildingBonuses, ...eventBuildingProductionModifiers },
+      categoryProduction: categoryBonuses,
+      // 来源分解（用于显示哪些是政令/事件加成）
+      sources: {
+        decreeResourceDemand: decreeResourceDemandMod,
+        decreeStratumDemand: decreeStratumDemandMod,
+        decreeResourceSupply: decreeResourceSupplyMod,
+        eventResourceDemand: eventResourceDemandModifiers,
+        eventStratumDemand: eventStratumDemandModifiers,
+        eventBuildingProduction: eventBuildingProductionModifiers,
+        techBuildingBonus: buildingBonuses,
+        techCategoryBonus: categoryBonuses,
+      },
+    },
   };
 };

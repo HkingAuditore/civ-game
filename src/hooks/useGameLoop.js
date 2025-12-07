@@ -716,6 +716,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
         priceHistory,
         supplyHistory,
         demandHistory,
+        // 加成修饰符数据，供UI显示"谁吃到了buff"
+        modifiers: result.modifiers || {},
       };
 
       const MAX_HISTORY_POINTS = 90;
