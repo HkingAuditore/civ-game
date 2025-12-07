@@ -1830,7 +1830,9 @@ export const simulateTick = ({
         const currentWealth = (wealth[key] || 0) / Math.max(1, count);
         const wealthRatio = currentWealth / startingWealth;
         // 财富每增加100%，需求增加50%（可调整）
-        const wealthMultiplier = 1 + (wealthRatio - 1) * 0.5;
+        // 限制范围：最低0.5倍（财富减少到0时），最高5倍（避免财富过高导致需求爆炸）
+        const rawWealthMultiplier = 1 + (wealthRatio - 1) * 0.5;
+        const wealthMultiplier = Math.max(0.5, Math.min(5.0, rawWealthMultiplier));
         // 记录财富乘数（取最后一次计算的值，用于UI显示）
         if (!stratumWealthMultipliers[key] || Math.abs(wealthMultiplier - 1) > Math.abs(stratumWealthMultipliers[key] - 1)) {
           stratumWealthMultipliers[key] = wealthMultiplier;

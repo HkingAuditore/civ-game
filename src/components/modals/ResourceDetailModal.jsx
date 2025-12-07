@@ -348,21 +348,29 @@ export const ResourceDetailModal = ({
       const baseAmount = perCap * population;
       baseDemandTotal += baseAmount;
       
-      // 阶层级别的加成
+      // 阶层级别的加成（政令+事件是加法叠加）
       const decreeStratumMod = sources.decreeStratumDemand?.[key] || 0;
       const eventStratumMod = sources.eventStratumDemand?.[key] || 0;
-      const wealthMod = (sources.stratumWealthMultiplier?.[key] || 1) - 1;
-      const stratumMultiplier = 1 + decreeStratumMod + eventStratumMod + wealthMod;
+      const stratumMultiplier = 1 + decreeStratumMod + eventStratumMod;
       
-      // 实际值 = 基础值 × 阶层加成 × 资源加成
-      const actualAmount = baseAmount * stratumMultiplier * resourceDemandMultiplier;
+      // 财富乘数是独立的乘法因子（底层公式：requirement *= wealthMultiplier）
+      // wealthMultiplier = 1 + (wealthRatio - 1) * 0.5，其中 wealthRatio = 人均财富 / 起始财富
+      const wealthMultiplier = sources.stratumWealthMultiplier?.[key] || 1;
+      
+      // 实际值 = 基础值 × 阶层加成 × 资源加成 × 财富乘数
+      // 注意：底层还有价格弹性和每日随机浮动，这里不计入（因为是动态的）
+      const actualAmount = baseAmount * stratumMultiplier * resourceDemandMultiplier * wealthMultiplier;
       actualDemandTotal += actualAmount;
       
       // 收集加成信息用于显示
       const modList = [];
       if (decreeStratumMod !== 0) modList.push(`政令${decreeStratumMod > 0 ? '+' : ''}${(decreeStratumMod * 100).toFixed(0)}%`);
       if (eventStratumMod !== 0) modList.push(`事件${eventStratumMod > 0 ? '+' : ''}${(eventStratumMod * 100).toFixed(0)}%`);
-      if (Math.abs(wealthMod) > 0.01) modList.push(`财富${wealthMod > 0 ? '+' : ''}${(wealthMod * 100).toFixed(0)}%`);
+      // 财富乘数显示为乘数形式（×1.25表示需求是基础的1.25倍）
+      if (Math.abs(wealthMultiplier - 1) > 0.01) {
+        const wealthPercent = (wealthMultiplier - 1) * 100;
+        modList.push(`财富${wealthPercent > 0 ? '+' : ''}${wealthPercent.toFixed(0)}%`);
+      }
       
       acc.push({
         key,
