@@ -1711,7 +1711,7 @@ export const simulateTick = ({
                   if (importCost > logThreshold) {
                     const fromName = RESOURCES[sourceResource]?.name || sourceResource;
                     const toName = RESOURCES[target.resource]?.name || target.resource;
-                    logs.push(`🚢 市场：商人动用自有资金 ${exportValue.toFixed(1)} 银币购入 ${exportAmount.toFixed(1)} ${fromName}，换回 ${importAmount.toFixed(1)} ${toName}。`);
+                    // logs.push(`🚢 市场：商人动用自有资金 ${exportValue.toFixed(1)} 银币购入 ${exportAmount.toFixed(1)} ${fromName}，换回 ${importAmount.toFixed(1)} ${toName}。`);
                   }
                 }
               });
@@ -1950,7 +1950,7 @@ export const simulateTick = ({
         res[resKey] = Math.max(0, (res[resKey] || 0) - reduction);
       }
     });
-    logs.push('劳动力因需求未满足而效率下降。');
+    // logs.push('劳动力因需求未满足而效率下降。');
   }
 
   let decreeApprovalModifiers = {};
@@ -3526,7 +3526,7 @@ export const simulateTick = ({
           const sourceName = STRATA[sourceCandidate.role]?.name || sourceCandidate.role;      const targetName = STRATA[targetCandidate.role]?.name || targetCandidate.role;
           const incomeGain = ((targetCandidate.potentialIncome - sourceCandidate.potentialIncome) / Math.max(0.01, sourceCandidate.potentialIncome) * 100).toFixed(0);
           const placementNote = placementInfo?.buildingName ? `（目标建筑：${placementInfo.buildingName}）` : '';
-          logs.push(`💼 ${migrants} 名 ${sourceName} 转职为 ${targetName}${placementNote}（预期收益提升 ${incomeGain}%）`);
+        //   logs.push(`💼 ${migrants} 名 ${sourceName} 转职为 ${targetName}${placementNote}（预期收益提升 ${incomeGain}%）`);
         }
     }
   }
