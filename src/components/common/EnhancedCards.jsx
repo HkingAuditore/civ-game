@@ -186,7 +186,7 @@ export const CollapsibleCard = ({
               {icon}
             </div>
           )}
-          <h3 className="text-lg font-bold text-ancient">{title}</h3>
+<h3 className="text-lg font-bold text-ancient font-decorative">{title}</h3>
           {badge && (
             <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-ancient-gold/20 text-ancient-gold border border-ancient-gold/30">
               {badge}
@@ -257,7 +257,7 @@ export const ActionCard = ({
 
         {/* 内容 */}
         <div className="flex-1 min-w-0">
-          <h4 className="text-lg font-bold text-ancient mb-2">{title}</h4>
+<h4 className="text-lg font-bold text-ancient mb-2 font-decorative">{title}</h4>
           {description && <p className="text-sm text-gray-400 mb-4">{description}</p>}
 
           {/* 操作按钮 */}
@@ -305,7 +305,7 @@ export const ProgressCard = ({
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           {icon && <div className="text-ancient-gold">{icon}</div>}
-          <span className="text-sm font-semibold text-ancient">{title}</span>
+<span className="text-sm font-semibold text-ancient font-decorative">{title}</span>
         </div>
         {showPercentage && (
           <span className="text-sm font-mono text-ancient-gold">{percentage.toFixed(0)}%</span>

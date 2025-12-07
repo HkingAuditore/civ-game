@@ -85,7 +85,7 @@ export const Modal = ({
       >
         {/* 头部 */}
         <div className={MODAL_STYLES.header}>
-          <h3 className="text-lg font-bold text-ancient-gold">{title}</h3>
+<h3 className="text-lg font-bold text-ancient-gold font-decorative">{title}</h3>
           {showCloseButton && (
             <button className={MODAL_STYLES.closeButton} onClick={onClose}>
               <Icon name="X" size={20} />
@@ -286,7 +286,7 @@ export const CollapsibleCard = ({
       >
         <div className="flex items-center gap-3">
           {icon && <div className="text-ancient-gold">{icon}</div>}
-          <span className="font-semibold text-ancient-parchment">{title}</span>
+<span className="font-semibold text-ancient-parchment font-decorative">{title}</span>
           {badge && <Badge variant="primary">{badge}</Badge>}
         </div>
         <Icon
@@ -327,7 +327,7 @@ export const ActionCard = ({
           </div>
         )}
         <div className="flex-1">
-          <h4 className="font-bold text-ancient-parchment mb-1">{title}</h4>
+<h4 className="font-bold text-ancient-parchment mb-1 font-decorative">{title}</h4>
           {description && <p className="text-sm text-ancient-stone mb-3">{description}</p>}
           <Button
             variant={variant}

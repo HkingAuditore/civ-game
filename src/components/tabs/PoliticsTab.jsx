@@ -2,9 +2,188 @@
 // 显示可用政令和切换功能
 
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { Icon } from '../common/UIComponents';
 import { STRATA, RESOURCES, EPOCHS, BUILDINGS } from '../../config';
 import { isResourceUnlocked } from '../../utils/resources';
+
+// 判断是否为供需修正相关的效果文本
+const isSupplyDemandEffect = (text) => {
+  const supplyDemandPatterns = [
+    /需求\s*[+-]?\d+%/,
+    /供应\s*[+-]?\d+%/,
+    /消费\s*[+-]?\d+%/,
+  ];
+  return supplyDemandPatterns.some(pattern => pattern.test(text));
+};
+
+// 过滤掉供需修正相关的效果
+const filterSupplyDemandEffects = (effects) => {
+  if (!effects || !Array.isArray(effects)) return [];
+  return effects.filter(effect => !isSupplyDemandEffect(effect));
+};
+
+/**
+ * 政令悬浮提示框 (使用 Portal)
+ */
+const DecreeTooltip = ({ decree, anchorRect }) => {
+  // 条件判断放在最前面
+  if (!decree || !anchorRect) return null;
+
+  // 直接计算位置，提示框固定宽度为 320px (w-80)
+  const tooltipWidth = 320;
+  const tooltipHeight = 200; // 估计高度
+  
+  let top = anchorRect.top;
+  let left = anchorRect.right + 8; // 默认在右侧
+
+  // 如果右侧空间不足，显示在左侧
+  if (left + tooltipWidth > window.innerWidth) {
+    left = anchorRect.left - tooltipWidth - 8;
+  }
+
+  // 确保不超出屏幕顶部和底部
+  if (top < 0) top = 0;
+  if (top + tooltipHeight > window.innerHeight) {
+    top = window.innerHeight - tooltipHeight;
+  }
+
+  return createPortal(
+    <div
+      className="fixed w-80 bg-gray-800 border border-gray-600 rounded-lg shadow-2xl p-3 z-[9999] pointer-events-none animate-fade-in-fast"
+      style={{ top: `${top}px`, left: `${left}px` }}
+    >
+      <h4 className="text-sm font-bold text-white mb-1 flex items-center gap-2 font-decorative">
+        {decree.name}
+        {decree.active && (
+          <span className="px-2 py-0.5 bg-green-600 text-white text-xs rounded">
+            生效中
+          </span>
+        )}
+      </h4>
+      <p className="text-xs text-gray-400 mb-2">{decree.desc}</p>
+
+      {/* 正面效果（过滤供需修正相关内容） */}
+      {(() => {
+        const hasSupplyDemandMod = decree.modifiers && (
+          decree.modifiers.resourceDemandMod || 
+          decree.modifiers.stratumDemandMod || 
+          decree.modifiers.resourceSupplyMod
+        );
+        const filteredEffects = hasSupplyDemandMod 
+          ? filterSupplyDemandEffects(decree.effects) 
+          : decree.effects;
+        return filteredEffects && filteredEffects.length > 0 && (
+          <div className="bg-green-900/30 rounded px-2 py-1.5 mb-2">
+            <div className="text-[10px] text-gray-400 mb-1">正面效果</div>
+            <div className="space-y-1">
+              {filteredEffects.map((effect, idx) => (
+                <div key={idx} className="flex items-center gap-1 text-xs">
+                  <Icon name="Plus" size={12} className="text-green-400" />
+                  <span className="text-green-300">{effect}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* 负面效果（过滤供需修正相关内容） */}
+      {(() => {
+        const hasSupplyDemandMod = decree.modifiers && (
+          decree.modifiers.resourceDemandMod || 
+          decree.modifiers.stratumDemandMod || 
+          decree.modifiers.resourceSupplyMod
+        );
+        const filteredDrawbacks = hasSupplyDemandMod 
+          ? filterSupplyDemandEffects(decree.drawbacks) 
+          : decree.drawbacks;
+        return filteredDrawbacks && filteredDrawbacks.length > 0 && (
+          <div className="bg-red-900/30 rounded px-2 py-1.5">
+            <div className="text-[10px] text-gray-400 mb-1">负面效果</div>
+            <div className="space-y-1">
+              {filteredDrawbacks.map((drawback, idx) => (
+                <div key={idx} className="flex items-center gap-1 text-xs">
+                  <Icon name="Minus" size={12} className="text-red-400" />
+                  <span className="text-red-300">{drawback}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* 供需修正效果 */}
+      {decree.modifiers && (decree.modifiers.resourceDemandMod || decree.modifiers.stratumDemandMod || decree.modifiers.resourceSupplyMod) && (
+        <div className="bg-blue-900/30 rounded px-2 py-1.5 mt-2">
+          <div className="text-[10px] text-gray-400 mb-1">供需修正</div>
+          <div className="space-y-1.5">
+            {/* 资源需求修正 */}
+            {decree.modifiers.resourceDemandMod && Object.keys(decree.modifiers.resourceDemandMod).length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {Object.entries(decree.modifiers.resourceDemandMod).map(([resKey, value]) => {
+                  const percent = Math.round(value * 100);
+                  const displayPercent = percent > 0 ? `+${percent}%` : `${percent}%`;
+                  return (
+                    <span 
+                      key={resKey} 
+                      className={`text-[10px] px-1 py-0.5 rounded ${
+                        value > 0 ? 'bg-orange-900/40 text-orange-300' : 'bg-cyan-900/40 text-cyan-300'
+                      }`}
+                    >
+                      {RESOURCES[resKey]?.name || resKey}需求 {displayPercent}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+            
+            {/* 资源供应修正 */}
+            {decree.modifiers.resourceSupplyMod && Object.keys(decree.modifiers.resourceSupplyMod).length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {Object.entries(decree.modifiers.resourceSupplyMod).map(([resKey, value]) => {
+                  const percent = Math.round(value * 100);
+                  const displayPercent = percent > 0 ? `+${percent}%` : `${percent}%`;
+                  return (
+                    <span 
+                      key={resKey} 
+                      className={`text-[10px] px-1 py-0.5 rounded ${
+                        value > 0 ? 'bg-green-900/40 text-green-300' : 'bg-red-900/40 text-red-300'
+                      }`}
+                    >
+                      {RESOURCES[resKey]?.name || resKey}供应 {displayPercent}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+            
+            {/* 阶层需求修正 */}
+            {decree.modifiers.stratumDemandMod && Object.keys(decree.modifiers.stratumDemandMod).length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {Object.entries(decree.modifiers.stratumDemandMod).map(([stratumKey, value]) => {
+                  const percent = Math.round(value * 100);
+                  const displayPercent = percent > 0 ? `+${percent}%` : `${percent}%`;
+                  return (
+                    <span 
+                      key={stratumKey} 
+                      className={`text-[10px] px-1 py-0.5 rounded ${
+                        value > 0 ? 'bg-purple-900/40 text-purple-300' : 'bg-teal-900/40 text-teal-300'
+                      }`}
+                    >
+                      {STRATA[stratumKey]?.name || stratumKey}消费 {displayPercent}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>,
+    document.body
+  );
+};
 
 // 定义阶层分组，用于UI显示
 const STRATA_GROUPS = {
@@ -253,6 +432,10 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
   const [resourceTariffDrafts, setResourceTariffDrafts] = React.useState({});
   const [businessDrafts, setBusinessDrafts] = React.useState({});
   const [activeTaxTab, setActiveTaxTab] = React.useState('head'); // 'head', 'resource', 'business'
+  
+  // 悬浮提示状态（用于 Portal 方式显示）
+  const [hoveredDecree, setHoveredDecree] = React.useState(null);
+  const [decreeAnchorRect, setDecreeAnchorRect] = React.useState(null);
   
   // 获取所有已解锁的阶层
   const unlockedStrataKeys = React.useMemo(() => {
@@ -560,7 +743,7 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
       {/* 税收政策调节 */}
       {onUpdateTaxPolicies && (
         <div className="glass-ancient p-4 rounded-xl border border-ancient-gold/30">
-          <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300">
+          <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300 font-decorative">
             <Icon name="DollarSign" size={16} className="text-yellow-400" />
             税收政策调节
           </h3>
@@ -755,7 +938,7 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
         return (
           <div key={catKey} className="glass-ancient p-4 rounded-xl border border-ancient-gold/30">
             {/* 类别标题 */}
-            <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300">
+            <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300 font-decorative">
               <Icon name={catInfo.icon} size={16} className={catInfo.color} />
               {catInfo.name}
             </h3>
@@ -766,7 +949,15 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
                 <div
                   key={decree.id}
                   onClick={() => onShowDecreeDetails && onShowDecreeDetails(decree)}
-                  className={`group relative z-10 hover:z-30 focus-within:z-30 p-2 rounded-lg border transition-all cursor-pointer ${
+                  onMouseEnter={(e) => {
+                    setDecreeAnchorRect(e.currentTarget.getBoundingClientRect());
+                    setHoveredDecree(decree);
+                  }}
+                  onMouseLeave={() => {
+                    setHoveredDecree(null);
+                    setDecreeAnchorRect(null);
+                  }}
+                  className={`relative p-2 rounded-lg border transition-all cursor-pointer ${
                     decree.active
                       ? 'bg-green-900/20 border-green-600 shadow-lg'
                       : 'bg-gray-700/50 border-gray-600 hover:border-purple-500 hover:shadow-lg'
@@ -781,7 +972,7 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
                         <Icon name="FileText" size={24} className="text-purple-400 icon-metal-purple" />
                       )}
                     </div>
-                    <h4 className="text-xs font-bold text-white text-center leading-tight">{decree.name}</h4>
+<h4 className="text-xs font-bold text-white text-center leading-tight font-decorative">{decree.name}</h4>
                     {decree.active && (
                       <span className="text-[10px] text-green-400 mt-0.5">生效中</span>
                     )}
@@ -816,48 +1007,6 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
                     </div>
                   </button>
 
-                  {/* 悬停显示详细信息 - 桌面端 */}
-                  <div className="hidden lg:block absolute left-full top-0 ml-2 w-80 bg-gray-800 border border-gray-600 rounded-lg shadow-2xl p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none">
-                    <h4 className="text-sm font-bold text-white mb-1 flex items-center gap-2">
-                      {decree.name}
-                      {decree.active && (
-                        <span className="px-2 py-0.5 bg-green-600 text-white text-xs rounded">
-                          生效中
-                        </span>
-                      )}
-                    </h4>
-                    <p className="text-xs text-gray-400 mb-2">{decree.desc}</p>
-
-                    {/* 正面效果 */}
-                    {decree.effects && decree.effects.length > 0 && (
-                      <div className="bg-green-900/30 rounded px-2 py-1.5 mb-2">
-                        <div className="text-[10px] text-gray-400 mb-1">正面效果</div>
-                        <div className="space-y-1">
-                          {decree.effects.map((effect, idx) => (
-                            <div key={idx} className="flex items-center gap-1 text-xs">
-                              <Icon name="Plus" size={12} className="text-green-400" />
-                              <span className="text-green-300">{effect}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* 负面效果 */}
-                    {decree.drawbacks && decree.drawbacks.length > 0 && (
-                      <div className="bg-red-900/30 rounded px-2 py-1.5">
-                        <div className="text-[10px] text-gray-400 mb-1">负面效果</div>
-                        <div className="space-y-1">
-                          {decree.drawbacks.map((drawback, idx) => (
-                            <div key={idx} className="flex items-center gap-1 text-xs">
-                              <Icon name="Minus" size={12} className="text-red-400" />
-                              <span className="text-red-300">{drawback}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
                 </div>
               ))}
             </div>
@@ -865,9 +1014,15 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
         );
       })}
 
+      {/* 政令悬浮提示框 - 使用 Portal */}
+      <DecreeTooltip
+        decree={hoveredDecree}
+        anchorRect={decreeAnchorRect}
+      />
+
       {/* 当前生效的政令统计 */}
       <div className="glass-ancient p-4 rounded-xl border border-ancient-gold/30">
-        <h3 className="text-sm font-bold mb-2 flex items-center gap-2 text-gray-300">
+        <h3 className="text-sm font-bold mb-2 flex items-center gap-2 text-gray-300 font-decorative">
           <Icon name="FileText" size={16} className="text-blue-400" />
           政令统计
         </h3>

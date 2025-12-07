@@ -44,7 +44,7 @@ const BuildingTooltip = ({ building, count, epoch, techsUnlocked, jobFill, ancho
       className="fixed w-72 bg-gray-800 border border-gray-600 rounded-lg shadow-2xl p-3 z-[9999] pointer-events-none animate-fade-in-fast"
       style={{ top: `${position.top}px`, left: `${position.left}px` }}
     >
-      <h4 className="text-sm font-bold text-white mb-1">{building.name}</h4>
+<h4 className="text-sm font-bold text-white mb-1 font-decorative">{building.name}</h4>
       <p className="text-xs text-gray-300 mb-2">{building.desc}</p>
 
       {building.owner && (
@@ -175,7 +175,7 @@ const CompactBuildingCard = ({
           <VisualIcon name={building.visual.icon} size={14} className={`${building.visual.text} icon-metal`} />
         </div>
         <div className="flex items-baseline gap-0.5">
-          <h4 className="text-[10px] font-bold text-ancient-parchment leading-tight truncate max-w-[60px]">{building.name}</h4>
+          <h4 className="text-[12px] font-bold text-ancient-parchment leading-tight truncate max-w-[60px]">{building.name}</h4>
           {count > 0 && <p className="text-[8px] font-bold text-ancient-gold">×{count}</p>}
         </div>
       </div>
@@ -441,7 +441,7 @@ export const BuildTab = ({
         return (
           <div key={catKey} className="glass-ancient p-4 rounded-xl border border-ancient-gold/30">
             {/* 类别标题 */}
-            <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300">
+            <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300 font-decorative">
               <Icon name={catInfo.icon} size={16} className={catInfo.color} />
               {catInfo.name}
             </h3>

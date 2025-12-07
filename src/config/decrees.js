@@ -16,12 +16,13 @@ export const DECREES = [
     category: 'social',
     unlockEpoch: 0,
     cost: {},
-    effects: ['居民需求 -15%', '人口上限 +8%'],
+    effects: ['居民需求 -15%', '人口上限 +8%', '粮食需求 -10%'],
     drawbacks: ['采集产出 -5%（缺乏激励）'],
     modifiers: {
       needsReduction: 0.15,
       maxPop: 0.08,
       categories: { gather: -0.05 },
+      resourceDemandMod: { food: -0.10 },  // 集体分配减少浪费
     },
     active: false,
   },
@@ -32,12 +33,13 @@ export const DECREES = [
     category: 'culture',
     unlockEpoch: 0,
     cost: {},
-    effects: ['公共服务产出 +10%', '科研产出 +5%'],
+    effects: ['公共服务产出 +10%', '科研产出 +5%', '文化需求 +15%'],
     drawbacks: ['每日 -2 银币祭祀开销'],
     modifiers: {
       categories: { civic: 0.10 },
       buildings: { library: 0.05 },
       passive: { silver: -2, culture: 0.5 },
+      resourceDemandMod: { culture: 0.15 },  // 祭祀活动增加文化消费
     },
     active: false,
   },
@@ -48,11 +50,12 @@ export const DECREES = [
     category: 'economy',
     unlockEpoch: 0,
     cost: {},
-    effects: ['采集产出 +12%', '军事产出 +5%'],
+    effects: ['采集产出 +12%', '军事产出 +5%', '食物供应 +15%'],
     drawbacks: ['每日 -2 食物（宴会消耗）'],
     modifiers: {
       categories: { gather: 0.12, military: 0.05 },
       passive: { food: -2 },
+      resourceSupplyMod: { food: 0.15 },  // 狩猎增加肉食供应
     },
     active: false,
   },
@@ -63,11 +66,12 @@ export const DECREES = [
     category: 'military',
     unlockEpoch: 0,
     cost: {},
-    effects: ['军事产出 +15%', '居民需求 -5%'],
+    effects: ['军事产出 +15%', '居民需求 -5%', '军人消费 -10%'],
     drawbacks: ['工业产出 -8%（封闭排外）'],
     modifiers: {
       categories: { military: 0.15, industry: -0.08 },
       needsReduction: 0.05,
+      stratumDemandMod: { soldier: -0.10 },  // 血盟誓约减少军人物资需求
     },
     active: false,
   },
@@ -84,13 +88,14 @@ export const DECREES = [
     category: 'economy',
     unlockEpoch: 1,
     cost: {},
-    effects: ['采集产出 +18%', '建筑成本 -10%'],
+    effects: ['采集产出 +18%', '建筑成本 -10%', '石材供应 +12%'],
     drawbacks: ['人口上限 -8%', '居民需求 +5%'],
     modifiers: {
       categories: { gather: 0.18 },
       buildCostReduction: 0.10,
       maxPop: -0.08,
       needsReduction: -0.05,
+      resourceSupplyMod: { stone: 0.12 },  // 徭役增加石材供应
     },
     active: false,
   },
@@ -101,11 +106,12 @@ export const DECREES = [
     category: 'culture',
     unlockEpoch: 1,
     cost: {},
-    effects: ['公共服务产出 +15%', '军事产出 +8%'],
+    effects: ['公共服务产出 +15%', '军事产出 +8%', '贵族消费 +20%'],
     drawbacks: ['科研产出 -10%（思想禁锢）'],
     modifiers: {
       categories: { civic: 0.15, military: 0.08 },
       buildings: { library: -0.10, university: -0.10 },
+      stratumDemandMod: { landowner: 0.20 },  // 神权带动贵族奢侈消费
     },
     active: false,
   },
@@ -116,11 +122,12 @@ export const DECREES = [
     category: 'economy',
     unlockEpoch: 1,
     cost: {},
-    effects: ['工业产出 +12%', '军事建筑产出 +10%'],
+    effects: ['工业产出 +12%', '军事建筑产出 +10%', '铜需求 +20%'],
     drawbacks: ['每日 -3 银币检验费用'],
     modifiers: {
       categories: { industry: 0.12, military: 0.10 },
       passive: { silver: -3 },
+      resourceDemandMod: { copper: 0.20 },  // 标准化增加铜的需求
     },
     active: false,
   },
@@ -131,11 +138,12 @@ export const DECREES = [
     category: 'economy',
     unlockEpoch: 1,
     cost: {},
-    effects: ['每日 +5 银币收入', '公共服务 +8%'],
+    effects: ['每日 +5 银币收入', '公共服务 +8%', '神职人员消费 +15%'],
     drawbacks: ['工业产出 -5%'],
     modifiers: {
       passive: { silver: 5, culture: 1 },
       categories: { civic: 0.08, industry: -0.05 },
+      stratumDemandMod: { cleric: 0.15 },  // 神庙经济增加神职人员消费
     },
     active: false,
   },
@@ -146,12 +154,13 @@ export const DECREES = [
     category: 'military',
     unlockEpoch: 1,
     cost: {},
-    effects: ['军事产出 +20%', '军事建筑产出 +15%'],
+    effects: ['军事产出 +20%', '军事建筑产出 +15%', '武器需求 +18%'],
     drawbacks: ['采集产出 -8%', '每日 -4 银币军饷'],
     modifiers: {
       categories: { military: 0.20, gather: -0.08 },
       buildings: { barracks: 0.15, training_ground: 0.15 },
       passive: { silver: -4 },
+      resourceDemandMod: { tools: 0.18 },  // 武士阶层增加武器装备需求
     },
     active: false,
   },
@@ -168,12 +177,13 @@ export const DECREES = [
     category: 'social',
     unlockEpoch: 2,
     cost: {},
-    effects: ['居民需求 -18%', '公共服务 +10%'],
+    effects: ['居民需求 -18%', '公共服务 +10%', '食物需求 +15%', '文化需求 +20%'],
     drawbacks: ['每日 -6 食物', '每日 -4 银币'],
     modifiers: {
       needsReduction: 0.18,
       categories: { civic: 0.10 },
       passive: { food: -6, silver: -4 },
+      resourceDemandMod: { food: 0.15, culture: 0.20 },  // 竞技表演增加粮食和文化消费
     },
     active: false,
   },
@@ -184,12 +194,13 @@ export const DECREES = [
     category: 'social',
     unlockEpoch: 2,
     cost: {},
-    effects: ['公共服务产出 +12%', '人口上限 +6%'],
+    effects: ['公共服务产出 +12%', '人口上限 +6%', '铜需求 +10%'],
     drawbacks: ['军事产出 -5%（法律限制）'],
     modifiers: {
       categories: { civic: 0.12, military: -0.05 },
       maxPop: 0.06,
       passive: { culture: 0.8 },
+      resourceDemandMod: { copper: 0.10 },  // 铜表铸造增加铜需求
     },
     active: false,
   },
@@ -200,12 +211,14 @@ export const DECREES = [
     category: 'culture',
     unlockEpoch: 2,
     cost: {},
-    effects: ['科研产出 +15%', '公共服务 +8%'],
+    effects: ['科研产出 +15%', '公共服务 +8%', '学者消费 +15%', '莎草纸需求 +12%'],
     drawbacks: ['采集产出 -6%（公民脱产议政）'],
     modifiers: {
       buildings: { library: 0.15, university: 0.10 },
       categories: { civic: 0.08, gather: -0.06 },
       passive: { science: 1.5 },
+      stratumDemandMod: { scribe: 0.15 },  // 议政增加学者需求
+      resourceDemandMod: { papyrus: 0.12 },  // 文书记录增加莎草纸需求
     },
     active: false,
   },
@@ -216,13 +229,15 @@ export const DECREES = [
     category: 'economy',
     unlockEpoch: 2,
     cost: {},
-    effects: ['每日 +8 银币专卖利润', '工业产出 +6%'],
+    effects: ['每日 +8 银币专卖利润', '工业产出 +6%', '铁供应 +10%', '工具需求 -8%'],
     drawbacks: ['居民需求 +8%', '人口上限 -5%'],
     modifiers: {
       passive: { silver: 8 },
       categories: { industry: 0.06 },
       needsReduction: -0.08,
       maxPop: -0.05,
+      resourceSupplyMod: { iron: 0.10 },  // 专卖增加铁供应
+      resourceDemandMod: { tools: -0.08 },  // 统一管理减少工具损耗
     },
     active: false,
   },
@@ -233,12 +248,14 @@ export const DECREES = [
     category: 'military',
     unlockEpoch: 2,
     cost: {},
-    effects: ['军事产出 +18%', '兵营产出 +20%'],
+    effects: ['军事产出 +18%', '兵营产出 +20%', '军人消费 +12%', '工具需求 +15%'],
     drawbacks: ['每日 -5 银币训练费', '每日 -3 食物'],
     modifiers: {
       categories: { military: 0.18 },
       buildings: { barracks: 0.20, training_ground: 0.15 },
       passive: { silver: -5, food: -3 },
+      stratumDemandMod: { soldier: 0.12 },  // 严格训练增加军人消费
+      resourceDemandMod: { tools: 0.15 },  // 装备维护增加工具需求
     },
     active: false,
   },
@@ -249,7 +266,7 @@ export const DECREES = [
     category: 'economy',
     unlockEpoch: 2,
     cost: {},
-    effects: ['手工业产出 +15%', '工业产出 +8%'],
+    effects: ['手工业产出 +15%', '工业产出 +8%', '工匠消费 +10%', '布料供应 +12%'],
     drawbacks: ['每日 -4 银币行会补贴'],
     modifiers: {
       buildings: {
@@ -260,6 +277,8 @@ export const DECREES = [
       },
       categories: { industry: 0.08 },
       passive: { silver: -4 },
+      stratumDemandMod: { artisan: 0.10 },  // 行会繁荣增加工匠消费
+      resourceSupplyMod: { cloth: 0.12 },  // 行会提高布料产出
     },
     active: false,
   },
@@ -270,11 +289,13 @@ export const DECREES = [
     category: 'economy',
     unlockEpoch: 2,
     cost: {},
-    effects: ['采集产出 +10%', '工业产出 +8%', '军事产出 +5%'],
+    effects: ['采集产出 +10%', '工业产出 +8%', '军事产出 +5%', '商人消费 +15%', '石材需求 +10%'],
     drawbacks: ['每日 -6 银币维护'],
     modifiers: {
       categories: { gather: 0.10, industry: 0.08, military: 0.05 },
       passive: { silver: -6 },
+      stratumDemandMod: { merchant: 0.15 },  // 道路促进商业活动
+      resourceDemandMod: { stone: 0.10 },  // 道路维护需要石材
     },
     active: false,
   },
@@ -291,12 +312,14 @@ export const DECREES = [
     category: 'military',
     unlockEpoch: 3,
     cost: {},
-    effects: ['军事产出 +22%', '军事建筑 +15%'],
+    effects: ['军事产出 +22%', '军事建筑 +15%', '骑士消费 +20%', '食物需求 +10%'],
     drawbacks: ['采集产出 -10%', '每日 -3 食物'],
     modifiers: {
       categories: { military: 0.22, gather: -0.10 },
       buildings: { barracks: 0.15, fortress: 0.15 },
       passive: { food: -3 },
+      stratumDemandMod: { knight: 0.20 },  // 征召增加骑士消费
+      resourceDemandMod: { food: 0.10 },  // 军队集结增加粮食需求
     },
     active: false,
   },
@@ -307,11 +330,12 @@ export const DECREES = [
     category: 'social',
     unlockEpoch: 3,
     cost: {},
-    effects: ['公共服务 +15%', '人口上限 +8%', '科研 +5%'],
+    effects: ['公共服务 +15%', '人口上限 +8%', '科研 +5%', '官员消费 +12%', '地主消费 -10%'],
     drawbacks: ['军事产出 -8%（君权受限）'],
     modifiers: {
       categories: { civic: 0.15, military: -0.08 },
       maxPop: 0.08,
+      stratumDemandMod: { official: 0.12, landowner: -0.10 },  // 宪章限制贵族奢靡
       buildings: { library: 0.05 },
       passive: { culture: 1 },
     },
@@ -324,12 +348,14 @@ export const DECREES = [
     category: 'culture',
     unlockEpoch: 3,
     cost: {},
-    effects: ['每日 +7 银币教税', '公共服务 +5%'],
+    effects: ['每日 +7 银币教税', '公共服务 +5%', '神职人员消费 +18%', '文化供应 +10%'],
     drawbacks: ['居民需求 +8%', '工业产出 -4%'],
     modifiers: {
       passive: { silver: 7, culture: 0.5 },
       categories: { civic: 0.05, industry: -0.04 },
       needsReduction: -0.08,
+      stratumDemandMod: { cleric: 0.18 },  // 教会收税增加神职人员消费
+      resourceSupplyMod: { culture: 0.10 },  // 宗教活动增加文化供应
     },
     active: false,
   },
@@ -340,7 +366,7 @@ export const DECREES = [
     category: 'economy',
     unlockEpoch: 3,
     cost: {},
-    effects: ['市场/港口产出 +18%', '每日 +6 银币贸易利润'],
+    effects: ['市场/港口产出 +18%', '每日 +6 银币贸易利润', '商人消费 +20%', '香料需求 +15%'],
     drawbacks: ['采集产出 -5%'],
     modifiers: {
       buildings: {
@@ -350,6 +376,8 @@ export const DECREES = [
       },
       passive: { silver: 6 },
       categories: { gather: -0.05 },
+      stratumDemandMod: { merchant: 0.20 },  // 商法促进商业活动
+      resourceDemandMod: { spice: 0.15 },  // 贸易增加香料需求
     },
     active: false,
   },
@@ -360,13 +388,15 @@ export const DECREES = [
     category: 'culture',
     unlockEpoch: 3,
     cost: {},
-    effects: ['居民需求 -12%', '公共服务 +8%'],
+    effects: ['居民需求 -12%', '公共服务 +8%', '学者消费 -20%', '莎草纸需求 -15%'],
     drawbacks: ['科研产出 -15%', '人口上限 -5%'],
     modifiers: {
       needsReduction: 0.12,
       categories: { civic: 0.08 },
       buildings: { library: -0.15, university: -0.15 },
       maxPop: -0.05,
+      stratumDemandMod: { scribe: -0.20 },  // 打压异见减少学者需求
+      resourceDemandMod: { papyrus: -0.15 },  // 禁书减少纸张需求
     },
     active: false,
   },
@@ -377,7 +407,7 @@ export const DECREES = [
     category: 'economy',
     unlockEpoch: 3,
     cost: {},
-    effects: ['工业产出 +15%', '手工业建筑 +12%'],
+    effects: ['工业产出 +15%', '手工业建筑 +12%', '工匠消费 +15%', '家具供应 +12%'],
     drawbacks: ['居民需求 +6%', '每日 -3 银币'],
     modifiers: {
       categories: { industry: 0.15 },
@@ -389,6 +419,8 @@ export const DECREES = [
       },
       needsReduction: -0.06,
       passive: { silver: -3 },
+      stratumDemandMod: { artisan: 0.15 },  // 垄断增加工匠消费
+      resourceSupplyMod: { furniture: 0.12 },  // 垄断提高家具产出
     },
     active: false,
   },
@@ -399,11 +431,13 @@ export const DECREES = [
     category: 'military',
     unlockEpoch: 3,
     cost: {},
-    effects: ['军事产出 +15%', '文化产出 +10%'],
+    effects: ['军事产出 +15%', '文化产出 +10%', '骑士消费 +18%', '地主消费 +12%', '酒需求 +20%'],
     drawbacks: ['每日 -5 银币比武开销', '每日 -2 食物宴席'],
     modifiers: {
       categories: { military: 0.15 },
       passive: { silver: -5, food: -2, culture: 2 },
+      stratumDemandMod: { knight: 0.18, landowner: 0.12 },  // 比武增加贵族消费
+      resourceDemandMod: { ale: 0.20 },  // 宴会增加酒需求
     },
     active: false,
   },
@@ -414,13 +448,15 @@ export const DECREES = [
     category: 'social',
     unlockEpoch: 3,
     cost: {},
-    effects: ['采集产出 +20%', '农场产出 +15%'],
+    effects: ['采集产出 +20%', '农场产出 +15%', '佃农消费 -15%', '粮食供应 +12%', '地主消费 +20%'],
     drawbacks: ['人口上限 -10%', '居民需求 +10%', '工业产出 -8%'],
     modifiers: {
       categories: { gather: 0.20, industry: -0.08 },
       buildings: { farm: 0.15, large_estate: 0.15 },
       maxPop: -0.10,
       needsReduction: -0.10,
+      stratumDemandMod: { serf: -0.15, landowner: 0.20 },  // 农奴消费降低，地主消费增加
+      resourceSupplyMod: { food: 0.12 },  // 农奴制增加粮食产出
     },
     active: false,
   },
@@ -437,7 +473,7 @@ export const DECREES = [
     category: 'economy',
     unlockEpoch: 4,
     cost: {},
-    effects: ['船坞/港口产出 +25%', '每日 +8 银币航运利润'],
+    effects: ['船坞/港口产出 +25%', '每日 +8 银币航运利润', '水手消费 +15%', '香料供应 +10%'],
     drawbacks: ['采集产出 -6%', '居民需求 +5%'],
     modifiers: {
       buildings: {
@@ -447,6 +483,8 @@ export const DECREES = [
       passive: { silver: 8 },
       categories: { gather: -0.06 },
       needsReduction: -0.05,
+      stratumDemandMod: { navigator: 0.15 },  // 航海繁荣增加水手消费
+      resourceSupplyMod: { spice: 0.10 },  // 航运增加香料供应
     },
     active: false,
   },
@@ -457,12 +495,14 @@ export const DECREES = [
     category: 'economy',
     unlockEpoch: 4,
     cost: {},
-    effects: ['采集产出 +22%', '每日 +6 银币贡赋'],
+    effects: ['采集产出 +22%', '每日 +6 银币贡赋', '佃农消费 -20%', '粮食供应 +15%'],
     drawbacks: ['公共服务 -10%', '人口上限 -8%'],
     modifiers: {
       categories: { gather: 0.22, civic: -0.10 },
       passive: { silver: 6 },
       maxPop: -0.08,
+      stratumDemandMod: { serf: -0.20 },  // 剥削压低佃农消费
+      resourceSupplyMod: { food: 0.15 },  // 殖民剥削增加粮食供应
     },
     active: false,
   },
@@ -473,7 +513,7 @@ export const DECREES = [
     category: 'economy',
     unlockEpoch: 4,
     cost: {},
-    effects: ['市场产出 +20%', '每日 +10 银币分红'],
+    effects: ['市场产出 +20%', '每日 +10 银币分红', '资本家消费 +25%', '商人消费 +18%', '香料需求 +20%'],
     drawbacks: ['每日 -4 食物（公司运营）'],
     modifiers: {
       buildings: {
@@ -481,6 +521,8 @@ export const DECREES = [
         trade_port: 0.15,
       },
       passive: { silver: 10, food: -4 },
+      stratumDemandMod: { capitalist: 0.25, merchant: 0.18 },  // 股份公司增加商业消费
+      resourceDemandMod: { spice: 0.20 },  // 贸易增加香料需求
     },
     active: false,
   },
@@ -491,12 +533,14 @@ export const DECREES = [
     category: 'military',
     unlockEpoch: 4,
     cost: {},
-    effects: ['军事产出 +18%', '船坞产出 +20%'],
+    effects: ['军事产出 +18%', '船坞产出 +20%', '水手消费 -15%', '酒需求 +10%'],
     drawbacks: ['公共服务 -8%', '人口上限 -6%'],
     modifiers: {
       categories: { military: 0.18, civic: -0.08 },
       buildings: { dockyard: 0.20 },
       maxPop: -0.06,
+      stratumDemandMod: { navigator: -0.15 },  // 强征降低水手消费
+      resourceDemandMod: { ale: 0.10 },  // 水手需要酒精
     },
     active: false,
   },
@@ -507,12 +551,15 @@ export const DECREES = [
     category: 'economy',
     unlockEpoch: 4,
     cost: {},
-    effects: ['每日 +12 银币（贸易顺差）'],
+    effects: ['每日 +12 银币（贸易顺差）', '商人消费 -12%', '香料需求 -20%', '布料供应 +8%'],
     drawbacks: ['进口商品 -15%', '工业产出 -5%'],
     modifiers: {
       passive: { silver: 12 },
       categories: { industry: -0.05 },
       buildings: { trade_port: -0.15 },
+      stratumDemandMod: { merchant: -0.12 },  // 重商主义限制商人消费
+      resourceDemandMod: { spice: -0.20 },  // 进口限制减少香料需求
+      resourceSupplyMod: { cloth: 0.08 },  // 促进国内布料生产
     },
     active: false,
   },
@@ -523,7 +570,7 @@ export const DECREES = [
     category: 'culture',
     unlockEpoch: 4,
     cost: {},
-    effects: ['印刷产出 +25%', '每日 +4 银币特许费'],
+    effects: ['印刷产出 +25%', '每日 +4 银币特许费', '学者消费 -10%', '莎草纸供应 +15%'],
     drawbacks: ['科研产出 -8%'],
     modifiers: {
       buildings: {
@@ -532,6 +579,8 @@ export const DECREES = [
       },
       passive: { silver: 4 },
       buildings_negative: { library: -0.08 },
+      stratumDemandMod: { scribe: -0.10 },  // 特许限制减少学者消费
+      resourceSupplyMod: { papyrus: 0.15 },  // 印刷业增加纸张供应
     },
     active: false,
   },
@@ -542,7 +591,7 @@ export const DECREES = [
     category: 'economy',
     unlockEpoch: 4,
     cost: {},
-    effects: ['农场/庄园产出 +20%', '每日 +0.5 香料/咖啡'],
+    effects: ['农场/庄园产出 +20%', '每日 +0.5 香料/咖啡', '地主消费 +15%', '咖啡供应 +20%', '香料供应 +18%'],
     drawbacks: ['居民需求 +10%', '公共服务 -6%'],
     modifiers: {
       buildings: {
@@ -552,6 +601,8 @@ export const DECREES = [
       passive: { spice: 0.5, coffee: 0.5 },
       needsReduction: -0.10,
       categories: { civic: -0.06 },
+      stratumDemandMod: { landowner: 0.15 },  // 种植园增加地主消费
+      resourceSupplyMod: { coffee: 0.20, spice: 0.18 },  // 种植园增加供应
     },
     active: false,
   },
@@ -568,12 +619,13 @@ export const DECREES = [
     category: 'social',
     unlockEpoch: 5,
     cost: {},
-    effects: ['公共服务 +18%', '科研产出 +12%', '工业产出 +8%'],
+    effects: ['公共服务 +18%', '科研产出 +12%', '工业产出 +8%', '官员消费 +15%', '工程师消费 +12%'],
     drawbacks: ['每日 -8 银币改革开支'],
     modifiers: {
       categories: { civic: 0.18, industry: 0.08 },
       buildings: { library: 0.12, university: 0.12 },
       passive: { silver: -8, science: 2 },
+      stratumDemandMod: { official: 0.15, engineer: 0.12 },  // 改革增加官僚和工程师消费
     },
     active: false,
   },
@@ -584,12 +636,13 @@ export const DECREES = [
     category: 'social',
     unlockEpoch: 5,
     cost: {},
-    effects: ['公共服务 +15%', '人口上限 +10%'],
+    effects: ['公共服务 +15%', '人口上限 +10%', '工人消费 +10%', '商人消费 +8%'],
     drawbacks: ['军事产出 -8%'],
     modifiers: {
       categories: { civic: 0.15, military: -0.08 },
       maxPop: 0.10,
       passive: { culture: 1.5 },
+      stratumDemandMod: { worker: 0.10, merchant: 0.08 },  // 法治促进工商消费
     },
     active: false,
   },
@@ -600,7 +653,7 @@ export const DECREES = [
     category: 'culture',
     unlockEpoch: 5,
     cost: {},
-    effects: ['大学产出 +30%', '科研产出 +20%'],
+    effects: ['大学产出 +30%', '科研产出 +20%', '学者消费 +25%', '莎草纸需求 +20%'],
     drawbacks: ['每日 -8 银币学术经费'],
     modifiers: {
       buildings: {
@@ -609,6 +662,8 @@ export const DECREES = [
         navigator_school: 0.15,
       },
       passive: { silver: -8, science: 3 },
+      stratumDemandMod: { scribe: 0.25 },  // 学院增加学者消费
+      resourceDemandMod: { papyrus: 0.20 },  // 研究增加纸张需求
     },
     active: false,
   },
@@ -619,7 +674,7 @@ export const DECREES = [
     category: 'economy',
     unlockEpoch: 5,
     cost: {},
-    effects: ['采集产出 +18%', '农场产出 +20%'],
+    effects: ['采集产出 +18%', '农场产出 +20%', '自耕农消费 +10%', '粮食供应 +15%', '商人消费 -15%'],
     drawbacks: ['工业产出 -8%', '市场产出 -10%'],
     modifiers: {
       categories: { gather: 0.18, industry: -0.08 },
@@ -628,6 +683,8 @@ export const DECREES = [
         large_estate: 0.15,
         market: -0.10,
       },
+      stratumDemandMod: { peasant: 0.10, merchant: -0.15 },  // 重农轻商
+      resourceSupplyMod: { food: 0.15 },  // 农业发展增加粮食供应
     },
     active: false,
   },
@@ -638,7 +695,7 @@ export const DECREES = [
     category: 'economy',
     unlockEpoch: 5,
     cost: {},
-    effects: ['工业产出 +15%', '工厂产出 +18%'],
+    effects: ['工业产出 +15%', '工厂产出 +18%', '工程师消费 +20%', '钢铁供应 +10%'],
     drawbacks: ['每日 -5 银币专利管理'],
     modifiers: {
       categories: { industry: 0.15 },
@@ -648,6 +705,8 @@ export const DECREES = [
         printing_house: 0.12,
       },
       passive: { silver: -5, science: 1 },
+      stratumDemandMod: { engineer: 0.20 },  // 专利制度增加工程师消费
+      resourceSupplyMod: { steel: 0.10 },  // 创新增加钢铁产出
     },
     active: false,
   },
@@ -658,7 +717,7 @@ export const DECREES = [
     category: 'culture',
     unlockEpoch: 5,
     cost: {},
-    effects: ['印刷/出版产出 +25%', '科研产出 +10%', '文化产出 +15%'],
+    effects: ['印刷/出版产出 +25%', '科研产出 +10%', '文化产出 +15%', '学者消费 +15%', '莎草纸需求 +18%'],
     drawbacks: ['公共服务 -5%（舆论批评）'],
     modifiers: {
       buildings: {
@@ -666,6 +725,8 @@ export const DECREES = [
         publishing_house: 0.25,
       },
       categories: { civic: -0.05 },
+      stratumDemandMod: { scribe: 0.15 },  // 新闻自由增加学者消费
+      resourceDemandMod: { papyrus: 0.18 },  // 报刊增加纸张需求
       passive: { science: 2, culture: 3 },
     },
     active: false,
@@ -677,29 +738,31 @@ export const DECREES = [
     category: 'military',
     unlockEpoch: 5,
     cost: {},
-    effects: ['军事产出 +25%', '要塞产出 +20%'],
-    drawbacks: ['每日 -10 银币军饷', '每日 -5 食物军粮'],
+    effects: ['军事产出 +25%', '要塞产出 +20%', '军人消费 +20%', '工具需求 +15%', '食物需求 +12%'],
+    drawbacks: ['每日 -10 银币军饿', '每日 -5 食物军粮'],
     modifiers: {
       categories: { military: 0.25 },
       buildings: { fortress: 0.20, barracks: 0.15 },
       passive: { silver: -10, food: -5 },
+      stratumDemandMod: { soldier: 0.20 },  // 常备军增加军人消费
+      resourceDemandMod: { tools: 0.15, food: 0.12 },  // 军队需要装备和粮食
     },
     active: false,
-  },
-  {
+  },  {
     id: 'social_contract',
     name: '社会契约',
     desc: '政府权力来自人民的授权，统治者与被统治者存在契约关系。',
     category: 'social',
     unlockEpoch: 5,
     cost: {},
-    effects: ['居民需求 -15%', '公共服务 +12%', '人口上限 +8%'],
+    effects: ['居民需求 -15%', '公共服务 +12%', '人口上限 +8%', '地主消费 -12%', '自耕农消费 +8%'],
     drawbacks: ['军事产出 -10%'],
     modifiers: {
       needsReduction: 0.15,
       categories: { civic: 0.12, military: -0.10 },
       maxPop: 0.08,
       passive: { culture: 2 },
+      stratumDemandMod: { landowner: -0.12, peasant: 0.08 },  // 契约限制贵族，平民受益
     },
     active: false,
   },
@@ -716,13 +779,15 @@ export const DECREES = [
     category: 'social',
     unlockEpoch: 6,
     cost: {},
-    effects: ['居民需求 -12%', '人口上限 +10%'],
+    effects: ['居民需求 -12%', '人口上限 +10%', '工人消费 +10%', '工具需求 -8%'],
     drawbacks: ['工业产出 -8%', '每日 -4 银币监察费'],
     modifiers: {
       needsReduction: 0.12,
       maxPop: 0.10,
       categories: { industry: -0.08 },
       passive: { silver: -4 },
+      stratumDemandMod: { worker: 0.10 },  // 工人待遇改善增加消费
+      resourceDemandMod: { tools: -0.08 },  // 安全规范减少工具损耗
     },
     active: false,
   },
@@ -733,12 +798,14 @@ export const DECREES = [
     category: 'economy',
     unlockEpoch: 6,
     cost: {},
-    effects: ['居民需求 -10%', '工业产出 +10%'],
+    effects: ['居民需求 -10%', '工业产出 +10%', '工人消费 +12%', '粮食需求 -10%', '地主消费 -15%'],
     drawbacks: ['采集产出 -12%', '农场产出 -10%'],
     modifiers: {
       needsReduction: 0.10,
       categories: { industry: 0.10, gather: -0.12 },
       buildings: { farm: -0.10 },
+      stratumDemandMod: { worker: 0.12, landowner: -0.15 },  // 工人受益，地主受损
+      resourceDemandMod: { food: -0.10 },  // 进口粮食降低需求
     },
     active: false,
   },
@@ -749,12 +816,14 @@ export const DECREES = [
     category: 'economy',
     unlockEpoch: 6,
     cost: {},
-    effects: ['工业产出 +18%', '市场产出 +20%'],
+    effects: ['工业产出 +18%', '市场产出 +20%', '资本家消费 +25%', '商人消费 +20%', '钢铁供应 +12%'],
     drawbacks: ['公共服务 -12%', '居民需求 +8%'],
     modifiers: {
       categories: { industry: 0.18, civic: -0.12 },
       buildings: { market: 0.20, factory: 0.15 },
       needsReduction: -0.08,
+      stratumDemandMod: { capitalist: 0.25, merchant: 0.20 },  // 自由市场增加商业消费
+      resourceSupplyMod: { steel: 0.12 },  // 工业繁荣增加钢铁产出
     },
     active: false,
   },
@@ -765,12 +834,13 @@ export const DECREES = [
     category: 'social',
     unlockEpoch: 6,
     cost: {},
-    effects: ['居民需求 -15%', '公共服务 +10%'],
+    effects: ['居民需求 -15%', '公共服务 +10%', '工人消费 +18%', '资本家消费 -15%'],
     drawbacks: ['工业产出 -10%', '每日 -5 银币'],
     modifiers: {
       needsReduction: 0.15,
       categories: { civic: 0.10, industry: -0.10 },
       passive: { silver: -5 },
+      stratumDemandMod: { worker: 0.18, capitalist: -0.15 },  // 工会增加工人消费，减少资本家消费
     },
     active: false,
   },
@@ -781,11 +851,13 @@ export const DECREES = [
     category: 'economy',
     unlockEpoch: 6,
     cost: {},
-    effects: ['采集产出 +15%', '工业产出 +15%', '军事产出 +10%'],
+    effects: ['采集产出 +15%', '工业产出 +15%', '军事产出 +10%', '工程师消费 +20%', '钢铁需求 +25%', '工人消费 +15%'],
     drawbacks: ['每日 -12 银币建设维护'],
     modifiers: {
       categories: { gather: 0.15, industry: 0.15, military: 0.10 },
       passive: { silver: -12 },
+      stratumDemandMod: { engineer: 0.20, worker: 0.15 },  // 铁路建设增加工程师和工人消费
+      resourceDemandMod: { steel: 0.25 },  // 铁路建设需要大量钢铁
     },
     active: false,
   },
@@ -796,12 +868,14 @@ export const DECREES = [
     category: 'military',
     unlockEpoch: 6,
     cost: {},
-    effects: ['军事产出 +30%', '军事建筑 +25%'],
+    effects: ['军事产出 +30%', '军事建筑 +25%', '军人消费 +25%', '食物需求 +18%', '工具需求 +20%'],
     drawbacks: ['采集产出 -15%', '工业产出 -8%', '每日 -6 食物'],
     modifiers: {
       categories: { military: 0.30, gather: -0.15, industry: -0.08 },
       buildings: { barracks: 0.25, training_ground: 0.25, fortress: 0.20 },
       passive: { food: -6 },
+      stratumDemandMod: { soldier: 0.25 },  // 全民兵役增加军人消费
+      resourceDemandMod: { food: 0.18, tools: 0.20 },  // 军队需要粮食和武器
     },
     active: false,
   },
@@ -812,13 +886,15 @@ export const DECREES = [
     category: 'culture',
     unlockEpoch: 6,
     cost: {},
-    effects: ['科研产出 +20%', '公共服务 +15%', '人口上限 +10%'],
+    effects: ['科研产出 +20%', '公共服务 +15%', '人口上限 +10%', '学者消费 +15%', '莎草纸需求 +15%'],
     drawbacks: ['每日 -10 银币教育经费'],
     modifiers: {
       buildings: { library: 0.20, university: 0.15 },
       categories: { civic: 0.15 },
       maxPop: 0.10,
       passive: { silver: -10, science: 2 },
+      stratumDemandMod: { scribe: 0.15 },  // 教育增加学者消费
+      resourceDemandMod: { papyrus: 0.15 },  // 教育增加纸张需求
     },
     active: false,
   },
@@ -829,7 +905,7 @@ export const DECREES = [
     category: 'economy',
     unlockEpoch: 6,
     cost: {},
-    effects: ['市场/港口产出 +20%', '每日 +15 银币贸易利润'],
+    effects: ['市场/港口产出 +20%', '每日 +15 银币贸易利润', '商人消费 +15%', '香料需求 +12%', '咖啡需求 +10%'],
     drawbacks: ['工业产出 -5%（货币紧缩）'],
     modifiers: {
       buildings: {
@@ -838,6 +914,8 @@ export const DECREES = [
       },
       passive: { silver: 15 },
       categories: { industry: -0.05 },
+      stratumDemandMod: { merchant: 0.15 },  // 国际贸易增加商人消费
+      resourceDemandMod: { spice: 0.12, coffee: 0.10 },  // 贸易增加进口商品需求
     },
     active: false,
   },
@@ -854,12 +932,13 @@ export const DECREES = [
     category: 'economy',
     unlockEpoch: 1,
     cost: {},
-    effects: ['每日 +8 银币包税收入'],
+    effects: ['每日 +8 银币包税收入', '商人消费 +12%', '自耕农消费 -10%'],
     drawbacks: ['居民需求 +10%', '公共服务 -8%'],
     modifiers: {
       passive: { silver: 8 },
       needsReduction: -0.10,
       categories: { civic: -0.08 },
+      stratumDemandMod: { merchant: 0.12, peasant: -0.10 },  // 包税利于商人，损害农民
     },
     active: false,
   },
@@ -870,12 +949,15 @@ export const DECREES = [
     category: 'military',
     unlockEpoch: 2,
     cost: {},
-    effects: ['军事产出 +35%', '工业产出 +12%'],
+    effects: ['军事产出 +35%', '工业产出 +12%', '军人消费 +30%', '工具需求 +25%', '工具供应 +15%'],
     drawbacks: ['公共服务 -15%', '居民需求 +12%', '每日 -8 食物'],
     modifiers: {
       categories: { military: 0.35, industry: 0.12, civic: -0.15 },
       needsReduction: -0.12,
       passive: { food: -8 },
+      stratumDemandMod: { soldier: 0.30 },  // 战时增加军人消费
+      resourceDemandMod: { tools: 0.25 },  // 军工需要武器
+      resourceSupplyMod: { tools: 0.15 },  // 军工生产增加工具供应
     },
     active: false,
   },
@@ -886,11 +968,13 @@ export const DECREES = [
     category: 'social',
     unlockEpoch: 1,
     cost: {},
-    effects: ['居民需求 -10%', '每日 +3 食物储备效率'],
+    effects: ['居民需求 -10%', '每日 +3 食物储备效率', '粮食需求 -8%', '粮食供应 +8%'],
     drawbacks: ['每日 -5 银币管理费'],
     modifiers: {
       needsReduction: 0.10,
       passive: { food: 3, silver: -5 },
+      resourceDemandMod: { food: -0.08 },  // 常平仓稳定粮食需求
+      resourceSupplyMod: { food: 0.08 },  // 常平仓增加粮食供应
     },
     active: false,
   },
@@ -901,13 +985,15 @@ export const DECREES = [
     category: 'social',
     unlockEpoch: 1,
     cost: {},
-    effects: ['居民需求 -15%', '每日 +4 银币罚款'],
+    effects: ['居民需求 -15%', '每日 +4 银币罚款', '奢侈品需求 -20%', '地主消费 -18%', '布料需求 -12%'],
     drawbacks: ['工业产出 -10%', '文化产出 -8%'],
     modifiers: {
       needsReduction: 0.15,
       passive: { silver: 4 },
       categories: { industry: -0.10 },
       passive_negative: { culture: -1.5 },
+      stratumDemandMod: { landowner: -0.18 },  // 禁奢令减少贵族消费
+      resourceDemandMod: { delicacies: -0.20, fine_clothes: -0.20, cloth: -0.12 },  // 限制奢侈品需求
     },
     active: false,
   },
@@ -918,11 +1004,13 @@ export const DECREES = [
     category: 'military',
     unlockEpoch: 2,
     cost: {},
-    effects: ['军事产出 +20%'],
+    effects: ['军事产出 +20%', '军人消费 +15%', '工具需求 +12%'],
     drawbacks: ['每日 -12 银币雇佣费'],
     modifiers: {
       categories: { military: 0.20 },
       passive: { silver: -12 },
+      stratumDemandMod: { soldier: 0.15 },  // 雇佣军增加军人消费
+      resourceDemandMod: { tools: 0.12 },  // 雇佣军需要装备
     },
     active: false,
   },
@@ -933,12 +1021,14 @@ export const DECREES = [
     category: 'economy',
     unlockEpoch: 4,
     cost: {},
-    effects: ['每日 +0.6 香料/咖啡', '每日 +10 银币'],
+    effects: ['每日 +0.6 香料/咖啡', '每日 +10 银币', '商人消费 +20%', '香料供应 +25%', '咖啡供应 +25%'],
     drawbacks: ['公共服务 -12%', '居民需求 +8%'],
     modifiers: {
       passive: { spice: 0.6, coffee: 0.6, silver: 10 },
       categories: { civic: -0.12 },
       needsReduction: -0.08,
+      stratumDemandMod: { merchant: 0.20 },  // 殖民地贸易增加商人消费
+      resourceSupplyMod: { spice: 0.25, coffee: 0.25 },  // 殖民地提供大量商品
     },
     active: false,
   },

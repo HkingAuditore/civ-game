@@ -731,15 +731,83 @@ function GameApp({ gameState }) {
         title={`帝国场景 - ${calendar.season} · 第${calendar.year}年`}
         showHeader={true}
       >
-        <div className="bg-gray-900/60 backdrop-blur-md rounded-lg border border-white/10 shadow-glass overflow-hidden">
-          <EmpireScene
-            daysElapsed={gameState.daysElapsed}
-            season={calendar.season}
-            population={gameState.population}
-            stability={gameState.stability}
-            wealth={gameState.resources.silver}
-            epoch={gameState.epoch}
-          />
+        <div className="space-y-4">
+          {/* 帝国场景 */}
+          <div className="bg-gray-900/60 backdrop-blur-md rounded-lg border border-white/10 shadow-glass overflow-hidden">
+            <EmpireScene
+              daysElapsed={gameState.daysElapsed}
+              season={calendar.season}
+              population={gameState.population}
+              stability={gameState.stability}
+              wealth={gameState.resources.silver}
+              epoch={gameState.epoch}
+            />
+          </div>
+
+          {/* 庆典历史列表 */}
+          {gameState.activeFestivalEffects && gameState.activeFestivalEffects.length > 0 && (
+            <div className="bg-gray-900/60 backdrop-blur-md rounded-lg border border-ancient-gold/30 shadow-glass overflow-hidden">
+              <div className="px-3 py-2 border-b border-ancient-gold/20 bg-gradient-to-r from-ancient-gold/10 to-transparent">
+                <div className="flex items-center gap-2">
+                  <Icon name="Sparkles" size={14} className="text-ancient-gold" />
+                  <span className="text-sm font-bold text-ancient-gold">庆典历史</span>
+                </div>
+              </div>
+              <div className="p-3 space-y-2 max-h-64 overflow-y-auto">
+                {[...gameState.activeFestivalEffects]
+                  .sort((a, b) => (b.activatedAt || 0) - (a.activatedAt || 0))
+                  .map((effect, index) => {
+                    const activatedYear = Math.floor((effect.activatedAt || 0) / 360) + 1;
+                    const isPermanent = effect.type === 'permanent';
+                    const isExpired = !isPermanent && (gameState.daysElapsed - (effect.activatedAt || 0)) >= (effect.duration || 360);
+                    return (
+                      <div
+                        key={`${effect.id}-${index}`}
+                        className={`flex items-center gap-3 p-2 rounded-lg border ${
+                          isExpired 
+                            ? 'bg-gray-800/40 border-gray-600/30 opacity-60' 
+                            : isPermanent 
+                              ? 'bg-purple-900/20 border-purple-500/30' 
+                              : 'bg-yellow-900/20 border-yellow-500/30'
+                        }`}
+                      >
+                        <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
+                          isPermanent ? 'bg-purple-500/20' : 'bg-yellow-500/20'
+                        }`}>
+                          <Icon name={effect.icon || 'Star'} size={14} className={isPermanent ? 'text-purple-400' : 'text-yellow-400'} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-ancient-parchment truncate">{effect.name}</span>
+                            <span className={`text-[9px] px-1.5 py-0.5 rounded ${
+                              isExpired 
+                                ? 'bg-gray-600/30 text-gray-400' 
+                                : isPermanent 
+                                  ? 'bg-purple-500/30 text-purple-300' 
+                                  : 'bg-yellow-500/30 text-yellow-300'
+                            }`}>
+                              {isExpired ? '已过期' : isPermanent ? '永久' : '短期'}
+                            </span>
+                          </div>
+                          <div className="text-[10px] text-ancient-stone mt-0.5">
+                            第 {activatedYear} 年选择
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
+
+          {/* 无庆典历史提示 */}
+          {(!gameState.activeFestivalEffects || gameState.activeFestivalEffects.length === 0) && (
+            <div className="bg-gray-900/60 backdrop-blur-md rounded-lg border border-gray-700/30 shadow-glass p-4 text-center">
+              <Icon name="Calendar" size={24} className="text-ancient-stone mx-auto mb-2 opacity-50" />
+              <p className="text-xs text-ancient-stone">暂无庆典历史记录</p>
+              <p className="text-[10px] text-gray-500 mt-1">每年年初会触发庆典选择</p>
+            </div>
+          )}
         </div>
       </BottomSheet>
 

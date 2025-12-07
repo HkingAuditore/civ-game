@@ -13,7 +13,7 @@ import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
  */
 const DetailSection = ({ title, icon, children, className = '' }) => (
   <div className={`bg-gray-900/50 p-3 rounded-lg border border-gray-700/80 ${className}`}>
-    <h4 className="text-xs font-semibold text-gray-300 mb-2 flex items-center gap-1.5">
+    <h4 className="text-xs font-semibold text-gray-300 mb-2 flex items-center gap-1.5 font-decorative">
       <Icon name={icon} size={16} />
       {title}
     </h4>
@@ -136,7 +136,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, taxPolicie
           <Icon name={building.visual.icon} size={36} className={`${building.visual.text} icon-metal`} />
         </div>
         <div className="flex-1">
-          <h3 className="text-xl font-bold text-white">{building.name}</h3>
+<h3 className="text-xl font-bold text-white font-decorative">{building.name}</h3>
           <p className="text-sm text-gray-300 mt-1">{building.desc}</p>
           {building.owner && (
             <div className="mt-2 inline-flex items-center gap-1.5 text-xs text-yellow-200 bg-yellow-900/40 border border-yellow-600/40 rounded-full px-2.5 py-1">
@@ -180,7 +180,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, taxPolicie
       {/* 营业税调整 */}
       {onUpdateTaxPolicies && (
         <div className="bg-gray-900/50 p-3 rounded-lg border border-gray-700/80">
-          <h4 className="text-xs font-semibold text-gray-300 mb-2 flex items-center gap-1.5">
+          <h4 className="text-xs font-semibold text-gray-300 mb-2 flex items-center gap-1.5 font-decorative">
             <Icon name="Sliders" size={16} className="text-yellow-400" />
             营业税调整
           </h4>

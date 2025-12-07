@@ -38,7 +38,7 @@ const AllStrataSummary = ({
         <div className="p-4 md:p-6 border-b border-gray-700">
           <div className="flex items-start justify-between gap-3">
             <div className="flex-1 min-w-0">
-              <h2 className="text-xl md:text-2xl font-bold text-white">社会阶层总览</h2>
+<h2 className="text-xl md:text-2xl font-bold text-white font-decorative">社会阶层总览</h2>
               {/* 稳定度显示 */}
               <div className="flex items-center gap-2 mt-2">
                 <Icon 
@@ -239,7 +239,7 @@ export const StratumDetailModal = ({
                 <Icon name={stratum.icon} size={22} className="text-ancient-gold icon-metal-gold md:w-7 md:h-7" />
               </div>
               <div className="flex-1 min-w-0">
-                <h2 className="text-lg md:text-2xl font-bold text-white">{stratum.name}</h2>
+<h2 className="text-lg md:text-2xl font-bold text-white font-decorative">{stratum.name}</h2>
                 <p className="text-xs md:text-sm text-gray-300 mt-1">{stratum.description}</p>
                 {/* 稳定度显示 */}
                 <div className="flex items-center gap-1.5 md:gap-2 mt-2">

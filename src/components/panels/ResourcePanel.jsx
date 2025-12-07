@@ -76,7 +76,7 @@ export const ResourcePanel = ({
             <Icon name="Package" size={12} className="text-ancient-gold" />
           </div>
           {title && (
-            <span className="text-[10px] font-bold text-ancient tracking-wide uppercase tab-title">
+            <span className="text-[10px] font-bold text-ancient tracking-wide uppercase font-decorative">
               {title}
             </span>
           )}

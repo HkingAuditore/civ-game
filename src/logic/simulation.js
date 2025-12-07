@@ -668,6 +668,10 @@ export const simulateTick = ({
   let industryBonus = 0;
   let taxBonus = 0;
   let needsReduction = 0;
+  // 政令供需修饰符（与事件修饰符叠加）
+  const decreeResourceDemandMod = {};  // { resourceKey: percentModifier }
+  const decreeStratumDemandMod = {};   // { stratumKey: percentModifier }
+  const decreeResourceSupplyMod = {};  // { resourceKey: percentModifier } 供应修饰符
 
   const boostBuilding = (id, percent) => {
     if (!id || typeof percent !== 'number') return;
@@ -719,6 +723,30 @@ export const simulateTick = ({
     }
     if (effects.needsReduction) {
       needsReduction += effects.needsReduction;
+    }
+    // 政令资源需求修饰符
+    if (effects.resourceDemandMod) {
+      Object.entries(effects.resourceDemandMod).forEach(([resKey, percent]) => {
+        if (typeof percent === 'number') {
+          decreeResourceDemandMod[resKey] = (decreeResourceDemandMod[resKey] || 0) + percent;
+        }
+      });
+    }
+    // 政令阶层需求修饰符
+    if (effects.stratumDemandMod) {
+      Object.entries(effects.stratumDemandMod).forEach(([stratumKey, percent]) => {
+        if (typeof percent === 'number') {
+          decreeStratumDemandMod[stratumKey] = (decreeStratumDemandMod[stratumKey] || 0) + percent;
+        }
+      });
+    }
+    // 政令资源供应修饰符
+    if (effects.resourceSupplyMod) {
+      Object.entries(effects.resourceSupplyMod).forEach(([resKey, percent]) => {
+        if (typeof percent === 'number') {
+          decreeResourceSupplyMod[resKey] = (decreeResourceSupplyMod[resKey] || 0) + percent;
+        }
+      });
     }
   };
 
@@ -1528,6 +1556,12 @@ export const simulateTick = ({
           // 产出浮动：(1 - variation) 到 (1 + variation)
           const variationFactor = 1 + (Math.random() * 2 - 1) * outputVariation;
           amount *= variationFactor;
+          
+          // 应用政令供应修饰符
+          const supplyMod = decreeResourceSupplyMod[resKey] || 0;
+          if (supplyMod !== 0) {
+            amount *= (1 + supplyMod);
+          }
         }
         
         if (resKey === 'maxPop') {
@@ -1765,16 +1799,20 @@ export const simulateTick = ({
       let requirement = perCapita * count * needsRequirementMultiplier;
       if (requirement <= 0) continue;
       
-      // Apply event economic modifiers
+      // Apply economic modifiers (events + decrees)
       // 1. Resource-specific demand modifier (e.g., cloth demand +20%)
-      const resourceDemandMod = eventResourceDemandModifiers[resKey] || 0;
-      if (resourceDemandMod !== 0) {
-        requirement *= (1 + resourceDemandMod);
+      const eventResourceMod = eventResourceDemandModifiers[resKey] || 0;
+      const decreeResourceMod = decreeResourceDemandMod[resKey] || 0;
+      const totalResourceDemandMod = eventResourceMod + decreeResourceMod;
+      if (totalResourceDemandMod !== 0) {
+        requirement *= (1 + totalResourceDemandMod);
       }
       // 2. Stratum-specific demand modifier (e.g., noble consumption +15%)
-      const stratumDemandMod = eventStratumDemandModifiers[key] || 0;
-      if (stratumDemandMod !== 0) {
-        requirement *= (1 + stratumDemandMod);
+      const eventStratumMod = eventStratumDemandModifiers[key] || 0;
+      const decreeStratumMod = decreeStratumDemandMod[key] || 0;
+      const totalStratumDemandMod = eventStratumMod + decreeStratumMod;
+      if (totalStratumDemandMod !== 0) {
+        requirement *= (1 + totalStratumDemandMod);
       }
       
       // 应用需求弹性调整
@@ -2825,7 +2863,18 @@ export const simulateTick = ({
             warStartDay: tick,
             warScore: 0,
           };
-          logs.push(`📢 国际新闻：${nation.name} 向 ${otherNation.name} 宣战了！`);
+          // 多样化的战争宣战新闻
+          const declarationNewsTemplates = [
+            `📢 国际新闻：${nation.name} 向 ${otherNation.name} 宣战了！`,
+            `📢 国际新闻：${nation.name} 正式对 ${otherNation.name} 宣战！`,
+            `📢 国际新闻：战争爆发！${nation.name} 对 ${otherNation.name} 发起了战争！`,
+            `📢 国际新闻：${nation.name} 与 ${otherNation.name} 进入战争状态！`,
+            `📢 国际新闻：冲突升级！${nation.name} 宣布对 ${otherNation.name} 开战！`,
+            `📢 国际新闻：${nation.name} 发动了对 ${otherNation.name} 的军事行动！`,
+            `📢 国际新闻：战争宣告！${nation.name} 决定对 ${otherNation.name} 使用武力！`
+          ];
+          const randomDeclarationNews = declarationNewsTemplates[Math.floor(Math.random() * declarationNewsTemplates.length)];
+          logs.push(randomDeclarationNews);
         }
       }
     });
@@ -2931,7 +2980,18 @@ export const simulateTick = ({
           
           // 计算战争总损失用于日志
           const warDurationDays = tick - (war.warStartDay || tick);
-          logs.push(`📢 国际新闻：${winner.name} 在与 ${loser.name} 历时${warDurationDays}天的战争中获胜！${loser.name} 损失惨重。`);
+          // 多样化的战争结束新闻
+          const warNewsTemplates = [
+            `📢 国际新闻：${winner.name} 在与 ${loser.name} 历时${warDurationDays}天的战争中获胜！${loser.name} 损失惨重。`,
+            `📢 国际新闻：经过${warDurationDays}天的激烈战斗，${winner.name} 击败了 ${loser.name}！`,
+            `📢 国际新闻：${winner.name} 赢得了对 ${loser.name} 的战争，这场战斗持续了${warDurationDays}天！`,
+            `📢 国际新闻：在${warDurationDays}天的冲突后，${winner.name} 战胜了 ${loser.name}！`,
+            `📢 国际新闻：${winner.name} 在与 ${loser.name} 的长期战争中取得了决定性胜利！`,
+            `📢 国际新闻：持续${warDurationDays}天的战争结束，${winner.name} 宣告胜利！${loser.name} 遭受重创。`,
+            `📢 国际新闻：${winner.name} 击败了 ${loser.name}，结束了这场为期${warDurationDays}天的冲突！`
+          ];
+          const randomNews = warNewsTemplates[Math.floor(Math.random() * warNewsTemplates.length)];
+          logs.push(randomNews);
         }
       }
     });

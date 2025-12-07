@@ -428,7 +428,7 @@ export const ResourceDetailModal = ({
               <Icon name={resourceDef.icon} size={20} className={`${resourceDef.color} icon-metal`} />
             </div>
             <div className="flex-1 min-w-0">
-              <h2 className="text-sm lg:text-base font-bold text-white leading-tight">{resourceDef.name}</h2>
+<h2 className="text-sm lg:text-base font-bold text-white leading-tight font-decorative">{resourceDef.name}</h2>
               <p className="text-[9px] lg:text-[10px] text-gray-400 leading-tight truncate">
                 库存 {inventory.toFixed(1)} {isSilver ? '· 财政资源' : `· 价格 ${marketPrice.toFixed(2)}`}
               </p>

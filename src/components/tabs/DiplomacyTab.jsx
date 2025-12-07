@@ -344,7 +344,7 @@ export const DiplomacyTab = ({
                   <Icon name="Flag" size={14} className={nation.color || 'text-gray-300'} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-semibold font-decorative text-white truncate">{nation.name || '未知国家'}</span>
+                      <span className="text-xs font-semibold text-white truncate">{nation.name || '未知国家'}</span>
                       <span className={`px-1 py-0.5 rounded text-[9px] ${relation.bg} ${relation.color} font-epic`}>
                         {relation.label}
                       </span>

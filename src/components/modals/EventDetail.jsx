@@ -134,7 +134,7 @@ export const EventDetail = ({ event, onSelectOption, onClose }) => {
           <Icon name={event.icon} size={28} className="text-white drop-shadow-lg" />
         </div>
         <div className="flex-1 min-w-0">
-          <h2 className="text-lg font-bold text-ancient leading-tight font-sans">{event.name}</h2>
+<h2 className="text-lg font-bold text-ancient leading-tight font-decorative">{event.name}</h2>
           <div className="flex items-center gap-2 mt-1">
             {event.isDiplomaticEvent && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold bg-blue-600/20 text-blue-300 rounded border border-blue-500/30 font-sans">

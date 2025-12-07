@@ -55,7 +55,7 @@ export const PopulationDetailModal = ({
               <Icon name="Users" size={24} className="text-blue-300 icon-metal-blue" />
             </div>
             <div className="flex-1 min-w-0">
-              <h2 className="text-base font-bold text-white leading-tight">人口详情</h2>
+<h2 className="text-base font-bold text-white leading-tight font-decorative">人口详情</h2>
               <p className="text-[10px] text-gray-400 leading-tight">
                 当前人口 {population} / {maxPop}
               </p>
