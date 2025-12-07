@@ -947,6 +947,7 @@ function GameApp({ gameState }) {
             event={gameState.currentEvent}
             onSelectOption={handleEventOption}
             onClose={() => gameState.setCurrentEvent(null)}
+            nations={gameState.nations}
           />
         )}
       </BottomSheet>
