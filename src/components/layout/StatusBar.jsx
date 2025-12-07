@@ -227,7 +227,7 @@ export const StatusBar = ({
             {/* 日期按钮 - 可点击展开帝国场景 */}
             <button
               onClick={() => {
-                if (window.innerWidth < 1024 && onEmpireSceneClick) {
+                if (onEmpireSceneClick) {
                   onEmpireSceneClick();
                 }
               }}

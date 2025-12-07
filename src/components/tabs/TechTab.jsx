@@ -351,7 +351,7 @@ export const TechTab = ({
       >
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+            <h3 className="text-lg font-bold text-white flex items-center gap-2 font-decorative">
               <Icon
                 name="Crown"
                 size={20}
@@ -497,7 +497,7 @@ export const TechTab = ({
 
       {/* 科技树 */}
       <div className="glass-ancient p-4 rounded-xl border border-ancient-gold/30">
-        <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300">
+        <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300 font-decorative">
           <Icon name="Lightbulb" size={16} className="text-yellow-400" />
           科技树
         </h3>
@@ -591,7 +591,7 @@ export const TechTab = ({
                                     <Icon name="Lightbulb" size={24} className="text-blue-400 icon-metal-blue" />
                                   )}
                                 </div>
-                                <h5 className="text-xs font-bold text-white text-center leading-tight">{tech.name}</h5>
+<h5 className="text-xs font-bold text-white text-center leading-tight font-decorative">{tech.name}</h5>
                               </div>
 
                               {/* 简化的关键信息 */}

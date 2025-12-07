@@ -1040,7 +1040,7 @@ export const WikiModal = ({ show, onClose }) => {
                       <p className="text-[10px] sm:text-xs uppercase tracking-widest text-indigo-400 mb-0.5 sm:mb-1">
                         {CATEGORY_CONFIG.find((c) => c.id === selectedCategory)?.label}
                       </p>
-                      <h3 className="text-lg sm:text-3xl font-bold text-white truncate">{selectedEntry.name}</h3>
+<h3 className="text-lg sm:text-3xl font-bold text-white truncate font-decorative">{selectedEntry.name}</h3>
                       {selectedEntry.summary && (
                         <p className="text-xs sm:text-sm text-gray-400 mt-0.5 sm:mt-1 line-clamp-2">{selectedEntry.summary}</p>
                       )}
@@ -1103,7 +1103,7 @@ const renderMechanicsDetails = (content) => {
     <div className="space-y-3 sm:space-y-6 max-w-3xl">
       {content.map((block, idx) => {
         if (block.type === 'h4') {
-          return <h4 key={idx} className="text-sm sm:text-lg font-bold text-indigo-300 mt-3 sm:mt-6 mb-1 sm:mb-2 pb-1 sm:pb-2 border-b border-gray-700">{block.text}</h4>;
+return <h4 key={idx} className="text-sm sm:text-lg font-bold text-indigo-300 mt-3 sm:mt-6 mb-1 sm:mb-2 pb-1 sm:pb-2 border-b border-gray-700 font-decorative">{block.text}</h4>;
         }
         if (block.type === 'p') {
           return <p key={idx} className="text-gray-300 leading-5 sm:leading-7 text-xs sm:text-sm">{block.text}</p>;

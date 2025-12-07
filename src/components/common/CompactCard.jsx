@@ -112,7 +112,7 @@ export const CompactCard = ({
         {details && (
           <div className={`
             hidden lg:block
-            absolute left-full top-0 ml-2 w-64 z-[70]
+            absolute left-full top-0 ml-2 w-64 z-[9999]
             bg-gray-900/95 backdrop-blur-md
             border border-gray-700
             rounded-lg shadow-2xl
@@ -148,7 +148,7 @@ export const CompactCard = ({
                   </div>
                 )}
                 <div>
-                  <h3 className="text-sm font-bold text-white">{title}</h3>
+<h3 className="text-sm font-bold text-white font-decorative">{title}</h3>
                   {subtitle && (
                     <p className="text-xs text-gray-400">{subtitle}</p>
                   )}

@@ -12,9 +12,10 @@ export const TECHS = [
   {
     id: 'barter',
     name: "物物交换",
-    desc: "允许建造贸易站，让商人阶层登上历史舞台。",
+    desc: "允许建造贸易站，让商人阶层登上历史舞台。每日被动获得 0.3 银币。",
     cost: { science: 50 },
     epoch: 0,
+    effects: { passive: { silver: 0.3 } },
   },
   {
     id: 'stone_axes',
@@ -51,9 +52,10 @@ export const TECHS = [
   {
     id: 'tool_making',
     name: "工具制作",
-    desc: "解锁石器作坊，提供早期稳定的工具来源。",
+    desc: "解锁石器作坊，提供早期稳定的工具来源。采集建筑效率 +10%。",
     cost: { science: 90 },
     epoch: 0,
+    effects: { categories: { gather: 0.1 } },
   },
   {
     id: 'basic_irrigation',
@@ -101,10 +103,10 @@ export const TECHS = [
   {
     id: 'sailing',
     name: "航海术",
-    desc: "解锁船坞建设，开启海上贸易与军事行动。",
+    desc: "解锁船坞建设，开启海上贸易与军事行动。每日被动获得 0.5 银币和 5 粮食。",
     cost: { science: 350 },
     epoch: 1,
-    effects: {},
+    effects: { passive: { silver: 0.5, food: 5 } },
   },
   {
     id: 'tools',
@@ -224,10 +226,10 @@ export const TECHS = [
   {
     id: 'republican_code',
     name: "共和法典",
-    desc: "提升法律体系。",
+    desc: "完善的法律体系提升社会运转效率。民生建筑效率 +15%，人口上限 +5。",
     cost: { science: 560 },
     epoch: 2,
-    effects: {},
+    effects: { categories: { civic: 0.15 }, maxPop: 5 },
   },
   {
     id: 'road_system',
@@ -258,10 +260,10 @@ export const TECHS = [
   {
     id: 'bureaucracy',
     name: "官僚制度",
-    desc: "解锁市政厅。",
+    desc: "解锁市政厅，建立高效的行政管理体系。所有建筑效率 +5%，每日被动获得 0.3 文化。",
     cost: { science: 1200 },
     epoch: 3,
-    effects: {},
+    effects: { categories: { gather: 0.05, industry: 0.05, civic: 0.05 }, passive: { culture: 0.3 } },
   },
   {
     id: 'three_field_system',
@@ -324,10 +326,10 @@ export const TECHS = [
   {
     id: 'colonial_ledgers',
     name: "殖民档案",
-    desc: "提升殖民地管理。",
+    desc: "系统化的殖民地档案管理，提升海外贸易效率。船坞和贸易港效率 +20%，每日被动获得 1.5 银币。",
     cost: { science: 2200 },
     epoch: 4,
-    effects: {},
+    effects: { buildings: { dockyard: 0.2, trade_port: 0.2 }, passive: { silver: 1.5 } },
   },
   {
     id: 'spice_monopolies',
@@ -374,10 +376,10 @@ export const TECHS = [
   {
     id: 'social_contract',
     name: "社会契约",
-    desc: "提升社会组织效率。",
+    desc: "启蒙思想推动社会进步。民生建筑效率 +20%，人口上限 +15，每日被动获得 0.5 文化。",
     cost: { science: 4000 },
     epoch: 5,
-    effects: {},
+    effects: { categories: { civic: 0.2 }, maxPop: 15, passive: { culture: 0.5 } },
   },
   {
     id: 'salon_debates',
@@ -450,16 +452,18 @@ export const TECHS = [
   {
     id: 'military_training',
     name: "军事训练",
-    desc: "解锁训练场，提供更多军事容量。",
+    desc: "解锁训练场，提供更多军事容量。军事建筑效率 +15%。",
     cost: { science: 800 },
     epoch: 2,
+    effects: { categories: { military: 0.15 } },
   },
   {
     id: 'fortification',
     name: "要塞工程",
-    desc: "解锁要塞，大幅提升军事容量。",
+    desc: "解锁要塞，大幅提升军事容量。军事建筑效率 +25%，人口上限 +10。",
     cost: { science: 2400 },
     epoch: 4,
+    effects: { categories: { military: 0.25 }, maxPop: 10 },
   },
 
   // ========== 高级工业科技 ==========

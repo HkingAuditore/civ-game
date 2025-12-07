@@ -94,6 +94,26 @@ const buildInitialTradeRoutes = () => ({
   routes: [],
 });
 
+// 合并存档中的政令数据与最新配置
+// 保留存档的active状态，但使用最新配置中的其他字段（如modifiers、effects、drawbacks等）
+const mergeDecreesWithConfig = (savedDecrees) => {
+  if (!savedDecrees || !Array.isArray(savedDecrees)) {
+    return DECREES;
+  }
+  
+  // 创建存档政令的active状态映射
+  const savedActiveMap = {};
+  savedDecrees.forEach(d => {
+    savedActiveMap[d.id] = d.active;
+  });
+  
+  // 使用最新的配置，但保留存档的active状态
+  return DECREES.map(configDecree => ({
+    ...configDecree,
+    active: savedActiveMap[configDecree.id] ?? configDecree.active,
+  }));
+};
+
 const isTradable = (resourceKey) => {
   if (resourceKey === 'silver') return false;
   const def = RESOURCES[resourceKey];
@@ -475,7 +495,7 @@ export const useGameState = () => {
       setActiveTab(data.activeTab || 'build');
       setGameSpeed(data.gameSpeed ?? 1);
       setIsPaused(data.isPaused ?? false);
-      setDecrees(data.decrees || DECREES);
+setDecrees(mergeDecreesWithConfig(data.decrees));
       setNations(data.nations || buildInitialNations());
       setClassApproval(data.classApproval || {});
       setClassInfluence(data.classInfluence || {});

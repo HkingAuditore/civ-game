@@ -68,7 +68,7 @@ export const BottomSheet = ({
         {showHeader ? (
           <>
             <div className="flex-shrink-0 p-4 border-b border-theme-border flex items-center justify-between">
-              <h3 className="text-lg font-bold text-white">{title}</h3>
+<h3 className="text-lg font-bold text-white font-decorative">{title}</h3>
               {showCloseButton && (
                 <button onClick={handleClose} className="p-2 rounded-full hover:bg-gray-700">
                   <Icon name="X" size={20} className="text-gray-400" />

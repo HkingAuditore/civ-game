@@ -100,7 +100,7 @@ export const StratumDetailSheet = ({
           <Icon name={stratum.icon} size={24} className="text-gray-300" />
         </div>
         <div className="flex-1 min-w-0">
-          <h2 className="text-lg font-bold text-white leading-tight">{stratum.name}</h2>
+<h2 className="text-lg font-bold text-white leading-tight font-decorative">{stratum.name}</h2>
           <p className="text-xs text-gray-400 leading-tight truncate">{stratum.desc}</p>
         </div>
       </div>

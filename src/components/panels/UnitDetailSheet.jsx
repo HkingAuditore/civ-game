@@ -55,7 +55,7 @@ export const UnitDetailSheet = ({
           <Icon name={unit.icon || 'Swords'} size={24} className={`${categoryInfo.color || 'text-red-400'} icon-metal-red`} />
         </div>
         <div className="flex-1 min-w-0">
-          <h2 className="text-lg font-bold text-white leading-tight">{unit.name}</h2>
+<h2 className="text-lg font-bold text-white leading-tight font-decorative">{unit.name}</h2>
           <div className="flex items-center gap-2 text-xs text-gray-400 leading-tight">
             <span className={categoryInfo.color}>{categoryInfo.name || unit.type}</span>
             <span>•</span>

@@ -431,7 +431,7 @@ export const EpicPanelTitle = ({ icon, title, subtitle, className = '', actions 
           </div>
         )}
         <div>
-          <h3 className="text-xs sm:text-sm font-bold text-ancient tracking-wide">{title}</h3>
+<h3 className="text-xs sm:text-sm font-bold text-ancient tracking-wide font-decorative">{title}</h3>
           {subtitle && <p className="text-[9px] text-ancient-stone">{subtitle}</p>}
         </div>
       </div>

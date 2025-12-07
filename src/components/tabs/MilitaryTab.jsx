@@ -57,7 +57,7 @@ const UnitTooltip = ({ unit, resources, market, militaryWageRatio, anchorElement
       className="fixed w-72 bg-gray-800 border border-gray-600 rounded-lg shadow-2xl p-3 z-[9999] pointer-events-none animate-fade-in-fast"
       style={{ top: `${position.top}px`, left: `${position.left}px` }}
     >
-      <h4 className="text-sm font-bold text-white mb-1">{unit.name}</h4>
+<h4 className="text-sm font-bold text-white mb-1 font-decorative">{unit.name}</h4>
       <p className="text-xs text-gray-400 mb-2">{unit.type}</p>
 
       <div className="bg-gray-900/50 rounded px-2 py-1.5 mb-2">
@@ -293,7 +293,7 @@ export const MilitaryTab = ({
     <div className="space-y-4">
       {/* 军队概览 */}
       <div className="glass-ancient p-4 rounded-xl border border-ancient-gold/30">
-        <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300">
+        <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300 font-decorative">
           <Icon name="Shield" size={16} className="text-red-400" />
           军队概览
         </h3>
@@ -375,7 +375,7 @@ export const MilitaryTab = ({
 
       {/* 兵种克制关系 */}
       <div className="glass-ancient p-3 rounded-xl border border-ancient-gold/30">
-        <h3 className="text-xs font-bold mb-2 flex items-center gap-2 text-gray-300">
+        <h3 className="text-xs font-bold mb-2 flex items-center gap-2 text-gray-300 font-decorative">
           <Icon name="Info" size={14} className="text-blue-400" />
           兵种克制关系
         </h3>
@@ -425,7 +425,7 @@ export const MilitaryTab = ({
 
       {/* 招募单位 */}
       <div className="glass-ancient p-4 rounded-xl border border-ancient-gold/30">
-        <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300">
+        <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300 font-decorative">
           <Icon name="Plus" size={16} className="text-green-400" />
           招募单位
         </h3>
@@ -465,7 +465,7 @@ export const MilitaryTab = ({
                   <div className="w-12 h-12 icon-metal-container icon-metal-container-lg rounded-lg flex items-center justify-center mb-1">
                     <Icon name={unit.icon || 'Swords'} size={24} className={`${categoryColor} icon-metal-red`} />
                   </div>
-                  <h4 className="text-xs font-bold text-center leading-tight text-white">{unit.name}</h4>
+                  <h4 className="text-xs font-bold text-center leading-tight text-white font-decorative">{unit.name}</h4>
                   <p className="text-[10px] text-gray-400">×{army[unitId] || 0}</p>
                   {/* Category badge */}
                   <span className={`text-[9px] px-1.5 py-0.5 rounded-full mt-0.5 ${categoryInfo.color?.replace('text-', 'bg-').replace('-400', '-900/50')} ${categoryColor}`}>
@@ -549,7 +549,7 @@ export const MilitaryTab = ({
       {/* 训练队列 */}
       {militaryQueue.length > 0 && (
         <div className="glass-ancient p-4 rounded-xl border border-ancient-gold/30">
-          <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300">
+          <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300 font-decorative">
             <Icon name="Clock" size={16} className="text-yellow-400" />
             训练队列
           </h3>
@@ -617,7 +617,7 @@ export const MilitaryTab = ({
 
       {/* 军事行动 */}
       <div className="glass-ancient p-4 rounded-xl border border-ancient-gold/30">
-        <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300">
+        <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300 font-decorative">
           <Icon name="Swords" size={16} className="text-red-400" />
           军事行动
         </h3>
@@ -692,7 +692,7 @@ export const MilitaryTab = ({
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <h4 className="text-base font-bold text-white flex items-center gap-2">
+                        <h4 className="text-base font-bold text-white flex items-center gap-2 font-decorative">
                           {action.name}
                           <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-700 text-gray-200">
                             {action.difficulty}
