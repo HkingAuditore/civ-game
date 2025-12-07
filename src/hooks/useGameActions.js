@@ -1,7 +1,7 @@
 // 游戏操作钩子
 // 包含所有游戏操作函数，如建造建筑、研究科技、升级时代等
 
-import { BUILDINGS, EPOCHS, RESOURCES, TECHS, MILITARY_ACTIONS, UNIT_TYPES, EVENTS, getRandomEvent, createWarDeclarationEvent, createGiftEvent, createPeaceRequestEvent, createEnemyPeaceRequestEvent, createPlayerPeaceProposalEvent, createBattleEvent } from '../config';
+import { BUILDINGS, EPOCHS, RESOURCES, TECHS, MILITARY_ACTIONS, UNIT_TYPES, EVENTS, getRandomEvent, createWarDeclarationEvent, createGiftEvent, createPeaceRequestEvent, createEnemyPeaceRequestEvent, createPlayerPeaceProposalEvent, createBattleEvent, STRATA } from '../config';
 import { calculateArmyCapacityNeed, calculateArmyPopulation, simulateBattle, calculateBattlePower } from '../config';
 import { calculateForeignPrice, calculateTradeStatus } from '../utils/foreignTrade';
 import { generateSound, SOUND_TYPES } from '../config/sounds';
@@ -60,6 +60,23 @@ export const useGameActions = (gameState, addLog) => {
     if (!resource) return 1;
     const base = RESOURCES[resource]?.basePrice || 1;
     return market?.prices?.[resource] ?? base;
+  };
+
+  // 获取资源名称
+  const getResourceName = (key) => {
+    if (!key) return key;
+    return RESOURCES[key]?.name || key;
+  };
+
+  // 获取阶层名称
+  const getStratumName = (key) => {
+    if (!key) return key;
+    // 尝试从导入的STRATA获取，如果没有则直接返回key
+    // 注意：STRATA可能没有被导入，这里需要检查
+    if (typeof STRATA !== 'undefined' && STRATA[key]?.name) {
+      return STRATA[key].name;
+    }
+    return key;
   };
 
   // ========== 时代升级 ========== 
@@ -1870,6 +1887,135 @@ const handleEventOption = (eventId, option) => {
     ? option.randomEffects
     : [];
 
+  // 生成效果描述的辅助函数
+  const generateEffectDescription = (effects) => {
+    if (!effects) return '';
+    
+    const descriptions = [];
+    
+    // 资源效果
+    if (effects.resources) {
+      Object.entries(effects.resources).forEach(([resource, value]) => {
+        const resourceName = getResourceName(resource);
+        descriptions.push(`${resourceName}${value > 0 ? '+' : ''}${value}`);
+      });
+    }
+    
+    // 资源百分比效果
+    if (effects.resourcePercent) {
+      Object.entries(effects.resourcePercent).forEach(([resource, value]) => {
+        const resourceName = getResourceName(resource);
+        const percent = Math.round(value * 100);
+        descriptions.push(`${resourceName}${percent > 0 ? '+' : ''}${percent}%`);
+      });
+    }
+    
+    // 人口效果
+    if (effects.population) {
+      descriptions.push(`人口${effects.population > 0 ? '+' : ''}${effects.population}`);
+    }
+    
+    // 人口百分比效果
+    if (effects.populationPercent) {
+      const percent = Math.round(effects.populationPercent * 100);
+      descriptions.push(`人口${percent > 0 ? '+' : ''}${percent}%`);
+    }
+    
+    // 稳定度效果
+    if (effects.stability) {
+      descriptions.push(`稳定度${effects.stability > 0 ? '+' : ''}${effects.stability}`);
+    }
+    
+    // 科技效果
+    if (effects.science) {
+      descriptions.push(`科技${effects.science > 0 ? '+' : ''}${effects.science}`);
+    }
+    
+    // 阶层支持度效果
+    if (effects.approval) {
+      Object.entries(effects.approval).forEach(([stratum, value]) => {
+        const stratumName = getStratumName(stratum);
+        descriptions.push(`${stratumName}支持度${value > 0 ? '+' : ''}${value}`);
+      });
+    }
+    
+    // 外交关系效果
+    if (effects.nationRelation) {
+      descriptions.push('外交关系变化');
+    }
+    
+    // 国家侵略性效果
+    if (effects.nationAggression) {
+      const aggressionValues = Object.values(effects.nationAggression).filter(v => v !== 'exclude');
+      if (aggressionValues.length > 0) {
+        const avgChange = aggressionValues.reduce((sum, v) => sum + v, 0) / aggressionValues.length;
+        const percent = Math.round(avgChange * 100);
+        descriptions.push(`国家侵略性${percent > 0 ? '+' : ''}${percent}%`);
+      }
+    }
+    
+    // 国家财富效果
+    if (effects.nationWealth) {
+      const wealthValues = Object.values(effects.nationWealth).filter(v => v !== 'exclude');
+      if (wealthValues.length > 0) {
+        const totalChange = wealthValues.reduce((sum, v) => sum + Math.abs(v), 0);
+        descriptions.push(`国家财富变化${totalChange > 0 ? '±' : ''}${totalChange}`);
+      }
+    }
+    
+    // 国家市场波动性效果
+    if (effects.nationMarketVolatility) {
+      const volatilityValues = Object.values(effects.nationMarketVolatility).filter(v => v !== 'exclude');
+      if (volatilityValues.length > 0) {
+        const avgChange = volatilityValues.reduce((sum, v) => sum + v, 0) / volatilityValues.length;
+        const percent = Math.round(avgChange * 100);
+        descriptions.push(`市场波动性${percent > 0 ? '+' : ''}${percent}%`);
+      }
+    }
+    
+    // 资源需求修正效果
+    if (effects.resourceDemandMod) {
+      Object.entries(effects.resourceDemandMod).forEach(([resource, value]) => {
+        const resourceName = getResourceName(resource);
+        const percent = Math.round(value * 100);
+        descriptions.push(`${resourceName}需求${percent > 0 ? '+' : ''}${percent}%`);
+      });
+    }
+    
+    // 阶层消费修正效果
+    if (effects.stratumDemandMod) {
+      Object.entries(effects.stratumDemandMod).forEach(([stratum, value]) => {
+        const stratumName = getStratumName(stratum);
+        const percent = Math.round(value * 100);
+        descriptions.push(`${stratumName}消费${percent > 0 ? '+' : ''}${percent}%`);
+      });
+    }
+    
+    // 建筑产量修正效果
+    if (effects.buildingProductionMod) {
+      Object.entries(effects.buildingProductionMod).forEach(([target, value]) => {
+        // 尝试查找建筑名称，回退到分类名称或原始键
+        const building = BUILDINGS.find(b => b.id === target);
+        const categoryNames = { gather: '采集类', industry: '工业类', civic: '民用类', all: '所有' };
+        const displayName = building?.name || categoryNames[target] || target;
+        const percent = Math.round(value * 100);
+        descriptions.push(`${displayName}产量${percent > 0 ? '+' : ''}${percent}%`);
+      });
+    }
+    
+    // 触发战争
+    if (effects.triggerWar) {
+      descriptions.push('触发战争');
+    }
+    
+    // 触发和平
+    if (effects.triggerPeace) {
+      descriptions.push('触发和平协议');
+    }
+    
+    return descriptions.length > 0 ? `（${descriptions.join('，')}）` : '';
+  };
+
   // 先应用基础效果
   applyEffects(baseEffects);
 
@@ -1878,6 +2024,31 @@ const handleEventOption = (eventId, option) => {
     const chance = typeof re.chance === 'number' ? re.chance : 0;
     if (chance > 0 && Math.random() < chance) {
       applyEffects(re.effects || {});
+      // 记录触发的随机效果
+      const percent = Math.round(chance * 100);
+      const effectDesc = generateEffectDescription(re.effects);
+      
+      if (re.description) {
+        addLog(`🎲 运气不错！${percent}%的额外效果「${re.description}」触发了${effectDesc}`);
+      } else {
+        addLog(`🎲 运气不错！${percent}%的额外效果触发了${effectDesc}`);
+      }
+      
+      // 如果有特别重要的效果，可以额外记录
+      if (re.effects?.triggerWar) {
+        addLog(`⚔️ 与目标国家进入战争状态！`);
+      }
+      if (re.effects?.triggerPeace) {
+        addLog(`🕊️ 与目标国家签订和平协议！`);
+      }
+    } else if (chance > 0) {
+      // 也可以记录未触发的情况（可选）
+      const percent = Math.round(chance * 100);
+      if (re.description) {
+        addLog(`🎲 ${percent}%的额外效果「${re.description}」未能触发`);
+      } else {
+        addLog(`🎲 ${percent}%的额外效果未能触发`);
+      }
     }
   });
 
