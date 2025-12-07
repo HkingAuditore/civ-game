@@ -53,11 +53,18 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [] }) =>
         return `（${weakest.name}）`;
       }
       default: {
-        // 可能是直接指定的国家ID，或者是从random预解析来的国家ID
+        // 直接指定的国家ID（可能是从random预解析来的）
         const nation = visibleNations.find(n => n.id === selector);
+        // 对于已解析的国家ID，直接返回国家名称作为前缀
         return nation ? `（${nation.name}）` : null;
       }
     }
+  };
+  
+  // 判断选择器是否是具体的国家ID（而非选择器关键字）
+  const isDirectNationId = (selector) => {
+    const selectorKeywords = ['random', 'all', 'hostile', 'friendly', 'strongest', 'weakest'];
+    return !selectorKeywords.includes(selector);
   };
 
   const getResourceName = (key) => (RESOURCES && RESOURCES[key]?.name) || key;
@@ -110,6 +117,12 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [] }) =>
   };
 
   const getNationSelectorLabel = (selector, excludeList = []) => {
+    // 如果是具体的国家ID（而非选择器关键字），直接显示国家名
+    if (isDirectNationId(selector)) {
+      const nation = visibleNations.find(n => n.id === selector);
+      return nation ? nation.name : selector;
+    }
+    
     const baseLabel = nationSelectorLabels[selector] || `指定国家`;
     const nationNames = resolveNationNames(selector);
     let label = baseLabel;
@@ -128,11 +141,16 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [] }) =>
     const style = diplomaticStyles[type];
     if (!style) return null;
     const excludeList = Array.isArray(effectObject.exclude) ? effectObject.exclude : [];
-    const entries = Object.entries(effectObject).filter(([selector]) => selector !== 'exclude');
+    // 过滤掉内部标记字段（以_开头的）和 exclude 字段
+    const entries = Object.entries(effectObject).filter(([selector]) => 
+      selector !== 'exclude' && !selector.startsWith('_')
+    );
     if (!entries.length) return null;
     return entries.map(([selector, change], idx) => {
+      // 确保 change 是有效数字
+      const numericChange = typeof change === 'number' && !isNaN(change) ? change : 0;
       const label = getNationSelectorLabel(selector, excludeList);
-      const isPositive = change > 0;
+      const isPositive = numericChange > 0;
       const wrapperClass = isPositive ? style.positiveClass : style.negativeClass;
       return (
         <span
@@ -141,7 +159,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [] }) =>
         >
           <Icon name={style.icon} size={10} />
           <span className="font-medium">{`${label}${style.labelSuffix || ''}`}</span>
-          <span className="font-mono font-bold">{style.formatter(change)}</span>
+          <span className="font-mono font-bold">{style.formatter(numericChange)}</span>
         </span>
       );
     });
