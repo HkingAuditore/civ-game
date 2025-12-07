@@ -118,9 +118,9 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
           : n
       ));
       
-      if (exportAmount >= 1) {
-        tradeLog.push(`🚢 出口 ${exportAmount.toFixed(1)} ${RESOURCES[resource]?.name || resource} 至 ${nation.name}：商人国内购 ${domesticPurchaseCost.toFixed(1)} 银币（税 ${tradeTax.toFixed(1)}），国外售 ${foreignSaleRevenue.toFixed(1)} 银币，商人赚 ${merchantProfit.toFixed(1)} 银币。`);
-      }
+    //   if (exportAmount >= 1) {
+    //     tradeLog.push(`🚢 出口 ${exportAmount.toFixed(1)} ${RESOURCES[resource]?.name || resource} 至 ${nation.name}：商人国内购 ${domesticPurchaseCost.toFixed(1)} 银币（税 ${tradeTax.toFixed(1)}），国外售 ${foreignSaleRevenue.toFixed(1)} 银币，商人赚 ${merchantProfit.toFixed(1)} 银币。`);
+    //   }
       
     } else if (type === 'import') {
       // 进口：商人在国外以国外价购买，在国内以国内价卖出
