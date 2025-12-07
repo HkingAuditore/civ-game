@@ -296,9 +296,7 @@ export const CLASS_CONFLICT_EVENTS = [
     description: '国库空虚，财政大臣提出两套方案：一是向所有人征收统一人头税；二是按财富比例征收累进税。富人们强烈反对后者，声称"这是惩罚成功"；而普通民众则高喊"让富人付出应有的份额！"',
     triggerConditions: {
       minEpoch: 4,
-      resourcePercent: {
-        silver: { max: 300 },
-      },
+      minPopulation: 100,
       classConditions: {
         capitalist: {
           minWealthShare: 0.2,
