@@ -31,7 +31,7 @@ export const EPOCHS = [
     bg: "bg-orange-950", 
     tileColor: "bg-orange-800", 
     req: { science: 600, population: 25 },
-    cost: { food: 600, wood: 350, stone: 120, silver: 60 },
+    cost: { food: 6000, wood: 3500, stone: 1200, silver: 600, science: 2000 },
     bonuses: { 
       desc: "掌握青铜冶炼与畜力生产，采集效率提升。",
       gatherBonus: 0.15,
@@ -45,7 +45,7 @@ export const EPOCHS = [
     bg: "bg-amber-900", 
     tileColor: "bg-amber-700", 
     req: { science: 1800, population: 90, culture: 250 },
-    cost: { food: 1000, wood: 500, brick: 180, silver: 250, tools: 60 },
+    cost: { food: 20000, wood: 10000, brick: 3600, silver: 5000, tools: 1200, science: 6000 },
     bonuses: { 
       desc: "城邦理性与文化盛开，基础设施大幅改善。",
       gatherBonus: 0.2,
@@ -60,7 +60,7 @@ export const EPOCHS = [
     bg: "bg-blue-950", 
     tileColor: "bg-blue-800", 
     req: { science: 4500, population: 170, culture: 600 },
-    cost: { food: 1800, wood: 1000, brick: 500, iron: 250, papyrus: 100, silver: 300 },
+    cost: { food: 100000, wood: 50000, brick: 25000, iron: 12500, papyrus: 5000, silver: 15000, science: 20000 },
     bonuses: { 
       desc: "骑士与庄园秩序成熟，文化发展加速。",
       gatherBonus: 0.25,
@@ -74,7 +74,7 @@ export const EPOCHS = [
     bg: "bg-cyan-900", 
     tileColor: "bg-cyan-700", 
     req: { science: 8000, population: 320, culture: 1400 },
-    cost: { food: 2600, plank: 700, brick: 600, iron: 350, silver: 400 },
+    cost: { food: 260000, plank: 70000, brick: 60000, iron: 35000, silver: 40000, science: 50000 },
     bonuses: { 
       desc: "远洋航行拓展视野，贸易与军事齐头并进。",
       gatherBonus: 0.3,
@@ -89,7 +89,7 @@ export const EPOCHS = [
     bg: "bg-purple-950", 
     tileColor: "bg-purple-800", 
     req: { science: 12000, population: 450, culture: 2500 },
-    cost: { food: 3500, plank: 800, papyrus: 300, spice: 200, silver: 500 },
+    cost: { food: 350000, plank: 80000, papyrus: 30000, spice: 20000, silver: 50000, science: 70000 },
     bonuses: { 
       desc: "理性与出版自由蔓延，文化科研全面提升。",
       cultureBonus: 0.3,
@@ -103,12 +103,27 @@ export const EPOCHS = [
     bg: "bg-gray-800", 
     tileColor: "bg-gray-600", 
     req: { science: 20000, population: 650, culture: 4000 },
-    cost: { food: 5000, brick: 1200, iron: 800, tools: 500, spice: 200, silver: 800 },
+    cost: { food: 750000, brick: 180000, iron: 120000, tools: 75000, spice: 30000, silver: 120000, science: 150000 },
     bonuses: { 
       desc: "蒸汽与煤铁带来巨量产能。",
       gatherBonus: 0.4,
       industryBonus: 0.5,
       scienceBonus: 0.3
+    }
+  },
+  { 
+    id: 7, 
+    name: "信息时代", 
+    color: "text-green-400", 
+    bg: "bg-green-950", 
+    tileColor: "bg-green-800", 
+    req: { science: 35000, population: 1000, culture: 8000 },
+    cost: { food: 2000000, tools: 300000, silver: 250000, spice: 80000, papyrus: 100000, electronics: 150000, science: 400000 },
+    bonuses: { 
+      desc: "数字革命改变世界，知识和信息成为核心生产力。",
+      scienceBonus: 0.6,
+      cultureBonus: 0.5,
+      knowledgeBonus: 0.4
     }
   },
 ];
