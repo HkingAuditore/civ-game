@@ -3162,7 +3162,7 @@ export const simulateTick = ({
     const adjustedDemand = dem + virtualDemandBaseline;
     
     // 计算当前库存可以支撑多少天
-    const dailyDemand = adjustedDemand / gameSpeed;
+    const dailyDemand = adjustedDemand;
     const inventoryStock = res[resource] || 0;
     const inventoryDays = dailyDemand > 0 ? inventoryStock / dailyDemand : inventoryTargetDays;
     
