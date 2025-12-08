@@ -77,7 +77,7 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
   const options = [];
   
   // 根据战争分数提供不同的和平选项
-  if (warScore > 20) {
+  if (warScore > 150) {
     // 大胜：可以要求更多赔款或领土
     const highTribute = Math.floor(tribute * 1.5);
     const highInstallmentTotal = Math.ceil(highTribute * INSTALLMENT_TOTAL_MULTIPLIER);
@@ -129,7 +129,7 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
       },
       callback: () => callback(true, 'standard', tribute),
     });
-  } else if (warScore > 10) {
+  } else if (warScore > 50) {
     // 小胜：标准和平条款 + 分期支付选项
     const installmentTotal = Math.ceil(tribute * INSTALLMENT_TOTAL_MULTIPLIER);
     const installmentAmount = Math.ceil(installmentTotal / 365); // 每天支付
@@ -189,9 +189,9 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
   
   // 根据战争分数生成不同的描述
   let description = '';
-  if (warScore > 20) {
+  if (warScore > 150) {
     description = `${nation.name}在战争中遭受惨重损失，他们派遣使节前来恳求和平。作为和平的代价，他们愿意支付${tribute}银币的赔款。鉴于你的巨大优势，你可以要求更多。`;
-  } else if (warScore > 10) {
+  } else if (warScore > 50) {
     description = `${nation.name}在战争中处于劣势，他们派遣使节前来请求和平。作为和平的代价，他们愿意支付${tribute}银币的赔款。`;
   } else {
     description = `${nation.name}派遣使节前来请求和平。虽然战局尚未明朗，但他们愿意支付${tribute}银币作为和平的诚意。`;
@@ -239,7 +239,7 @@ export function createPlayerPeaceProposalEvent(
     return Math.max(3, Math.min(hardCap, capped));
   };
   
-  if (warScore > 15) {
+  if (warScore > 150) {
     // 大胜：可以要求赔款
     const highTribute = Math.min(nation.wealth || 0, Math.ceil(warScore * 50 + enemyLosses * 3));
     const standardTribute = Math.min(nation.wealth || 0, Math.ceil(warScore * 40 + enemyLosses * 2));
@@ -290,7 +290,7 @@ export function createPlayerPeaceProposalEvent(
       effects: {},
       callback: () => callback('peace_only', 0),
     });
-  } else if (warScore > 0) {
+  } else if (warScore > 50) {
     // 小胜：可以要求少量赔款或无条件和平
     const tribute = Math.min(nation.wealth || 0, Math.ceil(warScore * 40 + enemyLosses * 2));
     const installmentTotal = Math.ceil(tribute * INSTALLMENT_TOTAL_MULTIPLIER);
@@ -327,7 +327,7 @@ export function createPlayerPeaceProposalEvent(
       effects: {},
       callback: () => callback('peace_only', 0),
     });
-  } else if (warScore < -10) {
+  } else if (warScore < -150) {
     // Major defeat: player must offer substantial reparations
     const payment = Math.max(150, Math.ceil(Math.abs(warScore) * 35 + warDuration * 6));
     const highInstallmentTotal = Math.ceil(payment * INSTALLMENT_TOTAL_MULTIPLIER);
@@ -355,7 +355,7 @@ export function createPlayerPeaceProposalEvent(
       effects: {},
       callback: () => callback('offer_population', populationOffer),
     });
-  } else if (warScore < 0) {
+  } else if (warScore < -50) {
     // 小败：需要支付赔款
     const payment = Math.max(100, Math.ceil(Math.abs(warScore) * 30 + warDuration * 5));
     const installmentTotal = Math.ceil(payment * INSTALLMENT_TOTAL_MULTIPLIER);
@@ -384,7 +384,25 @@ export function createPlayerPeaceProposalEvent(
       callback: () => callback('offer_population', populationOffer),
     });
   } else {
-    // 僵持：无条件和平
+    // 僵持：无条件和平或赔款
+    const payment = Math.max(50, Math.ceil(Math.abs(warScore) * 20 + warDuration * 3));
+    const installmentTotal = Math.ceil(payment * INSTALLMENT_TOTAL_MULTIPLIER);
+    const installmentAmount = Math.ceil(installmentTotal / 365);
+    
+    options.push({
+      id: 'pay_moderate',
+      text: `支付${payment}银币求和`,
+      description: '支付赔款以结束战争，显示和平诚意',
+      effects: {},
+      callback: () => callback('pay_moderate', payment),
+    });
+    options.push({
+      id: 'pay_installment_moderate',
+      text: `分期支付赔款`,
+      description: `每天支付${installmentAmount}银币，持续一年（共${installmentAmount * 365}银币）`,
+      effects: {},
+      callback: () => callback('pay_installment_moderate', installmentAmount),
+    });
     options.push({
       id: 'peace_only',
       text: '提议和平',
@@ -393,7 +411,7 @@ export function createPlayerPeaceProposalEvent(
       callback: () => callback('peace_only', 0),
     });
   }
-  
+
   // 总是可以取消
   options.push({
     id: 'cancel',
@@ -405,13 +423,13 @@ export function createPlayerPeaceProposalEvent(
   
   // 根据战争分数生成描述
   let description = '';
-  if (warScore > 15) {
+  if (warScore > 150) {
     description = `你在与${nation.name}的战争中占据压倒性优势。现在是提出和平条款的好时机，你可以要求丰厚的赔款。`;
-  } else if (warScore > 0) {
+  } else if (warScore > 50) {
     description = `你在与${nation.name}的战争中略占上风。你可以提出和平，并要求一定的赔款作为补偿。`;
-  } else if (warScore < -10) {
+  } else if (warScore < -150) {
     description = `你在与${nation.name}的战争中处于极大劣势。如果想要和平，可能需要支付高额赔款。`;
-  } else if (warScore < 0) {
+  } else if (warScore < -50) {
     description = `你在与${nation.name}的战争中处于劣势。如果想要和平，需要支付一定的赔款。`;
   } else {
     description = `你与${nation.name}的战争陷入僵持。双方都没有明显优势，可以提议无条件停战。`;
