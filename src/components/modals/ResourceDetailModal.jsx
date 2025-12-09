@@ -399,11 +399,11 @@ export const ResourceDetailModal = ({
       // 财富乘数显示为乘数形式
       if (Math.abs(wealthMultiplier - 1) > 0.01) {
         const wealthPercent = (wealthMultiplier - 1) * 100;
-        modList.push(`财富${wealthPercent > 0 ? '+' : ''}${wealthPercent.toFixed(0)}%`);
+        modList.push(`财务状况导致需求${wealthPercent > 0 ? '+' : ''}${wealthPercent.toFixed(0)}%`);
       }
       // 显示动态需求来源
       if (isLuxuryNeed) {
-        modList.push(`富裕需求+${luxuryPerCap.toFixed(3)}`);
+        modList.push(`富裕额外需求+${luxuryPerCap.toFixed(3)}`);
       }
       
       // 构建公式说明
@@ -972,9 +972,9 @@ export const ResourceDetailModal = ({
                                     )}
                                   </div>
                                   <p className="text-[10px] lg:text-xs text-gray-500">{item.formula}</p>
-                                  {item.wealthRatio && (
+                                  {/* {item.wealthRatio && (
                                     <p className="text-[9px] text-gray-400">财富比例: {item.wealthRatio}×</p>
-                                  )}
+                                  )} */}
                                   {item.mods && item.mods.length > 0 && (
                                     <p className={`text-[9px] ${
                                       item.isPureLuxury 
