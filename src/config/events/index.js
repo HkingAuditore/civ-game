@@ -15,6 +15,19 @@ import {
   createPeaceRequestEvent,
   createBattleEvent,
 } from './diplomaticEvents';
+// 叛乱事件系统
+import {
+  REBELLION_PHASE,
+  REBELLION_CONFIG,
+  createBrewingEvent,
+  createPlottingEvent,
+  createActiveRebellionEvent,
+  createInvestigationResultEvent,
+  createArrestResultEvent,
+  createSuppressionResultEvent,
+  createRebelNation,
+  createRebellionEndEvent,
+} from './rebellionEvents';
 
 // Combine all events into a single array
 export const EVENTS = [...BASE_EVENTS, ...CLASS_CONFLICT_EVENTS, ...EPOCH_EVENTS, ...ECONOMIC_EVENTS, ...STATIC_DIPLOMATIC_EVENTS];
@@ -39,3 +52,17 @@ export {
 
 // Re-export individual event arrays for potential direct access
 export { BASE_EVENTS, CLASS_CONFLICT_EVENTS, EPOCH_EVENTS, ECONOMIC_EVENTS, STATIC_DIPLOMATIC_EVENTS };
+
+// Re-export rebellion event system
+export {
+  REBELLION_PHASE,
+  REBELLION_CONFIG,
+  createBrewingEvent,
+  createPlottingEvent,
+  createActiveRebellionEvent,
+  createInvestigationResultEvent,
+  createArrestResultEvent,
+  createSuppressionResultEvent,
+  createRebelNation,
+  createRebellionEndEvent,
+};

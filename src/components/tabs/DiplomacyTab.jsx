@@ -383,6 +383,11 @@ export const DiplomacyTab = ({
                       <span className={`px-1 py-0.5 rounded text-[9px] ${relation.bg} ${relation.color} font-epic`}>
                         {relation.label}
                       </span>
+                      {nation.isRebelNation && (
+                        <span className="px-1 py-0.5 rounded text-[9px] bg-red-900 text-red-100 font-epic">
+                          叛乱
+                        </span>
+                      )}
                     </div>
                   </div>
                   <Icon

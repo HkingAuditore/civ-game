@@ -7,6 +7,15 @@ import { calculateForeignPrice, calculateTradeStatus } from '../utils/foreignTra
 import { generateSound, SOUND_TYPES } from '../config/sounds';
 import { getEnemyUnitsForEpoch } from '../config/militaryActions';
 import { isResourceUnlocked } from '../utils/resources';
+// 叛乱系统
+import {
+  processRebellionAction,
+  createInvestigationResultEvent,
+  createArrestResultEvent,
+  createSuppressionResultEvent,
+  createRebellionEndEvent,
+  REBELLION_PHASE,
+} from '../logic/rebellionSystem';
 
 /**
  * 游戏操作钩子
@@ -56,6 +65,11 @@ export const useGameActions = (gameState, addLog) => {
     jobsAvailable,
     eventEffectSettings,
     setActiveEventEffects,
+    rebellionStates,
+    setRebellionStates,
+    popStructure,
+    setPopStructure,
+    classWealth,
   } = gameState;
 
   const getMarketPrice = (resource) => {
@@ -1040,6 +1054,13 @@ export const useGameActions = (gameState, addLog) => {
     const targetNation = nations.find(n => n.id === nationId);
     if (!targetNation) return;
     
+    // 特殊处理：如果是叛乱政府，使用叛乱结束处理
+    if (targetNation.isRebelNation) {
+      // 敌方请求和平意味着玩家胜利
+      handleRebellionWarEnd(nationId, true);
+      return;
+    }
+    
     const peaceTreatyUntil = daysElapsed + 365; // 和平协议持续一年
     
     if (proposalType === 'installment') {
@@ -1157,6 +1178,8 @@ export const useGameActions = (gameState, addLog) => {
 
     const targetNation = nations.find(n => n.id === nationId);
     if (!targetNation) return;
+    const isRebelNation = targetNation.isRebelNation === true;
+    const rebellionLogSuffix = isRebelNation ? ' 叛乱已经结束。' : '';
 
     const clampRelation = (value) => Math.max(0, Math.min(100, value));
     const warScore = targetNation.warScore || 0;
@@ -1170,21 +1193,25 @@ export const useGameActions = (gameState, addLog) => {
       const willingness = (warScore / 100) + Math.min(0.4, enemyLosses / 250) + Math.min(0.2, warDuration / 250);
       if (willingness > 0.7 || (targetNation.wealth || 0) <= 0) {
         setResources(prev => ({ ...prev, silver: (prev.silver || 0) + amount }));
-        setNations(prev => prev.map(n =>
-          n.id === nationId
-            ? {
-                ...n,
-                wealth: Math.max(0, (n.wealth || 0) - amount),
-                isAtWar: false,
-                warScore: 0,
-                warDuration: 0,
-                enemyLosses: 0,
-                relation: clampRelation((n.relation || 0) + 5),
-                peaceTreatyUntil,
-              }
-            : n
-        ));
-        addLog(`${targetNation.name} 接受了你的高额赔款要求，支付 ${amount} 银币换取和平。`);
+        if (isRebelNation) {
+          handleRebellionWarEnd(nationId, true);
+        } else {
+          setNations(prev => prev.map(n =>
+            n.id === nationId
+              ? {
+                  ...n,
+                  wealth: Math.max(0, (n.wealth || 0) - amount),
+                  isAtWar: false,
+                  warScore: 0,
+                  warDuration: 0,
+                  enemyLosses: 0,
+                  relation: clampRelation((n.relation || 0) + 5),
+                  peaceTreatyUntil,
+                }
+              : n
+          ));
+        }
+        addLog(`${targetNation.name} 接受了你的高额赔款要求，支付 ${amount} 银币换取和平。${rebellionLogSuffix}`);
       } else {
         addLog(`${targetNation.name} 拒绝了你的高额赔款要求。`);
       }
@@ -1192,26 +1219,30 @@ export const useGameActions = (gameState, addLog) => {
       // 要求分期支付赔款
       const willingness = (warScore / 90) + Math.min(0.45, enemyLosses / 220) + Math.min(0.25, warDuration / 220);
       if (willingness > 0.65) {
-        setNations(prev => prev.map(n =>
-          n.id === nationId
-            ? {
-                ...n,
-                isAtWar: false,
-                warScore: 0,
-                warDuration: 0,
-                enemyLosses: 0,
-                relation: clampRelation((n.relation || 0) + 8),
-                peaceTreatyUntil,
-                installmentPayment: {
-                  amount: amount, // 每天支付的金额
-                  remainingDays: 365,
-                  totalAmount: amount * 365,
-                  paidAmount: 0,
-                },
-              }
-            : n
-        ));
-        addLog(`${targetNation.name} 接受了分期支付协议，将每天支付 ${amount} 银币，持续一年（共${amount * 365}银币）。`);
+        if (isRebelNation) {
+          handleRebellionWarEnd(nationId, true);
+        } else {
+          setNations(prev => prev.map(n =>
+            n.id === nationId
+              ? {
+                  ...n,
+                  isAtWar: false,
+                  warScore: 0,
+                  warDuration: 0,
+                  enemyLosses: 0,
+                  relation: clampRelation((n.relation || 0) + 8),
+                  peaceTreatyUntil,
+                  installmentPayment: {
+                    amount: amount, // 每天支付的金额
+                    remainingDays: 365,
+                    totalAmount: amount * 365,
+                    paidAmount: 0,
+                  },
+                }
+              : n
+          ));
+        }
+        addLog(`${targetNation.name} 接受了分期支付协议，将每天支付 ${amount} 银币，持续一年（共${amount * 365}银币）。${rebellionLogSuffix}`);
       } else {
         addLog(`${targetNation.name} 拒绝了分期支付要求。`);
       }
@@ -1221,21 +1252,25 @@ export const useGameActions = (gameState, addLog) => {
       if (willingness > 0.68) {
         setMaxPopBonus(prev => prev + amount);
         setPopulation(prev => prev + amount);
-        setNations(prev => prev.map(n =>
-          n.id === nationId
-            ? {
-                ...n,
-                isAtWar: false,
-                warScore: 0,
-                warDuration: 0,
-                enemyLosses: 0,
-                population: Math.max(100, (n.population || 1000) - amount),
-                relation: clampRelation((n.relation || 0) + 7),
-                peaceTreatyUntil,
-              }
-            : n
-        ));
-        addLog(`${targetNation.name} 接受了和平协议，提供了 ${amount} 人口。`);
+        if (isRebelNation) {
+          handleRebellionWarEnd(nationId, true);
+        } else {
+          setNations(prev => prev.map(n =>
+            n.id === nationId
+              ? {
+                  ...n,
+                  isAtWar: false,
+                  warScore: 0,
+                  warDuration: 0,
+                  enemyLosses: 0,
+                  population: Math.max(100, (n.population || 1000) - amount),
+                  relation: clampRelation((n.relation || 0) + 7),
+                  peaceTreatyUntil,
+                }
+              : n
+          ));
+        }
+        addLog(`${targetNation.name} 接受了和平协议，提供了 ${amount} 人口。${rebellionLogSuffix}`);
       } else {
         addLog(`${targetNation.name} 拒绝了提供人口的要求。`);
       }
@@ -1244,21 +1279,25 @@ export const useGameActions = (gameState, addLog) => {
       const willingness = (warScore / 80) + Math.min(0.5, enemyLosses / 200) + Math.min(0.3, warDuration / 200);
       if (willingness > 0.6 || (targetNation.wealth || 0) <= 0) {
         setResources(prev => ({ ...prev, silver: (prev.silver || 0) + amount }));
-        setNations(prev => prev.map(n =>
-          n.id === nationId
-            ? {
-                ...n,
-                wealth: Math.max(0, (n.wealth || 0) - amount),
-                isAtWar: false,
-                warScore: 0,
-                warDuration: 0,
-                enemyLosses: 0,
-                relation: clampRelation((n.relation || 0) + 10),
-                peaceTreatyUntil,
-              }
-            : n
-        ));
-        addLog(`${targetNation.name} 接受了和平协议，支付 ${amount} 银币。`);
+        if (isRebelNation) {
+          handleRebellionWarEnd(nationId, true);
+        } else {
+          setNations(prev => prev.map(n =>
+            n.id === nationId
+              ? {
+                  ...n,
+                  wealth: Math.max(0, (n.wealth || 0) - amount),
+                  isAtWar: false,
+                  warScore: 0,
+                  warDuration: 0,
+                  enemyLosses: 0,
+                  relation: clampRelation((n.relation || 0) + 10),
+                  peaceTreatyUntil,
+                }
+              : n
+          ));
+        }
+        addLog(`${targetNation.name} 接受了和平协议，支付 ${amount} 银币。${rebellionLogSuffix}`);
       } else {
         addLog(`${targetNation.name} 拒绝了你的赔款要求。`);
       }
@@ -1266,20 +1305,24 @@ export const useGameActions = (gameState, addLog) => {
       // 无条件和平，成功率较高
       const willingness = Math.max(0.3, (warScore / 60) + Math.min(0.4, enemyLosses / 150));
       if (willingness > 0.5) {
-        setNations(prev => prev.map(n =>
-          n.id === nationId
-            ? {
-                ...n,
-                isAtWar: false,
-                warScore: 0,
-                warDuration: 0,
-                enemyLosses: 0,
-                relation: clampRelation((n.relation || 0) + 15),
-                peaceTreatyUntil,
-              }
-            : n
-        ));
-        addLog(`${targetNation.name} 接受了和平协议，战争结束。`);
+        if (isRebelNation) {
+          handleRebellionWarEnd(nationId, true);
+        } else {
+          setNations(prev => prev.map(n =>
+            n.id === nationId
+              ? {
+                  ...n,
+                  isAtWar: false,
+                  warScore: 0,
+                  warDuration: 0,
+                  enemyLosses: 0,
+                  relation: clampRelation((n.relation || 0) + 15),
+                  peaceTreatyUntil,
+                }
+              : n
+          ));
+        }
+        addLog(`${targetNation.name} 接受了和平协议，战争结束。${rebellionLogSuffix}`);
       } else {
         addLog(`${targetNation.name} 拒绝了和平提议。`);
       }
@@ -1289,6 +1332,33 @@ export const useGameActions = (gameState, addLog) => {
       if (willingness > 0.6) {
         const openMarketUntil = daysElapsed + amount; // amount为天数
         const yearsCount = Math.round(amount / 365);
+        if (isRebelNation) {
+          handleRebellionWarEnd(nationId, true);
+        } else {
+          setNations(prev => prev.map(n =>
+            n.id === nationId
+              ? {
+                  ...n,
+                  isAtWar: false,
+                  warScore: 0,
+                  warDuration: 0,
+                  enemyLosses: 0,
+                  relation: clampRelation((n.relation || 0) + 10),
+                  peaceTreatyUntil,
+                  openMarketUntil, // 开放市场截止日期
+                }
+              : n
+          ));
+        }
+        addLog(`${targetNation.name} 接受了和平协议，将在${yearsCount}年内开放市场，不限制我方贸易路线数量。${rebellionLogSuffix}`);
+      } else {
+        addLog(`${targetNation.name} 拒绝了开放市场的要求。`);
+      }
+    } else if (proposalType === 'pay_installment' || proposalType === 'pay_installment_moderate') {
+      // 玩家分期支付赔款
+      if (isRebelNation) {
+        handleRebellionWarEnd(nationId, false);
+      } else {
         setNations(prev => prev.map(n =>
           n.id === nationId
             ? {
@@ -1297,31 +1367,12 @@ export const useGameActions = (gameState, addLog) => {
                 warScore: 0,
                 warDuration: 0,
                 enemyLosses: 0,
-                relation: clampRelation((n.relation || 0) + 10),
+                relation: clampRelation(28),
                 peaceTreatyUntil,
-                openMarketUntil, // 开放市场截止日期
               }
             : n
         ));
-        addLog(`${targetNation.name} 接受了和平协议，将在${yearsCount}年内开放市场，不限制我方贸易路线数量。`);
-      } else {
-        addLog(`${targetNation.name} 拒绝了开放市场的要求。`);
       }
-    } else if (proposalType === 'pay_installment' || proposalType === 'pay_installment_moderate') {
-      // 玩家分期支付赔款
-      setNations(prev => prev.map(n =>
-        n.id === nationId
-          ? {
-              ...n,
-              isAtWar: false,
-              warScore: 0,
-              warDuration: 0,
-              enemyLosses: 0,
-              relation: clampRelation(28),
-              peaceTreatyUntil,
-            }
-          : n
-      ));
       // 设置玩家的分期支付
       gameState.setPlayerInstallmentPayment({
         nationId,
@@ -1330,7 +1381,7 @@ export const useGameActions = (gameState, addLog) => {
         totalAmount: amount * 365,
         paidAmount: 0,
       });
-      addLog(`你与 ${targetNation.name} 达成和平，将每天支付 ${amount} 银币，持续一年（共${amount * 365}银币）。`);
+      addLog(`你与 ${targetNation.name} 达成和平，将每天支付 ${amount} 银币，持续一年（共${amount * 365}银币）。${rebellionLogSuffix}`);
     } else if (proposalType === 'offer_population') {
       // 玩家提供人口
       if (population < amount) {
@@ -1339,21 +1390,25 @@ export const useGameActions = (gameState, addLog) => {
       }
       setMaxPopBonus(prev => Math.max(-population + 1, prev - amount));
       setPopulation(prev => Math.max(1, prev - amount));
-      setNations(prev => prev.map(n =>
-        n.id === nationId
-          ? {
-              ...n,
-              isAtWar: false,
-              warScore: 0,
-              warDuration: 0,
-              enemyLosses: 0,
-              population: (n.population || 1000) + amount,
-              relation: clampRelation(27),
-              peaceTreatyUntil,
-            }
-          : n
-      ));
-      addLog(`你提供 ${amount} 人口，与 ${targetNation.name} 达成和平。`);
+      if (isRebelNation) {
+        handleRebellionWarEnd(nationId, false);
+      } else {
+        setNations(prev => prev.map(n =>
+          n.id === nationId
+            ? {
+                ...n,
+                isAtWar: false,
+                warScore: 0,
+                warDuration: 0,
+                enemyLosses: 0,
+                population: (n.population || 1000) + amount,
+                relation: clampRelation(27),
+                peaceTreatyUntil,
+              }
+            : n
+        ));
+      }
+      addLog(`你提供 ${amount} 人口，与 ${targetNation.name} 达成和平。${rebellionLogSuffix}`);
     } else if (proposalType === 'pay_standard' || proposalType === 'pay_high' || proposalType === 'pay_moderate') {
       // 玩家支付赔款求和
       if ((resources.silver || 0) < amount) {
@@ -1361,21 +1416,25 @@ export const useGameActions = (gameState, addLog) => {
         return;
       }
       setResources(prev => ({ ...prev, silver: (prev.silver || 0) - amount }));
-      setNations(prev => prev.map(n =>
-        n.id === nationId
-          ? {
-              ...n,
-              isAtWar: false,
-              warScore: 0,
-              warDuration: 0,
-              enemyLosses: 0,
-              wealth: (n.wealth || 0) + amount,
-              relation: clampRelation(proposalType === 'pay_high' ? 25 : 30),
-              peaceTreatyUntil,
-            }
-          : n
-      ));
-      addLog(`你支付 ${amount} 银币，与 ${targetNation.name} 达成和平。`);
+      if (isRebelNation) {
+        handleRebellionWarEnd(nationId, false);
+      } else {
+        setNations(prev => prev.map(n =>
+          n.id === nationId
+            ? {
+                ...n,
+                isAtWar: false,
+                warScore: 0,
+                warDuration: 0,
+                enemyLosses: 0,
+                wealth: (n.wealth || 0) + amount,
+                relation: clampRelation(proposalType === 'pay_high' ? 25 : 30),
+                peaceTreatyUntil,
+              }
+            : n
+        ));
+      }
+      addLog(`你支付 ${amount} 银币，与 ${targetNation.name} 达成和平。${rebellionLogSuffix}`);
     }
   };
 
@@ -2167,6 +2226,199 @@ const handleEventOption = (eventId, option) => {
   setCurrentEvent(null);
 };
 
+  // ========== 叛乱系统处理 ==========
+  
+  /**
+   * 处理叛乱行动
+   * @param {string} action - 行动类型
+   * @param {string} stratumKey - 阶层键
+   * @param {Object} extraData - 额外数据（如叛乱政府对象）
+   */
+  const handleRebellionAction = (action, stratumKey, extraData) => {
+    const currentState = rebellionStates?.[stratumKey];
+    if (!currentState) {
+      console.warn('[REBELLION] No rebellion state for stratum:', stratumKey);
+      return;
+    }
+    
+    const stratumName = STRATA[stratumKey]?.name || stratumKey;
+    
+    // 计算军事力量加成
+    const totalArmy = Object.values(army || {}).reduce((sum, c) => sum + (c || 0), 0);
+    const militaryStrength = totalArmy * 0.01; // 简化计算
+    
+    // 处理行动结果
+    const result = processRebellionAction(action, stratumKey, currentState, army, militaryStrength);
+    
+    // 更新叛乱状态
+    if (result.newPhase !== currentState.phase) {
+      setRebellionStates(prev => ({
+        ...prev,
+        [stratumKey]: {
+          ...prev[stratumKey],
+          phase: result.newPhase,
+          lastPhaseChange: daysElapsed,
+        },
+      }));
+    }
+    
+    // 根据行动类型创建结果事件
+    let resultEvent = null;
+    const resultCallback = (resultAction, stratum) => {
+      // 处理结果事件的后续选择
+      if (resultAction.startsWith('arrest_')) {
+        // 拘捕后处理
+        addLog(`叛乱首领已被处理`);
+      } else if (resultAction.startsWith('suppress_')) {
+        // 镇压后处理
+        if (resultAction === 'suppress_mercy') {
+          setClassApproval(prev => ({
+            ...prev,
+            [stratum]: Math.min(100, (prev[stratum] || 50) + 10),
+          }));
+        } else if (resultAction === 'suppress_strict') {
+          setStability(prev => Math.min(100, (prev || 50) + 10));
+          setClassApproval(prev => ({
+            ...prev,
+            [stratum]: Math.max(0, (prev[stratum] || 50) - 20),
+          }));
+        }
+      }
+    };
+    
+    switch (action) {
+      case 'investigate':
+        resultEvent = createInvestigationResultEvent(
+          stratumKey,
+          result.success,
+          result.success ? '他们计划在节日时发动突袭。' : null,
+          resultCallback
+        );
+        break;
+        
+      case 'arrest':
+        resultEvent = createArrestResultEvent(stratumKey, result.success, resultCallback);
+        // 如果失败，扣除损失
+        if (!result.success && result.playerLosses > 0) {
+          // 从军队中扣除损失（简化：按比例扣除各单位）
+          const lossRatio = result.playerLosses / Math.max(1, totalArmy);
+          setArmy(prev => {
+            const newArmy = { ...prev };
+            Object.keys(newArmy).forEach(unitType => {
+              const loss = Math.ceil((newArmy[unitType] || 0) * lossRatio);
+              newArmy[unitType] = Math.max(0, (newArmy[unitType] || 0) - loss);
+            });
+            return newArmy;
+          });
+        }
+        break;
+        
+      case 'suppress':
+        resultEvent = createSuppressionResultEvent(
+          stratumKey,
+          result.success,
+          result.playerLosses,
+          result.rebelLosses,
+          resultCallback
+        );
+        // 扣除军队损失
+        if (result.playerLosses > 0) {
+          const lossRatio = result.playerLosses / Math.max(1, totalArmy);
+          setArmy(prev => {
+            const newArmy = { ...prev };
+            Object.keys(newArmy).forEach(unitType => {
+              const loss = Math.ceil((newArmy[unitType] || 0) * lossRatio);
+              newArmy[unitType] = Math.max(0, (newArmy[unitType] || 0) - loss);
+            });
+            return newArmy;
+          });
+        }
+        // 如果镇压成功，移除叛乱政府
+        if (result.success && extraData?.id) {
+          setNations(prev => prev.filter(n => n.id !== extraData.id));
+        }
+        break;
+        
+      case 'appease':
+      case 'negotiate':
+      case 'bribe':
+        // 这些行动的效果已经在事件选项的effects中处理
+        addLog(`${result.message}`);
+        break;
+        
+      case 'accept_war':
+        // 接受与叛乱政府的战争状态（已经在创建时设置）
+        addLog(`你决定与${stratumName}叛乱政府全面开战！`);
+        break;
+        
+      default:
+        console.warn('[REBELLION] Unknown action:', action);
+    }
+    
+    // 触发结果事件
+    if (resultEvent) {
+      setCurrentEvent(resultEvent);
+    }
+  };
+  
+  /**
+   * 检测并处理叛乱战争结束
+   * @param {string} nationId - 叛乱政府国家ID
+   * @param {boolean} playerVictory - 玩家是否胜利
+   */
+  const handleRebellionWarEnd = (nationId, playerVictory) => {
+    const rebelNation = nations.find(n => n.id === nationId && n.isRebelNation);
+    if (!rebelNation) return;
+    
+    const stratumKey = rebelNation.rebellionStratum;
+    const stratumName = STRATA[stratumKey]?.name || stratumKey;
+    
+    // 创建战争结束事件
+    const endEvent = createRebellionEndEvent(
+      rebelNation,
+      playerVictory,
+      (action, nation) => {
+        if (action === 'end_celebrate') {
+          setStability(prev => Math.min(100, (prev || 50) + 15));
+          setResources(prev => ({
+            ...prev,
+            culture: (prev.culture || 0) + 50,
+          }));
+        } else if (action === 'end_rebuild') {
+          setStability(prev => Math.min(100, (prev || 50) + 5));
+        } else if (action === 'end_defeat') {
+          setStability(prev => Math.max(0, (prev || 50) - 20));
+        }
+      }
+    );
+    
+    // 移除叛乱政府
+    setNations(prev => prev.filter(n => n.id !== nationId));
+    
+    // 重置叛乱状态
+    setRebellionStates(prev => ({
+      ...prev,
+      [stratumKey]: {
+        ...prev[stratumKey],
+        phase: REBELLION_PHASE.NONE,
+        dissatisfactionDays: 0,
+      },
+    }));
+    
+    // 如果玩家胜利，恢复部分人口
+    if (playerVictory && rebelNation.population > 0) {
+      const recoveredPop = Math.floor(rebelNation.population * 0.5); // 恢复50%
+      setPopStructure(prev => ({
+        ...prev,
+        [stratumKey]: (prev[stratumKey] || 0) + recoveredPop,
+      }));
+      addLog(`${recoveredPop}名${stratumName}回归了你的统治。`);
+    }
+    
+    // 触发结束事件
+    setCurrentEvent(endEvent);
+  };
+
   // 返回所有操作函数
   return {
     // 时代
@@ -2229,5 +2481,9 @@ const handleEventOption = (eventId, option) => {
     dismissAllBattleNotifications: () => {
       setBattleNotifications([]);
     },
+    
+    // 叛乱系统
+    handleRebellionAction,
+    handleRebellionWarEnd,
   };
 };
