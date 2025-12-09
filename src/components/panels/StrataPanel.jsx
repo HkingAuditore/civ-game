@@ -6,6 +6,19 @@ import { Icon } from '../common/UIComponents';
 import { STRATA, RESOURCES } from '../../config';
 import { formatEffectDetails } from '../../utils/effectFormatter';
 
+// Helper function to get living standard level name from icon
+const getLivingStandardLevelName = (iconName) => {
+  switch (iconName) {
+    case 'Skull': return '赤贫';
+    case 'AlertTriangle': return '贫困';
+    case 'UtensilsCrossed': return '温饱';
+    case 'Home': return '小康';
+    case 'Gem': return '富裕';
+    case 'Crown': return '奢华';
+    default: return '未知';
+  }
+};
+
 /**
  * 社会阶层面板组件
  * 显示各个社会阶层的详细信息
@@ -56,6 +69,35 @@ export const StrataPanel = ({
             : incomePerCapita - expensePerCapita;
         const shortages = classShortages[key] || [];
 
+        // Calculate living standard based on wealth ratio
+        const wealthPerCapita = count > 0 ? wealthValue / count : 0;
+        const startingWealth = info.startingWealth || 10;
+        const wealthRatio = startingWealth > 0 ? wealthPerCapita / startingWealth : 0;
+        
+        // Determine living standard level and icon
+        let livingStandardIcon = 'HelpCircle';
+        let livingStandardColor = 'text-gray-400';
+        
+        if (wealthRatio < 0.5) {
+          livingStandardIcon = 'Skull'; // 赤贫
+          livingStandardColor = 'text-gray-400';
+        } else if (wealthRatio < 1) {
+          livingStandardIcon = 'AlertTriangle'; // 贫困
+          livingStandardColor = 'text-red-400';
+        } else if (wealthRatio < 2) {
+          livingStandardIcon = 'UtensilsCrossed'; // 温饱
+          livingStandardColor = 'text-yellow-400';
+        } else if (wealthRatio < 4) {
+          livingStandardIcon = 'Home'; // 小康
+          livingStandardColor = 'text-green-400';
+        } else if (wealthRatio < 8) {
+          livingStandardIcon = 'Gem'; // 富裕
+          livingStandardColor = 'text-blue-400';
+        } else {
+          livingStandardIcon = 'Crown'; // 奢华
+          livingStandardColor = 'text-purple-400';
+        }
+
         return {
           key,
           info,
@@ -67,6 +109,10 @@ export const StrataPanel = ({
           expensePerCapita,
           netIncomePerCapita,
           shortages,
+          wealthPerCapita,
+          wealthRatio,
+          livingStandardIcon,
+          livingStandardColor,
         };
       })
       .filter((entry) => entry.count > 0);
@@ -186,6 +232,15 @@ export const StrataPanel = ({
                       <div className="text-[10px] font-bold text-ancient-parchment truncate leading-tight">{strata.info.name}</div>
                       <div className="text-[8px] text-ancient-stone font-mono leading-none">{strata.count}</div>
                     </div>
+                    {/* 生活水平图标 */}
+                    <div className="flex-shrink-0">
+                      <Icon 
+                        name={strata.livingStandardIcon} 
+                        size={10} 
+                        className={`${strata.livingStandardColor} drop-shadow-[0_0_2px_rgba(255,255,255,0.3)]`} 
+                        title={`生活水平: 财富比率 ${strata.wealthRatio.toFixed(2)}x`}
+                      />
+                    </div>
                     {/* 短缺闪烁图标 */}
                     {strata.shortages.length > 0 && (
                       <div className="flex-shrink-0">
@@ -237,6 +292,10 @@ export const StrataPanel = ({
               expensePerCapita,
               netIncomePerCapita,
               shortages,
+              wealthPerCapita,
+              wealthRatio,
+              livingStandardIcon,
+              livingStandardColor,
             }) => (
                 <div
                   key={key}
@@ -249,10 +308,20 @@ export const StrataPanel = ({
                       <Icon name={info.icon} size={10} className="text-ancient-gold" />
                       <span className="text-[11px] font-semibold text-ancient-parchment">{info.name}</span>
                       <span className="text-[9px] text-ancient-stone">{count}人</span>
+                      <Icon 
+                        name={livingStandardIcon} 
+                        size={10} 
+                        className={`${livingStandardColor} drop-shadow-[0_0_2px_rgba(255,255,255,0.3)]`} 
+                        title={`生活水平: ${getLivingStandardLevelName(livingStandardIcon)} (财富比率 ${wealthRatio.toFixed(2)}x)`}
+                      />
                     </div>
-                    <span className={`text-[9px] font-semibold font-mono ${getApprovalColor(approval)}`}>
-                      {approval.toFixed(0)}%
-                    </span>
+                    <div className="flex items-center gap-1">
+                      <span className={`text-[9px] font-semibold font-mono ${getApprovalColor(approval)}`}>
+                        {approval.toFixed(0)}%
+                      </span>
+                      {/* 生活水平图标 */}
+                      
+                    </div>
                   </div>
 
                   {/* 收入、支出与净增（人均） - 更紧凑 */}
