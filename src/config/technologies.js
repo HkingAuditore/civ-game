@@ -156,6 +156,14 @@ export const TECHS = [
     epoch: 1,
     effects: { buildings: { granary: 0.25 }, maxPop: 5 },
   },
+  {
+    id: 'primitive_weaving',
+    name: "原始纺织",
+    desc: "使用简易织机将羊毛加工为布料。织布坊效率 +10%。",
+    cost: { science: 820 },
+    epoch: 1,
+    effects: { buildings: { loom_house: 0.10 } },
+  },
 
   {
     id: 'ritual_priesthood',
@@ -239,6 +247,14 @@ export const TECHS = [
     epoch: 2,
     effects: { categories: { gather: 0.1 } },
   },
+  {
+    id: 'advanced_weaving',
+    name: "高级纺织",
+    desc: "改进织布工具和织机设计，提升纺织效率。织布坊效率 +20%。",
+    cost: { science: 1950 },
+    epoch: 2,
+    effects: { buildings: { loom_house: 0.2 } },
+  },
 
   // 封建时代
   {
@@ -248,6 +264,14 @@ export const TECHS = [
     cost: { science: 3500 },
     epoch: 3,
     effects: { buildings: { large_estate: 0.15 } },
+  },
+  {
+    id: 'basic_weaving',
+    name: "织布机",
+    desc: "新型的防治工具。织布坊效率 +25%。",
+    cost: { science: 3150 },
+    epoch: 3,
+    effects: { buildings: { loom_house: 0.25 } },
   },
   {
     id: 'theology',
