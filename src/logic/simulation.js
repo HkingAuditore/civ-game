@@ -1853,7 +1853,7 @@ export const simulateTick = ({
         // 使用平方根曲线：财富增加时需求增长快，但边际递减
         // wealthRatio=1 → multiplier=1, wealthRatio=4 → multiplier≈2.5, wealthRatio=9 → multiplier≈4
         // 公式: multiplier = sqrt(wealthRatio) * (1 + ln(max(wealthRatio, 1)) * 0.3)
-        // 限制范围：最低0.3倍（财富极低时），最高10倍（避免财富过高导致需求爆炸）
+        // 限制范围：最低0.3倍（财富极低时），最高7倍（避免财富过高导致需求爆炸）
         let rawWealthMultiplier;
         if (wealthRatio <= 0) {
           rawWealthMultiplier = 0.3;
@@ -1864,7 +1864,7 @@ export const simulateTick = ({
           // 财富高于基准时，使用平方根+对数曲线，增长更快但有边际递减
           rawWealthMultiplier = Math.sqrt(wealthRatio) * (1 + Math.log(wealthRatio) * 0.3);
         }
-        const wealthMultiplier = Math.max(0.3, Math.min(10.0, rawWealthMultiplier));
+        const wealthMultiplier = Math.max(0.3, Math.min(7.0, rawWealthMultiplier));
         // 记录财富乘数（取最后一次计算的值，用于UI显示）
         if (!stratumWealthMultipliers[key] || Math.abs(wealthMultiplier - 1) > Math.abs(stratumWealthMultipliers[key] - 1)) {
           stratumWealthMultipliers[key] = wealthMultiplier;
