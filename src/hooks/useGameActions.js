@@ -859,20 +859,30 @@ export const useGameActions = (gameState, addLog) => {
           return;
         }
         
-        // 找到可以被离间的其他国家（与目标国有外交关系的国家）
-        const visibleNations = nations.filter(n => 
-          n.id !== nationId && 
-          epoch >= (n.appearEpoch ?? 0) && 
-          (n.expireEpoch == null || epoch <= n.expireEpoch)
-        );
-        
-        if (visibleNations.length === 0) {
-          addLog('没有其他国家可以被离间。');
-          return;
+        // 从 payload 中获取指定的目标国家，或者随机选择
+        let otherNation;
+        if (payload.targetNationId) {
+          otherNation = nations.find(n => n.id === payload.targetNationId);
+          if (!otherNation) {
+            addLog('指定的目标国家不存在。');
+            return;
+          }
+        } else {
+          // 找到可以被离间的其他国家（与目标国有外交关系的国家）
+          const visibleNations = nations.filter(n => 
+            n.id !== nationId && 
+            epoch >= (n.appearEpoch ?? 0) && 
+            (n.expireEpoch == null || epoch <= n.expireEpoch)
+          );
+          
+          if (visibleNations.length === 0) {
+            addLog('没有其他国家可以被离间。');
+            return;
+          }
+          
+          // 随机选择一个国家作为离间目标
+          otherNation = visibleNations[Math.floor(Math.random() * visibleNations.length)];
         }
-        
-        // 随机选择一个国家作为离间目标
-        const otherNation = visibleNations[Math.floor(Math.random() * visibleNations.length)];
         
         // 成功率取决于玩家与目标国家的关系
         const playerRelation = targetNation.relation || 50;
@@ -911,7 +921,7 @@ export const useGameActions = (gameState, addLog) => {
         break;
       }
 
-      case 'declare_war':
+      case 'declare_war': {
         // 检查和平协议是否仍然有效
         if (targetNation.peaceTreatyUntil && daysElapsed < targetNation.peaceTreatyUntil) {
           const remainingDays = targetNation.peaceTreatyUntil - daysElapsed;
@@ -919,9 +929,26 @@ export const useGameActions = (gameState, addLog) => {
           return;
         }
         
-        setNations(prev => prev.map(n =>
-          n.id === nationId
-            ? {
+        // 检查是否为同盟关系（关系 >= 80）
+        const targetRelation = targetNation.relation || 0;
+        if (targetRelation >= 80) {
+          addLog(`无法宣战：${targetNation.name} 是你的盟友（关系 ${targetRelation}）。同盟国家之间不能发生战争！`);
+          return;
+        }
+        
+        // 找出目标国家的盟友（关系 >= 80），这些盟友也会被卷入战争
+        const targetAllies = nations.filter(n => {
+          if (n.id === nationId || n.id === targetNation.id) return false;
+          // 检查目标国家与其他国家的外交关系
+          const foreignRelation = targetNation.foreignRelations?.[n.id] ?? 50;
+          return foreignRelation >= 80;
+        });
+        
+        // 对目标国家宣战
+        setNations(prev => {
+          let updated = prev.map(n => {
+            if (n.id === nationId) {
+              return {
                 ...n,
                 relation: 0,
                 isAtWar: true,
@@ -929,12 +956,42 @@ export const useGameActions = (gameState, addLog) => {
                 warStartDay: daysElapsed,
                 warDuration: 0,
                 enemyLosses: 0,
-                peaceTreatyUntil: undefined, // 清除和平协议
+                peaceTreatyUntil: undefined,
+              };
+            }
+            return n;
+          });
+          
+          // 同盟连坐：目标国家的盟友也加入战争
+          if (targetAllies.length > 0) {
+            updated = updated.map(n => {
+              if (targetAllies.some(ally => ally.id === n.id)) {
+                return {
+                  ...n,
+                  relation: Math.max(0, (n.relation || 50) - 40), // 关系大幅恶化
+                  isAtWar: true,
+                  warScore: 0,
+                  warStartDay: daysElapsed,
+                  warDuration: 0,
+                  enemyLosses: 0,
+                };
               }
-            : n
-        ));
+              return n;
+            });
+          }
+          
+          return updated;
+        });
+        
         addLog(`你向 ${targetNation.name} 宣战了！`);
+        
+        // 通知盟友参战
+        if (targetAllies.length > 0) {
+          const allyNames = targetAllies.map(a => a.name).join('、');
+          addLog(`⚔️ ${targetNation.name} 的盟友 ${allyNames} 履行同盟义务，加入了战争！`);
+        }
         break;
+      }
 
       case 'peace': {
         if (!targetNation.isAtWar) {

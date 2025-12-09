@@ -3,6 +3,7 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
 import { Icon } from '../common/UIComponents';
+import { Modal } from '../common/UnifiedUI';
 import { RESOURCES } from '../../config';
 import { calculateForeignPrice, calculateTradeStatus } from '../../utils/foreignTrade';
 
@@ -207,6 +208,9 @@ export const DiplomacyTab = ({
 }) => {
   const [selectedNationId, setSelectedNationId] = useState(null);
   const [tradeAmount, setTradeAmount] = useState(10);
+  // State for provoke modal
+  const [showProvokeModal, setShowProvokeModal] = useState(false);
+  const [provokeTargetId, setProvokeTargetId] = useState(null);
 
   const tradableResources = useMemo(
     () =>
@@ -278,6 +282,20 @@ export const DiplomacyTab = ({
       onDiplomaticAction(nationId, action);
     }
   };
+
+  // Handler for provoke action with target selection
+  const handleProvokeWithTarget = () => {
+    if (!selectedNation || !provokeTargetId || !onDiplomaticAction) return;
+    onDiplomaticAction(selectedNation.id, 'provoke', { targetNationId: provokeTargetId });
+    setShowProvokeModal(false);
+    setProvokeTargetId(null);
+  };
+
+  // Get nations that can be provoked against (other visible nations)
+  const provokeTargetNations = useMemo(() => {
+    if (!selectedNation) return [];
+    return visibleNations.filter(n => n.id !== selectedNation.id);
+  }, [visibleNations, selectedNation]);
 
   const getLocalPrice = (resourceKey) => {
     return market?.prices?.[resourceKey] ?? (RESOURCES[resourceKey]?.basePrice || 1);
@@ -503,7 +521,10 @@ export const DiplomacyTab = ({
                 <div className="mt-1.5 flex gap-1.5 text-xs font-body">
                   <button
                     className="flex-1 px-2 py-1.5 bg-indigo-600 hover:bg-indigo-500 rounded text-white flex items-center justify-center gap-1 font-semibold font-body"
-                    onClick={() => handleSimpleAction(selectedNation.id, 'provoke')}
+                    onClick={() => {
+                      setProvokeTargetId(null);
+                      setShowProvokeModal(true);
+                    }}
                     title="花费银币离间该国与另一国家的关系"
                   >
                     <Icon name="MessageSquareWarning" size={12} /> 挑拨关系
@@ -838,6 +859,89 @@ export const DiplomacyTab = ({
           )}
         </div>
       </div>
+
+      {/* Provoke Target Selection Modal */}
+      <Modal
+        isOpen={showProvokeModal}
+        onClose={() => {
+          setShowProvokeModal(false);
+          setProvokeTargetId(null);
+        }}
+        title={`挑拨 ${selectedNation?.name || ''} 的关系`}
+        footer={
+          <div className="flex gap-2 justify-end">
+            <button
+              className="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 rounded text-white text-sm font-body"
+              onClick={() => {
+                setShowProvokeModal(false);
+                setProvokeTargetId(null);
+              }}
+            >
+              取消
+            </button>
+            <button
+              className={`px-3 py-1.5 rounded text-white text-sm font-body ${
+                provokeTargetId
+                  ? 'bg-indigo-600 hover:bg-indigo-500'
+                  : 'bg-gray-500 cursor-not-allowed'
+              }`}
+              onClick={handleProvokeWithTarget}
+              disabled={!provokeTargetId}
+            >
+              确认挑拨 (300银币)
+            </button>
+          </div>
+        }
+      >
+        <div className="space-y-2">
+          <p className="text-sm text-gray-300 font-body mb-3">
+            选择要离间的目标国家。挑拨成功后，{selectedNation?.name} 与目标国家的关系将会恶化。
+          </p>
+          <div className="max-h-60 overflow-y-auto space-y-1">
+            {provokeTargetNations.map(nation => {
+              const nationRelation = relationInfo(nation.relation || 0);
+              const foreignRelation = selectedNation?.foreignRelations?.[nation.id] ?? 50;
+              const foreignRelationInfo = (() => {
+                if (foreignRelation >= 80) return { label: '盟友', color: 'text-green-300' };
+                if (foreignRelation >= 60) return { label: '友好', color: 'text-blue-300' };
+                if (foreignRelation >= 40) return { label: '中立', color: 'text-gray-300' };
+                if (foreignRelation >= 20) return { label: '冷淡', color: 'text-yellow-300' };
+                return { label: '敌对', color: 'text-red-300' };
+              })();
+              
+              return (
+                <button
+                  key={nation.id}
+                  onClick={() => setProvokeTargetId(nation.id)}
+                  className={`w-full flex items-center justify-between p-2 rounded border transition-colors ${
+                    provokeTargetId === nation.id
+                      ? 'bg-indigo-900/50 border-indigo-500'
+                      : 'bg-gray-800/60 border-gray-700 hover:bg-gray-700/60'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Icon name="Flag" size={14} className={nation.color || 'text-gray-300'} />
+                    <span className="text-sm text-white font-body">{nation.name}</span>
+                    <span className={`text-[10px] px-1 py-0.5 rounded ${nationRelation.bg} ${nationRelation.color}`}>
+                      与你:{nationRelation.label}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1 text-[10px]">
+                    <span className="text-gray-400">两国关系:</span>
+                    <span className={foreignRelationInfo.color}>{foreignRelationInfo.label}</span>
+                    <span className="text-gray-500">({Math.round(foreignRelation)})</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          {provokeTargetNations.length === 0 && (
+            <p className="text-sm text-gray-400 text-center py-4 font-body">
+              没有其他可选择的国家
+            </p>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 };

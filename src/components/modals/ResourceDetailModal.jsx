@@ -233,6 +233,7 @@ export const ResourceDetailModal = ({
   market,
   buildings = {},
   popStructure = {},
+  wealth = {},
   army = {},
   history = {},
   onClose,
@@ -341,24 +342,53 @@ export const ResourceDetailModal = ({
     let actualSupplyTotal = 0;
 
     const stratumDemandList = Object.entries(STRATA).reduce((acc, [key, stratum]) => {
-      const perCap = stratum.needs?.[resourceKey] || 0;
       const population = popStructure[key] || 0;
-      if (!perCap || !population) return acc;
-      
-      const baseAmount = perCap * population;
-      baseDemandTotal += baseAmount;
+      if (!population) return acc;
       
       // 阶层级别的加成（政令+事件是加法叠加）
       const decreeStratumMod = sources.decreeStratumDemand?.[key] || 0;
       const eventStratumMod = sources.eventStratumDemand?.[key] || 0;
       const stratumMultiplier = 1 + decreeStratumMod + eventStratumMod;
       
-      // 财富乘数是独立的乘法因子（底层公式：requirement *= wealthMultiplier）
-      // wealthMultiplier = 1 + (wealthRatio - 1) * 0.5，其中 wealthRatio = 人均财富 / 起始财富
+      // 财富乘数是独立的乘法因子
       const wealthMultiplier = sources.stratumWealthMultiplier?.[key] || 1;
       
+      // 计算财富比例（用于判断奢侈需求解锁）
+      const startingWealth = stratum.startingWealth || 1;
+      const totalWealthForStratum = wealth[key] || (startingWealth * population);
+      const perCapitaWealth = totalWealthForStratum / Math.max(1, population);
+      const wealthRatio = perCapitaWealth / startingWealth;
+      
+      // 合并基础需求和已解锁的动态需求
+      const effectiveNeeds = { ...(stratum.needs || {}) };
+      let unlockedLuxuryThreshold = null;
+      if (stratum.luxuryNeeds) {
+        const thresholds = Object.keys(stratum.luxuryNeeds).map(Number).sort((a, b) => a - b);
+        for (const threshold of thresholds) {
+          if (wealthRatio >= threshold) {
+            unlockedLuxuryThreshold = threshold;
+            const luxuryNeedsAtThreshold = stratum.luxuryNeeds[threshold];
+            for (const [resKey, amount] of Object.entries(luxuryNeedsAtThreshold)) {
+              effectiveNeeds[resKey] = (effectiveNeeds[resKey] || 0) + amount;
+            }
+          }
+        }
+      }
+      
+      // 检查当前资源是否在有效需求中
+      const perCap = effectiveNeeds[resourceKey] || 0;
+      if (!perCap) return acc;
+      
+      // 检查是否有来自luxuryNeeds的额外需求
+      const basePerCap = stratum.needs?.[resourceKey] || 0;
+      const luxuryPerCap = perCap - basePerCap;
+      const isLuxuryNeed = luxuryPerCap > 0;
+      const isPureLuxury = basePerCap === 0 && luxuryPerCap > 0;
+      
+      const baseAmount = perCap * population;
+      baseDemandTotal += baseAmount;
+      
       // 实际值 = 基础值 × 阶层加成 × 资源加成 × 财富乘数
-      // 注意：底层还有价格弹性和每日随机浮动，这里不计入（因为是动态的）
       const actualAmount = baseAmount * stratumMultiplier * resourceDemandMultiplier * wealthMultiplier;
       actualDemandTotal += actualAmount;
       
@@ -366,10 +396,22 @@ export const ResourceDetailModal = ({
       const modList = [];
       if (decreeStratumMod !== 0) modList.push(`政令${decreeStratumMod > 0 ? '+' : ''}${(decreeStratumMod * 100).toFixed(0)}%`);
       if (eventStratumMod !== 0) modList.push(`事件${eventStratumMod > 0 ? '+' : ''}${(eventStratumMod * 100).toFixed(0)}%`);
-      // 财富乘数显示为乘数形式（×1.25表示需求是基础的1.25倍）
+      // 财富乘数显示为乘数形式
       if (Math.abs(wealthMultiplier - 1) > 0.01) {
         const wealthPercent = (wealthMultiplier - 1) * 100;
         modList.push(`财富${wealthPercent > 0 ? '+' : ''}${wealthPercent.toFixed(0)}%`);
+      }
+      // 显示动态需求来源
+      if (isLuxuryNeed) {
+        modList.push(`富裕需求+${luxuryPerCap.toFixed(3)}`);
+      }
+      
+      // 构建公式说明
+      let formula = `${population}人 × ${perCap.toFixed(3)}`;
+      if (isLuxuryNeed && basePerCap > 0) {
+        formula = `${population}人 × (${basePerCap}基础+${luxuryPerCap.toFixed(3)}富裕)`;
+      } else if (isPureLuxury) {
+        formula = `${population}人 × ${luxuryPerCap.toFixed(3)}(富裕需求)`;
       }
       
       acc.push({
@@ -378,9 +420,12 @@ export const ResourceDetailModal = ({
         icon: stratum.icon,
         baseAmount,
         amount: actualAmount,
-        formula: `${population}人 × ${perCap}`,
+        formula,
         mods: modList,
-        hasBonus: actualAmount !== baseAmount,
+        hasBonus: actualAmount !== baseAmount || isLuxuryNeed,
+        isLuxuryNeed,
+        isPureLuxury,
+        wealthRatio: wealthRatio.toFixed(2),
       });
       return acc;
     }, []);
@@ -474,7 +519,7 @@ export const ResourceDetailModal = ({
       totalActualDemand: actualDemandTotal,
       totalActualSupply: actualSupplyTotal,
     };
-  }, [resourceDef, resourceKey, popStructure, buildings, army, market]);
+}, [resourceDef, resourceKey, popStructure, buildings, army, market, wealth]);
 
   if (!resourceKey || !resourceDef) return null;
 
@@ -886,22 +931,69 @@ export const ResourceDetailModal = ({
                           stratumDemand.map(item => (
                             <div
                               key={item.key}
-                              className={`flex items-center justify-between rounded-lg lg:rounded-xl border ${item.hasBonus ? 'border-amber-500/30 bg-amber-950/20' : 'border-gray-800/60 bg-gray-900/60'} p-2 lg:p-3`}
+                              className={`flex items-center justify-between rounded-lg lg:rounded-xl border ${
+                                item.isPureLuxury 
+                                  ? 'border-purple-500/30 bg-purple-950/20' 
+                                  : item.isLuxuryNeed 
+                                    ? 'border-indigo-500/30 bg-indigo-950/20'
+                                    : item.hasBonus 
+                                      ? 'border-amber-500/30 bg-amber-950/20' 
+                                      : 'border-gray-800/60 bg-gray-900/60'
+                              } p-2 lg:p-3`}
                             >
                               <div className="flex items-center gap-2 lg:gap-3">
-                                <div className="rounded-lg lg:rounded-xl bg-gray-900/80 p-1.5 lg:p-2">
-                                  <Icon name={item.icon} size={16} className="text-amber-300" />
+                                <div className={`rounded-lg lg:rounded-xl p-1.5 lg:p-2 ${
+                                  item.isPureLuxury 
+                                    ? 'bg-purple-900/80' 
+                                    : item.isLuxuryNeed 
+                                      ? 'bg-indigo-900/80' 
+                                      : 'bg-gray-900/80'
+                                }`}>
+                                  <Icon name={item.icon} size={16} className={
+                                    item.isPureLuxury 
+                                      ? 'text-purple-300' 
+                                      : item.isLuxuryNeed 
+                                        ? 'text-indigo-300' 
+                                        : 'text-amber-300'
+                                  } />
                                 </div>
                                 <div>
-                                  <p className="text-xs lg:text-sm font-semibold text-white">{item.name}</p>
+                                  <div className="flex items-center gap-1.5">
+                                    <p className="text-xs lg:text-sm font-semibold text-white">{item.name}</p>
+                                    {item.isPureLuxury && (
+                                      <span className="text-[8px] px-1 py-0.5 rounded bg-purple-900/50 text-purple-300 border border-purple-500/30">
+                                        富裕新增
+                                      </span>
+                                    )}
+                                    {item.isLuxuryNeed && !item.isPureLuxury && (
+                                      <span className="text-[8px] px-1 py-0.5 rounded bg-indigo-900/50 text-indigo-300 border border-indigo-500/30">
+                                        含富裕需求
+                                      </span>
+                                    )}
+                                  </div>
                                   <p className="text-[10px] lg:text-xs text-gray-500">{item.formula}</p>
+                                  {item.wealthRatio && (
+                                    <p className="text-[9px] text-gray-400">财富比例: {item.wealthRatio}×</p>
+                                  )}
                                   {item.mods && item.mods.length > 0 && (
-                                    <p className="text-[9px] text-amber-400">{item.mods.join(' · ')}</p>
+                                    <p className={`text-[9px] ${
+                                      item.isPureLuxury 
+                                        ? 'text-purple-400' 
+                                        : item.isLuxuryNeed 
+                                          ? 'text-indigo-400' 
+                                          : 'text-amber-400'
+                                    }`}>{item.mods.join(' · ')}</p>
                                   )}
                                 </div>
                               </div>
                               <div className="text-right">
-                                <p className="text-sm lg:text-base font-bold text-rose-200">{formatAmount(item.amount)}</p>
+                                <p className={`text-sm lg:text-base font-bold ${
+                                  item.isPureLuxury 
+                                    ? 'text-purple-200' 
+                                    : item.isLuxuryNeed 
+                                      ? 'text-indigo-200' 
+                                      : 'text-rose-200'
+                                }`}>{formatAmount(item.amount)}</p>
                                 {item.hasBonus && (
                                   <p className="text-[9px] text-gray-500">基础: {formatAmount(item.baseAmount)}</p>
                                 )}
