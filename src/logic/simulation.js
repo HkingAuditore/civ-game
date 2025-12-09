@@ -4,6 +4,7 @@ import { isResourceUnlocked } from '../utils/resources';
 import { calculateForeignPrice } from '../utils/foreignTrade';
 import { simulateBattle, UNIT_TYPES } from '../config/militaryUnits';
 import { getEnemyUnitsForEpoch } from '../config/militaryActions';
+import { calculateLivingStandardData, getSimpleLivingStandard } from '../utils/livingStandard';
 
 const ROLE_PRIORITY = [
   'official',
@@ -1969,17 +1970,46 @@ export const simulateTick = ({
   classShortages[key] = shortages;
 });
 
+  // 计算劳动效率，特别关注食物和布料的基础需求
   let workforceNeedWeighted = 0;
   let workforceTotal = 0;
+  let basicNeedsDeficit = 0; // 基础需求缺失的严重程度
+  
   Object.keys(STRATA).forEach(key => {
     const count = popStructure[key] || 0;
     if (count <= 0) return;
     workforceTotal += count;
     const needLevel = needsReport[key]?.satisfactionRatio ?? 1;
     workforceNeedWeighted += needLevel * count;
+    
+    // 检查食物和布料的基础需求满足情况
+    const def = STRATA[key];
+    if (def && def.needs) {
+      const shortages = classShortages[key] || [];
+      const hasBasicShortage = shortages.some(s => s.resource === 'food' || s.resource === 'cloth');
+      
+      if (hasBasicShortage) {
+        // 基础需求未满足，累计缺失人口数
+        basicNeedsDeficit += count;
+      }
+    }
   });
+  
   const laborNeedAverage = workforceTotal > 0 ? workforceNeedWeighted / workforceTotal : 1;
-  const laborEfficiencyFactor = 0.3 + 0.7 * laborNeedAverage;
+  let laborEfficiencyFactor = 0.3 + 0.7 * laborNeedAverage;
+  
+  // 如果有基础需求缺失，额外降低效率
+  if (basicNeedsDeficit > 0 && workforceTotal > 0) {
+    const basicDeficitRatio = basicNeedsDeficit / workforceTotal;
+    // 基础需求缺失导致额外的效率惩罚：最多额外降低40%效率
+    const basicPenalty = basicDeficitRatio * 0.4;
+    laborEfficiencyFactor = Math.max(0.1, laborEfficiencyFactor - basicPenalty);
+    
+    if (basicDeficitRatio > 0.1) {
+      logs.push(`基础需求（食物/布料）严重短缺，劳动效率大幅下降！`);
+    }
+  }
+  
   if (laborEfficiencyFactor < 0.999) {
     Object.entries(rates).forEach(([resKey, value]) => {
       const resInfo = RESOURCES[resKey];
@@ -2024,11 +2054,64 @@ export const simulateTick = ({
     }
   });
 
+  // 计算各阶层的生活水平数据
+  const classLivingStandard = {};
+  Object.keys(STRATA).forEach(key => {
+    const count = popStructure[key] || 0;
+    if (count === 0) {
+      classLivingStandard[key] = null;
+      return;
+    }
+    const def = STRATA[key];
+    const wealthValue = wealth[key] || 0;
+    const startingWealth = def.startingWealth || 10;
+    const shortagesCount = (classShortages[key] || []).length;
+    
+    // 计算有效需求数量
+    const luxuryNeeds = def.luxuryNeeds || {};
+    const luxuryThresholds = Object.keys(luxuryNeeds).map(Number).sort((a, b) => a - b);
+    const wealthRatio = startingWealth > 0 ? (wealthValue / Math.max(count, 1)) / startingWealth : 0;
+    
+    // 基础需求数量（已解锁的资源）
+    const baseNeedsCount = def.needs 
+      ? Object.keys(def.needs).filter(r => isResourceUnlocked(r, epoch, techsUnlocked)).length 
+      : 0;
+    
+    // 计算已解锁的奢侈需求档位
+    let unlockedLuxuryTiers = 0;
+    let effectiveNeedsCount = baseNeedsCount;
+    for (const threshold of luxuryThresholds) {
+      if (wealthRatio >= threshold) {
+        unlockedLuxuryTiers++;
+        const tierNeeds = luxuryNeeds[threshold];
+        const unlockedResources = Object.keys(tierNeeds).filter(r => isResourceUnlocked(r, epoch, techsUnlocked));
+        const newResources = unlockedResources.filter(r => !def.needs?.[r]);
+        effectiveNeedsCount += newResources.length;
+      }
+    }
+    
+    // 使用工具函数计算生活水平数据
+    classLivingStandard[key] = calculateLivingStandardData({
+      count,
+      wealthValue,
+      startingWealth,
+      shortagesCount,
+      effectiveNeedsCount,
+      unlockedLuxuryTiers,
+      totalLuxuryTiers: luxuryThresholds.length,
+    });
+  });
+
   Object.keys(STRATA).forEach(key => {
     const count = popStructure[key] || 0;
     if (count === 0) return;
     const satisfactionInfo = needsReport[key];
     const satisfaction = satisfactionInfo?.satisfactionRatio ?? 1;
+    
+    // 获取生活水平对满意度的上限影响
+    const livingStandard = classLivingStandard[key];
+    const livingStandardApprovalCap = livingStandard?.approvalCap ?? 100;
+    
     let targetApproval = 70; // Base approval
 
     // Tax Burden Logic
@@ -2117,6 +2200,10 @@ export const simulateTick = ({
     const currentApproval = classApproval[key] || 50;
     const adjustmentSpeed = 0.08; // How slowly approval changes per tick
     let newApproval = currentApproval + (targetApproval - currentApproval) * adjustmentSpeed;
+    
+    // 应用生活水平对满意度的上限限制
+    // 生活水平越低，满意度上限越低
+    newApproval = Math.min(newApproval, livingStandardApprovalCap);
     
     classApproval[key] = Math.max(0, Math.min(100, newApproval));
   });
@@ -3175,7 +3262,49 @@ export const simulateTick = ({
       logs.push("饥荒导致人口减少！");
     }
   }
-  const totalForcedLoss = raidPopulationLoss + exodusPopulationLoss;
+  
+  // 基础需求（食物/布料）长期未满足导致死亡
+  let starvationDeaths = 0;
+  Object.keys(STRATA).forEach(key => {
+    const count = popStructure[key] || 0;
+    if (count === 0) return;
+    
+    const def = STRATA[key];
+    if (!def || !def.needs) return;
+    
+    // 检查食物和布料需求是否满足
+    const shortages = classShortages[key] || [];
+    const lackingFood = shortages.some(s => (typeof s === 'string' ? s : s.resource) === 'food');
+    const lackingCloth = shortages.some(s => (typeof s === 'string' ? s : s.resource) === 'cloth');
+    
+    // 检查历史记录，判断是否长期缺乏
+    const needsHistory = (classNeedsHistory || {})[key];
+    if (needsHistory && needsHistory.length >= 5) {
+      // 检查最近5个tick的需求满足情况
+      const recentHistory = needsHistory.slice(-5);
+      const avgSatisfaction = recentHistory.reduce((a, b) => a + b, 0) / recentHistory.length;
+      
+      // 如果缺乏食物或布料，且最近5个tick平均满足率低于60%
+      if ((lackingFood || lackingCloth) && avgSatisfaction < 0.6) {
+        const className = def.name || key;
+        
+        // 死亡率取决于满足率：满足率越低，死亡率越高
+        // 满足率60%时死亡率0%，满足率0%时死亡率最高5%
+        const deathRate = Math.max(0, (0.6 - avgSatisfaction) / 0.6 * 0.05);
+        const deaths = Math.max(1, Math.floor(count * deathRate));
+        
+        if (deaths > 0) {
+          popStructure[key] = Math.max(0, count - deaths);
+          starvationDeaths += deaths;
+          
+          const reason = lackingFood && lackingCloth ? '食物和布料' : (lackingFood ? '食物' : '布料');
+          logs.push(`${className} 阶层因长期缺乏${reason}，${deaths} 人死亡！`);
+        }
+      }
+    }
+  });
+  
+  const totalForcedLoss = raidPopulationLoss + exodusPopulationLoss + starvationDeaths;
   if (totalForcedLoss > 0) {
     nextPopulation = Math.max(0, nextPopulation - totalForcedLoss);
   }
@@ -3764,6 +3893,7 @@ export const simulateTick = ({
     classApproval,
     classInfluence,
     classWealth: classWealthResult,
+    classLivingStandard, // 各阶层生活水平数据
     totalInfluence,
     totalWealth,
     activeBuffs: newActiveBuffs,

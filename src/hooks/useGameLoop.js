@@ -412,6 +412,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
     taxPolicies,
     classWealth,
     setClassShortages,
+    setClassLivingStandard,
     activeBuffs,
     activeDebuffs,
     army,
@@ -787,6 +788,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
       });
       setMarket(adjustedMarket);
       setClassShortages(result.needsShortages || {});
+      setClassLivingStandard(result.classLivingStandard || {});
       setMerchantState(prev => {
         const nextState = result.merchantState || current.merchantState || { pendingTrades: [], lastTradeTime: 0 };
         if (prev === nextState) {
@@ -901,7 +903,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
           const raidLogEntry = Array.isArray(result.logs)
             ? result.logs.find((log) => typeof log === 'string' && log.includes('RAID_EVENT'))
             : null;
-          if (raidLogEntry && currentActions.setBattleResult) {
+          if (raidLogEntry && currentActions.addBattleNotification) {
             try {
               const jsonStart = raidLogEntry.indexOf('{');
               if (jsonStart !== -1) {
@@ -962,7 +964,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 };
 
                 console.log('[EVENT DEBUG] Raid battle result created (pre-loop):', battleResult);
-                currentActions.setBattleResult(battleResult);
+                // 使用非阻断式通知，不打断玩家操作
+                currentActions.addBattleNotification(battleResult);
               }
             } catch (e) {
               console.error('[EVENT DEBUG] Failed to parse raid event log:', e);
@@ -1070,7 +1073,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 const nation = result.nations?.find(n => n.name === raidData.nationName);
                 console.log('[EVENT DEBUG] Found nation for raid:', nation?.name);
                 
-                if (nation && currentActions.setBattleResult) {
+                if (nation && currentActions.addBattleNotification) {
                   console.log('[EVENT DEBUG] Creating raid battle result...');
                   
                   // 构造战斗描述
@@ -1131,8 +1134,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
                   };
                   
                   console.log('[EVENT DEBUG] Raid battle result created:', battleResult);
-                  currentActions.setBattleResult(battleResult);
-                  console.log('[EVENT DEBUG] setBattleResult called');
+                  // 使用非阻断式通知，不打断玩家操作
+                  currentActions.addBattleNotification(battleResult);
+                  console.log('[EVENT DEBUG] addBattleNotification called');
                 }
               } catch (error) {
                 console.error('[EVENT DEBUG] Error parsing or processing raid event:', error);

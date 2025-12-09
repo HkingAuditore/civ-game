@@ -34,6 +34,8 @@ export const useGameActions = (gameState, addLog) => {
     militaryQueue,
     setMilitaryQueue,
     setBattleResult,
+    battleNotifications,
+    setBattleNotifications,
     nations,
     setNations,
     setClassInfluenceShift,
@@ -1526,7 +1528,8 @@ export const useGameActions = (gameState, addLog) => {
       setCurrentEvent(event);
       addLog(`⚠️ 事件：${event.name}`);
       generateSound(SOUND_TYPES.EVENT);
-      // 事件触发时暂停游戏
+      // 事件触发时保存当前暂停状态，然后暂停游戏
+      gameState.setPausedBeforeEvent(gameState.isPaused);
       gameState.setIsPaused(true);
     }
   };
@@ -1547,7 +1550,8 @@ export const useGameActions = (gameState, addLog) => {
     setCurrentEvent(diplomaticEvent);
     addLog(`⚠️ 外交事件：${diplomaticEvent.name}`);
     generateSound(SOUND_TYPES.EVENT);
-    // 外交事件触发时暂停游戏
+    // 外交事件触发时保存当前暂停状态，然后暂停游戏
+    gameState.setPausedBeforeEvent(gameState.isPaused);
     gameState.setIsPaused(true);
     console.log('[TRIGGER EVENT] Event triggered successfully');
   };
@@ -2204,5 +2208,26 @@ const handleEventOption = (eventId, option) => {
     
     // 战斗结果
     setBattleResult,
+    setBattleNotifications,
+    
+    // 添加战斗通知（非阻断式）
+    addBattleNotification: (battleResult) => {
+      const notification = {
+        id: `battle_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        result: battleResult,
+        timestamp: Date.now(),
+      };
+      setBattleNotifications(prev => [...prev, notification]);
+    },
+    
+    // 关闭单个战斗通知
+    dismissBattleNotification: (notificationId) => {
+      setBattleNotifications(prev => prev.filter(n => n.id !== notificationId));
+    },
+    
+    // 关闭所有战斗通知
+    dismissAllBattleNotifications: () => {
+      setBattleNotifications([]);
+    },
   };
 };

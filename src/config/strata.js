@@ -350,7 +350,7 @@ export const STRATA = {
     influenceBase: 4,
     startingWealth: 400,
     defaultResource: 'science',
-    needs: { delicacies: 0.385, cloth: 0.12, papyrus: 0.08, coffee: 0.04, furniture: 0.06, stone: 0.02, fine_clothes: 0.06, culture: 0.09},
+    needs: { food: 0.5, delicacies: 0.385, cloth: 0.12, papyrus: 0.08, coffee: 0.04, furniture: 0.06, stone: 0.02, fine_clothes: 0.06, culture: 0.09},
     luxuryNeeds: {
       1.3: { },  // 咖啡，华服，文化
       1.8: { delicacies: 0.30, spice: 0.12, plank: 0.08, brick: 0.06 },  // 珍馐，香料，板材，砖块
@@ -378,7 +378,7 @@ export const STRATA = {
     influenceBase: 5,
     startingWealth: 800,
     defaultResource: 'food',
-    needs: { delicacies: 0.50, cloth: 0.15, spice: 0.12, furniture: 0.10, brick: 0.05, plank: 0.05, fine_clothes: 0.08, culture: 0.1},
+    needs: { food: 0.6, delicacies: 0.50, cloth: 0.15, spice: 0.12, furniture: 0.10, brick: 0.05, plank: 0.05, fine_clothes: 0.08, culture: 0.1},
     luxuryNeeds: {
       1.3: { delicacies: 0.40, fine_clothes: 0.12, culture: 0.12 },  // 珍馐，华服，文化
       1.8: { spice: 0.20, coffee: 0.10, stone: 0.08 },  // 香料，咖啡，家具，石材
@@ -406,7 +406,7 @@ export const STRATA = {
     influenceBase: 6,
     startingWealth: 1200,
     defaultResource: 'steel',
-    needs: { delicacies: 0.30, cloth: 0.14, coffee: 0.072, furniture: 0.072, steel: 0.02, culture: 0.11},
+    needs: { food: 0.55, delicacies: 0.30, cloth: 0.14, coffee: 0.072, furniture: 0.072, steel: 0.02, culture: 0.11},
     luxuryNeeds: {
       1.3: { fine_clothes: 0.12, culture: 0.12 },  // 咖啡，华服，文化
       1.8: { delicacies: 0.30, spice: 0.15, brick: 0.08 },  // 珍馐，香料，家具，砖块
@@ -434,7 +434,7 @@ export const STRATA = {
     influenceBase: 4,
     startingWealth: 600,
     defaultResource: 'tools',
-    needs: { delicacies: 0.75, cloth: 0.15, coffee: 0.05, furniture: 0.08, ale: 0.1, culture: 0.08},
+    needs: { food: 0.7, delicacies: 0.75, cloth: 0.15, coffee: 0.05, furniture: 0.08, ale: 0.1, culture: 0.08},
     luxuryNeeds: {
       1.3: { delicacies: 0.40, fine_clothes: 0.10, culture: 0.08 },  // 珍馐，华服，文化
       1.8: { spice: 0.12, steel: 0.04 },  // 香料，家具，麦酒，钢

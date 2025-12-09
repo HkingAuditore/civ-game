@@ -3,6 +3,7 @@ import { Icon } from '../common/UIComponents';
 import { STRATA, RESOURCES } from '../../config';
 import { formatEffectDetails } from '../../utils/effectFormatter';
 import { isResourceUnlocked } from '../../utils/resources';
+import { calculateLivingStandardData, LIVING_STANDARD_LEVELS } from '../../utils/livingStandard';
 
 /**
  * 阶层详情底部面板组件
@@ -18,6 +19,7 @@ export const StratumDetailSheet = ({
   classIncome,
   classExpense,
   classShortages,
+  classLivingStandard = {}, // 新增：从simulation传来的生活水平数据
   activeBuffs = [],
   activeDebuffs = [],
   dayScale = 1,
@@ -56,95 +58,79 @@ export const StratumDetailSheet = ({
   const shortages = classShortages[stratumKey] || [];
   const headTaxMultiplier = taxPolicies?.headTaxRates?.[stratumKey] ?? 1;
 
-  // Calculate living standard
-  const wealthPerCapita = wealthValue / Math.max(count, 1);
-  const startingWealth = stratum.startingWealth || 10;
-  const wealthRatio = wealthPerCapita / startingWealth; // 1 = standard, >1 = wealthy, <1 = poor
+  // 使用从simulation传来的生活水平数据，如果没有则重新计算
+  let livingStandardData = classLivingStandard[stratumKey];
   
-  // Calculate wealth multiplier (same formula as simulation.js)
-  // This represents actual consumption capacity
-  let wealthMultiplier;
-  if (wealthRatio <= 0) {
-    wealthMultiplier = 0.3;
-  } else if (wealthRatio < 1) {
-    wealthMultiplier = 0.3 + wealthRatio * 0.7;
-  } else {
-    wealthMultiplier = Math.sqrt(wealthRatio) * (1 + Math.log(wealthRatio) * 0.25);
+  if (!livingStandardData) {
+    // 如果没有预计算数据，重新计算
+    const startingWealth = stratum.startingWealth || 10;
+    const luxuryNeeds = stratum.luxuryNeeds || {};
+    const luxuryThresholds = Object.keys(luxuryNeeds).map(Number).sort((a, b) => a - b);
+    const wealthPerCapita = count > 0 ? wealthValue / count : 0;
+    const wealthRatio = startingWealth > 0 ? wealthPerCapita / startingWealth : 0;
+    
+    // 基础需求数量（已解锁的资源）
+    const baseNeedsCount = stratum.needs 
+      ? Object.keys(stratum.needs).filter(r => isResourceUnlocked(r, epoch, techsUnlocked)).length 
+      : 0;
+    
+    // 计算已解锁的奢侈需求档位
+    let unlockedLuxuryTiers = 0;
+    let effectiveNeedsCount = baseNeedsCount;
+    for (const threshold of luxuryThresholds) {
+      if (wealthRatio >= threshold) {
+        unlockedLuxuryTiers++;
+        const tierNeeds = luxuryNeeds[threshold];
+        const unlockedResources = Object.keys(tierNeeds).filter(r => isResourceUnlocked(r, epoch, techsUnlocked));
+        const newResources = unlockedResources.filter(r => !stratum.needs?.[r]);
+        effectiveNeedsCount += newResources.length;
+      }
+    }
+    
+    livingStandardData = calculateLivingStandardData({
+      count,
+      wealthValue,
+      startingWealth,
+      shortagesCount: shortages.length,
+      effectiveNeedsCount,
+      unlockedLuxuryTiers,
+      totalLuxuryTiers: luxuryThresholds.length,
+    });
   }
-  wealthMultiplier = Math.max(0.3, Math.min(6.0, wealthMultiplier));
-  
-  // Calculate how many luxury need tiers are unlocked
+
+  // 从livingStandardData中提取所需的值
+  const {
+    wealthPerCapita,
+    wealthRatio,
+    wealthMultiplier,
+    satisfactionRate,
+    luxuryUnlockRatio,
+    unlockedLuxuryTiers,
+    totalLuxuryTiers,
+    level: livingStandardLevel,
+    icon: livingStandardIcon,
+    color: livingStandardColor,
+    bgColor: livingStandardBgColor,
+    borderColor: livingStandardBorderColor,
+    approvalCap,
+    score: livingStandardScore,
+  } = livingStandardData;
+
+  // 已解锁的奢侈需求详情
   const luxuryNeeds = stratum.luxuryNeeds || {};
   const luxuryThresholds = Object.keys(luxuryNeeds).map(Number).sort((a, b) => a - b);
-  const unlockedLuxuryTiers = luxuryThresholds.filter(t => wealthRatio >= t).length;
-  const totalLuxuryTiers = luxuryThresholds.length;
-  
-  // Calculate effective needs (base + unlocked luxury), only counting resources that are unlocked in current epoch/tech
-  const baseNeedsCount = stratum.needs 
-    ? Object.keys(stratum.needs).filter(r => isResourceUnlocked(r, epoch, techsUnlocked)).length 
-    : 0;
-  let effectiveNeedsCount = baseNeedsCount;
   let unlockedLuxuryNeedsDetail = [];
   for (const threshold of luxuryThresholds) {
     if (wealthRatio >= threshold) {
       const tierNeeds = luxuryNeeds[threshold];
-      // Only count resources that are unlocked in current epoch/tech
-      const unlockedTierResources = Object.keys(tierNeeds).filter(r => isResourceUnlocked(r, epoch, techsUnlocked));
-      const newResources = unlockedTierResources.filter(r => !stratum.needs?.[r]);
-      if (unlockedTierResources.length > 0) {
-        unlockedLuxuryNeedsDetail.push({ threshold, count: unlockedTierResources.length, newResources });
+      // Only show unlocked resources in tooltip
+      const unlockedResources = Object.keys(tierNeeds).filter(r => isResourceUnlocked(r, epoch, techsUnlocked));
+      const newResources = unlockedResources.filter(r => !stratum.needs?.[r]);
+      if (unlockedResources.length > 0) {
+        unlockedLuxuryNeedsDetail.push({ threshold, count: unlockedResources.length, newResources });
       }
-      effectiveNeedsCount += newResources.length; // Only count truly new resources that are unlocked
     }
   }
-  
-  // Calculate needs satisfaction rate (based on shortages)
-  const shortagesCount = shortages.length;
-  const satisfactionRate = effectiveNeedsCount > 0 
-    ? Math.max(0, (effectiveNeedsCount - shortagesCount) / effectiveNeedsCount)
-    : 1;
-  
-  // Living standard is determined primarily by wealth ratio and luxury unlock
-  // The thresholds are set higher to make progression more meaningful:
-  // - 赤贫: wealthRatio < 0.5 (extreme poverty)
-  // - 贫困: wealthRatio < 1 or low satisfaction (poverty)
-  // - 温饱: wealthRatio < 2 or no luxury unlocked (basic survival)
-  // - 小康: wealthRatio < 4 or < 30% luxury unlocked (comfortable)
-  // - 富裕: wealthRatio < 8 or < 70% luxury unlocked (prosperous)
-  // - 奢华: wealthRatio >= 8 and >= 70% luxury unlocked (luxurious)
-  const luxuryUnlockRatio = totalLuxuryTiers > 0 ? unlockedLuxuryTiers / totalLuxuryTiers : 0;
-  
-  const getLivingStandardLevel = () => {
-    if (wealthRatio < 0.5) {
-      return { level: '赤贫', icon: 'Skull', color: 'text-gray-400', bgColor: 'bg-gray-900/30', borderColor: 'border-gray-500/30' };
-    }
-    if (wealthRatio < 1 || satisfactionRate < 0.5) {
-      return { level: '贫困', icon: 'AlertTriangle', color: 'text-red-400', bgColor: 'bg-red-900/20', borderColor: 'border-red-500/30' };
-    }
-    // 温饱：财富刚好够基础需求，但还没有富裕需求
-    if (wealthRatio < 2 || (totalLuxuryTiers > 0 && unlockedLuxuryTiers === 0)) {
-      return { level: '温饱', icon: 'UtensilsCrossed', color: 'text-yellow-400', bgColor: 'bg-yellow-900/20', borderColor: 'border-yellow-500/30' };
-    }
-    // 小康：开始解锁一些富裕需求，但不到30%
-    if (wealthRatio < 4 || luxuryUnlockRatio < 0.3) {
-      return { level: '小康', icon: 'Home', color: 'text-green-400', bgColor: 'bg-green-900/20', borderColor: 'border-green-500/30' };
-    }
-    // 富裕：解锁了相当多的富裕需求，但不到70%
-    if (wealthRatio < 8 || luxuryUnlockRatio < 0.7) {
-      return { level: '富裕', icon: 'Gem', color: 'text-blue-400', bgColor: 'bg-blue-900/20', borderColor: 'border-blue-500/30' };
-    }
-    // 奢华：财富极高且解锁了绝大多数富裕需求
-    return { level: '奢华', icon: 'Crown', color: 'text-purple-400', bgColor: 'bg-purple-900/20', borderColor: 'border-purple-500/30' };
-  };
-  
-  const livingStandard = getLivingStandardLevel();
-  
-  // Calculate a display score (for UI reference)
-  // Score composition: wealth ratio (capped at 10x), satisfaction, luxury unlock
-  const wealthScore = Math.min(40, wealthRatio * 4); // Max 40 points at 10x wealth
-  const satisfactionScore = satisfactionRate * 30; // Max 30 points at 100% satisfaction
-  const luxuryScore = luxuryUnlockRatio * 30; // Max 30 points at 100% luxury unlocked
-  const livingStandardScore = Math.min(100, wealthScore + satisfactionScore + luxuryScore);
 
   const handleDraftChange = (raw) => {
     setDraftMultiplier(raw);
@@ -240,7 +226,7 @@ export const StratumDetailSheet = ({
       </div>
 
       {/* 生活水平 */}
-      <div className={`rounded p-2 border ${livingStandard.borderColor} ${livingStandard.bgColor}`}>
+      <div className={`rounded p-2 border ${livingStandardBorderColor} ${livingStandardBgColor}`}>
         <h3 className="text-[10px] font-bold text-white mb-1.5 flex items-center gap-1">
           <Icon name="Activity" size={12} className="text-cyan-400" />
           生活水平
@@ -248,11 +234,11 @@ export const StratumDetailSheet = ({
         <div className="flex items-center gap-3">
           {/* 等级图标和名称 */}
           <div className="flex items-center gap-2">
-            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${livingStandard.bgColor} border ${livingStandard.borderColor}`}>
-              <Icon name={livingStandard.icon} size={20} className={livingStandard.color} />
+            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${livingStandardBgColor} border ${livingStandardBorderColor}`}>
+              <Icon name={livingStandardIcon} size={20} className={livingStandardColor} />
             </div>
             <div>
-              <div className={`text-lg font-bold ${livingStandard.color}`}>{livingStandard.level}</div>
+              <div className={`text-lg font-bold ${livingStandardColor}`}>{livingStandardLevel}</div>
               <div className="text-[9px] text-gray-400 leading-none">综合评分: {livingStandardScore.toFixed(0)}</div>
             </div>
           </div>
@@ -281,7 +267,7 @@ export const StratumDetailSheet = ({
                 {(satisfactionRate * 100).toFixed(0)}%
               </div>
               <div className="text-[8px] text-gray-500 leading-none">
-                {effectiveNeedsCount - shortagesCount}/{effectiveNeedsCount} 项
+                满意度上限: {approvalCap}%
               </div>
             </div>
           </div>

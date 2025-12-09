@@ -4,6 +4,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Icon } from '../common/UIComponents';
 import { Modal } from '../common/UnifiedUI';
+import { DeclareWarModal } from '../modals/DeclareWarModal';
 import { RESOURCES } from '../../config';
 import { calculateForeignPrice, calculateTradeStatus } from '../../utils/foreignTrade';
 
@@ -211,6 +212,8 @@ export const DiplomacyTab = ({
   // State for provoke modal
   const [showProvokeModal, setShowProvokeModal] = useState(false);
   const [provokeTargetId, setProvokeTargetId] = useState(null);
+  // State for declare war confirmation modal
+  const [showDeclareWarModal, setShowDeclareWarModal] = useState(false);
 
   const tradableResources = useMemo(
     () =>
@@ -295,6 +298,20 @@ export const DiplomacyTab = ({
   const provokeTargetNations = useMemo(() => {
     if (!selectedNation) return [];
     return visibleNations.filter(n => n.id !== selectedNation.id);
+  }, [visibleNations, selectedNation]);
+
+  // 计算目标国家的同盟国（关系 >= 80）
+  const targetNationAllies = useMemo(() => {
+    if (!selectedNation) return [];
+    return visibleNations.filter(n => {
+      if (n.id === selectedNation.id) return false;
+      // 检查目标国家与其他国家的外交关系
+      const foreignRelation = selectedNation.foreignRelations?.[n.id] ?? 50;
+      return foreignRelation >= 80;
+    }).map(ally => ({
+      ...ally,
+      foreignRelation: selectedNation.foreignRelations?.[ally.id] ?? 50,
+    }));
   }, [visibleNations, selectedNation]);
 
   const getLocalPrice = (resourceKey) => {
@@ -516,9 +533,15 @@ export const DiplomacyTab = ({
                     className={`flex-1 px-2 py-1.5 rounded text-white flex items-center justify-center gap-1 font-semibold font-body ${
                       selectedNation.isAtWar ? 'bg-purple-600 hover:bg-purple-500' : 'bg-red-600 hover:bg-red-500'
                     }`}
-                    onClick={() =>
-                      handleSimpleAction(selectedNation.id, (selectedNation?.isAtWar === true) ? 'peace' : 'declare_war')
-                    }
+                    onClick={() => {
+                      if (selectedNation?.isAtWar === true) {
+                        // 求和操作直接执行
+                        handleSimpleAction(selectedNation.id, 'peace');
+                      } else {
+                        // 宣战时显示确认模态框
+                        setShowDeclareWarModal(true);
+                      }
+                    }}
                   >
                     <Icon name={(selectedNation?.isAtWar === true) ? 'Flag' : 'Swords'} size={12} />
                     {(selectedNation?.isAtWar === true) ? '求和' : '宣战'}
@@ -950,6 +973,19 @@ export const DiplomacyTab = ({
           )}
         </div>
       </Modal>
+
+      {/* 宣战确认模态框 */}
+      {showDeclareWarModal && selectedNation && (
+        <DeclareWarModal
+          targetNation={selectedNation}
+          allies={targetNationAllies}
+          onConfirm={() => {
+            handleSimpleAction(selectedNation.id, 'declare_war');
+            setShowDeclareWarModal(false);
+          }}
+          onCancel={() => setShowDeclareWarModal(false)}
+        />
+      )}
     </div>
   );
 };

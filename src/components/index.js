@@ -3,6 +3,7 @@
 
 // 通用组件
 export { Icon, FloatingText } from './common/UIComponents';
+export { BattleNotification } from './common/BattleNotification';
 
 // 统一UI组件
 export {
@@ -79,3 +80,4 @@ export { AnnualFestivalModal } from './modals/AnnualFestivalModal';
 export { TutorialModal } from './modals/TutorialModal';
 export { WikiModal } from './modals/WikiModal';
 export { CardDetailModal } from './modals/CardDetailModal';
+export { DeclareWarModal } from './modals/DeclareWarModal';

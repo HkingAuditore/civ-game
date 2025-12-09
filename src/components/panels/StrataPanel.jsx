@@ -5,6 +5,7 @@ import React, { useMemo, useState } from 'react';
 import { Icon } from '../common/UIComponents';
 import { STRATA, RESOURCES } from '../../config';
 import { formatEffectDetails } from '../../utils/effectFormatter';
+import { getSimpleLivingStandard } from '../../utils/livingStandard';
 
 // Helper function to get living standard level name from icon
 const getLivingStandardLevelName = (iconName) => {
@@ -26,6 +27,7 @@ const getLivingStandardLevelName = (iconName) => {
  * @param {Object} classApproval - 阶层好感度对象
  * @param {Object} classInfluence - 阶层影响力对象
  * @param {number} stability - 稳定度
+ * @param {Object} classLivingStandard - 阶层生活水平数据（从simulation计算得出）
  * @param {Function} onDetailClick - 点击详情回调
  */
 export const StrataPanel = ({ 
@@ -40,6 +42,7 @@ export const StrataPanel = ({
   classShortages = {},
   classIncome = {},
   classExpense = {},
+  classLivingStandard = {}, // 新增：从simulation传来的生活水平数据
   onDetailClick,
   dayScale = 1,
   hideTitle = false,  // 新增：是否隐藏标题
@@ -69,33 +72,23 @@ export const StrataPanel = ({
             : incomePerCapita - expensePerCapita;
         const shortages = classShortages[key] || [];
 
-        // Calculate living standard based on wealth ratio
-        const wealthPerCapita = count > 0 ? wealthValue / count : 0;
-        const startingWealth = info.startingWealth || 10;
-        const wealthRatio = startingWealth > 0 ? wealthPerCapita / startingWealth : 0;
+        // 使用从simulation传来的生活水平数据，如果没有则使用简化计算
+        const livingStandardData = classLivingStandard[key];
+        let livingStandardIcon, livingStandardColor, wealthRatio;
         
-        // Determine living standard level and icon
-        let livingStandardIcon = 'HelpCircle';
-        let livingStandardColor = 'text-gray-400';
-        
-        if (wealthRatio < 0.5) {
-          livingStandardIcon = 'Skull'; // 赤贫
-          livingStandardColor = 'text-gray-400';
-        } else if (wealthRatio < 1) {
-          livingStandardIcon = 'AlertTriangle'; // 贫困
-          livingStandardColor = 'text-red-400';
-        } else if (wealthRatio < 2) {
-          livingStandardIcon = 'UtensilsCrossed'; // 温饱
-          livingStandardColor = 'text-yellow-400';
-        } else if (wealthRatio < 4) {
-          livingStandardIcon = 'Home'; // 小康
-          livingStandardColor = 'text-green-400';
-        } else if (wealthRatio < 8) {
-          livingStandardIcon = 'Gem'; // 富裕
-          livingStandardColor = 'text-blue-400';
+        if (livingStandardData) {
+          // 使用预计算的数据
+          livingStandardIcon = livingStandardData.icon;
+          livingStandardColor = livingStandardData.color;
+          wealthRatio = livingStandardData.wealthRatio;
         } else {
-          livingStandardIcon = 'Crown'; // 奢华
-          livingStandardColor = 'text-purple-400';
+          // 如果没有预计算数据，使用简化版本计算
+          const wealthPerCapita = count > 0 ? wealthValue / count : 0;
+          const startingWealth = info.startingWealth || 10;
+          wealthRatio = startingWealth > 0 ? wealthPerCapita / startingWealth : 0;
+          const simpleLiving = getSimpleLivingStandard(wealthRatio);
+          livingStandardIcon = simpleLiving.icon;
+          livingStandardColor = simpleLiving.color;
         }
 
         return {
@@ -109,10 +102,10 @@ export const StrataPanel = ({
           expensePerCapita,
           netIncomePerCapita,
           shortages,
-          wealthPerCapita,
           wealthRatio,
           livingStandardIcon,
           livingStandardColor,
+          livingStandardData, // 完整的生活水平数据
         };
       })
       .filter((entry) => entry.count > 0);
@@ -125,6 +118,7 @@ export const StrataPanel = ({
     classIncome,
     classExpense,
     classShortages,
+    classLivingStandard,
     safeDayScale,
   ]);
   return (

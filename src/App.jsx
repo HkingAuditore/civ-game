@@ -9,6 +9,7 @@ import {
   Icon,
   FloatingText
 } from './components/common/UIComponents';
+import { BattleNotification } from './components/common/BattleNotification';
 import { EpicCard, DiamondDivider, AncientPattern } from './components/common/EpicDecorations';
 import { StatusBar } from './components/layout/StatusBar';
 import { BottomNav } from './components/layout/BottomNav';
@@ -169,8 +170,8 @@ function GameApp({ gameState }) {
     // 关闭模态框
     gameState.setFestivalModal(null);
     
-    // 恢复游戏
-    gameState.setIsPaused(false);
+    // 恢复事件触发前的暂停状态
+    gameState.setIsPaused(gameState.pausedBeforeEvent);
     
     // 添加日志
     const effectType = selectedEffect.type === 'permanent' ? '永久' : '短期';
@@ -191,7 +192,8 @@ function GameApp({ gameState }) {
 
     actions.handleEventOption(eventId, option);
     playSound(SOUND_TYPES.CLICK);
-    gameState.setIsPaused(false);
+    // 恢复事件触发前的暂停状态，而不是无条件取消暂停
+    gameState.setIsPaused(gameState.pausedBeforeEvent);
 
     if (eventName) {
       const detail = optionText ? `「${optionText}」` : '所选方案';
@@ -400,11 +402,12 @@ function GameApp({ gameState }) {
               activeDebuffs={gameState.activeDebuffs}
               classWealth={gameState.classWealth}
               classWealthDelta={gameState.classWealthDelta}
-            classShortages={gameState.classShortages}
-            classIncome={gameState.classIncome}
-            classExpense={gameState.classExpense}
-            dayScale={1}
-            onDetailClick={handleStratumDetailClick}
+              classShortages={gameState.classShortages}
+              classIncome={gameState.classIncome}
+              classExpense={gameState.classExpense}
+              classLivingStandard={gameState.classLivingStandard}
+              dayScale={1}
+              onDetailClick={handleStratumDetailClick}
             />
 
             {/* 手动采集按钮 */}
@@ -650,6 +653,7 @@ function GameApp({ gameState }) {
             classIncome={gameState.classIncome}
             classExpense={gameState.classExpense}
             classShortages={gameState.classShortages}
+            classLivingStandard={gameState.classLivingStandard}
             activeBuffs={gameState.activeBuffs}
             activeDebuffs={gameState.activeDebuffs}
             dayScale={1}
@@ -735,11 +739,12 @@ function GameApp({ gameState }) {
           activeDebuffs={gameState.activeDebuffs}
           classWealth={gameState.classWealth}
           classWealthDelta={gameState.classWealthDelta}
-            classShortages={gameState.classShortages}
-            classIncome={gameState.classIncome}
-            classExpense={gameState.classExpense}
-            dayScale={1}
-            onDetailClick={handleStratumDetailClick}
+          classShortages={gameState.classShortages}
+          classIncome={gameState.classIncome}
+          classExpense={gameState.classExpense}
+          classLivingStandard={gameState.classLivingStandard}
+          dayScale={1}
+          onDetailClick={handleStratumDetailClick}
           hideTitle={true}
         />
       </BottomSheet>
@@ -868,7 +873,24 @@ function GameApp({ gameState }) {
         </div>
       </BottomSheet>
 
-      {/* 战斗结果模态框 */}
+      {/* 战斗通知（非阻断式，页面顶部提示） */}
+      <BattleNotification
+        notifications={gameState.battleNotifications || []}
+        onViewDetail={(notification) => {
+          // 点击查看详情时，显示完整的战斗结果模态框
+          gameState.setBattleResult(notification.result);
+          // 从通知队列中移除该通知
+          actions.dismissBattleNotification(notification.id);
+        }}
+        onDismiss={(notificationId) => {
+          actions.dismissBattleNotification(notificationId);
+        }}
+        onDismissAll={() => {
+          actions.dismissAllBattleNotifications();
+        }}
+      />
+
+      {/* 战斗结果模态框（点击通知后显示详情） */}
       {gameState.battleResult && (
         <BattleResultModal
           result={gameState.battleResult}

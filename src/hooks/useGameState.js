@@ -258,6 +258,7 @@ export const useGameState = () => {
   const [activeTab, setActiveTab] = useState('build');
   const [gameSpeed, setGameSpeed] = useState(1);
   const [isPaused, setIsPaused] = useState(false);
+  const [pausedBeforeEvent, setPausedBeforeEvent] = useState(false); // 事件触发前的暂停状态
   const [autoSaveInterval, setAutoSaveInterval] = useState(60); // 自动存档间隔（秒）
   const [isAutoSaveEnabled, setIsAutoSaveEnabled] = useState(true); // 自动存档开关
   const [lastAutoSaveTime, setLastAutoSaveTime] = useState(() => Date.now()); // 上次自动存档时间
@@ -286,6 +287,7 @@ export const useGameState = () => {
   const [stratumDetailView, setStratumDetailView] = useState(null);
   const [resourceDetailView, setResourceDetailView] = useState(null);
   const [classShortages, setClassShortages] = useState({});
+  const [classLivingStandard, setClassLivingStandard] = useState({}); // 各阶层生活水平数据
   const [populationDetailView, setPopulationDetailView] = useState(false);
   const [history, setHistory] = useState(buildInitialHistory());
   const [eventEffectSettings, setEventEffectSettings] = useState(DEFAULT_EVENT_EFFECT_SETTINGS);
@@ -299,6 +301,7 @@ export const useGameState = () => {
   const [militaryQueue, setMilitaryQueue] = useState([]);
   const [selectedTarget, setSelectedTarget] = useState(null);
   const [battleResult, setBattleResult] = useState(null);
+  const [battleNotifications, setBattleNotifications] = useState([]); // 战斗通知队列
   const [militaryWageRatio, setMilitaryWageRatio] = useState(1.5);
 
   // ========== 庆典系统状态 ==========
@@ -609,6 +612,8 @@ setDecrees(mergeDecreesWithConfig(data.decrees));
     setGameSpeed,
     isPaused,
     setIsPaused,
+    pausedBeforeEvent,
+    setPausedBeforeEvent,
     autoSaveInterval,
     setAutoSaveInterval,
     isAutoSaveEnabled,
@@ -660,6 +665,8 @@ setDecrees(mergeDecreesWithConfig(data.decrees));
     setResourceDetailView,
     classShortages,
     setClassShortages,
+    classLivingStandard,
+    setClassLivingStandard,
     populationDetailView,
     setPopulationDetailView,
     history,
@@ -676,6 +683,8 @@ setDecrees(mergeDecreesWithConfig(data.decrees));
     setMilitaryQueue,
     battleResult,
     setBattleResult,
+    battleNotifications,
+    setBattleNotifications,
     militaryWageRatio,
     setMilitaryWageRatio,
     
