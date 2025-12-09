@@ -165,12 +165,12 @@ export const StratumDetailSheet = ({
     return 'bg-red-500';
   };
 
-  // 筛选专属于该阶层的效果（必须明确指定targetClass为当前阶层）
+  // 筛选专属于该阶层的效果（使用class属性匹配当前阶层）
   const relevantBuffs = activeBuffs.filter(buff => 
-    buff.targetClass === stratumKey
+    buff.class === stratumKey
   );
   const relevantDebuffs = activeDebuffs.filter(debuff => 
-    debuff.targetClass === stratumKey
+    debuff.class === stratumKey
   );
 
   return (

@@ -446,7 +446,15 @@ export const DiplomacyTab = ({
                   // 关系影响情报准确度：关系越好，误差越小
                   const accuracyFactor = Math.max(0.1, relation / 100); // 0.1 - 1.0
                   const errorRange = 1 - accuracyFactor; // 0 - 0.9
-                  const estimatedStrength = Math.floor(baseStrength * (1 + (Math.random() - 0.5) * errorRange * 2));
+                  // Use stable pseudo-random based on nation id and daysElapsed to avoid flickering
+                  const seedStr = `${selectedNation?.id || 'unknown'}-${Math.floor(daysElapsed / 30)}`;
+                  let seedHash = 0;
+                  for (let i = 0; i < seedStr.length; i++) {
+                    seedHash = ((seedHash << 5) - seedHash) + seedStr.charCodeAt(i);
+                    seedHash |= 0;
+                  }
+                  const stableRandom = ((Math.abs(seedHash) % 1000) / 1000) - 0.5; // Range: -0.5 to 0.5
+                  const estimatedStrength = Math.floor(baseStrength * (1 + stableRandom * errorRange * 2));
                   const strengthLabel = relation >= 60 ? `约 ${estimatedStrength}` : 
                                         relation >= 40 ? `${Math.floor(estimatedStrength * 0.8)} - ${Math.floor(estimatedStrength * 1.2)}` :
                                         relation >= 20 ? '情报不足' : '未知';
