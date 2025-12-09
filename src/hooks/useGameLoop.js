@@ -9,6 +9,18 @@ import { initCheatCodes } from './cheatCodes';
 import { getCalendarInfo } from '../utils/calendar';
 import { calculateForeignPrice, calculateTradeStatus } from '../utils/foreignTrade';
 import { createEnemyPeaceRequestEvent } from '../config/events';
+// 叛乱系统
+import {
+  updateRebellionStates,
+  checkRebellionEvents,
+  hasAvailableMilitary,
+  isMilitaryRebelling,
+  REBELLION_PHASE,
+  createBrewingEvent,
+  createPlottingEvent,
+  createActiveRebellionEvent,
+  createRebelNation,
+} from '../logic/rebellionSystem';
 
 /**
  * 处理贸易路线的自动执行
@@ -447,6 +459,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
     activeEventEffects,
     setActiveEventEffects,
     eventEffectSettings,
+    rebellionStates,
+    setRebellionStates,
+    classInfluence,
+    totalInfluence,
   } = gameState;
 
   // 使用ref保存最新状态，避免闭包问题
@@ -487,6 +503,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
     tradeStats,
     activeEventEffects,
     eventEffectSettings,
+    rebellionStates,
+    classInfluence,
+    totalInfluence,
   });
 
   const saveGameRef = useRef(gameState.saveGame);
@@ -532,8 +551,11 @@ export const useGameLoop = (gameState, addLog, actions) => {
       tradeStats,
       activeEventEffects,
       eventEffectSettings,
+      rebellionStates,
+      classInfluence,
+      totalInfluence,
     };
-  }, [resources, market, buildings, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, tradeStats, actions, activeEventEffects, eventEffectSettings]);
+  }, [resources, market, buildings, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, tradeStats, actions, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence]);
 
   // 游戏核心循环
   useEffect(() => {
@@ -808,6 +830,113 @@ export const useGameLoop = (gameState, addLog, actions) => {
       // 每次 Tick 推进 1 天（而非 gameSpeed 天）
       // 加速效果通过增加 Tick 频率实现，而非增加每次推进的天数
       setDaysElapsed(prev => prev + 1);
+      
+      // ========== 叛乱系统检测 ==========
+      // 更新叛乱状态：追踪各阶层的不满天数
+      const currentRebellionStates = current.rebellionStates || {};
+      const updatedRebellionStates = updateRebellionStates(
+        currentRebellionStates,
+        result.classApproval || {},
+        result.classInfluence || {},
+        result.totalInfluence || 0
+      );
+      
+      // 检查是否需要触发叛乱事件
+      const rebellionEvent = checkRebellionEvents(
+        updatedRebellionStates,
+        result.classApproval || {},
+        result.classInfluence || {},
+        result.totalInfluence || 0
+      );
+      
+      if (rebellionEvent && current.actions?.triggerDiplomaticEvent) {
+        const stratumKey = rebellionEvent.stratumKey;
+        const hasMilitary = hasAvailableMilitary(current.army, current.popStructure, stratumKey);
+        const militaryIsRebelling = isMilitaryRebelling(updatedRebellionStates);
+        
+        // 更新叛乱阶段
+        updatedRebellionStates[stratumKey] = {
+          ...updatedRebellionStates[stratumKey],
+          phase: rebellionEvent.newPhase,
+          lastPhaseChange: current.daysElapsed || 0,
+        };
+        
+        // 根据阶段创建对应事件
+        let event = null;
+        const rebellionCallback = (action, stratum, extraData) => {
+          // 叛乱行动回调将在 useGameActions 中处理
+          console.log('[REBELLION] Action:', action, 'Stratum:', stratum, 'Data:', extraData);
+          if (current.actions?.handleRebellionAction) {
+            current.actions.handleRebellionAction(action, stratum, extraData);
+          }
+        };
+        
+        switch (rebellionEvent.newPhase) {
+          case REBELLION_PHASE.BREWING:
+            event = createBrewingEvent(
+              stratumKey,
+              updatedRebellionStates[stratumKey],
+              hasMilitary,
+              militaryIsRebelling,
+              rebellionCallback
+            );
+            addLog(`⚠️ ${STRATA[stratumKey]?.name || stratumKey}阶层出现叛乱思潮！`);
+            break;
+            
+          case REBELLION_PHASE.PLOTTING:
+            event = createPlottingEvent(
+              stratumKey,
+              updatedRebellionStates[stratumKey],
+              hasMilitary,
+              militaryIsRebelling,
+              rebellionCallback
+            );
+            addLog(`🔥 ${STRATA[stratumKey]?.name || stratumKey}阶层正在密谋叛乱！`);
+            break;
+            
+          case REBELLION_PHASE.ACTIVE: {
+            // 创建叛乱政府国家
+            const stratumPop = current.popStructure?.[stratumKey] || 0;
+            const stratumWealth = current.classWealth?.[stratumKey] || 0;
+            const stratumInfluence = updatedRebellionStates[stratumKey].influenceShare;
+            
+            const rebelNation = createRebelNation(
+              stratumKey,
+              stratumPop,
+              stratumWealth,
+              stratumInfluence
+            );
+            
+            // 将叛乱政府添加到国家列表
+            setNations(prev => [...prev, rebelNation]);
+            
+            // 从玩家处扣除相应阶层的人口
+            setPopStructure(prev => ({
+              ...prev,
+              [stratumKey]: Math.max(0, (prev[stratumKey] || 0) - Math.floor(stratumPop * 0.8)),
+            }));
+            
+            event = createActiveRebellionEvent(
+              stratumKey,
+              updatedRebellionStates[stratumKey],
+              hasMilitary,
+              militaryIsRebelling,
+              rebelNation,
+              rebellionCallback
+            );
+            addLog(`🔥🔥🔥 ${STRATA[stratumKey]?.name || stratumKey}阶层发动叛乱！叛乱政府已成立！`);
+            break;
+          }
+        }
+        
+        if (event) {
+          current.actions.triggerDiplomaticEvent(event);
+          setIsPaused(true); // 暂停游戏等待玩家处理
+        }
+      }
+      
+      // 更新叛乱状态
+      setRebellionStates(updatedRebellionStates);
       
       // 处理贸易路线并记录贸易税收入
       let tradeTax = 0;

@@ -319,6 +319,11 @@ export const useGameState = () => {
   // ========== 和平协议状态 ==========
   const [playerInstallmentPayment, setPlayerInstallmentPayment] = useState(null); // 玩家的分期支付协议
 
+  // ========== 叛乱系统状态 ==========
+  // 追踪各阶层的叛乱状态
+  // 格式: { [stratumKey]: { dissatisfactionDays: number, phase: string, influenceShare: number } }
+  const [rebellionStates, setRebellionStates] = useState({});
+
   // ========== 教程系统状态 ==========
   const [showTutorial, setShowTutorial] = useState(() => {
     // 检查是否已完成教程
@@ -452,6 +457,7 @@ export const useGameState = () => {
         tradeStats,
         eventEffectSettings,
         activeEventEffects,
+        rebellionStates,
         autoSaveInterval,
         isAutoSaveEnabled,
         lastAutoSaveTime: nextLastAuto,
@@ -554,6 +560,7 @@ setDecrees(mergeDecreesWithConfig(data.decrees));
       setLastAutoSaveTime(data.lastAutoSaveTime || Date.now());
       setEventEffectSettings(data.eventEffectSettings || DEFAULT_EVENT_EFFECT_SETTINGS);
       setActiveEventEffects(data.activeEventEffects || buildInitialEventEffects());
+      setRebellionStates(data.rebellionStates || {});
       addLogEntry(source === 'auto' ? '📂 自动存档读取成功！' : '📂 读取存档成功！');
     } catch (error) {
       console.error('Load game failed:', error);
@@ -719,6 +726,10 @@ setDecrees(mergeDecreesWithConfig(data.decrees));
     // 和平协议
     playerInstallmentPayment,
     setPlayerInstallmentPayment,
+    
+    // 叛乱系统
+    rebellionStates,
+    setRebellionStates,
     
     // UI
     logs,
