@@ -1778,7 +1778,28 @@ export const simulateTick = ({
     let tracked = 0;
     const shortages = []; // 改为对象数组，记录短缺原因
 
-    for (const [resKey, perCapita] of Object.entries(def.needs)) {
+    // Calculate wealth ratio for this stratum (used for luxury needs unlock)
+    const startingWealthForLuxury = def.startingWealth || 1;
+    const currentWealthPerCapita = (wealth[key] || 0) / Math.max(1, count);
+    const wealthRatioForLuxury = currentWealthPerCapita / startingWealthForLuxury;
+
+    // Merge base needs with unlocked luxury needs based on wealth ratio
+    const effectiveNeeds = { ...def.needs };
+    if (def.luxuryNeeds) {
+      // Sort thresholds to apply in order
+      const thresholds = Object.keys(def.luxuryNeeds).map(Number).sort((a, b) => a - b);
+      for (const threshold of thresholds) {
+        if (wealthRatioForLuxury >= threshold) {
+          const luxuryNeedsAtThreshold = def.luxuryNeeds[threshold];
+          for (const [resKey, amount] of Object.entries(luxuryNeedsAtThreshold)) {
+            // Add to existing need or create new
+            effectiveNeeds[resKey] = (effectiveNeeds[resKey] || 0) + amount;
+          }
+        }
+      }
+    }
+
+    for (const [resKey, perCapita] of Object.entries(effectiveNeeds)) {
       if (def.defaultResource && def.defaultResource === resKey) {
         continue;
       }
@@ -1829,10 +1850,21 @@ export const simulateTick = ({
         const startingWealth = def.startingWealth || 1;
         const currentWealth = (wealth[key] || 0) / Math.max(1, count);
         const wealthRatio = currentWealth / startingWealth;
-        // 财富每增加100%，需求增加50%（可调整）
-        // 限制范围：最低0.5倍（财富减少到0时），最高5倍（避免财富过高导致需求爆炸）
-        const rawWealthMultiplier = 1 + (wealthRatio - 1) * 0.5;
-        const wealthMultiplier = Math.max(0.5, Math.min(5.0, rawWealthMultiplier));
+        // 使用平方根曲线：财富增加时需求增长快，但边际递减
+        // wealthRatio=1 → multiplier=1, wealthRatio=4 → multiplier≈2.5, wealthRatio=9 → multiplier≈4
+        // 公式: multiplier = sqrt(wealthRatio) * (1 + ln(max(wealthRatio, 1)) * 0.3)
+        // 限制范围：最低0.3倍（财富极低时），最高10倍（避免财富过高导致需求爆炸）
+        let rawWealthMultiplier;
+        if (wealthRatio <= 0) {
+          rawWealthMultiplier = 0.3;
+        } else if (wealthRatio < 1) {
+          // 财富低于基准时，线性下降
+          rawWealthMultiplier = 0.3 + wealthRatio * 0.7;
+        } else {
+          // 财富高于基准时，使用平方根+对数曲线，增长更快但有边际递减
+          rawWealthMultiplier = Math.sqrt(wealthRatio) * (1 + Math.log(wealthRatio) * 0.3);
+        }
+        const wealthMultiplier = Math.max(0.3, Math.min(10.0, rawWealthMultiplier));
         // 记录财富乘数（取最后一次计算的值，用于UI显示）
         if (!stratumWealthMultipliers[key] || Math.abs(wealthMultiplier - 1) > Math.abs(stratumWealthMultipliers[key] - 1)) {
           stratumWealthMultipliers[key] = wealthMultiplier;
@@ -1854,7 +1886,7 @@ export const simulateTick = ({
         
         // 确保需求不会变成负数或过大
         requirement = Math.max(0, requirement);
-        requirement = Math.min(requirement, perCapita * count * needsRequirementMultiplier * 3); // 最多3倍
+        requirement = Math.min(requirement, perCapita * count * needsRequirementMultiplier * 12); // 最多12倍（配合财富乘数上限10倍+其他加成）
       }
       const available = res[resKey] || 0;
       let satisfied = 0;
@@ -2551,10 +2583,7 @@ export const simulateTick = ({
             //   enemyPower: battleResult.attackerPower,
             //   battleReport: battleResult.battleReport || [],
             // };
-            // const raidLog = `❗RAID_EVENT❗${JSON.stringify(raidData)}`;
-            // console.log('[SIMULATION] Pushing raid log (with army):', raidLog);
-            // logs.push(raidLog);
-            const raidEventLog = `RAID_EVENT${JSON.stringify(raidData)}`;
+            const raidEventLog = `❗RAID_EVENT❗${JSON.stringify(raidData)}`;
             console.log('[SIMULATION] Pushing raid log (with army):', raidEventLog);
             logs.push(raidEventLog);
           }
@@ -2601,13 +2630,40 @@ export const simulateTick = ({
     // 检查和平协议是否仍然有效
     const hasPeaceTreaty = next.peaceTreatyUntil && tick < next.peaceTreatyUntil;
     
-    if (!next.isAtWar && !hasPeaceTreaty && relation < 35 && Math.random() < declarationChance) {
+    // 检查是否为玩家的盟友（关系 >= 80）
+    const isPlayerAlly = relation >= 80;
+    
+    if (!next.isAtWar && !hasPeaceTreaty && !isPlayerAlly && relation < 35 && Math.random() < declarationChance) {
       next.isAtWar = true;
       next.warStartDay = tick;
       next.warDuration = 0;
       next.warDeclarationPending = true; // 标记需要触发宣战事件
       logs.push(`⚠️ ${next.name} 对你发动了战争！`);
       logs.push(`WAR_DECLARATION_EVENT:${JSON.stringify({ nationId: next.id, nationName: next.name })}`);
+      
+      // 同盟连坐：检查是否有玩家的盟友会参战（他们会对敌国宣战）
+      const playerAllies = updatedNations.filter(n => {
+        if (n.id === next.id) return false;
+        const allyRelation = n.relation || 0;
+        return allyRelation >= 80 && !n.isAtWar;
+      });
+      
+      playerAllies.forEach(ally => {
+        // 盟友与敌国的关系恶化并开战
+        if (!ally.foreignWars) ally.foreignWars = {};
+        ally.foreignWars[next.id] = {
+          isAtWar: true,
+          warStartDay: tick,
+          warScore: 0,
+        };
+        if (!next.foreignWars) next.foreignWars = {};
+        next.foreignWars[ally.id] = {
+          isAtWar: true,
+          warStartDay: tick,
+          warScore: 0,
+        };
+        logs.push(`⚔️ 你的盟友 ${ally.name} 履行同盟义务，对 ${next.name} 宣战！`);
+      });
     }
     
     // 处理分期支付赔款
@@ -2786,11 +2842,65 @@ export const simulateTick = ({
     return nation;
   });
 
-  // ========== AI国家互相开战系统 ==========
-  // 检查是否有两个AI国家应该开战
+  // ========== AI国家外交行为系统 ==========
+  // AI国家会送礼、贸易、结盟
   const visibleNations = updatedNations.filter(n => 
     epoch >= (n.appearEpoch ?? 0) && (n.expireEpoch == null || epoch <= n.expireEpoch)
   );
+  
+  visibleNations.forEach(nation => {
+    // 每天有小概率进行外交行动
+    if (Math.random() > 0.02) return; // 2% 概率进行外交行动
+    
+    const aggression = nation.aggression ?? 0.3;
+    const wealth = nation.wealth || 500;
+    
+    // 低侵略性且富裕的国家更倾向于外交
+    if (aggression > 0.6 || wealth < 300) return;
+    
+    // 选择一个目标国家进行外交
+    const potentialTargets = visibleNations.filter(n => {
+      if (n.id === nation.id) return false;
+      // 不对正在交战的国家送礼
+      if (nation.foreignWars?.[n.id]?.isAtWar) return false;
+      const relation = nation.foreignRelations?.[n.id] ?? 50;
+      // 选择关系 40-70 的国家作为潜在结盟对象
+      return relation >= 40 && relation < 80;
+    });
+    
+    if (potentialTargets.length === 0) return;
+    
+    const target = potentialTargets[Math.floor(Math.random() * potentialTargets.length)];
+    const currentRelation = nation.foreignRelations?.[target.id] ?? 50;
+    
+    // AI送礼行为
+    const giftCost = Math.floor(50 + Math.random() * 100);
+    if (wealth > giftCost * 3) { // 确保有足够的财富
+      // 扣除财富
+      nation.wealth = Math.max(0, (nation.wealth || 0) - giftCost);
+      // 目标国家获得财富
+      target.wealth = (target.wealth || 0) + giftCost;
+      
+      // 双方关系提升
+      const relationBoost = Math.floor(5 + Math.random() * 8);
+      if (!nation.foreignRelations) nation.foreignRelations = {};
+      if (!target.foreignRelations) target.foreignRelations = {};
+      
+      nation.foreignRelations[target.id] = clamp((nation.foreignRelations[target.id] || 50) + relationBoost, 0, 100);
+      target.foreignRelations[nation.id] = clamp((target.foreignRelations[nation.id] || 50) + relationBoost, 0, 100);
+      
+      // 如果双方关系达到80以上，宣布结盟
+      if (nation.foreignRelations[target.id] >= 80 && target.foreignRelations[nation.id] >= 80) {
+        logs.push(`🤝 国际新闻：${nation.name} 与 ${target.name} 达成同盟协议！`);
+      } else if (Math.random() < 0.3) {
+        // 30% 概率报道外交活动
+        logs.push(`💝 国际新闻：${nation.name} 向 ${target.name} 赠送了外交礼物，两国关系升温。`);
+      }
+    }
+  });
+
+  // ========== AI国家互相开战系统 ==========
+  // 检查是否有两个AI国家应该开战
   
   visibleNations.forEach(nation => {
     // 检查是否已经在与其他AI国家交战
@@ -2805,6 +2915,11 @@ export const simulateTick = ({
       // 检查和平协议
       const peaceUntil = nation.foreignWars[otherNation.id]?.peaceTreatyUntil || 0;
       if (tick < peaceUntil) return;
+      
+      // 检查是否为同盟关系（双方关系 >= 80）
+      const relationWithOther = nation.foreignRelations?.[otherNation.id] ?? 50;
+      const otherRelationWithNation = otherNation.foreignRelations?.[nation.id] ?? 50;
+      if (relationWithOther >= 80 || otherRelationWithNation >= 80) return; // 同盟国家之间不能开战
       
       // ========== 战争决策AI改进 ==========
       
@@ -2883,6 +2998,46 @@ export const simulateTick = ({
           ];
           const randomDeclarationNews = declarationNewsTemplates[Math.floor(Math.random() * declarationNewsTemplates.length)];
           logs.push(randomDeclarationNews);
+          
+          // ========== 同盟连坐机制 ==========
+          // 检查被攻击方是否是玩家的盟友
+          const otherNationPlayerRelation = otherNation.relation || 0;
+          if (otherNationPlayerRelation >= 80 && !nation.isAtWar) {
+            // 玩家的盟友被攻击，玩家被迫与攻击方开战
+            nation.isAtWar = true;
+            nation.warStartDay = tick;
+            nation.warDuration = 0;
+            nation.relation = Math.max(0, (nation.relation || 50) - 40);
+            logs.push(`⚔️ 你的盟友 ${otherNation.name} 遭到攻击！作为同盟，你被迫与 ${nation.name} 进入战争状态！`);
+          }
+          
+          // 检查攻击方是否是玩家的盟友
+          const nationPlayerRelation = nation.relation || 0;
+          if (nationPlayerRelation >= 80 && !otherNation.isAtWar) {
+            // 玩家的盟友主动攻击别国，玩家被迫与被攻击方开战
+            otherNation.isAtWar = true;
+            otherNation.warStartDay = tick;
+            otherNation.warDuration = 0;
+            otherNation.relation = Math.max(0, (otherNation.relation || 50) - 40);
+            logs.push(`⚔️ 你的盟友 ${nation.name} 向 ${otherNation.name} 宣战！作为同盟，你被迫与 ${otherNation.name} 进入战争状态！`);
+          }
+          
+          // AI 国家之间的同盟连坐
+          visibleNations.forEach(ally => {
+            if (ally.id === nation.id || ally.id === otherNation.id) return;
+            
+            // 检查是否是被攻击方的盟友
+            const allyRelationWithDefender = ally.foreignRelations?.[otherNation.id] ?? 50;
+            const defenderRelationWithAlly = otherNation.foreignRelations?.[ally.id] ?? 50;
+            if (allyRelationWithDefender >= 80 && defenderRelationWithAlly >= 80) {
+              // 盟友参战
+              if (!ally.foreignWars) ally.foreignWars = {};
+              ally.foreignWars[nation.id] = { isAtWar: true, warStartDay: tick, warScore: 0 };
+              if (!nation.foreignWars) nation.foreignWars = {};
+              nation.foreignWars[ally.id] = { isAtWar: true, warStartDay: tick, warScore: 0 };
+              logs.push(`⚔️ ${ally.name} 作为 ${otherNation.name} 的盟友，加入对 ${nation.name} 的战争！`);
+            }
+          });
         }
       }
     });

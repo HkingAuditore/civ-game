@@ -653,8 +653,10 @@ function GameApp({ gameState }) {
             activeBuffs={gameState.activeBuffs}
             activeDebuffs={gameState.activeDebuffs}
             dayScale={1}
-          taxPolicies={gameState.taxPolicies}
-          onUpdateTaxPolicies={gameState.setTaxPolicies}
+            taxPolicies={gameState.taxPolicies}
+            onUpdateTaxPolicies={gameState.setTaxPolicies}
+            epoch={gameState.epoch}
+            techsUnlocked={gameState.techsUnlocked}
             onClose={closeSheet}
           />
         )}
@@ -903,6 +905,7 @@ function GameApp({ gameState }) {
           market={gameState.market}
           buildings={gameState.buildings}
           popStructure={gameState.popStructure}
+          wealth={gameState.classWealth}
           army={gameState.army}
           history={gameState.history}
           onClose={() => gameState.setResourceDetailView(null)}
