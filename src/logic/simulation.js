@@ -2198,7 +2198,7 @@ export const simulateTick = ({
     }
 
     const currentApproval = classApproval[key] || 50;
-    const adjustmentSpeed = 0.08; // How slowly approval changes per tick
+    const adjustmentSpeed = 0.02; // How slowly approval changes per tick
     let newApproval = currentApproval + (targetApproval - currentApproval) * adjustmentSpeed;
     
     // 应用生活水平对满意度的上限限制
