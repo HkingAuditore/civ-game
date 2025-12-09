@@ -3620,10 +3620,29 @@ export const simulateTick = ({
   const averagePotentialIncome = totalMigratablePop > 0
     ? activeRoleMetrics.reduce((sum, r) => sum + (r.potentialIncome * r.pop), 0) / totalMigratablePop
     : 0;
+  
+  // 计算平均人均财富，用于判断富裕阶层的转职阈值
+  const averagePerCapWealth = totalMigratablePop > 0
+    ? activeRoleMetrics.reduce((sum, r) => sum + (r.perCap * r.pop), 0) / totalMigratablePop
+    : 0;
 
   // 寻找收入低于平均水平的源职业（排除军人，军人不能转职到其他岗位）
+  // 改进：对于富裕阶层（如商人），使用基于人均财富百分比的阈值
+  // 商人进货一次可能花几百块，但只要这只占财富的一小部分，就不应触发转职
   const sourceCandidate = activeRoleMetrics
-    .filter(r => r.pop > 0 && r.role !== 'soldier' && (r.potentialIncome < averagePotentialIncome * 0.7 || r.perCapDelta < -0.5))
+    .filter(r => {
+      if (r.pop <= 0 || r.role === 'soldier') return false;
+      
+      // 改用基于人均财富百分比的阈值
+      // 当单tick亏损超过人均财富的5%时，才认为是"严重亏损"需要考虑转职
+      // 例如：商人人均财富500银币，则亏损阈值为 -500 * 0.05 = -25
+      // 同时设置一个最小阈值（-0.5）和最大阈值（-50），防止极端情况
+      const percentageThreshold = r.perCap * 0.05; // 5% of per capita wealth
+      const adjustedDeltaThreshold = -Math.max(0.5, Math.min(50, percentageThreshold));
+      
+      // 收入过低 或 亏损超过调整后的阈值（人均财富的5%）
+      return r.potentialIncome < averagePotentialIncome * 0.7 || r.perCapDelta < adjustedDeltaThreshold;
+    })
     .reduce((lowest, current) => {
       if (!lowest) return current;
       if (current.potentialIncome < lowest.potentialIncome) return current;

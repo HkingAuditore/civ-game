@@ -105,11 +105,15 @@ export const StratumDetailSheet = ({
     : 1;
   
   // Living standard is determined primarily by wealth ratio and luxury unlock
-  // wealthRatio < 1: 贫困 (struggling)
-  // wealthRatio ~1, satisfaction good: 温饱 (basic needs met)
-  // wealthRatio 1.5+, some luxury: 小康 (comfortable)
-  // wealthRatio 2+, most luxury: 富裕 (prosperous)
-  // wealthRatio 3+, all luxury, high satisfaction: 奢华 (luxurious)
+  // The thresholds are set higher to make progression more meaningful:
+  // - 赤贫: wealthRatio < 0.5 (extreme poverty)
+  // - 贫困: wealthRatio < 1 or low satisfaction (poverty)
+  // - 温饱: wealthRatio < 2 or no luxury unlocked (basic survival)
+  // - 小康: wealthRatio < 4 or < 30% luxury unlocked (comfortable)
+  // - 富裕: wealthRatio < 8 or < 70% luxury unlocked (prosperous)
+  // - 奢华: wealthRatio >= 8 and >= 70% luxury unlocked (luxurious)
+  const luxuryUnlockRatio = totalLuxuryTiers > 0 ? unlockedLuxuryTiers / totalLuxuryTiers : 0;
+  
   const getLivingStandardLevel = () => {
     if (wealthRatio < 0.5) {
       return { level: '赤贫', icon: 'Skull', color: 'text-gray-400', bgColor: 'bg-gray-900/30', borderColor: 'border-gray-500/30' };
@@ -117,22 +121,30 @@ export const StratumDetailSheet = ({
     if (wealthRatio < 1 || satisfactionRate < 0.5) {
       return { level: '贫困', icon: 'AlertTriangle', color: 'text-red-400', bgColor: 'bg-red-900/20', borderColor: 'border-red-500/30' };
     }
-    if (wealthRatio < 1.5 || (totalLuxuryTiers > 0 && unlockedLuxuryTiers === 0)) {
-      return { level: '温饱', icon: 'Utensils', color: 'text-yellow-400', bgColor: 'bg-yellow-900/20', borderColor: 'border-yellow-500/30' };
+    // 温饱：财富刚好够基础需求，但还没有富裕需求
+    if (wealthRatio < 2 || (totalLuxuryTiers > 0 && unlockedLuxuryTiers === 0)) {
+      return { level: '温饱', icon: 'UtensilsCrossed', color: 'text-yellow-400', bgColor: 'bg-yellow-900/20', borderColor: 'border-yellow-500/30' };
     }
-    if (wealthRatio < 2 || unlockedLuxuryTiers < totalLuxuryTiers * 0.5) {
+    // 小康：开始解锁一些富裕需求，但不到30%
+    if (wealthRatio < 4 || luxuryUnlockRatio < 0.3) {
       return { level: '小康', icon: 'Home', color: 'text-green-400', bgColor: 'bg-green-900/20', borderColor: 'border-green-500/30' };
     }
-    if (wealthRatio < 3 || unlockedLuxuryTiers < totalLuxuryTiers) {
+    // 富裕：解锁了相当多的富裕需求，但不到70%
+    if (wealthRatio < 8 || luxuryUnlockRatio < 0.7) {
       return { level: '富裕', icon: 'Gem', color: 'text-blue-400', bgColor: 'bg-blue-900/20', borderColor: 'border-blue-500/30' };
     }
+    // 奢华：财富极高且解锁了绝大多数富裕需求
     return { level: '奢华', icon: 'Crown', color: 'text-purple-400', bgColor: 'bg-purple-900/20', borderColor: 'border-purple-500/30' };
   };
   
   const livingStandard = getLivingStandardLevel();
   
   // Calculate a display score (for UI reference)
-  const livingStandardScore = Math.min(100, (wealthRatio * 25) + (satisfactionRate * 25) + (unlockedLuxuryTiers / Math.max(1, totalLuxuryTiers) * 50));
+  // Score composition: wealth ratio (capped at 10x), satisfaction, luxury unlock
+  const wealthScore = Math.min(40, wealthRatio * 4); // Max 40 points at 10x wealth
+  const satisfactionScore = satisfactionRate * 30; // Max 30 points at 100% satisfaction
+  const luxuryScore = luxuryUnlockRatio * 30; // Max 30 points at 100% luxury unlocked
+  const livingStandardScore = Math.min(100, wealthScore + satisfactionScore + luxuryScore);
 
   const handleDraftChange = (raw) => {
     setDraftMultiplier(raw);
