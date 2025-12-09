@@ -69,9 +69,9 @@ export const StratumDetailSheet = ({
   } else if (wealthRatio < 1) {
     wealthMultiplier = 0.3 + wealthRatio * 0.7;
   } else {
-    wealthMultiplier = Math.sqrt(wealthRatio) * (1 + Math.log(wealthRatio) * 0.3);
+    wealthMultiplier = Math.sqrt(wealthRatio) * (1 + Math.log(wealthRatio) * 0.2);
   }
-  wealthMultiplier = Math.max(0.3, Math.min(10.0, wealthMultiplier));
+  wealthMultiplier = Math.max(0.3, Math.min(5.0, wealthMultiplier));
   
   // Calculate how many luxury need tiers are unlocked
   const luxuryNeeds = stratum.luxuryNeeds || {};
