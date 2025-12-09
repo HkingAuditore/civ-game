@@ -1305,7 +1305,7 @@ export const useGameActions = (gameState, addLog) => {
       } else {
         addLog(`${targetNation.name} 拒绝了开放市场的要求。`);
       }
-    } else if (proposalType === 'pay_installment') {
+    } else if (proposalType === 'pay_installment' || proposalType === 'pay_installment_moderate') {
       // 玩家分期支付赔款
       setNations(prev => prev.map(n =>
         n.id === nationId
@@ -1352,7 +1352,7 @@ export const useGameActions = (gameState, addLog) => {
           : n
       ));
       addLog(`你提供 ${amount} 人口，与 ${targetNation.name} 达成和平。`);
-    } else if (proposalType === 'pay_standard' || proposalType === 'pay_high') {
+    } else if (proposalType === 'pay_standard' || proposalType === 'pay_high' || proposalType === 'pay_moderate') {
       // 玩家支付赔款求和
       if ((resources.silver || 0) < amount) {
         addLog('银币不足，无法支付赔款。');
