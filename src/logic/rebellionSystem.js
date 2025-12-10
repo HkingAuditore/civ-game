@@ -90,71 +90,22 @@ export function updateRebellionStates(rebellionStates, classApproval, classInflu
 }
 
 /**
- * 检查是否应该触发叛乱事件
+ * [已废弃] 检查是否应该触发叛乱事件
+ * @deprecated 此函数使用随机概率触发，已被组织度系统取代
+ * 现在叛乱事件由 organizationSystem.checkOrganizationEvents() 确定性触发
+ * 保留此函数以兼容可能存在的旧代码引用
+ * 
  * @param {Object} rebellionStates - 叛乱状态
  * @param {Object} classApproval - 各阶层好感度
  * @param {Object} classInfluence - 各阶层影响力
  * @param {number} totalInfluence - 总影响力
- * @returns {Object|null} 需要触发的事件信息，或null
+ * @returns {Object|null} 始终返回 null（不再触发随机事件）
  */
 export function checkRebellionEvents(rebellionStates, classApproval, classInfluence, totalInfluence) {
-  for (const stratumKey of Object.keys(rebellionStates)) {
-    const state = rebellionStates[stratumKey];
-    if (!state) continue;
-    
-    const approval = classApproval[stratumKey] ?? 50;
-    const influence = classInfluence[stratumKey] || 0;
-    const influenceShare = totalInfluence > 0 ? influence / totalInfluence : 0;
-    
-    // 检查是否满足叛乱触发条件
-    if (!checkRebellionCondition(stratumKey, approval, influenceShare, state.dissatisfactionDays)) {
-      continue;
-    }
-    
-    // 根据当前阶段决定是否进入下一阶段
-    switch (state.phase) {
-      case REBELLION_PHASE.NONE:
-        // 检查是否进入酝酿阶段
-        if (Math.random() < REBELLION_CONFIG.BREWING_CHANCE) {
-          return {
-            type: 'phase_change',
-            stratumKey,
-            newPhase: REBELLION_PHASE.BREWING,
-            state,
-          };
-        }
-        break;
-        
-      case REBELLION_PHASE.BREWING:
-        // 检查是否进入密谋阶段
-        if (Math.random() < REBELLION_CONFIG.PLOTTING_CHANCE) {
-          return {
-            type: 'phase_change',
-            stratumKey,
-            newPhase: REBELLION_PHASE.PLOTTING,
-            state,
-          };
-        }
-        break;
-        
-      case REBELLION_PHASE.PLOTTING:
-        // 检查是否进入正式叛乱
-        if (Math.random() < REBELLION_CONFIG.ACTIVE_CHANCE) {
-          return {
-            type: 'phase_change',
-            stratumKey,
-            newPhase: REBELLION_PHASE.ACTIVE,
-            state,
-          };
-        }
-        break;
-        
-      case REBELLION_PHASE.ACTIVE:
-        // 已经在叛乱状态，不需要额外触发
-        break;
-    }
-  }
-  
+  // [已废弃] 随机概率触发机制已被组织度阈值系统取代
+  // 现在由 useGameLoop.js 中的 checkOrganizationEvents() 确定性触发事件
+  // 当组织度达到 30%/70%/90% 阈值时自动触发对应事件
+  console.warn('[DEPRECATED] checkRebellionEvents() 已废弃，请使用 organizationSystem.checkOrganizationEvents()');
   return null;
 }
 

@@ -20,11 +20,12 @@ export function createApprovalPromiseTask({
     stratumKey,
     stratumName,
     currentApproval = 0,
-    duration = 30,
+    duration = 60, // 从30天增加到60天，给玩家更多时间
     currentDay = 0,
     failurePenalty = {},
 }) {
-    const targetApproval = Math.min(90, Math.max(55, Math.round(currentApproval + 15)));
+    // 目标满意度要求降低：从+15降到+10，且最低目标降到50
+    const targetApproval = Math.min(80, Math.max(50, Math.round(currentApproval + 10)));
 
     return {
         id: `promise_${stratumKey}_${Date.now()}`,

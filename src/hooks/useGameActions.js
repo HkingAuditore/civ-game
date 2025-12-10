@@ -1635,11 +1635,11 @@ const handleEventOption = (eventId, option) => {
 		return Math.min(0.95, Math.max(0, value));
 	};
 	const cloneEffectState = (prev = {}) => ({
-		approval: [...(prev.approval || [])],
-		stability: [...(prev.stability || [])],
-		resourceDemand: [...(prev.resourceDemand || [])],
-		stratumDemand: [...(prev.stratumDemand || [])],
-		buildingProduction: [...(prev.buildingProduction || [])],
+		approval: Array.isArray(prev.approval) ? [...prev.approval] : [],
+		stability: Array.isArray(prev.stability) ? [...prev.stability] : [],
+		resourceDemand: Array.isArray(prev.resourceDemand) ? [...prev.resourceDemand] : [],
+		stratumDemand: Array.isArray(prev.stratumDemand) ? [...prev.stratumDemand] : [],
+		buildingProduction: Array.isArray(prev.buildingProduction) ? [...prev.buildingProduction] : [],
 	});
 
 	const registerApprovalEffect = (changes = {}) => {

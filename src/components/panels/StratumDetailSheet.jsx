@@ -13,6 +13,10 @@ import {
 } from '../../logic/organizationSystem';
 import { getAvailableActions } from '../../logic/strategicActions';
 import { getPromiseTaskRemainingDays } from '../../logic/promiseTasks';
+import { analyzeDissatisfactionSources } from '../../logic/demands';
+import { StrategicActionCard } from './StrategicActionCard';
+import { DissatisfactionAnalysis } from './DissatisfactionAnalysis';
+import { DemandsList } from './DemandsList';
 
 /**
  * 阶层详情底部面板组件
@@ -45,6 +49,8 @@ export const StratumDetailSheet = ({
     promiseTasks = [],
     epoch = 0,
     techsUnlocked = [],
+    totalInfluence = 0, // 新增：总影响力
+    activeDemands = {}, // 新增：活跃诉求
     onClose,
 }) => {
     const safeDayScale = Math.max(dayScale, 0.0001);
@@ -705,56 +711,68 @@ export const StratumDetailSheet = ({
                                     </div>
                                 </div>
 
-                                {/* 策略行动按钮区 */}
+                                {/* 不满来源分析 */}
+                                {(() => {
+                                    const dissatisfactionContext = {
+                                        classShortages,
+                                        classApproval,
+                                        classInfluence,
+                                        totalInfluence,
+                                        classLivingStandard,
+                                        taxPolicies,
+                                    };
+                                    const analysis = analyzeDissatisfactionSources(stratumKey, dissatisfactionContext);
+                                    return analysis.hasIssues ? (
+                                        <div className="bg-gray-700/50 rounded p-3 border border-gray-600">
+                                            <DissatisfactionAnalysis
+                                                sources={analysis.sources}
+                                                totalContribution={analysis.totalContribution}
+                                            />
+                                        </div>
+                                    ) : null;
+                                })()}
+
+                                {/* 当前诉求 */}
+                                {organization >= 50 && (
+                                    <div className="bg-gray-700/50 rounded p-3 border border-gray-600">
+                                        <DemandsList
+                                            demands={activeDemands[stratumKey] || []}
+                                            currentDay={daysElapsed}
+                                        />
+                                        {(!activeDemands[stratumKey] || activeDemands[stratumKey].length === 0) && (
+                                            <div className="flex items-center gap-2 text-xs text-gray-400">
+                                                <Icon name="Scroll" size={14} className="text-purple-400" />
+                                                <span>当前没有具体诉求</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* 策略行动区 */}
                                 <div className="bg-gray-700/50 rounded p-3 border border-gray-600 space-y-3">
                                     <div>
-                                        <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-2">
+                                        <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
                                             <Icon name="Zap" size={16} className="text-blue-400" />
                                             策略行动
+                                            <span className="text-[10px] font-normal text-gray-400 ml-1">
+                                                点击展开详情
+                                            </span>
                                         </h3>
-                                        <div className="grid grid-cols-2 gap-2">
-                                            {availableActions.map(action => {
-                                                const disabled = !onStrategicAction || !action.available;
-                                                const costBadges = [];
-                                                if (action.cost?.silver) {
-                                                    costBadges.push(`${action.cost.silver} 银币`);
-                                                }
-                                                if (action.cost?.culture) {
-                                                    costBadges.push(`${action.cost.culture} 文化`);
-                                                }
-                                                return (
-                                                    <button
-                                                        key={action.id}
-                                                        className={`bg-gray-800/60 border border-gray-600 rounded p-2 text-left transition-colors ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-700/60 hover:border-gray-500'}`}
-                                                        onClick={() => !disabled && onStrategicAction(action.id, stratumKey)}
-                                                        disabled={disabled}
-                                                        title={action.description}
-                                                    >
-                                                        <div className="flex items-center gap-2 mb-1">
-                                                            <Icon name={action.icon} size={16} className="text-gray-300" />
-                                                            <div className="flex flex-col">
-                                                                <span className="text-xs font-bold text-white">{action.name}</span>
-                                                                {action.cooldown > 0 && (
-                                                                    <span className="text-[9px] text-gray-400">冷却: {action.cooldown}天</span>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                        <div className="text-[10px] text-gray-400">{action.description}</div>
-                                                        {costBadges.length > 0 && (
-                                                            <div className="flex flex-wrap gap-1 mt-1">
-                                                                {costBadges.map((badge, idx) => (
-                                                                    <span key={idx} className="text-[9px] px-1 py-0.5 rounded bg-gray-700 border border-gray-500 text-gray-200">
-                                                                        {badge}
-                                                                    </span>
-                                                                ))}
-                                                            </div>
-                                                        )}
-                                                        {!action.available && action.unavailableReason && (
-                                                            <div className="text-[10px] text-red-400 mt-1">{action.unavailableReason}</div>
-                                                        )}
-                                                    </button>
-                                                );
-                                            })}
+                                        <div className="space-y-2">
+                                            {availableActions.map(action => (
+                                                <StrategicActionCard
+                                                    key={action.id}
+                                                    action={action}
+                                                    stratumKey={stratumKey}
+                                                    stratumName={stratum.name}
+                                                    popCount={count}
+                                                    disabled={!onStrategicAction || !action.available}
+                                                    unavailableReason={action.unavailableReason}
+                                                    onExecute={onStrategicAction}
+                                                    resources={resources}
+                                                    actionUsage={actionUsage}
+                                                />
+                                            ))}
                                         </div>
                                         {availableActions.length === 0 && (
                                             <div className="text-xs text-gray-400 text-center mt-2">暂无可用的策略行动</div>
