@@ -587,6 +587,7 @@ export const simulateTick = ({
   maxPopBonus = 0,
   eventApprovalModifiers = {},
   eventStabilityModifier = 0,
+  currentStability = 50, // NEW: Current stability for inertia calculation
   // Economic modifiers from events
   eventResourceDemandModifiers = {},   // { resourceKey: percentModifier }
   eventStratumDemandModifiers = {},    // { stratumKey: percentModifier }
@@ -2359,8 +2360,16 @@ export const simulateTick = ({
   });
   stabilityModifier -= extraStabilityPenalty;
 
-  // Final stability value: base + modifiers, clamped to 0-100
-  const stabilityValue = Math.max(0, Math.min(100, baseStability + stabilityModifier));
+  // Final stability value: base + modifiers, clamped to 0-100 (this is the TARGET)
+  const targetStability = Math.max(0, Math.min(100, baseStability + stabilityModifier));
+  
+  // NEW: Inertia-based stability calculation
+  // Stability drifts towards target at 5% per tick, making crises feel weightier
+  const STABILITY_INERTIA = 0.05;
+  const stabilityValue = Math.max(0, Math.min(100, 
+    currentStability + (targetStability - currentStability) * STABILITY_INERTIA
+  ));
+  
   const stabilityFactor = Math.min(1.5, Math.max(0.5, 1 + (stabilityValue - 50) / 100));
   const efficiency = stabilityFactor;
 
@@ -3248,10 +3257,20 @@ export const simulateTick = ({
   });
 
   const fertilityBaseRate = 0.0015;
+  const fertilityBaselineRate = 0.0005;
   const wealthBaseline = 200;
   let fertilityBirths = 0;
   const remainingCapacity = Math.max(0, totalMaxPop - nextPopulation);
   if (remainingCapacity > 0) {
+    const baselineExpectedBirths = Math.max(0, population || 0) * fertilityBaselineRate;
+    let baselineBirths = Math.floor(baselineExpectedBirths);
+    if (Math.random() < (baselineExpectedBirths - baselineBirths)) {
+      baselineBirths += 1;
+    }
+    baselineBirths = Math.min(baselineBirths, remainingCapacity);
+    fertilityBirths += Math.max(0, baselineBirths);
+  }
+  if (remainingCapacity > fertilityBirths) {
     Object.keys(STRATA).forEach(key => {
       if (fertilityBirths >= remainingCapacity) return;
       const count = popStructure[key] || 0;
