@@ -18,10 +18,11 @@ export const REBELLION_CONFIG = {
   MIN_INFLUENCE_SHARE: 0.15,        // 最低影响力占比（15%）
   MAX_APPROVAL_THRESHOLD: 35,       // 好感度阈值（低于此值视为不满）
   
-  // 阶段进展概率（每天检查）
-  BREWING_CHANCE: 0.005,            // 进入酝酿思潮的每日概率（0.5%）
-  PLOTTING_CHANCE: 0.01,            // 从酝酿进入密谋的每日概率（1%）
-  ACTIVE_CHANCE: 0.02,              // 从密谋进入叛乱的每日概率（2%）
+  // [已废弃] 阶段进展概率 - 现由组织度阈值确定性触发
+  // 保留以兼容旧存档，但不再使用
+  // BREWING_CHANCE: 0.005,            // 进入酝酿思潮的每日概率（0.5%）
+  // PLOTTING_CHANCE: 0.01,            // 从酝酿进入密谋的每日概率（1%）
+  // ACTIVE_CHANCE: 0.02,              // 从密谋进入叛乱的每日概率（2%）
   
   // 干预成功率
   INVESTIGATE_SUCCESS_BASE: 0.6,    // 调查基础成功率

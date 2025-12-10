@@ -570,7 +570,15 @@ setDecrees(mergeDecreesWithConfig(data.decrees));
       setIsAutoSaveEnabled(data.isAutoSaveEnabled ?? true);
       setLastAutoSaveTime(data.lastAutoSaveTime || Date.now());
       setEventEffectSettings(data.eventEffectSettings || DEFAULT_EVENT_EFFECT_SETTINGS);
-      setActiveEventEffects(data.activeEventEffects || buildInitialEventEffects());
+      // 兼容旧存档：确保 activeEventEffects 中的字段都是数组
+      const loadedEffects = data.activeEventEffects || {};
+      setActiveEventEffects({
+        approval: Array.isArray(loadedEffects.approval) ? loadedEffects.approval : [],
+        stability: Array.isArray(loadedEffects.stability) ? loadedEffects.stability : [],
+        resourceDemand: Array.isArray(loadedEffects.resourceDemand) ? loadedEffects.resourceDemand : [],
+        stratumDemand: Array.isArray(loadedEffects.stratumDemand) ? loadedEffects.stratumDemand : [],
+        buildingProduction: Array.isArray(loadedEffects.buildingProduction) ? loadedEffects.buildingProduction : [],
+      });
       setRebellionStates(data.rebellionStates || {});
       setActionCooldowns(data.actionCooldowns || {});
       setActionUsage(data.actionUsage || {});

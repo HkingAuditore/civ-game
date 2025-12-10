@@ -16,18 +16,35 @@ export const STRATEGIC_ACTIONS = {
         id: 'crackdown',
         name: '镇压',
         icon: 'Shield',
-        description: '动用武力镇压叛乱组织，有效但会激化矛盾',
+        description: '动用武力镇压叛乱组织',
+        // 详细描述：用于UI展示完整说明
+        detailedDescription: '派遣军队强行镇压该阶层的叛乱组织。短期内可有效降低组织度，但会激化矛盾——军人和骑士阶层会因执行镇压任务而心生不满，持续的镇压还会导致军队陷入疲惫状态。',
+        // 效果预览：用于UI展示预期效果
+        effectPreview: {
+            organization: { value: -30, unit: '%', label: '组织度', type: 'immediate' },
+            approval: { value: -20, unit: '点', label: '满意度', type: 'immediate' },
+            stability: { value: -5, unit: '%', label: '稳定度', type: 'immediate' },
+        },
+        // 副作用列表：用于UI展示负面影响警告
+        sideEffects: [
+            { text: '军人、骑士满意度 -15', severity: 'warning', icon: 'Users' },
+            { text: '获得「镇压疲惫」：军事力量 -20%，持续30天', severity: 'danger', icon: 'AlertTriangle' },
+        ],
+        // 使用建议
+        usageHint: '当组织度接近爆发(90%+)时的紧急措施，用时间换空间。不宜频繁使用。',
+        // 适用阶段的中文名称
+        applicableStagesNames: ['不满', '动员中', '激进化', '起义'],
+        // 原有配置
         cost: {
             silver: 300,
         },
         militaryCost: {
-            // 军心动摇：军人和骑士满意度降低
             approvalPenalty: { soldier: -15, knight: -15 },
         },
         effects: {
-            organization: -30,  // 组织度强制降低30%
-            approval: -20,      // 满意度降低20
-            stability: -5,      // 稳定性降低5%
+            organization: -30,
+            approval: -20,
+            stability: -5,
         },
         debuffs: [{
             id: 'suppression_fatigue',
@@ -36,9 +53,9 @@ export const STRATEGIC_ACTIONS = {
             duration: 30,
             effects: { militaryPower: -0.20 },
         }],
-        cooldown: 30, // 30天冷却
+        cooldown: 30,
         requirements: {
-            minMilitaryPower: 0.3, // 需要至少30%军事力量
+            minMilitaryPower: 0.3,
         },
         applicableStages: ['grumbling', 'mobilizing', 'radicalizing', 'uprising'],
     },
@@ -52,20 +69,38 @@ export const STRATEGIC_ACTIONS = {
         name: '分化',
         icon: 'GitBranch',
         description: '挑起阶层矛盾，瓦解叛乱联盟',
+        detailedDescription: '通过挑起阶层间的矛盾来瓦解叛乱联盟。这一策略会严重打击目标阶层的组织度，但作为代价，其对立阶层（如工人↔资本家、农民↔地主）会被激怒，组织度反而上升。适合在多个阶层同时不满时使用。',
+        effectPreview: {
+            targetOrganization: { value: -40, unit: '%', label: '目标阶层组织度', type: 'immediate' },
+            rivalOrganization: { value: +20, unit: '%', label: '对立阶层组织度', type: 'immediate' },
+            rivalApproval: { value: -10, unit: '点', label: '对立阶层满意度', type: 'immediate' },
+        },
+        sideEffects: [
+            { text: '对立阶层组织度会上升', severity: 'warning', icon: 'TrendingUp' },
+            { text: '对立阶层满意度降低', severity: 'warning', icon: 'ThumbsDown' },
+        ],
+        usageHint: '当多个阶层同时不满时，用于瓦解联盟、各个击破。需要有对立阶层存在。',
+        applicableStagesNames: ['不满', '动员中', '激进化'],
+        // 对立阶层说明（用于UI提示）
+        rivalPairsHint: {
+            peasant: '地主', serf: '地主', worker: '资本家', miner: '资本家',
+            lumberjack: '地主', merchant: '官员', artisan: '商人', soldier: '官员',
+            knight: '官员', landowner: '农民', capitalist: '工人',
+        },
         cost: {
             culture: 200,
             silver: 500,
         },
         effects: {
-            targetOrganization: -40,  // 目标阶层组织度-40%
-            rivalOrganization: +20,   // 对立阶层组织度+20%
-            rivalApproval: -10,       // 对立阶层满意度-10
+            targetOrganization: -40,
+            rivalOrganization: +20,
+            rivalApproval: -10,
         },
-        cooldown: 60, // 60天冷却
+        cooldown: 60,
         requirements: {
-            hasRival: true, // 必须有对立阶层
+            hasRival: true,
         },
-        applicableStages: ['mobilizing', 'radicalizing'],
+        applicableStages: ['grumbling', 'mobilizing', 'radicalizing'], // 从30%就可用
     },
 
     /**
@@ -77,16 +112,29 @@ export const STRATEGIC_ACTIONS = {
         name: '收买',
         icon: 'Coins',
         description: '发放好处费安抚民心',
+        detailedDescription: '向该阶层发放"好处费"来临时安抚民心。费用按人口计算（每人10银币）。效果立竿见影但不持久，且每次使用后成本会增加50%。适合作为短期救急方案。',
+        effectPreview: {
+            approval: { value: +15, unit: '点', label: '满意度', duration: '持续30天' },
+            organizationPause: { value: 10, unit: '天', label: '组织度增长暂停', type: 'immediate' },
+        },
+        sideEffects: [
+            { text: '每次使用后成本增加50%', severity: 'info', icon: 'TrendingUp' },
+            { text: '效果仅持续30天', severity: 'info', icon: 'Clock' },
+        ],
+        usageHint: '短期救急方案，适合在等待长期措施生效期间使用。注意成本会逐次递增。',
+        applicableStagesNames: ['不满', '动员中', '激进化'],
+        // 成本计算说明
+        costCalculationHint: '人口 × 10 银币（每次使用后成本 +50%）',
         cost: {
-            silverPerPop: 10, // 银币 = 人口 × 10
+            silverPerPop: 10,
         },
         effects: {
-            approval: +15,          // 满意度+15（持续30天）
-            approvalDuration: 30,   // 效果持续时间
-            organizationPause: 10,  // 组织度停止增长10天
+            approval: +15,
+            approvalDuration: 30,
+            organizationPause: 10,
         },
-        cooldown: 15, // 15天冷却
-        costMultiplier: 1.5, // 每次使用后成本增加50%
+        cooldown: 15,
+        costMultiplier: 1.5,
         applicableStages: ['grumbling', 'mobilizing', 'radicalizing'],
     },
 
@@ -98,20 +146,32 @@ export const STRATEGIC_ACTIONS = {
         id: 'promise',
         name: '承诺',
         icon: 'FileText',
-        description: '做出改革承诺换取暂时和平，但需兑现',
-        cost: null, // 无直接消耗
+        description: '做出改革承诺换取暂时和平',
+        detailedDescription: '向该阶层做出改善处境的承诺，立即降低组织度20%。你需要在60天内将其满意度提升约10点，否则组织度将增加50%。',
+        effectPreview: {
+            organization: { value: -20, unit: '%', label: '组织度', type: 'immediate' },
+            task: { label: '生成承诺任务', duration: '60天内完成', type: 'special' },
+        },
+        sideEffects: [
+            { text: '需在60天内提升满意度约10点', severity: 'warning', icon: 'Target' },
+            { text: '失败惩罚：组织度 +50%', severity: 'danger', icon: 'AlertOctagon' },
+        ],
+        usageHint: '无需资源的应急手段，但需要在60天内改善该阶层处境。可通过减税、增加供给等方式提升满意度。',
+        applicableStagesNames: ['不满', '动员中', '激进化'],
+        cost: null,
         effects: {
-            organization: -20, // 组织度立即-20%
-            generateTask: true, // 生成限时任务
+            organization: -20,
+            generateTask: true,
         },
         failurePenalty: {
-            organization: +50, // 失败后组织度直接+50%
-            forcedUprising: true, // 强制进入起义状态
+            organization: +50, // 组织度直接增加50%
+            // forcedUprising 已移除，不再强制设为100%
         },
-        cooldown: 90, // 90天冷却
-        applicableStages: ['mobilizing', 'radicalizing'],
+        cooldown: 90,
+        applicableStages: ['grumbling', 'mobilizing', 'radicalizing'], // 从30%就可用
     },
 };
+
 
 // =========== 核心函数 ===========
 
@@ -304,7 +364,7 @@ export function executeStrategicAction(actionId, stratumKey, gameState) {
         result.effects.specialEffects.push({
             type: 'promiseTask',
             stratum: stratumKey,
-            deadline: 30, // 30天内完成
+            deadline: 60, // 60天内完成，与promiseTasks.js保持一致
             failurePenalty: action.failurePenalty,
         });
     }
@@ -343,12 +403,23 @@ export function getActionDescription(actionId, stratumKey, gameState) {
         name: action.name,
         icon: action.icon,
         description: action.description,
+        // 新增：详细信息字段
+        detailedDescription: action.detailedDescription,
+        effectPreview: action.effectPreview,
+        sideEffects: action.sideEffects,
+        usageHint: action.usageHint,
+        applicableStagesNames: action.applicableStagesNames,
+        costCalculationHint: action.costCalculationHint,
+        rivalPairsHint: action.rivalPairsHint,
+        failurePenalty: action.failurePenalty,
+        // 原有字段
         cost,
         effects: action.effects,
         cooldown: action.cooldown,
         available: availability.available,
         unavailableReason: availability.reason,
         debuffs: action.debuffs,
+        applicableStages: action.applicableStages,
     };
 }
 
