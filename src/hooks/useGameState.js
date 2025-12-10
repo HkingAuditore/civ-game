@@ -318,6 +318,11 @@ export const useGameState = () => {
   const [tradeStats, setTradeStats] = useState({ tradeTax: 0 }); // 每日贸易路线税收
 
   // ========== 和平协议状态 ==========
+  // ========== 策略行动状态 ==========
+  const [actionCooldowns, setActionCooldowns] = useState({});
+  const [actionUsage, setActionUsage] = useState({});
+  const [promiseTasks, setPromiseTasks] = useState([]);
+
   const [playerInstallmentPayment, setPlayerInstallmentPayment] = useState(null); // 玩家的分期支付协议
 
   // ========== 叛乱系统状态 ==========
@@ -460,6 +465,9 @@ export const useGameState = () => {
         eventEffectSettings,
         activeEventEffects,
         rebellionStates,
+        actionCooldowns,
+        actionUsage,
+        promiseTasks,
         autoSaveInterval,
         isAutoSaveEnabled,
         lastAutoSaveTime: nextLastAuto,
@@ -564,6 +572,9 @@ setDecrees(mergeDecreesWithConfig(data.decrees));
       setEventEffectSettings(data.eventEffectSettings || DEFAULT_EVENT_EFFECT_SETTINGS);
       setActiveEventEffects(data.activeEventEffects || buildInitialEventEffects());
       setRebellionStates(data.rebellionStates || {});
+      setActionCooldowns(data.actionCooldowns || {});
+      setActionUsage(data.actionUsage || {});
+      setPromiseTasks(data.promiseTasks || []);
       addLogEntry(source === 'auto' ? '📂 自动存档读取成功！' : '📂 读取存档成功！');
     } catch (error) {
       console.error('Load game failed:', error);
@@ -717,6 +728,14 @@ setDecrees(mergeDecreesWithConfig(data.decrees));
     setTradeRoutes,
     tradeStats,
     setTradeStats,
+    
+    // 策略行动
+    actionCooldowns,
+    setActionCooldowns,
+    actionUsage,
+    setActionUsage,
+    promiseTasks,
+    setPromiseTasks,
     
     // 教程系统
     showTutorial,

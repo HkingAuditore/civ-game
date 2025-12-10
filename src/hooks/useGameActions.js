@@ -14,8 +14,8 @@ import {
   createArrestResultEvent,
   createSuppressionResultEvent,
   createRebellionEndEvent,
-  REBELLION_PHASE,
 } from '../logic/rebellionSystem';
+import { getOrganizationStage, getPhaseFromStage } from '../logic/organizationSystem';
 
 /**
  * 游戏操作钩子
@@ -2252,16 +2252,30 @@ const handleEventOption = (eventId, option) => {
     // 处理行动结果
     const result = processRebellionAction(action, stratumKey, currentState, army, militaryStrength);
     
-    // 更新叛乱状态
-    if (result.newPhase !== currentState.phase) {
-      setRebellionStates(prev => ({
-        ...prev,
-        [stratumKey]: {
-          ...prev[stratumKey],
-          phase: result.newPhase,
-          lastPhaseChange: daysElapsed,
-        },
-      }));
+    // 更新组织度/阶段
+    if (result.updatedOrganization !== undefined || result.pauseDays > 0) {
+      setRebellionStates(prev => {
+        const prevState = prev?.[stratumKey] || {};
+        const nextOrg = result.updatedOrganization !== undefined
+          ? result.updatedOrganization
+          : (prevState.organization || 0);
+        const nextStage = getOrganizationStage(nextOrg);
+        const nextPhase = getPhaseFromStage(nextStage);
+        const phaseChanged = nextPhase !== prevState.phase;
+        return {
+          ...prev,
+          [stratumKey]: {
+            ...prevState,
+            organization: nextOrg,
+            stage: nextStage,
+            phase: nextPhase,
+            lastPhaseChange: phaseChanged ? daysElapsed : (prevState.lastPhaseChange || 0),
+            organizationPaused: result.pauseDays
+              ? Math.max(result.pauseDays, prevState.organizationPaused || 0)
+              : prevState.organizationPaused || 0,
+          },
+        };
+      });
     }
     
     // 根据行动类型创建结果事件
@@ -2398,14 +2412,22 @@ const handleEventOption = (eventId, option) => {
     setNations(prev => prev.filter(n => n.id !== nationId));
     
     // 重置叛乱状态
-    setRebellionStates(prev => ({
-      ...prev,
-      [stratumKey]: {
-        ...prev[stratumKey],
-        phase: REBELLION_PHASE.NONE,
-        dissatisfactionDays: 0,
-      },
-    }));
+    setRebellionStates(prev => {
+      const prevState = prev?.[stratumKey] || {};
+      const resetOrganization = playerVictory ? 15 : 40;
+      const stage = getOrganizationStage(resetOrganization);
+      return {
+        ...prev,
+        [stratumKey]: {
+          ...prevState,
+          organization: resetOrganization,
+          stage,
+          phase: getPhaseFromStage(stage),
+          dissatisfactionDays: 0,
+          organizationPaused: 0,
+        },
+      };
+    });
     
     // 如果玩家胜利，恢复部分人口
     if (playerVictory && rebelNation.population > 0) {

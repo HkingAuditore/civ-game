@@ -2,6 +2,7 @@
 // 追踪阶层不满状态，触发叛乱事件
 
 import { STRATA } from '../config/strata';
+import { getOrganizationStage, getPhaseFromStage, ORGANIZATION_STAGE } from './organizationSystem';
 import {
   REBELLION_PHASE,
   REBELLION_CONFIG,
@@ -201,102 +202,116 @@ export function isMilitaryRebelling(rebellionStates) {
  * @param {number} militaryStrength - 军事力量
  * @returns {Object} 处理结果
  */
-export function processRebellionAction(action, stratumKey, rebellionState, army, militaryStrength) {
+export function processRebellionAction(action, stratumKey, rebellionState = {}, army, militaryStrength) {
+  const clamp = (value) => Math.max(0, Math.min(100, value));
+  const baseOrganization = clamp(rebellionState.organization || 0);
+  const currentStage = rebellionState.stage || getOrganizationStage(baseOrganization);
+
   const result = {
     success: false,
-    newPhase: rebellionState.phase,
+    newPhase: getPhaseFromStage(currentStage),
     playerLosses: 0,
     rebelLosses: 0,
     message: '',
+    updatedOrganization: undefined,
+    pauseDays: 0,
   };
-  
-  // 计算军事力量加成
+
+  const applyOrganization = (value) => {
+    const next = clamp(value);
+    result.updatedOrganization = next;
+    const nextStage = getOrganizationStage(next);
+    result.newPhase = getPhaseFromStage(nextStage);
+  };
+
   const militaryBonus = Math.min(0.3, (militaryStrength || 0) * 0.1);
-  
+
   switch (action) {
-    case 'investigate':
-      // 调查行动
+    case 'investigate': {
       const investigateChance = REBELLION_CONFIG.INVESTIGATE_SUCCESS_BASE + militaryBonus;
       result.success = Math.random() < investigateChance;
       if (result.success) {
-        result.newPhase = REBELLION_PHASE.NONE;
-        result.message = '调查成功，叛乱思潮被压制';
+        applyOrganization(baseOrganization - 20);
+        result.pauseDays = 5;
+        result.message = '调查成功，组织度被压制。';
       } else {
-        result.message = '调查无果';
+        applyOrganization(baseOrganization + 5);
+        result.message = '调查无果，反而激怒了他们。';
       }
       break;
-      
-    case 'arrest':
-      // 拘捕行动
+    }
+    case 'arrest': {
       const arrestChance = REBELLION_CONFIG.ARREST_SUCCESS_BASE + militaryBonus;
       result.success = Math.random() < arrestChance;
       if (result.success) {
-        result.newPhase = REBELLION_PHASE.NONE;
-        result.message = '成功逮捕叛乱首领';
+        applyOrganization(baseOrganization - 35);
+        result.pauseDays = 7;
+        result.message = '成功逮捕核心成员。';
       } else {
         result.playerLosses = Math.floor(Math.random() * 5) + 1;
-        result.message = '拘捕失败，遭遇抵抗';
+        applyOrganization(baseOrganization + 10);
+        result.message = '逮捕失败，士气受挫。';
       }
       break;
-      
-    case 'suppress':
-      // 镇压行动
+    }
+    case 'suppress': {
       const suppressChance = REBELLION_CONFIG.SUPPRESS_SUCCESS_BASE + militaryBonus;
       result.success = Math.random() < suppressChance;
-      
-      // 计算损失
       const totalArmy = Object.values(army || {}).reduce((sum, c) => sum + (c || 0), 0);
-      const rebelStrength = rebellionState.influenceShare * 100;
-      
+      const rebelStrength = (rebellionState.influenceShare || 0) * 100;
       if (result.success) {
-        result.newPhase = REBELLION_PHASE.NONE;
         result.playerLosses = Math.floor(totalArmy * 0.1 * Math.random());
         result.rebelLosses = Math.floor(rebelStrength * (0.5 + Math.random() * 0.5));
-        result.message = '镇压成功';
+        const target = currentStage === ORGANIZATION_STAGE.UPRISING ? 30 : baseOrganization - 60;
+        applyOrganization(target);
+        result.message = '镇压成功，组织被打散。';
       } else {
         result.playerLosses = Math.floor(totalArmy * 0.2 * Math.random());
         result.rebelLosses = Math.floor(rebelStrength * 0.3 * Math.random());
-        result.message = '镇压失败';
+        applyOrganization(baseOrganization + 15);
+        result.message = '镇压失败，叛乱更甚。';
       }
       break;
-      
-    case 'appease':
-      // 安抚行动（在酝酿阶段有小概率成功）
-      if (rebellionState.phase === REBELLION_PHASE.BREWING && Math.random() < 0.3) {
+    }
+    case 'appease': {
+      if (currentStage === ORGANIZATION_STAGE.GRUMBLING && Math.random() < 0.4) {
         result.success = true;
-        result.newPhase = REBELLION_PHASE.NONE;
-        result.message = '安抚成功，紧张局势缓解';
+        applyOrganization(baseOrganization - 10);
+        result.message = '安抚奏效，紧张局势缓和。';
       } else {
-        result.message = '安抚效果有限';
+        applyOrganization(baseOrganization + 5);
+        result.message = '安抚效果有限。';
       }
       break;
-      
-    case 'negotiate':
-      // 谈判行动
-      if (rebellionState.phase === REBELLION_PHASE.PLOTTING && Math.random() < 0.4) {
+    }
+    case 'negotiate': {
+      if (Math.random() < 0.4) {
         result.success = true;
-        result.newPhase = REBELLION_PHASE.BREWING; // 降级到酝酿阶段
-        result.message = '谈判取得进展';
+        applyOrganization(baseOrganization - 15);
+        result.message = '谈判取得进展，组织暂时降温。';
       } else {
-        result.message = '谈判破裂';
+        result.message = '谈判破裂。';
       }
       break;
-      
-    case 'bribe':
-      // 收买内奸
+    }
+    case 'bribe': {
       if (Math.random() < 0.5) {
         result.success = true;
-        if (rebellionState.phase === REBELLION_PHASE.PLOTTING) {
-          result.newPhase = REBELLION_PHASE.BREWING;
-        }
-        result.message = '成功收买内奸，获得重要情报';
+        applyOrganization(baseOrganization - 10);
+        result.pauseDays = 5;
+        result.message = '贿赂奏效，组织暂时停滞。';
       } else {
-        result.message = '收买失败，对方警觉性很高';
+        applyOrganization(baseOrganization + 5);
+        result.message = '贿赂失败，对方提高警觉。';
       }
       break;
+    }
   }
-  
+
   return result;
+}
+
+export {
 }
 
 export {
