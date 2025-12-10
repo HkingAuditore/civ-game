@@ -565,6 +565,7 @@ export const simulateTick = ({
   buildings,
   population,
   popStructure: previousPopStructure = {},
+  birthAccumulator: previousBirthAccumulator = 0,
   decrees,
   gameSpeed,
   epoch,
@@ -3258,21 +3259,29 @@ export const simulateTick = ({
 
   const fertilityBaseRate = 0.0015;
   const fertilityBaselineRate = 0.0005;
+  const LOW_POP_THRESHOLD = 20;
+  const LOW_POP_GUARANTEE = 0.4;
   const wealthBaseline = 200;
   let fertilityBirths = 0;
-  const remainingCapacity = Math.max(0, totalMaxPop - nextPopulation);
+  let birthAccumulator = Math.max(0, previousBirthAccumulator || 0);
+  let remainingCapacity = Math.max(0, totalMaxPop - nextPopulation);
   if (remainingCapacity > 0) {
-    const baselineExpectedBirths = Math.max(0, population || 0) * fertilityBaselineRate;
-    let baselineBirths = Math.floor(baselineExpectedBirths);
-    if (Math.random() < (baselineExpectedBirths - baselineBirths)) {
-      baselineBirths += 1;
+    const baselineContribution = Math.max(0, population || 0) * fertilityBaselineRate;
+    birthAccumulator += baselineContribution;
+    if (population < LOW_POP_THRESHOLD) {
+      const missingRatio = Math.max(0, (LOW_POP_THRESHOLD - population) / LOW_POP_THRESHOLD);
+      birthAccumulator += LOW_POP_GUARANTEE * missingRatio;
     }
-    baselineBirths = Math.min(baselineBirths, remainingCapacity);
-    fertilityBirths += Math.max(0, baselineBirths);
+    const baselineBirths = Math.min(remainingCapacity, Math.floor(birthAccumulator));
+    if (baselineBirths > 0) {
+      fertilityBirths += baselineBirths;
+      birthAccumulator -= baselineBirths;
+      remainingCapacity -= baselineBirths;
+    }
   }
-  if (remainingCapacity > fertilityBirths) {
+  if (remainingCapacity > 0) {
     Object.keys(STRATA).forEach(key => {
-      if (fertilityBirths >= remainingCapacity) return;
+      if (remainingCapacity <= 0) return;
       const count = popStructure[key] || 0;
       if (count <= 0) return;
       const approval = classApproval[key] ?? 50;
@@ -3292,9 +3301,10 @@ export const simulateTick = ({
         births += 1;
       }
       if (births <= 0) return;
-      births = Math.min(births, remainingCapacity - fertilityBirths);
+      births = Math.min(births, remainingCapacity);
       if (births <= 0) return;
       fertilityBirths += births;
+      remainingCapacity -= births;
     });
   }
   if (fertilityBirths > 0) {
@@ -3936,6 +3946,7 @@ export const simulateTick = ({
     maxPop: totalMaxPop,
     militaryCapacity, // 新增：军事容量
     population: nextPopulation,
+    birthAccumulator,
     classApproval,
     classInfluence,
     classWealth: classWealthResult,

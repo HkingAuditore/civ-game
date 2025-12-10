@@ -391,6 +391,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
     population,
     popStructure,
     setPopulation,
+    birthAccumulator,
+    setBirthAccumulator,
     epoch,
     techsUnlocked,
     decrees,
@@ -472,6 +474,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
     buildings,
     population,
     popStructure,
+    birthAccumulator,
     maxPopBonus,
     epoch,
     techsUnlocked,
@@ -506,6 +509,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
     rebellionStates,
     classInfluence,
     totalInfluence,
+    birthAccumulator,
   });
 
   const saveGameRef = useRef(gameState.saveGame);
@@ -554,8 +558,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
       rebellionStates,
       classInfluence,
       totalInfluence,
+      birthAccumulator,
     };
-  }, [resources, market, buildings, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, tradeStats, actions, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence]);
+  }, [resources, market, buildings, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, tradeStats, actions, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator]);
 
   // 游戏核心循环
   useEffect(() => {
@@ -1020,6 +1025,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
       // 更新人口（如果有变化）
       if (result.population !== current.population) {
         setPopulation(result.population);
+      }
+      if (typeof result.birthAccumulator === 'number') {
+        setBirthAccumulator(result.birthAccumulator);
       }
 
       // 添加新日志

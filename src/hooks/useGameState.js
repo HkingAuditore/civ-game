@@ -246,6 +246,7 @@ export const useGameState = () => {
   const [population, setPopulation] = useState(5);
   const [popStructure, setPopStructure] = useState({});
   const [maxPop, setMaxPop] = useState(10);
+  const [birthAccumulator, setBirthAccumulator] = useState(0);
   // 额外人口上限加成（如通过割地获得），不会被每日模拟覆盖
   const [maxPopBonus, setMaxPopBonus] = useState(0);
 
@@ -406,6 +407,7 @@ export const useGameState = () => {
         popStructure,
         maxPop,
         maxPopBonus,
+        birthAccumulator,
         buildings,
         techsUnlocked,
         epoch,
@@ -498,6 +500,7 @@ export const useGameState = () => {
       setPopStructure(data.popStructure || {});
       setMaxPop(data.maxPop ?? 10);
       setMaxPopBonus(data.maxPopBonus || 0);
+      setBirthAccumulator(data.birthAccumulator || 0);
       setBuildings(data.buildings || {});
       setTechsUnlocked(data.techsUnlocked || []);
       setEpoch(data.epoch ?? 0);
@@ -601,6 +604,8 @@ setDecrees(mergeDecreesWithConfig(data.decrees));
     setMaxPop,
     maxPopBonus,
     setMaxPopBonus,
+    birthAccumulator,
+    setBirthAccumulator,
     
     // 建筑与科技
     buildings,
