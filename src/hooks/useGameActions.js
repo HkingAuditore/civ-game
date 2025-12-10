@@ -1634,6 +1634,13 @@ const handleEventOption = (eventId, option) => {
 		if (typeof value !== 'number' || Number.isNaN(value)) return fallback;
 		return Math.min(0.95, Math.max(0, value));
 	};
+	const cloneEffectState = (prev = {}) => ({
+		approval: [...(prev.approval || [])],
+		stability: [...(prev.stability || [])],
+		resourceDemand: [...(prev.resourceDemand || [])],
+		stratumDemand: [...(prev.stratumDemand || [])],
+		buildingProduction: [...(prev.buildingProduction || [])],
+	});
 
 	const registerApprovalEffect = (changes = {}) => {
 		if (!changes || typeof setActiveEventEffects !== 'function') return;
@@ -1643,10 +1650,7 @@ const handleEventOption = (eventId, option) => {
 		const decayRate = clampDecay(approvalSettings.decayRate ?? 0.04, 0.04);
 		const timestamp = Date.now();
 		setActiveEventEffects(prev => {
-			const next = {
-				approval: [...(prev?.approval || [])],
-				stability: [...(prev?.stability || [])],
-			};
+			const next = cloneEffectState(prev);
 			entries.forEach(([stratum, value]) => {
 				next.approval.push({
 					id: `approval_${timestamp}_${stratum}_${Math.random()}`,
@@ -1665,18 +1669,16 @@ const handleEventOption = (eventId, option) => {
 		const duration = Math.max(1, stabilitySettings.duration || 30);
 		const decayRate = clampDecay(stabilitySettings.decayRate ?? 0.04, 0.04);
 		const timestamp = Date.now();
-		setActiveEventEffects(prev => ({
-			approval: [...(prev?.approval || [])],
-			stability: [
-				...(prev?.stability || []),
-				{
-					id: `stability_${timestamp}_${Math.random()}`,
-					currentValue: value,
-					remainingDays: duration,
-					decayRate,
-				},
-			],
-		}));
+		setActiveEventEffects(prev => {
+			const next = cloneEffectState(prev);
+			next.stability.push({
+				id: `stability_${timestamp}_${Math.random()}`,
+				currentValue: value,
+				remainingDays: duration,
+				decayRate,
+			});
+			return next;
+		});
 	};
 
 	// Economic effect settings

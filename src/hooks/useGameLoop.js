@@ -651,7 +651,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
       const hadActiveEffects =
         (current.activeEventEffects?.approval?.length || 0) > 0 ||
-        (current.activeEventEffects?.stability?.length || 0) > 0;
+        (current.activeEventEffects?.stability?.length || 0) > 0 ||
+        (current.activeEventEffects?.resourceDemand?.length || 0) > 0 ||
+        (current.activeEventEffects?.stratumDemand?.length || 0) > 0 ||
+        (current.activeEventEffects?.buildingProduction?.length || 0) > 0;
 
       const maintenance = calculateArmyMaintenance(army);
       const adjustedResources = { ...result.resources };
@@ -899,6 +902,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
             const stratumPop = current.popStructure?.[stratumKey] || 0;
             const stratumWealth = current.classWealth?.[stratumKey] || 0;
             const stratumInfluence = updatedRebellionStates[stratumKey].influenceShare;
+            const rebelPopLoss = Math.floor(stratumPop * 0.8);
             
             const rebelNation = createRebelNation(
               stratumKey,
@@ -913,8 +917,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
             // 从玩家处扣除相应阶层的人口
             setPopStructure(prev => ({
               ...prev,
-              [stratumKey]: Math.max(0, (prev[stratumKey] || 0) - Math.floor(stratumPop * 0.8)),
+              [stratumKey]: Math.max(0, (prev[stratumKey] || 0) - rebelPopLoss),
             }));
+            setPopulation(prev => Math.max(0, prev - rebelPopLoss));
             
             event = createActiveRebellionEvent(
               stratumKey,

@@ -3247,13 +3247,40 @@ export const simulateTick = ({
     });
   });
 
-  if ((res.food || 0) > population * 1.5 && population < totalMaxPop) {
-    const growthBonus = Math.max(0, (stabilityValue - 50) / 150);
-    const threshold = Math.max(0.15, 0.5 - Math.min(0.35, growthBonus));
-    if (Math.random() > threshold) {
-      const growthAmount = Math.min(3, Math.max(1, Math.floor(population * 0.02)));
-      nextPopulation = Math.min(totalMaxPop, nextPopulation + growthAmount);
-    }
+  const fertilityBaseRate = 0.0015;
+  const wealthBaseline = 200;
+  let fertilityBirths = 0;
+  const remainingCapacity = Math.max(0, totalMaxPop - nextPopulation);
+  if (remainingCapacity > 0) {
+    Object.keys(STRATA).forEach(key => {
+      if (fertilityBirths >= remainingCapacity) return;
+      const count = popStructure[key] || 0;
+      if (count <= 0) return;
+      const approval = classApproval[key] ?? 50;
+      const approvalFactor = Math.max(0, (approval - 25) / 75);
+      if (approvalFactor <= 0) return;
+      const totalWealthForStratum = classWealthResult[key] || 0;
+      const perCapitaWealth = count > 0 ? totalWealthForStratum / count : 0;
+      const wealthFactor = Math.max(0.3, Math.min(2, perCapitaWealth / wealthBaseline));
+      const birthRate = fertilityBaseRate * approvalFactor * wealthFactor;
+      if (birthRate <= 0) return;
+      let expectedBirths = count * birthRate;
+      if (expectedBirths <= 0) return;
+      const guaranteed = Math.floor(expectedBirths);
+      let births = guaranteed;
+      const fractional = expectedBirths - guaranteed;
+      if (Math.random() < fractional) {
+        births += 1;
+      }
+      if (births <= 0) return;
+      births = Math.min(births, remainingCapacity - fertilityBirths);
+      if (births <= 0) return;
+      fertilityBirths += births;
+    });
+  }
+  if (fertilityBirths > 0) {
+    popStructure.unemployed = (popStructure.unemployed || 0) + fertilityBirths;
+    nextPopulation = Math.min(totalMaxPop, nextPopulation + fertilityBirths);
   }
   if ((res.food || 0) <= 0) {
     res.food = 0;

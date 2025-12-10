@@ -239,6 +239,7 @@ export const ResourceDetailModal = ({
   onClose,
   taxPolicies,
   onUpdateTaxPolicies,
+  activeDebuffs = [],
 }) => {
   const [activeTab, setActiveTab] = useState(TAB_OPTIONS[0].id);
   const [isAnimatingOut, setIsAnimatingOut] = useState(false);
@@ -301,6 +302,47 @@ export const ResourceDetailModal = ({
   }, [market, resourceKey]);
 
   const chainFlows = useMemo(() => buildChainFlows(resourceKey), [resourceKey]);
+
+  const stratumEfficiencyWarnings = useMemo(() => {
+    if (!Array.isArray(activeDebuffs) || !activeDebuffs.length) return [];
+    const shortageMap = market?.needsShortages || {};
+    const penaltyFields = ['production', 'industryBonus', 'efficiency'];
+    return activeDebuffs
+      .map(effect => {
+        if (!effect || !effect.class) return null;
+        const penaltyEntry = penaltyFields
+          .map(field => ({ field, value: effect[field] }))
+          .filter(item => typeof item.value === 'number' && item.value < 0)
+          .sort((a, b) => a.value - b.value)[0];
+        if (!penaltyEntry) return null;
+        const stratum = STRATA[effect.class] || {};
+        const shortagesRaw = shortageMap[effect.class] || [];
+        const shortages = shortagesRaw
+          .map(entry => {
+            if (!entry) return null;
+            const parsed = typeof entry === 'string' ? { resource: entry, reason: 'outOfStock' } : entry;
+            if (!parsed.resource) return null;
+            const resName = RESOURCES[parsed.resource]?.name || parsed.resource;
+            const reason =
+              parsed.reason === 'unaffordable'
+                ? '买不起'
+                : parsed.reason === 'both'
+                  ? '缺货/买不起'
+                  : '缺货';
+            return `${resName}(${reason})`;
+          })
+          .filter(Boolean);
+        return {
+          key: effect.class,
+          name: stratum.name || effect.class,
+          icon: stratum.icon || 'Users',
+          desc: effect.desc,
+          penaltyPercent: Math.round(penaltyEntry.value * 100),
+          shortages,
+        };
+      })
+      .filter(Boolean);
+  }, [activeDebuffs, market]);
 
   const {
     stratumDemand,
@@ -1101,6 +1143,42 @@ export const ResourceDetailModal = ({
                       <p className="text-xs lg:text-sm text-gray-500">暂无建筑供给</p>
                     )}
                   </div>
+                  {stratumEfficiencyWarnings.length > 0 && (
+                    <div className="mt-3 rounded-lg lg:rounded-xl border border-amber-600/30 bg-amber-500/5 p-2.5 lg:p-4">
+                      <div className="flex items-center gap-2 text-amber-200 text-[10px] lg:text-xs font-semibold">
+                        <Icon name="AlertTriangle" size={14} className="text-amber-300" />
+                        劳动效率预警
+                      </div>
+                      <div className="mt-2 space-y-2">
+                        {stratumEfficiencyWarnings.map(warning => (
+                          <div key={warning.key} className="flex items-start justify-between gap-2">
+                            <div className="flex items-start gap-2">
+                              <div className="rounded-lg bg-amber-400/10 border border-amber-400/30 p-1.5">
+                                <Icon name={warning.icon} size={14} className="text-amber-200" />
+                              </div>
+                              <div>
+                                <p className="text-xs lg:text-sm font-semibold text-amber-100">{warning.name}</p>
+                                {warning.desc && (
+                                  <p className="text-[10px] text-gray-400">{warning.desc}</p>
+                                )}
+                                {warning.shortages.length > 0 && (
+                                  <p className="text-[10px] text-amber-200/80 mt-0.5">
+                                    需求缺口：{warning.shortages.join('、')}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm lg:text-base font-semibold text-amber-200">
+                                {warning.penaltyPercent}%
+                              </p>
+                              <p className="text-[9px] text-gray-500">生产惩罚</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <div className="mt-2 lg:mt-4 rounded-lg lg:rounded-xl border border-gray-800/60 bg-gray-900/60 p-2.5 lg:p-4 text-xs lg:text-sm text-gray-400">
                     理论产能 {formatAmount(totalActualSupply)} · 理论需求 {formatAmount(totalActualDemand)} · 理论缺口{' '}
                     {formatAmount(Math.max(0, totalActualDemand - totalActualSupply))}

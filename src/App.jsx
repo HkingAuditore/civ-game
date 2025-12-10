@@ -922,18 +922,19 @@ function GameApp({ gameState }) {
       {/* 资源详情模态框 */}
       {gameState.resourceDetailView && (
         <ResourceDetailModal
-          resourceKey={gameState.resourceDetailView}
-          resources={gameState.resources}
-          market={gameState.market}
-          buildings={gameState.buildings}
-          popStructure={gameState.popStructure}
-          wealth={gameState.classWealth}
-          army={gameState.army}
-          history={gameState.history}
-          onClose={() => gameState.setResourceDetailView(null)}
-          taxPolicies={gameState.taxPolicies}
-          onUpdateTaxPolicies={gameState.setTaxPolicies}
-        />
+            resourceKey={gameState.resourceDetailView}
+            resources={gameState.resources}
+            market={gameState.market}
+            buildings={gameState.buildings}
+            popStructure={gameState.popStructure}
+            wealth={gameState.classWealth}
+            army={gameState.army}
+            history={gameState.history}
+            onClose={() => gameState.setResourceDetailView(null)}
+            taxPolicies={gameState.taxPolicies}
+            onUpdateTaxPolicies={gameState.setTaxPolicies}
+            activeDebuffs={gameState.activeDebuffs}
+          />
       )}
 
       {gameState.populationDetailView && (
