@@ -2,7 +2,7 @@
 // 包含所有游戏操作函数，如建造建筑、研究科技、升级时代等
 
 import { useState, useEffect } from 'react';
-import { BUILDINGS, EPOCHS, RESOURCES, TECHS, MILITARY_ACTIONS, UNIT_TYPES, EVENTS, getRandomEvent, createWarDeclarationEvent, createGiftEvent, createPeaceRequestEvent, createEnemyPeaceRequestEvent, createPlayerPeaceProposalEvent, createBattleEvent, STRATA } from '../config';
+import { BUILDINGS, EPOCHS, RESOURCES, TECHS, MILITARY_ACTIONS, UNIT_TYPES, EVENTS, getRandomEvent, createWarDeclarationEvent, createGiftEvent, createPeaceRequestEvent, createEnemyPeaceRequestEvent, createPlayerPeaceProposalEvent, createBattleEvent, createAllianceRequestEvent, createAllianceProposalResultEvent, createAllianceBreakEvent, STRATA } from '../config';
 import { calculateArmyCapacityNeed, calculateArmyPopulation, simulateBattle, calculateBattlePower } from '../config';
 import { calculateForeignPrice, calculateTradeStatus } from '../utils/foreignTrade';
 import { generateSound, SOUND_TYPES } from '../config/sounds';
@@ -948,19 +948,17 @@ export const useGameActions = (gameState, addLog) => {
                     return;
                 }
 
-                // 检查是否为同盟关系（关系 >= 80）
-                const targetRelation = targetNation.relation || 0;
-                if (targetRelation >= 80) {
-                    addLog(`无法宣战：${targetNation.name} 是你的盟友（关系 ${targetRelation}）。同盟国家之间不能发生战争！`);
+                // 检查是否为正式同盟关系
+                if (targetNation.alliedWithPlayer === true) {
+                    addLog(`无法宣战：${targetNation.name} 是你的正式盟友。必须先解除同盟才能宣战！`);
                     return;
                 }
 
-                // 找出目标国家的盟友（关系 >= 80），这些盟友也会被卷入战争
+                // 找出目标国家的正式盟友，这些盟友也会被卷入战争
                 const targetAllies = nations.filter(n => {
                     if (n.id === nationId || n.id === targetNation.id) return false;
-                    // 检查目标国家与其他国家的外交关系
-                    const foreignRelation = targetNation.foreignRelations?.[n.id] ?? 50;
-                    return foreignRelation >= 80;
+                    // 检查目标国家的正式联盟
+                    return (targetNation.allies || []).includes(n.id) || (n.allies || []).includes(targetNation.id);
                 });
 
                 // 对目标国家宣战
@@ -1039,6 +1037,73 @@ export const useGameActions = (gameState, addLog) => {
                 break;
             }
 
+            case 'propose_alliance': {
+                // 玩家请求与目标国结盟
+                if (targetNation.isAtWar) {
+                    addLog(`无法请求结盟：${targetNation.name} 正与你交战。`);
+                    return;
+                }
+                if (targetNation.alliedWithPlayer === true) {
+                    addLog(`${targetNation.name} 已经是你的盟友了。`);
+                    return;
+                }
+                const targetRelation = targetNation.relation || 0;
+                if (targetRelation < 60) {
+                    addLog(`关系不足：需要与 ${targetNation.name} 的关系至少达到60才能请求结盟（当前：${Math.round(targetRelation)}）。`);
+                    return;
+                }
+
+                // 计算接受概率：基于关系（60关系=30%，100关系=90%）
+                const acceptChance = 0.3 + (targetRelation - 60) * 0.015;
+                const aggression = targetNation.aggression ?? 0.3;
+                // 高侵略性国家不太愿意结盟
+                const finalChance = acceptChance * (1 - aggression * 0.5);
+
+                const accepted = Math.random() < finalChance;
+
+                if (accepted) {
+                    // 结盟成功
+                    setNations(prev => prev.map(n =>
+                        n.id === nationId
+                            ? { ...n, alliedWithPlayer: true, relation: Math.min(100, (n.relation || 0) + 15) }
+                            : n
+                    ));
+                    const resultEvent = createAllianceProposalResultEvent(targetNation, true, () => {});
+                    triggerDiplomaticEvent(resultEvent);
+                    addLog(`🤝 ${targetNation.name} 接受了你的结盟请求！你们正式成为盟友！`);
+                } else {
+                    // 结盟被拒绝
+                    setNations(prev => prev.map(n =>
+                        n.id === nationId
+                            ? { ...n, relation: Math.max(0, (n.relation || 0) - 5) }
+                            : n
+                    ));
+                    const resultEvent = createAllianceProposalResultEvent(targetNation, false, () => {});
+                    triggerDiplomaticEvent(resultEvent);
+                    addLog(`${targetNation.name} 拒绝了你的结盟请求。`);
+                }
+                break;
+            }
+
+            case 'break_alliance': {
+                // 玩家主动解除与目标国的联盟
+                if (targetNation.alliedWithPlayer !== true) {
+                    addLog(`${targetNation.name} 并非你的盟友。`);
+                    return;
+                }
+
+                setNations(prev => prev.map(n =>
+                    n.id === nationId
+                        ? { ...n, alliedWithPlayer: false, relation: Math.max(0, (n.relation || 0) - 25) }
+                        : n
+                ));
+
+                const breakEvent = createAllianceBreakEvent(targetNation, 'player_break', () => {});
+                triggerDiplomaticEvent(breakEvent);
+                addLog(`你主动解除了与 ${targetNation.name} 的同盟关系。两国关系有所下降。`);
+                break;
+            }
+
             default:
                 break;
         }
@@ -1064,7 +1129,7 @@ export const useGameActions = (gameState, addLog) => {
             return;
         }
 
-        const peaceTreatyUntil = daysElapsed + 365; // 和平协议持续一年
+        const peaceTreatyUntil = daysElapsed + 730; // 和平协议持续两年
 
         if (proposalType === 'installment') {
             // 分期支付赔款
@@ -1188,7 +1253,7 @@ export const useGameActions = (gameState, addLog) => {
         const warScore = targetNation.warScore || 0;
         const warDuration = targetNation.warDuration || 0;
         const enemyLosses = targetNation.enemyLosses || 0;
-        const peaceTreatyUntil = daysElapsed + 365; // 和平协议持续一年
+        const peaceTreatyUntil = daysElapsed + 730; // 和平协议持续两年
 
         // 根据提议类型处理
         if (proposalType === 'demand_high') {

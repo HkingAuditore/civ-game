@@ -5,11 +5,56 @@ import React from 'react';
 import { Icon } from '../common/UIComponents';
 
 /**
+ * Transform technical logs to human-readable format
+ * @param {string} log - Raw log entry
+ * @returns {string} - Human-readable log entry
+ */
+const transformLog = (log) => {
+  if (typeof log !== 'string') return log;
+  
+  // Transform RAID_EVENT logs
+  if (log.includes('❗RAID_EVENT❗')) {
+    try {
+      const jsonStr = log.replace('❗RAID_EVENT❗', '');
+      const raidData = JSON.parse(jsonStr);
+      if (raidData.victory) {
+        return `⚔️ 成功击退了 ${raidData.nationName} 的突袭！`;
+      } else {
+        const losses = [];
+        if (raidData.foodLoss > 0) losses.push(`粮食 -${raidData.foodLoss}`);
+        if (raidData.silverLoss > 0) losses.push(`银币 -${raidData.silverLoss}`);
+        if (raidData.popLoss > 0) losses.push(`人口 -${raidData.popLoss}`);
+        const lossText = losses.length > 0 ? `（${losses.join('，')}）` : '';
+        return `🔥 遭到 ${raidData.nationName} 的突袭！${lossText}`;
+      }
+    } catch (e) {
+      return `⚔️ 发生了一场突袭！`;
+    }
+  }
+  
+  // Transform WAR_DECLARATION_EVENT logs
+  if (log.includes('WAR_DECLARATION_EVENT:')) {
+    try {
+      const jsonStr = log.replace('WAR_DECLARATION_EVENT:', '');
+      const warData = JSON.parse(jsonStr);
+      return `⚔️ ${warData.nationName} 对你宣战！`;
+    } catch (e) {
+      return `⚔️ 有国家对你宣战！`;
+    }
+  }
+  
+  return log;
+};
+
+/**
  * 日志面板组件
  * 显示游戏事件日志
  * @param {Array} logs - 日志数组
  */
 export const LogPanel = ({ logs }) => {
+  // Transform technical logs to human-readable format
+  const displayLogs = logs.map(transformLog);
+  
   return (
     <div className="glass-epic p-3 rounded-2xl border border-ancient-gold/20 shadow-epic relative overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-br from-ancient-ink/60 via-ancient-stone/30 to-ancient-ink/60 opacity-60" />
@@ -31,17 +76,17 @@ export const LogPanel = ({ logs }) => {
             事件日志
           </h3>
           <span className="text-[11px] text-ancient-stone opacity-80">
-            共 {logs.length} 条
+            共 {displayLogs.length} 条
           </span>
         </div>
 
         <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-ancient-gold/40">
-          {logs.length === 0 ? (
+          {displayLogs.length === 0 ? (
             <p className="text-xs text-ancient-stone opacity-70 italic text-center py-4">
               暂无事件
             </p>
           ) : (
-            logs.map((log, idx) => (
+            displayLogs.map((log, idx) => (
               <div
                 key={idx}
                 className="text-xs text-ancient-parchment glass-ancient border border-ancient-gold/10 rounded-lg px-2 py-1.5 hover:border-ancient-gold/30 transition-all animate-fade-in"

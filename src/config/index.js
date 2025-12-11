@@ -19,10 +19,14 @@ export {
   getRandomEvent,
   createWarDeclarationEvent,
   createGiftEvent,
+  createAIRequestEvent,
   createPeaceRequestEvent,
   createEnemyPeaceRequestEvent,
   createPlayerPeaceProposalEvent,
   createBattleEvent,
+  createAllianceRequestEvent,
+  createAllianceProposalResultEvent,
+  createAllianceBreakEvent,
 } from './events';
 
 // 军事单位系统

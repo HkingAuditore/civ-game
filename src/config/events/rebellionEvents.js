@@ -412,16 +412,51 @@ export function createSuppressionResultEvent(stratumKey, success, playerLosses, 
 
 /**
  * 创建叛乱政府国家对象
+ * @param {string} stratumKey - 阶层键
+ * @param {number} stratumPop - 阶层人口
+ * @param {number} stratumWealth - 阶层财富
+ * @param {number} stratumInfluence - 阶层影响力占比 (0-1)
+ * @param {number|null} rebelPopulationOverride - 可选的叛军人口覆盖值
+ * @param {Object} resourceLoot - 可选的资源掠夺数据 { resources: {}, marketPrices: {} }
  */
-export function createRebelNation(stratumKey, stratumPop, stratumWealth, stratumInfluence, rebelPopulationOverride = null) {
+export function createRebelNation(stratumKey, stratumPop, stratumWealth, stratumInfluence, rebelPopulationOverride = null, resourceLoot = null) {
     const stratumName = getStratumName(stratumKey);
     const rebelId = `rebel_${stratumKey}_${Date.now()}`;
 
     // 叛军实力基于该阶层的人口、财富和影响力（默认带走80%，可使用覆盖值）
     const population = rebelPopulationOverride ?? Math.max(10, Math.floor(stratumPop * 0.8));
-    const wealth = Math.max(REBELLION_CONFIG.REBEL_NATION_BASE_WEALTH, Math.floor(stratumWealth * 0.5));
 
-    return {
+    // 基础财富：阶层财富的50%
+    let baseWealth = Math.floor(stratumWealth * 0.5);
+
+    // 资源掠夺：按影响力占比从国内市场掠夺资源并折算成财富
+    let lootedResourcesValue = 0;
+    const lootedResources = {};
+
+    if (resourceLoot && resourceLoot.resources && resourceLoot.marketPrices) {
+        const { resources, marketPrices } = resourceLoot;
+        // 按影响力占比掠夺资源（最高30%的资源，受影响力影响）
+        const lootRatio = Math.min(0.3, stratumInfluence * 0.5); // 影响力50%时掠夺15%资源
+
+        Object.keys(resources).forEach(resKey => {
+            // 跳过虚拟资源和银币
+            if (resKey === 'silver' || resKey === 'science' || resKey === 'culture') return;
+            const amount = resources[resKey] || 0;
+            if (amount <= 0) return;
+
+            const lootAmount = Math.floor(amount * lootRatio);
+            if (lootAmount > 0) {
+                const price = marketPrices[resKey] || 1;
+                lootedResourcesValue += lootAmount * price;
+                lootedResources[resKey] = lootAmount;
+            }
+        });
+    }
+
+    // 最终财富 = 基础财富 + 掠夺资源价值，至少为基础值300
+    const wealth = Math.max(REBELLION_CONFIG.REBEL_NATION_BASE_WEALTH, baseWealth + lootedResourcesValue);
+
+    const rebelNationData = {
         id: rebelId,
         name: `${stratumName}叛乱政府`,
         desc: `由不满的${stratumName}阶层组建的叛乱政府`,
@@ -460,6 +495,13 @@ export function createRebelNation(stratumKey, stratumPop, stratumWealth, stratum
         warStartDay: null,
         foreignWars: {},
     };
+
+    // 返回叛军政府和被掠夺的资源信息
+    return {
+        nation: rebelNationData,
+        lootedResources, // 被掠夺的资源 { resourceKey: amount }
+        lootedValue: lootedResourcesValue, // 被掠夺资源的总价值
+    };
 }
 
 /**
@@ -478,18 +520,20 @@ export function createRebellionEndEvent(rebelNation, victory, callback) {
             options: [{
                 id: 'celebrate',
                 text: '庆祝胜利',
-                description: '举行盛大庆典，提振民心',
+                description: '花费银币举行盛大庆典，大幅提振民心士气',
                 effects: {
                     stability: 15,
-                    resources: { culture: 50 },
+                    resources: { silver: -200, culture: 80 },
                 },
                 callback: () => callback('end_celebrate', rebelNation),
             }, {
                 id: 'rebuild',
                 text: '着手重建',
-                description: '低调处理，专注于恢复生产',
+                description: '低调处理，缴获叛军财物，专注恢复生产',
                 effects: {
-                    stability: 5,
+                    stability: 8,
+                    resources: { silver: 150 },
+                    buildingProductionMod: { all: 0.1 }, // 全局建筑产出+10%
                 },
                 callback: () => callback('end_rebuild', rebelNation),
             }],

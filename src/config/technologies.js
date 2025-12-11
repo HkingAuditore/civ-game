@@ -165,15 +165,6 @@ export const TECHS = [
     effects: { buildings: { loom_house: 0.10 } },
   },
 
-  {
-    id: 'ritual_priesthood',
-    name: "仪式司祭",
-    desc: "礼拜设施文化产出提升 15%。",
-    cost: { science: 340 },
-    epoch: 3,
-    effects: { buildings: { church: 0.15 } },
-  },
-
   // 古典时代
   {
     id: 'papyrus_cultivation',
@@ -268,7 +259,7 @@ export const TECHS = [
   {
     id: 'basic_weaving',
     name: "织布机",
-    desc: "新型的防治工具。织布坊效率 +25%。",
+    desc: "新型的纺织工具。织布坊效率 +25%。",
     cost: { science: 3150 },
     epoch: 3,
     effects: { buildings: { loom_house: 0.25 } },

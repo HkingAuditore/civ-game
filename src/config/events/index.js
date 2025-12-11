@@ -8,25 +8,29 @@ import { economicEvents as ECONOMIC_EVENTS } from './economicEvents';
 import { STATIC_DIPLOMATIC_EVENTS } from './staticDiplomaticEvents';
 import { canTriggerEvent, getRandomEvent as getRandomEventFromList } from './eventUtils';
 import {
-  createWarDeclarationEvent,
-  createGiftEvent,
-  createEnemyPeaceRequestEvent,
-  createPlayerPeaceProposalEvent,
-  createPeaceRequestEvent,
-  createBattleEvent,
+    createWarDeclarationEvent,
+    createGiftEvent,
+    createAIRequestEvent,
+    createEnemyPeaceRequestEvent,
+    createPlayerPeaceProposalEvent,
+    createPeaceRequestEvent,
+    createBattleEvent,
+    createAllianceRequestEvent,
+    createAllianceProposalResultEvent,
+    createAllianceBreakEvent,
 } from './diplomaticEvents';
 // 叛乱事件系统
 import {
-  REBELLION_PHASE,
-  REBELLION_CONFIG,
-  createBrewingEvent,
-  createPlottingEvent,
-  createActiveRebellionEvent,
-  createInvestigationResultEvent,
-  createArrestResultEvent,
-  createSuppressionResultEvent,
-  createRebelNation,
-  createRebellionEndEvent,
+    REBELLION_PHASE,
+    REBELLION_CONFIG,
+    createBrewingEvent,
+    createPlottingEvent,
+    createActiveRebellionEvent,
+    createInvestigationResultEvent,
+    createArrestResultEvent,
+    createSuppressionResultEvent,
+    createRebelNation,
+    createRebellionEndEvent,
 } from './rebellionEvents';
 
 // Combine all events into a single array
@@ -37,17 +41,21 @@ export { canTriggerEvent };
 
 // Export getRandomEvent that uses the combined EVENTS array
 export function getRandomEvent(gameState) {
-  return getRandomEventFromList(gameState, EVENTS);
+    return getRandomEventFromList(gameState, EVENTS);
 }
 
 // Re-export diplomatic event creators
 export {
-  createWarDeclarationEvent,
-  createGiftEvent,
-  createEnemyPeaceRequestEvent,
-  createPlayerPeaceProposalEvent,
-  createPeaceRequestEvent,
-  createBattleEvent,
+    createWarDeclarationEvent,
+    createGiftEvent,
+    createAIRequestEvent,
+    createEnemyPeaceRequestEvent,
+    createPlayerPeaceProposalEvent,
+    createPeaceRequestEvent,
+    createBattleEvent,
+    createAllianceRequestEvent,
+    createAllianceProposalResultEvent,
+    createAllianceBreakEvent,
 };
 
 // Re-export individual event arrays for potential direct access
@@ -55,14 +63,27 @@ export { BASE_EVENTS, CLASS_CONFLICT_EVENTS, EPOCH_EVENTS, ECONOMIC_EVENTS, STAT
 
 // Re-export rebellion event system
 export {
-  REBELLION_PHASE,
-  REBELLION_CONFIG,
-  createBrewingEvent,
-  createPlottingEvent,
-  createActiveRebellionEvent,
-  createInvestigationResultEvent,
-  createArrestResultEvent,
-  createSuppressionResultEvent,
-  createRebelNation,
-  createRebellionEndEvent,
+    REBELLION_PHASE,
+    REBELLION_CONFIG,
+    createBrewingEvent,
+    createPlottingEvent,
+    createActiveRebellionEvent,
+    createInvestigationResultEvent,
+    createArrestResultEvent,
+    createSuppressionResultEvent,
+    createRebelNation,
+    createRebellionEndEvent,
+};
+
+// 联合叛乱系统
+import {
+    createCoalitionRebelNation,
+    createCoalitionRebellionEvent,
+    calculateCoalitionPopLoss,
+} from './coalitionRebellion';
+
+export {
+    createCoalitionRebelNation,
+    createCoalitionRebellionEvent,
+    calculateCoalitionPopLoss,
 };

@@ -9,8 +9,11 @@ import TradeRoutesModal from '../modals/TradeRoutesModal';
 import { RESOURCES } from '../../config';
 import { calculateForeignPrice, calculateTradeStatus } from '../../utils/foreignTrade';
 
-const relationInfo = (relation = 0) => {
-    if (relation >= 80) return { label: '盟友', color: 'text-green-300', bg: 'bg-green-900/20' };
+const relationInfo = (relation = 0, isAllied = false) => {
+    // 如果是正式盟友，显示盟友标签
+    if (isAllied) return { label: '盟友', color: 'text-green-300', bg: 'bg-green-900/20' };
+    // 否则根据关系值显示
+    if (relation >= 80) return { label: '亲密', color: 'text-emerald-300', bg: 'bg-emerald-900/20' };
     if (relation >= 60) return { label: '友好', color: 'text-blue-300', bg: 'bg-blue-900/20' };
     if (relation >= 40) return { label: '中立', color: 'text-gray-300', bg: 'bg-gray-800/40' };
     if (relation >= 20) return { label: '冷淡', color: 'text-yellow-300', bg: 'bg-yellow-900/20' };
@@ -18,12 +21,14 @@ const relationInfo = (relation = 0) => {
 };
 
 /**
- * Calculate max trade routes allowed with a nation based on relation
+ * Calculate max trade routes allowed with a nation based on relation and alliance
  * @param {number} relation - Relation value (0-100)
+ * @param {boolean} isAllied - Whether formally allied with this nation
  * @returns {number} Max trade routes allowed
  */
-const getMaxTradeRoutesForRelation = (relation = 0) => {
-    if (relation >= 80) return 4; // Allied: 4 routes
+const getMaxTradeRoutesForRelation = (relation = 0, isAllied = false) => {
+    if (isAllied) return 5; // Formal alliance: 5 routes
+    if (relation >= 80) return 4; // Very friendly: 4 routes
     if (relation >= 60) return 3; // Friendly: 3 routes
     if (relation >= 40) return 2; // Neutral: 2 routes
     if (relation >= 20) return 1; // Cold: 1 route
@@ -250,10 +255,10 @@ export const DiplomacyTab = ({
 
     const selectedNation =
         visibleNations.find((nation) => nation.id === selectedNationId) || visibleNations[0] || null;
-    const selectedRelation = selectedNation ? relationInfo(selectedNation.relation) : null;
+    const selectedRelation = selectedNation ? relationInfo(selectedNation.relation, selectedNation.alliedWithPlayer === true) : null;
     const selectedPreferences = useMemo(() => getPreferredResources(selectedNation), [selectedNation]);
 
-    const totalAllies = visibleNations.filter((n) => (n.relation || 0) >= 80).length;
+    const totalAllies = visibleNations.filter((n) => n.alliedWithPlayer === true).length;
     const totalWars = visibleNations.filter((n) => n.isAtWar).length;
 
     // 获取商人岗位信息
@@ -304,14 +309,15 @@ export const DiplomacyTab = ({
         return visibleNations.filter(n => n.id !== selectedNation.id);
     }, [visibleNations, selectedNation]);
 
-    // 计算目标国家的同盟国（关系 >= 80）
+    // 计算目标国家的正式同盟国
     const targetNationAllies = useMemo(() => {
         if (!selectedNation) return [];
         return visibleNations.filter(n => {
             if (n.id === selectedNation.id) return false;
-            // 检查目标国家与其他国家的外交关系
-            const foreignRelation = selectedNation.foreignRelations?.[n.id] ?? 50;
-            return foreignRelation >= 80;
+            // 检查目标国家的正式联盟
+            const isAllied = (selectedNation.allies || []).includes(n.id) || 
+                            (n.allies || []).includes(selectedNation.id);
+            return isAllied;
         }).map(ally => ({
             ...ally,
             foreignRelation: selectedNation.foreignRelations?.[ally.id] ?? 50,
@@ -399,7 +405,7 @@ export const DiplomacyTab = ({
                     <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-900 hover:scrollbar-thumb-gray-500">
                         {visibleNations.map((nation, idx) => {
                             if (!nation) return null;
-                            const relation = relationInfo(nation.relation || 0);
+                            const relation = relationInfo(nation.relation || 0, nation.alliedWithPlayer === true);
                             const isSelected = nation.id === selectedNation?.id;
                             return (
                                 <button
@@ -596,6 +602,37 @@ export const DiplomacyTab = ({
                                         <Icon name="MessageSquareWarning" size={12} /> 挑拨关系
                                     </button>
                                 </div>
+
+                                {/* 结盟/解除联盟按钮 */}
+                                <div className="mt-1.5 flex gap-1.5 text-xs font-body">
+                                    {selectedNation?.alliedWithPlayer === true ? (
+                                        <button
+                                            className="flex-1 px-2 py-1.5 bg-red-700 hover:bg-red-600 rounded text-white flex items-center justify-center gap-1 font-semibold font-body"
+                                            onClick={() => handleSimpleAction(selectedNation.id, 'break_alliance')}
+                                            title="解除与该国的同盟关系"
+                                        >
+                                            <Icon name="UserMinus" size={12} /> 解除同盟
+                                        </button>
+                                    ) : (
+                                        <button
+                                            className={`flex-1 px-2 py-1.5 rounded text-white flex items-center justify-center gap-1 font-semibold font-body ${
+                                                (selectedNation?.relation || 0) >= 60 && !selectedNation?.isAtWar
+                                                    ? 'bg-emerald-600 hover:bg-emerald-500'
+                                                    : 'bg-gray-600 cursor-not-allowed'
+                                            }`}
+                                            onClick={() => handleSimpleAction(selectedNation.id, 'propose_alliance')}
+                                            disabled={(selectedNation?.relation || 0) < 60 || selectedNation?.isAtWar}
+                                            title={(selectedNation?.relation || 0) < 60 
+                                                ? `关系需达到60才能请求结盟（当前：${Math.round(selectedNation?.relation || 0)}）` 
+                                                : selectedNation?.isAtWar 
+                                                    ? '无法与交战国结盟' 
+                                                    : '请求与该国建立正式同盟'}
+                                        >
+                                            <Icon name="Users" size={12} /> 请求结盟
+                                        </button>
+                                    )}
+                                </div>
+
                                 <div className="mt-1 text-[10px] text-gray-400 flex items-center justify-between font-epic">
                                     <span className="flex items-center gap-1">
                                         <Icon name="Coins" size={10} className="text-amber-300" />
@@ -682,11 +719,12 @@ export const DiplomacyTab = ({
                                 {/* Calculate relation-based trade route limits for selected nation */}
                                 {(() => {
                                     const nationRelation = selectedNation?.relation || 0;
+                                    const isAllyWithNation = selectedNation?.alliedWithPlayer === true;
                                     // Check if open market is active (defeated nation must allow unlimited trade)
                                     const isOpenMarketActive = selectedNation?.openMarketUntil && daysElapsed < selectedNation.openMarketUntil;
                                     const openMarketRemainingDays = isOpenMarketActive ? selectedNation.openMarketUntil - daysElapsed : 0;
-                                    // If open market is active, no relation limit; otherwise use normal calculation
-                                    const maxRoutesWithNation = isOpenMarketActive ? 999 : getMaxTradeRoutesForRelation(nationRelation);
+                                    // If open market is active, no relation limit; otherwise use normal calculation with alliance bonus
+                                    const maxRoutesWithNation = isOpenMarketActive ? 999 : getMaxTradeRoutesForRelation(nationRelation, isAllyWithNation);
                                     const currentRoutesWithNation = getRouteCountWithNation(tradeRoutes.routes, selectedNation?.id);
                                     const canCreateMore = currentRoutesWithNation < maxRoutesWithNation && currentRouteCount < merchantJobLimit;
 
@@ -730,12 +768,18 @@ export const DiplomacyTab = ({
                                                     </div>
                                                 ) : (
                                                     <div className="text-[9px] text-gray-400 mt-1 font-body">
-                                                        关系值 {Math.round(nationRelation)} → 最多 {maxRoutesWithNation} 条路线
-                                                        {maxRoutesWithNation === 0 && <span className="text-red-400 ml-1">(敌对无法贸易)</span>}
-                                                        {maxRoutesWithNation === 1 && <span className="text-yellow-400 ml-1">(冷淡)</span>}
-                                                        {maxRoutesWithNation === 2 && <span className="text-gray-300 ml-1">(中立)</span>}
-                                                        {maxRoutesWithNation === 3 && <span className="text-blue-400 ml-1">(友好)</span>}
-                                                        {maxRoutesWithNation === 4 && <span className="text-green-400 ml-1">(盟友)</span>}
+                                                        {isAllyWithNation ? (
+                                                            <span className="text-green-400">🤝 正式盟友 → 最多 {maxRoutesWithNation} 条路线</span>
+                                                        ) : (
+                                                            <>
+                                                                关系值 {Math.round(nationRelation)} → 最多 {maxRoutesWithNation} 条路线
+                                                                {maxRoutesWithNation === 0 && <span className="text-red-400 ml-1">(敌对无法贸易)</span>}
+                                                                {maxRoutesWithNation === 1 && <span className="text-yellow-400 ml-1">(冷淡)</span>}
+                                                                {maxRoutesWithNation === 2 && <span className="text-gray-300 ml-1">(中立)</span>}
+                                                                {maxRoutesWithNation === 3 && <span className="text-blue-400 ml-1">(友好)</span>}
+                                                                {maxRoutesWithNation === 4 && <span className="text-emerald-400 ml-1">(亲密)</span>}
+                                                            </>
+                                                        )}
                                                     </div>
                                                 )}
                                             </div>
@@ -962,10 +1006,14 @@ export const DiplomacyTab = ({
                     </p>
                     <div className="max-h-60 overflow-y-auto space-y-1">
                         {provokeTargetNations.map(nation => {
-                            const nationRelation = relationInfo(nation.relation || 0);
+                            const nationRelation = relationInfo(nation.relation || 0, nation.alliedWithPlayer === true);
                             const foreignRelation = selectedNation?.foreignRelations?.[nation.id] ?? 50;
+                            // Check if these two AI nations are formally allied
+                            const areAllied = (selectedNation?.allies || []).includes(nation.id) || 
+                                             (nation.allies || []).includes(selectedNation?.id);
                             const foreignRelationInfo = (() => {
-                                if (foreignRelation >= 80) return { label: '盟友', color: 'text-green-300' };
+                                if (areAllied) return { label: '盟友', color: 'text-green-300' };
+                                if (foreignRelation >= 80) return { label: '亲密', color: 'text-emerald-300' };
                                 if (foreignRelation >= 60) return { label: '友好', color: 'text-blue-300' };
                                 if (foreignRelation >= 40) return { label: '中立', color: 'text-gray-300' };
                                 if (foreignRelation >= 20) return { label: '冷淡', color: 'text-yellow-300' };
