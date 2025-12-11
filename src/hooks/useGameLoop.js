@@ -1037,6 +1037,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 result.classShortages || {},
                 {
                     classIncome: result.classIncome || {},
+                    classExpense: result.classExpense || current.classExpense || {},
                     popStructure: result.popStructure || current.popStructure || {},
                     taxPolicies: current.taxPolicies || {},
                     market: result.market || current.market || {},

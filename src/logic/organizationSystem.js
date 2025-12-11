@@ -102,7 +102,7 @@ const DRIVER_WEIGHTS = {
     basicShortage: 1.0,
     luxuryShortage: 0.35,
     lowIncome: 0.8,
-    livingStandard: 0.9,
+    livingStandard: 0.35,
 };
 
 const PASSIVE_DEMAND_DURATION = 60;
@@ -147,6 +147,7 @@ const buildDriverContext = (stratumKey, {
     shortages = [],
     taxPolicies = {},
     classIncome = {},
+    classExpense = {},
     popStructure = {},
     market = {},
     classLivingStandard = {},
@@ -182,6 +183,8 @@ const buildDriverContext = (stratumKey, {
     }
 
     const incomePerCapita = (classIncome[stratumKey] || 0) / population;
+    const expensePerCapitaRaw = classExpense[stratumKey] || 0;
+    const expensePerCapita = expensePerCapitaRaw > 0 ? expensePerCapitaRaw / population : 0;
     const headTaxBase = stratum.headTaxBase ?? 0;
     const headTaxRate = taxPolicies?.headTaxRates?.[stratumKey] ?? 1;
     const headTaxPerCapita = headTaxBase * headTaxRate;
@@ -219,22 +222,16 @@ const buildDriverContext = (stratumKey, {
     });
     const livingStandard = getSatisfactionRate(classLivingStandard[stratumKey]);
     const livingStandardData = classLivingStandard[stratumKey];
-    let targetIncome = basicNeedsCost * 1.15;
-    if (livingStandard < 0.6) {
-        targetIncome *= 1.1;
-    }
-    if (incomePerCapita >= basicNeedsCost) {
-        const surplusRatio = Math.max(0, incomePerCapita - basicNeedsCost) / Math.max(1, basicNeedsCost);
-        const comfortBoost = Math.min(0.35, surplusRatio * 0.25);
-        targetIncome = Math.min(targetIncome, basicNeedsCost * (1.1 + comfortBoost));
-    }
+    const observedCost = expensePerCapita > 0 ? expensePerCapita : basicNeedsCost;
+    let targetIncome = observedCost * (livingStandard < 0.6 ? 1.25 : 1.08);
     if (targetIncome <= 0) {
         targetIncome = 0.01;
     }
+
     let lowIncomePressure = 0;
-    if (incomePerCapita < targetIncome * 0.95) {
+    if (incomePerCapita < targetIncome * 0.97) {
         const incomeGapRatio = Math.max(0, (targetIncome - incomePerCapita) / targetIncome);
-        lowIncomePressure = Math.min(1.6, incomeGapRatio * 1.4);
+        lowIncomePressure = Math.min(1.2, incomeGapRatio * 1.2);
     }
 
     const demands = [];
@@ -309,7 +306,7 @@ const buildDriverContext = (stratumKey, {
         const score = livingStandardData?.score ?? 40;
         const streakFactor = Math.min(1.2, (livingStreak / 5) * 0.5);
         const scoreFactor = Math.max(0, (60 - score) / 80);
-        livingStandardPressure = Math.min(1.3, streakFactor + scoreFactor);
+        livingStandardPressure = Math.min(0.6, streakFactor * 0.6 + scoreFactor * 0.6);
 
         if (livingStreak >= 3) {
             const requirement = `将生活水平从${livingStandardLevel}提升到温饱以上（已持续${livingStreak}天）`;
@@ -530,6 +527,7 @@ export function updateAllOrganizationStates(
 ) {
     const {
         classIncome = {},
+        classExpense = {},
         popStructure = {},
         taxPolicies = {},
         market = {},
@@ -599,6 +597,7 @@ export function updateAllOrganizationStates(
             shortages,
             taxPolicies,
             classIncome,
+            classExpense,
             popStructure,
             market,
             classLivingStandard,
