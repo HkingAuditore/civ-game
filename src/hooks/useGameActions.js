@@ -1068,7 +1068,7 @@ export const useGameActions = (gameState, addLog) => {
                             ? { ...n, alliedWithPlayer: true, relation: Math.min(100, (n.relation || 0) + 15) }
                             : n
                     ));
-                    const resultEvent = createAllianceProposalResultEvent(targetNation, true, () => {});
+                    const resultEvent = createAllianceProposalResultEvent(targetNation, true, () => { });
                     triggerDiplomaticEvent(resultEvent);
                     addLog(`🤝 ${targetNation.name} 接受了你的结盟请求！你们正式成为盟友！`);
                 } else {
@@ -1078,7 +1078,7 @@ export const useGameActions = (gameState, addLog) => {
                             ? { ...n, relation: Math.max(0, (n.relation || 0) - 5) }
                             : n
                     ));
-                    const resultEvent = createAllianceProposalResultEvent(targetNation, false, () => {});
+                    const resultEvent = createAllianceProposalResultEvent(targetNation, false, () => { });
                     triggerDiplomaticEvent(resultEvent);
                     addLog(`${targetNation.name} 拒绝了你的结盟请求。`);
                 }
@@ -1098,7 +1098,7 @@ export const useGameActions = (gameState, addLog) => {
                         : n
                 ));
 
-                const breakEvent = createAllianceBreakEvent(targetNation, 'player_break', () => {});
+                const breakEvent = createAllianceBreakEvent(targetNation, 'player_break', () => { });
                 triggerDiplomaticEvent(breakEvent);
                 addLog(`你主动解除了与 ${targetNation.name} 的同盟关系。两国关系有所下降。`);
                 break;
@@ -1685,13 +1685,21 @@ export const useGameActions = (gameState, addLog) => {
 
     useEffect(() => {
         if (currentEvent) return;
-        setPendingDiplomaticEvents(prev => {
-            if (!prev || prev.length === 0) return prev;
-            const [next, ...rest] = prev;
-            launchDiplomaticEvent(next);
-            return rest;
-        });
-    }, [currentEvent]);
+        if (!pendingDiplomaticEvents || pendingDiplomaticEvents.length === 0) return;
+
+        // 使用 setTimeout 确保在当前渲染周期完成后再显示下一个事件
+        const timer = setTimeout(() => {
+            setPendingDiplomaticEvents(prev => {
+                if (!prev || prev.length === 0) return prev;
+                const [next, ...rest] = prev;
+                // 延迟触发事件以确保状态更新完成
+                setTimeout(() => launchDiplomaticEvent(next), 0);
+                return rest;
+            });
+        }, 100);
+
+        return () => clearTimeout(timer);
+    }, [currentEvent, pendingDiplomaticEvents]);
 
     /**
      * 处理事件选项
@@ -2523,8 +2531,10 @@ export const useGameActions = (gameState, addLog) => {
             addLog(`${recoveredPop}名${stratumName}回归了你的统治。`);
         }
 
-        // 触发结束事件
-        triggerDiplomaticEvent(endEvent);
+        // 触发结束事件 - 延迟执行确保在选项处理完成后再显示弹窗
+        setTimeout(() => {
+            launchDiplomaticEvent(endEvent);
+        }, 200);
     };
 
     // 返回所有操作函数
