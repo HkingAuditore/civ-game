@@ -350,20 +350,36 @@ function GameApp({ gameState }) {
             [cooldownKey]: ((prev && prev[cooldownKey]) || 0) + 1,
         }));
 
-        if (result.effects.organizationChanges && Object.keys(result.effects.organizationChanges).length > 0) {
+        if ((result.effects.organizationChanges && Object.keys(result.effects.organizationChanges).length > 0) || result.effects.resistanceChange) {
             gameState.setRebellionStates(prev => {
                 const newStates = { ...prev };
-                Object.entries(result.effects.organizationChanges).forEach(([key, change]) => {
+
+                // 处理组织度变化
+                if (result.effects.organizationChanges) {
+                    Object.entries(result.effects.organizationChanges).forEach(([key, change]) => {
+                        const currentState = newStates[key] || {};
+                        const nextValue = clampOrganization((currentState.organization || 0) + change);
+                        const stage = getOrganizationStage(nextValue);
+                        newStates[key] = {
+                            ...currentState,
+                            organization: nextValue,
+                            stage,
+                            phase: getPhaseFromStage(stage),
+                        };
+                    });
+                }
+
+                // 处理抵抗力增加
+                if (result.effects.resistanceChange) {
+                    const key = stratumKey; // 抵抗力应用到当前目标阶层
                     const currentState = newStates[key] || {};
-                    const nextValue = clampOrganization((currentState.organization || 0) + change);
-                    const stage = getOrganizationStage(nextValue);
+                    const currentResistance = currentState.resistance || 0;
                     newStates[key] = {
                         ...currentState,
-                        organization: nextValue,
-                        stage,
-                        phase: getPhaseFromStage(stage),
+                        resistance: Math.min(100, currentResistance + result.effects.resistanceChange),
                     };
-                });
+                }
+
                 return newStates;
             });
         }

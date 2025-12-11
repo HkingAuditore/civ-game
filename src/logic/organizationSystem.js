@@ -173,7 +173,13 @@ export function updateStratumOrganization(currentState, approval, influenceShare
         activeDemands: currentState?.activeDemands ?? [],
         actionCooldowns: currentState?.actionCooldowns ?? {},
         organizationPaused: currentState?.organizationPaused ?? 0, // 组织度暂停天数
+        resistance: currentState?.resistance ?? 0, // 策略行动抵抗力
     };
+
+    // 抵抗力衰减：每天衰减0.5，随时间慢慢恢复对策略的敏感度
+    if (state.resistance > 0) {
+        state.resistance = Math.max(0, state.resistance - 0.5);
+    }
 
     // 检查组织度是否被暂停（收买效果）
     if (state.organizationPaused > 0) {
