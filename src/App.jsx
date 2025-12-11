@@ -472,7 +472,10 @@ function GameApp({ gameState }) {
     const silverUpkeepPerDay = armyFoodNeed * foodPrice * wageRatio;
     const tradeStats = gameState.tradeStats || { tradeTax: 0 };
     const tradeTax = tradeStats.tradeTax || 0;
-    const netSilverPerDay = taxes.total + tradeTax - silverUpkeepPerDay;
+    const playerInstallmentExpense = (gameState.playerInstallmentPayment && gameState.playerInstallmentPayment.remainingDays > 0)
+        ? gameState.playerInstallmentPayment.amount
+        : 0;
+    const netSilverPerDay = taxes.total + tradeTax - silverUpkeepPerDay - playerInstallmentExpense;
     const netSilverClass = netSilverPerDay >= 0 ? 'text-green-300' : 'text-red-300';
     const netChipClasses = netSilverPerDay >= 0
         ? 'text-green-300 bg-green-900/20 hover:bg-green-900/40'
@@ -512,12 +515,13 @@ function GameApp({ gameState }) {
 
             {/* 顶部状态栏 - 史诗风格 */}
             <div className="fixed top-0 left-0 right-0 z-50">
-                <StatusBar
+            <StatusBar
                     gameState={gameState}
                     taxes={taxes}
                     netSilverPerDay={netSilverPerDay}
                     tradeStats={tradeStats}
                     armyFoodNeed={armyFoodNeed}
+                    playerInstallmentPayment={gameState.playerInstallmentPayment}
                     onResourceDetailClick={(key) => gameState.setResourceDetailView(key)}
                     onPopulationDetailClick={() => gameState.setPopulationDetailView(true)}
                     onStrataClick={() => setShowStrata(true)}  // 新增：打开社会阶层弹窗
