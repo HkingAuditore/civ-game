@@ -17,6 +17,7 @@ export const StatusBar = ({
   netSilverPerDay,
   tradeStats = { tradeTax: 0 },
   armyFoodNeed,
+  playerInstallmentPayment = null,
   onResourceDetailClick,
   onPopulationDetailClick,
   onStrataClick,
@@ -325,6 +326,12 @@ export const StatusBar = ({
                               <span className="text-green-300 font-mono">+{policyIncome.toFixed(1)}</span>
                             </div>
                           )}
+                          {(taxes.breakdown?.warIndemnity || 0) > 0 && (
+                            <div className="stat-item-compact">
+                              <span className="text-ancient-stone">战争赔款收入</span>
+                              <span className="text-green-300 font-mono">+{taxes.breakdown.warIndemnity.toFixed(1)}</span>
+                            </div>
+                          )}
 
                           <div className="epic-divider" />
 
@@ -343,6 +350,12 @@ export const StatusBar = ({
                             <div className="stat-item-compact">
                               <span className="text-ancient-stone">政令支出</span>
                               <span className="text-red-300 font-mono">-{policyExpense.toFixed(1)}</span>
+                            </div>
+                          )}
+                          {playerInstallmentPayment && playerInstallmentPayment.remainingDays > 0 && (
+                            <div className="stat-item-compact">
+                              <span className="text-ancient-stone">战争赔款支出</span>
+                              <span className="text-red-300 font-mono">-{playerInstallmentPayment.amount.toFixed(1)}</span>
                             </div>
                           )}
 
