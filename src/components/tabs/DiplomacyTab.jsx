@@ -284,9 +284,9 @@ export const DiplomacyTab = ({
         }
     };
 
-    const handleSimpleAction = (nationId, action) => {
+    const handleSimpleAction = (nationId, action, payload) => {
         if (onDiplomaticAction) {
-            onDiplomaticAction(nationId, action);
+            onDiplomaticAction(nationId, action, payload);
         }
     };
 
@@ -1005,7 +1005,9 @@ export const DiplomacyTab = ({
                     daysElapsed={daysElapsed}
                     onClose={() => setShowTradeRoutesModal(false)}
                     onCancelRoute={(nationId, resource, type) => {
-                        handleSimpleAction(nationId, 'cancel_trade', { resource, type });
+                        if (onTradeRouteAction) {
+                            onTradeRouteAction(nationId, 'cancel', { resource, type });
+                        }
                     }}
                 />
             )}

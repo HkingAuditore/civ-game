@@ -3817,7 +3817,7 @@ export const simulateTick = ({
         const prevWealth = classWealth?.[role] || 0;
         const delta = wealthNow - prevWealth;
         const perCap = pop > 0 ? wealthNow / pop : 0;
-        const perCapDelta = pop > 0 ? delta / pop : 0;
+        const perCapWealthDelta = pop > 0 ? delta / pop : 0;
 
         const totalIncome = roleWagePayout[role] || 0;
         const totalExpense = roleExpense[role] || 0;
@@ -3828,7 +3828,8 @@ export const simulateTick = ({
         const taxCostPerCapita = headTaxBase * getHeadTaxRate(role) * effectiveTaxModifier;
         const disposableWage = roleWage - taxCostPerCapita;
         const lastTickIncome = getLastTickNetIncomePerCapita(role);
-        const historicalIncomePerCapita = lastTickIncome !== null ? lastTickIncome : perCapDelta;
+        const effectivePerCapDelta = role === 'merchant' ? netIncomePerCapita : perCapWealthDelta;
+        const historicalIncomePerCapita = lastTickIncome !== null ? lastTickIncome : effectivePerCapDelta;
         const fallbackIncome = netIncomePerCapita !== 0 ? netIncomePerCapita : disposableWage;
         // 商人特例：优先使用当前运营收入（Net Income），忽略因进货导致的财富（Wealth）波动
         const incomeSignal = (role === 'merchant' || historicalIncomePerCapita !== 0)
@@ -3843,7 +3844,7 @@ export const simulateTick = ({
             role,
             pop,
             perCap,
-            perCapDelta,
+            perCapDelta: effectivePerCapDelta,
             potentialIncome,
             vacancy: roleVacancies[role] || 0,
         };
