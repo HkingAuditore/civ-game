@@ -4,6 +4,12 @@
  */
 
 import { STRATA } from '../config/strata';
+import { RESOURCES } from '../config';
+
+// 获取资源的中文名称
+function getResourceName(resourceKey) {
+    return RESOURCES[resourceKey]?.name || resourceKey;
+}
 
 // 诉求类型枚举
 export const DEMAND_TYPE = {
@@ -87,54 +93,132 @@ export function analyzeDissatisfactionSources(stratumKey, context) {
     const sources = [];
     const shortages = context.classShortages?.[stratumKey] || [];
     const approval = context.classApproval?.[stratumKey] ?? 50;
-    const taxMultiplier = context.taxPolicies?.[stratumKey]?.multiplier ?? 1;
-    const livingStandard = context.classLivingStandard?.[stratumKey] ?? 1;
+    const stratum = STRATA[stratumKey];
+
+    // classLivingStandard[key] 是一个对象，包含 satisfactionRate、wealthRatio 等属性
+    const livingStandardData = context.classLivingStandard?.[stratumKey];
+    // 提取满足率作为生活水平指标
+    const livingStandard = typeof livingStandardData === 'object' && livingStandardData !== null
+        ? (livingStandardData.satisfactionRate ?? 1)
+        : (livingStandardData ?? 1);
     const influence = context.classInfluence?.[stratumKey] || 0;
-    const totalInfluence = context.totalInfluence || 1;
-    const influenceShare = influence / totalInfluence;
+    const totalInfluence = context.totalInfluence || 0;
+    // 计算影响力占比，确保不会除以0
+    const influenceShare = totalInfluence > 0 ? influence / totalInfluence : 0;
+
+    // 获取收入和人口数据
+    const income = context.classIncome?.[stratumKey] || 0;
+    const count = context.popStructure?.[stratumKey] || 1;
+    const incomePerCapita = income / Math.max(count, 1);
+
+    // ========== 正确计算税负 ==========
+    // 1. 人头税（数值）= 基础人头税 × 人头税倍率
+    const headTaxBase = stratum?.headTaxBase ?? 0;
+    const headTaxMultiplier = context.taxPolicies?.headTaxRates?.[stratumKey] ?? 1;
+    const headTaxPerCapita = headTaxBase * headTaxMultiplier;
+
+    // 2. 交易税（估算）= 消费资源 × 资源价格 × 交易税率
+    let tradeTaxPerCapita = 0;
+    const resourceTaxRates = context.taxPolicies?.resourceTaxRates || {};
+    const market = context.market || {};
+    const needs = stratum?.needs || {};
+    for (const [resource, perCapita] of Object.entries(needs)) {
+        if (perCapita > 0) {
+            const taxRate = resourceTaxRates[resource] || 0;
+            const price = market?.prices?.[resource] || RESOURCES[resource]?.basePrice || 1;
+            tradeTaxPerCapita += perCapita * price * taxRate;
+        }
+    }
+
+    // 3. 总税负 = 人头税 + 交易税
+    const totalTaxPerCapita = headTaxPerCapita + tradeTaxPerCapita;
+
+    // 4. 税负占收入的比例
+    const taxBurdenRatio = incomePerCapita > 0 ? totalTaxPerCapita / incomePerCapita : 0;
 
     // 分析短缺原因
     const unaffordableItems = shortages.filter(s => s.reason === 'unaffordable');
     const outOfStockItems = shortages.filter(s => s.reason === 'outOfStock');
 
-    // 税负过重
-    if (taxMultiplier > 1.2) {
-        const contribution = Math.min(2, (taxMultiplier - 1) * 3);
+    // 税负过重判断：税负占收入超过30%
+    const isTaxBurdenHigh = taxBurdenRatio > 0.3;
+
+    if (isTaxBurdenHigh) {
+        const contribution = Math.min(2, taxBurdenRatio * 3);
+        const detailText = `税负占收入 ${Math.round(taxBurdenRatio * 100)}%（人头税: ${headTaxPerCapita.toFixed(1)}，交易税: ${tradeTaxPerCapita.toFixed(1)}）`;
         sources.push({
             type: 'tax',
             icon: 'Percent',
             label: '税负过重',
-            detail: `税率 ${Math.round(taxMultiplier * 100)}%`,
+            detail: detailText,
             contribution,
-            severity: taxMultiplier > 1.5 ? 'danger' : 'warning',
+            severity: taxBurdenRatio > 0.5 ? 'danger' : 'warning',
         });
     }
+    // ========== 区分基础需求和奢侈需求短缺 ==========
+    // 获取该阶层的基础需求列表
+    const basicNeeds = stratum?.needs || {};
+    const basicNeedsList = new Set(Object.keys(basicNeeds));
 
-    // 买不起物资
-    if (unaffordableItems.length > 0) {
-        const contribution = Math.min(1.5, unaffordableItems.length * 0.3);
+    // 将短缺分为基础需求短缺和奢侈需求短缺
+    const basicUnaffordable = unaffordableItems.filter(s => basicNeedsList.has(s.resource));
+    const luxuryUnaffordable = unaffordableItems.filter(s => !basicNeedsList.has(s.resource));
+    const basicOutOfStock = outOfStockItems.filter(s => basicNeedsList.has(s.resource));
+    const luxuryOutOfStock = outOfStockItems.filter(s => !basicNeedsList.has(s.resource));
+
+    // 基础需求买不起 - 高权重
+    if (basicUnaffordable.length > 0) {
+        const contribution = Math.min(1.5, basicUnaffordable.length * 0.4);
         sources.push({
-            type: 'unaffordable',
+            type: 'unaffordable_basic',
             icon: 'DollarSign',
-            label: '财力不足',
-            detail: `${unaffordableItems.length}种物资买不起`,
+            label: '基本物资买不起',
+            detail: `${basicUnaffordable.length}种必需品买不起`,
             contribution,
-            severity: unaffordableItems.length >= 3 ? 'danger' : 'warning',
-            resources: unaffordableItems.map(s => s.resource),
+            severity: basicUnaffordable.length >= 2 ? 'danger' : 'warning',
+            resources: basicUnaffordable.map(s => getResourceName(s.resource)),
         });
     }
 
-    // 市场缺货
-    if (outOfStockItems.length > 0) {
-        const contribution = Math.min(2, outOfStockItems.length * 0.5);
+    // 奢侈需求买不起 - 低权重（仅当有3种以上才算轻微不满）
+    if (luxuryUnaffordable.length >= 3) {
+        const contribution = Math.min(0.5, luxuryUnaffordable.length * 0.1);
         sources.push({
-            type: 'outOfStock',
-            icon: 'Package',
-            label: '市场缺货',
-            detail: `${outOfStockItems.length}种物资短缺`,
+            type: 'unaffordable_luxury',
+            icon: 'Sparkles',
+            label: '奢侈品负担不起',
+            detail: `${luxuryUnaffordable.length}种奢侈品买不起`,
             contribution,
-            severity: outOfStockItems.length >= 2 ? 'danger' : 'warning',
-            resources: outOfStockItems.map(s => s.resource),
+            severity: 'info', // 信息级别，不是警告
+            resources: luxuryUnaffordable.slice(0, 3).map(s => getResourceName(s.resource)),
+        });
+    }
+
+    // 基础需求市场缺货 - 高权重
+    if (basicOutOfStock.length > 0) {
+        const contribution = Math.min(2, basicOutOfStock.length * 0.6);
+        sources.push({
+            type: 'outOfStock_basic',
+            icon: 'Package',
+            label: '必需品缺货',
+            detail: `${basicOutOfStock.length}种必需品缺货`,
+            contribution,
+            severity: basicOutOfStock.length >= 2 ? 'danger' : 'warning',
+            resources: basicOutOfStock.map(s => getResourceName(s.resource)),
+        });
+    }
+
+    // 奢侈需求市场缺货 - 极低权重（仅当有4种以上才算轻微不满）
+    if (luxuryOutOfStock.length >= 4) {
+        const contribution = Math.min(0.3, luxuryOutOfStock.length * 0.05);
+        sources.push({
+            type: 'outOfStock_luxury',
+            icon: 'ShoppingBag',
+            label: '奢侈品缺货',
+            detail: `${luxuryOutOfStock.length}种奢侈品缺货`,
+            contribution,
+            severity: 'info',
+            resources: luxuryOutOfStock.slice(0, 3).map(s => getResourceName(s.resource)),
         });
     }
 
@@ -152,6 +236,8 @@ export function analyzeDissatisfactionSources(stratumKey, context) {
     }
 
     // 高影响力但低满意度（政治诉求）
+    // 调试：打印关键参数
+    console.log(`[Demands] ${stratumKey}: influenceShare=${influenceShare.toFixed(3)}, approval=${approval}, totalInfluence=${totalInfluence}, influence=${influence}`);
     if (influenceShare > 0.1 && approval < 40) {
         const contribution = Math.min(1, influenceShare * 2);
         sources.push({
@@ -290,7 +376,7 @@ export function checkDemandFulfillment(demand, context) {
         case DEMAND_TYPE.RESOURCE: {
             const missingResources = demand.missingResources || [];
             const shortages = context.classShortages?.[stratumKey] || [];
-            const stillMissing = missingResources.filter(r => 
+            const stillMissing = missingResources.filter(r =>
                 shortages.some(s => s.resource === r && s.reason === 'outOfStock')
             );
             return {

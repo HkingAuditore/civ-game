@@ -127,11 +127,11 @@ export function calculateOrganizationGrowthRate(approval, influenceShare, stabil
 
     // 当满意度 < 45 时开始增长, 满意度越低增长越快
     if (approval < 45) {
-        // 基础怒气: 满意度30 -> +0.5/天, 满意度0 -> +2.0/天
-        const baseAnger = (45 - approval) / 45 * 2.0;
+        // 基础怒气: 满意度30 -> +0.25/天, 满意度0 -> +1.0/天 (降低了50%)
+        const baseAnger = (45 - approval) / 45 * 1.0;
 
         // 影响力加成 (影响力越高，组织能力越强)
-        const influenceBonus = 1 + influenceShare * 0.5;
+        const influenceBonus = 1 + influenceShare * 0.3; // 降低影响力加成
 
         return baseAnger * stratumMultiplier * influenceBonus * stabilityDampening;
     }
@@ -139,11 +139,11 @@ export function calculateOrganizationGrowthRate(approval, influenceShare, stabil
     // 当满意度 > 50 时开始衰减
     if (approval > 50) {
         // 基础衰减率
-        let decayRate = -0.5;
+        let decayRate = -0.3; // 降低衰减速度以保持平衡
 
         // 满意度 > 80 时衰减速度翻倍
         if (approval > 80) {
-            decayRate = -1.0;
+            decayRate = -0.6;
         }
 
         return decayRate;
@@ -163,7 +163,7 @@ export function calculateOrganizationGrowthRate(approval, influenceShare, stabil
  * @param {number} currentDay - 当前游戏天数
  * @returns {Object} 更新后的状态
  */
-export function updateStratumOrganization(currentState, approval, influenceShare, stability, stratumKey, currentDay) {
+export function updateStratumOrganization(currentState, approval, influenceShare, stability, stratumKey, currentDay, hasActivePromise = false, hasBasicShortage = true) {
     // 初始化默认状态
     const state = {
         organization: currentState?.organization ?? 0,
@@ -183,11 +183,28 @@ export function updateStratumOrganization(currentState, approval, influenceShare
     }
 
     // 计算增长率
-    const growthRate = calculateOrganizationGrowthRate(approval, influenceShare, stability, stratumKey);
+    let growthRate = calculateOrganizationGrowthRate(approval, influenceShare, stability, stratumKey);
+
+    // 如果有活跃的承诺任务，组织度增长速度减半（民众在观望）
+    if (hasActivePromise && growthRate > 0) {
+        growthRate = growthRate * 0.5;
+    }
+
     state.growthRate = growthRate;
 
     // 更新组织度
-    const newOrganization = Math.max(0, Math.min(100, state.organization + growthRate));
+    let newOrganization = Math.max(0, Math.min(100, state.organization + growthRate));
+
+    // 重要：如果没有基础需求短缺（只有奢侈需求短缺），组织度上限为50%
+    // 这防止仅因奢侈品不满足而导致叛乱
+    if (!hasBasicShortage && approval < 45) {
+        const maxOrganizationWithoutBasicShortage = 50;
+        if (newOrganization > maxOrganizationWithoutBasicShortage) {
+            newOrganization = maxOrganizationWithoutBasicShortage;
+            state.growthRate = 0; // 达到上限后停止增长
+        }
+    }
+
     const previousStage = state.stage;
 
     state.organization = newOrganization;
@@ -210,6 +227,7 @@ export function updateStratumOrganization(currentState, approval, influenceShare
  * @param {number} totalInfluence - 总影响力
  * @param {number} stability - 国家稳定性
  * @param {number} currentDay - 当前游戏天数
+ * @param {Array} promiseTasks - 当前活跃的承诺任务列表
  * @returns {Object} 更新后的组织度状态
  */
 export function updateAllOrganizationStates(
@@ -218,19 +236,35 @@ export function updateAllOrganizationStates(
     classInfluence,
     totalInfluence,
     stability,
-    currentDay
+    currentDay,
+    promiseTasks = [],
+    classShortages = {}
 ) {
     const newStates = {};
 
     Object.keys(STRATA).forEach(stratumKey => {
-        // 跳过失业者和奴隶（不参与叛乱）
-        if (stratumKey === 'unemployed' || stratumKey === 'slave') {
+        // 跳过奴隶（失业者现在可以参与叛乱）
+        if (stratumKey === 'slave') {
             return;
         }
 
         const approval = classApproval[stratumKey] ?? 50;
         const influence = classInfluence[stratumKey] || 0;
         const influenceShare = totalInfluence > 0 ? influence / totalInfluence : 0;
+
+        // 检查该阶层是否有活跃的承诺任务
+        const hasActivePromise = promiseTasks.some(task =>
+            task.stratumKey === stratumKey &&
+            !task.completed &&
+            !task.failed
+        );
+
+        // 检查该阶层是否有基础需求短缺
+        const shortages = classShortages[stratumKey] || [];
+        const stratum = STRATA[stratumKey];
+        const basicNeeds = stratum?.needs || {};
+        const basicNeedsList = new Set(Object.keys(basicNeeds));
+        const hasBasicShortage = shortages.some(s => basicNeedsList.has(s.resource));
 
         const currentState = organizationStates[stratumKey];
         newStates[stratumKey] = updateStratumOrganization(
@@ -239,7 +273,9 @@ export function updateAllOrganizationStates(
             influenceShare,
             stability,
             stratumKey,
-            currentDay
+            currentDay,
+            hasActivePromise,
+            hasBasicShortage
         );
     });
 

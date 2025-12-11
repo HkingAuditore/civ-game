@@ -14,7 +14,7 @@ import {
 import { getAvailableActions } from '../../logic/strategicActions';
 import { getPromiseTaskRemainingDays } from '../../logic/promiseTasks';
 import { analyzeDissatisfactionSources } from '../../logic/demands';
-import { StrategicActionCard } from './StrategicActionCard';
+import { StrategicActionButton } from './StrategicActionButton';
 import { DissatisfactionAnalysis } from './DissatisfactionAnalysis';
 import { DemandsList } from './DemandsList';
 
@@ -700,7 +700,7 @@ export const StratumDetailSheet = ({
                                     </div>
 
                                     {/* 阶段说明 */}
-                                    <div className="bg-gray-800/50 rounded p-2 text-xs text-gray-300">
+                                    {/* <div className="bg-gray-800/50 rounded p-2 text-xs text-gray-300">
                                         <div className="grid grid-cols-2 gap-2">
                                             <div><span className="text-yellow-400">0-29%</span>: 平静</div>
                                             <div><span className="text-yellow-400">30-49%</span>: 不满</div>
@@ -708,7 +708,7 @@ export const StratumDetailSheet = ({
                                             <div><span className="text-red-400">70-89%</span>: 激进</div>
                                             <div className="col-span-2"><span className="text-red-500">90-100%</span>: 起义爆发！</div>
                                         </div>
-                                    </div>
+                                    </div> */}
                                 </div>
 
                                 {/* 不满来源分析 */}
@@ -720,6 +720,9 @@ export const StratumDetailSheet = ({
                                         totalInfluence,
                                         classLivingStandard,
                                         taxPolicies,
+                                        classIncome,
+                                        classExpense,
+                                        popStructure,
                                     };
                                     const analysis = analyzeDissatisfactionSources(stratumKey, dissatisfactionContext);
                                     return analysis.hasIssues ? (
@@ -754,13 +757,10 @@ export const StratumDetailSheet = ({
                                         <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
                                             <Icon name="Zap" size={16} className="text-blue-400" />
                                             策略行动
-                                            <span className="text-[10px] font-normal text-gray-400 ml-1">
-                                                点击展开详情
-                                            </span>
                                         </h3>
-                                        <div className="space-y-2">
+                                        <div className="space-y-1.5">
                                             {availableActions.map(action => (
-                                                <StrategicActionCard
+                                                <StrategicActionButton
                                                     key={action.id}
                                                     action={action}
                                                     stratumKey={stratumKey}
@@ -769,7 +769,6 @@ export const StratumDetailSheet = ({
                                                     disabled={!onStrategicAction || !action.available}
                                                     unavailableReason={action.unavailableReason}
                                                     onExecute={onStrategicAction}
-                                                    resources={resources}
                                                     actionUsage={actionUsage}
                                                 />
                                             ))}

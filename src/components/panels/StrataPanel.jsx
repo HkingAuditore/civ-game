@@ -61,12 +61,19 @@ export const StrataPanel = ({
         if (value >= 40) return 'text-yellow-400';
         return 'text-red-400';
     };
+
+    // 计算总影响力用于计算占比
+    const totalInfluence = useMemo(() => {
+        return Object.values(classInfluence || {}).reduce((sum, val) => sum + (val || 0), 0);
+    }, [classInfluence]);
+
     const strataData = useMemo(() => {
         return Object.entries(STRATA)
             .map(([key, info]) => {
                 const count = popStructure[key] || 0;
                 const approval = classApproval[key] || 50;
                 const influence = classInfluence[key] || 0;
+                const influenceShare = totalInfluence > 0 ? (influence / totalInfluence) * 100 : 0;
                 const wealthValue = classWealth[key] ?? 0;
                 const totalIncome = (classIncome[key] || 0) / safeDayScale;
                 const totalExpense = (classExpense[key] || 0) / safeDayScale;
@@ -113,6 +120,7 @@ export const StrataPanel = ({
                     count,
                     approval,
                     influence,
+                    influenceShare,
                     wealthValue,
                     incomePerCapita,
                     expensePerCapita,
@@ -144,6 +152,7 @@ export const StrataPanel = ({
         classLivingStandard,
         rebellionStates, // 新增依赖
         safeDayScale,
+        totalInfluence, // 新增依赖
     ]);
     return (
         <div className="glass-epic p-1.5 rounded-xl border border-ancient-gold/20 shadow-epic min-h-[460px] flex flex-col relative overflow-hidden">
@@ -302,6 +311,7 @@ export const StrataPanel = ({
                                 count,
                                 approval,
                                 influence,
+                                influenceShare,
                                 wealthValue,
                                 incomePerCapita,
                                 expensePerCapita,
@@ -397,11 +407,11 @@ export const StrataPanel = ({
                                                 <span className={`font-mono ${organization >= 70 ? 'text-red-400' : organization >= 30 ? 'text-orange-400' : 'text-yellow-400'}`}>
                                                     {organization.toFixed(0)}%
                                                 </span>
-                                                {growthRate !== 0 && (
+                                                {/* {growthRate !== 0 && (
                                                     <span className={`font-mono ${growthRate > 0 ? 'text-red-300' : 'text-green-300'}`}>
                                                         ({growthRate > 0 ? '+' : ''}{growthRate.toFixed(2)}/天)
                                                     </span>
-                                                )}
+                                                )} */}
                                                 {daysToUprising !== null && daysToUprising < 100 && (
                                                     <span className="text-red-400 animate-pulse">
                                                         ~{daysToUprising}天起义
@@ -411,9 +421,9 @@ export const StrataPanel = ({
                                             <div className="w-full bg-ancient-ink/50 rounded-full h-1 border border-ancient-gold/10 overflow-hidden">
                                                 <div
                                                     className={`h-1 rounded-full transition-all ${organization >= 90 ? 'bg-red-500 animate-pulse' :
-                                                            organization >= 70 ? 'bg-orange-500' :
-                                                                organization >= 30 ? 'bg-yellow-500' :
-                                                                    'bg-gray-500'
+                                                        organization >= 70 ? 'bg-orange-500' :
+                                                            organization >= 30 ? 'bg-yellow-500' :
+                                                                'bg-gray-500'
                                                         }`}
                                                     style={{ width: `${organization}%` }}
                                                 />
@@ -425,7 +435,7 @@ export const StrataPanel = ({
                                     <div className="flex items-center justify-between text-[8px]">
                                         <div className="flex items-center gap-1">
                                             <span className="text-ancient-stone">影响</span>
-                                            <span className="text-purple-400 font-semibold font-mono">{influence.toFixed(1)}</span>
+                                            <span className="text-purple-400 font-semibold font-mono">{influenceShare.toFixed(1)}%</span>
                                         </div>
                                         <div className="flex items-center gap-0.5" title="阶层总财富">
                                             <Icon name="Coins" size={8} className="text-ancient-gold" />
