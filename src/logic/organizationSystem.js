@@ -108,6 +108,13 @@ const DRIVER_WEIGHTS = {
 const PASSIVE_DEMAND_DURATION = 60;
 const ORGANIZATION_GROWTH_MULTIPLIER = 0.65;
 
+const getStabilityGrowthModifier = (stability = 50) => {
+    if (!Number.isFinite(stability)) return 1;
+    const normalized = Math.max(-1, Math.min(1, (50 - stability) / 50));
+    const modifier = 1 + normalized * 0.6;
+    return Math.max(0.35, Math.min(1.75, modifier));
+};
+
 const resolvePrice = (resourceKey, marketPrices = {}) => {
     const marketPrice = marketPrices?.[resourceKey];
     if (Number.isFinite(marketPrice) && marketPrice > 0) {
@@ -158,17 +165,29 @@ const buildDriverContext = (stratumKey, {
     const basicNeeds = stratum.needs || {};
     const basicNeedsKeys = Object.keys(basicNeeds);
     const basicNeedsSet = new Set(basicNeedsKeys);
+    const luxuryNeedsSet = new Set();
+    if (stratum.luxuryNeeds) {
+        Object.values(stratum.luxuryNeeds).forEach(needsGroup => {
+            if (!needsGroup) return;
+            Object.keys(needsGroup).forEach(resource => luxuryNeedsSet.add(resource));
+        });
+    }
     const marketPrices = market?.prices || {};
 
     const basicShortages = [];
     const luxuryShortages = [];
     shortages.forEach(entry => {
         if (!entry || !entry.resource) return;
-        if (basicNeedsSet.has(entry.resource)) {
-            basicShortages.push(entry);
-        } else {
+        const resourceKey = entry.resource;
+        if (luxuryNeedsSet.has(resourceKey)) {
             luxuryShortages.push(entry);
+            return;
         }
+        if (basicNeedsSet.has(resourceKey)) {
+            basicShortages.push(entry);
+            return;
+        }
+        luxuryShortages.push(entry);
     });
 
     const population = Math.max(0, popStructure[stratumKey] || 0);
@@ -460,6 +479,7 @@ export function updateStratumOrganization(
     }
 
     if (growthRate > 0) {
+        growthRate *= getStabilityGrowthModifier(stability);
         growthRate *= ORGANIZATION_GROWTH_MULTIPLIER;
     }
 

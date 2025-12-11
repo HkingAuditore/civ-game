@@ -254,17 +254,22 @@ export function analyzeDissatisfactionSources(stratumKey, context) {
         });
     }
 
-    // 奢侈需求买不起 - 低权重（仅当有3种以上才算轻微不满）
-    if (luxuryUnaffordable.length >= 3) {
-        const contribution = Math.min(0.5, luxuryUnaffordable.length * 0.1);
+    // 奢侈需求受限 - 低权重（出现即提示，可区分买不起和缺货）
+    const luxuryIssues = luxuryUnaffordable.length + luxuryOutOfStock.length;
+    if (luxuryIssues > 0) {
+        const contribution = Math.min(0.6, luxuryIssues * 0.12);
+        const resources = [...luxuryUnaffordable, ...luxuryOutOfStock].map(s => getResourceName(s.resource));
+        const detail = resources.length > 0
+            ? `以下品质消费无法满足：${resources.join('、')}`
+            : '品质消费受限';
         sources.push({
             type: 'unaffordable_luxury',
             icon: 'Sparkles',
-            label: '奢侈品负担不起',
-            detail: `${luxuryUnaffordable.length}种奢侈品买不起`,
+            label: '生活品质受限',
+            detail,
             contribution,
-            severity: 'info', // 信息级别，不是警告
-            resources: luxuryUnaffordable.slice(0, 3).map(s => getResourceName(s.resource)),
+            severity: luxuryIssues >= 3 ? 'warning' : 'info',
+            resources,
         });
     }
 
