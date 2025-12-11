@@ -368,7 +368,30 @@ export const DiplomacyTab = ({
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-3 h-[calc(100vh-180px)] md:h-[900px]">
+            {/* Mobile Trade Routes Button - Only visible on mobile */}
+            <div className="md:hidden flex items-center justify-between gap-2 bg-gray-800/60 px-3 py-2 rounded-lg border border-gray-700 text-xs">
+                <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1">
+                        <span className="text-gray-400">贸易路线:</span>
+                        <span className={`font-semibold ${activeRouteCount < currentRouteCount ? 'text-yellow-300' : 'text-blue-300'}`}>
+                            {activeRouteCount}/{currentRouteCount}
+                        </span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                        <span className="text-gray-400">商人:</span>
+                        <span className="text-amber-300 font-semibold">{merchantCount}/{merchantJobLimit}</span>
+                    </div>
+                </div>
+                <button
+                    onClick={() => setShowTradeRoutesModal(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-xs rounded shadow-sm border border-amber-400/50 transition-all active:scale-95"
+                >
+                    <Icon name="Settings" size={14} />
+                    <span className="font-bold">贸易路线管理</span>
+                </button>
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-3 h-[calc(100vh-260px)] md:h-[900px]">
                 <div className="glass-ancient rounded-xl border border-ancient-gold/30 flex flex-col overflow-hidden">
                     <div className="px-2 py-1.5 border-b border-gray-700/80 text-[15px] uppercase tracking-wide text-gray-400 font-decorative font-bold">
                         国家列表
@@ -998,15 +1021,21 @@ export const DiplomacyTab = ({
             {showTradeRoutesModal && (
                 <TradeRoutesModal
                     tradeRoutes={tradeRoutes}
-                    nations={nations}
+                    nations={visibleNations}
                     resources={resources}
                     market={market}
                     taxPolicies={taxPolicies}
                     daysElapsed={daysElapsed}
+                    epoch={epoch}
                     onClose={() => setShowTradeRoutesModal(false)}
                     onCancelRoute={(nationId, resource, type) => {
                         if (onTradeRouteAction) {
                             onTradeRouteAction(nationId, 'cancel', { resource, type });
+                        }
+                    }}
+                    onCreateRoute={(nationId, resource, type) => {
+                        if (onTradeRouteAction) {
+                            onTradeRouteAction(nationId, 'create', { resource, type });
                         }
                     }}
                 />
