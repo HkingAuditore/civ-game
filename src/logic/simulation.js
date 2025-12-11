@@ -3426,26 +3426,31 @@ export const simulateTick = ({
                     logs.push(randomDeclarationNews);
 
                     // ========== 同盟连坐机制（基于正式联盟）==========
-                    // 检查被攻击方是否是玩家的正式盟友
+                    // 检查双方是否与玩家结盟，避免被迫卷入盟友之间的冲突
                     const isOtherNationPlayerAlly = otherNation.alliedWithPlayer === true;
-                    if (isOtherNationPlayerAlly && !nation.isAtWar) {
-                        // 玩家的盟友被攻击，玩家被迫与攻击方开战
-                        nation.isAtWar = true;
-                        nation.warStartDay = tick;
-                        nation.warDuration = 0;
-                        nation.relation = Math.max(0, (nation.relation || 50) - 40);
-                        logs.push(`⚔️ 你的盟友 ${otherNation.name} 遭到攻击！作为同盟，你被迫与 ${nation.name} 进入战争状态！`);
-                    }
-
-                    // 检查攻击方是否是玩家的正式盟友
                     const isNationPlayerAlly = nation.alliedWithPlayer === true;
-                    if (isNationPlayerAlly && !otherNation.isAtWar) {
-                        // 玩家的盟友主动攻击别国，玩家被迫与被攻击方开战
-                        otherNation.isAtWar = true;
-                        otherNation.warStartDay = tick;
-                        otherNation.warDuration = 0;
-                        otherNation.relation = Math.max(0, (otherNation.relation || 50) - 40);
-                        logs.push(`⚔️ 你的盟友 ${nation.name} 向 ${otherNation.name} 宣战！作为同盟，你被迫与 ${otherNation.name} 进入战争状态！`);
+                    const playerAlliesInConflict = isOtherNationPlayerAlly && isNationPlayerAlly;
+
+                    if (playerAlliesInConflict) {
+                        logs.push(`⚖️ 你的盟友 ${nation.name} 与 ${otherNation.name} 发生冲突，你选择保持中立。`);
+                    } else {
+                        if (isOtherNationPlayerAlly && !nation.isAtWar) {
+                            // 玩家的盟友被攻击，玩家被迫与攻击方开战
+                            nation.isAtWar = true;
+                            nation.warStartDay = tick;
+                            nation.warDuration = 0;
+                            nation.relation = Math.max(0, (nation.relation || 50) - 40);
+                            logs.push(`⚔️ 你的盟友 ${otherNation.name} 遭到攻击！作为同盟，你被迫与 ${nation.name} 进入战争状态！`);
+                        }
+
+                        if (isNationPlayerAlly && !otherNation.isAtWar) {
+                            // 玩家的盟友主动攻击别国，玩家被迫与被攻击方开战
+                            otherNation.isAtWar = true;
+                            otherNation.warStartDay = tick;
+                            otherNation.warDuration = 0;
+                            otherNation.relation = Math.max(0, (otherNation.relation || 50) - 40);
+                            logs.push(`⚔️ 你的盟友 ${nation.name} 向 ${otherNation.name} 宣战！作为同盟，你被迫与 ${otherNation.name} 进入战争状态！`);
+                        }
                     }
 
                     // AI 国家之间的同盟连坐（基于正式联盟）
