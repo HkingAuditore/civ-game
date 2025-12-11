@@ -315,6 +315,7 @@ function GameApp({ gameState }) {
             militaryPower: estimateMilitaryPower(),
             classApproval: gameState.classApproval || {},
             classInfluence: gameState.classInfluence || {},
+            nations: gameState.nations || [],
         };
 
         // 执行策略行动
@@ -745,6 +746,7 @@ function GameApp({ gameState }) {
                                         playerInstallmentPayment={gameState.playerInstallmentPayment}
                                         jobsAvailable={gameState.jobsAvailable}
                                         popStructure={gameState.popStructure}
+                                        taxPolicies={gameState.taxPolicies}
                                     />
                                 )}
                             </div>
@@ -861,6 +863,7 @@ function GameApp({ gameState }) {
                         resources={gameState.resources}
                         militaryPower={currentMilitaryPower}
                         promiseTasks={gameState.promiseTasks}
+                        nations={gameState.nations}
                         epoch={gameState.epoch}
                         techsUnlocked={gameState.techsUnlocked}
                         onClose={closeSheet}

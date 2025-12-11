@@ -51,6 +51,7 @@ export const StratumDetailSheet = ({
     techsUnlocked = [],
     totalInfluence = 0, // 新增：总影响力
     activeDemands = {}, // 新增：活跃诉求
+    nations = [],
     onClose,
 }) => {
     const safeDayScale = Math.max(dayScale, 0.0001);
@@ -82,6 +83,12 @@ export const StratumDetailSheet = ({
             : incomePerCapita - expensePerCapita;
     const shortages = classShortages[stratumKey] || [];
     const headTaxMultiplier = taxPolicies?.headTaxRates?.[stratumKey] ?? 1;
+    const stratumRebellionState = rebellionStates[stratumKey] || {};
+    const currentOrganization = stratumRebellionState.organization ?? 0;
+    const derivedDemands =
+        (activeDemands[stratumKey] && activeDemands[stratumKey].length > 0)
+            ? activeDemands[stratumKey]
+            : (stratumRebellionState.activeDemands || []);
 
     // 使用从simulation传来的生活水平数据，如果没有则重新计算
     let livingStandardData = classLivingStandard[stratumKey];
@@ -203,6 +210,7 @@ export const StratumDetailSheet = ({
         actionUsage,
         population,
         militaryPower,
+        nations,
     };
     const availableActions = getAvailableActions(stratumKey, actionGameState);
     const stratumPromiseTasks = (promiseTasks || []).filter(task => task.stratumKey === stratumKey);
@@ -736,13 +744,13 @@ export const StratumDetailSheet = ({
                                 })()}
 
                                 {/* 当前诉求 */}
-                                {organization >= 50 && (
+                                {(currentOrganization >= 50 || derivedDemands.length > 0) && (
                                     <div className="bg-gray-700/50 rounded p-3 border border-gray-600">
                                         <DemandsList
-                                            demands={activeDemands[stratumKey] || []}
+                                            demands={derivedDemands}
                                             currentDay={daysElapsed}
                                         />
-                                        {(!activeDemands[stratumKey] || activeDemands[stratumKey].length === 0) && (
+                                        {derivedDemands.length === 0 && (
                                             <div className="flex items-center gap-2 text-xs text-gray-400">
                                                 <Icon name="Scroll" size={14} className="text-purple-400" />
                                                 <span>当前没有具体诉求</span>

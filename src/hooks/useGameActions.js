@@ -1,6 +1,7 @@
 // 游戏操作钩子
 // 包含所有游戏操作函数，如建造建筑、研究科技、升级时代等
 
+import { useState, useEffect } from 'react';
 import { BUILDINGS, EPOCHS, RESOURCES, TECHS, MILITARY_ACTIONS, UNIT_TYPES, EVENTS, getRandomEvent, createWarDeclarationEvent, createGiftEvent, createPeaceRequestEvent, createEnemyPeaceRequestEvent, createPlayerPeaceProposalEvent, createBattleEvent, STRATA } from '../config';
 import { calculateArmyCapacityNeed, calculateArmyPopulation, simulateBattle, calculateBattlePower } from '../config';
 import { calculateForeignPrice, calculateTradeStatus } from '../utils/foreignTrade';
@@ -71,6 +72,8 @@ export const useGameActions = (gameState, addLog) => {
         setPopStructure,
         classWealth,
     } = gameState;
+
+    const [pendingDiplomaticEvents, setPendingDiplomaticEvents] = useState([]);
 
     const getMarketPrice = (resource) => {
         if (!resource) return 1;
@@ -1593,27 +1596,37 @@ export const useGameActions = (gameState, addLog) => {
         }
     };
 
+    const launchDiplomaticEvent = (diplomaticEvent) => {
+        if (!diplomaticEvent) return;
+        setCurrentEvent(diplomaticEvent);
+        addLog(`⚠️ 外交事件：${diplomaticEvent.name}`);
+        generateSound(SOUND_TYPES.EVENT);
+        gameState.setPausedBeforeEvent(gameState.isPaused);
+        gameState.setIsPaused(true);
+    };
+
     /**
      * 触发外交事件
      * @param {Object} diplomaticEvent - 外交事件对象
      */
     const triggerDiplomaticEvent = (diplomaticEvent) => {
-        console.log('[TRIGGER EVENT] Called with event:', diplomaticEvent);
-        console.log('[TRIGGER EVENT] Current event:', currentEvent);
+        if (!diplomaticEvent) return;
         if (currentEvent) {
-            console.log('[TRIGGER EVENT] Blocked: already have an event showing');
-            return; // 如果已有事件在显示，不触发
+            setPendingDiplomaticEvents(prev => [...prev, diplomaticEvent]);
+            return;
         }
-
-        console.log('[TRIGGER EVENT] Setting current event...');
-        setCurrentEvent(diplomaticEvent);
-        addLog(`⚠️ 外交事件：${diplomaticEvent.name}`);
-        generateSound(SOUND_TYPES.EVENT);
-        // 外交事件触发时保存当前暂停状态，然后暂停游戏
-        gameState.setPausedBeforeEvent(gameState.isPaused);
-        gameState.setIsPaused(true);
-        console.log('[TRIGGER EVENT] Event triggered successfully');
+        launchDiplomaticEvent(diplomaticEvent);
     };
+
+    useEffect(() => {
+        if (currentEvent) return;
+        setPendingDiplomaticEvents(prev => {
+            if (!prev || prev.length === 0) return prev;
+            const [next, ...rest] = prev;
+            launchDiplomaticEvent(next);
+            return rest;
+        });
+    }, [currentEvent]);
 
     /**
      * 处理事件选项
@@ -2379,7 +2392,7 @@ export const useGameActions = (gameState, addLog) => {
 
         // 触发结果事件
         if (resultEvent) {
-            setCurrentEvent(resultEvent);
+            triggerDiplomaticEvent(resultEvent);
         }
     };
 
@@ -2446,7 +2459,7 @@ export const useGameActions = (gameState, addLog) => {
         }
 
         // 触发结束事件
-        setCurrentEvent(endEvent);
+        triggerDiplomaticEvent(endEvent);
     };
 
     // 返回所有操作函数

@@ -51,6 +51,14 @@ const buildInitialNeedsHistory = () => {
   return history;
 };
 
+const buildInitialLivingStandardStreaks = () => {
+  const streaks = {};
+  Object.keys(STRATA).forEach(key => {
+    streaks[key] = { streak: 0, level: null };
+  });
+  return streaks;
+};
+
 const buildInitialHistory = () => {
   const classHistory = {};
   Object.keys(STRATA).forEach(key => {
@@ -289,6 +297,7 @@ export const useGameState = () => {
   const [resourceDetailView, setResourceDetailView] = useState(null);
   const [classShortages, setClassShortages] = useState({});
   const [classLivingStandard, setClassLivingStandard] = useState({}); // 各阶层生活水平数据
+  const [livingStandardStreaks, setLivingStandardStreaks] = useState(buildInitialLivingStandardStreaks());
   const [populationDetailView, setPopulationDetailView] = useState(false);
   const [history, setHistory] = useState(buildInitialHistory());
   const [eventEffectSettings, setEventEffectSettings] = useState(DEFAULT_EVENT_EFFECT_SETTINGS);
@@ -438,6 +447,8 @@ export const useGameState = () => {
         stratumDetailView,
         resourceDetailView,
         classShortages,
+        classLivingStandard,
+        livingStandardStreaks,
         populationDetailView,
         history,
         daysElapsed,
@@ -534,6 +545,8 @@ setDecrees(mergeDecreesWithConfig(data.decrees));
       setStratumDetailView(data.stratumDetailView || null);
       setResourceDetailView(data.resourceDetailView || null);
       setClassShortages(data.classShortages || {});
+      setClassLivingStandard(data.classLivingStandard || {});
+      setLivingStandardStreaks(data.livingStandardStreaks || buildInitialLivingStandardStreaks());
       setPopulationDetailView(data.populationDetailView || false);
       setHistory(data.history || buildInitialHistory());
       setDaysElapsed(data.daysElapsed || 0);
@@ -698,6 +711,8 @@ setDecrees(mergeDecreesWithConfig(data.decrees));
     setClassShortages,
     classLivingStandard,
     setClassLivingStandard,
+    livingStandardStreaks,
+    setLivingStandardStreaks,
     populationDetailView,
     setPopulationDetailView,
     history,

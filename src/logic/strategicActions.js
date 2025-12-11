@@ -37,7 +37,7 @@ export const STRATEGIC_ACTIONS = {
         // 使用建议
         usageHint: '当组织度接近爆发(90%+)时的紧急措施，用时间换空间。不能用于军人/骑士。不宜频繁使用。',
         // 适用阶段的中文名称
-        applicableStagesNames: ['不满', '动员中', '激进化', '起义'],
+        applicableStagesNames: ['动员中', '激进化', '起义'],
         // 禁止镇压的阶层（军事阶层不能被镇压）
         forbiddenStrata: ['soldier', 'knight'],
         // 原有配置
@@ -75,7 +75,7 @@ export const STRATEGIC_ACTIONS = {
         requirements: {
             minMilitaryPower: 0.3,
         },
-        applicableStages: ['grumbling', 'mobilizing', 'radicalizing', 'uprising'],
+        applicableStages: ['mobilizing', 'radicalizing', 'uprising'],
     },
 
     /**
@@ -224,6 +224,15 @@ export function checkActionAvailability(actionId, stratumKey, gameState) {
     if (action.applicableStages && !action.applicableStages.includes(orgState.stage)) {
         const stageNames = action.applicableStagesNames?.join('/') || action.applicableStages.join('/');
         return { available: false, reason: `当前阶段不适用（需要：${stageNames}）` };
+    }
+
+    if (actionId === 'crackdown') {
+        const hasActiveRebel = (gameState.nations || []).some(
+            nation => nation?.isRebelNation && nation.rebellionStratum === stratumKey && nation.isAtWar
+        );
+        if (hasActiveRebel) {
+            return { available: false, reason: '叛乱政府已成立，只能通过战争解决' };
+        }
     }
 
     // 检查是否为禁止使用该行动的阶层（如军事阶层不能被镇压）

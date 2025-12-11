@@ -3,7 +3,7 @@
 
 import { useEffect, useRef } from 'react';
 import { simulateTick } from '../logic/simulation';
-import { calculateArmyMaintenance, UNIT_TYPES, STRATA, RESOURCES } from '../config';
+import { calculateArmyMaintenance, calculateArmyPopulation, UNIT_TYPES, STRATA, RESOURCES } from '../config';
 import { getRandomFestivalEffects } from '../config/festivalEffects';
 import { initCheatCodes } from './cheatCodes';
 import { getCalendarInfo } from '../utils/calendar';
@@ -14,6 +14,7 @@ import {
     updateAllOrganizationStates,
     checkOrganizationEvents,
     ORGANIZATION_STAGE,
+    MIN_REBELLION_INFLUENCE,
 } from '../logic/organizationSystem';
 import { calculateAllPenalties } from '../logic/organizationPenalties';
 import { evaluatePromiseTasks } from '../logic/promiseTasks';
@@ -27,6 +28,11 @@ import {
     createActiveRebellionEvent,
     createRebelNation,
 } from '../logic/rebellionSystem';
+
+const calculateRebelPopulation = (stratumPop = 0) => {
+    if (!Number.isFinite(stratumPop) || stratumPop <= 0) return 0;
+    return Math.min(stratumPop, Math.max(1, Math.floor(stratumPop * 0.8)));
+};
 
 /**
  * 处理贸易路线的自动执行
@@ -217,6 +223,125 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
     // 添加日志
     tradeLog.forEach(log => addLog(log));
     return { tradeTax: totalTradeTax };
+};
+
+const getUnitPopulationCost = (unitId) => {
+    const unit = UNIT_TYPES[unitId];
+    return unit?.populationCost || 1;
+};
+
+const formatUnitSummary = (unitMap = {}) => {
+    return Object.entries(unitMap)
+        .map(([unitId, count]) => {
+            const unitName = UNIT_TYPES[unitId]?.name || unitId;
+            return `${unitName} x${count}`;
+        })
+        .join('、');
+};
+
+/**
+ * 根据可用士兵数量同步现役部队与训练队列
+ */
+const syncArmyWithSoldierPopulation = (armyState = {}, queueState = [], availableSoldiers = 0) => {
+    const safeArmy = armyState || {};
+    const safeQueue = Array.isArray(queueState) ? queueState : [];
+    const available = Number.isFinite(availableSoldiers) ? Math.max(0, availableSoldiers) : 0;
+
+    let queueClone = null;
+    const ensureQueueClone = () => {
+        if (!queueClone) {
+            queueClone = safeQueue.map(item => (item ? { ...item } : item));
+        }
+        return queueClone;
+    };
+
+    const trainingEntries = [];
+    let trainingPopulation = 0;
+    safeQueue.forEach((item, index) => {
+        if (!item || item.status !== 'training') return;
+        const popCost = getUnitPopulationCost(item.unitId);
+        trainingPopulation += popCost;
+        trainingEntries.push({
+            index,
+            unitId: item.unitId,
+            popCost,
+            remainingTime: item.remainingTime || 0,
+        });
+    });
+
+    let cancelledTraining = null;
+    if (trainingPopulation > available) {
+        let manpowerToFree = trainingPopulation - available;
+        const sortedTraining = trainingEntries.sort(
+            (a, b) => (b.remainingTime || 0) - (a.remainingTime || 0)
+        );
+
+        sortedTraining.forEach(entry => {
+            if (manpowerToFree <= 0) return;
+            manpowerToFree -= entry.popCost;
+            trainingPopulation -= entry.popCost;
+            const clone = ensureQueueClone();
+            const original = clone[entry.index] || {};
+            clone[entry.index] = {
+                ...original,
+                status: 'waiting',
+                remainingTime: original.totalTime ?? original.remainingTime ?? 0,
+            };
+            if (!cancelledTraining) cancelledTraining = {};
+            cancelledTraining[entry.unitId] = (cancelledTraining[entry.unitId] || 0) + 1;
+        });
+    }
+
+    const availableForArmy = Math.max(0, available - trainingPopulation);
+    const currentArmyPopulation = calculateArmyPopulation(safeArmy);
+    let updatedArmy = null;
+    let removedUnits = null;
+
+    if (currentArmyPopulation > availableForArmy) {
+        let manpowerToRemove = currentArmyPopulation - availableForArmy;
+        updatedArmy = { ...safeArmy };
+        removedUnits = {};
+
+        const armyEntries = Object.entries(updatedArmy)
+            .filter(([, count]) => count > 0)
+            .map(([unitId, count]) => ({
+                unitId,
+                count,
+                popCost: getUnitPopulationCost(unitId),
+                epoch: UNIT_TYPES[unitId]?.epoch ?? 0,
+            }))
+            .sort((a, b) => {
+                if (a.popCost === b.popCost) {
+                    return a.epoch - b.epoch;
+                }
+                return b.popCost - a.popCost;
+            });
+
+        for (const entry of armyEntries) {
+            if (manpowerToRemove <= 0) break;
+            const { unitId, popCost } = entry;
+            const removable = Math.min(entry.count, Math.ceil(manpowerToRemove / popCost));
+            if (removable <= 0) continue;
+            updatedArmy[unitId] -= removable;
+            manpowerToRemove -= removable * popCost;
+            if (updatedArmy[unitId] <= 0) {
+                delete updatedArmy[unitId];
+            }
+            removedUnits[unitId] = (removedUnits[unitId] || 0) + removable;
+        }
+
+        if (Object.keys(removedUnits).length === 0) {
+            removedUnits = null;
+            updatedArmy = null;
+        }
+    }
+
+    return {
+        updatedArmy,
+        updatedQueue: queueClone,
+        removedUnits,
+        cancelledTraining,
+    };
 };
 
 const processTimedEventEffects = (effectState = {}, settings = {}) => {
@@ -433,6 +558,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
         classWealth,
         setClassShortages,
         setClassLivingStandard,
+        livingStandardStreaks,
+        setLivingStandardStreaks,
         activeBuffs,
         activeDebuffs,
         army,
@@ -547,6 +674,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
             gameSpeed,
             nations,
             classWealth,
+            livingStandardStreaks,
             army,
             militaryQueue,
             jobFill,
@@ -578,7 +706,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
             totalInfluence,
             birthAccumulator,
         };
-    }, [resources, market, buildings, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator]);
+    }, [resources, market, buildings, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, livingStandardStreaks, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator]);
 
     // 游戏核心循环
     useEffect(() => {
@@ -671,6 +799,43 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 eventStratumDemandModifiers: stratumDemandModifiers,
                 eventBuildingProductionModifiers: buildingProductionModifiers,
             });
+
+            const soldierPopulationAfterEvents = Number.isFinite(result.popStructure?.soldier)
+                ? result.popStructure.soldier
+                : null;
+            let armyStateForQueue = current.army || {};
+            let queueOverrideForManpower = null;
+
+            if (soldierPopulationAfterEvents !== null) {
+                const manpowerSync = syncArmyWithSoldierPopulation(
+                    armyStateForQueue,
+                    current.militaryQueue || [],
+                    soldierPopulationAfterEvents
+                );
+
+                if (manpowerSync.updatedArmy) {
+                    armyStateForQueue = manpowerSync.updatedArmy;
+                    setArmy(manpowerSync.updatedArmy);
+                }
+
+                if (manpowerSync.updatedQueue) {
+                    queueOverrideForManpower = manpowerSync.updatedQueue;
+                }
+
+                if (manpowerSync.removedUnits) {
+                    const summary = formatUnitSummary(manpowerSync.removedUnits);
+                    if (summary) {
+                        addLog(`⚠️ 军人阶级人口骤减，以下部队被迫解散：${summary}`);
+                    }
+                }
+
+                if (manpowerSync.cancelledTraining) {
+                    const summary = formatUnitSummary(manpowerSync.cancelledTraining);
+                    if (summary) {
+                        addLog(`⚠️ 士兵伤亡导致训练中断，以下单位重新排入招募：${summary}`);
+                    }
+                }
+            }
 
             const hadActiveEffects =
                 (current.activeEventEffects?.approval?.length || 0) > 0 ||
@@ -837,6 +1002,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
             setMarket(adjustedMarket);
             setClassShortages(result.needsShortages || {});
             setClassLivingStandard(result.classLivingStandard || {});
+            setLivingStandardStreaks(result.livingStandardStreaks || current.livingStandardStreaks || {});
             setMerchantState(prev => {
                 const nextState = result.merchantState || current.merchantState || { pendingTrades: [], lastTradeTime: 0 };
                 if (prev === nextState) {
@@ -868,7 +1034,16 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 result.stability || 50,
                 current.daysElapsed || 0,
                 current.promiseTasks || [],
-                result.classShortages || {}
+                result.classShortages || {},
+                {
+                    classIncome: result.classIncome || {},
+                    popStructure: result.popStructure || current.popStructure || {},
+                    taxPolicies: current.taxPolicies || {},
+                    market: result.market || current.market || {},
+                    classLivingStandard: result.classLivingStandard || {},
+                    livingStandardStreaks: result.livingStandardStreaks || current.livingStandardStreaks || {},
+                    epoch: current.epoch || 0,
+                }
             );
 
             // 检查是否有阶层跨越组织度阈值需要触发事件
@@ -876,11 +1051,13 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 currentOrganizationStates,
                 updatedOrganizationStates
             );
+            const currentEpoch = current.epoch || 0;
 
             // 处理组织度事件
             if (organizationEvents.length > 0 && current.actions?.triggerDiplomaticEvent) {
                 for (const orgEvent of organizationEvents) {
                     const stratumKey = orgEvent.stratumKey;
+                    const epochBlocksRebellion = stratumKey === 'unemployed' && currentEpoch <= 0;
                     const hasMilitary = hasAvailableMilitary(current.army, current.popStructure, stratumKey);
                     const militaryIsRebelling = isMilitaryRebelling(updatedOrganizationStates);
 
@@ -890,6 +1067,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         dissatisfactionDays: Math.floor(updatedOrganizationStates[stratumKey]?.organization || 0),
                         influenceShare: (result.classInfluence?.[stratumKey] || 0) / (result.totalInfluence || 1),
                     };
+                    const influenceShare = rebellionStateForEvent.influenceShare || 0;
+                    if (influenceShare < 0.01 && orgEvent.type !== 'uprising') {
+                        continue;
+                    }
 
                     let event = null;
                     const rebellionCallback = (action, stratum, extraData) => {
@@ -928,7 +1109,19 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         case 'uprising': {
                             // 检查影响力占比是否足够发动叛乱（需要至少20%的社会影响力）
                             const stratumInfluence = rebellionStateForEvent.influenceShare;
-                            if (stratumInfluence < 0.2) {
+                            if (epochBlocksRebellion) {
+                                addLog(`⚠️ ${STRATA[stratumKey]?.name || stratumKey}阶层尚未具备发动叛乱的组织能力。`);
+                                setRebellionStates(prev => ({
+                                    ...prev,
+                                    [stratumKey]: {
+                                        ...prev[stratumKey],
+                                        organization: 25,
+                                        stage: ORGANIZATION_STAGE.GRUMBLING,
+                                    }
+                                }));
+                                break;
+                            }
+                            if (stratumInfluence < MIN_REBELLION_INFLUENCE) {
                                 // 影响力不足，无法发动叛乱，只记录日志
                                 addLog(`⚠️ ${STRATA[stratumKey]?.name || stratumKey}阶层组织度达到100%，但社会影响力不足（${Math.round(stratumInfluence * 100)}%），无法发动叛乱！`);
                                 // 将组织度锁定在99%，防止反复触发
@@ -945,13 +1138,14 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             // 创建叛乱政府国家
                             const stratumPop = current.popStructure?.[stratumKey] || 0;
                             const stratumWealth = current.classWealth?.[stratumKey] || 0;
-                            const rebelPopLoss = Math.floor(stratumPop * 0.8);
+                            const rebelPopLoss = calculateRebelPopulation(stratumPop);
 
                             const rebelNation = createRebelNation(
                                 stratumKey,
                                 stratumPop,
                                 stratumWealth,
-                                stratumInfluence
+                                stratumInfluence,
+                                rebelPopLoss
                             );
 
                             // 将叛乱政府添加到国家列表
@@ -979,8 +1173,6 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
                     if (event) {
                         current.actions.triggerDiplomaticEvent(event);
-                        setIsPaused(true);
-                        break; // 一次只处理一个事件
                     }
                 }
             }
@@ -1095,13 +1287,14 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 // 处理失败的任务
                 if (evaluation.failed.length > 0) {
                     evaluation.failed.forEach(task => {
+                        const stratumKey = task.stratumKey;
                         const failReason = task.failReason === 'maintain_broken'
                             ? '未能保持承诺'
                             : '未能按时完成';
                         addLog(`⚠️ 你违背了对${task.stratumName}的承诺（${failReason}），组织度暴涨！`);
 
                         // 计算惩罚后的组织度
-                        const prevState = current.rebellionStates?.[task.stratumKey] || {};
+                        const prevState = current.rebellionStates?.[stratumKey] || {};
                         const penalty = task.failurePenalty || { organization: 50 };
                         let newOrganization = prevState.organization || 0;
 
@@ -1111,38 +1304,50 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             newOrganization = Math.min(100, Math.max(0, newOrganization + penalty.organization));
                         }
 
+                        const stratumInfluence = (result.classInfluence?.[stratumKey] || 0) / (result.totalInfluence || 1);
+                        const epochBlocksRebellion = stratumKey === 'unemployed' && (current.epoch || 0) <= 0;
+                        const reachedThreshold = newOrganization >= 100;
+                        const canTriggerUprising = reachedThreshold && stratumInfluence >= MIN_REBELLION_INFLUENCE && !epochBlocksRebellion;
+
+                        if (reachedThreshold && !canTriggerUprising) {
+                            newOrganization = 99;
+                            const extraReason = epochBlocksRebellion
+                                ? '当前时代他们尚缺乏发动叛乱的组织力'
+                                : `社会影响力不足（${Math.round(stratumInfluence * 100)}%）`;
+                            addLog(`⚠️ ${STRATA[stratumKey]?.name || stratumKey}阶层因承诺违背组织度达到100%，但${extraReason}，无法发动叛乱！`);
+                        }
+
                         // 更新组织度状态
                         setRebellionStates(prev => ({
                             ...prev,
-                            [task.stratumKey]: {
-                                ...prev[task.stratumKey],
+                            [stratumKey]: {
+                                ...prev[stratumKey],
                                 organization: newOrganization,
                             },
                         }));
 
                         // 如果组织度达到100%，触发起义事件
-                        if (newOrganization >= 100 && current.actions?.triggerDiplomaticEvent) {
-                            const stratumKey = task.stratumKey;
+                        if (canTriggerUprising && current.actions?.triggerDiplomaticEvent) {
                             const hasMilitary = hasAvailableMilitary(current.army, current.popStructure, stratumKey);
                             const militaryIsRebelling = isMilitaryRebelling(current.rebellionStates || {});
 
                             const rebellionStateForEvent = {
                                 organization: newOrganization,
                                 dissatisfactionDays: Math.floor(newOrganization),
-                                influenceShare: (result.classInfluence?.[stratumKey] || 0) / (result.totalInfluence || 1),
+                                influenceShare: stratumInfluence,
                             };
 
                             // 创建叛乱政府
                             const stratumPop = current.popStructure?.[stratumKey] || 0;
                             const stratumWealth = current.classWealth?.[stratumKey] || 0;
-                            const stratumInfluence = rebellionStateForEvent.influenceShare;
-                            const rebelPopLoss = Math.floor(stratumPop * 0.8);
+                            const rebelPopLoss = calculateRebelPopulation(stratumPop);
 
                             const rebelNation = createRebelNation(
                                 stratumKey,
                                 stratumPop,
                                 stratumWealth,
-                                stratumInfluence
+                                stratumInfluence,
+                                rebelPopLoss
                             );
 
                             setNations(prev => [...prev, rebelNation]);
@@ -1358,15 +1563,113 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             try {
                                 const jsonStr = log.replace('WAR_DECLARATION_EVENT:', '');
                                 const warData = JSON.parse(jsonStr);
-                                const nation = result.nations?.find(n => n.id === warData.nationId);
-                                if (nation) {
+                                const aggressorId = warData.nationId;
+                                const aggressorName = warData.nationName;
+
+                                // 触发玩家的宣战弹窗
+                                const aggressor = result.nations?.find(n => n.id === aggressorId);
+                                if (aggressor) {
                                     const { createWarDeclarationEvent } = require('../config/events');
-                                    const event = createWarDeclarationEvent(nation, () => {
-                                        // 宣战事件只需要确认，不需要额外操作
+                                    const event = createWarDeclarationEvent(aggressor, () => {
                                         console.log('[EVENT DEBUG] War declaration acknowledged');
                                     });
                                     currentActions.triggerDiplomaticEvent(event);
                                 }
+
+                                // === 战争同盟连锁反应逻辑 ===
+                                // 既然 simulation.js 仅仅触发了事件，我们需要在这里处理复杂的同盟逻辑
+                                // 我们需要同时更新 state 中的 nations (result.nations 是本Tick的结果，我们需要更新它)
+
+                                setNations(prevNations => {
+                                    const nextNations = [...prevNations];
+                                    const aggressorIdx = nextNations.findIndex(n => n.id === aggressorId);
+                                    if (aggressorIdx === -1) return nextNations;
+
+                                    // 1. 识别各方盟友
+                                    // 侵略者的盟友: 与侵略者关系 >= 80
+                                    const aggressorAllies = nextNations.filter(n => {
+                                        if (n.id === aggressorId) return false;
+                                        const r = nextNations[aggressorIdx].foreignRelations?.[n.id] ?? 50;
+                                        return r >= 80 && !n.isAtWar;
+                                    });
+
+                                    // 玩家(目标)的盟友: 与玩家(ID=player, 这里隐含)关系 >= 80
+                                    const playerAllies = nextNations.filter(n => {
+                                        if (n.id === aggressorId) return false;
+                                        return (n.relation || 0) >= 80 && !n.isAtWar;
+                                    });
+
+                                    // 2. 处理侵略者的盟友加入战争
+                                    aggressorAllies.forEach(ally => {
+                                        // 检查中立原则：如果该盟友同时也与玩家结盟(关系>=80)，则保持中立
+                                        const relationWithPlayer = ally.relation || 0;
+                                        if (relationWithPlayer >= 80) {
+                                            addLog(`⚖️ ${ally.name} 既是你的盟友又是 ${aggressorName} 的盟友，决定保持中立。`);
+                                            return;
+                                        }
+
+                                        // 否则，加入侵略者一方，对玩家宣战
+                                        const allyIdx = nextNations.findIndex(n => n.id === ally.id);
+                                        if (allyIdx !== -1) {
+                                            nextNations[allyIdx] = {
+                                                ...nextNations[allyIdx],
+                                                isAtWar: true,
+                                                warStartDay: daysElapsed,
+                                                warDuration: 0,
+                                                relation: 0 // 与玩家关系破裂
+                                            };
+                                            addLog(`⚔️ ${ally.name} 作为 ${aggressorName} 的盟友，对你宣战！`);
+                                        }
+                                    });
+
+                                    // 3. 处理玩家的盟友加入战争
+                                    playerAllies.forEach(ally => {
+                                        // 检查中立原则：如果该盟友同时也与侵略者结盟(关系>=80)，则保持中立
+                                        const relationWithAggressor = nextNations[aggressorIdx].foreignRelations?.[ally.id] ?? 50;
+                                        if (relationWithAggressor >= 80) {
+                                            // 日志已在上一步处理（双向的，只需触发一次提示即可，或者重复提示也没关系）
+                                            // addLog(`⚖️ 你的盟友 ${ally.name} 与 ${aggressorName} 关系密切，决定保持中立。`); 
+                                            // 上面的逻辑已经涵盖了这种情况（因为是遍历两组盟友，同一个国家可能出现在两组中）
+                                            // 但为了清晰，这里只提示一次 "保持中立" 比较好。
+                                            // 实际上 ally 在这里肯定出现在 playerAllies 列表中。
+                                            // 如果它也在 aggressorAllies 列表中，它会在上面的循环被处理吗？
+                                            // 上面的循环遍历 aggressorAllies，如果它与玩家关系好，会中立。
+                                            // 这里的循环遍历 playerAllies，如果它与侵略者关系好，也会中立。
+                                            // 结果是一致的：只要既是A盟友又是C盟友，就不参战。
+                                            return;
+                                        }
+
+                                        // 否则，该盟友对侵略者及其盟友宣战 (设置 foreignWars)
+                                        const allyIdx = nextNations.findIndex(n => n.id === ally.id);
+                                        if (allyIdx !== -1) {
+                                            const updatedAlly = { ...nextNations[allyIdx] };
+                                            if (!updatedAlly.foreignWars) updatedAlly.foreignWars = {};
+
+                                            // 对侵略者宣战
+                                            updatedAlly.foreignWars[aggressorId] = {
+                                                isAtWar: true,
+                                                warStartDay: daysElapsed,
+                                                warScore: 0
+                                            };
+
+                                            // 同时也需要更新侵略者的 foreignWars 状态，标记它与该盟友开战了
+                                            // 注意：aggressorIdx 的引用如果不更新，可能导致状态不一致
+                                            // 我们直接修改 nextNations 数组中的对象
+                                            if (!nextNations[aggressorIdx].foreignWars) nextNations[aggressorIdx].foreignWars = {};
+                                            nextNations[aggressorIdx].foreignWars[ally.id] = {
+                                                isAtWar: true,
+                                                warStartDay: daysElapsed,
+                                                warScore: 0
+                                            };
+
+                                            nextNations[allyIdx] = updatedAlly;
+                                            addLog(`🛡️ 你的盟友 ${ally.name} 响应号召，对 ${aggressorName} 宣战！`);
+                                        }
+                                    });
+
+                                    return nextNations;
+                                });
+
                             } catch (e) {
                                 console.error('[EVENT DEBUG] Failed to parse war declaration event:', e);
                             }
@@ -1524,14 +1827,14 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
             // 处理训练队列
             setMilitaryQueue(prev => {
-                // 检查当前soldier岗位的填补情况
-                const currentSoldierPop = result.popStructure?.soldier || 0;
-                const currentArmyCount = Object.values(current.army).reduce((sum, count) => sum + count, 0);
+                const baseQueue = queueOverrideForManpower || prev;
+                const currentSoldierPop = (soldierPopulationAfterEvents ?? result.popStructure?.soldier) || 0;
+                const currentArmyCount = Object.values(armyStateForQueue || {}).reduce((sum, count) => sum + count, 0);
 
                 // 计算有多少岗位可以用于新训练
                 // 只计算已有军队和正在训练的，waiting状态的就是等待转为training的
-                const waitingCount = prev.filter(item => item.status === 'waiting').length;
-                const trainingCount = prev.filter(item => item.status === 'training').length;
+                const waitingCount = baseQueue.filter(item => item.status === 'waiting').length;
+                const trainingCount = baseQueue.filter(item => item.status === 'training').length;
                 const occupiedJobs = currentArmyCount + trainingCount;
                 const availableJobsForNewTraining = Math.max(0, currentSoldierPop - occupiedJobs);
 
@@ -1539,7 +1842,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
                 // 将等待中的项转为训练中（如果有可用岗位）
                 let jobsToFill = availableJobsForNewTraining;
-                const updated = prev.map(item => {
+                const updated = baseQueue.map(item => {
                     if (item.status === 'waiting' && jobsToFill > 0) {
                         jobsToFill--;
                         addLog(`✓ ${UNIT_TYPES[item.unitId].name} 开始训练，需要 ${item.totalTime} 秒`);

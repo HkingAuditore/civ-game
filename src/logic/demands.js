@@ -19,6 +19,15 @@ export const DEMAND_TYPE = {
     POLITICAL: 'political',         // 政治诉求
 };
 
+// 被动诉求类型，用于展示叛乱驱动力
+export const PASSIVE_DEMAND_TYPES = {
+    TAX_PRESSURE: 'grievance_tax_pressure',
+    BASIC_SHORTAGE: 'grievance_basic_shortage',
+    LUXURY_SHORTAGE: 'grievance_luxury_shortage',
+    INCOME_CRISIS: 'grievance_income_crisis',
+    LIVING_STANDARD: 'grievance_living_standard',
+};
+
 // 诉求配置
 export const DEMAND_CONFIG = {
     [DEMAND_TYPE.TAX_RELIEF]: {
@@ -80,6 +89,71 @@ export const DEMAND_CONFIG = {
             description: '组织度 +25%，稳定度下降',
         },
         duration: 45,
+    },
+    [PASSIVE_DEMAND_TYPES.TAX_PRESSURE]: {
+        name: '税负抗议',
+        icon: 'Percent',
+        color: 'text-amber-300',
+        bgColor: 'bg-amber-900/30',
+        borderColor: 'border-amber-500/30',
+        description: '阶层认为综合税负已不可承受',
+        requirement: '将综合税负降至合理水平，否则组织度将持续攀升',
+        failurePenalty: {
+            description: '若持续无视，该阶层会组织抗税行动并提升组织度',
+        },
+        duration: 60,
+    },
+    [PASSIVE_DEMAND_TYPES.BASIC_SHORTAGE]: {
+        name: '温饱危机',
+        icon: 'Package',
+        color: 'text-red-300',
+        bgColor: 'bg-red-900/20',
+        borderColor: 'border-red-500/30',
+        description: '必需品缺货或买不起，民众要求政府干预',
+        requirement: '补足必需品供应或降低其价格税负',
+        failurePenalty: {
+            description: '持续短缺会极大提升组织度，甚至触发叛乱',
+        },
+        duration: 45,
+    },
+    [PASSIVE_DEMAND_TYPES.LUXURY_SHORTAGE]: {
+        name: '生活品质诉求',
+        icon: 'Sparkles',
+        color: 'text-blue-300',
+        bgColor: 'bg-blue-900/20',
+        borderColor: 'border-blue-500/30',
+        description: '阶层要求改善奢侈品/品质消费供给',
+        requirement: '提供至少几种奢侈品或文化消费渠道',
+        failurePenalty: {
+            description: '若一直无视，组织度将缓慢提升',
+        },
+        duration: 50,
+    },
+    [PASSIVE_DEMAND_TYPES.INCOME_CRISIS]: {
+        name: '收入危机',
+        icon: 'TrendingDown',
+        color: 'text-rose-300',
+        bgColor: 'bg-rose-900/30',
+        borderColor: 'border-rose-500/30',
+        description: '人均收入无法覆盖生活成本',
+        requirement: '提高工资、补贴或削减支出以恢复民生',
+        failurePenalty: {
+            description: '长期收入不足将把组织度推向极端',
+        },
+        duration: 60,
+    },
+    [PASSIVE_DEMAND_TYPES.LIVING_STANDARD]: {
+        name: '改善生活水平',
+        icon: 'Activity',
+        color: 'text-sky-300',
+        bgColor: 'bg-sky-900/30',
+        borderColor: 'border-sky-500/30',
+        description: '该阶层厌倦了长久的赤贫/贫困生活，要求改善民生',
+        requirement: '提高该阶层生活水平至温饱以上，或通过改革改善其收入与保障',
+        failurePenalty: {
+            description: '若持续无视，组织度会快速攀升并触发更激烈的抗议',
+        },
+        duration: 70,
     },
 };
 

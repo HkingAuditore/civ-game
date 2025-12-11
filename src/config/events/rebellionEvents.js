@@ -413,12 +413,12 @@ export function createSuppressionResultEvent(stratumKey, success, playerLosses, 
 /**
  * 创建叛乱政府国家对象
  */
-export function createRebelNation(stratumKey, stratumPop, stratumWealth, stratumInfluence) {
+export function createRebelNation(stratumKey, stratumPop, stratumWealth, stratumInfluence, rebelPopulationOverride = null) {
     const stratumName = getStratumName(stratumKey);
     const rebelId = `rebel_${stratumKey}_${Date.now()}`;
 
-    // 叛军实力基于该阶层的人口、财富和影响力
-    const population = Math.max(10, Math.floor(stratumPop * 0.8)); // 80%的阶层人口加入叛军
+    // 叛军实力基于该阶层的人口、财富和影响力（默认带走80%，可使用覆盖值）
+    const population = rebelPopulationOverride ?? Math.max(10, Math.floor(stratumPop * 0.8));
     const wealth = Math.max(REBELLION_CONFIG.REBEL_NATION_BASE_WEALTH, Math.floor(stratumWealth * 0.5));
 
     return {

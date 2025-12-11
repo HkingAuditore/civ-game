@@ -3,7 +3,9 @@
 // 基于《叛乱与阶层机制改进方案V3》
 
 import { STRATA } from '../config/strata';
+import { RESOURCES } from '../config';
 import { REBELLION_PHASE } from '../config/events/rebellionEvents';
+import { PASSIVE_DEMAND_TYPES } from './demands';
 
 // =========== 常量定义 ===========
 
@@ -93,6 +95,250 @@ export const STRATEGIC_ACTION = {
     PROMISE: 'promise',          // 承诺
 };
 
+export const MIN_REBELLION_INFLUENCE = 0.2;
+
+const DRIVER_WEIGHTS = {
+    tax: 0.7,
+    basicShortage: 1.0,
+    luxuryShortage: 0.35,
+    lowIncome: 0.8,
+    livingStandard: 0.9,
+};
+
+const PASSIVE_DEMAND_DURATION = 60;
+const ORGANIZATION_GROWTH_MULTIPLIER = 0.65;
+
+const resolvePrice = (resourceKey, marketPrices = {}) => {
+    const marketPrice = marketPrices?.[resourceKey];
+    if (Number.isFinite(marketPrice) && marketPrice > 0) {
+        return marketPrice;
+    }
+    return RESOURCES[resourceKey]?.basePrice || 1;
+};
+
+const getSatisfactionRate = (data) => {
+    if (data && typeof data === 'object') {
+        if (Number.isFinite(data.satisfactionRate)) return data.satisfactionRate;
+        if (Number.isFinite(data.value)) return data.value;
+    }
+    return Number.isFinite(data) ? data : 1;
+};
+
+const formatResourceList = (items = [], maxItems = 3) => {
+    if (!Array.isArray(items) || items.length === 0) return '';
+    return items
+        .slice(0, maxItems)
+        .map(item => {
+            const key = typeof item === 'string' ? item : item.resource;
+            return RESOURCES[key]?.name || key;
+        })
+        .join('、');
+};
+
+const countShortageByReason = (collection = [], reason) => {
+    return collection.filter(item => {
+        if (!item) return false;
+        if (item.reason === 'both') return true;
+        return item.reason === reason;
+    }).length;
+};
+
+const buildDriverContext = (stratumKey, {
+    shortages = [],
+    taxPolicies = {},
+    classIncome = {},
+    popStructure = {},
+    market = {},
+    classLivingStandard = {},
+    livingStandardStreaks = {},
+    currentDay = 0,
+} = {}) => {
+    const stratum = STRATA[stratumKey] || {};
+    const basicNeeds = stratum.needs || {};
+    const basicNeedsKeys = Object.keys(basicNeeds);
+    const basicNeedsSet = new Set(basicNeedsKeys);
+    const marketPrices = market?.prices || {};
+
+    const basicShortages = [];
+    const luxuryShortages = [];
+    shortages.forEach(entry => {
+        if (!entry || !entry.resource) return;
+        if (basicNeedsSet.has(entry.resource)) {
+            basicShortages.push(entry);
+        } else {
+            luxuryShortages.push(entry);
+        }
+    });
+
+    const population = Math.max(0, popStructure[stratumKey] || 0);
+
+    // 当该阶层没有人口时，直接返回空上下文，避免“幽灵阶层”积累组织度
+    if (population <= 0) {
+        return {
+            driverScore: 0,
+            hasBasicShortage: false,
+            demands: [],
+        };
+    }
+
+    const incomePerCapita = (classIncome[stratumKey] || 0) / population;
+    const headTaxBase = stratum.headTaxBase ?? 0;
+    const headTaxRate = taxPolicies?.headTaxRates?.[stratumKey] ?? 1;
+    const headTaxPerCapita = headTaxBase * headTaxRate;
+    const resourceTaxRates = taxPolicies?.resourceTaxRates || {};
+    let tradeTaxPerCapita = 0;
+    basicNeedsKeys.forEach(resource => {
+        const amount = basicNeeds[resource];
+        if (!amount) return;
+        const taxRate = resourceTaxRates[resource] || 0;
+        if (taxRate <= 0) return;
+        const price = resolvePrice(resource, marketPrices);
+        tradeTaxPerCapita += amount * price * taxRate;
+    });
+    const totalTaxPerCapita = headTaxPerCapita + tradeTaxPerCapita;
+    const taxBurdenRatio = incomePerCapita > 0
+        ? totalTaxPerCapita / incomePerCapita
+        : (totalTaxPerCapita > 0 ? 1 : 0);
+    const taxThreshold = 0.35;
+    const taxPressureRaw = Math.max(0, (taxBurdenRatio - taxThreshold) / 0.4);
+    const taxPressure = Math.min(1.8, taxPressureRaw);
+
+    const basicOutOfStock = countShortageByReason(basicShortages, 'outOfStock');
+    const basicUnaffordable = countShortageByReason(basicShortages, 'unaffordable');
+    const basicShortagePressure = Math.min(2, basicOutOfStock * 0.6 + basicUnaffordable * 0.45);
+
+    const luxuryOutOfStock = countShortageByReason(luxuryShortages, 'outOfStock');
+    const luxuryUnaffordable = countShortageByReason(luxuryShortages, 'unaffordable');
+    const luxuryShortagePressure = Math.min(1, luxuryOutOfStock * 0.2 + luxuryUnaffordable * 0.15);
+
+    let basicNeedsCost = 0;
+    basicNeedsKeys.forEach(resource => {
+        const amount = basicNeeds[resource];
+        if (!amount) return;
+        basicNeedsCost += amount * resolvePrice(resource, marketPrices);
+    });
+    const livingStandard = getSatisfactionRate(classLivingStandard[stratumKey]);
+    const livingStandardData = classLivingStandard[stratumKey];
+    let targetIncome = basicNeedsCost * 1.15;
+    if (livingStandard < 0.6) {
+        targetIncome *= 1.1;
+    }
+    if (incomePerCapita >= basicNeedsCost) {
+        const surplusRatio = Math.max(0, incomePerCapita - basicNeedsCost) / Math.max(1, basicNeedsCost);
+        const comfortBoost = Math.min(0.35, surplusRatio * 0.25);
+        targetIncome = Math.min(targetIncome, basicNeedsCost * (1.1 + comfortBoost));
+    }
+    if (targetIncome <= 0) {
+        targetIncome = 0.01;
+    }
+    let lowIncomePressure = 0;
+    if (incomePerCapita < targetIncome * 0.95) {
+        const incomeGapRatio = Math.max(0, (targetIncome - incomePerCapita) / targetIncome);
+        lowIncomePressure = Math.min(1.6, incomeGapRatio * 1.4);
+    }
+
+    const demands = [];
+    if (taxPressure > 0.05) {
+        const currentPercent = Math.round(taxBurdenRatio * 100);
+        demands.push({
+            id: `${stratumKey}_tax_${currentDay}`,
+            type: PASSIVE_DEMAND_TYPES.TAX_PRESSURE,
+            createdDay: currentDay,
+            deadline: currentDay + PASSIVE_DEMAND_DURATION,
+            requirement: `将综合税负降至 ${Math.round(taxThreshold * 100)}% 以下（当前 ${currentPercent}%）`,
+            failurePenalty: { description: '若继续加税，该阶层会组织抗税并积累叛乱势力。' },
+            currentProgress: Math.max(0, Math.min(1, 1 - Math.max(0, taxBurdenRatio - taxThreshold))),
+        });
+    }
+
+    if (basicShortagePressure > 0) {
+        const missingResources = Array.from(
+            new Set(basicShortages.map(item => RESOURCES[item.resource]?.name || item.resource))
+        );
+        const resourceText = formatResourceList(basicShortages, 4);
+        demands.push({
+            id: `${stratumKey}_basic_${currentDay}`,
+            type: PASSIVE_DEMAND_TYPES.BASIC_SHORTAGE,
+            createdDay: currentDay,
+            deadline: currentDay + PASSIVE_DEMAND_DURATION,
+            requirement: resourceText
+                ? `补足必需品：${resourceText}`
+                : '补足全部基础物资',
+            missingResources,
+            failurePenalty: { description: '长时间无粮无衣会迫使他们走向叛乱。' },
+            currentProgress: 0,
+        });
+    }
+
+    if (luxuryShortagePressure > 0.05) {
+        const missingResources = Array.from(
+            new Set(luxuryShortages.map(item => RESOURCES[item.resource]?.name || item.resource))
+        );
+        const resourceText = formatResourceList(luxuryShortages, 4);
+        demands.push({
+            id: `${stratumKey}_luxury_${currentDay}`,
+            type: PASSIVE_DEMAND_TYPES.LUXURY_SHORTAGE,
+            createdDay: currentDay,
+            deadline: currentDay + PASSIVE_DEMAND_DURATION,
+            requirement: resourceText
+                ? `满足生活品质诉求：${resourceText}`
+                : '提供更多奢侈消费或文化活动',
+            missingResources,
+            failurePenalty: { description: '若长期忽视，他们会寻求更激进的方式争取生活品质。' },
+            currentProgress: 0,
+        });
+    }
+
+    if (lowIncomePressure > 0.05) {
+        demands.push({
+            id: `${stratumKey}_income_${currentDay}`,
+            type: PASSIVE_DEMAND_TYPES.INCOME_CRISIS,
+            createdDay: currentDay,
+            deadline: currentDay + PASSIVE_DEMAND_DURATION,
+            requirement: `提高人均收入至 ${targetIncome.toFixed(1)}（当前 ${incomePerCapita.toFixed(1)}）`,
+            failurePenalty: { description: '若收入持续倒退，他们会把希望寄托在叛乱上。' },
+            currentProgress: Math.min(1, incomePerCapita / targetIncome),
+        });
+    }
+
+    const livingTracker = livingStandardStreaks?.[stratumKey] || {};
+    const livingStandardLevel = livingTracker.level || livingStandardData?.level;
+    const livingStreak = livingTracker.streak || 0;
+    let livingStandardPressure = 0;
+    if (livingStandardLevel === '赤贫' || livingStandardLevel === '贫困') {
+        const score = livingStandardData?.score ?? 40;
+        const streakFactor = Math.min(1.2, (livingStreak / 5) * 0.5);
+        const scoreFactor = Math.max(0, (60 - score) / 80);
+        livingStandardPressure = Math.min(1.3, streakFactor + scoreFactor);
+
+        if (livingStreak >= 3) {
+            const requirement = `将生活水平从${livingStandardLevel}提升到温饱以上（已持续${livingStreak}天）`;
+            demands.push({
+                id: `${stratumKey}_living_${currentDay}`,
+                type: PASSIVE_DEMAND_TYPES.LIVING_STANDARD,
+                createdDay: currentDay,
+                deadline: currentDay + PASSIVE_DEMAND_DURATION,
+                requirement,
+                failurePenalty: { description: '若继续赤贫下去，该阶层会把希望寄托在彻底的反抗。' },
+                currentProgress: Math.min(1, Math.max(0, (score - 30) / 40)),
+            });
+        }
+    }
+
+    const driverScore =
+        (taxPressure * DRIVER_WEIGHTS.tax) +
+        (basicShortagePressure * DRIVER_WEIGHTS.basicShortage) +
+        (luxuryShortagePressure * DRIVER_WEIGHTS.luxuryShortage) +
+        (lowIncomePressure * DRIVER_WEIGHTS.lowIncome) +
+        (livingStandardPressure * DRIVER_WEIGHTS.livingStandard);
+
+    return {
+        driverScore,
+        hasBasicShortage: basicShortages.length > 0,
+        demands,
+    };
+};
+
 // =========== 核心函数 ===========
 
 /**
@@ -163,7 +409,20 @@ export function calculateOrganizationGrowthRate(approval, influenceShare, stabil
  * @param {number} currentDay - 当前游戏天数
  * @returns {Object} 更新后的状态
  */
-export function updateStratumOrganization(currentState, approval, influenceShare, stability, stratumKey, currentDay, hasActivePromise = false, hasBasicShortage = true) {
+export function updateStratumOrganization(
+    currentState,
+    approval,
+    influenceShare,
+    stability,
+    stratumKey,
+    currentDay,
+    options = {}
+) {
+    const {
+        hasActivePromise = false,
+        driverContext = {},
+        hasBasicShortage = true,
+    } = options || {};
     // 初始化默认状态
     const state = {
         organization: currentState?.organization ?? 0,
@@ -183,31 +442,53 @@ export function updateStratumOrganization(currentState, approval, influenceShare
 
     // 检查组织度是否被暂停（收买效果）
     if (state.organizationPaused > 0) {
-        state.organizationPaused -= 1;
-        state.growthRate = 0;
-        return state;
+        state.organizationPaused = Math.max(0, state.organizationPaused - 1);
     }
 
     // 计算增长率
     let growthRate = calculateOrganizationGrowthRate(approval, influenceShare, stability, stratumKey);
+    const driverScore = Number.isFinite(driverContext.driverScore) ? driverContext.driverScore : 0;
+
+    if (driverScore !== 0) {
+        growthRate += driverScore;
+    }
 
     // 如果有活跃的承诺任务，组织度增长速度减半（民众在观望）
     if (hasActivePromise && growthRate > 0) {
         growthRate = growthRate * 0.5;
     }
 
+    if (state.organizationPaused > 0 && growthRate > 0) {
+        growthRate = 0;
+    }
+
+    if (growthRate > 0) {
+        growthRate *= ORGANIZATION_GROWTH_MULTIPLIER;
+    }
+
+    state.activeDemands = driverContext.demands || [];
     state.growthRate = growthRate;
 
     // 更新组织度
     let newOrganization = Math.max(0, Math.min(100, state.organization + growthRate));
 
-    // 重要：如果没有基础需求短缺（只有奢侈需求短缺），组织度上限为50%
-    // 这防止仅因奢侈品不满足而导致叛乱
     if (!hasBasicShortage && approval < 45) {
         const maxOrganizationWithoutBasicShortage = 50;
         if (newOrganization > maxOrganizationWithoutBasicShortage) {
             newOrganization = maxOrganizationWithoutBasicShortage;
-            state.growthRate = 0; // 达到上限后停止增长
+            if (state.growthRate > 0) {
+                state.growthRate = 0;
+            }
+        }
+    }
+
+    if (influenceShare < MIN_REBELLION_INFLUENCE) {
+        const cappedOrganization = 75;
+        if (newOrganization > cappedOrganization) {
+            newOrganization = cappedOrganization;
+            if (state.growthRate > 0) {
+                state.growthRate = 0;
+            }
         }
     }
 
@@ -244,8 +525,20 @@ export function updateAllOrganizationStates(
     stability,
     currentDay,
     promiseTasks = [],
-    classShortages = {}
+    classShortages = {},
+    options = {}
 ) {
+    const {
+        classIncome = {},
+        popStructure = {},
+        taxPolicies = {},
+        market = {},
+        classLivingStandard = {},
+        livingStandardStreaks = {},
+        epoch = 0,
+    } = options || {};
+    const epochValue = Number.isFinite(epoch) ? epoch : 0;
+
     const newStates = {};
 
     Object.keys(STRATA).forEach(stratumKey => {
@@ -254,9 +547,43 @@ export function updateAllOrganizationStates(
             return;
         }
 
+        if (stratumKey === 'unemployed' && epochValue <= 0) {
+            const prev = organizationStates[stratumKey];
+            newStates[stratumKey] = {
+                organization: 0,
+                stage: ORGANIZATION_STAGE.PEACEFUL,
+                phase: REBELLION_PHASE.NONE,
+                growthRate: 0,
+                lastStageChange: currentDay,
+                activeDemands: [],
+                actionCooldowns: prev?.actionCooldowns || {},
+                organizationPaused: 0,
+                resistance: 0,
+            };
+            return;
+        }
+
         const approval = classApproval[stratumKey] ?? 50;
         const influence = classInfluence[stratumKey] || 0;
         const influenceShare = totalInfluence > 0 ? influence / totalInfluence : 0;
+
+        const populationCount = popStructure[stratumKey] || 0;
+
+        if (populationCount <= 0) {
+            const prev = organizationStates[stratumKey] || {};
+            newStates[stratumKey] = {
+                organization: 0,
+                stage: ORGANIZATION_STAGE.PEACEFUL,
+                phase: REBELLION_PHASE.NONE,
+                growthRate: 0,
+                lastStageChange: currentDay,
+                activeDemands: [],
+                actionCooldowns: prev?.actionCooldowns || {},
+                organizationPaused: Math.max(0, (prev?.organizationPaused || 0) - 1),
+                resistance: Math.max(0, (prev?.resistance || 0) - 0.5),
+            };
+            return;
+        }
 
         // 检查该阶层是否有活跃的承诺任务
         const hasActivePromise = promiseTasks.some(task =>
@@ -267,10 +594,18 @@ export function updateAllOrganizationStates(
 
         // 检查该阶层是否有基础需求短缺
         const shortages = classShortages[stratumKey] || [];
-        const stratum = STRATA[stratumKey];
-        const basicNeeds = stratum?.needs || {};
-        const basicNeedsList = new Set(Object.keys(basicNeeds));
-        const hasBasicShortage = shortages.some(s => basicNeedsList.has(s.resource));
+
+        const driverContext = buildDriverContext(stratumKey, {
+            shortages,
+            taxPolicies,
+            classIncome,
+            popStructure,
+            market,
+            classLivingStandard,
+            livingStandardStreaks,
+            epoch: epochValue,
+            currentDay,
+        });
 
         const currentState = organizationStates[stratumKey];
         newStates[stratumKey] = updateStratumOrganization(
@@ -280,8 +615,11 @@ export function updateAllOrganizationStates(
             stability,
             stratumKey,
             currentDay,
-            hasActivePromise,
-            hasBasicShortage
+            {
+                hasActivePromise,
+                driverContext,
+                hasBasicShortage: !!driverContext.hasBasicShortage,
+            }
         );
     });
 
