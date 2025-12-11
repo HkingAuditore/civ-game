@@ -75,6 +75,7 @@ const buildInitialHistory = () => {
 const buildInitialMerchantState = () => ({
   pendingTrades: [],
   lastTradeTime: 0,
+  lockedCapital: 0,
 });
 
 const DEFAULT_EVENT_EFFECT_SETTINGS = {

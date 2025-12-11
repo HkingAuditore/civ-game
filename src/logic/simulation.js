@@ -237,8 +237,9 @@ const simulateMerchantTrade = ({
 }) => {
     const merchantCount = popStructure?.merchant || 0;
     if (merchantCount <= 0) {
-        return { pendingTrades, lastTradeTime };
+        return { pendingTrades, lastTradeTime, lockedCapital: 0, capitalInvestedThisTick: 0 };
     }
+    let capitalInvestedThisTick = 0;
 
     const resourceTaxRates = taxPolicies?.resourceTaxRates || {};
     const getResourceTaxRate = (resource) => resourceTaxRates[resource] || 0; // 允许负税率
@@ -448,13 +449,16 @@ const simulateMerchantTrade = ({
                     res[resourceKey] = Math.max(0, (res[resourceKey] || 0) - totalAmount);
                     supply[resourceKey] = Math.max(0, (supply[resourceKey] || 0) - totalAmount);
 
+                    capitalInvestedThisTick += totalOutlay;
+
                     updatedPendingTrades.push({
                         type: 'export',
                         resource: resourceKey,
                         amount: totalAmount,
                         revenue: revenue * batchMultiplier,
                         profit: profit * batchMultiplier,
-                        daysRemaining: 3
+                        daysRemaining: 3,
+                        capitalLocked: totalOutlay
                     });
 
                     lastTradeTime = tick;
@@ -526,13 +530,16 @@ const simulateMerchantTrade = ({
                         taxBreakdown.industryTax += totalAppliedTax;
                     }
 
+                    capitalInvestedThisTick += totalCost;
+
                     updatedPendingTrades.push({
                         type: 'import',
                         resource: resourceKey,
                         amount: totalAmount,
                         revenue: totalNetRevenue,
                         profit: totalNetRevenue - totalCost,
-                        daysRemaining: 3
+                        daysRemaining: 3,
+                        capitalLocked: totalCost
                     });
 
                     lastTradeTime = tick;
@@ -554,9 +561,15 @@ const simulateMerchantTrade = ({
         });
     }
 
+    const lockedCapital = updatedPendingTrades.reduce((sum, trade) => {
+        return sum + Math.max(0, trade.capitalLocked || 0);
+    }, 0);
+
     return {
         pendingTrades: updatedPendingTrades,
-        lastTradeTime: lastTradeTime
+        lastTradeTime: lastTradeTime,
+        lockedCapital,
+        capitalInvestedThisTick
     };
 };
 
@@ -1486,6 +1499,8 @@ export const simulateTick = ({
                             res.silver -= subsidyAmount;
                             taxBreakdown.subsidy += subsidyAmount;
                             totalCost -= subsidyAmount;
+                            // Record resource purchase subsidy as income for building owner
+                            roleWagePayout[ownerKey] = (roleWagePayout[ownerKey] || 0) + subsidyAmount;
                         } else {
                             if (tick % 20 === 0) {
                                 logs.push(`国库空虚，无法为 ${b.name} 支付 ${RESOURCES[resKey]?.name || resKey} 交易补贴！`);
@@ -1920,6 +1935,8 @@ export const simulateTick = ({
                             res.silver -= subsidyAmount;
                             taxBreakdown.subsidy += subsidyAmount;
                             totalCost -= subsidyAmount;
+                            // Record consumption subsidy as income
+                            roleWagePayout[key] = (roleWagePayout[key] || 0) + subsidyAmount;
                         } else {
                             if (tick % 20 === 0) {
                                 logs.push(`国库空虚，无法为 ${STRATA[key]?.name || key} 支付 ${RESOURCES[resKey]?.name || resKey} 消费补贴！`);
@@ -3784,6 +3801,13 @@ export const simulateTick = ({
         return result;
     };
 
+    const sumLockedCapital = (trades = []) => {
+        if (!Array.isArray(trades)) return 0;
+        return trades.reduce((sum, trade) => sum + Math.max(0, trade?.capitalLocked || 0), 0);
+    };
+
+    const previousMerchantLockedCapital = Math.max(0, merchantState?.lockedCapital ?? sumLockedCapital(merchantState?.pendingTrades || []));
+
     // 【修复】在转职评估前先执行商人交易，确保商人收入被正确计算
     const previousMerchantWealth = classWealthResult.merchant || 0;
     const updatedMerchantState = simulateMerchantTrade({
@@ -3804,6 +3828,12 @@ export const simulateTick = ({
         gameSpeed,
         logs,
     });
+    const merchantLockedCapital = Math.max(0, updatedMerchantState.lockedCapital ?? sumLockedCapital(updatedMerchantState.pendingTrades));
+    updatedMerchantState.lockedCapital = merchantLockedCapital;
+    const merchantCapitalInvested = updatedMerchantState.capitalInvestedThisTick || 0;
+    if ('capitalInvestedThisTick' in updatedMerchantState) {
+        delete updatedMerchantState.capitalInvestedThisTick;
+    }
 
     // 增强转职（Migration）逻辑：基于市场价格和潜在收益的职业流动
     const roleVacancies = {};
@@ -3811,17 +3841,31 @@ export const simulateTick = ({
         roleVacancies[role] = Math.max(0, (jobsAvailable[role] || 0) - (popStructure[role] || 0));
     });
 
+    const getRoleWealthSnapshot = (role) => {
+        if (role === 'merchant') {
+            return (classWealthResult.merchant || 0) + merchantLockedCapital;
+        }
+        return classWealthResult[role] || 0;
+    };
+    const getPrevRoleWealthSnapshot = (role) => {
+        if (role === 'merchant') {
+            return (classWealth?.merchant || 0) + previousMerchantLockedCapital;
+        }
+        return classWealth?.[role] || 0;
+    };
+
     const activeRoleMetrics = ROLE_PRIORITY.map(role => {
         const pop = popStructure[role] || 0;
-        const wealthNow = classWealthResult[role] || 0;
-        const prevWealth = classWealth?.[role] || 0;
+        const wealthNow = getRoleWealthSnapshot(role);
+        const prevWealth = getPrevRoleWealthSnapshot(role);
         const delta = wealthNow - prevWealth;
         const perCap = pop > 0 ? wealthNow / pop : 0;
         const perCapWealthDelta = pop > 0 ? delta / pop : 0;
 
         const totalIncome = roleWagePayout[role] || 0;
         const totalExpense = roleExpense[role] || 0;
-        const netIncome = totalIncome - totalExpense;
+        const capitalOutlayAdjustment = role === 'merchant' ? merchantCapitalInvested : 0;
+        const netIncome = totalIncome - totalExpense + capitalOutlayAdjustment;
         const netIncomePerCapita = netIncome / Math.max(1, pop);
         const roleWage = updatedWages[role] || getExpectedWage(role);
         const headTaxBase = STRATA[role]?.headTaxBase ?? 0.01;
