@@ -2552,6 +2552,34 @@ export const simulateTick = ({
                 }
             }
 
+            // ========== 叛军投降检测 ==========
+            // 当叛军处于劣势时（战争分数高表示玩家优势），可能请求投降
+            const rebelWarScore = next.warScore || 0;
+            const rebelWarDuration = next.warDuration || 0;
+            const lastRebelPeaceRequest = Number.isFinite(next.lastPeaceRequestDay) ? next.lastPeaceRequestDay : -Infinity;
+            const canRebelRequestPeace = (tick - lastRebelPeaceRequest) >= 30; // 30天冷却
+
+            // 战争分数 > 30 表示玩家大幅占优（叛军处于劣势）
+            // 或者战争持续太久（>90天）且玩家占优
+            if (canRebelRequestPeace && !next.isPeaceRequesting) {
+                const desperationLevel = Math.max(0, rebelWarScore - 20) / 100 + Math.max(0, rebelWarDuration - 60) / 500;
+                const surrenderChance = Math.min(0.4, desperationLevel * 0.5);
+
+                if (rebelWarScore > 30 && Math.random() < surrenderChance) {
+                    // 叛军请求投降
+                    next.isPeaceRequesting = true;
+                    next.peaceTribute = 0; // 叛军投降不支付赔款，只是解散
+                    next.lastPeaceRequestDay = tick;
+                    logs.push(`🏳️ ${next.name} 已陷入绝境，请求投降！`);
+                } else if (rebelWarScore > 60 && rebelWarDuration > 90) {
+                    // 叛军被彻底击溃，强制投降
+                    next.isPeaceRequesting = true;
+                    next.peaceTribute = 0;
+                    next.lastPeaceRequestDay = tick;
+                    logs.push(`🏳️ ${next.name} 已经崩溃，恳求投降！`);
+                }
+            }
+
             return next;
         }
 

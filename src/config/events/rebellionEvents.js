@@ -548,6 +548,7 @@ export function createRebellionEndEvent(rebelNation, victory, callback) {
             options: [{
                 id: 'accept',
                 text: '忍辱接受',
+                description: '水能载舟，亦能覆舟……',
                 effects: {
                     stability: -20,
                 },

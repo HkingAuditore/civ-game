@@ -1380,11 +1380,17 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 const warDuration = rebelNation.warDuration || 0;
                 if (warDuration < 60) continue;
 
+                // 如果叛军已经不在战争中（可能已经通过投降等方式结束），跳过
+                if (!rebelNation.isAtWar) continue;
+
                 const orgState = updatedOrganizationStates[stratumKey];
                 const organization = orgState?.organization ?? 50; // 默认50%，避免误判
+                const rebelWarScore = rebelNation.warScore || 0;
 
                 // 组织度下降到 30% 以下，叛乱军崩溃
-                if (organization < 30) {
+                // 但如果叛军战争分数大幅领先（warScore < -30），说明叛军占优，不应该瓦解
+                // warScore 负值 = 叛军优势，正值 = 玩家优势
+                if (organization < 30 && rebelWarScore >= -20) {
                     const stratumName = STRATA[stratumKey]?.name || stratumKey;
                     addLog(`🕊️ ${rebelNation.name}内部分裂，组织度降至${Math.round(organization)}%，叛乱崩溃！`);
 
@@ -2004,6 +2010,54 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                     setNations(prev => prev.map(n =>
                                         n.id === nation.id ? { ...n, isPeaceRequesting: false } : n
                                     ));
+                                }
+                            }
+                        }
+
+                        // 检测叛军投降事件
+                        if (log.includes('请求投降')) {
+                            const surrenderMatch = log.match(/🏳️ (.+) (?:已陷入绝境|已经崩溃)，(?:请求|恳求)投降/);
+                            if (surrenderMatch) {
+                                const nationName = surrenderMatch[1];
+                                const nation = result.nations?.find(n => n.name === nationName && n.isRebelNation);
+                                if (nation && nation.isPeaceRequesting) {
+                                    console.log('[EVENT DEBUG] Rebel surrender detected:', nationName);
+                                    // 创建叛军投降事件（直接使用叛乱结束事件）
+                                    // 注意：回调只处理效果，不再调用 handleRebellionWarEnd 避免重复
+                                    const surrenderEvent = createRebellionEndEvent(
+                                        nation,
+                                        true, // 玩家胜利
+                                        (action) => {
+                                            // 效果由事件本身的 effects 处理，这里只做日志
+                                            console.log('[REBELLION SURRENDER]', action, nation?.name);
+                                        }
+                                    );
+                                    currentActions.triggerDiplomaticEvent(surrenderEvent);
+
+                                    // 直接处理叛军移除和状态重置（不再通过 handleRebellionWarEnd）
+                                    const stratumKey = nation.rebellionStratum;
+                                    if (stratumKey) {
+                                        // 恢复部分人口
+                                        const recoveredPop = Math.floor((nation.population || 0) * 0.5);
+                                        if (recoveredPop > 0) {
+                                            setPopStructure(prev => ({
+                                                ...prev,
+                                                [stratumKey]: (prev[stratumKey] || 0) + recoveredPop,
+                                            }));
+                                        }
+                                        // 重置组织度
+                                        setRebellionStates(prev => ({
+                                            ...prev,
+                                            [stratumKey]: {
+                                                ...prev?.[stratumKey],
+                                                organization: 15,
+                                                dissatisfactionDays: 0,
+                                                organizationPaused: 0,
+                                            },
+                                        }));
+                                    }
+                                    // 移除叛军
+                                    setNations(prev => prev.filter(n => n.id !== nation.id));
                                 }
                             }
                         }
