@@ -1,7 +1,7 @@
 // Cheat Codes System for Civilization Game
 // Usage: Open browser console and type window.cheat.help() to see all available commands
 
-import { EPOCHS } from '../config';
+import { EPOCHS, STRATA, RESOURCES } from '../config';
 import { EVENTS, BASE_EVENTS, CLASS_CONFLICT_EVENTS, EPOCH_EVENTS, ECONOMIC_EVENTS, STATIC_DIPLOMATIC_EVENTS } from '../config/events';
 
 const EPOCH_ALIASES = {
@@ -46,6 +46,49 @@ const getNumericEpoch = (epochValue = 0) => {
   return resolved ?? 0;
 };
 
+const clamp = (value, min, max) => {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return min;
+  return Math.min(max, Math.max(min, num));
+};
+
+const normalizeStratumKey = (key) => {
+  if (!key) return null;
+  const normalized = String(key).trim().toLowerCase();
+  if (!normalized) return null;
+  const allKeys = Object.keys(STRATA || {});
+  const directMatch = allKeys.find(k => k.toLowerCase() === normalized);
+  if (directMatch) return directMatch;
+  const partial = allKeys.find(k => STRATA[k]?.name && STRATA[k].name.toLowerCase().includes(normalized));
+  return partial || normalized;
+};
+
+const normalizeResourceKey = (key) => {
+  if (!key) return null;
+  const normalized = String(key).trim().toLowerCase();
+  if (!normalized) return null;
+  const allKeys = Object.keys(RESOURCES || {});
+  const directMatch = allKeys.find(k => k.toLowerCase() === normalized);
+  if (directMatch) return directMatch;
+  const partial = allKeys.find(k => RESOURCES[k]?.name && RESOURCES[k].name.toLowerCase().includes(normalized));
+  return partial || normalized;
+};
+
+const findNationByIdOrName = (identifier, nations = []) => {
+  if (!identifier) return null;
+  const idStr = String(identifier).trim();
+  if (!idStr) return null;
+  const lower = idStr.toLowerCase();
+
+  let found = nations.find(n => n.id === idStr);
+  if (found) return found;
+
+  found = nations.find(n => (n.name || '').toLowerCase() === lower);
+  if (found) return found;
+
+  return nations.find(n => (n.name || '').toLowerCase().includes(lower)) || null;
+};
+
 /**
  * Initialize cheat codes system
  * @param {Object} gameState - The game state object
@@ -83,6 +126,7 @@ export const initCheatCodes = (gameState, addLog) => {
       console.log('%cMilitary:', 'color: #ffff00; font-weight: bold;');
       console.log('  cheat.addArmy(unitType, amount) - Add military units');
       console.log('  cheat.superArmy()           - Create a super army');
+      console.log('  cheat.invincibleArmy()      - Max army power & weaken enemies');
       console.log('');
       console.log('%cEconomy:', 'color: #ffff00; font-weight: bold;');
       console.log('  cheat.maxStability()        - Set stability to 100');
@@ -118,6 +162,33 @@ console.log('  cheat.listEvents(category)      - List all events (category: base
       console.log('');
       console.log('%cUtility:', 'color: #00ffff; font-weight: bold;');
       console.log('  cheat.getState()            - View current game state');
+      console.log('');
+      console.log('%cGame Control:', 'color: #00ffff; font-weight: bold;');
+      console.log('  cheat.pause()               - Pause the game loop');
+      console.log('  cheat.resume()              - Resume the game loop');
+      console.log('  cheat.setSpeed(multiplier)  - Set game speed (e.g. 1/2/5)');
+      console.log('  cheat.toggleAutoSave(on)    - Enable/disable auto save');
+      console.log('  cheat.setAutoSave(sec)      - Set auto save interval in seconds');
+      console.log('  cheat.save(type)            - Save game (\"manual\" or \"auto\")');
+      console.log('  cheat.load(type)            - Load game (\"manual\" or \"auto\")');
+      console.log('  cheat.hardReset()           - Reset game & clear saves');
+      console.log('');
+      console.log('%cSociety & Stability:', 'color: #00ffff; font-weight: bold;');
+      console.log('  cheat.setStability(value)   - Set stability (0-100)');
+      console.log('  cheat.setApproval(stratum, value)    - Set one class approval');
+      console.log('  cheat.setAllApproval(value)          - Set all class approvals');
+      console.log('  cheat.setClassWealth(stratum, value) - Set one class wealth');
+      console.log('  cheat.setAllClassWealth(value)       - Set all class wealth');
+      console.log('  cheat.setStratumPop(stratum, amount) - Set population of a stratum');
+      console.log('');
+      console.log('%cDiplomacy & Tax:', 'color: #00ffff; font-weight: bold;');
+      console.log('  cheat.setRelation(nation, value)     - Set relation with a nation');
+      console.log('  cheat.makePeaceAll()        - End all wars & reset warscore');
+      console.log('  cheat.declareWar(nation)    - Instantly declare war');
+      console.log('  cheat.setHeadTax(stratum, rate)      - Set head tax for a class');
+      console.log('  cheat.setAllHeadTax(rate)            - Set head tax for all classes');
+      console.log('  cheat.setResourceTax(res, rate)      - Set trade tax for a resource');
+      console.log('  cheat.setAllResourceTax(rate)        - Set trade tax for all tradable res');
       console.log('  cheat.help()                - Show this help');
     },
 
@@ -339,6 +410,37 @@ console.log('  cheat.listEvents(category)      - List all events (category: base
     },
 
     /**
+     * Create an almost invincible army and weaken all enemy nations
+     */
+    invincibleArmy: () => {
+      // First, create a huge super army for the player
+      window.cheat.superArmy();
+      gameState.setArmy(prev => {
+        const next = { ...(prev || {}) };
+        // Further multiply key late-game units
+        ['rifleman', 'tank', 'aircraft'].forEach(unit => {
+          if (!next[unit]) {
+            next[unit] = 5000;
+          } else {
+            next[unit] += 5000;
+          }
+        });
+        return next;
+      });
+
+      // Then, drastically reduce all AI nations' military strength
+      if (gameState.setNations && Array.isArray(gameState.nations)) {
+        gameState.setNations(prev => prev.map(nation => ({
+          ...nation,
+          militaryStrength: Math.max(0.1, (nation.militaryStrength ?? 1.0) * 0.25),
+        })));
+      }
+
+      addLog('⚔️ 作弊码：你的军队几乎无敌，敌国军事实力被严重削弱');
+      console.log('%c✅ Invincible army activated: massive forces granted and all enemy military strength heavily reduced', 'color: #ff4444; font-weight: bold;');
+    },
+
+    /**
      * Set stability to maximum
      */
     maxStability: () => {
@@ -549,6 +651,114 @@ console.log('  cheat.listEvents(category)      - List all events (category: base
       return gameState;
     },
 
+    // ========== Game Control Commands ==========
+
+    /**
+     * Pause the main game loop
+     */
+    pause: () => {
+      if (gameState.isPaused) {
+        console.log('⚠️ Game is already paused');
+        return;
+      }
+      gameState.setIsPaused(true);
+      addLog('⏸️ 作弊码：游戏已暂停');
+      console.log('✅ Game paused');
+    },
+
+    /**
+     * Resume the main game loop
+     */
+    resume: () => {
+      if (!gameState.isPaused) {
+        console.log('⚠️ Game is already running');
+        return;
+      }
+      gameState.setIsPaused(false);
+      addLog('▶️ 作弊码：游戏继续运行');
+      console.log('✅ Game resumed');
+    },
+
+    /**
+     * Set game speed multiplier
+     */
+    setSpeed: (speed = 1) => {
+      const value = clamp(speed, 0.1, 50);
+      if (!gameState.setGameSpeed) {
+        console.log('❌ Game speed control is not available in this build');
+        return;
+      }
+      gameState.setGameSpeed(value);
+      addLog(`⏱️ 作弊码：游戏速度设为 ${value}x`);
+      console.log(`✅ Game speed set to ${value}x`);
+    },
+
+    /**
+     * Enable / disable auto save
+     */
+    toggleAutoSave: (enabled = true) => {
+      const flag = !!enabled;
+      if (!gameState.setIsAutoSaveEnabled) {
+        console.log('❌ Auto save control is not available');
+        return;
+      }
+      gameState.setIsAutoSaveEnabled(flag);
+      addLog(`💾 作弊码：自动存档已${flag ? '开启' : '关闭'}`);
+      console.log(`✅ Auto save ${flag ? 'enabled' : 'disabled'}`);
+    },
+
+    /**
+     * Set auto save interval in seconds
+     */
+    setAutoSave: (seconds = 60) => {
+      const value = Math.max(5, Math.floor(Number(seconds) || 0));
+      if (!gameState.setAutoSaveInterval) {
+        console.log('❌ Auto save interval control is not available');
+        return;
+      }
+      gameState.setAutoSaveInterval(value);
+      addLog(`💾 作弊码：自动存档间隔改为 ${value} 秒`);
+      console.log(`✅ Auto save interval set to ${value} seconds`);
+    },
+
+    /**
+     * Manually trigger a save (manual or auto slot)
+     */
+    save: (type = 'manual') => {
+      const source = type === 'auto' ? 'auto' : 'manual';
+      if (!gameState.saveGame) {
+        console.log('❌ Save system is not available');
+        return;
+      }
+      gameState.saveGame({ source });
+      console.log(`✅ Save triggered (${source})`);
+    },
+
+    /**
+     * Load a save (manual or auto slot)
+     */
+    load: (type = 'manual') => {
+      const source = type === 'auto' ? 'auto' : 'manual';
+      if (!gameState.loadGame) {
+        console.log('❌ Load system is not available');
+        return;
+      }
+      gameState.loadGame({ source });
+      console.log(`✅ Load triggered (${source})`);
+    },
+
+    /**
+     * Hard reset the game and clear saves
+     */
+    hardReset: () => {
+      if (!gameState.resetGame) {
+        console.log('❌ Reset system is not available');
+        return;
+      }
+      console.log('⚠️ This will clear all saves and reload the page.');
+      gameState.resetGame();
+    },
+
     // ========== Event Debug Commands ==========
 
     /**
@@ -715,7 +925,255 @@ console.log('  cheat.listEvents(category)      - List all events (category: base
       window.cheat.addPopulation(10000);
       addLog(`👑 作弊码：上帝模式已启用！`);
       console.log(`%c👑 GOD MODE ACTIVATED!`, 'color: #ff00ff; font-size: 20px; font-weight: bold;');
-    }
+    },
+
+    // ========== Society & Diplomacy Helpers ==========
+
+    /**
+     * Set stability to specific value
+     */
+    setStability: (value = 50) => {
+      const v = clamp(value, 0, 100);
+      if (!gameState.setStability) {
+        console.log('❌ Stability control is not available');
+        return;
+      }
+      gameState.setStability(v);
+      addLog(`🏛️ 作弊码：稳定度设为 ${v}`);
+      console.log(`✅ Stability set to ${v}`);
+    },
+
+    /**
+     * Set approval of single stratum
+     */
+    setApproval: (stratumKey, value = 100) => {
+      const key = normalizeStratumKey(stratumKey);
+      if (!key) {
+        console.log('❌ Please provide a valid stratum key');
+        return;
+      }
+      const v = clamp(value, 0, 100);
+      gameState.setClassApproval(prev => ({
+        ...prev,
+        [key]: v,
+      }));
+      addLog(`😊 作弊码：${key} 满意度设为 ${v}`);
+      console.log(`✅ Approval for "${key}" set to ${v}`);
+    },
+
+    /**
+     * Set approval for all strata
+     */
+    setAllApproval: (value = 100) => {
+      const v = clamp(value, 0, 100);
+      const approvals = {};
+      Object.keys(STRATA || {}).forEach(key => {
+        approvals[key] = v;
+      });
+      gameState.setClassApproval(approvals);
+      addLog(`😊 作弊码：所有阶层满意度统一为 ${v}`);
+      console.log(`✅ All class approvals set to ${v}`);
+    },
+
+    /**
+     * Set wealth of a single class
+     */
+    setClassWealth: (stratumKey, value = 10000) => {
+      const key = normalizeStratumKey(stratumKey);
+      if (!key) {
+        console.log('❌ Please provide a valid stratum key');
+        return;
+      }
+      const wealth = Math.max(0, Number(value) || 0);
+      gameState.setClassWealth(prev => ({
+        ...prev,
+        [key]: wealth,
+      }));
+      addLog(`💰 作弊码：${key} 财富设为 ${wealth}`);
+      console.log(`✅ Wealth for "${key}" set to ${wealth}`);
+    },
+
+    /**
+     * Set wealth of all classes
+     */
+    setAllClassWealth: (value = 20000) => {
+      const wealth = Math.max(0, Number(value) || 0);
+      const map = {};
+      Object.keys(STRATA || {}).forEach(key => {
+        map[key] = wealth;
+      });
+      gameState.setClassWealth(map);
+      addLog(`💰 作弊码：所有阶层财富统一为 ${wealth}`);
+      console.log(`✅ All class wealth set to ${wealth}`);
+    },
+
+    /**
+     * Set population of a single stratum and sync total population
+     */
+    setStratumPop: (stratumKey, amount = 100) => {
+      const key = normalizeStratumKey(stratumKey);
+      if (!key) {
+        console.log('❌ Please provide a valid stratum key');
+        return;
+      }
+      const count = Math.max(0, Math.floor(Number(amount) || 0));
+      gameState.setPopStructure(prev => {
+        const next = { ...(prev || {}) };
+        next[key] = count;
+        const total = Object.values(next).reduce((sum, v) => {
+          const n = Number(v);
+          return sum + (Number.isFinite(n) ? n : 0);
+        }, 0);
+        if (gameState.setPopulation) {
+          gameState.setPopulation(total);
+        }
+        return next;
+      });
+      addLog(`👥 作弊码：阶层 ${key} 人口设为 ${count}`);
+      console.log(`✅ Population of "${key}" set to ${count} (total will be synced)`);
+    },
+
+    // ========== Diplomacy & Tax Commands ==========
+
+    /**
+     * Set relation with a specific nation
+     */
+    setRelation: (nationIdentifier, value = 100) => {
+      const nation = findNationByIdOrName(nationIdentifier, gameState.nations || []);
+      if (!nation) {
+        console.log(`❌ Nation "${nationIdentifier}" not found`);
+        return;
+      }
+      const v = clamp(value, -100, 100);
+      gameState.setNations(prev => prev.map(n => (
+        n.id === nation.id ? { ...n, relation: v } : n
+      )));
+      addLog(`🌍 作弊码：与 ${nation.name} 关系设为 ${v}`);
+      console.log(`✅ Relation with "${nation.name}" set to ${v}`);
+    },
+
+    /**
+     * Make peace with all nations and reset war state
+     */
+    makePeaceAll: () => {
+      gameState.setNations(prev => prev.map(n => ({
+        ...n,
+        isAtWar: false,
+        warScore: 0,
+        warDuration: 0,
+        enemyLosses: 0,
+      })));
+      if (gameState.setSelectedTarget) {
+        gameState.setSelectedTarget(null);
+      }
+      addLog('🕊️ 作弊码：与所有国家停战');
+      console.log('✅ All wars ended and war scores reset');
+    },
+
+    /**
+     * Instantly declare war on a target nation
+     */
+    declareWar: (nationIdentifier) => {
+      const nation = findNationByIdOrName(nationIdentifier, gameState.nations || []);
+      if (!nation) {
+        console.log(`❌ Nation "${nationIdentifier}" not found`);
+        return;
+      }
+      gameState.setNations(prev => prev.map(n => (
+        n.id === nation.id
+          ? {
+              ...n,
+              isAtWar: true,
+              warScore: n.warScore ?? 0,
+              warDuration: n.warDuration ?? 0,
+              warStartDay: gameState.daysElapsed ?? 0,
+            }
+          : n
+      )));
+      if (gameState.setSelectedTarget) {
+        gameState.setSelectedTarget(nation.id);
+      }
+      addLog(`⚔️ 作弊码：向 ${nation.name} 宣战`);
+      console.log(`✅ War declared on "${nation.name}"`);
+    },
+
+    /**
+     * Set head tax rate for a specific stratum
+     */
+    setHeadTax: (stratumKey, rate = 0) => {
+      const key = normalizeStratumKey(stratumKey);
+      if (!key) {
+        console.log('❌ Please provide a valid stratum key');
+        return;
+      }
+      const r = Math.max(0, Number(rate) || 0);
+      gameState.setTaxPolicies(prev => ({
+        ...prev,
+        headTaxRates: {
+          ...(prev?.headTaxRates || {}),
+          [key]: r,
+        },
+      }));
+      addLog(`💸 作弊码：${key} 人头税率设为 ${r}`);
+      console.log(`✅ Head tax for "${key}" set to ${r}`);
+    },
+
+    /**
+     * Set head tax for all classes
+     */
+    setAllHeadTax: (rate = 0) => {
+      const r = Math.max(0, Number(rate) || 0);
+      const map = {};
+      Object.keys(STRATA || {}).forEach(key => {
+        map[key] = r;
+      });
+      gameState.setTaxPolicies(prev => ({
+        ...prev,
+        headTaxRates: map,
+      }));
+      addLog(`💸 作弊码：所有阶层人头税率统一为 ${r}`);
+      console.log(`✅ All head tax rates set to ${r}`);
+    },
+
+    /**
+     * Set trade tax rate for a specific resource
+     */
+    setResourceTax: (resourceKey, rate = 0.05) => {
+      const key = normalizeResourceKey(resourceKey);
+      if (!key || !RESOURCES[key]) {
+        console.log('❌ Please provide a valid tradable resource key');
+        return;
+      }
+      const r = Math.max(0, Number(rate) || 0);
+      gameState.setTaxPolicies(prev => ({
+        ...prev,
+        resourceTaxRates: {
+          ...(prev?.resourceTaxRates || {}),
+          [key]: r,
+        },
+      }));
+      addLog(`💱 作弊码：资源 ${key} 交易税率设为 ${r}`);
+      console.log(`✅ Resource tax for "${key}" set to ${r}`);
+    },
+
+    /**
+     * Set trade tax for all tradable resources
+     */
+    setAllResourceTax: (rate = 0.05) => {
+      const r = Math.max(0, Number(rate) || 0);
+      const map = {};
+      Object.keys(RESOURCES || {}).forEach(key => {
+        const def = RESOURCES[key];
+        if (!def || def.type === 'virtual' || key === 'silver') return;
+        map[key] = r;
+      });
+      gameState.setTaxPolicies(prev => ({
+        ...prev,
+        resourceTaxRates: map,
+      }));
+      addLog(`💱 作弊码：所有可交易资源税率统一为 ${r}`);
+      console.log(`✅ All tradable resource taxes set to ${r}`);
+    },
   };
 
   // Display welcome message

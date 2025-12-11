@@ -27,8 +27,13 @@ export {
   createAllianceRequestEvent,
   createAllianceProposalResultEvent,
   createAllianceBreakEvent,
+  createNationAnnexedEvent,
+  BASE_EVENTS,
+  EPOCH_EVENTS,
+  CLASS_CONFLICT_EVENTS,
+  ECONOMIC_EVENTS,
+  STATIC_DIPLOMATIC_EVENTS
 } from './events';
-
 // 军事单位系统
 export { 
   UNIT_TYPES,
@@ -63,3 +68,6 @@ export {
   BALANCE_MECHANISMS,
   SYSTEM_TRIGGERED_EVENTS
 } from './systemSynergies';
+
+// 庆典效果配置
+export { FESTIVAL_EFFECTS } from './festivalEffects';

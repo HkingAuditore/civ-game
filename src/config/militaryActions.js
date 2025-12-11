@@ -172,8 +172,8 @@ export const MILITARY_ACTIONS = [
       silver: [150, 240],
     },
     influence: { win: 10, lose: -6 },
-    winScore: 15,
-    loseScore: 10,
+    winScore: 25,
+    loseScore: 20,
     wealthDamage: 30,
   },
   {
@@ -225,8 +225,8 @@ export const MILITARY_ACTIONS = [
       silver: [200, 320],
     },
     influence: { win: 14, lose: -10 },
-    winScore: 22,
-    loseScore: 14,
+    winScore: 52,
+    loseScore: 54,
     wealthDamage: 45,
   },
   {
@@ -266,8 +266,8 @@ export const MILITARY_ACTIONS = [
       cloth: [20, 45],
     },
     influence: { win: 8, lose: -5 },
-    winScore: 12,
-    loseScore: 8,
+    winScore: 32,
+    loseScore: 38,
     wealthDamage: 25,
   },
   {
@@ -302,8 +302,8 @@ export const MILITARY_ACTIONS = [
       silver: [100, 200],
     },
     influence: { win: 12, lose: -8 },
-    winScore: 18,
-    loseScore: 12,
+    winScore: 48,
+    loseScore: 42,
     wealthDamage: 60, // 对敌方经济伤害更大
   },
 ];

@@ -58,7 +58,7 @@ export const DeclareWarModal = ({ targetNation, allies = [], onConfirm, onCancel
                                 <Icon name="Flag" size={14} className={targetNation.color || 'text-gray-300'} />
                                 <span className="text-sm font-bold text-white">{targetNation.name}</span>
                                 <span className="px-1.5 py-0.5 text-[9px] rounded bg-gray-700 text-gray-300">
-                                    关系: {targetNation.relation || 0}
+                                    关系: {Math.round(targetNation.relation) || 0}
                                 </span>
                             </div>
                             {targetNation.desc && (

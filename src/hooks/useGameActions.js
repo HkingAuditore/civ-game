@@ -2,7 +2,7 @@
 // 包含所有游戏操作函数，如建造建筑、研究科技、升级时代等
 
 import { useState, useEffect } from 'react';
-import { BUILDINGS, EPOCHS, RESOURCES, TECHS, MILITARY_ACTIONS, UNIT_TYPES, EVENTS, getRandomEvent, createWarDeclarationEvent, createGiftEvent, createPeaceRequestEvent, createEnemyPeaceRequestEvent, createPlayerPeaceProposalEvent, createBattleEvent, createAllianceRequestEvent, createAllianceProposalResultEvent, createAllianceBreakEvent, STRATA } from '../config';
+import { BUILDINGS, EPOCHS, RESOURCES, TECHS, MILITARY_ACTIONS, UNIT_TYPES, EVENTS, getRandomEvent, createWarDeclarationEvent, createGiftEvent, createPeaceRequestEvent, createEnemyPeaceRequestEvent, createPlayerPeaceProposalEvent, createBattleEvent, createAllianceRequestEvent, createAllianceProposalResultEvent, createAllianceBreakEvent, createNationAnnexedEvent, STRATA } from '../config';
 import { calculateArmyCapacityNeed, calculateArmyPopulation, simulateBattle, calculateBattlePower } from '../config';
 import { calculateForeignPrice, calculateTradeStatus } from '../utils/foreignTrade';
 import { generateSound, SOUND_TYPES } from '../config/sounds';
@@ -1131,7 +1131,34 @@ export const useGameActions = (gameState, addLog) => {
 
         const peaceTreatyUntil = daysElapsed + 730; // 和平协议持续两年
 
-        if (proposalType === 'installment') {
+        if (proposalType === 'annex') {
+            // 敌国无条件投降，直接吞并（战争吞并）
+            if (targetNation.isRebelNation) {
+                // 叛乱政府仍按叛乱战争结束流程处理
+                handleRebellionWarEnd(nationId, true);
+                return;
+            }
+            const currentPop = targetNation.population || amount || 0;
+            const populationGained = Math.max(0, currentPop);
+            const maxPopGained = populationGained;
+
+            if (populationGained > 0) {
+                setPopulation(prev => prev + populationGained);
+                setMaxPopBonus(prev => prev + maxPopGained);
+            }
+
+            setNations(prev => prev.filter(n => n.id !== nationId));
+
+            const annexEvent = createNationAnnexedEvent(
+                targetNation,
+                populationGained,
+                maxPopGained,
+                'war_annex',
+                () => {}
+            );
+            triggerDiplomaticEvent(annexEvent);
+            addLog(`你选择吞并 ${targetNation.name}，其人民与领土并入你的国家。`);
+        } else if (proposalType === 'installment') {
             // 分期支付赔款
             setNations(prev => prev.map(n =>
                 n.id === nationId
@@ -1155,25 +1182,43 @@ export const useGameActions = (gameState, addLog) => {
             ));
             addLog(`你接受了和平协议，${targetNation.name}将每天支付 ${amount} 银币，持续一年（共${amount * 365}银币）。`);
         } else if (proposalType === 'population') {
-            // 提供人口
+            // 敌国割让人口上限与人口
             setMaxPopBonus(prev => prev + amount);
             setPopulation(prev => prev + amount);
-            setNations(prev => prev.map(n =>
-                n.id === nationId
-                    ? {
-                        ...n,
-                        isAtWar: false,
-                        warScore: 0,
-                        warDuration: 0,
-                        enemyLosses: 0,
-                        isPeaceRequesting: false,
-                        population: Math.max(100, (n.population || 1000) - amount),
-                        relation: Math.max(35, n.relation || 0),
-                        peaceTreatyUntil,
-                    }
-                    : n
-            ));
-            addLog(`你接受了和平协议，${targetNation.name}提供了 ${amount} 人口。`);
+
+            const remainingPopulation = Math.max(0, (targetNation.population || 0) - amount);
+
+            if (!targetNation.isRebelNation && remainingPopulation <= 0) {
+                // 人口归零：该国家灭亡并触发人口归零吞并事件
+                setNations(prev => prev.filter(n => n.id !== nationId));
+
+                const annexEvent = createNationAnnexedEvent(
+                    targetNation,
+                    0,
+                    0,
+                    'population_zero',
+                    () => {}
+                );
+                triggerDiplomaticEvent(annexEvent);
+                addLog(`由于连续割地，${targetNation.name}的人口被耗尽，国家灭亡，其领土被你吞并。`);
+            } else {
+                setNations(prev => prev.map(n =>
+                    n.id === nationId
+                        ? {
+                            ...n,
+                            isAtWar: false,
+                            warScore: 0,
+                            warDuration: 0,
+                            enemyLosses: 0,
+                            isPeaceRequesting: false,
+                            population: remainingPopulation,
+                            relation: Math.max(35, n.relation || 0),
+                            peaceTreatyUntil,
+                        }
+                        : n
+                ));
+                addLog(`你接受了和平协议，${targetNation.name}提供了 ${amount} 人口。`);
+            }
         } else if (proposalType === 'open_market') {
             // 开放市场 - 战败国在N天内不限制贸易路线数量
             const openMarketUntil = daysElapsed + amount; // amount为天数
@@ -1256,7 +1301,35 @@ export const useGameActions = (gameState, addLog) => {
         const peaceTreatyUntil = daysElapsed + 730; // 和平协议持续两年
 
         // 根据提议类型处理
-        if (proposalType === 'demand_high') {
+        if (proposalType === 'demand_annex') {
+            // 玩家在和平协议中直接吞并敌国（战争分数>350才会出现该选项）
+            if (isRebelNation) {
+                // 叛乱政府仍按叛乱结束流程
+                handleRebellionWarEnd(nationId, true);
+                return;
+            }
+
+            const currentPop = targetNation.population || amount || 0;
+            const populationGained = Math.max(0, currentPop);
+            const maxPopGained = populationGained;
+
+            if (populationGained > 0) {
+                setPopulation(prev => prev + populationGained);
+                setMaxPopBonus(prev => prev + maxPopGained);
+            }
+
+            setNations(prev => prev.filter(n => n.id !== nationId));
+
+            const annexEvent = createNationAnnexedEvent(
+                targetNation,
+                populationGained,
+                maxPopGained,
+                'war_annex',
+                () => {}
+            );
+            triggerDiplomaticEvent(annexEvent);
+            addLog(`你在和平协议中吞并了 ${targetNation.name}，其所有人口和人口上限并入你的国家。${rebellionLogSuffix}`);
+        } else if (proposalType === 'demand_high') {
             // 要求高额赔款，成功率较低
             const willingness = (warScore / 100) + Math.min(0.4, enemyLosses / 250) + Math.min(0.2, warDuration / 250);
             if (willingness > 0.7 || (targetNation.wealth || 0) <= 0) {
@@ -1320,25 +1393,43 @@ export const useGameActions = (gameState, addLog) => {
             if (willingness > 0.68) {
                 setMaxPopBonus(prev => prev + amount);
                 setPopulation(prev => prev + amount);
+
                 if (isRebelNation) {
                     handleRebellionWarEnd(nationId, true);
                 } else {
-                    setNations(prev => prev.map(n =>
-                        n.id === nationId
-                            ? {
-                                ...n,
-                                isAtWar: false,
-                                warScore: 0,
-                                warDuration: 0,
-                                enemyLosses: 0,
-                                population: Math.max(100, (n.population || 1000) - amount),
-                                relation: clampRelation((n.relation || 0) + 7),
-                                peaceTreatyUntil,
-                            }
-                            : n
-                    ));
+                    const remainingPopulation = Math.max(0, (targetNation.population || 0) - amount);
+
+                    if (remainingPopulation <= 0) {
+                        // 敌国人口因割地归零：灭亡并触发吞并事件
+                        setNations(prev => prev.filter(n => n.id !== nationId));
+
+                        const annexEvent = createNationAnnexedEvent(
+                            targetNation,
+                            0,
+                            0,
+                            'population_zero',
+                            () => {}
+                        );
+                        triggerDiplomaticEvent(annexEvent);
+                        addLog(`由于割让过多人口，${targetNation.name}的人口被耗尽，国家灭亡，其领土被你吞并。${rebellionLogSuffix}`);
+                    } else {
+                        setNations(prev => prev.map(n =>
+                            n.id === nationId
+                                ? {
+                                    ...n,
+                                    isAtWar: false,
+                                    warScore: 0,
+                                    warDuration: 0,
+                                    enemyLosses: 0,
+                                    population: remainingPopulation,
+                                    relation: clampRelation((n.relation || 0) + 7),
+                                    peaceTreatyUntil,
+                                }
+                                : n
+                        ));
+                        addLog(`${targetNation.name} 接受了和平协议，提供了 ${amount} 人口。${rebellionLogSuffix}`);
+                    }
                 }
-                addLog(`${targetNation.name} 接受了和平协议，提供了 ${amount} 人口。${rebellionLogSuffix}`);
             } else {
                 addLog(`${targetNation.name} 拒绝了提供人口的要求。`);
             }

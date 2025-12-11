@@ -2,7 +2,7 @@
 // These events are generated dynamically based on game state
 
 // 割地人口上限（战争求和时最多割让/获得的人口数）
-const MAX_TERRITORY_POPULATION = 200;
+const MAX_TERRITORY_POPULATION = 2000;
 
 // 分期赔款总额相对一次性赔款的倍率（保证总额更高）
 const INSTALLMENT_TOTAL_MULTIPLIER = 3;
@@ -29,8 +29,10 @@ export function createWarDeclarationEvent(nation, onAccept) {
             {
                 id: 'acknowledge',
                 text: '应战',
-                description: '接受战争状态，准备迎战',
-                effects: {},
+                description: '接受战争状态，动员全国进入战时体制（稳定度-5）',
+                effects: {
+                    stability: -5,
+                },
                 callback: onAccept,
             },
         ],
@@ -80,14 +82,58 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
     const options = [];
 
     // 根据战争分数提供不同的和平选项
-    if (warScore > 150) {
+    if (warScore > 450) {
+        // 压倒性胜利：可以直接吞并敌国
+        const highTribute = Math.floor(tribute * 2);
+        const highInstallmentTotal = Math.ceil(highTribute * INSTALLMENT_TOTAL_MULTIPLIER);
+        const installmentAmount = Math.ceil(highInstallmentTotal / 365);
+        const estimatedPopulation = nation.population || 1000;
+        const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(10, Math.floor(estimatedPopulation * 0.08)));
+        const annexPopulation = nation.population || 1000;
+
+        options.push({
+            id: 'annex',
+            text: '🏴 吞并敌国',
+            description: `彻底征服${nation.name}，获得其全部人口（${Math.round(annexPopulation)}人）和人口上限`,
+            effects: {},
+            callback: () => callback(true, 'annex', annexPopulation),
+        });
+        options.push({
+            id: 'demand_more',
+            text: '要求高额赔款',
+            description: `要求${highTribute}银币赔款（比原提议多100%）`,
+            effects: {
+                resources: {
+                    silver: highTribute,
+                },
+            },
+            callback: () => callback(true, 'demand_more', highTribute),
+        });
+        options.push({
+            id: 'demand_population',
+            text: '要求大量割地',
+            description: `要求割让人口上限 ${populationDemand}（附带等量人口）`,
+            effects: {},
+            callback: () => callback(true, 'population', populationDemand),
+        });
+        options.push({
+            id: 'accept_standard',
+            text: '接受标准和平',
+            description: `接受${tribute}银币赔款，快速结束战争`,
+            effects: {
+                resources: {
+                    silver: tribute,
+                },
+            },
+            callback: () => callback(true, 'standard', tribute),
+        });
+    } else if (warScore > 200) {
         // 大胜：可以要求更多赔款或领土
         const highTribute = Math.floor(tribute * 1.5);
         const highInstallmentTotal = Math.ceil(highTribute * INSTALLMENT_TOTAL_MULTIPLIER);
-        const installmentAmount = Math.ceil(highInstallmentTotal / 365); // 每天支付
-        // 使用财富估算人口（假设每100财富对应约50人口）
-        const estimatedPopulation = nation.population
-const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(6, Math.floor(estimatedPopulation * 0.04))); // 要求4%人口，至少6人
+        const installmentAmount = Math.ceil(highInstallmentTotal / 365);
+        const estimatedPopulation = nation.population || 1000;
+        const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(6, Math.floor(estimatedPopulation * 0.04)));
 
         options.push({
             id: 'demand_more',
@@ -192,7 +238,9 @@ const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(4, Math.flo
 
     // 根据战争分数生成不同的描述
     let description = '';
-    if (warScore > 150) {
+    if (warScore > 450) {
+        description = `${nation.name}在战争中被彻底击溃，他们的抵抗意志已经完全崩溃。使节团跪地恳求，愿意接受任何条件。你甚至可以选择直接吞并这个国家！`;
+    } else if (warScore > 200) {
         description = `${nation.name}在战争中遭受惨重损失，他们派遣使节前来恳求和平。作为和平的代价，他们愿意支付${tribute}银币的赔款。鉴于你的巨大优势，你可以要求更多。`;
     } else if (warScore > 50) {
         description = `${nation.name}在战争中处于劣势，他们派遣使节前来请求和平。作为和平的代价，他们愿意支付${tribute}银币的赔款。`;
@@ -202,8 +250,8 @@ const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(4, Math.flo
 
     return {
         id: `enemy_peace_request_${nation.id}_${Date.now()}`,
-        name: `${nation.name}请求和平`,
-        icon: 'HandHeart',
+        name: warScore > 450 ? `${nation.name}无条件投降` : `${nation.name}请求和平`,
+        icon: warScore > 450 ? 'Flag' : 'HandHeart',
         image: null,
         description,
         isDiplomaticEvent: true,
@@ -242,14 +290,49 @@ export function createPlayerPeaceProposalEvent(
 return Math.min(MAX_TERRITORY_POPULATION, Math.max(3, Math.min(hardCap, capped))); // 最多割让人口
     };
 
-    if (warScore > 150) {
+    if (warScore > 350) {
+        // 压倒性胜利：可以直接吞并敌国
+        const highTribute = Math.min(nation.wealth || 0, Math.ceil(warScore * 60 + enemyLosses * 4));
+        const estimatedPopulation = nation.population || 1000;
+        const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(10, Math.floor(estimatedPopulation * 0.08)));
+        const annexPopulation = nation.population || 1000;
+
+        options.push({
+            id: 'demand_annex',
+            text: '🏴 吞并敌国',
+            description: `彻底征服${nation.name}，获得其全部人口（${Math.round(annexPopulation)}人）和人口上限`,
+            effects: {},
+            callback: () => callback('demand_annex', annexPopulation),
+        });
+        options.push({
+            id: 'demand_high',
+            text: '要求高额赔款',
+            description: `要求${highTribute}银币赔款`,
+            effects: {},
+            callback: () => callback('demand_high', highTribute),
+        });
+        options.push({
+            id: 'demand_population',
+            text: '要求大量割地',
+            description: `要求割让人口上限 ${populationDemand}（附带等量人口）`,
+            effects: {},
+            callback: () => callback('demand_population', populationDemand),
+        });
+        options.push({
+            id: 'peace_only',
+            text: '无条件和平',
+            description: '不要求赔款，直接结束战争',
+            effects: {},
+            callback: () => callback('peace_only', 0),
+        });
+    } else if (warScore > 150) {
         // 大胜：可以要求赔款
         const highTribute = Math.min(nation.wealth || 0, Math.ceil(warScore * 50 + enemyLosses * 3));
         const standardTribute = Math.min(nation.wealth || 0, Math.ceil(warScore * 40 + enemyLosses * 2));
         const highInstallmentTotal = Math.ceil(highTribute * INSTALLMENT_TOTAL_MULTIPLIER);
         const installmentAmount = Math.ceil(highInstallmentTotal / 365);
-        const estimatedPopulation = nation.population;
-const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(5, Math.floor(estimatedPopulation * 0.03))); // 要求3%人口，至少5人
+        const estimatedPopulation = nation.population || 1000;
+        const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(5, Math.floor(estimatedPopulation * 0.03)));
 
         options.push({
             id: 'demand_high',
@@ -426,11 +509,13 @@ const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(5, Math.flo
 
     // 根据战争分数生成描述
     let description = '';
-    if (warScore > 150) {
+    if (warScore > 450) {
+        description = `你在与${nation.name}的战争中取得了压倒性的胜利！敌人已经彻底崩溃，你可以选择直接吞并这个国家，将其纳入版图！`;
+    } else if (warScore > 200) {
         description = `你在与${nation.name}的战争中占据压倒性优势。现在是提出和平条款的好时机，你可以要求丰厚的赔款。`;
     } else if (warScore > 50) {
         description = `你在与${nation.name}的战争中略占上风。你可以提出和平，并要求一定的赔款作为补偿。`;
-    } else if (warScore < -150) {
+    } else if (warScore < -200) {
         description = `你在与${nation.name}的战争中处于极大劣势。如果想要和平，可能需要支付高额赔款。`;
     } else if (warScore < -50) {
         description = `你在与${nation.name}的战争中处于劣势。如果想要和平，需要支付一定的赔款。`;
@@ -650,6 +735,62 @@ export function createAllianceBreakEvent(nation, reason, callback) {
                 id: 'acknowledge',
                 text: '了解',
                 description: '确认',
+                effects: {},
+                callback: callback,
+            },
+        ],
+    };
+}
+
+/**
+ * 创建外交事件 - 国家被吞并通知
+ * @param {Object} nation - 被吞并的国家
+ * @param {number} populationGained - 获得的人口
+ * @param {number} maxPopGained - 获得的人口上限
+ * @param {string} reason - 吞并原因 ('war_annex' 战争吞并, 'population_zero' 人口归零)
+ * @param {Function} callback - 确认回调
+ * @returns {Object} - 外交事件对象
+ */
+export function createNationAnnexedEvent(nation, populationGained, maxPopGained, reason, callback) {
+    const isWarAnnex = reason === 'war_annex';
+    
+    let description = '';
+    let title = '';
+    
+    if (isWarAnnex) {
+        title = `🏴 ${nation.name}已被吞并`;
+        description = `经过艰苦的战争，${nation.name}终于臣服于你的统治！他们的领土、人民和资源现在都归你所有。
+
+🎉 吞并成果：
+• 获得人口：${populationGained.toLocaleString()}人
+• 获得人口上限：+${maxPopGained.toLocaleString()}
+
+${nation.name}的旗帜已经降下，取而代之的是你的王旗。这是一次伟大的征服！`;
+    } else {
+        // 因人口归零而消亡
+        title = `💀 ${nation.name}已经灭亡`;
+        description = `${nation.name}在连年战争中损失惨重，人口凋零，国力衰竭。最终，这个曾经的国家彻底消亡了。
+
+残存的人民（${populationGained.toLocaleString()}人）逃入你的领土，成为你的臣民。
+
+• 获得人口：${populationGained.toLocaleString()}人
+• 获得人口上限：+${maxPopGained.toLocaleString()}
+
+历史将记住这个国家，但它的辉煌已成过去。`;
+    }
+    
+    return {
+        id: `nation_annexed_${nation.id}_${Date.now()}`,
+        name: title,
+        icon: isWarAnnex ? 'Crown' : 'Skull',
+        image: null,
+        description,
+        isDiplomaticEvent: true,
+        options: [
+            {
+                id: 'acknowledge',
+                text: isWarAnnex ? '荣耀永存！' : '了解',
+                description: isWarAnnex ? '庆祝这次伟大的征服' : '确认',
                 effects: {},
                 callback: callback,
             },

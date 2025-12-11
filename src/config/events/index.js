@@ -18,6 +18,7 @@ import {
     createAllianceRequestEvent,
     createAllianceProposalResultEvent,
     createAllianceBreakEvent,
+    createNationAnnexedEvent,
 } from './diplomaticEvents';
 // 叛乱事件系统
 import {
@@ -56,6 +57,7 @@ export {
     createAllianceRequestEvent,
     createAllianceProposalResultEvent,
     createAllianceBreakEvent,
+    createNationAnnexedEvent,
 };
 
 // Re-export individual event arrays for potential direct access
