@@ -18,22 +18,28 @@ export const STRATEGIC_ACTIONS = {
         icon: 'Shield',
         description: '动用武力镇压叛乱组织',
         // 详细描述：用于UI展示完整说明
-        detailedDescription: '派遣军队强行镇压该阶层的叛乱组织。短期内可有效降低组织度，但会激化矛盾——军人和骑士阶层会因执行镇压任务而心生不满，持续的镇压还会导致军队陷入疲惫状态。',
+        detailedDescription: '派遣军队强行镇压该阶层的叛乱组织。短期内可有效降低组织度，但会激化矛盾——军人和骑士阶层会因执行镇压任务而心生不满，持续的镇压还会导致军队陷入疲惫状态。注意：不能用于镇压军人或骑士阶层。',
         // 效果预览：用于UI展示预期效果
         effectPreview: {
             organization: { value: -30, unit: '%', label: '组织度', type: 'immediate' },
             approval: { value: -20, unit: '点', label: '满意度', type: 'immediate' },
-            stability: { value: -5, unit: '%', label: '稳定度', type: 'immediate' },
+            stability: { value: -10, unit: '%', label: '稳定度', type: 'immediate' },
+            population: { value: -5, unit: '%', label: '人口损失', type: 'immediate' },
         },
         // 副作用列表：用于UI展示负面影响警告
         sideEffects: [
             { text: '军人、骑士满意度 -15', severity: 'warning', icon: 'Users' },
+            { text: '其他阶层满意度 -5', severity: 'warning', icon: 'Users' },
             { text: '获得「镇压疲惫」：军事力量 -20%，持续30天', severity: 'danger', icon: 'AlertTriangle' },
+            { text: '获得「恐怖氛围」：生产效率 -15%，持续20天', severity: 'danger', icon: 'AlertOctagon' },
+            { text: '该阶层人口损失约5%', severity: 'danger', icon: 'Skull' },
         ],
         // 使用建议
-        usageHint: '当组织度接近爆发(90%+)时的紧急措施，用时间换空间。不宜频繁使用。',
+        usageHint: '当组织度接近爆发(90%+)时的紧急措施，用时间换空间。不能用于军人/骑士。不宜频繁使用。',
         // 适用阶段的中文名称
         applicableStagesNames: ['不满', '动员中', '激进化', '起义'],
+        // 禁止镇压的阶层（军事阶层不能被镇压）
+        forbiddenStrata: ['soldier', 'knight'],
         // 原有配置
         cost: {
             silver: 300,
@@ -41,18 +47,30 @@ export const STRATEGIC_ACTIONS = {
         militaryCost: {
             approvalPenalty: { soldier: -15, knight: -15 },
         },
+        // 镇压还会导致其他阶层不满
+        otherStrataApprovalPenalty: -5,
         effects: {
             organization: -30,
             approval: -20,
-            stability: -5,
+            stability: -10,
+            populationLoss: 0.05, // 5%人口损失
         },
-        debuffs: [{
-            id: 'suppression_fatigue',
-            name: '镇压疲惫',
-            description: '军事力量 -20%',
-            duration: 30,
-            effects: { militaryPower: -0.20 },
-        }],
+        debuffs: [
+            {
+                id: 'suppression_fatigue',
+                name: '镇压疲惫',
+                description: '军事力量 -20%',
+                duration: 30,
+                effects: { militaryPower: -0.20 },
+            },
+            {
+                id: 'terror_atmosphere',
+                name: '恐怖氛围',
+                description: '全局生产效率 -15%',
+                duration: 20,
+                effects: { production: -0.15 },
+            },
+        ],
         cooldown: 30,
         requirements: {
             minMilitaryPower: 0.3,
@@ -115,11 +133,11 @@ export const STRATEGIC_ACTIONS = {
         detailedDescription: '向该阶层发放"好处费"来临时安抚民心。费用按人口计算（每人10银币）。效果立竿见影但不持久，且每次使用后成本会增加50%。适合作为短期救急方案。',
         effectPreview: {
             approval: { value: +15, unit: '点', label: '满意度', duration: '持续30天' },
-            organizationPause: { value: 10, unit: '天', label: '组织度增长暂停', type: 'immediate' },
+            organizationPause: { value: 180, unit: '天', label: '组织度增长暂停', type: 'immediate' },
         },
         sideEffects: [
             { text: '每次使用后成本增加50%', severity: 'info', icon: 'TrendingUp' },
-            { text: '效果仅持续30天', severity: 'info', icon: 'Clock' },
+            { text: '满意度效果仅持续30天，但组织度暂停180天', severity: 'info', icon: 'Clock' },
         ],
         usageHint: '短期救急方案，适合在等待长期措施生效期间使用。注意成本会逐次递增。',
         applicableStagesNames: ['不满', '动员中', '激进化'],
@@ -131,7 +149,7 @@ export const STRATEGIC_ACTIONS = {
         effects: {
             approval: +15,
             approvalDuration: 30,
-            organizationPause: 10,
+            organizationPause: 180,
         },
         cooldown: 15,
         costMultiplier: 1.5,
@@ -140,23 +158,24 @@ export const STRATEGIC_ACTIONS = {
 
     /**
      * 承诺 (Promise)
-     * 无消耗但有失败风险
+     * 无消耗但有失败风险，支持8种类型
      */
     promise: {
         id: 'promise',
         name: '承诺',
         icon: 'FileText',
         description: '做出改革承诺换取暂时和平',
-        detailedDescription: '向该阶层做出改善处境的承诺，立即降低组织度20%。你需要在60天内将其满意度提升约10点，否则组织度将增加50%。',
+        detailedDescription: '向该阶层做出改善处境的承诺，立即降低组织度20%。系统会根据阶层需求智能选择承诺类型（如减税、降低物价、提高收入、宣战等）。你需要在规定期限内达成目标并保持一段时间，否则组织度将增加50%。',
         effectPreview: {
             organization: { value: -20, unit: '%', label: '组织度', type: 'immediate' },
-            task: { label: '生成承诺任务', duration: '60天内完成', type: 'special' },
+            task: { label: '生成承诺任务', duration: '根据类型30-180天', type: 'special' },
         },
         sideEffects: [
-            { text: '需在60天内提升满意度约10点', severity: 'warning', icon: 'Target' },
-            { text: '失败惩罚：组织度 +50%', severity: 'danger', icon: 'AlertOctagon' },
+            { text: '承诺类型根据阶层情况自动选择', severity: 'info', icon: 'Zap' },
+            { text: '需在期限内达成目标并保持', severity: 'warning', icon: 'Target' },
+            { text: '失败惩罚：组织度 +50%，可能触发起义', severity: 'danger', icon: 'AlertOctagon' },
         ],
-        usageHint: '无需资源的应急手段，但需要在60天内改善该阶层处境。可通过减税、增加供给等方式提升满意度。',
+        usageHint: '无需资源的应急手段。承诺类型包括：减税(360天保持)、降价、涨价、满意度、生活水平、宣战、贸易路线、财富提升。',
         applicableStagesNames: ['不满', '动员中', '激进化'],
         cost: null,
         effects: {
@@ -164,11 +183,10 @@ export const STRATEGIC_ACTIONS = {
             generateTask: true,
         },
         failurePenalty: {
-            organization: +50, // 组织度直接增加50%
-            // forcedUprising 已移除，不再强制设为100%
+            organization: +50,
         },
         cooldown: 90,
-        applicableStages: ['grumbling', 'mobilizing', 'radicalizing'], // 从30%就可用
+        applicableStages: ['grumbling', 'mobilizing', 'radicalizing'],
     },
 };
 
@@ -204,7 +222,13 @@ export function checkActionAvailability(actionId, stratumKey, gameState) {
 
     // 检查阶段是否适用
     if (action.applicableStages && !action.applicableStages.includes(orgState.stage)) {
-        return { available: false, reason: `当前阶段不适用（需要：${action.applicableStages.join('/')}）` };
+        const stageNames = action.applicableStagesNames?.join('/') || action.applicableStages.join('/');
+        return { available: false, reason: `当前阶段不适用（需要：${stageNames}）` };
+    }
+
+    // 检查是否为禁止使用该行动的阶层（如军事阶层不能被镇压）
+    if (action.forbiddenStrata && action.forbiddenStrata.includes(stratumKey)) {
+        return { available: false, reason: '该阶层不可使用此行动' };
     }
 
     // 检查冷却时间

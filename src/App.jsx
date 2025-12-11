@@ -42,7 +42,7 @@ import { DecreeDetailSheet } from './components/panels/DecreeDetailSheet';
 import { EventDetail } from './components/modals/EventDetail';
 import { executeStrategicAction, STRATEGIC_ACTIONS } from './logic/strategicActions';
 import { getOrganizationStage, getPhaseFromStage } from './logic/organizationSystem';
-import { createApprovalPromiseTask } from './logic/promiseTasks';
+import { createPromiseTask, PROMISE_CONFIG } from './logic/promiseTasks';
 
 /**
  * 文明崛起主应用组件
@@ -380,18 +380,33 @@ function GameApp({ gameState }) {
                         },
                     }));
                 } else if (effect.type === 'promiseTask' && effect.stratum) {
-                    const currentApproval = gameState.classApproval?.[effect.stratum] || 0;
                     const targetName = STRATA[effect.stratum]?.name || effect.stratum;
-                    const task = createApprovalPromiseTask({
+                    // 构建上下文供智能选择承诺类型
+                    const promiseContext = {
+                        nations: gameState.nations,
+                        taxPolicies: gameState.taxPolicies,
+                        market: gameState.market,
+                        classWealth: gameState.classWealth,
+                        classApproval: gameState.classApproval,
+                        needsReport: {},
+                        tradeRoutes: gameState.tradeRoutes,
+                        classIncome: gameState.classIncome || {},
+                        popStructure: gameState.popStructure,
+                    };
+                    const task = createPromiseTask({
                         stratumKey: effect.stratum,
                         stratumName: targetName,
-                        currentApproval,
-                        duration: effect.deadline || 30,
                         currentDay: gameState.daysElapsed || 0,
-                        failurePenalty: effect.failurePenalty || {},
+                        failurePenalty: effect.failurePenalty || { organization: 50 },
+                        context: promiseContext,
                     });
-                    gameState.setPromiseTasks(prev => [...(prev || []), task]);
-                    addLog(`📜 你向${targetName}承诺：${task.description}`);
+                    if (task) {
+                        gameState.setPromiseTasks(prev => [...(prev || []), task]);
+                        const maintainInfo = task.maintainDuration > 0
+                            ? `（需保持${task.maintainDuration}天）`
+                            : '';
+                        addLog(`📜 你向${targetName}承诺：${task.description}${maintainInfo}`);
+                    }
                 } else if (effect.type === 'divideEffect' && effect.target && effect.rival) {
                     const targetLabel = STRATA[effect.target]?.name || effect.target;
                     const rivalLabel = STRATA[effect.rival]?.name || effect.rival;

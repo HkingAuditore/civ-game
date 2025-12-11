@@ -18,7 +18,6 @@ export const StrategicActionCard = ({
     resources = {},
     actionUsage = {},
 }) => {
-    const [showConfirm, setShowConfirm] = useState(false);
     const [expanded, setExpanded] = useState(false);
 
     if (!action) return null;
@@ -79,13 +78,22 @@ export const StrategicActionCard = ({
         }
     };
 
+    const cardRef = React.useRef(null);
+
     const handleClick = () => {
         if (disabled) return;
-        setExpanded(!expanded);
+        const willExpand = !expanded;
+        setExpanded(willExpand);
+        // 展开时自动滚动到可见区域
+        if (willExpand && cardRef.current) {
+            setTimeout(() => {
+                cardRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }, 50);
+        }
     };
 
-    const handleConfirmExecute = () => {
-        setShowConfirm(false);
+    // 直接执行，不需要双重确认
+    const handleExecute = () => {
         setExpanded(false);
         if (onExecute) {
             onExecute(action.id, stratumKey);
@@ -95,11 +103,11 @@ export const StrategicActionCard = ({
     const rivalName = getRivalName();
 
     return (
-        <div className={`rounded-lg border transition-all duration-200 ${disabled
-                ? 'bg-gray-800/30 border-gray-700/50 opacity-60'
-                : expanded
-                    ? 'bg-gray-700/60 border-blue-500/50 shadow-lg'
-                    : 'bg-gray-800/50 border-gray-600/50 hover:bg-gray-700/50 hover:border-gray-500/50'
+        <div ref={cardRef} className={`rounded-lg border transition-all duration-200 ${disabled
+            ? 'bg-gray-800/30 border-gray-700/50 opacity-60'
+            : expanded
+                ? 'bg-gray-700/60 border-blue-500/50 shadow-lg'
+                : 'bg-gray-800/50 border-gray-600/50 hover:bg-gray-700/50 hover:border-gray-500/50'
             }`}>
             {/* 头部：基本信息 */}
             <div
@@ -205,7 +213,7 @@ export const StrategicActionCard = ({
                                     <div key={key} className="bg-gray-900/50 rounded px-2 py-1">
                                         <div className="text-[9px] text-gray-400">{effect.label || key}</div>
                                         <div className={`text-xs font-bold ${effect.value > 0 ? 'text-green-400' :
-                                                effect.value < 0 ? 'text-red-400' : 'text-blue-400'
+                                            effect.value < 0 ? 'text-red-400' : 'text-blue-400'
                                             }`}>
                                             {effect.value > 0 ? '+' : ''}{effect.value}{effect.unit || ''}
                                             {effect.duration && (
@@ -263,41 +271,21 @@ export const StrategicActionCard = ({
                         </div>
                     )}
 
-                    {/* 执行按钮 */}
+                    {/* 执行按钮 - 直接执行，无需双重确认 */}
                     <div className="flex gap-2 pt-2">
-                        {!showConfirm ? (
-                            <>
-                                <button
-                                    onClick={() => setShowConfirm(true)}
-                                    className="flex-1 py-2 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-colors flex items-center justify-center gap-1"
-                                >
-                                    <Icon name="Play" size={14} />
-                                    执行
-                                </button>
-                                <button
-                                    onClick={() => setExpanded(false)}
-                                    className="px-4 py-2 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs transition-colors"
-                                >
-                                    取消
-                                </button>
-                            </>
-                        ) : (
-                            <>
-                                <button
-                                    onClick={handleConfirmExecute}
-                                    className="flex-1 py-2 rounded bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition-colors flex items-center justify-center gap-1"
-                                >
-                                    <Icon name="Check" size={14} />
-                                    确认执行
-                                </button>
-                                <button
-                                    onClick={() => setShowConfirm(false)}
-                                    className="px-4 py-2 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs transition-colors"
-                                >
-                                    返回
-                                </button>
-                            </>
-                        )}
+                        <button
+                            onClick={handleExecute}
+                            className="flex-1 py-2 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-colors flex items-center justify-center gap-1"
+                        >
+                            <Icon name="Play" size={14} />
+                            执行
+                        </button>
+                        <button
+                            onClick={() => setExpanded(false)}
+                            className="px-4 py-2 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs transition-colors"
+                        >
+                            取消
+                        </button>
                     </div>
                 </div>
             )}

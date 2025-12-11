@@ -39,6 +39,14 @@ export const DissatisfactionAnalysis = ({
                     icon: 'text-orange-400',
                     bar: 'bg-orange-500',
                 };
+            case 'info':
+                return {
+                    bg: 'bg-gray-800/30',
+                    border: 'border-gray-500/40',
+                    text: 'text-gray-300',
+                    icon: 'text-gray-400',
+                    bar: 'bg-gray-500',
+                };
             default:
                 return {
                     bg: 'bg-yellow-900/30',
@@ -50,6 +58,24 @@ export const DissatisfactionAnalysis = ({
         }
     };
 
+    // 将数值转换为易于理解的文字描述
+    const getSeverityText = (contribution) => {
+        if (contribution >= 1.5) return '严重';
+        if (contribution >= 1.0) return '较重';
+        if (contribution >= 0.5) return '中等';
+        return '轻微';
+    };
+
+    // 总体评估文字
+    const getOverallAssessment = (total) => {
+        if (total >= 3) return { text: '危急', color: 'text-red-400' };
+        if (total >= 2) return { text: '严峻', color: 'text-red-400' };
+        if (total >= 1) return { text: '需关注', color: 'text-orange-400' };
+        return { text: '轻微', color: 'text-yellow-400' };
+    };
+
+    const overallAssessment = getOverallAssessment(totalContribution);
+
     return (
         <div className={`space-y-2 ${className}`}>
             <div className="flex items-center justify-between">
@@ -58,7 +84,7 @@ export const DissatisfactionAnalysis = ({
                     <span className="text-xs font-bold text-gray-300">不满来源分析</span>
                 </div>
                 <span className="text-[10px] text-gray-400">
-                    总影响: <span className="text-orange-400">+{totalContribution.toFixed(1)}/天</span>
+                    综合评估: <span className={overallAssessment.color}>{overallAssessment.text}</span>
                 </span>
             </div>
 
@@ -66,6 +92,7 @@ export const DissatisfactionAnalysis = ({
                 {sources.map((source, idx) => {
                     const styles = getSeverityStyles(source.severity);
                     const barWidth = Math.min(100, (source.contribution / 2) * 100);
+                    const severityText = getSeverityText(source.contribution);
 
                     return (
                         <div
@@ -86,12 +113,12 @@ export const DissatisfactionAnalysis = ({
                                 </div>
                                 <div className="text-right">
                                     <div className={`text-xs font-bold ${styles.text}`}>
-                                        +{source.contribution.toFixed(1)}/天
+                                        {severityText}
                                     </div>
                                 </div>
                             </div>
 
-                            {/* 贡献度条 */}
+                            {/* 严重程度条 */}
                             <div className="mt-1.5 h-1 bg-gray-700/50 rounded-full overflow-hidden">
                                 <div
                                     className={`h-full rounded-full transition-all duration-300 ${styles.bar}`}
@@ -126,3 +153,4 @@ export const DissatisfactionAnalysis = ({
 };
 
 export default DissatisfactionAnalysis;
+
