@@ -324,6 +324,12 @@ export function executeStrategicAction(actionId, stratumKey, gameState) {
     const cost = calculateActionCost(actionId, stratumKey, gameState);
     const stratumName = STRATA[stratumKey]?.name || stratumKey;
 
+    // 计算抵抗力影响
+    const orgState = gameState.organizationStates?.[stratumKey] || {};
+    const resistance = orgState.resistance || 0;
+    // 抵抗力每1点降低1%的效果，最低保留20%效果
+    const effectiveness = Math.max(0.2, 1 - (resistance / 100));
+
     // 构建效果结果
     const result = {
         success: true,
@@ -338,18 +344,26 @@ export function executeStrategicAction(actionId, stratumKey, gameState) {
             debuffs: action.debuffs || [],
             cooldown: action.cooldown,
             specialEffects: [],
+            resistanceChange: 15, // 每次行动增加15点抵抗力
         },
         message: '',
     };
 
-    // 应用基本效果
+    // 应用基本效果（受抵抗力影响）
     if (action.effects.organization) {
-        result.effects.organizationChanges[stratumKey] = action.effects.organization;
+        // 只有降低组织度的效果受抵抗力削弱，增加的不受影响（如副作用）
+        const val = action.effects.organization;
+        const actualVal = val < 0 ? Math.ceil(val * effectiveness) : val;
+        result.effects.organizationChanges[stratumKey] = actualVal;
     }
 
     if (action.effects.approval) {
+        // 提升满意度的效果也受抵抗力削弱
+        const val = action.effects.approval;
+        const actualVal = val > 0 ? Math.floor(val * effectiveness) : val;
+
         result.effects.approvalChanges[stratumKey] = {
-            value: action.effects.approval,
+            value: actualVal,
             duration: action.effects.approvalDuration || 0,
         };
     }
@@ -359,10 +373,12 @@ export function executeStrategicAction(actionId, stratumKey, gameState) {
     }
 
     if (action.effects.organizationPause) {
+        // 暂停时间也受抵抗力影响
+        const actualDuration = Math.ceil(action.effects.organizationPause * effectiveness);
         result.effects.specialEffects.push({
             type: 'organizationPause',
             stratum: stratumKey,
-            duration: action.effects.organizationPause,
+            duration: actualDuration,
         });
     }
 
@@ -370,6 +386,7 @@ export function executeStrategicAction(actionId, stratumKey, gameState) {
     if (actionId === 'divide') {
         const rivalStratum = getRivalStratum(stratumKey);
         if (rivalStratum) {
+            // 对立阶层的效果不受目标阶层抵抗力影响（或许应该受对立阶层抵抗力影响？暂时忽略）
             result.effects.organizationChanges[rivalStratum] = action.effects.rivalOrganization;
             result.effects.approvalChanges[rivalStratum] = {
                 value: action.effects.rivalApproval,
@@ -391,6 +408,8 @@ export function executeStrategicAction(actionId, stratumKey, gameState) {
             deadline: 60, // 60天内完成，与promiseTasks.js保持一致
             failurePenalty: action.failurePenalty,
         });
+        // 承诺行动抵抗力增加较少
+        result.effects.resistanceChange = 10;
     }
 
     // 军心惩罚
@@ -403,7 +422,8 @@ export function executeStrategicAction(actionId, stratumKey, gameState) {
         });
     }
 
-    result.message = `对${stratumName}执行了「${action.name}」`;
+    result.message = `对${stratumName}执行了「${action.name}」` +
+        (resistance > 0 ? ` (抵抗力${resistance.toFixed(0)}%: 效果降低${((1 - effectiveness) * 100).toFixed(0)}%)` : '');
 
     return result;
 }
