@@ -106,6 +106,7 @@ import {
   TreeDeciduous,
   Music,
   Tractor,
+  GitBranch,
   // 事件系统需要的图标
   CloudRain,
   Globe2,
@@ -306,6 +307,7 @@ export const iconMap = {
   TreeDeciduous,
   Music,
   Tractor,
+  GitBranch,
   Horse: Navigation, // Fallback - use Navigation for cavalry
   Crosshair, // For crossbowman
   
