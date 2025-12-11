@@ -8,15 +8,29 @@ import { getRandomFestivalEffects } from '../config/festivalEffects';
 import { initCheatCodes } from './cheatCodes';
 import { getCalendarInfo } from '../utils/calendar';
 import { calculateForeignPrice, calculateTradeStatus } from '../utils/foreignTrade';
-import { createEnemyPeaceRequestEvent } from '../config/events';
+import {
+    createEnemyPeaceRequestEvent,
+    createWarDeclarationEvent,
+    createGiftEvent,
+    createAIRequestEvent,
+    createAllianceRequestEvent
+} from '../config/events';
 // 新版组织度系统
 import {
     updateAllOrganizationStates,
     checkOrganizationEvents,
     ORGANIZATION_STAGE,
     MIN_REBELLION_INFLUENCE,
+    checkCoalitionRebellion,
+    COALITION_REBELLION_CONFIG,
 } from '../logic/organizationSystem';
 import { calculateAllPenalties } from '../logic/organizationPenalties';
+// 联合叛乱系统
+import {
+    createCoalitionRebelNation,
+    createCoalitionRebellionEvent,
+    calculateCoalitionPopLoss,
+} from '../config/events';
 import { evaluatePromiseTasks } from '../logic/promiseTasks';
 // 叛乱事件（保留事件创建函数）
 import {
@@ -27,6 +41,7 @@ import {
     createPlottingEvent,
     createActiveRebellionEvent,
     createRebelNation,
+    createRebellionEndEvent,
 } from '../logic/rebellionSystem';
 
 const calculateRebelPopulation = (stratumPop = 0) => {
@@ -138,6 +153,7 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
                             ...n.inventory,
                             [resource]: ((n.inventory || {})[resource] || 0) + exportAmount,
                         },
+                        relation: Math.min(100, (n.relation || 0) + 0.2), // 贸易改善关系 (Base 0.05 -> 0.2)
                     }
                     : n
             ));
@@ -196,6 +212,7 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
                             ...n.inventory,
                             [resource]: Math.max(0, ((n.inventory || {})[resource] || 0) - importAmount),
                         },
+                        relation: Math.min(100, (n.relation || 0) + 0.2), // 贸易改善关系 (Base 0.05 -> 0.2)
                     }
                     : n
             ));
@@ -552,6 +569,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
         setTotalWealth,
         setActiveBuffs,
         setActiveDebuffs,
+        stability,
         setStability,
         setLogs,
         taxPolicies,
@@ -652,6 +670,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
         classInfluence,
         totalInfluence,
         birthAccumulator,
+        stability,
     });
 
     const saveGameRef = useRef(gameState.saveGame);
@@ -705,8 +724,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
             classInfluence,
             totalInfluence,
             birthAccumulator,
+            stability,
         };
-    }, [resources, market, buildings, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, livingStandardStreaks, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator]);
+    }, [resources, market, buildings, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, livingStandardStreaks, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability]);
 
     // 游戏核心循环
     useEffect(() => {
@@ -794,6 +814,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 activeFestivalEffects: current.activeFestivalEffects || [],
                 eventApprovalModifiers: approvalModifiers,
                 eventStabilityModifier: stabilityModifier,
+                currentStability: current.stability ?? 50, // 传递当前稳定度，用于惯性计算
                 // Economic modifiers from events
                 eventResourceDemandModifiers: resourceDemandModifiers,
                 eventStratumDemandModifiers: stratumDemandModifiers,
@@ -1034,7 +1055,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 result.stability || 50,
                 current.daysElapsed || 0,
                 current.promiseTasks || [],
-                result.classShortages || {},
+                result.needsShortages || {},
                 {
                     classIncome: result.classIncome || {},
                     classExpense: result.classExpense || current.classExpense || {},
@@ -1108,7 +1129,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             break;
 
                         case 'uprising': {
-                            // 检查影响力占比是否足够发动叛乱（需要至少20%的社会影响力）
+                            // 检查影响力占比是否足够发动叛乱
                             const stratumInfluence = rebellionStateForEvent.influenceShare;
                             if (epochBlocksRebellion) {
                                 addLog(`⚠️ ${STRATA[stratumKey]?.name || stratumKey}阶层尚未具备发动叛乱的组织能力。`);
@@ -1123,9 +1144,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                 break;
                             }
                             if (stratumInfluence < MIN_REBELLION_INFLUENCE) {
-                                // 影响力不足，无法发动叛乱，只记录日志
                                 addLog(`⚠️ ${STRATA[stratumKey]?.name || stratumKey}阶层组织度达到100%，但社会影响力不足（${Math.round(stratumInfluence * 100)}%），无法发动叛乱！`);
-                                // 将组织度锁定在99%，防止反复触发
                                 setRebellionStates(prev => ({
                                     ...prev,
                                     [stratumKey]: {
@@ -1136,38 +1155,207 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                 break;
                             }
 
-                            // 创建叛乱政府国家
-                            const stratumPop = current.popStructure?.[stratumKey] || 0;
-                            const stratumWealth = current.classWealth?.[stratumKey] || 0;
-                            const rebelPopLoss = calculateRebelPopulation(stratumPop);
-
-                            const rebelNation = createRebelNation(
+                            // ========== 联合叛乱检测 ==========
+                            const coalitionResult = checkCoalitionRebellion(
                                 stratumKey,
-                                stratumPop,
-                                stratumWealth,
-                                stratumInfluence,
-                                rebelPopLoss
+                                updatedOrganizationStates,
+                                result.classInfluence || {},
+                                result.totalInfluence || 0,
+                                current.popStructure || {}
                             );
 
-                            // 将叛乱政府添加到国家列表
-                            setNations(prev => [...prev, rebelNation]);
+                            if (coalitionResult.isCoalition) {
+                                // 联合叛乱：多个阶层一起发动
+                                const coalitionStrata = coalitionResult.coalitionStrata;
+                                const { details, totalLoss } = calculateCoalitionPopLoss(coalitionStrata, current.popStructure);
 
-                            // 从玩家处扣除相应阶层的人口
-                            setPopStructure(prev => ({
-                                ...prev,
-                                [stratumKey]: Math.max(0, (prev[stratumKey] || 0) - rebelPopLoss),
-                            }));
-                            setPopulation(prev => Math.max(0, prev - rebelPopLoss));
+                                // 检查是否已存在联合叛军政府或参与阶层的叛军
+                                const existingCoalitionRebel = (current.nations || []).find(
+                                    n => n.isRebelNation && n.isAtWar && n.isCoalitionRebellion
+                                );
+                                const existingStrataRebel = (current.nations || []).find(
+                                    n => n.isRebelNation && n.isAtWar && coalitionStrata.includes(n.rebellionStratum)
+                                );
+                                const existingRebel = existingCoalitionRebel || existingStrataRebel;
 
-                            event = createActiveRebellionEvent(
-                                stratumKey,
-                                rebellionStateForEvent,
-                                hasMilitary,
-                                militaryIsRebelling,
-                                rebelNation,
-                                rebellionCallback
-                            );
-                            addLog(`🔥🔥🔥 ${STRATA[stratumKey]?.name || stratumKey}阶层组织度达到100%，发动叛乱！`);
+                                if (existingRebel) {
+                                    // 合并到已存在的叛军政府
+                                    setNations(prev => prev.map(n => {
+                                        if (n.id === existingRebel.id) {
+                                            const newPop = (n.population || 0) + totalLoss;
+                                            const addedWealth = details.reduce((sum, d) => sum + Math.floor((current.classWealth?.[d.stratumKey] || 0) * 0.3), 0);
+                                            return {
+                                                ...n,
+                                                population: newPop,
+                                                wealth: (n.wealth || 0) + addedWealth,
+                                                economyTraits: {
+                                                    ...n.economyTraits,
+                                                    basePopulation: newPop,
+                                                    baseWealth: (n.economyTraits?.baseWealth || n.wealth || 0) + addedWealth,
+                                                },
+                                            };
+                                        }
+                                        return n;
+                                    }));
+                                    // 扣除人口
+                                    setPopStructure(prev => {
+                                        const updated = { ...prev };
+                                        details.forEach(({ stratumKey: sKey, loss }) => {
+                                            updated[sKey] = Math.max(0, (prev[sKey] || 0) - loss);
+                                        });
+                                        return updated;
+                                    });
+                                    setPopulation(prev => Math.max(0, prev - totalLoss));
+
+                                    addLog(`🔥 更多人（${totalLoss}人）加入了${existingRebel.name}！`);
+                                } else {
+                                    // 创建新的联合叛乱政府
+                                    const rebelNation = createCoalitionRebelNation(
+                                        coalitionStrata,
+                                        current.popStructure,
+                                        current.classWealth || {},
+                                        result.classInfluence || {},
+                                        result.totalInfluence || 0,
+                                        COALITION_REBELLION_CONFIG.COALITION_BONUS
+                                    );
+                                    // 标记为联合叛乱
+                                    rebelNation.isCoalitionRebellion = true;
+
+                                    // 将联合叛乱政府添加到国家列表
+                                    setNations(prev => [...prev, rebelNation]);
+
+                                    // 从玩家处扣除所有参与阶层的人口
+                                    setPopStructure(prev => {
+                                        const updated = { ...prev };
+                                        details.forEach(({ stratumKey: sKey, loss }) => {
+                                            updated[sKey] = Math.max(0, (prev[sKey] || 0) - loss);
+                                        });
+                                        return updated;
+                                    });
+                                    setPopulation(prev => Math.max(0, prev - totalLoss));
+
+                                    event = createCoalitionRebellionEvent(
+                                        coalitionStrata,
+                                        rebelNation,
+                                        hasMilitary,
+                                        militaryIsRebelling,
+                                        details,
+                                        rebellionCallback
+                                    );
+                                    const coalitionNames = coalitionStrata.map(k => STRATA[k]?.name || k).join('、');
+                                    addLog(`🔥🔥🔥 ${coalitionNames}等多个阶层联合发动叛乱！`);
+                                }
+
+                                // 降低参与阶层的组织度到50%
+                                setRebellionStates(prev => {
+                                    const updated = { ...prev };
+                                    coalitionStrata.forEach(sKey => {
+                                        updated[sKey] = {
+                                            ...prev[sKey],
+                                            organization: 50,
+                                            stage: ORGANIZATION_STAGE.MOBILIZING,
+                                        };
+                                    });
+                                    return updated;
+                                });
+                            } else {
+                                // 单阶层叛乱
+                                const stratumPop = current.popStructure?.[stratumKey] || 0;
+                                const stratumWealth = current.classWealth?.[stratumKey] || 0;
+                                const rebelPopLoss = calculateRebelPopulation(stratumPop);
+
+                                // 检查是否已存在该阶层的叛军政府
+                                const existingRebelNation = (current.nations || []).find(
+                                    n => n.isRebelNation && n.rebellionStratum === stratumKey && n.isAtWar
+                                );
+
+                                if (existingRebelNation) {
+                                    // 合并到已存在的叛军政府
+                                    setNations(prev => prev.map(n => {
+                                        if (n.id === existingRebelNation.id) {
+                                            const newPop = (n.population || 0) + rebelPopLoss;
+                                            const newWealth = (n.wealth || 0) + Math.floor(stratumWealth * 0.3);
+                                            return {
+                                                ...n,
+                                                population: newPop,
+                                                wealth: newWealth,
+                                                economyTraits: {
+                                                    ...n.economyTraits,
+                                                    basePopulation: newPop,
+                                                    baseWealth: newWealth,
+                                                },
+                                            };
+                                        }
+                                        return n;
+                                    }));
+                                    setPopStructure(prev => ({
+                                        ...prev,
+                                        [stratumKey]: Math.max(0, (prev[stratumKey] || 0) - rebelPopLoss),
+                                    }));
+                                    setPopulation(prev => Math.max(0, prev - rebelPopLoss));
+
+                                    addLog(`🔥 更多${STRATA[stratumKey]?.name || stratumKey}（${rebelPopLoss}人）加入了${existingRebelNation.name}！`);
+                                    // 不触发事件弹窗，只是静默合并
+                                } else {
+                                    // 创建新的叛军政府
+                                    // 准备资源掠夺数据
+                                    const resourceLoot = {
+                                        resources: current.resources || {},
+                                        marketPrices: current.market?.prices || {},
+                                    };
+                                    const rebelResult = createRebelNation(
+                                        stratumKey,
+                                        stratumPop,
+                                        stratumWealth,
+                                        stratumInfluence,
+                                        rebelPopLoss,
+                                        resourceLoot
+                                    );
+                                    const rebelNation = rebelResult.nation;
+
+                                    // 扣除被掠夺的资源
+                                    if (rebelResult.lootedResources && Object.keys(rebelResult.lootedResources).length > 0) {
+                                        setResources(prev => {
+                                            const updated = { ...prev };
+                                            Object.entries(rebelResult.lootedResources).forEach(([resKey, amount]) => {
+                                                updated[resKey] = Math.max(0, (updated[resKey] || 0) - amount);
+                                            });
+                                            return updated;
+                                        });
+                                        const lootSummary = Object.entries(rebelResult.lootedResources)
+                                            .map(([k, v]) => `${RESOURCES[k]?.name || k}: ${v}`)
+                                            .join('、');
+                                        addLog(`⚠️ 叛军掠夺了物资：${lootSummary}（总价值约${Math.floor(rebelResult.lootedValue)}银币）`);
+                                    }
+
+                                    setNations(prev => [...prev, rebelNation]);
+                                    setPopStructure(prev => ({
+                                        ...prev,
+                                        [stratumKey]: Math.max(0, (prev[stratumKey] || 0) - rebelPopLoss),
+                                    }));
+                                    setPopulation(prev => Math.max(0, prev - rebelPopLoss));
+
+                                    event = createActiveRebellionEvent(
+                                        stratumKey,
+                                        rebellionStateForEvent,
+                                        hasMilitary,
+                                        militaryIsRebelling,
+                                        rebelNation,
+                                        rebellionCallback
+                                    );
+                                    addLog(`🔥🔥🔥 ${STRATA[stratumKey]?.name || stratumKey}阶层组织度达到100%，发动叛乱！`);
+                                }
+
+                                // 降低组织度到50%（保持不满但不会立即再次触发叛乱）
+                                setRebellionStates(prev => ({
+                                    ...prev,
+                                    [stratumKey]: {
+                                        ...prev[stratumKey],
+                                        organization: 50,
+                                        stage: ORGANIZATION_STAGE.MOBILIZING,
+                                    },
+                                }));
+                            }
                             break;
                         }
                     }
@@ -1182,19 +1370,43 @@ export const useGameLoop = (gameState, addLog, actions) => {
             setRebellionStates(updatedOrganizationStates);
 
             // ========== 起义后议和检查 ==========
-            // 如果叛乱国家对应阶层的组织度下降到不满（<50%）或平静（<30%）级别，触发议和
+            // 如果叛乱国家对应阶层的组织度下降到不满（<30%）级别，叛军会崩溃消失
             const rebelNations = (current.nations || []).filter(n => n.isRebelNation && n.isAtWar);
             for (const rebelNation of rebelNations) {
                 const stratumKey = rebelNation.rebellionStratum;
                 if (!stratumKey) continue;
 
-                const orgState = updatedOrganizationStates[stratumKey];
-                const organization = orgState?.organization ?? 0;
+                // 叛军需要至少持续60天战争才会考虑崩溃
+                const warDuration = rebelNation.warDuration || 0;
+                if (warDuration < 60) continue;
 
-                // 组织度下降到 50% 以下（不满或平静阶段），叛乱军主动议和
-                if (organization < 50) {
+                const orgState = updatedOrganizationStates[stratumKey];
+                const organization = orgState?.organization ?? 50; // 默认50%，避免误判
+
+                // 组织度下降到 30% 以下，叛乱军崩溃
+                if (organization < 30) {
                     const stratumName = STRATA[stratumKey]?.name || stratumKey;
-                    addLog(`🕊️ ${rebelNation.name}的士气瓦解，组织度降至${Math.round(organization)}%，主动请求议和！`);
+                    addLog(`🕊️ ${rebelNation.name}内部分裂，组织度降至${Math.round(organization)}%，叛乱崩溃！`);
+
+                    // 返还部分人口给玩家
+                    const returnedPop = Math.floor((rebelNation.population || 0) * 0.5);
+                    if (returnedPop > 0) {
+                        setPopStructure(prev => ({
+                            ...prev,
+                            [stratumKey]: (prev[stratumKey] || 0) + returnedPop,
+                        }));
+                        setPopulation(prev => prev + returnedPop);
+                        addLog(`🏠 ${returnedPop}名${stratumName}从叛军中回归。`);
+                    }
+
+                    // 触发叛乱平定事件弹窗
+                    const collapseCallback = (action, nation) => {
+                        console.log('[REBELLION END]', action, nation?.name);
+                    };
+                    const collapseEvent = createRebellionEndEvent(rebelNation, true, collapseCallback);
+                    if (collapseEvent && current.actions?.triggerDiplomaticEvent) {
+                        current.actions.triggerDiplomaticEvent(collapseEvent);
+                    }
 
                     // 更新叛乱国家状态：结束战争
                     setNations(prevNations => prevNations.map(n => {
@@ -1209,21 +1421,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         return n;
                     }));
 
-                    // 返还部分人口给玩家
-                    const returnedPop = Math.floor((rebelNation.population || 0) * 0.5);
-                    if (returnedPop > 0) {
-                        setPopStructure(prev => ({
-                            ...prev,
-                            [stratumKey]: (prev[stratumKey] || 0) + returnedPop,
-                        }));
-                        setPopulation(prev => prev + returnedPop);
-                        addLog(`🏠 ${returnedPop}名${stratumName}从叛军中回归。`);
-                    }
-
-                    // 将叛乱国家从列表中移除（或标记为已解散）
+                    // 将叛乱国家从列表中移除（延迟执行以确保事件显示）
                     setTimeout(() => {
                         setNations(prevNations => prevNations.filter(n => n.id !== rebelNation.id));
-                    }, 100);
+                    }, 500);
 
                     // 重置该阶层的组织度
                     setRebellionStates(prev => ({
@@ -1343,13 +1544,35 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             const stratumWealth = current.classWealth?.[stratumKey] || 0;
                             const rebelPopLoss = calculateRebelPopulation(stratumPop);
 
-                            const rebelNation = createRebelNation(
+                            // 准备资源掠夺数据
+                            const resourceLoot = {
+                                resources: current.resources || {},
+                                marketPrices: current.market?.prices || {},
+                            };
+                            const rebelResult = createRebelNation(
                                 stratumKey,
                                 stratumPop,
                                 stratumWealth,
                                 stratumInfluence,
-                                rebelPopLoss
+                                rebelPopLoss,
+                                resourceLoot
                             );
+                            const rebelNation = rebelResult.nation;
+
+                            // 扣除被掠夺的资源
+                            if (rebelResult.lootedResources && Object.keys(rebelResult.lootedResources).length > 0) {
+                                setResources(prev => {
+                                    const updated = { ...prev };
+                                    Object.entries(rebelResult.lootedResources).forEach(([resKey, amount]) => {
+                                        updated[resKey] = Math.max(0, (updated[resKey] || 0) - amount);
+                                    });
+                                    return updated;
+                                });
+                                const lootSummary = Object.entries(rebelResult.lootedResources)
+                                    .map(([k, v]) => `${RESOURCES[k]?.name || k}: ${v}`)
+                                    .join('、');
+                                addLog(`⚠️ 叛军掠夺了物资：${lootSummary}（总价值约${Math.floor(rebelResult.lootedValue)}银币）`);
+                            }
 
                             setNations(prev => [...prev, rebelNation]);
                             setPopStructure(prev => ({
@@ -1472,7 +1695,52 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
             // 添加新日志
             if (result.logs.length) {
-                setLogs(prev => [...result.logs, ...prev].slice(0, 128));
+                // Filter and transform technical logs to human-readable format
+                const processedLogs = result.logs.map(log => {
+                    if (typeof log !== 'string') return log;
+
+                    // Transform RAID_EVENT logs to human-readable format
+                    if (log.includes('❗RAID_EVENT❗')) {
+                        try {
+                            const jsonStr = log.replace('❗RAID_EVENT❗', '');
+                            const raidData = JSON.parse(jsonStr);
+                            if (raidData.victory) {
+                                return `⚔️ 成功击退了 ${raidData.nationName} 的突袭！`;
+                            } else {
+                                const losses = [];
+                                if (raidData.foodLoss > 0) losses.push(`粮食 -${raidData.foodLoss}`);
+                                if (raidData.silverLoss > 0) losses.push(`银币 -${raidData.silverLoss}`);
+                                if (raidData.popLoss > 0) losses.push(`人口 -${raidData.popLoss}`);
+                                const lossText = losses.length > 0 ? `（${losses.join('，')}）` : '';
+                                return `🔥 遭到 ${raidData.nationName} 的突袭！${lossText}`;
+                            }
+                        } catch (e) {
+                            return `⚔️ 发生了一场突袭！`;
+                        }
+                    }
+
+                    // Transform WAR_DECLARATION_EVENT logs to human-readable format
+                    if (log.includes('WAR_DECLARATION_EVENT:')) {
+                        try {
+                            const jsonStr = log.replace('WAR_DECLARATION_EVENT:', '');
+                            const warData = JSON.parse(jsonStr);
+                            return `⚔️ ${warData.nationName} 对你宣战！`;
+                        } catch (e) {
+                            return `⚔️ 有国家对你宣战！`;
+                        }
+                    }
+
+                    if (log.includes('AI_GIFT_EVENT:')) {
+                        return '💝 收到一份来自外国的外交礼物通知';
+                    }
+                    if (log.includes('AI_REQUEST_EVENT:')) {
+                        return '🗣️ 收到一份来自外国的外交请求';
+                    }
+
+                    return log;
+                });
+
+                setLogs(prev => [...processedLogs, ...prev].slice(0, 128));
 
                 // 检测外交事件并触发事件系统
                 const currentActions = current.actions;
@@ -1570,7 +1838,6 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                 // 触发玩家的宣战弹窗
                                 const aggressor = result.nations?.find(n => n.id === aggressorId);
                                 if (aggressor) {
-                                    const { createWarDeclarationEvent } = require('../config/events');
                                     const event = createWarDeclarationEvent(aggressor, () => {
                                         console.log('[EVENT DEBUG] War declaration acknowledged');
                                     });
@@ -1594,17 +1861,16 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                         return r >= 80 && !n.isAtWar;
                                     });
 
-                                    // 玩家(目标)的盟友: 与玩家(ID=player, 这里隐含)关系 >= 80
+                                    // 玩家(目标)的正式盟友: alliedWithPlayer === true
                                     const playerAllies = nextNations.filter(n => {
                                         if (n.id === aggressorId) return false;
-                                        return (n.relation || 0) >= 80 && !n.isAtWar;
+                                        return n.alliedWithPlayer === true && !n.isAtWar;
                                     });
 
                                     // 2. 处理侵略者的盟友加入战争
                                     aggressorAllies.forEach(ally => {
-                                        // 检查中立原则：如果该盟友同时也与玩家结盟(关系>=80)，则保持中立
-                                        const relationWithPlayer = ally.relation || 0;
-                                        if (relationWithPlayer >= 80) {
+                                        // 检查中立原则：如果该盟友同时也与玩家正式结盟，则保持中立
+                                        if (ally.alliedWithPlayer === true) {
                                             addLog(`⚖️ ${ally.name} 既是你的盟友又是 ${aggressorName} 的盟友，决定保持中立。`);
                                             return;
                                         }
@@ -1625,9 +1891,11 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
                                     // 3. 处理玩家的盟友加入战争
                                     playerAllies.forEach(ally => {
-                                        // 检查中立原则：如果该盟友同时也与侵略者结盟(关系>=80)，则保持中立
-                                        const relationWithAggressor = nextNations[aggressorIdx].foreignRelations?.[ally.id] ?? 50;
-                                        if (relationWithAggressor >= 80) {
+                                        // 检查中立原则：如果该盟友同时也与侵略者正式结盟，则保持中立
+                                        const aggressorNation = nextNations[aggressorIdx];
+                                        const isAlsoAggressorAlly = (aggressorNation.allies || []).includes(ally.id) ||
+                                            (ally.allies || []).includes(aggressorId);
+                                        if (isAlsoAggressorAlly) {
                                             // 日志已在上一步处理（双向的，只需触发一次提示即可，或者重复提示也没关系）
                                             // addLog(`⚖️ 你的盟友 ${ally.name} 与 ${aggressorName} 关系密切，决定保持中立。`); 
                                             // 上面的逻辑已经涵盖了这种情况（因为是遍历两组盟友，同一个国家可能出现在两组中）
@@ -1682,7 +1950,6 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                 const nationName = match[1];
                                 const nation = result.nations?.find(n => n.name === nationName);
                                 if (nation) {
-                                    const { createWarDeclarationEvent } = require('../config/events');
                                     const event = createWarDeclarationEvent(nation, () => {
                                         // 宣战事件只需要确认，不需要额外操作
                                     });
@@ -1820,6 +2087,89 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                 }
                             } catch (error) {
                                 console.error('[EVENT DEBUG] Error parsing or processing raid event:', error);
+                            }
+                        }
+
+                        // 检测 AI 送礼事件
+                        if (log.includes('AI_GIFT_EVENT:')) {
+                            try {
+                                const jsonStr = log.replace('AI_GIFT_EVENT:', '');
+                                const eventData = JSON.parse(jsonStr);
+                                const nation = result.nations?.find(n => n.id === eventData.nationId);
+                                if (nation && currentActions && currentActions.triggerDiplomaticEvent) {
+                                    const event = createGiftEvent(nation, eventData.amount, () => {
+                                        // 接受礼物的回调
+                                        setResources(prev => ({ ...prev, silver: (prev.silver || 0) + eventData.amount }));
+                                        setNations(prev => prev.map(n => n.id === nation.id ? { ...n, relation: Math.min(100, (n.relation || 0) + 15) } : n));
+                                        addLog(`💰 你接受了 ${nation.name} 的礼物，获得 ${eventData.amount} 银币。`);
+                                    });
+                                    currentActions.triggerDiplomaticEvent(event);
+                                    console.log('[EVENT DEBUG] AI Gift event triggered:', nation.name, eventData.amount);
+                                }
+                            } catch (e) {
+                                console.error('[EVENT DEBUG] Failed to parse AI gift event:', e);
+                            }
+                        }
+
+                        // 检测 AI 索要事件
+                        if (log.includes('AI_REQUEST_EVENT:')) {
+                            try {
+                                const jsonStr = log.replace('AI_REQUEST_EVENT:', '');
+                                const eventData = JSON.parse(jsonStr);
+                                const nation = result.nations?.find(n => n.id === eventData.nationId);
+                                if (nation && currentActions && currentActions.triggerDiplomaticEvent) {
+                                    const event = createAIRequestEvent(nation, eventData.resourceKey, eventData.resourceName, eventData.amount, (accepted) => {
+                                        if (accepted) {
+                                            const currentSilver = current.resources?.silver || 0;
+                                            if (currentSilver < eventData.amount) {
+                                                addLog(`❌ 银币不足，无法满足 ${nation.name} 的请求！`);
+                                                return;
+                                            }
+                                            setResources(prev => ({ ...prev, silver: (prev.silver || 0) - eventData.amount }));
+                                            setNations(prev => prev.map(n => n.id === nation.id ? { ...n, relation: Math.min(100, (n.relation || 0) + 10) } : n));
+                                            addLog(`🤝 你满足了 ${nation.name} 的请求，关系提升了。`);
+                                        } else {
+                                            setNations(prev => prev.map(n => n.id === nation.id ? { ...n, relation: Math.max(0, (n.relation || 0) - 15) } : n));
+                                            addLog(`❌ 你拒绝了 ${nation.name} 的请求，关系恶化了。`);
+                                        }
+                                    });
+                                    currentActions.triggerDiplomaticEvent(event);
+                                    console.log('[EVENT DEBUG] AI Request event triggered:', nation.name, eventData.amount);
+                                }
+                            } catch (e) {
+                                console.error('[EVENT DEBUG] Failed to parse AI request event:', e);
+                            }
+                        }
+
+                        // 检测 AI 联盟请求事件
+                        if (log.includes('AI_ALLIANCE_REQUEST:')) {
+                            try {
+                                const jsonStr = log.replace('AI_ALLIANCE_REQUEST:', '');
+                                const eventData = JSON.parse(jsonStr);
+                                const nation = result.nations?.find(n => n.id === eventData.nationId);
+                                if (nation && currentActions && currentActions.triggerDiplomaticEvent) {
+                                    const event = createAllianceRequestEvent(nation, (accepted) => {
+                                        if (accepted) {
+                                            setNations(prev => prev.map(n =>
+                                                n.id === nation.id
+                                                    ? { ...n, alliedWithPlayer: true, relation: Math.min(100, (n.relation || 0) + 20) }
+                                                    : n
+                                            ));
+                                            addLog(`🤝 你接受了 ${nation.name} 的结盟请求！你们正式成为盟友！`);
+                                        } else {
+                                            setNations(prev => prev.map(n =>
+                                                n.id === nation.id
+                                                    ? { ...n, relation: Math.max(0, (n.relation || 0) - 10) }
+                                                    : n
+                                            ));
+                                            addLog(`你婉言谢绝了 ${nation.name} 的结盟请求，关系略有下降。`);
+                                        }
+                                    });
+                                    currentActions.triggerDiplomaticEvent(event);
+                                    console.log('[EVENT DEBUG] AI Alliance Request event triggered:', nation.name);
+                                }
+                            } catch (e) {
+                                console.error('[EVENT DEBUG] Failed to parse AI alliance request event:', e);
                             }
                         }
                     });

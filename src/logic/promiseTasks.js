@@ -280,28 +280,68 @@ function calculateTaxBurden(stratumKey, context) {
 }
 
 function findExpensiveNeed(stratumKey, context) {
-    // 优先查找 classShortages 中买不起的资源
-    const shortages = context?.classShortages?.[stratumKey] || [];
-    const unaffordable = shortages.find(s => s.reason === 'unaffordable');
-    if (unaffordable) {
-        const { market } = context || {};
-        const price = market?.prices?.[unaffordable.resource] || 1;
-        const basePrice = market?.basePrices?.[unaffordable.resource] || 1;
-        return { resource: unaffordable.resource, price, basePrice };
+    const { market, classShortages } = context || {};
+    const prices = market?.prices || {};
+    const basePrices = market?.basePrices || {};
+
+    const getPriceInfo = (resource) => {
+        const price = prices[resource] || 1;
+        const basePrice = basePrices[resource] || 1;
+        const ratio = price / basePrice;
+        return { resource, price, basePrice, ratio };
+    };
+
+    // 1. 优先查找 classShortages 中买不起的资源，并按价格涨幅排序
+    const shortages = classShortages?.[stratumKey] || [];
+    const unaffordableList = shortages
+        .filter(s => s.reason === 'unaffordable')
+        .map(s => getPriceInfo(s.resource))
+        .sort((a, b) => b.ratio - a.ratio); // 降序排列，取涨幅最大的
+
+    if (unaffordableList.length > 0) {
+        return unaffordableList[0];
     }
 
-    // 其次检查价格偏高的需求资源
+    // 2. 其次检查价格偏高的需求资源（包括基础需求和奢侈需求）
     const stratum = STRATA[stratumKey];
     if (!stratum?.needs) return null;
 
-    const { market } = context || {};
-    for (const [resource, amount] of Object.entries(stratum.needs)) {
-        const price = market?.prices?.[resource] || 1;
-        const basePrice = market?.basePrices?.[resource] || 1;
-        if (price > basePrice * 1.3 && amount > 0) { // 降低阈值到1.3倍
-            return { resource, price, basePrice };
+    const candidates = [];
+    const resultCache = new Set(); // 避免重复添加
+
+    // 检查基础需求
+    Object.keys(stratum.needs).forEach(resource => {
+        if (resultCache.has(resource)) return;
+
+        const info = getPriceInfo(resource);
+        if (info.price > info.basePrice * 1.3) {
+            candidates.push(info);
+            resultCache.add(resource);
         }
+    });
+
+    // 检查奢侈需求 (包括所有可能的奢侈需求，无论当前是否解锁，因为承诺是未来的)
+    if (stratum.luxuryNeeds) {
+        Object.values(stratum.luxuryNeeds).forEach(needGroup => {
+            if (!needGroup) return;
+            Object.keys(needGroup).forEach(resource => {
+                if (resultCache.has(resource)) return;
+
+                const info = getPriceInfo(resource);
+                if (info.price > info.basePrice * 1.3) {
+                    candidates.push(info);
+                    resultCache.add(resource);
+                }
+            });
+        });
     }
+
+    if (candidates.length > 0) {
+        // 按价格涨幅降序排序
+        candidates.sort((a, b) => b.ratio - a.ratio);
+        return candidates[0];
+    }
+
     return null;
 }
 

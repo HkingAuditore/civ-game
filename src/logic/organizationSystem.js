@@ -95,7 +95,65 @@ export const STRATEGIC_ACTION = {
     PROMISE: 'promise',          // 承诺
 };
 
-export const MIN_REBELLION_INFLUENCE = 0.2;
+export const MIN_REBELLION_INFLUENCE = 0.1;
+
+// 联合叛乱配置
+export const COALITION_REBELLION_CONFIG = {
+    MIN_ORGANIZATION_TO_JOIN: 70,  // 其他阶层加入联合叛乱的最低组织度 (70%)
+    COALITION_BONUS: 0.1,          // 联合叛军人口加成 (10%)
+};
+
+/**
+ * 检测是否可以发动联合叛乱
+ * 当一个阶层达到100%组织度时调用，检测其他高组织度阶层
+ * @param {string} primaryStratumKey - 触发叛乱的主要阶层
+ * @param {Object} organizationStates - 所有阶层的组织度状态
+ * @param {Object} classInfluence - 阶层影响力
+ * @param {number} totalInfluence - 总影响力
+ * @param {Object} popStructure - 人口结构
+ * @returns {Object} { isCoalition: boolean, coalitionStrata: string[], totalInfluenceShare: number }
+ */
+export function checkCoalitionRebellion(
+    primaryStratumKey,
+    organizationStates,
+    classInfluence,
+    totalInfluence,
+    popStructure
+) {
+    const coalitionStrata = [primaryStratumKey];
+    let coalitionInfluence = classInfluence[primaryStratumKey] || 0;
+
+    // 检查其他阶层是否满足联合条件
+    Object.keys(organizationStates).forEach(stratumKey => {
+        if (stratumKey === primaryStratumKey) return;
+        if (stratumKey === 'slave') return; // 奴隶不能参与叛乱
+
+        const state = organizationStates[stratumKey];
+        const organization = state?.organization || 0;
+        const pop = popStructure[stratumKey] || 0;
+
+        // 该阶层必须有人口且组织度 >= 70%
+        if (pop > 0 && organization >= COALITION_REBELLION_CONFIG.MIN_ORGANIZATION_TO_JOIN) {
+            coalitionStrata.push(stratumKey);
+            coalitionInfluence += classInfluence[stratumKey] || 0;
+            console.log(`[COALITION] ${stratumKey} qualifies for coalition (org: ${organization.toFixed(1)}%)`);
+        }
+    });
+
+    const totalInfluenceShare = totalInfluence > 0 ? coalitionInfluence / totalInfluence : 0;
+    const isCoalition = coalitionStrata.length > 1;
+
+    if (isCoalition) {
+        console.log(`[COALITION] Found ${coalitionStrata.length} strata eligible for coalition rebellion:`, coalitionStrata);
+        console.log(`[COALITION] Total influence share: ${(totalInfluenceShare * 100).toFixed(1)}%`);
+    }
+
+    return {
+        isCoalition,
+        coalitionStrata,
+        totalInfluenceShare,
+    };
+}
 
 const DRIVER_WEIGHTS = {
     tax: 0.7,

@@ -919,8 +919,20 @@ export const simulateTick = ({
     BUILDINGS.forEach(b => {
         const count = builds[b.id] || 0;
         if (count > 0) {
-            if (b.output?.maxPop) totalMaxPop += (b.output.maxPop * count);
-            if (b.output?.militaryCapacity) militaryCapacity += (b.output.militaryCapacity * count); // 新增：从建筑获取军事容量
+            if (b.output?.maxPop) {
+                // Apply building-specific and category bonuses to maxPop output
+                let maxPopBonus = buildingBonuses[b.id] || 1;
+                const catBonus = categoryBonuses[b.cat] || 1;
+                maxPopBonus *= catBonus;
+                totalMaxPop += (b.output.maxPop * count * maxPopBonus);
+            }
+            if (b.output?.militaryCapacity) {
+                // Apply building-specific and category bonuses to militaryCapacity output
+                let militaryBonus = buildingBonuses[b.id] || 1;
+                const catBonus = categoryBonuses[b.cat] || 1;
+                militaryBonus *= catBonus;
+                militaryCapacity += (b.output.militaryCapacity * count * militaryBonus);
+            }
             if (b.jobs) {
                 for (let role in b.jobs) jobsAvailable[role] += (b.jobs[role] * count);
             }
@@ -1588,10 +1600,9 @@ export const simulateTick = ({
                     }
                 }
 
-                if (resKey === 'maxPop') {
-                    res[resKey] = (res[resKey] || 0) + amount;
-                    continue;
-                }
+                // Skip maxPop - it's calculated separately in the building count loop above
+                // and should not be affected by economic factors (actualMultiplier)
+                if (resKey === 'maxPop') continue;
                 if (isTradableResource(resKey)) {
                     sellProduction(resKey, amount, ownerKey);
                     rates[resKey] = (rates[resKey] || 0) + amount;
@@ -1614,6 +1625,7 @@ export const simulateTick = ({
                     wealth[ownerKey] = ownerWealth - totalBusinessTax;
                     // 营业税单独统计，不计入生活支出
                     roleBusinessTaxPaid[ownerKey] = (roleBusinessTaxPaid[ownerKey] || 0) + totalBusinessTax;
+                    roleExpense[ownerKey] = (roleExpense[ownerKey] || 0) + totalBusinessTax;
                     taxBreakdown.businessTax += totalBusinessTax;
                 } else {
                     // 业主财产不足，放弃收税
@@ -2455,6 +2467,91 @@ export const simulateTick = ({
             next.population = clamp(Math.round(next.population || basePopulation), 5, maxPopulation);
             next.wealth = clamp(Math.round(next.wealth || baseWealth), baseWealth * 0.5, maxWealth);
             next.budget = Math.min(next.wealth, Math.max(0, next.budget ?? Math.floor(next.wealth * 0.3)));
+
+            // ========== 叛军突袭逻辑 ==========
+            if (next.isAtWar) {
+                next.warDuration = (next.warDuration || 0) + 1;
+
+                // 叛军有更高的突袭概率（25%基础 + 侵略性加成）
+                const rebelAggression = next.aggression ?? 0.7; // 叛军默认高侵略性
+                const raidChance = Math.min(0.35, 0.25 + rebelAggression * 0.1);
+
+                if (Math.random() < raidChance) {
+                    console.log(`[REBEL RAID] ${next.name} 发动突袭！概率: ${(raidChance * 100).toFixed(1)}%`);
+
+                    const militaryStrength = next.militaryStrength ?? 1.0;
+                    const raidStrength = 0.08 + rebelAggression * 0.05; // 叛军突袭强度
+
+                    // 生成叛军突袭部队
+                    const attackerArmy = {};
+                    const raidUnits = getEnemyUnitsForEpoch(epoch, 'light');
+                    const baseUnitCount = 3 + Math.random() * 5;
+                    const totalUnits = Math.floor(baseUnitCount * militaryStrength);
+
+                    raidUnits.forEach(unitId => {
+                        if (UNIT_TYPES[unitId]) {
+                            const count = Math.floor((totalUnits / raidUnits.length) * (0.5 + Math.random() * 0.8));
+                            if (count > 0) attackerArmy[unitId] = count;
+                        }
+                    });
+
+                    const defenderArmy = { ...army };
+                    const totalDefenders = Object.values(defenderArmy).reduce((sum, c) => sum + c, 0);
+
+                    let foodLoss = 0, silverLoss = 0, popLoss = 0;
+                    let battleResult = { victory: true, attackerLosses: {}, defenderLosses: {} };
+
+                    if (totalDefenders === 0) {
+                        // 无防御，突袭成功
+                        foodLoss = Math.floor((res.food || 0) * raidStrength);
+                        silverLoss = Math.floor((res.silver || 0) * (raidStrength / 2));
+                        popLoss = Math.min(5, Math.max(1, Math.floor(raidStrength * 25)));
+                    } else {
+                        // 进行战斗模拟
+                        battleResult = simulateBattle(
+                            { army: attackerArmy, epoch, militaryBuffs: 0.1 },
+                            { army: defenderArmy, epoch, militaryBuffs: 0 }
+                        );
+
+                        if (battleResult.victory) {
+                            foodLoss = Math.floor((res.food || 0) * raidStrength);
+                            silverLoss = Math.floor((res.silver || 0) * (raidStrength / 2));
+                            popLoss = Math.min(5, Math.max(1, Math.floor(raidStrength * 25)));
+                        }
+
+                        // 应用玩家军队损失
+                        Object.entries(battleResult.defenderLosses || {}).forEach(([unitId, count]) => {
+                            if (army[unitId]) army[unitId] = Math.max(0, army[unitId] - count);
+                        });
+                    }
+
+                    // 应用资源损失
+                    if (foodLoss > 0) res.food = Math.max(0, (res.food || 0) - foodLoss);
+                    if (silverLoss > 0) res.silver = Math.max(0, (res.silver || 0) - silverLoss);
+                    if (popLoss > 0) raidPopulationLoss += popLoss;
+
+                    // 调整战争分数
+                    next.warScore = (next.warScore || 0) + (battleResult.victory ? -8 : 6);
+
+                    // 生成突袭事件日志
+                    const raidData = {
+                        nationName: next.name,
+                        victory: !battleResult.victory,
+                        attackerArmy,
+                        defenderArmy,
+                        attackerLosses: battleResult.attackerLosses || {},
+                        defenderLosses: battleResult.defenderLosses || {},
+                        foodLoss,
+                        silverLoss,
+                        popLoss,
+                        ourPower: battleResult.defenderPower || 0,
+                        enemyPower: battleResult.attackerPower || 0,
+                        battleReport: battleResult.battleReport || [],
+                    };
+                    logs.push(`❗RAID_EVENT❗${JSON.stringify(raidData)}`);
+                }
+            }
+
             return next;
         }
 
@@ -2784,7 +2881,7 @@ export const simulateTick = ({
         // 此机制防止关系无限膨胀，并让外交维护变得必要
         let relationChange = 0;
         if (relation > 50) {
-            relationChange = -0.05; // 正向关系缓慢衰减 (-1.5 per month)
+            relationChange = -0.02; // 正向关系缓慢衰减 (-0.6 per month, reduced from -1.5)
         } else if (relation < 50) {
             relationChange = 0.02; // 负向关系极缓慢恢复 (+0.6 per month) - 仇恨很难消除
         }
@@ -2794,7 +2891,7 @@ export const simulateTick = ({
         if (next.foreignRelations) {
             Object.keys(next.foreignRelations).forEach(otherId => {
                 let r = next.foreignRelations[otherId] ?? 50;
-                if (r > 50) r -= 0.05;
+                if (r > 50) r -= 0.02; // reduced from 0.05
                 else if (r < 50) r += 0.02;
                 next.foreignRelations[otherId] = Math.max(0, Math.min(100, r));
             });
@@ -3003,8 +3100,9 @@ export const simulateTick = ({
 
     // ========== AI国家外交行为系统 ==========
     // AI国家会送礼、贸易、结盟
+    // 注意：叛军国家不参与AI之间的外交系统，它们只与玩家交战
     const visibleNations = updatedNations.filter(n =>
-        epoch >= (n.appearEpoch ?? 0) && (n.expireEpoch == null || epoch <= n.expireEpoch)
+        epoch >= (n.appearEpoch ?? 0) && (n.expireEpoch == null || epoch <= n.expireEpoch) && !n.isRebelNation
     );
 
     visibleNations.forEach(nation => {
@@ -3056,6 +3154,110 @@ export const simulateTick = ({
                 logs.push(`💝 国际新闻：${nation.name} 向 ${target.name} 赠送了外交礼物，两国关系升温。`);
             }
         }
+
+    });
+
+    // ========== AI与玩家互动系统 (独立循环) ==========
+    // 将AI与玩家的互动独立出来，不再依赖AI与AI外交的条件
+    visibleNations.forEach(nation => {
+        const wealth = nation.wealth || 500;
+        const aggression = nation.aggression ?? 0.3;
+        const playerRelation = nation.relation || 0;
+        const isAtWarWithPlayer = nation.isAtWar === true;
+
+        // 战争中不进行友好外交
+        if (isAtWarWithPlayer) return;
+
+        // 1. AI向玩家送礼
+        // 条件：国家富裕(>800)，关系良好(>=60)，低侵略性，冷却时间已过（365天），小概率触发
+        const lastGiftDay = nation.lastGiftToPlayerDay || 0;
+        const giftCooldown = 365; // 两次送礼之间至少间隔一年（365天）
+        const canGift = (tick - lastGiftDay) >= giftCooldown;
+
+        const giftChance = 0.0002 + (playerRelation / 50000) + (wealth / 5000000); // 基础0.02%，最高约0.04%
+        if (canGift && wealth > 800 && playerRelation >= 60 && aggression < 0.5 && Math.random() < giftChance) {
+            const giftAmount = Math.floor(20 + Math.random() * 40 + wealth * 0.001); // 基础20，随机0~40，财富加成0.05%
+            // 扣除AI财富
+            nation.wealth = Math.max(0, nation.wealth - giftAmount);
+            // 记录送礼时间
+            nation.lastGiftToPlayerDay = tick;
+
+            // 触发事件
+            logs.push(`AI_GIFT_EVENT:${JSON.stringify({
+                nationId: nation.id,
+                nationName: nation.name,
+                amount: Math.floor(giftAmount)
+            })}`);
+        }
+
+        // 2. AI向玩家索要
+        // 条件：国家贫穷(<400) 或 资源短缺，小概率触发
+        const demandChance = 0.0003 + Math.max(0, (400 - wealth) / 200000); // 基础0.03%，越穷概率越高（最高0.1%）
+        if (wealth < 400 && Math.random() < demandChance) {
+            const requestAmount = Math.floor(80 + Math.random() * 120);
+            logs.push(`AI_REQUEST_EVENT:${JSON.stringify({
+                nationId: nation.id,
+                nationName: nation.name,
+                resourceKey: 'silver',
+                resourceName: '银币',
+                amount: requestAmount
+            })}`);
+        }
+
+        // 3. AI请求与玩家结盟
+        // 条件：关系良好(>=70)，未结盟，非战争状态，低侵略性，冷却时间已过（365天）
+        const isAlreadyAllied = nation.alliedWithPlayer === true;
+        const lastAllianceRequestDay = nation.lastAllianceRequestDay || 0;
+        const allianceRequestCooldown = 365; // 两次结盟请求之间至少间隔一年
+        const canRequestAlliance = (tick - lastAllianceRequestDay) >= allianceRequestCooldown;
+        const allianceChance = 0.0002 + (playerRelation - 70) / 30000; // 关系越好概率越高（基础0.02%，最高约0.04%）
+        if (canRequestAlliance && !isAlreadyAllied && playerRelation >= 70 && aggression < 0.5 && Math.random() < allianceChance) {
+            // 记录请求时间
+            nation.lastAllianceRequestDay = tick;
+            logs.push(`AI_ALLIANCE_REQUEST:${JSON.stringify({
+                nationId: nation.id,
+                nationName: nation.name
+            })}`);
+        }
+    });
+
+    // ========== AI国家之间结盟系统 ==========
+    // AI之间有小概率形成正式联盟
+    visibleNations.forEach(nation => {
+        if (Math.random() > 0.002) return; // 0.2% 每天检查结盟
+
+        const nationAggression = nation.aggression ?? 0.3;
+        if (nationAggression > 0.6) return; // 高侵略性国家不主动结盟
+
+        // 初始化联盟数组
+        if (!nation.allies) nation.allies = [];
+
+        // 找到潜在盟友（关系好且未结盟）
+        const potentialAllies = visibleNations.filter(other => {
+            if (other.id === nation.id) return false;
+            if (nation.allies.includes(other.id)) return false;
+            if (nation.foreignWars?.[other.id]?.isAtWar) return false;
+            const relation = nation.foreignRelations?.[other.id] ?? 50;
+            const otherRelation = other.foreignRelations?.[nation.id] ?? 50;
+            // 双方关系都要>=70才能结盟
+            return relation >= 70 && otherRelation >= 70;
+        });
+
+        if (potentialAllies.length === 0) return;
+
+        const ally = potentialAllies[Math.floor(Math.random() * potentialAllies.length)];
+
+        // 结盟成功概率基于双方关系
+        const avgRelation = ((nation.foreignRelations?.[ally.id] ?? 50) + (ally.foreignRelations?.[nation.id] ?? 50)) / 2;
+        const allianceChance = (avgRelation - 60) / 100; // 60关系=0%，100关系=40%
+
+        if (Math.random() < allianceChance) {
+            // 建立正式联盟
+            if (!ally.allies) ally.allies = [];
+            nation.allies.push(ally.id);
+            ally.allies.push(nation.id);
+            logs.push(`🤝 国际新闻：${nation.name} 与 ${ally.name} 正式缔结军事同盟！`);
+        }
     });
 
     // ========== AI国家互相开战系统 ==========
@@ -3075,10 +3277,10 @@ export const simulateTick = ({
             const peaceUntil = nation.foreignWars[otherNation.id]?.peaceTreatyUntil || 0;
             if (tick < peaceUntil) return;
 
-            // 检查是否为同盟关系（双方关系 >= 80）
-            const relationWithOther = nation.foreignRelations?.[otherNation.id] ?? 50;
-            const otherRelationWithNation = otherNation.foreignRelations?.[nation.id] ?? 50;
-            if (relationWithOther >= 80 || otherRelationWithNation >= 80) return; // 同盟国家之间不能开战
+            // 检查是否为同盟关系（检查正式联盟）
+            const isAllied = (nation.allies || []).includes(otherNation.id) ||
+                (otherNation.allies || []).includes(nation.id);
+            if (isAllied) return; // 正式同盟国家之间不能开战
 
             // ========== 战争决策AI改进 ==========
 
@@ -3094,10 +3296,30 @@ export const simulateTick = ({
             const minWealthForWar = 300;    // 财富至少300才考虑开战
             if (myPopulation < minPopulationForWar || myWealth < minWealthForWar) return;
 
-            // 3. 计算双方实力对比
-            const myStrength = (nation.militaryStrength ?? 1.0) * myPopulation * (1 + (nation.aggression || 0.3));
-            const enemyStrength = (otherNation.militaryStrength ?? 1.0) * (otherNation.population || 100) * (1 + (otherNation.aggression || 0.3));
-            const strengthRatio = myStrength / Math.max(1, enemyStrength);
+            // 3. 计算双方实力对比（纳入盟友力量）
+            const calculateNationPower = (n) => (n.militaryStrength ?? 1.0) * (n.population || 100) * (1 + (n.aggression || 0.3));
+
+            let mySideStrength = calculateNationPower(nation);
+            let enemySideStrength = calculateNationPower(otherNation);
+
+            // 遍历所有国家计算盟友力量（使用正式联盟判定）
+            visibleNations.forEach(n => {
+                if (n.id === nation.id || n.id === otherNation.id) return;
+
+                // 它是我的正式盟友吗？
+                const isMyAlly = (nation.allies || []).includes(n.id) || (n.allies || []).includes(nation.id);
+                if (isMyAlly) {
+                    mySideStrength += calculateNationPower(n);
+                }
+
+                // 它是敌人的正式盟友吗？
+                const isEnemyAlly = (otherNation.allies || []).includes(n.id) || (n.allies || []).includes(otherNation.id);
+                if (isEnemyAlly) {
+                    enemySideStrength += calculateNationPower(n);
+                }
+            });
+
+            const strengthRatio = mySideStrength / Math.max(1, enemySideStrength);
 
             // 实力太弱不开战（除非侵略性极高的国家会冒险）
             const minStrengthRatio = nation.aggression > 0.7 ? 0.5 : 0.7; // 高侵略性国家更敢冒险
@@ -3111,22 +3333,39 @@ export const simulateTick = ({
             const relation = nation.foreignRelations?.[otherNation.id] ?? 50;
             const aggression = nation.aggression ?? 0.3;
 
-            // 只有低关系且高侵略性的国家才会主动开战
-            if (relation < 30 && aggression > 0.4) {
-                // 基础概率大幅降低，避免混战
-                let warChance = (aggression * 0.002) + ((30 - relation) / 3000);
+            // 放宽条件：只要关系不算太好且不是极端和平主义者
+            // 如果关系极差 (<15)，即使和平主义者也可能被迫开战
+            const isRelationsBadEnough = relation < 50;
+            const isAggressiveEnough = aggression > 0.25;
+            const isHatedEnemy = relation < 15;
 
-                // 实力优势加成（实力越强越敢打）
-                if (strengthRatio > 1.5) {
-                    warChance *= 1.5; // 实力碾压，更敢打
-                } else if (strengthRatio > 1.2) {
-                    warChance *= 1.2; // 有优势
+            if ((isRelationsBadEnough && isAggressiveEnough) || isHatedEnemy) {
+                // 基础概率：基于侵略性和关系的恶劣程度
+                // 大幅降低基础概率，使战争更加稀少
+                let warChance = (aggression * 0.003) + ((50 - relation) / 5000);
+
+                // 战争借口（Casus Belli）：关系极差时，开战概率增加（但仍然较低）
+                if (relation < 10) {
+                    warChance += 0.01; // 1% 额外概率（从5%降低）
+                } else if (relation < 20) {
+                    warChance += 0.003; // 0.3% 额外概率
                 }
 
-                // 趁火打劫加成
-                warChance += opportunityBonus;
+                // 实力优势加成（实力越强越敢打，但整体倍率降低）
+                if (strengthRatio > 2.0) {
+                    warChance *= 2.0; // 实力碾压
+                } else if (strengthRatio > 1.5) {
+                    warChance *= 1.5; // 明显优势
+                } else if (strengthRatio > 1.2) {
+                    warChance *= 1.2; // 小优
+                } else if (strengthRatio < 0.8) {
+                    warChance *= 0.1; // 劣势，非常谨慎
+                }
 
-                // 最大概率限制为0.3%（大幅降低）
+                // 趁火打劫加成（降低）
+                warChance += opportunityBonus * 0.5;
+
+                // 限制最大概率（从1.0%进一步降低至0.3%，大幅减少战争频率）
                 warChance = Math.min(0.003, warChance);
 
                 if (Math.random() < warChance) {
@@ -3158,10 +3397,10 @@ export const simulateTick = ({
                     const randomDeclarationNews = declarationNewsTemplates[Math.floor(Math.random() * declarationNewsTemplates.length)];
                     logs.push(randomDeclarationNews);
 
-                    // ========== 同盟连坐机制 ==========
-                    // 检查被攻击方是否是玩家的盟友
-                    const otherNationPlayerRelation = otherNation.relation || 0;
-                    if (otherNationPlayerRelation >= 80 && !nation.isAtWar) {
+                    // ========== 同盟连坐机制（基于正式联盟）==========
+                    // 检查被攻击方是否是玩家的正式盟友
+                    const isOtherNationPlayerAlly = otherNation.alliedWithPlayer === true;
+                    if (isOtherNationPlayerAlly && !nation.isAtWar) {
                         // 玩家的盟友被攻击，玩家被迫与攻击方开战
                         nation.isAtWar = true;
                         nation.warStartDay = tick;
@@ -3170,9 +3409,9 @@ export const simulateTick = ({
                         logs.push(`⚔️ 你的盟友 ${otherNation.name} 遭到攻击！作为同盟，你被迫与 ${nation.name} 进入战争状态！`);
                     }
 
-                    // 检查攻击方是否是玩家的盟友
-                    const nationPlayerRelation = nation.relation || 0;
-                    if (nationPlayerRelation >= 80 && !otherNation.isAtWar) {
+                    // 检查攻击方是否是玩家的正式盟友
+                    const isNationPlayerAlly = nation.alliedWithPlayer === true;
+                    if (isNationPlayerAlly && !otherNation.isAtWar) {
                         // 玩家的盟友主动攻击别国，玩家被迫与被攻击方开战
                         otherNation.isAtWar = true;
                         otherNation.warStartDay = tick;
@@ -3181,14 +3420,14 @@ export const simulateTick = ({
                         logs.push(`⚔️ 你的盟友 ${nation.name} 向 ${otherNation.name} 宣战！作为同盟，你被迫与 ${otherNation.name} 进入战争状态！`);
                     }
 
-                    // AI 国家之间的同盟连坐
+                    // AI 国家之间的同盟连坐（基于正式联盟）
                     visibleNations.forEach(ally => {
                         if (ally.id === nation.id || ally.id === otherNation.id) return;
 
-                        // 检查是否是被攻击方的盟友
-                        const allyRelationWithDefender = ally.foreignRelations?.[otherNation.id] ?? 50;
-                        const defenderRelationWithAlly = otherNation.foreignRelations?.[ally.id] ?? 50;
-                        if (allyRelationWithDefender >= 80 && defenderRelationWithAlly >= 80) {
+                        // 检查是否是被攻击方的正式盟友
+                        const isDefenderAlly = (otherNation.allies || []).includes(ally.id) ||
+                            (ally.allies || []).includes(otherNation.id);
+                        if (isDefenderAlly) {
                             // 盟友参战
                             if (!ally.foreignWars) ally.foreignWars = {};
                             ally.foreignWars[nation.id] = { isAtWar: true, warStartDay: tick, warScore: 0 };
@@ -3289,11 +3528,11 @@ export const simulateTick = ({
                     // 结束战争状态
                     nation.foreignWars[enemyId] = {
                         isAtWar: false,
-                        peaceTreatyUntil: tick + 365,
+                        peaceTreatyUntil: tick + 730, // 延长停战期到2年
                     };
                     enemy.foreignWars[nation.id] = {
                         isAtWar: false,
-                        peaceTreatyUntil: tick + 365,
+                        peaceTreatyUntil: tick + 730, // 延长停战期到2年
                     };
 
                     // 关系变化（输家对赢家更仇恨）

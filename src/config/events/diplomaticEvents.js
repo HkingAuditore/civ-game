@@ -1,6 +1,9 @@
 // Diplomatic Events - Functions to create dynamic diplomatic events
 // These events are generated dynamically based on game state
 
+// 割地人口上限（战争求和时最多割让/获得的人口数）
+const MAX_TERRITORY_POPULATION = 200;
+
 // 分期赔款总额相对一次性赔款的倍率（保证总额更高）
 const INSTALLMENT_TOTAL_MULTIPLIER = 3;
 
@@ -15,23 +18,23 @@ const OPEN_MARKET_DURATION_DAYS = OPEN_MARKET_DURATION_YEARS * 365; // 1095天
  * @returns {Object} - 外交事件对象
  */
 export function createWarDeclarationEvent(nation, onAccept) {
-  return {
-    id: `war_declaration_${nation.id}_${Date.now()}`,
-    name: `${nation.name}宣战`,
-    icon: 'Swords',
-    image: null,
-    description: `${nation.name}对你的国家发动了战争！他们的军队正在集结，边境局势十分紧张。这是一场不可避免的冲突，你必须做好应战准备。`,
-    isDiplomaticEvent: true,
-    options: [
-      {
-        id: 'acknowledge',
-        text: '应战',
-        description: '接受战争状态，准备迎战',
-        effects: {},
-        callback: onAccept,
-      },
-    ],
-  };
+    return {
+        id: `war_declaration_${nation.id}_${Date.now()}`,
+        name: `${nation.name}宣战`,
+        icon: 'Swords',
+        image: null,
+        description: `${nation.name}对你的国家发动了战争！他们的军队正在集结，边境局势十分紧张。这是一场不可避免的冲突，你必须做好应战准备。`,
+        isDiplomaticEvent: true,
+        options: [
+            {
+                id: 'acknowledge',
+                text: '应战',
+                description: '接受战争状态，准备迎战',
+                effects: {},
+                callback: onAccept,
+            },
+        ],
+    };
 }
 
 /**
@@ -42,27 +45,27 @@ export function createWarDeclarationEvent(nation, onAccept) {
  * @returns {Object} - 外交事件对象
  */
 export function createGiftEvent(nation, giftAmount, onAccept) {
-  return {
-    id: `gift_${nation.id}_${Date.now()}`,
-    name: `${nation.name}的礼物`,
-    icon: 'Gift',
-    image: null,
-    description: `${nation.name}派遣使节前来，带来了价值${giftAmount}银币的珍贵礼物。这是他们表达善意和改善关系的诚意之举。`,
-    isDiplomaticEvent: true,
-    options: [
-      {
-        id: 'accept',
-        text: '接受礼物',
-        description: `收下礼物，获得${giftAmount}银币`,
-        effects: {
-          resources: {
-            silver: giftAmount,
-          },
-        },
-        callback: onAccept,
-      },
-    ],
-  };
+    return {
+        id: `gift_${nation.id}_${Date.now()}`,
+        name: `${nation.name}的礼物`,
+        icon: 'Gift',
+        image: null,
+        description: `${nation.name}派遣使节前来，带来了价值${giftAmount}银币的珍贵礼物。这是他们表达善意和改善关系的诚意之举。`,
+        isDiplomaticEvent: true,
+        options: [
+            {
+                id: 'accept',
+                text: '接受礼物',
+                description: `收下礼物，获得${giftAmount}银币`,
+                effects: {
+                    resources: {
+                        silver: giftAmount,
+                    },
+                },
+                callback: onAccept,
+            },
+        ],
+    };
 }
 
 /**
@@ -74,138 +77,138 @@ export function createGiftEvent(nation, giftAmount, onAccept) {
  * @returns {Object} - 外交事件对象
  */
 export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback) {
-  const options = [];
-  
-  // 根据战争分数提供不同的和平选项
-  if (warScore > 150) {
-    // 大胜：可以要求更多赔款或领土
-    const highTribute = Math.floor(tribute * 1.5);
-    const highInstallmentTotal = Math.ceil(highTribute * INSTALLMENT_TOTAL_MULTIPLIER);
-    const installmentAmount = Math.ceil(highInstallmentTotal / 365); // 每天支付
-    // 使用财富估算人口（假设每100财富对应约50人口）
-    const estimatedPopulation = nation.population
-    const populationDemand = Math.max(6, Math.floor(estimatedPopulation * 0.04)); // 要求4%人口，至少4人
-    
+    const options = [];
+
+    // 根据战争分数提供不同的和平选项
+    if (warScore > 150) {
+        // 大胜：可以要求更多赔款或领土
+        const highTribute = Math.floor(tribute * 1.5);
+        const highInstallmentTotal = Math.ceil(highTribute * INSTALLMENT_TOTAL_MULTIPLIER);
+        const installmentAmount = Math.ceil(highInstallmentTotal / 365); // 每天支付
+        // 使用财富估算人口（假设每100财富对应约50人口）
+        const estimatedPopulation = nation.population
+const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(6, Math.floor(estimatedPopulation * 0.04))); // 要求4%人口，至少6人
+
+        options.push({
+            id: 'demand_more',
+            text: '要求更多赔款',
+            description: `要求${highTribute}银币赔款（比原提议多50%）`,
+            effects: {
+                resources: {
+                    silver: highTribute,
+                },
+            },
+            callback: () => callback(true, 'demand_more', highTribute),
+        });
+        options.push({
+            id: 'demand_installment',
+            text: '要求分期支付',
+            description: `要求每天支付${installmentAmount}银币，持续一年（共${installmentAmount * 365}银币）`,
+            effects: {},
+            callback: () => callback(true, 'installment', installmentAmount),
+        });
+        options.push({
+            id: 'demand_population',
+            text: '要求割地',
+            description: `要求割让人口上限 ${populationDemand}（附带等量人口）`,
+            effects: {},
+            callback: () => callback(true, 'population', populationDemand),
+        });
+        options.push({
+            id: 'demand_open_market',
+            text: '要求开放市场',
+            description: `要求${nation.name}在${OPEN_MARKET_DURATION_YEARS}年内开放市场，不限制我方贸易路线数量`,
+            effects: {},
+            callback: () => callback(true, 'open_market', OPEN_MARKET_DURATION_DAYS),
+        });
+        options.push({
+            id: 'accept_standard',
+            text: '接受标准和平',
+            description: `接受${tribute}银币赔款，快速结束战争`,
+            effects: {
+                resources: {
+                    silver: tribute,
+                },
+            },
+            callback: () => callback(true, 'standard', tribute),
+        });
+    } else if (warScore > 50) {
+        // 小胜：标准和平条款 + 分期支付选项
+        const installmentTotal = Math.ceil(tribute * INSTALLMENT_TOTAL_MULTIPLIER);
+        const installmentAmount = Math.ceil(installmentTotal / 365); // 每天支付
+        // 使用财富估算人口（假设每100财富对应约50人口）
+        const estimatedPopulation = nation.population;
+const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(4, Math.floor(estimatedPopulation * 0.02))); // 要求2%人口，至少4人
+
+        options.push({
+            id: 'accept',
+            text: '接受和平',
+            description: `结束战争，获得${tribute}银币赔款`,
+            effects: {
+                resources: {
+                    silver: tribute,
+                },
+            },
+            callback: () => callback(true, 'standard', tribute),
+        });
+        options.push({
+            id: 'demand_installment',
+            text: '要求分期支付',
+            description: `要求每天支付${installmentAmount}银币，持续一年（共${installmentAmount * 365}银币）`,
+            effects: {},
+            callback: () => callback(true, 'installment', installmentAmount),
+        });
+        options.push({
+            id: 'demand_population',
+            text: '要求割地',
+            description: `要求割让人口上限 ${populationDemand}（附带等量人口）`,
+            effects: {},
+            callback: () => callback(true, 'population', populationDemand),
+        });
+
+    } else {
+        // 僵持：可以接受或继续战争
+        options.push({
+            id: 'accept',
+            text: '接受和平',
+            description: `结束战争，获得${tribute}银币赔款`,
+            effects: {
+                resources: {
+                    silver: tribute,
+                },
+            },
+            callback: () => callback(true, 'standard', tribute),
+        });
+    }
+
+    // 总是可以拒绝和平
     options.push({
-      id: 'demand_more',
-      text: '要求更多赔款',
-      description: `要求${highTribute}银币赔款（比原提议多50%）`,
-      effects: {
-        resources: {
-          silver: highTribute,
-        },
-      },
-      callback: () => callback(true, 'demand_more', highTribute),
-    });
-    options.push({
-      id: 'demand_installment',
-      text: '要求分期支付',
-      description: `要求每天支付${installmentAmount}银币，持续一年（共${installmentAmount * 365}银币）`,
-      effects: {},
-      callback: () => callback(true, 'installment', installmentAmount),
-    });
-    options.push({
-      id: 'demand_population',
-      text: '要求割地',
-      description: `要求割让人口上限 ${populationDemand}（附带等量人口）`,
-      effects: {},
-      callback: () => callback(true, 'population', populationDemand),
-    });
-    options.push({
-      id: 'demand_open_market',
-      text: '要求开放市场',
-      description: `要求${nation.name}在${OPEN_MARKET_DURATION_YEARS}年内开放市场，不限制我方贸易路线数量`,
-      effects: {},
-      callback: () => callback(true, 'open_market', OPEN_MARKET_DURATION_DAYS),
-    });
-    options.push({
-      id: 'accept_standard',
-      text: '接受标准和平',
-      description: `接受${tribute}银币赔款，快速结束战争`,
-      effects: {
-        resources: {
-          silver: tribute,
-        },
-      },
-      callback: () => callback(true, 'standard', tribute),
-    });
-  } else if (warScore > 50) {
-    // 小胜：标准和平条款 + 分期支付选项
-    const installmentTotal = Math.ceil(tribute * INSTALLMENT_TOTAL_MULTIPLIER);
-    const installmentAmount = Math.ceil(installmentTotal / 365); // 每天支付
-    // 使用财富估算人口（假设每100财富对应约50人口）
-    const estimatedPopulation = nation.population;
-    const populationDemand = Math.max(4, Math.floor(estimatedPopulation * 0.02)); // 要求2%人口，至少2人
-    
-    options.push({
-      id: 'accept',
-      text: '接受和平',
-      description: `结束战争，获得${tribute}银币赔款`,
-      effects: {
-        resources: {
-          silver: tribute,
-        },
-      },
-      callback: () => callback(true, 'standard', tribute),
-    });
-    options.push({
-      id: 'demand_installment',
-      text: '要求分期支付',
-      description: `要求每天支付${installmentAmount}银币，持续一年（共${installmentAmount * 365}银币）`,
-      effects: {},
-      callback: () => callback(true, 'installment', installmentAmount),
-    });
-    options.push({
-      id: 'demand_population',
-      text: '要求割地',
-      description: `要求割让人口上限 ${populationDemand}（附带等量人口）`,
-      effects: {},
-      callback: () => callback(true, 'population', populationDemand),
+        id: 'reject',
+        text: '拒绝和平',
+        description: '继续战争，追求更大的胜利',
+        effects: {},
+        callback: () => callback(false),
     });
 
-  } else {
-    // 僵持：可以接受或继续战争
-    options.push({
-      id: 'accept',
-      text: '接受和平',
-      description: `结束战争，获得${tribute}银币赔款`,
-      effects: {
-        resources: {
-          silver: tribute,
-        },
-      },
-      callback: () => callback(true, 'standard', tribute),
-    });
-  }
-  
-  // 总是可以拒绝和平
-  options.push({
-    id: 'reject',
-    text: '拒绝和平',
-    description: '继续战争，追求更大的胜利',
-    effects: {},
-    callback: () => callback(false),
-  });
-  
-  // 根据战争分数生成不同的描述
-  let description = '';
-  if (warScore > 150) {
-    description = `${nation.name}在战争中遭受惨重损失，他们派遣使节前来恳求和平。作为和平的代价，他们愿意支付${tribute}银币的赔款。鉴于你的巨大优势，你可以要求更多。`;
-  } else if (warScore > 50) {
-    description = `${nation.name}在战争中处于劣势，他们派遣使节前来请求和平。作为和平的代价，他们愿意支付${tribute}银币的赔款。`;
-  } else {
-    description = `${nation.name}派遣使节前来请求和平。虽然战局尚未明朗，但他们愿意支付${tribute}银币作为和平的诚意。`;
-  }
-  
-  return {
-    id: `enemy_peace_request_${nation.id}_${Date.now()}`,
-    name: `${nation.name}请求和平`,
-    icon: 'HandHeart',
-    image: null,
-    description,
-    isDiplomaticEvent: true,
-    options,
-  };
+    // 根据战争分数生成不同的描述
+    let description = '';
+    if (warScore > 150) {
+        description = `${nation.name}在战争中遭受惨重损失，他们派遣使节前来恳求和平。作为和平的代价，他们愿意支付${tribute}银币的赔款。鉴于你的巨大优势，你可以要求更多。`;
+    } else if (warScore > 50) {
+        description = `${nation.name}在战争中处于劣势，他们派遣使节前来请求和平。作为和平的代价，他们愿意支付${tribute}银币的赔款。`;
+    } else {
+        description = `${nation.name}派遣使节前来请求和平。虽然战局尚未明朗，但他们愿意支付${tribute}银币作为和平的诚意。`;
+    }
+
+    return {
+        id: `enemy_peace_request_${nation.id}_${Date.now()}`,
+        name: `${nation.name}请求和平`,
+        icon: 'HandHeart',
+        image: null,
+        description,
+        isDiplomaticEvent: true,
+        options,
+    };
 }
 
 /**
@@ -218,239 +221,239 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
  * @returns {Object} - 外交事件对象
  */
 export function createPlayerPeaceProposalEvent(
-  nation,
-  warScore,
-  warDuration,
-  enemyLosses,
-  playerState = {},
-  callback
+    nation,
+    warScore,
+    warDuration,
+    enemyLosses,
+    playerState = {},
+    callback
 ) {
-  const options = [];
-  const playerPopulationBase = Math.max(
-    200,
-    playerState.population || playerState.maxPopulation || 1000
-  );
-  const calculateTerritoryOffer = (maxPercent, severityDivisor) => {
-    const warPressure = Math.abs(Math.min(warScore, 0)) / severityDivisor;
-    const durationPressure = Math.max(0, warDuration || 0) / 4000;
-    const severity = Math.min(maxPercent, Math.max(0.012, warPressure + durationPressure));
-    const capped = Math.floor(playerPopulationBase * severity);
-    const hardCap = Math.floor(playerPopulationBase * maxPercent);
-    return Math.max(3, Math.min(hardCap, capped));
-  };
-  
-  if (warScore > 150) {
-    // 大胜：可以要求赔款
-    const highTribute = Math.min(nation.wealth || 0, Math.ceil(warScore * 50 + enemyLosses * 3));
-    const standardTribute = Math.min(nation.wealth || 0, Math.ceil(warScore * 40 + enemyLosses * 2));
-    const highInstallmentTotal = Math.ceil(highTribute * INSTALLMENT_TOTAL_MULTIPLIER);
-    const installmentAmount = Math.ceil(highInstallmentTotal / 365);
-    const estimatedPopulation = nation.population;
-    const populationDemand = Math.max(5, Math.floor(estimatedPopulation * 0.03)); // 或 0.03
-    
-    options.push({
-      id: 'demand_high',
-      text: '要求高额赔款',
-      description: `要求${highTribute}银币赔款（可能被拒绝）`,
-      effects: {},
-      callback: () => callback('demand_high', highTribute),
-    });
-    options.push({
-      id: 'demand_installment',
-      text: '要求分期支付',
-      description: `要求每天支付${installmentAmount}银币，持续一年（共${installmentAmount * 365}银币）`,
-      effects: {},
-      callback: () => callback('demand_installment', installmentAmount),
-    });
-    options.push({
-      id: 'demand_population',
-      text: '要求割地',
-      description: `要求割让人口上限 ${populationDemand}（附带等量人口）`,
-      effects: {},
-      callback: () => callback('demand_population', populationDemand),
-    });
-    options.push({
-      id: 'demand_open_market',
-      text: '要求开放市场',
-      description: `要求${nation.name}在${OPEN_MARKET_DURATION_YEARS}年内开放市场，不限制我方贸易路线数量`,
-      effects: {},
-      callback: () => callback('demand_open_market', OPEN_MARKET_DURATION_DAYS),
-    });
-    options.push({
-      id: 'demand_standard',
-      text: '要求标准赔款',
-      description: `要求${standardTribute}银币赔款（较易接受）`,
-      effects: {},
-      callback: () => callback('demand_standard', standardTribute),
-    });
-    options.push({
-      id: 'peace_only',
-      text: '无条件和平',
-      description: '不要求赔款，直接结束战争',
-      effects: {},
-      callback: () => callback('peace_only', 0),
-    });
-  } else if (warScore > 50) {
-    // 小胜：可以要求少量赔款或无条件和平
-    const tribute = Math.min(nation.wealth || 0, Math.ceil(warScore * 40 + enemyLosses * 2));
-    const installmentTotal = Math.ceil(tribute * INSTALLMENT_TOTAL_MULTIPLIER);
-    const installmentAmount = Math.ceil(installmentTotal / 365);
-    const estimatedPopulation = nation.population;
-    const populationDemand = Math.max(5, Math.floor(estimatedPopulation * 0.01)); // 或 0.03
-    
-    options.push({
-      id: 'demand_tribute',
-      text: '要求赔款',
-      description: `要求${tribute}银币赔款`,
-      effects: {},
-      callback: () => callback('demand_tribute', tribute),
-    });
-    options.push({
-      id: 'demand_installment',
-      text: '要求分期支付',
-      description: `要求每天支付${installmentAmount}银币，持续一年（共${installmentAmount * 365}银币）`,
-      effects: {},
-      callback: () => callback('demand_installment', installmentAmount),
-    });
-    options.push({
-      id: 'demand_population',
-      text: '要求割地',
-      description: `要求割让人口上限 ${populationDemand}（附带等量人口）`,
-      effects: {},
-      callback: () => callback('demand_population', populationDemand),
-    });
-    // 只有在大胜时才可要求开放市场
-    options.push({
-      id: 'peace_only',
-      text: '无条件和平',
-      description: '不要求赔款，直接结束战争',
-      effects: {},
-      callback: () => callback('peace_only', 0),
-    });
-  } else if (warScore < -150) {
-    // Major defeat: player must offer substantial reparations
-    const payment = Math.max(150, Math.ceil(Math.abs(warScore) * 35 + warDuration * 6));
-    const highInstallmentTotal = Math.ceil(payment * INSTALLMENT_TOTAL_MULTIPLIER);
-    const installmentAmount = Math.ceil(highInstallmentTotal / 365);
-    const populationOffer = calculateTerritoryOffer(0.05, 320);
-    
-    options.push({
-      id: 'pay_high',
-      text: `支付${payment}银币求和`,
-      description: '支付高额赔款以结束战争',
-      effects: {},
-      callback: () => callback('pay_high', payment),
-    });
-    options.push({
-      id: 'pay_installment',
-      text: `分期支付赔款`,
-      description: `每天支付${installmentAmount}银币，持续一年（共${installmentAmount * 365}银币）`,
-      effects: {},
-      callback: () => callback('pay_installment', installmentAmount),
-    });
-    options.push({
-      id: 'offer_population',
-      text: `割让人口上限 ${populationOffer}`,
-      description: '割让领土（减少人口上限和人口）以结束战争',
-      effects: {},
-      callback: () => callback('offer_population', populationOffer),
-    });
-  } else if (warScore < -50) {
-    // 小败：需要支付赔款
-    const payment = Math.max(100, Math.ceil(Math.abs(warScore) * 30 + warDuration * 5));
-    const installmentTotal = Math.ceil(payment * INSTALLMENT_TOTAL_MULTIPLIER);
-    const installmentAmount = Math.ceil(installmentTotal / 365);
-    const populationOffer = calculateTerritoryOffer(0.03, 480);
-    
-    options.push({
-      id: 'pay_standard',
-      text: `支付${payment}银币求和`,
-      description: '支付赔款以结束战争',
-      effects: {},
-      callback: () => callback('pay_standard', payment),
-    });
-    options.push({
-      id: 'pay_installment',
-      text: `分期支付赔款`,
-      description: `每天支付${installmentAmount}银币，持续一年（共${installmentAmount * 365}银币）`,
-      effects: {},
-      callback: () => callback('pay_installment', installmentAmount),
-    });
-    options.push({
-      id: 'offer_population',
-      text: `割让人口上限 ${populationOffer}`,
-      description: '割让领土（减少人口上限和人口）以结束战争',
-      effects: {},
-      callback: () => callback('offer_population', populationOffer),
-    });
-  } else {
-    // 僵持：无条件和平或赔款
-    const payment = Math.max(50, Math.ceil(Math.abs(warScore) * 20 + warDuration * 3));
-    const installmentTotal = Math.ceil(payment * INSTALLMENT_TOTAL_MULTIPLIER);
-    const installmentAmount = Math.ceil(installmentTotal / 365);
-    
-    options.push({
-      id: 'pay_moderate',
-      text: `支付${payment}银币求和`,
-      description: '支付赔款以结束战争，显示和平诚意',
-      effects: {},
-      callback: () => callback('pay_moderate', payment),
-    });
-    options.push({
-      id: 'pay_installment_moderate',
-      text: `分期支付赔款`,
-      description: `每天支付${installmentAmount}银币，持续一年（共${installmentAmount * 365}银币）`,
-      effects: {},
-      callback: () => callback('pay_installment_moderate', installmentAmount),
-    });
-    options.push({
-      id: 'peace_only',
-      text: '提议和平',
-      description: '提议无条件停战',
-      effects: {},
-      callback: () => callback('peace_only', 0),
-    });
-  }
+    const options = [];
+    const playerPopulationBase = Math.max(
+        200,
+        playerState.population || playerState.maxPopulation || 1000
+    );
+    const calculateTerritoryOffer = (maxPercent, severityDivisor) => {
+        const warPressure = Math.abs(Math.min(warScore, 0)) / severityDivisor;
+        const durationPressure = Math.max(0, warDuration || 0) / 4000;
+        const severity = Math.min(maxPercent, Math.max(0.012, warPressure + durationPressure));
+        const capped = Math.floor(playerPopulationBase * severity);
+        const hardCap = Math.floor(playerPopulationBase * maxPercent);
+return Math.min(MAX_TERRITORY_POPULATION, Math.max(3, Math.min(hardCap, capped))); // 最多割让人口
+    };
 
-  // 总是可以取消
-  options.push({
-    id: 'cancel',
-    text: '取消',
-    description: '放弃和平谈判',
-    effects: {},
-    callback: () => callback('cancel', 0),
-  });
-  
-  // 根据战争分数生成描述
-  let description = '';
-  if (warScore > 150) {
-    description = `你在与${nation.name}的战争中占据压倒性优势。现在是提出和平条款的好时机，你可以要求丰厚的赔款。`;
-  } else if (warScore > 50) {
-    description = `你在与${nation.name}的战争中略占上风。你可以提出和平，并要求一定的赔款作为补偿。`;
-  } else if (warScore < -150) {
-    description = `你在与${nation.name}的战争中处于极大劣势。如果想要和平，可能需要支付高额赔款。`;
-  } else if (warScore < -50) {
-    description = `你在与${nation.name}的战争中处于劣势。如果想要和平，需要支付一定的赔款。`;
-  } else {
-    description = `你与${nation.name}的战争陷入僵持。双方都没有明显优势，可以提议无条件停战。`;
-  }
-  
-  return {
-    id: `player_peace_proposal_${nation.id}_${Date.now()}`,
-    name: `向${nation.name}提出和平`,
-    icon: 'HandHeart',
-    image: null,
-    description,
-    isDiplomaticEvent: true,
-    options,
-  };
+    if (warScore > 150) {
+        // 大胜：可以要求赔款
+        const highTribute = Math.min(nation.wealth || 0, Math.ceil(warScore * 50 + enemyLosses * 3));
+        const standardTribute = Math.min(nation.wealth || 0, Math.ceil(warScore * 40 + enemyLosses * 2));
+        const highInstallmentTotal = Math.ceil(highTribute * INSTALLMENT_TOTAL_MULTIPLIER);
+        const installmentAmount = Math.ceil(highInstallmentTotal / 365);
+        const estimatedPopulation = nation.population;
+const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(5, Math.floor(estimatedPopulation * 0.03))); // 要求3%人口，至少5人
+
+        options.push({
+            id: 'demand_high',
+            text: '要求高额赔款',
+            description: `要求${highTribute}银币赔款（可能被拒绝）`,
+            effects: {},
+            callback: () => callback('demand_high', highTribute),
+        });
+        options.push({
+            id: 'demand_installment',
+            text: '要求分期支付',
+            description: `要求每天支付${installmentAmount}银币，持续一年（共${installmentAmount * 365}银币）`,
+            effects: {},
+            callback: () => callback('demand_installment', installmentAmount),
+        });
+        options.push({
+            id: 'demand_population',
+            text: '要求割地',
+            description: `要求割让人口上限 ${populationDemand}（附带等量人口）`,
+            effects: {},
+            callback: () => callback('demand_population', populationDemand),
+        });
+        options.push({
+            id: 'demand_open_market',
+            text: '要求开放市场',
+            description: `要求${nation.name}在${OPEN_MARKET_DURATION_YEARS}年内开放市场，不限制我方贸易路线数量`,
+            effects: {},
+            callback: () => callback('demand_open_market', OPEN_MARKET_DURATION_DAYS),
+        });
+        options.push({
+            id: 'demand_standard',
+            text: '要求标准赔款',
+            description: `要求${standardTribute}银币赔款（较易接受）`,
+            effects: {},
+            callback: () => callback('demand_standard', standardTribute),
+        });
+        options.push({
+            id: 'peace_only',
+            text: '无条件和平',
+            description: '不要求赔款，直接结束战争',
+            effects: {},
+            callback: () => callback('peace_only', 0),
+        });
+    } else if (warScore > 50) {
+        // 小胜：可以要求少量赔款或无条件和平
+        const tribute = Math.min(nation.wealth || 0, Math.ceil(warScore * 40 + enemyLosses * 2));
+        const installmentTotal = Math.ceil(tribute * INSTALLMENT_TOTAL_MULTIPLIER);
+        const installmentAmount = Math.ceil(installmentTotal / 365);
+        const estimatedPopulation = nation.population;
+const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(5, Math.floor(estimatedPopulation * 0.01))); // 要求1%人口，至少5人
+
+        options.push({
+            id: 'demand_tribute',
+            text: '要求赔款',
+            description: `要求${tribute}银币赔款`,
+            effects: {},
+            callback: () => callback('demand_tribute', tribute),
+        });
+        options.push({
+            id: 'demand_installment',
+            text: '要求分期支付',
+            description: `要求每天支付${installmentAmount}银币，持续一年（共${installmentAmount * 365}银币）`,
+            effects: {},
+            callback: () => callback('demand_installment', installmentAmount),
+        });
+        options.push({
+            id: 'demand_population',
+            text: '要求割地',
+            description: `要求割让人口上限 ${populationDemand}（附带等量人口）`,
+            effects: {},
+            callback: () => callback('demand_population', populationDemand),
+        });
+        // 只有在大胜时才可要求开放市场
+        options.push({
+            id: 'peace_only',
+            text: '无条件和平',
+            description: '不要求赔款，直接结束战争',
+            effects: {},
+            callback: () => callback('peace_only', 0),
+        });
+    } else if (warScore < -150) {
+        // Major defeat: player must offer substantial reparations
+        const payment = Math.max(150, Math.ceil(Math.abs(warScore) * 35 + warDuration * 6));
+        const highInstallmentTotal = Math.ceil(payment * INSTALLMENT_TOTAL_MULTIPLIER);
+        const installmentAmount = Math.ceil(highInstallmentTotal / 365);
+        const populationOffer = calculateTerritoryOffer(0.05, 320);
+
+        options.push({
+            id: 'pay_high',
+            text: `支付${payment}银币求和`,
+            description: '支付高额赔款以结束战争',
+            effects: {},
+            callback: () => callback('pay_high', payment),
+        });
+        options.push({
+            id: 'pay_installment',
+            text: `分期支付赔款`,
+            description: `每天支付${installmentAmount}银币，持续一年（共${installmentAmount * 365}银币）`,
+            effects: {},
+            callback: () => callback('pay_installment', installmentAmount),
+        });
+        options.push({
+            id: 'offer_population',
+            text: `割让人口上限 ${populationOffer}`,
+            description: '割让领土（减少人口上限和人口）以结束战争',
+            effects: {},
+            callback: () => callback('offer_population', populationOffer),
+        });
+    } else if (warScore < -50) {
+        // 小败：需要支付赔款
+        const payment = Math.max(100, Math.ceil(Math.abs(warScore) * 30 + warDuration * 5));
+        const installmentTotal = Math.ceil(payment * INSTALLMENT_TOTAL_MULTIPLIER);
+        const installmentAmount = Math.ceil(installmentTotal / 365);
+        const populationOffer = calculateTerritoryOffer(0.03, 480);
+
+        options.push({
+            id: 'pay_standard',
+            text: `支付${payment}银币求和`,
+            description: '支付赔款以结束战争',
+            effects: {},
+            callback: () => callback('pay_standard', payment),
+        });
+        options.push({
+            id: 'pay_installment',
+            text: `分期支付赔款`,
+            description: `每天支付${installmentAmount}银币，持续一年（共${installmentAmount * 365}银币）`,
+            effects: {},
+            callback: () => callback('pay_installment', installmentAmount),
+        });
+        options.push({
+            id: 'offer_population',
+            text: `割让人口上限 ${populationOffer}`,
+            description: '割让领土（减少人口上限和人口）以结束战争',
+            effects: {},
+            callback: () => callback('offer_population', populationOffer),
+        });
+    } else {
+        // 僵持：无条件和平或赔款
+        const payment = Math.max(50, Math.ceil(Math.abs(warScore) * 20 + warDuration * 3));
+        const installmentTotal = Math.ceil(payment * INSTALLMENT_TOTAL_MULTIPLIER);
+        const installmentAmount = Math.ceil(installmentTotal / 365);
+
+        options.push({
+            id: 'pay_moderate',
+            text: `支付${payment}银币求和`,
+            description: '支付赔款以结束战争，显示和平诚意',
+            effects: {},
+            callback: () => callback('pay_moderate', payment),
+        });
+        options.push({
+            id: 'pay_installment_moderate',
+            text: `分期支付赔款`,
+            description: `每天支付${installmentAmount}银币，持续一年（共${installmentAmount * 365}银币）`,
+            effects: {},
+            callback: () => callback('pay_installment_moderate', installmentAmount),
+        });
+        options.push({
+            id: 'peace_only',
+            text: '提议和平',
+            description: '提议无条件停战',
+            effects: {},
+            callback: () => callback('peace_only', 0),
+        });
+    }
+
+    // 总是可以取消
+    options.push({
+        id: 'cancel',
+        text: '取消',
+        description: '放弃和平谈判',
+        effects: {},
+        callback: () => callback('cancel', 0),
+    });
+
+    // 根据战争分数生成描述
+    let description = '';
+    if (warScore > 150) {
+        description = `你在与${nation.name}的战争中占据压倒性优势。现在是提出和平条款的好时机，你可以要求丰厚的赔款。`;
+    } else if (warScore > 50) {
+        description = `你在与${nation.name}的战争中略占上风。你可以提出和平，并要求一定的赔款作为补偿。`;
+    } else if (warScore < -150) {
+        description = `你在与${nation.name}的战争中处于极大劣势。如果想要和平，可能需要支付高额赔款。`;
+    } else if (warScore < -50) {
+        description = `你在与${nation.name}的战争中处于劣势。如果想要和平，需要支付一定的赔款。`;
+    } else {
+        description = `你与${nation.name}的战争陷入僵持。双方都没有明显优势，可以提议无条件停战。`;
+    }
+
+    return {
+        id: `player_peace_proposal_${nation.id}_${Date.now()}`,
+        name: `向${nation.name}提出和平`,
+        icon: 'HandHeart',
+        image: null,
+        description,
+        isDiplomaticEvent: true,
+        options,
+    };
 }
 
 // 保留旧函数名以兼容
 export function createPeaceRequestEvent(nation, tribute, onAccept) {
-  return createEnemyPeaceRequestEvent(nation, tribute, 0, (accepted) => {
-    if (accepted) onAccept();
-  });
+    return createEnemyPeaceRequestEvent(nation, tribute, 0, (accepted) => {
+        if (accepted) onAccept();
+    });
 }
 
 /**
@@ -461,41 +464,195 @@ export function createPeaceRequestEvent(nation, tribute, onAccept) {
  * @returns {Object} - 外交事件对象
  */
 export function createBattleEvent(nation, battleResult, onAcknowledge) {
-  const isVictory = battleResult.victory;
-  const isRaid = battleResult.foodLoss !== undefined || battleResult.silverLoss !== undefined;
-  
-  let description = '';
-  if (isRaid) {
-    // 突袭事件
-    description = `${nation.name}趁你不备发动了突袭！他们掠夺了你的资源并造成了人员伤亡。`;
-    description += `\n\n突袭损失：`;
-    if (battleResult.foodLoss) description += `\n粮食：${battleResult.foodLoss}`;
-    if (battleResult.silverLoss) description += `\n银币：${battleResult.silverLoss}`;
-    if (battleResult.playerLosses) description += `\n人口：${battleResult.playerLosses}`;
-  } else {
-    // 正常战斗
-    description = isVictory
-      ? `${nation.name}的军队向你发起了进攻，但在你的英勇抵抗下被击退了！敌军损失惨重，士气低落。`
-      : `${nation.name}的军队向你发起了猛烈进攻！你的军队遭受了重大损失，局势十分危急。`;
-    
-    description += `\n\n战斗结果：\n我方损失：${battleResult.playerLosses || 0}人\n敌方损失：${battleResult.enemyLosses || 0}人`;
-  }
-  
-  return {
-    id: `battle_${nation.id}_${Date.now()}`,
-    name: isRaid ? `${nation.name}的突袭` : `${nation.name}的进攻`,
-    icon: isVictory ? 'Shield' : 'AlertTriangle',
-    image: null,
-    description,
-    isDiplomaticEvent: true,
-    options: [
-      {
-        id: 'acknowledge',
-        text: '了解',
-        description: '查看详情',
-        effects: {},
-        callback: onAcknowledge,
-      },
-    ],
-  };
+    const isVictory = battleResult.victory;
+    const isRaid = battleResult.foodLoss !== undefined || battleResult.silverLoss !== undefined;
+
+    let description = '';
+    if (isRaid) {
+        // 突袭事件
+        description = `${nation.name}趁你不备发动了突袭！他们掠夺了你的资源并造成了人员伤亡。`;
+        description += `\n\n突袭损失：`;
+        if (battleResult.foodLoss) description += `\n粮食：${battleResult.foodLoss}`;
+        if (battleResult.silverLoss) description += `\n银币：${battleResult.silverLoss}`;
+        if (battleResult.playerLosses) description += `\n人口：${battleResult.playerLosses}`;
+    } else {
+        // 正常战斗
+        description = isVictory
+            ? `${nation.name}的军队向你发起了进攻，但在你的英勇抵抗下被击退了！敌军损失惨重，士气低落。`
+            : `${nation.name}的军队向你发起了猛烈进攻！你的军队遭受了重大损失，局势十分危急。`;
+
+        description += `\n\n战斗结果：\n我方损失：${battleResult.playerLosses || 0}人\n敌方损失：${battleResult.enemyLosses || 0}人`;
+    }
+
+    return {
+        id: `battle_${nation.id}_${Date.now()}`,
+        name: isRaid ? `${nation.name}的突袭` : `${nation.name}的进攻`,
+        icon: isVictory ? 'Shield' : 'AlertTriangle',
+        image: null,
+        description,
+        isDiplomaticEvent: true,
+        options: [
+            {
+                id: 'acknowledge',
+                text: '了解',
+                description: '查看详情',
+                effects: {},
+                callback: onAcknowledge,
+            },
+        ],
+    };
+}
+
+/**
+ * 创建外交事件 - AI国家索要资源/银币
+ * @param {Object} nation - 索要的国家
+ * @param {string} resourceKey - 索要的资源类型 (silver, food, etc.)
+ * @param {string} resourceName - 资源名称
+ * @param {number} amount - 索要数量
+ * @param {Function} callback - 回调 (accepted: boolean) => void
+ */
+export function createAIRequestEvent(nation, resourceKey, resourceName, amount, callback) {
+    return {
+        id: `ai_request_${nation.id}_${Date.now()}`,
+        name: `${nation.name}的索求`,
+        icon: 'HandCoins', // 使用HandCoins图标表示索要
+        image: null,
+        description: `${nation.name}派遣使节前来，表示他们目前急需${resourceName}。他们希望你能慷慨解囊，提供${amount}${resourceName}。如果拒绝，可能会影响两国关系。`,
+        isDiplomaticEvent: true,
+        options: [
+            {
+                id: 'accept',
+                text: '同意给予',
+                description: `失去${amount}${resourceName}，关系提升`,
+                effects: {
+                    resources: {
+                        [resourceKey]: -amount,
+                    },
+                },
+                callback: () => callback(true),
+            },
+            {
+                id: 'reject',
+                text: '拒绝索求',
+                description: '保留资源，但关系会下降',
+                effects: {},
+                callback: () => callback(false),
+            },
+        ],
+    };
+}
+
+/**
+ * 创建外交事件 - AI国家请求结盟
+ * @param {Object} nation - 请求结盟的国家
+ * @param {Function} callback - 回调 (accepted: boolean) => void
+ * @returns {Object} - 外交事件对象
+ */
+export function createAllianceRequestEvent(nation, callback) {
+    return {
+        id: `alliance_request_${nation.id}_${Date.now()}`,
+        name: `${nation.name}的结盟邀请`,
+        icon: 'Users',
+        image: null,
+        description: `${nation.name}派遣特使前来，表达了缔结同盟的意愿。他们希望与你建立军事同盟，互相保护，共同抵御外敌。\n\n结盟后：\n• 双方不可互相宣战\n• 一方被攻击时，另一方有义务参战\n• 可以建立更多贸易路线\n• 关系将保持稳定`,
+        isDiplomaticEvent: true,
+        options: [
+            {
+                id: 'accept',
+                text: '接受结盟',
+                description: '与该国建立正式同盟关系',
+                effects: {},
+                callback: () => callback(true),
+            },
+            {
+                id: 'reject',
+                text: '婉言谢绝',
+                description: '拒绝结盟，关系会略微下降',
+                effects: {},
+                callback: () => callback(false),
+            },
+        ],
+    };
+}
+
+/**
+ * 创建外交事件 - 玩家请求结盟的结果
+ * @param {Object} nation - 目标国家
+ * @param {boolean} accepted - 是否接受
+ * @param {Function} callback - 确认回调
+ * @returns {Object} - 外交事件对象
+ */
+export function createAllianceProposalResultEvent(nation, accepted, callback) {
+    if (accepted) {
+        return {
+            id: `alliance_accepted_${nation.id}_${Date.now()}`,
+            name: `${nation.name}接受结盟`,
+            icon: 'UserCheck',
+            image: null,
+            description: `${nation.name}接受了你的结盟请求！从今天起，你们正式成为盟友。双方将共同抵御外敌，互相支持。`,
+            isDiplomaticEvent: true,
+            options: [
+                {
+                    id: 'acknowledge',
+                    text: '很好',
+                    description: '确认同盟建立',
+                    effects: {},
+                    callback: callback,
+                },
+            ],
+        };
+    } else {
+        return {
+            id: `alliance_rejected_${nation.id}_${Date.now()}`,
+            name: `${nation.name}拒绝结盟`,
+            icon: 'UserX',
+            image: null,
+            description: `${nation.name}婉言拒绝了你的结盟请求。他们表示目前还不是建立同盟的好时机。继续改善关系，以后再试试吧。`,
+            isDiplomaticEvent: true,
+            options: [
+                {
+                    id: 'acknowledge',
+                    text: '了解',
+                    description: '确认',
+                    effects: {},
+                    callback: callback,
+                },
+            ],
+        };
+    }
+}
+
+/**
+ * 创建外交事件 - 同盟解除通知
+ * @param {Object} nation - 解除同盟的国家
+ * @param {string} reason - 解除原因
+ * @param {Function} callback - 确认回调
+ * @returns {Object} - 外交事件对象
+ */
+export function createAllianceBreakEvent(nation, reason, callback) {
+    const reasonTexts = {
+        relation_low: '由于双方关系恶化',
+        player_break: '你已主动解除同盟',
+        ai_break: `${nation.name}决定解除同盟`,
+        war_conflict: '由于战争冲突导致',
+    };
+    const reasonText = reasonTexts[reason] || reason;
+
+    return {
+        id: `alliance_break_${nation.id}_${Date.now()}`,
+        name: `与${nation.name}的同盟解除`,
+        icon: 'UserMinus',
+        image: null,
+        description: `${reasonText}，你与${nation.name}的同盟关系已经解除。你们不再有共同防御的义务，贸易路线限制也恢复正常。`,
+        isDiplomaticEvent: true,
+        options: [
+            {
+                id: 'acknowledge',
+                text: '了解',
+                description: '确认',
+                effects: {},
+                callback: callback,
+            },
+        ],
+    };
 }
