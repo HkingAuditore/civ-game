@@ -28,213 +28,292 @@ export const generateSound = (type) => {
     console.warn('无法创建 AudioContext:', e.message);
     return () => {};
   }
-  
   const sounds = {
     // UI音效
     click: () => {
-      const oscillator = audioContext.createOscillator();
+      // 柔和的点击声: 短促的白噪音 + 快速衰减
       const gainNode = audioContext.createGain();
       
-      oscillator.connect(gainNode);
+      const filter = audioContext.createBiquadFilter();
+      filter.type = 'highpass';
+      filter.frequency.value = 1000;
+
+      // 白噪音生成
+      const bufferSize = audioContext.sampleRate * 0.1; // 0.1秒
+      const buffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        data[i] = Math.random() * 2 - 1;
+      }
+      
+      const noise = audioContext.createBufferSource();
+      noise.buffer = buffer;
+      
+      noise.connect(filter);
+      filter.connect(gainNode);
       gainNode.connect(audioContext.destination);
       
-      oscillator.frequency.value = 800;
-      oscillator.type = 'sine';
+      const t = audioContext.currentTime;
+      gainNode.gain.setValueAtTime(0.05, t);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
       
-      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
-      
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.1);
+      noise.start(t);
+      noise.stop(t + 0.05);
     },
     
     success: () => {
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
+      // 成功音效: 柔和的大调和弦 (C Major 7)
+      const t = audioContext.currentTime;
+      const notes = [523.25, 659.25, 783.99, 987.77]; // C5, E5, G5, B5
       
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-      
-      oscillator.frequency.setValueAtTime(523, audioContext.currentTime);
-      oscillator.frequency.setValueAtTime(659, audioContext.currentTime + 0.1);
-      oscillator.frequency.setValueAtTime(784, audioContext.currentTime + 0.2);
-      oscillator.type = 'sine';
-      
-      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
-      
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.3);
+      notes.forEach((freq, index) => {
+        const osc = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        
+        osc.frequency.value = freq;
+        osc.type = 'sine'; // 正弦波最柔和
+        
+        osc.connect(gain);
+        gain.connect(audioContext.destination);
+        
+        // 稍微错开起音时间，产生琵琶音效果
+        const startTime = t + index * 0.05;
+        
+        gain.gain.setValueAtTime(0, startTime);
+        gain.gain.linearRampToValueAtTime(0.1, startTime + 0.05);
+        gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.8);
+        
+        osc.start(startTime);
+        osc.stop(startTime + 0.8);
+      });
     },
     
     error: () => {
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
+      // 错误音效: 低频闷响，避免刺耳的锯齿波
+      const t = audioContext.currentTime;
+      const osc = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+      const filter = audioContext.createBiquadFilter();
       
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
+      osc.type = 'triangle'; // 三角波比锯齿波柔和
+      osc.frequency.setValueAtTime(150, t);
+      osc.frequency.linearRampToValueAtTime(100, t + 0.15);
       
-      oscillator.frequency.setValueAtTime(200, audioContext.currentTime);
-      oscillator.frequency.setValueAtTime(150, audioContext.currentTime + 0.1);
-      oscillator.type = 'sawtooth';
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(400, t);
       
-      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(audioContext.destination);
       
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.2);
+      gain.gain.setValueAtTime(0.2, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+      
+      osc.start(t);
+      osc.stop(t + 0.2);
     },
     
     coin: () => {
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
+      // 金币/资源: 清脆的铃声 (FM合成模拟)
+      const t = audioContext.currentTime;
+      const osc = audioContext.createOscillator();
+      const gain = audioContext.createGain();
       
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
+      // 添加泛音
+      const harmonics = [1, 2.5]; 
+      harmonics.forEach(h => {
+          const hOsc = audioContext.createOscillator();
+          const hGain = audioContext.createGain();
+          hOsc.frequency.value = 1200 * h;
+          hOsc.type = 'sine';
+          hOsc.connect(hGain);
+          hGain.connect(audioContext.destination);
+          hGain.gain.setValueAtTime(0.05 / h, t);
+          hGain.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+          hOsc.start(t);
+          hOsc.stop(t + 0.3);
+      });
+
+      osc.frequency.setValueAtTime(1200, t);
+      osc.type = 'sine';
       
-      oscillator.frequency.setValueAtTime(988, audioContext.currentTime);
-      oscillator.frequency.exponentialRampToValueAtTime(1319, audioContext.currentTime + 0.1);
-      oscillator.type = 'sine';
+      osc.connect(gain);
+      gain.connect(audioContext.destination);
       
-      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.15);
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.1, t + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
       
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.15);
+      osc.start(t);
+      osc.stop(t + 0.4);
     },
     
     build: () => {
+      // 建造: 模仿敲击声 (带滤波的脉冲/噪音)
       const t = audioContext.currentTime;
-
-      // --- 第一部分：建造过程 (3次敲击声) ---
-      // 使用 forEach 在时间轴上安排 0s, 0.25s, 0.5s 的声音
-      [0, 0.15].forEach((offset, index) => {
+      
+      // 双重敲击
+      [0, 0.2].forEach(offset => {
         const osc = audioContext.createOscillator();
         const gain = audioContext.createGain();
-        const filter = audioContext.createBiquadFilter(); // 加个滤波器让声音更像实物
-
+        const filter = audioContext.createBiquadFilter();
+        
+        osc.type = 'square';
+        osc.frequency.value = 100; // 低频
+        
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(800, t + offset);
+        filter.frequency.exponentialRampToValueAtTime(100, t + offset + 0.1);
+        filter.Q.value = 5; // 增加共振模拟材质感
+        
         osc.connect(filter);
         filter.connect(gain);
         gain.connect(audioContext.destination);
-
-        // 1. 音色：三角波比方波柔和，适合模拟木头/石块
-        osc.type = 'triangle';
-        // 2. 音高：基础音高200Hz，中间那一下稍微高一点(220Hz)制造节奏感
-        const pitch = index === 1 ? 220 : 200;
-        osc.frequency.setValueAtTime(pitch, t + offset);
-        // 撞击瞬间音调微降，模拟物理冲击
-        osc.frequency.exponentialRampToValueAtTime(pitch * 0.5, t + offset + 0.1);
-
-        // 3. 滤波：低通滤波，去掉刺耳高频，制造“闷”的敲击感
-        filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(800, t + offset);
-        filter.frequency.linearRampToValueAtTime(300, t + offset + 0.1);
-
-        // 4. 包络：极快起音，快速衰减
-        gain.gain.setValueAtTime(0, t + offset);
-        gain.gain.linearRampToValueAtTime(0.6, t + offset + 0.01);
-        gain.gain.exponentialRampToValueAtTime(0.01, t + offset + 0.15);
-
+        
+        gain.gain.setValueAtTime(0.15, t + offset);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + offset + 0.15);
+        
         osc.start(t + offset);
-        osc.stop(t + offset + 0.2);
+        osc.stop(t + offset + 0.15);
       });
     },
     
     research: () => {
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
+      // 研究: 科技感的琶音
+      const t = audioContext.currentTime;
+      const freqs = [440, 554, 659, 880, 1108]; // A Major
       
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-      
-      oscillator.frequency.setValueAtTime(440, audioContext.currentTime);
-      oscillator.frequency.setValueAtTime(554, audioContext.currentTime + 0.05);
-      oscillator.frequency.setValueAtTime(659, audioContext.currentTime + 0.1);
-      oscillator.frequency.setValueAtTime(880, audioContext.currentTime + 0.15);
-      oscillator.type = 'sine';
-      
-      gainNode.gain.setValueAtTime(0.25, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.25);
-      
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.25);
+      freqs.forEach((f, i) => {
+        const osc = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        
+        osc.type = 'sine';
+        osc.frequency.value = f;
+        
+        osc.connect(gain);
+        gain.connect(audioContext.destination);
+        
+        const start = t + i * 0.04;
+        gain.gain.setValueAtTime(0.05, start);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + 0.2);
+        
+        osc.start(start);
+        osc.stop(start + 0.2);
+      });
     },
     
     battle: () => {
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
+      // 战斗: 低沉的冲击声 + 噪音 (模拟鼓/爆炸)
+      const t = audioContext.currentTime;
       
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
+      // 冲击部分
+      const osc = audioContext.createOscillator();
+      const gain = audioContext.createGain();
       
-      oscillator.frequency.setValueAtTime(100, audioContext.currentTime);
-      oscillator.frequency.linearRampToValueAtTime(50, audioContext.currentTime + 0.3);
-      oscillator.type = 'sawtooth';
+      osc.frequency.setValueAtTime(150, t);
+      osc.frequency.exponentialRampToValueAtTime(40, t + 0.15);
+      osc.type = 'triangle';
       
-      gainNode.gain.setValueAtTime(0.4, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.4);
+      osc.connect(gain);
+      gain.connect(audioContext.destination);
       
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.4);
+      gain.gain.setValueAtTime(0.3, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+      
+      osc.start(t);
+      osc.stop(t + 0.2);
+      
+      // 擦片/噪音部分
+      const noiseGain = audioContext.createGain();
+      const nFilter = audioContext.createBiquadFilter();
+      nFilter.type = 'bandpass';
+      nFilter.frequency.value = 2000;
+      
+      const bufferSize = audioContext.sampleRate * 0.2;
+      const buffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+      
+      const noise = audioContext.createBufferSource();
+      noise.buffer = buffer;
+      
+      noise.connect(nFilter);
+      nFilter.connect(noiseGain);
+      noiseGain.connect(audioContext.destination);
+      
+      noiseGain.gain.setValueAtTime(0.1, t);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+      
+      noise.start(t);
+      noise.stop(t + 0.1);
     },
     
     victory: () => {
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
+      // 胜利: 宏大的C大调和弦
+      const t = audioContext.currentTime;
+      const chord = [261.63, 329.63, 392.00, 523.25]; // C4, E4, G4, C5
       
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-      
-      oscillator.frequency.setValueAtTime(523, audioContext.currentTime);
-      oscillator.frequency.setValueAtTime(659, audioContext.currentTime + 0.1);
-      oscillator.frequency.setValueAtTime(784, audioContext.currentTime + 0.2);
-      oscillator.frequency.setValueAtTime(1047, audioContext.currentTime + 0.3);
-      oscillator.type = 'sine';
-      
-      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
-      
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.5);
+      chord.forEach((f, i) => {
+        const osc = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        
+        osc.type = i === 0 ? 'triangle' : 'sine'; // 根音用三角波增加厚度
+        osc.frequency.value = f;
+        
+        osc.connect(gain);
+        gain.connect(audioContext.destination);
+        
+        gain.gain.setValueAtTime(0, t);
+        gain.gain.linearRampToValueAtTime(0.15, t + 0.1); // 缓慢进入
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 2.0); // 长尾音
+        
+        osc.start(t);
+        osc.stop(t + 2.0);
+      });
     },
     
     levelup: () => {
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
+      // 升级: 快速上升音阶
+      const t = audioContext.currentTime;
+      const freqs = [523, 659, 784, 1046];
       
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-      
-      oscillator.frequency.setValueAtTime(440, audioContext.currentTime);
-      oscillator.frequency.setValueAtTime(554, audioContext.currentTime + 0.1);
-      oscillator.frequency.setValueAtTime(659, audioContext.currentTime + 0.2);
-      oscillator.frequency.setValueAtTime(880, audioContext.currentTime + 0.3);
-      oscillator.frequency.setValueAtTime(1109, audioContext.currentTime + 0.4);
-      oscillator.type = 'sine';
-      
-      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.6);
-      
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.6);
+      freqs.forEach((f, i) => {
+        const osc = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        
+        osc.frequency.value = f;
+        osc.type = 'sine';
+        
+        osc.connect(gain);
+        gain.connect(audioContext.destination);
+        
+        const start = t + i * 0.08;
+        gain.gain.setValueAtTime(0.1, start);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + 0.3);
+        
+        osc.start(start);
+        osc.stop(start + 0.3);
+      });
     },
     
     notification: () => {
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
+      // 通知: 柔和的水泡声
+      const t = audioContext.currentTime;
+      const osc = audioContext.createOscillator();
+      const gain = audioContext.createGain();
       
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
+      osc.frequency.setValueAtTime(600, t);
+      osc.frequency.exponentialRampToValueAtTime(1200, t + 0.1);
+      osc.type = 'sine';
       
-      oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
-      oscillator.frequency.setValueAtTime(1000, audioContext.currentTime + 0.05);
-      oscillator.type = 'sine';
+      osc.connect(gain);
+      gain.connect(audioContext.destination);
       
-      gainNode.gain.setValueAtTime(0.25, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.15);
+      gain.gain.setValueAtTime(0.1, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
       
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.15);
+      osc.start(t);
+      osc.stop(t + 0.1);
     },
   };
   
