@@ -118,7 +118,7 @@ export const EPOCHS = [
         bg: "bg-green-950",
         tileColor: "bg-green-800",
         req: { science: 35000, population: 1000, culture: 8000 },
-        cost: { food: 2000000, tools: 300000, silver: 250000, spice: 80000, papyrus: 100000, electronics: 150000, science: 35000 },
+        cost: { food: 2000000, tools: 300000, silver: 250000, spice: 80000, papyrus: 100000, science: 35000 },
         bonuses: {
             desc: "数字革命改变世界，知识和信息成为核心生产力。",
             scienceBonus: 0.6,
