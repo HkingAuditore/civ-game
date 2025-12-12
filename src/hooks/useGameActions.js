@@ -955,10 +955,22 @@ export const useGameActions = (gameState, addLog) => {
                 }
 
                 // 找出目标国家的正式盟友，这些盟友也会被卷入战争
+                // 但如果某个盟友同时也是玩家的正式盟友，则该盟友保持中立
                 const targetAllies = nations.filter(n => {
                     if (n.id === nationId || n.id === targetNation.id) return false;
-                    // 检查目标国家的正式联盟
-                    return (targetNation.allies || []).includes(n.id) || (n.allies || []).includes(targetNation.id);
+                    // 检查是否是目标国家的正式联盟
+                    const isTargetAlly = (targetNation.allies || []).includes(n.id) || (n.allies || []).includes(targetNation.id);
+                    if (!isTargetAlly) return false;
+                    // 排除同时也是玩家正式盟友的国家（共同盟友保持中立）
+                    if (n.alliedWithPlayer === true) return false;
+                    return true;
+                });
+                
+                // 找出共同盟友（同时是玩家和目标国家的盟友），这些国家会保持中立
+                const neutralAllies = nations.filter(n => {
+                    if (n.id === nationId || n.id === targetNation.id) return false;
+                    const isTargetAlly = (targetNation.allies || []).includes(n.id) || (n.allies || []).includes(targetNation.id);
+                    return isTargetAlly && n.alliedWithPlayer === true;
                 });
 
                 // 对目标国家宣战
@@ -1006,6 +1018,13 @@ export const useGameActions = (gameState, addLog) => {
                 if (targetAllies.length > 0) {
                     const allyNames = targetAllies.map(a => a.name).join('、');
                     addLog(`⚔️ ${targetNation.name} 的盟友 ${allyNames} 履行同盟义务，加入了战争！`);
+                }
+                
+                // 通知共同盟友保持中立
+                if (neutralAllies.length > 0) {
+                    neutralAllies.forEach(ally => {
+                        addLog(`⚖️ ${ally.name} 同时是你和 ${targetNation.name} 的盟友，选择保持中立。`);
+                    });
                 }
                 break;
             }
