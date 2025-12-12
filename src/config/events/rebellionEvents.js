@@ -242,7 +242,7 @@ export function createActiveRebellionEvent(stratumKey, rebellionState, hasMilita
         options.push({
             id: 'suppress',
             text: '调动军队镇压',
-            description: `出动忠诚军队迅速扑灭叛乱：成功时可重创叛军并压低组织度，失败则军队折损、局势更加动荡（稳定度-5，本阶层支持度-10）`,
+            description: `出动忠诚军队迅速扑灭叛乱：成功时可重创叛军并压低组织度，失败则军队折损、局势更加动荡`,
             effects: {
                 stability: -5,
                 approval: { [stratumKey]: -10 },
@@ -254,7 +254,7 @@ export function createActiveRebellionEvent(stratumKey, rebellionState, hasMilita
     options.push({
         id: 'accept_war',
         text: '应战',
-        description: `承认叛军为敌对势力，放弃短期内快速镇压，转为通过一场全面内战来解决问题（稳定度-3）`,
+        description: `承认叛军为敌对势力，放弃短期内快速镇压，转为通过一场全面内战来解决问题`,
         effects: {
             stability: -3,
         },
