@@ -4541,12 +4541,17 @@ export const simulateTick = ({
         const prevPrice = priceMap[resource] || marketPrice;
         const smoothed = prevPrice + (marketPrice - prevPrice) * 0.1;
 
-        // 战争物价上涨：计算当前正在进行的战争数量对物价的影响
-        const warCount = updatedNations.filter(n => n.isAtWar).length;
+        // 战争物价上涨：计算与玩家直接交战的敌对国家数量
+        const playerNation = updatedNations.find(n => n.isPlayer);
+        let warCount = 0;
+        if (playerNation && playerNation.foreignWars) {
+            // 只统计玩家正在交战的敌对国家数量
+            warCount = Object.values(playerNation.foreignWars).filter(war => war?.isAtWar).length;
+        }
         // AI国家之间的战争也会影响物价（国际局势紧张）
         let foreignWarCount = 0;
         updatedNations.forEach(n => {
-            if (n.foreignWars) {
+            if (!n.isPlayer && n.foreignWars) {
                 Object.values(n.foreignWars).forEach(war => {
                     if (war?.isAtWar) foreignWarCount++;
                 });
@@ -4554,8 +4559,8 @@ export const simulateTick = ({
         });
         foreignWarCount = Math.floor(foreignWarCount / 2); // 每场战争被计算两次，需要除以2
 
-        // 战争物价系数：每场与玩家的战争增加5%物价，每场AI间战争增加1%物价
-        const warPriceMultiplier = 1 + (warCount * 0.05) + (foreignWarCount * 0.01);
+        // 战争物价系数：每场与玩家的战争增加2.5%物价，每场AI间战争增加1%物价
+        const warPriceMultiplier = 1 + (warCount * 0.025) + (foreignWarCount * 0.01);
         const warAdjustedPrice = smoothed * warPriceMultiplier;
 
         // 应用价格限制
