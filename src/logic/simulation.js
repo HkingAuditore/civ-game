@@ -4012,6 +4012,16 @@ export const simulateTick = ({
             const enemy = updatedNations.find(n => n.id === enemyId);
             if (!enemy) return;
 
+            // 修复：确保敌对国家也有战争记录（防止数据不一致导致的崩溃）
+            if (!enemy.foreignWars) enemy.foreignWars = {};
+            if (!enemy.foreignWars[nation.id]) {
+                enemy.foreignWars[nation.id] = {
+                    isAtWar: true,
+                    warStartDay: war.warStartDay || tick,
+                    warScore: -(war.warScore || 0)
+                };
+            }
+
             // ========== 战争消耗改进：更真实的战争代价 ==========
             // 战争持续时间影响消耗（战争越久消耗越大）
             const warDuration = tick - (war.warStartDay || tick);
