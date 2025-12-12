@@ -19,6 +19,9 @@ import {
     createAllianceProposalResultEvent,
     createAllianceBreakEvent,
     createNationAnnexedEvent,
+    createAllyColdEvent,
+    createAllyAttackedEvent,
+    createAIDemandSurrenderEvent,
 } from './diplomaticEvents';
 // 叛乱事件系统
 import {
@@ -58,6 +61,9 @@ export {
     createAllianceProposalResultEvent,
     createAllianceBreakEvent,
     createNationAnnexedEvent,
+    createAllyColdEvent,
+    createAllyAttackedEvent,
+    createAIDemandSurrenderEvent,
 };
 
 // Re-export individual event arrays for potential direct access

@@ -12,23 +12,26 @@ import { Icon } from '../common/UIComponents';
 const transformLog = (log) => {
   if (typeof log !== 'string') return log;
   
-  // Transform RAID_EVENT logs
+  // Transform RAID_EVENT logs (supports multiple action types)
   if (log.includes('❗RAID_EVENT❗')) {
     try {
       const jsonStr = log.replace('❗RAID_EVENT❗', '');
       const raidData = JSON.parse(jsonStr);
+      // 获取行动名称，默认为"突袭"
+      const actionName = raidData.actionName || '突袭';
       if (raidData.victory) {
-        return `⚔️ 成功击退了 ${raidData.nationName} 的突袭！`;
+        return `⚔️ 成功击退了 ${raidData.nationName} 的${actionName}！`;
       } else {
         const losses = [];
         if (raidData.foodLoss > 0) losses.push(`粮食 -${raidData.foodLoss}`);
         if (raidData.silverLoss > 0) losses.push(`银币 -${raidData.silverLoss}`);
+        if (raidData.woodLoss > 0) losses.push(`木材 -${raidData.woodLoss}`);
         if (raidData.popLoss > 0) losses.push(`人口 -${raidData.popLoss}`);
         const lossText = losses.length > 0 ? `（${losses.join('，')}）` : '';
-        return `🔥 遭到 ${raidData.nationName} 的突袭！${lossText}`;
+        return `🔥 遭到 ${raidData.nationName} 的${actionName}！${lossText}`;
       }
     } catch (e) {
-      return `⚔️ 发生了一场突袭！`;
+      return `⚔️ 发生了一场敌方军事行动！`;
     }
   }
   

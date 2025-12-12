@@ -72,14 +72,17 @@ const NotificationItem = ({ notification, onView, onDismiss, autoDismissDelay = 
   // 生成摘要文本
   const getSummaryText = () => {
     if (result.isRaid) {
+      // 获取行动名称，默认为"突袭"
+      const actionName = result.actionName || '突袭';
       if (result.victory) {
-        return `成功击退了 ${result.nationName} 的突袭！`;
+        return `成功击退了 ${result.nationName} 的${actionName}！`;
       } else {
         const lossDetails = [];
         if (result.foodLoss > 0) lossDetails.push(`粮食-${result.foodLoss}`);
         if (result.silverLoss > 0) lossDetails.push(`银币-${result.silverLoss}`);
+        if (result.woodLoss > 0) lossDetails.push(`木材-${result.woodLoss}`);
         if (result.popLoss > 0) lossDetails.push(`人口-${result.popLoss}`);
-        return `遭到 ${result.nationName} 的突袭！${lossDetails.length > 0 ? `（${lossDetails.join('、')}）` : ''}`;
+        return `遭到 ${result.nationName} 的${actionName}！${lossDetails.length > 0 ? `（${lossDetails.join('、')}）` : ''}`;
       }
     } else {
       if (result.victory) {
@@ -124,7 +127,7 @@ const NotificationItem = ({ notification, onView, onDismiss, autoDismissDelay = 
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className={`text-xs font-bold ${result.victory ? 'text-emerald-200' : 'text-red-200'}`}>
-            {result.isRaid ? (result.victory ? '突袭击退' : '遭受突袭') : (result.victory ? '战斗胜利' : '战斗失利')}
+            {result.isRaid ? (result.victory ? `${result.actionName || '突袭'}击退` : `遭受${result.actionName || '突袭'}`) : (result.victory ? '战斗胜利' : '战斗失利')}
           </span>
           {!result.isRaid && typeof result.score === 'number' && (
             <span className="px-1.5 py-0.5 text-[9px] rounded-full bg-ancient-ink/50 text-ancient-parchment">

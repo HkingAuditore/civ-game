@@ -13,7 +13,10 @@ import {
     createWarDeclarationEvent,
     createGiftEvent,
     createAIRequestEvent,
-    createAllianceRequestEvent
+    createAllianceRequestEvent,
+    createAllyColdEvent,
+    createAIDemandSurrenderEvent,
+    createAllyAttackedEvent,
 } from '../config/events';
 // 新版组织度系统
 import {
@@ -287,8 +290,19 @@ const syncArmyWithSoldierPopulation = (armyState = {}, queueState = [], availabl
     });
 
     let cancelledTraining = null;
-    if (trainingPopulation > available) {
-        let manpowerToFree = trainingPopulation - available;
+    // Add tolerance for population allocation lag
+    // The population allocation system may not immediately allocate enough soldiers
+    // when training starts or when soldiers are injured/killed in combat
+    // A base tolerance of 3 helps prevent unnecessary training interruptions
+    const trainingTolerance = 3;
+    const effectiveAvailableForTraining = available + trainingTolerance;
+
+    console.log('[TRAINING SYNC] trainingPop:', trainingPopulation, 'available:', available,
+        'tolerance:', trainingTolerance, 'effectiveAvailable:', effectiveAvailableForTraining);
+
+    if (trainingPopulation > effectiveAvailableForTraining) {
+        let manpowerToFree = trainingPopulation - effectiveAvailableForTraining;
+        console.log('[TRAINING SYNC] INTERRUPTING! manpowerToFree:', manpowerToFree);
         const sortedTraining = trainingEntries.sort(
             (a, b) => (b.remainingTime || 0) - (a.remainingTime || 0)
         );
@@ -314,8 +328,36 @@ const syncArmyWithSoldierPopulation = (armyState = {}, queueState = [], availabl
     let updatedArmy = null;
     let removedUnits = null;
 
-    if (currentArmyPopulation > availableForArmy) {
-        let manpowerToRemove = currentArmyPopulation - availableForArmy;
+    // Calculate tolerance to account for timing issues when units graduate from training
+    // This prevents units from being immediately disbanded after completing training
+    // because the population allocation system hasn't had time to catch up yet
+    // 
+    // The tolerance needs to account for:
+    // 1. Units about to complete training (remainingTime <= 1)
+    // 2. Units that have already graduated but population allocation hasn't caught up
+    // 3. Multiple units graduating in the same tick
+    //
+    // We use a combination of:
+    // - Base tolerance of 3 (to handle most edge cases)
+    // - Plus any units about to graduate
+    let toleranceForNewGraduates = 3; // Base tolerance for population allocation lag
+    safeQueue.forEach(item => {
+        if (item && item.status === 'training' && item.remainingTime <= 1) {
+            const popCost = getUnitPopulationCost(item.unitId);
+            toleranceForNewGraduates += popCost;
+        }
+    });
+
+    const effectiveAvailableForArmy = availableForArmy + toleranceForNewGraduates;
+
+    // Debug logging for army population sync
+    console.log('[ARMY SYNC] available:', available, 'trainingPop:', trainingPopulation,
+        'availableForArmy:', availableForArmy, 'tolerance:', toleranceForNewGraduates,
+        'effectiveAvailable:', effectiveAvailableForArmy, 'currentArmyPop:', currentArmyPopulation);
+
+    if (currentArmyPopulation > effectiveAvailableForArmy) {
+        let manpowerToRemove = currentArmyPopulation - effectiveAvailableForArmy;
+        console.log('[ARMY SYNC] DISBANDING! manpowerToRemove:', manpowerToRemove);
         updatedArmy = { ...safeArmy };
         removedUnits = {};
 
@@ -1220,6 +1262,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                     );
                                     // 标记为联合叛乱
                                     rebelNation.isCoalitionRebellion = true;
+                                    // 设置战争开始时间
+                                    rebelNation.warStartDay = current.daysElapsed || 0;
 
                                     // 将联合叛乱政府添加到国家列表
                                     setNations(prev => [...prev, rebelNation]);
@@ -1327,6 +1371,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                             .join('、');
                                         addLog(`⚠️ 叛军掠夺了物资：${lootSummary}（总价值约${Math.floor(rebelResult.lootedValue)}银币）`);
                                     }
+
+                                    // 设置战争开始时间
+                                    rebelNation.warStartDay = current.daysElapsed || 0;
 
                                     setNations(prev => [...prev, rebelNation]);
                                     setPopStructure(prev => ({
@@ -1580,6 +1627,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                 addLog(`⚠️ 叛军掠夺了物资：${lootSummary}（总价值约${Math.floor(rebelResult.lootedValue)}银币）`);
                             }
 
+                            // 设置战争开始时间
+                            rebelNation.warStartDay = current.daysElapsed || 0;
+
                             setNations(prev => [...prev, rebelNation]);
                             setPopStructure(prev => ({
                                 ...prev,
@@ -1701,27 +1751,41 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
             // 添加新日志
             if (result.logs.length) {
+                // 去重：追踪已处理的突袭事件
+                const processedRaidNations = new Set();
+
                 // Filter and transform technical logs to human-readable format
                 const processedLogs = result.logs.map(log => {
                     if (typeof log !== 'string') return log;
 
-                    // Transform RAID_EVENT logs to human-readable format
+                    // Transform RAID_EVENT logs to human-readable format (now supports multiple action types)
                     if (log.includes('❗RAID_EVENT❗')) {
                         try {
                             const jsonStr = log.replace('❗RAID_EVENT❗', '');
                             const raidData = JSON.parse(jsonStr);
+
+                            // 去重：如果这个国家已经有军事行动记录，跳过
+                            if (processedRaidNations.has(raidData.nationName)) {
+                                return null; // 返回null，稍后过滤掉
+                            }
+                            processedRaidNations.add(raidData.nationName);
+
+                            // 获取行动名称，默认为"突袭"
+                            const actionName = raidData.actionName || '突袭';
+
                             if (raidData.victory) {
-                                return `⚔️ 成功击退了 ${raidData.nationName} 的突袭！`;
+                                return `⚔️ 成功击退了 ${raidData.nationName} 的${actionName}！`;
                             } else {
                                 const losses = [];
                                 if (raidData.foodLoss > 0) losses.push(`粮食 -${raidData.foodLoss}`);
                                 if (raidData.silverLoss > 0) losses.push(`银币 -${raidData.silverLoss}`);
+                                if (raidData.woodLoss > 0) losses.push(`木材 -${raidData.woodLoss}`);
                                 if (raidData.popLoss > 0) losses.push(`人口 -${raidData.popLoss}`);
                                 const lossText = losses.length > 0 ? `（${losses.join('，')}）` : '';
-                                return `🔥 遭到 ${raidData.nationName} 的突袭！${lossText}`;
+                                return `🔥 遭到 ${raidData.nationName} 的${actionName}！${lossText}`;
                             }
                         } catch (e) {
-                            return `⚔️ 发生了一场突袭！`;
+                            return `⚔️ 发生了一场敌方军事行动！`;
                         }
                     }
 
@@ -1746,7 +1810,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     return log;
                 });
 
-                setLogs(prev => [...processedLogs, ...prev].slice(0, 128));
+                setLogs(prev => [...processedLogs.filter(log => log !== null), ...prev].slice(0, 128));
 
                 // 检测外交事件并触发事件系统
                 const currentActions = current.actions;
@@ -1766,9 +1830,12 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                 const raidJson = raidLogEntry.slice(jsonStart);
                                 const raidData = JSON.parse(raidJson);
 
-                                let description = `${raidData.nationName} 发动了突袭！\n\n`;
+                                // 获取行动名称，默认为"突袭"
+                                const actionName = raidData.actionName || '突袭';
+
+                                let description = `${raidData.nationName} 发动了${actionName}！\n\n`;
                                 if (raidData.victory) {
-                                    description += '你的军队成功击退了突袭！\n\n';
+                                    description += `你的军队成功击退了${actionName}！\n\n`;
                                     description += '战斗力对比：\n';
                                     description += `我方：${raidData.ourPower || 0} \n`;
                                     description += `敌方：${raidData.enemyPower || 0} \n`;
@@ -1777,9 +1844,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                     }
                                 } else {
                                     if (!raidData.ourPower) {
-                                        description += '你没有军队防御，突袭成功！\n\n';
+                                        description += `你没有军队防御，${actionName}成功！\n\n`;
                                     } else {
-                                        description += '你的军队未能阻止突袭！\n\n';
+                                        description += `你的军队未能阻止${actionName}！\n\n`;
                                         description += '战斗力对比：\n';
                                         description += `我方：${raidData.ourPower || 0} \n`;
                                         description += `敌方：${raidData.enemyPower || 0} \n`;
@@ -1787,18 +1854,19 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                             description += '\n' + raidData.battleReport.join('\n');
                                         }
                                     }
-                                    description += '\n突袭损失：\n';
+                                    description += `\n${actionName}损失：\n`;
                                     if (raidData.foodLoss > 0) description += `粮食：${raidData.foodLoss} \n`;
                                     if (raidData.silverLoss > 0) description += `银币：${raidData.silverLoss} \n`;
+                                    if (raidData.woodLoss > 0) description += `木材：${raidData.woodLoss} \n`;
                                     if (raidData.popLoss > 0) description += `人口：${raidData.popLoss} \n`;
                                 }
 
                                 const battleResult = {
                                     victory: !!raidData.victory,
-                                    missionName: `${raidData.nationName} 的突袭`,
+                                    missionName: `${raidData.nationName} 的${actionName}`,
                                     missionDesc: raidData.victory
-                                        ? '你成功击退了敌方的突袭！'
-                                        : '敌方趁你不备发动了突袭！',
+                                        ? `你成功击退了敌方的${actionName}！`
+                                        : `敌方对你发动了${actionName}！`,
                                     nationName: raidData.nationName,
                                     ourPower: raidData.ourPower || 0,
                                     enemyPower: raidData.enemyPower || 0,
@@ -1873,11 +1941,24 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                         return n.alliedWithPlayer === true && !n.isAtWar;
                                     });
 
+                                    // ========== 战争上限检查 ==========
+                                    const MAX_CONCURRENT_WARS = 3;
+                                    // 计算当前与玩家交战的AI国家数量（不包括叛军）
+                                    let currentWarsWithPlayer = nextNations.filter(n =>
+                                        n.isAtWar === true && !n.isRebelNation
+                                    ).length;
+
                                     // 2. 处理侵略者的盟友加入战争
                                     aggressorAllies.forEach(ally => {
                                         // 检查中立原则：如果该盟友同时也与玩家正式结盟，则保持中立
                                         if (ally.alliedWithPlayer === true) {
                                             addLog(`⚖️ ${ally.name} 既是你的盟友又是 ${aggressorName} 的盟友，决定保持中立。`);
+                                            return;
+                                        }
+
+                                        // 检查战争上限：如果已达上限，盟友保持中立
+                                        if (currentWarsWithPlayer >= MAX_CONCURRENT_WARS) {
+                                            addLog(`⚖️ ${ally.name} 虽是 ${aggressorName} 的盟友，但考虑到局势复杂，决定暂时观望。`);
                                             return;
                                         }
 
@@ -1891,6 +1972,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                 warDuration: 0,
                                                 relation: 0 // 与玩家关系破裂
                                             };
+                                            currentWarsWithPlayer++; // 更新计数
                                             addLog(`⚔️ ${ally.name} 作为 ${aggressorName} 的盟友，对你宣战！`);
                                         }
                                     });
@@ -2062,88 +2144,6 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             }
                         }
 
-                        // 检测突袭事件（使用BattleResultModal显示）
-                        if (log.includes('❗RAID_EVENT❗')) {
-                            console.log('[EVENT DEBUG] Raid detected in log:', log);
-                            try {
-                                // 解析JSON格式的突袭数据
-                                const jsonStr = log.replace('❗RAID_EVENT❗', '');
-                                const raidData = JSON.parse(jsonStr);
-                                console.log('[EVENT DEBUG] Parsed raid data:', raidData);
-
-                                const nation = result.nations?.find(n => n.name === raidData.nationName);
-                                console.log('[EVENT DEBUG] Found nation for raid:', nation?.name);
-
-                                if (nation && currentActions.addBattleNotification) {
-                                    console.log('[EVENT DEBUG] Creating raid battle result...');
-
-                                    // 构造战斗描述
-                                    let description = `${raidData.nationName} 发动了突袭！\n\n`;
-
-                                    if (raidData.victory) {
-                                        // 玩家胜利
-                                        description += '✓ 你的军队成功击退了突袭！\n\n';
-                                        description += `战斗力对比：\n`;
-                                        description += `我方：${raidData.ourPower} \n`;
-                                        description += `敌方：${raidData.enemyPower} \n\n`;
-
-                                        if (raidData.battleReport && raidData.battleReport.length > 0) {
-                                            description += raidData.battleReport.join('\n');
-                                        }
-                                    } else {
-                                        // 玩家失败
-                                        if (raidData.ourPower === 0) {
-                                            description += '✗ 你没有军队防御，突袭成功！\n\n';
-                                        } else {
-                                            description += '✗ 你的军队未能阻止突袭！\n\n';
-                                            description += `战斗力对比：\n`;
-                                            description += `我方：${raidData.ourPower} \n`;
-                                            description += `敌方：${raidData.enemyPower} \n\n`;
-
-                                            if (raidData.battleReport && raidData.battleReport.length > 0) {
-                                                description += raidData.battleReport.join('\n') + '\n\n';
-                                            }
-                                        }
-
-                                        description += `突袭损失：\n`;
-                                        if (raidData.foodLoss > 0) description += `粮食：-${raidData.foodLoss} \n`;
-                                        if (raidData.silverLoss > 0) description += `银币：-${raidData.silverLoss} \n`;
-                                        if (raidData.popLoss > 0) description += `人口：-${raidData.popLoss} \n`;
-                                    }
-
-                                    // 构造符合BattleResultModal要求的battleResult对象
-                                    const battleResult = {
-                                        victory: raidData.victory,
-                                        missionName: `${raidData.nationName} 的突袭`,
-                                        missionDesc: raidData.victory ? '你成功击退了敌方的突袭！' : '敌方趁你不备发动了突袭！',
-                                        nationName: raidData.nationName,
-                                        ourPower: raidData.ourPower || 0,
-                                        enemyPower: raidData.enemyPower || 0,
-                                        powerRatio: raidData.enemyPower > 0 ? raidData.ourPower / raidData.enemyPower : 0,
-                                        score: 0,
-                                        losses: raidData.defenderLosses || {},
-                                        attackerLosses: raidData.attackerLosses || {},
-                                        enemyLosses: raidData.attackerLosses || {},
-                                        defenderLosses: raidData.defenderLosses || {},
-                                        resourcesGained: {}, // 突袭防御成功也没有战利品
-                                        description,
-                                        // 添加突袭特有的损失信息
-                                        foodLoss: raidData.foodLoss || 0,
-                                        silverLoss: raidData.silverLoss || 0,
-                                        popLoss: raidData.popLoss || 0,
-                                        isRaid: true, // 标记这是突袭事件
-                                    };
-
-                                    console.log('[EVENT DEBUG] Raid battle result created:', battleResult);
-                                    // 使用非阻断式通知，不打断玩家操作
-                                    currentActions.addBattleNotification(battleResult);
-                                    console.log('[EVENT DEBUG] addBattleNotification called');
-                                }
-                            } catch (error) {
-                                console.error('[EVENT DEBUG] Error parsing or processing raid event:', error);
-                            }
-                        }
-
                         // 检测 AI 送礼事件
                         if (log.includes('AI_GIFT_EVENT:')) {
                             try {
@@ -2224,6 +2224,251 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                 }
                             } catch (e) {
                                 console.error('[EVENT DEBUG] Failed to parse AI alliance request event:', e);
+                            }
+                        }
+
+                        // 检测盟友冷淡事件
+                        if (log.includes('ALLY_COLD_EVENT:')) {
+                            try {
+                                const jsonStr = log.replace('ALLY_COLD_EVENT:', '');
+                                const eventData = JSON.parse(jsonStr);
+                                const nation = result.nations?.find(n => n.id === eventData.nationId);
+                                if (nation && currentActions && currentActions.triggerDiplomaticEvent) {
+                                    const event = createAllyColdEvent(nation, eventData.relation, (action, giftCost) => {
+                                        if (action === 'gift') {
+                                            // 检查银币是否足够
+                                            const currentSilver = current.resources?.silver || 0;
+                                            if (currentSilver < giftCost) {
+                                                addLog(`❌ 银币不足，无法向 ${nation.name} 赠送礼物！`);
+                                                return;
+                                            }
+                                            setResources(prev => ({ ...prev, silver: (prev.silver || 0) - giftCost }));
+                                            setNations(prev => prev.map(n =>
+                                                n.id === nation.id
+                                                    ? { ...n, relation: Math.min(100, (n.relation || 0) + 15) }
+                                                    : n
+                                            ));
+                                            addLog(`💝 你向盟友 ${nation.name} 赠送了礼物，关系改善了（+15）。`);
+                                        } else {
+                                            // 不管：关系继续下降，增加解盟风险
+                                            setNations(prev => prev.map(n =>
+                                                n.id === nation.id
+                                                    ? { ...n, relation: Math.max(0, (n.relation || 0) - 5), allianceStrain: ((n.allianceStrain || 0) + 1) }
+                                                    : n
+                                            ));
+                                            addLog(`😐 你忽视了盟友 ${nation.name} 的关系问题，同盟关系出现裂痕。`);
+                                        }
+                                    });
+                                    currentActions.triggerDiplomaticEvent(event);
+                                    console.log('[EVENT DEBUG] Ally Cold event triggered:', nation.name);
+                                }
+                            } catch (e) {
+                                console.error('[EVENT DEBUG] Failed to parse Ally Cold event:', e);
+                            }
+                        }
+
+                        // 检测AI贸易事件（资源变化已在simulation中处理，这里只需记录和显示）
+                        if (log.includes('AI_TRADE_EVENT:')) {
+                            try {
+                                const jsonStr = log.replace('AI_TRADE_EVENT:', '');
+                                const eventData = JSON.parse(jsonStr);
+                                const resourceName = RESOURCES[eventData.resourceKey]?.name || eventData.resourceKey;
+
+                                // 将关税计入tradeStats，显示在财政面板中
+                                if (eventData.tariff > 0) {
+                                    setTradeStats(prev => ({ ...prev, tradeTax: (prev.tradeTax || 0) + eventData.tariff }));
+                                }
+
+                                // 生成详细的贸易日志（玩家政府只收关税）
+                                if (eventData.tradeType === 'export') {
+                                    // 玩家出口：资源减少，只收关税
+                                    if (eventData.tariff > 0) {
+                                        addLog(`📦 ${eventData.nationName} 从你的市场购买了 ${eventData.quantity} ${resourceName}，你收取 ${eventData.tariff} 关税。`);
+                                    } else {
+                                        addLog(`📦 ${eventData.nationName} 从你的市场购买了 ${eventData.quantity} ${resourceName}（开放市场，无关税）。`);
+                                    }
+                                } else if (eventData.tradeType === 'import') {
+                                    // 玩家进口：资源增加，只收关税
+                                    if (eventData.tariff > 0) {
+                                        addLog(`📦 ${eventData.nationName} 向你的市场出售了 ${eventData.quantity} ${resourceName}，你收取 ${eventData.tariff} 关税。`);
+                                    } else {
+                                        addLog(`📦 ${eventData.nationName} 向你的市场出售了 ${eventData.quantity} ${resourceName}（开放市场，无关税）。`);
+                                    }
+                                } else {
+                                    // 旧版兼容
+                                    if (eventData.tariff > 0) {
+                                        addLog(`📦 ${eventData.nationName} 与你进行了贸易，你收取 ${eventData.tariff} 关税。`);
+                                    }
+                                }
+                            } catch (e) {
+                                console.error('[EVENT DEBUG] Failed to parse AI Trade event:', e);
+                            }
+                        }
+
+                        // 检测AI要求投降事件
+                        if (log.includes('AI_DEMAND_SURRENDER:')) {
+                            try {
+                                const jsonStr = log.replace('AI_DEMAND_SURRENDER:', '');
+                                const eventData = JSON.parse(jsonStr);
+                                const nation = result.nations?.find(n => n.id === eventData.nationId);
+                                if (nation && currentActions && currentActions.triggerDiplomaticEvent) {
+                                    const event = createAIDemandSurrenderEvent(
+                                        nation,
+                                        eventData.warScore,
+                                        { type: eventData.demandType, amount: eventData.demandAmount },
+                                        (accepted) => {
+                                            if (accepted) {
+                                                // 玩家接受投降条件
+                                                if (eventData.demandType === 'tribute') {
+                                                    setResources(prev => ({ ...prev, silver: Math.max(0, (prev.silver || 0) - eventData.demandAmount) }));
+                                                    addLog(`💰 你向 ${nation.name} 支付了 ${eventData.demandAmount} 银币赔款。`);
+                                                } else if (eventData.demandType === 'territory') {
+                                                    setPopulation(prev => Math.max(10, prev - eventData.demandAmount));
+                                                    setMaxPopulation(prev => Math.max(10, prev - eventData.demandAmount));
+                                                    addLog(`🏴 你向 ${nation.name} 割让了 ${eventData.demandAmount} 人口的领土。`);
+                                                } else if (eventData.demandType === 'open_market') {
+                                                    // 设置开放市场状态（玩家开放市场给AI）
+                                                    addLog(`📖 你同意向 ${nation.name} 开放市场 ${Math.round(eventData.demandAmount / 365)} 年。`);
+                                                }
+                                                // 结束战争
+                                                setNations(prev => prev.map(n => n.id === nation.id ? { ...n, isAtWar: false, warScore: 0, warDuration: 0, peaceTreatyUntil: current.daysElapsed + 365 } : n));
+                                            } else {
+                                                addLog(`⚔️ 你拒绝了 ${nation.name} 的投降要求，战争继续！`);
+                                            }
+                                        }
+                                    );
+                                    currentActions.triggerDiplomaticEvent(event);
+                                    console.log('[EVENT DEBUG] AI Demand Surrender event triggered:', nation.name);
+                                }
+                            } catch (e) {
+                                console.error('[EVENT DEBUG] Failed to parse AI Demand Surrender event:', e);
+                            }
+                        }
+
+                        // 检测AI解除联盟事件
+                        if (log.includes('AI_BREAK_ALLIANCE:')) {
+                            try {
+                                const jsonStr = log.replace('AI_BREAK_ALLIANCE:', '');
+                                const eventData = JSON.parse(jsonStr);
+                                const reasonText = eventData.reason === 'relation_low'
+                                    ? '由于双方关系恶化'
+                                    : '由于你多次忽视盟友问题';
+                                addLog(`💔 ${reasonText}，${eventData.nationName} 决定解除与你的同盟关系！`);
+                            } catch (e) {
+                                console.error('[EVENT DEBUG] Failed to parse AI Break Alliance event:', e);
+                            }
+                        }
+
+                        // 检测盟友被攻击事件
+                        if (log.includes('ALLY_ATTACKED_EVENT:')) {
+                            try {
+                                const jsonStr = log.replace('ALLY_ATTACKED_EVENT:', '');
+                                const eventData = JSON.parse(jsonStr);
+                                const ally = result.nations?.find(n => n.id === eventData.allyId);
+                                const attacker = result.nations?.find(n => n.id === eventData.attackerId);
+                                if (ally && attacker && currentActions && currentActions.triggerDiplomaticEvent) {
+                                    const event = createAllyAttackedEvent(
+                                        ally,
+                                        attacker,
+                                        (helped) => {
+                                            if (helped) {
+                                                // 玩家选择援助盟友，对攻击者宣战
+                                                setNations(prev => prev.map(n => {
+                                                    if (n.id === attacker.id) {
+                                                        return {
+                                                            ...n,
+                                                            isAtWar: true,
+                                                            warStartDay: current.daysElapsed,
+                                                            warDuration: 0,
+                                                            relation: Math.max(0, (n.relation || 50) - 40)
+                                                        };
+                                                    }
+                                                    return n;
+                                                }));
+                                                addLog(`⚔️ 你决定援助盟友 ${ally.name}，对 ${attacker.name} 宣战！`);
+                                            } else {
+                                                // 玩家拒绝援助：关系大幅下降、联盟终止、背叛者声誉
+                                                setNations(prev => prev.map(n => {
+                                                    if (n.id === ally.id) {
+                                                        return {
+                                                            ...n,
+                                                            relation: Math.max(0, (n.relation || 50) - 30),
+                                                            alliedWithPlayer: false
+                                                        };
+                                                    }
+                                                    // 其他国家也对玩家印象变差
+                                                    return {
+                                                        ...n,
+                                                        relation: Math.max(0, (n.relation || 50) - 5)
+                                                    };
+                                                }));
+                                                addLog(`💔 你拒绝援助盟友 ${ally.name}，${ally.name} 解除与你的联盟！你获得了“背叛者”的声誉。`);
+                                            }
+                                        }
+                                    );
+                                    currentActions.triggerDiplomaticEvent(event);
+                                    console.log('[EVENT DEBUG] Ally Attacked event triggered:', ally.name);
+                                }
+                            } catch (e) {
+                                console.error('[EVENT DEBUG] Failed to parse Ally Attacked event:', e);
+                            }
+                        }
+
+                        // 检测叛军要求玩家投降事件
+                        if (log.includes('REBEL_DEMAND_SURRENDER:')) {
+                            try {
+                                const jsonStr = log.replace('REBEL_DEMAND_SURRENDER:', '');
+                                const eventData = JSON.parse(jsonStr);
+                                const nation = result.nations?.find(n => n.id === eventData.nationId);
+                                if (nation && currentActions && currentActions.triggerDiplomaticEvent) {
+                                    // 构建叛军投降要求事件
+                                    const demandDescriptions = {
+                                        reform: `进行政治改革，向${STRATA[eventData.rebellionStratum]?.name || '起义阶层'}让步`,
+                                        concession: `做出重大让步，满足${STRATA[eventData.rebellionStratum]?.name || '起义阶层'}的核心诉求`,
+                                        massacre: `接受叛军的屠杀，失去大量人口和人口上限（-${eventData.demandAmount}）`
+                                    };
+
+                                    const event = {
+                                        id: `rebel_demand_${nation.id}_${Date.now()}`,
+                                        title: `${nation.name} 的最后通牒`,
+                                        description: `${nation.name} 在战争中占据优势，向你提出以下要求：\n\n${demandDescriptions[eventData.demandType] || '接受他们的条件'}`,
+                                        nation: nation,
+                                        options: [
+                                            {
+                                                text: eventData.demandType === 'massacre' ? `接受（-${eventData.demandAmount}人口）` : '接受要求',
+                                                action: () => {
+                                                    if (eventData.demandType === 'massacre') {
+                                                        // 大屠杀：减少人口和人口上限
+                                                        const popLoss = eventData.demandAmount;
+                                                        setPopulation(prev => Math.max(10, prev - popLoss));
+                                                        setMaxPopulation(prev => Math.max(20, prev - popLoss));
+                                                        addLog(`💀 叛军进行了大屠杀，你失去了 ${popLoss} 人口和人口上限！`);
+                                                    } else if (eventData.demandType === 'reform') {
+                                                        // 改革：提高起义阶层满意度
+                                                        setResources(prev => ({ ...prev, silver: Math.max(0, (prev.silver || 0) - eventData.demandAmount) }));
+                                                        addLog(`📜 你被迫进行改革，花费 ${eventData.demandAmount} 银币安抚起义者。`);
+                                                    } else if (eventData.demandType === 'concession') {
+                                                        // 重大让步
+                                                        setResources(prev => ({ ...prev, silver: Math.max(0, (prev.silver || 0) - eventData.demandAmount) }));
+                                                        addLog(`📜 你做出重大让步，花费 ${eventData.demandAmount} 银币满足起义者的诉求。`);
+                                                    }
+                                                    // 结束叛乱
+                                                    setNations(prev => prev.filter(n => n.id !== nation.id));
+                                                }
+                                            },
+                                            {
+                                                text: '坚决拒绝',
+                                                action: () => {
+                                                    addLog(`⚔️ 你拒绝了 ${nation.name} 的最后通牒，战争继续！`);
+                                                }
+                                            }
+                                        ]
+                                    };
+                                    currentActions.triggerDiplomaticEvent(event);
+                                    console.log('[EVENT DEBUG] Rebel Demand Surrender event triggered:', nation.name);
+                                }
+                            } catch (e) {
+                                console.error('[EVENT DEBUG] Failed to parse Rebel Demand Surrender event:', e);
                             }
                         }
                     });

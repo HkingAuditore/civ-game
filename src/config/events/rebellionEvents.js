@@ -497,7 +497,7 @@ export function createRebelNation(stratumKey, stratumPop, stratumWealth, stratum
         budget: Math.floor(wealth * 0.3),
         enemyLosses: 0,
         warDuration: 0,
-        warStartDay: null,
+        warStartDay: 0, // 初始化为0，会在添加到nations时由useGameLoop设置为当前tick
         foreignWars: {},
     };
 

@@ -184,7 +184,7 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
         const installmentAmount = Math.ceil(installmentTotal / 365); // 每天支付
         // 使用财富估算人口（假设每100财富对应约50人口）
         const estimatedPopulation = nation.population;
-const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(4, Math.floor(estimatedPopulation * 0.02))); // 要求2%人口，至少4人
+        const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(4, Math.floor(estimatedPopulation * 0.02))); // 要求2%人口，至少4人
 
         options.push({
             id: 'accept',
@@ -287,7 +287,7 @@ export function createPlayerPeaceProposalEvent(
         const severity = Math.min(maxPercent, Math.max(0.012, warPressure + durationPressure));
         const capped = Math.floor(playerPopulationBase * severity);
         const hardCap = Math.floor(playerPopulationBase * maxPercent);
-return Math.min(MAX_TERRITORY_POPULATION, Math.max(3, Math.min(hardCap, capped))); // 最多割让人口
+        return Math.min(MAX_TERRITORY_POPULATION, Math.max(3, Math.min(hardCap, capped))); // 最多割让人口
     };
 
     if (warScore > 350) {
@@ -382,7 +382,7 @@ return Math.min(MAX_TERRITORY_POPULATION, Math.max(3, Math.min(hardCap, capped))
         const installmentTotal = Math.ceil(tribute * INSTALLMENT_TOTAL_MULTIPLIER);
         const installmentAmount = Math.ceil(installmentTotal / 365);
         const estimatedPopulation = nation.population;
-const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(5, Math.floor(estimatedPopulation * 0.01))); // 要求1%人口，至少5人
+        const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(5, Math.floor(estimatedPopulation * 0.01))); // 要求1%人口，至少5人
 
         options.push({
             id: 'demand_tribute',
@@ -753,10 +753,10 @@ export function createAllianceBreakEvent(nation, reason, callback) {
  */
 export function createNationAnnexedEvent(nation, populationGained, maxPopGained, reason, callback) {
     const isWarAnnex = reason === 'war_annex';
-    
+
     let description = '';
     let title = '';
-    
+
     if (isWarAnnex) {
         title = `🏴 ${nation.name}已被吞并`;
         description = `经过艰苦的战争，${nation.name}终于臣服于你的统治！他们的领土、人民和资源现在都归你所有。
@@ -778,7 +778,7 @@ ${nation.name}的旗帜已经降下，取而代之的是你的王旗。这是一
 
 历史将记住这个国家，但它的辉煌已成过去。`;
     }
-    
+
     return {
         id: `nation_annexed_${nation.id}_${Date.now()}`,
         name: title,
@@ -797,3 +797,135 @@ ${nation.name}的旗帜已经降下，取而代之的是你的王旗。这是一
         ],
     };
 }
+
+/**
+ * 创建外交事件 - 盟友关系冷淡
+ * @param {Object} nation - 盟友国家
+ * @param {number} currentRelation - 当前关系值
+ * @param {Function} callback - 回调 (action: 'gift' | 'ignore', amount?: number) => void
+ * @returns {Object} - 外交事件对象
+ */
+export function createAllyColdEvent(nation, currentRelation, callback) {
+    const giftCost = Math.floor(200 + Math.random() * 300); // 200-500银币
+
+    return {
+        id: `ally_cold_${nation.id}_${Date.now()}`,
+        name: `与${nation.name}的关系冷淡`,
+        icon: 'HeartCrack',
+        image: null,
+        description: `你与盟友${nation.name}的关系已降至${Math.round(currentRelation)}，双方的同盟关系出现了裂痕。他们的使节暗示，如果你能送上一份诚意礼物，或许能修复这段关系。否则，同盟可能会进一步恶化。`,
+        isDiplomaticEvent: true,
+        options: [
+            {
+                id: 'gift',
+                text: `送礼维护（${giftCost}银币）`,
+                description: '赠送礼物以改善关系（关系+15）',
+                effects: {
+                    resources: {
+                        silver: -giftCost,
+                    },
+                },
+                callback: () => callback('gift', giftCost),
+            },
+            {
+                id: 'ignore',
+                text: '不予理会',
+                description: '关系将继续下降，解盟风险增加',
+                effects: {},
+                callback: () => callback('ignore'),
+            },
+        ],
+    };
+}
+
+/**
+ * 创建外交事件 - 盟友被攻击求援
+ * @param {Object} ally - 被攻击的盟友
+ * @param {Object} attacker - 攻击者
+ * @param {Function} callback - 回调 (intervene: boolean) => void
+ * @returns {Object} - 外交事件对象
+ */
+export function createAllyAttackedEvent(ally, attacker, callback) {
+    return {
+        id: `ally_attacked_${ally.id}_${Date.now()}`,
+        name: `盟友${ally.name}求援！`,
+        icon: 'AlertTriangle',
+        image: null,
+        description: `紧急！你的盟友${ally.name}遭到${attacker.name}的攻击！他们派遣使节前来请求军事援助。
+
+作为盟友，你有义务伸出援手。但如果你选择袖手旁观，将会：
+• 与${ally.name}的关系大幅下降（-40）
+• 同盟关系解除
+• 与所有国家的关系下降（-10）
+• "背叛盟友"的名声将影响未来的外交
+
+你的选择？`,
+        isDiplomaticEvent: true,
+        options: [
+            {
+                id: 'intervene',
+                text: '履行盟约，参战！',
+                description: `与${attacker.name}进入战争状态`,
+                effects: {
+                    stability: -5,
+                },
+                callback: () => callback(true),
+            },
+            {
+                id: 'abandon',
+                text: '袖手旁观',
+                description: '背叛盟友，承受声誉损失',
+                effects: {},
+                callback: () => callback(false),
+            },
+        ],
+    };
+}
+
+/**
+ * 创建外交事件 - AI要求玩家投降
+ * @param {Object} nation - 要求投降的国家
+ * @param {number} warScore - 战争分数（负数表示AI占优）
+ * @param {Object} demands - 要求内容 { type: 'tribute' | 'territory' | 'open_market', amount: number }
+ * @param {Function} callback - 回调 (accept: boolean) => void
+ * @returns {Object} - 外交事件对象
+ */
+export function createAIDemandSurrenderEvent(nation, warScore, demands, callback) {
+    const demandDescriptions = {
+        tribute: `支付${demands.amount}银币作为赔款`,
+        territory: `割让${demands.amount}人口作为领土`,
+        open_market: `在${Math.round(demands.amount / 365)}年内开放市场`,
+    };
+
+    const demandText = demandDescriptions[demands.type] || '接受他们的条件';
+
+    return {
+        id: `ai_demand_surrender_${nation.id}_${Date.now()}`,
+        name: `${nation.name}要求投降`,
+        icon: 'Swords',
+        image: null,
+        description: `${nation.name}的使节带着傲慢的姿态前来。他们在战争中占据优势（战争分数：${Math.abs(Math.round(warScore))}），并要求你接受他们的条件。
+
+他们的要求：${demandText}
+
+如果拒绝，战争将继续进行。`,
+        isDiplomaticEvent: true,
+        options: [
+            {
+                id: 'accept',
+                text: '接受条件',
+                description: demandText,
+                effects: {},
+                callback: () => callback(true),
+            },
+            {
+                id: 'reject',
+                text: '拒绝！继续战斗！',
+                description: '战争将继续进行',
+                effects: {},
+                callback: () => callback(false),
+            },
+        ],
+    };
+}
+
