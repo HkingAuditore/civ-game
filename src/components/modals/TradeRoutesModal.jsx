@@ -1,18 +1,18 @@
 import { createPortal } from 'react-dom';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Icon } from '../common/UIComponents';
 import { RESOURCES } from '../../config';
 import { calculateForeignPrice, calculateTradeStatus } from '../../utils/foreignTrade';
 
-const TradeRoutesModal = ({ 
-    tradeRoutes, 
-    nations, 
-    resources, 
-    market, 
-    taxPolicies, 
-    daysElapsed, 
+const TradeRoutesModal = ({
+    tradeRoutes,
+    nations,
+    resources,
+    market,
+    taxPolicies,
+    daysElapsed,
     epoch = 0,
-    onClose, 
+    onClose,
     onCancelRoute,
     onCreateRoute // New: allow creating routes from this modal
 }) => {
@@ -102,8 +102,8 @@ const TradeRoutesModal = ({
                 // Score for ranking: higher is better
                 // For export: we want high price diff AND they have shortage
                 profitScore: priceDiff > 0 ? priceDiff * Math.min(foreignShortage, 1000) : 0,
-                status: possibleVolume < 0.1 ? (mySurplus < 1 ? '我方无货' : '对方无需求') : 
-                        merchantMargin <= 0 ? '商人无利' : '可交易',
+                status: possibleVolume < 0.1 ? (mySurplus < 1 ? '我方无货' : '对方无需求') :
+                    merchantMargin <= 0 ? '商人无利' : '可交易',
                 statusClass: possibleVolume < 0.1 || merchantMargin <= 0 ? 'text-gray-500' : 'text-green-400'
             };
         } else {
@@ -140,7 +140,7 @@ const TradeRoutesModal = ({
     // Generate all possible trade opportunities
     const allOpportunities = useMemo(() => {
         const opportunities = [];
-        
+
         for (const nation of visibleNations) {
             for (const [resourceKey] of tradableResources) {
                 // Export opportunity
@@ -149,7 +149,7 @@ const TradeRoutesModal = ({
                 opportunities.push(calculateTradeOpportunity(nation, resourceKey, 'import'));
             }
         }
-        
+
         return opportunities;
     }, [visibleNations, tradableResources, market, resources, taxPolicies, daysElapsed, tradeRoutes]);
 
@@ -196,19 +196,17 @@ const TradeRoutesModal = ({
         return (
             <div
                 key={`${opp.nationId}-${opp.resource}-${opp.type}-${index}`}
-                className={`grid grid-cols-12 gap-1 sm:gap-2 items-center p-2 sm:p-3 rounded-lg ${
-                    opp.isActive ? 'bg-amber-900/30 border-amber-500/30' : 'bg-gray-800/40 border-white/5'
-                } hover:bg-gray-800/60 border hover:border-white/10 transition-colors text-xs sm:text-sm`}
+                className={`grid grid-cols-12 gap-1 sm:gap-2 items-center p-2 sm:p-3 rounded-lg ${opp.isActive ? 'bg-amber-900/30 border-amber-500/30' : 'bg-gray-800/40 border-white/5'
+                    } hover:bg-gray-800/60 border hover:border-white/10 transition-colors text-xs sm:text-sm`}
             >
                 {/* Rank */}
                 {showRank && (
                     <div className="col-span-1 text-center">
-                        <span className={`inline-flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 rounded text-[10px] sm:text-xs font-bold ${
-                            index === 0 ? 'bg-yellow-500/30 text-yellow-300' :
+                        <span className={`inline-flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 rounded text-[10px] sm:text-xs font-bold ${index === 0 ? 'bg-yellow-500/30 text-yellow-300' :
                             index === 1 ? 'bg-gray-400/30 text-gray-300' :
-                            index === 2 ? 'bg-amber-700/30 text-amber-400' :
-                            'bg-gray-700/30 text-gray-500'
-                        }`}>
+                                index === 2 ? 'bg-amber-700/30 text-amber-400' :
+                                    'bg-gray-700/30 text-gray-500'
+                            }`}>
                             {index + 1}
                         </span>
                     </div>
@@ -265,11 +263,10 @@ const TradeRoutesModal = ({
                     ) : onCreateRoute ? (
                         <button
                             onClick={() => onCreateRoute(opp.nationId, opp.resource, opp.type)}
-                            className={`p-1 sm:p-1.5 rounded ${
-                                isExport 
-                                    ? 'bg-green-500/10 hover:bg-green-500/20 text-green-400 border border-green-500/20' 
-                                    : 'bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20'
-                            } transition-colors`}
+                            className={`p-1 sm:p-1.5 rounded ${isExport
+                                ? 'bg-green-500/10 hover:bg-green-500/20 text-green-400 border border-green-500/20'
+                                : 'bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20'
+                                } transition-colors`}
                             title="创建路线"
                         >
                             <Icon name="Plus" size={12} />
@@ -286,13 +283,36 @@ const TradeRoutesModal = ({
         const opp = route.opportunity;
         if (!opp) {
             return (
-                <div key={index} className="p-3 bg-gray-800/40 rounded-lg text-gray-500 text-sm">
-                    无效路线（国家已不可用）
+                <div key={index} className="p-3 bg-gray-800/40 rounded-lg text-gray-500 text-sm flex items-center justify-between group">
+                    <span>无效路线（国家已不可用）</span>
+                    <button
+                        onClick={() => onCancelRoute(route.nationId, route.resource, route.type)}
+                        className="px-2 py-1 bg-red-600/20 hover:bg-red-600/40 text-red-400 rounded text-xs transition-colors flex items-center gap-1"
+                    >
+                        <Icon name="Trash" size={12} />
+                        <span className="opacity-0 group-hover:opacity-100 transition-opacity">清除</span>
+                    </button>
                 </div>
             );
         }
         return renderOpportunityRow(opp, index, false);
     };
+
+    // Auto-cleanup invalid routes when the modal is open
+    useEffect(() => {
+        const invalidRoutes = activeRoutes.filter(r => r.economics === null);
+        if (invalidRoutes.length > 0) {
+            // Clean up one by one to avoid state conflicts, rely on re-renders
+            const route = invalidRoutes[0];
+            if (onCancelRoute) {
+                // Use a small timeout to avoid render-cycle conflicts
+                const timer = setTimeout(() => {
+                    onCancelRoute(route.nationId, route.resource, route.type);
+                }, 0);
+                return () => clearTimeout(timer);
+            }
+        }
+    }, [activeRoutes, onCancelRoute]);
 
     return createPortal(
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4">
@@ -326,17 +346,15 @@ const TradeRoutesModal = ({
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
-                            className={`flex-1 flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-medium transition-all ${
-                                activeTab === tab.id
-                                    ? 'text-amber-300 border-b-2 border-amber-400 bg-amber-500/10'
-                                    : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
-                            }`}
+                            className={`flex-1 flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-medium transition-all ${activeTab === tab.id
+                                ? 'text-amber-300 border-b-2 border-amber-400 bg-amber-500/10'
+                                : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
+                                }`}
                         >
                             <Icon name={tab.icon} size={14} />
                             <span className="hidden xs:inline sm:inline">{tab.label}</span>
-                            <span className={`px-1 sm:px-1.5 py-0.5 rounded text-[10px] sm:text-xs ${
-                                activeTab === tab.id ? 'bg-amber-500/20 text-amber-200' : 'bg-gray-700 text-gray-400'
-                            }`}>
+                            <span className={`px-1 sm:px-1.5 py-0.5 rounded text-[10px] sm:text-xs ${activeTab === tab.id ? 'bg-amber-500/20 text-amber-200' : 'bg-gray-700 text-gray-400'
+                                }`}>
                                 {tab.count}
                             </span>
                         </button>

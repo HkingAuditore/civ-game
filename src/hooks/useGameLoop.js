@@ -78,15 +78,16 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
 
     // 只处理前 merchantCount 条贸易路线（有多少个商人在岗就让多少条贸易路线有用）
     routes.forEach((route, index) => {
-        // 如果超过商人数量，则跳过该贸易路线
-        if (index >= merchantCount) {
-            return;
-        }
         const { nationId, resource, type } = route;
         const nation = nations.find(n => n.id === nationId);
 
         if (!nation) {
             routesToRemove.push(route);
+            return;
+        }
+
+        // 如果超过商人数量，则跳过该贸易路线
+        if (index >= merchantCount) {
             return;
         }
 
@@ -769,6 +770,22 @@ export const useGameLoop = (gameState, addLog, actions) => {
             stability,
         };
     }, [resources, market, buildings, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, livingStandardStreaks, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability]);
+
+    // 监听国家列表变化，自动清理无效的贸易路线（修复暂停状态下无法清理的问题）
+    useEffect(() => {
+        if (!tradeRoutes?.routes?.length) return;
+        if (!nations) return;
+
+        const validNationIds = new Set(nations.map(n => n.id));
+        const validRoutes = tradeRoutes.routes.filter(r => validNationIds.has(r.nationId));
+
+        if (validRoutes.length !== tradeRoutes.routes.length) {
+            setTradeRoutes(prev => ({
+                ...prev,
+                routes: validRoutes
+            }));
+        }
+    }, [nations, tradeRoutes, setTradeRoutes]);
 
     // 游戏核心循环
     useEffect(() => {
