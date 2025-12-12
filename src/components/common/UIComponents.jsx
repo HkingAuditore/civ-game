@@ -10,10 +10,21 @@ import { getIcon } from '../../config/iconMap';
  * @param {number} size - 图标大小（默认16）
  * @param {string} className - 额外的CSS类名
  */
-export const Icon = ({ name, size = 16, className }) => {
-  const Component = getIcon(name);
-  if (!Component) return null;
-  return <Component size={size} className={className} />;
+export const Icon = ({ name, size = 16, className, imagePath, objectFit = 'contain' }) => {
+    if (imagePath) {
+        return (
+            <img
+                src={imagePath}
+                alt={name}
+                className={className}
+                style={{ width: size, height: size, objectFit: objectFit }}
+            />
+        );
+    }
+
+    const Component = getIcon(name);
+    if (!Component) return null;
+    return <Component size={size} className={className} />;
 };
 
 /**
@@ -26,17 +37,17 @@ export const Icon = ({ name, size = 16, className }) => {
  * @param {function} onComplete - 动画完成回调
  */
 export const FloatingText = ({ x, y, text, color, onComplete }) => {
-  useEffect(() => {
-    const timer = setTimeout(onComplete, 800);
-    return () => clearTimeout(timer);
-  }, [onComplete]);
+    useEffect(() => {
+        const timer = setTimeout(onComplete, 800);
+        return () => clearTimeout(timer);
+    }, [onComplete]);
 
-  return (
-    <div
-      className={`fixed pointer-events-none font-bold text-lg z-50 animate-float-up ${color}`}
-      style={{ left: x, top: y }}
-    >
-      {text}
-    </div>
-  );
+    return (
+        <div
+            className={`fixed pointer-events-none font-bold text-lg z-50 animate-float-up ${color}`}
+            style={{ left: x, top: y }}
+        >
+            {text}
+        </div>
+    );
 };
