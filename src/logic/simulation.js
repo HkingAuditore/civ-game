@@ -972,11 +972,28 @@ export const simulateTick = ({
     totalMaxPop = Math.floor(totalMaxPop);
 
     // 军人岗位包括：已有军队 + 等待人员的岗位 + 训练中的岗位
-    const waitingCount = (militaryQueue || []).filter(item => item.status === 'waiting').length;
-    const trainingCount = (militaryQueue || []).filter(item => item.status === 'training').length;
-    // 总岗位需求 = 现有军队 + 等待招募的 + 正在训练的
-    const soldierJobsNeeded = currentArmyCount + waitingCount + trainingCount;
-    console.log('[TICK] Adding soldier jobs. currentArmy:', currentArmyCount, 'waiting:', waitingCount, 'training:', trainingCount, 'total:', soldierJobsNeeded);
+    // 计算已有军队的人口需求
+    let currentArmyPopNeeded = 0;
+    Object.entries(army).forEach(([unitId, count]) => {
+        if (!count || count <= 0) return;
+        const unit = UNIT_TYPES[unitId];
+        const popCost = unit?.populationCost || 1;
+        currentArmyPopNeeded += count * popCost;
+    });
+
+    // 计算队列中的人口需求
+    const queuePopNeeded = (militaryQueue || []).reduce((sum, item) => {
+        if (item.status === 'waiting' || item.status === 'training') {
+            const unit = UNIT_TYPES[item.unitId];
+            const popCost = unit?.populationCost || 1;
+            return sum + popCost;
+        }
+        return sum;
+    }, 0);
+
+    // 总岗位需求 = 现有军队人口 + 队列所需人口
+    const soldierJobsNeeded = currentArmyPopNeeded + queuePopNeeded;
+    console.log('[TICK] Adding soldier jobs. currentArmyPop:', currentArmyPopNeeded, 'queuePop:', queuePopNeeded, 'total:', soldierJobsNeeded);
     if (soldierJobsNeeded > 0) {
         jobsAvailable.soldier = (jobsAvailable.soldier || 0) + soldierJobsNeeded;
     }
