@@ -27,7 +27,7 @@ export const BUILDINGS = [
         owner: 'peasant',
         epoch: 0,
         cat: 'gather',
-        visual: { icon: 'Wheat', color: 'bg-yellow-700', text: 'text-yellow-200' },
+        visual: { icon: 'Wheat', color: 'bg-yellow-700', text: 'text-yellow-200', imagePath: '/images/buildings/farm.png' },
         // 农田的差异化经济配置：农民工资和价格受生活成本、税收影响较小（基础生产，相对稳定）
         marketConfig: {
             price: {
@@ -52,7 +52,7 @@ export const BUILDINGS = [
         epoch: 0,
         cat: 'civic',
         requiresTech: 'barter',
-        visual: { icon: 'Handshake', color: 'bg-amber-800', text: 'text-amber-200' }
+        visual: { icon: 'Handshake', color: 'bg-amber-800', text: 'text-amber-200', imagePath: '/images/buildings/trading_post.png' }
     },
 
     {
@@ -66,7 +66,7 @@ export const BUILDINGS = [
         epoch: 3,
         cat: 'gather',
         requiresTech: 'feudalism',
-        visual: { icon: 'Castle', color: 'bg-amber-800', text: 'text-amber-200' }
+        visual: { icon: 'Castle', color: 'bg-amber-800', text: 'text-amber-200', imagePath: '/images/buildings/large_estate.png' }
     },
 
     {
@@ -80,7 +80,7 @@ export const BUILDINGS = [
         owner: 'lumberjack',
         epoch: 0,
         cat: 'gather',
-        visual: { icon: 'Trees', color: 'bg-emerald-800', text: 'text-emerald-200' },
+        visual: { icon: 'Trees', color: 'bg-emerald-800', text: 'text-emerald-200', imagePath: '/images/buildings/lumber_camp.png' },
         // Tier 1 基础采集建筑：极高稳定性配置
         marketConfig: {
             price: { livingCostWeight: 0.1, taxCostWeight: 0.15 },
@@ -99,7 +99,7 @@ export const BUILDINGS = [
         owner: 'miner',
         epoch: 0,
         cat: 'gather',
-        visual: { icon: 'Pickaxe', color: 'bg-stone-600', text: 'text-stone-200' },
+        visual: { icon: 'Pickaxe', color: 'bg-stone-600', text: 'text-stone-200', imagePath: '/images/buildings/quarry.png' },
         // Tier 1 基础采集建筑：极高稳定性配置
         marketConfig: {
             price: { livingCostWeight: 0.1, taxCostWeight: 0.15 },
@@ -119,7 +119,7 @@ export const BUILDINGS = [
         epoch: 1,
         cat: 'gather',
         requiresTech: 'copper_mining',
-        visual: { icon: 'Gem', color: 'bg-orange-700', text: 'text-orange-200' },
+        visual: { icon: 'Gem', color: 'bg-orange-700', text: 'text-orange-200', imagePath: '/images/buildings/copper_mine.png' },
         // Tier 2 工业加工建筑：标准平衡配置
         marketConfig: {
             price: { livingCostWeight: 0.2, taxCostWeight: 0.25 },
@@ -138,7 +138,7 @@ export const BUILDINGS = [
         epoch: 2,
         cat: 'gather',
         requiresTech: 'papyrus_cultivation',
-        visual: { icon: 'ScrollText', color: 'bg-lime-800', text: 'text-lime-200' },
+        visual: { icon: 'ScrollText', color: 'bg-lime-800', text: 'text-lime-200', imagePath: '/images/buildings/reed_works.png' },
         // Tier 1 基础生产建筑：高稳定性配置，防止纸张价格波动
         marketConfig: {
             price: { livingCostWeight: 0.1, taxCostWeight: 0.15 },
@@ -158,7 +158,7 @@ export const BUILDINGS = [
         epoch: 2,
         cat: 'industry',
         requiresTech: 'culinary_arts',
-        visual: { icon: 'UtensilsCrossed', color: 'bg-rose-800', text: 'text-rose-200' }
+        visual: { icon: 'UtensilsCrossed', color: 'bg-rose-800', text: 'text-rose-200', imagePath: '/images/buildings/culinary_kitchen.png' }
     },
 
     {
@@ -173,7 +173,7 @@ export const BUILDINGS = [
         epoch: 2,
         cat: 'industry',
         requiresTech: 'brewing',
-        visual: { icon: 'Wine', color: 'bg-purple-800', text: 'text-purple-200' },
+        visual: { icon: 'Wine', color: 'bg-purple-800', text: 'text-purple-200', imagePath: '/images/buildings/brewery.png' },
         // Tier 3 奢侈品建筑：高波动性、高敏感度配置
         marketConfig: {
             price: { livingCostWeight: 0.4, taxCostWeight: 0.5 },
@@ -193,7 +193,7 @@ export const BUILDINGS = [
         epoch: 2,
         cat: 'industry',
         requiresTech: 'carpentry',
-        visual: { icon: 'Armchair', color: 'bg-amber-800', text: 'text-amber-200' },
+        visual: { icon: 'Armchair', color: 'bg-amber-800', text: 'text-amber-200', imagePath: '/images/buildings/furniture_workshop.png' },
         // 家具工坊的差异化经济配置：奢侈品工艺，工资和价格受生活成本、税收影响更大
         marketConfig: {
             price: {
@@ -216,7 +216,7 @@ export const BUILDINGS = [
         owner: 'peasant',
         epoch: 0,
         cat: 'industry',
-        visual: { icon: 'Shirt', color: 'bg-indigo-800', text: 'text-indigo-200' }
+        visual: { icon: 'Shirt', color: 'bg-indigo-800', text: 'text-indigo-200', imagePath: '/images/buildings/loom_house.png' }
     },
     {
         id: 'dye_works',
@@ -229,7 +229,7 @@ export const BUILDINGS = [
         owner: 'artisan',
         epoch: 1,
         cat: 'industry',
-        visual: { icon: 'Paintbrush', color: 'bg-pink-800', text: 'text-pink-200' }
+        visual: { icon: 'Paintbrush', color: 'bg-pink-800', text: 'text-pink-200', imagePath: '/images/buildings/dye_works.png' },
     },
 
     {
@@ -244,7 +244,7 @@ export const BUILDINGS = [
         epoch: 2,
         cat: 'industry',
         requiresTech: 'tools',
-        visual: { icon: 'Package', color: 'bg-indigo-900', text: 'text-indigo-100' }
+        visual: { icon: 'Package', color: 'bg-indigo-900', text: 'text-indigo-100', imagePath: '/images/buildings/tailor_workshop.png' }
     },
 
     {
@@ -259,7 +259,7 @@ export const BUILDINGS = [
         epoch: 2,
         cat: 'gather',
         requiresTech: 'ironworking',
-        visual: { icon: 'Mountain', color: 'bg-zinc-700', text: 'text-zinc-200' },
+        visual: { icon: 'Mountain', color: 'bg-zinc-700', text: 'text-zinc-200', imagePath: '/images/buildings/mine.png' },
         // Tier 2 工业加工建筑：标准平衡配置
         marketConfig: {
             price: { livingCostWeight: 0.2, taxCostWeight: 0.25 },
@@ -278,7 +278,7 @@ export const BUILDINGS = [
         epoch: 5,
         cat: 'gather',
         requiresTech: 'coffee_agronomy',
-        visual: { icon: 'Coffee', color: 'bg-amber-900', text: 'text-amber-200' }
+        visual: { icon: 'Coffee', color: 'bg-amber-900', text: 'text-amber-200', imagePath: '/images/buildings/coffee_plantation.png' }
     },
 
     {
@@ -293,7 +293,7 @@ export const BUILDINGS = [
         epoch: 6,
         cat: 'gather',
         requiresTech: 'coal_gasification',
-        visual: { icon: 'Flame', color: 'bg-slate-700', text: 'text-slate-100' },
+        visual: { icon: 'Flame', color: 'bg-slate-700', text: 'text-slate-100', imagePath: '/images/buildings/coal_mine.png' },
         // Tier 2 工业能源建筑：标准平衡配置，移除tools消耗防止死锁
         marketConfig: {
             price: { livingCostWeight: 0.2, taxCostWeight: 0.25 },
@@ -310,7 +310,7 @@ export const BUILDINGS = [
         output: { maxPop: 4 },
         epoch: 0,
         cat: 'civic',
-        visual: { icon: 'Tent', color: 'bg-orange-800', text: 'text-orange-200' }
+        visual: { icon: 'Tent', color: 'bg-orange-800', text: 'text-orange-200', imagePath: '/images/buildings/hut.png' }
     },
 
     {
@@ -322,7 +322,7 @@ export const BUILDINGS = [
         epoch: 2,
         cat: 'civic',
         requiresTech: 'urban_planning',
-        visual: { icon: 'Home', color: 'bg-amber-700', text: 'text-amber-100' }
+        visual: { icon: 'Home', color: 'bg-amber-700', text: 'text-amber-100', imagePath: '/images/buildings/house.png' }
     },
 
     {
@@ -334,7 +334,7 @@ export const BUILDINGS = [
         epoch: 1,
         cat: 'civic',
         requiresTech: 'granary_architecture',
-        visual: { icon: 'Boxes', color: 'bg-yellow-900', text: 'text-yellow-200' }
+        visual: { icon: 'Boxes', color: 'bg-yellow-900', text: 'text-yellow-200', imagePath: '/images/buildings/granary.png' }
     },
 
     {
@@ -348,7 +348,7 @@ export const BUILDINGS = [
         epoch: 3,
         cat: 'civic',
         requiresTech: 'bureaucracy',
-        visual: { icon: 'Scale', color: 'bg-slate-800', text: 'text-slate-200' }
+        visual: { icon: 'Scale', color: 'bg-slate-800', text: 'text-slate-200', imagePath: '/images/buildings/town_hall.png' }
     },
 
     {
@@ -363,7 +363,7 @@ export const BUILDINGS = [
         epoch: 3,
         cat: 'civic',
         requiresTech: 'theology',
-        visual: { icon: 'Cross', color: 'bg-purple-900', text: 'text-purple-200' }
+        visual: { icon: 'Cross', color: 'bg-purple-900', text: 'text-purple-200', imagePath: '/images/buildings/church.png' }
     },
 
     {
