@@ -4,7 +4,7 @@
 import React, { useState, useMemo, useRef, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '../common/UIComponents';
-import { UNIT_TYPES, UNIT_CATEGORIES, BUILDINGS, calculateArmyMaintenance, calculateArmyFoodNeed, calculateBattlePower, RESOURCES, MILITARY_ACTIONS, TECHS, EPOCHS } from '../../config';
+import { UNIT_TYPES, UNIT_CATEGORIES, BUILDINGS, calculateArmyMaintenance, calculateArmyFoodNeed, calculateBattlePower, calculateArmyPopulation, RESOURCES, MILITARY_ACTIONS, TECHS, EPOCHS } from '../../config';
 import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
 import { filterUnlockedResources } from '../../utils/resources';
 
@@ -123,6 +123,10 @@ const UnitTooltip = ({ unit, resources, market, militaryWageRatio, anchorElement
                     </span>
                 </div>
                 <div className="flex justify-between text-xs">
+                    <span className="text-gray-400">人口占用</span>
+                    <span className="text-cyan-400">{unit.populationCost || 1} 人/单位</span>
+                </div>
+                <div className="flex justify-between text-xs">
                     <span className="text-gray-400">解锁时代</span>
                     <span className="text-white">{EPOCHS[unit.epoch]?.name || `时代${unit.epoch}`}</span>
                 </div>
@@ -198,6 +202,15 @@ export const MilitaryTab = ({
     const waitingCount = (militaryQueue || []).filter(item => item.status === 'waiting').length;
     const trainingCount = (militaryQueue || []).filter(item => item.status === 'training').length;
     const totalArmyCount = totalUnits + waitingCount + trainingCount;
+    
+    // 计算军队总人口占用
+    const totalArmyPopulation = calculateArmyPopulation(army);
+    // 计算训练队列中的人口占用
+    const queuePopulation = (militaryQueue || []).reduce((sum, item) => {
+        const unit = UNIT_TYPES[item.unitId];
+        return sum + (unit?.populationCost || 1);
+    }, 0);
+    const totalPopulationCost = totalArmyPopulation + queuePopulation;
 
     // 计算军事容量
     let militaryCapacity = 0;
@@ -306,6 +319,16 @@ export const MilitaryTab = ({
                             <span className="text-xs text-gray-400">总兵力</span>
                         </div>
                         <p className="text-lg font-bold text-white">{totalUnits}</p>
+                    </div>
+
+                    {/* 人口占用 */}
+                    <div className="bg-gray-700/50 p-3 rounded">
+                        <div className="flex items-center gap-2 mb-1">
+                            <Icon name="UserCheck" size={14} className="text-cyan-400" />
+                            <span className="text-xs text-gray-400">人口占用</span>
+                        </div>
+                        <p className="text-lg font-bold text-cyan-400">{totalPopulationCost}</p>
+                        <p className="text-[10px] text-gray-500">现役 {totalArmyPopulation} + 训练 {queuePopulation}</p>
                     </div>
 
                     {/* 军事容量 */}
@@ -476,6 +499,13 @@ export const MilitaryTab = ({
                                         <div className="bg-gray-900/40 rounded px-1.5 py-1 flex justify-between">
                                             <span className="text-gray-400">攻/防</span>
                                             <span className="text-white">{unit.attack}/{unit.defense}</span>
+                                        </div>
+                                        {/* 人口占用显示 */}
+                                        <div className="bg-gray-900/40 rounded px-1.5 py-1 flex justify-between">
+                                            <span className="text-gray-400">人口</span>
+                                            <span className={`${(unit.populationCost || 1) > 1 ? 'text-cyan-400' : 'text-white'}`}>
+                                                {unit.populationCost || 1} 人
+                                            </span>
                                         </div>
                                         {/* 维护费显示 */}
                                         <div className="bg-gray-900/40 rounded px-1.5 py-1">
