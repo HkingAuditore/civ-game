@@ -4742,15 +4742,22 @@ export const simulateTick = ({
         }, null);
 
     // 寻找收入显著更高的目标职业（必须有空缺，且必须是不同职业）
+    // 军人岗位特殊处理：允许平民转职成军人（当军饷高且有岗位空缺时），但军人不需要检查建筑空缺
     let targetCandidate = null;
     if (sourceCandidate) {
         targetCandidate = activeRoleMetrics
-            .filter(r =>
-                r.role !== sourceCandidate.role &&
-                r.vacancy > 0 &&
-                hasBuildingVacancyForRole(r.role) &&
-                r.potentialIncome > sourceCandidate.potentialIncome * 1.3
-            )
+            .filter(r => {
+                // 基本条件：不同职业且有空缺
+                if (r.role === sourceCandidate.role || r.vacancy <= 0) return false;
+                // 军人岗位特殊处理：不需要建筑空缺，但需要有岗位空缺（来自训练队列）
+                if (r.role === 'soldier') {
+                    // 军人岗位空缺来自训练队列的等待人员
+                    return r.potentialIncome > sourceCandidate.potentialIncome * 1.3;
+                }
+                // 其他职业需要有建筑空缺
+                return hasBuildingVacancyForRole(r.role) &&
+                    r.potentialIncome > sourceCandidate.potentialIncome * 1.3;
+            })
             .reduce((best, current) => {
                 if (!best) return current;
                 if (current.potentialIncome > best.potentialIncome) return current;
@@ -4772,12 +4779,18 @@ export const simulateTick = ({
             migrants = Math.min(migrants, targetCandidate.vacancy);
 
             if (migrants > 0) {
-                const placement = reserveBuildingVacancyForRole(targetCandidate.role, migrants);
-                if (!placement || placement.count <= 0) {
-                    migrants = 0;
+                // 军人岗位特殊处理：不需要预留建筑空缺
+                if (targetCandidate.role === 'soldier') {
+                    // 直接使用空缺数，placementInfo 留空
+                    placementInfo = { buildingId: null, buildingName: '军营', count: migrants };
                 } else {
-                    migrants = placement.count;
-                    placementInfo = placement;
+                    const placement = reserveBuildingVacancyForRole(targetCandidate.role, migrants);
+                    if (!placement || placement.count <= 0) {
+                        migrants = 0;
+                    } else {
+                        migrants = placement.count;
+                        placementInfo = placement;
+                    }
                 }
             }
 
@@ -4799,6 +4812,10 @@ export const simulateTick = ({
                 const sourceName = STRATA[sourceCandidate.role]?.name || sourceCandidate.role; const targetName = STRATA[targetCandidate.role]?.name || targetCandidate.role;
                 const incomeGain = ((targetCandidate.potentialIncome - sourceCandidate.potentialIncome) / Math.max(0.01, sourceCandidate.potentialIncome) * 100).toFixed(0);
                 const placementNote = placementInfo?.buildingName ? `（目标建筑：${placementInfo.buildingName}）` : '';
+                // 转职到军人时显示特殊日志
+                // if (targetCandidate.role === 'soldier') {
+                //     logs.push(`⚔️ ${migrants} 名 ${sourceName} 响应高薪号召入伍，加入军队训练`);
+                // }
                 //   logs.push(`💼 ${migrants} 名 ${sourceName} 转职为 ${targetName}${placementNote}（预期收益提升 ${incomeGain}%）`);
             }
         }
