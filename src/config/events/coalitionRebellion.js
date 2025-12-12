@@ -131,8 +131,11 @@ export function createCoalitionRebellionEvent(
         options.push({
             id: 'suppress',
             text: '调动军队镇压',
-            description: '出动忠诚的军队镇压叛乱，但敌众我寡，难度很大',
-            effects: {},
+            description: '出动忠诚军队强行镇压多阶层联合叛乱：成功时可重创叛军并压低组织度，失败则军队损失惨重、局势进一步恶化（稳定度-5，核心叛乱阶层支持度-10）',
+            effects: {
+                stability: -5,
+                approval: { [coalitionStrata[0]]: -10 },
+            },
             callback: () => callback('suppress', coalitionStrata[0]),
         });
     }
@@ -140,8 +143,10 @@ export function createCoalitionRebellionEvent(
     options.push({
         id: 'accept_war',
         text: '应战',
-        description: '承认联合叛军为敌对势力，进入全面战争状态',
-        effects: {},
+        description: '承认联合叛军为敌对势力，放弃短期内快速镇压，转为打一场长期的联合内战（稳定度-3）',
+        effects: {
+            stability: -3,
+        },
         callback: () => callback('accept_war', coalitionStrata[0], rebelNation),
     });
 
