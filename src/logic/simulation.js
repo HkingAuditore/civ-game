@@ -5,6 +5,7 @@ import { calculateForeignPrice } from '../utils/foreignTrade';
 import { simulateBattle, UNIT_TYPES } from '../config/militaryUnits';
 import { getEnemyUnitsForEpoch } from '../config/militaryActions';
 import { calculateLivingStandardData, getSimpleLivingStandard } from '../utils/livingStandard';
+import { calculateAIGiftAmount, calculateAIPeaceTribute, calculateAISurrenderDemand } from '../utils/diplomaticUtils';
 
 const ROLE_PRIORITY = [
     'official',
@@ -3054,15 +3055,12 @@ export const simulateTick = ({
             if ((next.warScore || 0) > 12 && canRequestPeace) {
                 const willingness = Math.min(0.5, 0.03 + (next.warScore || 0) / 120 + (next.warDuration || 0) / 400) + Math.min(0.15, (next.enemyLosses || 0) / 500);
                 if (Math.random() < willingness) {
-                    // 计算赔款金额，使用绝对值而不是财富百分比，避免晚期赔款溢出
+                    // 计算赔款金额，使用统一的计算函数
                     const warScore = next.warScore || 0;
                     const enemyLosses = next.enemyLosses || 0;
                     const warDuration = next.warDuration || 0;
-                    const baseTribute = Math.ceil(warScore * 35 + enemyLosses * 2.2 + warDuration * 4);
-                    const minTribute = 200;
-                    const hardCap = 8000 + Math.floor(warDuration * 8); // 根据战争时长略微提高上限
                     const availableWealth = Math.max(0, next.wealth || 0);
-                    const tribute = Math.min(Math.min(hardCap, availableWealth), Math.max(minTribute, baseTribute));
+                    const tribute = calculateAIPeaceTribute(warScore, enemyLosses, warDuration, availableWealth);
                     // 只记录日志，不直接处理和平，让事件系统处理
                     logs.push(`🤝 ${next.name} 请求和平，愿意支付 ${tribute} 银币作为赔款。`);
                     // 标记该国家正在请求和平，避免重复触发
@@ -3082,12 +3080,10 @@ export const simulateTick = ({
                 if (tick - lastDemandDay >= 60 && Math.random() < 0.03) { // 每天3%概率
                     next.lastSurrenderDemandDay = tick;
 
-                    // 根据优势程度选择要求类型
-                    // 使用与玩家求和时相同的计算公式，使金额一致
+                    // 根据优势程度选择要求类型，使用统一的计算函数
                     let demandType = 'tribute';
                     const warDuration = next.warDuration || 0;
-                    const baseDemand = Math.ceil(aiWarScore * 35 + warDuration * 6);
-                    let demandAmount = Math.max(150, baseDemand);
+                    let demandAmount = calculateAISurrenderDemand(aiWarScore, warDuration);
 
                     if (aiWarScore > 100) {
                         demandType = 'territory';
@@ -3498,8 +3494,8 @@ export const simulateTick = ({
         const target = potentialTargets[Math.floor(Math.random() * potentialTargets.length)];
         const currentRelation = nation.foreignRelations?.[target.id] ?? 50;
 
-        // AI送礼行为
-        const giftCost = Math.floor(50 + Math.random() * 100);
+        // AI送礼行为，使用统一的计算函数
+        const giftCost = calculateAIGiftAmount(wealth, target.wealth);
         if (wealth > giftCost * 3) { // 确保有足够的财富
             // 扣除财富
             nation.wealth = Math.max(0, (nation.wealth || 0) - giftCost);
@@ -3678,7 +3674,8 @@ export const simulateTick = ({
 
         const giftChance = 0.0002 + (playerRelation / 50000) + (wealth / 5000000); // 基础0.02%，最高约0.04%
         if (canGift && wealth > 800 && playerRelation >= 60 && aggression < 0.5 && Math.random() < giftChance) {
-            const giftAmount = Math.floor(20 + Math.random() * 40 + wealth * 0.001); // 基础20，随机0~40，财富加成0.05%
+            // 使用统一的计算函数
+            const giftAmount = calculateAIGiftAmount(wealth);
             // 扣除AI财富
             nation.wealth = Math.max(0, nation.wealth - giftAmount);
             // 记录送礼时间
@@ -4381,10 +4378,27 @@ export const simulateTick = ({
         const virtualDemandBaseline = virtualDemandPerPop * demandPopulation;
         const adjustedDemand = dem + virtualDemandBaseline;
 
+
         // 计算当前库存可以支撑多少天
         const dailyDemand = adjustedDemand;
         const inventoryStock = res[resource] || 0;
         const inventoryDays = dailyDemand > 0 ? inventoryStock / dailyDemand : inventoryTargetDays;
+
+        // DEBUG: 价格计算调试日志（每5个tick输出一次，避免刷屏）
+        if (tick % 5 === 0 && (resource === 'food' || resource === 'cloth' || resource === 'tools')) {
+            console.log(`[价格调试] ${RESOURCES[resource]?.name || resource}:`, {
+                tick,
+                inventoryStock: inventoryStock.toFixed(2),
+                demand: dem.toFixed(2),
+                virtualDemand: virtualDemandBaseline.toFixed(2),
+                dailyDemand: dailyDemand.toFixed(2),
+                inventoryDays: inventoryDays.toFixed(2),
+                inventoryTargetDays,
+                inventoryRatio: (inventoryDays / inventoryTargetDays).toFixed(3),
+                currentPrice: (priceMap[resource] || 0).toFixed(2),
+            });
+        }
+
 
         // 收集所有生产该资源的建筑及其出售价格
         const buildingPrices = [];
@@ -4542,17 +4556,15 @@ export const simulateTick = ({
             }
         }
 
-        // 平滑处理
-        const prevPrice = priceMap[resource] || marketPrice;
-        const smoothed = prevPrice + (marketPrice - prevPrice) * 0.1;
 
         // 战争物价上涨：计算与玩家直接交战的敌对国家数量
-        const playerNation = updatedNations.find(n => n.isPlayer);
+        // 注意：统计与玩家交战的AI国家（nation.isAtWar表示该AI与玩家交战）
         let warCount = 0;
-        if (playerNation && playerNation.foreignWars) {
-            // 只统计玩家正在交战的敌对国家数量
-            warCount = Object.values(playerNation.foreignWars).filter(war => war?.isAtWar).length;
-        }
+        updatedNations.forEach(n => {
+            if (n.isAtWar === true) {
+                warCount++;
+            }
+        });
         // AI国家之间的战争也会影响物价（国际局势紧张）
         let foreignWarCount = 0;
         updatedNations.forEach(n => {
@@ -4566,12 +4578,19 @@ export const simulateTick = ({
 
         // 战争物价系数：每场与玩家的战争增加2.5%物价，每场AI间战争增加1%物价
         const warPriceMultiplier = 1 + (warCount * 0.025) + (foreignWarCount * 0.01);
-        const warAdjustedPrice = smoothed * warPriceMultiplier;
+        
+        // 【修复】将战争乘数应用到目标价格（marketPrice），而非平滑后的价格
+        // 这样平滑处理会正确地向战争调整后的目标价格移动，避免价格卡在上限
+        const warAdjustedMarketPrice = marketPrice * warPriceMultiplier;
+
+        // 平滑处理：向战争调整后的目标价格平滑移动
+        const prevPrice = priceMap[resource] || warAdjustedMarketPrice;
+        const smoothed = prevPrice + (warAdjustedMarketPrice - prevPrice) * 0.1;
 
         // 应用价格限制
         const minPrice = resourceDef.minPrice ?? PRICE_FLOOR;
         const maxPrice = resourceDef.maxPrice;
-        let finalPrice = warAdjustedPrice;
+        let finalPrice = smoothed;
         finalPrice = Math.max(finalPrice, minPrice);
         if (maxPrice !== undefined) {
             finalPrice = Math.min(finalPrice, maxPrice);

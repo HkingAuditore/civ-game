@@ -8,6 +8,7 @@ import { calculateForeignPrice, calculateTradeStatus } from '../utils/foreignTra
 import { generateSound, SOUND_TYPES } from '../config/sounds';
 import { getEnemyUnitsForEpoch } from '../config/militaryActions';
 import { isResourceUnlocked } from '../utils/resources';
+import { calculateDynamicGiftCost } from '../utils/diplomaticUtils';
 // 叛乱系统
 import {
     processRebellionAction,
@@ -699,9 +700,11 @@ export const useGameActions = (gameState, addLog) => {
 
         switch (action) {
             case 'gift': {
-                const giftCost = payload.amount || 500;
+                // 动态计算送礼成本：基于双方财富的5%，范围100-500000
+                const dynamicGiftCost = calculateDynamicGiftCost(resources.silver || 0, targetNation.wealth || 0);
+                const giftCost = payload.amount || dynamicGiftCost;
                 if ((resources.silver || 0) < giftCost) {
-                    addLog('银币不足，无法赠送礼物。');
+                    addLog(`银币不足，无法赠送礼物。需要 ${giftCost} 银币。`);
                     return;
                 }
                 setResources(prev => ({ ...prev, silver: prev.silver - giftCost }));
@@ -710,7 +713,7 @@ export const useGameActions = (gameState, addLog) => {
                         ? { ...n, relation: clampRelation((n.relation || 0) + 10), wealth: (n.wealth || 0) + giftCost }
                         : n
                 ));
-                addLog(`你向 ${targetNation.name} 赠送了礼物，关系提升了。`);
+                addLog(`你向 ${targetNation.name} 赠送了价值 ${giftCost} 银币的礼物，关系提升了。`);
                 break;
             }
 

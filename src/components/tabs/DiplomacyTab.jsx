@@ -8,6 +8,7 @@ import { DeclareWarModal } from '../modals/DeclareWarModal';
 import TradeRoutesModal from '../modals/TradeRoutesModal';
 import { RESOURCES } from '../../config';
 import { calculateForeignPrice, calculateTradeStatus } from '../../utils/foreignTrade';
+import { calculateDynamicGiftCost } from '../../utils/diplomaticUtils';
 
 const relationInfo = (relation = 0, isAllied = false) => {
     // 如果是正式盟友，显示盟友标签
@@ -52,8 +53,7 @@ const formatStatValue = (value, unit = '') => {
     return `${Math.max(0, Math.floor(value))}${unit}`;
 };
 
-// Keep in sync with base gift cost defined in useGameActions handleDiplomaticAction
-const BASE_GIFT_COST = 500;
+// 动态送礼成本将在组件内根据双方财富计算
 
 const getPreferredResources = (nation) => {
     if (!nation?.economyTraits?.resourceBias) return [];
@@ -315,8 +315,8 @@ export const DiplomacyTab = ({
         return visibleNations.filter(n => {
             if (n.id === selectedNation.id) return false;
             // 检查目标国家的正式联盟
-            const isAllied = (selectedNation.allies || []).includes(n.id) || 
-                            (n.allies || []).includes(selectedNation.id);
+            const isAllied = (selectedNation.allies || []).includes(n.id) ||
+                (n.allies || []).includes(selectedNation.id);
             return isAllied;
         }).map(ally => ({
             ...ally,
@@ -615,17 +615,16 @@ export const DiplomacyTab = ({
                                         </button>
                                     ) : (
                                         <button
-                                            className={`flex-1 px-2 py-1.5 rounded text-white flex items-center justify-center gap-1 font-semibold font-body ${
-                                                (selectedNation?.relation || 0) >= 60 && !selectedNation?.isAtWar
-                                                    ? 'bg-emerald-600 hover:bg-emerald-500'
-                                                    : 'bg-gray-600 cursor-not-allowed'
-                                            }`}
+                                            className={`flex-1 px-2 py-1.5 rounded text-white flex items-center justify-center gap-1 font-semibold font-body ${(selectedNation?.relation || 0) >= 60 && !selectedNation?.isAtWar
+                                                ? 'bg-emerald-600 hover:bg-emerald-500'
+                                                : 'bg-gray-600 cursor-not-allowed'
+                                                }`}
                                             onClick={() => handleSimpleAction(selectedNation.id, 'propose_alliance')}
                                             disabled={(selectedNation?.relation || 0) < 60 || selectedNation?.isAtWar}
-                                            title={(selectedNation?.relation || 0) < 60 
-                                                ? `关系需达到60才能请求结盟（当前：${Math.round(selectedNation?.relation || 0)}）` 
-                                                : selectedNation?.isAtWar 
-                                                    ? '无法与交战国结盟' 
+                                            title={(selectedNation?.relation || 0) < 60
+                                                ? `关系需达到60才能请求结盟（当前：${Math.round(selectedNation?.relation || 0)}）`
+                                                : selectedNation?.isAtWar
+                                                    ? '无法与交战国结盟'
                                                     : '请求与该国建立正式同盟'}
                                         >
                                             <Icon name="Users" size={12} /> 请求结盟
@@ -636,7 +635,7 @@ export const DiplomacyTab = ({
                                 <div className="mt-1 text-[10px] text-gray-400 flex items-center justify-between font-epic">
                                     <span className="flex items-center gap-1">
                                         <Icon name="Coins" size={10} className="text-amber-300" />
-                                        礼物成本：{BASE_GIFT_COST} 银币 | 挑拨成本：300 银币
+                                        礼物成本：{calculateDynamicGiftCost(resources.silver || 0, selectedNation?.wealth || 0)} 银币 | 挑拨成本：300 银币
                                     </span>
                                 </div>
                                 {selectedPreferences.length > 0 && (
@@ -1009,8 +1008,8 @@ export const DiplomacyTab = ({
                             const nationRelation = relationInfo(nation.relation || 0, nation.alliedWithPlayer === true);
                             const foreignRelation = selectedNation?.foreignRelations?.[nation.id] ?? 50;
                             // Check if these two AI nations are formally allied
-                            const areAllied = (selectedNation?.allies || []).includes(nation.id) || 
-                                             (nation.allies || []).includes(selectedNation?.id);
+                            const areAllied = (selectedNation?.allies || []).includes(nation.id) ||
+                                (nation.allies || []).includes(selectedNation?.id);
                             const foreignRelationInfo = (() => {
                                 if (areAllied) return { label: '盟友', color: 'text-green-300' };
                                 if (foreignRelation >= 80) return { label: '亲密', color: 'text-emerald-300' };

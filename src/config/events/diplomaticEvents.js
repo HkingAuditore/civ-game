@@ -1,11 +1,10 @@
 // Diplomatic Events - Functions to create dynamic diplomatic events
 // These events are generated dynamically based on game state
 
+import { calculatePeacePayment, calculateInstallmentPlan, calculateAllyMaintenanceCost, INSTALLMENT_CONFIG } from '../../utils/diplomaticUtils';
+
 // 割地人口上限（战争求和时最多割让/获得的人口数）
 const MAX_TERRITORY_POPULATION = 2000;
-
-// 分期赔款总额相对一次性赔款的倍率（保证总额更高）
-const INSTALLMENT_TOTAL_MULTIPLIER = 3;
 
 // 开放市场持续时间（天数）
 const OPEN_MARKET_DURATION_YEARS = 3; // 3年
@@ -85,8 +84,8 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
     if (warScore > 450) {
         // 压倒性胜利：可以直接吞并敌国
         const highTribute = Math.floor(tribute * 2);
-        const highInstallmentTotal = Math.ceil(highTribute * INSTALLMENT_TOTAL_MULTIPLIER);
-        const installmentAmount = Math.ceil(highInstallmentTotal / 365);
+        const highInstallmentTotal = Math.ceil(highTribute * INSTALLMENT_CONFIG.TOTAL_MULTIPLIER);
+        const installmentAmount = Math.ceil(highInstallmentTotal / INSTALLMENT_CONFIG.DURATION_DAYS);
         const estimatedPopulation = nation.population || 1000;
         const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(10, Math.floor(estimatedPopulation * 0.08)));
         const annexPopulation = nation.population || 1000;
@@ -806,7 +805,8 @@ ${nation.name}的旗帜已经降下，取而代之的是你的王旗。这是一
  * @returns {Object} - 外交事件对象
  */
 export function createAllyColdEvent(nation, currentRelation, callback) {
-    const giftCost = Math.floor(200 + Math.random() * 300); // 200-500银币
+    // 使用动态成本计算：基于盟友财富的3%，范围80-300000
+    const giftCost = calculateAllyMaintenanceCost(nation.wealth || 500, nation.wealth || 500);
 
     return {
         id: `ally_cold_${nation.id}_${Date.now()}`,
