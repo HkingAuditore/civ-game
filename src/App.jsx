@@ -11,6 +11,7 @@ import {
 } from './components/common/UIComponents';
 import { BattleNotification } from './components/common/BattleNotification';
 import { EpicCard, DiamondDivider, AncientPattern } from './components/common/EpicDecorations';
+import { AnimatePresence, motion } from 'framer-motion';
 import { StatusBar } from './components/layout/StatusBar';
 import { BottomNav } from './components/layout/BottomNav';
 import { GameControls } from './components/layout/GameControls';
@@ -515,7 +516,7 @@ function GameApp({ gameState }) {
 
             {/* 顶部状态栏 - 史诗风格 */}
             <div className="fixed top-0 left-0 right-0 z-50">
-            <StatusBar
+                <StatusBar
                     gameState={gameState}
                     taxes={taxes}
                     netSilverPerDay={netSilverPerDay}
@@ -663,96 +664,106 @@ function GameApp({ gameState }) {
 
                             {/* 标签页内容 */}
                             <div className="p-3 sm:p-4 relative">
-                                {/* 建设标签页 */}
-                                {gameState.activeTab === 'build' && (
-                                    <BuildTab
-                                        buildings={gameState.buildings}
-                                        resources={gameState.resources}
-                                        epoch={gameState.epoch}
-                                        techsUnlocked={gameState.techsUnlocked}
-                                        popStructure={gameState.popStructure}
-                                        jobFill={gameState.jobFill}
-                                        onBuy={actions.buyBuilding}
-                                        onSell={actions.sellBuilding}
-                                        market={gameState.market}
-                                        onShowDetails={handleShowBuildingDetails} // 补上缺失的 onShowDetails 属性
-                                    />
-                                )}
+                                <AnimatePresence mode="wait">
+                                    <motion.div
+                                        key={gameState.activeTab}
+                                        initial={{ opacity: 0, y: 10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: -10 }}
+                                        transition={{ duration: 0.2 }}
+                                    >
+                                        {/* 建设标签页 */}
+                                        {gameState.activeTab === 'build' && (
+                                            <BuildTab
+                                                buildings={gameState.buildings}
+                                                resources={gameState.resources}
+                                                epoch={gameState.epoch}
+                                                techsUnlocked={gameState.techsUnlocked}
+                                                popStructure={gameState.popStructure}
+                                                jobFill={gameState.jobFill}
+                                                onBuy={actions.buyBuilding}
+                                                onSell={actions.sellBuilding}
+                                                market={gameState.market}
+                                                onShowDetails={handleShowBuildingDetails} // 补上缺失的 onShowDetails 属性
+                                            />
+                                        )}
 
-                                {/* 军事标签页 */}
-                                {gameState.activeTab === 'military' && (
-                                    <MilitaryTab
-                                        army={gameState.army}
-                                        militaryQueue={gameState.militaryQueue}
-                                        resources={gameState.resources}
-                                        epoch={gameState.epoch}
-                                        population={gameState.population}
-                                        buildings={gameState.buildings}
-                                        nations={gameState.nations}
-                                        selectedTarget={gameState.selectedTarget}
-                                        onRecruit={actions.recruitUnit}
-                                        onDisband={actions.disbandUnit}
-                                        onCancelTraining={actions.cancelTraining}
-                                        onSelectTarget={gameState.setSelectedTarget}
-                                        onLaunchBattle={actions.launchBattle}
-                                        market={gameState.market}
-                                        militaryWageRatio={gameState.militaryWageRatio}
-                                        onUpdateWageRatio={gameState.setMilitaryWageRatio}
-                                        techsUnlocked={gameState.techsUnlocked}
-                                        onShowUnitDetails={handleShowUnitDetails}
-                                    />
-                                )}
+                                        {/* 军事标签页 */}
+                                        {gameState.activeTab === 'military' && (
+                                            <MilitaryTab
+                                                army={gameState.army}
+                                                militaryQueue={gameState.militaryQueue}
+                                                resources={gameState.resources}
+                                                epoch={gameState.epoch}
+                                                population={gameState.population}
+                                                buildings={gameState.buildings}
+                                                nations={gameState.nations}
+                                                selectedTarget={gameState.selectedTarget}
+                                                onRecruit={actions.recruitUnit}
+                                                onDisband={actions.disbandUnit}
+                                                onCancelTraining={actions.cancelTraining}
+                                                onSelectTarget={gameState.setSelectedTarget}
+                                                onLaunchBattle={actions.launchBattle}
+                                                market={gameState.market}
+                                                militaryWageRatio={gameState.militaryWageRatio}
+                                                onUpdateWageRatio={gameState.setMilitaryWageRatio}
+                                                techsUnlocked={gameState.techsUnlocked}
+                                                onShowUnitDetails={handleShowUnitDetails}
+                                            />
+                                        )}
 
-                                {/* 科技标签页 */}
-                                {gameState.activeTab === 'tech' && (
-                                    <TechTab
-                                        techsUnlocked={gameState.techsUnlocked}
-                                        epoch={gameState.epoch}
-                                        resources={gameState.resources}
-                                        population={gameState.population}
-                                        onResearch={actions.researchTech}
-                                        onUpgradeEpoch={actions.upgradeEpoch}
-                                        canUpgradeEpoch={actions.canUpgradeEpoch}
-                                        market={gameState.market}
-                                        onShowTechDetails={handleShowTechDetails}
-                                    />
-                                )}
+                                        {/* 科技标签页 */}
+                                        {gameState.activeTab === 'tech' && (
+                                            <TechTab
+                                                techsUnlocked={gameState.techsUnlocked}
+                                                epoch={gameState.epoch}
+                                                resources={gameState.resources}
+                                                population={gameState.population}
+                                                onResearch={actions.researchTech}
+                                                onUpgradeEpoch={actions.upgradeEpoch}
+                                                canUpgradeEpoch={actions.canUpgradeEpoch}
+                                                market={gameState.market}
+                                                onShowTechDetails={handleShowTechDetails}
+                                            />
+                                        )}
 
-                                {/* 政令标签页 */}
-                                {gameState.activeTab === 'politics' && (
-                                    <PoliticsTab
-                                        decrees={gameState.decrees}
-                                        onToggle={actions.toggleDecree}
-                                        taxPolicies={gameState.taxPolicies}
-                                        onUpdateTaxPolicies={gameState.setTaxPolicies}
-                                        popStructure={gameState.popStructure}
-                                        buildings={gameState.buildings}
-                                        market={gameState.market}
-                                        epoch={gameState.epoch}
-                                        techsUnlocked={gameState.techsUnlocked}
-                                        onShowDecreeDetails={handleShowDecreeDetails}
-                                        jobFill={gameState.jobFill}
-                                        jobsAvailable={gameState.jobsAvailable}
-                                    />
-                                )}
+                                        {/* 政令标签页 */}
+                                        {gameState.activeTab === 'politics' && (
+                                            <PoliticsTab
+                                                decrees={gameState.decrees}
+                                                onToggle={actions.toggleDecree}
+                                                taxPolicies={gameState.taxPolicies}
+                                                onUpdateTaxPolicies={gameState.setTaxPolicies}
+                                                popStructure={gameState.popStructure}
+                                                buildings={gameState.buildings}
+                                                market={gameState.market}
+                                                epoch={gameState.epoch}
+                                                techsUnlocked={gameState.techsUnlocked}
+                                                onShowDecreeDetails={handleShowDecreeDetails}
+                                                jobFill={gameState.jobFill}
+                                                jobsAvailable={gameState.jobsAvailable}
+                                            />
+                                        )}
 
-                                {/* 外交标签页 */}
-                                {gameState.activeTab === 'diplo' && (
-                                    <DiplomacyTab
-                                        nations={gameState.nations}
-                                        epoch={gameState.epoch}
-                                        market={gameState.market}
-                                        resources={gameState.resources}
-                                        daysElapsed={gameState.daysElapsed}
-                                        onDiplomaticAction={actions.handleDiplomaticAction}
-                                        tradeRoutes={gameState.tradeRoutes}
-                                        onTradeRouteAction={actions.handleTradeRouteAction}
-                                        playerInstallmentPayment={gameState.playerInstallmentPayment}
-                                        jobsAvailable={gameState.jobsAvailable}
-                                        popStructure={gameState.popStructure}
-                                        taxPolicies={gameState.taxPolicies}
-                                    />
-                                )}
+                                        {/* 外交标签页 */}
+                                        {gameState.activeTab === 'diplo' && (
+                                            <DiplomacyTab
+                                                nations={gameState.nations}
+                                                epoch={gameState.epoch}
+                                                market={gameState.market}
+                                                resources={gameState.resources}
+                                                daysElapsed={gameState.daysElapsed}
+                                                onDiplomaticAction={actions.handleDiplomaticAction}
+                                                tradeRoutes={gameState.tradeRoutes}
+                                                onTradeRouteAction={actions.handleTradeRouteAction}
+                                                playerInstallmentPayment={gameState.playerInstallmentPayment}
+                                                jobsAvailable={gameState.jobsAvailable}
+                                                popStructure={gameState.popStructure}
+                                                taxPolicies={gameState.taxPolicies}
+                                            />
+                                        )}
+                                    </motion.div>
+                                </AnimatePresence>
                             </div>
                         </div>
                     </section>

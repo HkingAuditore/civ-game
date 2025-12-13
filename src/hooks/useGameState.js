@@ -22,7 +22,7 @@ const INITIAL_RESOURCES = {
   coffee: 0,
   coal: 0,
   steel: 0,
-  silver: 200, 
+  silver: 400, 
   science: 0, 
   culture: 300
 };

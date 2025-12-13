@@ -1823,6 +1823,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     if (log.includes('AI_REQUEST_EVENT:')) {
                         return '🗣️ 收到一份来自外国的外交请求';
                     }
+                    // 过滤掉 AI_TRADE_EVENT 的原始 JSON，后续会通过 addLog 添加格式化日志
+                    if (log.includes('AI_TRADE_EVENT:')) {
+                        return null;
+                    }
 
                     return log;
                 });

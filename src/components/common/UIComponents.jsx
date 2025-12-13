@@ -2,6 +2,7 @@
 // 包含图标组件和浮动文本组件
 
 import React, { useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { getIcon } from '../../config/iconMap';
 
 /**
@@ -11,9 +12,9 @@ import { getIcon } from '../../config/iconMap';
  * @param {string} className - 额外的CSS类名
  */
 export const Icon = ({ name, size = 16, className }) => {
-  const Component = getIcon(name);
-  if (!Component) return null;
-  return <Component size={size} className={className} />;
+    const Component = getIcon(name);
+    if (!Component) return null;
+    return <Component size={size} className={className} />;
 };
 
 /**
@@ -26,17 +27,17 @@ export const Icon = ({ name, size = 16, className }) => {
  * @param {function} onComplete - 动画完成回调
  */
 export const FloatingText = ({ x, y, text, color, onComplete }) => {
-  useEffect(() => {
-    const timer = setTimeout(onComplete, 800);
-    return () => clearTimeout(timer);
-  }, [onComplete]);
-
-  return (
-    <div
-      className={`fixed pointer-events-none font-bold text-lg z-50 animate-float-up ${color}`}
-      style={{ left: x, top: y }}
-    >
-      {text}
-    </div>
-  );
+    return (
+        <motion.div
+            className={`fixed pointer-events-none font-bold text-lg z-50 ${color}`}
+            style={{ left: x, top: y }}
+            initial={{ opacity: 0, y: 0, scale: 0.5 }}
+            animate={{ opacity: 1, y: -50, scale: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.8, ease: "easeOut" }}
+            onAnimationComplete={onComplete}
+        >
+            {text}
+        </motion.div>
+    );
 };

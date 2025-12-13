@@ -6,3 +6,4 @@ export { useGameLoop } from './useGameLoop';
 export { useGameActions } from './useGameActions';
 export { useSound } from './useSound';
 export { useEpicTheme, useEpochClasses, getEpochStyles } from './useEpicTheme';
+export { useNumberAnimation } from './useNumberAnimation';
