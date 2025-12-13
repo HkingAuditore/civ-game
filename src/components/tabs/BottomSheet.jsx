@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Icon } from '../common/UIComponents';
 
 /**
@@ -14,84 +15,87 @@ import { Icon } from '../common/UIComponents';
  * @param {boolean} [preventEscapeClose=false] - 是否禁止按下 Escape 关闭
  */
 export const BottomSheet = ({
-  isOpen,
-  onClose,
-  children,
-  title,
-  showHeader = true,
-  preventBackdropClose = false,
-  showCloseButton = true,
-  preventEscapeClose = false
+    isOpen,
+    onClose,
+    children,
+    title,
+    showHeader = true,
+    preventBackdropClose = false,
+    showCloseButton = true,
+    preventEscapeClose = false
 }) => {
-  const [isAnimatingOut, setIsAnimatingOut] = useState(false);
+    useEffect(() => {
+        if (preventEscapeClose) return undefined;
 
-  useEffect(() => {
-    if (preventEscapeClose) return undefined;
+        const handleEscape = (e) => {
+            if (e.key === 'Escape') {
+                onClose();
+            }
+        };
+        document.addEventListener('keydown', handleEscape);
+        return () => document.removeEventListener('keydown', handleEscape);
+    }, [preventEscapeClose, onClose]);
 
-    const handleEscape = (e) => {
-      if (e.key === 'Escape') {
-        handleClose();
-      }
-    };
-    document.addEventListener('keydown', handleEscape);
-    return () => document.removeEventListener('keydown', handleEscape);
-  }, [preventEscapeClose]);
+    // Framer Motion handles rendering via AnimatePresence, so we always render the Portal if implementation allows,
+    // but since we want the portal to exist only when open (or animating), 
+    // AnimatePresence works best when the direct child is conditional.
+    // However, createPortal returns a React Node. We can wrap the content INSIDE the portal.
 
-  const handleClose = () => {
-    setIsAnimatingOut(true);
-    setTimeout(() => {
-      onClose();
-      setIsAnimatingOut(false);
-    }, 300); // 动画时长
-  };
+    return createPortal(
+        <AnimatePresence>
+            {isOpen && (
+                <div
+                    className="fixed inset-0 z-50 flex items-end justify-center lg:items-center"
+                    role="dialog"
+                    aria-modal="true"
+                >
+                    {/* 遮罩层 */}
+                    <motion.div
+                        className="absolute inset-0 bg-black/60"
+                        onClick={preventBackdropClose ? undefined : onClose}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.3 }}
+                    />
 
-  if (!isOpen) return null;
-
-  const animationClass = isAnimatingOut ? 'animate-sheet-out' : 'animate-sheet-in';
-
-  return createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center lg:items-center"
-      role="dialog"
-      aria-modal="true"
-    >
-      {/* 遮罩层 */}
-      <div
-        className="absolute inset-0 bg-black/60 animate-fade-in"
-        onClick={preventBackdropClose ? undefined : handleClose}
-      ></div>
-
-      {/* 内容面板 */}
-      <div
-        className={`relative w-full max-w-2xl glass-epic border-t-2 lg:border-2 border-ancient-gold/30 rounded-t-2xl lg:rounded-2xl shadow-metal-xl flex flex-col max-h-[85vh] ${animationClass} lg:animate-slide-up`}
-      >
-        {showHeader ? (
-          <>
-            <div className="flex-shrink-0 p-4 border-b border-theme-border flex items-center justify-between">
-<h3 className="text-lg font-bold text-white font-decorative">{title}</h3>
-              {showCloseButton && (
-                <button onClick={handleClose} className="p-2 rounded-full hover:bg-gray-700">
-                  <Icon name="X" size={20} className="text-gray-400" />
-                </button>
-              )}
-            </div>
-            <div className="flex-1 p-4 overflow-y-auto">{children}</div>
-          </>
-        ) : (
-          <div className="relative flex-1 p-4 overflow-y-auto">
-            {showCloseButton && (
-              <button
-                onClick={handleClose}
-                className="absolute top-3 right-3 z-10 p-2 rounded-full bg-gray-900/50 hover:bg-gray-700/80 transition-colors"
-              >
-                <Icon name="X" size={20} className="text-gray-400" />
-              </button>
+                    {/* 内容面板 */}
+                    <motion.div
+                        className="relative w-full max-w-2xl glass-epic border-t-2 lg:border-2 border-ancient-gold/30 rounded-t-2xl lg:rounded-2xl shadow-metal-xl flex flex-col max-h-[85vh]"
+                        initial={{ y: "100%", opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        exit={{ y: "100%", opacity: 0 }}
+                        transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                    >
+                        {showHeader ? (
+                            <>
+                                <div className="flex-shrink-0 p-4 border-b border-theme-border flex items-center justify-between">
+                                    <h3 className="text-lg font-bold text-white font-decorative">{title}</h3>
+                                    {showCloseButton && (
+                                        <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-700">
+                                            <Icon name="X" size={20} className="text-gray-400" />
+                                        </button>
+                                    )}
+                                </div>
+                                <div className="flex-1 p-4 overflow-y-auto">{children}</div>
+                            </>
+                        ) : (
+                            <div className="relative flex-1 p-4 overflow-y-auto">
+                                {showCloseButton && (
+                                    <button
+                                        onClick={onClose}
+                                        className="absolute top-3 right-3 z-10 p-2 rounded-full bg-gray-900/50 hover:bg-gray-700/80 transition-colors"
+                                    >
+                                        <Icon name="X" size={20} className="text-gray-400" />
+                                    </button>
+                                )}
+                                {children}
+                            </div>
+                        )}
+                    </motion.div>
+                </div>
             )}
-            {children}
-          </div>
-        )}
-      </div>
-    </div>,
-    document.body
-  );
+        </AnimatePresence>,
+        document.body
+    );
 };

@@ -3288,8 +3288,8 @@ export const simulateTick = ({
             const templateFactor = templateWealth / 800;
             next.economyTraits = {
                 ...(next.economyTraits || {}),
-                ownBasePopulation: Math.max(5, Math.round(8 * templateFactor * (0.8 + Math.random() * 0.4))),
-                ownBaseWealth: Math.max(200, Math.round(500 * templateFactor * (0.8 + Math.random() * 0.4))),
+                ownBasePopulation: Math.max(5, Math.round(16 * templateFactor * (0.8 + Math.random() * 0.4))),
+                ownBaseWealth: Math.max(500, Math.round(1000 * templateFactor * (0.8 + Math.random() * 0.4))),
                 developmentRate: 0.8 + (next.aggression || 0.3) * 0.3 + Math.random() * 0.4, // 发展速度因子
                 lastGrowthTick: tick,
             };
@@ -3307,9 +3307,9 @@ export const simulateTick = ({
             const growthChance = 0.3 * developmentRate; // 基础30%概率增长
             if (Math.random() < growthChance && !next.isAtWar) {
                 // 人口自然增长 1-3
-                next.economyTraits.ownBasePopulation = Math.round(ownBasePopulation * (1.02 + Math.random() * 0.03));
+                next.economyTraits.ownBasePopulation = Math.round(ownBasePopulation * (1.03 + Math.random() * 0.05));
                 // 财富自然增长 2-5%
-                next.economyTraits.ownBaseWealth = Math.round(ownBaseWealth * (1.02 + Math.random() * 0.05));
+                next.economyTraits.ownBaseWealth = Math.round(ownBaseWealth * (1.04 + Math.random() * 0.08));
             }
             next.economyTraits.lastGrowthTick = tick;
         }

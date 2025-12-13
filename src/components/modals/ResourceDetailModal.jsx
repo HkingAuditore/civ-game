@@ -3,6 +3,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Icon } from '../common/UIComponents';
 import { SimpleLineChart } from '../common/SimpleLineChart';
 import { RESOURCES, STRATA, BUILDINGS, UNIT_TYPES, INDUSTRY_CHAINS } from '../../config';
@@ -446,7 +447,7 @@ const DynamicChainView = ({ resourceKey, buildings = {} }) => {
     );
 };
 
-export const ResourceDetailModal = ({
+const ResourceDetailContent = ({
     resourceKey,
     resources = {},
     market,
@@ -461,7 +462,7 @@ export const ResourceDetailModal = ({
     activeDebuffs = [],
 }) => {
     const [activeTab, setActiveTab] = useState(TAB_OPTIONS[0].id);
-    const [isAnimatingOut, setIsAnimatingOut] = useState(false);
+    // Removed isAnimatingOut as framer-motion handles it
     const resourceDef = RESOURCES[resourceKey];
     const isSilver = resourceKey === 'silver';
 
@@ -782,16 +783,12 @@ export const ResourceDetailModal = ({
         };
     }, [resourceDef, resourceKey, popStructure, buildings, army, market, wealth]);
 
-    if (!resourceKey || !resourceDef) return null;
+    // Removed early return and animationClass
+    // Wrapper ensures resourceKey exists
 
     const handleClose = () => {
-        setIsAnimatingOut(true);
-        setTimeout(() => {
-            onClose();
-        }, 300);
+        onClose();
     };
-
-    const animationClass = isAnimatingOut ? 'animate-sheet-out' : 'animate-sheet-in';
 
     const treasuryHistory = history?.treasury || [];
     const taxHistory = history?.tax || [];
@@ -815,13 +812,26 @@ export const ResourceDetailModal = ({
     const latestDemand = demandHistoryData[demandHistoryData.length - 1] ?? marketDemand;
     const activeTabMeta = TAB_OPTIONS.find(tab => tab.id === activeTab);
 
-    return createPortal(
+    return (
         <div className="fixed inset-0 z-[100] flex items-end justify-center lg:items-center">
             {/* 遮罩层 */}
-            <div className="absolute inset-0 bg-black/70 animate-fade-in" onClick={handleClose}></div>
+            <motion.div
+                className="absolute inset-0 bg-black/70"
+                onClick={handleClose}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.3 }}
+            />
 
             {/* 内容面板 */}
-            <div className={`relative w-full max-w-4xl glass-epic border-t-2 lg:border-2 border-ancient-gold/30 rounded-t-2xl lg:rounded-2xl shadow-metal-xl flex flex-col max-h-[92vh] ${animationClass} lg:animate-slide-up`}>
+            <motion.div
+                className="relative w-full max-w-6xl glass-epic border-t-2 lg:border-2 border-ancient-gold/30 rounded-t-2xl lg:rounded-2xl shadow-metal-xl flex flex-col max-h-[95vh] overflow-hidden"
+                initial={{ y: "100%", opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: "100%", opacity: 0 }}
+                transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            >
                 {/* 头部 */}
                 <div className="flex-shrink-0 p-2 lg:p-3 border-b border-gray-700 bg-gradient-to-r from-gray-900 to-gray-800">
                     <div className="flex items-center gap-2">
@@ -1411,8 +1421,18 @@ export const ResourceDetailModal = ({
                         </div>
                     )}
                 </div>
-            </div>
-        </div>,
+            </motion.div>
+        </div>
+    );
+};
+
+export const ResourceDetailModal = (props) => {
+    return createPortal(
+        <AnimatePresence>
+            {(props.resourceKey && RESOURCES[props.resourceKey]) && (
+                <ResourceDetailContent {...props} key="content" />
+            )}
+        </AnimatePresence>,
         document.body
     );
 };

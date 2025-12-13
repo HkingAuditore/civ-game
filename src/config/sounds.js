@@ -14,20 +14,29 @@ const AudioContextClass = typeof window !== 'undefined'
 /**
  * 生成简单的音效
  */
-export const generateSound = (type) => {
-  // 如果浏览器不支持 AudioContext，返回一个空函数
-  if (!AudioContextClass) {
-    console.warn('AudioContext 不可用，音效功能已禁用');
-    return () => {};
-  }
 
-  let audioContext;
-  try {
-    audioContext = new AudioContextClass();
-  } catch (e) {
-    console.warn('无法创建 AudioContext:', e.message);
-    return () => {};
+let audioContextInstance = null;
+
+const getAudioContext = () => {
+    if (!AudioContextClass) return null;
+    if (!audioContextInstance) {
+        audioContextInstance = new AudioContextClass();
+    }
+    if (audioContextInstance.state === 'suspended') {
+        audioContextInstance.resume().catch(() => {});
+    }
+    return audioContextInstance;
+};
+
+/**
+ * 生成简单的音效
+ */
+export const generateSound = (type) => {
+  const audioContext = getAudioContext();
+  if (!audioContext) {
+      return () => {};
   }
+  
   const sounds = {
     // UI音效
     click: () => {
