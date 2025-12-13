@@ -298,12 +298,12 @@ const syncArmyWithSoldierPopulation = (armyState = {}, queueState = [], availabl
     const trainingTolerance = 3;
     const effectiveAvailableForTraining = available + trainingTolerance;
 
-    console.log('[TRAINING SYNC] trainingPop:', trainingPopulation, 'available:', available,
-        'tolerance:', trainingTolerance, 'effectiveAvailable:', effectiveAvailableForTraining);
+    // console.log('[TRAINING SYNC] trainingPop:', trainingPopulation, 'available:', available,
+    //     'tolerance:', trainingTolerance, 'effectiveAvailable:', effectiveAvailableForTraining); // Commented for performance
 
     if (trainingPopulation > effectiveAvailableForTraining) {
         let manpowerToFree = trainingPopulation - effectiveAvailableForTraining;
-        console.log('[TRAINING SYNC] INTERRUPTING! manpowerToFree:', manpowerToFree);
+        // console.log('[TRAINING SYNC] INTERRUPTING! manpowerToFree:', manpowerToFree); // Commented for performance
         const sortedTraining = trainingEntries.sort(
             (a, b) => (b.remainingTime || 0) - (a.remainingTime || 0)
         );
@@ -352,13 +352,13 @@ const syncArmyWithSoldierPopulation = (armyState = {}, queueState = [], availabl
     const effectiveAvailableForArmy = availableForArmy + toleranceForNewGraduates;
 
     // Debug logging for army population sync
-    console.log('[ARMY SYNC] available:', available, 'trainingPop:', trainingPopulation,
-        'availableForArmy:', availableForArmy, 'tolerance:', toleranceForNewGraduates,
-        'effectiveAvailable:', effectiveAvailableForArmy, 'currentArmyPop:', currentArmyPopulation);
+    // console.log('[ARMY SYNC] available:', available, 'trainingPop:', trainingPopulation,
+    //     'availableForArmy:', availableForArmy, 'tolerance:', toleranceForNewGraduates,
+    //     'effectiveAvailable:', effectiveAvailableForArmy, 'currentArmyPop:', currentArmyPopulation); // Commented for performance
 
     if (currentArmyPopulation > effectiveAvailableForArmy) {
         let manpowerToRemove = currentArmyPopulation - effectiveAvailableForArmy;
-        console.log('[ARMY SYNC] DISBANDING! manpowerToRemove:', manpowerToRemove);
+        // console.log('[ARMY SYNC] DISBANDING! manpowerToRemove:', manpowerToRemove); // Commented for performance
         updatedArmy = { ...safeArmy };
         removedUnits = {};
 
@@ -2521,7 +2521,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 const occupiedJobs = currentArmyCount + trainingCount;
                 const availableJobsForNewTraining = Math.max(0, currentSoldierPop - occupiedJobs);
 
-                console.log('[TRAINING QUEUE] currentSoldierPop:', currentSoldierPop, 'currentArmyCount:', currentArmyCount, 'waitingCount:', waitingCount, 'trainingCount:', trainingCount, 'occupiedJobs:', occupiedJobs, 'availableJobsForNewTraining:', availableJobsForNewTraining);
+                // console.log('[TRAINING QUEUE] currentSoldierPop:', currentSoldierPop, 'currentArmyCount:', currentArmyCount, 'waitingCount:', waitingCount, 'trainingCount:', trainingCount, 'occupiedJobs:', occupiedJobs, 'availableJobsForNewTraining:', availableJobsForNewTraining); // Commented for performance
 
                 // 将等待中的项转为训练中（如果有可用岗位）
                 let jobsToFill = availableJobsForNewTraining;

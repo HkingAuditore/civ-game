@@ -23,9 +23,11 @@ export default function EmpireScene({
     const HORIZON_Y = 85;
 
     useEffect(() => {
+        // Performance optimization: reduced update frequency from 50ms to 150ms
+        // Step size increased proportionally (0.002 * 3 = 0.006) to maintain same animation speed
         const dayInterval = setInterval(() => {
-            setDayProgress(prev => (prev + 0.002) % 1);
-        }, 50);
+            setDayProgress(prev => (prev + 0.006) % 1);
+        }, 150);
 
         const weatherInterval = setInterval(() => {
             setWeatherRandom(Math.random());

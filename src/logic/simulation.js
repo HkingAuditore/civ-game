@@ -608,7 +608,7 @@ export const simulateTick = ({
     eventBuildingProductionModifiers = {}, // { buildingIdOrCat: percentModifier }
     livingStandardStreaks = {},
 }) => {
-    console.log('[TICK START]', tick);
+    // console.log('[TICK START]', tick); // Commented for performance
     const res = { ...resources };
     const priceMap = { ...(market?.prices || {}) };
     const policies = taxPolicies || {};
@@ -915,7 +915,7 @@ export const simulateTick = ({
         });
     };
 
-    console.log('[TICK] Processing buildings...');
+    // console.log('[TICK] Processing buildings...'); // Commented for performance
     BUILDINGS.forEach(b => {
         const count = builds[b.id] || 0;
         if (count > 0) {
@@ -946,7 +946,7 @@ export const simulateTick = ({
             }
         }
     });
-    console.log('[TICK] Buildings processed. militaryCapacity:', militaryCapacity);
+    // console.log('[TICK] Buildings processed. militaryCapacity:', militaryCapacity); // Commented for performance
 
     // Calculate potential resources: resources from buildings that are unlocked (can be built)
     const potentialResources = new Set();
@@ -993,14 +993,14 @@ export const simulateTick = ({
 
     // 总岗位需求 = 现有军队人口 + 队列所需人口
     const soldierJobsNeeded = currentArmyPopNeeded + queuePopNeeded;
-    console.log('[TICK] Adding soldier jobs. currentArmyPop:', currentArmyPopNeeded, 'queuePop:', queuePopNeeded, 'total:', soldierJobsNeeded);
+    // console.log('[TICK] Adding soldier jobs. currentArmyPop:', currentArmyPopNeeded, 'queuePop:', queuePopNeeded, 'total:', soldierJobsNeeded); // Commented for performance
     if (soldierJobsNeeded > 0) {
         jobsAvailable.soldier = (jobsAvailable.soldier || 0) + soldierJobsNeeded;
     }
-    console.log('[TICK] Soldier jobs added. jobsAvailable.soldier:', jobsAvailable.soldier);
+    // console.log('[TICK] Soldier jobs added. jobsAvailable.soldier:', jobsAvailable.soldier); // Commented for performance
 
     // 职业持久化：基于上一帧状态进行增减，而非每帧重置
-    console.log('[TICK] Starting population allocation...');
+    // console.log('[TICK] Starting population allocation...'); // Commented for performance
     const hasPreviousPopStructure = previousPopStructure && Object.keys(previousPopStructure).length > 0;
     const popStructure = {};
 
@@ -1139,13 +1139,13 @@ export const simulateTick = ({
         return wage - Math.max(0, taxCost);
     };
 
-    console.log('[vacancy debug] diff =', diff, ', unemployed =', popStructure.unemployed || 0);
+    // console.log('[vacancy debug] diff =', diff, ', unemployed =', popStructure.unemployed || 0); // Commented for performance
     const vacancyRanking = ROLE_PRIORITY.map((role, index) => {
         const slots = Math.max(0, jobsAvailable[role] || 0);
         const current = popStructure[role] || 0;
         const vacancy = Math.max(0, slots - current);
         if (role === 'soldier') {
-            console.log('[SOLDIER VACANCY] slots:', slots, 'current:', current, 'vacancy:', vacancy);
+            // console.log('[SOLDIER VACANCY] slots:', slots, 'current:', current, 'vacancy:', vacancy); // Commented for performance
         }
         if (vacancy <= 0) return null;
         return {
@@ -1161,7 +1161,7 @@ export const simulateTick = ({
             return a.priorityIndex - b.priorityIndex;
         });
 
-    console.log('[VACANCY RANKING]', vacancyRanking.map(v => `${v.role}:${v.vacancy}`).join(', '));
+    // console.log('[VACANCY RANKING]', vacancyRanking.map(v => `${v.role}:${v.vacancy}`).join(', ')); // Commented for performance
 
     vacancyRanking.forEach(entry => {
         const availableUnemployed = popStructure.unemployed || 0;
@@ -1178,7 +1178,7 @@ export const simulateTick = ({
         popStructure.unemployed = Math.max(0, availableUnemployed - hiring);
 
         if (entry.role === 'soldier') {
-            console.log('[SOLDIER HIRING] hired:', hiring, 'new soldier count:', popStructure[entry.role]);
+            // console.log('[SOLDIER HIRING] hired:', hiring, 'new soldier count:', popStructure[entry.role]); // Commented for performance
         }
 
         if (perCapWealth > 0) {
@@ -1255,7 +1255,7 @@ export const simulateTick = ({
 
     const forcedLabor = decrees.some(d => d.id === 'forced_labor' && d.active);
 
-    console.log('[TICK] Starting production loop...');
+    // console.log('[TICK] Starting production loop...'); // Commented for performance
     BUILDINGS.forEach(b => {
         const count = builds[b.id] || 0;
         if (count === 0) return;
@@ -1808,12 +1808,12 @@ export const simulateTick = ({
         }
     }
 
-    console.log('[TICK] Production loop completed.');
+    // console.log('[TICK] Production loop completed.'); // Commented for performance
 
     // Add all tracked income (civilian + military) to the wealth of each class
     applyRoleIncomeToWealth();
 
-    console.log('[TICK] Starting needs calculation...');
+    // console.log('[TICK] Starting needs calculation...'); // Commented for performance
     const needsReport = {};
     const classShortages = {};
     // 收集各阶层的财富乘数（用于UI显示"谁吃到了buff"）
@@ -4261,7 +4261,7 @@ export const simulateTick = ({
     res.silver = (res.silver || 0) + totalFiscalIncome;
     rates.silver = (rates.silver || 0) + totalFiscalIncome;
 
-    console.log('[TICK] Starting price and wage updates...');
+    // console.log('[TICK] Starting price and wage updates...'); // Commented for performance
     const updatedPrices = { ...priceMap };
     const updatedWages = {};
     const wageSmoothing = 0.35;
@@ -4871,7 +4871,7 @@ export const simulateTick = ({
         },
     };
 
-    console.log('[TICK END]', tick, 'militaryCapacity:', militaryCapacity);
+    // console.log('[TICK END]', tick, 'militaryCapacity:', militaryCapacity); // Commented for performance
     return {
         resources: res,
         rates,
