@@ -1179,6 +1179,97 @@ console.log('  cheat.listEvents(category)      - List all events (category: base
   // Display welcome message
   console.log('%c🎮 Cheat Codes Enabled!', 'color: #00ff00; font-size: 18px; font-weight: bold;');
   console.log('%cType window.cheat.help() or cheat.help() to see all available commands', 'color: #ffff00; font-size: 14px;');
+  console.log('%cOr type cheats directly in game: addall, unlockalltech, godmode, etc.', 'color: #00ffff; font-size: 12px;');
   
+  // ========== Keyboard Cheat Code Detection ==========
+  // Allows typing cheat codes directly in the game without opening the console
+  
+  // Map of keyboard cheat codes to their handlers
+  const KEYBOARD_CHEATS = {
+    'addall': () => window.cheat.addAll(1000),
+    'addmoney': () => window.cheat.addSilver(10000),
+    'addsilver': () => window.cheat.addSilver(10000),
+    'addfood': () => window.cheat.addFood(1000),
+    'addwood': () => window.cheat.addWood(1000),
+    'addstone': () => window.cheat.addStone(1000),
+    'addiron': () => window.cheat.addIron(1000),
+    'unlockalltech': () => window.cheat.unlockAllTech(),
+    'unlocktech': () => window.cheat.unlockAllTech(),
+    'godmode': () => window.cheat.godMode(),
+    'superarmy': () => window.cheat.superArmy(),
+    'invincible': () => window.cheat.invincibleArmy(),
+    'maxstability': () => window.cheat.maxStability(),
+    'maxapproval': () => window.cheat.maxApproval(),
+    'richemp': () => window.cheat.richEmpire(),
+    'richempire': () => window.cheat.richEmpire(),
+    'maxbuild': () => window.cheat.maxBuildings(),
+    'maxbuildings': () => window.cheat.maxBuildings(),
+    'addpop': () => window.cheat.addPopulation(1000),
+    'addpopulation': () => window.cheat.addPopulation(1000),
+    'nextepoch': () => window.cheat.nextEpoch(),
+    'skipyear': () => window.cheat.skipYear(),
+    'peaceall': () => window.cheat.makePeaceAll(),
+    'peace': () => window.cheat.makePeaceAll(),
+  };
+
+  // Buffer to store recently typed characters
+  let cheatBuffer = '';
+  let lastKeyTime = 0;
+  const BUFFER_TIMEOUT = 2000; // Reset buffer after 2 seconds of inactivity
+  const MAX_BUFFER_LENGTH = 20; // Maximum buffer length to prevent memory issues
+
+  // Keyboard event handler
+  const handleKeyDown = (event) => {
+    // Ignore if typing in an input field, textarea, or contenteditable
+    const target = event.target;
+    if (
+      target.tagName === 'INPUT' ||
+      target.tagName === 'TEXTAREA' ||
+      target.isContentEditable
+    ) {
+      return;
+    }
+
+    // Only process alphanumeric keys
+    const key = event.key.toLowerCase();
+    if (!/^[a-z0-9]$/.test(key)) {
+      return;
+    }
+
+    const now = Date.now();
+    
+    // Reset buffer if too much time has passed
+    if (now - lastKeyTime > BUFFER_TIMEOUT) {
+      cheatBuffer = '';
+    }
+    lastKeyTime = now;
+
+    // Add key to buffer
+    cheatBuffer += key;
+
+    // Limit buffer size
+    if (cheatBuffer.length > MAX_BUFFER_LENGTH) {
+      cheatBuffer = cheatBuffer.slice(-MAX_BUFFER_LENGTH);
+    }
+
+    // Check if buffer ends with any known cheat code
+    for (const [code, handler] of Object.entries(KEYBOARD_CHEATS)) {
+      if (cheatBuffer.endsWith(code)) {
+        console.log(`%c🎮 Cheat activated: ${code}`, 'color: #00ff00; font-weight: bold;');
+        handler();
+        cheatBuffer = ''; // Reset buffer after successful cheat
+        break;
+      }
+    }
+  };
+
+  // Add the event listener
+  document.addEventListener('keydown', handleKeyDown);
+
+  // Store cleanup function on window for potential manual cleanup
+  window._cheatCodeCleanup = () => {
+    document.removeEventListener('keydown', handleKeyDown);
+  };
+
 //   addLog('🎮 作弊码系统已启用！在控制台输入 cheat.help() 查看帮助');
 };

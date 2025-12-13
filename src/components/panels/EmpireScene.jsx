@@ -10,7 +10,8 @@ export default function EmpireScene({
     population = 0,
     stability = 100,
     wealth = 0,
-    epoch = 0
+    epoch = 0,
+    builds = {}
 }) {
     const [dayProgress, setDayProgress] = useState(0);
     const [weatherRandom, setWeatherRandom] = useState(0.5);
@@ -195,7 +196,117 @@ export default function EmpireScene({
         return styles[epoch] || styles[0];
     }, [epoch]);
 
-    // 4. 房屋布局
+    // 4. 特殊建筑可视化 - 根据实际建造的建筑生成
+    const specialBuildings = useMemo(() => {
+        const buildingVisuals = [];
+        if (!builds || typeof builds !== 'object') return buildingVisuals;
+
+        const buildIds = Object.keys(builds).filter(id => builds[id] > 0);
+
+        // 建筑区域定义：背景(88-94)、中景(95-104)、前景(105-115)
+        // X坐标更均匀分布，避免堆叠
+        const visualDefs = {
+            // 背景建筑 (Y: 88-94) - 矿山、堡垒等放在远处山脚
+            quarry: { type: 'quarry', color: '#78909c', zone: 'back', baseY: 88 },
+            copper_mine: { type: 'mine', color: '#cd7f32', zone: 'back', baseY: 90 },
+            mine: { type: 'mine', color: '#5d4037', zone: 'back', baseY: 91 },
+            coal_mine: { type: 'mine', color: '#37474f', zone: 'back', baseY: 89 },
+            fortress: { type: 'barracks', color: '#7f0000', zone: 'back', baseY: 92 },
+            church: { type: 'temple', color: '#9c27b0', zone: 'back', baseY: 90 },
+            town_hall: { type: 'temple', color: '#5d4037', zone: 'back', baseY: 91 },
+            steel_foundry: { type: 'forge', color: '#424242', zone: 'back', baseY: 93 },
+
+            // 中景建筑 (Y: 95-104) - 工业区、主要建筑
+            lumber_camp: { type: 'workshop', color: '#6d4c41', zone: 'mid', baseY: 96 },
+            sawmill: { type: 'workshop', color: '#8d6e63', zone: 'mid', baseY: 97 },
+            brickworks: { type: 'furnace', color: '#d84315', zone: 'mid', baseY: 98 },
+            bronze_foundry: { type: 'forge', color: '#cd7f32', zone: 'mid', baseY: 97 },
+            iron_tool_workshop: { type: 'workshop', color: '#5d4037', zone: 'mid', baseY: 99 },
+            factory: { type: 'furnace', color: '#616161', zone: 'mid', baseY: 96 },
+            steel_works: { type: 'furnace', color: '#37474f', zone: 'mid', baseY: 98 },
+            granary: { type: 'granary', color: '#ffc107', zone: 'mid', baseY: 97 },
+            library: { type: 'university', color: '#1976d2', zone: 'mid', baseY: 98 },
+            amphitheater: { type: 'theater', color: '#7b1fa2', zone: 'mid', baseY: 99 },
+            barracks: { type: 'barracks', color: '#b71c1c', zone: 'mid', baseY: 98 },
+            training_ground: { type: 'barracks', color: '#c62828', zone: 'mid', baseY: 100 },
+            printing_house: { type: 'university', color: '#455a64', zone: 'mid', baseY: 99 },
+            navigator_school: { type: 'university', color: '#0288d1', zone: 'mid', baseY: 100 },
+            rail_depot: { type: 'furnace', color: '#5d4037', zone: 'mid', baseY: 101 },
+
+            // 前景建筑 (Y: 105-120) - 农田、小作坊、住宅
+            farm: { type: 'farm', color: '#8bc34a', zone: 'front', baseY: 108 },
+            large_estate: { type: 'farm', color: '#7cb342', zone: 'front', baseY: 106 },
+            coffee_plantation: { type: 'farm', color: '#4e342e', zone: 'front', baseY: 112 },
+            trading_post: { type: 'market', color: '#8d6e63', zone: 'front', baseY: 107 },
+            market: { type: 'market', color: '#ff9800', zone: 'front', baseY: 105 },
+            lumber_mill: { type: 'furnace', color: '#795548', zone: 'front', baseY: 106 },
+            stone_tool_workshop: { type: 'workshop', color: '#9e9e9e', zone: 'front', baseY: 108 },
+            brewery: { type: 'workshop', color: '#6d4c41', zone: 'front', baseY: 107 },
+            loom_house: { type: 'house', color: '#9575cd', zone: 'front', baseY: 110 },
+            textile_mill: { type: 'furnace', color: '#7986cb', zone: 'front', baseY: 109 },
+            tailor_workshop: { type: 'workshop', color: '#ab47bc', zone: 'front', baseY: 111 },
+            dye_works: { type: 'workshop', color: '#7b1fa2', zone: 'front', baseY: 108 },
+            furniture_workshop: { type: 'workshop', color: '#8d6e63', zone: 'front', baseY: 110 },
+            hut: { type: 'house', color: '#a1887f', zone: 'front', baseY: 115 },
+            house: { type: 'house', color: '#d7ccc8', zone: 'front', baseY: 112 },
+            coffee_house: { type: 'workshop', color: '#4e342e', zone: 'front', baseY: 106 },
+            dockyard: { type: 'workshop', color: '#455a64', zone: 'front', baseY: 118 },
+            trade_port: { type: 'market', color: '#0277bd', zone: 'front', baseY: 116 },
+        };
+
+        // X位置分配：横跨整个场景宽度
+        const zoneXRanges = {
+            back: { min: 5, max: 195 },    // 背景也横跨全宽
+            mid: { min: 5, max: 195 },     // 中景横跨全宽
+            front: { min: 5, max: 195 },   // 前景横跨全宽
+        };
+
+        let backIdx = 0, midIdx = 0, frontIdx = 0;
+
+        for (const id of buildIds) {
+            const count = Math.min(builds[id], 3); // 最多显示3个同类建筑
+            const def = visualDefs[id];
+            if (!def) continue;
+
+            for (let i = 0; i < count; i++) {
+                const zone = def.zone;
+                const range = zoneXRanges[zone];
+                let idx;
+
+                if (zone === 'back') {
+                    idx = backIdx++;
+                } else if (zone === 'mid') {
+                    idx = midIdx++;
+                } else {
+                    idx = frontIdx++;
+                }
+
+                // 使用索引直接计算X位置，确保均匀分布
+                // 每个建筑间隔约15-20像素
+                const spacing = 18;
+                const xBase = (idx * spacing + i * 7) % 190;
+                const x = 5 + xBase;
+
+                // Y坐标根据区域分层，添加较大偏移使垂直分布更明显
+                const yVariation = (Math.sin(idx * 3.7 + i * 2.1) * 4);
+                const y = def.baseY + yVariation;
+
+                buildingVisuals.push({
+                    id: `${id}-${i}`,
+                    type: def.type,
+                    color: def.color,
+                    x: x,
+                    y: y,
+                    zone: zone
+                });
+            }
+        }
+
+        // 按Y坐标排序，Y大的在后面渲染（在前景，覆盖远处的）
+        return buildingVisuals.sort((a, b) => a.y - b.y);
+    }, [builds]);
+
+    // 5. 房屋布局 - 基于人口
     const houses = useMemo(() => {
         const count = Math.min(Math.floor(population / 5), 15);
         const arr = Array.from({ length: count }).map((_, i) => {
@@ -271,6 +382,34 @@ export default function EmpireScene({
         }
         return items.sort((a, b) => a.y - b.y);
     }, [season, seasonConfig]);
+
+    // 7. 统一场景元素 - 合并所有可渲染元素并按Y排序
+    const allSceneElements = useMemo(() => {
+        const elements = [];
+
+        // 添加特殊建筑
+        specialBuildings.forEach(b => {
+            elements.push({ ...b, elementType: 'specialBuilding' });
+        });
+
+        // 添加房屋
+        houses.forEach(h => {
+            elements.push({ ...h, elementType: 'house', y: h.y });
+        });
+
+        // 添加植被 (树和灌木，草不参与排序)
+        vegetation.filter(v => v.type !== 'grass').forEach(v => {
+            elements.push({ ...v, elementType: 'vegetation' });
+        });
+
+        // 添加行人
+        pedestrians.forEach(p => {
+            elements.push({ ...p, elementType: 'pedestrian' });
+        });
+
+        // 按Y坐标排序，Y小的先渲染（在后面），Y大的后渲染（在前面覆盖）
+        return elements.sort((a, b) => a.y - b.y);
+    }, [specialBuildings, houses, vegetation, pedestrians]);
 
     const rainChance = (100 - stability) / 100 * 0.8;
     const isRaining = weatherRandom < rainChance;
@@ -652,6 +791,131 @@ export default function EmpireScene({
                             </g>
                         )}
                     </g>
+
+                    {/* 特殊建筑渲染 - 根据实际建造的建筑 */}
+                    <g id="special-buildings" filter={`url(#dropShadow-${uid})`}>
+                        {specialBuildings.map((b) => (
+                            <g key={b.id} transform={`translate(${b.x}, ${b.y})`}>
+                                {/* 农田 */}
+                                {b.type === 'farm' && (
+                                    <g>
+                                        <rect x="-8" y="-2" width="16" height="8" fill="#8d6e63" opacity="0.5" />
+                                        <line x1="-6" y1="0" x2="6" y2="0" stroke="#558b2f" strokeWidth="0.5" />
+                                        <line x1="-6" y1="2" x2="6" y2="2" stroke="#558b2f" strokeWidth="0.5" />
+                                        <line x1="-6" y1="4" x2="6" y2="4" stroke="#558b2f" strokeWidth="0.5" />
+                                    </g>
+                                )}
+                                {/* 采石场/矿井 */}
+                                {b.type === 'quarry' && (
+                                    <g>
+                                        <path d="M-6,5 L-4,-3 L4,-3 L6,5 Z" fill={b.color} />
+                                        <ellipse cx="0" cy="0" rx="3" ry="2" fill="#1a1a1a" />
+                                    </g>
+                                )}
+                                {b.type === 'mine' && (
+                                    <g>
+                                        <path d="M-5,5 L-3,-2 L3,-2 L5,5 Z" fill={b.color} />
+                                        <rect x="-2" y="-2" width="4" height="4" fill="#1a1a1a" />
+                                        <rect x="-3" y="-4" width="6" height="2" fill="#5d4037" />
+                                    </g>
+                                )}
+                                {/* 工坊 */}
+                                {b.type === 'workshop' && (
+                                    <g>
+                                        <rect x="-5" y="-6" width="10" height="8" fill={b.color} />
+                                        <path d="M-6,-6 L0,-10 L6,-6 Z" fill="#5d4037" />
+                                        <rect x="-2" y="-3" width="4" height="5" fill="#3e2723" />
+                                    </g>
+                                )}
+                                {/* 熔炉 */}
+                                {b.type === 'forge' && (
+                                    <g>
+                                        <rect x="-5" y="-5" width="10" height="7" fill="#424242" />
+                                        <rect x="-3" y="-8" width="2" height="6" fill="#5d4037" />
+                                        <circle cx="-2" cy="-10" r="2" fill="#ff5722" opacity="0.6" className="shimmer-effect" />
+                                        <rect x="-2" y="-2" width="4" height="4" fill="#ff9800" opacity="0.8" />
+                                    </g>
+                                )}
+                                {b.type === 'furnace' && (
+                                    <g>
+                                        <rect x="-6" y="-4" width="12" height="6" fill="#37474f" />
+                                        <rect x="-4" y="-7" width="3" height="5" fill="#5d4037" />
+                                        <circle cx="-2.5" cy="-9" r="2" fill="#888" opacity="0.5" className="smoke-particle" />
+                                        <rect x="-3" y="-1" width="6" height="3" fill="#ff5722" opacity="0.7" />
+                                    </g>
+                                )}
+                                {/* 粮仓 */}
+                                {b.type === 'granary' && (
+                                    <g>
+                                        <ellipse cx="0" cy="0" rx="5" ry="3" fill="#ffc107" />
+                                        <ellipse cx="0" cy="-4" rx="3" ry="2" fill="#ffb300" />
+                                        <path d="M-5,0 L-5,4 L5,4 L5,0 Z" fill="#ff8f00" />
+                                    </g>
+                                )}
+                                {/* 市场 */}
+                                {b.type === 'market' && (
+                                    <g>
+                                        <rect x="-8" y="-3" width="16" height="5" fill="#8d6e63" opacity="0.6" />
+                                        <path d="M-8,-3 L0,-7 L8,-3 Z" fill="#ff9800" />
+                                        <rect x="-6" y="-1" width="3" height="3" fill="#795548" />
+                                        <rect x="3" y="-1" width="3" height="3" fill="#6d4c41" />
+                                    </g>
+                                )}
+                                {/* 神殿 */}
+                                {b.type === 'temple' && (
+                                    <g>
+                                        <rect x="-6" y="0" width="12" height="2" fill="#f5f5dc" />
+                                        <rect x="-5" y="-6" width="10" height="6" fill="#fffaf0" />
+                                        <path d="M-6,-6 L0,-10 L6,-6 Z" fill="#9c27b0" />
+                                        <rect x="-4" y="-5" width="1" height="5" fill="#deb887" />
+                                        <rect x="3" y="-5" width="1" height="5" fill="#deb887" />
+                                    </g>
+                                )}
+                                {/* 剧场 */}
+                                {b.type === 'theater' && (
+                                    <g>
+                                        <path d="M-8,2 Q0,-4 8,2 Z" fill="#7b1fa2" />
+                                        <ellipse cx="0" cy="2" rx="8" ry="3" fill="#9c27b0" opacity="0.7" />
+                                    </g>
+                                )}
+                                {/* 大学 */}
+                                {b.type === 'university' && (
+                                    <g>
+                                        <rect x="-7" y="-5" width="14" height="7" fill="#1976d2" />
+                                        <path d="M-8,-5 L0,-9 L8,-5 Z" fill="#0d47a1" />
+                                        <rect x="-5" y="-3" width="2" height="3" fill="#87ceeb" opacity="0.7" />
+                                        <rect x="3" y="-3" width="2" height="3" fill="#87ceeb" opacity="0.7" />
+                                    </g>
+                                )}
+                                {/* 兵营 */}
+                                {b.type === 'barracks' && (
+                                    <g>
+                                        <rect x="-7" y="-4" width="14" height="6" fill="#b71c1c" />
+                                        <path d="M-8,-4 L0,-8 L8,-4 Z" fill="#7f0000" />
+                                        <rect x="-3" y="-2" width="6" height="4" fill="#5d4037" />
+                                        <line x1="-9" y1="-2" x2="-9" y2="4" stroke="#5d4037" strokeWidth="1" />
+                                        <path d="M-11,-2 L-9,-4 L-7,-2 Z" fill="#f44336" />
+                                    </g>
+                                )}
+                                {/* 军械库 */}
+                                {b.type === 'armory' && (
+                                    <g>
+                                        <rect x="-5" y="-4" width="10" height="6" fill="#424242" />
+                                        <path d="M-6,-4 L0,-7 L6,-4 Z" fill="#212121" />
+                                        <rect x="-2" y="-2" width="4" height="4" fill="#1a1a1a" />
+                                    </g>
+                                )}
+                                {/* 普通房屋 */}
+                                {b.type === 'house' && (
+                                    <g>
+                                        <rect x="-4" y="-4" width="8" height="6" fill={b.color} />
+                                        <path d="M-5,-4 L0,-7 L5,-4 Z" fill="#5d4037" />
+                                        <rect x="-1" y="-2" width="2" height="4" fill="#3e2723" />
+                                    </g>
+                                )}
+                            </g>
+                        ))}
+                    </g>
                     <g id="era-landmark" filter={`url(#dropShadow-${uid})`}>
                         {epochStyle.landmark === 'cave' && (
                             <g transform="translate(170, 78)">
@@ -784,129 +1048,270 @@ export default function EmpireScene({
                         </g>
                     )}
 
-                    {vegetation.map((v) => (
-                        <g key={`veg-${v.id}`} transform={`translate(${v.x}, ${v.y})`}>
-                            <g transform={`scale(${v.scale * v.flip}, ${v.scale})`}>
-                                {v.type === 'grass' && (
-                                    <g className="grass-sway" style={{ animationDuration: `${1.5 + v.variant}s` }}>
-                                        <path d="M0,0 Q-1,-4 0,-5 M2,0 Q1,-3 2,-4 M-2,0 Q-3,-3 -2,-4" stroke={seasonConfig.grass} strokeWidth="0.5" fill="none" opacity="0.8" />
-                                    </g>
-                                )}
-                                {v.type === 'bush' && (
-                                    <g className="tree-sway" style={{ animationDuration: `${3 + v.variant}s` }}>
-                                        <ellipse cx="0" cy="0" rx="4" ry="1.5" fill="#000" opacity="0.2" />
-                                        <circle cx="-2" cy="-2" r="2.5" fill={seasonConfig.bush} />
-                                        <circle cx="2" cy="-2" r="2.5" fill={seasonConfig.bush} />
-                                        <circle cx="0" cy="-3.5" r="3" fill={seasonConfig.bush} />
-                                        <circle cx="-1" cy="-3" r="1" fill="#fff" opacity="0.1" />
-                                    </g>
-                                )}
-                                {v.type === 'tree' && (
-                                    <g className="tree-sway" style={{ animationDuration: `${4 + v.variant}s` }}>
-                                        <ellipse cx="0" cy="0.5" rx="5" ry="1.5" fill="#000" opacity="0.2" />
-                                        <path d="M-1,0 L-0.8,-8 L0.8,-8 L1,0 Z" fill={seasonConfig.treeTrunk} />
-                                        {season === '冬季' ? (
-                                            <g transform="translate(0, -8)" stroke={seasonConfig.treeTrunk} strokeWidth="0.5">
-                                                <line x1="0" y1="0" x2="-3" y2="-4" />
-                                                <line x1="0" y1="0" x2="3" y2="-4" />
-                                                <line x1="0" y1="-2" x2="-2" y2="-5" />
-                                                <line x1="0" y1="-2" x2="2" y2="-5" />
-                                                <path d="M-3,-4 Q0,-5 3,-4" stroke="#fff" strokeWidth="0.8" opacity="0.8" fill="none" />
+                    {/* 统一场景元素渲染 - Y排序确保正确遮挡 */}
+                    {allSceneElements.map((el) => {
+                        // 根据元素类型渲染对应的视觉
+                        if (el.elementType === 'vegetation') {
+                            const v = el;
+                            return (
+                                <g key={`veg-${v.id}`} transform={`translate(${v.x}, ${v.y})`}>
+                                    <g transform={`scale(${v.scale * v.flip}, ${v.scale})`}>
+                                        {v.type === 'bush' && (
+                                            <g className="tree-sway" style={{ animationDuration: `${3 + v.variant}s` }}>
+                                                <ellipse cx="0" cy="0" rx="4" ry="1.5" fill="#000" opacity="0.2" />
+                                                <circle cx="-2" cy="-2" r="2.5" fill={seasonConfig.bush} />
+                                                <circle cx="2" cy="-2" r="2.5" fill={seasonConfig.bush} />
+                                                <circle cx="0" cy="-3.5" r="3" fill={seasonConfig.bush} />
+                                                <circle cx="-1" cy="-3" r="1" fill="#fff" opacity="0.1" />
                                             </g>
-                                        ) : (
-                                            <g transform="translate(0, -9)">
-                                                {(() => {
-                                                    const leafColor = Array.isArray(seasonConfig.treeLeaf) ? seasonConfig.treeLeaf[v.colorIdx] : seasonConfig.treeLeaf;
-                                                    return (
-                                                        <>
-                                                            <circle cx="-2.5" cy="1" r="3.5" fill={leafColor} />
-                                                            <circle cx="2.5" cy="1" r="3.5" fill={leafColor} />
-                                                            <circle cx="0" cy="-2" r="4" fill={leafColor} />
-                                                            <circle cx="-1.5" cy="-2.5" r="1.5" fill="#fff" opacity="0.1" />
-                                                            {seasonConfig.flower && v.variant > 0.6 && (
-                                                                <g fill={seasonConfig.flower}>
-                                                                    <circle cx="-2" cy="-1" r="0.8" />
-                                                                    <circle cx="2" cy="0" r="0.6" />
-                                                                    <circle cx="0" cy="-3" r="0.7" />
-                                                                </g>
-                                                            )}
-                                                        </>
-                                                    );
-                                                })()}
+                                        )}
+                                        {v.type === 'tree' && (
+                                            <g className="tree-sway" style={{ animationDuration: `${4 + v.variant}s` }}>
+                                                <ellipse cx="0" cy="0.5" rx="5" ry="1.5" fill="#000" opacity="0.2" />
+                                                <path d="M-1,0 L-0.8,-8 L0.8,-8 L1,0 Z" fill={seasonConfig.treeTrunk} />
+                                                {season === '冬季' ? (
+                                                    <g transform="translate(0, -8)" stroke={seasonConfig.treeTrunk} strokeWidth="0.5">
+                                                        <line x1="0" y1="0" x2="-3" y2="-4" />
+                                                        <line x1="0" y1="0" x2="3" y2="-4" />
+                                                        <line x1="0" y1="-2" x2="-2" y2="-5" />
+                                                        <line x1="0" y1="-2" x2="2" y2="-5" />
+                                                        <path d="M-3,-4 Q0,-5 3,-4" stroke="#fff" strokeWidth="0.8" opacity="0.8" fill="none" />
+                                                    </g>
+                                                ) : (
+                                                    <g transform="translate(0, -9)">
+                                                        {(() => {
+                                                            const leafColor = Array.isArray(seasonConfig.treeLeaf) ? seasonConfig.treeLeaf[v.colorIdx] : seasonConfig.treeLeaf;
+                                                            return (
+                                                                <>
+                                                                    <circle cx="-2.5" cy="1" r="3.5" fill={leafColor} />
+                                                                    <circle cx="2.5" cy="1" r="3.5" fill={leafColor} />
+                                                                    <circle cx="0" cy="-2" r="4" fill={leafColor} />
+                                                                    <circle cx="-1.5" cy="-2.5" r="1.5" fill="#fff" opacity="0.1" />
+                                                                    {seasonConfig.flower && v.variant > 0.6 && (
+                                                                        <g fill={seasonConfig.flower}>
+                                                                            <circle cx="-2" cy="-1" r="0.8" />
+                                                                            <circle cx="2" cy="0" r="0.6" />
+                                                                            <circle cx="0" cy="-3" r="0.7" />
+                                                                        </g>
+                                                                    )}
+                                                                </>
+                                                            );
+                                                        })()}
+                                                    </g>
+                                                )}
                                             </g>
                                         )}
                                     </g>
-                                )}
-                            </g>
-                        </g>
-                    ))}
+                                </g>
+                            );
+                        }
 
-                    {houses.map((h) => (
-                        <g key={`h-${h.id}`} transform={`translate(${h.x}, ${h.y}) scale(${h.scale})`}>
-                            <ellipse cx="5" cy="0.5" rx="7" ry="1.8" fill="#000" opacity="0.25" />
-                            {epochStyle.type === 'tent' && (
-                                <g>
-                                    <path d="M0,0 L5,-10 L10,0 Z" fill={epochStyle.color} stroke="#8d6e63" strokeWidth="0.3" />
-                                    <line x1="5" y1="-10" x2="5" y2="0" stroke="#6d4c41" strokeWidth="0.4" />
-                                    <path d="M2,0 L5,-6 L8,0" fill="none" stroke="#6d4c41" strokeWidth="0.3" />
-                                </g>
-                            )}
-                            {(epochStyle.type === 'clay' || epochStyle.type === 'timber') && (
-                                <g>
-                                    <rect x="1" y="-7" width="8" height="7" fill={epochStyle.color} />
-                                    <rect x="1" y="-7" width="1" height="7" fill="#000" opacity="0.15" />
-                                    <rect x="8" y="-7" width="1" height="7" fill="#fff" opacity="0.1" />
-                                    <path d="M0,-7 L5,-12 L10,-7 Z" fill={epochStyle.roof} />
-                                    <path d="M0,-7 L5,-12 L5,-7 Z" fill="#000" opacity="0.2" />
-                                    <rect x="3.5" y="-4" width="3" height="4" fill="#3e2723" rx="0.3" />
-                                    <circle cx="6" cy="-2" r="0.3" fill="#ffd54f" />
-                                    <rect x="1.5" y="-5.5" width="1.5" height="1.5" fill={dayProgress > 0.7 || dayProgress < 0.2 ? "#ffb74d" : "#90a4ae"} opacity="0.7" />
-                                </g>
-                            )}
-                            {(epochStyle.type === 'brick' || epochStyle.type === 'modern') && (
-                                <g>
-                                    <rect x="0" y="-10" width="10" height="10" fill={epochStyle.color} />
-                                    <rect x="0" y="-10" width="1.5" height="10" fill="#000" opacity="0.15" />
-                                    <rect x="8.5" y="-10" width="1.5" height="10" fill="#fff" opacity="0.1" />
-                                    <path d="M-1,-10 L5,-14 L11,-10 Z" fill={epochStyle.roof} />
-                                    <path d="M-1,-10 L5,-14 L5,-10 Z" fill="#000" opacity="0.25" />
-                                    <g>
-                                        <rect x="1.5" y="-8.5" width="2.5" height="2.5" fill={dayProgress > 0.7 || dayProgress < 0.2 ? "#ffeb3b" : "#cfd8dc"} opacity={dayProgress > 0.7 || dayProgress < 0.2 ? 0.9 : 0.6} rx="0.2" />
-                                        <line x1="2.75" y1="-8.5" x2="2.75" y2="-6" stroke="#37474f" strokeWidth="0.2" />
-                                        <line x1="1.5" y1="-7.25" x2="4" y2="-7.25" stroke="#37474f" strokeWidth="0.2" />
-                                        <rect x="6" y="-8.5" width="2.5" height="2.5" fill={dayProgress > 0.7 || dayProgress < 0.2 ? "#ffeb3b" : "#cfd8dc"} opacity={dayProgress > 0.7 || dayProgress < 0.2 ? 0.9 : 0.6} rx="0.2" />
-                                        <line x1="7.25" y1="-8.5" x2="7.25" y2="-6" stroke="#37474f" strokeWidth="0.2" />
-                                        <line x1="6" y1="-7.25" x2="8.5" y2="-7.25" stroke="#37474f" strokeWidth="0.2" />
-                                    </g>
-                                    <rect x="3.5" y="-4.5" width="3" height="4.5" fill="#4e342e" rx="0.3" />
-                                    <circle cx="6" cy="-2.5" r="0.3" fill="#ffd54f" />
-                                    {epochStyle.detail === 'chimney' && (
-                                        <g transform="translate(7.5, -14)">
-                                            <rect x="-0.5" y="0" width="1.5" height="4" fill="#3e2723" />
-                                            <rect x="-0.5" y="0" width="0.3" height="4" fill="#000" opacity="0.2" />
-                                            <circle cy="-1" r="1.2" fill="#e0e0e0" opacity="0.7" className="smoke-particle" style={{ animationDelay: `${h.id * 0.5}s` }} />
-                                            <circle cy="-1" r="0.8" fill="#f5f5f5" opacity="0.5" className="smoke-particle" style={{ animationDelay: `${h.id * 0.5 + 0.3}s` }} />
+                        if (el.elementType === 'house') {
+                            const h = el;
+                            return (
+                                <g key={`h-${h.id}`} transform={`translate(${h.x}, ${h.y}) scale(${h.scale})`}>
+                                    <ellipse cx="5" cy="0.5" rx="7" ry="1.8" fill="#000" opacity="0.25" />
+                                    {epochStyle.type === 'tent' && (
+                                        <g>
+                                            <path d="M0,0 L5,-10 L10,0 Z" fill={epochStyle.color} stroke="#8d6e63" strokeWidth="0.3" />
+                                            <line x1="5" y1="-10" x2="5" y2="0" stroke="#6d4c41" strokeWidth="0.4" />
+                                            <path d="M2,0 L5,-6 L8,0" fill="none" stroke="#6d4c41" strokeWidth="0.3" />
                                         </g>
                                     )}
-                                    {epochStyle.detail === 'glass' && wealth > 1000 && (
-                                        <rect x="1" y="-9" width="8" height="1" fill="#4fc3f7" opacity="0.3" />
+                                    {(epochStyle.type === 'clay' || epochStyle.type === 'timber') && (
+                                        <g>
+                                            <rect x="1" y="-7" width="8" height="7" fill={epochStyle.color} />
+                                            <path d="M0,-7 L5,-11 L10,-7 Z" fill={epochStyle.roof} />
+                                            <rect x="3.5" y="-4" width="3" height="4" fill={epochStyle.roof} opacity="0.7" />
+                                        </g>
+                                    )}
+                                    {(epochStyle.type === 'stone' || epochStyle.type === 'renaissance') && (
+                                        <g>
+                                            <rect x="0" y="-10" width="10" height="10" fill={epochStyle.color} />
+                                            <path d="M-1,-10 L5,-14 L11,-10 Z" fill={epochStyle.roof} />
+                                            <rect x="2" y="-7" width="2.5" height="3" fill="#87ceeb" opacity="0.5" />
+                                            <rect x="5.5" y="-7" width="2.5" height="3" fill="#87ceeb" opacity="0.5" />
+                                            <rect x="3.5" y="-4" width="3" height="4" fill="#4e342e" />
+                                        </g>
+                                    )}
+                                    {(epochStyle.type === 'industrial' || epochStyle.type === 'modern') && (
+                                        <g>
+                                            <rect x="0" y="-12" width="10" height="12" fill={epochStyle.color} />
+                                            <rect x="1" y="-11" width="2.5" height="3" fill="#87ceeb" opacity="0.6" />
+                                            <rect x="4" y="-11" width="2.5" height="3" fill="#87ceeb" opacity="0.6" />
+                                            <rect x="6.5" y="-11" width="2.5" height="3" fill="#87ceeb" opacity="0.6" />
+                                            <rect x="1" y="-7" width="2.5" height="3" fill="#87ceeb" opacity="0.6" />
+                                            <rect x="4" y="-7" width="2.5" height="3" fill="#87ceeb" opacity="0.6" />
+                                            <rect x="6.5" y="-7" width="2.5" height="3" fill="#87ceeb" opacity="0.6" />
+                                            <rect x="3.5" y="-3.5" width="3" height="3.5" fill="#3e2723" />
+                                            <path d="M-1,-12 L5,-15 L11,-12 Z" fill={epochStyle.roof} />
+                                        </g>
+                                    )}
+                                    {epochStyle.type === 'brick' && (
+                                        <g>
+                                            <rect x="0" y="-10" width="10" height="10" fill={epochStyle.color} />
+                                            <rect x="0" y="-10" width="1" height="10" fill="#000" opacity="0.15" />
+                                            <rect x="9" y="-10" width="1" height="10" fill="#fff" opacity="0.1" />
+                                            <path d="M-1,-10 L5,-14 L11,-10 Z" fill={epochStyle.roof} />
+                                            <path d="M-1,-10 L5,-14 L5,-10 Z" fill="#000" opacity="0.2" />
+                                            <g>
+                                                <rect x="1.5" y="-8.5" width="2.5" height="2.5" fill={dayProgress > 0.7 || dayProgress < 0.2 ? "#ffeb3b" : "#cfd8dc"} opacity={dayProgress > 0.7 || dayProgress < 0.2 ? 0.9 : 0.6} rx="0.2" />
+                                                <line x1="2.75" y1="-8.5" x2="2.75" y2="-6" stroke="#37474f" strokeWidth="0.2" />
+                                                <line x1="1.5" y1="-7.25" x2="4" y2="-7.25" stroke="#37474f" strokeWidth="0.2" />
+                                                <rect x="6" y="-8.5" width="2.5" height="2.5" fill={dayProgress > 0.7 || dayProgress < 0.2 ? "#ffeb3b" : "#cfd8dc"} opacity={dayProgress > 0.7 || dayProgress < 0.2 ? 0.9 : 0.6} rx="0.2" />
+                                                <line x1="7.25" y1="-8.5" x2="7.25" y2="-6" stroke="#37474f" strokeWidth="0.2" />
+                                                <line x1="6" y1="-7.25" x2="8.5" y2="-7.25" stroke="#37474f" strokeWidth="0.2" />
+                                            </g>
+                                            <rect x="3.5" y="-4.5" width="3" height="4.5" fill="#4e342e" rx="0.3" />
+                                            <circle cx="6" cy="-2.5" r="0.3" fill="#ffd54f" />
+                                            {epochStyle.detail === 'chimney' && (
+                                                <g transform="translate(7.5, -14)">
+                                                    <rect x="-0.5" y="0" width="1.5" height="4" fill="#3e2723" />
+                                                    <rect x="-0.5" y="0" width="0.3" height="4" fill="#000" opacity="0.2" />
+                                                    <circle cy="-1" r="1.2" fill="#e0e0e0" opacity="0.7" className="smoke-particle" />
+                                                    <circle cy="-1" r="0.8" fill="#f5f5f5" opacity="0.5" className="smoke-particle" />
+                                                </g>
+                                            )}
+                                        </g>
                                     )}
                                 </g>
-                            )}
-                        </g>
-                    ))}
+                            );
+                        }
 
-                    {pedestrians.map((p) => (
-                        <g key={`ped-${p.id}`} transform={`translate(${p.startX}, ${p.y}) scale(${p.scale})`}>
-                            <g style={{ animation: `walk ${p.duration}s linear infinite`, animationDelay: `${p.delay}s` }}>
-                                <g className="pedestrian-bob">
-                                    <circle cx="0" cy="-5.5" r="1.2" fill={p.color} />
-                                    <ellipse cx="0" cy="-3" rx="1.2" ry="2" fill={p.color} />
-                                    <line x1="-1.2" y1="-3.5" x2="-2" y2="-1.5" stroke={p.color} strokeWidth="0.6" strokeLinecap="round" />
-                                    <line x1="1.2" y1="-3.5" x2="2" y2="-1.5" stroke={p.color} strokeWidth="0.6" strokeLinecap="round" />
-                                    <line x1="-0.5" y1="-1" x2="-1" y2="1" stroke={p.color} strokeWidth="0.8" strokeLinecap="round" />
-                                    <line x1="0.5" y1="-1" x2="1" y2="1" stroke={p.color} strokeWidth="0.8" strokeLinecap="round" />
-                                    <ellipse cx="0" cy="1.2" rx="1.5" ry="0.5" fill="#000" opacity="0.2" />
+                        if (el.elementType === 'pedestrian') {
+                            const p = el;
+                            return (
+                                <g key={`ped-${p.id}`} transform={`translate(${p.startX}, ${p.y}) scale(${p.scale})`}>
+                                    <g style={{ animation: `walk ${p.duration}s linear infinite`, animationDelay: `${p.delay}s` }}>
+                                        <g className="pedestrian-bob">
+                                            <circle cx="0" cy="-5.5" r="1.2" fill={p.color} />
+                                            <ellipse cx="0" cy="-3" rx="1.2" ry="2" fill={p.color} />
+                                            <line x1="-1.2" y1="-3.5" x2="-2" y2="-1.5" stroke={p.color} strokeWidth="0.6" strokeLinecap="round" />
+                                            <line x1="1.2" y1="-3.5" x2="2" y2="-1.5" stroke={p.color} strokeWidth="0.6" strokeLinecap="round" />
+                                            <line x1="-0.5" y1="-1" x2="-1" y2="1" stroke={p.color} strokeWidth="0.8" strokeLinecap="round" />
+                                            <line x1="0.5" y1="-1" x2="1" y2="1" stroke={p.color} strokeWidth="0.8" strokeLinecap="round" />
+                                            <ellipse cx="0" cy="1.2" rx="1.5" ry="0.5" fill="#000" opacity="0.2" />
+                                        </g>
+                                    </g>
+                                </g>
+                            );
+                        }
+
+                        if (el.elementType === 'specialBuilding') {
+                            const b = el;
+                            return (
+                                <g key={`sb-${b.id}`} transform={`translate(${b.x}, ${b.y})`} filter={`url(#dropShadow-${uid})`}>
+                                    {b.type === 'farm' && (
+                                        <g>
+                                            <rect x="-8" y="-2" width="16" height="8" fill="#8d6e63" opacity="0.5" />
+                                            <line x1="-6" y1="0" x2="6" y2="0" stroke="#558b2f" strokeWidth="0.5" />
+                                            <line x1="-6" y1="2" x2="6" y2="2" stroke="#558b2f" strokeWidth="0.5" />
+                                            <line x1="-6" y1="4" x2="6" y2="4" stroke="#558b2f" strokeWidth="0.5" />
+                                        </g>
+                                    )}
+                                    {b.type === 'quarry' && (
+                                        <g>
+                                            <path d="M-6,5 L-4,-3 L4,-3 L6,5 Z" fill={b.color} />
+                                            <ellipse cx="0" cy="0" rx="3" ry="2" fill="#1a1a1a" />
+                                        </g>
+                                    )}
+                                    {b.type === 'mine' && (
+                                        <g>
+                                            <path d="M-5,5 L-3,-2 L3,-2 L5,5 Z" fill={b.color} />
+                                            <rect x="-2" y="-2" width="4" height="4" fill="#1a1a1a" />
+                                            <rect x="-3" y="-4" width="6" height="2" fill="#5d4037" />
+                                        </g>
+                                    )}
+                                    {b.type === 'workshop' && (
+                                        <g>
+                                            <rect x="-5" y="-6" width="10" height="8" fill={b.color} />
+                                            <path d="M-6,-6 L0,-10 L6,-6 Z" fill="#5d4037" />
+                                            <rect x="-2" y="-3" width="4" height="5" fill="#3e2723" />
+                                        </g>
+                                    )}
+                                    {b.type === 'forge' && (
+                                        <g>
+                                            <rect x="-5" y="-5" width="10" height="7" fill="#424242" />
+                                            <rect x="-3" y="-8" width="2" height="6" fill="#5d4037" />
+                                            <circle cx="-2" cy="-10" r="2" fill="#ff5722" opacity="0.6" className="shimmer-effect" />
+                                            <rect x="-2" y="-2" width="4" height="4" fill="#ff9800" opacity="0.8" />
+                                        </g>
+                                    )}
+                                    {b.type === 'furnace' && (
+                                        <g>
+                                            <rect x="-6" y="-4" width="12" height="6" fill="#37474f" />
+                                            <rect x="-4" y="-7" width="3" height="5" fill="#5d4037" />
+                                            <circle cx="-2.5" cy="-9" r="2" fill="#888" opacity="0.5" className="smoke-particle" />
+                                            <rect x="-3" y="-1" width="6" height="3" fill="#ff5722" opacity="0.7" />
+                                        </g>
+                                    )}
+                                    {b.type === 'granary' && (
+                                        <g>
+                                            <ellipse cx="0" cy="0" rx="5" ry="3" fill="#ffc107" />
+                                            <ellipse cx="0" cy="-4" rx="3" ry="2" fill="#ffb300" />
+                                            <path d="M-5,0 L-5,4 L5,4 L5,0 Z" fill="#ff8f00" />
+                                        </g>
+                                    )}
+                                    {b.type === 'market' && (
+                                        <g>
+                                            <rect x="-8" y="-3" width="16" height="5" fill="#8d6e63" opacity="0.6" />
+                                            <path d="M-8,-3 L0,-7 L8,-3 Z" fill="#ff9800" />
+                                            <rect x="-6" y="-1" width="3" height="3" fill="#795548" />
+                                            <rect x="3" y="-1" width="3" height="3" fill="#6d4c41" />
+                                        </g>
+                                    )}
+                                    {b.type === 'temple' && (
+                                        <g>
+                                            <rect x="-6" y="0" width="12" height="2" fill="#f5f5dc" />
+                                            <rect x="-5" y="-6" width="10" height="6" fill="#fffaf0" />
+                                            <path d="M-6,-6 L0,-10 L6,-6 Z" fill="#9c27b0" />
+                                            <rect x="-4" y="-5" width="1" height="5" fill="#deb887" />
+                                            <rect x="3" y="-5" width="1" height="5" fill="#deb887" />
+                                        </g>
+                                    )}
+                                    {b.type === 'theater' && (
+                                        <g>
+                                            <path d="M-8,2 Q0,-4 8,2 Z" fill="#7b1fa2" />
+                                            <ellipse cx="0" cy="2" rx="8" ry="3" fill="#9c27b0" opacity="0.7" />
+                                        </g>
+                                    )}
+                                    {b.type === 'university' && (
+                                        <g>
+                                            <rect x="-7" y="-5" width="14" height="7" fill="#1976d2" />
+                                            <path d="M-8,-5 L0,-9 L8,-5 Z" fill="#0d47a1" />
+                                            <rect x="-5" y="-3" width="2" height="3" fill="#87ceeb" opacity="0.7" />
+                                            <rect x="3" y="-3" width="2" height="3" fill="#87ceeb" opacity="0.7" />
+                                        </g>
+                                    )}
+                                    {b.type === 'barracks' && (
+                                        <g>
+                                            <rect x="-7" y="-4" width="14" height="6" fill="#b71c1c" />
+                                            <path d="M-8,-4 L0,-8 L8,-4 Z" fill="#7f0000" />
+                                            <rect x="-3" y="-2" width="6" height="4" fill="#5d4037" />
+                                            <line x1="-9" y1="-2" x2="-9" y2="4" stroke="#5d4037" strokeWidth="1" />
+                                            <path d="M-11,-2 L-9,-4 L-7,-2 Z" fill="#f44336" />
+                                        </g>
+                                    )}
+                                    {b.type === 'house' && (
+                                        <g>
+                                            <rect x="-4" y="-4" width="8" height="6" fill={b.color} />
+                                            <path d="M-5,-4 L0,-7 L5,-4 Z" fill="#5d4037" />
+                                            <rect x="-1" y="-2" width="2" height="4" fill="#3e2723" />
+                                        </g>
+                                    )}
+                                </g>
+                            );
+                        }
+
+                        return null;
+                    })}
+
+                    {/* 单独渲染草地（不参与排序，始终在底层） */}
+                    {vegetation.filter(v => v.type === 'grass').map((v) => (
+                        <g key={`grass-${v.id}`} transform={`translate(${v.x}, ${v.y})`}>
+                            <g transform={`scale(${v.scale * v.flip}, ${v.scale})`}>
+                                <g className="grass-sway" style={{ animationDuration: `${1.5 + v.variant}s` }}>
+                                    <path d="M0,0 Q-1,-4 0,-5 M2,0 Q1,-3 2,-4 M-2,0 Q-3,-3 -2,-4" stroke={seasonConfig.grass} strokeWidth="0.5" fill="none" opacity="0.8" />
                                 </g>
                             </g>
                         </g>
@@ -1011,7 +1416,7 @@ export default function EmpireScene({
                         }}>{season}</span>
                     </div>
                 </div>
-            </div>
-        </div>
+            </div >
+        </div >
     );
 }

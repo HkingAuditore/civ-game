@@ -779,6 +779,7 @@ function GameApp({ gameState }) {
                                 stability={gameState.stability}
                                 wealth={gameState.resources.silver}
                                 epoch={gameState.epoch}
+                                builds={gameState.buildings}
                             />
                         </div>
 
@@ -1008,6 +1009,7 @@ function GameApp({ gameState }) {
                             stability={gameState.stability}
                             wealth={gameState.resources.silver}
                             epoch={gameState.epoch}
+                            builds={gameState.buildings}
                         />
                     </div>
 
