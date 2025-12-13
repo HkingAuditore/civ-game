@@ -2341,9 +2341,21 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                             if (accepted) {
                                                 // 玩家接受投降条件
                                                 if (eventData.demandType === 'tribute') {
+                                                    // 验证玩家是否有足够银币
+                                                    const currentSilver = current.resources?.silver || 0;
+                                                    if (currentSilver < eventData.demandAmount) {
+                                                        addLog(`❌ 银币不足（需要 ${eventData.demandAmount}，当前 ${Math.floor(currentSilver)}），无法接受投降条件！`);
+                                                        return;
+                                                    }
                                                     setResources(prev => ({ ...prev, silver: Math.max(0, (prev.silver || 0) - eventData.demandAmount) }));
                                                     addLog(`💰 你向 ${nation.name} 支付了 ${eventData.demandAmount} 银币赔款。`);
                                                 } else if (eventData.demandType === 'territory') {
+                                                    // 验证玩家是否有足够人口
+                                                    const currentPop = current.population || 0;
+                                                    if (currentPop < eventData.demandAmount + 10) {  // 保留最低 10 人口
+                                                        addLog(`❌ 人口不足（需要 ${eventData.demandAmount}，当前 ${Math.floor(currentPop)}），无法接受投降条件！`);
+                                                        return;
+                                                    }
                                                     setPopulation(prev => Math.max(10, prev - eventData.demandAmount));
                                                     setMaxPopulation(prev => Math.max(10, prev - eventData.demandAmount));
                                                     addLog(`🏴 你向 ${nation.name} 割让了 ${eventData.demandAmount} 人口的领土。`);

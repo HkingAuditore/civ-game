@@ -3083,12 +3083,16 @@ export const simulateTick = ({
                     next.lastSurrenderDemandDay = tick;
 
                     // 根据优势程度选择要求类型
+                    // 使用与玩家求和时相同的计算公式，使金额一致
                     let demandType = 'tribute';
-                    let demandAmount = Math.floor(100 + aiWarScore * 5);
+                    const warDuration = next.warDuration || 0;
+                    const baseDemand = Math.ceil(aiWarScore * 35 + warDuration * 6);
+                    let demandAmount = Math.max(150, baseDemand);
 
                     if (aiWarScore > 100) {
                         demandType = 'territory';
-                        demandAmount = Math.floor(aiWarScore / 10);
+                        // 割地要求：基于玩家人口的百分比，最多割让50人口
+                        demandAmount = Math.min(50, Math.max(3, Math.floor(population * 0.05)));
                     } else if (aiWarScore > 50 && Math.random() < 0.5) {
                         demandType = 'open_market';
                         demandAmount = 365 * 2; // 2年开放市场
@@ -3690,8 +3694,9 @@ export const simulateTick = ({
 
         // 2. AI向玩家索要
         // 条件：国家贫穷(<400) 或 资源短缺，小概率触发
+        // 注意：第一个时代（epoch 0）不触发 AI 索要事件
         const demandChance = 0.0003 + Math.max(0, (400 - wealth) / 200000); // 基础0.03%，越穷概率越高（最高0.1%）
-        if (wealth < 400 && Math.random() < demandChance) {
+        if (epoch >= 1 && wealth < 400 && Math.random() < demandChance) {
             const requestAmount = Math.floor(80 + Math.random() * 120);
             logs.push(`AI_REQUEST_EVENT:${JSON.stringify({
                 nationId: nation.id,
