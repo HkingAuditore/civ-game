@@ -5,43 +5,55 @@ import { filterUnlockedResources } from '../../utils/resources';
 import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
 
 /**
- * 建筑描述性图片组件
- * 尝试加载建筑对应的图片，不存在则隐藏
+ * 建筑沉浸式英雄图片组件
+ * 图片作为背景，标题和图标叠加在上面
  */
-const BuildingImage = ({ buildingId }) => {
-    const [imageLoaded, setImageLoaded] = useState(false);
-    const [imageError, setImageError] = useState(false);
-    const imagePath = `${import.meta.env.BASE_URL}images/buildings/${buildingId}.png`;
-
-    useEffect(() => {
-        // 重置状态
-        setImageLoaded(false);
-        setImageError(false);
-    }, [buildingId]);
-
-    if (imageError) return null;
+const BuildingHeroImage = ({ building, hasImage, onImageLoad, onImageError }) => {
+    const imagePath = `${import.meta.env.BASE_URL}images/buildings/${building.id}.png`;
 
     return (
-        <div
-            className={`relative w-full h-40 mb-4 rounded-xl overflow-hidden transition-opacity duration-300 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
-            style={{ display: imageError ? 'none' : 'block' }}
-        >
-            {/* 渐变蒙版 - 使用低z-index避免遮挡关闭按钮 */}
-            <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/40 to-transparent z-[1] pointer-events-none" />
-            <div className="absolute inset-0 bg-gradient-to-r from-gray-900/60 via-transparent to-gray-900/60 z-[1] pointer-events-none" />
-
-            {/* 建筑图片 */}
+        <div className="relative w-full h-44 mb-4 rounded-xl overflow-hidden">
+            {/* 背景图片 */}
             <img
                 src={imagePath}
                 alt=""
-                className="w-full h-full object-cover object-center"
-                onLoad={() => setImageLoaded(true)}
-                onError={() => setImageError(true)}
+                className={`absolute inset-0 w-full h-full object-cover object-center transition-opacity duration-500 ${hasImage ? 'opacity-100' : 'opacity-0'}`}
+                style={{ minWidth: '100%', minHeight: '100%' }}
+                onLoad={onImageLoad}
+                onError={onImageError}
                 loading="lazy"
             />
 
-            {/* 装饰边框 */}
-            <div className="absolute inset-0 border border-gray-600/50 rounded-xl z-[2] pointer-events-none" />
+            {/* 底部渐变蒙版 */}
+            <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/50 to-transparent z-[1]" />
+
+            {/* 边缘柔化暗角 */}
+            <div className="absolute inset-0 z-[1]" style={{
+                background: 'radial-gradient(ellipse at center, transparent 50%, rgba(17,24,39,0.6) 100%)'
+            }} />
+
+            {/* 叠加在图片上的标题区域 */}
+            <div className="absolute bottom-0 left-0 right-0 p-4 z-[2]">
+                <div className="flex items-end gap-3">
+                    <div className={`flex-shrink-0 w-14 h-14 rounded-xl ${building.visual.color} flex items-center justify-center shadow-xl border border-white/20 backdrop-blur-sm icon-metal-container`}>
+                        <Icon name={building.visual.icon} size={28} className={`${building.visual.text} icon-metal drop-shadow-lg`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <h3 className="text-xl font-bold text-white leading-tight font-decorative drop-shadow-lg">
+                            {building.name}
+                        </h3>
+                        {building.owner && (
+                            <div className="mt-1 inline-flex items-center gap-1.5 text-xs text-yellow-200 bg-yellow-900/60 border border-yellow-600/40 rounded-full px-2.5 py-0.5 backdrop-blur-sm">
+                                <Icon name="User" size={10} />
+                                <span className="font-semibold">业主: {STRATA[building.owner]?.name || building.owner}</span>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* 装饰性边框 */}
+            <div className="absolute inset-0 rounded-xl border border-gray-600/30 z-[3] pointer-events-none" />
         </div>
     );
 };
@@ -95,6 +107,22 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, taxPolicie
     const { resources, epoch, techsUnlocked, market, buildings, jobFill } = gameState;
     const count = buildings[building.id] || 0;
     const [draftMultiplier, setDraftMultiplier] = useState(null);
+
+    // 图片加载状态管理
+    const [hasImage, setHasImage] = useState(false);
+    const [imageError, setImageError] = useState(false);
+
+    // 使用 ref 追踪上一个建筑对象引用
+    const prevBuildingRef = React.useRef(null);
+
+    // 当建筑对象引用变化时重置图片状态
+    if (prevBuildingRef.current !== building) {
+        prevBuildingRef.current = building;
+        if (hasImage || imageError) {
+            setHasImage(false);
+            setImageError(false);
+        }
+    }
 
     // --- 复用计算逻辑 ---
     // --- 复用 BuildTab 中的计算逻辑 ---
@@ -172,25 +200,39 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, taxPolicie
     };
     return (
         <div className="space-y-4">
-            {/* 建筑描述性图片 */}
-            <BuildingImage buildingId={building.id} />
+            {/* 沉浸式英雄区块 - 当有图片时显示，标题叠加在图片上 */}
+            {!imageError && (
+                <BuildingHeroImage
+                    building={building}
+                    hasImage={hasImage}
+                    onImageLoad={() => setHasImage(true)}
+                    onImageError={() => setImageError(true)}
+                />
+            )}
 
-            {/* 头部 */}
-            <div className="flex items-start gap-4 p-1">
-                <div className={`flex-shrink-0 w-16 h-16 rounded-lg ${building.visual.color} flex items-center justify-center icon-metal-container icon-metal-container-lg`}>
-                    <Icon name={building.visual.icon} size={36} className={`${building.visual.text} icon-metal`} />
+            {/* 传统头部 - 仅当图片加载失败时显示 */}
+            {imageError && (
+                <div className="flex items-start gap-4 p-1">
+                    <div className={`flex-shrink-0 w-16 h-16 rounded-lg ${building.visual.color} flex items-center justify-center icon-metal-container icon-metal-container-lg`}>
+                        <Icon name={building.visual.icon} size={36} className={`${building.visual.text} icon-metal`} />
+                    </div>
+                    <div className="flex-1">
+                        <h3 className="text-xl font-bold text-white font-decorative">{building.name}</h3>
+                        <p className="text-sm text-gray-300 mt-1">{building.desc}</p>
+                        {building.owner && (
+                            <div className="mt-2 inline-flex items-center gap-1.5 text-xs text-yellow-200 bg-yellow-900/40 border border-yellow-600/40 rounded-full px-2.5 py-1">
+                                <Icon name="User" size={12} />
+                                <span className="font-semibold">业主: {STRATA[building.owner]?.name || building.owner}</span>
+                            </div>
+                        )}
+                    </div>
                 </div>
-                <div className="flex-1">
-                    <h3 className="text-xl font-bold text-white font-decorative">{building.name}</h3>
-                    <p className="text-sm text-gray-300 mt-1">{building.desc}</p>
-                    {building.owner && (
-                        <div className="mt-2 inline-flex items-center gap-1.5 text-xs text-yellow-200 bg-yellow-900/40 border border-yellow-600/40 rounded-full px-2.5 py-1">
-                            <Icon name="User" size={12} />
-                            <span className="font-semibold">业主: {STRATA[building.owner]?.name || building.owner}</span>
-                        </div>
-                    )}
-                </div>
-            </div>
+            )}
+
+            {/* 建筑描述 - 当有沉浸式图片时单独显示描述 */}
+            {!imageError && (
+                <p className="text-sm text-gray-300 px-1">{building.desc}</p>
+            )}
 
             {/* 关键数据 */}
             <div className="grid grid-cols-3 gap-3 text-center">
