@@ -4,6 +4,6 @@ import react from '@vitejs/plugin-react'
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
-  // GitHub Pages 部署路径配置
-  base: process.env.NODE_ENV === 'production' ? '/civ-game/' : '/',
+  // 使用相对路径，使其兼容 GitHub Pages 子目录部署和自定义域名根目录部署
+  base: './',
 })
