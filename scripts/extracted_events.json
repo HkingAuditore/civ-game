@@ -1,0 +1,7714 @@
+[
+  {
+    "source": "baseEvents.js",
+    "id": "plague_outbreak",
+    "name": "瘟疫爆发",
+    "description": "一场可怕的瘟疫在城市中蔓延，人们惊恐不安。医者们束手无策，死亡人数不断攀升。你必须立即采取行动来控制疫情。",
+    "minEpoch": 1,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "quarantine",
+    "name": "Unknown",
+    "description": "封锁疫区，限制人员流动",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "pray",
+    "name": "Unknown",
+    "description": "向神明祈求庇佑，安抚民心",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "ignore",
+    "name": "Unknown",
+    "description": "让瘟疫自然消退",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "merchant_caravan",
+    "name": "商队来访",
+    "description": "一支来自远方的商队抵达你的城市，他们带来了珍稀的货物和遥远国度的消息。商队首领希望与你进行贸易。",
+    "minEpoch": 1,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "trade",
+    "name": "Unknown",
+    "description": "用黄金购买他们的货物",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "tax",
+    "name": "Unknown",
+    "description": "允许他们交易，但要收取高额税金",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "refuse",
+    "name": "Unknown",
+    "description": "不允许外来商队进入",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "good_harvest",
+    "name": "丰收之年",
+    "description": "今年风调雨顺，农田获得了前所未有的大丰收。粮仓堆满了金黄的谷物，人们脸上洋溢着喜悦的笑容。",
+    "minEpoch": 0,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "store",
+    "name": "Unknown",
+    "description": "将多余的粮食储存起来以备不时之需",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "sell",
+    "name": "Unknown",
+    "description": "趁价格好的时候卖出粮食换取黄金",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "celebrate",
+    "name": "Unknown",
+    "description": "举办盛大的丰收庆典，与民同乐",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "technological_breakthrough",
+    "name": "技术突破",
+    "description": "你的工匠们取得了重大的技术突破！这项新技术可以显著提升生产效率，但需要投入资源来推广应用。",
+    "minEpoch": 2,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "invest",
+    "name": "Unknown",
+    "description": "投入大量资源推广新技术",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "gradual",
+    "name": "Unknown",
+    "description": "小规模试点，逐步推广",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "monopoly",
+    "name": "Unknown",
+    "description": "将技术作为国家机密，限制传播",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "natural_disaster",
+    "name": "自然灾害",
+    "description": "一场突如其来的自然灾害袭击了你的领地。洪水冲毁了农田，暴风摧毁了建筑，许多人失去了家园。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "relief",
+    "name": "Unknown",
+    "description": "动用国库资源进行紧急救援",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "rebuild",
+    "name": "Unknown",
+    "description": "组织人力重建被毁的建筑",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "minimal",
+    "name": "Unknown",
+    "description": "只提供基本的救援物资",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "stone_age_hungry_peasants",
+    "name": "饥饿的部落农民",
+    "description": "石器时代的农地收成不佳，大量自耕农手头拮据，正在聚集到营地边缘向你抱怨。",
+    "minEpoch": 0,
+    "maxEpoch": 0
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "share_food",
+    "name": "Unknown",
+    "description": "动用库存粮食平抚农民情绪。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "organize_hunt",
+    "name": "Unknown",
+    "description": "鼓励农民进入荒野狩猎，以劳动换取补给。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "ignore_hunger",
+    "name": "Unknown",
+    "description": "避免动用库存，但可能激起更深的不满。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "stone_age_elder_council",
+    "name": "长老之议",
+    "description": "部落中的长老们召集了一次篝火议会，他们认为你在分配资源时有欠公允。",
+    "minEpoch": 0,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "ritual_apology",
+    "name": "Unknown",
+    "description": "在火堆前庄严宣誓要更公正地分配资源。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "gift_to_elder",
+    "name": "Unknown",
+    "description": "以私下馈赠换取支持。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "reject_council",
+    "name": "Unknown",
+    "description": "强调你的权威，拒绝重新讨论分配方案。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "bronze_age_miner_unrest",
+    "name": "矿工的怨声",
+    "description": "矿道里传来争吵声，矿工们抱怨危险的工作环境和微薄的回报。",
+    "minEpoch": 1,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "improve_safety",
+    "name": "Unknown",
+    "description": "加固支架、修缮通风，降低事故风险。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "raise_wage",
+    "name": "Unknown",
+    "description": "用额外报酬换取安静。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "crackdown_miner",
+    "name": "Unknown",
+    "description": "以武力强行恢复秩序。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "bronze_age_merchant_boom",
+    "name": "商路初兴",
+    "description": "青铜器和奢侈品的远途贸易开始兴旺，商人阶层气焰陡涨。",
+    "minEpoch": 1,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "support_merchant",
+    "name": "Unknown",
+    "description": "给予商人更多自由和保护。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "tax_merchant",
+    "name": "Unknown",
+    "description": "从商贸繁荣中为国库抽取一份。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "protect_peasant",
+    "name": "Unknown",
+    "description": "防止商人借机抬价，维护农民生计。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "classical_scribe_salon",
+    "name": "学者沙龙",
+    "description": "古典时代的城市中出现了学者聚会，他们在公共广场辩论国家走向。",
+    "minEpoch": 2,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "fund_academy",
+    "name": "Unknown",
+    "description": "为学者提供纸草和津贴，鼓励他们著书立说。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "guide_public_opinion",
+    "name": "Unknown",
+    "description": "让学者公开支持你的统治。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "limit_discussion",
+    "name": "Unknown",
+    "description": "命令学者避谈税制和贵族特权。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "classical_landowner_pressure",
+    "name": "庄园贵族施压",
+    "description": "土地集中在少数地主手中，他们联合起来要求进一步的特权。",
+    "minEpoch": 2,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "grant_privileges",
+    "name": "Unknown",
+    "description": "换取庄园贵族的政治支持。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "balance_reform",
+    "name": "Unknown",
+    "description": "在不激怒贵族的前提下，释放部分土地给自耕农。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "stand_with_people",
+    "name": "Unknown",
+    "description": "指责地主贪婪，赢得民心。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "feudal_knight_parade",
+    "name": "骑士炫耀武力",
+    "description": "一支骄矜的骑士团在城中游行，高声夸耀他们对王权的重要性。",
+    "minEpoch": 3,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "hold_tournament",
+    "name": "Unknown",
+    "description": "以公开竞赛的方式安抚骑士与军队的虚荣。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "praise_soldiers",
+    "name": "Unknown",
+    "description": "在演讲中强调普通军人的贡献。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "limit_knight_power",
+    "name": "Unknown",
+    "description": "要求骑士团登记武器与兵员。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "feudal_cleric_scandal",
+    "name": "修道院丑闻",
+    "description": "一座富裕修道院的奢侈生活被曝光，信众议论纷纷。",
+    "minEpoch": 3,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "reform_monastery",
+    "name": "Unknown",
+    "description": "没收部分财产，要求简朴生活。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "cover_up",
+    "name": "Unknown",
+    "description": "宣称这是恶意诽谤。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "tax_church",
+    "name": "Unknown",
+    "description": "以维护信仰纯洁为名，收取\"圣洁贡金\"。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "age_of_exploration_merchant_monopoly",
+    "name": "远洋垄断公司",
+    "description": "少数大商人控制了远洋航线，垄断了香料与奢侈品的进口。",
+    "minEpoch": 4,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "charter_company",
+    "name": "Unknown",
+    "description": "以官方垄断公司形式承认既成事实。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "break_monopoly",
+    "name": "Unknown",
+    "description": "鼓励更多中小商人参与贸易。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "raise_tariff",
+    "name": "Unknown",
+    "description": "以高税率换取财政盈余。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "age_of_exploration_colonial_unrest",
+    "name": "殖民地骚动",
+    "description": "海外矿区传来工人罢工的消息，他们抱怨高税与危险的工作环境。",
+    "minEpoch": 4,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "send_commissioner",
+    "name": "Unknown",
+    "description": "承诺改善条件，暂时安抚骚动。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "use_force",
+    "name": "Unknown",
+    "description": "以武力压制抗议，维持短期产量。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "cut_tax",
+    "name": "Unknown",
+    "description": "让殖民地保留更多利润。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "enlightenment_pamphlet_storm",
+    "name": "小册子风暴",
+    "description": "启蒙思想通过廉价小册子在城市街角迅速传播，质疑旧有权威。",
+    "minEpoch": 5,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "allow_debate",
+    "name": "Unknown",
+    "description": "允许思想在一定范围内自由传播。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "censor_print",
+    "name": "Unknown",
+    "description": "禁止攻击王权与教会的小册子。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "coopt_scribes",
+    "name": "Unknown",
+    "description": "用官职与津贴吸纳激进学者。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "enlightenment_coffeehouse_circle",
+    "name": "咖啡馆圈子",
+    "description": "商人、工程师和学者聚集在咖啡馆中，讨论最新的技术与金融手段。",
+    "minEpoch": 5,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "support_innovation_club",
+    "name": "Unknown",
+    "description": "鼓励他们提出新的工艺与金融工具。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "monitor_circle",
+    "name": "Unknown",
+    "description": "密切关注这些人是否策划政治阴谋。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "tax_coffee",
+    "name": "Unknown",
+    "description": "借新潮饮品获取额外税收。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "industrial_general_strike",
+    "name": "总罢工风潮",
+    "description": "工厂车间接连停工，工人代表提出加薪与缩短工时的诉求。",
+    "minEpoch": 6,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "agree_partial",
+    "name": "Unknown",
+    "description": "象征性提高工资，并承诺改善安全条件。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "bring_in_replacements",
+    "name": "Unknown",
+    "description": "用更廉价的劳动力替换闹事者。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "negotiate_commission",
+    "name": "Unknown",
+    "description": "让代表在你主持的委员会中谈判。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "industrial_capitalist_boom",
+    "name": "资本狂欢",
+    "description": "资本家阶层财富激增，他们开始资助豪华剧院和科学社团。",
+    "minEpoch": 6,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "encourage_investment",
+    "name": "Unknown",
+    "description": "通过减税与荣誉头衔引导资本投向生产。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "tax_windfall",
+    "name": "Unknown",
+    "description": "对近期暴涨的利润额外征税，以缓解贫富差距。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "fund_welfare",
+    "name": "Unknown",
+    "description": "以捐款形式建设工人公寓与诊所。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "comet_sighted",
+    "name": "彗星划过",
+    "description": "一颗拖着长长尾巴的彗星划过夜空，整个国家都看到了这个异象。民众议论纷纷，占星家和学者对此有不同的解释。",
+    "minEpoch": 1,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "divine_omen",
+    "name": "Unknown",
+    "description": "利用这个机会提升民心和神职人员的地位。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "scientific_phenomenon",
+    "name": "Unknown",
+    "description": "让学者向公众解释这只是天文现象，推动科学精神。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "ignore_comet",
+    "name": "Unknown",
+    "description": "认为这无足轻重，但可能会引发民众的不安。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "inventor_plea",
+    "name": "发明家的请求",
+    "description": "一位充满激情的发明家带着一个革命性的设计蓝图来拜见你。他声称这个发明将改变世界，但需要一大笔资金和资源来制造原型机。",
+    "minEpoch": 5,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "fund_invention",
+    "name": "Unknown",
+    "description": "赌一把大的，为这个可能改变未来的项目提供所有必要的支持。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "limited_support",
+    "name": "Unknown",
+    "description": "给予少量资源让他先做个模型看看，降低风险。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "reject_invention",
+    "name": "Unknown",
+    "description": "认为这是浪费资源，将发明家赶了出去。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "great_flood",
+    "name": "大洪水",
+    "description": "连日的暴雨导致河水泛滥，淹没了大片农田和村庄。你的子民正处于水深火热之中，急需救援。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "organize_rescue",
+    "name": "Unknown",
+    "description": "动用国库，全力救援灾民，重建家园。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "build_dams",
+    "name": "Unknown",
+    "description": "优先保护重要城市和工业区，放弃部分偏远地区。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "let_it_be",
+    "name": "Unknown",
+    "description": "相信自然的力量，不进行大规模干预以保存实力。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "stone_age_new_water",
+    "name": "发现新水源",
+    "description": "侦察队在部落附近发现了一个新的、清澈的泉眼，水量充沛。这可能解决部落的饮水问题，甚至灌溉一小片土地。",
+    "minEpoch": 0,
+    "maxEpoch": 0
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "develop_water_source",
+    "name": "Unknown",
+    "description": "投入劳力开发，增加食物产出，人口增长加快。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "secret_protection",
+    "name": "Unknown",
+    "description": "仅供少数人使用，防止其他部落发现。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "ignore_water_source",
+    "name": "Unknown",
+    "description": "认为不值得投入。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "stone_age_stranger_footprints",
+    "name": "陌生人的足迹",
+    "description": "猎人们在部落领地边缘发现了不属于你们的陌生足迹，看起来是另一个部落的侦察队。",
+    "minEpoch": 0,
+    "maxEpoch": 0
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "ambush_expel",
+    "name": "Unknown",
+    "description": "派遣战士设伏，警告对方。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "leave_gifts",
+    "name": "Unknown",
+    "description": "在足迹附近留下食物和工具，表达善意。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "increase_patrol",
+    "name": "Unknown",
+    "description": "增加巡逻队，但避免直接接触。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "stone_age_harsh_winter",
+    "name": "恶劣的冬季",
+    "description": "一个异常漫长而寒冷的冬季降临，食物储备迅速消耗，部落面临饥饿和寒冷的威胁。",
+    "minEpoch": 0,
+    "maxEpoch": 0
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "distribute_rations",
+    "name": "Unknown",
+    "description": "严格分配食物和木材，确保每个人都能活下去。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "encourage_hunting",
+    "name": "Unknown",
+    "description": "派遣更多猎人深入危险区域，寻找食物。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "sacrifice_weak",
+    "name": "Unknown",
+    "description": "优先保障青壮年，牺牲部分老弱。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "stone_age_unexpected_discovery",
+    "name": "意外的发现",
+    "description": "孩子们在河边玩耍时，发现了一些闪闪发光的石头，它们比普通的石头更坚硬，也更锋利。部落里的工匠对它们很感兴趣。",
+    "minEpoch": 0,
+    "maxEpoch": 0
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "research_stones",
+    "name": "Unknown",
+    "description": "鼓励工匠尝试用这些石头制作工具。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "worship_stones",
+    "name": "Unknown",
+    "description": "认为这是神灵的恩赐，将其供奉起来。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "disregard_stones",
+    "name": "Unknown",
+    "description": "认为只是普通的石头，不予重视。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "stone_age_tribal_legend",
+    "name": "部落的传说",
+    "description": "部落里流传着一个古老的传说，讲述着远方有一片富饶的土地，但那里居住着可怕的巨兽。一些年轻人提议去探索。",
+    "minEpoch": 0,
+    "maxEpoch": 0
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "send_expedition",
+    "name": "Unknown",
+    "description": "组织一支精锐的探险队，去验证传说的真实性。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "forbid_exploration",
+    "name": "Unknown",
+    "description": "认为这只是无稽之谈，禁止年轻人冒险。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "encourage_legends",
+    "name": "Unknown",
+    "description": "将传说作为文化遗产，鼓励长老们讲述，但不进行实际探索。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "bronze_age_bronze_vein",
+    "name": "青铜矿脉的发现",
+    "description": "探险队在偏远山区发现了一处富含铜矿和锡矿的矿脉，这是制造青铜的关键。这项发现可能彻底改变你的部落力量。",
+    "minEpoch": 1,
+    "maxEpoch": 1
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "immediate_mine",
+    "name": "Unknown",
+    "description": "投入大量劳力，快速获得资源，但可能引发劳工不满。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "research_mining",
+    "name": "Unknown",
+    "description": "先研究更高效的开采技术，确保可持续发展，但速度较慢。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "secret_mine",
+    "name": "Unknown",
+    "description": "防止其他部落发现，但短期内只能小规模开采。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "bronze_age_merchant_plea",
+    "name": "远方商人的求助",
+    "description": "一支来自遥远国度的商队在前往你部落的途中遭遇了强盗，他们请求你的军队提供保护，并承诺事成之后将给予丰厚回报。",
+    "minEpoch": 1,
+    "maxEpoch": 1
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "send_escort",
+    "name": "Unknown",
+    "description": "消耗军事力量，但获得贸易收益和外交声望。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "provide_aid",
+    "name": "Unknown",
+    "description": "消耗资源，但建立友好关系，为未来贸易铺路。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "refuse_aid",
+    "name": "Unknown",
+    "description": "避免风险，但失去潜在盟友和贸易机会，并可能损害声誉。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "bronze_age_drought",
+    "name": "干旱危机",
+    "description": "连年干旱，河流干涸，农作物大面积枯萎。部落的粮食储备迅速减少，饥荒的阴影笼罩着大地。",
+    "minEpoch": 1,
+    "maxEpoch": 1
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "build_irrigation",
+    "name": "Unknown",
+    "description": "投入劳力，从远处引水缓解旱情，但需要时间。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "intensive_hunt",
+    "name": "Unknown",
+    "description": "派遣更多人外出寻找食物，但有风险，可能造成人员伤亡。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "seek_tribute",
+    "name": "Unknown",
+    "description": "派遣军队向邻近部落施压，要求他们提供粮食，但可能引发外交冲突。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "bronze_age_new_priest",
+    "name": "新祭司的崛起",
+    "description": "一位年轻的祭司声称获得了神灵的启示，能够预知未来并带来丰收。他在民众中获得了极高的声望，传统长老对此感到不安。",
+    "minEpoch": 1,
+    "maxEpoch": 1
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "endorse_priest",
+    "name": "Unknown",
+    "description": "利用其影响力巩固统治，提升文化和稳定。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "limit_power",
+    "name": "Unknown",
+    "description": "担心其影响力过大，可能引发冲突，但能安抚传统势力。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "challenge_divinity",
+    "name": "Unknown",
+    "description": "挑战其权威，可能导致民众信仰动摇，但能维护理性。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "bronze_age_skirmish",
+    "name": "部落间的冲突",
+    "description": "你的猎人在边境地区与邻近的“灰狼部落”猎人发生激烈冲突，造成双方人员伤亡。灰狼部落的酋长对此表示强烈不满。",
+    "minEpoch": 1,
+    "maxEpoch": 1
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "declare_war",
+    "name": "Unknown",
+    "description": "展现强硬姿态，可能引发全面战争，但士兵士气高涨。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "send_emissary",
+    "name": "Unknown",
+    "description": "寻求和平解决方案，可能需要付出一些代价，但能避免战争。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "fortify_border",
+    "name": "Unknown",
+    "description": "避免直接冲突，但可能导致长期对峙和资源消耗。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "classical_philosopher_challenge",
+    "name": "哲学家的挑战",
+    "description": "一位极具魅力的哲学家在城邦广场上公开质疑神祇的权威和国家的传统。他的思想吸引了大量追随者，尤其是年轻的学者，但也激怒了祭司和保守派贵族。",
+    "minEpoch": 2,
+    "maxEpoch": 2
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "embrace_philosophy",
+    "name": "Unknown",
+    "description": "公开支持哲学家的学说，推动科学与文化发展，但会激怒神职人员。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "public_debate",
+    "name": "Unknown",
+    "description": "让哲学家与祭司进行公开辩论，这可能会引发社会思想动荡。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "exile_philosopher",
+    "name": "Unknown",
+    "description": "维护传统权威，安抚保守势力，但会扼杀思想的火花。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "classical_written_law",
+    "name": "成文法的呼声",
+    "description": "随着社会日益复杂，民众和商人阶层要求制定一部清晰的成文法典，以取代贵族们的任意判决。这对你的统治既是挑战也是机遇。",
+    "minEpoch": 2,
+    "maxEpoch": 2
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "establish_just_code",
+    "name": "Unknown",
+    "description": "组织抄写员和官员编纂法典，明确所有阶层的权利与义务。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "favor_elite_code",
+    "name": "Unknown",
+    "description": "法典条文向贵族和地主倾斜，以巩固他们的支持。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "maintain_oral_tradition",
+    "name": "Unknown",
+    "description": "拒绝编纂法典，认为这会削弱你的裁决权威。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "classical_artistic_patronage",
+    "name": "艺术家的请求",
+    "description": "一位才华横溢的剧作家带着一部史诗剧本拜见你，他希望能获得赞助，在新建的圆形剧场上演这部作品，以颂扬你的功绩和城邦的荣耀。",
+    "minEpoch": 2,
+    "maxEpoch": 2
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "fund_grand_performance",
+    "name": "Unknown",
+    "description": "投入巨资打造一场空前绝后的演出，这将极大地提升文化声望。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "offer_limited_support",
+    "name": "Unknown",
+    "description": "给予少量资金，让他们举办一场小规模的演出。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "dismiss_as_frivolous",
+    "name": "Unknown",
+    "description": "认为这是浪费资源，拒绝了剧作家的请求。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "classical_aqueduct_proposal",
+    "name": "引水渠提案",
+    "description": "随着城市人口增长，供水问题日益严峻。一位建筑师向你提交了一份宏伟的引水渠设计图，声称可以从远方的山脉引来清泉，彻底解决城市的缺水问题。",
+    "minEpoch": 2,
+    "maxEpoch": 2
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "build_aqueduct",
+    "name": "Unknown",
+    "description": "投入巨量资源建造引水渠，这将是一项不朽的功绩。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "build_smaller_version",
+    "name": "Unknown",
+    "description": "建造一个小型版本，以较低的成本缓解部分供水压力。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "dig_more_wells",
+    "name": "Unknown",
+    "description": "认为引水渠成本过高，选择用更传统的方式解决问题。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "feudal_guild_charter",
+    "name": "行会的崛起",
+    "description": "城里的工匠们正在组建强大的行会，以控制生产标准、商品价格和学徒制度。他们请求你颁发官方特许状，以确立他们的合法地位。",
+    "minEpoch": 3,
+    "maxEpoch": 3
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "grant_charter",
+    "name": "Unknown",
+    "description": "承认行会的地位，这将提升工业产出和工匠的支持，但可能损害商人的利益。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "regulate_guilds",
+    "name": "Unknown",
+    "description": "允许行会存在，但必须接受官员的严格监管，这让你能更好地控制市场。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "suppress_guilds",
+    "name": "Unknown",
+    "description": "宣布行会为非法组织，以保护自由竞争和商人的利益，但这会激怒工匠。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "feudal_crusade_call",
+    "name": "十字军的召唤",
+    "description": "一位极具感召力的教士来到你的领地，号召信徒们加入一场针对遥远异教徒的“圣战”。你的骑士和神职人员对此热情高涨，但商人们担心这会扰乱贸易。",
+    "minEpoch": 3,
+    "maxEpoch": 3
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "fund_crusade",
+    "name": "Unknown",
+    "description": "提供资金和士兵，这可能会带来荣耀和财富，但也可能是一场灾难。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "offer_prayers",
+    "name": "Unknown",
+    "description": "公开支持圣战的道义，但拒绝提供任何实质性援助。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "denounce_call",
+    "name": "Unknown",
+    "description": "宣布此举为鲁莽之举，会激怒信徒和军事贵族，但能赢得商人的支持。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "feudal_levy_dispute",
+    "name": "封建征召争端",
+    "description": "一位强大的封臣以领地歉收为由，拒绝履行提供骑士和士兵的封建义务。这直接挑战了你的权威。",
+    "minEpoch": 3,
+    "maxEpoch": 3
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "force_compliance",
+    "name": "Unknown",
+    "description": "派遣你的直属部队强制执行征召，维护你的权威，但这有引发内战的风险。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "accept_scutage",
+    "name": "Unknown",
+    "description": "允许封臣支付一笔“盾牌钱”来免除兵役。这能充实国库，但开了个坏头。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "forgive_levy",
+    "name": "Unknown",
+    "description": "体谅他的难处，暂时免除他的义务。这会赢得他的好感，但可能被视为软弱。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "feudal_university_founding",
+    "name": "大学的诞生",
+    "description": "一群来自各地的学者希望在你的都城建立一所“大学”，系统地教授神学、法律和医学。教会对此表示欢迎，但保守的贵族认为这会动摇他们的地位。",
+    "minEpoch": 3,
+    "maxEpoch": 3
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "grant_university_charter",
+    "name": "Unknown",
+    "description": "为大学提供土地和资金，这将极大地推动科学和文化的发展。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "church_control",
+    "name": "Unknown",
+    "description": "让教会来管理大学，确保其教学内容符合教义。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "reject_university",
+    "name": "Unknown",
+    "description": "认为这是浪费资源，拒绝了学者的请求。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "feudal_plague_doctor",
+    "name": "鸟嘴医生",
+    "description": "一位身穿黑袍、头戴鸟嘴面具的“瘟疫医生”来到你的领地，声称有办法治疗肆虐的疾病。他的方法怪异，但似乎在某些地方取得了效果。",
+    "minEpoch": 3,
+    "maxEpoch": 4
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "hire_doctor",
+    "name": "Unknown",
+    "description": "授予他官方身份和资金，让他放手治疗病人。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "let_him_practice",
+    "name": "Unknown",
+    "description": "不干涉他的行为，让他自己向病人收费。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "expel_as_charlatan",
+    "name": "Unknown",
+    "description": "认为他的方法是巫术和欺骗，将其赶出领地。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "exploration_new_world",
+    "name": "新大陆的发现",
+    "description": "你派遣的探险家带回了惊人的消息：在遥远的大洋彼岸，有一片富饶而未经探索的大陆！这个发现可能彻底改变我们文明的命运。",
+    "minEpoch": 4,
+    "maxEpoch": 4
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "fund_colonial_expedition",
+    "name": "Unknown",
+    "description": "组织一支庞大的殖民船队，去新大陆建立永久定居点。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "establish_trading_post",
+    "name": "Unknown",
+    "description": "先派遣一小队人建立贸易站，与当地土著进行贸易，降低风险。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "sell_maps",
+    "name": "Unknown",
+    "description": "认为远征风险太高，不如将地图卖掉换取眼前的利益。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "exploration_renaissance_artist",
+    "name": "文艺复兴巨匠",
+    "description": "一位像达芬奇那样的天才艺术家来到了你的宫廷。他不仅是画家，还是发明家和工程师。他请求你的赞助，以完成一项将名垂青史的宏伟艺术品。",
+    "minEpoch": 4,
+    "maxEpoch": 5
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "patronize_masterpiece",
+    "name": "Unknown",
+    "description": "为这位巨匠提供一切所需，他的作品将成为国家的象征。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "modest_commission",
+    "name": "Unknown",
+    "description": "提供一笔小额赞助，让他为你画一幅肖像，以示鼓励。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "dismiss_artist",
+    "name": "Unknown",
+    "description": "认为艺术是无用的奢侈，将艺术家赶出了宫廷。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "exploration_banking_family",
+    "name": "银行家族的崛起",
+    "description": "一个富有的商人家族开始涉足金融业，他们通过发行票据和提供贷款积累了巨大财富，并请求你授予他们“银行”的官方特许状。",
+    "minEpoch": 4,
+    "maxEpoch": 5
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "charter_private_bank",
+    "name": "Unknown",
+    "description": "允许他们自由经营，这将极大地促进商业，但可能让他们的影响力失控。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "establish_state_bank",
+    "name": "Unknown",
+    "description": "将银行业务收归国有，由官员管理，以确保国家对金融的控制。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "forbid_banking",
+    "name": "Unknown",
+    "description": "宣布高利贷为非法，禁止私人银行业务，以维护传统道德。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "exploration_mercenary_offer",
+    "name": "佣兵队长的合约",
+    "description": "一位战功赫赫但声名狼藉的佣兵队长，带领着他装备精良的火枪手来到你的面前。他愿意为任何出价最高的人效力。",
+    "minEpoch": 4,
+    "maxEpoch": 5
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "hire_mercenaries",
+    "name": "Unknown",
+    "description": "将他们编入常备军。他们战力强大，但军饷高昂且忠诚堪忧。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "one_time_contract",
+    "name": "Unknown",
+    "description": "支付一笔费用，让他们为你解决一个眼前的军事麻烦。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "reject_offer",
+    "name": "Unknown",
+    "description": "拒绝他们的提议，依靠自己国家的军队。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "exploration_gunpowder_plot",
+    "name": "火药阴谋",
+    "description": "密探报告称，一群对现状不满的激进分子正在秘密囤积火药，似乎企图策划一场针对你的刺杀或破坏行动。",
+    "minEpoch": 4,
+    "maxEpoch": 5
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "raid_hideout",
+    "name": "Unknown",
+    "description": "派遣卫队，在他们行动前将其一网打尽。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "public_warning",
+    "name": "Unknown",
+    "description": "宣布全城戒严，增加卫兵巡逻，让他们不敢轻举妄动。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "baseEvents.js",
+    "id": "ignore_threat",
+    "name": "Unknown",
+    "description": "认为这只是谣言，不值得大动干戈。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "bread_price_crisis",
+    "name": "面包价格暴涨",
+    "description": "城中面包价格一夜之间翻了三倍！愤怒的妇女们聚集在市场上高喊：\"我们的孩子在挨饿！\"商人们则辩称是粮食歉收所致。一些激进者已经开始砸毁商铺橱窗。",
+    "minEpoch": 3,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "price_control",
+    "name": "Unknown",
+    "description": "强制实施价格管制，平息民愤但激怒商人。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "open_granary",
+    "name": "Unknown",
+    "description": "用国库储备平抑物价，但消耗大量资源。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "let_them_eat_cake",
+    "name": "Unknown",
+    "description": "无视民众诉求，可能会有严重后果。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "worker_peasant_alliance",
+    "name": "工农联盟的萌芽",
+    "description": "工厂工人和佃农代表在酒馆里秘密会面，他们发现彼此面临着相同的困境——低工资、长工时、被剥削。有人提议组建互助会，也有人主张更激进的行动。",
+    "minEpoch": 5,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "allow_mutual_aid",
+    "name": "Unknown",
+    "description": "承认工农有自我组织的权利，可能为未来埋下隐患。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "divide_and_rule",
+    "name": "Unknown",
+    "description": "秘密散布谣言，让工人和农民互相猜疑。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "preemptive_reform",
+    "name": "Unknown",
+    "description": "在他们提出要求之前主动改善待遇，化解潜在危机。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "land_reform_proposal",
+    "name": "土地改革的呼声",
+    "description": "一位年轻而理想主义的官员在议会上慷慨陈词：\"大地主们圈占了祖先的土地，而真正耕种的人却无立锥之地！我提议限制每户土地上限，将多余的分给无地者。\"此言一出，议会炸开了锅。",
+    "minEpoch": 2,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "support_reform",
+    "name": "Unknown",
+    "description": "站在农民一边，强行推动土地重新分配。这将永远改变权力格局。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "compromise_reform",
+    "name": "Unknown",
+    "description": "限制土地兼并，但不没收现有土地，各方勉强接受。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "reject_reform",
+    "name": "Unknown",
+    "description": "维护既得利益者的权利，驳回改革提案。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "progressive_tax_debate",
+    "name": "累进税制之争",
+    "description": "国库空虚，财政大臣提出两套方案：一是向所有人征收统一人头税；二是按财富比例征收累进税。富人们强烈反对后者，声称\"这是惩罚成功\"；而普通民众则高喊\"让富人付出应有的份额！\"",
+    "minEpoch": 4,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "progressive_tax",
+    "name": "Unknown",
+    "description": "富人多缴，穷人少缴。公平但可能导致资本外流。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "poll_tax",
+    "name": "Unknown",
+    "description": "人人平等缴纳。简单粗暴，但对穷人负担更重。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "tax_compromise",
+    "name": "Unknown",
+    "description": "基础人头税加上对高收入者的附加税，试图两边讨好。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "slave_gladiator_revolt",
+    "name": "角斗场的怒火",
+    "description": "一名来自色雷斯的角斗士带领同伴们杀死了看守，逃出了角斗场。他们打出\"自由与尊严\"的旗号，沿途不断有奴隶、佃农甚至破产的自由民加入。这支队伍已经壮大到令人不安的规模。",
+    "minEpoch": 2,
+    "maxEpoch": 3
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "military_suppression",
+    "name": "Unknown",
+    "description": "用武力粉碎叛乱，杀一儆百。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "negotiate_freedom",
+    "name": "Unknown",
+    "description": "以和平方式瓦解叛军，但将动摇奴隶制的根基。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "bribe_leaders",
+    "name": "Unknown",
+    "description": "用金钱和赦免令瓦解叛军领导层。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "assassination_plot",
+    "name": "刺杀阴谋",
+    "description": "你的密探带来了令人不安的消息：一群不满的贵族正在密谋刺杀你。他们认为你的改革损害了他们的利益，只有换一个统治者才能恢复\"旧日的秩序\"。元老会似乎对此睁一只眼闭一只眼。",
+    "minEpoch": 2,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "preemptive_purge",
+    "name": "Unknown",
+    "description": "逮捕所有嫌疑人，不管有没有确凿证据。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "public_trial",
+    "name": "Unknown",
+    "description": "将阴谋公之于众，让民众做见证。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "offer_reconciliation",
+    "name": "Unknown",
+    "description": "暂缓改革，安抚贵族。但这会被视为软弱。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "bank_run_panic",
+    "name": "银行挤兑风暴",
+    "description": "谣言像野火一样蔓延：国家最大的银行即将倒闭！恐慌的储户挤满了银行门口，要求取出全部存款。如果银行真的倒闭，将引发连锁反应，整个经济可能陷入瘫痪。",
+    "minEpoch": 5,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "government_bailout",
+    "name": "Unknown",
+    "description": "用国库资金拯救银行，防止系统性崩溃。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "let_it_fail",
+    "name": "Unknown",
+    "description": "让市场自行调整，投机者自食其果。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "partial_guarantee",
+    "name": "Unknown",
+    "description": "只保护普通储户，让大投资者承担损失。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "colonial_tea_protest",
+    "name": "茶叶倾倒事件",
+    "description": "殖民地商人对新颁布的茶叶垄断令怒不可遏。昨夜，一群化装成原住民的年轻人登上运茶船，将全部茶叶倾倒入海，高喊\"无代表不纳税！\"。这一行动在各地引发了巨大反响。",
+    "minEpoch": 4,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "harsh_punishment",
+    "name": "Unknown",
+    "description": "逮捕所有参与者，关闭该港口，杀鸡儆猴。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "repeal_monopoly",
+    "name": "Unknown",
+    "description": "承认错误，恢复自由贸易。虽然丢面子，但能恢复秩序。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "token_compromise",
+    "name": "Unknown",
+    "description": "降低茶税但维持垄断，试图敷衍了事。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "machine_breakers",
+    "name": "捣毁机器运动",
+    "description": "愤怒的工匠们闯入新建的纺织工厂，用铁锤砸毁了蒸汽动力织布机。他们的领袖——自称\"卢德将军\"——宣称：\"这些机器抢走了我们的饭碗！我们要砸烂它们！\"工厂主们要求你派兵保护。",
+    "minEpoch": 6,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "protect_factories",
+    "name": "Unknown",
+    "description": "工业化不可阻挡，但这会激化与工匠的矛盾。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "slow_mechanization",
+    "name": "Unknown",
+    "description": "要求工厂主逐步引入机器，给工匠适应的时间。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "retraining_program",
+    "name": "Unknown",
+    "description": "用国库资金帮助工匠学习操作新机器。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "constitutional_crisis",
+    "name": "宪政危机",
+    "description": "新兴的资产阶级和知识分子联合起来，要求召开制宪会议，限制君主权力，建立代议制政府。传统贵族和教士则坚决捍卫旧制度。街头出现了对立的示威人群，国家正处于历史的十字路口。",
+    "minEpoch": 5,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "grant_constitution",
+    "name": "Unknown",
+    "description": "自上而下的改革，在保留部分权力的同时迎接新时代。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "crack_down",
+    "name": "Unknown",
+    "description": "逮捕激进分子，禁止政治集会，维护旧秩序。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "delay_tactics",
+    "name": "Unknown",
+    "description": "拖延战术，既不拒绝也不同意，争取时间。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "spy_scandal",
+    "name": "间谍丑闻",
+    "description": "一名来自少数族裔的军官被指控向敌国出卖军事机密。军方坚称证据确凿，但一些记者和知识分子公开质疑：\"我控诉！他们在迫害无辜者！\"社会分裂成两派，争论异常激烈。",
+    "minEpoch": 5,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "support_military",
+    "name": "Unknown",
+    "description": "稳定军心，但可能造成冤案，并加剧社会对立。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "reopen_case",
+    "name": "Unknown",
+    "description": "追求真相和正义，但会动摇军方威信。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "quiet_pardon",
+    "name": "Unknown",
+    "description": "不公开翻案，但悄悄释放被告。两边都不会满意。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "robber_baron_monopoly",
+    "name": "巨头垄断危机",
+    "description": "几位最富有的资本家秘密会面后，联合控制了全国的钢铁、铁路和石油供应。他们可以任意定价，竞争者和小商人纷纷破产。民间开始出现\"反托拉斯\"的呼声。",
+    "minEpoch": 6,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "break_up_trusts",
+    "name": "Unknown",
+    "description": "强制将大企业分解，恢复市场竞争。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "regulate_prices",
+    "name": "Unknown",
+    "description": "保留垄断但限制定价权，折中方案。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "laissez_faire",
+    "name": "Unknown",
+    "description": "相信自由市场的力量，不干预。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "three_estates_assembly",
+    "name": "三级会议风波",
+    "description": "财政危机迫使你召开三级会议。但第三等级——商人、工匠、农民的代表——要求按人头投票而非按等级投票。\"我们代表95%的人口，凭什么只有三分之一的投票权？\"贵族和教士坚决反对。",
+    "minEpoch": 4,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "support_third_estate",
+    "name": "Unknown",
+    "description": "站在多数人一边，这将彻底改变权力结构。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "maintain_tradition",
+    "name": "Unknown",
+    "description": "安抚贵族和教会，但第三等级可能采取激进行动。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "dissolve_assembly",
+    "name": "Unknown",
+    "description": "取消会议，另寻他法解决财政问题。但这会激怒所有人。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "salt_tax_protest",
+    "name": "盐税抗议",
+    "description": "一位受人尊敬的智者带领数千名追随者徒步走向海边，公开煮海水制盐以抗议盐税。他说：\"他们可以打断我的骨头，但永远无法打断我的精神。\"这场非暴力抗议正在全国蔓延。",
+    "minEpoch": 5,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "mass_arrest",
+    "name": "Unknown",
+    "description": "填满监狱，但这可能让运动获得更多同情。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "abolish_salt_tax",
+    "name": "Unknown",
+    "description": "承认失败，但能平息抗议并赢得民心。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "negotiate_with_leader",
+    "name": "Unknown",
+    "description": "邀请他进行对话，寻求妥协方案。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "merchant_scholar_alliance",
+    "name": "商学联盟",
+    "description": "富有的商人开始资助学者的研究和出版，条件是学者为自由贸易和财产权提供理论辩护。这个联盟正在形成一种新的意识形态力量，挑战传统的土地贵族和教会权威。",
+    "minEpoch": 5,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "embrace_new_ideas",
+    "name": "Unknown",
+    "description": "支持这股新兴力量，推动社会现代化。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "censor_publications",
+    "name": "Unknown",
+    "description": "压制\"危险思想\"的传播，维护传统秩序。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "cootp_movement",
+    "name": "Unknown",
+    "description": "任命一些温和派学者为官员，削弱运动的锋芒。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "military_coup_threat",
+    "name": "将军的野心",
+    "description": "战功赫赫的大将军在军队中拥有极高威望，士兵们对他的忠诚甚至超过对你。近来他在公开场合对你的决策多有批评，有人传言他正在密谋\"清君侧\"。",
+    "minEpoch": 3,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "preemptive_dismissal",
+    "name": "Unknown",
+    "description": "趁他还没行动，剥夺其军职。但如果他反抗...",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "appease_general",
+    "name": "Unknown",
+    "description": "用高位厚禄拉拢他，但这会让他更加尾大不掉。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "build_loyal_force",
+    "name": "Unknown",
+    "description": "培养只忠于你的武装力量，以防万一。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "great_famine",
+    "name": "大饥荒",
+    "description": "连年天灾导致全国性饥荒，饿殍遍野。然而，地主的粮仓里堆满了粮食，商人正在囤积居奇。愤怒的饥民已经开始抢劫粮车，\"打开粮仓，否则我们就自己来！\"",
+    "minEpoch": 2,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "requisition_grain",
+    "name": "Unknown",
+    "description": "强制地主和商人交出囤粮，救济灾民。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "buy_grain",
+    "name": "Unknown",
+    "description": "高价收购粮食分发，维护市场秩序但财政大出血。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "let_market_decide",
+    "name": "Unknown",
+    "description": "不干预市场，让价格机制发挥作用。后果自负。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "peasant_crusade",
+    "name": "农民十字军",
+    "description": "一位狂热的传教士号召农民们拿起武器，去夺回圣地。成千上万的农民响应号召，抛下农田加入这支\"神圣军队\"。他们装备简陋、缺乏训练，但充满狂热。这对农业生产是灾难性的打击。",
+    "minEpoch": 3,
+    "maxEpoch": 4
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "bless_and_send",
+    "name": "Unknown",
+    "description": "顺应宗教热情，但农业劳动力会大幅减少。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "redirect_to_charity",
+    "name": "Unknown",
+    "description": "说服传教士将热情转向帮助穷人，而非远征。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "ban_movement",
+    "name": "Unknown",
+    "description": "强制农民返回田间，但会激怒教会和信徒。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "urban_rural_tension",
+    "name": "城乡对立",
+    "description": "城市居民抱怨食品价格太高，要求政府压低农产品价格；农民则抗议说他们的收成卖不出好价钱，根本无法维持生计。双方的矛盾日益激化，甚至有农民威胁要停止向城市供粮。",
+    "minEpoch": 4,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "subsidize_farmers",
+    "name": "Unknown",
+    "description": "用国库补贴农民，让他们能以低价卖粮而不亏本。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "price_ceiling",
+    "name": "Unknown",
+    "description": "规定农产品最高售价，保护城市居民利益。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "let_negotiate",
+    "name": "Unknown",
+    "description": "组织城乡代表会议，政府只做调解人。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "foreign_drug_trade",
+    "name": "鸦片贸易危机",
+    "description": "外国商人大量走私成瘾性药物进入国内，换取你的白银。官员们争论不休：一派主张严禁，\"烟毒害人，必须铲除！\"另一派警告说强硬措施可能引发与强大外邦的战争。",
+    "minEpoch": 5,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "strict_prohibition",
+    "name": "Unknown",
+    "description": "当众销毁没收的鸦片，冒与外邦开战的风险。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "legalize_and_tax",
+    "name": "Unknown",
+    "description": "既然禁不住，不如管起来收税。但这在道德上很难辩护。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "diplomatic_negotiation",
+    "name": "Unknown",
+    "description": "尝试通过谈判让外国商人自愿减少贸易。缓慢但安全。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "guild_monopoly_crisis",
+    "name": "行会垄断危机",
+    "description": "传统行会严格控制着各行业的从业资格、价格和工艺标准。外来工人和想要创新的年轻工匠抱怨行会扼杀了竞争和创新。行会长老则警告：废除行会将导致劣质产品泛滥和恶性竞争。",
+    "minEpoch": 4,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "abolish_guilds",
+    "name": "Unknown",
+    "description": "实现自由竞争，促进创新，但得罪传统工匠。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "reform_guilds",
+    "name": "Unknown",
+    "description": "保留行会但降低准入门槛，折中方案。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "strengthen_guilds",
+    "name": "Unknown",
+    "description": "维护传统，保护工匠利益，但可能阻碍发展。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "court_faction_war",
+    "name": "朝廷党争",
+    "description": "朝廷中形成了尖锐对立的两派：改革派主张学习外国先进制度，\"不变法必亡国！\"保守派则坚持祖宗之法不可变，\"祖宗自有制度，何须效法蛮夷？\"双方互相攻讦，政务几乎瘫痪。",
+    "minEpoch": 5,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "support_reformers",
+    "name": "Unknown",
+    "description": "大刀阔斧推行新政，冒着激进变革的风险。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "support_conservatives",
+    "name": "Unknown",
+    "description": "支持保守派，维护稳定但可能错失发展机遇。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "balance_factions",
+    "name": "Unknown",
+    "description": "不表态，让两派互相牵制。高明但危险的游戏。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "eight_hour_day_movement",
+    "name": "八小时工作制运动",
+    "description": "工人们走上街头，高喊\"八小时工作、八小时休息、八小时归自己！\"他们要求立法限制工作时间。资本家们强烈反对，声称这将摧毁工业竞争力。",
+    "minEpoch": 6,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "pass_labor_law",
+    "name": "Unknown",
+    "description": "立法规定八小时工作制，工人阶级的历史性胜利。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "voluntary_guidelines",
+    "name": "Unknown",
+    "description": "建议但不强制执行，让企业自愿遵守。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "crush_movement",
+    "name": "Unknown",
+    "description": "派警察驱散游行，逮捕组织者。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "anti_foreign_movement",
+    "name": "排外运动",
+    "description": "一个神秘的民间组织崛起，宣称习练神功可以刀枪不入。他们把国家的所有问题都归咎于外国人和信仰外国宗教的本国人，开始攻击外国使馆和教堂。各国公使发出严厉警告。",
+    "minEpoch": 5,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "support_movement",
+    "name": "Unknown",
+    "description": "公开支持排外运动，利用民族情绪，但可能引发国际危机。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "suppress_movement",
+    "name": "Unknown",
+    "description": "保护外国人和少数信仰者，维护国际关系。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "ambiguous_stance",
+    "name": "Unknown",
+    "description": "不明确表态，看形势发展再说。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "bread_and_circuses",
+    "name": "面包与马戏",
+    "description": "民众对高失业率和物价上涨怨声载道。一位老练的顾问建议：\"陛下，给他们面包和马戏，他们就会忘记抱怨。只要肚子不饿、眼睛有东西看，谁还关心政治呢？\"",
+    "minEpoch": 2,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "grand_spectacle",
+    "name": "Unknown",
+    "description": "花费巨资举办壮观的表演，转移民众注意力。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "free_grain",
+    "name": "Unknown",
+    "description": "直接解决饥饿问题，但可能养成依赖。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "address_real_issues",
+    "name": "Unknown",
+    "description": "拒绝粉饰太平，着手解决根本问题。艰难但诚实。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "palace_guard_demands",
+    "name": "禁卫军的要求",
+    "description": "禁卫军士兵聚集在宫殿门前，要求发放拖欠的饷银和\"登基赏赐\"。他们的将领暗示：历史上有很多统治者因为怠慢禁卫军而\"意外身亡\"。这分明是勒索！",
+    "minEpoch": 2,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "pay_demands",
+    "name": "Unknown",
+    "description": "花钱买平安，但这会助长他们的嚣张气焰。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "face_them_down",
+    "name": "Unknown",
+    "description": "当面斥责他们的无礼，展现君主威严。高风险高回报。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "reform_guard",
+    "name": "Unknown",
+    "description": "答应部分要求，但同时削减禁卫军规模和特权。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "nobles_charter_demand",
+    "name": "贵族的宪章",
+    "description": "联合起来的贵族们带着武装随从来到王宫，递上一份文件——他们称之为\"自由宪章\"。上面列举了对王权的种种限制：未经贵族同意不得加税、不得任意逮捕贵族、必须保障贵族审判权...不签字，他们就不离开。",
+    "minEpoch": 3,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "sign_charter",
+    "name": "Unknown",
+    "description": "限制王权，但避免内战，可能为法治开创先例。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "reject_and_fight",
+    "name": "Unknown",
+    "description": "宁可开战也不向威胁低头。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "delay_and_divide",
+    "name": "Unknown",
+    "description": "签字后秘密拉拢部分贵族，伺机废除宪章。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "tenant_strike",
+    "name": "佃农罢耕",
+    "description": "数百名佃农拒绝下地干活，他们围坐在地主庄园门前：\"地租太高了！我们辛苦一年，收成的六成都要交给老爷，剩下的连糊口都难！降租，否则这地我们不种了！\"",
+    "minEpoch": 3,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "force_rent_reduction",
+    "name": "Unknown",
+    "description": "站在佃农一边，用法令限制地租上限。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "send_troops",
+    "name": "Unknown",
+    "description": "帮助地主恢复秩序，强制佃农复工。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "mediate",
+    "name": "Unknown",
+    "description": "召集双方谈判，寻求双方都能接受的方案。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "currency_crisis",
+    "name": "货币贬值危机",
+    "description": "国库空虚，财政大臣提出一个\"妙计\"：在新铸的银币中掺入更多铜，表面看起来一样，实际含银量减少一半。这样我们就能用同样的银子铸出两倍的钱！但如果被发现...",
+    "minEpoch": 2,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "debase_currency",
+    "name": "Unknown",
+    "description": "短期解决财政危机，但可能引发通货膨胀和信任危机。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "raise_taxes",
+    "name": "Unknown",
+    "description": "痛苦但诚实的解决方案。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "cut_spending",
+    "name": "Unknown",
+    "description": "勒紧裤腰带，裁减官员和军队。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "witch_hunt_hysteria",
+    "name": "女巫审判",
+    "description": "某个村庄发生了一系列不幸事件——牲畜死亡、孩子患病、庄稼枯萎。村民们确信这是巫术作祟，已经指控并逮捕了几名\"女巫\"。教会法庭要求处以火刑，但也有人质疑这些指控毫无根据。",
+    "minEpoch": 3,
+    "maxEpoch": 5
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "allow_trial",
+    "name": "Unknown",
+    "description": "顺应民意和教会，但可能助长迷信和冤案。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "demand_evidence",
+    "name": "Unknown",
+    "description": "坚持法律程序，需要真正的证据才能定罪。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "release_accused",
+    "name": "Unknown",
+    "description": "宣布指控荒谬，释放所有被告。这会激怒很多人。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "church_noble_alliance",
+    "name": "教会与贵族联盟",
+    "description": "主教大人与大贵族们秘密会面后，联合向你施压：他们要求维护教会的免税特权和贵族的土地权利，威胁说如果改革继续，他们将联合\"保卫传统秩序\"。",
+    "minEpoch": 3,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "submit_to_pressure",
+    "name": "Unknown",
+    "description": "保证不触动他们的利益，换取支持。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "divide_alliance",
+    "name": "Unknown",
+    "description": "秘密拉拢一方，许诺好处让他们背叛盟友。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "defy_alliance",
+    "name": "Unknown",
+    "description": "向民众揭露他们的阴谋，争取平民支持。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "succession_dispute",
+    "name": "继承权之争",
+    "description": "你的两个孩子都声称自己是合法继承人。长子有传统和法律支持，但名声不佳；幼子更受欢迎和有能力，但按照长子继承制没有资格。朝廷分裂成两派，各自支持一方。",
+    "minEpoch": 2,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "support_eldest",
+    "name": "Unknown",
+    "description": "遵循传统，维护长子继承权。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "support_younger",
+    "name": "Unknown",
+    "description": "打破传统，选择更有能力者。但这会树立危险的先例。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "split_inheritance",
+    "name": "Unknown",
+    "description": "各给一块领地，避免内战但削弱国家。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "bread_riot",
+    "name": "面包暴动",
+    "description": "饥饿的民众冲进面包店和粮仓，抢夺一切能吃的东西。暴动正在蔓延——妇女们走在最前面，喊着\"面包！我们要面包！\"城市卫队不知所措，等待你的命令。",
+    "minEpoch": 3,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "distribute_reserves",
+    "name": "Unknown",
+    "description": "将国家储备分发给民众，解燃眉之急。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "military_response",
+    "name": "Unknown",
+    "description": "出动军队恢复秩序，不惜流血。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "blame_hoarders",
+    "name": "Unknown",
+    "description": "将矛头指向商人和地主，没收他们的粮食。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "guild_master_corruption",
+    "name": "行会腐败案",
+    "description": "有人揭发铁匠行会的会长贪污会费、垄断原料、排挤竞争者。普通工匠要求彻查，但会长是有势力的人物，与多位官员有密切关系。",
+    "minEpoch": 3,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "full_investigation",
+    "name": "Unknown",
+    "description": "不管牵扯到谁都要查到底。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "quiet_removal",
+    "name": "Unknown",
+    "description": "私下让会长退休，不公开追究。保全各方颜面。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "ignore_accusations",
+    "name": "Unknown",
+    "description": "宣称证据不足，维护现状。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "peasant_jacquerie",
+    "name": "农民起义",
+    "description": "长期的剥削终于引爆了农民的怒火。数千名手持草叉和镰刀的农民攻占了庄园，烧毁契约，处死了几名特别可恶的地主。他们的领袖——一个自称\"大雅克\"的人——宣布要\"杀光贵族\"。",
+    "minEpoch": 3,
+    "maxEpoch": 5
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "brutal_suppression",
+    "name": "Unknown",
+    "description": "集合骑士和军队，杀鸡儆猴。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "negotiate_grievances",
+    "name": "Unknown",
+    "description": "宣布调查地主暴行，承诺减轻徭役负担。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "divide_rebels",
+    "name": "Unknown",
+    "description": "许诺赦免放下武器者，孤立核心分子。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "union_recognition_fight",
+    "name": "工会承认之战",
+    "description": "全国最大的工厂工人联合起来，要求政府承认工会的合法地位。资本家威胁说如果工会合法化，他们就关闭工厂、转移资产。工人代表则警告：如果不承认，将发动全国总罢工。",
+    "minEpoch": 6,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "legalize_unions",
+    "name": "Unknown",
+    "description": "赋予工人组织和集体谈判的权利。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "ban_unions",
+    "name": "Unknown",
+    "description": "站在资本家一边，镇压工人运动。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "regulated_unions",
+    "name": "Unknown",
+    "description": "承认工会但加以限制：禁止政治性罢工，要求事先通知。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "enclosure_movement",
+    "name": "圈地运动",
+    "description": "大地主们开始用篱笆圈占公共牧场，驱逐在那里放牧了几代人的小农。他们声称这样能提高土地效率。但无数农民失去了生计，被迫流落到城市寻找工作，或沦为乞丐。",
+    "minEpoch": 4,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "support_enclosure",
+    "name": "Unknown",
+    "description": "以提高生产效率的名义，允许并保护圈地行为。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "protect_commons",
+    "name": "Unknown",
+    "description": "颁布法令禁止圈地，维护传统公地使用权。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "compensation_scheme",
+    "name": "Unknown",
+    "description": "允许圈地但要求地主补偿被驱逐的农民。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "press_freedom_debate",
+    "name": "新闻自由之争",
+    "description": "一份报纸刊登了揭露政府腐败的调查报道，引发轩然大波。涉事官员要求查封报社、逮捕编辑；记者和学者则高呼\"真相不能被压制！\"。这场争论已经超越了个案，变成了关于新闻自由的原则之争。",
+    "minEpoch": 5,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "protect_press",
+    "name": "Unknown",
+    "description": "宣布报道合法，调查被揭露的腐败。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "shut_down_paper",
+    "name": "Unknown",
+    "description": "以\"散布谣言\"为由查封报社，逮捕编辑。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "regulate_press",
+    "name": "Unknown",
+    "description": "不追究此事，但设立审查委员会\"规范\"报道。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "tax_farmer_abuse",
+    "name": "包税人之祸",
+    "description": "你将征税权外包给了富商——他们预付税款，然后自己去向百姓收取更多以牟利。现在民间怨声载道：包税人勒索、殴打、甚至关押交不起税的农民。有人开始武力抗税。",
+    "minEpoch": 3,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "abolish_tax_farming",
+    "name": "Unknown",
+    "description": "收回征税权，建立国家税务机构。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "regulate_tax_farmers",
+    "name": "Unknown",
+    "description": "设立规则限制其收取的金额，但保留制度。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "crack_down_resisters",
+    "name": "Unknown",
+    "description": "杀一儆百，确保税收不受影响。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "reign_of_terror",
+    "name": "恐怖时期",
+    "description": "革命委员会声称到处都是\"人民的敌人\"和\"反革命分子\"。断头台日夜不停，任何人都可能被邻居告发。一位革命领袖宣称：\"没有美德的恐怖是有害的，没有恐怖的美德是无力的！\"",
+    "minEpoch": 5,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "end_terror",
+    "name": "Unknown",
+    "description": "公开谴责滥杀无辜，解散革命法庭。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "intensify_terror",
+    "name": "Unknown",
+    "description": "\"革命尚未成功！\"扩大打击范围。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "redirect_terror",
+    "name": "Unknown",
+    "description": "将恐怖对准革命领袖自身，\"革命吞噬自己的孩子\"。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "stock_market_crash",
+    "name": "股市崩盘",
+    "description": "股票交易所今天上演了末日景象：投资者争相抛售，股价一落千丈。许多人一夜之间倾家荡产，有人当场从交易所大楼跳下。经济危机的阴影正在笼罩整个国家。",
+    "minEpoch": 6,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "massive_intervention",
+    "name": "Unknown",
+    "description": "政府入市购买股票，稳定金融系统。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "let_market_correct",
+    "name": "Unknown",
+    "description": "\"这是市场的自我净化。\"不进行干预。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "protect_small_investors",
+    "name": "Unknown",
+    "description": "只帮助普通人，让大资本家自生自灭。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "education_reform_debate",
+    "name": "教育改革之争",
+    "description": "改革派提议建立全民免费义务教育制度。教会反对：\"教育是教会的传统领域！\"贵族担心：\"如果农民的孩子都能读书，谁来种地？\"但也有人说：\"国家的未来取决于民众的素质。\"",
+    "minEpoch": 5,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "universal_education",
+    "name": "Unknown",
+    "description": "建立国家学校体系，所有儿童必须上学。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "church_education",
+    "name": "Unknown",
+    "description": "将教育继续交给教会，国家给予补贴。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "elite_education",
+    "name": "Unknown",
+    "description": "建立有限的精英学校，培养统治阶层。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "religious_schism",
+    "name": "宗教分裂",
+    "description": "教会内部爆发了关于教义的激烈争论，两派互相指责对方为异端。各地信众开始选边站，有些地方甚至发生了信徒间的暴力冲突。双方都要求你表态支持。",
+    "minEpoch": 3,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "support_orthodox",
+    "name": "Unknown",
+    "description": "站在正统教会一边，镇压\"异端\"。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "support_reformers",
+    "name": "Unknown",
+    "description": "支持宗教改革，可能引发与传统势力的冲突。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "classConflictEvents.js",
+    "id": "religious_tolerance",
+    "name": "Unknown",
+    "description": "允许两派共存，国家保持中立。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "trade_boom",
+    "name": "贸易繁荣",
+    "description": "远方商队带来了大量货物和金银，市场一片繁荣。商人们摩拳擦掌，准备大展身手。",
+    "minEpoch": 1,
+    "maxEpoch": 5
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "encourage_trade",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "regulate_trade",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "monopolize",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "silk_road_revival",
+    "name": "丝路复兴",
+    "description": "通往西域的商路重新开通，丝绸、香料、珠宝源源不断地流入。这是千载难逢的商机！",
+    "minEpoch": 2,
+    "maxEpoch": 4
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "embrace_trade",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "cautious_opening",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "close_borders",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "harvest_festival",
+    "name": "丰收庆典",
+    "description": "今年风调雨顺，五谷丰登。农民们载歌载舞，庆祝这来之不易的丰收。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "celebrate",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "store_grain",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "sell_surplus",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "locust_plague",
+    "name": "蝗灾来袭",
+    "description": "遮天蔽日的蝗虫席卷而来，所过之处寸草不生。这是天降的灾祸！",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "organize_extermination",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "pray_to_gods",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "import_grain",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "new_technology",
+    "name": "技术革新",
+    "description": "工匠们发明了新的生产工具，大大提高了效率。这项发明很快在各地传播开来。",
+    "minEpoch": 2,
+    "maxEpoch": 5
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "promote_innovation",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "control_technology",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "suppress_innovation",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "mining_discovery",
+    "name": "矿脉发现",
+    "description": "勘探者在边远地区发现了丰富的矿藏。消息传开后，大批人涌向矿区。",
+    "minEpoch": 1,
+    "maxEpoch": 5
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "state_mining",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "private_mining",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "careful_extraction",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "luxury_craze",
+    "name": "奢侈风潮",
+    "description": "贵族们开始追捧来自远方的奢侈品，攀比之风愈演愈烈。",
+    "minEpoch": 2,
+    "maxEpoch": 5
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "encourage_luxury",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "tax_luxury",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "ban_luxury",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "tea_coffee_introduction",
+    "name": "茶与咖啡",
+    "description": "一种神奇的饮品从东方/西方传入，据说能提神醒脑。很快这种饮品风靡全国。",
+    "minEpoch": 3,
+    "maxEpoch": 6
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "promote_drink",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "monopolize_trade",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "restrict_import",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "currency_crisis",
+    "name": "货币危机",
+    "description": "市面上流通的钱币成色不足，物价飞涨，民怨沸腾。必须采取措施稳定币值。",
+    "minEpoch": 2,
+    "maxEpoch": 5
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "mint_new_coins",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "price_control",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "do_nothing",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "banking_emergence",
+    "name": "钱庄兴起",
+    "description": "精明的商人开始经营钱庄，提供存款和借贷服务。这种新式商业引发了不少争议。",
+    "minEpoch": 3,
+    "maxEpoch": 5
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "support_banking",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "regulate_banking",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "ban_usury",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "labor_shortage",
+    "name": "劳工短缺",
+    "description": "战争、瘟疫或迁徙导致劳动力严重不足，许多田地荒芜，工坊停工。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "increase_wages",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "forced_labor",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "import_labor",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "guild_conflict",
+    "name": "行会纷争",
+    "description": "各行会为了争夺市场和利益，发生了激烈的冲突。街头巷尾充斥着争吵和斗殴。",
+    "minEpoch": 2,
+    "maxEpoch": 4
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "mediate",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "support_guilds",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "abolish_guilds",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "forest_depletion",
+    "name": "森林枯竭",
+    "description": "多年的砍伐使得森林面积锐减，木材价格飙升，连柴火都变得稀缺。",
+    "minEpoch": 2,
+    "maxEpoch": 5
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "plant_trees",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "import_wood",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "find_alternatives",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "salt_shortage",
+    "name": "盐荒",
+    "description": "盐业生产出了问题，这种生活必需品变得奇货可居。民间怨声载道。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "government_distribution",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "increase_production",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "crack_down_hoarding",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "foreign_embargo",
+    "name": "外国禁运",
+    "description": "邻国宣布对我国实施贸易禁运，许多商品无法进口，价格大涨。",
+    "minEpoch": 2,
+    "maxEpoch": 5
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "develop_domestic",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "smuggling",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "negotiate",
+    "name": "Unknown",
+    "description": "谈判成功，禁运解除！",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "trade_route_discovery",
+    "name": "新航路发现",
+    "description": "探险家发现了通往富饶之地的新航路，这将彻底改变贸易格局。",
+    "minEpoch": 4,
+    "maxEpoch": 5
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "fund_expedition",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "cautious_expansion",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "isolationism",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "bubble_economy",
+    "name": "投机泡沫",
+    "description": "某种商品的价格被疯狂炒作，人人都想从中获利。这场狂热能持续多久？",
+    "minEpoch": 3,
+    "maxEpoch": 6
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "join_speculation",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "ban_speculation",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "warn_people",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "counterfeiting_ring",
+    "name": "伪币集团",
+    "description": "官府查获了一个大规模的伪币制造集团，市面上的假币数量惊人。",
+    "minEpoch": 2,
+    "maxEpoch": 5
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "harsh_punishment",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "currency_reform",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "cover_up",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "tulip_mania",
+    "name": "郁金香狂热",
+    "description": "一种异域花卉突然在贵族间风靡，价格疯涨。一颗稀有品种的球茎竟然能换一栋房子！所有人都想从中牟利。",
+    "minEpoch": 4,
+    "maxEpoch": 5
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "join_speculation",
+    "name": "Unknown",
+    "description": "价格继续上涨，大赚一笔！",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "ban_trading",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "tax_transactions",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "south_sea_bubble",
+    "name": "南海泡沫",
+    "description": "一家声称垄断远洋贸易特权的公司股价飙升，连牛顿那样的天才都投入了毕生积蓄。\"我能计算天体运行，却算不出人类的疯狂。\"",
+    "minEpoch": 5,
+    "maxEpoch": 6
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "invest_heavily",
+    "name": "Unknown",
+    "description": "股价继续攀升！",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "regulate_market",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "let_it_crash",
+    "name": "Unknown",
+    "description": "泡沫破裂，经济动荡！",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "merchant_league",
+    "name": "商人同盟",
+    "description": "几个主要港口城市的商人结成同盟，控制了大部分海上贸易。他们请求特权，作为回报将为国家提供贷款和舰船。",
+    "minEpoch": 3,
+    "maxEpoch": 5
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "grant_privileges",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "partial_cooperation",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "reject_league",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "trading_company",
+    "name": "特许贸易公司",
+    "description": "富商们请求成立一家特许贸易公司，垄断与东方/西方的贸易。他们承诺向王室缴纳丰厚的特许费。",
+    "minEpoch": 4,
+    "maxEpoch": 6
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "charter_company",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "state_monopoly",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "free_trade",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "great_famine",
+    "name": "大饥荒",
+    "description": "连年歉收导致严重饥荒，饿殍遍野。更糟的是，粮商们趁机囤积居奇，哄抬物价。政府必须采取紧急措施。",
+    "minEpoch": 2,
+    "maxEpoch": 5
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "free_distribution",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "import_grain",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "let_market_handle",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "salt_tax_rebellion",
+    "name": "盐税暴动",
+    "description": "为增加财政收入而提高的盐税引发了民间强烈不满。沿海地区出现大规模走私，内陆则爆发了抗税暴动。",
+    "minEpoch": 2,
+    "maxEpoch": 5
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "lower_tax",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "suppress_rebellion",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "reform_salt_system",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "coin_debasement",
+    "name": "铸币减重",
+    "description": "财政紧张，大臣建议铸造成色不足的货币来应急。\"反正百姓也分不出来。\"但如果被发现，后果不堪设想。",
+    "minEpoch": 2,
+    "maxEpoch": 5
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "debase_secretly",
+    "name": "Unknown",
+    "description": "秘密败露！物价飞涨！",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "open_devaluation",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "find_alternatives",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "enclosure_movement",
+    "name": "圈地运动",
+    "description": "地主们请求将公共牧场圈为私有，用于养羊生产羊毛。\"羊吃人\"的说法开始流传，失地农民何去何从？",
+    "minEpoch": 4,
+    "maxEpoch": 6
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "allow_enclosure",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "compensate_peasants",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "protect_commons",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "railroad_mania",
+    "name": "铁路狂热",
+    "description": "新发明的铁路引发投资狂潮，无数公司成立，股票价格疯涨。每个人都想修一条铁路，不管是否有实际需求。",
+    "minEpoch": 6,
+    "maxEpoch": 7
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "encourage_investment",
+    "name": "Unknown",
+    "description": "泡沫破裂，许多公司破产！",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "state_railways",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "cautious_approach",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "bank_run",
+    "name": "银行挤兑",
+    "description": "谣言四起，说某家大钱庄资不抵债。恐慌的储户蜂拥而至要求提款，钱庄门前排起长龙。如果不干预，恐慌可能蔓延到整个金融体系。",
+    "minEpoch": 4,
+    "maxEpoch": 6
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "bailout",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "let_it_fail",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "temporary_closure",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "winter_preparation",
+    "name": "寒冬将至",
+    "description": "天气预示着一个严酷的冬天即将来临。人们开始囤积物资，市场上出现抢购潮。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "encourage_stockpiling",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "price_control",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "do_nothing",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "festival_season",
+    "name": "节庆旺季",
+    "description": "一年一度的节庆即将到来，各地都在筹备庆典活动。奢侈品需求激增，商人们摩拳擦掌。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "grand_celebration",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "modest_celebration",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "ban_festivities",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "fashion_trend",
+    "name": "时尚风潮",
+    "description": "一种新的服饰风格在贵族间流行起来，很快蔓延到各个阶层。布料和染料的需求急剧上升。",
+    "minEpoch": 1,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "follow_trend",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "promote_local",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "sumptuary_laws",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "construction_boom",
+    "name": "建筑热潮",
+    "description": "城市扩张和人口增长带来了一波建筑热潮。木材、石材和砖块的需求大幅上涨。",
+    "minEpoch": 1,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "support_construction",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "regulate_construction",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "limit_expansion",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "arms_race",
+    "name": "军备竞赛",
+    "description": "邻国正在扩军备战，军事紧张局势加剧。是否应该增加军事投入？",
+    "minEpoch": 1,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "militarize",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "moderate_buildup",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "diplomatic_solution",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "academic_boom",
+    "name": "学术繁荣",
+    "description": "一场学术运动正在兴起，学者们热衷于著书立说，对纸张和文具的需求激增。",
+    "minEpoch": 1,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "patronize_scholars",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "limited_support",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "control_knowledge",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "brewing_prosperity",
+    "name": "酿酒业繁荣",
+    "description": "民间酿酒技术取得突破，酒类消费大幅增加。酒馆遍地开花，醉汉也越来越多。",
+    "minEpoch": 1,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "encourage_brewing",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "regulate_alcohol",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "prohibit_alcohol",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "raw_material_shortage",
+    "name": "原材料短缺",
+    "description": "由于各种原因，原材料供应出现短缺，价格上涨，工坊面临停工风险。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "import_materials",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "ration_materials",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "develop_alternatives",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "noble_extravagance",
+    "name": "贵族奢靡",
+    "description": "贵族们的奢侈消费达到了新高度，攀比之风盛行。这带动了奢侈品产业，但也引发了平民的不满。",
+    "minEpoch": 2,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "let_them_spend",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "tax_luxury",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "moral_campaign",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "wage_demands",
+    "name": "涨薪诉求",
+    "description": "工人们联合起来要求提高工资。如果不满足他们的要求，可能会引发罢工。",
+    "minEpoch": 2,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "raise_wages",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "partial_raise",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "refuse_demands",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "coffee_craze",
+    "name": "咖啡热潮",
+    "description": "咖啡馆成为新的社交场所，知识分子和商人们聚集在此讨论时政。咖啡需求急剧上升。",
+    "minEpoch": 4,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "embrace_coffee",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "regulate_coffeehouses",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "ban_coffeehouses",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "furniture_fashion",
+    "name": "家具风尚",
+    "description": "新式家具设计风靡一时，富人们争相更换家中的陈设。木工坊日夜赶工。",
+    "minEpoch": 2,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "support_craftsmen",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "quality_standards",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "economicEvents.js",
+    "id": "discourage_waste",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "mammoth_hunt",
+    "name": "猛犸象狩猎",
+    "description": "侦察兵发现了一头巨大的猛犸象！这是一次危险但回报丰厚的狩猎机会。整个部落都在讨论是否要组织这次狩猎。",
+    "minEpoch": null,
+    "maxEpoch": 1
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "full_hunt",
+    "name": "Unknown",
+    "description": "动员所有战士，确保成功但风险更大。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "small_party",
+    "name": "Unknown",
+    "description": "只派最好的猎人，风险较低但收获也少。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "let_it_go",
+    "name": "Unknown",
+    "description": "猛犸象太危险了，不值得冒险。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "fire_discovery",
+    "name": "火的秘密",
+    "description": "一位老人声称掌握了\"驯化\"火焰的秘密。他愿意将这个知识传授给部落，但要求特殊的地位和供养。",
+    "minEpoch": null,
+    "maxEpoch": 0
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "honor_elder",
+    "name": "Unknown",
+    "description": "给予他尊贵地位，学习火的奥秘。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "force_knowledge",
+    "name": "Unknown",
+    "description": "知识应该属于所有人，不能被一人垄断。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "reject_offer",
+    "name": "Unknown",
+    "description": "我们不需要这种\"魔法\"。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "cave_dispute",
+    "name": "洞穴争端",
+    "description": "两个家族为争夺一个宽敞温暖的洞穴而发生冲突。双方都声称这是他们祖先发现的。",
+    "minEpoch": null,
+    "maxEpoch": 0
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "favor_stronger",
+    "name": "Unknown",
+    "description": "强大的家族更能保卫洞穴。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "share_cave",
+    "name": "Unknown",
+    "description": "洞穴足够大，可以容纳两家人。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "build_new",
+    "name": "Unknown",
+    "description": "动员大家建造新的住所，解决住房问题。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "shaman_ritual",
+    "name": "萨满仪式",
+    "description": "部落萨满宣称天象显示灾难将至，要求举行大型祭祀仪式。他需要大量的食物和祭品。",
+    "minEpoch": null,
+    "maxEpoch": 1
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "grand_ritual",
+    "name": "Unknown",
+    "description": "相信萨满，投入资源进行祭祀。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "simple_ritual",
+    "name": "Unknown",
+    "description": "进行较小规模的仪式，节省资源。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "ignore_shaman",
+    "name": "Unknown",
+    "description": "这些预言不可信，我们靠自己的双手生存。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "stone_tool_innovation",
+    "name": "石器革新",
+    "description": "一位年轻的工匠发明了一种新的打制石器方法，可以制作更锋利的工具。但部落长老认为这违背了祖先传下的方法。",
+    "minEpoch": null,
+    "maxEpoch": 0
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "embrace_innovation",
+    "name": "Unknown",
+    "description": "新方法更好，应该推广使用。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "keep_tradition",
+    "name": "Unknown",
+    "description": "祖先的智慧不能轻易抛弃。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "test_first",
+    "name": "Unknown",
+    "description": "让工匠证明他的方法确实更好。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "bronze_secret",
+    "name": "青铜秘方",
+    "description": "一位外来的铸造师声称知道制作最坚固青铜的秘密配方。他愿意以高价出售这个秘密，或者以换取永久居留权和特权。",
+    "minEpoch": 1,
+    "maxEpoch": 2
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "buy_secret",
+    "name": "Unknown",
+    "description": "支付大量银币获得知识。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "grant_citizenship",
+    "name": "Unknown",
+    "description": "让他成为我们的一员，分享他的知识。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "steal_secret",
+    "name": "Unknown",
+    "description": "派人暗中学习他的技术。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "refuse_offer",
+    "name": "Unknown",
+    "description": "我们的工匠会自己研究出来。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "writing_invention",
+    "name": "文字的诞生",
+    "description": "神庙的祭司们发明了一套符号系统来记录祭祀和贡品。商人们希望也能使用这套系统来记账，但祭司认为这是神圣的知识。",
+    "minEpoch": 1,
+    "maxEpoch": 2
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "sacred_only",
+    "name": "Unknown",
+    "description": "文字是神的礼物，只能用于宗教事务。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "limited_secular",
+    "name": "Unknown",
+    "description": "允许王室和高官使用，但仍由祭司控制。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "public_writing",
+    "name": "Unknown",
+    "description": "文字应该为所有人服务，推广读写教育。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "irrigation_project",
+    "name": "灌溉工程",
+    "description": "农民们提议建造一条运河来灌溉农田，但这需要大量劳力。贵族们担心这会影响他们的劳动力供应，而农民则渴望增产。",
+    "minEpoch": 1,
+    "maxEpoch": 3
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "forced_labor",
+    "name": "Unknown",
+    "description": "命令所有平民参与建设。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "paid_workers",
+    "name": "Unknown",
+    "description": "支付工资，吸引自愿参与者。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "noble_contribution",
+    "name": "Unknown",
+    "description": "要求贵族贡献劳力和资源。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "postpone_project",
+    "name": "Unknown",
+    "description": "现在不是建设的好时机。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "slave_rebellion_bronze",
+    "name": "奴隶起义",
+    "description": "矿山的奴隶们发动了起义，他们杀死了监工，占领了矿区。他们要求获得自由，否则将破坏矿山设施。",
+    "minEpoch": 1,
+    "maxEpoch": 3
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "crush_rebellion",
+    "name": "Unknown",
+    "description": "派军队镇压起义，恢复秩序。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "negotiate_freedom",
+    "name": "Unknown",
+    "description": "释放部分奴隶，换取和平解决。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "improve_conditions",
+    "name": "Unknown",
+    "description": "承诺改善奴隶待遇，但不给予自由。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "city_state_alliance",
+    "name": "城邦联盟",
+    "description": "周边的几个城邦提议建立一个贸易和防御联盟。这将带来贸易利益，但也意味着在战争时必须援助盟友。",
+    "minEpoch": 1,
+    "maxEpoch": 3
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "join_alliance",
+    "name": "Unknown",
+    "description": "成为联盟的正式成员。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "trade_only",
+    "name": "Unknown",
+    "description": "只参与经济合作，不承担军事义务。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "refuse_alliance",
+    "name": "Unknown",
+    "description": "保持独立，不受他人约束。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "philosophy_school",
+    "name": "哲学学派之争",
+    "description": "城市中出现了两个相互对立的哲学学派。一派主张理性至上，一派强调传统美德。两派的辩论已经演变成街头冲突。",
+    "minEpoch": 2,
+    "maxEpoch": 4
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "support_rationalists",
+    "name": "Unknown",
+    "description": "理性和知识是进步的基础。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "support_traditionalists",
+    "name": "Unknown",
+    "description": "祖先的美德才是社会的基石。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "public_debate",
+    "name": "Unknown",
+    "description": "让两派公平竞争，由民众评判。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "ban_both",
+    "name": "Unknown",
+    "description": "哲学争论危害社会稳定。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "olympic_games",
+    "name": "运动会提案",
+    "description": "贵族们提议举办一场盛大的运动会，各城邦派遣最优秀的运动员参赛。这将耗费大量资源，但能增强国家声望。",
+    "minEpoch": 2,
+    "maxEpoch": 4
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "grand_games",
+    "name": "Unknown",
+    "description": "不惜代价展示国家实力。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "modest_games",
+    "name": "Unknown",
+    "description": "量力而行，不过度铺张。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "decline_hosting",
+    "name": "Unknown",
+    "description": "资源应该用在更重要的事情上。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "democratic_reform",
+    "name": "民主改革呼声",
+    "description": "城市的自由民要求参与政治决策，他们聚集在广场上，要求建立公民大会制度。贵族们强烈反对这种\"暴民政治\"。",
+    "minEpoch": 2,
+    "maxEpoch": 4
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "full_democracy",
+    "name": "Unknown",
+    "description": "让所有公民参与重大决策。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "limited_representation",
+    "name": "Unknown",
+    "description": "设立代表机构，但保留贵族特权。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "reject_democracy",
+    "name": "Unknown",
+    "description": "政治是贵族的事务，平民无权置喙。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "theatrical_competition",
+    "name": "戏剧竞赛",
+    "description": "戏剧节即将来临，但今年的参赛作品引发了争议。一部讽刺当权者的喜剧和一部歌颂英雄的悲剧同时入围。",
+    "minEpoch": 2,
+    "maxEpoch": 4
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "allow_satire",
+    "name": "Unknown",
+    "description": "艺术自由高于一切，即使是批评当权者。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "only_heroic",
+    "name": "Unknown",
+    "description": "戏剧应该歌颂美德，而非嘲笑权威。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "fair_competition",
+    "name": "Unknown",
+    "description": "让观众的欢呼声决定胜负。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "gladiator_question",
+    "name": "角斗士制度",
+    "description": "角斗表演越来越受欢迎，但一些人认为这种血腥娱乐有损国家形象。角斗士们自己也在要求改善待遇。",
+    "minEpoch": 2,
+    "maxEpoch": 4
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "expand_games",
+    "name": "Unknown",
+    "description": "人民需要娱乐，这有助于稳定。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "reform_games",
+    "name": "Unknown",
+    "description": "减少致死场次，给予角斗士赎身机会。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "abolish_games",
+    "name": "Unknown",
+    "description": "这种野蛮行为应该被禁止。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "crusade_call",
+    "name": "十字军召唤",
+    "description": "教会号召发动一场圣战，收复圣地。贵族们渴望荣耀和土地，但战争也意味着巨大的人员和财富损失。",
+    "minEpoch": 3,
+    "maxEpoch": 4
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "lead_crusade",
+    "name": "Unknown",
+    "description": "亲自带领大军出征，追求最高荣耀。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "send_army",
+    "name": "Unknown",
+    "description": "派部分军队参与，但不亲自出征。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "financial_support",
+    "name": "Unknown",
+    "description": "捐赠金钱支持圣战，但不派兵。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "refuse_crusade",
+    "name": "Unknown",
+    "description": "我们有自己的事务要处理。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "black_death",
+    "name": "黑死病",
+    "description": "一种可怕的瘟疫开始在城市蔓延，人们惊恐地死去，街道上到处是尸体。医生束手无策，人们开始寻找替罪羊。",
+    "minEpoch": 3,
+    "maxEpoch": 5
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "quarantine",
+    "name": "Unknown",
+    "description": "封锁疫区，禁止人员流动。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "blame_outsiders",
+    "name": "Unknown",
+    "description": "将瘟疫归咎于外来者，驱逐他们。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "prayer_procession",
+    "name": "Unknown",
+    "description": "通过宗教仪式祈求神灵保佑。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "medical_research",
+    "name": "Unknown",
+    "description": "召集医生研究瘟疫，寻找治愈方法。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "peasant_revolt_feudal",
+    "name": "农民起义",
+    "description": "不堪重负的农民们拿起草叉和镰刀，在一位神秘领袖的带领下起义了。他们要求减免税赋，废除农奴制度。",
+    "minEpoch": 3,
+    "maxEpoch": 5
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "crush_revolt",
+    "name": "Unknown",
+    "description": "派骑士镇压这些叛乱的农奴。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "negotiate_terms",
+    "name": "Unknown",
+    "description": "减免部分税赋，换取和平。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "promise_reforms",
+    "name": "Unknown",
+    "description": "答应改革，但暗中准备秋后算账。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "cathedral_construction",
+    "name": "大教堂工程",
+    "description": "主教提议建造一座宏伟的大教堂，以彰显上帝的荣耀和国家的虔诚。这将是一项跨越数代人的工程。",
+    "minEpoch": 3,
+    "maxEpoch": 5
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "grand_cathedral",
+    "name": "Unknown",
+    "description": "不惜代价建造最壮观的教堂。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "modest_church",
+    "name": "Unknown",
+    "description": "建一座实用的教堂就足够了。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "secular_building",
+    "name": "Unknown",
+    "description": "资源应该用于市政建设，而非宗教。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "guild_monopoly",
+    "name": "行会特权",
+    "description": "城市的行会要求获得独家生产权，禁止非行会成员从事相关行业。商人们抱怨这会提高物价，年轻工匠则抱怨入会门槛太高。",
+    "minEpoch": 3,
+    "maxEpoch": 5
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "grant_monopoly",
+    "name": "Unknown",
+    "description": "支持行会，保证产品质量。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "break_monopoly",
+    "name": "Unknown",
+    "description": "开放市场，允许自由竞争。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "regulate_guilds",
+    "name": "Unknown",
+    "description": "保留行会，但限制其特权。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "new_world_discovery",
+    "name": "新大陆发现",
+    "description": "探险家们报告发现了一片未知的大陆！那里有丰富的资源和原住民。问题是如何处理这片新领土和当地人。",
+    "minEpoch": 4,
+    "maxEpoch": 6
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "colonize_aggressively",
+    "name": "Unknown",
+    "description": "征服原住民，掠夺资源。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "trade_relations",
+    "name": "Unknown",
+    "description": "与原住民和平贸易，互通有无。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "missionary_work",
+    "name": "Unknown",
+    "description": "先派传教士，以宗教感化原住民。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "limited_contact",
+    "name": "Unknown",
+    "description": "建立少数贸易站，避免深度介入。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "printing_revolution",
+    "name": "印刷革命",
+    "description": "新发明的印刷术可以大量复制书籍，知识的传播将发生革命性变化。但教会担心异端思想会因此泛滥。",
+    "minEpoch": 4,
+    "maxEpoch": 6
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "embrace_printing",
+    "name": "Unknown",
+    "description": "支持新技术，传播知识。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "church_control",
+    "name": "Unknown",
+    "description": "允许印刷，但由教会审查内容。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "ban_printing",
+    "name": "Unknown",
+    "description": "这种技术会动摇社会秩序。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "reformation_movement",
+    "name": "宗教改革",
+    "description": "一位神学家公开质疑教会的权威，他的观点正在迅速传播。支持者和反对者之间的冲突越来越激烈。",
+    "minEpoch": 4,
+    "maxEpoch": 6
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "support_reformers",
+    "name": "Unknown",
+    "description": "教会确实需要改革和净化。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "support_church",
+    "name": "Unknown",
+    "description": "维护传统权威，镇压异端。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "allow_both",
+    "name": "Unknown",
+    "description": "宣布宗教宽容，两派都可信仰。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "spice_trade_war",
+    "name": "香料战争",
+    "description": "控制东方香料贸易的商路成为列强争夺的焦点。我们的商人要求政府支持他们打破竞争对手的垄断。",
+    "minEpoch": 4,
+    "maxEpoch": 6
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "naval_war",
+    "name": "Unknown",
+    "description": "用武力打开贸易通道。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "trade_company",
+    "name": "Unknown",
+    "description": "组建国家支持的贸易公司。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "find_alternative",
+    "name": "Unknown",
+    "description": "资助探险家寻找新的贸易路线。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "witch_trials",
+    "name": "女巫审判",
+    "description": "人们声称发现了女巫，恐惧在城镇中蔓延。宗教法庭要求进行审判，但一些人质疑这些指控的真实性。",
+    "minEpoch": 4,
+    "maxEpoch": 5
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "full_trials",
+    "name": "Unknown",
+    "description": "清除女巫是保护社会的必要之举。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "proper_investigation",
+    "name": "Unknown",
+    "description": "审判必须有确凿证据，不能仅凭指控。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "stop_trials",
+    "name": "Unknown",
+    "description": "这是迷信和迫害，必须停止。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "encyclopedie",
+    "name": "百科全书计划",
+    "description": "一群学者提议编纂一部包含所有人类知识的百科全书。这将是启蒙运动的里程碑，但也会传播\"危险\"的思想。",
+    "minEpoch": 5,
+    "maxEpoch": 6
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "fund_encyclopedia",
+    "name": "Unknown",
+    "description": "支持这项伟大的知识工程。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "censored_version",
+    "name": "Unknown",
+    "description": "支持编纂，但删除敏感内容。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "ban_encyclopedia",
+    "name": "Unknown",
+    "description": "这种知识传播会动摇社会秩序。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "salon_culture",
+    "name": "沙龙文化",
+    "description": "贵族府邸中的沙龙成为思想交流的中心，哲学家、作家和科学家在这里自由讨论。但这些讨论有时涉及敏感的政治话题。",
+    "minEpoch": 5,
+    "maxEpoch": 6
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "encourage_salons",
+    "name": "Unknown",
+    "description": "自由的思想交流有益于文化发展。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "monitor_salons",
+    "name": "Unknown",
+    "description": "允许沙龙存在，但安插眼线。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "ban_salons",
+    "name": "Unknown",
+    "description": "这些聚会是阴谋的温床。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "social_contract",
+    "name": "社会契约论",
+    "description": "一本名为《社会契约论》的书正在知识分子中广泛传播。它宣称政府的权力来自人民的同意，而非神授。",
+    "minEpoch": 5,
+    "maxEpoch": 6
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "embrace_ideas",
+    "name": "Unknown",
+    "description": "政府确实应该服务于人民。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "academic_only",
+    "name": "Unknown",
+    "description": "允许学术研究，但禁止政治宣传。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "burn_books",
+    "name": "Unknown",
+    "description": "这是颠覆性的危险思想。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "scientific_academy",
+    "name": "皇家科学院",
+    "description": "科学家们请求建立一个由国家资助的科学院，系统地研究自然世界。这将需要大量资金，但可能带来技术进步。",
+    "minEpoch": 5,
+    "maxEpoch": 6
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "grand_academy",
+    "name": "Unknown",
+    "description": "大力投资科学研究。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "modest_academy",
+    "name": "Unknown",
+    "description": "适度投资，逐步发展。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "private_funding",
+    "name": "Unknown",
+    "description": "让富人和商人赞助科学研究。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "vaccination_debate",
+    "name": "疫苗争议",
+    "description": "医生发明了一种预防天花的方法——接种牛痘。这种方法有效但争议巨大，许多人认为这是\"不自然的\"，甚至是亵渎神灵。",
+    "minEpoch": 5,
+    "maxEpoch": 6
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "mandatory_vaccination",
+    "name": "Unknown",
+    "description": "为了公共健康，所有人都应该接种。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "voluntary_vaccination",
+    "name": "Unknown",
+    "description": "提供接种服务，但不强制。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "ban_vaccination",
+    "name": "Unknown",
+    "description": "这种做法违反自然法则。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "factory_conditions",
+    "name": "工厂劳动条件",
+    "description": "工厂工人的恶劣劳动条件引发了公众关注。童工、超长工时和危险环境成为改革者攻击的目标。工厂主则警告说规制会损害竞争力。",
+    "minEpoch": 6,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "strict_regulation",
+    "name": "Unknown",
+    "description": "禁止童工，限制工时，强制安全标准。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "mild_reform",
+    "name": "Unknown",
+    "description": "部分改善条件，但不影响生产。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "free_market",
+    "name": "Unknown",
+    "description": "政府不应干预私营企业。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "railway_mania",
+    "name": "铁路狂热",
+    "description": "铁路投资热潮席卷全国，人们疯狂购买铁路公司的股票。这可能是改变时代的机遇，也可能是即将破裂的泡沫。",
+    "minEpoch": 6,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "state_railway",
+    "name": "Unknown",
+    "description": "由国家建设和运营铁路网。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "regulate_private",
+    "name": "Unknown",
+    "description": "允许私人投资，但政府监管。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "laissez_faire",
+    "name": "Unknown",
+    "description": "让市场决定铁路的发展。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "labor_union_formation",
+    "name": "工会运动",
+    "description": "工人们开始组织工会，要求集体谈判的权利。工厂主将其视为对财产权的威胁，而工人们则认为这是唯一能保护他们权益的方式。",
+    "minEpoch": 6,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "legalize_unions",
+    "name": "Unknown",
+    "description": "承认工人组织和集体谈判的权利。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "limited_rights",
+    "name": "Unknown",
+    "description": "允许工会存在，但限制其活动。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "ban_unions",
+    "name": "Unknown",
+    "description": "工人结社是对社会秩序的威胁。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "urban_poverty",
+    "name": "城市贫民窟",
+    "description": "工业化吸引了大量农村人口涌入城市，但住房严重短缺。贫民窟在城市边缘蔓延，疾病和犯罪率上升。",
+    "minEpoch": 6,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "public_housing",
+    "name": "Unknown",
+    "description": "由政府出资建设廉价住房。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "incentivize_private",
+    "name": "Unknown",
+    "description": "给予开发商税收优惠。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "demolish_slums",
+    "name": "Unknown",
+    "description": "强制拆除贫民窟，驱散居民。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "communist_manifesto",
+    "name": "共产主义宣言",
+    "description": "一本名为《共产主义宣言》的小册子在工人中广泛传播，它呼吁工人阶级联合起来推翻资本主义制度。当局对此深感忧虑。",
+    "minEpoch": 6,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "suppress_movement",
+    "name": "Unknown",
+    "description": "逮捕传播者，查禁书籍。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "reform_to_defuse",
+    "name": "Unknown",
+    "description": "通过社会改革来减少激进思想的吸引力。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "allow_debate",
+    "name": "Unknown",
+    "description": "思想自由是社会进步的基础。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "ritual_reform",
+    "name": "礼制改革",
+    "description": "一位博学的官员上书朝廷，建议制定完整的礼仪制度来规范社会秩序。\"礼者，天地之序也。\"他认为通过明确的等级礼仪，可以让社会和谐稳定。",
+    "minEpoch": 1,
+    "maxEpoch": 3
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "establish_ritual",
+    "name": "Unknown",
+    "description": "让每个阶层都知道自己的位置和本分。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "simplify_ritual",
+    "name": "Unknown",
+    "description": "礼仪应当简明，不必繁文缛节。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "reject_ritual",
+    "name": "Unknown",
+    "description": "人人平等，何须分高下贵贱？",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "wandering_sage",
+    "name": "周游列国的圣人",
+    "description": "一位白发苍苍的老者带着一群弟子来到国境。据说他曾是某国的大司寇，因政见不合而离开。他宣扬\"仁义礼智信\"，希望能找到愿意采纳其学说的君主。",
+    "minEpoch": 2,
+    "maxEpoch": 4
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "hire_sage",
+    "name": "Unknown",
+    "description": "以仁政治国，德行天下。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "allow_teaching",
+    "name": "Unknown",
+    "description": "有教无类，让百姓也能受教育。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "expel_sage",
+    "name": "Unknown",
+    "description": "空谈仁义能当饭吃吗？",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "great_wall_project",
+    "name": "万里长城工程",
+    "description": "为抵御北方游牧民族的侵扰，将军们提议修建一条横跨边境的巨大城墙，将各段旧城墙连接起来。这将是史无前例的工程，需要征调大量民夫。",
+    "minEpoch": 2,
+    "maxEpoch": 4
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "build_wall",
+    "name": "Unknown",
+    "description": "千秋万代的功业！",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "limited_fortification",
+    "name": "Unknown",
+    "description": "在战略要地建立坚固堡垒。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "reject_wall",
+    "name": "Unknown",
+    "description": "与其修墙，不如安抚边民。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "vassal_rebellion",
+    "name": "诸侯叛乱",
+    "description": "朝廷推行削减诸侯封地的政策引发强烈反弹。数位封疆大吏联合起来，以\"清君侧\"为名举兵反叛。叛军声势浩大，直逼京师。",
+    "minEpoch": 2,
+    "maxEpoch": 4
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "crush_rebellion",
+    "name": "Unknown",
+    "description": "顺我者昌，逆我者亡！",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "negotiate_peace",
+    "name": "Unknown",
+    "description": "暂时妥协，以图后计。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "abandon_reform",
+    "name": "Unknown",
+    "description": "承认错误，恢复旧制。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "frontier_general_rebellion",
+    "name": "边将叛乱",
+    "description": "一位手握重兵的边境将军突然起兵造反。这位将军本是皇帝的宠臣，掌管多个边镇，麾下精兵强将无数。叛军势如破竹，京城危在旦夕！",
+    "minEpoch": 3,
+    "maxEpoch": 5
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "flee_capital",
+    "name": "Unknown",
+    "description": "留得青山在，不愁没柴烧。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "defend_capital",
+    "name": "Unknown",
+    "description": "天子守国门，君王死社稷！",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "seek_foreign_aid",
+    "name": "Unknown",
+    "description": "以夷制夷，借刀杀人。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "disarm_generals",
+    "name": "杯酒释兵权",
+    "description": "新建立的王朝担忧武将拥兵自重，重蹈前朝覆辙。皇帝设宴款待功臣宿将，在酒酣耳热之际暗示他们交出兵权，以享富贵。",
+    "minEpoch": 3,
+    "maxEpoch": 5
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "release_generals",
+    "name": "Unknown",
+    "description": "给予丰厚赏赐，换取军权集中。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "partial_release",
+    "name": "Unknown",
+    "description": "留用可信之人，遣散可疑者。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "keep_military",
+    "name": "Unknown",
+    "description": "功臣不可负，否则寒天下之心。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "radical_reform",
+    "name": "激进的变法",
+    "description": "一位锐意进取的大臣提出全面改革方案：\"天变不足畏，祖宗不足法，人言不足恤！\"他主张推行青苗法、免役法、保甲法等新政，引发朝野激烈争论。",
+    "minEpoch": 3,
+    "maxEpoch": 5
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "full_reform",
+    "name": "Unknown",
+    "description": "富国强兵，舍此无他！",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "gradual_reform",
+    "name": "Unknown",
+    "description": "先在部分地区试行，总结经验。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "reject_reform",
+    "name": "Unknown",
+    "description": "祖宗之法不可变！",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "emperor_personal_campaign",
+    "name": "皇帝亲征",
+    "description": "北方游牧民族再次入侵，年轻的皇帝不顾群臣劝阻，执意要御驾亲征。宦官们也在一旁怂恿，说这是建立不世功业的大好机会。",
+    "minEpoch": 3,
+    "maxEpoch": 5
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "personal_campaign",
+    "name": "Unknown",
+    "description": "天子亲征，三军用命！",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "send_general",
+    "name": "Unknown",
+    "description": "运筹帷幄，不必亲冒矢石。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "negotiate_tribute",
+    "name": "Unknown",
+    "description": "以财货换和平，免生灵涂炭。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "grand_secretary_reform",
+    "name": "首辅改革",
+    "description": "一位铁腕首辅大臣主持朝政，推行\"一条鞭法\"简化税制，清丈全国土地，严厉打击贪腐。他的改革触动了既得利益者的蛋糕。",
+    "minEpoch": 4,
+    "maxEpoch": 6
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "support_reform",
+    "name": "Unknown",
+    "description": "除弊兴利，中兴有望！",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "moderate_reform",
+    "name": "Unknown",
+    "description": "循序渐进，不可操之过急。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "block_reform",
+    "name": "Unknown",
+    "description": "维护既有体制，稳定压倒一切。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "universal_taxation",
+    "name": "官绅一体纳粮",
+    "description": "长期以来，官员和有功名的士绅享有免税特权，导致税负集中在普通百姓身上。是否要打破这一惯例，要求所有人一体纳税。",
+    "minEpoch": 4,
+    "maxEpoch": 6
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "enforce_universal_tax",
+    "name": "Unknown",
+    "description": "官民一体，公平税负！",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "partial_reform",
+    "name": "Unknown",
+    "description": "只对大地主征税，保留小士绅优免。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "maintain_privilege",
+    "name": "Unknown",
+    "description": "祖制不可轻改。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "black_ships",
+    "name": "黑船来航",
+    "description": "几艘冒着黑烟的巨大铁甲船出现在港口外，船上的外国人带来了通商的要求。他们的大炮射程远超我国任何武器，令人胆寒。是开国还是攘夷？",
+    "minEpoch": 5,
+    "maxEpoch": 6
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "open_ports",
+    "name": "Unknown",
+    "description": "师夷长技以制夷。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "limited_trade",
+    "name": "Unknown",
+    "description": "只开放特定港口，严格管控。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "resist_foreigners",
+    "name": "Unknown",
+    "description": "宁为玉碎，不为瓦全！",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "defenestration",
+    "name": "掷出窗外事件",
+    "description": "宗教和政治矛盾激化！一群愤怒的新宗教贵族冲入王宫，将几名代表中央权威的传统宗教官员从窗户扔了出去。这一暴力行为点燃了积蓄已久的火药桶。",
+    "minEpoch": 3,
+    "maxEpoch": 5
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "punish_rebels",
+    "name": "Unknown",
+    "description": "维护朝廷权威，镇压地方势力！",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "negotiate_settlement",
+    "name": "Unknown",
+    "description": "各方妥协，避免流血。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "religious_freedom",
+    "name": "Unknown",
+    "description": "各人信仰自由，国家不得干涉。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "cave_painting_masterpiece",
+    "name": "洞穴壁画杰作",
+    "description": "部落的艺术家在深邃的洞穴墙壁上绘制了令人惊叹的野兽和狩猎场景。不仅仅是装饰，萨满认为这蕴含着强大的魔法力量。",
+    "minEpoch": null,
+    "maxEpoch": 0
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "sacred_site",
+    "name": "Unknown",
+    "description": "将此洞穴定为部落的圣地，供以后世代瞻仰。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "hunting_magic",
+    "name": "Unknown",
+    "description": "在壁画前举行仪式，祈求狩猎丰收。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "wolf_domestication",
+    "name": "狼群驯化",
+    "description": "一些游荡的狼群开始在营地边缘徘徊，吃剩饭。与其驱赶它们，也许我们可以尝试驯化它们，让它们成为狩猎的帮手。",
+    "minEpoch": null,
+    "maxEpoch": 0
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "tame_wolves",
+    "name": "Unknown",
+    "description": "分给它们食物，建立信任。这将是人类最好的朋友。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "drive_away",
+    "name": "Unknown",
+    "description": "狼是危险的野兽，不能留在这里。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "star_gazer",
+    "name": "仰望星空者",
+    "description": "一位部落成员每晚都在观察星星的移动，他声称能通过星象预测季节的变化和洪水的到来。",
+    "minEpoch": null,
+    "maxEpoch": 0
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "support_observer",
+    "name": "Unknown",
+    "description": "让他专心研究，不必参与劳作。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "mystic_interpretation",
+    "name": "Unknown",
+    "description": "星星是祖先的眼睛，将其纳入宗教体系。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "first_fermentation",
+    "name": "发酵的奇迹",
+    "description": "有人发现储存过久的果实和谷物产生了一种神奇的液体，喝了之后能让人忘却烦恼，但也容易让人失态。",
+    "minEpoch": null,
+    "maxEpoch": 0
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "celebrate_discovery",
+    "name": "Unknown",
+    "description": "这是神的恩赐！让我们尽情享用。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "control_usage",
+    "name": "Unknown",
+    "description": "只能在祭祀和庆典时饮用。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "obsidian_trade",
+    "name": "黑曜石贸易",
+    "description": "远方的信使带来了一种锋利的黑色石头——黑曜石。虽然我们附近没有产地，但可以通过交换获得这种优质的工具材料。",
+    "minEpoch": null,
+    "maxEpoch": 0
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "establish_trade",
+    "name": "Unknown",
+    "description": "用多余的食物和皮毛交换黑曜石。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "raiding_party",
+    "name": "Unknown",
+    "description": "抢夺他们的石头！",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "burial_rites",
+    "name": "丧葬仪式",
+    "description": "部落成员逝去后，人们就是否应该举行更隆重的仪式产生了讨论。有人建议在死者身边放置工具和花朵，以陪伴来世。",
+    "minEpoch": null,
+    "maxEpoch": 0
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "elaborate_burial",
+    "name": "Unknown",
+    "description": "这能抚慰生者，凝聚部落人心。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "simple_burial",
+    "name": "Unknown",
+    "description": "资源宝贵，不应浪费在死者身上。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "code_of_law",
+    "name": "法典石柱",
+    "description": "随着城市人口增长，纠纷日益增多。一位贤明的统治者建议将法律刻在巨大的石柱上，立于市中心，让所有人知晓。\"以此保护弱者不受强者欺凌\"。",
+    "minEpoch": 1,
+    "maxEpoch": 2
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "enact_code",
+    "name": "Unknown",
+    "description": "以眼还眼，以牙还牙，公平公正。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "noble_justice",
+    "name": "Unknown",
+    "description": "法律不应束缚高贵者的手脚。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "flood_myth",
+    "name": "大洪水传说",
+    "description": "关于一场毁灭世界的大洪水的传说在民间流传。祭司们以此警告世人要敬畏神明，而治水英雄的故事也在激励着人们。",
+    "minEpoch": 1,
+    "maxEpoch": 2
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "unite_people",
+    "name": "Unknown",
+    "description": "像先祖那样，团结一心战胜灾难。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "worship_gods",
+    "name": "Unknown",
+    "description": "只有虔诚祈祷才能平息神怒。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "standardized_weights",
+    "name": "度量衡统一",
+    "description": "集市上充斥着各种不同的称重标准，导致欺诈横行，贸易受阻。商人们请求制定统一的度量衡标准。",
+    "minEpoch": 1,
+    "maxEpoch": 2
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "standardize",
+    "name": "Unknown",
+    "description": "制作标准量具，强制推行。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "laissez_faire_weights",
+    "name": "Unknown",
+    "description": "让市场自己调节。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "oracle_bones",
+    "name": "甲骨占卜",
+    "description": "王室占卜师在龟甲和兽骨上刻写文字，通过火烧后的裂纹来预测吉凶。这不仅是占卜，也是记录历史的方式。",
+    "minEpoch": 1,
+    "maxEpoch": 2
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "record_history",
+    "name": "Unknown",
+    "description": "将占卜结果和国家大事详细记录下来。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "pure_divination",
+    "name": "Unknown",
+    "description": "仅用于询问神意。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "bronze_collapse_fear",
+    "name": "海上民族的阴影",
+    "description": "流言四起，说一群来自海上的野蛮民族正在摧毁沿海的文明城邦。我们的贸易伙伴一个个失去了联系。",
+    "minEpoch": 1,
+    "maxEpoch": 2
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "fortify_coast",
+    "name": "Unknown",
+    "description": "修建堡垒，训练士兵。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "absorb_refugees",
+    "name": "Unknown",
+    "description": "很多拥有技术的工匠逃难而来。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "chariot_warfare",
+    "name": "战车冲锋",
+    "description": "这一新式武器彻底改变了战争的面貌。轻便的双轮战车和精锐的弓箭手成为了战场的主宰。",
+    "minEpoch": 1,
+    "maxEpoch": 2
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "invest_chariots",
+    "name": "Unknown",
+    "description": "这需要大量的马匹和精湛的工艺。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "counter_tactics",
+    "name": "Unknown",
+    "description": "寻找克制战车的方法。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "great_library",
+    "name": "万卷书馆",
+    "description": "一位在此避难的学者建议建立一座汇集天下书籍的图书馆。以此地为中心，收集全世界的知识。",
+    "minEpoch": 2,
+    "maxEpoch": 3
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "build_library",
+    "name": "Unknown",
+    "description": "派遣抄写员去世界各地搜集书卷。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "small_archive",
+    "name": "Unknown",
+    "description": "只收集本国的历史和法律。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "silk_road_opening",
+    "name": "丝路凿空",
+    "description": "勇敢的探险家带着西域的地图回来了。他描述了一条通往遥远西方的贸易路线，那里有我们也未曾见过的珍宝。",
+    "minEpoch": 2,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "open_trade_route",
+    "name": "Unknown",
+    "description": "派遣使团和商队，建立驿站。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "close_borders",
+    "name": "Unknown",
+    "description": "外面的世界充满了未知的危险。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "roman_roads",
+    "name": "条条大路",
+    "description": "随着军队的征服，我们需要更高效的道路系统来调动部队和运输物资。工程师提出了一套标准化的道路铺设方案。",
+    "minEpoch": 2,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "massive_infrastructure",
+    "name": "Unknown",
+    "description": "条条大路通首都！",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "local_roads",
+    "name": "Unknown",
+    "description": "修修补补即可。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "academy_founding",
+    "name": "讲学之风",
+    "description": "首都聚集了大量的思想家。有人提议建立固定的讲学场所，让不同的学派可以公开辩论和授课。",
+    "minEpoch": 2,
+    "maxEpoch": 3
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "state_academy",
+    "name": "Unknown",
+    "description": "由国家供养，培养治国人才。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "free_lectures",
+    "name": "Unknown",
+    "description": "百家争鸣，自由发展。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "census_taking",
+    "name": "大普查",
+    "description": "为了更有效地征税和征兵，官员们请求进行一次全国性的人口普查。这将是一项浩大的工程，且可能引起民众的恐慌。",
+    "minEpoch": 2,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "thorough_census",
+    "name": "Unknown",
+    "description": "挨家挨户登记，清查隐匿人口。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "loose_census",
+    "name": "Unknown",
+    "description": "大致统计即可，以免扰民。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "aqueduct_project",
+    "name": "引水渠工程",
+    "description": "城市人口激增导致水源短缺和卫生恶化。工程师建议修建巨大的引水渠，将山区的清泉引入城中。",
+    "minEpoch": 2,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "build_aqueduct",
+    "name": "Unknown",
+    "description": "这是城市的生命线，也是工程奇迹。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "dig_wells",
+    "name": "Unknown",
+    "description": "便宜且通过。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "magna_carta_demand",
+    "name": "大宪章的呼声",
+    "description": "贵族们对国王的专权和重税感到愤怒。他们在兰尼米德草地集结，要求国王签署一份限制王权、保障贵族权利的文件。",
+    "minEpoch": 3,
+    "maxEpoch": 4
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "sign_charter",
+    "name": "Unknown",
+    "description": "王权也应在法律之下。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "reject_charter",
+    "name": "Unknown",
+    "description": "朕即国家，实际上并没有人能限制国王。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "knightly_tournament",
+    "name": "比武大会",
+    "description": "国王举办盛大的比武大会，以此来展示骑士的武艺和国家的强盛。这不仅是娱乐，也是军事演练。",
+    "minEpoch": 3,
+    "maxEpoch": 4
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "host_grand_tournament",
+    "name": "Unknown",
+    "description": "邀请各地的骑士参加。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "cancel_tournament",
+    "name": "Unknown",
+    "description": "国库空虚，不宜铺张。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "university_founding",
+    "name": "古老大学",
+    "description": "学者行会请求获得特许状，建立一所自治的大学。他们希望脱离教会学校的控制，教授法律、医学和神学。",
+    "minEpoch": 3,
+    "maxEpoch": 4
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "grant_charter",
+    "name": "Unknown",
+    "description": "学术独立有助于知识的繁荣。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "church_control",
+    "name": "Unknown",
+    "description": "知识必须服务于信仰。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "alchemist_discovery",
+    "name": "炼金术士的实验",
+    "description": "一位炼金术士声称他在寻找长生不老药的过程中，意外发现了一种能产生剧烈爆炸的黑色粉末。",
+    "minEpoch": 3,
+    "maxEpoch": 4
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "weaponize",
+    "name": "Unknown",
+    "description": "这种粉末可以用来开山裂石，也可以用来杀敌。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "ignore_magic",
+    "name": "Unknown",
+    "description": "不过是江湖骗术罢了。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "hanseatic_league",
+    "name": "商业同盟",
+    "description": "北方的商业城市结成了紧密的同盟，垄断了波罗的海的贸易。他们拥有自己的法律甚至海军。是否允许本国城市加入或与之合作？",
+    "minEpoch": 3,
+    "maxEpoch": 4
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "cooperate_league",
+    "name": "Unknown",
+    "description": "融入国际贸易网络。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "compete_league",
+    "name": "Unknown",
+    "description": "肥水不流外人田。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "chivalric_romance",
+    "name": "骑士文学",
+    "description": "吟游诗人在宫廷中传唱着亚瑟王和圆桌骑士的故事。这种关于爱情、荣誉和冒险的文学形式正在贵族中流行。",
+    "minEpoch": 3,
+    "maxEpoch": 4
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "sponsor_poets",
+    "name": "Unknown",
+    "description": "这有助于提升宫廷的文化品位。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "ban_frivolous",
+    "name": "Unknown",
+    "description": "骑士应该练习武艺，而不是听这些爱情故事。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "potato_introduction",
+    "name": "神奇作物的传入",
+    "description": "来自新大陆的船只带来了一种名为\"土豆\"的块茎作物。据说它产量极高，且耐贫瘠，可以养活大量人口。",
+    "minEpoch": 4,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "promote_planting",
+    "name": "Unknown",
+    "description": "这是解决饥荒的神器！",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "cautious_testing",
+    "name": "Unknown",
+    "description": "先在皇家花园里试种看看。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "heliocentrism",
+    "name": "天体运行论",
+    "description": "一位天文学家发表了惊世骇俗的理论：地球不是宇宙的中心，而是绕着太阳转！这严重挑战了教会的教义。",
+    "minEpoch": 4,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "support_science",
+    "name": "Unknown",
+    "description": "真理往往掌握在少数人手中。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "condemn_heresy",
+    "name": "Unknown",
+    "description": "烧毁书籍，让他闭嘴。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "privateer_commission",
+    "name": "私掠许可证",
+    "description": "为了削弱敌国的海上力量并充实国库，海军大臣建议向私人船长颁发特许状，允许他们抢劫敌国商船。",
+    "minEpoch": 4,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "issue_letters",
+    "name": "Unknown",
+    "description": "他们是海盗，也是皇家的海盗。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "uphold_honor",
+    "name": "Unknown",
+    "description": "国家不应支持这种卑劣行径。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "tulip_mania",
+    "name": "郁金香狂热",
+    "description": "一种来自东方的花卉球茎价格被炒到了天价，全民陷入疯狂的投机。人们卖房置地只为求一株稀有的郁金香。",
+    "minEpoch": 4,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "market_intevention",
+    "name": "Unknown",
+    "description": "这疯狂必须停止！强制限制交易。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "join_speculation",
+    "name": "Unknown",
+    "description": "既然大家都在炒，国库也要分一杯羹。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "kabuki_plays",
+    "name": "浮世绘与歌舞伎",
+    "description": "在和平繁荣的年代，市民文化开始兴起。描绘市井生活的版画和喧闹的歌舞伎表演风靡一时，但这也被一些人视为堕落。",
+    "minEpoch": 4,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "promote_culture",
+    "name": "Unknown",
+    "description": "这是人民的艺术！",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "censor_art",
+    "name": "Unknown",
+    "description": "禁止奢侈和逾越礼制的娱乐。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "tea_trade_boom",
+    "name": "茶叶贸易",
+    "description": "这种来自东方的神奇树叶泡出的饮料征服了所有人的味蕾。茶叶贸易带来了巨额利润，但也导致白银大量外流。",
+    "minEpoch": 4,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "expand_trade",
+    "name": "Unknown",
+    "description": "满足人民的需求。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "grow_locally",
+    "name": "Unknown",
+    "description": "或是寻找殖民地种植，以减少白银外流。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "hot_air_balloon",
+    "name": "热气球升空",
+    "description": "在无数观众的惊叹声中，巨大的热气球载着两个人缓缓升空。人类终于迈出了征服天空的第一步。",
+    "minEpoch": 5,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "fund_aeronautics",
+    "name": "Unknown",
+    "description": "天空是新的疆域。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "military_scout",
+    "name": "Unknown",
+    "description": "站得高，看得远。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "mozart_concert",
+    "name": "神童的音乐会",
+    "description": "一位年轻的音乐天才来到宫廷献艺。他创作的交响乐如此美妙，仿佛来自天国。整个宫廷都被他的才华所折服。",
+    "minEpoch": 5,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "royal_patronage",
+    "name": "Unknown",
+    "description": "让艺术之光照耀国家。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "public_concert",
+    "name": "Unknown",
+    "description": "艺术应当属于所有人。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "lightning_rod",
+    "name": "捕捉雷电",
+    "description": "一位科学家通过风筝实验证明了雷电就是电，并发明了避雷针。这不仅能保护建筑，更打破了对雷电的迷信恐惧。",
+    "minEpoch": 5,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "install_rods",
+    "name": "Unknown",
+    "description": "保护所有重要建筑。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "study_electricity",
+    "name": "Unknown",
+    "description": "这背后隐藏着无穷的力量。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "taxation_representation",
+    "name": "无代表不纳税",
+    "description": "殖民地和边远省份的居民抗议中央政府的征税，因为他们在议会中没有代表权。\"对自由人强加税赋是暴政！\"",
+    "minEpoch": 5,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "grant_representation",
+    "name": "Unknown",
+    "description": "扩大议会，吸纳他们的代表。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "suppress_protest",
+    "name": "Unknown",
+    "description": "这是叛乱行为！",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "agricultural_revolution",
+    "name": "农业革命",
+    "description": "新的耕作方法（如四圃轮作制）和播种机的发明大大提高了农业产量。更少的农民可以养活更多的人。",
+    "minEpoch": 5,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "promote_new_methods",
+    "name": "Unknown",
+    "description": "这是工业化的基础。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "enclosure_movement",
+    "name": "Unknown",
+    "description": "将土地集中起来规模化经营。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "romanticism_movement",
+    "name": "浪漫主义运动",
+    "description": "作为对理性主义的反动，一场强调情感、自然和个人主义的文化运动正在兴起。诗人和艺术家们颂扬激情与野性。",
+    "minEpoch": 5,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "embrace_romanticism",
+    "name": "Unknown",
+    "description": "让情感自由流淌。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "uphold_rationalism",
+    "name": "Unknown",
+    "description": "秩序和理智才是国家强盛的基石。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "steam_engine_revolution",
+    "name": "蒸汽机的改良",
+    "description": "一个工程师大大改良了蒸汽机，使其效率成倍提高。现在它不仅能抽水，还能驱动纺织机和机车。蒸汽时代到来了！",
+    "minEpoch": 6,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "industrialize_rapidly",
+    "name": "Unknown",
+    "description": "将蒸汽机应用到所有领域！",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "regulated_adoption",
+    "name": "Unknown",
+    "description": "注意安全和资源消耗。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "telephone_patent",
+    "name": "电话的诞生",
+    "description": "一个发明家申请了一项通过导线传送语音的专利。\"快来这里，我需要你！\"这是人类通讯史上的里程碑。",
+    "minEpoch": 6,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "build_network",
+    "name": "Unknown",
+    "description": "连接城市和乡村。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "exclusive_use",
+    "name": "Unknown",
+    "description": "国家机密通讯优先。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "impressionist_exhibition",
+    "name": "落选者沙龙",
+    "description": "一群被官方沙龙拒绝的画家举办了自己的画展。他们用光影捕捉瞬间的印象，被评论家讥讽为\"印象派\"，但却吸引了公众的目光。",
+    "minEpoch": 6,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "support_innovators",
+    "name": "Unknown",
+    "description": "艺术需要打破陈规。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "mock_them",
+    "name": "Unknown",
+    "description": "这些只是未完成的草稿。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "world_fair",
+    "name": "万国博览会",
+    "description": "这是一个展示工业、科学和文化成就的全球盛会。各国都将派出代表团，展示他们最先进的发明。我们是否要主办这次盛会？",
+    "minEpoch": 6,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "host_fair",
+    "name": "Unknown",
+    "description": "向世界展示我们的强盛！",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "participate_only",
+    "name": "Unknown",
+    "description": "展示我们的特色产品。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "x_ray_discovery",
+    "name": "透视之光",
+    "description": "一个科学家在实验室里发现了一种神秘的射线，可以穿透皮肤看到骨骼。这一发现震惊了医学界和物理学界。",
+    "minEpoch": 6,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "medical_application",
+    "name": "Unknown",
+    "description": "无数伤病员将因此获救。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "pure_research",
+    "name": "Unknown",
+    "description": "探寻物质的本质。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "suffrage_march",
+    "name": "争取投票权",
+    "description": "成千上万的妇女和工人走上街头，要求平等的投票权。他们高呼口号，举行游行，甚至引发了一些冲突。",
+    "minEpoch": 6,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "universal_suffrage",
+    "name": "Unknown",
+    "description": "这是历史的潮流。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "epochEvents.js",
+    "id": "suppress_movement",
+    "name": "Unknown",
+    "description": "政治是精英的游戏。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "border_dispute",
+    "name": "边境争端",
+    "description": "边境地区发生了领土纠纷，一个邻国声称对边境村庄拥有主权。紧张局势正在升级。",
+    "minEpoch": 1,
+    "maxEpoch": 5
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "negotiate",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "military_posturing",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "concede_territory",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "diplomatic_incident",
+    "name": "外交风波",
+    "description": "我方外交使节在邻国遭受侮辱，对方拒绝道歉。国内舆论激愤，要求采取行动。",
+    "minEpoch": 2,
+    "maxEpoch": 5
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "demand_apology",
+    "name": "Unknown",
+    "description": "对方迫于压力道歉了。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "expel_diplomats",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "ignore_incident",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "spy_discovered",
+    "name": "间谍案",
+    "description": "我方发现了一名外国间谍，此人正在收集军事和经济情报。如何处置？",
+    "minEpoch": 2,
+    "maxEpoch": 6
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "public_trial",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "exchange_prisoners",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "turn_double_agent",
+    "name": "Unknown",
+    "description": "计划暴露，对方愤而宣战！",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "trade_delegation",
+    "name": "贸易使团来访",
+    "description": "一个富裕的邻国派来贸易使团，希望建立更紧密的商业联系。",
+    "minEpoch": 2,
+    "maxEpoch": 6
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "welcome_trade",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "negotiate_terms",
+    "name": "Unknown",
+    "description": "谈判成功，获得优惠条款。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "reject_delegation",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "trade_war",
+    "name": "贸易战",
+    "description": "邻国突然提高关税，对我国商品设置贸易壁垒。我方商人损失惨重。",
+    "minEpoch": 3,
+    "maxEpoch": 6
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "retaliate",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "seek_new_markets",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "negotiate_end",
+    "name": "Unknown",
+    "description": "谈判成功，贸易恢复正常。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "resource_competition",
+    "name": "资源争夺",
+    "description": "在边境发现了丰富的矿藏，但邻国也声称对该地区拥有开采权。",
+    "minEpoch": 2,
+    "maxEpoch": 5
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "claim_territory",
+    "name": "Unknown",
+    "description": "对方被激怒，向我方宣战！",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "joint_development",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "abandon_claim",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "military_alliance_offer",
+    "name": "同盟邀请",
+    "description": "一个强大的邻国提议结成军事同盟，共同对抗潜在威胁。",
+    "minEpoch": 2,
+    "maxEpoch": 5
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "accept_alliance",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "conditional_alliance",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "decline_politely",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "arms_race",
+    "name": "军备竞赛",
+    "description": "邻国大规模扩军，边境驻军数量倍增。是跟进扩军还是寻求外交解决？",
+    "minEpoch": 2,
+    "maxEpoch": 6
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "expand_military",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "diplomatic_solution",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "seek_allies",
+    "name": "Unknown",
+    "description": "获得盟友支持，对方有所收敛。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "war_threat",
+    "name": "战争威胁",
+    "description": "一个好战的邻国发出最后通牒，要求我方割让领土或支付贡金，否则将发动战争。",
+    "minEpoch": 2,
+    "maxEpoch": 5
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "refuse_and_prepare",
+    "name": "Unknown",
+    "description": "对方如期发动战争！",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "pay_tribute",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "stall_for_time",
+    "name": "Unknown",
+    "description": "对方失去耐心，发动战争！",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "cultural_exchange",
+    "name": "文化交流",
+    "description": "邻国学者和艺术家希望来我国访问交流，这是增进了解的好机会。",
+    "minEpoch": 2,
+    "maxEpoch": 6
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "welcome_exchange",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "limited_exchange",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "reject_exchange",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "religious_mission",
+    "name": "宗教传教",
+    "description": "邻国的传教士希望在我国传播他们的信仰，这引起了本地宗教人士的不满。",
+    "minEpoch": 2,
+    "maxEpoch": 5
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "allow_mission",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "restrict_mission",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "expel_missionaries",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "refugee_crisis",
+    "name": "难民潮",
+    "description": "邻国发生战乱或饥荒，大批难民涌入我国边境。",
+    "minEpoch": 1,
+    "maxEpoch": 6
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "accept_refugees",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "selective_admission",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "close_borders",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "plague_spread",
+    "name": "瘟疫蔓延",
+    "description": "邻国爆发了可怕的瘟疫，已有迹象表明疫病可能传入我国。",
+    "minEpoch": 1,
+    "maxEpoch": 5
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "quarantine_border",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "send_aid",
+    "name": "Unknown",
+    "description": "部分医者染病，带回了疫情。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "do_nothing",
+    "name": "Unknown",
+    "description": "疫病传入国内，造成重大损失。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "natural_disaster_aid",
+    "name": "邻国受灾",
+    "description": "邻国遭遇严重的自然灾害，派使者前来请求援助。",
+    "minEpoch": 1,
+    "maxEpoch": 6
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "generous_aid",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "modest_aid",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "exploit_weakness",
+    "name": "Unknown",
+    "description": "对方恼羞成怒，宣布开战！",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "royal_marriage",
+    "name": "联姻提议",
+    "description": "邻国王室提议通过联姻来加强两国关系。",
+    "minEpoch": 2,
+    "maxEpoch": 5
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "accept_marriage",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "negotiate_dowry",
+    "name": "Unknown",
+    "description": "对方同意了嫁妆要求。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "decline_marriage",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "succession_crisis",
+    "name": "邻国内乱",
+    "description": "邻国发生了继承权危机，多个派系争夺王位。我们要介入吗？",
+    "minEpoch": 2,
+    "maxEpoch": 5
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "support_pretender",
+    "name": "Unknown",
+    "description": "我方支持的继承人胜出，感激我方。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "stay_neutral",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "seize_opportunity",
+    "name": "Unknown",
+    "description": "新政权统一后立即向我方宣战！",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "intelligence_opportunity",
+    "name": "情报机会",
+    "description": "我方探子报告，邻国内部有人愿意出卖机密情报。",
+    "minEpoch": 3,
+    "maxEpoch": 6
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "buy_intelligence",
+    "name": "Unknown",
+    "description": "情报交易被发现，关系恶化。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "plant_agent",
+    "name": "Unknown",
+    "description": "内线成功潜伏，持续提供情报。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "ignore_opportunity",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "sabotage_discovered",
+    "name": "破坏行动",
+    "description": "我方发现邻国在我国境内实施破坏活动，造成了一定损失。",
+    "minEpoch": 3,
+    "maxEpoch": 6
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "retaliate_sabotage",
+    "name": "Unknown",
+    "description": "冲突升级为全面战争！",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "demand_compensation",
+    "name": "Unknown",
+    "description": "对方同意赔偿。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "strengthen_security",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "tribute_demand",
+    "name": "朝贡要求",
+    "description": "一个强大的邻国要求我方承认其宗主地位并定期进贡。",
+    "minEpoch": 2,
+    "maxEpoch": 5
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "accept_vassalage",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "refuse_proudly",
+    "name": "Unknown",
+    "description": "对方发动惩罚性战争！",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "negotiate_terms",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "vassal_rebellion",
+    "name": "属国叛变",
+    "description": "一个曾经臣服的小国宣布独立，拒绝继续进贡。",
+    "minEpoch": 3,
+    "maxEpoch": 6
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "punitive_expedition",
+    "name": "Unknown",
+    "description": "远征成功，对方重新臣服。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "recognize_independence",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "economic_pressure",
+    "name": "Unknown",
+    "description": "对方屈服于经济压力。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "great_congress",
+    "name": "列强会议",
+    "description": "一场大战结束后，各国代表齐聚一堂，商讨重新划分势力范围。我国的利益能否得到保障？",
+    "minEpoch": 5,
+    "maxEpoch": 6
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "active_participation",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "defensive_stance",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "boycott_congress",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "secret_alliance",
+    "name": "秘密同盟",
+    "description": "情报显示，几个邻国正在秘密结盟。我国可能成为下一个目标。是加入还是寻求反制？",
+    "minEpoch": 4,
+    "maxEpoch": 6
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "seek_membership",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "form_counter_alliance",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "remain_neutral",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "intercepted_telegram",
+    "name": "截获密电",
+    "description": "我方截获了一封邻国发给第三国的密电，内容涉及共同对付我国的阴谋。是否公开这份情报？",
+    "minEpoch": 5,
+    "maxEpoch": 6
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "publish_telegram",
+    "name": "Unknown",
+    "description": "国际舆论同情我国。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "secret_diplomacy",
+    "name": "Unknown",
+    "description": "对方被迫取消计划。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "keep_secret",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "colonial_standoff",
+    "name": "殖民地对峙",
+    "description": "在遥远的殖民地，我国军队与邻国军队在同一地点相遇，双方都声称拥有主权。剑拔弩张，战争一触即发。",
+    "minEpoch": 5,
+    "maxEpoch": 6
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "stand_firm",
+    "name": "Unknown",
+    "description": "冲突升级为全面战争！",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "negotiate_partition",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "strategic_retreat",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "diplomatic_insult",
+    "name": "外交羞辱",
+    "description": "邻国公开发表了一份侮辱性的外交公报，暗示我国君主懦弱无能。国内舆论沸腾，民众要求报复。",
+    "minEpoch": 4,
+    "maxEpoch": 6
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "declare_war",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "demand_retraction",
+    "name": "Unknown",
+    "description": "对方道歉，危机化解。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "ignore_insult",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "assassination_abroad",
+    "name": "海外暗杀",
+    "description": "我国一位重要外交官在邻国被刺杀。凶手据称与邻国秘密组织有关。这是战争的借口还是不幸的意外？",
+    "minEpoch": 5,
+    "maxEpoch": 6
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "ultimatum",
+    "name": "Unknown",
+    "description": "对方拒绝接受通牒，战争爆发！",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "joint_investigation",
+    "name": "Unknown",
+    "description": "调查证明是孤立事件，危机化解。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "measured_response",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "forced_trade",
+    "name": "强制通商",
+    "description": "一支强大的外国舰队出现在港口，要求我国开放市场，接受不平等的贸易条款。他们的大炮令人胆寒。",
+    "minEpoch": 5,
+    "maxEpoch": 6
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "resist_invasion",
+    "name": "Unknown",
+    "description": "敌军炮火猛烈，我军损失惨重！",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "sign_treaty",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "delay_tactics",
+    "name": "Unknown",
+    "description": "对方失去耐心，发动进攻！",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "appeasement_demand",
+    "name": "绥靖要求",
+    "description": "一个野心勃勃的邻国要求我方默认其吞并某小国，以换取\"和平\"。屈服还是抵抗？",
+    "minEpoch": 5,
+    "maxEpoch": 6
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "appease",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "stand_against",
+    "name": "Unknown",
+    "description": "对方不满你的态度，决定先发制人！",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "guarantee_independence",
+    "name": "Unknown",
+    "description": "你的强硬态度被视为宣战，战争爆发！",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "strategic_canal",
+    "name": "运河危机",
+    "description": "一条重要的国际水道被邻国收归国有。依赖这条水道的列强纷纷表示抗议，战争阴云笼罩。",
+    "minEpoch": 5,
+    "maxEpoch": 6
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "support_nationalization",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "join_intervention",
+    "name": "Unknown",
+    "description": "干预演变为战争！",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "call_for_negotiation",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "weapons_deployment",
+    "name": "边境部署",
+    "description": "情报显示邻国正在边境部署新型攻城武器/远程炮台。这是否构成直接威胁？",
+    "minEpoch": 4,
+    "maxEpoch": 6
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "demand_removal",
+    "name": "Unknown",
+    "description": "对方同意撤除武器。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "counter_deployment",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "secret_deal",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "colonial_conference",
+    "name": "瓜分会议",
+    "description": "列强召开会议，讨论如何瓜分某片\"无主\"土地。我国是否参与这场饕餮盛宴？",
+    "minEpoch": 5,
+    "maxEpoch": 6
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "claim_territory",
+    "name": "Unknown",
+    "description": "与某国的领土要求发生冲突。",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "trade_rights_only",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "denounce_conference",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "naval_arms_race",
+    "name": "海军军备竞赛",
+    "description": "邻国开始建造新式巨型战舰，火力和装甲远超现有舰只。我国海军将领紧急请求追加预算。",
+    "minEpoch": 5,
+    "maxEpoch": 6
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "build_fleet",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "seek_alliance",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  },
+  {
+    "source": "staticDiplomaticEvents.js",
+    "id": "develop_submarines",
+    "name": "Unknown",
+    "description": "No description",
+    "minEpoch": null,
+    "maxEpoch": null
+  }
+]
