@@ -208,7 +208,7 @@ export const StatusBar = ({
                             <div className="absolute inset-0 bg-gradient-to-br from-ancient-gold to-ancient-bronze rounded-lg blur-md opacity-40 group-hover:opacity-60 transition-opacity" />
                             <div className="relative bg-gradient-to-br from-ancient-gold/20 to-ancient-bronze/20 p-1 rounded-lg border border-ancient-gold/30 shadow-glow-gold">
                                 <img
-                                    src="/logo.png"
+                                    src={`${import.meta.env.BASE_URL}logo.png`}
                                     alt="Logo"
                                     className="w-5 h-5 object-contain filter drop-shadow-sm"
                                 />

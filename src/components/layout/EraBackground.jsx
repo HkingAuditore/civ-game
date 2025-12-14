@@ -27,7 +27,7 @@ export const EraBackground = ({ epoch = 0, opacity = 0.08, className = '' }) => 
 
     const currentBg = useMemo(() => {
         const bgFile = ERA_BG_MAP[epoch] || ERA_BG_MAP[0];
-        return `/images/backgrounds/${bgFile}`;
+        return `${import.meta.env.BASE_URL}images/backgrounds/${bgFile}`;
     }, [epoch]);
 
     return (
