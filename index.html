@@ -2,7 +2,18 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="logo.png" />
+    <script>
+      // Force trailing slash for relative paths to work correctly with base: './'
+      (function() {
+        var path = window.location.pathname;
+        if (path.length > 1 && path.charAt(path.length - 1) !== '/') {
+          var search = window.location.search;
+          var hash = window.location.hash;
+          window.location.replace(path + '/' + search + hash);
+        }
+      })();
+    </script>
+    <link rel="icon" type="image/png" href="./logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <meta name="description" content="哈耶克的文明：市场经济 - 史诗级经济策略游戏，建立自由市场帝国，书写经济传奇" />
     <meta name="theme-color" content="#2c1810" />
@@ -90,12 +101,12 @@
         100% { transform: translate3d(0, 0, 0); }
       }
     </style>
-    <script type="module" crossorigin src="/civ-game/assets/index-DoBpTEiP.js"></script>
-    <link rel="stylesheet" crossorigin href="/civ-game/assets/index-jksrftXI.css">
+    <script type="module" crossorigin src="./assets/index-hJi3UJzc.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-jksrftXI.css">
   </head>
   <body>
     <div id="loading-screen">
-      <img src="logo.png" class="loading-logo" alt="Hayek's Civilization" />
+      <img src="./logo.png" class="loading-logo" alt="Hayek's Civilization" />
       <h1 class="loading-title">哈耶克的文明：市场经济</h1>
       <div class="loading-spinner"></div>
     </div>
