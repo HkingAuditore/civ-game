@@ -73,13 +73,29 @@
           font-size: 2rem;
         }
       }
+
+      .loading-logo {
+        width: 400px;
+        height: auto;
+        margin-bottom: 1.5rem;
+        filter: drop-shadow(0 0 20px rgba(212, 175, 55, 0.5));
+        animation: logo-float 3s ease-in-out infinite;
+        transform: translate3d(0, 0, 0); /* Consistent 3D transform */
+        will-change: transform;
+      }
+
+      @keyframes logo-float {
+        0% { transform: translate3d(0, 0, 0); }
+        50% { transform: translate3d(0, -10px, 0); }
+        100% { transform: translate3d(0, 0, 0); }
+      }
     </style>
-    <script type="module" crossorigin src="/civ-game/assets/index-D6DAKOVs.js"></script>
-    <link rel="stylesheet" crossorigin href="/civ-game/assets/index-COJR70yk.css">
+    <script type="module" crossorigin src="/civ-game/assets/index-BiBPCwn5.js"></script>
+    <link rel="stylesheet" crossorigin href="/civ-game/assets/index-Nnd0aziv.css">
   </head>
   <body>
-    <!-- Epic Loading Screen -->
     <div id="loading-screen">
+      <img src="/civ-game/logo.png" class="loading-logo" alt="Hayek's Civilization" />
       <h1 class="loading-title">哈耶克的文明：市场经济</h1>
       <div class="loading-spinner"></div>
     </div>
