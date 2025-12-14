@@ -4385,19 +4385,19 @@ export const simulateTick = ({
         const inventoryDays = dailyDemand > 0 ? inventoryStock / dailyDemand : inventoryTargetDays;
 
         // DEBUG: 价格计算调试日志（每5个tick输出一次，避免刷屏）
-        if (tick % 5 === 0 && (resource === 'food' || resource === 'cloth' || resource === 'tools')) {
-            console.log(`[价格调试] ${RESOURCES[resource]?.name || resource}:`, {
-                tick,
-                inventoryStock: inventoryStock.toFixed(2),
-                demand: dem.toFixed(2),
-                virtualDemand: virtualDemandBaseline.toFixed(2),
-                dailyDemand: dailyDemand.toFixed(2),
-                inventoryDays: inventoryDays.toFixed(2),
-                inventoryTargetDays,
-                inventoryRatio: (inventoryDays / inventoryTargetDays).toFixed(3),
-                currentPrice: (priceMap[resource] || 0).toFixed(2),
-            });
-        }
+        // if (tick % 5 === 0 && (resource === 'food' || resource === 'cloth' || resource === 'tools')) {
+        //     console.log(`[价格调试] ${RESOURCES[resource]?.name || resource}:`, {
+        //         tick,
+        //         inventoryStock: inventoryStock.toFixed(2),
+        //         demand: dem.toFixed(2),
+        //         virtualDemand: virtualDemandBaseline.toFixed(2),
+        //         dailyDemand: dailyDemand.toFixed(2),
+        //         inventoryDays: inventoryDays.toFixed(2),
+        //         inventoryTargetDays,
+        //         inventoryRatio: (inventoryDays / inventoryTargetDays).toFixed(3),
+        //         currentPrice: (priceMap[resource] || 0).toFixed(2),
+        //     });
+        // }
 
 
         // 收集所有生产该资源的建筑及其出售价格
