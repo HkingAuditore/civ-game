@@ -73,11 +73,27 @@
           font-size: 2rem;
         }
       }
+
+      .loading-logo {
+        width: 400px;
+        height: auto;
+        margin-bottom: 1.5rem;
+        filter: drop-shadow(0 0 20px rgba(212, 175, 55, 0.5));
+        animation: logo-float 3s ease-in-out infinite;
+        transform: translate3d(0, 0, 0); /* Consistent 3D transform */
+        will-change: transform;
+      }
+
+      @keyframes logo-float {
+        0% { transform: translate3d(0, 0, 0); }
+        50% { transform: translate3d(0, -10px, 0); }
+        100% { transform: translate3d(0, 0, 0); }
+      }
     </style>
   </head>
   <body>
-    <!-- Epic Loading Screen -->
     <div id="loading-screen">
+      <img src="/logo.png" class="loading-logo" alt="Hayek's Civilization" />
       <h1 class="loading-title">哈耶克的文明：市场经济</h1>
       <div class="loading-spinner"></div>
     </div>
