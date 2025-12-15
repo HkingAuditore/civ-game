@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Icon } from '../common/UIComponents';
 import { RESOURCES, STRATA, BUILDINGS } from '../../config';
+import { getPublicAssetUrl } from '../../utils/assetPath';
 
 /**
  * 事件沉浸式英雄图片组件
  * 图片作为背景，标题和描述叠加在上面
  */
 const EventHeroImage = ({ eventId, event, hasImage, onImageLoad, onImageError }) => {
-    const imagePath = `${import.meta.env.BASE_URL}images/events/${eventId}.webp`;
+    const imagePath = getPublicAssetUrl(`images/events/${eventId}.webp`);
 
     return (
         <div className="relative w-full h-44 mb-3 rounded-xl overflow-hidden">

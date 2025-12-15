@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { getPublicAssetUrl } from '../../utils/assetPath';
 
 // Define the mapping of eras to their background images
 const ERA_BG_MAP = {
@@ -27,7 +28,7 @@ export const EraBackground = ({ epoch = 0, opacity = 0.08, className = '' }) => 
 
     const currentBg = useMemo(() => {
         const bgFile = ERA_BG_MAP[epoch] || ERA_BG_MAP[0];
-        return `${import.meta.env.BASE_URL}images/backgrounds/${bgFile}`;
+        return getPublicAssetUrl(`images/backgrounds/${bgFile}`);
     }, [epoch]);
 
     return (

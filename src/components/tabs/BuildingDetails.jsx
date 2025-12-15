@@ -3,13 +3,14 @@ import { Icon } from '../common/UIComponents';
 import { RESOURCES, STRATA } from '../../config';
 import { filterUnlockedResources } from '../../utils/resources';
 import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
+import { getPublicAssetUrl } from '../../utils/assetPath';
 
 /**
  * 建筑沉浸式英雄图片组件
  * 图片作为背景，标题和图标叠加在上面
  */
 const BuildingHeroImage = ({ building, hasImage, onImageLoad, onImageError }) => {
-    const imagePath = `${import.meta.env.BASE_URL}images/buildings/${building.id}.webp`;
+    const imagePath = getPublicAssetUrl(`images/buildings/${building.id}.webp`);
 
     return (
         <div className="relative w-full h-44 mb-4 rounded-xl overflow-hidden">
