@@ -8,6 +8,7 @@ import { BUILDINGS, RESOURCES, STRATA } from '../../config';
 import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
 import { filterUnlockedResources } from '../../utils/resources';
 import { getPublicAssetUrl } from '../../utils/assetPath';
+import { getBuildingImageUrl } from '../../utils/imageRegistry';
 
 /**
  * 建筑悬浮提示框 (使用 Portal)
@@ -40,7 +41,8 @@ const BuildingTooltip = ({ building, count, epoch, techsUnlocked, jobFill, ancho
     }, [anchorElement, building, count]);
 
     // 构建背景图片路径
-    const backgroundImagePath = getPublicAssetUrl(`images/buildings/${building.id}.webp`);
+    const backgroundImagePath = getBuildingImageUrl(building.id)
+        ?? getPublicAssetUrl(`images/buildings/${building.id}.webp`);
 
     return createPortal(
         <div
