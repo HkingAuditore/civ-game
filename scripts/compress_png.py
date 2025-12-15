@@ -1,206 +1,172 @@
 #!/usr/bin/env python3
 """
-PNG Image Lossless Compression Script
-Uses Pillow for PNG optimization with maximum compression settings
+PNG Image Compression Script - Resize large images and optimize
+No format change needed, just resize oversized images
 """
 
 import os
-import shutil
-from pathlib import Path
-from PIL import Image
 import sys
+from pathlib import Path
 
-def get_file_size_kb(path):
-    """Get file size in KB"""
-    return os.path.getsize(path) / 1024
+try:
+    from PIL import Image
+except ImportError:
+    print("[ERROR] Pillow not installed. Run: pip install Pillow")
+    sys.exit(1)
 
-def compress_png(input_path, output_path=None):
+def compress_png(input_path, max_dimension=1024):
     """
-    Compress PNG image using Pillow with maximum lossless compression
+    Compress PNG by resizing if too large and optimizing
     
     Args:
         input_path: Path to input PNG file
-        output_path: Path to output file (defaults to overwriting input)
+        max_dimension: Maximum width or height
     
     Returns:
-        Tuple of (original_size, new_size) in bytes
+        Tuple of (original_size, new_size, was_resized)
     """
-    if output_path is None:
-        output_path = input_path
-    
-    original_size = os.path.getsize(input_path)
-    
-    # Open the image
-    img = Image.open(input_path)
-    
-    # Get original mode and info
-    original_mode = img.mode
-    
-    # Convert RGBA to palette mode if possible for better compression
-    # Only do this if image has limited colors
-    if img.mode == 'RGBA':
-        # Check if image actually uses alpha channel
-        if img.split()[-1].getextrema() == (255, 255):
-            # Alpha channel is all opaque, convert to RGB
-            img = img.convert('RGB')
-    
-    # Save with maximum compression
-    # compress_level: 0-9, where 9 is maximum compression (slower but smaller)
-    temp_path = str(input_path) + '.tmp'
+    input_path = Path(input_path)
+    original_size = input_path.stat().st_size
     
     try:
-        img.save(
-            temp_path,
-            'PNG',
-            optimize=True,
-            compress_level=9
-        )
-        
-        new_size = os.path.getsize(temp_path)
-        
-        # Only replace if new file is smaller
-        if new_size < original_size:
-            shutil.move(temp_path, output_path)
-            return original_size, new_size
-        else:
-            os.remove(temp_path)
-            return original_size, original_size
+        with Image.open(input_path) as img:
+            original_dims = img.size
+            width, height = img.size
+            was_resized = False
+            
+            # Resize if too large
+            if width > max_dimension or height > max_dimension:
+                if width > height:
+                    new_width = max_dimension
+                    new_height = int(height * (max_dimension / width))
+                else:
+                    new_height = max_dimension
+                    new_width = int(width * (max_dimension / height))
+                img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+                was_resized = True
+            
+            # Convert to RGB if fully opaque RGBA (reduces size)
+            if img.mode == 'RGBA':
+                alpha = img.split()[-1]
+                if alpha.getextrema() == (255, 255):
+                    img = img.convert('RGB')
+            
+            # Save with maximum compression
+            temp_path = str(input_path) + '.tmp'
+            img.save(temp_path, 'PNG', optimize=True, compress_level=9)
+            
+            new_size = os.path.getsize(temp_path)
+            
+            # Replace original if smaller or was resized
+            if new_size < original_size or was_resized:
+                os.replace(temp_path, input_path)
+                final_size = new_size
+            else:
+                os.remove(temp_path)
+                final_size = original_size
+            
+            return original_size, final_size, was_resized, original_dims, img.size
     except Exception as e:
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
-        raise e
-    finally:
-        img.close()
+        print(f"[ERROR] Failed to process {input_path.name}: {e}")
+        return None
 
 def main():
-    # Define paths
     script_dir = Path(__file__).parent
     project_dir = script_dir.parent
-    images_dir = project_dir / 'public' / 'images' / 'events'
-    backup_dir = images_dir / 'backup_original'
+    images_dir = project_dir / 'public' / 'images'
     
-    print("=" * 60)
-    print("   PNG Lossless Compression Script")
-    print("   Target: events folder PNG images")
-    print("=" * 60)
+    print("=" * 70)
+    print("   PNG Compression Script")
+    print("   Resize large images + optimize (keeps .png format)")
+    print("=" * 70)
     print()
     
-    # Check if images directory exists
     if not images_dir.exists():
         print(f"[ERROR] Images directory not found: {images_dir}")
         sys.exit(1)
     
-    # Get all PNG files (excluding backup directory)
-    png_files = [
-        f for f in images_dir.glob('*.png')
-        if f.parent != backup_dir
-    ]
+    # Find all PNG files recursively
+    png_files = list(images_dir.rglob('*.png'))
+    png_files = [f for f in png_files if 'backup' not in str(f).lower()]
     
     if not png_files:
-        print("[INFO] No PNG files found to compress")
+        print("[INFO] No PNG files found")
         sys.exit(0)
     
-    print(f"[INFO] Found {len(png_files)} PNG files to compress")
-    print(f"[INFO] Images directory: {images_dir}")
+    total_original = sum(f.stat().st_size for f in png_files)
+    
+    print(f"[INFO] Found {len(png_files)} PNG files")
+    print(f"[INFO] Total size: {total_original / 1024 / 1024:.2f} MB")
     print()
     
-    # Calculate original total size
-    total_original = sum(os.path.getsize(f) for f in png_files)
-    print(f"[INFO] Total original size: {total_original / 1024 / 1024:.2f} MB")
+    # Show largest files
+    sorted_files = sorted(png_files, key=lambda f: f.stat().st_size, reverse=True)
+    print("[INFO] Top 10 largest files:")
+    for f in sorted_files[:10]:
+        size_mb = f.stat().st_size / 1024 / 1024
+        with Image.open(f) as img:
+            dims = img.size
+        print(f"       {size_mb:.2f} MB ({dims[0]}x{dims[1]}) - {f.name}")
     print()
     
-    # Ask for backup
-    backup_choice = input("Create backup of original files? (Y/N): ").strip().upper()
-    
-    if backup_choice == 'Y':
-        print()
-        print("[INFO] Creating backup...")
-        backup_dir.mkdir(exist_ok=True)
-        for f in png_files:
-            backup_path = backup_dir / f.name
-            shutil.copy2(f, backup_path)
-            print(f"[BACKUP] {f.name}")
-        print(f"[OK] Backup completed to: {backup_dir}")
-    
-    print()
-    print("=" * 60)
-    print("   Starting Compression")
-    print("=" * 60)
+    print("[CONFIG] Settings:")
+    print("         - Max dimension: 1024px (larger images will be resized)")
+    print("         - Format: PNG (no change)")
     print()
     
-    # Compress each file
-    results = []
+    confirm = input("Continue? (Y/N): ").strip().upper()
+    if confirm != 'Y':
+        print("[CANCELLED]")
+        sys.exit(0)
+    
+    print()
+    print("=" * 70)
+    print("   Processing...")
+    print("=" * 70)
+    print()
+    
     total_saved = 0
+    processed = 0
     
-    for png_file in sorted(png_files):
-        print(f"[COMPRESS] {png_file.name}...", end=" ")
+    for png_file in sorted_files:
+        rel_path = png_file.relative_to(images_dir)
+        print(f"[PROCESS] {rel_path}...", end=" ", flush=True)
         
-        try:
-            original_size, new_size = compress_png(png_file)
+        result = compress_png(png_file, max_dimension=1024)
+        
+        if result:
+            original_size, new_size, was_resized, orig_dims, new_dims = result
             saved = original_size - new_size
             total_saved += saved
+            percent = (saved / original_size) * 100 if original_size > 0 else 0
             
-            if saved > 0:
-                percent = (saved / original_size) * 100
-                print(f"✓ Saved {saved / 1024:.1f} KB ({percent:.1f}%)")
+            if was_resized:
+                print(f"OK {original_size/1024:.0f}KB -> {new_size/1024:.0f}KB (-{percent:.0f}%) [resized {orig_dims[0]}x{orig_dims[1]} -> {new_dims[0]}x{new_dims[1]}]")
+            elif saved > 0:
+                print(f"OK {original_size/1024:.0f}KB -> {new_size/1024:.0f}KB (-{percent:.0f}%)")
             else:
-                print("✓ Already optimized")
-            
-            results.append({
-                'name': png_file.name,
-                'original': original_size,
-                'new': new_size,
-                'saved': saved
-            })
-        except Exception as e:
-            print(f"✗ Error: {e}")
-            results.append({
-                'name': png_file.name,
-                'original': 0,
-                'new': 0,
-                'saved': 0,
-                'error': str(e)
-            })
-    
-    # Show results
-    print()
-    print("=" * 60)
-    print("   Compression Results")
-    print("=" * 60)
-    print()
-    
-    total_new = sum(r['new'] for r in results if 'error' not in r)
-    
-    print(f"[RESULT] Original size:   {total_original / 1024 / 1024:.2f} MB ({total_original / 1024:.0f} KB)")
-    print(f"[RESULT] Compressed size: {total_new / 1024 / 1024:.2f} MB ({total_new / 1024:.0f} KB)")
-    print(f"[RESULT] Space saved:     {total_saved / 1024 / 1024:.2f} MB ({total_saved / 1024:.0f} KB)")
-    
-    if total_original > 0:
-        percent = (total_saved / total_original) * 100
-        print(f"[RESULT] Reduction:       {percent:.1f}%")
-    
-    print()
-    print("=" * 60)
-    print("   Individual File Results")
-    print("=" * 60)
-    print()
-    print(f"{'Filename':<35} {'Original':>10} {'New':>10} {'Saved':>10}")
-    print("-" * 70)
-    
-    for r in sorted(results, key=lambda x: x['saved'], reverse=True):
-        if 'error' not in r:
-            print(f"{r['name']:<35} {r['original']/1024:>8.1f}KB {r['new']/1024:>8.1f}KB {r['saved']/1024:>8.1f}KB")
+                print("OK Already optimal")
+            processed += 1
         else:
-            print(f"{r['name']:<35} ERROR: {r['error']}")
+            print("FAILED")
     
     print()
-    print("[OK] Compression completed!")
+    print("=" * 70)
+    print("   Results")
+    print("=" * 70)
+    print()
     
-    if backup_choice == 'Y':
-        print()
-        print(f"[INFO] Original files backed up to: {backup_dir}")
-        print("[INFO] To restore originals, copy files from backup folder.")
+    total_new = total_original - total_saved
+    percent_saved = (total_saved / total_original) * 100 if total_original > 0 else 0
     
+    print(f"[RESULT] Files processed: {processed}")
+    print(f"[RESULT] Original size:   {total_original / 1024 / 1024:.2f} MB")
+    print(f"[RESULT] New size:        {total_new / 1024 / 1024:.2f} MB")
+    print(f"[RESULT] Space saved:     {total_saved / 1024 / 1024:.2f} MB ({percent_saved:.1f}%)")
+    print()
+    print("[NEXT] Run these commands to update the APK:")
+    print("       npm run build")
+    print("       npx cap sync android")
     print()
     input("Press Enter to exit...")
 
