@@ -42,8 +42,8 @@ export function calculateDynamicGiftCost(playerWealth, targetNationWealth) {
  * @returns {number} 送礼金额
  */
 export function calculateAIGiftAmount(senderWealth, receiverWealth = null) {
-    const baseWealth = receiverWealth 
-        ? Math.min(senderWealth || 0, receiverWealth || 0) 
+    const baseWealth = receiverWealth
+        ? Math.min(senderWealth || 0, receiverWealth || 0)
         : (senderWealth || 0);
     const giftAmount = Math.floor(baseWealth * 0.02);
     return Math.max(30, Math.min(10000, giftAmount));
@@ -61,7 +61,21 @@ export function calculateAllyMaintenanceCost(playerWealth, allyWealth) {
     return Math.max(80, Math.min(300000, baseCost));
 }
 
+/**
+ * 计算动态挑拨费用
+ * 成本 = min(双方财富) × 3%，限制在 150 ~ 300000 范围内
+ * @param {number} playerWealth - 玩家财富
+ * @param {number} targetNationWealth - 目标国家财富
+ * @returns {number} 挑拨成本
+ */
+export function calculateProvokeCost(playerWealth, targetNationWealth) {
+    const minWealth = Math.min(playerWealth || 0, targetNationWealth || 0);
+    const baseCost = Math.floor(minWealth * 0.03);
+    return Math.max(150, Math.min(300000, baseCost));
+}
+
 // ==================== 求和赔款计算 ====================
+
 
 /**
  * 统一的求和赔款计算函数
@@ -76,17 +90,17 @@ export function calculatePeacePayment(warScore, enemyLosses, warDuration, target
     const absScore = Math.abs(warScore || 0);
     const losses = enemyLosses || 0;
     const duration = warDuration || 0;
-    
+
     const coef = PEACE_PAYMENT_COEFFICIENTS[mode] || PEACE_PAYMENT_COEFFICIENTS.demanding;
-    
+
     // 计算各档赔款
     const rawHigh = Math.ceil(absScore * coef.high + losses * 5 + duration * 8);
     const rawStandard = Math.ceil(absScore * coef.standard + losses * 3 + duration * 6);
     const rawLow = Math.ceil(absScore * coef.low + losses * 2 + duration * 4);
-    
+
     // 应用上限（硬上限和目标财富的较小值）
     const effectiveCap = Math.min(PEACE_PAYMENT_HARD_CAP, targetWealth || PEACE_PAYMENT_HARD_CAP);
-    
+
     return {
         high: Math.max(250, Math.min(effectiveCap, rawHigh)),
         standard: Math.max(150, Math.min(effectiveCap, rawStandard)),

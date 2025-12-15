@@ -8,7 +8,7 @@ import { DeclareWarModal } from '../modals/DeclareWarModal';
 import TradeRoutesModal from '../modals/TradeRoutesModal';
 import { RESOURCES } from '../../config';
 import { calculateForeignPrice, calculateTradeStatus } from '../../utils/foreignTrade';
-import { calculateDynamicGiftCost } from '../../utils/diplomaticUtils';
+import { calculateDynamicGiftCost, calculateProvokeCost } from '../../utils/diplomaticUtils';
 
 const relationInfo = (relation = 0, isAllied = false) => {
     // 如果是正式盟友，显示盟友标签
@@ -635,7 +635,7 @@ export const DiplomacyTab = ({
                                 <div className="mt-1 text-[10px] text-gray-400 flex items-center justify-between font-epic">
                                     <span className="flex items-center gap-1">
                                         <Icon name="Coins" size={10} className="text-amber-300" />
-                                        礼物成本：{calculateDynamicGiftCost(resources.silver || 0, selectedNation?.wealth || 0)} 银币 | 挑拨成本：300 银币
+                                        礼物成本：{calculateDynamicGiftCost(resources.silver || 0, selectedNation?.wealth || 0)} 银币 | 挑拨成本：{calculateProvokeCost(resources.silver || 0, selectedNation?.wealth || 0)} 银币
                                     </span>
                                 </div>
                                 {selectedPreferences.length > 0 && (
@@ -994,7 +994,7 @@ export const DiplomacyTab = ({
                             onClick={handleProvokeWithTarget}
                             disabled={!provokeTargetId}
                         >
-                            确认挑拨 (300银币)
+                            确认挑拨 ({calculateProvokeCost(resources.silver || 0, selectedNation?.wealth || 0)}银币)
                         </button>
                     </div>
                 }

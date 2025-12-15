@@ -411,6 +411,9 @@ function GameApp({ gameState }) {
                         tradeRoutes: gameState.tradeRoutes,
                         classIncome: gameState.classIncome || {},
                         popStructure: gameState.popStructure,
+                        classShortages: gameState.classShortages || {},
+                        epoch: gameState.epoch,
+                        techsUnlocked: gameState.techsUnlocked || [],
                     };
                     const task = createPromiseTask({
                         stratumKey: effect.stratum,

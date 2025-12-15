@@ -8,7 +8,7 @@ import { calculateForeignPrice, calculateTradeStatus } from '../utils/foreignTra
 import { generateSound, SOUND_TYPES } from '../config/sounds';
 import { getEnemyUnitsForEpoch } from '../config/militaryActions';
 import { isResourceUnlocked } from '../utils/resources';
-import { calculateDynamicGiftCost } from '../utils/diplomaticUtils';
+import { calculateDynamicGiftCost, calculateProvokeCost } from '../utils/diplomaticUtils';
 // 叛乱系统
 import {
     processRebellionAction,
@@ -875,9 +875,9 @@ export const useGameActions = (gameState, addLog) => {
 
             case 'provoke': {
                 // 挑拨关系：花费银币离间两个国家
-                const provokeCost = 300;
+                const provokeCost = calculateProvokeCost(resources.silver || 0, targetNation.wealth || 0);
                 if ((resources.silver || 0) < provokeCost) {
-                    addLog('银币不足，无法进行挑拨行动（需要300银币）。');
+                    addLog(`银币不足，无法进行挑拨行动（需要 ${provokeCost} 银币）。`);
                     return;
                 }
 
@@ -968,7 +968,7 @@ export const useGameActions = (gameState, addLog) => {
                     if (n.alliedWithPlayer === true) return false;
                     return true;
                 });
-                
+
                 // 找出共同盟友（同时是玩家和目标国家的盟友），这些国家会保持中立
                 const neutralAllies = nations.filter(n => {
                     if (n.id === nationId || n.id === targetNation.id) return false;
@@ -1022,7 +1022,7 @@ export const useGameActions = (gameState, addLog) => {
                     const allyNames = targetAllies.map(a => a.name).join('、');
                     addLog(`⚔️ ${targetNation.name} 的盟友 ${allyNames} 履行同盟义务，加入了战争！`);
                 }
-                
+
                 // 通知共同盟友保持中立
                 if (neutralAllies.length > 0) {
                     neutralAllies.forEach(ally => {
@@ -1176,7 +1176,7 @@ export const useGameActions = (gameState, addLog) => {
                 populationGained,
                 maxPopGained,
                 'war_annex',
-                () => {}
+                () => { }
             );
             triggerDiplomaticEvent(annexEvent);
             addLog(`你选择吞并 ${targetNation.name}，其人民与领土并入你的国家。`);
@@ -1219,7 +1219,7 @@ export const useGameActions = (gameState, addLog) => {
                     0,
                     0,
                     'population_zero',
-                    () => {}
+                    () => { }
                 );
                 triggerDiplomaticEvent(annexEvent);
                 addLog(`由于连续割地，${targetNation.name}的人口被耗尽，国家灭亡，其领土被你吞并。`);
@@ -1347,7 +1347,7 @@ export const useGameActions = (gameState, addLog) => {
                 populationGained,
                 maxPopGained,
                 'war_annex',
-                () => {}
+                () => { }
             );
             triggerDiplomaticEvent(annexEvent);
             addLog(`你在和平协议中吞并了 ${targetNation.name}，其所有人口和人口上限并入你的国家。${rebellionLogSuffix}`);
@@ -1430,7 +1430,7 @@ export const useGameActions = (gameState, addLog) => {
                             0,
                             0,
                             'population_zero',
-                            () => {}
+                            () => { }
                         );
                         triggerDiplomaticEvent(annexEvent);
                         addLog(`由于割让过多人口，${targetNation.name}的人口被耗尽，国家灭亡，其领土被你吞并。${rebellionLogSuffix}`);

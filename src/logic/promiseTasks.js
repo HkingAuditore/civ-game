@@ -4,6 +4,7 @@
 
 import { STRATA } from '../config/strata';
 import { RESOURCES } from '../config';
+import { isResourceUnlocked } from '../utils/resources';
 
 // 获取资源的中文名称
 function getResourceName(resourceKey) {
@@ -217,17 +218,23 @@ export function selectPromiseType(stratumKey, context) {
 // =========== 辅助函数 ===========
 
 function findShortageResource(stratumKey, context) {
+    const { epoch = 0, techsUnlocked = [] } = context || {};
+
     // 优先从 classShortages 中获取实际短缺资源
     const shortages = context?.classShortages?.[stratumKey] || [];
 
-    // 优先返回买不起的资源
-    const unaffordable = shortages.find(s => s.reason === 'unaffordable');
+    // 优先返回买不起的且已解锁的资源
+    const unaffordable = shortages.find(s =>
+        s.reason === 'unaffordable' && isResourceUnlocked(s.resource, epoch, techsUnlocked)
+    );
     if (unaffordable) {
         return unaffordable.resource;
     }
 
-    // 其次返回缺货的资源
-    const outOfStock = shortages.find(s => s.reason === 'outOfStock');
+    // 其次返回缺货的且已解锁的资源
+    const outOfStock = shortages.find(s =>
+        s.reason === 'outOfStock' && isResourceUnlocked(s.resource, epoch, techsUnlocked)
+    );
     if (outOfStock) {
         return outOfStock.resource;
     }
@@ -236,7 +243,7 @@ function findShortageResource(stratumKey, context) {
     const { needsReport } = context || {};
     const needs = needsReport?.[stratumKey]?.details || [];
     for (const need of needs) {
-        if (need.shortage && need.shortage > 0) {
+        if (need.shortage && need.shortage > 0 && isResourceUnlocked(need.resource, epoch, techsUnlocked)) {
             return need.resource;
         }
     }
@@ -280,7 +287,7 @@ function calculateTaxBurden(stratumKey, context) {
 }
 
 function findExpensiveNeed(stratumKey, context) {
-    const { market, classShortages } = context || {};
+    const { market, classShortages, epoch = 0, techsUnlocked = [] } = context || {};
     const prices = market?.prices || {};
     const basePrices = market?.basePrices || {};
 
@@ -291,10 +298,10 @@ function findExpensiveNeed(stratumKey, context) {
         return { resource, price, basePrice, ratio };
     };
 
-    // 1. 优先查找 classShortages 中买不起的资源，并按价格涨幅排序
+    // 1. 优先查找 classShortages 中买不起的且已解锁的资源，并按价格涨幅排序
     const shortages = classShortages?.[stratumKey] || [];
     const unaffordableList = shortages
-        .filter(s => s.reason === 'unaffordable')
+        .filter(s => s.reason === 'unaffordable' && isResourceUnlocked(s.resource, epoch, techsUnlocked))
         .map(s => getPriceInfo(s.resource))
         .sort((a, b) => b.ratio - a.ratio); // 降序排列，取涨幅最大的
 
@@ -309,9 +316,10 @@ function findExpensiveNeed(stratumKey, context) {
     const candidates = [];
     const resultCache = new Set(); // 避免重复添加
 
-    // 检查基础需求
+    // 检查基础需求（只检查已解锁的资源）
     Object.keys(stratum.needs).forEach(resource => {
         if (resultCache.has(resource)) return;
+        if (!isResourceUnlocked(resource, epoch, techsUnlocked)) return;
 
         const info = getPriceInfo(resource);
         if (info.price > info.basePrice * 1.3) {
@@ -320,12 +328,13 @@ function findExpensiveNeed(stratumKey, context) {
         }
     });
 
-    // 检查奢侈需求 (包括所有可能的奢侈需求，无论当前是否解锁，因为承诺是未来的)
+    // 检查奢侈需求（只检查已解锁的资源）
     if (stratum.luxuryNeeds) {
         Object.values(stratum.luxuryNeeds).forEach(needGroup => {
             if (!needGroup) return;
             Object.keys(needGroup).forEach(resource => {
                 if (resultCache.has(resource)) return;
+                if (!isResourceUnlocked(resource, epoch, techsUnlocked)) return;
 
                 const info = getPriceInfo(resource);
                 if (info.price > info.basePrice * 1.3) {

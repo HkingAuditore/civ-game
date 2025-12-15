@@ -129,7 +129,7 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
     } else if (warScore > 200) {
         // 大胜：可以要求更多赔款或领土
         const highTribute = Math.floor(tribute * 1.5);
-        const highInstallmentTotal = Math.ceil(highTribute * INSTALLMENT_TOTAL_MULTIPLIER);
+        const highInstallmentTotal = Math.ceil(highTribute * INSTALLMENT_CONFIG.TOTAL_MULTIPLIER);
         const installmentAmount = Math.ceil(highInstallmentTotal / 365);
         const estimatedPopulation = nation.population || 1000;
         const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(6, Math.floor(estimatedPopulation * 0.04)));
@@ -179,7 +179,7 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
         });
     } else if (warScore > 50) {
         // 小胜：标准和平条款 + 分期支付选项
-        const installmentTotal = Math.ceil(tribute * INSTALLMENT_TOTAL_MULTIPLIER);
+        const installmentTotal = Math.ceil(tribute * INSTALLMENT_CONFIG.TOTAL_MULTIPLIER);
         const installmentAmount = Math.ceil(installmentTotal / 365); // 每天支付
         // 使用财富估算人口（假设每100财富对应约50人口）
         const estimatedPopulation = nation.population;
@@ -328,7 +328,7 @@ export function createPlayerPeaceProposalEvent(
         // 大胜：可以要求赔款
         const highTribute = Math.min(nation.wealth || 0, Math.ceil(warScore * 50 + enemyLosses * 3));
         const standardTribute = Math.min(nation.wealth || 0, Math.ceil(warScore * 40 + enemyLosses * 2));
-        const highInstallmentTotal = Math.ceil(highTribute * INSTALLMENT_TOTAL_MULTIPLIER);
+        const highInstallmentTotal = Math.ceil(highTribute * INSTALLMENT_CONFIG.TOTAL_MULTIPLIER);
         const installmentAmount = Math.ceil(highInstallmentTotal / 365);
         const estimatedPopulation = nation.population || 1000;
         const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(5, Math.floor(estimatedPopulation * 0.03)));
@@ -378,7 +378,7 @@ export function createPlayerPeaceProposalEvent(
     } else if (warScore > 50) {
         // 小胜：可以要求少量赔款或无条件和平
         const tribute = Math.min(nation.wealth || 0, Math.ceil(warScore * 40 + enemyLosses * 2));
-        const installmentTotal = Math.ceil(tribute * INSTALLMENT_TOTAL_MULTIPLIER);
+        const installmentTotal = Math.ceil(tribute * INSTALLMENT_CONFIG.TOTAL_MULTIPLIER);
         const installmentAmount = Math.ceil(installmentTotal / 365);
         const estimatedPopulation = nation.population;
         const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(5, Math.floor(estimatedPopulation * 0.01))); // 要求1%人口，至少5人
@@ -415,7 +415,7 @@ export function createPlayerPeaceProposalEvent(
     } else if (warScore < -150) {
         // Major defeat: player must offer substantial reparations
         const payment = Math.max(150, Math.ceil(Math.abs(warScore) * 35 + warDuration * 6));
-        const highInstallmentTotal = Math.ceil(payment * INSTALLMENT_TOTAL_MULTIPLIER);
+        const highInstallmentTotal = Math.ceil(payment * INSTALLMENT_CONFIG.TOTAL_MULTIPLIER);
         const installmentAmount = Math.ceil(highInstallmentTotal / 365);
         const populationOffer = calculateTerritoryOffer(0.05, 320);
 
@@ -443,7 +443,7 @@ export function createPlayerPeaceProposalEvent(
     } else if (warScore < -50) {
         // 小败：需要支付赔款
         const payment = Math.max(100, Math.ceil(Math.abs(warScore) * 30 + warDuration * 5));
-        const installmentTotal = Math.ceil(payment * INSTALLMENT_TOTAL_MULTIPLIER);
+        const installmentTotal = Math.ceil(payment * INSTALLMENT_CONFIG.TOTAL_MULTIPLIER);
         const installmentAmount = Math.ceil(installmentTotal / 365);
         const populationOffer = calculateTerritoryOffer(0.03, 480);
 
@@ -471,7 +471,7 @@ export function createPlayerPeaceProposalEvent(
     } else {
         // 僵持：无条件和平或赔款
         const payment = Math.max(50, Math.ceil(Math.abs(warScore) * 20 + warDuration * 3));
-        const installmentTotal = Math.ceil(payment * INSTALLMENT_TOTAL_MULTIPLIER);
+        const installmentTotal = Math.ceil(payment * INSTALLMENT_CONFIG.TOTAL_MULTIPLIER);
         const installmentAmount = Math.ceil(installmentTotal / 365);
 
         options.push({
