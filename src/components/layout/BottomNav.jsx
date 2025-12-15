@@ -87,7 +87,7 @@ export const BottomNav = ({ activeTab, onTabChange, epoch = 0 }) => {
       
       {/* 导航内容 */}
       <div className="relative max-w-lg mx-auto px-1">
-        <div className="flex items-stretch justify-around h-14">
+        <div className="flex items-stretch justify-around h-14 landscape-compact-nav">
           {tabs.map((tab) => {
             const isActive = activeTab === tab.id;
             

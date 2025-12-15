@@ -1,135 +1,168 @@
 <!doctype html>
 <html lang="zh-CN">
-  <head>
+
+<head>
     <meta charset="UTF-8" />
     <script>
-      // Force trailing slash for relative paths to work correctly with base: './'
-      (function() {
-        var path = window.location.pathname;
-        if (path.length > 1 && path.charAt(path.length - 1) !== '/') {
-          var search = window.location.search;
-          var hash = window.location.hash;
-          window.location.replace(path + '/' + search + hash);
-        }
-      })();
+        // Force trailing slash for relative paths to work correctly with base: './'
+        (function () {
+            var path = window.location.pathname;
+            if (path.length > 1 && path.charAt(path.length - 1) !== '/') {
+                var search = window.location.search;
+                var hash = window.location.hash;
+                window.location.replace(path + '/' + search + hash);
+            }
+        })();
     </script>
-    <link rel="icon" type="image/png" href="/logo.png" />
+    <link rel="icon" type="image/png" href="./logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <meta name="description" content="哈耶克的文明：市场经济 - 史诗级经济策略游戏，建立自由市场帝国，书写经济传奇" />
     <meta name="theme-color" content="#2c1810" />
-    
+
     <!-- Epic Fonts - Historical Typography (使用国内 CDN 镜像) -->
     <link rel="preconnect" href="https://fonts.loli.net" crossorigin>
-    <link href="https://fonts.loli.net/css2?family=Cinzel:wght@400;600;700;800&family=Cinzel+Decorative:wght@700;900&family=Inter:wght@400;500;600;700&family=Noto+Serif+SC:wght@400;500;600;700;900&display=swap" rel="stylesheet">
-    
+    <link
+        href="https://fonts.loli.net/css2?family=Cinzel:wght@400;600;700;800&family=Cinzel+Decorative:wght@700;900&family=Inter:wght@400;500;600;700&family=Noto+Serif+SC:wght@400;500;600;700;900&display=swap"
+        rel="stylesheet">
+
     <title>哈耶克的文明：市场经济</title>
-    
+
     <style>
-      /* Loading Screen - Epic Entry */
-      #loading-screen {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: linear-gradient(135deg, #1a1410 0%, #2c1810 50%, #1a1410 100%);
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        z-index: 9999;
-        transition: opacity 0.5s ease-out;
-      }
-      
-      #loading-screen.hidden {
-        opacity: 0;
-        pointer-events: none;
-      }
-      
-      .loading-title {
-        font-family: 'Cinzel Decorative', 'Noto Serif SC', serif;
-        font-size: 3rem;
-        font-weight: 900;
-        background: linear-gradient(135deg, #d4af37 0%, #f4e8d0 25%, #cd7f32 50%, #f4e8d0 75%, #d4af37 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-        background-size: 200% auto;
-        animation: shimmer 3s linear infinite;
-        margin-bottom: 2rem;
-        letter-spacing: 0.2em;
-        text-align: center;
-      }
-      
-      .loading-spinner {
-        width: 60px;
-        height: 60px;
-        border: 4px solid rgba(212, 175, 55, 0.2);
-        border-top-color: #d4af37;
-        border-radius: 50%;
-        animation: spin 1s linear infinite;
-      }
-      
-      @keyframes shimmer {
-        0% { background-position: -200% center; }
-        100% { background-position: 200% center; }
-      }
-      
-      @keyframes spin {
-        to { transform: rotate(360deg); }
-      }
-      
-      @media (max-width: 640px) {
-        .loading-title {
-          font-size: 2rem;
+        /* Loading Screen - Epic Entry */
+        #loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #1a1410 0%, #2c1810 50%, #1a1410 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            transition: opacity 0.5s ease-out;
         }
-      }
 
-      .loading-logo {
-        width: 400px;
-        height: auto;
-        margin-bottom: 1.5rem;
-        filter: drop-shadow(0 0 20px rgba(212, 175, 55, 0.5));
-        animation: logo-float 3s ease-in-out infinite;
-        transform: translate3d(0, 0, 0); /* Consistent 3D transform */
-        will-change: transform;
-      }
+        #loading-screen.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
 
-      @keyframes logo-float {
-        0% { transform: translate3d(0, 0, 0); }
-        50% { transform: translate3d(0, -10px, 0); }
-        100% { transform: translate3d(0, 0, 0); }
-      }
+        .loading-title {
+            font-family: 'Cinzel Decorative', 'Noto Serif SC', serif;
+            font-size: 3rem;
+            font-weight: 900;
+            background: linear-gradient(135deg, #d4af37 0%, #f4e8d0 25%, #cd7f32 50%, #f4e8d0 75%, #d4af37 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            background-size: 200% auto;
+            animation: shimmer 3s linear infinite;
+            margin-bottom: 2rem;
+            letter-spacing: 0.2em;
+            text-align: center;
+        }
+
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(212, 175, 55, 0.2);
+            border-top-color: #d4af37;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes shimmer {
+            0% {
+                background-position: -200% center;
+            }
+
+            100% {
+                background-position: 200% center;
+            }
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        @media (max-width: 640px) {
+            .loading-title {
+                font-size: 1.25rem;
+                letter-spacing: 0.1em;
+            }
+
+            .loading-logo {
+                width: 180px;
+                margin-bottom: 1rem;
+            }
+
+            .loading-spinner {
+                width: 40px;
+                height: 40px;
+                border-width: 3px;
+            }
+        }
+
+        .loading-logo {
+            width: 400px;
+            height: auto;
+            margin-bottom: 1.5rem;
+            filter: drop-shadow(0 0 20px rgba(212, 175, 55, 0.5));
+            animation: logo-float 3s ease-in-out infinite;
+            transform: translate3d(0, 0, 0);
+            /* Consistent 3D transform */
+            will-change: transform;
+        }
+
+        @keyframes logo-float {
+            0% {
+                transform: translate3d(0, 0, 0);
+            }
+
+            50% {
+                transform: translate3d(0, -10px, 0);
+            }
+
+            100% {
+                transform: translate3d(0, 0, 0);
+            }
+        }
     </style>
-  </head>
-  <body>
+</head>
+
+<body>
     <div id="loading-screen">
-      <img src="/logo.png" class="loading-logo" alt="Hayek's Civilization" />
-      <h1 class="loading-title">哈耶克的文明：市场经济</h1>
-      <div class="loading-spinner"></div>
+        <img src="./logo.png" class="loading-logo" alt="Hayek's Civilization" />
+        <h1 class="loading-title">哈耶克的文明：市场经济</h1>
+        <div class="loading-spinner"></div>
     </div>
-    
+
     <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-    
+    <script type="module" src="./src/main.jsx"></script>
+
     <script>
-      // Hide loading screen when app is ready
-      window.addEventListener('load', () => {
-        setTimeout(() => {
-          const loadingScreen = document.getElementById('loading-screen');
-          if (loadingScreen) {
-            loadingScreen.classList.add('hidden');
+        // Hide loading screen when app is ready
+        window.addEventListener('load', () => {
             setTimeout(() => {
-              loadingScreen.remove();
-              // Check if app loaded successfully
-              const root = document.getElementById('root');
-              if (root && root.childElementCount === 0) {
-                root.innerHTML = '<div style="color: #d4af37; background: #1a1410; padding: 20px; font-family: sans-serif; text-align: center; height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center;"><h1>加载失败</h1><p>应用程序未能正确启动。</p><p style="font-size: 0.8em; opacity: 0.7;">可能原因：资源文件加载失败或路径配置错误。</p><p style="font-size: 0.8em; opacity: 0.7;">请尝试刷新页面或联系管理员。</p></div>';
-              }
+                const loadingScreen = document.getElementById('loading-screen');
+                if (loadingScreen) {
+                    loadingScreen.classList.add('hidden');
+                    setTimeout(() => {
+                        loadingScreen.remove();
+                        // Check if app loaded successfully
+                        const root = document.getElementById('root');
+                        if (root && root.childElementCount === 0) {
+                            root.innerHTML = '<div style="color: #d4af37; background: #1a1410; padding: 20px; font-family: sans-serif; text-align: center; height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center;"><h1>加载失败</h1><p>应用程序未能正确启动。</p><p style="font-size: 0.8em; opacity: 0.7;">可能原因：资源文件加载失败或路径配置错误。</p><p style="font-size: 0.8em; opacity: 0.7;">请尝试刷新页面或联系管理员。</p></div>';
+                        }
+                    }, 500);
+                }
             }, 500);
-          }
-        }, 500);
-      });
+        });
     </script>
-  </body>
+</body>
+
 </html>

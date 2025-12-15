@@ -1,0 +1,8 @@
+{
+    "appId": "com.hayekciv.marketeconomy",
+    "appName": "哈耶克的文明",
+    "webDir": "dist",
+    "server": {
+        "androidScheme": "https"
+    }
+}

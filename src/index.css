@@ -1609,6 +1609,176 @@
     rgba(20, 16, 26, 0.92) 100%);
 }
 
+/* ==================== 移动端横屏优化 ==================== */
+/* Mobile landscape mode - when screen height is limited (e.g. phone in landscape) */
+/* Only apply to non-desktop screens (below 1024px width) */
+@media (orientation: landscape) and (max-height: 500px) and (max-width: 1023px) {
+  /* StatusBar compact mode in landscape */
+  .status-bar-scroll {
+    padding-top: 0.25rem !important;
+    padding-bottom: 0.25rem !important;
+  }
+
+  /* Reduce header placeholder height */
+  .header-placeholder-landscape {
+    height: 2.25rem !important;
+  }
+
+  /* Reduce main content bottom padding */
+  .main-content-landscape {
+    padding-bottom: 3rem !important;
+    padding-top: 0.25rem !important;
+  }
+
+  /* BottomNav compact mode - reduce height significantly */
+  .landscape-compact-nav {
+    height: 2.5rem !important;
+  }
+
+  /* Hide tab labels in landscape, show only icons */
+  nav[role="tablist"] .tab-title {
+    display: none !important;
+  }
+
+  /* Smaller icons in landscape bottom nav */
+  nav[role="tablist"] button svg {
+    width: 20px !important;
+    height: 20px !important;
+  }
+
+  /* Reduce icon container padding */
+  nav[role="tablist"] button > div:first-child {
+    padding: 2px !important;
+  }
+
+  /* GameControls position adjustment for shorter bottom nav */
+  .game-controls-landscape {
+    bottom: 44px !important;
+  }
+
+  /* Scale down game controls in landscape */
+  .game-controls-landscape > div {
+    transform: scale(0.85) !important;
+    transform-origin: bottom right !important;
+  }
+
+  /* Reduce glass panel padding for more content space */
+  .glass-ancient,
+  .glass-epic,
+  .glass-monument {
+    padding: 4px !important;
+  }
+
+  /* Smaller text in landscape */
+  .text-compact-landscape {
+    font-size: 9px !important;
+    line-height: 1.2 !important;
+  }
+
+  /* Tab container min-height reduction */
+  .tab-container-landscape {
+    min-height: 200px !important;
+  }
+
+  /* Also override the Tailwind min-h class */
+  .tab-container-landscape.min-h-\[500px\] {
+    min-height: 200px !important;
+  }
+
+  /* Reduce tab content padding */
+  .glass-epic > div > .p-3 {
+    padding: 0.5rem !important;
+  }
+
+  /* Reduce card margins and gaps */
+  .grid.gap-3,
+  .grid.gap-4 {
+    gap: 0.5rem !important;
+  }
+
+  .space-y-3 > * + *,
+  .space-y-4 > * + * {
+    margin-top: 0.5rem !important;
+  }
+
+  /* StatusBar items more compact */
+  .status-bar-scroll .gap-2 {
+    gap: 0.375rem !important;
+  }
+
+  .status-bar-scroll .gap-1\.5 {
+    gap: 0.25rem !important;
+  }
+
+  /* Smaller capsule buttons in status bar */
+  .status-bar-scroll .px-2 {
+    padding-left: 0.375rem !important;
+    padding-right: 0.375rem !important;
+  }
+
+  .status-bar-scroll .py-1 {
+    padding-top: 0.125rem !important;
+    padding-bottom: 0.125rem !important;
+  }
+
+  /* Reduce font sizes in status bar */
+  .status-bar-scroll .text-\[11px\],
+  .status-bar-scroll .text-\[10px\],
+  .status-bar-scroll .text-\[9px\] {
+    font-size: 8px !important;
+  }
+
+  .status-bar-scroll .text-xs {
+    font-size: 10px !important;
+  }
+
+  /* Hide non-essential status bar items on very small landscape */
+  .status-bar-scroll .hidden.sm\\:flex {
+    display: none !important;
+  }
+}
+
+/* Medium landscape screens (tablet landscape or larger phones) */
+@media (orientation: landscape) and (min-height: 501px) and (max-height: 650px) and (max-width: 1023px) {
+  .status-bar-scroll {
+    padding-top: 0.375rem !important;
+    padding-bottom: 0.375rem !important;
+  }
+
+  .header-placeholder-landscape {
+    height: 2.75rem !important;
+  }
+
+  .main-content-landscape {
+    padding-bottom: 3.5rem !important;
+    padding-top: 0.375rem !important;
+  }
+
+  .landscape-compact-nav {
+    height: 2.75rem !important;
+  }
+
+  /* Smaller tab labels */
+  nav[role="tablist"] .tab-title {
+    font-size: 8px !important;
+  }
+
+  .game-controls-landscape {
+    bottom: 48px !important;
+  }
+
+  .glass-ancient,
+  .glass-epic,
+  .glass-monument {
+    padding: 6px !important;
+  }
+
+  .grid.gap-3,
+  .grid.gap-4 {
+    gap: 0.625rem !important;
+  }
+}
+
 /* ==================== 打印样式保留 ==================== */
 
 /* Weather Effects */

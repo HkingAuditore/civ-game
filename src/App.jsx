@@ -552,7 +552,7 @@ function GameApp({ gameState }) {
                 />
             </div>
             {/* 移动端游戏控制 - 位于底部导航栏右上方，留有间距 */}
-            <div className="lg:hidden fixed bottom-[68px] right-2 z-40" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+            <div className="lg:hidden fixed bottom-[68px] right-2 z-40 game-controls-landscape" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
                 <div className="scale-[0.9] origin-bottom-right">
                     <GameControls
                         isPaused={gameState.isPaused}
@@ -574,10 +574,10 @@ function GameApp({ gameState }) {
             </div>
 
             {/* 占位符 - 避免内容被固定头部遮挡 - 优化高度 */}
-            <div className="h-14 sm:h-16 lg:h-20"></div>
+            <div className="h-14 sm:h-16 lg:h-20 header-placeholder-landscape"></div>
 
             {/* 主内容区域 - 移动端优先布局 */}
-            <main className="max-w-[1920px] mx-auto px-2 sm:px-4 py-2 sm:py-4 pb-24 lg:pb-4" data-epoch={gameState.epoch}>
+            <main className="max-w-[1920px] mx-auto px-2 sm:px-4 py-2 sm:py-4 pb-24 lg:pb-4 main-content-landscape" data-epoch={gameState.epoch}>
                 {/* 移动端：单列布局，桌面端：三列布局 */}
                 <div className="grid grid-cols-1 md:grid-cols-[2fr_8fr] lg:grid-cols-12 gap-3 sm:gap-4">
 
@@ -628,7 +628,7 @@ function GameApp({ gameState }) {
                     {/* 中间内容区 - 主操作面板 */}
                     <section className="md:col-span-1 lg:col-span-8 space-y-3 sm:space-y-4 order-1 md:order-2 lg:order-2">
                         {/* 标签页容器 */}
-                        <div className="relative glass-epic rounded-2xl border border-theme-border shadow-monument overflow-hidden min-h-[500px] animate-epic-entrance">
+                        <div className="relative glass-epic rounded-2xl border border-theme-border shadow-monument overflow-hidden min-h-[500px] animate-epic-entrance tab-container-landscape">
                             {/* 背景装饰 */}
                             <AncientPattern opacity={0.02} className="absolute inset-0 text-ancient-gold" />
                             <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-ancient-gold/50 to-transparent" />
