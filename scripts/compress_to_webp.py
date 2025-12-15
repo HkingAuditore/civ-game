@@ -175,13 +175,13 @@ def main():
             percent = (saved / original_size) * 100 if original_size > 0 else 0
             
             resize_info = f" (resized {orig_dims[0]}x{orig_dims[1]} -> {new_dims[0]}x{new_dims[1]})" if was_resized else ""
-            print(f"✓ {original_size/1024:.0f}KB -> {new_size/1024:.0f}KB (-{percent:.0f}%){resize_info}")
+            print(f"OK {original_size/1024:.0f}KB -> {new_size/1024:.0f}KB (-{percent:.0f}%){resize_info}")
             
             # Delete original PNG file
             png_file.unlink()
             converted_count += 1
         else:
-            print("✗ Failed")
+            print("FAILED")
     
     # Results
     print()

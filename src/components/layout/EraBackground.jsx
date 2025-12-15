@@ -3,14 +3,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 // Define the mapping of eras to their background images
 const ERA_BG_MAP = {
-    0: 'bg_era_0_stone.png',
-    1: 'bg_era_1_bronze.png',
-    2: 'bg_era_2_classical.png',
-    3: 'bg_era_3_feudal.png',
-    4: 'bg_era_4_exploration.png',
-    5: 'bg_era_5_enlightenment.png',
-    6: 'bg_era_6_industrial.png',
-    7: 'bg_era_7_information.png',
+    0: 'bg_era_0_stone.webp',
+    1: 'bg_era_1_bronze.webp',
+    2: 'bg_era_2_classical.webp',
+    3: 'bg_era_3_feudal.webp',
+    4: 'bg_era_4_exploration.webp',
+    5: 'bg_era_5_enlightenment.webp',
+    6: 'bg_era_6_industrial.webp',
+    7: 'bg_era_7_information.webp',
 };
 
 /**

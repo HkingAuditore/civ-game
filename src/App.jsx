@@ -573,8 +573,10 @@ function GameApp({ gameState }) {
                 </div>
             </div>
 
-            {/* 占位符 - 避免内容被固定头部遮挡 - 优化高度 */}
-            <div className="h-14 sm:h-16 lg:h-20 header-placeholder-landscape"></div>
+            {/* 占位符 - 避免内容被固定头部遮挡 */}
+            <div
+                className="h-14 sm:h-16 lg:h-20 header-placeholder-landscape header-safe-area-margin"
+            ></div>
 
             {/* 主内容区域 - 移动端优先布局 */}
             <main className="max-w-[1920px] mx-auto px-2 sm:px-4 py-2 sm:py-4 pb-24 lg:pb-4 main-content-landscape" data-epoch={gameState.epoch}>

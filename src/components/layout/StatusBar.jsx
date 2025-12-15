@@ -164,10 +164,20 @@ export const StatusBar = ({
     };
 
     return (
-        <header className="relative overflow-visible">
+        <header
+            className="relative overflow-visible status-bar-safe-area"
+        >
             {/* 主背景 - 史诗质感 + 毛玻璃效果 */}
-            <div className="absolute inset-0 bg-gradient-to-r from-ancient-ink/95 via-ancient-stone/40 to-ancient-ink/95 backdrop-blur-md" />
-            <div className="absolute inset-0 animate-shimmer opacity-20" style={{ backgroundImage: 'linear-gradient(90deg, transparent 0%, rgba(212, 175, 55, 0.15) 50%, transparent 100%)', backgroundSize: '200% 100%' }} />
+            <div
+                className="absolute inset-0 bg-gradient-to-r from-ancient-ink/95 via-ancient-stone/40 to-ancient-ink/95 backdrop-blur-md"
+            />
+            <div
+                className="absolute inset-0 animate-shimmer opacity-20"
+                style={{
+                    backgroundImage: 'linear-gradient(90deg, transparent 0%, rgba(212, 175, 55, 0.15) 50%, transparent 100%)',
+                    backgroundSize: '200% 100%',
+                }}
+            />
 
             {/* 底部装饰线 */}
             <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-ancient-gold/50 to-transparent" />

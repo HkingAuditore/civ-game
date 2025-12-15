@@ -9,7 +9,7 @@ import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
  * 图片作为背景，标题和图标叠加在上面
  */
 const BuildingHeroImage = ({ building, hasImage, onImageLoad, onImageError }) => {
-    const imagePath = `${import.meta.env.BASE_URL}images/buildings/${building.id}.png`;
+    const imagePath = `${import.meta.env.BASE_URL}images/buildings/${building.id}.webp`;
 
     return (
         <div className="relative w-full h-44 mb-4 rounded-xl overflow-hidden">

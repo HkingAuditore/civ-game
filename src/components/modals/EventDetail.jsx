@@ -7,7 +7,7 @@ import { RESOURCES, STRATA, BUILDINGS } from '../../config';
  * 图片作为背景，标题和描述叠加在上面
  */
 const EventHeroImage = ({ eventId, event, hasImage, onImageLoad, onImageError }) => {
-    const imagePath = `${import.meta.env.BASE_URL}images/events/${eventId}.png`;
+    const imagePath = `${import.meta.env.BASE_URL}images/events/${eventId}.webp`;
 
     return (
         <div className="relative w-full h-44 mb-3 rounded-xl overflow-hidden">

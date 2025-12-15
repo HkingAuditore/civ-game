@@ -39,7 +39,7 @@ const BuildingTooltip = ({ building, count, epoch, techsUnlocked, jobFill, ancho
     }, [anchorElement, building, count]);
 
     // 构建背景图片路径
-    const backgroundImagePath = `${import.meta.env.BASE_URL}images/buildings/${building.id}.png`;
+    const backgroundImagePath = `${import.meta.env.BASE_URL}images/buildings/${building.id}.webp`;
 
     return createPortal(
         <div
