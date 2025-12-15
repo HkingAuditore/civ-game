@@ -20,6 +20,8 @@ export const GameControls = ({
   onSave,
   onLoadManual,
   onLoadAuto,
+  onExportSave,
+  onImportSave,
   onSettings,
   onReset,
   onTutorial,
@@ -33,6 +35,7 @@ export const GameControls = ({
   const [isHelpMenuOpen, setIsHelpMenuOpen] = useState(false);
   const [gameMenuPos, setGameMenuPos] = useState(null);
   const [helpMenuPos, setHelpMenuPos] = useState(null);
+  const importInputRef = useRef(null);
 
   const gameMenuButtonRef = useRef(null);
   const helpMenuButtonRef = useRef(null);
@@ -113,6 +116,19 @@ export const GameControls = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isGameMenuOpen, isHelpMenuOpen]);
 
+  const handleImportFile = async (event) => {
+    if (!event?.target?.files?.length || typeof onImportSave !== 'function') return;
+    const [file] = event.target.files;
+    event.target.value = '';
+    try {
+      await onImportSave(file);
+      setIsGameMenuOpen(false);
+      setIsLoadMenuOpen(false);
+    } catch (error) {
+      console.error('Import save failed:', error);
+    }
+  };
+
   const handleGameMenuToggle = () => {
     if (!isGameMenuOpen) {
       updateGameMenuPosition();
@@ -131,6 +147,13 @@ export const GameControls = ({
 
   return (
     <div className="game-controls flex items-stretch sm:items-center gap-0.5 sm:gap-1.5 h-8 sm:h-7">
+      <input
+        ref={importInputRef}
+        type="file"
+        className="hidden"
+        accept=".cgsave,.bin,.dat,application/octet-stream"
+        onChange={handleImportFile}
+      />
       {/* 游戏速度控制 - 紧凑设计 */}
       <div className="flex items-center h-full rounded-md sm:rounded-lg border border-ancient-gold/20 glass-ancient shadow-ancient">
         {/* 暂停/继续按钮 */}
@@ -262,6 +285,38 @@ export const GameControls = ({
                         >
                           <span className="ml-2">自动存档</span>
                           <Icon name="Clock" size={10} />
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (typeof onExportSave === 'function') {
+                              await onExportSave();
+                            }
+                            setIsGameMenuOpen(false);
+                            setIsLoadMenuOpen(false);
+                          }}
+                          disabled={!onExportSave}
+                          className={cn(
+                            'w-full flex items-center px-3 py-2 text-[10px] font-semibold transition-colors rounded touch-feedback',
+                            onExportSave ? 'text-emerald-200 hover:bg-ancient-gold/10' : 'text-ancient-stone/40 cursor-not-allowed'
+                          )}
+                        >
+                          <Icon name="UploadCloud" size={10} />
+                          <span className="ml-2">导出存档</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (onImportSave) {
+                              importInputRef.current?.click();
+                            }
+                          }}
+                          disabled={!onImportSave}
+                          className={cn(
+                            'w-full flex items-center px-3 py-2 text-[10px] font-semibold transition-colors rounded touch-feedback',
+                            onImportSave ? 'text-blue-200 hover:bg-ancient-gold/10' : 'text-ancient-stone/40 cursor-not-allowed'
+                          )}
+                        >
+                          <Icon name="DownloadCloud" size={10} />
+                          <span className="ml-2">导入存档</span>
                         </button>
                       </div>
                     )}

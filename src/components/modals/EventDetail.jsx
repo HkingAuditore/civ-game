@@ -33,14 +33,17 @@ const EventHeroImage = ({ eventId, event, hasImage, onImageLoad, onImageError })
             {/* 叠加在图片上的标题区域 */}
             <div className="absolute bottom-0 left-0 right-0 p-4 z-[2]">
                 <div className="flex items-end gap-3">
-                    <div
-                        className={`flex-shrink-0 w-14 h-14 rounded-xl flex items-center justify-center shadow-xl border backdrop-blur-sm ${event.isDiplomaticEvent
-                            ? 'bg-gradient-to-br from-blue-600/90 to-purple-700/90 border-blue-400/50'
-                            : 'bg-gradient-to-br from-ancient-gold/80 to-ancient-bronze/80 border-ancient-gold/60'
-                            }`}
-                    >
-                        <Icon name={event.icon} size={28} className="text-white drop-shadow-lg" />
-                    </div>
+                    {/* 仅当图片未加载成功时显示图标 */}
+                    {!hasImage && (
+                        <div
+                            className={`flex-shrink-0 w-14 h-14 rounded-xl flex items-center justify-center shadow-xl border backdrop-blur-sm ${event.isDiplomaticEvent
+                                ? 'bg-gradient-to-br from-blue-600/90 to-purple-700/90 border-blue-400/50'
+                                : 'bg-gradient-to-br from-ancient-gold/80 to-ancient-bronze/80 border-ancient-gold/60'
+                                }`}
+                        >
+                            <Icon name={event.icon} size={28} className="text-white drop-shadow-lg" />
+                        </div>
+                    )}
                     <div className="flex-1 min-w-0">
                         <h2 className="text-xl font-bold text-white leading-tight font-decorative drop-shadow-lg">
                             {event.name}

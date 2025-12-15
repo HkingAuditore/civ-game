@@ -6,6 +6,68 @@ import { DECREES, COUNTRIES, RESOURCES, STRATA } from '../config';
 
 const SAVE_KEY = 'civ_game_save_data_v1';
 const AUTOSAVE_KEY = 'civ_game_autosave_v1';
+const SAVE_FORMAT_VERSION = 1;
+const SAVE_FILE_EXTENSION = 'cgsave';
+const SAVE_OBFUSCATION_KEY = 'civ_game_simple_mask_v1';
+
+const textEncoder = typeof TextEncoder !== 'undefined' ? new TextEncoder() : null;
+const textDecoder = typeof TextDecoder !== 'undefined' ? new TextDecoder() : null;
+
+const toBase64 = (arrayBuffer) => {
+    if (typeof window === 'undefined') {
+        if (typeof Buffer !== 'undefined') {
+            return Buffer.from(arrayBuffer).toString('base64');
+        }
+        throw new Error('Base64 编码不可用');
+    }
+    let binary = '';
+    const bytes = new Uint8Array(arrayBuffer);
+    const len = bytes.byteLength;
+    for (let i = 0; i < len; i += 1) {
+        binary += String.fromCharCode(bytes[i]);
+    }
+    return window.btoa(binary);
+};
+
+const fromBase64 = (base64) => {
+    if (typeof window === 'undefined') {
+        if (typeof Buffer !== 'undefined') {
+            return Uint8Array.from(Buffer.from(base64, 'base64'));
+        }
+        throw new Error('Base64 解码不可用');
+    }
+    const binary = window.atob(base64);
+    const len = binary.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i += 1) {
+        bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
+};
+
+const canObfuscate = !!textEncoder && !!textDecoder;
+
+const encodeSavePayload = (payload) => {
+    if (!canObfuscate) throw new Error('当前环境不支持写入混淆存档');
+    const jsonBytes = textEncoder.encode(JSON.stringify(payload));
+    const keyBytes = textEncoder.encode(SAVE_OBFUSCATION_KEY);
+    const masked = new Uint8Array(jsonBytes.length);
+    for (let i = 0; i < jsonBytes.length; i += 1) {
+        masked[i] = jsonBytes[i] ^ keyBytes[i % keyBytes.length];
+    }
+    return toBase64(masked.buffer);
+};
+
+const decodeSavePayload = (encoded) => {
+    if (!canObfuscate) throw new Error('当前环境不支持读取混淆存档');
+    const maskedBytes = fromBase64(encoded);
+    const keyBytes = textEncoder.encode(SAVE_OBFUSCATION_KEY);
+    const restored = new Uint8Array(maskedBytes.length);
+    for (let i = 0; i < maskedBytes.length; i += 1) {
+        restored[i] = maskedBytes[i] ^ keyBytes[i % keyBytes.length];
+    }
+    return JSON.parse(textDecoder.decode(restored));
+};
 
 const INITIAL_RESOURCES = {
     food: 200,
@@ -442,11 +504,11 @@ export const useGameState = () => {
         }, 1000);
     };
 
-    const saveGame = ({ source = 'manual' } = {}) => {
-        try {
-            const timestamp = Date.now();
-            const nextLastAuto = source === 'auto' ? timestamp : lastAutoSaveTime;
-            const saveData = {
+    const buildSavePayload = ({ source = 'manual', timestamp = Date.now() } = {}) => {
+        const nextLastAuto = source === 'auto' ? timestamp : lastAutoSaveTime;
+        return {
+            payload: {
+                saveFormatVersion: SAVE_FORMAT_VERSION,
                 resources,
                 population,
                 popStructure,
@@ -487,6 +549,7 @@ export const useGameState = () => {
                 militaryQueue,
                 selectedTarget,
                 battleResult,
+                playerInstallmentPayment,
                 militaryWageRatio,
                 festivalModal,
                 activeFestivalEffects,
@@ -515,9 +578,105 @@ export const useGameState = () => {
                 lastAutoSaveTime: nextLastAuto,
                 updatedAt: timestamp,
                 saveSource: source,
-            };
+            },
+            nextLastAuto,
+        };
+    };
+
+    const applyLoadedGameState = (data) => {
+        if (!data || typeof data !== 'object') {
+            throw new Error('存档数据无效');
+        }
+        setResources(data.resources || INITIAL_RESOURCES);
+        setPopulation(data.population ?? 5);
+        setPopStructure(data.popStructure || {});
+        setMaxPop(data.maxPop ?? 10);
+        setMaxPopBonus(data.maxPopBonus || 0);
+        setBirthAccumulator(data.birthAccumulator || 0);
+        setBuildings(data.buildings || {});
+        setTechsUnlocked(data.techsUnlocked || []);
+        setEpoch(data.epoch ?? 0);
+        setActiveTab(data.activeTab || 'build');
+        setGameSpeed(data.gameSpeed ?? 1);
+        setIsPaused(data.isPaused ?? false);
+        setDecrees(mergeDecreesWithConfig(data.decrees));
+        setNations(data.nations || buildInitialNations());
+        setClassApproval(data.classApproval || {});
+        setClassInfluence(data.classInfluence || {});
+        setClassWealth(data.classWealth || buildInitialWealth());
+        setClassWealthDelta(data.classWealthDelta || {});
+        setClassIncome(data.classIncome || {});
+        setClassExpense(data.classExpense || {});
+        setClassWealthHistory(data.classWealthHistory || buildInitialWealthHistory());
+        setClassNeedsHistory(data.classNeedsHistory || buildInitialNeedsHistory());
+        setTotalInfluence(data.totalInfluence || 0);
+        setTotalWealth(data.totalWealth || 0);
+        setActiveBuffs(data.activeBuffs || []);
+        setActiveDebuffs(data.activeDebuffs || []);
+        setClassInfluenceShift(data.classInfluenceShift || {});
+        setStability(data.stability ?? 50);
+        setStratumDetailView(data.stratumDetailView || null);
+        setResourceDetailView(data.resourceDetailView || null);
+        setClassShortages(data.classShortages || {});
+        setClassLivingStandard(data.classLivingStandard || {});
+        setLivingStandardStreaks(data.livingStandardStreaks || buildInitialLivingStandardStreaks());
+        setPopulationDetailView(data.populationDetailView || false);
+        setHistory(data.history || buildInitialHistory());
+        setDaysElapsed(data.daysElapsed || 0);
+        setArmy(data.army || {});
+        setMilitaryQueue(data.militaryQueue || []);
+        setSelectedTarget(data.selectedTarget || null);
+        setBattleResult(data.battleResult || null);
+        setPlayerInstallmentPayment(data.playerInstallmentPayment || null);
+        setMilitaryWageRatio(data.militaryWageRatio || 1.5);
+        setFestivalModal(data.festivalModal || null);
+        setActiveFestivalEffects(data.activeFestivalEffects || []);
+        setLastFestivalYear(data.lastFestivalYear || 1);
+        setShowTutorial(data.showTutorial ?? true);
+        setCurrentEvent(data.currentEvent || null);
+        setEventHistory(data.eventHistory || []);
+        setLogs(Array.isArray(data.logs) ? data.logs : []);
+        setClicks(Array.isArray(data.clicks) ? data.clicks : []);
+        setRates(data.rates || {});
+        setTaxes(data.taxes || {
+            total: 0,
+            breakdown: { headTax: 0, industryTax: 0, subsidy: 0, policyIncome: 0, policyExpense: 0 },
+            efficiency: 1,
+        });
+        setTaxPolicies(data.taxPolicies || {
+            headTaxRates: buildDefaultHeadTaxRates(),
+            resourceTaxRates: buildDefaultResourceTaxRates(),
+            businessTaxRates: buildDefaultBusinessTaxRates(),
+        });
+        setJobFill(data.jobFill || {});
+        setMarket(data.market || buildInitialMarket());
+        setMerchantState(data.merchantState || buildInitialMerchantState());
+        setTradeRoutes(data.tradeRoutes || buildInitialTradeRoutes());
+        setTradeStats(data.tradeStats || { tradeTax: 0 });
+        setAutoSaveInterval(data.autoSaveInterval ?? 60);
+        setIsAutoSaveEnabled(data.isAutoSaveEnabled ?? true);
+        setLastAutoSaveTime(data.lastAutoSaveTime || Date.now());
+        setEventEffectSettings(data.eventEffectSettings || DEFAULT_EVENT_EFFECT_SETTINGS);
+        const loadedEffects = data.activeEventEffects || {};
+        setActiveEventEffects({
+            approval: Array.isArray(loadedEffects.approval) ? loadedEffects.approval : [],
+            stability: Array.isArray(loadedEffects.stability) ? loadedEffects.stability : [],
+            resourceDemand: Array.isArray(loadedEffects.resourceDemand) ? loadedEffects.resourceDemand : [],
+            stratumDemand: Array.isArray(loadedEffects.stratumDemand) ? loadedEffects.stratumDemand : [],
+            buildingProduction: Array.isArray(loadedEffects.buildingProduction) ? loadedEffects.buildingProduction : [],
+        });
+        setRebellionStates(data.rebellionStates || {});
+        setActionCooldowns(data.actionCooldowns || {});
+        setActionUsage(data.actionUsage || {});
+        setPromiseTasks(data.promiseTasks || []);
+    };
+
+    const saveGame = ({ source = 'manual' } = {}) => {
+        try {
+            const timestamp = Date.now();
+            const { payload } = buildSavePayload({ source, timestamp });
             const targetKey = source === 'auto' ? AUTOSAVE_KEY : SAVE_KEY;
-            localStorage.setItem(targetKey, JSON.stringify(saveData));
+            localStorage.setItem(targetKey, JSON.stringify(payload));
             triggerSavingIndicator();
             if (source === 'auto') {
                 setLastAutoSaveTime(timestamp);
@@ -545,92 +704,90 @@ export const useGameState = () => {
                 return;
             }
             const data = JSON.parse(rawData);
-            setResources(data.resources || INITIAL_RESOURCES);
-            setPopulation(data.population ?? 5);
-            setPopStructure(data.popStructure || {});
-            setMaxPop(data.maxPop ?? 10);
-            setMaxPopBonus(data.maxPopBonus || 0);
-            setBirthAccumulator(data.birthAccumulator || 0);
-            setBuildings(data.buildings || {});
-            setTechsUnlocked(data.techsUnlocked || []);
-            setEpoch(data.epoch ?? 0);
-            setActiveTab(data.activeTab || 'build');
-            setGameSpeed(data.gameSpeed ?? 1);
-            setIsPaused(data.isPaused ?? false);
-            setDecrees(mergeDecreesWithConfig(data.decrees));
-            setNations(data.nations || buildInitialNations());
-            setClassApproval(data.classApproval || {});
-            setClassInfluence(data.classInfluence || {});
-            setClassWealth(data.classWealth || buildInitialWealth());
-            setClassWealthDelta(data.classWealthDelta || {});
-            setClassIncome(data.classIncome || {});
-            setClassExpense(data.classExpense || {});
-            setClassWealthHistory(data.classWealthHistory || buildInitialWealthHistory());
-            setClassNeedsHistory(data.classNeedsHistory || buildInitialNeedsHistory());
-            setTotalInfluence(data.totalInfluence || 0);
-            setTotalWealth(data.totalWealth || 0);
-            setActiveBuffs(data.activeBuffs || []);
-            setActiveDebuffs(data.activeDebuffs || []);
-            setClassInfluenceShift(data.classInfluenceShift || {});
-            setStability(data.stability ?? 50);
-            setStratumDetailView(data.stratumDetailView || null);
-            setResourceDetailView(data.resourceDetailView || null);
-            setClassShortages(data.classShortages || {});
-            setClassLivingStandard(data.classLivingStandard || {});
-            setLivingStandardStreaks(data.livingStandardStreaks || buildInitialLivingStandardStreaks());
-            setPopulationDetailView(data.populationDetailView || false);
-            setHistory(data.history || buildInitialHistory());
-            setDaysElapsed(data.daysElapsed || 0);
-            setArmy(data.army || {});
-            setMilitaryQueue(data.militaryQueue || []);
-            setSelectedTarget(data.selectedTarget || null);
-            setBattleResult(data.battleResult || null);
-            setMilitaryWageRatio(data.militaryWageRatio || 1.5);
-            setFestivalModal(data.festivalModal || null);
-            setActiveFestivalEffects(data.activeFestivalEffects || []);
-            setLastFestivalYear(data.lastFestivalYear || 1);
-            setShowTutorial(data.showTutorial ?? true);
-            setCurrentEvent(data.currentEvent || null);
-            setEventHistory(data.eventHistory || []);
-            setLogs(data.logs || []);
-            setClicks(data.clicks || []);
-            setRates(data.rates || {});
-            setTaxes(data.taxes || {
-                total: 0,
-                breakdown: { headTax: 0, industryTax: 0, subsidy: 0, policyIncome: 0, policyExpense: 0 },
-                efficiency: 1,
-            });
-            setTaxPolicies(data.taxPolicies || {
-                headTaxRates: buildDefaultHeadTaxRates(),
-                resourceTaxRates: buildDefaultResourceTaxRates(),
-                businessTaxRates: buildDefaultBusinessTaxRates(),
-            });
-            setJobFill(data.jobFill || {});
-            setMarket(data.market || buildInitialMarket());
-            setMerchantState(data.merchantState || buildInitialMerchantState());
-            setTradeRoutes(data.tradeRoutes || buildInitialTradeRoutes());
-            setTradeStats(data.tradeStats || { tradeTax: 0 });
-            setAutoSaveInterval(data.autoSaveInterval ?? 60);
-            setIsAutoSaveEnabled(data.isAutoSaveEnabled ?? true);
-            setLastAutoSaveTime(data.lastAutoSaveTime || Date.now());
-            setEventEffectSettings(data.eventEffectSettings || DEFAULT_EVENT_EFFECT_SETTINGS);
-            // 兼容旧存档：确保 activeEventEffects 中的字段都是数组
-            const loadedEffects = data.activeEventEffects || {};
-            setActiveEventEffects({
-                approval: Array.isArray(loadedEffects.approval) ? loadedEffects.approval : [],
-                stability: Array.isArray(loadedEffects.stability) ? loadedEffects.stability : [],
-                resourceDemand: Array.isArray(loadedEffects.resourceDemand) ? loadedEffects.resourceDemand : [],
-                stratumDemand: Array.isArray(loadedEffects.stratumDemand) ? loadedEffects.stratumDemand : [],
-                buildingProduction: Array.isArray(loadedEffects.buildingProduction) ? loadedEffects.buildingProduction : [],
-            });
-            setRebellionStates(data.rebellionStates || {});
-            setActionCooldowns(data.actionCooldowns || {});
-            setActionUsage(data.actionUsage || {});
-            setPromiseTasks(data.promiseTasks || []);
+            applyLoadedGameState(data);
             addLogEntry(source === 'auto' ? '📂 自动存档读取成功！' : '📂 读取存档成功！');
         } catch (error) {
             console.error('Load game failed:', error);
             addLogEntry(`❌ 读取存档失败：${error.message}`);
+        }
+    };
+
+    const exportSaveToBinary = async () => {
+        if (typeof window === 'undefined' || typeof Blob === 'undefined') {
+            throw new Error('导出仅支持浏览器环境');
+        }
+        try {
+            const timestamp = Date.now();
+            const { payload } = buildSavePayload({ source: 'binary-export', timestamp });
+            let fileJson = JSON.stringify(payload);
+            let note = '📤 存档导出成功，可复制到其他设备。';
+            if (canObfuscate) {
+                fileJson = JSON.stringify({
+                    format: SAVE_FORMAT_VERSION,
+                    obfuscated: true,
+                    data: encodeSavePayload(payload),
+                    updatedAt: payload.updatedAt,
+                });
+                note = '📤 已导出混淆存档，可复制到其他设备。';
+            }
+            const blob = new Blob([fileJson], { type: 'application/octet-stream' });
+            const iso = new Date(timestamp).toISOString().replace(/[:.]/g, '-');
+            const filename = `civ-save-${iso}.${SAVE_FILE_EXTENSION}`;
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            addLogEntry(note);
+            return true;
+        } catch (error) {
+            console.error('Export save failed:', error);
+            addLogEntry(`❌ 导出存档失败：${error.message}`);
+            throw error;
+        }
+    };
+
+    const importSaveFromBinary = async (fileOrBuffer) => {
+        try {
+            if (!fileOrBuffer) {
+                throw new Error('请选择有效的存档文件');
+            }
+            if (!textDecoder) {
+                throw new Error('当前环境不支持解析存档文件');
+            }
+            let buffer;
+            if (fileOrBuffer instanceof ArrayBuffer) {
+                buffer = fileOrBuffer;
+            } else if (fileOrBuffer instanceof Uint8Array) {
+                buffer = fileOrBuffer.buffer;
+            } else if (typeof fileOrBuffer.arrayBuffer === 'function') {
+                buffer = await fileOrBuffer.arrayBuffer();
+            } else {
+                throw new Error('无法解析的文件类型');
+            }
+            const jsonString = textDecoder.decode(buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer));
+            const parsed = JSON.parse(jsonString);
+            const processed = parsed && parsed.obfuscated && parsed.data
+                ? decodeSavePayload(parsed.data)
+                : parsed;
+            const normalized = {
+                ...processed,
+                saveFormatVersion: processed.saveFormatVersion || parsed.format || SAVE_FORMAT_VERSION,
+                saveSource: 'binary-import',
+                updatedAt: processed.updatedAt || parsed.updatedAt || Date.now(),
+                lastAutoSaveTime: processed.lastAutoSaveTime || lastAutoSaveTime || Date.now(),
+            };
+            localStorage.setItem(SAVE_KEY, JSON.stringify(normalized));
+            applyLoadedGameState(normalized);
+            addLogEntry('📥 已从备份文件导入存档！');
+            return true;
+        } catch (error) {
+            console.error('Import save failed:', error);
+            addLogEntry(`❌ 导入存档失败：${error.message}`);
+            throw error;
         }
     };
 
@@ -826,6 +983,8 @@ export const useGameState = () => {
         setJobsAvailable,
         saveGame,
         loadGame,
+        exportSaveToBinary,
+        importSaveFromBinary,
         hasAutoSave,
         resetGame,
     };

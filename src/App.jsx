@@ -505,6 +505,23 @@ function GameApp({ gameState }) {
         gameState.loadGame({ source: 'auto' });
     };
 
+    const handleExportSave = async () => {
+        if (typeof gameState.exportSaveToBinary === 'function') {
+            try {
+                await gameState.exportSaveToBinary();
+            } catch (error) {
+                console.error('Export save failed:', error);
+            }
+        }
+    };
+
+    const handleImportSave = async (file) => {
+        if (typeof gameState.importSaveFromBinary === 'function') {
+            return gameState.importSaveFromBinary(file);
+        }
+        return false;
+    };
+
     return (
         <div className="min-h-screen font-epic text-theme-text transition-all duration-1000 relative">
             {/* Dynamic Era Background */}
@@ -541,6 +558,8 @@ function GameApp({ gameState }) {
                             onSave={handleManualSave}
                             onLoadManual={handleLoadManual}
                             onLoadAuto={handleLoadAuto}
+                            onExportSave={handleExportSave}
+                            onImportSave={handleImportSave}
                             onSettings={() => setIsSettingsOpen(true)}
                             onReset={() => gameState.resetGame()}
                             onTutorial={handleReopenTutorial}
@@ -562,6 +581,8 @@ function GameApp({ gameState }) {
                         onSave={handleManualSave}
                         onLoadManual={handleLoadManual}
                         onLoadAuto={handleLoadAuto}
+                        onExportSave={handleExportSave}
+                        onImportSave={handleImportSave}
                         onSettings={() => setIsSettingsOpen(true)}
                         onReset={() => gameState.resetGame()}
                         onTutorial={handleReopenTutorial}
@@ -1236,6 +1257,8 @@ function GameApp({ gameState }) {
                             onManualSave={handleManualSave}
                             onManualLoad={handleLoadManual}
                             onAutoLoad={handleLoadAuto}
+                            onExportSave={handleExportSave}
+                            onImportSave={handleImportSave}
                             autoSaveAvailable={autoSaveAvailable}
                             isSaving={gameState.isSaving}
                             timeSettings={gameState.eventEffectSettings}

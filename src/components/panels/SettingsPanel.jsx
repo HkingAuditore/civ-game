@@ -1,7 +1,7 @@
 // 设置面板组件
-// 控制自动存档的开关、频率与读档方式
+// 控制自动存档、读档方式及跨设备备份
 
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import { Icon } from '../common/UIComponents';
 import { useSound } from '../../hooks';
 
@@ -14,6 +14,8 @@ export const SettingsPanel = ({
     onManualSave,
     onManualLoad,
     onAutoLoad,
+    onExportSave,
+    onImportSave,
     autoSaveAvailable,
     isSaving,
     onClose,
@@ -21,6 +23,11 @@ export const SettingsPanel = ({
     onTimeSettingsChange,
 }) => {
     const { enabled: soundEnabled, volume, toggleSound, setVolume, playSound, SOUND_TYPES } = useSound();
+    const fileInputRef = useRef(null);
+    const [isExporting, setIsExporting] = useState(false);
+    const [isImporting, setIsImporting] = useState(false);
+    const [backupMessage, setBackupMessage] = useState('');
+    const [backupError, setBackupError] = useState('');
     const approvalSettings = timeSettings?.approval || {};
     const stabilitySettings = timeSettings?.stability || {};
     const approvalDuration = Math.max(5, approvalSettings.duration || 30);
@@ -52,6 +59,42 @@ export const SettingsPanel = ({
             return new Date(lastAutoSaveTime).toLocaleTimeString();
         } catch {
             return '时间未知';
+        }
+    };
+
+    const handleExport = async () => {
+        if (typeof onExportSave !== 'function') return;
+        setBackupError('');
+        setBackupMessage('');
+        setIsExporting(true);
+        try {
+            await onExportSave();
+            setBackupMessage('已导出存档，可复制到其他设备。');
+            playSound(SOUND_TYPES.SUCCESS);
+        } catch (error) {
+            setBackupError(error?.message || '导出失败，请稍后重试。');
+            console.error('Export save failed:', error);
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
+    const handleImportFile = async (event) => {
+        if (!event?.target?.files?.length || typeof onImportSave !== 'function') return;
+        const [file] = event.target.files;
+        event.target.value = '';
+        setBackupError('');
+        setBackupMessage('');
+        setIsImporting(true);
+        try {
+            await onImportSave(file);
+            setBackupMessage(`已导入存档：${file.name}`);
+            playSound(SOUND_TYPES.SUCCESS);
+        } catch (error) {
+            setBackupError(error?.message || '导入失败，请确认文件有效。');
+            console.error('Import save failed:', error);
+        } finally {
+            setIsImporting(false);
         }
     };
 
@@ -157,6 +200,61 @@ export const SettingsPanel = ({
             <div className="text-[11px] text-gray-400 flex items-center gap-2">
                 <span className={`w-2 h-2 rounded-full ${autoSaveAvailable ? 'bg-emerald-400' : 'bg-gray-500'}`} />
                 {autoSaveAvailable ? '检测到自动存档，可随时读取。' : '尚未生成自动存档。'}
+            </div>
+
+            <div className="border-t border-gray-700 pt-4 space-y-3">
+                <h4 className="text-sm font-bold text-gray-200 flex items-center gap-2">
+                    <Icon name="HardDrive" size={16} /> 跨设备备份
+                </h4>
+                <p className="text-[11px] text-gray-400 leading-relaxed">
+                    导出二进制存档文件（.cgsave）即可复制到其他设备；在此导入可立即恢复进度。
+                </p>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                    <button
+                        type="button"
+                        onClick={handleExport}
+                        disabled={!onExportSave || isExporting}
+                        className={`flex items-center justify-center gap-1 px-3 py-2 rounded-lg border transition-colors ${isExporting
+                                ? 'bg-blue-900/30 border-blue-700/40 text-blue-200 cursor-wait'
+                                : 'bg-blue-700/20 hover:bg-blue-700/40 border-blue-500/30 text-blue-100'
+                            } ${!onExportSave ? 'opacity-40 cursor-not-allowed' : ''}`}
+                    >
+                        {isExporting ? (
+                            <Icon name="Activity" size={14} className="animate-spin" />
+                        ) : (
+                            <Icon name="UploadCloud" size={14} />
+                        )}
+                        导出存档
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={!onImportSave || isImporting}
+                        className={`flex items-center justify-center gap-1 px-3 py-2 rounded-lg border transition-colors ${isImporting
+                                ? 'bg-purple-900/30 border-purple-700/40 text-purple-200 cursor-wait'
+                                : 'bg-purple-700/20 hover:bg-purple-700/40 border-purple-500/30 text-purple-100'
+                            } ${!onImportSave ? 'opacity-40 cursor-not-allowed' : ''}`}
+                    >
+                        {isImporting ? (
+                            <Icon name="Activity" size={14} className="animate-spin" />
+                        ) : (
+                            <Icon name="DownloadCloud" size={14} />
+                        )}
+                        导入存档
+                    </button>
+                </div>
+                {(backupMessage || backupError) && (
+                    <div className={`text-[11px] ${backupError ? 'text-red-300' : 'text-emerald-300'}`}>
+                        {backupError || backupMessage}
+                    </div>
+                )}
+                <input
+                    ref={fileInputRef}
+                    type="file"
+                    className="hidden"
+                    accept=".cgsave,.bin,.dat,application/octet-stream"
+                    onChange={handleImportFile}
+                />
             </div>
 
             {/* <div className="border-t border-gray-700 pt-4 space-y-4">
