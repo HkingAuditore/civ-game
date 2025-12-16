@@ -1226,6 +1226,8 @@ function GameApp({ gameState }) {
                         onSelectOption={handleEventOption}
                         onClose={() => gameState.setCurrentEvent(null)}
                         nations={gameState.nations}
+                        epoch={gameState.epoch}
+                        techsUnlocked={gameState.techsUnlocked}
                     />
                 )}
             </BottomSheet>

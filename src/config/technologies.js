@@ -12,10 +12,10 @@ export const TECHS = [
   {
     id: 'barter',
     name: "物物交换",
-    desc: "允许建造贸易站，让商人阶层登上历史舞台。每日被动获得 0.3 银币。",
+    desc: "允许建造贸易站，让商人阶层登上历史舞台。财政收入 +2%。",
     cost: { science: 150 },
     epoch: 0,
-    effects: { passive: { silver: 0.3 } },
+    effects: { incomePercent: 0.02 },
   },
   {
     id: 'stone_axes',
@@ -36,10 +36,10 @@ export const TECHS = [
   {
     id: 'animal_husbandry',
     name: "畜牧业",
-    desc: "驯养牲畜，每日额外获得 20 点粮食。",
+    desc: "驯养牲畜，每人每日额外获得 0.1 粮食。",
     cost: { science: 240 },
     epoch: 0,
-    effects: { passive: { food: 20 } },
+    effects: { perPopPassive: { food: 0.1 } },
   },
   {
     id: 'pottery',
@@ -76,19 +76,19 @@ export const TECHS = [
   {
     id: 'communal_granary',
     name: "公共粮仓",
-    desc: "人口上限 +10。",
+    desc: "人口上限 +3%。",
     cost: { science: 390 },
     epoch: 0,
-    effects: { maxPop: 10 },
+    effects: { maxPop: 0.03 },
   },
 
   {
     id: 'river_fishing',
     name: "河湾捕鱼",
-    desc: "每日额外获得 10 粮食与 0.2 银币。",
+    desc: "每人每日额外获得 0.05 粮食，财政收入 +1%。",
     cost: { science: 450 },
     epoch: 0,
-    effects: { passive: { food: 10, silver: 0.2 } },
+    effects: { perPopPassive: { food: 0.05 }, incomePercent: 0.01 },
   },
   {
     id: 'wheel',
@@ -103,10 +103,10 @@ export const TECHS = [
   {
     id: 'sailing',
     name: "航海术",
-    desc: "解锁船坞建设，开启海上贸易与军事行动。每日被动获得 0.5 银币和 5 粮食。",
+    desc: "解锁船坞建设，开启海上贸易与军事行动。财政收入 +3%，每人每日获得 0.02 粮食。",
     cost: { science: 1050 },
     epoch: 1,
-    effects: { passive: { silver: 0.5, food: 5 } },
+    effects: { incomePercent: 0.03, perPopPassive: { food: 0.02 } },
   },
   {
     id: 'tools',
@@ -151,10 +151,10 @@ export const TECHS = [
   {
     id: 'granary_architecture',
     name: "粮仓结构",
-    desc: "粮仓产出 +25%，并额外提供 +5 人口上限。",
+    desc: "粮仓产出 +25%，并额外提供 +2% 人口上限。",
     cost: { science: 960 },
     epoch: 1,
-    effects: { buildings: { granary: 0.25 }, maxPop: 5 },
+    effects: { buildings: { granary: 0.25 }, maxPop: 0.02 },
   },
   {
     id: 'primitive_weaving',
@@ -217,18 +217,18 @@ export const TECHS = [
   {
     id: 'urban_planning',
     name: "城市规划",
-    desc: "木屋效率 +20%，人口上限 +10。",
+    desc: "木屋效率 +20%，人口上限 +3%。",
     cost: { science: 1820 },
     epoch: 2,
-    effects: { buildings: { house: 0.2 }, maxPop: 10 },
+    effects: { buildings: { house: 0.2 }, maxPop: 0.03 },
   },
   {
     id: 'republican_code',
     name: "共和法典",
-    desc: "完善的法律体系提升社会运转效率。民生建筑效率 +15%，人口上限 +5。",
+    desc: "完善的法律体系提升社会运转效率。民生建筑效率 +15%，人口上限 +2%。",
     cost: { science: 1960 },
     epoch: 2,
-    effects: { categories: { civic: 0.15 }, maxPop: 5 },
+    effects: { categories: { civic: 0.15 }, maxPop: 0.02 },
   },
   {
     id: 'road_system',
@@ -275,10 +275,10 @@ export const TECHS = [
   {
     id: 'bureaucracy',
     name: "官僚制度",
-    desc: "解锁市政厅，建立高效的行政管理体系。采集、工业、市政建筑效率 +5%，每日被动获得 0.3 文化。",
+    desc: "解锁市政厅，建立高效的行政管理体系。采集、工业、市政建筑效率 +5%，每人每日获得 0.002 文化。",
     cost: { science: 4200 },
     epoch: 3,
-    effects: { categories: { gather: 0.05, industry: 0.05, civic: 0.05 }, passive: { culture: 0.3 } },
+    effects: { categories: { gather: 0.05, industry: 0.05, civic: 0.05 }, perPopPassive: { culture: 0.002 } },
   },
   {
     id: 'three_field_system',
@@ -325,10 +325,10 @@ export const TECHS = [
   {
     id: 'charter_companies',
     name: "特许公司",
-    desc: "贸易港银币产出 +30%，并每日被动 +1 银币。",
+    desc: "贸易港银币产出 +30%，财政收入 +5%。",
     cost: { science: 6650 },
     epoch: 4,
-    effects: { buildings: { trade_port: 0.3 }, passive: { silver: 1 } },
+    effects: { buildings: { trade_port: 0.3 }, incomePercent: 0.05 },
   },
   {
     id: 'navigator_schooling',
@@ -349,10 +349,10 @@ export const TECHS = [
   {
     id: 'colonial_ledgers',
     name: "殖民档案",
-    desc: "系统化的殖民地档案管理，提升海外贸易效率。船坞和贸易港效率 +20%，每日被动获得 1.5 银币。",
+    desc: "系统化的殖民地档案管理，提升海外贸易效率。船坞和贸易港效率 +20%，财政收入 +5%。",
     cost: { science: 7700 },
     epoch: 4,
-    effects: { buildings: { dockyard: 0.2, trade_port: 0.2 }, passive: { silver: 1.5 } },
+    effects: { buildings: { dockyard: 0.2, trade_port: 0.2 }, incomePercent: 0.05 },
   },
   {
     id: 'spice_monopolies',
@@ -375,10 +375,10 @@ export const TECHS = [
   {
     id: 'coffeehouse_philosophy',
     name: "咖啡馆哲学",
-    desc: "咖啡馆文化 +35%，被动 +0.4 文化。",
+    desc: "咖啡馆文化 +35%，每人每日获得 0.002 文化。",
     cost: { science: 15300 },
     epoch: 5,
-    effects: { buildings: { coffee_house: 0.35 }, passive: { culture: 0.4 } },
+    effects: { buildings: { coffee_house: 0.35 }, perPopPassive: { culture: 0.002 } },
   },
   {
     id: 'printing_press',
@@ -391,18 +391,18 @@ export const TECHS = [
   {
     id: 'public_schooling',
     name: "公共教育",
-    desc: "图书馆 +25% 科研，被动 +0.2 文化。",
+    desc: "图书馆 +25% 科研，每人每日获得 0.001 文化。",
     cost: { science: 17100 },
     epoch: 5,
-    effects: { buildings: { library: 0.25 }, passive: { culture: 0.2 } },
+    effects: { buildings: { library: 0.25 }, perPopPassive: { culture: 0.001 } },
   },
   {
     id: 'social_contract',
     name: "社会契约",
-    desc: "启蒙思想推动社会进步。民生建筑效率 +20%，人口上限 +15，每日被动获得 0.5 文化。",
+    desc: "启蒙思想推动社会进步。民生建筑效率 +20%，人口上限 +5%，每人每日获得 0.003 文化。",
     cost: { science: 18000 },
     epoch: 5,
-    effects: { categories: { civic: 0.2 }, maxPop: 15, passive: { culture: 0.5 } },
+    effects: { categories: { civic: 0.2 }, maxPop: 0.05, perPopPassive: { culture: 0.003 } },
   },
   {
     id: 'salon_debates',
@@ -483,10 +483,10 @@ export const TECHS = [
   {
     id: 'fortification',
     name: "要塞工程",
-    desc: "解锁要塞，大幅提升军事容量。军事建筑效率 +25%，人口上限 +10。",
+    desc: "解锁要塞，大幅提升军事容量。军事建筑效率 +25%，人口上限 +3%。",
     cost: { science: 8400 },
     epoch: 4,
-    effects: { categories: { military: 0.25 }, maxPop: 10 },
+    effects: { categories: { military: 0.25 }, maxPop: 0.03 },
   },
 
   // ========== 高级工业科技 ==========
@@ -557,10 +557,10 @@ export const TECHS = [
   {
     id: 'standardized_construction',
     name: "标准化建筑",
-    desc: "解锁建材厂，预制构件加速建设、降低成本。建材厂效率 +25%，人口上限 +15。",
+    desc: "解锁建材厂，预制构件加速建设、降低成本。建材厂效率 +25%，人口上限 +5%。",
     cost: { science: 24300 },
     epoch: 6,
-    effects: { buildings: { building_materials_plant: 0.25 }, maxPop: 15 },
+    effects: { buildings: { building_materials_plant: 0.25 }, maxPop: 0.05 },
   },
   
   // 食品加工产业升级科技
@@ -645,17 +645,17 @@ export const TECHS = [
   {
     id: 'urban_architecture',
     name: "城市建筑学",
-    desc: "解锁公寓楼，多层建筑容纳更多城市人口。",
+    desc: "解锁公寓楼，多层建筑容纳更多城市人口。人口上限 +6%。",
     cost: { science: 26100 },
     epoch: 6,
-    effects: { buildings: { house: 0.20 }, maxPop: 20 },
+    effects: { buildings: { house: 0.20 }, maxPop: 0.06 },
   },
   {
     id: 'financial_capitalism',
     name: "金融资本主义",
-    desc: "解锁证券交易所，股票与债券调配社会资本。贸易港效率 +20%，铁路枢纽效率 +15%，每日被动获得 2 银币。",
+    desc: "解锁证券交易所，股票与债券调配社会资本。贸易港效率 +20%，铁路枢纽效率 +15%，财政收入 +8%。",
     cost: { science: 29250 },
     epoch: 6,
-    effects: { buildings: { trade_port: 0.20, rail_depot: 0.15 }, passive: { silver: 2 } },
+    effects: { buildings: { trade_port: 0.20, rail_depot: 0.15 }, incomePercent: 0.08 },
   },
 ];

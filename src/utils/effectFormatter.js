@@ -7,6 +7,7 @@ const EFFECT_LABELS = {
   militaryPower: { label: '军事力量', type: 'percent' },
   cultureBonus: { label: '文化产出', type: 'percent' },
   scienceBonus: { label: '科研产出', type: 'percent' },
+  incomePercent: { label: '财政收入', type: 'percent' },  // NEW: percentage-based income modifier
 };
 
 const formatValue = (value, type) => {

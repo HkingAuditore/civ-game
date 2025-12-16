@@ -9,6 +9,7 @@ import { generateSound, SOUND_TYPES } from '../config/sounds';
 import { getEnemyUnitsForEpoch } from '../config/militaryActions';
 import { isResourceUnlocked } from '../utils/resources';
 import { calculateDynamicGiftCost, calculateProvokeCost } from '../utils/diplomaticUtils';
+import { filterEventEffects } from '../utils/eventEffectFilter';
 // 叛乱系统
 import {
     processRebellionAction,
@@ -2682,17 +2683,21 @@ export const useGameActions = (gameState, addLog) => {
             return descriptions.length > 0 ? `（${descriptions.join('，')}）` : '';
         };
 
-        // 先应用基础效果
-        applyEffects(baseEffects);
+        // 过滤效果，移除尚未解锁的阶层/资源/建筑相关效果
+        const filteredBaseEffects = filterEventEffects(baseEffects, epoch, techsUnlocked);
 
-        // 再逐条按概率叠加 randomEffects
+        // 先应用过滤后的基础效果
+        applyEffects(filteredBaseEffects);
+
+        // 再逐条按概率叠加 randomEffects（同样需要过滤）
         randomEffects.forEach(re => {
             const chance = typeof re.chance === 'number' ? re.chance : 0;
             if (chance > 0 && Math.random() < chance) {
-                applyEffects(re.effects || {});
+                const filteredRandomEffects = filterEventEffects(re.effects || {}, epoch, techsUnlocked);
+                applyEffects(filteredRandomEffects);
                 // 记录触发的随机效果
                 const percent = Math.round(chance * 100);
-                const effectDesc = generateEffectDescription(re.effects);
+                const effectDesc = generateEffectDescription(filteredRandomEffects);
 
                 if (re.description) {
                     addLog(`🎲 运气不错！${percent}%的额外效果「${re.description}」触发了${effectDesc}`);
@@ -2701,10 +2706,10 @@ export const useGameActions = (gameState, addLog) => {
                 }
 
                 // 如果有特别重要的效果，可以额外记录
-                if (re.effects?.triggerWar) {
+                if (filteredRandomEffects?.triggerWar) {
                     addLog(`⚔️ 与目标国家进入战争状态！`);
                 }
-                if (re.effects?.triggerPeace) {
+                if (filteredRandomEffects?.triggerPeace) {
                     addLog(`🕊️ 与目标国家签订和平协议！`);
                 }
             } else if (chance > 0) {

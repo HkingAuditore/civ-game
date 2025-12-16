@@ -3,6 +3,7 @@ import { Icon } from '../common/UIComponents';
 import { RESOURCES, STRATA, BUILDINGS } from '../../config';
 import { getPublicAssetUrl } from '../../utils/assetPath';
 import { getEventImageUrl } from '../../utils/imageRegistry';
+import { filterEventOptions } from '../../utils/eventEffectFilter';
 
 /**
  * 事件沉浸式英雄图片组件
@@ -76,7 +77,7 @@ const EventHeroImage = ({ eventId, event, hasImage, onImageLoad, onImageError })
  * @param {Function} onSelectOption - 选择选项的回调
  * @param {Function} onClose - 关闭回调
  */
-export const EventDetail = ({ event, onSelectOption, onClose, nations = [] }) => {
+export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoch = 0, techsUnlocked = [] }) => {
     if (!event) return null;
 
     // 图片加载状态管理
@@ -95,6 +96,9 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [] }) =>
             setImageError(false);
         }
     }
+
+    // 过滤事件选项，移除尚未解锁的效果
+    const filteredOptions = filterEventOptions(event.options, epoch, techsUnlocked);
 
     // 获取可见国家列表
     const visibleNations = nations.filter(n => n.visible !== false);
@@ -324,7 +328,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [] }) =>
                     <Icon name="Target" size={12} className="text-ancient-gold " />
                     选择你的行动
                 </h3>
-                {event.options.map((option) => (
+                {filteredOptions.map((option) => (
                     <button
                         key={option.id}
                         onClick={() => handleOptionClick(option)}

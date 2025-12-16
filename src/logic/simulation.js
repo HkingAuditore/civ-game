@@ -241,6 +241,7 @@ export const simulateTick = ({
         buildingBonuses,
         categoryBonuses,
         passiveGains,
+        perPopPassiveGains,    // NEW: per-population passive gains
         decreeResourceDemandMod,
         decreeStratumDemandMod,
         decreeResourceSupplyMod,
@@ -287,6 +288,7 @@ export const simulateTick = ({
     industryBonus = bonuses.industryBonus;
     taxBonus = bonuses.taxBonus;
     needsReduction = bonuses.needsReduction;
+    const incomePercentBonus = bonuses.incomePercentBonus || 0; // NEW: income percentage bonus
 
     // computePriceMultiplier is imported from ./utils/helpers
 
@@ -677,6 +679,25 @@ export const simulateTick = ({
     Object.entries(passiveGains).forEach(([resKey, amountPerDay]) => {
         if (!amountPerDay) return;
         const gain = amountPerDay;
+        const current = res[resKey] || 0;
+        if (gain >= 0) {
+            res[resKey] = current + gain;
+            rates[resKey] = (rates[resKey] || 0) + gain;
+        } else {
+            const needed = Math.abs(gain);
+            const spent = Math.min(current, needed);
+            if (spent > 0) {
+                res[resKey] = current - spent;
+                rates[resKey] = (rates[resKey] || 0) - spent;
+            }
+        }
+    });
+
+    // NEW: Apply per-population passive gains (scales with total population)
+    const totalPopulation = population || 0;
+    Object.entries(perPopPassiveGains || {}).forEach(([resKey, amountPerPop]) => {
+        if (!amountPerPop || totalPopulation <= 0) return;
+        const gain = amountPerPop * totalPopulation;
         const current = res[resKey] || 0;
         if (gain >= 0) {
             res[resKey] = current + gain;
@@ -2394,10 +2415,14 @@ export const simulateTick = ({
     const totalCollectedTax = collectedHeadTax + collectedIndustryTax + collectedBusinessTax;
 
     // 将税收与战争赔款一并视为财政收入
-    const totalFiscalIncome = totalCollectedTax + warIndemnityIncome;
+    const baseFiscalIncome = totalCollectedTax + warIndemnityIncome;
+    // NEW: Apply income percentage bonus (from tech/decree effects)
+    const incomePercentMultiplier = Math.max(0, 1 + incomePercentBonus);
+    const totalFiscalIncome = baseFiscalIncome * incomePercentMultiplier;
 
     res.silver = (res.silver || 0) + totalFiscalIncome;
     rates.silver = (rates.silver || 0) + totalFiscalIncome;
+
 
     // console.log('[TICK] Starting price and wage updates...'); // Commented for performance
     const updatedPrices = { ...priceMap };

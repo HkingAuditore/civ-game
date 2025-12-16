@@ -19,6 +19,8 @@ export const initializeBonuses = () => ({
     buildingBonuses: {},
     categoryBonuses: { gather: 1, industry: 1, civic: 1, military: 1 },
     passiveGains: {},
+    perPopPassiveGains: {},      // NEW: { resource: amountPerPopulation }
+    incomePercentBonus: 0,       // NEW: percentage bonus to silver income
     decreeResourceDemandMod: {},
     decreeStratumDemandMod: {},
     decreeResourceSupplyMod: {},
@@ -125,6 +127,19 @@ export const applyEffects = (effects, bonuses) => {
                 decreeResourceSupplyMod[resKey] = (decreeResourceSupplyMod[resKey] || 0) + percent;
             }
         });
+    }
+
+    // NEW: Per-population passive gains (scales with total population)
+    if (effects.perPopPassive) {
+        Object.entries(effects.perPopPassive).forEach(([resKey, amountPerPop]) => {
+            if (!resKey || typeof amountPerPop !== 'number') return;
+            bonuses.perPopPassiveGains[resKey] = (bonuses.perPopPassiveGains[resKey] || 0) + amountPerPop;
+        });
+    }
+
+    // NEW: Income percentage bonus (percentage of total silver income)
+    if (typeof effects.incomePercent === 'number') {
+        bonuses.incomePercentBonus += effects.incomePercent;
     }
 };
 

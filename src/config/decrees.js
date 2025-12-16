@@ -123,10 +123,10 @@ export const DECREES = [
     unlockEpoch: 1,
     cost: {},
     effects: ['工业产出 +12%', '军事建筑产出 +10%', '铜需求 +20%'],
-    drawbacks: ['每日 -3 银币检验费用'],
+    drawbacks: ['财政收入 -2%（检验费用）'],
     modifiers: {
       categories: { industry: 0.12, military: 0.10 },
-      passive: { silver: -3 },
+      incomePercent: -0.02,
       resourceDemandMod: { copper: 0.20 },  // 标准化增加铜的需求
     },
     active: false,
@@ -138,10 +138,11 @@ export const DECREES = [
     category: 'economy',
     unlockEpoch: 1,
     cost: {},
-    effects: ['每日 +5 银币收入', '公共服务 +8%', '神职人员消费 +15%'],
+    effects: ['财政收入 +10%', '公共服务 +8%', '神职人员消费 +15%'],
     drawbacks: ['工业产出 -5%'],
     modifiers: {
-      passive: { silver: 5, culture: 1 },
+      incomePercent: 0.10,
+      perPopPassive: { culture: 0.002 },
       categories: { civic: 0.08, industry: -0.05 },
       stratumDemandMod: { cleric: 0.15 },  // 神庙经济增加神职人员消费
     },
@@ -168,7 +169,7 @@ export const DECREES = [
   // ╔══════════════════════════════════════════════════════════════╗
   // ║                    古典时代 (Epoch 2)                        ║
   // ║        城邦文明，公民政治，哲学思辨                           ║
-  // ╚══════════════════════════════════════════════════════════════╝
+  // ╚══════════════════════════════════════════════════════════════╗
   
   {
     id: 'bread_and_circus',
@@ -229,10 +230,10 @@ export const DECREES = [
     category: 'economy',
     unlockEpoch: 2,
     cost: {},
-    effects: ['每日 +8 银币专卖利润', '工业产出 +6%', '铁供应 +10%', '工具需求 -8%'],
+    effects: ['财政收入 +15%', '工业产出 +6%', '铁供应 +10%', '工具需求 -8%'],
     drawbacks: ['居民需求 +8%', '人口上限 -5%'],
     modifiers: {
-      passive: { silver: 8 },
+      incomePercent: 0.15,
       categories: { industry: 0.06 },
       needsReduction: -0.08,
       maxPop: -0.05,
@@ -303,7 +304,7 @@ export const DECREES = [
   // ╔══════════════════════════════════════════════════════════════╗
   // ║                    封建时代 (Epoch 3)                        ║
   // ║        封建等级，骑士精神，宗教权威                           ║
-  // ╚══════════════════════════════════════════════════════════════╝
+  // ╚══════════════════════════════════════════════════════════════╗
   
   {
     id: 'feudal_levy',
@@ -348,10 +349,11 @@ export const DECREES = [
     category: 'culture',
     unlockEpoch: 3,
     cost: {},
-    effects: ['每日 +7 银币教税', '公共服务 +5%', '神职人员消费 +18%', '文化供应 +10%'],
+    effects: ['财政收入 +12%', '公共服务 +5%', '神职人员消费 +18%', '文化供应 +10%'],
     drawbacks: ['居民需求 +8%', '工业产出 -4%'],
     modifiers: {
-      passive: { silver: 7, culture: 0.5 },
+      incomePercent: 0.12,
+      perPopPassive: { culture: 0.001 },
       categories: { civic: 0.05, industry: -0.04 },
       needsReduction: -0.08,
       stratumDemandMod: { cleric: 0.18 },  // 教会收税增加神职人员消费
@@ -366,7 +368,7 @@ export const DECREES = [
     category: 'economy',
     unlockEpoch: 3,
     cost: {},
-    effects: ['市场/港口产出 +18%', '每日 +6 银币贸易利润', '商人消费 +20%', '香料需求 +15%'],
+    effects: ['市场/港口产出 +18%', '财政收入 +10%', '商人消费 +20%', '香料需求 +15%'],
     drawbacks: ['采集产出 -5%'],
     modifiers: {
       buildings: {
@@ -374,7 +376,7 @@ export const DECREES = [
         trade_port: 0.18,
         trading_post: 0.12,
       },
-      passive: { silver: 6 },
+      incomePercent: 0.10,
       categories: { gather: -0.05 },
       stratumDemandMod: { merchant: 0.20 },  // 商法促进商业活动
       resourceDemandMod: { spice: 0.15 },  // 贸易增加香料需求
@@ -464,7 +466,7 @@ export const DECREES = [
   // ╔══════════════════════════════════════════════════════════════╗
   // ║                    探索时代 (Epoch 4)                        ║
   // ║        地理大发现，殖民扩张，重商主义                         ║
-  // ╚══════════════════════════════════════════════════════════════╝
+  // ╚══════════════════════════════════════════════════════════════╗
   
   {
     id: 'navigation_act',
@@ -610,7 +612,7 @@ export const DECREES = [
   // ╔══════════════════════════════════════════════════════════════╗
   // ║                    启蒙时代 (Epoch 5)                        ║
   // ║        理性主义，社会契约，科学革命                           ║
-  // ╚══════════════════════════════════════════════════════════════╝
+  // ╚══════════════════════════════════════════════════════════════╗
   
   {
     id: 'enlightened_despotism',
@@ -932,10 +934,10 @@ export const DECREES = [
     category: 'economy',
     unlockEpoch: 1,
     cost: {},
-    effects: ['每日 +8 银币包税收入', '商人消费 +12%', '自耕农消费 -10%'],
+    effects: ['财政收入 +15%', '商人消费 +12%', '自耕农消费 -10%'],
     drawbacks: ['居民需求 +10%', '公共服务 -8%'],
     modifiers: {
-      passive: { silver: 8 },
+      incomePercent: 0.15,
       needsReduction: -0.10,
       categories: { civic: -0.08 },
       stratumDemandMod: { merchant: 0.12, peasant: -0.10 },  // 包税利于商人，损害农民
