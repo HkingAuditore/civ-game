@@ -12,61 +12,69 @@ export { COUNTRIES } from './countries';
 export { MILITARY_ACTIONS } from './militaryActions';
 export { TUTORIAL_STEPS } from './tutorialSteps';
 
+// 建筑升级配置
+export {
+    BUILDING_UPGRADES,
+    getBuildingEffectiveConfig,
+    getMaxUpgradeLevel,
+    getUpgradeCost
+} from './buildingUpgrades';
+
 // 事件系统
-export { 
-  EVENTS, 
-  canTriggerEvent, 
-  getRandomEvent,
-  createWarDeclarationEvent,
-  createGiftEvent,
-  createAIRequestEvent,
-  createPeaceRequestEvent,
-  createEnemyPeaceRequestEvent,
-  createPlayerPeaceProposalEvent,
-  createBattleEvent,
-  createAllianceRequestEvent,
-  createAllianceProposalResultEvent,
-  createAllianceBreakEvent,
-  createNationAnnexedEvent,
-  BASE_EVENTS,
-  EPOCH_EVENTS,
-  CLASS_CONFLICT_EVENTS,
-  ECONOMIC_EVENTS,
-  STATIC_DIPLOMATIC_EVENTS
+export {
+    EVENTS,
+    canTriggerEvent,
+    getRandomEvent,
+    createWarDeclarationEvent,
+    createGiftEvent,
+    createAIRequestEvent,
+    createPeaceRequestEvent,
+    createEnemyPeaceRequestEvent,
+    createPlayerPeaceProposalEvent,
+    createBattleEvent,
+    createAllianceRequestEvent,
+    createAllianceProposalResultEvent,
+    createAllianceBreakEvent,
+    createNationAnnexedEvent,
+    BASE_EVENTS,
+    EPOCH_EVENTS,
+    CLASS_CONFLICT_EVENTS,
+    ECONOMIC_EVENTS,
+    STATIC_DIPLOMATIC_EVENTS
 } from './events';
 // 军事单位系统
-export { 
-  UNIT_TYPES,
-  UNIT_CATEGORIES,
-  COUNTER_RELATIONS,
-  calculateArmyFoodNeed,
-  calculateBattlePower,
-  calculateCounterBonus,
-  calculateArmyMaintenance,
-  calculateArmyCapacityNeed,
-  calculateArmyPopulation,
-  simulateBattle
+export {
+    UNIT_TYPES,
+    UNIT_CATEGORIES,
+    COUNTER_RELATIONS,
+    calculateArmyFoodNeed,
+    calculateBattlePower,
+    calculateCounterBonus,
+    calculateArmyMaintenance,
+    calculateArmyCapacityNeed,
+    calculateArmyPopulation,
+    simulateBattle
 } from './militaryUnits';
 
 // 产业链系统
-export { 
-  INDUSTRY_CHAINS, 
-  CHAIN_SYNERGIES, 
-  CHAIN_BOTTLENECKS, 
-  CHAIN_DEVELOPMENT_PATHS,
-  CHAIN_NATION_BONUSES,
-  CHAIN_DECREE_EFFECTS 
+export {
+    INDUSTRY_CHAINS,
+    CHAIN_SYNERGIES,
+    CHAIN_BOTTLENECKS,
+    CHAIN_DEVELOPMENT_PATHS,
+    CHAIN_NATION_BONUSES,
+    CHAIN_DECREE_EFFECTS
 } from './industryChains';
 
 // 系统联动机制
 export {
-  NATION_DECREE_SYNERGIES,
-  CLASS_DECREE_FEEDBACK,
-  CHAIN_CLASS_INTERACTION,
-  DECREE_COMBINATIONS,
-  EPOCH_SYSTEM_EFFECTS,
-  BALANCE_MECHANISMS,
-  SYSTEM_TRIGGERED_EVENTS
+    NATION_DECREE_SYNERGIES,
+    CLASS_DECREE_FEEDBACK,
+    CHAIN_CLASS_INTERACTION,
+    DECREE_COMBINATIONS,
+    EPOCH_SYSTEM_EFFECTS,
+    BALANCE_MECHANISMS,
+    SYSTEM_TRIGGERED_EVENTS
 } from './systemSynergies';
 
 // 庆典效果配置

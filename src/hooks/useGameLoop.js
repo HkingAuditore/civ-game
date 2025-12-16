@@ -665,6 +665,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
         setRebellionStates,
         classInfluence,
         totalInfluence,
+        buildingUpgrades,
     } = gameState;
 
     // 使用ref保存最新状态，避免闭包问题
@@ -672,6 +673,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
         resources,
         market,
         buildings,
+        buildingUpgrades,
         population,
         popStructure,
         birthAccumulator,
@@ -727,6 +729,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
             resources,
             market,
             buildings,
+            buildingUpgrades,
             population,
             epoch,
             popStructure,
@@ -769,7 +772,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
             birthAccumulator,
             stability,
         };
-    }, [resources, market, buildings, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, livingStandardStreaks, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability]);
+    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, livingStandardStreaks, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability]);
+
 
     // 监听国家列表变化，自动清理无效的贸易路线（修复暂停状态下无法清理的问题）
     useEffect(() => {

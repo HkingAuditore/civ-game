@@ -708,6 +708,7 @@ function GameApp({ gameState }) {
                                                 techsUnlocked={gameState.techsUnlocked}
                                                 popStructure={gameState.popStructure}
                                                 jobFill={gameState.jobFill}
+                                                buildingUpgrades={gameState.buildingUpgrades}
                                                 onBuy={actions.buyBuilding}
                                                 onSell={actions.sellBuilding}
                                                 market={gameState.market}
@@ -868,6 +869,10 @@ function GameApp({ gameState }) {
                         gameState={gameState}
                         onBuy={actions.buyBuilding}
                         onSell={actions.sellBuilding}
+                        onUpgrade={actions.upgradeBuilding}
+                        onDowngrade={actions.downgradeBuilding}
+                        onBatchUpgrade={actions.batchUpgradeBuilding}
+                        onBatchDowngrade={actions.batchDowngradeBuilding}
                         taxPolicies={gameState.taxPolicies}
                         onUpdateTaxPolicies={gameState.setTaxPolicies}
                     />)}

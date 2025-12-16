@@ -2,7 +2,7 @@
 // 包含所有游戏操作函数，如建造建筑、研究科技、升级时代等
 
 import { useState, useEffect } from 'react';
-import { BUILDINGS, EPOCHS, RESOURCES, TECHS, MILITARY_ACTIONS, UNIT_TYPES, EVENTS, getRandomEvent, createWarDeclarationEvent, createGiftEvent, createPeaceRequestEvent, createEnemyPeaceRequestEvent, createPlayerPeaceProposalEvent, createBattleEvent, createAllianceRequestEvent, createAllianceProposalResultEvent, createAllianceBreakEvent, createNationAnnexedEvent, STRATA } from '../config';
+import { BUILDINGS, EPOCHS, RESOURCES, TECHS, MILITARY_ACTIONS, UNIT_TYPES, EVENTS, getRandomEvent, createWarDeclarationEvent, createGiftEvent, createPeaceRequestEvent, createEnemyPeaceRequestEvent, createPlayerPeaceProposalEvent, createBattleEvent, createAllianceRequestEvent, createAllianceProposalResultEvent, createAllianceBreakEvent, createNationAnnexedEvent, STRATA, BUILDING_UPGRADES, getMaxUpgradeLevel, getUpgradeCost } from '../config';
 import { calculateArmyCapacityNeed, calculateArmyPopulation, simulateBattle, calculateBattlePower } from '../config';
 import { calculateForeignPrice, calculateTradeStatus } from '../utils/foreignTrade';
 import { generateSound, SOUND_TYPES } from '../config/sounds';
@@ -72,6 +72,8 @@ export const useGameActions = (gameState, addLog) => {
         popStructure,
         setPopStructure,
         classWealth,
+        buildingUpgrades,
+        setBuildingUpgrades,
     } = gameState;
 
     const [pendingDiplomaticEvents, setPendingDiplomaticEvents] = useState([]);
@@ -219,7 +221,321 @@ export const useGameActions = (gameState, addLog) => {
         if ((buildings[id] || 0) > 0) {
             setBuildings(prev => ({ ...prev, [id]: prev[id] - 1 }));
             addLog(`拆除了 ${BUILDINGS.find(b => b.id === id).name}`);
+
+            // 清理该建筑最高索引的升级状态
+            const count = buildings[id] || 0;
+            if (count > 0 && buildingUpgrades[id]) {
+                const highestIndex = count - 1;
+                if (buildingUpgrades[id][highestIndex] !== undefined) {
+                    setBuildingUpgrades(prev => {
+                        const newUpgrades = { ...prev };
+                        const newBuildingLevels = { ...prev[id] };
+                        delete newBuildingLevels[highestIndex];
+                        if (Object.keys(newBuildingLevels).length === 0) {
+                            delete newUpgrades[id];
+                        } else {
+                            newUpgrades[id] = newBuildingLevels;
+                        }
+                        return newUpgrades;
+                    });
+                }
+            }
         }
+    };
+
+    // ========== 建筑升级系统 ==========
+
+    /**
+     * 升级单座建筑
+     * 需要从市场购买资源，按市场价格支付银币
+     * @param {string} buildingId - 建筑ID
+     * @param {number} instanceIndex - 建筑实例索引
+     */
+    const upgradeBuilding = (buildingId, instanceIndex) => {
+        const building = BUILDINGS.find(b => b.id === buildingId);
+        if (!building) {
+            addLog('未找到该建筑。');
+            return;
+        }
+
+        const count = buildings[buildingId] || 0;
+        if (instanceIndex >= count) {
+            addLog('无效的建筑索引。');
+            return;
+        }
+
+        const currentLevel = buildingUpgrades[buildingId]?.[instanceIndex] || 0;
+        const maxLevel = getMaxUpgradeLevel(buildingId);
+
+        if (currentLevel >= maxLevel) {
+            addLog(`${building.name} 已达最高等级。`);
+            return;
+        }
+
+        const upgradeCost = getUpgradeCost(buildingId, currentLevel);
+        if (!upgradeCost) {
+            addLog('无法获取升级费用。');
+            return;
+        }
+
+        // 1. 检查市场库存是否足够
+        const hasMaterials = Object.entries(upgradeCost).every(([resource, amount]) => {
+            if (resource === 'silver') return true;
+            return (resources[resource] || 0) >= amount;
+        });
+
+        if (!hasMaterials) {
+            addLog(`市场资源不足，无法升级 ${building.name}。`);
+            return;
+        }
+
+        // 2. 计算银币成本（资源按市场价）
+        let silverCost = 0;
+        for (const [resource, amount] of Object.entries(upgradeCost)) {
+            if (resource === 'silver') {
+                silverCost += amount;
+            } else {
+                const marketPrice = getMarketPrice(resource);
+                silverCost += amount * marketPrice;
+            }
+        }
+
+        // 3. 检查银币是否足够
+        if ((resources.silver || 0) < silverCost) {
+            addLog(`银币不足，升级 ${building.name} 需要 ${Math.ceil(silverCost)} 银币。`);
+            return;
+        }
+
+        // 4. 扣除资源和银币
+        const newRes = { ...resources };
+        Object.entries(upgradeCost).forEach(([resource, amount]) => {
+            if (resource !== 'silver') {
+                newRes[resource] = Math.max(0, (newRes[resource] || 0) - amount);
+            }
+        });
+        newRes.silver = Math.max(0, (newRes.silver || 0) - silverCost);
+        setResources(newRes);
+
+        // 5. 更新升级等级
+        const nextLevel = currentLevel + 1;
+        setBuildingUpgrades(prev => ({
+            ...prev,
+            [buildingId]: {
+                ...(prev[buildingId] || {}),
+                [instanceIndex]: nextLevel,
+            },
+        }));
+
+        const upgradeName = BUILDING_UPGRADES[buildingId]?.[currentLevel]?.name || `等级${nextLevel}`;
+        addLog(`⬆️ ${building.name} 升级为 ${upgradeName}！（花费 ${Math.ceil(silverCost)} 银币）`);
+
+        // 播放升级音效
+        try {
+            const soundGenerator = generateSound(SOUND_TYPES.LEVEL_UP);
+            if (soundGenerator) soundGenerator();
+        } catch (e) {
+            console.warn('Failed to play upgrade sound:', e);
+        }
+    };
+
+    /**
+     * 降级单座建筑
+     * @param {string} buildingId - 建筑ID
+     * @param {number} instanceIndex - 建筑实例索引
+     */
+    const downgradeBuilding = (buildingId, instanceIndex) => {
+        const building = BUILDINGS.find(b => b.id === buildingId);
+        if (!building) {
+            addLog('未找到该建筑。');
+            return;
+        }
+
+        const currentLevel = buildingUpgrades[buildingId]?.[instanceIndex] || 0;
+        if (currentLevel <= 0) {
+            addLog(`${building.name} 已是基础等级。`);
+            return;
+        }
+
+        // 降级不返还费用
+        setBuildingUpgrades(prev => {
+            const newUpgrades = { ...prev };
+            const newBuildingLevels = { ...(prev[buildingId] || {}) };
+            newBuildingLevels[instanceIndex] = currentLevel - 1;
+
+            // 如果降到0级，移除该条目
+            if (newBuildingLevels[instanceIndex] <= 0) {
+                delete newBuildingLevels[instanceIndex];
+            }
+
+            // 如果该建筑类型没有任何升级了，移除整个条目
+            if (Object.keys(newBuildingLevels).length === 0) {
+                delete newUpgrades[buildingId];
+            } else {
+                newUpgrades[buildingId] = newBuildingLevels;
+            }
+
+            return newUpgrades;
+        });
+
+        addLog(`⬇️ ${building.name} 已降级。`);
+    };
+    /**
+     * 批量升级建筑
+     * 需要从市场购买资源，按市场价格支付银币
+     * @param {string} buildingId - 建筑ID
+     * @param {number} fromLevel - 当前等级
+     * @param {number} upgradeCount - 升级数量
+     */
+    const batchUpgradeBuilding = (buildingId, fromLevel, upgradeCount) => {
+        const building = BUILDINGS.find(b => b.id === buildingId);
+        if (!building) return;
+
+        const buildingCount = buildings[buildingId] || 0;
+        const currentUpgradeLevels = { ...(buildingUpgrades[buildingId] || {}) };
+
+        // 找出所有处于 fromLevel 等级的建筑实例
+        const candidates = [];
+        for (let i = 0; i < buildingCount; i++) {
+            const level = currentUpgradeLevels[i] || 0;
+            if (level === fromLevel) {
+                candidates.push(i);
+            }
+        }
+
+        // 限制升级数量
+        const requestedCount = Math.min(upgradeCount, candidates.length);
+        if (requestedCount <= 0) return;
+
+        const upgradeCost = getUpgradeCost(buildingId, fromLevel);
+        if (!upgradeCost) return;
+
+        // 计算单个升级的银币成本（资源按市场价）
+        let singleSilverCost = 0;
+        for (const [resource, amount] of Object.entries(upgradeCost)) {
+            if (resource === 'silver') {
+                singleSilverCost += amount;
+            } else {
+                const marketPrice = getMarketPrice(resource);
+                singleSilverCost += amount * marketPrice;
+            }
+        }
+
+        // 计算市场库存能支持多少次升级
+        let maxByMaterials = requestedCount;
+        for (const [resource, amount] of Object.entries(upgradeCost)) {
+            if (resource === 'silver') continue;
+            const available = resources[resource] || 0;
+            const maxTimes = Math.floor(available / amount);
+            maxByMaterials = Math.min(maxByMaterials, maxTimes);
+        }
+
+        // 计算银币能支持多少次升级
+        const availableSilver = resources.silver || 0;
+        const maxBySilver = singleSilverCost > 0
+            ? Math.floor(availableSilver / singleSilverCost)
+            : requestedCount;
+
+        // 实际可升级数量
+        const successCount = Math.min(requestedCount, maxByMaterials, maxBySilver);
+
+        if (successCount <= 0) {
+            if (maxByMaterials <= 0) {
+                addLog(`市场资源不足，无法批量升级 ${building.name}。`);
+            } else {
+                addLog(`银币不足，无法批量升级 ${building.name}。`);
+            }
+            return;
+        }
+
+        // 扣除资源和银币
+        const newRes = { ...resources };
+        for (const [resource, amount] of Object.entries(upgradeCost)) {
+            if (resource !== 'silver') {
+                const totalNeeded = amount * successCount;
+                newRes[resource] = Math.max(0, (newRes[resource] || 0) - totalNeeded);
+            }
+        }
+        const totalSilverCost = singleSilverCost * successCount;
+        newRes.silver = Math.max(0, (newRes.silver || 0) - totalSilverCost);
+        setResources(newRes);
+
+        // 更新升级等级
+        const newUpgrades = { ...buildingUpgrades };
+        if (!newUpgrades[buildingId]) {
+            newUpgrades[buildingId] = {};
+        }
+        for (let i = 0; i < successCount; i++) {
+            const instanceIndex = candidates[i];
+            newUpgrades[buildingId][instanceIndex] = fromLevel + 1;
+        }
+        setBuildingUpgrades(newUpgrades);
+
+        addLog(`⬆️ 批量升级了 ${successCount} 座 ${building.name}！（花费 ${Math.ceil(totalSilverCost)} 银币）`);
+
+        try {
+            const soundGenerator = generateSound(SOUND_TYPES.LEVEL_UP);
+            if (soundGenerator) soundGenerator();
+        } catch (e) {
+            console.warn('Failed to play upgrade sound:', e);
+        }
+    };
+
+    /**
+     * 批量降级建筑
+     * @param {string} buildingId - 建筑ID
+     * @param {number} fromLevel - 当前等级
+     * @param {number} downgradeCount - 降级数量
+     */
+    const batchDowngradeBuilding = (buildingId, fromLevel, downgradeCount) => {
+        const building = BUILDINGS.find(b => b.id === buildingId);
+        if (!building) return;
+
+        if (fromLevel <= 0) {
+            addLog(`${building.name} 已是基础等级。`);
+            return;
+        }
+
+        const buildingCount = buildings[buildingId] || 0;
+        const currentUpgradeLevels = { ...(buildingUpgrades[buildingId] || {}) };
+
+        // 找出所有处于 fromLevel 等级的建筑实例
+        const candidates = [];
+        for (let i = 0; i < buildingCount; i++) {
+            const level = currentUpgradeLevels[i] || 0;
+            if (level === fromLevel) {
+                candidates.push(i);
+            }
+        }
+
+        const actualCount = Math.min(downgradeCount, candidates.length);
+        if (actualCount <= 0) return;
+
+        // 降级不返还费用
+        setBuildingUpgrades(prev => {
+            const newUpgrades = { ...prev };
+            const newBuildingLevels = { ...(prev[buildingId] || {}) };
+
+            for (let i = 0; i < actualCount; i++) {
+                const instanceIndex = candidates[i];
+                const newLevel = fromLevel - 1;
+                if (newLevel <= 0) {
+                    delete newBuildingLevels[instanceIndex];
+                } else {
+                    newBuildingLevels[instanceIndex] = newLevel;
+                }
+            }
+
+            // 如果该建筑类型没有任何升级了，移除整个条目
+            if (Object.keys(newBuildingLevels).length === 0) {
+                delete newUpgrades[buildingId];
+            } else {
+                newUpgrades[buildingId] = newBuildingLevels;
+            }
+
+            return newUpgrades;
+        });
+
+        addLog(`⬇️ 批量降级了 ${actualCount} 座 ${building.name}！`);
     };
 
     // ========== 科技研究 ==========
@@ -2659,6 +2975,10 @@ export const useGameActions = (gameState, addLog) => {
         // 建筑
         buyBuilding,
         sellBuilding,
+        upgradeBuilding,
+        downgradeBuilding,
+        batchUpgradeBuilding,
+        batchDowngradeBuilding,
 
         // 科技
         researchTech,
