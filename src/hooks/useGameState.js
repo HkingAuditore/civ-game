@@ -376,6 +376,8 @@ export const useGameState = () => {
     const [battleResult, setBattleResult] = useState(null);
     const [battleNotifications, setBattleNotifications] = useState([]); // 战斗通知队列
     const [militaryWageRatio, setMilitaryWageRatio] = useState(1.5);
+    const [autoRecruitEnabled, setAutoRecruitEnabled] = useState(false);  // 自动补兵开关
+    const [targetArmyComposition, setTargetArmyComposition] = useState({});  // 目标军队编制
 
     // ========== 庆典系统状态 ==========
     const [festivalModal, setFestivalModal] = useState(null); // { options: [], year: number }
@@ -550,6 +552,8 @@ export const useGameState = () => {
                 selectedTarget,
                 battleResult,
                 playerInstallmentPayment,
+                autoRecruitEnabled,
+                targetArmyComposition,
                 militaryWageRatio,
                 festivalModal,
                 activeFestivalEffects,
@@ -629,6 +633,8 @@ export const useGameState = () => {
         setBattleResult(data.battleResult || null);
         setPlayerInstallmentPayment(data.playerInstallmentPayment || null);
         setMilitaryWageRatio(data.militaryWageRatio || 1.5);
+        setAutoRecruitEnabled(data.autoRecruitEnabled || false);
+        setTargetArmyComposition(data.targetArmyComposition || {});
         setFestivalModal(data.festivalModal || null);
         setActiveFestivalEffects(data.activeFestivalEffects || []);
         setLastFestivalYear(data.lastFestivalYear || 1);
@@ -921,6 +927,10 @@ export const useGameState = () => {
         setBattleNotifications,
         militaryWageRatio,
         setMilitaryWageRatio,
+        autoRecruitEnabled,
+        setAutoRecruitEnabled,
+        targetArmyComposition,
+        setTargetArmyComposition,
 
         // 庆典系统
         festivalModal,
