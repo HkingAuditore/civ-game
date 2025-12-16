@@ -9,6 +9,7 @@ import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
 import { filterUnlockedResources } from '../../utils/resources';
 import { getPublicAssetUrl } from '../../utils/assetPath';
 import { getBuildingImageUrl } from '../../utils/imageRegistry';
+import { getBuildingEffectiveConfig } from '../../config/buildingUpgrades';
 
 /**
  * 建筑悬浮提示框 (使用 Portal)
@@ -305,6 +306,7 @@ export const BuildTab = ({
     techsUnlocked,
     popStructure: _popStructure = {}, // 保留以备将来使用
     jobFill = {},
+    buildingUpgrades = {},
     onBuy,
     onSell,
     onShowDetails, // 新增：用于打开详情页的回调
@@ -469,18 +471,49 @@ export const BuildTab = ({
                         {/* 建筑列表 - 更紧凑布局 */}
                         <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-9 2xl:grid-cols-11 gap-1">
                             {categoryBuildings.filter(b => isBuildingAvailable(b)).map(building => {
+                                const count = buildings[building.id] || 0;
+                                const upgradeLevels = buildingUpgrades[building.id] || {};
+
+                                // 计算平均建筑属性 (用于显示)
+                                let averageBuilding = building;
+                                if (count > 0) {
+                                    let hasUpgrades = false;
+                                    const levelCounts = {};
+                                    for (let i = 0; i < count; i++) {
+                                        const lvl = upgradeLevels[i] || 0;
+                                        if (lvl > 0) hasUpgrades = true;
+                                        levelCounts[lvl] = (levelCounts[lvl] || 0) + 1;
+                                    }
+
+                                    if (hasUpgrades) {
+                                        const effectiveOps = { input: {}, output: {}, jobs: {} };
+                                        for (const [lvlStr, lvlCount] of Object.entries(levelCounts)) {
+                                            const lvl = parseInt(lvlStr);
+                                            const config = getBuildingEffectiveConfig(building, lvl);
+                                            if (config.input) for (const [k, v] of Object.entries(config.input)) effectiveOps.input[k] = (effectiveOps.input[k] || 0) + v * lvlCount;
+                                            if (config.output) for (const [k, v] of Object.entries(config.output)) effectiveOps.output[k] = (effectiveOps.output[k] || 0) + v * lvlCount;
+                                            if (config.jobs) for (const [k, v] of Object.entries(config.jobs)) effectiveOps.jobs[k] = (effectiveOps.jobs[k] || 0) + v * lvlCount;
+                                        }
+
+                                        const avg = { ...building, input: {}, output: {}, jobs: {} };
+                                        for (const [k, v] of Object.entries(effectiveOps.input)) avg.input[k] = v / count;
+                                        for (const [k, v] of Object.entries(effectiveOps.output)) avg.output[k] = v / count;
+                                        for (const [k, v] of Object.entries(effectiveOps.jobs)) avg.jobs[k] = v / count;
+                                        averageBuilding = avg;
+                                    }
+                                }
+
                                 const cost = calculateCost(building);
                                 const silverCost = calculateSilverCost(cost, market);
                                 const hasMaterials = Object.entries(cost).every(([res, val]) => (resources[res] || 0) >= val);
                                 const hasSilver = (resources.silver || 0) >= silverCost;
                                 const affordable = hasMaterials && hasSilver;
-                                const count = buildings[building.id] || 0;
-                                const actualIncome = getActualOwnerPerCapitaIncome(building, count);
+                                const actualIncome = getActualOwnerPerCapitaIncome(averageBuilding, count);
 
                                 return (
                                     <CompactBuildingCard
                                         key={building.id}
-                                        building={building}
+                                        building={averageBuilding}
                                         count={count}
                                         affordable={affordable}
                                         silverCost={silverCost}
@@ -488,7 +521,7 @@ export const BuildTab = ({
                                         cost={cost}
                                         onBuy={onBuy}
                                         onSell={onSell}
-                                        onMouseEnter={(e) => handleMouseEnter(e, building, cost, resources)}
+                                        onMouseEnter={(e) => handleMouseEnter(e, averageBuilding, cost, resources)}
                                         onMouseLeave={() => canHover && setHoveredBuilding({ building: null, element: null })}
                                         // 传递额外 props 给悬浮窗
                                         epoch={epoch}

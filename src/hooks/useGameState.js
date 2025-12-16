@@ -323,6 +323,7 @@ export const useGameState = () => {
 
     // ========== 建筑与科技状态 ==========
     const [buildings, setBuildings] = useState({});
+    const [buildingUpgrades, setBuildingUpgrades] = useState({}); // 建筑升级等级 { buildingId: { instanceIndex: level } }
     const [techsUnlocked, setTechsUnlocked] = useState([]);
     const [epoch, setEpoch] = useState(0);
 
@@ -518,6 +519,7 @@ export const useGameState = () => {
                 maxPopBonus,
                 birthAccumulator,
                 buildings,
+                buildingUpgrades,
                 techsUnlocked,
                 epoch,
                 activeTab,
@@ -598,6 +600,7 @@ export const useGameState = () => {
         setMaxPopBonus(data.maxPopBonus || 0);
         setBirthAccumulator(data.birthAccumulator || 0);
         setBuildings(data.buildings || {});
+        setBuildingUpgrades(data.buildingUpgrades || {});
         setTechsUnlocked(data.techsUnlocked || []);
         setEpoch(data.epoch ?? 0);
         setActiveTab(data.activeTab || 'build');
@@ -836,6 +839,8 @@ export const useGameState = () => {
         // 建筑与科技
         buildings,
         setBuildings,
+        buildingUpgrades,
+        setBuildingUpgrades,
         techsUnlocked,
         setTechsUnlocked,
         epoch,

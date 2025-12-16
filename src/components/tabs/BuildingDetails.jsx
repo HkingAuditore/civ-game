@@ -1,10 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Icon } from '../common/UIComponents';
 import { RESOURCES, STRATA } from '../../config';
 import { filterUnlockedResources } from '../../utils/resources';
 import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
 import { getPublicAssetUrl } from '../../utils/assetPath';
 import { getBuildingImageUrl } from '../../utils/imageRegistry';
+import { BuildingUpgradePanel } from './BuildingUpgradePanel';
+import { getBuildingEffectiveConfig } from '../../config/buildingUpgrades';
+import { canBuildingUpgrade } from '../../utils/buildingUpgradeUtils';
 
 /**
  * 建筑沉浸式英雄图片组件
@@ -104,11 +107,63 @@ const formatCompactCost = (value) => {
     return Math.floor(value).toString();
 };
 
-export const BuildingDetails = ({ building, gameState, onBuy, onSell, taxPolicies, onUpdateTaxPolicies }) => {
+export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade, onDowngrade, onBatchUpgrade, onBatchDowngrade, taxPolicies, onUpdateTaxPolicies }) => {
     if (!building || !gameState) return null;
 
-    const { resources, epoch, techsUnlocked, market, buildings, jobFill } = gameState;
+    const { resources, epoch, techsUnlocked, market, buildings, jobFill, buildingUpgrades } = gameState;
     const count = buildings[building.id] || 0;
+    const upgradeLevels = buildingUpgrades?.[building.id] || {};
+
+    // 计算升级后的聚合效果（总值）和平均值
+    const { effectiveTotalStats, averageBuilding } = useMemo(() => {
+        const upgradeData = upgradeLevels || {};
+        const effectiveOps = { input: {}, output: {}, jobs: {} };
+        const levelCounts = {};
+
+        // 统计各等级建筑数量
+        let hasUpgrades = false;
+        for (let i = 0; i < count; i++) {
+            const lvl = upgradeData[i] || 0;
+            if (lvl > 0) hasUpgrades = true;
+            levelCounts[lvl] = (levelCounts[lvl] || 0) + 1;
+        }
+
+        if (!hasUpgrades && levelCounts[0] === count) {
+            // 快速路径：无升级，总值为 基础 * count
+            const totalStats = {
+                input: Object.fromEntries(Object.entries(building.input || {}).map(([k, v]) => [k, v * count])),
+                output: Object.fromEntries(Object.entries(building.output || {}).map(([k, v]) => [k, v * count])),
+                jobs: Object.fromEntries(Object.entries(building.jobs || {}).map(([k, v]) => [k, v * count]))
+            };
+            return { effectiveTotalStats: totalStats, averageBuilding: building };
+        }
+
+        // 聚合计算
+        for (const [lvlStr, lvlCount] of Object.entries(levelCounts)) {
+            const lvl = parseInt(lvlStr);
+            const config = getBuildingEffectiveConfig(building, lvl);
+
+            if (config.input) for (const [k, v] of Object.entries(config.input)) effectiveOps.input[k] = (effectiveOps.input[k] || 0) + v * lvlCount;
+            if (config.output) for (const [k, v] of Object.entries(config.output)) effectiveOps.output[k] = (effectiveOps.output[k] || 0) + v * lvlCount;
+            if (config.jobs) for (const [k, v] of Object.entries(config.jobs)) effectiveOps.jobs[k] = (effectiveOps.jobs[k] || 0) + v * lvlCount;
+        }
+
+        // 计算平均值
+        const avg = { ...building, input: {}, output: {}, jobs: {} };
+        if (count > 0) {
+            for (const [k, v] of Object.entries(effectiveOps.input)) avg.input[k] = v / count;
+            for (const [k, v] of Object.entries(effectiveOps.output)) avg.output[k] = v / count;
+            for (const [k, v] of Object.entries(effectiveOps.jobs)) avg.jobs[k] = v / count;
+        } else {
+            // 如果数量为0，平均值显示基础值
+            avg.input = building.input;
+            avg.output = building.output;
+            avg.jobs = building.jobs;
+        }
+
+        return { effectiveTotalStats: effectiveOps, averageBuilding: avg };
+    }, [building, count, upgradeLevels]);
+
     const [draftMultiplier, setDraftMultiplier] = useState(null);
 
     // 图片加载状态管理
@@ -165,20 +220,20 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, taxPolicie
         return cost;
     };
 
-    const ownerProfit = getOwnerIncomePerBuilding(building);
-    const ownerPerCapitaIncome = getOwnerPerCapitaIncome(building);
+    const ownerProfit = getOwnerIncomePerBuilding(averageBuilding);
+    const ownerPerCapitaIncome = getOwnerPerCapitaIncome(averageBuilding);
     const nextCost = calculateCost(building);
     const nextSilverCost = calculateSilverCost(nextCost, market);
-    const unlockedOutput = filterUnlockedResources(building.output, epoch, techsUnlocked);
-    const unlockedInput = filterUnlockedResources(building.input, epoch, techsUnlocked);
+    const unlockedOutput = filterUnlockedResources(averageBuilding.output, epoch, techsUnlocked);
+    const unlockedInput = filterUnlockedResources(averageBuilding.input, epoch, techsUnlocked);
     const hasMaterials = Object.entries(nextCost).every(([res, val]) => (resources[res] || 0) >= val);
     const hasSilver = (resources.silver || 0) >= nextSilverCost;
     const canAffordNext = hasMaterials && hasSilver;
 
     const compactSilverCost = formatCompactCost(nextSilverCost);
 
-    // 计算总的业主岗位数量
-    const totalOwnerWorkers = (building.jobs?.[building.owner] || 0) * count;
+    // 计算总的业主岗位数量 (使用聚合数据)
+    const totalOwnerWorkers = effectiveTotalStats.jobs[building.owner] || 0;
     // 计算总收益
     const totalIncomeForClass = ownerPerCapitaIncome * totalOwnerWorkers;
 
@@ -333,10 +388,11 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, taxPolicie
                 )}
 
                 {/* 岗位信息 */}
-                {building.jobs && Object.keys(building.jobs).length > 0 && (
+                {averageBuilding.jobs && Object.keys(averageBuilding.jobs).length > 0 && (
                     <DetailSection title="提供岗位" icon="Users">
-                        {Object.entries(building.jobs).map(([job, perBuilding], index) => {
-                            const requiredExact = perBuilding * count;
+                        {Object.entries(averageBuilding.jobs).map(([job, perBuilding], index) => {
+                            // perBuilding 是平均值
+                            const requiredExact = effectiveTotalStats.jobs[job] || 0;
                             const assignedRaw = jobFill?.[building.id]?.[job] ?? 0;
                             const assignedExact = Math.min(assignedRaw, requiredExact);
                             const fillPercent = requiredExact > 0 ? (assignedExact / requiredExact) * 100 : 0;
@@ -391,6 +447,22 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, taxPolicie
                     </div>
                 </DetailSection>
             </div>
+
+            {/* 建筑升级面板 */}
+            {count > 0 && canBuildingUpgrade(building.id) && (
+                <BuildingUpgradePanel
+                    building={building}
+                    count={count}
+                    epoch={epoch}
+                    upgradeLevels={upgradeLevels}
+                    resources={resources}
+                    market={market}
+                    onUpgrade={(instanceIndex) => onUpgrade?.(building.id, instanceIndex)}
+                    onDowngrade={(instanceIndex) => onDowngrade?.(building.id, instanceIndex)}
+                    onBatchUpgrade={(fromLevel, upgradeCount) => onBatchUpgrade?.(building.id, fromLevel, upgradeCount)}
+                    onBatchDowngrade={(fromLevel, downgradeCount) => onBatchDowngrade?.(building.id, fromLevel, downgradeCount)}
+                />
+            )}
 
             {/* 操作按钮 */}
             <div className="grid grid-cols-2 gap-4 pt-2">

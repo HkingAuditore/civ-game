@@ -1,5 +1,6 @@
 import { BUILDINGS, STRATA, EPOCHS, RESOURCES, TECHS, ECONOMIC_INFLUENCE } from '../config';
 import { calculateArmyPopulation, calculateArmyFoodNeed, calculateArmyCapacityNeed } from '../config';
+import { getBuildingEffectiveConfig } from '../config/buildingUpgrades';
 import { isResourceUnlocked } from '../utils/resources';
 import { calculateForeignPrice } from '../utils/foreignTrade';
 import { simulateBattle, UNIT_TYPES } from '../config/militaryUnits';
@@ -608,6 +609,7 @@ export const simulateTick = ({
     eventStratumDemandModifiers = {},    // { stratumKey: percentModifier }
     eventBuildingProductionModifiers = {}, // { buildingIdOrCat: percentModifier }
     livingStandardStreaks = {},
+    buildingUpgrades = {}, // 建筑升级状态
 }) => {
     // console.log('[TICK START]', tick); // Commented for performance
     const res = { ...resources };
@@ -920,30 +922,44 @@ export const simulateTick = ({
     BUILDINGS.forEach(b => {
         const count = builds[b.id] || 0;
         if (count > 0) {
-            if (b.output?.maxPop) {
-                // Apply building-specific and category bonuses to maxPop output
-                let maxPopBonus = buildingBonuses[b.id] || 1;
+            const upgradeLevels = buildingUpgrades[b.id] || {};
+
+            // 遍历每个建筑实例，累加其效果
+            for (let i = 0; i < count; i++) {
+                const level = upgradeLevels[i] || 0;
+                const config = getBuildingEffectiveConfig(b, level);
+
+                // Apply building-specific and category bonuses
+                let buildingBonus = buildingBonuses[b.id] || 1;
                 const catBonus = categoryBonuses[b.cat] || 1;
-                maxPopBonus *= catBonus;
-                totalMaxPop += (b.output.maxPop * count * maxPopBonus);
-            }
-            if (b.output?.militaryCapacity) {
-                // Apply building-specific and category bonuses to militaryCapacity output
-                let militaryBonus = buildingBonuses[b.id] || 1;
-                const catBonus = categoryBonuses[b.cat] || 1;
-                militaryBonus *= catBonus;
-                militaryCapacity += (b.output.militaryCapacity * count * militaryBonus);
-            }
-            if (b.jobs) {
-                for (let role in b.jobs) jobsAvailable[role] += (b.jobs[role] * count);
-            }
-            if (b.output) {
-                Object.entries(b.output).forEach(([resKey, amount]) => {
-                    if (!RESOURCES[resKey]) return;
-                    if ((amount || 0) > 0) {
-                        producedResources.add(resKey);
+                buildingBonus *= catBonus;
+
+                // maxPop
+                if (config.output?.maxPop) {
+                    totalMaxPop += (config.output.maxPop * buildingBonus);
+                }
+
+                // militaryCapacity
+                if (config.output?.militaryCapacity) {
+                    militaryCapacity += (config.output.militaryCapacity * buildingBonus);
+                }
+
+                // jobs - 使用升级后的配置
+                if (config.jobs) {
+                    for (let role in config.jobs) {
+                        jobsAvailable[role] = (jobsAvailable[role] || 0) + config.jobs[role];
                     }
-                });
+                }
+
+                // 记录已生产的资源类型
+                if (config.output) {
+                    Object.entries(config.output).forEach(([resKey, amount]) => {
+                        if (!RESOURCES[resKey]) return;
+                        if ((amount || 0) > 0) {
+                            producedResources.add(resKey);
+                        }
+                    });
+                }
             }
         }
     });
@@ -1267,6 +1283,36 @@ export const simulateTick = ({
         }
 
         let multiplier = 1.0;
+
+        // --- 计算升级加成后的基础数值 ---
+        const upgradeLevels = buildingUpgrades[b.id] || {};
+        const effectiveOps = { input: {}, output: {}, jobs: {} };
+        const levelCounts = {};
+        let hasUpgrades = false;
+
+        // 统计各等级建筑数量
+        for (let i = 0; i < count; i++) {
+            const lvl = upgradeLevels[i] || 0;
+            if (lvl > 0) hasUpgrades = true;
+            levelCounts[lvl] = (levelCounts[lvl] || 0) + 1;
+        }
+
+        if (!hasUpgrades && levelCounts[0] === count) {
+            // 无升级快速路径
+            if (b.input) for (const [k, v] of Object.entries(b.input)) effectiveOps.input[k] = v * count;
+            if (b.output) for (const [k, v] of Object.entries(b.output)) effectiveOps.output[k] = v * count;
+            if (b.jobs) for (const [k, v] of Object.entries(b.jobs)) effectiveOps.jobs[k] = v * count;
+        } else {
+            // 聚合计算
+            for (const [lvlStr, lvlCount] of Object.entries(levelCounts)) {
+                const lvl = parseInt(lvlStr);
+                const config = getBuildingEffectiveConfig(b, lvl);
+                if (config.input) for (const [k, v] of Object.entries(config.input)) effectiveOps.input[k] = (effectiveOps.input[k] || 0) + v * lvlCount;
+                if (config.output) for (const [k, v] of Object.entries(config.output)) effectiveOps.output[k] = (effectiveOps.output[k] || 0) + v * lvlCount;
+                if (config.jobs) for (const [k, v] of Object.entries(config.jobs)) effectiveOps.jobs[k] = (effectiveOps.jobs[k] || 0) + v * lvlCount;
+            }
+        }
+        // -----------------------------
         const currentEpoch = EPOCHS[epoch];
 
         if (currentEpoch && currentEpoch.bonuses) {
@@ -1334,10 +1380,10 @@ export const simulateTick = ({
         const roleExpectedWages = {};
         let expectedWageBillBase = 0;
         const wagePlans = [];
-        if (b.jobs) {
+        if (Object.keys(effectiveOps.jobs).length > 0) {
             buildingJobFill[b.id] = buildingJobFill[b.id] || {};
-            for (let role in b.jobs) {
-                const roleRequired = b.jobs[role] * count;
+            for (let role in effectiveOps.jobs) {
+                const roleRequired = effectiveOps.jobs[role];
                 if (!roleWageStats[role]) {
                     roleWageStats[role] = { totalSlots: 0, weightedWage: 0 };
                 }
@@ -1389,14 +1435,14 @@ export const simulateTick = ({
         let inputCostPerMultiplier = 0;
         let isInLowEfficiencyMode = false;
 
-        if (b.input) {
-            for (const [resKey, perUnit] of Object.entries(b.input)) {
+        if (Object.keys(effectiveOps.input).length > 0) {
+            for (const [resKey, totalAmount] of Object.entries(effectiveOps.input)) {
                 // Skip input requirement if resource is not unlocked yet (prevents early game deadlock)
                 if (!isResourceUnlocked(resKey, epoch, techsUnlocked)) {
                     continue;
                 }
 
-                const perMultiplierAmount = perUnit * count;
+                const perMultiplierAmount = totalAmount;
                 const requiredAtBase = perMultiplierAmount * baseMultiplier;
                 if (requiredAtBase <= 0) continue;
                 const available = res[resKey] || 0;
@@ -1415,14 +1461,14 @@ export const simulateTick = ({
 
         // 防死锁机制：采集类建筑在缺少输入原料时进入低效模式
         let targetMultiplier = baseMultiplier * Math.max(0, Math.min(1, resourceLimit));
-        if (b.cat === 'gather' && resourceLimit === 0 && b.input) {
+        if (b.cat === 'gather' && resourceLimit === 0 && Object.keys(effectiveOps.input).length > 0) {
             // 进入低效模式：20%效率，不消耗原料
             targetMultiplier = baseMultiplier * 0.2;
             isInLowEfficiencyMode = true;
             inputCostPerMultiplier = 0; // 低效模式下不消耗原料，因此成本为0
 
             // 添加日志提示（每个建筑类型只提示一次，避免刷屏）
-            const inputNames = Object.keys(b.input).map(k => RESOURCES[k]?.name || k).join('、');
+            const inputNames = Object.keys(effectiveOps.input).map(k => RESOURCES[k]?.name || k).join('、');
             if (tick % 30 === 0) { // 每30个tick提示一次
                 logs.push(`⚠️ ${b.name} 缺少 ${inputNames}，工人正在徒手作业（效率20%）`);
             }
@@ -1430,12 +1476,12 @@ export const simulateTick = ({
 
         let outputValuePerMultiplier = 0;
         let producesTradableOutput = false;
-        if (b.output) {
-            for (const [resKey, perUnit] of Object.entries(b.output)) {
+        if (Object.keys(effectiveOps.output).length > 0) {
+            for (const [resKey, totalAmount] of Object.entries(effectiveOps.output)) {
                 if (resKey === 'maxPop') continue;
                 if (!isTradableResource(resKey)) continue;
                 producesTradableOutput = true;
-                const perMultiplierAmount = perUnit * count;
+                const perMultiplierAmount = totalAmount;
                 const grossValue = perMultiplierAmount * getPrice(resKey);
                 const taxRate = getResourceTaxRate(resKey);
                 // 计算税后净收入：正税率减少收入，负税率（补贴）增加收入
@@ -1491,8 +1537,8 @@ export const simulateTick = ({
         if (zeroApprovalClasses[ownerKey]) {
             approvalMultiplier = Math.min(approvalMultiplier, zeroApprovalFactor);
         }
-        if (b.jobs) {
-            Object.keys(b.jobs).forEach(role => {
+        if (Object.keys(effectiveOps.jobs).length > 0) {
+            Object.keys(effectiveOps.jobs).forEach(role => {
                 if (zeroApprovalClasses[role]) {
                     approvalMultiplier = Math.min(approvalMultiplier, zeroApprovalFactor);
                 }
@@ -1504,14 +1550,14 @@ export const simulateTick = ({
         let plannedWageBill = 0;
 
         // 低效模式下不消耗输入原料（徒手采集）
-        if (b.input && !isInLowEfficiencyMode) {
-            for (const [resKey, perUnit] of Object.entries(b.input)) {
+        if (Object.keys(effectiveOps.input).length > 0 && !isInLowEfficiencyMode) {
+            for (const [resKey, totalAmount] of Object.entries(effectiveOps.input)) {
                 // Skip input requirement if resource is not unlocked yet
                 if (!isResourceUnlocked(resKey, epoch, techsUnlocked)) {
                     continue;
                 }
 
-                const amountNeeded = perUnit * count * actualMultiplier;
+                const amountNeeded = totalAmount * actualMultiplier;
                 if (!amountNeeded || amountNeeded <= 0) continue;
                 const available = res[resKey] || 0;
                 const consumed = Math.min(amountNeeded, available);
@@ -1553,9 +1599,9 @@ export const simulateTick = ({
             }
         }
 
-        if (b.jobs) {
-            Object.entries(b.jobs).forEach(([role, perBuilding]) => {
-                const roleSlots = perBuilding * count;
+        if (Object.keys(effectiveOps.jobs).length > 0) {
+            Object.entries(effectiveOps.jobs).forEach(([role, totalAmount]) => {
+                const roleSlots = totalAmount;
                 if (roleSlots <= 0) return;
                 if (!roleWageStats[role]) {
                     roleWageStats[role] = { totalSlots: 0, weightedWage: 0 };
@@ -1593,9 +1639,9 @@ export const simulateTick = ({
             }
         });
 
-        if (b.output) {
-            for (const [resKey, perUnit] of Object.entries(b.output)) {
-                let amount = perUnit * count * actualMultiplier;
+        if (Object.keys(effectiveOps.output).length > 0) {
+            for (const [resKey, totalAmount] of Object.entries(effectiveOps.output)) {
+                let amount = totalAmount * actualMultiplier;
                 if (!amount || amount <= 0) continue;
 
                 // 为可交易资源添加产出浮动（80%-120%）
@@ -4578,7 +4624,7 @@ export const simulateTick = ({
 
         // 战争物价系数：每场与玩家的战争增加2.5%物价，每场AI间战争增加1%物价
         const warPriceMultiplier = 1 + (warCount * 0.025) + (foreignWarCount * 0.01);
-        
+
         // 【修复】将战争乘数应用到目标价格（marketPrice），而非平滑后的价格
         // 这样平滑处理会正确地向战争调整后的目标价格移动，避免价格卡在上限
         const warAdjustedMarketPrice = marketPrice * warPriceMultiplier;
