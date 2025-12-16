@@ -8,572 +8,135 @@ import { getEnemyUnitsForEpoch } from '../config/militaryActions';
 import { calculateLivingStandardData, getSimpleLivingStandard } from '../utils/livingStandard';
 import { calculateAIGiftAmount, calculateAIPeaceTribute, calculateAISurrenderDemand } from '../utils/diplomaticUtils';
 
-const ROLE_PRIORITY = [
-    'official',
-    'cleric',
-    'capitalist',
-    'landowner',
-    'knight',
-    'engineer',
-    'navigator',
-    'merchant',
-    'soldier',
-    'scribe',
-    'worker',
-    'artisan',
-    'miner',
-    'lumberjack',
-    'serf',
-    'peasant',
-];
-
-const JOB_MIGRATION_RATIO = 0.1;
-
-const clamp = (value, min, max) => {
-    if (!Number.isFinite(value)) return min;
-    if (value < min) return min;
-    if (value > max) return max;
-    return value;
-};
-
-
-const SPECIAL_TRADE_RESOURCES = new Set(['science', 'culture']);
-const isTradableResource = (key) => {
-    if (key === 'silver') return false;
-    const def = RESOURCES[key];
-    if (!def) return false;
-    if (SPECIAL_TRADE_RESOURCES.has(key)) return true;
-    return !def.type || def.type !== 'virtual';
-};
-
-// 冷却：敌国主动求和间隔（天），约等于 1 个月
-const PEACE_REQUEST_COOLDOWN_DAYS = 30;
-const initializeWealth = (currentWealth = {}) => {
-    const wealth = { ...currentWealth };
-    Object.keys(STRATA).forEach((key) => {
-        if (wealth[key] === undefined) {
-            wealth[key] = STRATA[key]?.startingWealth || 0;
-        }
-    });
-    return wealth;
-};
-
-const getBasePrice = (resource) => {
-    if (resource === 'silver') return 1;
-    const def = RESOURCES[resource];
-    return def?.basePrice || 1;
-};
-
-const PRICE_FLOOR = 0.5;
-const BASE_WAGE_REFERENCE = 1;
-
-const calculateResourceCost = (
-    resourceKey,
-    buildingsConfig = BUILDINGS,
-    currentPrices = {},
-    currentWages = {},
-    priceLivingCosts = {},
-    wageLivingCosts = {}  // 新增参数：用于工资计算的生活成本权重
-) => {
-    const resolvePrice = (key) => {
-        const current = currentPrices?.[key];
-        if (Number.isFinite(current) && current > 0) {
-            return Math.max(PRICE_FLOOR, current);
-        }
-        const base = RESOURCES[key]?.basePrice;
-        if (Number.isFinite(base) && base > 0) {
-            return Math.max(PRICE_FLOOR, base);
-        }
-        return PRICE_FLOOR;
-    };
-
-    const resolveWage = (role) => {
-        const wage = currentWages?.[role];
-        if (Number.isFinite(wage) && wage > 0) {
-            return wage;
-        }
-        // Use static BASE_WAGE_REFERENCE (1) instead of global avgWage fallback
-        return BASE_WAGE_REFERENCE;
-    };
-
-    const basePrice = getBasePrice(resourceKey);
-
-    let primaryBuilding = null;
-    buildingsConfig.forEach(building => {
-        const outputAmount = building.output?.[resourceKey];
-        if (!outputAmount || outputAmount <= 0) return;
-        if (!primaryBuilding) {
-            primaryBuilding = building;
-            return;
-        }
-        const bestOutput = primaryBuilding.output?.[resourceKey] || 0;
-        if (outputAmount > bestOutput) {
-            primaryBuilding = building;
-        }
-    });
-
-    if (primaryBuilding) {
-        const totalOutput = primaryBuilding.output?.[resourceKey] || 0;
-        if (totalOutput > 0) {
-            let inputCost = 0;
-            if (primaryBuilding.input) {
-                Object.entries(primaryBuilding.input).forEach(([inputKey, amount]) => {
-                    if (!amount || amount <= 0) return;
-                    inputCost += amount * resolvePrice(inputKey);
-                });
-            }
-
-            let laborCost = 0;
-            const isSelfOwned = primaryBuilding.owner && primaryBuilding.jobs && primaryBuilding.jobs[primaryBuilding.owner];
-
-            if (primaryBuilding.jobs && !isSelfOwned) {
-                Object.entries(primaryBuilding.jobs).forEach(([role, slots]) => {
-                    if (!slots || slots <= 0) return;
-                    laborCost += slots * resolveWage(role);
-                });
-            }
-
-            const unitCost = (inputCost + laborCost) / totalOutput;
-            if (Number.isFinite(unitCost) && unitCost > 0) {
-                return Math.max(PRICE_FLOOR, Math.max(unitCost, basePrice));
-            }
-        }
-    }
-
-    // New Fallback: Use base price as the cost anchor for raw materials,
-    // avoiding all wage-driven inflation for resources without primary buildings
-    return basePrice;
-};
-
-const computeLivingCosts = (
-    priceMap = {},
-    headTaxRates = {},
-    resourceTaxRates = {}
-) => {
-    const breakdown = {};
-    Object.entries(STRATA).forEach(([key, def]) => {
-        let needsCost = 0;
-        let taxCost = 0;
-        const needs = def.needs || {};
-        Object.entries(needs).forEach(([resKey, perCapita]) => {
-            if (!perCapita || perCapita <= 0) return;
-            const price =
-                priceMap?.[resKey] ??
-                RESOURCES[resKey]?.basePrice ??
-                getBasePrice(resKey);
-            if (!Number.isFinite(price) || price <= 0) return;
-            const taxRate = Math.max(0, resourceTaxRates?.[resKey] || 0);
-            needsCost += perCapita * price;
-            taxCost += perCapita * price * taxRate;
-        });
-        const headBase = Math.max(0, def.headTaxBase ?? 0);
-        const headRate = Math.max(0, headTaxRates?.[key] ?? 1);
-        taxCost += headBase * headRate;
-        breakdown[key] = {
-            needsCost: Number.isFinite(needsCost) ? needsCost : 0,
-            taxCost: Number.isFinite(taxCost) ? taxCost : 0,
-        };
-    });
-    return breakdown;
-};
-
-const buildLivingCostMap = (breakdown = {}, weights = {}) => {
-    const livingWeight = Number.isFinite(weights.livingCostWeight)
-        ? weights.livingCostWeight
-        : 1;
-    const taxWeight = Number.isFinite(weights.taxCostWeight)
-        ? weights.taxCostWeight
-        : 1;
-    const map = {};
-    Object.entries(breakdown).forEach(([key, value]) => {
-        const needs = value?.needsCost || 0;
-        const tax = value?.taxCost || 0;
-        map[key] = Math.max(0, needs * livingWeight + tax * taxWeight);
-    });
-    return map;
-};
-
-const TECH_MAP = TECHS.reduce((acc, tech) => {
-    acc[tech.id] = tech;
-    return acc;
-}, {});
-
-const scaleEffectValues = (effect = {}, multiplier = 1) => {
-    if (!effect || typeof effect !== 'object') return {};
-    const scaled = {};
-    Object.entries(effect).forEach(([key, value]) => {
-        if (typeof value === 'number') {
-            scaled[key] = value * multiplier;
-        } else if (value && typeof value === 'object' && !Array.isArray(value)) {
-            scaled[key] = scaleEffectValues(value, multiplier);
-        } else {
-            scaled[key] = value;
-        }
-    });
-    return scaled;
-};
-
-const MERCHANT_SAFE_STOCK = 200;
-const MERCHANT_CAPACITY_PER_POP = 5;
-const MERCHANT_CAPACITY_WEALTH_DIVISOR = 100;
-const MERCHANT_LOG_VOLUME_RATIO = 0.05;
-const MERCHANT_LOG_PROFIT_THRESHOLD = 50;
-
-const simulateMerchantTrade = ({
-    res,
-    wealth,
-    popStructure,
-    supply,
-    demand,
-    nations,
-    tick,
-    taxPolicies,
-    taxBreakdown,
-    getLocalPrice,
-    roleExpense,
-    roleWagePayout,
-    pendingTrades = [],
-    lastTradeTime = 0,
-    gameSpeed = 1,
-    logs,
-}) => {
-    const merchantCount = popStructure?.merchant || 0;
-    if (merchantCount <= 0) {
-        return { pendingTrades, lastTradeTime, lockedCapital: 0, capitalInvestedThisTick: 0 };
-    }
-    let capitalInvestedThisTick = 0;
-
-    const resourceTaxRates = taxPolicies?.resourceTaxRates || {};
-    const getResourceTaxRate = (resource) => resourceTaxRates[resource] || 0; // 允许负税率
-
-    const foreignPartners = Array.isArray(nations) ? nations.filter(n => n && (n.inventory || n.economyTraits)) : [];
-    const foreignPriceCache = {};
-
-    const getForeignPrice = (resourceKey) => {
-        if (foreignPriceCache[resourceKey] !== undefined) {
-            return foreignPriceCache[resourceKey];
-        }
-        if (foreignPartners.length === 0) {
-            foreignPriceCache[resourceKey] = null;
-            return null;
-        }
-        let total = 0;
-        let count = 0;
-        foreignPartners.forEach(nation => {
-            const price = calculateForeignPrice(resourceKey, nation, tick);
-            if (Number.isFinite(price) && price > 0) {
-                total += price;
-                count += 1;
-            }
-        });
-        const averaged = count > 0 ? total / count : null;
-        foreignPriceCache[resourceKey] = averaged;
-        return averaged;
-    };
-
-    // 获取商人交易配置
-    const tradeConfig = STRATA.merchant?.tradeConfig || {
-        minProfitMargin: 0.10,
-        maxPurchaseAmount: 20,
-        exportProbability: 0.5,
-        maxInventoryRatio: 0.3,
-        minWealthForTrade: 10,
-        tradeDuration: 3,
-        tradeCooldown: 0,
-        enableDebugLog: false
-    };
-
-    // 处理待完成的交易（到期的交易）
-    const updatedPendingTrades = [];
-    pendingTrades.forEach(trade => {
-        trade.daysRemaining -= 1;
-
-        if (trade.daysRemaining <= 0) {
-            // 交易完成，获得收入
-            roleWagePayout.merchant = (roleWagePayout.merchant || 0) + trade.revenue;
-
-            if (trade.type === 'import') {
-                // 进口商品到货
-                res[trade.resource] = (res[trade.resource] || 0) + trade.amount;
-                supply[trade.resource] = (supply[trade.resource] || 0) + trade.amount;
-            }
-
-            if (tradeConfig.enableDebugLog) {
-                console.log(`[商人调试] ✅ 交易完成:`, {
-                    type: trade.type === 'export' ? '出口' : '进口',
-                    resource: trade.resource,
-                    amount: trade.amount,
-                    revenue: trade.revenue,
-                    profit: trade.profit
-                });
-            }
-        } else {
-            // 交易尚未完成，继续等待
-            updatedPendingTrades.push(trade);
-        }
-    });
-
-    // 调试：查看输入的交易状态
-    if (tradeConfig.enableDebugLog) {
-        console.log(`[商人调试] 📥 输入状态:`, {
-            tick,
-            lastTradeTime,
-            pendingTradesCount: pendingTrades.length,
-            updatedPendingTradesCount: updatedPendingTrades.length,
-            merchantCount: popStructure.merchant || 0
-        });
-    }
-
-    // 检查交易冷却时间
-    const ticksSinceLastTrade = tick - lastTradeTime;
-    const canTradeNow = ticksSinceLastTrade >= tradeConfig.tradeCooldown;
-
-    if (!canTradeNow) {
-        if (tradeConfig.enableDebugLog) {
-            console.log(`[商人调试] ⏳ 交易冷却中，还需等待 ${(tradeConfig.tradeCooldown - ticksSinceLastTrade).toFixed(1)} 天`);
-        }
-        return { pendingTrades: updatedPendingTrades, lastTradeTime };
-    }
-
-    const tradableKeys = Object.keys(RESOURCES).filter(key => isTradableResource(key));
-
-    // 基于价格差异识别可交易资源
-    const exportableResources = []; // 外部价格 > 内部价格
-    const importableResources = []; // 外部价格 < 内部价格
-
-    tradableKeys.forEach(key => {
-        const localPrice = getLocalPrice(key);
-        const foreignPrice = getForeignPrice(key);
-        const availableStock = res[key] || 0;
-
-        if (foreignPrice === null || localPrice === null) return;
-
-        const priceDiff = foreignPrice - localPrice;
-        const profitMargin = Math.abs(priceDiff) / localPrice;
-
-        const isExportable = foreignPrice > localPrice &&
-            profitMargin >= tradeConfig.minProfitMargin &&
-            availableStock > 0;
-
-        const isImportable = foreignPrice < localPrice &&
-            profitMargin >= tradeConfig.minProfitMargin;
-
-        if (isExportable) exportableResources.push(key);
-        if (isImportable) importableResources.push(key);
-    });
-
-    const simCount = merchantCount > 100 ? 100 : merchantCount;
-    const batchMultiplier = merchantCount > 100 ? merchantCount / 100 : 1;
-
-    // 限制每tick的新交易数量，防止性能问题
-    const maxNewTrades = Math.min(simCount, 50);
-
-    for (let i = 0; i < maxNewTrades; i++) {
-        const currentTotalWealth = wealth.merchant || 0;
-        if (currentTotalWealth <= tradeConfig.minWealthForTrade) break;
-
-        const decision = Math.random();
-        const wealthForThisBatch = currentTotalWealth / (simCount - i);
-
-        if (decision < tradeConfig.exportProbability && exportableResources.length > 0) { // Export
-            const resourceKey = exportableResources[Math.floor(Math.random() * exportableResources.length)];
-            const localPrice = getLocalPrice(resourceKey);
-            const foreignPrice = getForeignPrice(resourceKey);
-
-            if (foreignPrice === null || localPrice === null || foreignPrice <= localPrice) continue;
-
-            const taxRate = getResourceTaxRate(resourceKey);
-            const costWithTaxPerUnit = localPrice * (1 + taxRate);
-
-            const affordableAmount = costWithTaxPerUnit > 0 ? wealthForThisBatch / costWithTaxPerUnit : 3;
-            const availableStock = (res[resourceKey] || 0) / batchMultiplier;
-            const maxInventory = availableStock * tradeConfig.maxInventoryRatio;
-
-            const amount = Math.min(
-                tradeConfig.maxPurchaseAmount,
-                affordableAmount,
-                maxInventory
-            );
-
-            if (amount <= 0.1) continue;
-
-            const cost = localPrice * amount;
-            const tax = cost * taxRate;
-            const revenue = foreignPrice * amount;
-
-            let outlay = cost;
-            let appliedTax = 0;
-
-            if (tax < 0) { // Subsidy logic
-                const subsidyAmount = Math.abs(tax);
-                if ((res.silver || 0) >= subsidyAmount * batchMultiplier) {
-                    outlay -= subsidyAmount;
-                    appliedTax = -subsidyAmount;
-                } else {
-                    logs.push(`国库空虚，无法支付出口 ${RESOURCES[resourceKey]?.name || resourceKey} 的交易补贴！`);
-                }
-            } else {
-                outlay += tax;
-                appliedTax = tax;
-            }
-
-            const profit = revenue - outlay;
-            const profitMargin = outlay > 0 ? profit / outlay : (profit > 0 ? Infinity : -Infinity);
-
-            if (profitMargin >= tradeConfig.minProfitMargin) {
-                const totalAmount = amount * batchMultiplier;
-                const totalOutlay = outlay * batchMultiplier;
-                const totalAppliedTax = appliedTax * batchMultiplier;
-
-                if ((wealth.merchant || 0) >= totalOutlay && (res[resourceKey] || 0) >= totalAmount) {
-                    if (tradeConfig.enableDebugLog && resourceKey === 'cloth') {
-                        console.log(`[商人调试] 📦 购买布料准备出口:`, {
-                            amount: totalAmount,
-                            cost: totalOutlay,
-                            expectedRevenue: revenue * batchMultiplier,
-                            expectedProfit: profit * batchMultiplier,
-                            profitMargin: (profitMargin * 100).toFixed(2) + '%',
-                            daysUntilSale: tradeConfig.tradeDuration
-                        });
-                    }
-
-                    wealth.merchant -= totalOutlay;
-                    // roleExpense.merchant = (roleExpense.merchant || 0) + totalOutlay; // Capital investment is not an expense
-
-                    if (totalAppliedTax < 0) {
-                        const subsidy = Math.abs(totalAppliedTax);
-                        res.silver -= subsidy;
-                        taxBreakdown.subsidy += subsidy;
-                    } else {
-                        taxBreakdown.industryTax += totalAppliedTax;
-                    }
-
-                    res[resourceKey] = Math.max(0, (res[resourceKey] || 0) - totalAmount);
-                    supply[resourceKey] = Math.max(0, (supply[resourceKey] || 0) - totalAmount);
-
-                    capitalInvestedThisTick += totalOutlay;
-
-                    updatedPendingTrades.push({
-                        type: 'export',
-                        resource: resourceKey,
-                        amount: totalAmount,
-                        revenue: revenue * batchMultiplier,
-                        profit: profit * batchMultiplier,
-                        daysRemaining: 3,
-                        capitalLocked: totalOutlay
-                    });
-
-                    lastTradeTime = tick;
-                }
-            }
-        } else if (importableResources.length > 0) { // Import
-            const resourceKey = importableResources[Math.floor(Math.random() * importableResources.length)];
-            const localPrice = getLocalPrice(resourceKey);
-            const foreignPrice = getForeignPrice(resourceKey);
-
-            if (foreignPrice === null || localPrice === null || foreignPrice >= localPrice) continue;
-
-            const taxRate = getResourceTaxRate(resourceKey);
-
-            const totalPerUnitCost = foreignPrice;
-            const affordableAmount = totalPerUnitCost > 0 ? wealthForThisBatch / totalPerUnitCost : 3;
-            const amount = Math.min(tradeConfig.maxPurchaseAmount, affordableAmount);
-            if (amount <= 0.1) continue;
-
-            const cost = foreignPrice * amount;
-            const grossRevenue = localPrice * amount;
-            const tax = grossRevenue * taxRate;
-
-            let netRevenue = grossRevenue;
-            let appliedTax = 0;
-
-            if (tax < 0) { // Subsidy
-                const subsidyAmount = Math.abs(tax);
-                if ((res.silver || 0) >= subsidyAmount * batchMultiplier) {
-                    netRevenue += subsidyAmount;
-                    appliedTax = -subsidyAmount;
-                } else {
-                    logs.push(`国库空虚，无法支付进口 ${RESOURCES[resourceKey]?.name || resourceKey} 的交易补贴！`);
-                }
-            } else { // Tax
-                netRevenue -= tax;
-                appliedTax = tax;
-            }
-
-            const profit = netRevenue - cost;
-            const profitMargin = cost > 0 ? profit / cost : (profit > 0 ? Infinity : -Infinity);
-
-            if (profitMargin >= tradeConfig.minProfitMargin) {
-                const totalAmount = amount * batchMultiplier;
-                const totalCost = cost * batchMultiplier;
-                const totalNetRevenue = netRevenue * batchMultiplier;
-                const totalAppliedTax = appliedTax * batchMultiplier;
-
-                if ((wealth.merchant || 0) >= totalCost) {
-                    if (tradeConfig.enableDebugLog && resourceKey === 'cloth') {
-                        console.log(`[商人调试] 📦 购买布料准备进口:`, {
-                            amount: totalAmount,
-                            cost: totalCost,
-                            expectedNetRevenue: totalNetRevenue,
-                            expectedProfit: totalNetRevenue - totalCost,
-                            profitMargin: (profitMargin * 100).toFixed(2) + '%',
-                            daysUntilSale: tradeConfig.tradeDuration
-                        });
-                    }
-
-                    wealth.merchant -= totalCost;
-                    roleExpense.merchant = (roleExpense.merchant || 0) + totalCost;
-
-                    if (totalAppliedTax < 0) {
-                        const subsidy = Math.abs(totalAppliedTax);
-                        res.silver -= subsidy;
-                        taxBreakdown.subsidy += subsidy;
-                    } else {
-                        taxBreakdown.industryTax += totalAppliedTax;
-                    }
-
-                    capitalInvestedThisTick += totalCost;
-
-                    updatedPendingTrades.push({
-                        type: 'import',
-                        resource: resourceKey,
-                        amount: totalAmount,
-                        revenue: totalNetRevenue,
-                        profit: totalNetRevenue - totalCost,
-                        daysRemaining: 3,
-                        capitalLocked: totalCost
-                    });
-
-                    lastTradeTime = tick;
-                }
-            }
-        }
-    }
-
-    if (tradeConfig.enableDebugLog) {
-        console.log(`[商人调试] 📤 输出状态:`, {
-            pendingTradesCount: updatedPendingTrades.length,
-            lastTradeTime: lastTradeTime,
-            pendingTrades: updatedPendingTrades.map(t => ({
-                type: t.type,
-                resource: t.resource,
-                amount: t.amount,
-                daysRemaining: t.daysRemaining
-            }))
-        });
-    }
-
-    const lockedCapital = updatedPendingTrades.reduce((sum, trade) => {
-        return sum + Math.max(0, trade.capitalLocked || 0);
-    }, 0);
-
-    return {
-        pendingTrades: updatedPendingTrades,
-        lastTradeTime: lastTradeTime,
-        lockedCapital,
-        capitalInvestedThisTick
-    };
-};
+// ============================================================================
+// REFACTORED MODULE IMPORTS
+// These modules contain functions extracted from this file for better organization
+// ============================================================================
+import {
+    // Constants
+    ROLE_PRIORITY,
+    JOB_MIGRATION_RATIO,
+    PRICE_FLOOR,
+    BASE_WAGE_REFERENCE,
+    SPECIAL_TRADE_RESOURCES,
+    MERCHANT_SAFE_STOCK,
+    MERCHANT_CAPACITY_PER_POP,
+    MERCHANT_CAPACITY_WEALTH_DIVISOR,
+    MERCHANT_LOG_VOLUME_RATIO,
+    MERCHANT_LOG_PROFIT_THRESHOLD,
+    PEACE_REQUEST_COOLDOWN_DAYS,
+    FERTILITY_BASE_RATE,
+    FERTILITY_BASELINE_RATE,
+    LOW_POP_THRESHOLD,
+    LOW_POP_GUARANTEE,
+    WEALTH_BASELINE,
+    STABILITY_INERTIA,
+    MAX_CONCURRENT_WARS,
+    GLOBAL_WAR_COOLDOWN,
+    TECH_MAP,
+    // Helper functions
+    clamp,
+    isTradableResource,
+    getBasePrice,
+    scaleEffectValues,
+    computePriceMultiplier,
+    calculateMinProfitMargin,
+} from './utils';
+
+import {
+    // Wage functions
+    computeLivingCosts,
+    buildLivingCostMap,
+    getLivingCostFloor,
+    getExpectedWage,
+    calculateWeightedAverageWage,
+    updateWages,
+    // Tax functions
+    initializeTaxBreakdown,
+    getHeadTaxRate as getHeadTaxRateFromModule,
+    getResourceTaxRate as getResourceTaxRateFromModule,
+    getBusinessTaxRate as getBusinessTaxRateFromModule,
+    collectHeadTax,
+    calculateFinalTaxes,
+    // Trading functions
+    simulateMerchantTrade,
+} from './economy';
+
+import {
+    // Job functions
+    initializeJobsAvailable,
+    initializeWageTracking,
+    initializeExpenseTracking,
+    allocatePopulation,
+    handleLayoffs,
+    fillVacancies,
+    handleJobMigration,
+    // Growth functions
+    initializeWealth,
+} from './population';
+
+import {
+    // Approval functions
+    calculateClassApproval as calculateClassApprovalFromModule,
+    calculateDecreeApprovalModifiers,
+    // Buff functions
+    calculateBuffsAndDebuffs,
+    calculateStability as calculateStabilityFromModule,
+    calculateClassInfluence,
+} from './stability';
+
+import {
+    // Building effect functions
+    initializeBonuses,
+    applyEffects,
+    applyTechEffects,
+    applyDecreeEffects,
+    applyFestivalEffects,
+    calculateTotalMaxPop,
+} from './buildings';
+
+// ============================================================================
+// All helper functions and constants have been migrated to modules:
+// - initializeWealth -> ./population/growth.js
+// - TECH_MAP -> ./utils/constants.js  
+// - simulateMerchantTrade -> ./economy/trading.js
+// ============================================================================
+
+// ============================================================================
+// DIPLOMACY MODULE IMPORTS (Phase 5 Migration)
+// These modules handle AI nation behavior, war, diplomacy, and economy
+// ============================================================================
+import {
+    // AI War functions
+    processRebelWarActions,
+    checkRebelSurrender,
+    processAIMilitaryAction,
+    checkAIPeaceRequest,
+    checkAISurrenderDemand,
+    checkWarDeclaration,
+    processCollectiveAttackWarmonger,
+    processAIAIWarDeclaration,
+    processAIAIWarProgression,
+    // AI Diplomacy functions
+    initializeForeignRelations,
+    processMonthlyRelationDecay,
+    processAllyColdEvents,
+    processAIGiftDiplomacy,
+    processAITrade,
+    processAIPlayerTrade,
+    processAIPlayerInteraction,
+    processAIAllianceFormation,
+    checkAIBreakAlliance,
+    processNationRelationDecay,
+    // AI Economy functions
+    updateAINationInventory,
+    initializeAIDevelopmentBaseline,
+    processAIIndependentGrowth,
+    updateAIDevelopment,
+    initializeRebelEconomy,
+    processPostWarRecovery,
+    processInstallmentPayment,
+} from './diplomacy';
 
 export const simulateTick = ({
     resources,
@@ -668,30 +231,23 @@ export const simulateTick = ({
         if (typeof rate === 'number') return rate; // 允许负税率（补贴）
         return 0;
     };
-    const taxBreakdown = {
-        headTax: 0,
-        industryTax: 0,
-        businessTax: 0,
-        subsidy: 0,
-        policyIncome: 0,
-        policyExpense: 0,
-    };
+    // REFACTORED: Use imported function from ./economy/taxes
+    const taxBreakdown = initializeTaxBreakdown();
 
-    const buildingBonuses = {};
-    const categoryBonuses = { gather: 1, industry: 1, civic: 1, military: 1 };
-    const passiveGains = {};
-    let decreeSilverIncome = 0;
-    let decreeSilverExpense = 0;
-    let extraMaxPop = 0;
-    let maxPopPercent = 0;
-    let productionBonus = 0;
-    let industryBonus = 0;
-    let taxBonus = 0;
-    let needsReduction = 0;
-    // 政令供需修饰符（与事件修饰符叠加）
-    const decreeResourceDemandMod = {};  // { resourceKey: percentModifier }
-    const decreeStratumDemandMod = {};   // { stratumKey: percentModifier }
-    const decreeResourceSupplyMod = {};  // { resourceKey: percentModifier } 供应修饰符
+    // REFACTORED: Use imported function from ./buildings/effects
+    const bonuses = initializeBonuses();
+    // Destructure for backward compatibility with existing code
+    const {
+        buildingBonuses,
+        categoryBonuses,
+        passiveGains,
+        decreeResourceDemandMod,
+        decreeStratumDemandMod,
+        decreeResourceSupplyMod,
+    } = bonuses;
+    // Use let for mutable values
+    let { decreeSilverIncome, decreeSilverExpense, extraMaxPop, maxPopPercent,
+        productionBonus, industryBonus, taxBonus, needsReduction } = bonuses;
 
     const boostBuilding = (id, percent) => {
         if (!id || typeof percent !== 'number') return;
@@ -712,104 +268,27 @@ export const simulateTick = ({
         passiveGains[resource] = (passiveGains[resource] || 0) + amount;
     };
 
-    const applyEffects = (effects = {}) => {
-        if (!effects) return;
-        if (effects.buildings) {
-            Object.entries(effects.buildings).forEach(([id, percent]) => boostBuilding(id, percent));
-        }
-        if (effects.categories) {
-            Object.entries(effects.categories).forEach(([cat, percent]) => boostCategory(cat, percent));
-        }
-        if (effects.passive) {
-            Object.entries(effects.passive).forEach(([resKey, amount]) => addPassiveGain(resKey, amount));
-        }
-        if (effects.maxPop) {
-            const value = effects.maxPop;
-            if (value > -1 && value < 1 && value !== 0) {
-                maxPopPercent += value;
-            } else {
-                extraMaxPop += value;
-            }
-        }
+    // Apply effects using imported module functions
+    // Apply tech effects using module function
+    applyTechEffects(techsUnlocked, bonuses);
 
-        if (effects.production) {
-            productionBonus += effects.production;
-        }
-        if (effects.industry) {
-            industryBonus += effects.industry;
-        }
-        if (effects.taxIncome) {
-            taxBonus += effects.taxIncome;
-        }
-        if (effects.needsReduction) {
-            needsReduction += effects.needsReduction;
-        }
-        // 政令资源需求修饰符
-        if (effects.resourceDemandMod) {
-            Object.entries(effects.resourceDemandMod).forEach(([resKey, percent]) => {
-                if (typeof percent === 'number') {
-                    decreeResourceDemandMod[resKey] = (decreeResourceDemandMod[resKey] || 0) + percent;
-                }
-            });
-        }
-        // 政令阶层需求修饰符
-        if (effects.stratumDemandMod) {
-            Object.entries(effects.stratumDemandMod).forEach(([stratumKey, percent]) => {
-                if (typeof percent === 'number') {
-                    decreeStratumDemandMod[stratumKey] = (decreeStratumDemandMod[stratumKey] || 0) + percent;
-                }
-            });
-        }
-        // 政令资源供应修饰符
-        if (effects.resourceSupplyMod) {
-            Object.entries(effects.resourceSupplyMod).forEach(([resKey, percent]) => {
-                if (typeof percent === 'number') {
-                    decreeResourceSupplyMod[resKey] = (decreeResourceSupplyMod[resKey] || 0) + percent;
-                }
-            });
-        }
-    };
+    // Apply decree effects using module function
+    applyDecreeEffects(decrees, bonuses);
 
-    techsUnlocked.forEach(id => {
-        const tech = TECH_MAP[id];
-        if (!tech || !tech.effects) return;
-        applyEffects(tech.effects);
-    });
+    // Apply festival effects using module function
+    applyFestivalEffects(activeFestivalEffects, bonuses);
 
-    decrees.forEach(decree => {
-        if (!decree || !decree.active || !decree.modifiers) return;
-        const passiveSilver = decree.modifiers?.passive?.silver || 0;
-        if (passiveSilver > 0) {
-            decreeSilverIncome += passiveSilver;
-        } else if (passiveSilver < 0) {
-            decreeSilverExpense += Math.abs(passiveSilver);
-        }
-        applyEffects(decree.modifiers);
-    });
+    // Sync mutable values back from bonuses object after module function calls
+    decreeSilverIncome = bonuses.decreeSilverIncome;
+    decreeSilverExpense = bonuses.decreeSilverExpense;
+    extraMaxPop = bonuses.extraMaxPop;
+    maxPopPercent = bonuses.maxPopPercent;
+    productionBonus = bonuses.productionBonus;
+    industryBonus = bonuses.industryBonus;
+    taxBonus = bonuses.taxBonus;
+    needsReduction = bonuses.needsReduction;
 
-    // 应用庆典效果
-    activeFestivalEffects.forEach(festivalEffect => {
-        if (!festivalEffect || !festivalEffect.effects) return;
-        applyEffects(festivalEffect.effects);
-    });
-
-    // Smooth price pressure with a bounded sigmoid curve to avoid runaway inflation/deflation
-    const computePriceMultiplier = (ratio) => {
-        if (!Number.isFinite(ratio) || ratio <= 0) {
-            return 0.7;
-        }
-        const minMultiplier = 0.7;
-        const maxMultiplier = 3.5;
-        const safeRatio = Math.max(ratio, 0.01);
-        const smoothness = 0.9;
-        let pressure = Math.tanh(Math.log(safeRatio) * smoothness);
-        pressure *= supplyDemandWeight;
-        pressure = Math.max(-1, Math.min(1, pressure));
-        if (pressure >= 0) {
-            return 1 + pressure * (maxMultiplier - 1);
-        }
-        return 1 + pressure * (1 - minMultiplier);
-    };
+    // computePriceMultiplier is imported from ./utils/helpers
 
     const getPrice = (resource) => {
         if (!priceMap[resource]) {
@@ -1104,24 +583,8 @@ export const simulateTick = ({
     }
     popStructure.unemployed = Math.max(0, popStructure.unemployed || 0);
 
-    // 计算加权平均工资（基于人口权重，而非算术平均）
-    let totalWeightedWage = 0;
-    let totalPopulation = 0;
-
-    Object.keys(popStructure).forEach(role => {
-        const popCount = popStructure[role] || 0;
-        const wageValue = previousWages[role] || 0;
-
-        if (popCount > 0 && wageValue > 0) {
-            totalWeightedWage += wageValue * popCount;
-            totalPopulation += popCount;
-        }
-    });
-
-    // 使用加权平均工资替换原来的算术平均工资
-    const defaultWageEstimate = totalPopulation > 0
-        ? totalWeightedWage / totalPopulation
-        : BASE_WAGE_REFERENCE;
+    // REFACTORED: Use calculateWeightedAverageWage imported from ./economy/wages
+    const defaultWageEstimate = calculateWeightedAverageWage(popStructure, previousWages);
 
     // 处理岗位上限（裁员）：如果职业人数超过岗位数，将多出的人转为失业
     ROLE_PRIORITY.forEach(role => {
@@ -1610,13 +1073,102 @@ export const simulateTick = ({
             });
         }
 
+        // === 按等级分别计算工资压力因子 ===
+        // 每个等级可能有不同的产出价值，因此 wagePressure 应该不同
+        const levelWagePressures = {};
+        Object.entries(levelCounts).forEach(([lvlStr, lvlCount]) => {
+            const lvl = parseInt(lvlStr);
+            const config = getBuildingEffectiveConfig(b, lvl);
+
+            // 计算该等级的产出价值
+            let levelOutputValue = 0;
+            if (config.output) {
+                Object.entries(config.output).forEach(([resKey, amount]) => {
+                    if (resKey === 'maxPop') return;
+                    if (!isTradableResource(resKey)) return;
+                    const perBuildingAmount = amount;
+                    const grossValue = perBuildingAmount * getPrice(resKey);
+                    const taxRate = getResourceTaxRate(resKey);
+                    levelOutputValue += grossValue * (1 - taxRate);
+                });
+            }
+
+            // 计算该等级的输入成本
+            let levelInputCost = 0;
+            if (config.input) {
+                Object.entries(config.input).forEach(([resKey, amount]) => {
+                    if (!isResourceUnlocked(resKey, epoch, techsUnlocked)) return;
+                    if (isTradableResource(resKey)) {
+                        levelInputCost += amount * getPrice(resKey);
+                    }
+                });
+            }
+
+            // 计算该等级的工资成本（使用基础工资估算）
+            let levelWageCost = 0;
+            if (config.jobs) {
+                Object.entries(config.jobs).forEach(([role, slots]) => {
+                    if (role === ownerKey) return;
+                    const wage = roleExpectedWages[role] ?? getExpectedWage(role);
+                    levelWageCost += slots * wage;
+                });
+            }
+
+            // 计算该等级的工资压力因子
+            const valueAvailable = Math.max(0, levelOutputValue - levelInputCost);
+            const coverage = levelWageCost > 0 ? valueAvailable / levelWageCost : 1;
+            let levelWagePressure = 1;
+            if (!Number.isFinite(coverage)) {
+                levelWagePressure = 1;
+            } else if (coverage >= 1) {
+                levelWagePressure = Math.min(1.4, 1 + (coverage - 1) * 0.35);
+            } else {
+                levelWagePressure = Math.max(0.65, 1 - (1 - coverage) * 0.5);
+            }
+            levelWagePressures[lvl] = levelWagePressure;
+        });
+
+        // 计算整体加权平均的 wagePressure（用于向后兼容）
+        let totalWeightedPressure = 0;
+        let totalWeight = 0;
+        Object.entries(levelCounts).forEach(([lvlStr, lvlCount]) => {
+            const lvl = parseInt(lvlStr);
+            const pressure = levelWagePressures[lvl] || 1;
+            totalWeightedPressure += pressure * lvlCount;
+            totalWeight += lvlCount;
+        });
+        const avgWagePressure = totalWeight > 0 ? totalWeightedPressure / totalWeight : wagePressure;
+
         const preparedWagePlans = wagePlans.map(plan => {
-            const expectedSlotWage = plan.baseWage * utilization * wagePressure;
+            // 根据角色在各等级的分布，计算加权平均的工资压力因子
+            let planWagePressure = avgWagePressure;
+
+            // 如果有多个等级，按比例计算该角色的平均工资压力
+            if (Object.keys(levelCounts).length > 1) {
+                let roleWeightedPressure = 0;
+                let roleWeight = 0;
+                Object.entries(levelCounts).forEach(([lvlStr, lvlCount]) => {
+                    const lvl = parseInt(lvlStr);
+                    const config = getBuildingEffectiveConfig(b, lvl);
+                    const roleSlots = config.jobs?.[plan.role] || 0;
+                    if (roleSlots > 0) {
+                        const pressure = levelWagePressures[lvl] || 1;
+                        roleWeightedPressure += pressure * roleSlots * lvlCount;
+                        roleWeight += roleSlots * lvlCount;
+                    }
+                });
+                if (roleWeight > 0) {
+                    planWagePressure = roleWeightedPressure / roleWeight;
+                }
+            }
+
+            const expectedSlotWage = plan.baseWage * utilization * planWagePressure;
             const due = expectedSlotWage * plan.filled;
             plannedWageBill += due;
             return {
                 ...plan,
                 expectedSlotWage,
+                wagePressure: planWagePressure, // 保存用于调试
             };
         });
 
@@ -1827,7 +1379,9 @@ export const simulateTick = ({
                 if (roleSlots <= 0) return;
                 roleWageStats[role].totalSlots += roleSlots;
                 if (role !== ownerKey) {
-                    const actualWagePerSlot = 0; // This seems to be a bug in original code, should be defined.
+                    // 修复：使用预期工资而非硬编码的 0
+                    const expectedWage = getExpectedWage(role);
+                    const actualWagePerSlot = expectedWage;
                     roleWageStats[role].weightedWage += actualWagePerSlot * roleSlots;
                     const filled = buildingJobFill[b.id]?.[role] || 0;
                     if (filled > 0 && actualWagePerSlot > 0) {
@@ -2488,8 +2042,8 @@ export const simulateTick = ({
     const targetStability = Math.max(0, Math.min(100, baseStability + stabilityModifier));
 
     // NEW: Inertia-based stability calculation
-    // Stability drifts towards target at 5% per tick, making crises feel weightier
-    const STABILITY_INERTIA = 0.05;
+    // Stability drifts towards target at STABILITY_INERTIA (5%) per tick, making crises feel weightier
+    // REFACTORED: Using STABILITY_INERTIA imported from ./utils/constants
     const stabilityValue = Math.max(0, Math.min(100,
         currentStability + (targetStability - currentStability) * STABILITY_INERTIA
     ));
@@ -2519,164 +2073,24 @@ export const simulateTick = ({
         }
 
         if (next.isRebelNation) {
-            if (!next.economyTraits) {
-                next.economyTraits = {};
-            }
-            const basePopulation = Math.max(5, next.economyTraits.basePopulation || next.population || 10);
-            const baseWealth = Math.max(100, next.economyTraits.baseWealth || next.wealth || 200);
-            next.economyTraits.basePopulation = basePopulation;
-            next.economyTraits.baseWealth = baseWealth;
-            const maxPopulation = Math.max(basePopulation, Math.floor(basePopulation * 1.1));
-            const maxWealth = Math.max(baseWealth, Math.floor(baseWealth * 1.15));
-            next.population = clamp(Math.round(next.population || basePopulation), 5, maxPopulation);
-            next.wealth = clamp(Math.round(next.wealth || baseWealth), baseWealth * 0.5, maxWealth);
-            next.budget = Math.min(next.wealth, Math.max(0, next.budget ?? Math.floor(next.wealth * 0.3)));
+            // REFACTORED: Using module function for rebel economy initialization
+            initializeRebelEconomy(next);
 
-            // ========== 叛军突袭逻辑 ==========
+            // REFACTORED: Using module function for rebel war actions
             if (next.isAtWar) {
-                next.warDuration = (next.warDuration || 0) + 1;
-
-                // 叛军有更高的突袭概率（25%基础 + 侵略性加成）
-                const rebelAggression = next.aggression ?? 0.7; // 叛军默认高侵略性
-                const raidChance = Math.min(0.35, 0.25 + rebelAggression * 0.1);
-
-                if (Math.random() < raidChance) {
-                    console.log(`[REBEL RAID] ${next.name} 发动突袭！概率: ${(raidChance * 100).toFixed(1)}%`);
-
-                    const militaryStrength = next.militaryStrength ?? 1.0;
-                    const raidStrength = 0.08 + rebelAggression * 0.05; // 叛军突袭强度
-
-                    // 生成叛军突袭部队
-                    const attackerArmy = {};
-                    const raidUnits = getEnemyUnitsForEpoch(epoch, 'light');
-                    const baseUnitCount = 3 + Math.random() * 5;
-                    const totalUnits = Math.floor(baseUnitCount * militaryStrength);
-
-                    raidUnits.forEach(unitId => {
-                        if (UNIT_TYPES[unitId]) {
-                            const count = Math.floor((totalUnits / raidUnits.length) * (0.5 + Math.random() * 0.8));
-                            if (count > 0) attackerArmy[unitId] = count;
-                        }
-                    });
-
-                    const defenderArmy = { ...army };
-                    const totalDefenders = Object.values(defenderArmy).reduce((sum, c) => sum + c, 0);
-
-                    let foodLoss = 0, silverLoss = 0, popLoss = 0;
-                    let battleResult = { victory: true, attackerLosses: {}, defenderLosses: {} };
-
-                    if (totalDefenders === 0) {
-                        // 无防御，突袭成功
-                        foodLoss = Math.floor((res.food || 0) * raidStrength);
-                        silverLoss = Math.floor((res.silver || 0) * (raidStrength / 2));
-                        popLoss = Math.min(5, Math.max(1, Math.floor(raidStrength * 25)));
-                    } else {
-                        // 进行战斗模拟
-                        battleResult = simulateBattle(
-                            { army: attackerArmy, epoch, militaryBuffs: 0.1 },
-                            { army: defenderArmy, epoch, militaryBuffs: 0 }
-                        );
-
-                        if (battleResult.victory) {
-                            foodLoss = Math.floor((res.food || 0) * raidStrength);
-                            silverLoss = Math.floor((res.silver || 0) * (raidStrength / 2));
-                            popLoss = Math.min(5, Math.max(1, Math.floor(raidStrength * 25)));
-                        }
-
-                        // 应用玩家军队损失
-                        Object.entries(battleResult.defenderLosses || {}).forEach(([unitId, count]) => {
-                            if (army[unitId]) army[unitId] = Math.max(0, army[unitId] - count);
-                        });
-                    }
-
-                    // 应用资源损失
-                    if (foodLoss > 0) res.food = Math.max(0, (res.food || 0) - foodLoss);
-                    if (silverLoss > 0) res.silver = Math.max(0, (res.silver || 0) - silverLoss);
-                    if (popLoss > 0) raidPopulationLoss += popLoss;
-
-                    // 调整战争分数
-                    next.warScore = (next.warScore || 0) + (battleResult.victory ? -8 : 6);
-
-                    // 生成突袭事件日志
-                    const raidData = {
-                        nationName: next.name,
-                        victory: !battleResult.victory,
-                        attackerArmy,
-                        defenderArmy,
-                        attackerLosses: battleResult.attackerLosses || {},
-                        defenderLosses: battleResult.defenderLosses || {},
-                        foodLoss,
-                        silverLoss,
-                        popLoss,
-                        ourPower: battleResult.defenderPower || 0,
-                        enemyPower: battleResult.attackerPower || 0,
-                        battleReport: battleResult.battleReport || [],
-                        actionType: 'raid',
-                        actionName: '叛军突袭',
-                    };
-                    logs.push(`❗RAID_EVENT❗${JSON.stringify(raidData)}`);
-                }
-
-                // ========== 叛军要求玩家投降 ==========
-                // 当叛军战争分数为负（叛军占优）且战争持续超过20天
-                const rebelWarAdvantage = -(next.warScore || 0); // 转换为叛军视角的分数
-                if (rebelWarAdvantage > 50 && (next.warDuration || 0) > 20) {
-                    // 检查冷却期（避免频繁要求）
-                    const lastRebelDemandDay = next.lastSurrenderDemandDay || 0;
-                    if (tick - lastRebelDemandDay >= 30 && Math.random() < 0.05) { // 每天5%概率（比普通AI高）
-                        next.lastSurrenderDemandDay = tick;
-
-                        // 叛军的要求更激进：要求改革、让步或惩罚
-                        let demandType = 'reform';
-                        let demandAmount = Math.floor(50 + rebelWarAdvantage * 3);
-
-                        if (rebelWarAdvantage > 200) {
-                            demandType = 'massacre'; // 大屠杀（减少人口和人口上限）
-                            demandAmount = Math.floor(rebelWarAdvantage / 4); // 减少的人口比例
-                        } else if (rebelWarAdvantage > 100) {
-                            demandType = 'concession'; // 重大让步
-                            demandAmount = Math.floor(rebelWarAdvantage * 2);
-                        }
-
-                        logs.push(`REBEL_DEMAND_SURRENDER:${JSON.stringify({
-                            nationId: next.id,
-                            nationName: next.name,
-                            rebellionStratum: next.rebellionStratum,
-                            warScore: next.warScore,
-                            demandType,
-                            demandAmount
-                        })}`);
-                    }
-                }
+                const rebelResult = processRebelWarActions({
+                    nation: next,
+                    tick,
+                    epoch,
+                    resources: res,
+                    army,
+                    logs,
+                });
+                raidPopulationLoss += rebelResult.raidPopulationLoss;
             }
 
-            // ========== 叛军投降检测 ==========
-            // 当叛军处于劣势时（战争分数高表示玩家优势），可能请求投降
-            const rebelWarScore = next.warScore || 0;
-            const rebelWarDuration = next.warDuration || 0;
-            const lastRebelPeaceRequest = Number.isFinite(next.lastPeaceRequestDay) ? next.lastPeaceRequestDay : -Infinity;
-            const canRebelRequestPeace = (tick - lastRebelPeaceRequest) >= 30; // 30天冷却
-
-            // 战争分数 > 30 表示玩家大幅占优（叛军处于劣势）
-            // 或者战争持续太久（>90天）且玩家占优
-            if (canRebelRequestPeace && !next.isPeaceRequesting) {
-                const desperationLevel = Math.max(0, rebelWarScore - 20) / 100 + Math.max(0, rebelWarDuration - 60) / 500;
-                const surrenderChance = Math.min(0.4, desperationLevel * 0.5);
-
-                if (rebelWarScore > 30 && Math.random() < surrenderChance) {
-                    // 叛军请求投降
-                    next.isPeaceRequesting = true;
-                    next.peaceTribute = 0; // 叛军投降不支付赔款，只是解散
-                    next.lastPeaceRequestDay = tick;
-                    logs.push(`🏳️ ${next.name} 已陷入绝境，请求投降！`);
-                } else if (rebelWarScore > 60 && rebelWarDuration > 90) {
-                    // 叛军被彻底击溃，强制投降
-                    next.isPeaceRequesting = true;
-                    next.peaceTribute = 0;
-                    next.lastPeaceRequestDay = tick;
-                    logs.push(`🏳️ ${next.name} 已经崩溃，恳求投降！`);
-                }
-            }
+            // REFACTORED: Using module function for rebel surrender check
+            checkRebelSurrender({ nation: next, tick, logs });
 
             return next;
         }
@@ -2748,1448 +2162,129 @@ export const simulateTick = ({
             }
         }
 
-        // ========== 外国经济模拟 ==========
-        // 初始化库存和预算（如果不存在）
-        // 重要：深拷贝inventory对象，避免修改原对象导致React状态更新失败
-        if (!next.inventory) {
-            next.inventory = {};
-        } else {
-            next.inventory = { ...next.inventory };
-        }
-        if (typeof next.budget !== 'number') next.budget = (next.wealth || 800) * 0.5;
-
-        // 遍历该国的资源偏差，模拟生产和消耗
-        // 新机制：所有资源都有生产和消耗，但速率受bias影响，并自动向目标库存调节
-        const resourceBiasMap = next.economyTraits?.resourceBias || {};
-        const foreignResourceKeys = Object.keys(RESOURCES).filter(isTradableResource);
-        if (foreignResourceKeys.length > 0) {
-            // 计算该国是否处于战争状态（与玩家或与其他AI国家）
-            const isInAnyWar = next.isAtWar || (next.foreignWars && Object.values(next.foreignWars).some(w => w?.isAtWar));
-            // 战争消耗系数：战争中的国家资源消耗增加30%-50%
-            const warConsumptionMultiplier = isInAnyWar ? (1.3 + (next.aggression || 0.2) * 0.5) : 1.0;
-
-            foreignResourceKeys.forEach((resourceKey) => {
-                const bias = resourceBiasMap[resourceKey] ?? 1;
-                const currentStock = next.inventory[resourceKey] || 0;
-                // 使用固定的目标库存（避免目标不断变化造成"假稳定"）
-                const targetInventory = 500;
-                const baseProductionRate = 3.0 * gameSpeed; // 基础生产速率
-                // 基础消耗速率（战争时增加消耗）
-                const baseConsumptionRate = 3.0 * gameSpeed * warConsumptionMultiplier; const productionRate = baseProductionRate * bias;
-                const consumptionRate = baseConsumptionRate / Math.max(bias, 0.25);
-                const stockRatio = currentStock / targetInventory;
-                let productionAdjustment = 1.0;
-                let consumptionAdjustment = 1.0;
-                if (stockRatio > 1.5) {
-                    // 库存极高：削减生产、提升消耗，加快回落
-                    productionAdjustment *= 0.5;
-                    consumptionAdjustment *= 1.15;
-                } else if (stockRatio > 1.1) {
-                    productionAdjustment *= 0.8;
-                    consumptionAdjustment *= 1.05;
-                } else if (stockRatio < 0.5) {
-                    // 库存极低：提升生产、压缩消耗，加快补货
-                    productionAdjustment *= 1.5;
-                    consumptionAdjustment *= 0.85;
-                } else if (stockRatio < 0.9) {
-                    productionAdjustment *= 1.2;
-                    consumptionAdjustment *= 0.95;
-                }
-                const correction = (targetInventory - currentStock) * 0.01 * gameSpeed;
-                const randomShock = (Math.random() - 0.5) * targetInventory * 0.3 * gameSpeed;
-                const finalProduction = productionRate * productionAdjustment;
-                const finalConsumption = consumptionRate * consumptionAdjustment;
-                const netChange = (finalProduction - finalConsumption) + correction + randomShock;
-                const minInventory = targetInventory * 0.2;
-                const maxInventory = targetInventory * 3.0;
-                const nextStock = currentStock + netChange;
-                next.inventory[resourceKey] = Math.max(minInventory, Math.min(maxInventory, nextStock));
-            });
-        }
-
-        // 资金恢复：预算缓慢向财富基准值回归（模拟税收和内部贸易）
-        const targetBudget = (next.wealth || 800) * 0.5;
-        const budgetRecoveryRate = 0.02; // 每tick恢复2%的差距
-        const budgetDiff = targetBudget - next.budget;
-        next.budget = next.budget + (budgetDiff * budgetRecoveryRate * gameSpeed);
-        next.budget = Math.max(0, next.budget); // 确保预算不为负
-        // ========== 外国经济模拟结束 ==========
+        // REFACTORED: Using module function for foreign economy simulation
+        updateAINationInventory({ nation: next, tick, gameSpeed });
         if (next.isAtWar) {
             next.warDuration = (next.warDuration || 0) + 1;
             if (visibleEpoch >= 1) {
-                // ========== AI军事行动冷却期检查 ==========
-                const lastMilitaryActionDay = next.lastMilitaryActionDay || 0;
-                // 初始化随机冷却期（7-30天）
-                if (!next.militaryCooldownDays) {
-                    next.militaryCooldownDays = 7 + Math.floor(Math.random() * 24); // 7-30天随机
-                }
-                const canTakeMilitaryAction = (tick - lastMilitaryActionDay) >= next.militaryCooldownDays;
-
-                const disadvantage = Math.max(0, -(next.warScore || 0));
-                const actionChance = Math.min(0.18, 0.02 + (next.aggression || 0.2) * 0.04 + disadvantage / 400);
-
-                // 只有在冷却期结束且通过概率判定时才发动军事行动
-                if (canTakeMilitaryAction && Math.random() < actionChance) {
-                    // 记录本次军事行动时间并重新随机冷却期
-                    next.lastMilitaryActionDay = tick;
-                    next.militaryCooldownDays = 7 + Math.floor(Math.random() * 24); // 重新随机7-30天
-                    // 生成敌方军队
-                    const enemyEpoch = Math.max(next.appearEpoch || 0, Math.min(epoch, next.expireEpoch ?? epoch));
-                    const militaryStrength = next.militaryStrength ?? 1.0; // 军事实力
-                    const wealthFactor = Math.max(0.3, Math.min(1.5, (next.wealth || 500) / 800)); // 财富影响
-                    const aggressionFactor = 1 + (next.aggression || 0.2);
-                    const warScoreFactor = 1 + Math.max(-0.5, (next.warScore || 0) / 120);
-
-                    // ========== AI军事行动类型选择 ==========
-                    // AI根据战况、侵略性、军事实力、时代等因素选择不同的军事行动
-                    const aggression = next.aggression || 0.2;
-                    const playerArmySize = Object.values(army).reduce((sum, c) => sum + c, 0);
-                    const aiAdvantage = -(next.warScore || 0); // 正值表示AI占优
-                    const isNavalNation = (next.traits || []).includes('maritime') || (next.name || '').includes('海') || (next.name || '').includes('威尼斯');
-
-                    // 选择军事行动类型
-                    let actionType = 'raid'; // 默认突袭
-                    let unitScale = 'light';
-                    let actionBaseCount = { min: 2, max: 6 };
-                    let actionName = '边境掠夺';
-                    let strengthMultiplier = 1.0;
-
-                    const actionRoll = Math.random();
-
-                    // 高侵略性 + 高军事实力 + 战争优势 -> 更倾向于大规模行动
-                    if (militaryStrength > 0.7 && aggression > 0.5 && aiAdvantage > 30 && enemyEpoch >= 2) {
-                        // 围城压制：AI占据很大优势时发动
-                        if (actionRoll < 0.25) {
-                            actionType = 'siege';
-                            unitScale = 'heavy';
-                            actionBaseCount = { min: 15, max: 25 };
-                            actionName = '围城压制';
-                            strengthMultiplier = 1.5;
-                        }
-                        // 正面攻势：AI有明显优势
-                        else if (actionRoll < 0.6) {
-                            actionType = 'assault';
-                            unitScale = 'medium';
-                            actionBaseCount = { min: 12, max: 18 };
-                            actionName = '正面攻势';
-                            strengthMultiplier = 1.3;
-                        }
-                        // 焦土战术：高侵略性国家的特殊选择
-                        else if (actionRoll < 0.75 && aggression > 0.6) {
-                            actionType = 'scorched_earth';
-                            unitScale = 'heavy';
-                            actionBaseCount = { min: 12, max: 20 };
-                            actionName = '焦土战术';
-                            strengthMultiplier = 1.4;
-                        }
-                    }
-                    // 中等优势时的行动选择
-                    else if (militaryStrength > 0.5 && aiAdvantage > 10 && enemyEpoch >= 1) {
-                        if (actionRoll < 0.35) {
-                            actionType = 'assault';
-                            unitScale = 'medium';
-                            actionBaseCount = { min: 10, max: 15 };
-                            actionName = '正面攻势';
-                            strengthMultiplier = 1.2;
-                        }
-                        // 海上国家更倾向于海上劫掠
-                        else if (actionRoll < 0.5 && isNavalNation && enemyEpoch >= 2) {
-                            actionType = 'naval_raid';
-                            unitScale = 'medium';
-                            actionBaseCount = { min: 8, max: 14 };
-                            actionName = '海上劫掠';
-                            strengthMultiplier = 1.1;
-                        }
-                    }
-                    // 战争不顺时，高侵略性国家可能发动焦土战术
-                    else if (aiAdvantage < -20 && aggression > 0.6 && actionRoll < 0.3) {
-                        actionType = 'scorched_earth';
-                        unitScale = 'medium';
-                        actionBaseCount = { min: 8, max: 15 };
-                        actionName = '焦土战术';
-                        strengthMultiplier = 1.1;
-                    }
-                    // 默认：边境掠夺（最常见的行动）
-
-                    const actionStrength = (0.05 + aggression * 0.05 + disadvantage / 1200) * strengthMultiplier;
-
-                    // 综合实力系数
-                    const overallStrength = militaryStrength * wealthFactor * aggressionFactor * warScoreFactor;
-
-                    // 根据行动类型和时代生成军队
-                    const attackerArmy = {};
-                    const actionUnits = getEnemyUnitsForEpoch(enemyEpoch, unitScale);
-
-                    // 生成攻击部队
-                    const baseUnitCount = actionBaseCount.min + Math.random() * (actionBaseCount.max - actionBaseCount.min);
-                    const totalUnits = Math.floor(baseUnitCount * overallStrength);
-
-                    actionUnits.forEach(unitId => {
-                        if (UNIT_TYPES[unitId]) {
-                            const ratio = 0.5 + Math.random() * 0.8;
-                            const count = Math.floor((totalUnits / actionUnits.length) * ratio);
-                            if (count > 0) {
-                                attackerArmy[unitId] = count;
-                            }
-                        }
-                    });
-
-                    // 玩家的防御军队（使用玩家当前的军队）
-                    const defenderArmy = { ...army };
-
-                    // 如果玩家没有军队，军事行动自动成功
-                    const totalDefenders = Object.values(defenderArmy).reduce((sum, count) => sum + count, 0);
-
-                    // 根据行动类型调整损失系数
-                    const actionLossMultiplier = {
-                        raid: 1.0,
-                        assault: 1.5,
-                        siege: 2.0,
-                        naval_raid: 1.2,
-                        scorched_earth: 1.8
-                    }[actionType] || 1.0;
-
-                    // 根据行动类型调整战争分数变化
-                    const actionScoreChange = {
-                        raid: { win: -8, lose: 6 },
-                        assault: { win: -15, lose: 12 },
-                        siege: { win: -25, lose: 20 },
-                        naval_raid: { win: -12, lose: 10 },
-                        scorched_earth: { win: -18, lose: 15 }
-                    }[actionType] || { win: -8, lose: 6 };
-
-                    if (totalDefenders === 0) {
-                        // 没有防御军队，军事行动成功
-                        const foodLoss = Math.floor((res.food || 0) * actionStrength * actionLossMultiplier);
-                        const silverLoss = Math.floor((res.silver || 0) * (actionStrength / 2) * actionLossMultiplier);
-                        // 焦土战术额外造成木材损失
-                        let woodLoss = 0;
-                        if (actionType === 'scorched_earth') {
-                            woodLoss = Math.floor((res.wood || 0) * actionStrength * 0.8);
-                            if (woodLoss > 0) res.wood = Math.max(0, (res.wood || 0) - woodLoss);
-                        }
-                        if (foodLoss > 0) res.food = Math.max(0, (res.food || 0) - foodLoss);
-                        if (silverLoss > 0) res.silver = Math.max(0, (res.silver || 0) - silverLoss);
-                        const popLoss = Math.min(Math.floor(3 * actionLossMultiplier), Math.max(1, Math.floor(actionStrength * 20 * actionLossMultiplier)));
-                        raidPopulationLoss += popLoss;
-
-                        // 生成战斗日志（JSON格式，方便解析）
-                        const raidData = {
-                            nationName: next.name,
-                            victory: false, // 玩家失败
-                            attackerArmy,
-                            defenderArmy: {},
-                            attackerLosses: {},
-                            defenderLosses: {},
-                            foodLoss,
-                            silverLoss,
-                            woodLoss,
-                            popLoss,
-                            ourPower: 0,
-                            enemyPower: 0,
-                            actionType,
-                            actionName,
-                        };
-                        const raidLog = `❗RAID_EVENT❗${JSON.stringify(raidData)}`;
-                        console.log(`[SIMULATION] AI发动${actionName}:`, raidLog);
-                        logs.push(raidLog);
-                        // 敌方行动成功：玩家处于劣势，降低玩家对该国的战争分数
-                        next.warScore = (next.warScore || 0) + actionScoreChange.win;
-                        // AI行动成功，增加AI财富（掠夺物资的8%转化）
-                        const lootValue = foodLoss + silverLoss + woodLoss;
-                        next.wealth = (next.wealth || 0) + Math.floor(lootValue * 0.08);
-                    } else {
-                        // 有防御军队，进行战斗模拟
-                        // 根据行动类型给予不同的战斗加成
-                        const attackerBuff = {
-                            raid: 0.1,      // 突袭方有小幅加成
-                            assault: 0.0,   // 正面攻势无加成
-                            siege: -0.1,    // 围城方略有劣势（防守方有城墙优势）
-                            naval_raid: 0.15,// 海上劫掠有先手优势
-                            scorched_earth: 0.05
-                        }[actionType] || 0.1;
-
-                        const attackerData = {
-                            army: attackerArmy,
-                            epoch: enemyEpoch,
-                            militaryBuffs: attackerBuff,
-                        };
-
-                        const defenderData = {
-                            army: defenderArmy,
-                            epoch: epoch,
-                            militaryBuffs: 0, // 防御方没有加成（被敌方军事行动攻击）
-                            wealth: (res.food || 0) + (res.silver || 0) + (res.wood || 0),
-                        };
-
-                        const battleResult = simulateBattle(attackerData, defenderData);
-
-                        // 应用战斗结果
-                        let foodLoss = 0;
-                        let silverLoss = 0;
-                        let woodLoss = 0;
-                        let popLoss = 0;
-
-                        if (battleResult.victory) {
-                            // 玩家失败，敌方掠夺资源（根据行动类型调整）
-                            foodLoss = Math.floor((res.food || 0) * actionStrength * actionLossMultiplier);
-                            silverLoss = Math.floor((res.silver || 0) * (actionStrength / 2) * actionLossMultiplier);
-                            // 焦土战术额外造成木材损失
-                            if (actionType === 'scorched_earth') {
-                                woodLoss = Math.floor((res.wood || 0) * actionStrength * 0.8);
-                                if (woodLoss > 0) res.wood = Math.max(0, (res.wood || 0) - woodLoss);
-                            }
-                            if (foodLoss > 0) res.food = Math.max(0, (res.food || 0) - foodLoss);
-                            if (silverLoss > 0) res.silver = Math.max(0, (res.silver || 0) - silverLoss);
-                            popLoss = Math.min(Math.floor(3 * actionLossMultiplier), Math.max(1, Math.floor(actionStrength * 20 * actionLossMultiplier)));
-                            raidPopulationLoss += popLoss;
-                            // AI行动成功，增加AI财富（掠夺物资的8%转化）
-                            const lootValue = foodLoss + silverLoss + woodLoss;
-                            next.wealth = (next.wealth || 0) + Math.floor(lootValue * 0.08);
-                        }
-
-                        // 应用军队损失
-                        Object.entries(battleResult.defenderLosses || {}).forEach(([unitId, count]) => {
-                            if (army[unitId]) {
-                                army[unitId] = Math.max(0, army[unitId] - count);
-                            }
-                        });
-
-                        // 根据军事行动结果调整战争分数和敌军损失统计
-                        const enemyLossCount = Object.values(battleResult.attackerLosses || {}).reduce(
-                            (sum, val) => sum + (val || 0),
-                            0
-                        );
-                        if (enemyLossCount > 0) {
-                            next.enemyLosses = (next.enemyLosses || 0) + enemyLossCount;
-                        }
-
-                        // 根据行动类型和胜负调整战争分数
-                        const scoreDelta = battleResult.victory ? actionScoreChange.win : actionScoreChange.lose;
-                        next.warScore = (next.warScore || 0) + scoreDelta;
-
-                        // 生成军事行动战斗事件日志，供前端 BattleResultModal 使用
-                        const raidData = {
-                            nationName: next.name,
-                            victory: !battleResult.victory, // 玩家是否胜利（simulateBattle 的 victory 表示进攻方胜利，这里取反）
-                            attackerArmy,
-                            defenderArmy,
-                            attackerLosses: battleResult.attackerLosses || {},
-                            defenderLosses: battleResult.defenderLosses || {},
-                            foodLoss,
-                            silverLoss,
-                            woodLoss,
-                            popLoss,
-                            ourPower: battleResult.defenderPower,
-                            enemyPower: battleResult.attackerPower,
-                            battleReport: battleResult.battleReport || [],
-                            actionType,
-                            actionName,
-                        };
-
-                        const raidEventLog = `❗RAID_EVENT❗${JSON.stringify(raidData)}`;
-                        console.log(`[SIMULATION] AI发动${actionName}:`, raidEventLog);
-                        logs.push(raidEventLog);
-                    }
-                }
+                // REFACTORED: Using module function for AI military action
+                const militaryResult = processAIMilitaryAction({
+                    nation: next,
+                    tick,
+                    epoch,
+                    resources: res,
+                    army,
+                    logs,
+                });
+                raidPopulationLoss += militaryResult.raidPopulationLoss;
             }
-            const lastPeaceRequestDay = Number.isFinite(next.lastPeaceRequestDay)
-                ? next.lastPeaceRequestDay
-                : -Infinity;
-            const canRequestPeace =
-                (tick - lastPeaceRequestDay) >= PEACE_REQUEST_COOLDOWN_DAYS;
-            if ((next.warScore || 0) > 12 && canRequestPeace) {
-                const willingness = Math.min(0.5, 0.03 + (next.warScore || 0) / 120 + (next.warDuration || 0) / 400) + Math.min(0.15, (next.enemyLosses || 0) / 500);
-                if (Math.random() < willingness) {
-                    // 计算赔款金额，使用统一的计算函数
-                    const warScore = next.warScore || 0;
-                    const enemyLosses = next.enemyLosses || 0;
-                    const warDuration = next.warDuration || 0;
-                    const availableWealth = Math.max(0, next.wealth || 0);
-                    const tribute = calculateAIPeaceTribute(warScore, enemyLosses, warDuration, availableWealth);
-                    // 只记录日志，不直接处理和平，让事件系统处理
-                    logs.push(`🤝 ${next.name} 请求和平，愿意支付 ${tribute} 银币作为赔款。`);
-                    // 标记该国家正在请求和平，避免重复触发
-                    next.isPeaceRequesting = true;
-                    // 保存tribute值到nation对象，供事件系统使用
-                    next.peaceTribute = tribute;
-                    next.lastPeaceRequestDay = tick;
-                }
-            }
+            // REFACTORED: Using module function for AI peace request check
+            checkAIPeaceRequest({ nation: next, tick, logs });
 
-            // ========== AI要求玩家投降 ==========
-            // 当AI战争分数为负（AI占优）且战争持续超过30天
-            const aiWarScore = -(next.warScore || 0); // 转换为AI视角的分数
-            if (aiWarScore > 25 && (next.warDuration || 0) > 30) {
-                // 检查冷却期（避免频繁要求）
-                const lastDemandDay = next.lastSurrenderDemandDay || 0;
-                if (tick - lastDemandDay >= 60 && Math.random() < 0.03) { // 每天3%概率
-                    next.lastSurrenderDemandDay = tick;
-
-                    // 根据优势程度选择要求类型，使用统一的计算函数
-                    let demandType = 'tribute';
-                    const warDuration = next.warDuration || 0;
-                    let demandAmount = calculateAISurrenderDemand(aiWarScore, warDuration);
-
-                    if (aiWarScore > 100) {
-                        demandType = 'territory';
-                        // 割地要求：基于玩家人口的百分比，最多割让50人口
-                        demandAmount = Math.min(50, Math.max(3, Math.floor(population * 0.05)));
-                    } else if (aiWarScore > 50 && Math.random() < 0.5) {
-                        demandType = 'open_market';
-                        demandAmount = 365 * 2; // 2年开放市场
-                    }
-
-                    logs.push(`AI_DEMAND_SURRENDER:${JSON.stringify({
-                        nationId: next.id,
-                        nationName: next.name,
-                        warScore: next.warScore,
-                        demandType,
-                        demandAmount
-                    })}`);
-                }
-            }
+            // REFACTORED: Using module function for AI surrender demand check
+            checkAISurrenderDemand({ nation: next, tick, population, logs });
         } else if (next.warDuration) {
             next.warDuration = 0;
         }
         const relation = next.relation ?? 50;
 
-        // 关系衰减机制：关系趋向于中立(50)
-        // 此机制防止关系无限膨胀，并让外交维护变得必要
-        let relationChange = 0;
-        if (relation > 50) {
-            relationChange = -0.02; // 正向关系缓慢衰减 (-0.6 per month, reduced from -1.5)
-        } else if (relation < 50) {
-            relationChange = 0.02; // 负向关系极缓慢恢复 (+0.6 per month) - 仇恨很难消除
-        }
-        next.relation = Math.max(0, Math.min(100, relation + relationChange));
+        // REFACTORED: Using module function for relation decay
+        processNationRelationDecay(next);
 
-        // AI-AI 关系衰减
-        if (next.foreignRelations) {
-            Object.keys(next.foreignRelations).forEach(otherId => {
-                let r = next.foreignRelations[otherId] ?? 50;
-                if (r > 50) r -= 0.02; // reduced from 0.05
-                else if (r < 50) r += 0.02;
-                next.foreignRelations[otherId] = Math.max(0, Math.min(100, r));
-            });
-        }
-
-        // ========== AI主动解盟检查 ==========
-        // 条件：盟友关系<40 或 玩家背叛盟友 或 玩家攻击AI的盟友
-        if (next.alliedWithPlayer && !next.isAtWar) {
-            const shouldBreakAlliance = (
-                relation < 40 ||  // 关系过差
-                (next.allianceStrain || 0) >= 3  // 玩家多次忽视盟友冷淡事件
-            );
-
-            if (shouldBreakAlliance) {
-                // 解除联盟
-                next.alliedWithPlayer = false;
-                next.allianceStrain = 0;
-                logs.push(`AI_BREAK_ALLIANCE:${JSON.stringify({
-                    nationId: next.id,
-                    nationName: next.name,
-                    reason: relation < 40 ? 'relation_low' : 'player_neglect'
-                })}`);
-            }
-        }
+        // REFACTORED: Using module function for AI alliance breaking check
+        checkAIBreakAlliance(next, logs);
 
         const aggression = next.aggression ?? 0.2;
         const hostility = Math.max(0, (50 - relation) / 70);
         const unrest = stabilityValue < 35 ? 0.02 : 0;
 
-        // ========== 战争频率限制系统 ==========
-        // 1. 计算当前与玩家交战的AI国家数量
-        const currentWarsWithPlayer = (nations || []).filter(n =>
-            n.isAtWar === true &&
-            n.id !== next.id &&
-            !n.isRebelNation // 叛军不计入AI战争限制
-        ).length;
-        const MAX_CONCURRENT_WARS = 3; // 最多同时与3个AI国家交战
 
-        // 2. 全局宣战冷却检查（最近30天内是否有国家对玩家宣战）
-        const GLOBAL_WAR_COOLDOWN = 30;
-        const recentWarDeclarations = (nations || []).some(n =>
-            n.isAtWar &&
-            n.warStartDay &&
-            (tick - n.warStartDay) < GLOBAL_WAR_COOLDOWN &&
-            n.id !== next.id
-        );
+        // REFACTORED: Using module function for war declaration check
+        checkWarDeclaration({
+            nation: next,
+            nations,
+            tick,
+            epoch: visibleEpoch,
+            resources: res,
+            stabilityValue,
+            logs,
+        });
 
-        // 3. 根据当前战争数量动态调整宣战概率
-        // 已经有战争时，新战争概率大幅降低
-        const warCountPenalty = currentWarsWithPlayer > 0
-            ? Math.pow(0.3, currentWarsWithPlayer) // 每多一场战争概率降为30%
-            : 1.0;
 
-        // 侵略性强的国家更主动开战：降低基础系数使战争更稀少
-        const aggressionBonus = aggression > 0.5 ? aggression * 0.03 : 0; // 从0.06降到0.03
-        // 基础概率计算（降低各项系数）
-        let declarationChance = visibleEpoch >= 1
-            ? Math.min(0.08, (aggression * 0.04) + (hostility * 0.025) + unrest + aggressionBonus) // 系数减半，上限从0.15降到0.08
-            : 0;
+        // REFACTORED: Using module function for installment payment
+        warIndemnityIncome += processInstallmentPayment({
+            nation: next,
+            resources: res,
+            logs,
+        });
 
-        // 应用战争数量惩罚
-        declarationChance *= warCountPenalty;
+        // REFACTORED: Using module function for post-war recovery
+        processPostWarRecovery(next);
 
-        // 检查和平协议是否仍然有效
-        const hasPeaceTreaty = next.peaceTreatyUntil && tick < next.peaceTreatyUntil;
-
-        // 检查是否为玩家的盟友（关系 >= 80）
-        const isPlayerAlly = relation >= 80;
-
-        // 宣战条件更严格：
-        // - 关系阈值从35降到25（更大的仇恨才会开战）
-        // - 不能超过最大并发战争数
-        // - 全局宣战冷却期内不能有新战争
-        const canDeclareWar = !next.isAtWar &&
-            !hasPeaceTreaty &&
-            !isPlayerAlly &&
-            relation < 25 && // 从35降到25
-            currentWarsWithPlayer < MAX_CONCURRENT_WARS &&
-            !recentWarDeclarations;
-
-        if (canDeclareWar && Math.random() < declarationChance) {
-            next.isAtWar = true;
-            next.warStartDay = tick;
-            next.warDuration = 0;
-            next.warDeclarationPending = true; // 标记需要触发宣战事件
-            logs.push(`⚠️ ${next.name} 对你发动了战争！`);
-
-            // 触发更详细的宣战事件逻辑在 useGameLoop 中处理 (包含盟友连锁反应)
-            logs.push(`WAR_DECLARATION_EVENT:${JSON.stringify({ nationId: next.id, nationName: next.name })}`);
-        }
-
-        // ========== AI为财富开战 ==========
-        // 条件：没在打仗、有军事优势、目标财富是AI的2倍以上、关系不太好
-        const playerWealth = (res.food || 0) + (res.silver || 0) + (res.wood || 0);
-        const aiWealth = next.wealth || 500;
-        const aiMilitaryStrength = next.militaryStrength ?? 1.0;
-
-        if (!next.isAtWar && !hasPeaceTreaty && !isPlayerAlly &&
-            playerWealth > aiWealth * 2 &&  // 玩家财富是AI的2倍以上
-            aiMilitaryStrength > 0.8 &&     // AI军事实力强
-            relation < 50 &&                 // 关系一般
-            aggression > 0.4 &&              // AI侵略性足够
-            currentWarsWithPlayer < MAX_CONCURRENT_WARS &&
-            !recentWarDeclarations) {
-
-            const wealthWarChance = 0.001 * aggression * (playerWealth / aiWealth - 1);
-            if (Math.random() < wealthWarChance) {
-                next.isAtWar = true;
-                next.warStartDay = tick;
-                next.warDuration = 0;
-                next.warDeclarationPending = true;
-                logs.push(`⚠️ ${next.name} 觊觎你的财富，发动了战争！`);
-                logs.push(`WAR_DECLARATION_EVENT:${JSON.stringify({ nationId: next.id, nationName: next.name, reason: 'wealth' })}`);
-            }
-        }
-
-        // 处理分期支付赔款
-        if (next.installmentPayment && next.installmentPayment.remainingDays > 0) {
-            const payment = next.installmentPayment.amount;
-            res.silver = (res.silver || 0) + payment;
-            warIndemnityIncome += payment;
-            next.installmentPayment.paidAmount += payment;
-            next.installmentPayment.remainingDays -= 1;
-
-            if (next.installmentPayment.remainingDays === 0) {
-                logs.push(`💰 ${next.name} 完成了所有分期赔款支付（共${next.installmentPayment.totalAmount}银币）。`);
-                delete next.installmentPayment;
-            }
-        }
-
-        // ========== 战后恢复机制 ==========
-        // 和平状态下，国家逐渐恢复军事实力
-        if (!next.isAtWar) {
-            const currentStrength = next.militaryStrength ?? 1.0;
-            if (currentStrength < 1.0) {
-                const recoveryRate = 0.005; // 每tick恢复0.5%
-                next.militaryStrength = Math.min(1.0, currentStrength + recoveryRate);
-            }
-        }
-
-        // ========== 人口与财富波动模型 ==========
-        const powerProfile = next.foreignPower || {};
-        const volatility = clamp(powerProfile.volatility ?? next.marketVolatility ?? 0.3, 0.1, 0.9);
-        const populationFactor = clamp(
-            powerProfile.populationFactor ?? powerProfile.baseRating ?? 1,
-            0.6,
-            2.5
-        );
-        const wealthFactor = clamp(
-            powerProfile.wealthFactor ?? (powerProfile.baseRating ? powerProfile.baseRating * 1.1 : 1.1),
-            0.5,
-            3.5
-        );
-        const eraMomentum = 1 + Math.max(0, epoch - (powerProfile.appearEpoch ?? 0)) * 0.03;
-
-        // ========== AI独立发展系统 ==========
-        // AI国家有自己的发展轨迹，不完全依赖玩家水平
-
-        // 1. 初始化AI自身的发展基准（首次设置）
-        if (!next.economyTraits?.ownBasePopulation) {
-            // 基于模板财富确定AI的起始规模
-            const templateWealth = next.wealthTemplate || 800;
-            const templateFactor = templateWealth / 800;
-            next.economyTraits = {
-                ...(next.economyTraits || {}),
-                ownBasePopulation: Math.max(5, Math.round(16 * templateFactor * (0.8 + Math.random() * 0.4))),
-                ownBaseWealth: Math.max(500, Math.round(1000 * templateFactor * (0.8 + Math.random() * 0.4))),
-                developmentRate: 0.8 + (next.aggression || 0.3) * 0.3 + Math.random() * 0.4, // 发展速度因子
-                lastGrowthTick: tick,
-            };
-        }
-
-        // 2. AI自身的时间发展（独立于玩家）
-        const ownBasePopulation = next.economyTraits.ownBasePopulation;
-        const ownBaseWealth = next.economyTraits.ownBaseWealth;
-        const developmentRate = next.economyTraits.developmentRate || 1.0;
-
-        // 每100 tick进行一次独立发展检查
-        const ticksSinceLastGrowth = tick - (next.economyTraits.lastGrowthTick || 0);
-        if (ticksSinceLastGrowth >= 100) {
-            // AI的自然增长（不受玩家影响）
-            const growthChance = 0.3 * developmentRate; // 基础30%概率增长
-            if (Math.random() < growthChance && !next.isAtWar) {
-                // 人口自然增长 1-3
-                next.economyTraits.ownBasePopulation = Math.round(ownBasePopulation * (1.03 + Math.random() * 0.05));
-                // 财富自然增长 2-5%
-                next.economyTraits.ownBaseWealth = Math.round(ownBaseWealth * (1.04 + Math.random() * 0.08));
-            }
-            next.economyTraits.lastGrowthTick = tick;
-        }
-
-        // 3. 时代加成（AI随时代自然变强）
-        const eraGrowthFactor = 1 + Math.max(0, epoch) * 0.15; // 每个时代+15%
-
-        // 4. 计算AI的独立目标值
-        const aiOwnTargetPopulation = next.economyTraits.ownBasePopulation * eraGrowthFactor * populationFactor;
-        const aiOwnTargetWealth = next.economyTraits.ownBaseWealth * eraGrowthFactor * wealthFactor;
-
-        // 5. 参考玩家水平作为软性边界（避免差距过大）
-        // 玩家参考影响：AI不会比玩家弱太多，也不会强太多
-        const playerInfluenceFactor = 0.3; // 玩家水平的影响权重（30%）
-        const playerTargetPopulation = playerPopulationBaseline * populationFactor * eraMomentum;
-        const playerTargetWealth = playerWealthBaseline * wealthFactor * eraMomentum;
-
-        // 混合计算：70% AI自身发展 + 30% 参考玩家
-        const blendedTargetPopulation = aiOwnTargetPopulation * (1 - playerInfluenceFactor) + playerTargetPopulation * playerInfluenceFactor;
-        const blendedTargetWealth = aiOwnTargetWealth * (1 - playerInfluenceFactor) + playerTargetWealth * playerInfluenceFactor;
-
-        // 6. 应用模板加成
-        const templatePopulationBoost = Math.max(
-            1,
-            (next.wealthTemplate || 800) / Math.max(800, playerWealthBaseline) * 0.8
-        );
-        const templateWealthBoost = Math.max(
-            1,
-            (next.wealthTemplate || 800) / Math.max(800, playerWealthBaseline) * 1.1
-        );
-
-        // 最终目标值
-        const desiredPopulation = Math.max(
-            3,
-            blendedTargetPopulation * templatePopulationBoost
-        );
-        const desiredWealth = Math.max(
-            100,
-            blendedTargetWealth * templateWealthBoost
-        );
-
-        next.economyTraits = {
-            ...(next.economyTraits || {}),
-            basePopulation: desiredPopulation,
-            baseWealth: desiredWealth,
-        };
-
-        const currentPopulation = next.population ?? desiredPopulation;
-        const driftMultiplier = clamp(1 + volatility * 0.6 + eraMomentum * 0.08, 1, 1.8);
-        const populationDriftRate = (next.isAtWar ? 0.032 : 0.12) * driftMultiplier;
-        const populationNoise = (Math.random() - 0.5) * volatility * desiredPopulation * 0.04;
-        let adjustedPopulation = currentPopulation + (desiredPopulation - currentPopulation) * populationDriftRate + populationNoise;
-        if (next.isAtWar) {
-            adjustedPopulation -= currentPopulation * 0.012;
-        }
-        next.population = Math.max(3, Math.round(adjustedPopulation));
-
-        const currentWealth = next.wealth ?? desiredWealth;
-        const wealthDriftRate = (next.isAtWar ? 0.03 : 0.11) * driftMultiplier;
-        const wealthNoise = (Math.random() - 0.5) * volatility * desiredWealth * 0.05;
-        let adjustedWealth = currentWealth + (desiredWealth - currentWealth) * wealthDriftRate + wealthNoise;
-        if (next.isAtWar) {
-            adjustedWealth -= currentWealth * 0.015;
-        }
-        next.wealth = Math.max(100, Math.round(adjustedWealth));
-
-        const dynamicBudgetTarget = next.wealth * 0.45;
-        const workingBudget = Number.isFinite(next.budget) ? next.budget : dynamicBudgetTarget;
-        next.budget = Math.max(0, workingBudget + (dynamicBudgetTarget - workingBudget) * 0.35);
+        // REFACTORED: Using module functions for AI development system
+        initializeAIDevelopmentBaseline({ nation: next, tick });
+        processAIIndependentGrowth({ nation: next, tick });
+        updateAIDevelopment({
+            nation: next,
+            epoch,
+            playerPopulationBaseline,
+            playerWealthBaseline,
+        });
 
         return next;
     });
 
-    // ========== 国家间关系系统 ==========
-    // 初始化和更新国家之间的好感度
-    updatedNations = updatedNations.map(nation => {
-        // 初始化国家间关系对象
-        if (!nation.foreignRelations) {
-            nation.foreignRelations = {};
-        }
 
-        // 与其他AI国家的关系自然波动
-        updatedNations.forEach(otherNation => {
-            if (otherNation.id === nation.id) return;
+    // REFACTORED: Using module function for foreign relations initialization
+    updatedNations = initializeForeignRelations(updatedNations);
 
-            // 初始化关系（基于两国的侵略性）
-            if (nation.foreignRelations[otherNation.id] === undefined) {
-                const avgAggression = ((nation.aggression || 0.3) + (otherNation.aggression || 0.3)) / 2;
-                nation.foreignRelations[otherNation.id] = Math.floor(50 - avgAggression * 30 + (Math.random() - 0.5) * 20);
-            }
 
-            // 关系自然波动（每天有小概率变化）
-            if (Math.random() < 0.05) {
-                const change = (Math.random() - 0.5) * 6;
-                nation.foreignRelations[otherNation.id] = clamp(
-                    (nation.foreignRelations[otherNation.id] || 50) + change,
-                    0,
-                    100
-                );
-            }
-        });
-
-        return nation;
-    });
-
-    // ========== 玩家关系自然衰减系统 ==========
-    // 每月（30天）执行一次关系衰减
+    // REFACTORED: Using module function for monthly relation decay
     const isMonthTick = tick % 30 === 0;
     if (isMonthTick) {
-        updatedNations = updatedNations.map(nation => {
-            if (nation.isRebelNation) return nation; // 叛军不参与关系衰减
-
-            const currentRelation = nation.relation ?? 50;
-            const isAlly = nation.alliedWithPlayer === true;
-
-            // 盟友衰减慢5倍：0.1点/月 vs 普通国家0.5点/月
-            const decayRate = isAlly ? 0.1 : 0.5;
-
-            // 关系向50回归
-            let newRelation = currentRelation;
-            if (currentRelation > 50) {
-                newRelation = Math.max(50, currentRelation - decayRate);
-            } else if (currentRelation < 50) {
-                newRelation = Math.min(50, currentRelation + decayRate);
-            }
-
-            return { ...nation, relation: newRelation };
-        });
+        updatedNations = processMonthlyRelationDecay(updatedNations, tick);
     }
 
-    // ========== 盟友冷淡事件触发 ==========
-    // 条件：盟友关系<70，每天0.5%概率
-    updatedNations.forEach(nation => {
-        if (nation.isRebelNation) return;
-        if (nation.alliedWithPlayer !== true) return;
-        if ((nation.relation ?? 50) >= 70) return;
+    // REFACTORED: Using module function for ally cold events
+    processAllyColdEvents(updatedNations, tick, logs);
 
-        // 检查冷却期（上次冷淡事件后30天内不再触发）
-        const lastColdEventDay = nation.lastAllyColdEventDay || 0;
-        if (tick - lastColdEventDay < 30) return;
 
-        // 每天0.5%概率触发
-        if (Math.random() < 0.005) {
-            nation.lastAllyColdEventDay = tick;
-            logs.push(`ALLY_COLD_EVENT:${JSON.stringify({
-                nationId: nation.id,
-                nationName: nation.name,
-                relation: Math.round(nation.relation ?? 50)
-            })}`);
-        }
-    });
-
-    // ========== AI国家外交行为系统 ==========
-    // AI国家会送礼、贸易、结盟
-    // 注意：叛军国家不参与AI之间的外交系统，它们只与玩家交战
+    // Filter visible nations for diplomacy processing
     const visibleNations = updatedNations.filter(n =>
         epoch >= (n.appearEpoch ?? 0) && (n.expireEpoch == null || epoch <= n.expireEpoch) && !n.isRebelNation
     );
 
-    visibleNations.forEach(nation => {
-        // 每天有小概率进行外交行动
-        if (Math.random() > 0.02) return; // 2% 概率进行外交行动
+    // REFACTORED: Using module function for AI gift diplomacy
+    processAIGiftDiplomacy(visibleNations, logs);
 
-        const aggression = nation.aggression ?? 0.3;
-        const wealth = nation.wealth || 500;
 
-        // 低侵略性且富裕的国家更倾向于外交
-        if (aggression > 0.6 || wealth < 300) return;
+    // REFACTORED: Using module function for AI-AI trade
+    processAITrade(visibleNations, logs);
 
-        // 选择一个目标国家进行外交
-        const potentialTargets = visibleNations.filter(n => {
-            if (n.id === nation.id) return false;
-            // 不对正在交战的国家送礼
-            if (nation.foreignWars?.[n.id]?.isAtWar) return false;
-            const relation = nation.foreignRelations?.[n.id] ?? 50;
-            // 选择关系 40-70 的国家作为潜在结盟对象
-            return relation >= 40 && relation < 80;
-        });
 
-        if (potentialTargets.length === 0) return;
+    // REFACTORED: Using module function for AI-Player trade
+    processAIPlayerTrade(visibleNations, tick, res, market, logs);
 
-        const target = potentialTargets[Math.floor(Math.random() * potentialTargets.length)];
-        const currentRelation = nation.foreignRelations?.[target.id] ?? 50;
 
-        // AI送礼行为，使用统一的计算函数
-        const giftCost = calculateAIGiftAmount(wealth, target.wealth);
-        if (wealth > giftCost * 3) { // 确保有足够的财富
-            // 扣除财富
-            nation.wealth = Math.max(0, (nation.wealth || 0) - giftCost);
-            // 目标国家获得财富
-            target.wealth = (target.wealth || 0) + giftCost;
+    // REFACTORED: Using module function for AI-Player interaction
+    processAIPlayerInteraction(visibleNations, tick, epoch, logs);
 
-            // 双方关系提升
-            const relationBoost = Math.floor(5 + Math.random() * 8);
-            if (!nation.foreignRelations) nation.foreignRelations = {};
-            if (!target.foreignRelations) target.foreignRelations = {};
 
-            nation.foreignRelations[target.id] = clamp((nation.foreignRelations[target.id] || 50) + relationBoost, 0, 100);
-            target.foreignRelations[nation.id] = clamp((target.foreignRelations[nation.id] || 50) + relationBoost, 0, 100);
+    // REFACTORED: Using module function for AI-AI alliance formation
+    processAIAllianceFormation(visibleNations, tick, logs);
 
-            // 如果双方关系达到80以上，宣布结盟
-            if (nation.foreignRelations[target.id] >= 80 && target.foreignRelations[nation.id] >= 80) {
-                logs.push(`🤝 国际新闻：${nation.name} 与 ${target.name} 达成同盟协议！`);
-            } else if (Math.random() < 0.3) {
-                // 30% 概率报道外交活动
-                logs.push(`💝 国际新闻：${nation.name} 向 ${target.name} 赠送了外交礼物，两国关系升温。`);
-            }
-        }
 
-    });
+    // REFACTORED: Using module functions for AI-AI war system
+    processCollectiveAttackWarmonger(visibleNations, tick, logs);
+    processAIAIWarDeclaration(visibleNations, updatedNations, tick, logs);
+    processAIAIWarProgression(visibleNations, updatedNations, tick, logs);
 
-    // ========== AI贸易系统 ==========
-    // AI-AI贸易：增加双方财富和关系
-    // AI-玩家贸易：玩家获得关税（开放市场期间无关税）
-    visibleNations.forEach(nation => {
-        // 每天约2%概率发起贸易
-        if (Math.random() > 0.02) return;
-        if (nation.isAtWar) return; // 战争中不贸易
-
-        const wealth = nation.wealth || 500;
-        if (wealth < 300) return; // 太穷不贸易
-
-        // 选择贸易伙伴
-        const tradeCandidates = visibleNations.filter(n => {
-            if (n.id === nation.id) return false;
-            if (n.isAtWar) return false;
-            if (nation.foreignWars?.[n.id]?.isAtWar) return false;
-            const relation = nation.foreignRelations?.[n.id] ?? 50;
-            return relation >= 30; // 关系30以上才贸易
-        });
-
-        if (tradeCandidates.length === 0) return;
-
-        const partner = tradeCandidates[Math.floor(Math.random() * tradeCandidates.length)];
-        const tradeValue = Math.floor(20 + Math.random() * 60); // 20-80价值的贸易
-
-        // 计算含税价格判断是否盈利
-        const taxRate = 0.08; // 8%关税
-        const profitAfterTax = tradeValue * (1 - taxRate) - tradeValue * 0.5; // 扣除成本和税
-        if (profitAfterTax <= 0) return; // 亏本不做
-
-        // AI-AI贸易：双方财富增加，关系微增
-        nation.wealth = (nation.wealth || 0) + tradeValue * 0.05;
-        partner.wealth = (partner.wealth || 0) + tradeValue * 0.05;
-
-        // 关系微增
-        if (!nation.foreignRelations) nation.foreignRelations = {};
-        if (!partner.foreignRelations) partner.foreignRelations = {};
-        nation.foreignRelations[partner.id] = Math.min(100, (nation.foreignRelations[partner.id] || 50) + 1);
-        partner.foreignRelations[nation.id] = Math.min(100, (partner.foreignRelations[nation.id] || 50) + 1);
-    });
-
-    // AI-玩家贸易：AI商人来玩家国家做生意，玩家（政府）只收取关税
-    // 注意：这与玩家的贸易路线系统是独立的两条线！
-    // - 玩家的贸易路线：玩家主动建立，受商人数量限制
-    // - AI贸易：AI商人主动来玩家国家，不受玩家商人数量限制
-    // 
-    // 贸易模型：AI商人与玩家国内市场进行交易，玩家政府只收取关税
-    // - AI出口到玩家：AI商人带货物来卖给玩家国内的商人，玩家资源增加，政府收关税
-    // - AI从玩家进口：AI商人来购买玩家国内商人的货物，玩家资源减少，政府收关税
-    // 玩家政府不直接支付或收取货款，只收关税！
-    visibleNations.forEach(nation => {
-        // 每天约0.5%概率向玩家发起贸易
-        if (Math.random() > 0.005) return;
-        if (nation.isAtWar) return;
-        if ((nation.relation ?? 50) < 40) return; // 关系40以上才和玩家贸易
-
-        const aiWealth = nation.wealth || 500;
-        if (aiWealth < 400) return;
-
-        // 检查是否在开放市场期间（玩家无法收取关税）
-        const isOpenMarket = nation.openMarketUntil && tick < nation.openMarketUntil;
-        const tariffRate = isOpenMarket ? 0 : 0.08; // 8%关税或0
-
-        // 决定贸易类型：AI来买还是来卖
-        const isBuying = Math.random() > 0.5;
-
-        // 选择贸易的资源类型（不包含silver）
-        const tradeableResources = ['food', 'wood', 'stone', 'iron'];
-        const resourceKey = tradeableResources[Math.floor(Math.random() * tradeableResources.length)];
-        const resourcePrice = market?.prices?.[resourceKey] || (RESOURCES[resourceKey]?.basePrice || 1);
-
-        // 贸易数量：10-50单位
-        const quantity = Math.floor(10 + Math.random() * 40);
-        const baseValue = quantity * resourcePrice;
-        const tariff = Math.floor(baseValue * tariffRate);
-
-        if (isBuying) {
-            // AI商人来玩家国内市场购买资源（从玩家进口）
-            // 玩家资源减少（国内供应减少），玩家政府只收关税
-
-            // AI盈利判断：AI本地能卖1.5倍价格，扣除购买成本和关税后需要盈利
-            const aiLocalPrice = resourcePrice * 1.5;
-            const aiRevenue = quantity * aiLocalPrice;
-            const aiCost = baseValue + tariff;
-            if (aiRevenue <= aiCost) return; // 亏本不做
-
-            // 检查玩家国内市场是否有足够资源（用政府资源代表）
-            if ((res[resourceKey] || 0) >= quantity) {
-                res[resourceKey] = (res[resourceKey] || 0) - quantity;
-                res.silver = (res.silver || 0) + tariff; // 玩家政府只收关税
-                nation.wealth = Math.max(0, (nation.wealth || 0) - baseValue - tariff);
-
-                logs.push(`AI_TRADE_EVENT:${JSON.stringify({
-                    nationId: nation.id,
-                    nationName: nation.name,
-                    tradeType: 'export', // 玩家出口
-                    resourceKey,
-                    quantity,
-                    baseValue,
-                    tariff,
-                    isOpenMarket
-                })}`);
-                nation.relation = Math.min(100, (nation.relation || 50) + 2);
-            }
-        } else {
-            // AI商人来玩家国内市场出售资源（出口到玩家）
-            // 玩家资源增加（国内供应增加），玩家政府只收关税
-
-            // AI盈利判断：AI成本是0.6倍市场价，扣除关税后需要盈利
-            const aiCost = quantity * resourcePrice * 0.6;
-            const aiRevenue = baseValue - tariff; // AI收入扣除关税
-            if (aiRevenue <= aiCost) return; // 亏本不做
-
-            // AI有足够的财富来进行这笔交易
-            if (aiWealth >= baseValue * 0.6) {
-                res[resourceKey] = (res[resourceKey] || 0) + quantity;
-                res.silver = (res.silver || 0) + tariff; // 玩家政府只收关税
-                nation.wealth = (nation.wealth || 0) + baseValue - tariff; // AI净收入
-
-                logs.push(`AI_TRADE_EVENT:${JSON.stringify({
-                    nationId: nation.id,
-                    nationName: nation.name,
-                    tradeType: 'import', // 玩家进口
-                    resourceKey,
-                    quantity,
-                    baseValue,
-                    tariff,
-                    isOpenMarket
-                })}`);
-                nation.relation = Math.min(100, (nation.relation || 50) + 2);
-            }
-        }
-    });
-
-    // ========== AI与玩家互动系统 (独立循环) ==========
-    // 将AI与玩家的互动独立出来，不再依赖AI与AI外交的条件
-    visibleNations.forEach(nation => {
-        const wealth = nation.wealth || 500;
-        const aggression = nation.aggression ?? 0.3;
-        const playerRelation = nation.relation || 0;
-        const isAtWarWithPlayer = nation.isAtWar === true;
-
-        // 战争中不进行友好外交
-        if (isAtWarWithPlayer) return;
-
-        // 1. AI向玩家送礼
-        // 条件：国家富裕(>800)，关系良好(>=60)，低侵略性，冷却时间已过（365天），小概率触发
-        const lastGiftDay = nation.lastGiftToPlayerDay || 0;
-        const giftCooldown = 365; // 两次送礼之间至少间隔一年（365天）
-        const canGift = (tick - lastGiftDay) >= giftCooldown;
-
-        const giftChance = 0.0002 + (playerRelation / 50000) + (wealth / 5000000); // 基础0.02%，最高约0.04%
-        if (canGift && wealth > 800 && playerRelation >= 60 && aggression < 0.5 && Math.random() < giftChance) {
-            // 使用统一的计算函数
-            const giftAmount = calculateAIGiftAmount(wealth);
-            // 扣除AI财富
-            nation.wealth = Math.max(0, nation.wealth - giftAmount);
-            // 记录送礼时间
-            nation.lastGiftToPlayerDay = tick;
-
-            // 触发事件
-            logs.push(`AI_GIFT_EVENT:${JSON.stringify({
-                nationId: nation.id,
-                nationName: nation.name,
-                amount: Math.floor(giftAmount)
-            })}`);
-        }
-
-        // 2. AI向玩家索要
-        // 条件：国家贫穷(<400) 或 资源短缺，小概率触发
-        // 注意：第一个时代（epoch 0）不触发 AI 索要事件
-        const demandChance = 0.0003 + Math.max(0, (400 - wealth) / 200000); // 基础0.03%，越穷概率越高（最高0.1%）
-        if (epoch >= 1 && wealth < 400 && Math.random() < demandChance) {
-            const requestAmount = Math.floor(80 + Math.random() * 120);
-            logs.push(`AI_REQUEST_EVENT:${JSON.stringify({
-                nationId: nation.id,
-                nationName: nation.name,
-                resourceKey: 'silver',
-                resourceName: '银币',
-                amount: requestAmount
-            })}`);
-        }
-
-        // 3. AI请求与玩家结盟
-        // 条件：关系良好(>=70)，未结盟，非战争状态，低侵略性，冷却时间已过（365天）
-        const isAlreadyAllied = nation.alliedWithPlayer === true;
-        const lastAllianceRequestDay = nation.lastAllianceRequestDay || 0;
-        const allianceRequestCooldown = 365; // 两次结盟请求之间至少间隔一年
-        const canRequestAlliance = (tick - lastAllianceRequestDay) >= allianceRequestCooldown;
-        const allianceChance = 0.0002 + (playerRelation - 70) / 30000; // 关系越好概率越高（基础0.02%，最高约0.04%）
-        if (canRequestAlliance && !isAlreadyAllied && playerRelation >= 70 && aggression < 0.5 && Math.random() < allianceChance) {
-            // 记录请求时间
-            nation.lastAllianceRequestDay = tick;
-            logs.push(`AI_ALLIANCE_REQUEST:${JSON.stringify({
-                nationId: nation.id,
-                nationName: nation.name
-            })}`);
-        }
-    });
-
-    // ========== AI国家之间结盟系统 ==========
-    // AI之间有小概率形成正式联盟
-    visibleNations.forEach(nation => {
-        if (Math.random() > 0.002) return; // 0.2% 每天检查结盟
-
-        const nationAggression = nation.aggression ?? 0.3;
-        if (nationAggression > 0.6) return; // 高侵略性国家不主动结盟
-
-        // 初始化联盟数组
-        if (!nation.allies) nation.allies = [];
-
-        // 找到潜在盟友（关系好且未结盟）
-        const potentialAllies = visibleNations.filter(other => {
-            if (other.id === nation.id) return false;
-            if (nation.allies.includes(other.id)) return false;
-            if (nation.foreignWars?.[other.id]?.isAtWar) return false;
-            const relation = nation.foreignRelations?.[other.id] ?? 50;
-            const otherRelation = other.foreignRelations?.[nation.id] ?? 50;
-            // 双方关系都要>=70才能结盟
-            return relation >= 70 && otherRelation >= 70;
-        });
-
-        if (potentialAllies.length === 0) return;
-
-        const ally = potentialAllies[Math.floor(Math.random() * potentialAllies.length)];
-
-        // 结盟成功概率基于双方关系
-        const avgRelation = ((nation.foreignRelations?.[ally.id] ?? 50) + (ally.foreignRelations?.[nation.id] ?? 50)) / 2;
-        const allianceChance = (avgRelation - 60) / 100; // 60关系=0%，100关系=40%
-
-        if (Math.random() < allianceChance) {
-            // 建立正式联盟
-            if (!ally.allies) ally.allies = [];
-            nation.allies.push(ally.id);
-            ally.allies.push(nation.id);
-            logs.push(`🤝 国际新闻：${nation.name} 与 ${ally.name} 正式缔结军事同盟！`);
-        }
-    });
-
-    // ========== 集体攻击好战者 ==========
-    // 当一个国家同时参与超过3场战争时，其他国家可能联合对抗它
-    visibleNations.forEach(warmonger => {
-        const activeWars = Object.values(warmonger.foreignWars || {}).filter(w => w?.isAtWar).length;
-        if (activeWars < 3) return; // 3场以上战争才被认为是好战者
-
-        // 检查是否已有足够国家对抗好战者
-        const alreadyOpposing = visibleNations.filter(n =>
-            n.foreignWars?.[warmonger.id]?.isAtWar &&
-            n.id !== warmonger.id
-        ).length;
-        if (alreadyOpposing >= 2) return; // 已有足够对抗者
-
-        // 寻找可能加入对抗联盟的国家
-        const potentialOpponents = visibleNations.filter(n => {
-            if (n.id === warmonger.id) return false;
-            if (n.foreignWars?.[warmonger.id]?.isAtWar) return false; // 已在对抗
-            if ((n.allies || []).includes(warmonger.id)) return false; // 是盟友
-            const relation = n.foreignRelations?.[warmonger.id] ?? 50;
-            return relation < 40; // 关系不好
-        });
-
-        // 每天0.5%概率形成对抗联盟
-        if (potentialOpponents.length >= 2 && Math.random() < 0.005) {
-            const opponent = potentialOpponents[Math.floor(Math.random() * potentialOpponents.length)];
-            if (!opponent.foreignWars) opponent.foreignWars = {};
-            if (!warmonger.foreignWars) warmonger.foreignWars = {};
-
-            opponent.foreignWars[warmonger.id] = { isAtWar: true, warStartDay: tick, warScore: 0 };
-            warmonger.foreignWars[opponent.id] = { isAtWar: true, warStartDay: tick, warScore: 0 };
-
-            logs.push(`⚔️ 国际新闻：${opponent.name} 认为 ${warmonger.name} 的好战行为威胁地区稳定，对其宣战！`);
-        }
-    });
-
-    // ========== AI国家互相开战系统 ==========
-    // 检查是否有两个AI国家应该开战
-
-    visibleNations.forEach(nation => {
-        // 检查是否已经在与其他AI国家交战
-        if (!nation.foreignWars) {
-            nation.foreignWars = {};
-        }
-
-        visibleNations.forEach(otherNation => {
-            if (otherNation.id === nation.id) return;
-            if (nation.foreignWars[otherNation.id]?.isAtWar) return; // 已经在打了
-
-            // 检查和平协议
-            const peaceUntil = nation.foreignWars[otherNation.id]?.peaceTreatyUntil || 0;
-            if (tick < peaceUntil) return;
-
-            // 检查是否为同盟关系（检查正式联盟）
-            const isAllied = (nation.allies || []).includes(otherNation.id) ||
-                (otherNation.allies || []).includes(nation.id);
-            if (isAllied) return; // 正式同盟国家之间不能开战
-
-            // ========== 战争决策AI改进 ==========
-
-            // 1. 检查是否已经在与其他国家开战（避免多线作战）
-            const currentWarCount = Object.values(nation.foreignWars || {}).filter(w => w?.isAtWar).length;
-            const maxWarsAllowed = nation.aggression > 0.7 ? 2 : 1; // 高侵略性国家最多同时打2场
-            if (currentWarCount >= maxWarsAllowed) return;
-
-            // 2. 检查自身状态是否适合开战
-            const myPopulation = nation.population || 100;
-            const myWealth = nation.wealth || 500;
-            const minPopulationForWar = 30; // 人口至少30才考虑开战
-            const minWealthForWar = 300;    // 财富至少300才考虑开战
-            if (myPopulation < minPopulationForWar || myWealth < minWealthForWar) return;
-
-            // 3. 计算双方实力对比（纳入盟友力量）
-            const calculateNationPower = (n) => (n.militaryStrength ?? 1.0) * (n.population || 100) * (1 + (n.aggression || 0.3));
-
-            let mySideStrength = calculateNationPower(nation);
-            let enemySideStrength = calculateNationPower(otherNation);
-
-            // 遍历所有国家计算盟友力量（使用正式联盟判定）
-            visibleNations.forEach(n => {
-                if (n.id === nation.id || n.id === otherNation.id) return;
-
-                // 它是我的正式盟友吗？
-                const isMyAlly = (nation.allies || []).includes(n.id) || (n.allies || []).includes(nation.id);
-                if (isMyAlly) {
-                    mySideStrength += calculateNationPower(n);
-                }
-
-                // 它是敌人的正式盟友吗？
-                const isEnemyAlly = (otherNation.allies || []).includes(n.id) || (n.allies || []).includes(otherNation.id);
-                if (isEnemyAlly) {
-                    enemySideStrength += calculateNationPower(n);
-                }
-            });
-
-            const strengthRatio = mySideStrength / Math.max(1, enemySideStrength);
-
-            // 实力太弱不开战（除非侵略性极高的国家会冒险）
-            const minStrengthRatio = nation.aggression > 0.7 ? 0.5 : 0.7; // 高侵略性国家更敢冒险
-            if (strengthRatio < minStrengthRatio) return;
-
-            // 4. 检查对方是否已经在与其他国家开战（趁火打劫的机会）
-            const enemyWarCount = Object.values(otherNation.foreignWars || {}).filter(w => w?.isAtWar).length;
-            const opportunityBonus = enemyWarCount > 0 ? 0.002 : 0; // 对方在打仗，增加开战欲望
-
-            // 5. 计算开战概率（基于关系、侵略性、实力对比）
-            const relation = nation.foreignRelations?.[otherNation.id] ?? 50;
-            const aggression = nation.aggression ?? 0.3;
-
-            // 放宽条件：只要关系不算太好且不是极端和平主义者
-            // 如果关系极差 (<15)，即使和平主义者也可能被迫开战
-            const isRelationsBadEnough = relation < 50;
-            const isAggressiveEnough = aggression > 0.25;
-            const isHatedEnemy = relation < 15;
-
-            if ((isRelationsBadEnough && isAggressiveEnough) || isHatedEnemy) {
-                // 基础概率：基于侵略性和关系的恶劣程度
-                // 大幅降低基础概率，使战争更加稀少
-                let warChance = (aggression * 0.003) + ((50 - relation) / 5000);
-
-                // 战争借口（Casus Belli）：关系极差时，开战概率增加（但仍然较低）
-                if (relation < 10) {
-                    warChance += 0.01; // 1% 额外概率（从5%降低）
-                } else if (relation < 20) {
-                    warChance += 0.003; // 0.3% 额外概率
-                }
-
-                // 实力优势加成（实力越强越敢打，但整体倍率降低）
-                if (strengthRatio > 2.0) {
-                    warChance *= 2.0; // 实力碾压
-                } else if (strengthRatio > 1.5) {
-                    warChance *= 1.5; // 明显优势
-                } else if (strengthRatio > 1.2) {
-                    warChance *= 1.2; // 小优
-                } else if (strengthRatio < 0.8) {
-                    warChance *= 0.1; // 劣势，非常谨慎
-                }
-
-                // 趁火打劫加成（降低）
-                warChance += opportunityBonus * 0.5;
-
-                // ========== AI为财富开战（AI-AI之间）==========
-                // 条件：有军事优势、目标财富是自己的1.5倍以上
-                const targetWealth = otherNation.wealth || 500;
-                const myWealth = nation.wealth || 500;
-                const myMilitaryStrength = nation.militaryStrength ?? 1.0;
-
-                if (targetWealth > myWealth * 1.5 &&  // 目标财富是自己的1.5倍以上
-                    strengthRatio > 0.8) {             // 有军事优势（实力比>0.8）
-                    // 财富战争额外概率：基于财富差距和侵略性
-                    const wealthWarBonus = 0.003 * aggression * (targetWealth / myWealth - 1);
-                    warChance += wealthWarBonus;
-                }
-
-                // 限制最大概率（从1.0%进一步降低至0.3%，大幅减少战争频率）
-                warChance = Math.min(0.003, warChance);
-
-                if (Math.random() < warChance) {
-                    // 开战！
-                    nation.foreignWars[otherNation.id] = {
-                        isAtWar: true,
-                        warStartDay: tick,
-                        warScore: 0,
-                    };
-                    // 对方也标记为开战
-                    if (!otherNation.foreignWars) {
-                        otherNation.foreignWars = {};
-                    }
-                    otherNation.foreignWars[nation.id] = {
-                        isAtWar: true,
-                        warStartDay: tick,
-                        warScore: 0,
-                    };
-                    // 多样化的战争宣战新闻
-                    const declarationNewsTemplates = [
-                        `📢 国际新闻：${nation.name} 向 ${otherNation.name} 宣战了！`,
-                        `📢 国际新闻：${nation.name} 正式对 ${otherNation.name} 宣战！`,
-                        `📢 国际新闻：战争爆发！${nation.name} 对 ${otherNation.name} 发起了战争！`,
-                        `📢 国际新闻：${nation.name} 与 ${otherNation.name} 进入战争状态！`,
-                        `📢 国际新闻：冲突升级！${nation.name} 宣布对 ${otherNation.name} 开战！`,
-                        `📢 国际新闻：${nation.name} 发动了对 ${otherNation.name} 的军事行动！`,
-                        `📢 国际新闻：战争宣告！${nation.name} 决定对 ${otherNation.name} 使用武力！`
-                    ];
-                    const randomDeclarationNews = declarationNewsTemplates[Math.floor(Math.random() * declarationNewsTemplates.length)];
-                    logs.push(randomDeclarationNews);
-
-                    // ========== 同盟连坐机制（基于正式联盟）==========
-                    // 检查双方是否与玩家结盟，避免被迫卷入盟友之间的冲突
-                    const isOtherNationPlayerAlly = otherNation.alliedWithPlayer === true;
-                    const isNationPlayerAlly = nation.alliedWithPlayer === true;
-                    const playerAlliesInConflict = isOtherNationPlayerAlly && isNationPlayerAlly;
-
-                    // 战争上限检查：计算当前与玩家交战的AI国家数量
-                    const MAX_CONCURRENT_WARS_FOR_PLAYER = 3;
-                    const currentPlayerWars = visibleNations.filter(n =>
-                        n.isAtWar === true && !n.isRebelNation
-                    ).length;
-
-                    if (playerAlliesInConflict) {
-                        logs.push(`⚖️ 你的盟友 ${nation.name} 与 ${otherNation.name} 发生冲突，你选择保持中立。`);
-                    } else {
-                        if (isOtherNationPlayerAlly && !nation.isAtWar) {
-                            // 玩家的盟友被攻击，触发盟友求援事件让玩家选择
-                            logs.push(`ALLY_ATTACKED_EVENT:${JSON.stringify({
-                                allyId: otherNation.id,
-                                allyName: otherNation.name,
-                                attackerId: nation.id,
-                                attackerName: nation.name,
-                                currentPlayerWars
-                            })}`);
-                        }
-
-                        if (isNationPlayerAlly && !otherNation.isAtWar) {
-                            // 玩家的盟友主动攻击别国，检查战争上限
-                            if (currentPlayerWars >= MAX_CONCURRENT_WARS_FOR_PLAYER) {
-                                logs.push(`⚖️ 你的盟友 ${nation.name} 向 ${otherNation.name} 宣战！但你已陷入多场战争，选择不介入。`);
-                            } else {
-                                // 玩家被迫与被攻击方开战（盟友进攻时玩家被卷入）
-                                otherNation.isAtWar = true;
-                                otherNation.warStartDay = tick;
-                                otherNation.warDuration = 0;
-                                otherNation.relation = Math.max(0, (otherNation.relation || 50) - 40);
-                                logs.push(`⚔️ 你的盟友 ${nation.name} 向 ${otherNation.name} 宣战！作为同盟，你被迫与 ${otherNation.name} 进入战争状态！`);
-                            }
-                        }
-                    }
-
-                    // AI 国家之间的同盟连坐（基于正式联盟）
-                    visibleNations.forEach(ally => {
-                        if (ally.id === nation.id || ally.id === otherNation.id) return;
-
-                        // 检查是否是被攻击方的正式盟友
-                        const isDefenderAlly = (otherNation.allies || []).includes(ally.id) ||
-                            (ally.allies || []).includes(otherNation.id);
-                        if (isDefenderAlly) {
-                            // 盟友参战
-                            if (!ally.foreignWars) ally.foreignWars = {};
-                            ally.foreignWars[nation.id] = { isAtWar: true, warStartDay: tick, warScore: 0 };
-                            if (!nation.foreignWars) nation.foreignWars = {};
-                            nation.foreignWars[ally.id] = { isAtWar: true, warStartDay: tick, warScore: 0 };
-                            logs.push(`⚔️ ${ally.name} 作为 ${otherNation.name} 的盟友，加入对 ${nation.name} 的战争！`);
-                        }
-                    });
-                }
-            }
-        });
-
-        // 处理正在进行的AI vs AI战争
-        Object.keys(nation.foreignWars || {}).forEach(enemyId => {
-            const war = nation.foreignWars[enemyId];
-            if (!war?.isAtWar) return;
-
-            const enemy = updatedNations.find(n => n.id === enemyId);
-            if (!enemy) return;
-
-            // 修复：确保敌对国家也有战争记录（防止数据不一致导致的崩溃）
-            if (!enemy.foreignWars) enemy.foreignWars = {};
-            if (!enemy.foreignWars[nation.id]) {
-                enemy.foreignWars[nation.id] = {
-                    isAtWar: true,
-                    warStartDay: war.warStartDay || tick,
-                    warScore: -(war.warScore || 0)
-                };
-            }
-
-            // ========== 战争消耗改进：更真实的战争代价 ==========
-            // 战争持续时间影响消耗（战争越久消耗越大）
-            const warDuration = tick - (war.warStartDay || tick);
-            const warIntensity = Math.min(2.0, 1.0 + warDuration / 500); // 战争强度随时间增加，最高2倍
-
-            // 基础消耗率（每tick）
-            // 财富消耗：0.5%~1% / tick（之前是0.2%）
-            const wealthDecayRate = 0.995 - (warIntensity * 0.003); // 0.995 ~ 0.989
-            // 人口消耗：0.2%~0.5% / tick（之前是0.1%）
-            const populationDecayRate = 0.998 - (warIntensity * 0.002); // 0.998 ~ 0.994
-
-            // 多线作战惩罚
-            const nationWarCount = Object.values(nation.foreignWars || {}).filter(w => w?.isAtWar).length;
-            const enemyWarCount = Object.values(enemy.foreignWars || {}).filter(w => w?.isAtWar).length;
-            const nationMultiWarPenalty = Math.pow(0.998, nationWarCount - 1); // 每多一场战争额外消耗0.2%
-            const enemyMultiWarPenalty = Math.pow(0.998, enemyWarCount - 1);
-
-            // 应用战争消耗
-            nation.wealth = Math.max(100, (nation.wealth || 500) * wealthDecayRate * nationMultiWarPenalty);
-            nation.population = Math.max(10, (nation.population || 100) * populationDecayRate * nationMultiWarPenalty);
-            enemy.wealth = Math.max(100, (enemy.wealth || 500) * wealthDecayRate * enemyMultiWarPenalty);
-            enemy.population = Math.max(10, (enemy.population || 100) * populationDecayRate * enemyMultiWarPenalty);
-
-            // 战斗结算（每10天一次，更频繁）
-            if ((tick - war.warStartDay) % 10 === 0 && tick > war.warStartDay) {
-                const nationStrength = (nation.militaryStrength ?? 1.0) * (nation.population || 100) * (1 + (nation.aggression || 0.3));
-                const enemyStrength = (enemy.militaryStrength ?? 1.0) * (enemy.population || 100) * (1 + (enemy.aggression || 0.3));
-
-                const totalStrength = nationStrength + enemyStrength;
-                const nationWinChance = nationStrength / totalStrength;
-
-                // 战斗造成的额外伤亡（不论输赢双方都有损失）
-                const battleCasualty = 0.02 + Math.random() * 0.03; // 2%~5% 战斗伤亡
-                nation.population = Math.max(10, (nation.population || 100) * (1 - battleCasualty * (1 - nationWinChance)));
-                enemy.population = Math.max(10, (enemy.population || 100) * (1 - battleCasualty * nationWinChance));
-
-                if (Math.random() < nationWinChance) {
-                    // nation胜利这轮
-                    war.warScore = (war.warScore || 0) + 5;
-                    enemy.foreignWars[nation.id].warScore = (enemy.foreignWars[nation.id].warScore || 0) - 5;
-
-                    // 获取战利品（增加到8%）
-                    const loot = Math.floor((enemy.wealth || 500) * 0.08);
-                    nation.wealth = (nation.wealth || 500) + loot;
-                    enemy.wealth = Math.max(100, (enemy.wealth || 500) - loot);
-                } else {
-                    // enemy胜利这轮
-                    war.warScore = (war.warScore || 0) - 5;
-                    enemy.foreignWars[nation.id].warScore = (enemy.foreignWars[nation.id].warScore || 0) + 5;
-
-                    // enemy获取战利品
-                    const loot = Math.floor((nation.wealth || 500) * 0.08);
-                    enemy.wealth = (enemy.wealth || 500) + loot;
-                    nation.wealth = Math.max(100, (nation.wealth || 500) - loot);
-                }
-
-                // 检查是否应该结束战争（增加结束概率）
-                const absoluteWarScore = Math.abs(war.warScore || 0);
-                // 一方实力严重不足时更倾向于求和
-                const nationExhausted = (nation.population || 100) < 30 || (nation.wealth || 500) < 200;
-                const enemyExhausted = (enemy.population || 100) < 30 || (enemy.wealth || 500) < 200;
-                const exhaustionEndChance = (nationExhausted || enemyExhausted) ? 0.15 : 0.05;
-
-                if (absoluteWarScore > 25 || Math.random() < exhaustionEndChance) {
-                    // 结束战争
-                    const winner = (war.warScore || 0) > 0 ? nation : enemy;
-                    const loser = winner.id === nation.id ? enemy : nation;
-
-                    // 胜者获取败者的人口和财富（增加到10%人口和15%财富）
-                    const populationTransfer = Math.floor((loser.population || 100) * 0.10);
-                    const wealthTransfer = Math.floor((loser.wealth || 500) * 0.15);
-
-                    winner.population = (winner.population || 100) + populationTransfer;
-                    winner.wealth = (winner.wealth || 500) + wealthTransfer;
-                    loser.population = Math.max(10, (loser.population || 100) - populationTransfer);
-                    loser.wealth = Math.max(100, (loser.wealth || 500) - wealthTransfer);
-
-                    // 结束战争状态
-                    nation.foreignWars[enemyId] = {
-                        isAtWar: false,
-                        peaceTreatyUntil: tick + 730, // 延长停战期到2年
-                    };
-                    enemy.foreignWars[nation.id] = {
-                        isAtWar: false,
-                        peaceTreatyUntil: tick + 730, // 延长停战期到2年
-                    };
-
-                    // 关系变化（输家对赢家更仇恨）
-                    nation.foreignRelations[enemyId] = clamp((nation.foreignRelations[enemyId] || 50) - 20, 0, 100);
-                    enemy.foreignRelations[nation.id] = clamp((enemy.foreignRelations[nation.id] || 50) - 20, 0, 100);
-
-                    // 计算战争总损失用于日志
-                    const warDurationDays = tick - (war.warStartDay || tick);
-                    // 多样化的战争结束新闻
-                    const warNewsTemplates = [
-                        `📢 国际新闻：${winner.name} 在与 ${loser.name} 历时${warDurationDays}天的战争中获胜！${loser.name} 损失惨重。`,
-                        `📢 国际新闻：经过${warDurationDays}天的激烈战斗，${winner.name} 击败了 ${loser.name}！`,
-                        `📢 国际新闻：${winner.name} 赢得了对 ${loser.name} 的战争，这场战斗持续了${warDurationDays}天！`,
-                        `📢 国际新闻：在${warDurationDays}天的冲突后，${winner.name} 战胜了 ${loser.name}！`,
-                        `📢 国际新闻：${winner.name} 在与 ${loser.name} 的长期战争中取得了决定性胜利！`,
-                        `📢 国际新闻：持续${warDurationDays}天的战争结束，${winner.name} 宣告胜利！${loser.name} 遭受重创。`,
-                        `📢 国际新闻：${winner.name} 击败了 ${loser.name}，结束了这场为期${warDurationDays}天的冲突！`
-                    ];
-                    const randomNews = warNewsTemplates[Math.floor(Math.random() * warNewsTemplates.length)];
-                    logs.push(randomNews);
-                }
-            }
-        });
-    });
-
-    const fertilityBaseRate = 0.0015;
-    const fertilityBaselineRate = 0.0005;
-    const LOW_POP_THRESHOLD = 20;
-    const LOW_POP_GUARANTEE = 0.4;
-    const wealthBaseline = 200;
+    // Population fertility calculations (uses constants from ./utils/constants)
     let fertilityBirths = 0;
     let birthAccumulator = Math.max(0, previousBirthAccumulator || 0);
     let remainingCapacity = Math.max(0, totalMaxPop - nextPopulation);
     if (remainingCapacity > 0) {
-        const baselineContribution = Math.max(0, population || 0) * fertilityBaselineRate;
+        const baselineContribution = Math.max(0, population || 0) * FERTILITY_BASELINE_RATE;
         birthAccumulator += baselineContribution;
         if (population < LOW_POP_THRESHOLD) {
             const missingRatio = Math.max(0, (LOW_POP_THRESHOLD - population) / LOW_POP_THRESHOLD);
@@ -4212,8 +2307,8 @@ export const simulateTick = ({
             if (approvalFactor <= 0) return;
             const totalWealthForStratum = classWealthResult[key] || 0;
             const perCapitaWealth = count > 0 ? totalWealthForStratum / count : 0;
-            const wealthFactor = Math.max(0.3, Math.min(2, perCapitaWealth / wealthBaseline));
-            const birthRate = fertilityBaseRate * approvalFactor * wealthFactor;
+            const wealthFactor = Math.max(0.3, Math.min(2, perCapitaWealth / WEALTH_BASELINE));
+            const birthRate = FERTILITY_BASE_RATE * approvalFactor * wealthFactor;
             if (birthRate <= 0) return;
             let expectedBirths = count * birthRate;
             if (expectedBirths <= 0) return;
@@ -4361,35 +2456,7 @@ export const simulateTick = ({
 
     const demandPopulation = Math.max(0, nextPopulation ?? population ?? 0);
 
-    // === 辅助函数：计算最低利润率 ===
-    // 根据成本价、基础价格和库存情况，动态计算生产者应得的最低利润率
-    const calculateMinProfitMargin = (costPrice, basePrice, inventoryRatio) => {
-        // 1. 基础利润率：根据成本价与基础价格的比例
-        // 如果成本价远低于基础价格（如粮食），说明资源有较高的市场价值，应该有更高的利润率
-        const costToBasePriceRatio = costPrice / basePrice;
-
-        if (costToBasePriceRatio < 0.3) {
-            // 成本价很低（<30% basePrice），如粮食
-            // 基础利润率：200%-500%（确保价格接近basePrice）
-            // 例如：costPrice=0.1, basePrice=1.6, ratio=0.0625
-            // 目标：让 costPrice * (1 + margin) ≈ basePrice
-            // margin = (basePrice / costPrice) - 1 = 15 (1500%)
-            // 但我们限制在合理范围内
-            return Math.min(5.0, (basePrice / costPrice) - 1) * 0.8; // 80%的差价作为利润
-        } else if (costToBasePriceRatio < 0.6) {
-            // 成本价中等（30%-60% basePrice）
-            // 基础利润率：50%-100%
-            return 0.5 + (0.6 - costToBasePriceRatio) * 1.5;
-        } else if (costToBasePriceRatio < 0.9) {
-            // 成本价较高（60%-90% basePrice）
-            // 基础利润率：20%-50%
-            return 0.2 + (0.9 - costToBasePriceRatio) * 1.0;
-        } else {
-            // 成本价接近或超过基础价格（>90% basePrice）
-            // 基础利润率：10%-20%（保证基本利润）
-            return 0.1 + Math.max(0, 1.0 - costToBasePriceRatio) * 1.0;
-        }
-    };
+    // calculateMinProfitMargin is imported from ./utils/helpers
 
     // 获取全局默认的市场参数（作为 fallback）
     const defaultMarketInfluence = ECONOMIC_INFLUENCE?.market || {};
@@ -4451,114 +2518,130 @@ export const simulateTick = ({
         let totalOutput = 0;
 
         BUILDINGS.forEach(building => {
-            const outputAmount = building.output?.[resource];
-            if (!outputAmount || outputAmount <= 0) return;
-
             const buildingCount = builds[building.id] || 0;
             if (buildingCount <= 0) return;
 
-            // 计算该建筑的成本价
-            const buildingMarketConfig = building.marketConfig || {};
-            const buildingPriceWeights = buildingMarketConfig.price || ECONOMIC_INFLUENCE?.price || {};
-            const buildingWageWeights = buildingMarketConfig.wage || ECONOMIC_INFLUENCE?.wage || {};
+            // 获取该建筑的升级等级分布
+            const upgradeLevels = buildingUpgrades[building.id] || {};
+            const levelCounts = {};
+            for (let i = 0; i < buildingCount; i++) {
+                const level = upgradeLevels[i] || 0;
+                levelCounts[level] = (levelCounts[level] || 0) + 1;
+            }
 
-            const resourceSpecificPriceLivingCosts = buildLivingCostMap(
-                livingCostBreakdown,
-                buildingPriceWeights
-            );
-            const resourceSpecificWageLivingCosts = buildLivingCostMap(
-                livingCostBreakdown,
-                buildingWageWeights
-            );
+            // 按等级分组计算
+            Object.entries(levelCounts).forEach(([levelStr, count]) => {
+                const level = parseInt(levelStr);
+                const config = getBuildingEffectiveConfig(building, level);
 
-            // 计算原材料成本（含税）
-            let inputCost = 0;
-            if (building.input) {
-                Object.entries(building.input).forEach(([inputKey, amount]) => {
-                    if (!amount || amount <= 0) return;
-                    const inputPrice = priceMap[inputKey] || getBasePrice(inputKey);
-                    const inputTaxRate = getResourceTaxRate(inputKey);
+                const outputAmount = config.output?.[resource];
+                if (!outputAmount || outputAmount <= 0) return;
 
-                    // 原材料成本 = 价格 × 数量 × (1 + 税率)
-                    // 如果税率为负（补贴），则成本降低
-                    const baseCost = amount * inputPrice;
-                    const taxCost = baseCost * inputTaxRate;
-                    inputCost += baseCost + taxCost;
+                // 使用基础建筑的 marketConfig（升级配置可以覆盖，否则沿用基础）
+                const buildingMarketConfig = building.marketConfig || {};
+                const buildingPriceWeights = buildingMarketConfig.price || ECONOMIC_INFLUENCE?.price || {};
+                const buildingWageWeights = buildingMarketConfig.wage || ECONOMIC_INFLUENCE?.wage || {};
+
+                const resourceSpecificPriceLivingCosts = buildLivingCostMap(
+                    livingCostBreakdown,
+                    buildingPriceWeights
+                );
+                const resourceSpecificWageLivingCosts = buildLivingCostMap(
+                    livingCostBreakdown,
+                    buildingWageWeights
+                );
+
+                // 计算原材料成本（含税）- 使用升级后的 input
+                let inputCost = 0;
+                if (config.input) {
+                    Object.entries(config.input).forEach(([inputKey, amount]) => {
+                        if (!amount || amount <= 0) return;
+                        const inputPrice = priceMap[inputKey] || getBasePrice(inputKey);
+                        const inputTaxRate = getResourceTaxRate(inputKey);
+
+                        // 原材料成本 = 价格 × 数量 × (1 + 税率)
+                        // 如果税率为负（补贴），则成本降低
+                        const baseCost = amount * inputPrice;
+                        const taxCost = baseCost * inputTaxRate;
+                        inputCost += baseCost + taxCost;
+                    });
+                }
+
+                // 计算工资成本 - 使用升级后的 jobs，但 owner 从基础建筑获取
+                let laborCost = 0;
+                const ownerKey = building.owner;
+                const effectiveJobs = config.jobs || {};
+                const isSelfOwned = ownerKey && effectiveJobs[ownerKey];
+                if (Object.keys(effectiveJobs).length > 0 && !isSelfOwned) {
+                    Object.entries(effectiveJobs).forEach(([role, slots]) => {
+                        if (!slots || slots <= 0) return;
+                        const wage = updatedWages[role] || getExpectedWage(role);
+                        laborCost += slots * wage;
+                    });
+                }
+
+                // 计算营业税成本
+                const businessTaxMultiplier = taxPolicies?.businessTaxRates?.[building.id] ?? 1;
+                const businessTaxBase = building.businessTaxBase ?? 0.1;
+                const businessTaxCost = businessTaxBase * businessTaxMultiplier;
+
+                // 计算业主生活需求成本 - 使用升级后的 jobs 中的 owner 数量
+                let ownerLivingCost = 0;
+                if (ownerKey) {
+                    const ownerLivingCostBase = resourceSpecificWageLivingCosts[ownerKey] || 0;
+                    ownerLivingCost = ownerLivingCostBase * (effectiveJobs[ownerKey] || 0);
+                }
+
+                // 成本价 = (原材料成本含税 + 工资成本 + 营业税成本 + 业主生活需求成本) / 产出数量
+                const totalCost = inputCost + laborCost + businessTaxCost + ownerLivingCost;
+                const costPrice = totalCost / outputAmount;
+
+                // === 三层价格模型 ===
+                // 1. 计算供需调整系数（基于库存天数）
+                const inventoryRatio = inventoryDays / inventoryTargetDays;
+                let priceMultiplier = 1.0;
+
+                if (inventoryRatio < 0.5) {
+                    // 库存紧张，大幅涨价
+                    priceMultiplier = 1.0 + (1.0 - inventoryRatio * 2) * 5.0; // 最高6倍
+                } else if (inventoryRatio < 1.0) {
+                    // 库存偏低，适度涨价
+                    priceMultiplier = 1.0 + (1.0 - inventoryRatio) * 1.0; // 1.0-2.0倍
+                } else if (inventoryRatio > 2.0) {
+                    // 库存积压，大幅降价
+                    priceMultiplier = 1.0 - (inventoryRatio - 2.0) * 0.3; // 最低0.1倍
+                    priceMultiplier = Math.max(0.1, priceMultiplier);
+                } else if (inventoryRatio > 1.0) {
+                    // 库存充足，适度降价
+                    priceMultiplier = 1.0 - (inventoryRatio - 1.0) * 0.3; // 0.7-1.0倍
+                }
+
+                // 2. 获取基础价格（市场认可的合理价格）
+                const basePrice = getBasePrice(resource);
+
+                // 3. 计算市场价格（基于basePrice和供需关系）
+                let marketBasedPrice = basePrice * priceMultiplier;
+
+                // 4. 最终价格 = 市场价格（允许低于成本价）
+                // 当供过于求时，价格可能低于成本，生产者会亏损
+                // 这会促使生产者减产或转行，实现市场自我调节
+                let sellingPrice = marketBasedPrice;
+
+                // 不超过物价限额
+                const minPrice = resourceDef.minPrice ?? PRICE_FLOOR;
+                const maxPrice = resourceDef.maxPrice;
+                sellingPrice = Math.max(sellingPrice, minPrice);
+                if (maxPrice !== undefined) {
+                    sellingPrice = Math.min(sellingPrice, maxPrice);
+                }
+
+                // 记录该建筑等级的出售价格和产量
+                const levelOutput = outputAmount * count;
+                totalOutput += levelOutput;
+                buildingPrices.push({
+                    price: sellingPrice,
+                    output: levelOutput
                 });
-            }
-
-            // 计算工资成本
-            let laborCost = 0;
-            const isSelfOwned = building.owner && building.jobs && building.jobs[building.owner];
-            if (building.jobs && !isSelfOwned) {
-                Object.entries(building.jobs).forEach(([role, slots]) => {
-                    if (!slots || slots <= 0) return;
-                    const wage = updatedWages[role] || getExpectedWage(role);
-                    laborCost += slots * wage;
-                });
-            }
-
-            // 计算营业税成本
-            const businessTaxMultiplier = taxPolicies?.businessTaxRates?.[building.id] ?? 1;
-            const businessTaxBase = building.businessTaxBase ?? 0.1;
-            const businessTaxCost = businessTaxBase * businessTaxMultiplier;
-
-            // 计算业主生活需求成本
-            let ownerLivingCost = 0;
-            if (building.owner) {
-                const ownerLivingCostBase = resourceSpecificWageLivingCosts[building.owner] || 0;
-                ownerLivingCost = ownerLivingCostBase * (building.jobs[building.owner] || 0);
-            }
-
-            // 成本价 = (原材料成本含税 + 工资成本 + 营业税成本 + 业主生活需求成本) / 产出数量
-            const totalCost = inputCost + laborCost + businessTaxCost + ownerLivingCost;
-            const costPrice = totalCost / outputAmount;
-
-            // === 三层价格模型 ===
-            // 1. 计算供需调整系数（基于库存天数）
-            const inventoryRatio = inventoryDays / inventoryTargetDays;
-            let priceMultiplier = 1.0;
-
-            if (inventoryRatio < 0.5) {
-                // 库存紧张，大幅涨价
-                priceMultiplier = 1.0 + (1.0 - inventoryRatio * 2) * 5.0; // 最高6倍
-            } else if (inventoryRatio < 1.0) {
-                // 库存偏低，适度涨价
-                priceMultiplier = 1.0 + (1.0 - inventoryRatio) * 1.0; // 1.0-2.0倍
-            } else if (inventoryRatio > 2.0) {
-                // 库存积压，大幅降价
-                priceMultiplier = 1.0 - (inventoryRatio - 2.0) * 0.3; // 最低0.1倍
-                priceMultiplier = Math.max(0.1, priceMultiplier);
-            } else if (inventoryRatio > 1.0) {
-                // 库存充足，适度降价
-                priceMultiplier = 1.0 - (inventoryRatio - 1.0) * 0.3; // 0.7-1.0倍
-            }
-
-            // 2. 获取基础价格（市场认可的合理价格）
-            const basePrice = getBasePrice(resource);
-
-            // 3. 计算市场价格（基于basePrice和供需关系）
-            let marketBasedPrice = basePrice * priceMultiplier;
-
-            // 4. 最终价格 = 市场价格（允许低于成本价）
-            // 当供过于求时，价格可能低于成本，生产者会亏损
-            // 这会促使生产者减产或转行，实现市场自我调节
-            let sellingPrice = marketBasedPrice;
-
-            // 不超过物价限额
-            const minPrice = resourceDef.minPrice ?? PRICE_FLOOR;
-            const maxPrice = resourceDef.maxPrice;
-            sellingPrice = Math.max(sellingPrice, minPrice);
-            if (maxPrice !== undefined) {
-                sellingPrice = Math.min(sellingPrice, maxPrice);
-            }
-
-            // 记录该建筑的出售价格和产量
-            const buildingOutput = outputAmount * buildingCount;
-            totalOutput += buildingOutput;
-            buildingPrices.push({
-                price: sellingPrice,
-                output: buildingOutput
             });
         });
 

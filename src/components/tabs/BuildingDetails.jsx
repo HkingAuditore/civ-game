@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Icon } from '../common/UIComponents';
 import { RESOURCES, STRATA } from '../../config';
-import { filterUnlockedResources } from '../../utils/resources';
 import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
 import { getPublicAssetUrl } from '../../utils/assetPath';
 import { getBuildingImageUrl } from '../../utils/imageRegistry';
@@ -94,6 +93,37 @@ const InfoRow = ({ label, value, valueClass = 'text-white' }) => (
     </div>
 );
 
+const formatResourceAmount = (value) => {
+    const abs = Math.abs(value);
+    if (abs >= 1000000) return (abs / 1000000).toFixed(1) + 'M';
+    if (abs >= 1000) return (abs / 1000).toFixed(1) + 'k';
+    if (abs >= 10) return abs.toFixed(1);
+    if (abs === Math.floor(abs)) return abs.toString();
+    return abs.toFixed(2);
+};
+
+const ResourceSummaryBadge = ({ label, amount, positive }) => (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-semibold ${positive ? 'bg-emerald-900/30 border-emerald-600/40 text-emerald-200' : 'bg-rose-900/30 border-rose-600/40 text-rose-200'}`}>
+        <span>{label}</span>
+        <span className="font-mono">
+            {positive ? '+' : '-'}
+            {formatResourceAmount(amount)}
+        </span>
+    </span>
+);
+
+const StatCard = ({ label, icon, value, valueClass = 'text-white' }) => (
+    <div className="bg-gray-900/50 rounded-lg border border-gray-700/80 px-3 py-2 flex flex-col gap-1">
+        <span className="text-[10px] uppercase tracking-wide text-gray-400 flex items-center gap-1">
+            {icon && <Icon name={icon} size={11} className="text-gray-400" />}
+            {label}
+        </span>
+        <span className={`text-lg font-bold font-mono ${valueClass}`}>
+            {value}
+        </span>
+    </div>
+);
+
 /**
  * 建筑详情组件
  * 在 BottomSheet 或 Modal 中显示
@@ -110,7 +140,7 @@ const formatCompactCost = (value) => {
 export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade, onDowngrade, onBatchUpgrade, onBatchDowngrade, taxPolicies, onUpdateTaxPolicies }) => {
     if (!building || !gameState) return null;
 
-    const { resources, epoch, techsUnlocked, market, buildings, jobFill, buildingUpgrades } = gameState;
+    const { resources, epoch, market, buildings, buildingUpgrades, jobFill } = gameState;
     const count = buildings[building.id] || 0;
     const upgradeLevels = buildingUpgrades?.[building.id] || {};
 
@@ -220,22 +250,35 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
         return cost;
     };
 
-    const ownerProfit = getOwnerIncomePerBuilding(averageBuilding);
-    const ownerPerCapitaIncome = getOwnerPerCapitaIncome(averageBuilding);
     const nextCost = calculateCost(building);
     const nextSilverCost = calculateSilverCost(nextCost, market);
-    const unlockedOutput = filterUnlockedResources(averageBuilding.output, epoch, techsUnlocked);
-    const unlockedInput = filterUnlockedResources(averageBuilding.input, epoch, techsUnlocked);
     const hasMaterials = Object.entries(nextCost).every(([res, val]) => (resources[res] || 0) >= val);
     const hasSilver = (resources.silver || 0) >= nextSilverCost;
     const canAffordNext = hasMaterials && hasSilver;
 
     const compactSilverCost = formatCompactCost(nextSilverCost);
 
-    // 计算总的业主岗位数量 (使用聚合数据)
-    const totalOwnerWorkers = effectiveTotalStats.jobs[building.owner] || 0;
-    // 计算总收益
-    const totalIncomeForClass = ownerPerCapitaIncome * totalOwnerWorkers;
+    const totalJobSlots = Object.values(effectiveTotalStats.jobs || {}).reduce((sum, val) => sum + val, 0);
+    const totalJobsFilled = Object.entries(effectiveTotalStats.jobs || {}).reduce((sum, [role, required]) => {
+        const filled = jobFill?.[building.id]?.[role] ?? 0;
+        return sum + Math.min(required, filled);
+    }, 0);
+    const jobFillRate = totalJobSlots > 0 ? (totalJobsFilled / totalJobSlots) * 100 : 0;
+    const totalInputs = Object.entries(effectiveTotalStats.input || {});
+    const totalOutputs = Object.entries(effectiveTotalStats.output || {});
+    const jobBreakdown = useMemo(() => {
+        return Object.entries(effectiveTotalStats.jobs || {}).map(([role, required]) => {
+            const filled = Math.min(jobFill?.[building.id]?.[role] ?? 0, required);
+            const fillPercent = required > 0 ? (filled / required) * 100 : 0;
+            return {
+                role,
+                required,
+                filled,
+                fillPercent,
+                name: STRATA[role]?.name || role
+            };
+        }).sort((a, b) => b.required - a.required);
+    }, [effectiveTotalStats.jobs, jobFill, building.id]);
 
     // 营业税逻辑
     const businessTaxMultiplier = taxPolicies?.businessTaxRates?.[building.id] ?? 1;
@@ -292,36 +335,6 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                 <p className="text-sm text-gray-300 px-1">{building.desc}</p>
             )}
 
-            {/* 关键数据 */}
-            <div className="grid grid-cols-3 gap-3 text-center">
-                <div className="bg-gray-900/50 p-3 rounded-lg border border-gray-700/80">
-                    <div className="text-xs text-gray-400 mb-1">已拥有</div>
-                    <div className="text-2xl font-bold text-white">{count}</div>
-                </div>
-                <div className="bg-gray-900/50 p-3 rounded-lg border border-gray-700/80">
-                    <div className="flex items-center justify-center gap-1 text-xs text-gray-400 mb-1">
-                        <span>业主人均收入</span> <Icon name="Coins" size={12} className="text-yellow-400" />
-                    </div>
-                    <div className={`text-2xl font-bold ${ownerPerCapitaIncome >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {ownerPerCapitaIncome.toFixed(2)}
-                    </div>
-                    <div className="text-[10px] text-gray-500 -mt-1">
-                        (每人)
-                    </div>
-                </div>
-                <div className="bg-gray-900/50 p-3 rounded-lg border border-gray-700/80">
-                    <div className="flex items-center justify-center gap-1 text-xs text-gray-400 mb-1">
-                        <span>阶层总收入</span> <Icon name="Coins" size={12} className="text-yellow-400" />
-                    </div>
-                    <div className={`text-2xl font-bold ${totalIncomeForClass >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {totalIncomeForClass.toFixed(1)}
-                    </div>
-                    <div className="text-[10px] text-gray-500 -mt-1">
-                        (共 {Math.round(totalOwnerWorkers)} 人)
-                    </div>
-                </div>
-            </div>
-
             {/* 营业税调整 */}
             {onUpdateTaxPolicies && (
                 <div className="bg-gray-900/50 p-3 rounded-lg border border-gray-700/80">
@@ -370,83 +383,109 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                 </div>
             )}
 
-            {/* 详细信息 - 两列布局 */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* 资源流动 */}
-                {(Object.keys(unlockedOutput).length > 0 || Object.keys(unlockedInput).length > 0) && (
-                    <DetailSection title="资源流动 (单个建筑)" icon="ArrowRightLeft">
-                        {Object.entries(unlockedOutput).map(([res, val]) => (
-                            <InfoRow key={`out-${res}`} label={RESOURCES[res]?.name || res} value={`+${val}`} valueClass="text-green-400" />
-                        ))}
-                        {Object.entries(unlockedInput).map(([res, val]) => (
-                            <InfoRow key={`in-${res}`} label={RESOURCES[res]?.name || res} value={`-${val}`} valueClass="text-red-400" />
-                        ))}
-                        {Object.keys(unlockedOutput).length === 0 && Object.keys(unlockedInput).length === 0 && (
-                            <p className="text-gray-500 text-center text-xs">当前时代无资源流动</p>
+            <DetailSection title="当前运行概览" icon="Activity">
+                <div className="grid grid-cols-2 gap-2 mb-3">
+                    <StatCard label="已拥有" icon="Home" value={count} />
+                    <StatCard
+                        label="到岗率"
+                        icon="Users"
+                        value={`${jobFillRate.toFixed(0)}%`}
+                        valueClass={jobFillRate >= 80 ? 'text-emerald-300' : jobFillRate >= 50 ? 'text-yellow-300' : 'text-red-300'}
+                    />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                    <div>
+                        <div className="text-[10px] uppercase text-emerald-300 mb-1 tracking-wide">总产出</div>
+                        {totalOutputs.length > 0 ? (
+                            <div className="flex flex-wrap gap-1.5">
+                                {totalOutputs.map(([resKey, amount]) => (
+                                    <ResourceSummaryBadge
+                                        key={`total-out-${resKey}`}
+                                        label={RESOURCES[resKey]?.name || resKey}
+                                        amount={amount}
+                                        positive
+                                    />
+                                ))}
+                            </div>
+                        ) : (
+                            <p className="text-[11px] text-gray-500">暂无产出</p>
                         )}
-                    </DetailSection>
-                )}
-
-                {/* 岗位信息 */}
-                {averageBuilding.jobs && Object.keys(averageBuilding.jobs).length > 0 && (
-                    <DetailSection title="提供岗位" icon="Users">
-                        {Object.entries(averageBuilding.jobs).map(([job, perBuilding], index) => {
-                            // perBuilding 是平均值
-                            const requiredExact = effectiveTotalStats.jobs[job] || 0;
-                            const assignedRaw = jobFill?.[building.id]?.[job] ?? 0;
-                            const assignedExact = Math.min(assignedRaw, requiredExact);
-                            const fillPercent = requiredExact > 0 ? (assignedExact / requiredExact) * 100 : 0;
-                            const wage = market?.wages?.[job] || 0;
-
-                            return (
-                                <div key={job} className={index > 0 ? "pt-2 mt-2 border-t border-gray-700/60" : ""}>
-                                    <div className="flex justify-between items-center text-xs mb-0.5">
-                                        <span className="text-gray-200 font-semibold">{STRATA[job]?.name || job}</span>
-                                        <span className="text-yellow-300 font-mono">薪资: {wage.toFixed(2)}</span>
-                                    </div>
-                                    <div className="flex justify-between text-[11px] text-gray-400 mb-1">
-                                        <span>每栋提供 {perBuilding}</span>
-                                        <span>当前总计 {Math.round(requiredExact)}</span>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-full bg-gray-700 rounded-full h-2">
-                                            <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${fillPercent}%` }}></div>
-                                        </div>
-                                        <span className="text-gray-300 font-mono text-[11px] w-20 text-right">{Math.round(assignedExact)}/{Math.round(requiredExact)}</span>
-                                    </div>
+                    </div>
+                    <div>
+                        <div className="text-[10px] uppercase text-rose-300 mb-1 tracking-wide">总投入</div>
+                        {totalInputs.length > 0 ? (
+                            <div className="flex flex-wrap gap-1.5">
+                                {totalInputs.map(([resKey, amount]) => (
+                                    <ResourceSummaryBadge
+                                        key={`total-in-${resKey}`}
+                                        label={RESOURCES[resKey]?.name || resKey}
+                                        amount={amount}
+                                        positive={false}
+                                    />
+                                ))}
+                            </div>
+                        ) : (
+                            <p className="text-[11px] text-gray-500">无需额外投入</p>
+                        )}
+                    </div>
+                </div>
+                {jobBreakdown.length > 0 && (
+                    <div className="space-y-3">
+                        <div className="text-[10px] uppercase text-gray-400 tracking-wide">岗位明细</div>
+                        {jobBreakdown.map(({ role, name, required, filled, fillPercent }) => (
+                            <div key={role} className="bg-gray-900/40 border border-gray-700/70 rounded-lg px-3 py-2">
+                                <div className="flex items-center justify-between text-xs text-gray-200">
+                                    <span>{name}</span>
+                                    <span className="font-mono text-gray-300">
+                                        {Math.round(filled)}/{Math.round(required)}
+                                    </span>
                                 </div>
-                            );
-                        })}
-                    </DetailSection>
+                                <div className="text-[10px] text-gray-500 mb-1">
+                                    <span className="mr-2">总岗位 {Math.round(required)}</span>
+                                    <span>实到 {Math.round(filled)}</span>
+                                </div>
+                                <div className="w-full bg-gray-700 rounded-full h-2">
+                                    <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${Math.min(100, fillPercent)}%` }} />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
                 )}
+            </DetailSection>
 
-                {/* 下一个建造成本 */}
-                <DetailSection title="下一个建造成本" icon="Hammer" className="md:col-span-2">
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                        {Object.entries(nextCost).map(([res, val]) => {
-                            const hasEnough = (resources[res] || 0) >= val;
-                            return (
-                                <InfoRow
-                                    key={res}
-                                    label={RESOURCES[res]?.name || res}
-                                    value={`${val}`}
-                                    valueClass={hasEnough ? 'text-green-400' : 'text-red-400'}
-                                />
-                            );
-                        })}
+            <DetailSection title="下一座建造成本" icon="ShoppingCart">
+                <p className="text-[11px] text-gray-400 mb-2">
+                    需要先采购/支付下列资源与资金才能建造下一座建筑：
+                </p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                    {Object.entries(nextCost).map(([res, val]) => {
+                        const hasEnough = (resources[res] || 0) >= val;
+                        return (
+                            <InfoRow
+                                key={res}
+                                label={RESOURCES[res]?.name || res}
+                                value={`${val}`}
+                                valueClass={hasEnough ? 'text-green-400' : 'text-red-400'}
+                            />
+                        );
+                    })}
+                </div>
+                <div className="pt-2 mt-2 border-t border-gray-700/60">
+                    <div className="flex justify-between items-center py-0.5">
+                        <span className="text-gray-300 flex items-center gap-1.5">
+                            <Icon name="Coins" size={14} className="text-yellow-400" /> 预计市场花费
+                        </span>
+                        <span className={`font-mono font-semibold ${hasSilver ? 'text-green-400' : 'text-red-400'}`}>
+                            {formatSilverCost(nextSilverCost)}
+                        </span>
                     </div>
-                    <div className="pt-2 mt-2 border-t border-gray-700/60">
-                        <div className="flex justify-between items-center py-0.5">
-                            <span className="text-gray-300 flex items-center gap-1.5">
-                                <Icon name="Coins" size={14} className="text-yellow-400" /> 总计
-                            </span>
-                            <span className={`font-mono font-semibold ${hasSilver ? 'text-green-400' : 'text-red-400'}`}>
-                                {formatSilverCost(nextSilverCost)}
-                            </span>
-                        </div>
-                    </div>
-                </DetailSection>
-            </div>
+                    {!canAffordNext && (
+                        <p className="text-[10px] text-gray-500 mt-1">
+                            当前库存或银币不足，需先从市场购入缺口资源。
+                        </p>
+                    )}
+                </div>
+            </DetailSection>
 
             {/* 建筑升级面板 */}
             {count > 0 && canBuildingUpgrade(building.id) && (
@@ -457,6 +496,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                     upgradeLevels={upgradeLevels}
                     resources={resources}
                     market={market}
+                    taxPolicies={taxPolicies}
                     onUpgrade={(instanceIndex) => onUpgrade?.(building.id, instanceIndex)}
                     onDowngrade={(instanceIndex) => onDowngrade?.(building.id, instanceIndex)}
                     onBatchUpgrade={(fromLevel, upgradeCount) => onBatchUpgrade?.(building.id, fromLevel, upgradeCount)}

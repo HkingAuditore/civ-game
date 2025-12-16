@@ -1,0 +1,918 @@
+/**
+ * AI War Module
+ * Handles AI military actions, rebel raids, and war-related logic
+ * Extracted from simulation.js for better code organization
+ */
+
+import { simulateBattle, UNIT_TYPES } from '../../config/militaryUnits';
+import { getEnemyUnitsForEpoch } from '../../config/militaryActions';
+import {
+    calculateAIPeaceTribute,
+    calculateAISurrenderDemand
+} from '../../utils/diplomaticUtils';
+import {
+    clamp,
+    PEACE_REQUEST_COOLDOWN_DAYS,
+    MAX_CONCURRENT_WARS,
+    GLOBAL_WAR_COOLDOWN
+} from '../utils';
+
+/**
+ * Process rebel nation war actions (raids and surrender demands)
+ * @param {Object} params - Parameters
+ * @param {Object} params.nation - The rebel nation object (mutable)
+ * @param {number} params.tick - Current game tick
+ * @param {number} params.epoch - Current epoch
+ * @param {Object} params.resources - Player resources (mutable)
+ * @param {Object} params.army - Player army (mutable)
+ * @param {Array} params.logs - Log array to append messages (mutable)
+ * @returns {Object} Result containing raidPopulationLoss
+ */
+export const processRebelWarActions = ({
+    nation,
+    tick,
+    epoch,
+    resources,
+    army,
+    logs,
+}) => {
+    let raidPopulationLoss = 0;
+    const res = resources;
+    const next = nation;
+
+    if (!next.isAtWar) {
+        return { raidPopulationLoss };
+    }
+
+    next.warDuration = (next.warDuration || 0) + 1;
+
+    // Rebel raid logic - higher raid chance (25% base + aggression bonus)
+    const rebelAggression = next.aggression ?? 0.7;
+    const raidChance = Math.min(0.35, 0.25 + rebelAggression * 0.1);
+
+    if (Math.random() < raidChance) {
+        // console.log(`[REBEL RAID] ${next.name} 发动突袭！概率: ${(raidChance * 100).toFixed(1)}%`);
+
+        const militaryStrength = next.militaryStrength ?? 1.0;
+        const raidStrength = 0.08 + rebelAggression * 0.05;
+
+        // Generate rebel raid army
+        const attackerArmy = {};
+        const raidUnits = getEnemyUnitsForEpoch(epoch, 'light');
+        const baseUnitCount = 3 + Math.random() * 5;
+        const totalUnits = Math.floor(baseUnitCount * militaryStrength);
+
+        raidUnits.forEach(unitId => {
+            if (UNIT_TYPES[unitId]) {
+                const count = Math.floor((totalUnits / raidUnits.length) * (0.5 + Math.random() * 0.8));
+                if (count > 0) attackerArmy[unitId] = count;
+            }
+        });
+
+        const defenderArmy = { ...army };
+        const totalDefenders = Object.values(defenderArmy).reduce((sum, c) => sum + c, 0);
+
+        let foodLoss = 0, silverLoss = 0, popLoss = 0;
+        let battleResult = { victory: true, attackerLosses: {}, defenderLosses: {} };
+
+        if (totalDefenders === 0) {
+            // No defense - raid succeeds
+            foodLoss = Math.floor((res.food || 0) * raidStrength);
+            silverLoss = Math.floor((res.silver || 0) * (raidStrength / 2));
+            popLoss = Math.min(5, Math.max(1, Math.floor(raidStrength * 25)));
+        } else {
+            // Battle simulation
+            battleResult = simulateBattle(
+                { army: attackerArmy, epoch, militaryBuffs: 0.1 },
+                { army: defenderArmy, epoch, militaryBuffs: 0 }
+            );
+
+            if (battleResult.victory) {
+                foodLoss = Math.floor((res.food || 0) * raidStrength);
+                silverLoss = Math.floor((res.silver || 0) * (raidStrength / 2));
+                popLoss = Math.min(5, Math.max(1, Math.floor(raidStrength * 25)));
+            }
+
+            // Apply player army losses
+            Object.entries(battleResult.defenderLosses || {}).forEach(([unitId, count]) => {
+                if (army[unitId]) army[unitId] = Math.max(0, army[unitId] - count);
+            });
+        }
+
+        // Apply resource losses
+        if (foodLoss > 0) res.food = Math.max(0, (res.food || 0) - foodLoss);
+        if (silverLoss > 0) res.silver = Math.max(0, (res.silver || 0) - silverLoss);
+        if (popLoss > 0) raidPopulationLoss += popLoss;
+
+        // Adjust war score
+        next.warScore = (next.warScore || 0) + (battleResult.victory ? -8 : 6);
+
+        // Generate raid event log
+        const raidData = {
+            nationName: next.name,
+            victory: !battleResult.victory,
+            attackerArmy,
+            defenderArmy,
+            attackerLosses: battleResult.attackerLosses || {},
+            defenderLosses: battleResult.defenderLosses || {},
+            foodLoss,
+            silverLoss,
+            popLoss,
+            ourPower: battleResult.defenderPower || 0,
+            enemyPower: battleResult.attackerPower || 0,
+            battleReport: battleResult.battleReport || [],
+            actionType: 'raid',
+            actionName: '叛军突袭',
+        };
+        logs.push(`❗RAID_EVENT❗${JSON.stringify(raidData)}`);
+    }
+
+    // Rebel surrender demand - when rebels are winning
+    const rebelWarAdvantage = -(next.warScore || 0);
+    if (rebelWarAdvantage > 50 && (next.warDuration || 0) > 20) {
+        const lastRebelDemandDay = next.lastSurrenderDemandDay || 0;
+        if (tick - lastRebelDemandDay >= 30 && Math.random() < 0.05) {
+            next.lastSurrenderDemandDay = tick;
+
+            let demandType = 'reform';
+            let demandAmount = Math.floor(50 + rebelWarAdvantage * 3);
+
+            if (rebelWarAdvantage > 200) {
+                demandType = 'massacre';
+                demandAmount = Math.floor(rebelWarAdvantage / 4);
+            } else if (rebelWarAdvantage > 100) {
+                demandType = 'concession';
+                demandAmount = Math.floor(rebelWarAdvantage * 2);
+            }
+
+            logs.push(`REBEL_DEMAND_SURRENDER:${JSON.stringify({
+                nationId: next.id,
+                nationName: next.name,
+                rebellionStratum: next.rebellionStratum,
+                warScore: next.warScore,
+                demandType,
+                demandAmount
+            })}`);
+        }
+    }
+
+    return { raidPopulationLoss };
+};
+
+/**
+ * Check if rebel should request peace/surrender
+ * @param {Object} params - Parameters
+ * @param {Object} params.nation - The rebel nation object (mutable)
+ * @param {number} params.tick - Current game tick
+ * @param {Array} params.logs - Log array (mutable)
+ */
+export const checkRebelSurrender = ({
+    nation,
+    tick,
+    logs,
+}) => {
+    const next = nation;
+    const rebelWarScore = next.warScore || 0;
+    const rebelWarDuration = next.warDuration || 0;
+    const lastRebelPeaceRequest = Number.isFinite(next.lastPeaceRequestDay) ? next.lastPeaceRequestDay : -Infinity;
+    const canRebelRequestPeace = (tick - lastRebelPeaceRequest) >= 30;
+
+    if (canRebelRequestPeace && !next.isPeaceRequesting) {
+        const desperationLevel = Math.max(0, rebelWarScore - 20) / 100 + Math.max(0, rebelWarDuration - 60) / 500;
+        const surrenderChance = Math.min(0.4, desperationLevel * 0.5);
+
+        if (rebelWarScore > 30 && Math.random() < surrenderChance) {
+            next.isPeaceRequesting = true;
+            next.peaceTribute = 0;
+            next.lastPeaceRequestDay = tick;
+            logs.push(`🏳️ ${next.name} 已陷入绝境，请求投降！`);
+        } else if (rebelWarScore > 60 && rebelWarDuration > 90) {
+            next.isPeaceRequesting = true;
+            next.peaceTribute = 0;
+            next.lastPeaceRequestDay = tick;
+            logs.push(`🏳️ ${next.name} 已经崩溃，恳求投降！`);
+        }
+    }
+};
+
+/**
+ * Process AI nation military action against player
+ * @param {Object} params - Parameters
+ * @param {Object} params.nation - AI nation object (mutable)
+ * @param {number} params.tick - Current game tick
+ * @param {number} params.epoch - Current epoch
+ * @param {Object} params.resources - Player resources (mutable)
+ * @param {Object} params.army - Player army (mutable)
+ * @param {Array} params.logs - Log array (mutable)
+ * @returns {Object} Result containing raidPopulationLoss
+ */
+export const processAIMilitaryAction = ({
+    nation,
+    tick,
+    epoch,
+    resources,
+    army,
+    logs,
+}) => {
+    let raidPopulationLoss = 0;
+    const next = nation;
+    const res = resources;
+
+    // Only process in epoch 1+
+    if (epoch < 1) return { raidPopulationLoss };
+
+    // Military action cooldown check
+    const lastMilitaryActionDay = next.lastMilitaryActionDay || 0;
+    if (!next.militaryCooldownDays) {
+        next.militaryCooldownDays = 7 + Math.floor(Math.random() * 24);
+    }
+    const canTakeMilitaryAction = (tick - lastMilitaryActionDay) >= next.militaryCooldownDays;
+
+    const disadvantage = Math.max(0, -(next.warScore || 0));
+    const actionChance = Math.min(0.18, 0.02 + (next.aggression || 0.2) * 0.04 + disadvantage / 400);
+
+    if (!canTakeMilitaryAction || Math.random() >= actionChance) {
+        return { raidPopulationLoss };
+    }
+
+    // Record action time and reset cooldown
+    next.lastMilitaryActionDay = tick;
+    next.militaryCooldownDays = 7 + Math.floor(Math.random() * 24);
+
+    // Generate enemy army
+    const enemyEpoch = Math.max(next.appearEpoch || 0, Math.min(epoch, next.expireEpoch ?? epoch));
+    const militaryStrength = next.militaryStrength ?? 1.0;
+    const wealthFactor = Math.max(0.3, Math.min(1.5, (next.wealth || 500) / 800));
+    const aggressionFactor = 1 + (next.aggression || 0.2);
+    const warScoreFactor = 1 + Math.max(-0.5, (next.warScore || 0) / 120);
+
+    // Select action type based on war situation
+    const aggression = next.aggression || 0.2;
+    const playerArmySize = Object.values(army).reduce((sum, c) => sum + c, 0);
+    const aiAdvantage = -(next.warScore || 0);
+    const isNavalNation = (next.traits || []).includes('maritime') || (next.name || '').includes('海') || (next.name || '').includes('威尼斯');
+
+    let actionType = 'raid';
+    let unitScale = 'light';
+    let actionBaseCount = { min: 2, max: 6 };
+    let actionName = '边境掠夺';
+    let strengthMultiplier = 1.0;
+
+    const actionRoll = Math.random();
+
+    // Action selection logic based on AI advantage and military strength
+    if (militaryStrength > 0.7 && aggression > 0.5 && aiAdvantage > 30 && enemyEpoch >= 2) {
+        if (actionRoll < 0.25) {
+            actionType = 'siege';
+            unitScale = 'heavy';
+            actionBaseCount = { min: 15, max: 25 };
+            actionName = '围城压制';
+            strengthMultiplier = 1.5;
+        } else if (actionRoll < 0.6) {
+            actionType = 'assault';
+            unitScale = 'medium';
+            actionBaseCount = { min: 12, max: 18 };
+            actionName = '正面攻势';
+            strengthMultiplier = 1.3;
+        } else if (actionRoll < 0.75 && aggression > 0.6) {
+            actionType = 'scorched_earth';
+            unitScale = 'heavy';
+            actionBaseCount = { min: 12, max: 20 };
+            actionName = '焦土战术';
+            strengthMultiplier = 1.4;
+        }
+    } else if (militaryStrength > 0.5 && aiAdvantage > 10 && enemyEpoch >= 1) {
+        if (actionRoll < 0.35) {
+            actionType = 'assault';
+            unitScale = 'medium';
+            actionBaseCount = { min: 10, max: 15 };
+            actionName = '正面攻势';
+            strengthMultiplier = 1.2;
+        } else if (actionRoll < 0.5 && isNavalNation && enemyEpoch >= 2) {
+            actionType = 'naval_raid';
+            unitScale = 'medium';
+            actionBaseCount = { min: 8, max: 14 };
+            actionName = '海上劫掠';
+            strengthMultiplier = 1.1;
+        }
+    } else if (aiAdvantage < -20 && aggression > 0.6 && actionRoll < 0.3) {
+        actionType = 'scorched_earth';
+        unitScale = 'medium';
+        actionBaseCount = { min: 8, max: 15 };
+        actionName = '焦土战术';
+        strengthMultiplier = 1.1;
+    }
+
+    const actionStrength = (0.05 + aggression * 0.05 + disadvantage / 1200) * strengthMultiplier;
+    const overallStrength = militaryStrength * wealthFactor * aggressionFactor * warScoreFactor;
+
+    // Generate attack army
+    const attackerArmy = {};
+    const actionUnits = getEnemyUnitsForEpoch(enemyEpoch, unitScale);
+    const baseUnitCount = actionBaseCount.min + Math.random() * (actionBaseCount.max - actionBaseCount.min);
+    const totalUnits = Math.floor(baseUnitCount * overallStrength);
+
+    actionUnits.forEach(unitId => {
+        if (UNIT_TYPES[unitId]) {
+            const ratio = 0.5 + Math.random() * 0.8;
+            const count = Math.floor((totalUnits / actionUnits.length) * ratio);
+            if (count > 0) {
+                attackerArmy[unitId] = count;
+            }
+        }
+    });
+
+    const defenderArmy = { ...army };
+    const totalDefenders = Object.values(defenderArmy).reduce((sum, count) => sum + count, 0);
+
+    // Action type loss multipliers
+    const actionLossMultiplier = {
+        raid: 1.0,
+        assault: 1.5,
+        siege: 2.0,
+        naval_raid: 1.2,
+        scorched_earth: 1.8
+    }[actionType] || 1.0;
+
+    const actionScoreChange = {
+        raid: { win: -8, lose: 6 },
+        assault: { win: -15, lose: 12 },
+        siege: { win: -25, lose: 20 },
+        naval_raid: { win: -12, lose: 10 },
+        scorched_earth: { win: -18, lose: 15 }
+    }[actionType] || { win: -8, lose: 6 };
+
+    if (totalDefenders === 0) {
+        // No defenders - action succeeds
+        const foodLoss = Math.floor((res.food || 0) * actionStrength * actionLossMultiplier);
+        const silverLoss = Math.floor((res.silver || 0) * (actionStrength / 2) * actionLossMultiplier);
+        let woodLoss = 0;
+        if (actionType === 'scorched_earth') {
+            woodLoss = Math.floor((res.wood || 0) * actionStrength * 0.8);
+            if (woodLoss > 0) res.wood = Math.max(0, (res.wood || 0) - woodLoss);
+        }
+        if (foodLoss > 0) res.food = Math.max(0, (res.food || 0) - foodLoss);
+        if (silverLoss > 0) res.silver = Math.max(0, (res.silver || 0) - silverLoss);
+        const popLoss = Math.min(Math.floor(3 * actionLossMultiplier), Math.max(1, Math.floor(actionStrength * 20 * actionLossMultiplier)));
+        raidPopulationLoss += popLoss;
+
+        const raidData = {
+            nationName: next.name,
+            victory: false,
+            attackerArmy,
+            defenderArmy: {},
+            attackerLosses: {},
+            defenderLosses: {},
+            foodLoss,
+            silverLoss,
+            woodLoss,
+            popLoss,
+            ourPower: 0,
+            enemyPower: 0,
+            actionType,
+            actionName,
+        };
+        logs.push(`❗RAID_EVENT❗${JSON.stringify(raidData)}`);
+        next.warScore = (next.warScore || 0) + actionScoreChange.win;
+        const lootValue = foodLoss + silverLoss + woodLoss;
+        next.wealth = (next.wealth || 0) + Math.floor(lootValue * 0.08);
+    } else {
+        // Battle simulation
+        const attackerBuff = {
+            raid: 0.1,
+            assault: 0.0,
+            siege: -0.1,
+            naval_raid: 0.15,
+            scorched_earth: 0.05
+        }[actionType] || 0.1;
+
+        const attackerData = {
+            army: attackerArmy,
+            epoch: enemyEpoch,
+            militaryBuffs: attackerBuff,
+        };
+
+        const defenderData = {
+            army: defenderArmy,
+            epoch: epoch,
+            militaryBuffs: 0,
+            wealth: (res.food || 0) + (res.silver || 0) + (res.wood || 0),
+        };
+
+        const battleResult = simulateBattle(attackerData, defenderData);
+
+        let foodLoss = 0;
+        let silverLoss = 0;
+        let woodLoss = 0;
+        let popLoss = 0;
+
+        if (battleResult.victory) {
+            foodLoss = Math.floor((res.food || 0) * actionStrength * actionLossMultiplier);
+            silverLoss = Math.floor((res.silver || 0) * (actionStrength / 2) * actionLossMultiplier);
+            if (actionType === 'scorched_earth') {
+                woodLoss = Math.floor((res.wood || 0) * actionStrength * 0.8);
+                if (woodLoss > 0) res.wood = Math.max(0, (res.wood || 0) - woodLoss);
+            }
+            if (foodLoss > 0) res.food = Math.max(0, (res.food || 0) - foodLoss);
+            if (silverLoss > 0) res.silver = Math.max(0, (res.silver || 0) - silverLoss);
+            popLoss = Math.min(Math.floor(3 * actionLossMultiplier), Math.max(1, Math.floor(actionStrength * 20 * actionLossMultiplier)));
+            raidPopulationLoss += popLoss;
+            const lootValue = foodLoss + silverLoss + woodLoss;
+            next.wealth = (next.wealth || 0) + Math.floor(lootValue * 0.08);
+        }
+
+        // Apply army losses
+        Object.entries(battleResult.defenderLosses || {}).forEach(([unitId, count]) => {
+            if (army[unitId]) {
+                army[unitId] = Math.max(0, army[unitId] - count);
+            }
+        });
+
+        const enemyLossCount = Object.values(battleResult.attackerLosses || {}).reduce(
+            (sum, val) => sum + (val || 0),
+            0
+        );
+        if (enemyLossCount > 0) {
+            next.enemyLosses = (next.enemyLosses || 0) + enemyLossCount;
+        }
+
+        const scoreDelta = battleResult.victory ? actionScoreChange.win : actionScoreChange.lose;
+        next.warScore = (next.warScore || 0) + scoreDelta;
+
+        const raidData = {
+            nationName: next.name,
+            victory: !battleResult.victory,
+            attackerArmy,
+            defenderArmy,
+            attackerLosses: battleResult.attackerLosses || {},
+            defenderLosses: battleResult.defenderLosses || {},
+            foodLoss,
+            silverLoss,
+            woodLoss,
+            popLoss,
+            ourPower: battleResult.defenderPower,
+            enemyPower: battleResult.attackerPower,
+            battleReport: battleResult.battleReport || [],
+            actionType,
+            actionName,
+        };
+        logs.push(`❗RAID_EVENT❗${JSON.stringify(raidData)}`);
+    }
+
+    return { raidPopulationLoss };
+};
+
+/**
+ * Check if AI should request peace
+ * @param {Object} params - Parameters
+ * @param {Object} params.nation - AI nation object (mutable)
+ * @param {number} params.tick - Current game tick
+ * @param {Array} params.logs - Log array (mutable)
+ */
+export const checkAIPeaceRequest = ({
+    nation,
+    tick,
+    logs,
+}) => {
+    const next = nation;
+    const lastPeaceRequestDay = Number.isFinite(next.lastPeaceRequestDay)
+        ? next.lastPeaceRequestDay
+        : -Infinity;
+    const canRequestPeace = (tick - lastPeaceRequestDay) >= PEACE_REQUEST_COOLDOWN_DAYS;
+
+    if ((next.warScore || 0) > 12 && canRequestPeace) {
+        const willingness = Math.min(0.5, 0.03 + (next.warScore || 0) / 120 + (next.warDuration || 0) / 400) + Math.min(0.15, (next.enemyLosses || 0) / 500);
+
+        if (Math.random() < willingness) {
+            const warScore = next.warScore || 0;
+            const enemyLosses = next.enemyLosses || 0;
+            const warDuration = next.warDuration || 0;
+            const availableWealth = Math.max(0, next.wealth || 0);
+            const tribute = calculateAIPeaceTribute(warScore, enemyLosses, warDuration, availableWealth);
+
+            logs.push(`🤝 ${next.name} 请求和平，愿意支付 ${tribute} 银币作为赔款。`);
+            next.isPeaceRequesting = true;
+            next.peaceTribute = tribute;
+            next.lastPeaceRequestDay = tick;
+        }
+    }
+};
+
+/**
+ * Check if AI should demand player surrender
+ * @param {Object} params - Parameters
+ * @param {Object} params.nation - AI nation object (mutable)
+ * @param {number} params.tick - Current game tick
+ * @param {number} params.population - Player population
+ * @param {Array} params.logs - Log array (mutable)
+ */
+export const checkAISurrenderDemand = ({
+    nation,
+    tick,
+    population,
+    logs,
+}) => {
+    const next = nation;
+    const aiWarScore = -(next.warScore || 0);
+
+    if (aiWarScore > 25 && (next.warDuration || 0) > 30) {
+        const lastDemandDay = next.lastSurrenderDemandDay || 0;
+        if (tick - lastDemandDay >= 60 && Math.random() < 0.03) {
+            next.lastSurrenderDemandDay = tick;
+
+            let demandType = 'tribute';
+            const warDuration = next.warDuration || 0;
+            let demandAmount = calculateAISurrenderDemand(aiWarScore, warDuration);
+
+            if (aiWarScore > 100) {
+                demandType = 'territory';
+                demandAmount = Math.min(50, Math.max(3, Math.floor(population * 0.05)));
+            } else if (aiWarScore > 50 && Math.random() < 0.5) {
+                demandType = 'open_market';
+                demandAmount = 365 * 2;
+            }
+
+            logs.push(`AI_DEMAND_SURRENDER:${JSON.stringify({
+                nationId: next.id,
+                nationName: next.name,
+                warScore: next.warScore,
+                demandType,
+                demandAmount
+            })}`);
+        }
+    }
+};
+
+/**
+ * Check war declaration conditions for an AI nation
+ * @param {Object} params - Parameters
+ * @param {Object} params.nation - AI nation to check (mutable)
+ * @param {Array} params.nations - All nations (for counting wars)
+ * @param {number} params.tick - Current game tick
+ * @param {number} params.epoch - Current epoch
+ * @param {Object} params.resources - Player resources
+ * @param {number} params.stabilityValue - Player stability
+ * @param {Array} params.logs - Log array (mutable)
+ */
+export const checkWarDeclaration = ({
+    nation,
+    nations,
+    tick,
+    epoch,
+    resources,
+    stabilityValue,
+    logs,
+}) => {
+    const next = nation;
+    const res = resources;
+    const relation = next.relation ?? 50;
+    const aggression = next.aggression ?? 0.2;
+
+    // Count current wars with player
+    const currentWarsWithPlayer = (nations || []).filter(n =>
+        n.isAtWar === true && n.id !== next.id && !n.isRebelNation
+    ).length;
+
+    // Check global cooldown
+    const recentWarDeclarations = (nations || []).some(n =>
+        n.isAtWar && n.warStartDay && (tick - n.warStartDay) < GLOBAL_WAR_COOLDOWN && n.id !== next.id
+    );
+
+    // War count penalty
+    const warCountPenalty = currentWarsWithPlayer > 0
+        ? Math.pow(0.3, currentWarsWithPlayer)
+        : 1.0;
+
+    // Calculate declaration chance
+    const hostility = Math.max(0, (50 - relation) / 70);
+    const unrest = stabilityValue < 35 ? 0.02 : 0;
+    const aggressionBonus = aggression > 0.5 ? aggression * 0.03 : 0;
+
+    let declarationChance = epoch >= 1
+        ? Math.min(0.08, (aggression * 0.04) + (hostility * 0.025) + unrest + aggressionBonus)
+        : 0;
+
+    declarationChance *= warCountPenalty;
+
+    // Check conditions
+    const hasPeaceTreaty = next.peaceTreatyUntil && tick < next.peaceTreatyUntil;
+    const isPlayerAlly = relation >= 80;
+
+    const canDeclareWar = !next.isAtWar &&
+        !hasPeaceTreaty &&
+        !isPlayerAlly &&
+        relation < 25 &&
+        currentWarsWithPlayer < MAX_CONCURRENT_WARS &&
+        !recentWarDeclarations;
+
+    if (canDeclareWar && Math.random() < declarationChance) {
+        next.isAtWar = true;
+        next.warStartDay = tick;
+        next.warDuration = 0;
+        next.warDeclarationPending = true;
+        logs.push(`⚠️ ${next.name} 对你发动了战争！`);
+        logs.push(`WAR_DECLARATION_EVENT:${JSON.stringify({ nationId: next.id, nationName: next.name })}`);
+    }
+
+    // Wealth-based war check
+    const playerWealth = (res.food || 0) + (res.silver || 0) + (res.wood || 0);
+    const aiWealth = next.wealth || 500;
+    const aiMilitaryStrength = next.militaryStrength ?? 1.0;
+
+    if (!next.isAtWar && !hasPeaceTreaty && !isPlayerAlly &&
+        playerWealth > aiWealth * 2 &&
+        aiMilitaryStrength > 0.8 &&
+        relation < 50 &&
+        aggression > 0.4 &&
+        currentWarsWithPlayer < MAX_CONCURRENT_WARS &&
+        !recentWarDeclarations) {
+
+        const wealthWarChance = 0.001 * aggression * (playerWealth / aiWealth - 1);
+        if (Math.random() < wealthWarChance) {
+            next.isAtWar = true;
+            next.warStartDay = tick;
+            next.warDuration = 0;
+            next.warDeclarationPending = true;
+            logs.push(`⚠️ ${next.name} 觊觎你的财富，发动了战争！`);
+            logs.push(`WAR_DECLARATION_EVENT:${JSON.stringify({ nationId: next.id, nationName: next.name, reason: 'wealth' })}`);
+        }
+    }
+};
+
+/**
+ * Process collective attack against warmonger nations
+ * When a nation has 3+ active wars, other nations may form a coalition against it
+ * @param {Array} visibleNations - Array of visible nations
+ * @param {number} tick - Current game tick
+ * @param {Array} logs - Log array (mutable)
+ */
+export const processCollectiveAttackWarmonger = (visibleNations, tick, logs) => {
+    visibleNations.forEach(warmonger => {
+        const activeWars = Object.values(warmonger.foreignWars || {}).filter(w => w?.isAtWar).length;
+        if (activeWars < 3) return;
+
+        const alreadyOpposing = visibleNations.filter(n =>
+            n.foreignWars?.[warmonger.id]?.isAtWar &&
+            n.id !== warmonger.id
+        ).length;
+        if (alreadyOpposing >= 2) return;
+
+        const potentialOpponents = visibleNations.filter(n => {
+            if (n.id === warmonger.id) return false;
+            if (n.foreignWars?.[warmonger.id]?.isAtWar) return false;
+            if ((n.allies || []).includes(warmonger.id)) return false;
+            const relation = n.foreignRelations?.[warmonger.id] ?? 50;
+            return relation < 40;
+        });
+
+        if (potentialOpponents.length >= 2 && Math.random() < 0.005) {
+            const opponent = potentialOpponents[Math.floor(Math.random() * potentialOpponents.length)];
+            if (!opponent.foreignWars) opponent.foreignWars = {};
+            if (!warmonger.foreignWars) warmonger.foreignWars = {};
+
+            opponent.foreignWars[warmonger.id] = { isAtWar: true, warStartDay: tick, warScore: 0 };
+            warmonger.foreignWars[opponent.id] = { isAtWar: true, warStartDay: tick, warScore: 0 };
+
+            logs.push(`⚔️ 国际新闻：${opponent.name} 认为 ${warmonger.name} 的好战行为威胁地区稳定，对其宣战！`);
+        }
+    });
+};
+
+/**
+ * Process AI-AI war declarations
+ * @param {Array} visibleNations - Array of visible nations
+ * @param {Array} updatedNations - Full nations array
+ * @param {number} tick - Current game tick
+ * @param {Array} logs - Log array (mutable)
+ */
+export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, logs) => {
+    visibleNations.forEach(nation => {
+        if (!nation.foreignWars) nation.foreignWars = {};
+
+        visibleNations.forEach(otherNation => {
+            if (otherNation.id === nation.id) return;
+            if (nation.foreignWars[otherNation.id]?.isAtWar) return;
+
+            const peaceUntil = nation.foreignWars[otherNation.id]?.peaceTreatyUntil || 0;
+            if (tick < peaceUntil) return;
+
+            const isAllied = (nation.allies || []).includes(otherNation.id) ||
+                (otherNation.allies || []).includes(nation.id);
+            if (isAllied) return;
+
+            const currentWarCount = Object.values(nation.foreignWars || {}).filter(w => w?.isAtWar).length;
+            const maxWarsAllowed = nation.aggression > 0.7 ? 2 : 1;
+            if (currentWarCount >= maxWarsAllowed) return;
+
+            const myPopulation = nation.population || 100;
+            const myWealth = nation.wealth || 500;
+            if (myPopulation < 30 || myWealth < 300) return;
+
+            const calculateNationPower = (n) => (n.militaryStrength ?? 1.0) * (n.population || 100) * (1 + (n.aggression || 0.3));
+
+            let mySideStrength = calculateNationPower(nation);
+            let enemySideStrength = calculateNationPower(otherNation);
+
+            visibleNations.forEach(n => {
+                if (n.id === nation.id || n.id === otherNation.id) return;
+                const isMyAlly = (nation.allies || []).includes(n.id) || (n.allies || []).includes(nation.id);
+                if (isMyAlly) mySideStrength += calculateNationPower(n);
+                const isEnemyAlly = (otherNation.allies || []).includes(n.id) || (n.allies || []).includes(otherNation.id);
+                if (isEnemyAlly) enemySideStrength += calculateNationPower(n);
+            });
+
+            const strengthRatio = mySideStrength / Math.max(1, enemySideStrength);
+            const minStrengthRatio = nation.aggression > 0.7 ? 0.5 : 0.7;
+            if (strengthRatio < minStrengthRatio) return;
+
+            const enemyWarCount = Object.values(otherNation.foreignWars || {}).filter(w => w?.isAtWar).length;
+            const opportunityBonus = enemyWarCount > 0 ? 0.002 : 0;
+
+            const relation = nation.foreignRelations?.[otherNation.id] ?? 50;
+            const aggression = nation.aggression ?? 0.3;
+
+            const isRelationsBadEnough = relation < 50;
+            const isAggressiveEnough = aggression > 0.25;
+            const isHatedEnemy = relation < 15;
+
+            if ((isRelationsBadEnough && isAggressiveEnough) || isHatedEnemy) {
+                let warChance = (aggression * 0.003) + ((50 - relation) / 5000);
+
+                if (relation < 10) warChance += 0.01;
+                else if (relation < 20) warChance += 0.003;
+
+                if (strengthRatio > 2.0) warChance *= 2.0;
+                else if (strengthRatio > 1.5) warChance *= 1.5;
+                else if (strengthRatio > 1.2) warChance *= 1.2;
+                else if (strengthRatio < 0.8) warChance *= 0.1;
+
+                warChance += opportunityBonus * 0.5;
+
+                const targetWealth = otherNation.wealth || 500;
+                if (targetWealth > myWealth * 1.5 && strengthRatio > 0.8) {
+                    const wealthWarBonus = 0.003 * aggression * (targetWealth / myWealth - 1);
+                    warChance += wealthWarBonus;
+                }
+
+                warChance = Math.min(0.003, warChance);
+
+                if (Math.random() < warChance) {
+                    nation.foreignWars[otherNation.id] = { isAtWar: true, warStartDay: tick, warScore: 0 };
+                    if (!otherNation.foreignWars) otherNation.foreignWars = {};
+                    otherNation.foreignWars[nation.id] = { isAtWar: true, warStartDay: tick, warScore: 0 };
+
+                    const declarationNewsTemplates = [
+                        `📢 国际新闻：${nation.name} 向 ${otherNation.name} 宣战了！`,
+                        `📢 国际新闻：${nation.name} 正式对 ${otherNation.name} 宣战！`,
+                        `📢 国际新闻：战争爆发！${nation.name} 对 ${otherNation.name} 发起了战争！`
+                    ];
+                    logs.push(declarationNewsTemplates[Math.floor(Math.random() * declarationNewsTemplates.length)]);
+
+                    // Alliance chain reaction
+                    const isOtherNationPlayerAlly = otherNation.alliedWithPlayer === true;
+                    const isNationPlayerAlly = nation.alliedWithPlayer === true;
+                    const playerAlliesInConflict = isOtherNationPlayerAlly && isNationPlayerAlly;
+                    const currentPlayerWars = visibleNations.filter(n => n.isAtWar === true && !n.isRebelNation).length;
+
+                    if (playerAlliesInConflict) {
+                        logs.push(`⚖️ 你的盟友 ${nation.name} 与 ${otherNation.name} 发生冲突，你选择保持中立。`);
+                    } else {
+                        if (isOtherNationPlayerAlly && !nation.isAtWar) {
+                            logs.push(`ALLY_ATTACKED_EVENT:${JSON.stringify({
+                                allyId: otherNation.id,
+                                allyName: otherNation.name,
+                                attackerId: nation.id,
+                                attackerName: nation.name,
+                                currentPlayerWars
+                            })}`);
+                        }
+                        if (isNationPlayerAlly && !otherNation.isAtWar) {
+                            if (currentPlayerWars >= MAX_CONCURRENT_WARS) {
+                                logs.push(`⚖️ 你的盟友 ${nation.name} 向 ${otherNation.name} 宣战！但你已陷入多场战争，选择不介入。`);
+                            } else {
+                                otherNation.isAtWar = true;
+                                otherNation.warStartDay = tick;
+                                otherNation.warDuration = 0;
+                                otherNation.relation = Math.max(0, (otherNation.relation || 50) - 40);
+                                logs.push(`⚔️ 你的盟友 ${nation.name} 向 ${otherNation.name} 宣战！作为同盟，你被迫与 ${otherNation.name} 进入战争状态！`);
+                            }
+                        }
+                    }
+
+                    // AI alliance chain
+                    visibleNations.forEach(ally => {
+                        if (ally.id === nation.id || ally.id === otherNation.id) return;
+                        const isDefenderAlly = (otherNation.allies || []).includes(ally.id) ||
+                            (ally.allies || []).includes(otherNation.id);
+                        if (isDefenderAlly) {
+                            if (!ally.foreignWars) ally.foreignWars = {};
+                            ally.foreignWars[nation.id] = { isAtWar: true, warStartDay: tick, warScore: 0 };
+                            if (!nation.foreignWars) nation.foreignWars = {};
+                            nation.foreignWars[ally.id] = { isAtWar: true, warStartDay: tick, warScore: 0 };
+                            logs.push(`⚔️ ${ally.name} 作为 ${otherNation.name} 的盟友，加入对 ${nation.name} 的战争！`);
+                        }
+                    });
+                }
+            }
+        });
+    });
+};
+
+/**
+ * Process ongoing AI-AI war progression
+ * @param {Array} visibleNations - Array of visible nations
+ * @param {Array} updatedNations - Full nations array
+ * @param {number} tick - Current game tick
+ * @param {Array} logs - Log array (mutable)
+ */
+export const processAIAIWarProgression = (visibleNations, updatedNations, tick, logs) => {
+    visibleNations.forEach(nation => {
+        Object.keys(nation.foreignWars || {}).forEach(enemyId => {
+            const war = nation.foreignWars[enemyId];
+            if (!war?.isAtWar) return;
+
+            const enemy = updatedNations.find(n => n.id === enemyId);
+            if (!enemy) return;
+
+            if (!enemy.foreignWars) enemy.foreignWars = {};
+            if (!enemy.foreignWars[nation.id]) {
+                enemy.foreignWars[nation.id] = {
+                    isAtWar: true,
+                    warStartDay: war.warStartDay || tick,
+                    warScore: -(war.warScore || 0)
+                };
+            }
+
+            const warDuration = tick - (war.warStartDay || tick);
+            const warIntensity = Math.min(2.0, 1.0 + warDuration / 500);
+
+            const wealthDecayRate = 0.995 - (warIntensity * 0.003);
+            const populationDecayRate = 0.998 - (warIntensity * 0.002);
+
+            const nationWarCount = Object.values(nation.foreignWars || {}).filter(w => w?.isAtWar).length;
+            const enemyWarCount = Object.values(enemy.foreignWars || {}).filter(w => w?.isAtWar).length;
+            const nationMultiWarPenalty = Math.pow(0.998, nationWarCount - 1);
+            const enemyMultiWarPenalty = Math.pow(0.998, enemyWarCount - 1);
+
+            nation.wealth = Math.max(100, (nation.wealth || 500) * wealthDecayRate * nationMultiWarPenalty);
+            nation.population = Math.max(10, (nation.population || 100) * populationDecayRate * nationMultiWarPenalty);
+            enemy.wealth = Math.max(100, (enemy.wealth || 500) * wealthDecayRate * enemyMultiWarPenalty);
+            enemy.population = Math.max(10, (enemy.population || 100) * populationDecayRate * enemyMultiWarPenalty);
+
+            if ((tick - war.warStartDay) % 10 === 0 && tick > war.warStartDay) {
+                const nationStrength = (nation.militaryStrength ?? 1.0) * (nation.population || 100) * (1 + (nation.aggression || 0.3));
+                const enemyStrength = (enemy.militaryStrength ?? 1.0) * (enemy.population || 100) * (1 + (enemy.aggression || 0.3));
+
+                const totalStrength = nationStrength + enemyStrength;
+                const nationWinChance = nationStrength / totalStrength;
+
+                const battleCasualty = 0.02 + Math.random() * 0.03;
+                nation.population = Math.max(10, (nation.population || 100) * (1 - battleCasualty * (1 - nationWinChance)));
+                enemy.population = Math.max(10, (enemy.population || 100) * (1 - battleCasualty * nationWinChance));
+
+                if (Math.random() < nationWinChance) {
+                    war.warScore = (war.warScore || 0) + 5;
+                    enemy.foreignWars[nation.id].warScore = (enemy.foreignWars[nation.id].warScore || 0) - 5;
+                    const loot = Math.floor((enemy.wealth || 500) * 0.08);
+                    nation.wealth = (nation.wealth || 500) + loot;
+                    enemy.wealth = Math.max(100, (enemy.wealth || 500) - loot);
+                } else {
+                    war.warScore = (war.warScore || 0) - 5;
+                    enemy.foreignWars[nation.id].warScore = (enemy.foreignWars[nation.id].warScore || 0) + 5;
+                    const loot = Math.floor((nation.wealth || 500) * 0.08);
+                    enemy.wealth = (enemy.wealth || 500) + loot;
+                    nation.wealth = Math.max(100, (nation.wealth || 500) - loot);
+                }
+
+                const absoluteWarScore = Math.abs(war.warScore || 0);
+                const nationExhausted = (nation.population || 100) < 30 || (nation.wealth || 500) < 200;
+                const enemyExhausted = (enemy.population || 100) < 30 || (enemy.wealth || 500) < 200;
+                const exhaustionEndChance = (nationExhausted || enemyExhausted) ? 0.15 : 0.05;
+
+                if (absoluteWarScore > 25 || Math.random() < exhaustionEndChance) {
+                    const winner = (war.warScore || 0) > 0 ? nation : enemy;
+                    const loser = winner.id === nation.id ? enemy : nation;
+
+                    const populationTransfer = Math.floor((loser.population || 100) * 0.10);
+                    const wealthTransfer = Math.floor((loser.wealth || 500) * 0.15);
+
+                    winner.population = (winner.population || 100) + populationTransfer;
+                    winner.wealth = (winner.wealth || 500) + wealthTransfer;
+                    loser.population = Math.max(10, (loser.population || 100) - populationTransfer);
+                    loser.wealth = Math.max(100, (loser.wealth || 500) - wealthTransfer);
+
+                    nation.foreignWars[enemyId] = { isAtWar: false, peaceTreatyUntil: tick + 730 };
+                    enemy.foreignWars[nation.id] = { isAtWar: false, peaceTreatyUntil: tick + 730 };
+
+                    if (!nation.foreignRelations) nation.foreignRelations = {};
+                    if (!enemy.foreignRelations) enemy.foreignRelations = {};
+                    nation.foreignRelations[enemyId] = clamp((nation.foreignRelations[enemyId] || 50) - 20, 0, 100);
+                    enemy.foreignRelations[nation.id] = clamp((enemy.foreignRelations[nation.id] || 50) - 20, 0, 100);
+
+                    const warDurationDays = tick - (war.warStartDay || tick);
+                    logs.push(`📢 国际新闻：${winner.name} 在与 ${loser.name} 历时${warDurationDays}天的战争中获胜！`);
+                }
+            }
+        });
+    });
+};

@@ -111,6 +111,109 @@ const LongPressButton = ({
 /**
  * 建筑升级面板组件 - 时代主题色版
  */
+const MIN_ROLE_WAGE = 0.1;
+
+const getRoleBaseWage = (role, market = {}) => {
+    const wageFromMarket = market?.wages?.[role];
+    if (Number.isFinite(wageFromMarket) && wageFromMarket > 0) {
+        return wageFromMarket;
+    }
+    const starting = STRATA[role]?.startingWealth;
+    if (Number.isFinite(starting) && starting > 0) {
+        return Math.max(MIN_ROLE_WAGE, starting / 40);
+    }
+    return 1;
+};
+
+const getResourceTaxRate = (resource, taxPolicies = {}) => {
+    return taxPolicies?.resourceTaxRates?.[resource] ?? 0;
+};
+
+const getResourcePrice = (resource, market = {}) => {
+    const price = market?.prices?.[resource];
+    if (Number.isFinite(price) && price > 0) return price;
+    const base = RESOURCES[resource]?.basePrice;
+    if (Number.isFinite(base) && base > 0) return base;
+    return 1;
+};
+
+const estimateLaborEconomics = (config, market, taxPolicies) => {
+    let outputValue = 0;
+    let inputCost = 0;
+
+    Object.entries(config.output || {}).forEach(([resKey, amount]) => {
+        if (resKey === 'maxPop') return;
+        if (!Number.isFinite(amount) || amount <= 0) return;
+        const price = getResourcePrice(resKey, market);
+        const netTax = getResourceTaxRate(resKey, taxPolicies);
+        outputValue += amount * price * (1 - netTax);
+    });
+
+    Object.entries(config.input || {}).forEach(([resKey, amount]) => {
+        if (!Number.isFinite(amount) || amount <= 0) return;
+        const price = getResourcePrice(resKey, market);
+        const netTax = getResourceTaxRate(resKey, taxPolicies);
+        inputCost += amount * price * (1 + netTax);
+    });
+
+    return { outputValue, inputCost };
+};
+
+const estimateRoleWagesForConfig = (config, building, market, taxPolicies) => {
+    const jobEntries = Object.entries(config.jobs || {}).filter(([, slots]) => Number.isFinite(slots) && slots > 0);
+    if (jobEntries.length === 0) return {};
+
+    const baseWageMap = {};
+    let totalSlots = 0;
+    let baseWageBudget = 0;
+    jobEntries.forEach(([role, slots]) => {
+        const baseWage = getRoleBaseWage(role, market);
+        baseWageMap[role] = baseWage;
+        totalSlots += slots;
+        baseWageBudget += baseWage * slots;
+    });
+
+    if (totalSlots <= 0) {
+        const fallback = {};
+        jobEntries.forEach(([role]) => {
+            fallback[role] = { wage: parseFloat(getRoleBaseWage(role, market).toFixed(2)) };
+        });
+        return fallback;
+    }
+
+    const avgBaseWagePerSlot = baseWageBudget / totalSlots;
+    const { outputValue, inputCost } = estimateLaborEconomics(config, market, taxPolicies);
+    const businessTaxBase = building?.businessTaxBase ?? 0;
+    const businessTaxMultiplier = taxPolicies?.businessTaxRates?.[building?.id] ?? 1;
+    const businessTaxPerBuilding = businessTaxBase * businessTaxMultiplier;
+    const valueAvailableForLabor = outputValue - inputCost - businessTaxPerBuilding;
+    const valuePerSlot = valueAvailableForLabor / totalSlots;
+    const headTaxRates = taxPolicies?.headTaxRates || {};
+
+    const result = {};
+    jobEntries.forEach(([role, slots]) => {
+        const base = baseWageMap[role];
+        const normalization = avgBaseWagePerSlot > 0 ? base / avgBaseWagePerSlot : 1;
+        let wage;
+        if (valuePerSlot > 0) {
+            wage = valuePerSlot * normalization;
+        } else if (avgBaseWagePerSlot > 0) {
+            wage = avgBaseWagePerSlot * 0.5 * normalization;
+        } else {
+            wage = base;
+        }
+        const headBase = STRATA[role]?.headTaxBase ?? 0;
+        const headRate = headTaxRates[role] ?? 1;
+        const headTaxCost = headBase * headRate;
+        wage = Math.max(MIN_ROLE_WAGE, wage - headTaxCost);
+        result[role] = {
+            wage: parseFloat(wage.toFixed(2)),
+        };
+    });
+
+    return result;
+};
+
 export const BuildingUpgradePanel = ({
     building,
     count,
@@ -118,6 +221,7 @@ export const BuildingUpgradePanel = ({
     upgradeLevels = {},
     resources,
     market = {},
+    taxPolicies = {},
     onUpgrade,
     onDowngrade,
     onBatchUpgrade,
@@ -136,30 +240,6 @@ export const BuildingUpgradePanel = ({
     }, [buildingId, count, distributionKey]);
 
     const upgradeConfigs = BUILDING_UPGRADES[buildingId] || [];
-
-    // 计算总产量、总投入、总岗位
-    const totals = useMemo(() => {
-        let totalInput = {};
-        let totalOutput = {};
-        let totalJobs = {};
-
-        for (let i = 0; i < count; i++) {
-            const level = upgradeLevels[i] || 0;
-            const config = getBuildingEffectiveConfig(building, level);
-
-            Object.entries(config.output || {}).forEach(([key, val]) => {
-                totalOutput[key] = (totalOutput[key] || 0) + val;
-            });
-            Object.entries(config.input || {}).forEach(([key, val]) => {
-                totalInput[key] = (totalInput[key] || 0) + val;
-            });
-            Object.entries(config.jobs || {}).forEach(([key, val]) => {
-                totalJobs[key] = (totalJobs[key] || 0) + val;
-            });
-        }
-
-        return { totalInput, totalOutput, totalJobs };
-    }, [building, count, distributionKey]);
 
     // 检查是否可以升级（市场库存+银币都足够）
     const canAffordUpgrade = (fromLevel) => {
@@ -236,47 +316,82 @@ export const BuildingUpgradePanel = ({
         const config = getBuildingEffectiveConfig(building, levelNum);
         const hasOutput = Object.keys(config.output || {}).length > 0;
         const hasInput = Object.keys(config.input || {}).length > 0;
-        const hasJobs = Object.keys(config.jobs || {}).length > 0;
+        const jobEntries = Object.entries(config.jobs || {});
+        const hasJobs = jobEntries.length > 0;
+        const wageEstimates = hasJobs
+            ? estimateRoleWagesForConfig(config, building, market, taxPolicies)
+            : {};
 
         return (
-            <div className="space-y-1">
-                {/* 效果区域 */}
-                <div className="text-[9px] text-gray-500 uppercase tracking-wider">效果</div>
-                <div className="flex flex-wrap gap-1.5">
-                    {Object.entries(config.output || {}).map(([key, val]) => (
-                        <ResourceTag
-                            key={`out-${key}`}
-                            icon={RESOURCES[key]?.icon || 'Box'}
-                            name={RESOURCES[key]?.name || key}
-                            value={`+${val}`}
-                            color="green"
-                        />
-                    ))}
-                    {Object.entries(config.input || {}).map(([key, val]) => (
-                        <ResourceTag
-                            key={`in-${key}`}
-                            icon={RESOURCES[key]?.icon || 'Box'}
-                            name={RESOURCES[key]?.name || key}
-                            value={`-${val}`}
-                            color="red"
-                        />
-                    ))}
-                    {Object.entries(config.jobs || {}).map(([key, val]) => (
-                        <ResourceTag
-                            key={`job-${key}`}
-                            icon={STRATA[key]?.icon || 'User'}
-                            name={STRATA[key]?.name || key}
-                            value={val}
-                            color="blue"
-                        />
-                    ))}
-                    {!hasOutput && !hasInput && !hasJobs && (
-                        <span className="text-[10px] text-gray-500">基础效果</span>
-                    )}
+            <div className="space-y-2">
+            {hasOutput && (
+                <div>
+                    <div className="text-[10px] text-emerald-300 uppercase tracking-wider mb-0.5">产出</div>
+                    <div className="flex flex-wrap gap-1.5">
+                        {Object.entries(config.output || {}).map(([key, val]) => (
+                            <ResourceTag
+                                key={`out-${key}`}
+                                icon={RESOURCES[key]?.icon || 'Box'}
+                                name={RESOURCES[key]?.name || key}
+                                value={`+${val}`}
+                                color="green"
+                            />
+                        ))}
+                    </div>
                 </div>
-            </div>
-        );
-    };
+            )}
+            {hasInput && (
+                <div>
+                    <div className="text-[10px] text-rose-300 uppercase tracking-wider mb-0.5">输入/消耗</div>
+                    <div className="flex flex-wrap gap-1.5">
+                        {Object.entries(config.input || {}).map(([key, val]) => (
+                            <ResourceTag
+                                key={`in-${key}`}
+                                icon={RESOURCES[key]?.icon || 'Box'}
+                                name={RESOURCES[key]?.name || key}
+                                value={`-${val}`}
+                                color="red"
+                            />
+                        ))}
+                    </div>
+                </div>
+            )}
+            {hasJobs && (
+                <div>
+                    <div className="text-[10px] text-sky-300 uppercase tracking-wider mb-0.5">岗位</div>
+                    <div className="space-y-1">
+                        {jobEntries.map(([key, val]) => {
+                            const wageInfo = wageEstimates[key];
+                            const wage = wageInfo?.wage ?? getRoleBaseWage(key, market);
+                            return (
+                                <div
+                                    key={`job-${key}`}
+                                    className="flex items-center justify-between text-[11px] rounded border border-sky-800/50 bg-sky-900/30 px-2 py-1"
+                                >
+                                    <div className="flex items-center gap-1 text-sky-100">
+                                        <Icon name={STRATA[key]?.icon || 'User'} size={12} />
+                                        <span>{STRATA[key]?.name || key}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-mono text-blue-200">×{val}</span>
+                                        <span className="inline-flex items-center gap-0.5 text-yellow-300">
+                                            <Icon name="Wallet" size={10} />
+                                            {wage.toFixed(2)}
+                                            <Icon name="Coins" size={10} className="text-yellow-200" />
+                                        </span>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+            {!hasOutput && !hasInput && !hasJobs && (
+                <span className="text-[10px] text-gray-500">基础效果</span>
+            )}
+        </div>
+    );
+};
 
     // 升级费用
     const renderUpgradeCost = (cost) => {
@@ -294,11 +409,13 @@ export const BuildingUpgradePanel = ({
                 silverCost += amount;
             } else {
                 const marketPrice = market?.prices?.[resource] || 1;
-                const resAvailable = (resources[resource] || 0) >= amount;
+                const currentAmount = resources[resource] || 0;
+                const resAvailable = currentAmount >= amount;
                 silverCost += amount * marketPrice;
                 costBreakdown.push({
                     resource,
                     amount,
+                    currentAmount,
                     price: marketPrice,
                     available: resAvailable
                 });
@@ -306,41 +423,50 @@ export const BuildingUpgradePanel = ({
         }
 
         const hasSilver = (resources.silver || 0) >= silverCost;
-        const canAfford = hasMaterials && hasSilver;
+    const canAfford = hasMaterials && hasSilver;
 
-        return (
-            <div className="space-y-1">
-                <div className="text-[9px] text-gray-500 uppercase tracking-wider">成本</div>
-                <div className="flex flex-wrap items-center gap-1.5">
-                    {costBreakdown.map(({ resource, amount, available }) => (
-                        <span
-                            key={resource}
-                            className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] border ${available
-                                ? 'bg-gray-800/60 text-gray-300 border-gray-600/50'
-                                : 'bg-red-900/40 text-red-300 border-red-700/50'
-                                }`}
-                            title={available ? '库存充足' : '库存不足'}
-                        >
-                            <Icon name={RESOURCES[resource]?.icon || 'Box'} size={10} />
-                            <span className="opacity-90">{RESOURCES[resource]?.name || resource}</span>
-                            <span className="font-mono ml-0.5">{amount}</span>
-                        </span>
-                    ))}
-                    <span className="text-gray-500 text-xs">→</span>
+    return (
+        <div className="space-y-2">
+            <div className="text-[10px] text-gray-400 uppercase tracking-wider">升级所需资源</div>
+            <p className="text-[10px] text-gray-500">
+                需要一次性采购下列资源并支付银币，才能完成该档升级。
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+                {costBreakdown.map(({ resource, amount, currentAmount, available }) => (
                     <span
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold border ${canAfford
-                            ? 'bg-amber-900/40 text-amber-300 border-amber-600/50'
+                        key={resource}
+                        className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] border ${available
+                            ? 'bg-gray-800/60 text-gray-300 border-gray-600/50'
                             : 'bg-red-900/40 text-red-300 border-red-700/50'
                             }`}
-                        title={`总花费 ${formatAmount(silverCost)} 银币`}
+                        title={available ? `库存充足：${currentAmount}` : `库存不足：拥有 ${currentAmount}，需求 ${amount}`}
                     >
-                        <Icon name="Coins" size={10} />
-                        <span className="font-mono">{formatAmount(silverCost)}</span>
+                        <Icon name={RESOURCES[resource]?.icon || 'Box'} size={10} />
+                        <span className="opacity-90">{RESOURCES[resource]?.name || resource}</span>
+                        <span className="font-mono ml-0.5">{amount}</span>
+                        <span className="font-mono text-[9px] opacity-70 ml-0.5">
+                            ({Math.floor(currentAmount)}/{amount})
+                        </span>
                     </span>
-                </div>
+                ))}
             </div>
-        );
-    };
+            <div className="flex items-center justify-between text-[11px]">
+                <span className="flex items-center gap-1 text-gray-300">
+                    <Icon name="Coins" size={12} className="text-yellow-400" />
+                    银币合计
+                </span>
+                <span className={`font-mono font-semibold ${canAfford ? 'text-emerald-300' : 'text-red-300'}`}>
+                    {formatAmount(silverCost)}
+                </span>
+            </div>
+            {!canAfford && (
+                <p className="text-[10px] text-red-300">
+                    库存或银币不足，需先从市场补齐再升级。
+                </p>
+            )}
+        </div>
+    );
+};
 
     // 处理升级/降级
     const handleUpgradeOne = (levelNum) => {
@@ -378,45 +504,6 @@ export const BuildingUpgradePanel = ({
                 <span className="ml-auto text-[10px] text-gray-500 font-normal">共 {count} 座 · 长按批量</span>
             </h4>
 
-            {/* 总量统计 */}
-            <div className="mb-3 p-2 bg-gray-800/40 rounded border border-gray-700/30">
-                <div className="text-[10px] text-gray-500 mb-1.5">当前总效果</div>
-                <div className="flex flex-wrap gap-1.5">
-                    {Object.entries(totals.totalOutput).map(([key, val]) => (
-                        <ResourceTag
-                            key={`total-out-${key}`}
-                            icon={RESOURCES[key]?.icon || 'Box'}
-                            name={RESOURCES[key]?.name || key}
-                            value={`+${formatAmount(val)}`}
-                            color="green"
-                        />
-                    ))}
-                    {Object.entries(totals.totalInput).map(([key, val]) => (
-                        <ResourceTag
-                            key={`total-in-${key}`}
-                            icon={RESOURCES[key]?.icon || 'Box'}
-                            name={RESOURCES[key]?.name || key}
-                            value={`-${formatAmount(val)}`}
-                            color="red"
-                        />
-                    ))}
-                    {Object.entries(totals.totalJobs).map(([key, val]) => (
-                        <ResourceTag
-                            key={`total-job-${key}`}
-                            icon={STRATA[key]?.icon || 'User'}
-                            name={STRATA[key]?.name || key}
-                            value={Math.ceil(val)}
-                            color="blue"
-                        />
-                    ))}
-                    {Object.keys(totals.totalOutput).length === 0 &&
-                        Object.keys(totals.totalInput).length === 0 &&
-                        Object.keys(totals.totalJobs).length === 0 && (
-                            <span className="text-[10px] text-gray-500">暂无数据</span>
-                        )}
-                </div>
-            </div>
-
             {/* 等级列表 */}
             <div className="space-y-2">
                 {Array.from({ length: maxLevel + 1 }).map((_, levelNum) => {
@@ -446,6 +533,11 @@ export const BuildingUpgradePanel = ({
                                     {levelCount > 0 && (
                                         <span className="px-1.5 py-0.5 rounded text-[10px] font-bold text-amber-400 bg-amber-900/40">
                                             ×{levelCount}
+                                        </span>
+                                    )}
+                                    {levelCount === 0 && (
+                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold text-blue-300 bg-blue-900/30 border border-blue-700/40">
+                                            预览
                                         </span>
                                     )}
                                 </div>
@@ -483,20 +575,18 @@ export const BuildingUpgradePanel = ({
                             </div>
 
                             {/* 等级详情 */}
-                            {isActive && (
-                                <div className="px-2 pb-2">
-                                    <div className="pl-2 border-l-2 border-gray-700/50">
-                                        {renderLevelConfig(levelNum)}
+                            <div className="px-2 pb-2">
+                                <div className="pl-2 border-l-2 border-gray-700/50">
+                                    {renderLevelConfig(levelNum)}
 
-                                        {/* 升级费用 */}
-                                        {levelNum < maxLevel && upgradeCost && (
-                                            <div className="mt-2 pt-2 border-t border-gray-700/30">
-                                                {renderUpgradeCost(upgradeCost)}
-                                            </div>
-                                        )}
-                                    </div>
+                                    {/* 升级费用 */}
+                                    {levelNum < maxLevel && upgradeCost && (
+                                        <div className="mt-2 pt-2 border-t border-gray-700/30">
+                                            {renderUpgradeCost(upgradeCost)}
+                                        </div>
+                                    )}
                                 </div>
-                            )}
+                            </div>
                         </div>
                     );
                 })}
