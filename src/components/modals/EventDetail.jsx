@@ -346,8 +346,8 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                                 {/* 效果预览 - 显示完整文字标签 */}
                                 <div className="flex flex-wrap gap-1.5 mt-2">
                                     {/* 资源效果（固定值） - 显示资源名称 */}
-                                    {option.effects.resources &&
-                                        Object.entries(option.effects.resources).map(([resource, value]) => (
+                                    {option.effects?.resources &&
+                                        Object.entries(option.effects.resources || {}).map(([resource, value]) => (
                                             <span
                                                 key={resource}
                                                 className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${value > 0 ? 'bg-green-900/50 text-green-300 border border-green-500/40' : 'bg-red-900/50 text-red-300 border border-red-500/40'
@@ -360,8 +360,8 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                                         ))}
 
                                     {/* 资源效果（百分比） - 显示资源名称和百分比 */}
-                                    {option.effects.resourcePercent &&
-                                        Object.entries(option.effects.resourcePercent).map(([resource, value]) => (
+                                    {option.effects?.resourcePercent &&
+                                        Object.entries(option.effects.resourcePercent || {}).map(([resource, value]) => (
                                             <span
                                                 key={`pct-${resource}`}
                                                 className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${value > 0 ? 'bg-green-900/50 text-green-300 border border-green-500/40' : 'bg-red-900/50 text-red-300 border border-red-500/40'
@@ -374,7 +374,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                                         ))}
 
                                     {/* 人口效果（固定值） - 显示"人口"标签 */}
-                                    {option.effects.population && (
+                                    {option.effects?.population && (
                                         <span
                                             className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${option.effects.population > 0
                                                 ? 'bg-green-900/50 text-green-300 border border-green-500/40'
@@ -388,7 +388,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                                     )}
 
                                     {/* 人口效果（百分比） - 显示"人口"标签和百分比 */}
-                                    {option.effects.populationPercent && (
+                                    {option.effects?.populationPercent && (
                                         <span
                                             className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${option.effects.populationPercent > 0
                                                 ? 'bg-green-900/50 text-green-300 border border-green-500/40'
@@ -402,7 +402,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                                     )}
 
                                     {/* 稳定度效果 */}
-                                    {option.effects.stability && (
+                                    {option.effects?.stability && (
                                         <span
                                             className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${option.effects.stability > 0
                                                 ? 'bg-green-900/50 text-green-300 border border-green-500/40'
@@ -416,8 +416,8 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                                     )}
 
                                     {/* 阶层支持度效果 - 显示阶层名称 */}
-                                    {option.effects.approval &&
-                                        Object.entries(option.effects.approval).map(([stratum, value]) => (
+                                    {option.effects?.approval &&
+                                        Object.entries(option.effects.approval || {}).map(([stratum, value]) => (
                                             <span
                                                 key={stratum}
                                                 className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${value > 0 ? 'bg-blue-900/50 text-blue-300 border border-blue-500/40' : 'bg-orange-900/50 text-orange-300 border border-orange-500/40'
@@ -430,8 +430,10 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                                         ))}
 
                                     {/* 经济效果 - 资源需求修正 (时效性) */}
-                                    {option.effects.resourceDemandMod &&
-                                        Object.entries(option.effects.resourceDemandMod).map(([resource, value]) => (
+                                    {(() => {
+                                        const demandMod = option.effects?.resourceDemandMod;
+                                        if (!demandMod) return null;
+                                        return Object.entries(demandMod).map(([resource, value]) => (
                                             <span
                                                 key={`demand-${resource}`}
                                                 className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${value > 0 ? 'bg-purple-900/50 text-purple-300 border border-purple-500/40' : 'bg-cyan-900/50 text-cyan-300 border border-cyan-500/40'
@@ -443,11 +445,14 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                                                 <span className="font-mono font-bold">{formatPercent(value)}</span>
                                                 <Icon name="Clock" size={8} className="opacity-60" />
                                             </span>
-                                        ))}
+                                        ));
+                                    })()}
 
                                     {/* 经济效果 - 阶层消费修正 (时效性) */}
-                                    {option.effects.stratumDemandMod &&
-                                        Object.entries(option.effects.stratumDemandMod).map(([stratum, value]) => (
+                                    {(() => {
+                                        const stratumDemand = option.effects?.stratumDemandMod;
+                                        if (!stratumDemand) return null;
+                                        return Object.entries(stratumDemand).map(([stratum, value]) => (
                                             <span
                                                 key={`stratumDemand-${stratum}`}
                                                 className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${value > 0 ? 'bg-purple-900/50 text-purple-300 border border-purple-500/40' : 'bg-cyan-900/50 text-cyan-300 border border-cyan-500/40'
@@ -459,11 +464,14 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                                                 <span className="font-mono font-bold">{formatPercent(value)}</span>
                                                 <Icon name="Clock" size={8} className="opacity-60" />
                                             </span>
-                                        ))}
+                                        ));
+                                    })()}
 
                                     {/* 经济效果 - 建筑产量修正 (时效性) */}
-                                    {option.effects.buildingProductionMod &&
-                                        Object.entries(option.effects.buildingProductionMod).map(([target, value]) => {
+                                    {(() => {
+                                        const productionMod = option.effects?.buildingProductionMod;
+                                        if (!productionMod) return null;
+                                        return Object.entries(productionMod).map(([target, value]) => {
                                             // Try to find building name, fallback to category name or raw key
                                             const building = BUILDINGS.find(b => b.id === target);
                                             const categoryNames = { gather: '采集类', industry: '工业类', civic: '市政类', all: '所有' };
@@ -481,14 +489,15 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                                                     <Icon name="Clock" size={8} className="opacity-60" />
                                                 </span>
                                             );
-                                        })}
+                                        });
+                                    })()}
 
-                                    {renderNationEffectBadges(option.effects.nationRelation, 'relation', `option-${option.id}`)}
-                                    {renderNationEffectBadges(option.effects.nationAggression, 'aggression', `option-${option.id}`)}
-                                    {renderNationEffectBadges(option.effects.nationWealth, 'wealth', `option-${option.id}`)}
-                                    {renderNationEffectBadges(option.effects.nationMarketVolatility, 'volatility', `option-${option.id}`)}
-                                    {renderTriggerBadge(option.effects.triggerWar, 'war', `option-${option.id}`)}
-                                    {renderTriggerBadge(option.effects.triggerPeace, 'peace', `option-${option.id}`)}
+                                    {option.effects && renderNationEffectBadges(option.effects.nationRelation, 'relation', `option-${option.id}`)}
+                                    {option.effects && renderNationEffectBadges(option.effects.nationAggression, 'aggression', `option-${option.id}`)}
+                                    {option.effects && renderNationEffectBadges(option.effects.nationWealth, 'wealth', `option-${option.id}`)}
+                                    {option.effects && renderNationEffectBadges(option.effects.nationMarketVolatility, 'volatility', `option-${option.id}`)}
+                                    {option.effects && renderTriggerBadge(option.effects.triggerWar, 'war', `option-${option.id}`)}
+                                    {option.effects && renderTriggerBadge(option.effects.triggerPeace, 'peace', `option-${option.id}`)}
                                 </div>
 
                                 {/* 随机效果预览 */}

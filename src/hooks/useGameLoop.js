@@ -17,6 +17,8 @@ import {
     createAllyColdEvent,
     createAIDemandSurrenderEvent,
     createAllyAttackedEvent,
+    createRebelDemandSurrenderEvent,
+    REBEL_DEMAND_SURRENDER_TYPE,
 } from '../config/events';
 // 新版组织度系统
 import {
@@ -127,7 +129,8 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
             // 商人在国内购买资源
             const domesticPurchaseCost = localPrice * exportAmount;  // 商人在国内的购买成本
             const taxRate = taxPolicies?.resourceTaxRates?.[resource] || 0; // 获取该资源的交易税率
-            const tariffMultiplier = Math.max(0, taxPolicies?.resourceTariffMultipliers?.[resource] ?? 1);
+            // 出口使用出口关税倍率
+            const tariffMultiplier = Math.max(0, taxPolicies?.exportTariffMultipliers?.[resource] ?? taxPolicies?.resourceTariffMultipliers?.[resource] ?? 1);
             const effectiveTaxRate = taxRate * tariffMultiplier;
             const tradeTax = domesticPurchaseCost * effectiveTaxRate; // 玩家获得的交易税
 
@@ -186,7 +189,8 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
             // 商人在国内销售
             const domesticSaleRevenue = localPrice * importAmount;  // 商人在国内的销售收入
             const taxRate = taxPolicies?.resourceTaxRates?.[resource] || 0; // 获取该资源的交易税率
-            const tariffMultiplier = Math.max(0, taxPolicies?.resourceTariffMultipliers?.[resource] ?? 1);
+            // 进口使用进口关税倍率
+            const tariffMultiplier = Math.max(0, taxPolicies?.importTariffMultipliers?.[resource] ?? taxPolicies?.resourceTariffMultipliers?.[resource] ?? 1);
             const effectiveTaxRate = taxRate * tariffMultiplier;
             const tradeTax = domesticSaleRevenue * effectiveTaxRate; // 玩家获得的交易税
             const merchantProfit = domesticSaleRevenue - foreignPurchaseCost - tradeTax; // 商人获得的利润（含关税成本）
@@ -666,6 +670,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
         classInfluence,
         totalInfluence,
         buildingUpgrades,
+        autoRecruitEnabled,
+        targetArmyComposition,
     } = gameState;
 
     // 使用ref保存最新状态，避免闭包问题
@@ -674,6 +680,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
         market,
         buildings,
         buildingUpgrades,
+        autoRecruitEnabled,
+        targetArmyComposition,
         population,
         popStructure,
         birthAccumulator,
@@ -719,10 +727,19 @@ export const useGameLoop = (gameState, addLog, actions) => {
     });
 
     const saveGameRef = useRef(gameState.saveGame);
+    const autoRecruitCooldownRef = useRef({});
+    const AUTO_RECRUIT_BATCH_LIMIT = 3;
+    const AUTO_RECRUIT_FAIL_COOLDOWN = 5000;
 
     useEffect(() => {
         saveGameRef.current = gameState.saveGame;
     }, [gameState.saveGame]);
+
+    useEffect(() => {
+        if (!autoRecruitEnabled) {
+            autoRecruitCooldownRef.current = {};
+        }
+    }, [autoRecruitEnabled]);
 
     useEffect(() => {
         stateRef.current = {
@@ -730,6 +747,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
             market,
             buildings,
             buildingUpgrades,
+            autoRecruitEnabled,
+            targetArmyComposition,
             population,
             epoch,
             popStructure,
@@ -773,6 +792,68 @@ export const useGameLoop = (gameState, addLog, actions) => {
             stability,
         };
     }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, livingStandardStreaks, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability]);
+
+    useEffect(() => {
+        if (!autoRecruitEnabled) return;
+        if (!actions?.recruitUnit) return;
+        if (isPaused) return;
+        const targets = targetArmyComposition || {};
+        const normalizedTargets = Object.entries(targets).reduce((acc, [unitId, value]) => {
+            const numeric = Math.max(0, Math.floor(Number(value) || 0));
+            if (numeric > 0) {
+                acc[unitId] = numeric;
+            }
+            return acc;
+        }, {});
+        if (Object.keys(normalizedTargets).length === 0) return;
+
+        const queueCounts = (militaryQueue || []).reduce((acc, item) => {
+            if (!item?.unitId) return acc;
+            acc[item.unitId] = (acc[item.unitId] || 0) + 1;
+            return acc;
+        }, {});
+
+        const shortages = Object.entries(normalizedTargets).reduce((list, [unitId, target]) => {
+            const unit = UNIT_TYPES[unitId];
+            if (!unit) return list;
+            if (unit.epoch > epoch) return list;
+            const currentCount = (army?.[unitId] || 0) + (queueCounts[unitId] || 0);
+            const missing = target - currentCount;
+            if (missing > 0) {
+                list.push({ unitId, missing });
+            }
+            return list;
+        }, []);
+
+        if (shortages.length === 0) return;
+
+        const now = Date.now();
+        const recruitedSummary = {};
+        let issued = 0;
+
+        for (const { unitId, missing } of shortages) {
+            if (issued >= AUTO_RECRUIT_BATCH_LIMIT) break;
+            const cooldownUntil = autoRecruitCooldownRef.current[unitId] || 0;
+            if (cooldownUntil > now) continue;
+
+            for (let i = 0; i < missing && issued < AUTO_RECRUIT_BATCH_LIMIT; i++) {
+                const success = actions.recruitUnit(unitId, { silent: true, auto: true });
+                if (!success) {
+                    autoRecruitCooldownRef.current[unitId] = Date.now() + AUTO_RECRUIT_FAIL_COOLDOWN;
+                    break;
+                }
+                recruitedSummary[unitId] = (recruitedSummary[unitId] || 0) + 1;
+                issued += 1;
+            }
+        }
+
+        if (issued > 0) {
+            const summary = Object.entries(recruitedSummary)
+                .map(([unitId, count]) => `${UNIT_TYPES[unitId]?.name || unitId} ×${count}`)
+                .join('、');
+            addLog(`自动补兵：已补充 ${summary} 至训练队列。`);
+        }
+    }, [autoRecruitEnabled, targetArmyComposition, army, militaryQueue, isPaused, actions, epoch, addLog]);
 
 
     // 监听国家列表变化，自动清理无效的贸易路线（修复暂停状态下无法清理的问题）
@@ -2451,56 +2532,56 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             }
                         }
 
+
                         // 检测叛军要求玩家投降事件
                         if (log.includes('REBEL_DEMAND_SURRENDER:')) {
                             try {
                                 const jsonStr = log.replace('REBEL_DEMAND_SURRENDER:', '');
                                 const eventData = JSON.parse(jsonStr);
                                 const nation = result.nations?.find(n => n.id === eventData.nationId);
-                                if (nation && currentActions && currentActions.triggerDiplomaticEvent) {
-                                    // 构建叛军投降要求事件
-                                    const demandDescriptions = {
-                                        reform: `进行政治改革，向${STRATA[eventData.rebellionStratum]?.name || '起义阶层'}让步`,
-                                        concession: `做出重大让步，满足${STRATA[eventData.rebellionStratum]?.name || '起义阶层'}的核心诉求`,
-                                        massacre: `接受叛军的屠杀，失去大量人口和人口上限（-${eventData.demandAmount}）`
-                                    };
 
-                                    const event = {
-                                        id: `rebel_demand_${nation.id}_${Date.now()}`,
-                                        title: `${nation.name} 的最后通牒`,
-                                        description: `${nation.name} 在战争中占据优势，向你提出以下要求：\n\n${demandDescriptions[eventData.demandType] || '接受他们的条件'}`,
-                                        nation: nation,
-                                        options: [
-                                            {
-                                                text: eventData.demandType === 'massacre' ? `接受（-${eventData.demandAmount}人口）` : '接受要求',
-                                                action: () => {
-                                                    if (eventData.demandType === 'massacre') {
-                                                        // 大屠杀：减少人口和人口上限
-                                                        const popLoss = eventData.demandAmount;
-                                                        setPopulation(prev => Math.max(10, prev - popLoss));
-                                                        setMaxPopulation(prev => Math.max(20, prev - popLoss));
-                                                        addLog(`💀 叛军进行了大屠杀，你失去了 ${popLoss} 人口和人口上限！`);
-                                                    } else if (eventData.demandType === 'reform') {
-                                                        // 改革：提高起义阶层满意度
-                                                        setResources(prev => ({ ...prev, silver: Math.max(0, (prev.silver || 0) - eventData.demandAmount) }));
-                                                        addLog(`📜 你被迫进行改革，花费 ${eventData.demandAmount} 银币安抚起义者。`);
-                                                    } else if (eventData.demandType === 'concession') {
-                                                        // 重大让步
-                                                        setResources(prev => ({ ...prev, silver: Math.max(0, (prev.silver || 0) - eventData.demandAmount) }));
-                                                        addLog(`📜 你做出重大让步，花费 ${eventData.demandAmount} 银币满足起义者的诉求。`);
-                                                    }
-                                                    // 结束叛乱
-                                                    setNations(prev => prev.filter(n => n.id !== nation.id));
-                                                }
-                                            },
-                                            {
-                                                text: '坚决拒绝',
-                                                action: () => {
-                                                    addLog(`⚔️ 你拒绝了 ${nation.name} 的最后通牒，战争继续！`);
-                                                }
+                                // 处理叛军要求的回调
+                                const handleRebelSurrenderResponse = (action, rebelNation, data) => {
+                                    if (action === 'accept') {
+                                        // 接受要求
+                                        if (data.demandType === REBEL_DEMAND_SURRENDER_TYPE.MASSACRE) {
+                                            // 大屠杀：减少人口和人口上限
+                                            const popLoss = data.demandAmount;
+                                            setPopulation(prev => Math.max(10, prev - popLoss));
+                                            setMaxPopulation(prev => Math.max(20, prev - popLoss));
+                                            addLog(`💀 叛军进行了大屠杀，你失去了 ${popLoss} 人口和人口上限！`);
+                                        } else if (data.demandType === REBEL_DEMAND_SURRENDER_TYPE.REFORM || data.demandType === REBEL_DEMAND_SURRENDER_TYPE.CONCESSION) {
+                                            // 改革或让步：扣除银币
+                                            setResources(prev => ({ ...prev, silver: Math.max(0, (prev.silver || 0) - data.demandAmount) }));
+                                            const actionText = data.demandType === REBEL_DEMAND_SURRENDER_TYPE.REFORM ? '进行改革' : '做出重大让步';
+                                            addLog(`📜 你被迫${actionText}，花费 ${data.demandAmount} 银币安抚起义者。`);
+                                        }
+
+                                        // 触发“屈辱的和平”结算事件（根据用户要求）
+                                        // 注意：createRebellionEndEvent 第二个参数 false 表示战败/屈辱和平
+                                        const endEvent = createRebellionEndEvent(rebelNation, false, (endAction) => {
+                                            // 屈辱和平确认后的回调（通常只是关闭窗口或额外扣除稳定性）
+                                            if (endAction === 'end_defeat') {
+                                                // 移除叛军国家
+                                                setNations(prev => prev.filter(n => n.id !== rebelNation.id));
+                                                addLog(`🏳️ 你接受了 ${rebelNation.name} 的条件，叛乱平息，但留下了屈辱的记忆。`);
                                             }
-                                        ]
-                                    };
+                                        });
+                                        if (endEvent && currentActions && currentActions.triggerDiplomaticEvent) {
+                                            currentActions.triggerDiplomaticEvent(endEvent);
+                                        } else {
+                                            // Fallback if event trigger fails
+                                            setNations(prev => prev.filter(n => n.id !== rebelNation.id));
+                                        }
+
+                                    } else {
+                                        // 拒绝要求
+                                        addLog(`⚔️ 你拒绝了 ${rebelNation.name} 的最后通牒，战争继续！`);
+                                    }
+                                };
+
+                                if (nation && currentActions && currentActions.triggerDiplomaticEvent) {
+                                    const event = createRebelDemandSurrenderEvent(nation, eventData, handleRebelSurrenderResponse);
                                     currentActions.triggerDiplomaticEvent(event);
                                     console.log('[EVENT DEBUG] Rebel Demand Surrender event triggered:', nation.name);
                                 }

@@ -33,6 +33,7 @@ export const processRebelWarActions = ({
     tick,
     epoch,
     resources,
+    population,
     army,
     logs,
 }) => {
@@ -140,9 +141,23 @@ export const processRebelWarActions = ({
             if (rebelWarAdvantage > 200) {
                 demandType = 'massacre';
                 demandAmount = Math.floor(rebelWarAdvantage / 4);
+                // Cap massacre demand to avoid wiping out player
+                const maxPopCost = Math.max(0, (population || 100) - 10);
+                demandAmount = Math.min(demandAmount, maxPopCost);
             } else if (rebelWarAdvantage > 100) {
                 demandType = 'concession';
                 demandAmount = Math.floor(rebelWarAdvantage * 2);
+            }
+
+            // Cap silver demands for reform/concession
+            if (demandType !== 'massacre') {
+                const currentSilver = res.silver || 0;
+                // Demand shouldn't exceed current silver for cash demands, or at least be reasonable
+                // If demand is too high, maybe user has to take loan or reject
+                // For simplified UX, let's cap it at current silver but ensure it's at least some amount if they have it
+                // If they have 0 silver, demand 0? Or maybe minimum 100 which puts them in debt?
+                // Standard: limit to current silver to assume direct payment without debt
+                demandAmount = Math.min(demandAmount, currentSilver);
             }
 
             logs.push(`REBEL_DEMAND_SURRENDER:${JSON.stringify({
@@ -155,6 +170,7 @@ export const processRebelWarActions = ({
             })}`);
         }
     }
+
 
     return { raidPopulationLoss };
 };

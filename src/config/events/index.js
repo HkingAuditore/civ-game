@@ -22,6 +22,8 @@ import {
     createAllyColdEvent,
     createAllyAttackedEvent,
     createAIDemandSurrenderEvent,
+    createRebelDemandSurrenderEvent,
+    REBEL_DEMAND_SURRENDER_TYPE,
 } from './diplomaticEvents';
 // 叛乱事件系统
 import {
@@ -64,6 +66,8 @@ export {
     createAllyColdEvent,
     createAllyAttackedEvent,
     createAIDemandSurrenderEvent,
+    createRebelDemandSurrenderEvent,
+    REBEL_DEMAND_SURRENDER_TYPE,
 };
 
 // Re-export individual event arrays for potential direct access

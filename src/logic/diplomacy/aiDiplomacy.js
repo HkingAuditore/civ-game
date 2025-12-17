@@ -192,8 +192,9 @@ export const processAITrade = (visibleNations, logs) => {
  * @param {Object} resources - Player resources (mutable)
  * @param {Object} market - Market data
  * @param {Array} logs - Log array (mutable)
+ * @param {Object} taxPolicies - Player tax policies (optional)
  */
-export const processAIPlayerTrade = (visibleNations, tick, resources, market, logs) => {
+export const processAIPlayerTrade = (visibleNations, tick, resources, market, logs, taxPolicies = {}) => {
     const res = resources;
 
     visibleNations.forEach(nation => {
@@ -205,7 +206,6 @@ export const processAIPlayerTrade = (visibleNations, tick, resources, market, lo
         if (aiWealth < 400) return;
 
         const isOpenMarket = nation.openMarketUntil && tick < nation.openMarketUntil;
-        const tariffRate = isOpenMarket ? 0 : 0.08;
 
         const isBuying = Math.random() > 0.5;
 
@@ -213,9 +213,17 @@ export const processAIPlayerTrade = (visibleNations, tick, resources, market, lo
         const resourceKey = tradeableResources[Math.floor(Math.random() * tradeableResources.length)];
         const resourcePrice = market?.prices?.[resourceKey] || (RESOURCES[resourceKey]?.basePrice || 1);
 
+        // 使用玩家设置的税率和关税倍率计算有效关税率
+        // AI买入 = 玩家出口（使用出口关税），AI卖出 = 玩家进口（使用进口关税）
+        const baseTaxRate = taxPolicies?.resourceTaxRates?.[resourceKey] || 0;
+        const tariffMultiplier = isBuying
+            ? Math.max(0, taxPolicies?.exportTariffMultipliers?.[resourceKey] ?? taxPolicies?.resourceTariffMultipliers?.[resourceKey] ?? 1)
+            : Math.max(0, taxPolicies?.importTariffMultipliers?.[resourceKey] ?? taxPolicies?.resourceTariffMultipliers?.[resourceKey] ?? 1);
+        const effectiveTariffRate = isOpenMarket ? 0 : baseTaxRate * tariffMultiplier;
+
         const quantity = Math.floor(10 + Math.random() * 40);
         const baseValue = quantity * resourcePrice;
-        const tariff = Math.floor(baseValue * tariffRate);
+        const tariff = Math.floor(baseValue * effectiveTariffRate);
 
         if (isBuying) {
             const aiLocalPrice = resourcePrice * 1.5;

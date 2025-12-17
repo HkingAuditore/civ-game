@@ -285,6 +285,7 @@ const buildInitialNations = () => {
             enemyLosses: 0,
             warDuration: 0,
             warStartDay: null,
+            lastLootDay: null,
             militaryStrength: 1.0, // 初始军事实力为满值
             population: basePopulation, // 初始人口
             wealthTemplate: wealth,

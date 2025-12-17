@@ -51,11 +51,23 @@ export const simulateMerchantTrade = ({
     let capitalInvestedThisTick = 0;
 
     const resourceTaxRates = taxPolicies?.resourceTaxRates || {};
-    const getResourceTaxRate = (resource) => resourceTaxRates[resource] || 0;
+    const importTariffMultipliers = taxPolicies?.importTariffMultipliers || taxPolicies?.resourceTariffMultipliers || {};
+    const exportTariffMultipliers = taxPolicies?.exportTariffMultipliers || taxPolicies?.resourceTariffMultipliers || {};
+    // 获取有效税率：基础税率 × 关税倍率（根据贸易类型区分进口/出口）
+    const getImportTaxRate = (resource) => {
+        const baseTaxRate = resourceTaxRates[resource] || 0;
+        const tariffMultiplier = Math.max(0, importTariffMultipliers[resource] ?? 1);
+        return baseTaxRate * tariffMultiplier;
+    };
+    const getExportTaxRate = (resource) => {
+        const baseTaxRate = resourceTaxRates[resource] || 0;
+        const tariffMultiplier = Math.max(0, exportTariffMultipliers[resource] ?? 1);
+        return baseTaxRate * tariffMultiplier;
+    };
 
     // Get foreign trading partners
-    const foreignPartners = Array.isArray(nations) 
-        ? nations.filter(n => n && (n.inventory || n.economyTraits)) 
+    const foreignPartners = Array.isArray(nations)
+        ? nations.filter(n => n && (n.inventory || n.economyTraits))
         : [];
     const foreignPriceCache = {};
 
@@ -172,10 +184,10 @@ export const simulateMerchantTrade = ({
                 res,
                 supply,
                 taxBreakdown,
+                getResourceTaxRate: getExportTaxRate,
                 tradeConfig,
                 getLocalPrice,
                 getForeignPrice,
-                getResourceTaxRate,
                 roleWagePayout,
                 tick,
                 logs
@@ -195,10 +207,10 @@ export const simulateMerchantTrade = ({
                 wealth,
                 res,
                 taxBreakdown,
+                getResourceTaxRate: getImportTaxRate,
                 tradeConfig,
                 getLocalPrice,
                 getForeignPrice,
-                getResourceTaxRate,
                 roleExpense,
                 tick,
                 logs
@@ -360,7 +372,7 @@ const executeImportTrade = ({
     const totalPerUnitCost = foreignPrice;
     const affordableAmount = totalPerUnitCost > 0 ? wealthForThisBatch / totalPerUnitCost : 3;
     const amount = Math.min(tradeConfig.maxPurchaseAmount, affordableAmount);
-    
+
     if (amount <= 0.1) return { success: false };
 
     const cost = foreignPrice * amount;

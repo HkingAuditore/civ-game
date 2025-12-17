@@ -737,6 +737,10 @@ function GameApp({ gameState }) {
                                                 onUpdateWageRatio={gameState.setMilitaryWageRatio}
                                                 techsUnlocked={gameState.techsUnlocked}
                                                 onShowUnitDetails={handleShowUnitDetails}
+                                                autoRecruitEnabled={gameState.autoRecruitEnabled}
+                                                onToggleAutoRecruit={gameState.setAutoRecruitEnabled}
+                                                targetArmyComposition={gameState.targetArmyComposition}
+                                                onUpdateTargetComposition={gameState.setTargetArmyComposition}
                                             />
                                         )}
 

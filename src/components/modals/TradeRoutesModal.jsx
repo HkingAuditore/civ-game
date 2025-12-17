@@ -61,7 +61,10 @@ const TradeRoutesModal = ({
 
         const TRADE_SPEED = 0.05;
         const taxRate = taxPolicies?.resourceTaxRates?.[resourceKey] || 0;
-        const tariffMultiplier = Math.max(0, taxPolicies?.resourceTariffMultipliers?.[resourceKey] ?? 1);
+        // 根据交易类型使用进口或出口关税倍率
+        const tariffMultiplier = type === 'export'
+            ? Math.max(0, taxPolicies?.exportTariffMultipliers?.[resourceKey] ?? taxPolicies?.resourceTariffMultipliers?.[resourceKey] ?? 1)
+            : Math.max(0, taxPolicies?.importTariffMultipliers?.[resourceKey] ?? taxPolicies?.resourceTariffMultipliers?.[resourceKey] ?? 1);
         const effectiveTaxRate = taxRate * tariffMultiplier;
 
         const resourceName = RESOURCES[resourceKey]?.name || resourceKey;

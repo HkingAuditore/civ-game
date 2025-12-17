@@ -841,8 +841,25 @@ export const simulateBattle = (attackerData, defenderData) => {
     const decisive = Math.abs(attackerAdvantage - 0.5) > 0.3; // 压倒性胜利
 
     // 计算损失
-    const attackerLossRate = victory ? (0.1 + defenderAdvantage * 0.3) : (0.3 + defenderAdvantage * 0.5);
-    const defenderLossRate = victory ? (0.4 + attackerAdvantage * 0.6) : (0.2 + attackerAdvantage * 0.3);
+    const clampRate = (value, min, max) => Math.max(min, Math.min(max, value));
+    const powerRatio = defenderPower > 0 ? attackerPower / defenderPower : 3;
+    const safeRatio = Math.max(0.1, powerRatio);
+    let attackerLossRate;
+    let defenderLossRate;
+
+    if (victory) {
+        const ratioFactor = Math.max(1, safeRatio);
+        attackerLossRate = clampRate((0.08 / ratioFactor) + 0.03, 0.03, 0.45);
+        defenderLossRate = clampRate(0.35 + Math.log10(ratioFactor + 1) * 0.45, 0.3, 0.95);
+    } else {
+        const inverseRatio = Math.max(1, 1 / safeRatio);
+        attackerLossRate = clampRate(0.32 + Math.log10(inverseRatio + 1) * 0.55, 0.25, 0.95);
+        defenderLossRate = clampRate((0.12 / inverseRatio) + 0.18, 0.12, 0.6);
+    }
+
+    const lossRandomness = 0.9 + Math.random() * 0.2;
+    attackerLossRate *= lossRandomness;
+    defenderLossRate *= lossRandomness;
 
     const attackerLosses = {};
     const defenderLosses = {};

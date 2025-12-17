@@ -8,6 +8,63 @@ import { UNIT_TYPES, UNIT_CATEGORIES, BUILDINGS, calculateArmyMaintenance, calcu
 import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
 import { filterUnlockedResources } from '../../utils/resources';
 
+const WAR_SCORE_GUIDE = [
+    {
+        title: '压倒性胜利',
+        range: '战分 ≥ 350',
+        color: 'text-emerald-300',
+        tips: [
+            '可要求吞并整国、超高额赔款或一次性分期巨额赔款',
+            '允许提出大规模割地、开放市场等苛刻条款'
+        ],
+    },
+    {
+        title: '大胜',
+        range: '150 ~ 349',
+        color: 'text-green-300',
+        tips: [
+            '可要求高额赔款或长期分期付款',
+            '可索取中等规模割地或强迫开放市场'
+        ],
+    },
+    {
+        title: '优势',
+        range: '50 ~ 149',
+        color: 'text-yellow-300',
+        tips: [
+            '可要求标准赔款、少量割地或一年期分期付款',
+            '敌方仍有讨价还价空间，过高要求可能被拒绝'
+        ],
+    },
+    {
+        title: '僵持',
+        range: '-49 ~ 49',
+        color: 'text-gray-300',
+        tips: [
+            '只能提出无条件和平或象征性赔款',
+            '双方都缺乏足够筹码，建议继续积累优势'
+        ],
+    },
+    {
+        title: '劣势',
+        range: '-199 ~ -50',
+        color: 'text-orange-300',
+        tips: [
+            '需要支付赔款、割地或分期付款才可能达成和平',
+            '继续作战将面临更高代价，可以考虑先稳住局势'
+        ],
+    },
+    {
+        title: '崩溃边缘',
+        range: '战分 ≤ -200',
+        color: 'text-red-300',
+        tips: [
+            '必须支付高额赔款或割让大量人口才能停战',
+            '尽快求和以避免被吞并或进一步索赔'
+        ],
+    },
+];
+
 /**
  * 军事单位悬浮提示框 (使用 Portal)
  */
@@ -189,9 +246,62 @@ export const MilitaryTab = ({
     onUpdateWageRatio,
     techsUnlocked = [],
     onShowUnitDetails, // 新增：显示单位详情回调
+    autoRecruitEnabled = false,
+    onToggleAutoRecruit,
+    targetArmyComposition = {},
+    onUpdateTargetComposition,
 }) => {
     const [hoveredUnit, setHoveredUnit] = useState({ unit: null, element: null });
+    const [showWarScoreInfo, setShowWarScoreInfo] = useState(false);
     const canHover = window.matchMedia('(hover: hover)').matches;
+
+    const queueCounts = (militaryQueue || []).reduce((acc, item) => {
+        if (!item?.unitId) return acc;
+        acc[item.unitId] = (acc[item.unitId] || 0) + 1;
+        return acc;
+    }, {});
+
+    const targetEntries = Object.entries(targetArmyComposition || {}).filter(([, value]) => (value ?? 0) > 0);
+    targetEntries.sort(([a], [b]) => (UNIT_TYPES[a]?.epoch || 0) - (UNIT_TYPES[b]?.epoch || 0));
+
+    const mutateTargetComposition = (mutator) => {
+        if (!onUpdateTargetComposition) return;
+        onUpdateTargetComposition((prev) => {
+            const base = { ...(prev || {}) };
+            mutator(base);
+            return base;
+        });
+    };
+
+    const handleTargetChange = (unitId, value) => {
+        const numeric = Math.max(0, Math.floor(Number(value) || 0));
+        mutateTargetComposition((next) => {
+            if (numeric <= 0) {
+                delete next[unitId];
+            } else {
+                next[unitId] = numeric;
+            }
+        });
+    };
+
+    const handleMirrorCurrentArmy = () => {
+        if (!onUpdateTargetComposition) return;
+        const snapshot = {};
+        Object.entries(army || {}).forEach(([unitId, count]) => {
+            if (count > 0) snapshot[unitId] = count;
+        });
+        onUpdateTargetComposition(snapshot);
+    };
+
+    const handleClearTargets = () => {
+        if (!onUpdateTargetComposition) return;
+        onUpdateTargetComposition({});
+    };
+
+    const handleToggleAutoRecruit = (checked) => {
+        if (!onToggleAutoRecruit) return;
+        onToggleAutoRecruit(checked);
+    };
 
     const handleMouseEnter = (e, unit) => {
         if (canHover) setHoveredUnit({ unit, element: e.currentTarget });
@@ -395,6 +505,87 @@ export const MilitaryTab = ({
                 </div>
             </div>
 
+            {/* 自动补兵 */}
+            <div className="glass-ancient p-4 rounded-xl border border-ancient-gold/30">
+                <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300 font-decorative">
+                    <Icon name="RefreshCcw" size={16} className="text-emerald-400" />
+                    自动补兵
+                </h3>
+
+                <div className="flex flex-col gap-2 text-xs text-gray-300 sm:flex-row sm:items-center sm:justify-between">
+                    <label className="flex items-center gap-2">
+                        <input
+                            type="checkbox"
+                            className="accent-emerald-400"
+                            checked={autoRecruitEnabled}
+                            onChange={(e) => handleToggleAutoRecruit(e.target.checked)}
+                        />
+                        启用自动补兵
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                        <button
+                            type="button"
+                            onClick={handleMirrorCurrentArmy}
+                            className="px-2 py-1 rounded bg-emerald-900/40 border border-emerald-600/50 text-emerald-200 hover:bg-emerald-800/60 transition-colors"
+                        >
+                            以当前编制为目标
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleClearTargets}
+                            disabled={targetEntries.length === 0}
+                            className={`px-2 py-1 rounded border transition-colors ${targetEntries.length === 0
+                                ? 'border-gray-700 text-gray-500 cursor-not-allowed'
+                                : 'border-red-600/50 text-red-200 bg-red-900/30 hover:bg-red-900/50'
+                                }`}
+                        >
+                            清空目标
+                        </button>
+                    </div>
+                </div>
+
+                {targetEntries.length === 0 ? (
+                    <p className="text-xs text-gray-400 mt-3">
+                        暂未设置目标编制，可点击「以当前编制为目标」快速录入需要维持的兵力。
+                    </p>
+                ) : (
+                    <div className="mt-3 space-y-2 text-xs">
+                        {targetEntries.map(([unitId, target]) => {
+                            const unit = UNIT_TYPES[unitId];
+                            const currentCount = army[unitId] || 0;
+                            const pending = queueCounts[unitId] || 0;
+                            const shortage = Math.max(0, target - currentCount - pending);
+                            return (
+                                <div
+                                    key={unitId}
+                                    className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center bg-gray-900/30 border border-gray-700/60 rounded px-2 py-1"
+                                >
+                                    <div className="sm:col-span-3 font-semibold text-gray-100 flex items-center gap-2">
+                                        <span>{unit?.name || unitId}</span>
+                                        {shortage > 0 && (
+                                            <span className="text-red-400 text-[10px]">缺口 {shortage}</span>
+                                        )}
+                                    </div>
+                                    <div className="sm:col-span-5 text-gray-400">
+                                        现役 {currentCount} / 队列 {pending}
+                                    </div>
+                                    <div className="sm:col-span-4 flex items-center gap-2">
+                                        <span className="text-gray-500">目标</span>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={target}
+                                            onChange={(e) => handleTargetChange(unitId, e.target.value)}
+                                            className="w-20 bg-gray-900/60 border border-gray-700 rounded px-2 py-0.5 text-xs text-gray-100"
+                                        />
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
+
             {/* 兵种克制关系 */}
             <div className="glass-ancient p-3 rounded-xl border border-ancient-gold/30">
                 <h3 className="text-xs font-bold mb-2 flex items-center gap-2 text-gray-300 font-decorative">
@@ -581,7 +772,7 @@ export const MilitaryTab = ({
                         训练队列
                     </h3>
 
-                    <div className="space-y-2">
+                    <div className="space-y-2 max-h-[360px] overflow-y-auto pr-2 custom-scrollbar">
                         {militaryQueue.map((item, idx) => {
                             const unit = UNIT_TYPES[item.unitId];
                             const isWaiting = item.status === 'waiting';
@@ -643,10 +834,20 @@ export const MilitaryTab = ({
 
             {/* 军事行动 */}
             <div className="glass-ancient p-4 rounded-xl border border-ancient-gold/30">
-                <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300 font-decorative">
-                    <Icon name="Swords" size={16} className="text-red-400" />
-                    军事行动
-                </h3>
+                <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-bold flex items-center gap-2 text-gray-300 font-decorative">
+                        <Icon name="Swords" size={16} className="text-red-400" />
+                        军事行动
+                    </h3>
+                    <button
+                        type="button"
+                        onClick={() => setShowWarScoreInfo(true)}
+                        className="text-[11px] flex items-center gap-1 px-2 py-1 rounded border border-ancient-gold/40 text-amber-200 hover:bg-ancient-gold/10 transition-colors"
+                    >
+                        <Icon name="HelpCircle" size={12} />
+                        战争分数指南
+                    </button>
+                </div>
 
                 <div className="flex items-center justify-between text-xs text-gray-400 mb-3">
                     <span>
@@ -724,6 +925,11 @@ export const MilitaryTab = ({
                                                     )}
                                                 </h4>
                                                 <p className="text-xs text-gray-400 mt-1">{action.desc}</p>
+                                                {action.cooldownDays && (
+                                                    <p className="text-[11px] text-amber-300 mt-1">
+                                                        冷却：{action.cooldownDays} 天
+                                                    </p>
+                                                )}
                                             </div>
                                             <Icon name="Target" size={18} className={hasRequiredTech ? 'text-red-300' : 'text-gray-500'} />
                                         </div>
@@ -780,7 +986,53 @@ export const MilitaryTab = ({
                 )}
             </div>
 
-            {/* 悬浮提示框 Portal */}
+            {showWarScoreInfo && createPortal(
+                <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/70 p-4">
+                    <div className="bg-gray-900 border border-ancient-gold/40 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[80vh] overflow-hidden animate-fade-in-fast">
+                        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-700">
+                            <div>
+                                <h4 className="text-lg font-bold text-white font-decorative">战争分数指引</h4>
+                                <p className="text-xs text-gray-400 mt-0.5">
+                                    战争分数越高，可提出的和平条件越苛刻；分数为负时，通常需要支付赔款或割地才能求和。
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setShowWarScoreInfo(false)}
+                                className="text-gray-400 hover:text-white transition-colors"
+                                aria-label="关闭战争分数指引"
+                            >
+                                <Icon name="X" size={18} />
+                            </button>
+                        </div>
+                        <div className="p-5 space-y-4 overflow-y-auto">
+                            {WAR_SCORE_GUIDE.map((tier) => (
+                                <div
+                                    key={tier.range}
+                                    className="rounded-lg border border-gray-700 bg-gray-800/50 p-4"
+                                >
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div>
+                                            <p className={`text-xs uppercase tracking-wide ${tier.color}`}>
+                                                {tier.range}
+                                            </p>
+                                            <h5 className="text-sm font-semibold text-white">{tier.title}</h5>
+                                        </div>
+                                    </div>
+                                    <ul className="list-disc list-inside text-xs text-gray-300 space-y-1">
+                                        {tier.tips.map((tip, index) => (
+                                            <li key={index}>{tip}</li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
+
+{/* 悬浮提示框 Portal */}
             <UnitTooltip
                 unit={hoveredUnit.unit}
                 anchorElement={hoveredUnit.element}

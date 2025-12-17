@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { BUILDINGS, EPOCHS, RESOURCES, TECHS, MILITARY_ACTIONS, UNIT_TYPES, EVENTS, getRandomEvent, createWarDeclarationEvent, createGiftEvent, createPeaceRequestEvent, createEnemyPeaceRequestEvent, createPlayerPeaceProposalEvent, createBattleEvent, createAllianceRequestEvent, createAllianceProposalResultEvent, createAllianceBreakEvent, createNationAnnexedEvent, STRATA, BUILDING_UPGRADES, getMaxUpgradeLevel, getUpgradeCost } from '../config';
+import { getUpgradeCountAtOrAboveLevel } from '../utils/buildingUpgradeUtils';
 import { calculateArmyCapacityNeed, calculateArmyPopulation, simulateBattle, calculateBattlePower } from '../config';
 import { calculateForeignPrice, calculateTradeStatus } from '../utils/foreignTrade';
 import { generateSound, SOUND_TYPES } from '../config/sounds';
@@ -273,7 +274,10 @@ export const useGameActions = (gameState, addLog) => {
             return;
         }
 
-        const upgradeCost = getUpgradeCost(buildingId, currentLevel);
+        // 计算已有的同等级或更高升级数量，用于成本递增
+        const existingUpgradeCount = getUpgradeCountAtOrAboveLevel(currentLevel + 1, count, buildingUpgrades[buildingId] || {});
+
+        const upgradeCost = getUpgradeCost(buildingId, currentLevel + 1, existingUpgradeCount);
         if (!upgradeCost) {
             addLog('无法获取升级费用。');
             return;
@@ -407,7 +411,10 @@ export const useGameActions = (gameState, addLog) => {
         const requestedCount = Math.min(upgradeCount, candidates.length);
         if (requestedCount <= 0) return;
 
-        const upgradeCost = getUpgradeCost(buildingId, fromLevel);
+        // 计算已有的同等级或更高升级数量，用于成本递增
+        const existingUpgradeCount = getUpgradeCountAtOrAboveLevel(fromLevel + 1, buildingCount, currentUpgradeLevels);
+
+        const upgradeCost = getUpgradeCost(buildingId, fromLevel + 1, existingUpgradeCount);
         if (!upgradeCost) return;
 
         // 计算单个升级的银币成本（资源按市场价）

@@ -18,7 +18,7 @@ const PEACE_PAYMENT_COEFFICIENTS = {
 };
 
 /** 赔款硬上限 */
-const PEACE_PAYMENT_HARD_CAP = 800000;
+const PEACE_PAYMENT_HARD_CAP = 2000000;
 
 // ==================== 送礼计算 ====================
 
@@ -94,17 +94,18 @@ export function calculatePeacePayment(warScore, enemyLosses, warDuration, target
     const coef = PEACE_PAYMENT_COEFFICIENTS[mode] || PEACE_PAYMENT_COEFFICIENTS.demanding;
 
     // 计算各档赔款
-    const rawHigh = Math.ceil(absScore * coef.high + losses * 5 + duration * 8);
-    const rawStandard = Math.ceil(absScore * coef.standard + losses * 3 + duration * 6);
-    const rawLow = Math.ceil(absScore * coef.low + losses * 2 + duration * 4);
+    const rawHigh = Math.ceil(absScore * coef.high + losses * 8 + duration * 10);
+    const rawStandard = Math.ceil(absScore * coef.standard + losses * 5 + duration * 8);
+    const rawLow = Math.ceil(absScore * coef.low + losses * 4 + duration * 6);
 
     // 应用上限（硬上限和目标财富的较小值）
-    const effectiveCap = Math.min(PEACE_PAYMENT_HARD_CAP, targetWealth || PEACE_PAYMENT_HARD_CAP);
+    const wealthHeadroom = Math.max(50000, (targetWealth || 0) * 1.5 + 50000);
+    const effectiveCap = Math.min(PEACE_PAYMENT_HARD_CAP, wealthHeadroom);
 
     return {
-        high: Math.max(250, Math.min(effectiveCap, rawHigh)),
-        standard: Math.max(150, Math.min(effectiveCap, rawStandard)),
-        low: Math.max(80, Math.min(effectiveCap, rawLow)),
+        high: Math.max(500, Math.min(effectiveCap, rawHigh)),
+        standard: Math.max(300, Math.min(effectiveCap, rawStandard)),
+        low: Math.max(150, Math.min(effectiveCap, rawLow)),
     };
 }
 

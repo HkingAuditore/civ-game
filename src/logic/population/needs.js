@@ -93,7 +93,7 @@ export const processNeedsConsumption = ({
                 // Tradable resource - requires payment
                 const price = priceMap[resKey] || getBasePrice(resKey);
                 const totalCost = requirement * price;
-                const affordable = updatedWealth[key] > 0 
+                const affordable = updatedWealth[key] > 0
                     ? Math.min(requirement, (updatedWealth[key] / price))
                     : 0;
 
@@ -101,7 +101,7 @@ export const processNeedsConsumption = ({
 
                 if (amount > 0) {
                     res[resKey] = available - amount;
-                    
+
                     const taxRate = getResourceTaxRate(resKey);
                     const baseCost = amount * price;
                     const taxPaid = baseCost * taxRate;
@@ -192,6 +192,7 @@ export const processNeedsConsumption = ({
 export const calculateLivingStandards = ({
     popStructure,
     wealth,
+    classIncome,
     classShortages,
     epoch,
     techsUnlocked,
@@ -216,8 +217,19 @@ export const calculateLivingStandards = ({
         // Calculate effective needs count
         const luxuryNeeds = def.luxuryNeeds || {};
         const luxuryThresholds = Object.keys(luxuryNeeds).map(Number).sort((a, b) => a - b);
-        const wealthRatio = startingWealth > 0 
-            ? (wealthValue / Math.max(count, 1)) / startingWealth 
+        const incomeValue = classIncome?.[key] || 0;
+        const incomePerCapita = count > 0 ? incomeValue / count : 0;
+        const projectedIncomeWealth = Math.max(0, incomePerCapita) * 30; // Virtual wealth from monthly income
+        const realPerCapitaWealth = count > 0 ? wealthValue / Math.max(count, 1) : 0;
+
+        // Hybrid SOL Model: Effective living standard depends on whichever is higher:
+        // 1. Accumulated Wealth (Savings)
+        // 2. Projected Monthly Income (Earning Power)
+        const effectivePerCapitaWealth = Math.max(realPerCapitaWealth, projectedIncomeWealth);
+        const effectiveTotalWealth = effectivePerCapitaWealth * count;
+
+        const wealthRatio = startingWealth > 0
+            ? effectivePerCapitaWealth / startingWealth
             : 0;
 
         // Base needs count
@@ -242,7 +254,7 @@ export const calculateLivingStandards = ({
         // Calculate living standard
         classLivingStandard[key] = calculateLivingStandardData({
             count,
-            wealthValue,
+            wealthValue: effectiveTotalWealth,
             startingWealth,
             shortagesCount,
             effectiveNeedsCount,
@@ -300,7 +312,7 @@ export const calculateLaborEfficiency = ({
         const def = STRATA[key];
         if (def && def.needs) {
             const shortages = classShortages[key] || [];
-            const hasBasicShortage = shortages.some(s => 
+            const hasBasicShortage = shortages.some(s =>
                 s.resource === 'food' || s.resource === 'cloth'
             );
 
@@ -310,8 +322,8 @@ export const calculateLaborEfficiency = ({
         }
     });
 
-    const laborNeedAverage = workforceTotal > 0 
-        ? workforceNeedWeighted / workforceTotal 
+    const laborNeedAverage = workforceTotal > 0
+        ? workforceNeedWeighted / workforceTotal
         : 1;
     let laborEfficiencyFactor = 0.3 + 0.7 * laborNeedAverage;
 

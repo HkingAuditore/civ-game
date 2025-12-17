@@ -92,3 +92,23 @@ export const getBuildingLevelDistribution = (buildingId, count, upgradeLevels = 
 export const canBuildingUpgrade = (buildingId) => {
     return !!BUILDING_UPGRADES[buildingId] && BUILDING_UPGRADES[buildingId].length > 0;
 };
+
+/**
+ * 计算已升级到某目标等级或更高的建筑数量
+ * 用于升级成本递增计算
+ * 
+ * @param {number} targetLevel - 目标升级等级
+ * @param {number} count - 建筑总数
+ * @param {Object} upgradeLevels - 升级等级 { instanceIndex: level }
+ * @returns {number} 已升级到该等级或更高的数量
+ */
+export const getUpgradeCountAtOrAboveLevel = (targetLevel, count, upgradeLevels = {}) => {
+    let upgradeCount = 0;
+    for (let i = 0; i < count; i++) {
+        const level = upgradeLevels[i] || 0;
+        if (level >= targetLevel) {
+            upgradeCount++;
+        }
+    }
+    return upgradeCount;
+};

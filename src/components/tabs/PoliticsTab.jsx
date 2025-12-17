@@ -224,19 +224,23 @@ const ResourceTaxCard = ({
     draftRate,
     onDraftChange,
     onCommit,
-    tariffMultiplier,
-    draftTariff,
-    onTariffDraftChange,
-    onTariffCommit,
+    importTariffMultiplier,
+    exportTariffMultiplier,
+    draftImportTariff,
+    draftExportTariff,
+    onImportTariffDraftChange,
+    onExportTariffDraftChange,
+    onImportTariffCommit,
+    onExportTariffCommit,
 }) => {
     // 当税率为负时，作为"交易补贴"运作
     const currentRate = rate ?? 0;
     const isSubsidy = currentRate < 0;
     const displayValue = Math.abs(currentRate * 100).toFixed(0);
-    const currentTariff = Number.isFinite(tariffMultiplier) ? tariffMultiplier : 1;
-
     const valueColor = isSubsidy ? 'text-green-300' : 'text-blue-300';
     const sliderColor = isSubsidy ? 'accent-green-500' : 'accent-blue-500';
+    const currentImportTariff = Number.isFinite(importTariffMultiplier) ? importTariffMultiplier : 1;
+    const currentExportTariff = Number.isFinite(exportTariffMultiplier) ? exportTariffMultiplier : 1;
 
     return (
         <div
@@ -274,28 +278,59 @@ const ResourceTaxCard = ({
                 className="w-full bg-gray-900/70 border border-gray-600 text-[11px] text-gray-200 rounded px-1.5 py-0.5 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
                 placeholder="税率%"
             />
-            <div className="mt-1.5 border-t border-gray-800/70 pt-1.5">
-                <div className="flex items-center justify-between text-[10px] text-gray-400 mb-0.5">
-                    <span>关税倍率</span>
-                    <span className="text-gray-200 font-mono text-xs">{currentTariff.toFixed(2)}×</span>
+            <div className="mt-1.5 border-t border-gray-800/70 pt-1.5 space-y-1.5">
+                {/* 进口关税 */}
+                <div>
+                    <div className="flex items-center justify-between text-[10px] text-gray-400 mb-0.5">
+                        <span className="flex items-center gap-0.5">
+                            <Icon name="ArrowDownLeft" size={10} className="text-blue-400" />
+                            进口关税
+                        </span>
+                        <span className="text-gray-200 font-mono text-xs">{currentImportTariff.toFixed(2)}×</span>
+                    </div>
+                    <input
+                        type="text"
+                        inputMode="decimal"
+                        step="0.1"
+                        value={draftImportTariff ?? currentImportTariff.toFixed(2)}
+                        onChange={(e) => onImportTariffDraftChange(resourceKey, e.target.value)}
+                        onBlur={() => onImportTariffCommit(resourceKey)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                                onImportTariffCommit(resourceKey);
+                                e.target.blur();
+                            }
+                        }}
+                        className="w-full bg-gray-900/70 border border-gray-600 text-[11px] text-gray-200 rounded px-1.5 py-0.5 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
+                        placeholder="进口倍率"
+                    />
                 </div>
-                <input
-                    type="text"
-                    inputMode="decimal"
-                    step="0.1"
-                    value={draftTariff ?? currentTariff.toFixed(2)}
-                    onChange={(e) => onTariffDraftChange(resourceKey, e.target.value)}
-                    onBlur={() => onTariffCommit(resourceKey)}
-                    onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                            onTariffCommit(resourceKey);
-                            e.target.blur();
-                        }
-                    }}
-                    className="w-full bg-gray-900/70 border border-gray-600 text-[11px] text-gray-200 rounded px-1.5 py-0.5 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-center"
-                    placeholder="倍率"
-                />
-                {/* <p className="mt-0.5 text-[9px] text-gray-500">调节进出口交易税收强度。</p> */}
+                {/* 出口关税 */}
+                <div>
+                    <div className="flex items-center justify-between text-[10px] text-gray-400 mb-0.5">
+                        <span className="flex items-center gap-0.5">
+                            <Icon name="ArrowUpRight" size={10} className="text-green-400" />
+                            出口关税
+                        </span>
+                        <span className="text-gray-200 font-mono text-xs">{currentExportTariff.toFixed(2)}×</span>
+                    </div>
+                    <input
+                        type="text"
+                        inputMode="decimal"
+                        step="0.1"
+                        value={draftExportTariff ?? currentExportTariff.toFixed(2)}
+                        onChange={(e) => onExportTariffDraftChange(resourceKey, e.target.value)}
+                        onBlur={() => onExportTariffCommit(resourceKey)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                                onExportTariffCommit(resourceKey);
+                                e.target.blur();
+                            }
+                        }}
+                        className="w-full bg-gray-900/70 border border-gray-600 text-[11px] text-gray-200 rounded px-1.5 py-0.5 focus:ring-1 focus:ring-green-500 focus:border-green-500 text-center"
+                        placeholder="出口倍率"
+                    />
+                </div>
             </div>
         </div>
     );
@@ -420,11 +455,14 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
 
     const headRates = taxPolicies?.headTaxRates || {};
     const resourceRates = taxPolicies?.resourceTaxRates || {};
-    const resourceTariffs = taxPolicies?.resourceTariffMultipliers || {};
+    // 进口/出口关税倍率（向后兼容旧的resourceTariffMultipliers）
+    const importTariffs = taxPolicies?.importTariffMultipliers || taxPolicies?.resourceTariffMultipliers || {};
+    const exportTariffs = taxPolicies?.exportTariffMultipliers || taxPolicies?.resourceTariffMultipliers || {};
     const businessRates = taxPolicies?.businessTaxRates || {};
     const [headDrafts, setHeadDrafts] = React.useState({});
     const [resourceDrafts, setResourceDrafts] = React.useState({});
-    const [resourceTariffDrafts, setResourceTariffDrafts] = React.useState({});
+    const [importTariffDrafts, setImportTariffDrafts] = React.useState({});
+    const [exportTariffDrafts, setExportTariffDrafts] = React.useState({});
     const [businessDrafts, setBusinessDrafts] = React.useState({});
     const [activeTaxTab, setActiveTaxTab] = React.useState('head'); // 'head', 'resource', 'business'
 
@@ -489,8 +527,12 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
         setResourceDrafts(prev => ({ ...prev, [key]: raw }));
     };
 
-    const handleResourceTariffDraftChange = (key, raw) => {
-        setResourceTariffDrafts(prev => ({ ...prev, [key]: raw }));
+    const handleImportTariffDraftChange = (key, raw) => {
+        setImportTariffDrafts(prev => ({ ...prev, [key]: raw }));
+    };
+
+    const handleExportTariffDraftChange = (key, raw) => {
+        setExportTariffDrafts(prev => ({ ...prev, [key]: raw }));
     };
 
     const commitResourceDraft = (key) => {
@@ -513,18 +555,36 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
         });
     };
 
-    const commitResourceTariffDraft = (key) => {
-        if (resourceTariffDrafts[key] === undefined) return;
-        const parsed = parseFloat(resourceTariffDrafts[key]);
+    const commitImportTariffDraft = (key) => {
+        if (importTariffDrafts[key] === undefined) return;
+        const parsed = parseFloat(importTariffDrafts[key]);
         const multiplier = Number.isNaN(parsed) ? 1 : Math.max(0, parsed);
         onUpdateTaxPolicies?.(prev => ({
             ...prev,
-            resourceTariffMultipliers: {
-                ...(prev?.resourceTariffMultipliers || {}),
+            importTariffMultipliers: {
+                ...(prev?.importTariffMultipliers || {}),
                 [key]: multiplier,
             },
         }));
-        setResourceTariffDrafts(prev => {
+        setImportTariffDrafts(prev => {
+            const next = { ...prev };
+            delete next[key];
+            return next;
+        });
+    };
+
+    const commitExportTariffDraft = (key) => {
+        if (exportTariffDrafts[key] === undefined) return;
+        const parsed = parseFloat(exportTariffDrafts[key]);
+        const multiplier = Number.isNaN(parsed) ? 1 : Math.max(0, parsed);
+        onUpdateTaxPolicies?.(prev => ({
+            ...prev,
+            exportTariffMultipliers: {
+                ...(prev?.exportTariffMultipliers || {}),
+                [key]: multiplier,
+            },
+        }));
+        setExportTariffDrafts(prev => {
             const next = { ...prev };
             delete next[key];
             return next;
@@ -718,12 +778,16 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
                             rate={resourceRates[key]}
                             hasSupply={(market?.supply?.[key] || 0) > 0}
                             draftRate={resourceDrafts[key]}
-                            tariffMultiplier={resourceTariffs[key] ?? 1}
-                            draftTariff={resourceTariffDrafts[key]}
+                            importTariffMultiplier={importTariffs[key] ?? 1}
+                            exportTariffMultiplier={exportTariffs[key] ?? 1}
+                            draftImportTariff={importTariffDrafts[key]}
+                            draftExportTariff={exportTariffDrafts[key]}
                             onDraftChange={handleResourceDraftChange}
                             onCommit={commitResourceDraft}
-                            onTariffDraftChange={handleResourceTariffDraftChange}
-                            onTariffCommit={commitResourceTariffDraft}
+                            onImportTariffDraftChange={handleImportTariffDraftChange}
+                            onExportTariffDraftChange={handleExportTariffDraftChange}
+                            onImportTariffCommit={commitImportTariffDraft}
+                            onExportTariffCommit={commitExportTariffDraft}
                         />
                     ))}
                 </div>
@@ -747,8 +811,8 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
                         <button
                             onClick={() => setActiveTaxTab('head')}
                             className={`flex-1 min-w-[90px] px-4 py-2 text-sm font-semibold transition-all ${activeTaxTab === 'head'
-                                    ? 'text-yellow-300 border-b-2 border-yellow-400'
-                                    : 'text-gray-400 hover:text-gray-300'
+                                ? 'text-yellow-300 border-b-2 border-yellow-400'
+                                : 'text-gray-400 hover:text-gray-300'
                                 }`}
                         >
                             <div className="flex items-center gap-2">
@@ -759,8 +823,8 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
                         <button
                             onClick={() => setActiveTaxTab('resource')}
                             className={`flex-1 min-w-[90px] px-4 py-2 text-sm font-semibold transition-all ${activeTaxTab === 'resource'
-                                    ? 'text-blue-300 border-b-2 border-blue-400'
-                                    : 'text-gray-400 hover:text-gray-300'
+                                ? 'text-blue-300 border-b-2 border-blue-400'
+                                : 'text-gray-400 hover:text-gray-300'
                                 }`}
                         >
                             <div className="flex items-center gap-2">
@@ -771,8 +835,8 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
                         <button
                             onClick={() => setActiveTaxTab('business')}
                             className={`flex-1 min-w-[90px] px-4 py-2 text-sm font-semibold transition-all ${activeTaxTab === 'business'
-                                    ? 'text-green-300 border-b-2 border-green-400'
-                                    : 'text-gray-400 hover:text-gray-300'
+                                ? 'text-green-300 border-b-2 border-green-400'
+                                : 'text-gray-400 hover:text-gray-300'
                                 }`}
                         >
                             <div className="flex items-center gap-2">
@@ -849,12 +913,16 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
                                                     rate={resourceRates[key]}
                                                     hasSupply={(market?.supply?.[key] || 0) > 0}
                                                     draftRate={resourceDrafts[key]}
-                                                    tariffMultiplier={resourceTariffs[key] ?? 1}
-                                                    draftTariff={resourceTariffDrafts[key]}
+                                                    importTariffMultiplier={importTariffs[key] ?? 1}
+                                                    exportTariffMultiplier={exportTariffs[key] ?? 1}
+                                                    draftImportTariff={importTariffDrafts[key]}
+                                                    draftExportTariff={exportTariffDrafts[key]}
                                                     onDraftChange={handleResourceDraftChange}
                                                     onCommit={commitResourceDraft}
-                                                    onTariffDraftChange={handleResourceTariffDraftChange}
-                                                    onTariffCommit={commitResourceTariffDraft}
+                                                    onImportTariffDraftChange={handleImportTariffDraftChange}
+                                                    onExportTariffDraftChange={handleExportTariffDraftChange}
+                                                    onImportTariffCommit={commitImportTariffDraft}
+                                                    onExportTariffCommit={commitExportTariffDraft}
                                                 />
                                             ))}
                                     </div>
@@ -952,8 +1020,8 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
                                         setDecreeAnchorRect(null);
                                     }}
                                     className={`relative p-2 rounded-lg border transition-all cursor-pointer ${decree.active
-                                            ? 'bg-green-900/20 border-green-600 shadow-lg'
-                                            : 'bg-gray-700/50 border-gray-600 hover:border-purple-500 hover:shadow-lg'
+                                        ? 'bg-green-900/20 border-green-600 shadow-lg'
+                                        : 'bg-gray-700/50 border-gray-600 hover:border-purple-500 hover:shadow-lg'
                                         }`}
                                 >
                                     {/* 政令头部 - 紧凑版 */}
@@ -989,8 +1057,8 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
                                     <button
                                         onClick={(e) => { e.stopPropagation(); onToggle(decree.id); }}
                                         className={`w-full px-2 py-1 rounded text-[10px] font-semibold transition-all ${decree.active
-                                                ? 'bg-red-600 hover:bg-red-500 text-white'
-                                                : 'bg-green-600 hover:bg-green-500 text-white'
+                                            ? 'bg-red-600 hover:bg-red-500 text-white'
+                                            : 'bg-green-600 hover:bg-green-500 text-white'
                                             }`}
                                     >
                                         <div className="flex items-center justify-center gap-1">

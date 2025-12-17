@@ -52,8 +52,9 @@ export const MERCHANT_LOG_PROFIT_THRESHOLD = 50;
 export const PEACE_REQUEST_COOLDOWN_DAYS = 30;
 
 // Population growth constants
-export const FERTILITY_BASE_RATE = 0.0015;
-export const FERTILITY_BASELINE_RATE = 0.0005;
+// Increased to let prosperous empires experience visibly faster birth growth
+export const FERTILITY_BASE_RATE = 0.003;
+export const FERTILITY_BASELINE_RATE = 0.001;
 export const LOW_POP_THRESHOLD = 20;
 export const LOW_POP_GUARANTEE = 0.4;
 export const WEALTH_BASELINE = 200;

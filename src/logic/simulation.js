@@ -6,6 +6,7 @@ import { calculateForeignPrice } from '../utils/foreignTrade';
 import { simulateBattle, UNIT_TYPES } from '../config/militaryUnits';
 import { getEnemyUnitsForEpoch } from '../config/militaryActions';
 import { calculateLivingStandardData, getSimpleLivingStandard } from '../utils/livingStandard';
+import { calculateLivingStandards } from './population/needs';
 import { calculateAIGiftAmount, calculateAIPeaceTribute, calculateAISurrenderDemand } from '../utils/diplomaticUtils';
 
 // ============================================================================
@@ -1433,7 +1434,7 @@ export const simulateTick = ({
     // console.log('[TICK] Production loop completed.'); // Commented for performance
 
     // Add all tracked income (civilian + military) to the wealth of each class
-    applyRoleIncomeToWealth();
+    // applyRoleIncomeToWealth(); // Removed to prevent double counting (called again at end of tick)
 
     // console.log('[TICK] Starting needs calculation...'); // Commented for performance
     const needsReport = {};
@@ -1524,7 +1525,13 @@ export const simulateTick = ({
                 // 1. 财富影响：阶层财富相对于起始财富的变化
                 const startingWealth = def.startingWealth || 1;
                 const currentWealth = (wealth[key] || 0) / Math.max(1, count);
-                const wealthRatio = currentWealth / startingWealth;
+
+                // New Hybrid Wealth for Demand: Max(Real Wealth, Projected Monthly Income)
+                const currentIncome = (roleWagePayout[key] || 0) / Math.max(1, count);
+                const projectedIncomeWealth = Math.max(0, currentIncome) * 30;
+                const effectiveWealth = Math.max(currentWealth, projectedIncomeWealth);
+
+                const wealthRatio = effectiveWealth / startingWealth;
                 // 使用平方根曲线：财富增加时需求增长，但边际递减，比之前更克制
                 // wealthRatio=1 → multiplier=1, wealthRatio=4 → multiplier≈2.6, wealthRatio=9 → multiplier≈4.3
                 // 公式: multiplier = sqrt(wealthRatio) * (1 + ln(max(wealthRatio, 1)) * 0.2)
@@ -1730,68 +1737,19 @@ export const simulateTick = ({
         }
     });
 
-    // 计算各阶层的生活水平数据
-    const classLivingStandard = {};
-    const updatedLivingStandardStreaks = {};
-    Object.keys(STRATA).forEach(key => {
-        const count = popStructure[key] || 0;
-        if (count === 0) {
-            classLivingStandard[key] = null;
-            updatedLivingStandardStreaks[key] = { streak: 0, level: null };
-            return;
-        }
-        const def = STRATA[key];
-        const wealthValue = wealth[key] || 0;
-        const startingWealth = def.startingWealth || 10;
-        const shortagesCount = (classShortages[key] || []).length;
-
-        // 计算有效需求数量
-        const luxuryNeeds = def.luxuryNeeds || {};
-        const luxuryThresholds = Object.keys(luxuryNeeds).map(Number).sort((a, b) => a - b);
-        const wealthRatio = startingWealth > 0 ? (wealthValue / Math.max(count, 1)) / startingWealth : 0;
-
-        // 基础需求数量（已解锁的资源）
-        const baseNeedsCount = def.needs
-            ? Object.keys(def.needs).filter(r => isResourceUnlocked(r, epoch, techsUnlocked)).length
-            : 0;
-
-        // 计算已解锁的奢侈需求档位
-        let unlockedLuxuryTiers = 0;
-        let effectiveNeedsCount = baseNeedsCount;
-        for (const threshold of luxuryThresholds) {
-            if (wealthRatio >= threshold) {
-                unlockedLuxuryTiers++;
-                const tierNeeds = luxuryNeeds[threshold];
-                const unlockedResources = Object.keys(tierNeeds).filter(r => isResourceUnlocked(r, epoch, techsUnlocked));
-                const newResources = unlockedResources.filter(r => !def.needs?.[r]);
-                effectiveNeedsCount += newResources.length;
-            }
-        }
-
-        // 使用工具函数计算生活水平数据
-        classLivingStandard[key] = calculateLivingStandardData({
-            count,
-            wealthValue,
-            startingWealth,
-            shortagesCount,
-            effectiveNeedsCount,
-            unlockedLuxuryTiers,
-            totalLuxuryTiers: luxuryThresholds.length,
-        });
-
-        const prevTracker = livingStandardStreaks?.[key]?.streak || 0;
-        const currentLevel = classLivingStandard[key]?.level || null;
-        let nextStreak = prevTracker;
-        if (currentLevel === '赤贫' || currentLevel === '贫困') {
-            nextStreak = prevTracker + 1;
-        } else {
-            nextStreak = Math.max(0, prevTracker - 1);
-        }
-        updatedLivingStandardStreaks[key] = {
-            streak: nextStreak,
-            level: currentLevel,
-        };
+    // REFACTORED: Use shared calculateLivingStandards function from needs.js
+    // incorporating new Hybrid SOL Logic (Income + Wealth)
+    const livingStandardsResult = calculateLivingStandards({
+        popStructure,
+        wealth,
+        classIncome: roleWagePayout,
+        classShortages,
+        epoch,
+        techsUnlocked,
+        livingStandardStreaks
     });
+    const classLivingStandard = livingStandardsResult.classLivingStandard;
+    const updatedLivingStandardStreaks = livingStandardsResult.livingStandardStreaks;
 
     Object.keys(STRATA).forEach(key => {
         const count = popStructure[key] || 0;
@@ -1915,6 +1873,19 @@ export const simulateTick = ({
 
     let nextPopulation = population;
     let raidPopulationLoss = 0;
+
+    // Wealth Decay (Lifestyle Inflation)
+    // Prevents infinite accumulation by "burning" a small percentage of wealth daily
+    // representing maintenance, services, and non-goods consumption.
+    Object.keys(STRATA).forEach(key => {
+        const currentWealth = wealth[key] || 0;
+        if (currentWealth > 0) {
+            const decay = Math.ceil(currentWealth * 0.005); // 0.5% daily decay
+            wealth[key] = Math.max(0, currentWealth - decay);
+            // Record decay as expense so UI balances
+            roleExpense[key] = (roleExpense[key] || 0) + decay;
+        }
+    });
 
     Object.keys(STRATA).forEach(key => {
         classWealthResult[key] = Math.max(0, wealth[key] || 0);
@@ -2104,6 +2075,7 @@ export const simulateTick = ({
                     tick,
                     epoch,
                     resources: res,
+                    population,
                     army,
                     logs,
                 });
@@ -2284,7 +2256,7 @@ export const simulateTick = ({
 
 
     // REFACTORED: Using module function for AI-Player trade
-    processAIPlayerTrade(visibleNations, tick, res, market, logs);
+    processAIPlayerTrade(visibleNations, tick, res, market, logs, taxPolicies);
 
 
     // REFACTORED: Using module function for AI-Player interaction
@@ -3007,11 +2979,16 @@ export const simulateTick = ({
     // 商人交易已在转职逻辑前执行，这里只需应用收入到财富
     applyRoleIncomeToWealth();
 
+    // Sync classWealthResult and totalWealth to include income for all classes
+    Object.keys(STRATA).forEach(key => {
+        classWealthResult[key] = Math.max(0, wealth[key] || 0);
+    });
+    totalWealth = Object.values(classWealthResult).reduce((sum, val) => sum + val, 0);
+
     const updatedMerchantWealth = Math.max(0, wealth.merchant || 0);
     const merchantWealthDelta = updatedMerchantWealth - previousMerchantWealth;
     if (merchantWealthDelta !== 0) {
-        classWealthResult.merchant = updatedMerchantWealth;
-        totalWealth += merchantWealthDelta;
+        // ClassWealthResult and totalWealth already updated above
         const merchantDef = STRATA.merchant;
         if (merchantDef) {
             const merchantCount = popStructure.merchant || 0;
