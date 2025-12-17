@@ -52,7 +52,8 @@ export const StrataPanel = ({
     rebellionStates = {}, // 新增：组织度状态
     onDetailClick,
     dayScale = 1,
-    hideTitle = false,  // 新增：是否隐藏标题
+    hideTitle = false,  // 是否隐藏标题
+    forceRowLayout = false, // 强制使用行式布局（用于总览视图）
 }) => {
     const safeDayScale = Math.max(dayScale, 0.0001);
     // 移除viewMode状态，因为我们将根据屏幕尺寸自动切换
@@ -196,27 +197,6 @@ export const StrataPanel = ({
                     </div>
                 )}
 
-                {/* 移动端稳定度显示（当标题隐藏时） */}
-                {hideTitle && (
-                    <div className="flex items-center justify-center gap-1.5 mb-1.5 flex-shrink-0 bg-ancient-ink/30 rounded-lg px-2 py-1 border border-ancient-gold/20">
-                        <span className="text-[10px] text-ancient-stone">总体稳定度</span>
-                        <Icon
-                            name="TrendingUp"
-                            size={12}
-                            className={
-                                stability >= 70 ? 'text-green-400' :
-                                    stability >= 40 ? 'text-yellow-400' :
-                                        'text-red-400'
-                            }
-                        />
-                        <span className={`text-[11px] font-bold ${stability >= 70 ? 'text-green-400' :
-                            stability >= 40 ? 'text-yellow-400' :
-                                'text-red-400'
-                            }`}>
-                            {stability.toFixed(0)}%
-                        </span>
-                    </div>
-                )}
 
                 {/* 阶层列表 - 使用自定义滚动条样式 */}
                 <div
@@ -224,7 +204,7 @@ export const StrataPanel = ({
                     style={{ maxHeight: 'calc(100vh - 520px)', minHeight: '300px' }}
                 >
                     {/* 移动端和小窗口：网格布局 - 使用好感度作为背景填充 */}
-                    <div className="md:hidden grid grid-cols-3 sm:grid-cols-4 gap-1.5">
+                    <div className={`${forceRowLayout ? 'hidden' : 'md:hidden'} grid grid-cols-2 sm:grid-cols-3 gap-1`}>
                         {strataData.map((strata) => {
                             // 计算好感度对应的背景颜色
                             const getApprovalBgGradient = (approval) => {
@@ -248,48 +228,44 @@ export const StrataPanel = ({
                                 >
                                     {/* 卡片内容 */}
                                     <div className="relative z-10 p-1">
-                                        {/* 头部：图标、阶层名称 */}
-                                        <div className="flex items-center gap-1 mb-1">
-                                            <div className="w-6 h-6 bg-ancient-ink/60 rounded flex items-center justify-center flex-shrink-0 border border-ancient-gold/20">
-                                                <Icon name={strata.info.icon} size={12} className="text-ancient-gold" />
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <div className="text-[10px] font-bold text-ancient-parchment truncate leading-tight">{strata.info.name}</div>
-                                                <div className="text-[8px] text-ancient-stone font-mono leading-none">{strata.count}</div>
-                                            </div>
-                                            {/* 生活水平图标 */}
-                                            <div className="flex-shrink-0">
-                                                <Icon
-                                                    name={strata.livingStandardIcon}
-                                                    size={10}
-                                                    className={`${strata.livingStandardColor} drop-shadow-[0_0_2px_rgba(255,255,255,0.3)]`}
-                                                    title={`生活水平: 财富比率 ${strata.wealthRatio.toFixed(2)}x`}
-                                                />
-                                            </div>
-                                            {/* 短缺闪烁图标 */}
-                                            {strata.shortages.length > 0 && (
-                                                <div className="flex-shrink-0">
-                                                    <Icon
-                                                        name="AlertTriangle"
-                                                        size={10}
-                                                        className="text-red-400 animate-pulse drop-shadow-[0_0_3px_rgba(248,113,113,0.8)]"
-                                                    />
-                                                </div>
-                                            )}
+                                        {/* 头部：图标、阶层名称+人数、好感度 */}
+                                        <div className="flex items-center gap-1 mb-0.5">
+                                            <Icon name={strata.info.icon} size={12} className="text-ancient-gold flex-shrink-0" />
+                                            <span className="text-[10px] font-bold text-ancient-parchment truncate leading-none">{strata.info.name}</span>
+                                            <span className="text-[8px] text-ancient-stone font-mono">{strata.count}</span>
+                                            <div className="flex-1" />
+                                            <span className={`text-[9px] font-bold font-mono ${strata.approval >= 70 ? 'text-green-400' : strata.approval >= 40 ? 'text-yellow-400' : 'text-red-400'}`}>
+                                                {strata.approval.toFixed(0)}%
+                                            </span>
                                         </div>
 
-                                        {/* 每日人均净收入 */}
-                                        <div className="bg-ancient-ink/60 rounded px-1 py-0.5 backdrop-blur-sm border border-ancient-gold/10">
-                                            <div className="flex items-center justify-between">
-                                                <span className="text-[8px] text-ancient-stone leading-none">净收入</span>
-                                                <span
-                                                    className={`text-[9px] font-bold font-mono leading-none ${strata.netIncomePerCapita >= 0 ? 'text-green-300' : 'text-red-300'
-                                                        }`}
-                                                >
-                                                    {strata.netIncomePerCapita >= 0 ? '+' : ''}
-                                                    {strata.netIncomePerCapita.toFixed(1)}
+                                        {/* 状态图标行 + 组织度 + 影响力 */}
+                                        <div className="flex items-center gap-1 mb-0.5 text-[8px]">
+                                            <Icon name={strata.livingStandardIcon} size={9} className={strata.livingStandardColor} title={`生活水平`} />
+                                            {strata.shortages.length > 0 && (
+                                                <Icon name="AlertTriangle" size={9} className="text-red-400 animate-pulse" />
+                                            )}
+                                            <div className="flex-1" />
+                                            {strata.organization > 0 && (
+                                                <span className={`font-mono ${strata.organization >= 70 ? 'text-red-400' : strata.organization >= 30 ? 'text-orange-400' : 'text-yellow-400'}`}>
+                                                    {strata.organization.toFixed(0)}%
                                                 </span>
-                                            </div>
+                                            )}
+                                            <span className="text-purple-400 font-mono flex items-center gap-0.5">
+                                                <Icon name="Zap" size={8} />
+                                                {strata.influenceShare.toFixed(1)}%
+                                            </span>
+                                        </div>
+
+                                        {/* 财产和净收入 */}
+                                        <div className="flex items-center justify-between text-[8px]">
+                                            <span className="text-ancient-parchment font-mono flex items-center gap-0.5">
+                                                <Icon name="Coins" size={8} className="text-ancient-gold" />
+                                                {strata.wealthValue.toFixed(0)}
+                                            </span>
+                                            <span className={`font-mono font-bold ${strata.netIncomePerCapita >= 0 ? 'text-green-300' : 'text-red-300'}`}>
+                                                {strata.netIncomePerCapita > 0 ? '+' : ''}{strata.netIncomePerCapita.toFixed(1)}
+                                            </span>
                                         </div>
                                     </div>
                                 </div>
@@ -303,7 +279,7 @@ export const StrataPanel = ({
                     </div>
 
                     {/* 桌面端大窗口：卡片布局 */}
-                    <div className="hidden md:block space-y-1">
+                    <div className={`${forceRowLayout ? 'block' : 'hidden md:block'} space-y-1`}>
                         {strataData.map(
                             ({
                                 key,
