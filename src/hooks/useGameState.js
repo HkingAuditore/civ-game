@@ -329,7 +329,7 @@ export const useGameState = () => {
     const [epoch, setEpoch] = useState(0);
 
     // ========== 游戏控制状态 ==========
-    const [activeTab, setActiveTab] = useState('build');
+    const [activeTab, setActiveTab] = useState('overview');
     const [gameSpeed, setGameSpeed] = useState(1);
     const [isPaused, setIsPaused] = useState(false);
     const [pausedBeforeEvent, setPausedBeforeEvent] = useState(false); // 事件触发前的暂停状态

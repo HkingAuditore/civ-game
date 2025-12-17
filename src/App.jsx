@@ -30,6 +30,7 @@ import {
     TechTab,
     PoliticsTab,
     DiplomacyTab,
+    OverviewTab,
     BattleResultModal,
     StratumDetailModal,
     ResourceDetailModal,
@@ -599,6 +600,77 @@ function GameApp({ gameState }) {
                 className="h-14 sm:h-16 lg:h-20 header-placeholder-landscape header-safe-area-margin"
             ></div>
 
+            {/* 移动端总览按钮 - 紧贴顶部状态栏下方，史诗金属风格 */}
+            <div className="lg:hidden fixed top-[52px] sm:top-[60px] left-1/2 -translate-x-1/2 z-40">
+                <button
+                    type="button"
+                    onClick={() => gameState.setActiveTab('overview')}
+                    className={`
+                        relative px-4 py-1.5 rounded-b-xl
+                        flex items-center justify-center gap-1.5
+                        transition-all duration-300 ease-out
+                        backdrop-blur-md
+                        ${gameState.activeTab === 'overview'
+                            ? 'scale-105'
+                            : 'active:scale-95 hover:scale-102'
+                        }
+                    `}
+                    style={{
+                        background: gameState.activeTab === 'overview'
+                            ? `linear-gradient(to bottom, color-mix(in srgb, var(--theme-primary) 90%, white), var(--theme-primary), color-mix(in srgb, var(--theme-primary) 80%, black))`
+                            : `linear-gradient(to bottom, rgba(55, 65, 81, 0.95), rgba(31, 41, 55, 0.95))`,
+                        borderBottom: `2px solid ${gameState.activeTab === 'overview' ? 'var(--theme-accent)' : 'rgba(107, 114, 128, 0.5)'}`,
+                        borderLeft: `1px solid ${gameState.activeTab === 'overview' ? 'var(--theme-accent)' : 'rgba(107, 114, 128, 0.3)'}`,
+                        borderRight: `1px solid ${gameState.activeTab === 'overview' ? 'var(--theme-accent)' : 'rgba(107, 114, 128, 0.3)'}`,
+                        boxShadow: gameState.activeTab === 'overview'
+                            ? `0 4px 12px color-mix(in srgb, var(--theme-primary) 40%, transparent), inset 0 1px 0 rgba(255,255,255,0.2)`
+                            : `0 2px 8px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.05)`,
+                    }}
+                >
+                    {/* 金属高光效果 */}
+                    <div
+                        className="absolute top-0 left-2 right-2 h-px rounded-full"
+                        style={{
+                            background: gameState.activeTab === 'overview'
+                                ? 'linear-gradient(to right, transparent, rgba(255,255,255,0.4), transparent)'
+                                : 'linear-gradient(to right, transparent, rgba(255,255,255,0.1), transparent)'
+                        }}
+                    />
+
+                    {/* 激活状态发光效果 */}
+                    {gameState.activeTab === 'overview' && (
+                        <div
+                            className="absolute inset-0 rounded-b-xl opacity-20 blur-sm"
+                            style={{ background: `var(--theme-primary)` }}
+                        />
+                    )}
+
+                    {/* 图标 */}
+                    <Icon
+                        name="LayoutDashboard"
+                        size={14}
+                        className="relative z-10"
+                        style={{
+                            color: gameState.activeTab === 'overview'
+                                ? 'var(--theme-text)'
+                                : 'rgb(156, 163, 175)'
+                        }}
+                    />
+
+                    {/* 标签 */}
+                    <span
+                        className="relative z-10 text-[10px] font-bold tab-title"
+                        style={{
+                            color: gameState.activeTab === 'overview'
+                                ? 'var(--theme-text)'
+                                : 'rgb(156, 163, 175)'
+                        }}
+                    >
+                        总览
+                    </span>
+                </button>
+            </div>
+
             {/* 主内容区域 - 移动端优先布局 */}
             <main className="max-w-[1920px] mx-auto px-2 sm:px-4 py-2 sm:py-4 pb-24 lg:pb-4 main-content-landscape" data-epoch={gameState.epoch}>
                 {/* 移动端：单列布局，桌面端：三列布局 */}
@@ -793,6 +865,36 @@ function GameApp({ gameState }) {
                                                 jobsAvailable={gameState.jobsAvailable}
                                                 popStructure={gameState.popStructure}
                                                 taxPolicies={gameState.taxPolicies}
+                                            />
+                                        )}
+
+                                        {/* 总览标签页 - 移动端专属 */}
+                                        {gameState.activeTab === 'overview' && (
+                                            <OverviewTab
+                                                // 阶层相关
+                                                popStructure={gameState.popStructure}
+                                                classApproval={gameState.classApproval}
+                                                classInfluence={gameState.classInfluence}
+                                                stability={gameState.stability}
+                                                population={gameState.population}
+                                                activeBuffs={gameState.activeBuffs}
+                                                activeDebuffs={gameState.activeDebuffs}
+                                                classWealth={gameState.classWealth}
+                                                classWealthDelta={gameState.classWealthDelta}
+                                                classShortages={gameState.classShortages}
+                                                classIncome={gameState.classIncome}
+                                                classExpense={gameState.classExpense}
+                                                classLivingStandard={gameState.classLivingStandard}
+                                                rebellionStates={gameState.rebellionStates}
+                                                onStratumDetailClick={handleStratumDetailClick}
+                                                // 市场相关
+                                                resources={gameState.resources}
+                                                rates={gameState.rates}
+                                                market={gameState.market}
+                                                epoch={gameState.epoch}
+                                                onResourceDetailClick={(key) => gameState.setResourceDetailView(key)}
+                                                // 日志
+                                                logs={gameState.logs}
                                             />
                                         )}
                                     </motion.div>

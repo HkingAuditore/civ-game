@@ -7,45 +7,45 @@ export { BattleNotification } from './common/BattleNotification';
 
 // 统一UI组件
 export {
-  Button,
-  Card,
-  Modal,
-  Input,
-  Badge,
-  Divider,
-  ListItem,
-  ProgressBar,
-  Tabs,
-  InfoCard as UnifiedInfoCard,
-  CollapsibleCard as UnifiedCollapsibleCard,
-  ActionCard as UnifiedActionCard,
-  StatsGrid,
+    Button,
+    Card,
+    Modal,
+    Input,
+    Badge,
+    Divider,
+    ListItem,
+    ProgressBar,
+    Tabs,
+    InfoCard as UnifiedInfoCard,
+    CollapsibleCard as UnifiedCollapsibleCard,
+    ActionCard as UnifiedActionCard,
+    StatsGrid,
 } from './common/UnifiedUI';
 
 // 动态效果组件
 export {
-  FloatingParticles,
-  LightSweep,
-  PulseRing,
-  GridBackground,
-  DynamicGradient,
-  BorderGlow,
-  StarField,
-  HoverCard,
-  ProgressGlow,
-  RippleEffect,
-  EpicBackground,
+    FloatingParticles,
+    LightSweep,
+    PulseRing,
+    GridBackground,
+    DynamicGradient,
+    BorderGlow,
+    StarField,
+    HoverCard,
+    ProgressGlow,
+    RippleEffect,
+    EpicBackground,
 } from './common/DynamicEffects';
 
 // 增强卡片组件
 export {
-  EnhancedCard,
-  InfoCard,
-  ListCard,
-  CollapsibleCard,
-  ActionCard,
-  ProgressCard,
-  CardGrid,
+    EnhancedCard,
+    InfoCard,
+    ListCard,
+    CollapsibleCard,
+    ActionCard,
+    ProgressCard,
+    CardGrid,
 } from './common/EnhancedCards';
 
 // 布局组件
@@ -70,6 +70,7 @@ export { MilitaryTab } from './tabs/MilitaryTab';
 export { TechTab } from './tabs/TechTab';
 export { PoliticsTab } from './tabs/PoliticsTab';
 export { DiplomacyTab } from './tabs/DiplomacyTab';
+export { OverviewTab } from './tabs/OverviewTab';
 
 // 模态框组件
 export { BattleResultModal } from './modals/BattleResultModal';
