@@ -214,8 +214,8 @@ export function analyzeDissatisfactionSources(stratumKey, context) {
     const unaffordableItems = shortages.filter(s => s.reason === 'unaffordable');
     const outOfStockItems = shortages.filter(s => s.reason === 'outOfStock');
 
-    // 税负过重判断：税负占收入超过30%
-    const isTaxBurdenHigh = taxBurdenRatio > 0.3;
+    // 税负过重判断：税负占收入超过50%
+    const isTaxBurdenHigh = taxBurdenRatio > 0.5;
 
     if (isTaxBurdenHigh) {
         const contribution = Math.min(2, taxBurdenRatio * 3);
@@ -226,9 +226,10 @@ export function analyzeDissatisfactionSources(stratumKey, context) {
             label: '税负过重',
             detail: detailText,
             contribution,
-            severity: taxBurdenRatio > 0.5 ? 'danger' : 'warning',
+            severity: taxBurdenRatio > 0.75 ? 'danger' : 'warning',
         });
     }
+
     // ========== 区分基础需求和奢侈需求短缺 ==========
     // 获取该阶层的基础需求列表
     const basicNeeds = stratum?.needs || {};

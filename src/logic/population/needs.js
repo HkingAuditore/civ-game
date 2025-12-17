@@ -6,7 +6,7 @@
 import { STRATA, RESOURCES } from '../../config';
 import { isResourceUnlocked } from '../../utils/resources';
 import { isTradableResource, getBasePrice } from '../utils/helpers';
-import { calculateLivingStandardData } from '../../utils/livingStandard';
+import { calculateLivingStandardData, calculateWealthMultiplier } from '../../utils/livingStandard';
 
 /**
  * Process needs consumption for all strata
@@ -38,9 +38,9 @@ export const processNeedsConsumption = ({
 
     const getResourceTaxRate = (resource) => resourceTaxRates[resource] || 0;
 
-    // Helper to get current stratum income ratio (for luxury needs scaling)
-    // 新算法：基于收入与基础成本的比率来决定奢侈需求解锁
-    const getIncomeRatio = (key) => {
+    // Helper to get consumption multiplier (for luxury needs unlock)
+    // 使用消费能力（同时考虑收入和财富）来决定奢侈需求解锁
+    const getConsumptionMultiplier = (key) => {
         const def = STRATA[key];
         const count = popStructure[key] || 0;
         if (count <= 0) return 1;
@@ -48,6 +48,12 @@ export const processNeedsConsumption = ({
         // 计算人均收入
         const income = classIncome[key] || 0;
         const incomePerCapita = income / count;
+
+        // 计算人均财富和财富比率
+        const wealthValue = wealth[key] || 0;
+        const wealthPerCapita = wealthValue / count;
+        const startingWealth = def.startingWealth || 100;
+        const wealthRatio = startingWealth > 0 ? wealthPerCapita / startingWealth : 0;
 
         // 计算基础生存成本
         const baseNeeds = def.needs || {};
@@ -60,8 +66,11 @@ export const processNeedsConsumption = ({
             }
         });
 
-        // 返回收入比率
-        return essentialCost > 0 ? incomePerCapita / essentialCost : 1;
+        // 计算收入比率
+        const incomeRatio = essentialCost > 0 ? incomePerCapita / essentialCost : 1;
+
+        // 使用消费能力公式（同时考虑收入和财富）
+        return calculateWealthMultiplier(incomeRatio, wealthRatio);
     };
 
 
@@ -81,14 +90,14 @@ export const processNeedsConsumption = ({
         let tracked = 0;
 
         // Calculate effective needs (base + unlocked luxury tiers)
-        // 新算法：使用收入比率决定奢侈需求解锁
-        const incomeRatio = getIncomeRatio(key);
+        // 使用消费能力（wealthMultiplier）决定奢侈需求解锁
+        const consumptionMultiplier = getConsumptionMultiplier(key);
         const effectiveNeeds = { ...baseNeeds };
 
-        // Add luxury needs based on income ratio
+        // Add luxury needs based on consumption multiplier
         const luxuryThresholds = Object.keys(luxuryNeeds).map(Number).sort((a, b) => a - b);
         luxuryThresholds.forEach(threshold => {
-            if (incomeRatio >= threshold) {
+            if (consumptionMultiplier >= threshold) {
                 const tierNeeds = luxuryNeeds[threshold];
                 Object.entries(tierNeeds).forEach(([resKey, amount]) => {
                     if (isResourceUnlocked(resKey, epoch, techsUnlocked)) {
@@ -270,21 +279,24 @@ export const calculateLivingStandards = ({
         const luxuryNeeds = def.luxuryNeeds || {};
         const luxuryThresholds = Object.keys(luxuryNeeds).map(Number).sort((a, b) => a - b);
 
-        // 用于确定奢侈需求解锁的比率（基于收入）
+        // 用于确定奢侈需求解锁的消费能力（同时考虑收入和财富）
         const incomePerCapita = count > 0 ? incomeValue / count : 0;
         const essentialCostPerCapita = count > 0 ? essentialCost / count : 0;
         const incomeRatio = essentialCostPerCapita > 0 ? incomePerCapita / essentialCostPerCapita : 1;
+        const wealthPerCapita = count > 0 ? wealthValue / count : 0;
+        const wealthRatio = startingWealth > 0 ? wealthPerCapita / startingWealth : 0;
+        const consumptionMultiplier = calculateWealthMultiplier(incomeRatio, wealthRatio);
 
         // Base needs count
         const baseNeedsCount = def.needs
             ? Object.keys(def.needs).filter(r => isResourceUnlocked(r, epoch, techsUnlocked)).length
             : 0;
 
-        // Count unlocked luxury tiers (基于收入比率)
+        // Count unlocked luxury tiers (基于消费能力)
         let unlockedLuxuryTiers = 0;
         let effectiveNeedsCount = baseNeedsCount;
         for (const threshold of luxuryThresholds) {
-            if (incomeRatio >= threshold) {
+            if (consumptionMultiplier >= threshold) {
                 unlockedLuxuryTiers++;
                 const tierNeeds = luxuryNeeds[threshold];
                 const unlockedResources = Object.keys(tierNeeds)
