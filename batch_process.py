@@ -3,7 +3,7 @@ import glob
 from PIL import Image
 
 ARTIFACTS_DIR = "C:/Users/HkingAuditore/.gemini/antigravity/brain/00e1b459-ff95-436a-9524-d701496b7d14/"
-OUTPUT_DIR = "public/images/buildings/"
+OUTPUT_DIR = "src/assets/images/buildings/"
 
 buildings = [
     "trading_post",
