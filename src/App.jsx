@@ -726,6 +726,7 @@ function GameApp({ gameState }) {
                                                 population={gameState.population}
                                                 buildings={gameState.buildings}
                                                 nations={gameState.nations}
+                                                day={gameState.daysElapsed}
                                                 selectedTarget={gameState.selectedTarget}
                                                 onRecruit={actions.recruitUnit}
                                                 onDisband={actions.disbandUnit}

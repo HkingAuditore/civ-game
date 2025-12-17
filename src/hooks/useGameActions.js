@@ -76,6 +76,7 @@ export const useGameActions = (gameState, addLog) => {
         classWealth,
         buildingUpgrades,
         setBuildingUpgrades,
+        autoRecruitEnabled,
     } = gameState;
 
     const [pendingDiplomaticEvents, setPendingDiplomaticEvents] = useState([]);
@@ -797,6 +798,18 @@ export const useGameActions = (gameState, addLog) => {
             return;
         }
 
+        // 检查针对该目标的军事行动冷却
+        const cooldownKey = `military_${nationId}_${missionId}`;
+        const lastActionDay = targetNation.lastMilitaryActionDay?.[missionId] || 0;
+        const cooldownDays = mission.cooldownDays || 5;
+        const daysSinceLastAction = day - lastActionDay;
+        
+        if (lastActionDay > 0 && daysSinceLastAction < cooldownDays) {
+            const remainingDays = cooldownDays - daysSinceLastAction;
+            addLog(`⏳ 针对 ${targetNation.name} 的${mission.name}行动尚在冷却中，还需 ${remainingDays} 天。`);
+            return;
+        }
+
         const totalUnits = Object.values(army).reduce((sum, count) => sum + count, 0);
         if (totalUnits === 0) {
             addLog('没有可用的军队');
@@ -852,6 +865,8 @@ export const useGameActions = (gameState, addLog) => {
 
         const result = simulateBattle(attackerData, defenderData);
         let resourcesGained = {};
+        let totalLootValue = 0; // 记录本次掠夺总价值，用于扣减敌方储备
+        
         if (result.victory) {
             const combinedLoot = {};
             const mergeLoot = (source) => {
@@ -862,8 +877,28 @@ export const useGameActions = (gameState, addLog) => {
                 });
             };
 
-            // Add battle result loot (from simulateBattle)
-            mergeLoot(result.loot || {});
+            // 计算敌方可掠夺储备（lootReserve）
+            // 初始储备 = 敌方财富 × 1.5，战争中会逐渐被掠夺耗尽
+            const initialLootReserve = (targetNation.wealth || 500) * 1.5;
+            const currentLootReserve = targetNation.lootReserve ?? initialLootReserve;
+            
+            // 计算储备系数：储备越少，能掠夺的越少
+            // 储备 100% 时系数 = 1.0，储备 50% 时系数 = 0.5，储备 10% 时系数 = 0.1
+            const reserveRatio = Math.max(0.05, currentLootReserve / Math.max(1, initialLootReserve));
+            const lootMultiplier = Math.min(1.0, reserveRatio);
+
+            // Add battle result loot (from simulateBattle) - 应用储备系数
+            if (result.loot) {
+                Object.entries(result.loot).forEach(([resource, amount]) => {
+                    if (amount > 0) {
+                        const adjustedAmount = Math.floor(amount * lootMultiplier);
+                        if (adjustedAmount > 0) {
+                            combinedLoot[resource] = (combinedLoot[resource] || 0) + adjustedAmount;
+                            totalLootValue += adjustedAmount;
+                        }
+                    }
+                });
+            }
 
             // Calculate proportional loot based on lootConfig if available
             if (mission.lootConfig) {
@@ -875,13 +910,14 @@ export const useGameActions = (gameState, addLog) => {
                     const enemyBaseLoot = Math.floor(enemyWealth * config.enemyPercent);
 
                     // Scale based on player's own resources (late game scaling)
-                    // The more resources you have, the more you can capture and transport
                     const playerScaledLoot = Math.floor(playerAmount * config.playerPercent);
 
-                    // Final loot is calculated considering both factors
-                    // Minimum is baseMin, max is enemyBaseLoot, scale up with player resources
+                    // Final loot calculation with reserve multiplier
                     const baseMin = config.baseMin || 10;
-                    const scaledAmount = Math.max(baseMin, Math.min(enemyBaseLoot, Math.max(enemyBaseLoot * 0.5, playerScaledLoot)));
+                    let scaledAmount = Math.max(baseMin, Math.min(enemyBaseLoot, Math.max(enemyBaseLoot * 0.5, playerScaledLoot)));
+                    
+                    // 应用储备系数
+                    scaledAmount = Math.floor(scaledAmount * lootMultiplier);
 
                     // Add some randomness (±20%)
                     const randomFactor = 0.8 + Math.random() * 0.4;
@@ -889,18 +925,27 @@ export const useGameActions = (gameState, addLog) => {
 
                     if (finalAmount > 0) {
                         combinedLoot[resource] = (combinedLoot[resource] || 0) + finalAmount;
+                        // 银币计入总价值，其他资源按一定比例折算
+                        totalLootValue += resource === 'silver' ? finalAmount : finalAmount * 0.5;
                     }
                 });
             } else {
-                // Fallback to legacy loot ranges
+                // Fallback to legacy loot ranges - 应用储备系数
                 Object.entries(mission.loot || {}).forEach(([resource, range]) => {
                     if (!Array.isArray(range) || range.length < 2) return;
                     const [min, max] = range;
-                    const amount = Math.floor(min + Math.random() * (max - min + 1));
+                    let amount = Math.floor(min + Math.random() * (max - min + 1));
+                    amount = Math.floor(amount * lootMultiplier);
                     if (amount > 0) {
                         combinedLoot[resource] = (combinedLoot[resource] || 0) + amount;
+                        totalLootValue += resource === 'silver' ? amount : amount * 0.5;
                     }
                 });
+            }
+            
+            // 如果储备已经很低，显示提示信息
+            if (reserveRatio < 0.3) {
+                addLog(`⚠️ ${targetNation.name} 的资源已被大量掠夺，可获取的战利品大幅减少。`);
             }
 
             const unlockedLoot = {};
@@ -922,13 +967,44 @@ export const useGameActions = (gameState, addLog) => {
             }
         }
 
+        // 处理军队损失
+        const lossesToReplenish = result.attackerLosses || {};
+        
         setArmy(prevArmy => {
             const updated = { ...prevArmy };
-            Object.entries(result.attackerLosses || {}).forEach(([unitId, lossCount]) => {
+            Object.entries(lossesToReplenish).forEach(([unitId, lossCount]) => {
                 updated[unitId] = Math.max(0, (updated[unitId] || 0) - lossCount);
             });
             return updated;
         });
+        
+        // 自动补兵：如果启用了自动补兵，将死亡的士兵加入训练队列
+        if (autoRecruitEnabled) {
+            const replenishItems = [];
+            Object.entries(lossesToReplenish).forEach(([unitId, lossCount]) => {
+                if (lossCount > 0) {
+                    const unit = UNIT_TYPES[unitId];
+                    if (unit && unit.epoch <= epoch) {
+                        for (let i = 0; i < lossCount; i++) {
+                            replenishItems.push({
+                                unitId,
+                                remainingDays: unit.trainDays || 1,
+                                isAutoReplenish: true, // 标记为自动补兵
+                            });
+                        }
+                    }
+                }
+            });
+            
+            if (replenishItems.length > 0) {
+                setMilitaryQueue(prev => [...prev, ...replenishItems]);
+                const summary = Object.entries(lossesToReplenish)
+                    .filter(([_, count]) => count > 0)
+                    .map(([unitId, count]) => `${UNIT_TYPES[unitId]?.name || unitId} ×${count}`)
+                    .join('、');
+                addLog(`🔄 自动补兵：${summary} 已加入训练队列。`);
+            }
+        }
 
         const influenceChange = result.victory
             ? mission.influence?.win || 0
@@ -966,6 +1042,19 @@ export const useGameActions = (gameState, addLog) => {
             const currentPopulation = n.population ?? 1000;
             const newPopulation = Math.max(100, currentPopulation - populationLoss); // 最低保持100人口
 
+            // 计算新的掠夺储备 - 扣除本次掠夺的价值
+            const initialLootReserve = (n.wealth || 500) * 1.5;
+            const currentLootReserve = n.lootReserve ?? initialLootReserve;
+            const newLootReserve = result.victory 
+                ? Math.max(0, currentLootReserve - totalLootValue) 
+                : currentLootReserve;
+
+            // 更新军事行动冷却记录
+            const updatedLastMilitaryActionDay = {
+                ...(n.lastMilitaryActionDay || {}),
+                [missionId]: day,
+            };
+
             return {
                 ...n,
                 wealth: Math.max(0, (n.wealth || 0) - wealthDamage),
@@ -973,6 +1062,8 @@ export const useGameActions = (gameState, addLog) => {
                 enemyLosses: (n.enemyLosses || 0) + enemyLossCount,
                 militaryStrength: newStrength,
                 population: newPopulation,
+                lootReserve: newLootReserve,
+                lastMilitaryActionDay: updatedLastMilitaryActionDay,
             };
         }));
 
@@ -1304,6 +1395,8 @@ export const useGameActions = (gameState, addLog) => {
                 setNations(prev => {
                     let updated = prev.map(n => {
                         if (n.id === nationId) {
+                            // 初始化可掠夺储备 = 财富 × 1.5
+                            const initialLootReserve = (n.wealth || 500) * 1.5;
                             return {
                                 ...n,
                                 relation: 0,
@@ -1313,6 +1406,8 @@ export const useGameActions = (gameState, addLog) => {
                                 warDuration: 0,
                                 enemyLosses: 0,
                                 peaceTreatyUntil: undefined,
+                                lootReserve: initialLootReserve, // 初始化掠夺储备
+                                lastMilitaryActionDay: undefined, // 重置军事行动冷却
                             };
                         }
                         return n;
@@ -1322,6 +1417,8 @@ export const useGameActions = (gameState, addLog) => {
                     if (targetAllies.length > 0) {
                         updated = updated.map(n => {
                             if (targetAllies.some(ally => ally.id === n.id)) {
+                                // 初始化可掠夺储备
+                                const initialLootReserve = (n.wealth || 500) * 1.5;
                                 return {
                                     ...n,
                                     relation: Math.max(0, (n.relation || 50) - 40), // 关系大幅恶化
@@ -1330,6 +1427,8 @@ export const useGameActions = (gameState, addLog) => {
                                     warStartDay: daysElapsed,
                                     warDuration: 0,
                                     enemyLosses: 0,
+                                    lootReserve: initialLootReserve, // 初始化掠夺储备
+                                    lastMilitaryActionDay: undefined, // 重置军事行动冷却
                                 };
                             }
                             return n;
@@ -1517,6 +1616,8 @@ export const useGameActions = (gameState, addLog) => {
                         isPeaceRequesting: false,
                         relation: Math.max(35, n.relation || 0),
                         peaceTreatyUntil,
+                        lootReserve: undefined, // 重置掠夺储备
+                        lastMilitaryActionDay: undefined, // 重置军事行动冷却
                         installmentPayment: {
                             amount: amount, // 每天支付的金额
                             remainingDays: 365,
@@ -1550,7 +1651,7 @@ export const useGameActions = (gameState, addLog) => {
             } else {
                 setNations(prev => prev.map(n =>
                     n.id === nationId
-                        ? {
+                    ? {
                             ...n,
                             isAtWar: false,
                             warScore: 0,
@@ -1560,6 +1661,8 @@ export const useGameActions = (gameState, addLog) => {
                             population: remainingPopulation,
                             relation: Math.max(35, n.relation || 0),
                             peaceTreatyUntil,
+                            lootReserve: undefined, // 重置掠夺储备
+                            lastMilitaryActionDay: undefined, // 重置军事行动冷却
                         }
                         : n
                 ));
@@ -1694,6 +1797,8 @@ export const useGameActions = (gameState, addLog) => {
                                 enemyLosses: 0,
                                 relation: clampRelation((n.relation || 0) + 5),
                                 peaceTreatyUntil,
+                                lootReserve: undefined, // 重置掠夺储备
+                                lastMilitaryActionDay: undefined, // 重置军事行动冷却
                             }
                             : n
                     ));
@@ -1719,6 +1824,8 @@ export const useGameActions = (gameState, addLog) => {
                                 enemyLosses: 0,
                                 relation: clampRelation((n.relation || 0) + 8),
                                 peaceTreatyUntil,
+                                lootReserve: undefined, // 重置掠夺储备
+                                lastMilitaryActionDay: undefined, // 重置军事行动冷却
                                 installmentPayment: {
                                     amount: amount, // 每天支付的金额
                                     remainingDays: 365,
@@ -1762,15 +1869,17 @@ export const useGameActions = (gameState, addLog) => {
                         setNations(prev => prev.map(n =>
                             n.id === nationId
                                 ? {
-                                    ...n,
-                                    isAtWar: false,
-                                    warScore: 0,
-                                    warDuration: 0,
-                                    enemyLosses: 0,
-                                    population: remainingPopulation,
-                                    relation: clampRelation((n.relation || 0) + 7),
-                                    peaceTreatyUntil,
-                                }
+                                ...n,
+                                isAtWar: false,
+                                warScore: 0,
+                                warDuration: 0,
+                                enemyLosses: 0,
+                                population: remainingPopulation,
+                                relation: clampRelation((n.relation || 0) + 7),
+                                peaceTreatyUntil,
+                                lootReserve: undefined, // 重置掠夺储备
+                                lastMilitaryActionDay: undefined, // 重置军事行动冷却
+                            }
                                 : n
                         ));
                         addLog(`${targetNation.name} 接受了和平协议，提供了 ${amount} 人口。${rebellionLogSuffix}`);
@@ -1798,6 +1907,8 @@ export const useGameActions = (gameState, addLog) => {
                                 enemyLosses: 0,
                                 relation: clampRelation((n.relation || 0) + 10),
                                 peaceTreatyUntil,
+                                lootReserve: undefined, // 重置掠夺储备
+                                lastMilitaryActionDay: undefined, // 重置军事行动冷却
                             }
                             : n
                     ));
@@ -1823,6 +1934,8 @@ export const useGameActions = (gameState, addLog) => {
                                 enemyLosses: 0,
                                 relation: clampRelation((n.relation || 0) + 15),
                                 peaceTreatyUntil,
+                                lootReserve: undefined, // 重置掠夺储备
+                                lastMilitaryActionDay: undefined, // 重置军事行动冷却
                             }
                             : n
                     ));
@@ -1851,6 +1964,8 @@ export const useGameActions = (gameState, addLog) => {
                                 relation: clampRelation((n.relation || 0) + 10),
                                 peaceTreatyUntil,
                                 openMarketUntil, // 开放市场截止日期
+                                lootReserve: undefined, // 重置掠夺储备
+                                lastMilitaryActionDay: undefined, // 重置军事行动冷却
                             }
                             : n
                     ));
@@ -1874,6 +1989,8 @@ export const useGameActions = (gameState, addLog) => {
                             enemyLosses: 0,
                             relation: clampRelation(28),
                             peaceTreatyUntil,
+                            lootReserve: undefined, // 重置掠夺储备
+                            lastMilitaryActionDay: undefined, // 重置军事行动冷却
                         }
                         : n
                 ));
@@ -1909,6 +2026,8 @@ export const useGameActions = (gameState, addLog) => {
                             population: (n.population || 1000) + amount,
                             relation: clampRelation(27),
                             peaceTreatyUntil,
+                            lootReserve: undefined, // 重置掠夺储备
+                            lastMilitaryActionDay: undefined, // 重置军事行动冷却
                         }
                         : n
                 ));
@@ -1935,6 +2054,8 @@ export const useGameActions = (gameState, addLog) => {
                             wealth: (n.wealth || 0) + amount,
                             relation: clampRelation(proposalType === 'pay_high' ? 25 : 30),
                             peaceTreatyUntil,
+                            lootReserve: undefined, // 重置掠夺储备
+                            lastMilitaryActionDay: undefined, // 重置军事行动冷却
                         }
                         : n
                 ));
@@ -2503,6 +2624,8 @@ export const useGameActions = (gameState, addLog) => {
                                     warDuration: 0,
                                     enemyLosses: 0,
                                     peaceTreatyUntil: undefined,
+                                    lootReserve: (n.wealth || 500) * 1.5, // 初始化掠夺储备
+                                    lastMilitaryActionDay: undefined, // 重置军事行动冷却
                                 }
                                 : n
                         ));

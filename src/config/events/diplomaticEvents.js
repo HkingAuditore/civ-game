@@ -65,7 +65,7 @@ export function createRebelDemandSurrenderEvent(nation, eventData, callback) {
 }
 
 // 割地人口上限(战争求和时最多割让/获得的人口数)
-const MAX_TERRITORY_POPULATION = 2000;
+const MAX_TERRITORY_POPULATION = 5000;
 
 // 开放市场持续时间(天数)
 const OPEN_MARKET_DURATION_YEARS = 3; // 3年
@@ -159,7 +159,8 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
     const wealthBaseline = getPeaceWealthBaseline(nation);
     const enemyLosses = nation.enemyLosses || 0;
     const warDuration = nation.warDuration || 0;
-    const paymentSet = calculatePeacePayment(Math.max(0, warScore), enemyLosses, warDuration, wealthBaseline, 'offering');
+    // 敌人求和时，玩家处于优势，使用demanding模式计算赔款（与玩家主动求和时的算法一致）
+    const paymentSet = calculatePeacePayment(Math.max(0, warScore), enemyLosses, warDuration, wealthBaseline, 'demanding');
     const baseTribute = tribute && tribute > 0 ? tribute : paymentSet.standard;
     const estimatedPopulation = nation.population || nation.basePopulation || 1000;
 
@@ -167,7 +168,7 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
         const highTribute = Math.max(baseTribute * 2, Math.ceil(paymentSet.high * 1.5));
         const installmentPlan = calculateInstallmentPlan(highTribute);
         const installmentAmount = installmentPlan.dailyAmount;
-        const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(10, Math.floor(estimatedPopulation * 0.1)));
+const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(20, Math.floor(estimatedPopulation * 0.20)));
         const annexPopulation = Math.max(estimatedPopulation, nation.population || 1000);
 
         options.push({
@@ -217,7 +218,7 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
         const highTribute = Math.max(baseTribute * 1.5, paymentSet.high);
         const installmentPlan = calculateInstallmentPlan(highTribute);
         const installmentAmount = installmentPlan.dailyAmount;
-        const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(6, Math.floor(estimatedPopulation * 0.06)));
+const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(15, Math.floor(estimatedPopulation * 0.12)));
 
         options.push({
             id: 'demand_more',
@@ -266,7 +267,7 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
         const standardTribute = Math.max(baseTribute, paymentSet.standard);
         const installmentPlan = calculateInstallmentPlan(Math.max(standardTribute, paymentSet.low));
         const installmentAmount = installmentPlan.dailyAmount;
-        const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(4, Math.floor(estimatedPopulation * 0.035)));
+const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(10, Math.floor(estimatedPopulation * 0.08)));
 
         options.push({
             id: 'accept',
@@ -368,7 +369,7 @@ export function createPlayerPeaceProposalEvent(
 
     if (warScore > 350) {
         const highTribute = Math.ceil(demandingPayments.high * 1.4);
-        const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(10, Math.floor((nation.population || nation.basePopulation || 1000) * 0.12)));
+const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(25, Math.floor((nation.population || nation.basePopulation || 1000) * 0.25)));
         const annexPopulation = nation.population || nation.basePopulation || 1000;
 
         options.push({
@@ -402,7 +403,7 @@ export function createPlayerPeaceProposalEvent(
     } else if (warScore > 150) {
         const highTribute = Math.max(demandingPayments.high, demandingPayments.standard * 1.3);
         const installmentPlan = calculateInstallmentPlan(highTribute);
-        const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(5, Math.floor((nation.population || nation.basePopulation || 1000) * 0.06)));
+const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(15, Math.floor((nation.population || nation.basePopulation || 1000) * 0.12)));
 
         options.push({
             id: 'demand_high',
@@ -435,7 +436,7 @@ export function createPlayerPeaceProposalEvent(
     } else if (warScore > 50) {
         const standardTribute = Math.max(demandingPayments.standard, demandingPayments.low);
         const installmentPlan = calculateInstallmentPlan(standardTribute);
-        const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(4, Math.floor((nation.population || nation.basePopulation || 1000) * 0.035)));
+const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(10, Math.floor((nation.population || nation.basePopulation || 1000) * 0.08)));
 
         options.push({
             id: 'demand_standard',
@@ -461,7 +462,7 @@ export function createPlayerPeaceProposalEvent(
     } else if (warScore < -200) {
         const payment = Math.max(offeringPayments.high, offeringPayments.standard);
         const installmentPlan = calculateInstallmentPlan(payment);
-        const populationOffer = calculateTerritoryOffer(0.08, 250);
+const populationOffer = calculateTerritoryOffer(0.15, 200);
 
         options.push({
             id: 'pay_high',
@@ -487,7 +488,7 @@ export function createPlayerPeaceProposalEvent(
     } else if (warScore < -50) {
         const payment = Math.max(offeringPayments.standard, offeringPayments.low);
         const installmentPlan = calculateInstallmentPlan(payment);
-        const populationOffer = calculateTerritoryOffer(0.05, 360);
+const populationOffer = calculateTerritoryOffer(0.10, 280);
 
         options.push({
             id: 'pay_standard',

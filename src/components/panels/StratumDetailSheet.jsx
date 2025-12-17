@@ -95,7 +95,7 @@ export const StratumDetailSheet = ({
 
     if (!livingStandardData) {
         // 如果没有预计算数据，重新计算
-        const startingWealth = stratum.startingWealth || 10;
+        const startingWealth = stratum.startingWealth || 80;
         const luxuryNeeds = stratum.luxuryNeeds || {};
         const luxuryThresholds = Object.keys(luxuryNeeds).map(Number).sort((a, b) => a - b);
         const wealthPerCapita = count > 0 ? wealthValue / count : 0;
@@ -121,12 +121,17 @@ export const StratumDetailSheet = ({
 
         livingStandardData = calculateLivingStandardData({
             count,
+            income: totalIncome * count,
+            expense: totalExpense * count,
             wealthValue,
             startingWealth,
+            essentialCost: 0,
             shortagesCount: shortages.length,
             effectiveNeedsCount,
             unlockedLuxuryTiers,
             totalLuxuryTiers: luxuryThresholds.length,
+            previousScore: null,
+            isNewStratum: true,
         });
     }
 

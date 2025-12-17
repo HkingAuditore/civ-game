@@ -1738,18 +1738,21 @@ export const simulateTick = ({
     });
 
     // REFACTORED: Use shared calculateLivingStandards function from needs.js
-    // incorporating new Hybrid SOL Logic (Income + Wealth)
+    // incorporating new Income-Expense Balance Model
     const livingStandardsResult = calculateLivingStandards({
         popStructure,
         wealth,
         classIncome: roleWagePayout,
+        classExpense: roleExpense, // 新增：支出数据
         classShortages,
         epoch,
         techsUnlocked,
+        priceMap: getPrice, // 传递价格获取函数
         livingStandardStreaks
     });
     const classLivingStandard = livingStandardsResult.classLivingStandard;
     const updatedLivingStandardStreaks = livingStandardsResult.livingStandardStreaks;
+
 
     Object.keys(STRATA).forEach(key => {
         const count = popStructure[key] || 0;
@@ -1880,6 +1883,17 @@ export const simulateTick = ({
     Object.keys(STRATA).forEach(key => {
         const currentWealth = wealth[key] || 0;
         if (currentWealth > 0) {
+            // Check living standard to see if decay should apply
+            // Only apply decay if living standard is at least "Subsistence" (温饱)
+            // Levels: 赤贫 (Destitute), 贫困 (Poor), 温饱 (Subsistence), 小康 (Comfortable)...
+            const standard = classLivingStandard[key];
+            const level = standard?.level;
+
+            // Skip decay for Destitute and Poor
+            if (level === '赤贫' || level === '贫困') {
+                return;
+            }
+
             const decay = Math.ceil(currentWealth * 0.005); // 0.5% daily decay
             wealth[key] = Math.max(0, currentWealth - decay);
             // Record decay as expense so UI balances

@@ -11,10 +11,10 @@ export const INSTALLMENT_CONFIG = {
     DURATION_DAYS: 365,    // 分期持续天数（1年）
 };
 
-/** 赔款计算系数 */
+/** 赔款计算系数 - 大幅提高以匹配战争成本 */
 const PEACE_PAYMENT_COEFFICIENTS = {
-    demanding: { high: 90, standard: 60, low: 45 },   // 玩家索赔（己方优势）
-    offering: { high: 52, standard: 45, low: 30 },    // 玩家求和（己方劣势）
+    demanding: { high: 250, standard: 180, low: 120 },   // 玩家索赔（己方优势）- 大幅提高
+    offering: { high: 120, standard: 90, low: 60 },      // 玩家求和（己方劣势）- 适度提高
 };
 
 /** 赔款硬上限 */
@@ -90,22 +90,28 @@ export function calculatePeacePayment(warScore, enemyLosses, warDuration, target
     const absScore = Math.abs(warScore || 0);
     const losses = enemyLosses || 0;
     const duration = warDuration || 0;
+    const wealth = targetWealth || 0;
 
     const coef = PEACE_PAYMENT_COEFFICIENTS[mode] || PEACE_PAYMENT_COEFFICIENTS.demanding;
 
-    // 计算各档赔款
-    const rawHigh = Math.ceil(absScore * coef.high + losses * 8 + duration * 10);
-    const rawStandard = Math.ceil(absScore * coef.standard + losses * 5 + duration * 8);
-    const rawLow = Math.ceil(absScore * coef.low + losses * 4 + duration * 6);
+    // 计算各档赔款 - 大幅提高敌方损失的权重（每个敌军损失约50-80银币赔偿）
+    const rawHigh = Math.ceil(absScore * coef.high + losses * 80 + duration * 25);
+    const rawStandard = Math.ceil(absScore * coef.standard + losses * 50 + duration * 18);
+    const rawLow = Math.ceil(absScore * coef.low + losses * 35 + duration * 12);
+
+    // 添加基于敌方财富的保底赔款（至少索要敌方财富的一定比例）
+    const wealthFloorHigh = Math.floor(wealth * 0.35);      // 高档至少35%财富
+    const wealthFloorStandard = Math.floor(wealth * 0.25);  // 标准档至少25%财富
+    const wealthFloorLow = Math.floor(wealth * 0.15);       // 低档至少15%财富
 
     // 应用上限（硬上限和目标财富的较小值）
-    const wealthHeadroom = Math.max(50000, (targetWealth || 0) * 1.5 + 50000);
+    const wealthHeadroom = Math.max(50000, wealth * 2 + 50000);
     const effectiveCap = Math.min(PEACE_PAYMENT_HARD_CAP, wealthHeadroom);
 
     return {
-        high: Math.max(500, Math.min(effectiveCap, rawHigh)),
-        standard: Math.max(300, Math.min(effectiveCap, rawStandard)),
-        low: Math.max(150, Math.min(effectiveCap, rawLow)),
+        high: Math.max(1500, wealthFloorHigh, Math.min(effectiveCap, rawHigh)),
+        standard: Math.max(1000, wealthFloorStandard, Math.min(effectiveCap, rawStandard)),
+        low: Math.max(500, wealthFloorLow, Math.min(effectiveCap, rawLow)),
     };
 }
 
