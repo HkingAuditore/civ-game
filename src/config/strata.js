@@ -32,9 +32,9 @@ export const STRATA = {
         needs: { food: 0.68, cloth: 0.06, ale: 0.03 },
         // Dynamic needs: unlock when wealth ratio >= threshold
         luxuryNeeds: {
-            1.5: { tools: 0.02 },                    // 基本工具和衣物
-            2.0: { plank: 0.03, wood: 0.02 },          // 更多麦酒，修缮材料
-            2.5: { furniture: 0.02, stone: 0.01 },                // 基本家具，石材
+            1.5: { wood: 0.02 },                    // 基本工具和衣物
+            2.0: { plank: 0.03, stone: 0.01 },          // 更多麦酒，修缮材料
+            2.5: { furniture: 0.02, tools: 0.02 },                // 基本家具，石材
             3.0: { spice: 0.04, brick: 0.02 },        // 香料，砖块，食物多样化
             3.5: { culture: 0.01 }, // 更多衣物，麦酒，工具，少量文化
             4.5: { copper: 0.004 }, // 更好家具，更多木板，铜器
@@ -61,11 +61,11 @@ export const STRATA = {
         defaultResource: 'wood',
         needs: { food: 0.90, cloth: 0.08, ale: 0.03 },
         luxuryNeeds: {
-            1.5: { tools: 0.03 },                     // 更好工具和工作衣物
+            1.5: { stone: 0.01 },                     // 更好工具和工作衣物
             2.0: { plank: 0.04, wood: 0.03 },           // 麦酒，板材，木材
             2.5: { furniture: 0.025 },                // 家具，优质工具
             3.0: { spice: 0.03, brick: 0.025 },       // 香料，砖块，衣物
-            3.5: { stone: 0.015, culture: 0.01 }, // 更多麦酒，板材，石材，文化
+            3.5: { tools: 0.03, culture: 0.01 }, // 更多麦酒，板材，石材，文化
             4.5: { copper: 0.006 },   // 家具，铜工具，木材
             5.5: { delicacies: 0.025, fine_clothes: 0.015 }, // 珍馐，华服，文化
             7.0: { coffee: 0.03 },       // 咖啡，香料，石材
@@ -177,7 +177,7 @@ export const STRATA = {
         defaultResource: 'stone',
         needs: { food: 1.00, cloth: 0.10, ale: 0.03 },
         luxuryNeeds: {
-            1.8: { tools: 0.03 },          // 采矿工具，麦酒，衣物
+            1.8: { wood: 0.03 },          // 采矿工具，麦酒，衣物
             2.5: { furniture: 0.02, spice: 0.015, food: 0.15 },    // 家具，香料，食物
             3.0: { plank: 0.03, brick: 0.02, coffee: 0.015, culture: 0.01 }, // 板材，砖块，咖啡，文化
             4.0: { delicacies: 0.03 }, // 珍馐，衣物，麦酒，石材

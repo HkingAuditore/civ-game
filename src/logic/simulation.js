@@ -230,7 +230,7 @@ export const simulateTick = ({
     const getBusinessTaxRate = (buildingId) => {
         const rate = businessTaxRates[buildingId];
         if (typeof rate === 'number') return rate; // 允许负税率（补贴）
-        return 0;
+        return 1; // 默认税率系数为1，与UI显示一致
     };
     // REFACTORED: Use imported function from ./economy/taxes
     const taxBreakdown = initializeTaxBreakdown();
@@ -992,7 +992,11 @@ export const simulateTick = ({
         const estimatedWageCost = wageCostPerMultiplier * targetMultiplier;
 
         // 预估营业税成本
-        const businessTaxPerBuilding = getBusinessTaxRate(b.id);
+        // 军事类建筑不收营业税
+        // 居住类建筑（无owner且产出maxPop的civic建筑）不收营业税
+        const isHousingBuilding = b.cat === 'civic' && !b.owner && b.output?.maxPop > 0;
+        const isMilitaryBuilding = b.cat === 'military';
+        const businessTaxPerBuilding = (isHousingBuilding || isMilitaryBuilding) ? 0 : getBusinessTaxRate(b.id);
         const estimatedBusinessTax = businessTaxPerBuilding * count * targetMultiplier;
 
         const totalOperatingCostPerMultiplier = inputCostPerMultiplier + wageCostPerMultiplier;

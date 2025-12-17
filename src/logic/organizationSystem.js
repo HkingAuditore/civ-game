@@ -279,7 +279,7 @@ const buildDriverContext = (stratumKey, {
     const taxBurdenRatio = incomePerCapita > 0
         ? totalTaxPerCapita / incomePerCapita
         : (totalTaxPerCapita > 0 ? 1 : 0);
-    const taxThreshold = 0.35;
+    const taxThreshold = 0.50;
     const taxPressureRaw = Math.max(0, (taxBurdenRatio - taxThreshold) / 0.4);
     const taxPressure = Math.min(1.8, taxPressureRaw);
 
@@ -623,7 +623,8 @@ export function updateAllOrganizationStates(
             return;
         }
 
-        if (stratumKey === 'unemployed' && epochValue <= 0) {
+        // 石器时代（epoch 0）禁止任何阶层积累组织度，防止早期叛乱
+        if (epochValue <= 0) {
             const prev = organizationStates[stratumKey];
             newStates[stratumKey] = {
                 organization: 0,

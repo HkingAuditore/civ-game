@@ -614,7 +614,8 @@ export const checkWarDeclaration = ({
     const unrest = stabilityValue < 35 ? 0.02 : 0;
     const aggressionBonus = aggression > 0.5 ? aggression * 0.03 : 0;
 
-    let declarationChance = epoch >= 1
+    // 只在铁器时代(epoch 2)及以上才允许AI宣战，石器和青铜时代禁止
+    let declarationChance = epoch >= 2
         ? Math.min(0.08, (aggression * 0.04) + (hostility * 0.025) + unrest + aggressionBonus)
         : 0;
 
@@ -645,7 +646,9 @@ export const checkWarDeclaration = ({
     const aiWealth = next.wealth || 500;
     const aiMilitaryStrength = next.militaryStrength ?? 1.0;
 
+    // 财富战争也需要在铁器时代及以上
     if (!next.isAtWar && !hasPeaceTreaty && !isPlayerAlly &&
+        epoch >= 2 &&
         playerWealth > aiWealth * 2 &&
         aiMilitaryStrength > 0.8 &&
         relation < 50 &&

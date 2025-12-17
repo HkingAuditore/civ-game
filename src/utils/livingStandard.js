@@ -128,21 +128,44 @@ export function getLivingStandardByScore(score) {
 
 /**
  * 计算财富乘数（消费能力）- 用于奢侈需求解锁
- * 新算法：基于收入充裕度而非存款
+ * 新算法：同时考虑收入和财富
+ * - 收入决定"赚钱能力"（有多少钱进账）
+ * - 财富决定"消费意愿"（敢不敢花钱）
  * @param {number} incomeRatio - 收入比率（人均收入 / 基础成本）
+ * @param {number} wealthRatio - 财富比率（人均财富 / 基准财富）
  * @returns {number} 财富乘数
  */
-export function calculateWealthMultiplier(incomeRatio) {
-    let wealthMultiplier;
+export function calculateWealthMultiplier(incomeRatio, wealthRatio = 1) {
+    // 1. 基于收入的消费能力（理论上限）
+    let incomeMultiplier;
     if (incomeRatio <= 0) {
-        wealthMultiplier = 0.3;
+        incomeMultiplier = 0.3;
     } else if (incomeRatio < 1) {
-        // 收入不足以覆盖基础成本
-        wealthMultiplier = 0.3 + incomeRatio * 0.7;
+        incomeMultiplier = 0.3 + incomeRatio * 0.7;
     } else {
-        // 收入超过基础成本，逐渐增加消费能力
-        wealthMultiplier = Math.sqrt(incomeRatio) * (1 + Math.log(incomeRatio) * 0.25);
+        incomeMultiplier = Math.sqrt(incomeRatio) * (1 + Math.log(incomeRatio) * 0.25);
     }
+
+    // 2. 基于财富的消费意愿（约束因子）
+    // 穷人即使收入高也不敢消费太多
+    let wealthFactor;
+    if (wealthRatio < 0.3) {
+        // 赤贫：只敢消费基础的 40%
+        wealthFactor = 0.4;
+    } else if (wealthRatio < 1) {
+        // 贫困到温饱：逐渐增加消费意愿
+        wealthFactor = 0.4 + (wealthRatio - 0.3) * 0.86; // 0.4 → 1.0
+    } else if (wealthRatio < 2) {
+        // 小康：正常消费
+        wealthFactor = 1.0;
+    } else {
+        // 富裕：略微增加消费意愿（有钱任性）
+        wealthFactor = Math.min(1.3, 1.0 + (wealthRatio - 2) * 0.05);
+    }
+
+    // 3. 最终消费能力 = 收入能力 × 财富意愿
+    const wealthMultiplier = incomeMultiplier * wealthFactor;
+
     return Math.max(0.3, Math.min(6.0, wealthMultiplier));
 }
 
@@ -185,32 +208,42 @@ export function calculateLegacyScore(wealthRatio, satisfactionRate, luxuryUnlock
  * @param {number} incomeAdequacy - 收入充裕度评分 (0-50)
  * @param {number} satisfactionRate - 需求满足率 (0-1)
  * @param {number} financialSecurity - 财务安全度评分 (0-20)
- * @param {number} wealthRatio - 财富比率（人均财富 / 基准财富），用于约束评分上限
+ * @param {number} wealthRatio - 财富比率（人均财富 / 基准财富）
+ * @param {number} wealthPerCapita - 人均财富（绝对值）
  * @returns {number} 综合评分 (0-100)
  */
-export function calculateLivingStandardScore(incomeAdequacy, satisfactionRate, financialSecurity, wealthRatio = 1) {
+export function calculateLivingStandardScore(incomeAdequacy, satisfactionRate, financialSecurity, wealthRatio = 1, wealthPerCapita = 100) {
     // 收入充裕度 (0-50分) + 需求满足 (0-30分) + 财务安全 (0-20分)
     const satisfactionScore = satisfactionRate * 30;
     let rawScore = incomeAdequacy + satisfactionScore + financialSecurity;
 
-    // 财富积累约束：财富低于基准时，限制最高评分
-    // 这确保即使收入很高，如果还没积累足够财富，也不会被评为"奢华"
-    // wealthRatio < 0.5: 最高40分 (温饱)
-    // wealthRatio < 1.0: 最高60分 (小康)
-    // wealthRatio < 2.0: 最高80分 (富裕)
-    // wealthRatio >= 2.0: 无限制
-    let maxScore = 100;
-    if (wealthRatio < 0.5) {
-        maxScore = 40; // 最多"温饱"
-    } else if (wealthRatio < 1.0) {
-        maxScore = 40 + (wealthRatio - 0.5) * 40; // 40-60分
-    } else if (wealthRatio < 2.0) {
-        maxScore = 60 + (wealthRatio - 1.0) * 20; // 60-80分
-    } else if (wealthRatio < 3.0) {
-        maxScore = 80 + (wealthRatio - 2.0) * 20; // 80-100分
+    // ========== 混合评估模型 ==========
+    // 结合绝对财富和相对比率两个维度计算评分上限
+
+    // 1. 绝对财富评分 (0-60分)
+    // 基于人均财富的绝对值，使用平方根曲线拉开差距
+    // 50银币 → ~5分, 100 → ~7分, 200 → ~10分, 500 → ~16分, 1000 → ~22分, 2000 → ~31分, 5000 → ~50分
+    let absoluteScore = 0;
+    if (wealthPerCapita > 0) {
+        absoluteScore = Math.min(60, 0.7 * Math.sqrt(wealthPerCapita));
     }
 
-    return Math.min(maxScore, rawScore);
+    // 2. 相对财富评分 (0-50分)
+    // 基于 wealthRatio，使用指数衰减曲线
+    // ratio=0.5 → ~9分, =1 → ~16分, =2 → ~25分, =4 → ~35分, =10 → ~40分
+    let relativeScore = 0;
+    if (wealthRatio > 0) {
+        relativeScore = Math.min(40, 40 * (1 - Math.exp(-wealthRatio * 0.5)));
+    }
+
+    // 3. 财富评分 (0-100分)
+    // 绝对财富为主导，相对财富提供阶层期望修正
+    const wealthScore = absoluteScore + relativeScore;
+
+    // 4. 加权混合评分
+    // rawScore（收入+满足率+财务安全）占主导，wealthScore 作为调整因子
+    // 这样即使财富暂时较低，良好的收入和满足率仍能维持较高的生活水平评分
+    return rawScore * 0.2 + wealthScore * 0.8;
 }
 
 /**
@@ -292,8 +325,8 @@ export function calculateLivingStandardData({
     // 计算财富比率用于评分约束
     const realWealthRatio = startingWealth > 0 ? wealthPerCapita / startingWealth : 0;
 
-    // 计算目标分数（传入财富比率作为评分上限约束）
-    const targetScore = calculateLivingStandardScore(incomeAdequacyScore, satisfactionRate, financialSecurityScore, realWealthRatio);
+    // 计算目标分数（传入财富比率和人均财富作为评分上限约束）
+    const targetScore = calculateLivingStandardScore(incomeAdequacyScore, satisfactionRate, financialSecurityScore, realWealthRatio, wealthPerCapita);
 
 
 
@@ -307,9 +340,9 @@ export function calculateLivingStandardData({
     // 根据分数确定等级
     const livingStandard = getLivingStandardByScore(smoothedScore);
 
-    // 计算消费能力乘数（基于收入比率）
+    // 计算消费能力乘数（同时考虑收入和财富）
     const incomeRatio = essentialCostPerCapita > 0 ? incomePerCapita / essentialCostPerCapita : 1;
-    const wealthMultiplier = calculateWealthMultiplier(incomeRatio);
+    const wealthMultiplier = calculateWealthMultiplier(incomeRatio, realWealthRatio);
 
     // 奢侈需求解锁比例
     const luxuryUnlockRatio = totalLuxuryTiers > 0 ? unlockedLuxuryTiers / totalLuxuryTiers : 0;

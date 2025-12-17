@@ -43,15 +43,15 @@ export const RESOURCES = {
         icon: 'Wheat',
         color: "text-yellow-400",
         basePrice: 1.0,
-        minPrice: 0.01,
+        minPrice: 0.1,
         maxPrice: 10,
         defaultOwner: 'peasant',
         unlockEpoch: 0,
         tags: ['essential', 'raw_material'],
         // 粮食的差异化市场配置：作为基础必需品，价格波动更小，库存目标更高
         marketConfig: {
-            supplyDemandWeight: 0.6,        // 供需对价格影响较小（必需品价格相对稳定）
-            inventoryTargetDays: 300.0,      // 目标库存天数更高（战略储备）
+            supplyDemandWeight: 0.4,        // 供需对价格影响较小（必需品价格相对稳定）
+            inventoryTargetDays: 3000.0,      // 目标库存天数更高（战略储备）
             inventoryPriceImpact: 0.15,     // 库存对价格影响较小
             demandElasticity: 0.2,          // 需求弹性低（必需品，价格变化对需求影响小）
             outputVariation: 0.2,           // 产出浮动±20%
@@ -70,7 +70,7 @@ export const RESOURCES = {
         // Tier 1 基础原材料：极高稳定性配置
         marketConfig: {
             supplyDemandWeight: 0.7,        // 供需影响较小（基础资源价格稳定）
-            inventoryTargetDays: 250.0,      // 较高库存目标（建筑材料需要储备）
+            inventoryTargetDays: 2500.0,      // 较高库存目标（建筑材料需要储备）
             inventoryPriceImpact: 0.2,      // 库存影响较小
             demandElasticity: 0.3,          // 低需求弹性（建筑必需）
             outputVariation: 0.2            // 产出浮动±20%
@@ -89,7 +89,7 @@ export const RESOURCES = {
         // Tier 1 基础原材料：极高稳定性配置
         marketConfig: {
             supplyDemandWeight: 0.7,        // 供需影响较小
-            inventoryTargetDays: 250.0,      // 较高库存目标
+            inventoryTargetDays: 2500.0,      // 较高库存目标
             inventoryPriceImpact: 0.2,      // 库存影响较小
             demandElasticity: 0.3,          // 低需求弹性
             outputVariation: 0.2            // 产出浮动±20%
@@ -108,7 +108,7 @@ export const RESOURCES = {
         // 必需品制成品：中等稳定性
         marketConfig: {
             supplyDemandWeight: 0.8,        // 供需影响中等（必需品但有替代性）
-            inventoryTargetDays: 200.0,      // 中等库存目标
+            inventoryTargetDays: 3000.0,      // 中等库存目标
             inventoryPriceImpact: 0.25,     // 库存影响中等
             demandElasticity: 0.4,          // 中低需求弹性（必需品）
             outputVariation: 0.2            // 产出浮动±20%
@@ -128,7 +128,7 @@ export const RESOURCES = {
         // Tier 2 工业资源：标准平衡配置
         marketConfig: {
             supplyDemandWeight: 1.0,        // 标准供需影响
-            inventoryTargetDays: 150.0,      // 标准库存目标
+            inventoryTargetDays: 1500.0,      // 标准库存目标
             inventoryPriceImpact: 0.3,      // 标准库存影响
             demandElasticity: 0.5,          // 标准需求弹性
             outputVariation: 0.2            // 产出浮动±20%
@@ -148,7 +148,7 @@ export const RESOURCES = {
         // 工业品：较高波动性（生产工具，需求相对稳定但价格敏感）
         marketConfig: {
             supplyDemandWeight: 1.2,        // 供需影响较大
-            inventoryTargetDays: 300.0,      // 较高库存目标（耐用品）
+            inventoryTargetDays: 1000.0,      // 较高库存目标（耐用品）
             inventoryPriceImpact: 0.35,     // 库存影响较大
             demandElasticity: 0.6,          // 中等需求弹性
             outputVariation: 0.2            // 产出浮动±20%
@@ -170,7 +170,7 @@ export const RESOURCES = {
         // 加工木材：标准工业品配置
         marketConfig: {
             supplyDemandWeight: 1.0,        // 标准供需影响
-            inventoryTargetDays: 150.0,      // 标准库存目标
+            inventoryTargetDays: 1000.0,      // 标准库存目标
             inventoryPriceImpact: 0.3,      // 标准库存影响
             demandElasticity: 0.5,          // 标准需求弹性
             outputVariation: 0.2            // 产出浮动±20%
@@ -190,7 +190,7 @@ export const RESOURCES = {
         // 金属原材料：中等稳定性
         marketConfig: {
             supplyDemandWeight: 0.9,        // 供需影响较小（原材料）
-            inventoryTargetDays: 200.0,      // 较高库存目标（战略资源）
+            inventoryTargetDays: 1000.0,      // 较高库存目标（战略资源）
             inventoryPriceImpact: 0.25,     // 库存影响中等
             demandElasticity: 0.4,          // 低需求弹性（工业必需）
             outputVariation: 0.2            // 产出浮动±20%
@@ -209,7 +209,7 @@ export const RESOURCES = {
         // 工业原料：标准配置
         marketConfig: {
             supplyDemandWeight: 1.1,        // 供需影响略高（非必需品）
-            inventoryTargetDays: 120.0,      // 较低库存目标
+            inventoryTargetDays: 1000.0,      // 较低库存目标
             inventoryPriceImpact: 0.35,     // 库存影响较大
             demandElasticity: 0.6,          // 中等需求弹性
             outputVariation: 0.2            // 产出浮动±20%
@@ -231,7 +231,7 @@ export const RESOURCES = {
         // 文化产品：中等波动性
         marketConfig: {
             supplyDemandWeight: 1.1,        // 供需影响略高
-            inventoryTargetDays: 150.0,      // 标准库存目标
+            inventoryTargetDays: 1000.0,      // 标准库存目标
             inventoryPriceImpact: 0.3,      // 标准库存影响
             demandElasticity: 0.5,          // 标准需求弹性
             outputVariation: 0.2            // 产出浮动±20%
@@ -251,7 +251,7 @@ export const RESOURCES = {
         // 奢侈品：高波动性
         marketConfig: {
             supplyDemandWeight: 1.5,        // 供需影响很大（奢侈品）
-            inventoryTargetDays: 80.0,       // 低库存目标（易腐品）
+            inventoryTargetDays: 800.0,       // 低库存目标（易腐品）
             inventoryPriceImpact: 0.45,     // 库存影响很大
             demandElasticity: 1.3,          // 高需求弹性（奢侈品）
             outputVariation: 0.2            // 产出浮动±20%
@@ -271,7 +271,7 @@ export const RESOURCES = {
         // 家具的差异化市场配置：作为奢侈品，价格波动更大，库存目标较低
         marketConfig: {
             supplyDemandWeight: 1.5,        // 供需对价格影响更大（奢侈品价格弹性高）
-            inventoryTargetDays: 100.0,      // 目标库存天数较低（非必需品）
+            inventoryTargetDays: 800.0,      // 目标库存天数较低（非必需品）
             inventoryPriceImpact: 0.4,      // 库存对价格影响更大
             demandElasticity: 1.2,          // 需求弹性高（奢侈品，价格变化对需求影响大）
             outputVariation: 0.2,           // 产出浮动±20%
@@ -280,7 +280,7 @@ export const RESOURCES = {
     ale: {
         name: "美酒", icon: 'Wine', color: "text-purple-400", basePrice: 18, minPrice: 0.18, maxPrice: 180, defaultOwner: 'artisan', unlockEpoch: 2, unlockTech: 'brewing', tags: ['luxury', 'manufactured'],
         // Tier 3 奢侈品资源：高波动性、高敏感度配置
-        marketConfig: { supplyDemandWeight: 1.6, inventoryTargetDays: 8.0, inventoryPriceImpact: 0.5, demandElasticity: 1.5, outputVariation: 0.2 }
+        marketConfig: { supplyDemandWeight: 1.6, inventoryTargetDays: 1000.0, inventoryPriceImpact: 0.5, demandElasticity: 1.5, outputVariation: 0.2 }
     },
 
     fine_clothes: {
@@ -296,7 +296,7 @@ export const RESOURCES = {
         // 高端奢侈品：极高波动性
         marketConfig: {
             supplyDemandWeight: 1.6,        // 供需影响极大
-            inventoryTargetDays: 100.0,      // 低库存目标
+            inventoryTargetDays: 800.0,      // 低库存目标
             inventoryPriceImpact: 0.5,      // 库存影响极大
             demandElasticity: 1.5,          // 极高需求弹性
             outputVariation: 0.2            // 产出浮动±20%
@@ -318,7 +318,7 @@ export const RESOURCES = {
         // 战略金属：高稳定性
         marketConfig: {
             supplyDemandWeight: 0.8,        // 供需影响较小（战略资源）
-            inventoryTargetDays: 250.0,      // 高库存目标（战略储备）
+            inventoryTargetDays: 2500.0,      // 高库存目标（战略储备）
             inventoryPriceImpact: 0.2,      // 库存影响较小
             demandElasticity: 0.3,          // 低需求弹性（军事必需）
             outputVariation: 0.2            // 产出浮动±20%
@@ -340,7 +340,7 @@ export const RESOURCES = {
         // 贸易商品：高波动性
         marketConfig: {
             supplyDemandWeight: 1.4,        // 供需影响大（贸易品）
-            inventoryTargetDays: 120.0,      // 中等库存目标
+            inventoryTargetDays: 1200.0,      // 中等库存目标
             inventoryPriceImpact: 0.4,      // 库存影响大
             demandElasticity: 0.9,          // 较高需求弹性
             outputVariation: 0.2            // 产出浮动±20%
@@ -362,7 +362,7 @@ export const RESOURCES = {
         // 消费品：中高波动性
         marketConfig: {
             supplyDemandWeight: 1.2,        // 供需影响较大
-            inventoryTargetDays: 150.0,      // 标准库存目标
+            inventoryTargetDays: 1500.0,      // 标准库存目标
             inventoryPriceImpact: 0.35,     // 库存影响较大
             demandElasticity: 0.8,          // 较高需求弹性
             outputVariation: 0.2            // 产出浮动±20%
@@ -384,7 +384,7 @@ export const RESOURCES = {
         // 工业燃料：中等稳定性
         marketConfig: {
             supplyDemandWeight: 0.9,        // 供需影响较小（工业必需）
-            inventoryTargetDays: 200.0,      // 较高库存目标（能源储备）
+            inventoryTargetDays: 2000.0,      // 较高库存目标（能源储备）
             inventoryPriceImpact: 0.25,     // 库存影响中等
             demandElasticity: 0.4,          // 低需求弹性（工业必需）
             outputVariation: 0.2            // 产出浮动±20%
@@ -404,7 +404,7 @@ export const RESOURCES = {
         // 高级工业品：标准配置
         marketConfig: {
             supplyDemandWeight: 1.0,        // 标准供需影响
-            inventoryTargetDays: 180.0,      // 较高库存目标
+            inventoryTargetDays: 1800.0,      // 较高库存目标
             inventoryPriceImpact: 0.3,      // 标准库存影响
             demandElasticity: 0.5,          // 标准需求弹性
             outputVariation: 0.2            // 产出浮动±20%
@@ -437,7 +437,7 @@ export const RESOURCES = {
         // 特殊产出：低波动性（政府控制）
         marketConfig: {
             supplyDemandWeight: 0.5,        // 供需影响很小（政府主导）
-            inventoryTargetDays: 400.0,      // 高库存目标（长期积累）
+            inventoryTargetDays: 4000.0,      // 高库存目标（长期积累）
             inventoryPriceImpact: 0.15,     // 库存影响很小
             demandElasticity: 0.2,          // 极低需求弹性（国家需求）
             outputVariation: 0.1            // 产出浮动±10%（稳定）
@@ -457,7 +457,7 @@ export const RESOURCES = {
         // 特殊产出：低波动性（文化积累）
         marketConfig: {
             supplyDemandWeight: 0.6,        // 供需影响较小
-            inventoryTargetDays: 350.0,      // 高库存目标（文化积累）
+            inventoryTargetDays: 3500.0,      // 高库存目标（文化积累）
             inventoryPriceImpact: 0.2,      // 库存影响较小
             demandElasticity: 0.3,          // 低需求弹性
             outputVariation: 0.15           // 产出浮动±15%

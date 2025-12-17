@@ -53,7 +53,7 @@ export const getResourceTaxRate = (resource, resourceTaxRates = {}) => {
 export const getBusinessTaxRate = (buildingId, businessTaxRates = {}) => {
     const rate = businessTaxRates[buildingId];
     if (typeof rate === 'number') return rate;
-    return 0;
+    return 1; // 默认税率系数为1，与UI显示一致
 };
 
 /**
@@ -80,7 +80,7 @@ export const collectHeadTax = ({
     Object.keys(STRATA).forEach(key => {
         const count = popStructure[key] || 0;
         if (count === 0) return;
-        
+
         const def = STRATA[key];
         if (updatedWealth[key] === undefined) {
             updatedWealth[key] = def.startingWealth || 0;
