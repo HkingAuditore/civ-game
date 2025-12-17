@@ -1,7 +1,7 @@
 // 文明崛起 - 主应用文件
 // 使用拆分后的钩子和组件，保持代码简洁
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { GAME_SPEEDS, EPOCHS, RESOURCES, STRATA, calculateArmyFoodNeed, BUILDINGS, EVENTS } from './config';
 import { getCalendarInfo } from './utils/calendar';
 import { useGameState, useGameLoop, useGameActions, useSound, useEpicTheme } from './hooks';
@@ -481,7 +481,27 @@ function GameApp({ gameState }) {
     const playerInstallmentExpense = (gameState.playerInstallmentPayment && gameState.playerInstallmentPayment.remainingDays > 0)
         ? gameState.playerInstallmentPayment.amount
         : 0;
-    const netSilverPerDay = taxes.total + tradeTax - silverUpkeepPerDay - playerInstallmentExpense;
+    // 计算强制补贴支出
+    const forcedSubsidyExpense = Array.isArray(gameState.activeEventEffects?.forcedSubsidy)
+        ? gameState.activeEventEffects.forcedSubsidy.reduce((sum, s) => sum + (s.dailyAmount || 0), 0)
+        : 0;
+
+    // 创建包含补贴的阶层收入（用于显示）
+    const classIncomeWithSubsidy = useMemo(() => {
+        const baseIncome = gameState.classIncome || {};
+        const subsidies = gameState.activeEventEffects?.forcedSubsidy || [];
+        if (subsidies.length === 0) return baseIncome;
+
+        const merged = { ...baseIncome };
+        subsidies.forEach(s => {
+            if (s.stratumKey && s.dailyAmount) {
+                merged[s.stratumKey] = (merged[s.stratumKey] || 0) + s.dailyAmount;
+            }
+        });
+        return merged;
+    }, [gameState.classIncome, gameState.activeEventEffects?.forcedSubsidy]);
+
+    const netSilverPerDay = taxes.total + tradeTax - silverUpkeepPerDay - playerInstallmentExpense - forcedSubsidyExpense;
     const netSilverClass = netSilverPerDay >= 0 ? 'text-green-300' : 'text-red-300';
     const netChipClasses = netSilverPerDay >= 0
         ? 'text-green-300 bg-green-900/20 hover:bg-green-900/40'
@@ -545,6 +565,7 @@ function GameApp({ gameState }) {
                     tradeStats={tradeStats}
                     armyFoodNeed={armyFoodNeed}
                     playerInstallmentPayment={gameState.playerInstallmentPayment}
+                    activeEventEffects={gameState.activeEventEffects}
                     onResourceDetailClick={(key) => gameState.setResourceDetailView(key)}
                     onPopulationDetailClick={() => gameState.setPopulationDetailView(true)}
                     onStrataClick={() => setShowStrata(true)}  // 新增：打开社会阶层弹窗
@@ -701,7 +722,7 @@ function GameApp({ gameState }) {
                             classWealth={gameState.classWealth}
                             classWealthDelta={gameState.classWealthDelta}
                             classShortages={gameState.classShortages}
-                            classIncome={gameState.classIncome}
+                            classIncome={classIncomeWithSubsidy}
                             classExpense={gameState.classExpense}
                             classLivingStandard={gameState.classLivingStandard}
                             rebellionStates={gameState.rebellionStates}
@@ -882,7 +903,7 @@ function GameApp({ gameState }) {
                                                 classWealth={gameState.classWealth}
                                                 classWealthDelta={gameState.classWealthDelta}
                                                 classShortages={gameState.classShortages}
-                                                classIncome={gameState.classIncome}
+                                                classIncome={classIncomeWithSubsidy}
                                                 classExpense={gameState.classExpense}
                                                 classLivingStandard={gameState.classLivingStandard}
                                                 rebellionStates={gameState.rebellionStates}
@@ -1001,7 +1022,7 @@ function GameApp({ gameState }) {
                         classInfluence={gameState.classInfluence}
                         classWealth={gameState.classWealth}
                         classWealthDelta={gameState.classWealthDelta}
-                        classIncome={gameState.classIncome}
+                        classIncome={classIncomeWithSubsidy}
                         classExpense={gameState.classExpense}
                         classShortages={gameState.classShortages}
                         classLivingStandard={gameState.classLivingStandard}
@@ -1100,7 +1121,7 @@ function GameApp({ gameState }) {
                     classWealth={gameState.classWealth}
                     classWealthDelta={gameState.classWealthDelta}
                     classShortages={gameState.classShortages}
-                    classIncome={gameState.classIncome}
+                    classIncome={classIncomeWithSubsidy}
                     classExpense={gameState.classExpense}
                     classLivingStandard={gameState.classLivingStandard}
                     rebellionStates={gameState.rebellionStates}

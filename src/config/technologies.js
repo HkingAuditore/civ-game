@@ -76,10 +76,10 @@ export const TECHS = [
     {
         id: 'communal_granary',
         name: "公共粮仓",
-        desc: "人口上限 +3%。",
+        desc: "人口上限 +10%。",
         cost: { science: 390 },
         epoch: 0,
-        effects: { maxPop: 0.03 },
+        effects: { maxPop: 0.1 },
     },
 
     {
@@ -151,10 +151,10 @@ export const TECHS = [
     {
         id: 'granary_architecture',
         name: "粮仓结构",
-        desc: "粮仓产出 +25%，并额外提供 +2% 人口上限。",
+        desc: "粮仓产出 +25%，并额外提供 +5% 人口上限。",
         cost: { science: 960 },
         epoch: 1,
-        effects: { buildings: { granary: 0.25 }, maxPop: 0.02 },
+        effects: { buildings: { granary: 0.25 }, maxPop: 0.05 },
     },
     {
         id: 'primitive_weaving',
@@ -217,18 +217,18 @@ export const TECHS = [
     {
         id: 'urban_planning',
         name: "城市规划",
-        desc: "木屋效率 +20%，人口上限 +3%。",
+        desc: "木屋效率 +20%，人口上限 +5%。",
         cost: { science: 1820 },
         epoch: 2,
-        effects: { buildings: { house: 0.2 }, maxPop: 0.03 },
+        effects: { buildings: { house: 0.2 }, maxPop: 0.05 },
     },
     {
         id: 'republican_code',
         name: "共和法典",
-        desc: "完善的法律体系提升社会运转效率。民生建筑效率 +15%，人口上限 +2%。",
+        desc: "完善的法律体系提升社会运转效率。民生建筑效率 +15%，人口上限 +5%。",
         cost: { science: 1960 },
         epoch: 2,
-        effects: { categories: { civic: 0.15 }, maxPop: 0.02 },
+        effects: { categories: { civic: 0.15 }, maxPop: 0.05 },
     },
     {
         id: 'road_system',
@@ -483,10 +483,10 @@ export const TECHS = [
     {
         id: 'fortification',
         name: "要塞工程",
-        desc: "解锁要塞，大幅提升军事容量。军事建筑效率 +25%，人口上限 +3%。",
+        desc: "解锁要塞，大幅提升军事容量。军事建筑效率 +25%，人口上限 +5%。",
         cost: { science: 8400 },
         epoch: 4,
-        effects: { categories: { military: 0.25 }, maxPop: 0.03 },
+        effects: { categories: { military: 0.25 }, maxPop: 0.05 },
     },
 
     // ========== 高级工业科技 ==========

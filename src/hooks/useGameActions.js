@@ -2234,22 +2234,31 @@ export const useGameActions = (gameState, addLog) => {
      */
     const triggerDiplomaticEvent = (diplomaticEvent) => {
         if (!diplomaticEvent) return;
+        console.log('[DIPLOMATIC EVENT] Triggering:', diplomaticEvent.name, 'Current event exists?', !!currentEvent);
         if (currentEvent) {
-            setPendingDiplomaticEvents(prev => [...prev, diplomaticEvent]);
+            console.log('[DIPLOMATIC EVENT] Queuing event because currentEvent exists');
+            setPendingDiplomaticEvents(prev => {
+                console.log('[DIPLOMATIC EVENT] Adding to queue, current queue size:', prev?.length || 0);
+                return [...prev, diplomaticEvent];
+            });
             return;
         }
+        console.log('[DIPLOMATIC EVENT] Launching directly');
         launchDiplomaticEvent(diplomaticEvent);
     };
 
     useEffect(() => {
+        console.log('[PENDING EVENTS] useEffect triggered. currentEvent?', !!currentEvent, 'pendingDiplomaticEvents:', pendingDiplomaticEvents?.length || 0);
         if (currentEvent) return;
         if (!pendingDiplomaticEvents || pendingDiplomaticEvents.length === 0) return;
 
+        console.log('[PENDING EVENTS] Processing queue, first event:', pendingDiplomaticEvents[0]?.name);
         // 使用 setTimeout 确保在当前渲染周期完成后再显示下一个事件
         const timer = setTimeout(() => {
             setPendingDiplomaticEvents(prev => {
                 if (!prev || prev.length === 0) return prev;
                 const [next, ...rest] = prev;
+                console.log('[PENDING EVENTS] Launching next event:', next?.name, 'Remaining:', rest.length);
                 // 延迟触发事件以确保状态更新完成
                 setTimeout(() => launchDiplomaticEvent(next), 0);
                 return rest;
@@ -2284,6 +2293,7 @@ export const useGameActions = (gameState, addLog) => {
             resourceDemand: Array.isArray(prev.resourceDemand) ? [...prev.resourceDemand] : [],
             stratumDemand: Array.isArray(prev.stratumDemand) ? [...prev.stratumDemand] : [],
             buildingProduction: Array.isArray(prev.buildingProduction) ? [...prev.buildingProduction] : [],
+            forcedSubsidy: Array.isArray(prev.forcedSubsidy) ? [...prev.forcedSubsidy] : [],
         });
 
         const registerApprovalEffect = (changes = {}) => {
@@ -2468,6 +2478,25 @@ export const useGameActions = (gameState, addLog) => {
                     return updated;
                 });
                 registerApprovalEffect(effects.approval);
+            }
+
+            // 阶层财富
+            if (effects.classWealth) {
+                // 如果 setClassWealth 只有在 useGameLoop 中定义并没有传入 useGameActions，我们需要检查
+                // 实际上 useGameActions 接收整个 gameState，其中包含 classWealth 和 setClassWealth (line 76)
+                // 但这里需要确认 setClassWealth 是否解构出来了。
+                // 检查 line 31-80，发现 classWealth 被解构了，但 setClassWealth 没有被解构。
+                // 我们需要使用 gameState.setClassWealth 或者确保它被解构。
+                // 假设 gameState 中有 setClassWealth。
+                if (typeof gameState.setClassWealth === 'function') {
+                    gameState.setClassWealth(prev => {
+                        const updated = { ...prev };
+                        Object.entries(effects.classWealth).forEach(([stratum, value]) => {
+                            updated[stratum] = Math.max(0, (updated[stratum] || 0) + value);
+                        });
+                        return updated;
+                    });
+                }
             }
 
             // Economic effects - timed modifiers that decay over time
@@ -3049,6 +3078,7 @@ export const useGameActions = (gameState, addLog) => {
         const endEvent = createRebellionEndEvent(
             rebelNation,
             playerVictory,
+            resources.silver || 0,
             (action, nation) => {
                 if (action === 'end_celebrate') {
                     setStability(prev => Math.min(100, (prev || 50) + 15));

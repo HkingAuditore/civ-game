@@ -11,35 +11,99 @@ export const REBEL_DEMAND_SURRENDER_TYPE = {
 };
 
 /**
- * Creates a rebel surrender demand event
+ * Creates a rebel surrender demand event with multiple options
  * @param {Object} nation - The rebel nation
- * @param {Object} eventData - Data about the demand (type, amount, stratum)
+ * @param {Object} eventData - Data about the demands (massacreAmount, concessionAmount, reformAmount)
  * @param {Function} callback - Callback function for handling player choice
  * @returns {Object} Event object
  */
 export function createRebelDemandSurrenderEvent(nation, eventData, callback) {
-    const demandType = eventData.demandType;
-    const demandAmount = eventData.demandAmount;
     const stratumName = STRATA[eventData.rebellionStratum]?.name || '起义阶层';
-
+    const stratumKey = eventData.rebellionStratum;
+    const warAdvantage = eventData.warAdvantage || 100;
+    
+    // 检测是否是联盟叛乱
+    const coalitionStrata = eventData.coalitionStrata || [stratumKey];
+    const isCoalition = coalitionStrata.length > 1;
+    const coalitionNames = isCoalition 
+        ? coalitionStrata.map(k => STRATA[k]?.name || k).join('、')
+        : stratumName;
+    
+    // 从新格式读取金额，兼容旧格式
+    const massacreAmount = eventData.massacreAmount || eventData.demandAmount || 10;
+    const reformAmount = eventData.reformAmount || Math.max(100, massacreAmount * 10);
+    // 强制补贴：总金额为改革的3倍，分365天按日支付
+    const subsidyTotalAmount = eventData.subsidyTotalAmount || reformAmount * 3;
+    const subsidyDailyAmount = eventData.subsidyDailyAmount || Math.ceil(subsidyTotalAmount / 365);
+    
     let title = `${nation.name} 的最后通牒`;
-    let description = `${nation.name} 在战争中占据优势，向你提出以下要求：\n\n`;
-    let acceptText = '接受要求';
-    let acceptDescription = '';
     let icon = 'AlertTriangle';
-
-    if (demandType === REBEL_DEMAND_SURRENDER_TYPE.MASSACRE) {
-        description += `他们要求你无条件投降。由于之前的血腥镇压，他们扬言要进行报复性的清洗！这是最后的通牒。`;
-        acceptText = `无条件投降（遭遇屠杀）`;
-        acceptDescription = `接受战败现实。后果：失去 ${demandAmount} 人口和相应的人口上限。`;
+    
+    // 根据战争优势调整描述的严重程度
+    let description = `${nation.name} 在战争中占据优势，向你发出最后通牒！\n\n`;
+    if (warAdvantage > 200) {
+        description += `叛军已经取得了压倒性的胜利，他们傲慢地提出了苛刻的条件。由于之前的血腥镇压，激进派甚至扬言要进行报复性的清洗！\n\n`;
         icon = 'Skull';
-    } else if (demandType === REBEL_DEMAND_SURRENDER_TYPE.REFORM) {
-        description += `他们要求进行政治改革，向${stratumName}做出让步，改善他们的处境。`;
-        acceptDescription = `花费 ${demandAmount} 银币进行改革，安抚起义者。`;
-    } else if (demandType === REBEL_DEMAND_SURRENDER_TYPE.CONCESSION) {
-        description += `他们要求朝廷做出重大让步，满足${stratumName}的核心诉求。`;
-        acceptDescription = `花费 ${demandAmount} 银币满足诉求，结束战乱。`;
+    } else if (warAdvantage > 100) {
+        description += `叛军占据明显优势，他们要求朝廷做出重大让步，满足${coalitionNames}的核心诉求。\n\n`;
+    } else {
+        description += `虽然叛军稍占上风，但局势仍有转圜余地。他们提出以下条件供你考虑：\n\n`;
     }
+    
+    description += `你可以选择接受以下任一条件来结束这场叛乱：`;
+
+    // 补贴和改革的描述 - 如果是联盟，说明按比例分配
+    const subsidyDesc = isCoalition
+        ? `接受向${coalitionNames}支付为期一年的强制补贴（按比例分配）。每日支付 ${subsidyDailyAmount.toLocaleString()} 银币，共 ${subsidyTotalAmount.toLocaleString()} 银币。`
+        : `接受向${stratumName}支付为期一年的强制补贴。每日支付 ${subsidyDailyAmount.toLocaleString()} 银币，共 ${subsidyTotalAmount.toLocaleString()} 银币。`;
+    
+    const reformDesc = isCoalition
+        ? `一次性支付 ${reformAmount.toLocaleString()} 银币进行改革（按比例分配给${coalitionNames}）。`
+        : `一次性支付 ${reformAmount.toLocaleString()} 银币进行改革，这笔钱将直接转入${stratumName}的财富。`;
+
+    const options = [
+        {
+            id: 'accept_massacre',
+            text: `清洗敌对势力`,
+            description: `让叛军泄愤，在国内开展血腥清洗。失去 ${massacreAmount} 人口和相应的人口上限。`,
+            effects: {},
+            callback: () => callback('accept', nation, { ...eventData, demandType: 'massacre', demandAmount: massacreAmount, coalitionStrata })
+        },
+        {
+            id: 'accept_subsidy',
+            text: `强制补贴`,
+            description: subsidyDesc,
+            effects: {},
+            callback: () => callback('accept', nation, { 
+                ...eventData, 
+                demandType: 'subsidy', 
+                demandAmount: subsidyTotalAmount,
+                subsidyDailyAmount,
+                subsidyStratum: stratumKey,
+                coalitionStrata
+            })
+        },
+        {
+            id: 'accept_reform',
+            text: `改革妥协`,
+            description: reformDesc,
+            effects: {},
+            callback: () => callback('accept', nation, { 
+                ...eventData, 
+                demandType: 'reform', 
+                demandAmount: reformAmount,
+                reformStratum: stratumKey,
+                coalitionStrata
+            })
+        },
+        {
+            id: 'reject',
+            text: '拒绝一切条件',
+            description: '拒绝叛军的所有要求，战争将继续。叛军可能会发动更猛烈的攻击。',
+            effects: {},
+            callback: () => callback('reject', nation, eventData)
+        }
+    ];
 
     return {
         id: `rebel_demand_${nation.id}_${Date.now()}`,
@@ -49,18 +113,7 @@ export function createRebelDemandSurrenderEvent(nation, eventData, callback) {
         description: description,
         nation: nation,
         isDiplomaticEvent: true,
-        options: [
-            {
-                text: acceptText,
-                description: acceptDescription,
-                action: () => callback('accept', nation, eventData)
-            },
-            {
-                text: '拒绝要求',
-                description: '拒绝叛军的条件，战争将继续。叛军可能会发动更猛烈的攻击。',
-                action: () => callback('reject', nation, eventData)
-            }
-        ]
+        options
     };
 }
 

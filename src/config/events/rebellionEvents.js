@@ -56,17 +56,55 @@ function isStratumMilitary(stratumKey) {
  * @param {boolean} isMilitaryRebelling - 军队自身是否在叛乱
  * @param {Function} callback - 回调函数
  */
-export function createBrewingEvent(stratumKey, rebellionState, hasMilitary, isMilitaryRebelling, callback) {
+
+/**
+ * 计算阶层单人每日需求成本
+ * @param {string} stratumKey - 阶层键
+ * @param {Object} marketPrices - 市场价格
+ */
+function calculateDailyNeedsCost(stratumKey, marketPrices = {}) {
+    const stratum = STRATA[stratumKey];
+    if (!stratum || !stratum.needs) return 0;
+
+    let dailyCost = 0;
+    // 遍历基础需求
+    for (const [resource, amount] of Object.entries(stratum.needs)) {
+        const price = marketPrices[resource] || 1; // 默认价格为1
+        dailyCost += amount * price;
+    }
+    
+    // 简单的保底，避免成本过低
+    return Math.max(0.5, dailyCost);
+}
+
+/**
+ * 创建叛乱思潮事件
+ * @param {string} stratumKey - 阶层键
+ * @param {Object} rebellionState - 叛乱状态
+ * @param {boolean} hasMilitary - 玩家是否有军队
+ * @param {boolean} isMilitaryRebelling - 军队自身是否在叛乱
+ * @param {number} currentWealth - 当前银币（用于旧版兼容，新版主要用pop和market计算）
+ * @param {Function} callback - 回调函数
+ * @param {number} stratumPopulation - 阶层人口（新版参数）
+ * @param {Object} marketPrices - 市场价格（新版参数）
+ */
+export function createBrewingEvent(stratumKey, rebellionState, hasMilitary, isMilitaryRebelling, currentWealth = 0, callback, stratumPopulation = 100, marketPrices = {}) {
     const stratumName = getStratumName(stratumKey);
     const options = [];
 
-    // 选项1：发放补贴安抚（有成本，提升满意度）
+    // 计算动态成本 (Needs-Based)
+    // 补贴：提供30天的生活保障
+    const dailyCost = calculateDailyNeedsCost(stratumKey, marketPrices);
+    const population = Math.max(10, stratumPopulation); // 保底人口防止为0
+    const subsidyCost = Math.ceil(population * dailyCost * 30);
+
     options.push({
         id: 'subsidize',
         text: '发放临时补贴',
-        description: `消耗银币向${stratumName}发放补贴，提升满意度`,
+        description: `消耗 ${subsidyCost} 银币向${stratumName}发放补贴（约30天生活费），提升满意度`,
         effects: {
-            resources: { silver: -150 },
+            resources: { silver: -subsidyCost },
+            classWealth: { [stratumKey]: subsidyCost },
             approval: { [stratumKey]: 15 },
             stability: 3,
         },
@@ -128,17 +166,28 @@ export function createBrewingEvent(stratumKey, rebellionState, hasMilitary, isMi
 /**
  * 创建密谋叛乱事件（70%阈值）
  */
-export function createPlottingEvent(stratumKey, rebellionState, hasMilitary, isMilitaryRebelling, callback) {
+export function createPlottingEvent(stratumKey, rebellionState, hasMilitary, isMilitaryRebelling, currentWealth = 0, callback, stratumPopulation = 100, marketPrices = {}) {
     const stratumName = getStratumName(stratumKey);
     const options = [];
+
+    // 计算动态成本 (Needs-Based)
+    const dailyCost = calculateDailyNeedsCost(stratumKey, marketPrices);
+    const population = Math.max(10, stratumPopulation);
+    
+    // 重大让步：180天生活费
+    const concessionCost = Math.ceil(population * dailyCost * 180);
+    
+    // 谈判：60天生活费（作为行政/活动经费）
+    const negotiateCost = Math.ceil(population * dailyCost * 60);
 
     // 选项1：大规模让利（高成本，显著提升满意度）
     options.push({
         id: 'major_concession',
         text: '重大让步',
-        description: `消耗大量银币向${stratumName}做出实质性让步，大幅提升满意度`,
+        description: `消耗 ${concessionCost} 银币向${stratumName}做出实质性让步（约半年生活费），大幅提升满意度`,
         effects: {
-            resources: { silver: -500 },
+            resources: { silver: -concessionCost },
+            classWealth: { [stratumKey]: concessionCost },
             approval: { [stratumKey]: 30 },
             stability: 10,
         },
@@ -148,9 +197,10 @@ export function createPlottingEvent(stratumKey, rebellionState, hasMilitary, isM
     options.push({
         id: 'negotiate',
         text: '开启对话',
-        description: `派代表与${stratumName}领袖进行对话，寻求缓和`,
+        description: `花费 ${negotiateCost} 银币派代表与${stratumName}领袖进行对话（约60天生活费），寻求缓和`,
         effects: {
-            resources: { silver: -200 },
+            resources: { silver: -negotiateCost },
+            classWealth: { [stratumKey]: negotiateCost },
             approval: { [stratumKey]: 15 },
             stability: 3,
         },
@@ -512,10 +562,13 @@ export function createRebelNation(stratumKey, stratumPop, stratumWealth, stratum
 /**
  * 创建叛乱结束（停战后清理）事件
  */
-export function createRebellionEndEvent(rebelNation, victory, callback) {
+export function createRebellionEndEvent(rebelNation, victory, currentWealth = 0, callback) {
     const isPlayerVictory = victory;
 
     if (isPlayerVictory) {
+        // 庆祝成本：5% 当前银币，最低 200
+        const celebrateCost = Math.max(200, Math.floor(currentWealth * 0.05));
+
         return {
             id: `rebellion_end_victory_${Date.now()}`,
             name: `叛乱平定`,
@@ -525,10 +578,10 @@ export function createRebellionEndEvent(rebelNation, victory, callback) {
             options: [{
                 id: 'celebrate',
                 text: '庆祝胜利',
-                description: '花费银币举行盛大庆典，大幅提振民心士气',
+                description: `花费 ${celebrateCost} 银币举行盛大庆典，大幅提振民心士气`,
                 effects: {
                     stability: 15,
-                    resources: { silver: -200, culture: 80 },
+                    resources: { silver: -celebrateCost, culture: 80 },
                 },
                 callback: () => callback('end_celebrate', rebelNation),
             }, {

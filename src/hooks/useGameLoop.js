@@ -1017,13 +1017,61 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 if (amount <= 0) return;
                 adjustedResources[resource] = Math.max(0, (adjustedResources[resource] || 0) - amount);
             });
+            
+            // 处理强制补贴效果（每日从国库支付给指定阶层）
+            const forcedSubsidies = Array.isArray(current.activeEventEffects?.forcedSubsidy) 
+                ? current.activeEventEffects.forcedSubsidy 
+                : [];
+            
+            // 计算补贴对各阶层财富的增加量（稍后合并到 adjustedClassWealth）
+            const subsidyWealthDelta = {};
+            if (forcedSubsidies.length > 0) {
+                forcedSubsidies.forEach(subsidy => {
+                    if (subsidy.remainingDays > 0) {
+                        const dailyAmount = subsidy.dailyAmount || 0;
+                        const stratumKey = subsidy.stratumKey;
+                        
+                        // 从国库扣除
+                        const treasuryBefore = adjustedResources.silver || 0;
+                        const actualPayment = Math.min(dailyAmount, treasuryBefore);
+                        adjustedResources.silver = treasuryBefore - actualPayment;
+                        
+                        // 记录阶层财富增加量
+                        if (stratumKey && actualPayment > 0) {
+                            subsidyWealthDelta[stratumKey] = (subsidyWealthDelta[stratumKey] || 0) + actualPayment;
+                        }
+                    }
+                });
+                // forcedSubsidy 的天数递减和过期清理在下面统一处理
+            }
+            
             setResources(adjustedResources);
 
-            if (hadActiveEffects) {
-                setActiveEventEffects(nextEffects);
+            // 处理强制补贴效果的每日更新
+            // 注意：这里只处理 forcedSubsidy 的递减和过期，不处理其他效果的更新
+            // 其他效果（approval, stability等）由 simulation.js 中的 applyActiveEventEffects 处理
+            if (forcedSubsidies.length > 0) {
+                setActiveEventEffects(prev => {
+                    // 只更新 forcedSubsidy，保留其他所有效果不变
+                    const updatedSubsidies = forcedSubsidies
+                        .map(s => ({ ...s, remainingDays: s.remainingDays - 1 }))
+                        .filter(s => s.remainingDays > 0);
+                    
+                    console.log('[GAME LOOP] Updating subsidies:', forcedSubsidies.length, '->', updatedSubsidies.length);
+                    
+                    return {
+                        ...prev,
+                        forcedSubsidy: updatedSubsidies
+                    };
+                });
             }
 
+            // 创建阶层财富对象，合并补贴转账
             const adjustedClassWealth = { ...result.classWealth };
+            // 将补贴增量添加到阶层财富
+            Object.entries(subsidyWealthDelta).forEach(([key, delta]) => {
+                adjustedClassWealth[key] = (adjustedClassWealth[key] || 0) + delta;
+            });
             const adjustedTotalWealth = Object.values(adjustedClassWealth).reduce((sum, val) => sum + val, 0);
 
             // --- 市场数据历史记录更新 ---
@@ -1246,6 +1294,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         }
                     };
 
+                    const stratumPopulation = current.popStructure?.[stratumKey] || 0;
+                    const marketPrices = current.market?.prices || {};
+
                     // 根据事件类型处理
                     switch (orgEvent.type) {
                         case 'brewing':
@@ -1255,7 +1306,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                 rebellionStateForEvent,
                                 hasMilitary,
                                 militaryIsRebelling,
-                                rebellionCallback
+                                current.resources?.silver || 0, // 传入当前银币
+                                rebellionCallback,
+                                stratumPopulation,
+                                marketPrices
                             );
                             addLog(`⚠️ ${STRATA[stratumKey]?.name || stratumKey}阶层组织度达到30%，出现不满情绪！`);
                             break;
@@ -1267,7 +1321,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                 rebellionStateForEvent,
                                 hasMilitary,
                                 militaryIsRebelling,
-                                rebellionCallback
+                                current.resources?.silver || 0, // 传入当前银币
+                                rebellionCallback,
+                                stratumPopulation,
+                                marketPrices
                             );
                             addLog(`🔥 ${STRATA[stratumKey]?.name || stratumKey}阶层组织度达到70%，正在密谋叛乱！`);
                             break;
@@ -1558,7 +1615,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     const collapseCallback = (action, nation) => {
                         console.log('[REBELLION END]', action, nation?.name);
                     };
-                    const collapseEvent = createRebellionEndEvent(rebelNation, true, collapseCallback);
+                    const collapseEvent = createRebellionEndEvent(rebelNation, true, current.resources?.silver || 0, collapseCallback);
                     if (collapseEvent && current.actions?.triggerDiplomaticEvent) {
                         current.actions.triggerDiplomaticEvent(collapseEvent);
                     }
@@ -2217,6 +2274,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                     const surrenderEvent = createRebellionEndEvent(
                                         nation,
                                         true, // 玩家胜利
+                                        current.resources?.silver || 0,
                                         (action) => {
                                             // 效果由事件本身的 effects 处理，这里只做日志
                                             console.log('[REBELLION SURRENDER]', action, nation?.name);
@@ -2249,6 +2307,178 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                     // 移除叛军
                                     setNations(prev => prev.filter(n => n.id !== nation.id));
                                 }
+                            }
+                        }
+
+                        // 检测叛军勒索/最后通牒事件
+                        if (log.includes('REBEL_DEMAND_SURRENDER:')) {
+                            try {
+                                const jsonStr = log.replace('REBEL_DEMAND_SURRENDER:', '');
+                                const data = JSON.parse(jsonStr);
+                                const nation = result.nations?.find(n => n.id === data.nationId);
+                                
+                                if (nation) {
+                                    const event = createRebelDemandSurrenderEvent(nation, data, (action, nationObj, eventData) => {
+                                        console.log('[REBEL ULTIMATUM] Callback triggered:', action, eventData.demandType);
+                                        if (action === 'accept') {
+                                            // 1. 根据类型扣除资源
+                                            if (eventData.demandType === 'massacre') {
+                                                // 屠杀：扣除人口和人口上限
+                                                const popLoss = eventData.demandAmount || 0;
+                                                setPopulation(prev => Math.max(10, prev - popLoss));
+                                                setMaxPop(prev => Math.max(20, prev - popLoss));
+                                                addLog(`💀 叛军进行了大屠杀，你失去了 ${popLoss} 人口和人口上限！`);
+                                                
+                                                // 对应阶层人口也需减少
+                                                const massacreStratumKey = nationObj.rebellionStratum;
+                                                if (massacreStratumKey) {
+                                                    setPopStructure(prev => ({
+                                                        ...prev,
+                                                        [massacreStratumKey]: Math.max(0, (prev[massacreStratumKey] || 0) - popLoss)
+                                                    }));
+                                                }
+                                            } else if (eventData.demandType === 'reform') {
+                                                // 改革妥协：一次性从国库扣除银币，转入该阶层的财富
+                                                const reformAmount = eventData.demandAmount || 0;
+                                                const coalitionStrata = eventData.coalitionStrata || [eventData.reformStratum || nationObj.rebellionStratum];
+                                                console.log('[REBEL REFORM] Amount:', reformAmount, 'Coalition:', coalitionStrata);
+                                                
+                                                // 扣除银币
+                                                setResources(prev => ({
+                                                    ...prev,
+                                                    silver: Math.max(0, (prev.silver || 0) - reformAmount)
+                                                }));
+                                                
+                                                // 按人口比例分配给各阶层
+                                                const popShare = {};
+                                                let totalPop = 0;
+                                                coalitionStrata.forEach(sKey => {
+                                                    const pop = current.popStructure?.[sKey] || 0;
+                                                    popShare[sKey] = pop;
+                                                    totalPop += pop;
+                                                });
+                                                
+                                                // 如果总人口为0，平均分配
+                                                if (totalPop === 0) {
+                                                    coalitionStrata.forEach(sKey => {
+                                                        popShare[sKey] = 1;
+                                                    });
+                                                    totalPop = coalitionStrata.length;
+                                                }
+                                                
+                                                // 将钱按比例转入各阶层财富
+                                                const distributions = [];
+                                                setClassWealth(prev => {
+                                                    const newWealth = { ...prev };
+                                                    coalitionStrata.forEach(sKey => {
+                                                        const share = popShare[sKey] / totalPop;
+                                                        const amount = Math.floor(reformAmount * share);
+                                                        newWealth[sKey] = (newWealth[sKey] || 0) + amount;
+                                                        distributions.push(`${STRATA[sKey]?.name || sKey}(${amount})`);
+                                                    });
+                                                    console.log('[REBEL REFORM] Distributed:', distributions.join(', '));
+                                                    return newWealth;
+                                                });
+                                                
+                                                const distribDesc = coalitionStrata.length > 1 
+                                                    ? `（按比例分配给：${distributions.join('、')}）` 
+                                                    : '';
+                                                addLog(`💸 你接受了叛军的改革要求，支付了 ${reformAmount} 银币${distribDesc}。`);
+                                            } else if (eventData.demandType === 'subsidy') {
+                                                // 强制补贴：设置为期一年的每日补贴效果，按比例分配给所有联盟阶层
+                                                const subsidyDaily = eventData.subsidyDailyAmount || Math.ceil((eventData.demandAmount || 0) / 365);
+                                                const subsidyTotal = eventData.demandAmount || 0;
+                                                const coalitionStrata = eventData.coalitionStrata || [eventData.subsidyStratum || nationObj.rebellionStratum];
+                                                console.log('[REBEL SUBSIDY] Daily:', subsidyDaily, 'Total:', subsidyTotal, 'Coalition:', coalitionStrata);
+                                                
+                                                // 按人口比例计算每个阶层的份额
+                                                const popShare = {};
+                                                let totalPop = 0;
+                                                coalitionStrata.forEach(sKey => {
+                                                    const pop = current.popStructure?.[sKey] || 0;
+                                                    popShare[sKey] = pop;
+                                                    totalPop += pop;
+                                                });
+                                                
+                                                // 如果总人口为0，平均分配
+                                                if (totalPop === 0) {
+                                                    coalitionStrata.forEach(sKey => {
+                                                        popShare[sKey] = 1;
+                                                    });
+                                                    totalPop = coalitionStrata.length;
+                                                }
+                                                
+                                                // 为每个阶层添加补贴效果
+                                                const subsidyDescParts = [];
+                                                setActiveEventEffects(prev => {
+                                                    console.log('[REBEL SUBSIDY] Previous state:', prev);
+                                                    
+                                                    const newSubsidies = coalitionStrata.map(sKey => {
+                                                        const share = popShare[sKey] / totalPop;
+                                                        const dailyAmount = Math.floor(subsidyDaily * share);
+                                                        const stratumName = STRATA[sKey]?.name || sKey;
+                                                        subsidyDescParts.push(`${stratumName}(${dailyAmount}/天)`);
+                                                        
+                                                        return {
+                                                            id: `rebel_subsidy_${nationObj.id}_${sKey}_${Date.now()}`,
+                                                            type: 'rebel_forced_subsidy',
+                                                            name: `对${stratumName}的强制补贴`,
+                                                            description: `每日支付 ${dailyAmount} 银币给${stratumName}`,
+                                                            stratumKey: sKey,
+                                                            dailyAmount: dailyAmount,
+                                                            remainingDays: 365,
+                                                            createdAt: current.daysElapsed,
+                                                        };
+                                                    });
+                                                    
+                                                    const newEffects = {
+                                                        ...prev,
+                                                        forcedSubsidy: [
+                                                            ...(prev?.forcedSubsidy || []),
+                                                            ...newSubsidies
+                                                        ]
+                                                    };
+                                                    console.log('[REBEL SUBSIDY] Added', newSubsidies.length, 'subsidies');
+                                                    return newEffects;
+                                                });
+                                                
+                                                const distribDesc = coalitionStrata.length > 1 
+                                                    ? `（按比例分配给：${subsidyDescParts.join('、')}）` 
+                                                    : `给${STRATA[coalitionStrata[0]]?.name || '起义阶层'}`;
+                                                addLog(`📜 你接受了叛军的强制补贴要求，将在未来一年内每日支付 ${subsidyDaily} 银币${distribDesc}（共 ${subsidyTotal} 银币）。`);
+                                            }
+
+                                            // 2. 立即结束战争，移除叛军国家并重置状态
+                                            // 使用 handleRebellionWarEnd 函数（与玩家主动求和使用相同的函数）
+                                            // 这个函数会正确删除叛军、重置状态并触发"屈辱的和平"事件
+                                            if (actions?.handleRebellionWarEnd) {
+                                                console.log('[REBEL] Calling handleRebellionWarEnd for defeat...');
+                                                actions.handleRebellionWarEnd(nationObj.id, false); // false = 玩家失败
+                                            } else {
+                                                console.error('[REBEL] handleRebellionWarEnd not available!');
+                                                // 备用方案：手动清理
+                                                const rebellionStratumKey = nationObj.rebellionStratum;
+                                                setNations(prev => prev.filter(n => n.id !== nationObj.id));
+                                                if (rebellionStratumKey) {
+                                                    setRebellionStates(prev => ({
+                                                        ...prev,
+                                                        [rebellionStratumKey]: {
+                                                            ...prev[rebellionStratumKey],
+                                                            organization: 20,
+                                                            dissatisfactionDays: 0,
+                                                        }
+                                                    }));
+                                                }
+                                                setStability(prev => Math.max(0, (prev || 50) - 20));
+                                            }
+                                        } else {
+                                            addLog(`⚔️ 你拒绝了叛军的(${eventData.demandType})要求，战争继续！`);
+                                        }
+                                    });
+                                    currentActions.triggerDiplomaticEvent(event);
+                                }
+                            } catch (e) {
+                                console.error('[EVENT DEBUG] Failed to parse rebel demand:', e);
                             }
                         }
 
@@ -2480,7 +2710,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                         return;
                                                     }
                                                     setPopulation(prev => Math.max(10, prev - eventData.demandAmount));
-                                                    setMaxPopulation(prev => Math.max(10, prev - eventData.demandAmount));
+                                                    setMaxPop(prev => Math.max(10, prev - eventData.demandAmount));
                                                     addLog(`🏴 你向 ${nation.name} 割让了 ${eventData.demandAmount} 人口的领土。`);
                                                 } else if (eventData.demandType === 'open_market') {
                                                     // 设置开放市场状态（玩家开放市场给AI）
@@ -2573,62 +2803,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         }
 
 
-                        // 检测叛军要求玩家投降事件
-                        if (log.includes('REBEL_DEMAND_SURRENDER:')) {
-                            try {
-                                const jsonStr = log.replace('REBEL_DEMAND_SURRENDER:', '');
-                                const eventData = JSON.parse(jsonStr);
-                                const nation = result.nations?.find(n => n.id === eventData.nationId);
 
-                                // 处理叛军要求的回调
-                                const handleRebelSurrenderResponse = (action, rebelNation, data) => {
-                                    if (action === 'accept') {
-                                        // 接受要求
-                                        if (data.demandType === REBEL_DEMAND_SURRENDER_TYPE.MASSACRE) {
-                                            // 大屠杀：减少人口和人口上限
-                                            const popLoss = data.demandAmount;
-                                            setPopulation(prev => Math.max(10, prev - popLoss));
-                                            setMaxPopulation(prev => Math.max(20, prev - popLoss));
-                                            addLog(`💀 叛军进行了大屠杀，你失去了 ${popLoss} 人口和人口上限！`);
-                                        } else if (data.demandType === REBEL_DEMAND_SURRENDER_TYPE.REFORM || data.demandType === REBEL_DEMAND_SURRENDER_TYPE.CONCESSION) {
-                                            // 改革或让步：扣除银币
-                                            setResources(prev => ({ ...prev, silver: Math.max(0, (prev.silver || 0) - data.demandAmount) }));
-                                            const actionText = data.demandType === REBEL_DEMAND_SURRENDER_TYPE.REFORM ? '进行改革' : '做出重大让步';
-                                            addLog(`📜 你被迫${actionText}，花费 ${data.demandAmount} 银币安抚起义者。`);
-                                        }
-
-                                        // 触发“屈辱的和平”结算事件（根据用户要求）
-                                        // 注意：createRebellionEndEvent 第二个参数 false 表示战败/屈辱和平
-                                        const endEvent = createRebellionEndEvent(rebelNation, false, (endAction) => {
-                                            // 屈辱和平确认后的回调（通常只是关闭窗口或额外扣除稳定性）
-                                            if (endAction === 'end_defeat') {
-                                                // 移除叛军国家
-                                                setNations(prev => prev.filter(n => n.id !== rebelNation.id));
-                                                addLog(`🏳️ 你接受了 ${rebelNation.name} 的条件，叛乱平息，但留下了屈辱的记忆。`);
-                                            }
-                                        });
-                                        if (endEvent && currentActions && currentActions.triggerDiplomaticEvent) {
-                                            currentActions.triggerDiplomaticEvent(endEvent);
-                                        } else {
-                                            // Fallback if event trigger fails
-                                            setNations(prev => prev.filter(n => n.id !== rebelNation.id));
-                                        }
-
-                                    } else {
-                                        // 拒绝要求
-                                        addLog(`⚔️ 你拒绝了 ${rebelNation.name} 的最后通牒，战争继续！`);
-                                    }
-                                };
-
-                                if (nation && currentActions && currentActions.triggerDiplomaticEvent) {
-                                    const event = createRebelDemandSurrenderEvent(nation, eventData, handleRebelSurrenderResponse);
-                                    currentActions.triggerDiplomaticEvent(event);
-                                    console.log('[EVENT DEBUG] Rebel Demand Surrender event triggered:', nation.name);
-                                }
-                            } catch (e) {
-                                console.error('[EVENT DEBUG] Failed to parse Rebel Demand Surrender event:', e);
-                            }
-                        }
                     });
                 }
             }

@@ -19,6 +19,7 @@ export const StatusBar = ({
     tradeStats = { tradeTax: 0 },
     armyFoodNeed,
     playerInstallmentPayment = null,
+    activeEventEffects = {},
     onResourceDetailClick,
     onPopulationDetailClick,
     onStrataClick,
@@ -27,6 +28,11 @@ export const StatusBar = ({
     gameControls,
 }) => {
     const TAX_POPOVER_Z_INDEX = 95;
+
+    // Debug: Check activeEventEffects
+    if (activeEventEffects?.forcedSubsidy?.length > 0) {
+        console.log('[STATUS BAR] Forced subsidies:', activeEventEffects.forcedSubsidy);
+    }
     const [showTaxDetail, setShowTaxDetail] = useState(false);
     const [isTaxDetailPinned, setIsTaxDetailPinned] = useState(false);
     const taxDetailButtonRef = useRef(null);
@@ -373,6 +379,25 @@ export const StatusBar = ({
                                                             <span className="text-red-300 font-mono">-{playerInstallmentPayment.amount.toFixed(1)}</span>
                                                         </div>
                                                     )}
+                                                    {/* 强制补贴支出 - DEBUG */}
+                                                    <div className="stat-item-compact bg-purple-900/30">
+                                                        <span className="text-purple-300">调试:补贴数</span>
+                                                        <span className="text-purple-300 font-mono">{activeEventEffects?.forcedSubsidy?.length || 0}</span>
+                                                    </div>
+                                                    {activeEventEffects?.forcedSubsidy?.length > 0 && (
+                                                        <div className="text-xs text-amber-400 mb-1">
+                                                            强制补贴 ({activeEventEffects.forcedSubsidy.length}项):
+                                                        </div>
+                                                    )}
+                                                    {Array.isArray(activeEventEffects?.forcedSubsidy) && activeEventEffects.forcedSubsidy.map((subsidy, index) => (
+                                                        <div key={subsidy.id || index} className="stat-item-compact">
+                                                            <span className="text-ancient-stone flex items-center gap-1">
+                                                                <span>{subsidy.name || '强制补贴'}</span>
+                                                                <span className="text-[8px] text-amber-400">({subsidy.remainingDays}天)</span>
+                                                            </span>
+                                                            <span className="text-red-300 font-mono">-{(subsidy.dailyAmount || 0).toFixed(1)}</span>
+                                                        </div>
+                                                    ))}
 
                                                     <div className="epic-divider" />
 

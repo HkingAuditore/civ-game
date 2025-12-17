@@ -140,38 +140,43 @@ export const processRebelWarActions = ({
         if (tick - lastRebelDemandDay >= 30 && Math.random() < 0.05) {
             next.lastSurrenderDemandDay = tick;
 
-            let demandType = 'reform';
-            let demandAmount = Math.floor(50 + rebelWarAdvantage * 3);
+            const currentSilver = res.silver || 0;
+            
+            // 始终计算所有三种要求类型，让玩家自行选择
+            // 屠杀要求：基于人口比例或战争优势
+            const massacrePopBase = Math.floor((population || 0) * 0.05); 
+            const massacreScoreBase = Math.floor(rebelWarAdvantage / 4);
+            const maxPopCost = Math.max(0, (population || 100) - 10);
+            const massacreAmount = Math.min(Math.max(massacrePopBase, massacreScoreBase, 10), maxPopCost);
+            
+            // 改革妥协：10% 现有银币，最低 100（一次性支付，转入阶层财富）
+            const reformAmount = Math.max(100, Math.floor(currentSilver * 0.1));
+            
+            // 强制补贴：改革金额的3倍，分365天支付（每日支付）
+            const subsidyTotalAmount = reformAmount * 3;
+            const subsidyDailyAmount = Math.ceil(subsidyTotalAmount / 365);
 
+            // 根据战争优势确定"推荐"的要求类型（用于描述严重程度）
+            let primaryDemandType = 'reform';
             if (rebelWarAdvantage > 200) {
-                demandType = 'massacre';
-                demandAmount = Math.floor(rebelWarAdvantage / 4);
-                // Cap massacre demand to avoid wiping out player
-                const maxPopCost = Math.max(0, (population || 100) - 10);
-                demandAmount = Math.min(demandAmount, maxPopCost);
+                primaryDemandType = 'massacre';
             } else if (rebelWarAdvantage > 100) {
-                demandType = 'concession';
-                demandAmount = Math.floor(rebelWarAdvantage * 2);
-            }
-
-            // Cap silver demands for reform/concession
-            if (demandType !== 'massacre') {
-                const currentSilver = res.silver || 0;
-                // Demand shouldn't exceed current silver for cash demands, or at least be reasonable
-                // If demand is too high, maybe user has to take loan or reject
-                // For simplified UX, let's cap it at current silver but ensure it's at least some amount if they have it
-                // If they have 0 silver, demand 0? Or maybe minimum 100 which puts them in debt?
-                // Standard: limit to current silver to assume direct payment without debt
-                demandAmount = Math.min(demandAmount, currentSilver);
+                primaryDemandType = 'concession';
             }
 
             logs.push(`REBEL_DEMAND_SURRENDER:${JSON.stringify({
                 nationId: next.id,
                 nationName: next.name,
                 rebellionStratum: next.rebellionStratum,
+                coalitionStrata: next.coalitionStrata || [next.rebellionStratum], // 联盟叛乱的所有参与阶层
                 warScore: next.warScore,
-                demandType,
-                demandAmount
+                warAdvantage: rebelWarAdvantage,
+                primaryDemandType,
+                // 传递所有三种选项的金额
+                massacreAmount,
+                reformAmount,
+                subsidyTotalAmount,
+                subsidyDailyAmount
             })}`);
         }
     }

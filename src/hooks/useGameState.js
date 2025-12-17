@@ -156,6 +156,8 @@ const buildInitialEventEffects = () => ({
     resourceDemand: [],      // target: resource key, currentValue: percentage modifier (e.g., 0.2 = +20%)
     stratumDemand: [],       // target: stratum key, currentValue: percentage modifier
     buildingProduction: [],  // target: building category or id, currentValue: percentage modifier
+    // Forced subsidies from rebel ultimatums
+    forcedSubsidy: [],       // { id, name, stratumKey, dailyAmount, remainingDays, createdAt }
 });
 
 // 初始化贸易路线状态
@@ -674,6 +676,7 @@ export const useGameState = () => {
             resourceDemand: Array.isArray(loadedEffects.resourceDemand) ? loadedEffects.resourceDemand : [],
             stratumDemand: Array.isArray(loadedEffects.stratumDemand) ? loadedEffects.stratumDemand : [],
             buildingProduction: Array.isArray(loadedEffects.buildingProduction) ? loadedEffects.buildingProduction : [],
+            forcedSubsidy: Array.isArray(loadedEffects.forcedSubsidy) ? loadedEffects.forcedSubsidy : [],
         });
         setRebellionStates(data.rebellionStates || {});
         setActionCooldowns(data.actionCooldowns || {});
