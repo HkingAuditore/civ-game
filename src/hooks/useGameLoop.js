@@ -1812,6 +1812,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                 warDuration: 0,
                                 relation: Math.max(0, (n.relation || 0) - 50),
                                 peaceTreatyUntil: undefined,
+                                lootReserve: (n.wealth || 500) * 1.5, // 初始化掠夺储备
+                                lastMilitaryActionDay: undefined, // 重置军事行动冷却
                             }
                             : n
                     ));
@@ -2250,6 +2252,42 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             }
                         }
 
+                        // 检测自动补兵损失事件
+                        if (log.includes('AUTO_REPLENISH_LOSSES:') && autoRecruitEnabled) {
+                            try {
+                                const jsonStr = log.replace('AUTO_REPLENISH_LOSSES:', '');
+                                const losses = JSON.parse(jsonStr);
+                                
+                                // 将损失的士兵加入训练队列
+                                const replenishItems = [];
+                                Object.entries(losses).forEach(([unitId, lossCount]) => {
+                                    if (lossCount > 0) {
+                                        const unit = UNIT_TYPES[unitId];
+                                        if (unit && unit.epoch <= epoch) {
+                                            for (let i = 0; i < lossCount; i++) {
+                                                replenishItems.push({
+                                                    unitId,
+                                                    remainingDays: unit.trainDays || 1,
+                                                    isAutoReplenish: true,
+                                                });
+                                            }
+                                        }
+                                    }
+                                });
+                                
+                                if (replenishItems.length > 0) {
+                                    setMilitaryQueue(prev => [...prev, ...replenishItems]);
+                                    const summary = Object.entries(losses)
+                                        .filter(([_, count]) => count > 0)
+                                        .map(([unitId, count]) => `${UNIT_TYPES[unitId]?.name || unitId} ×${count}`)
+                                        .join('、');
+                                    addLog(`🔄 自动补兵：${summary} 已加入训练队列。`);
+                                }
+                            } catch (e) {
+                                console.error('[AUTO_REPLENISH] Failed to parse losses:', e);
+                            }
+                        }
+
                         // 检测 AI 送礼事件
                         if (log.includes('AI_GIFT_EVENT:')) {
                             try {
@@ -2498,7 +2536,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                             isAtWar: true,
                                                             warStartDay: current.daysElapsed,
                                                             warDuration: 0,
-                                                            relation: Math.max(0, (n.relation || 50) - 40)
+                                                            relation: Math.max(0, (n.relation || 50) - 40),
+                                                            lootReserve: (n.wealth || 500) * 1.5, // 初始化掠夺储备
+                                                            lastMilitaryActionDay: undefined, // 重置军事行动冷却
                                                         };
                                                     }
                                                     return n;

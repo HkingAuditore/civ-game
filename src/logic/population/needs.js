@@ -26,6 +26,7 @@ export const processNeedsConsumption = ({
     taxBreakdown,
     roleExpense,
     roleWagePayout,
+    classIncome = {}, // 新增：收入数据
     tick,
     logs
 }) => {
@@ -37,15 +38,32 @@ export const processNeedsConsumption = ({
 
     const getResourceTaxRate = (resource) => resourceTaxRates[resource] || 0;
 
-    // Helper to get current stratum wealth multiplier (for luxury needs scaling)
-    const getWealthMultiplier = (key) => {
+    // Helper to get current stratum income ratio (for luxury needs scaling)
+    // 新算法：基于收入与基础成本的比率来决定奢侈需求解锁
+    const getIncomeRatio = (key) => {
         const def = STRATA[key];
-        const startingWealth = def?.startingWealth || 10;
         const count = popStructure[key] || 0;
-        const currentWealth = updatedWealth[key] || 0;
-        const perCapWealth = count > 0 ? currentWealth / count : 0;
-        return startingWealth > 0 ? perCapWealth / startingWealth : 1;
+        if (count <= 0) return 1;
+
+        // 计算人均收入
+        const income = classIncome[key] || 0;
+        const incomePerCapita = income / count;
+
+        // 计算基础生存成本
+        const baseNeeds = def.needs || {};
+        let essentialCost = 0;
+        const essentialResources = ['food', 'cloth'];
+        essentialResources.forEach(resKey => {
+            if (baseNeeds[resKey] && isResourceUnlocked(resKey, epoch, techsUnlocked)) {
+                const price = priceMap[resKey] || getBasePrice(resKey);
+                essentialCost += baseNeeds[resKey] * price;
+            }
+        });
+
+        // 返回收入比率
+        return essentialCost > 0 ? incomePerCapita / essentialCost : 1;
     };
+
 
     Object.keys(STRATA).forEach(key => {
         const count = popStructure[key] || 0;
@@ -63,13 +81,14 @@ export const processNeedsConsumption = ({
         let tracked = 0;
 
         // Calculate effective needs (base + unlocked luxury tiers)
-        const wealthMultiplier = getWealthMultiplier(key);
+        // 新算法：使用收入比率决定奢侈需求解锁
+        const incomeRatio = getIncomeRatio(key);
         const effectiveNeeds = { ...baseNeeds };
 
-        // Add luxury needs based on wealth tier
+        // Add luxury needs based on income ratio
         const luxuryThresholds = Object.keys(luxuryNeeds).map(Number).sort((a, b) => a - b);
         luxuryThresholds.forEach(threshold => {
-            if (wealthMultiplier >= threshold) {
+            if (incomeRatio >= threshold) {
                 const tierNeeds = luxuryNeeds[threshold];
                 Object.entries(tierNeeds).forEach(([resKey, amount]) => {
                     if (isResourceUnlocked(resKey, epoch, techsUnlocked)) {
@@ -78,6 +97,7 @@ export const processNeedsConsumption = ({
                 });
             }
         });
+
 
         // Process each need
         Object.entries(effectiveNeeds).forEach(([resKey, base]) => {
@@ -186,6 +206,12 @@ export const processNeedsConsumption = ({
 
 /**
  * Calculate living standard data for all strata
+ * 
+ * 新算法核心：
+ * 1. 生活水平主要由收入决定，而非存款
+ * 2. 存款提供安全缓冲，而非直接决定生活等级
+ * 3. 新职业可基于收入立即获得合理的生活水平
+ * 
  * @param {Object} params - Living standard parameters
  * @returns {Object} Living standard results
  */
@@ -193,9 +219,11 @@ export const calculateLivingStandards = ({
     popStructure,
     wealth,
     classIncome,
+    classExpense,
     classShortages,
     epoch,
     techsUnlocked,
+    priceMap = {},
     livingStandardStreaks = {}
 }) => {
     const classLivingStandard = {};
@@ -205,43 +233,58 @@ export const calculateLivingStandards = ({
         const count = popStructure[key] || 0;
         if (count === 0) {
             classLivingStandard[key] = null;
-            updatedLivingStandardStreaks[key] = { streak: 0, level: null };
+            updatedLivingStandardStreaks[key] = { streak: 0, level: null, score: null };
             return;
         }
 
         const def = STRATA[key];
         const wealthValue = wealth[key] || 0;
-        const startingWealth = def.startingWealth || 10;
+        const incomeValue = classIncome?.[key] || 0;
+        const expenseValue = classExpense?.[key] || 0;
+        const startingWealth = def.startingWealth || 100;
         const shortagesCount = (classShortages[key] || []).length;
 
-        // Calculate effective needs count
+        // 计算基础生存成本（食物和衣物的最低需求）
+        const baseNeeds = def.needs || {};
+        let essentialCost = 0;
+        const essentialResources = ['food', 'cloth']; // 基础生存必需品
+
+        // 支持 priceMap 为函数或对象
+        const getPrice = (resKey) => {
+            if (typeof priceMap === 'function') {
+                return priceMap(resKey) || getBasePrice(resKey);
+            }
+            return priceMap[resKey] || getBasePrice(resKey);
+        };
+
+        essentialResources.forEach(resKey => {
+            if (baseNeeds[resKey] && isResourceUnlocked(resKey, epoch, techsUnlocked)) {
+                const amount = baseNeeds[resKey] * count;
+                const price = getPrice(resKey);
+                essentialCost += amount * price;
+            }
+        });
+
+
+        // Calculate effective needs count and luxury tiers
         const luxuryNeeds = def.luxuryNeeds || {};
         const luxuryThresholds = Object.keys(luxuryNeeds).map(Number).sort((a, b) => a - b);
-        const incomeValue = classIncome?.[key] || 0;
+
+        // 用于确定奢侈需求解锁的比率（基于收入）
         const incomePerCapita = count > 0 ? incomeValue / count : 0;
-        const projectedIncomeWealth = Math.max(0, incomePerCapita) * 30; // Virtual wealth from monthly income
-        const realPerCapitaWealth = count > 0 ? wealthValue / Math.max(count, 1) : 0;
-
-        // Hybrid SOL Model: Effective living standard depends on whichever is higher:
-        // 1. Accumulated Wealth (Savings)
-        // 2. Projected Monthly Income (Earning Power)
-        const effectivePerCapitaWealth = Math.max(realPerCapitaWealth, projectedIncomeWealth);
-        const effectiveTotalWealth = effectivePerCapitaWealth * count;
-
-        const wealthRatio = startingWealth > 0
-            ? effectivePerCapitaWealth / startingWealth
-            : 0;
+        const essentialCostPerCapita = count > 0 ? essentialCost / count : 0;
+        const incomeRatio = essentialCostPerCapita > 0 ? incomePerCapita / essentialCostPerCapita : 1;
 
         // Base needs count
         const baseNeedsCount = def.needs
             ? Object.keys(def.needs).filter(r => isResourceUnlocked(r, epoch, techsUnlocked)).length
             : 0;
 
-        // Count unlocked luxury tiers
+        // Count unlocked luxury tiers (基于收入比率)
         let unlockedLuxuryTiers = 0;
         let effectiveNeedsCount = baseNeedsCount;
         for (const threshold of luxuryThresholds) {
-            if (wealthRatio >= threshold) {
+            if (incomeRatio >= threshold) {
                 unlockedLuxuryTiers++;
                 const tierNeeds = luxuryNeeds[threshold];
                 const unlockedResources = Object.keys(tierNeeds)
@@ -251,31 +294,43 @@ export const calculateLivingStandards = ({
             }
         }
 
-        // Calculate living standard
+        // 获取上一次的分数用于平滑
+        const prevTracker = livingStandardStreaks?.[key] || {};
+        const previousScore = prevTracker.score ?? null;
+        const isNewStratum = previousScore === null;
+
+        // Calculate living standard using new algorithm
         classLivingStandard[key] = calculateLivingStandardData({
             count,
-            wealthValue: effectiveTotalWealth,
+            income: incomeValue,
+            expense: expenseValue,
+            wealthValue,
             startingWealth,
+            essentialCost,
             shortagesCount,
             effectiveNeedsCount,
             unlockedLuxuryTiers,
             totalLuxuryTiers: luxuryThresholds.length,
+            previousScore,
+            isNewStratum,
         });
 
         // Update streak
-        const prevTracker = livingStandardStreaks?.[key]?.streak || 0;
+        const prevStreak = prevTracker.streak || 0;
         const currentLevel = classLivingStandard[key]?.level || null;
-        let nextStreak = prevTracker;
+        const currentScore = classLivingStandard[key]?.score ?? null;
+        let nextStreak = prevStreak;
 
         if (currentLevel === '赤贫' || currentLevel === '贫困') {
-            nextStreak = prevTracker + 1;
+            nextStreak = prevStreak + 1;
         } else {
-            nextStreak = Math.max(0, prevTracker - 1);
+            nextStreak = Math.max(0, prevStreak - 1);
         }
 
         updatedLivingStandardStreaks[key] = {
             streak: nextStreak,
             level: currentLevel,
+            score: currentScore, // 保存分数用于下次平滑
         };
     });
 
@@ -284,6 +339,7 @@ export const calculateLivingStandards = ({
         livingStandardStreaks: updatedLivingStandardStreaks
     };
 };
+
 
 /**
  * Calculate labor efficiency based on needs satisfaction

@@ -235,6 +235,7 @@ export const MilitaryTab = ({
     population: _population, // eslint-disable-line no-unused-vars -- Reserved for future use
     buildings = {}, // 新增：建筑列表，用于计算军事容量
     nations = [],
+    day = 0, // 当前游戏天数，用于计算军事行动冷却
     selectedTarget,
     onRecruit,
     onDisband,
@@ -506,84 +507,32 @@ export const MilitaryTab = ({
             </div>
 
             {/* 自动补兵 */}
-            <div className="glass-ancient p-4 rounded-xl border border-ancient-gold/30">
-                <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300 font-decorative">
-                    <Icon name="RefreshCcw" size={16} className="text-emerald-400" />
-                    自动补兵
-                </h3>
-
-                <div className="flex flex-col gap-2 text-xs text-gray-300 sm:flex-row sm:items-center sm:justify-between">
-                    <label className="flex items-center gap-2">
-                        <input
-                            type="checkbox"
-                            className="accent-emerald-400"
-                            checked={autoRecruitEnabled}
-                            onChange={(e) => handleToggleAutoRecruit(e.target.checked)}
-                        />
-                        启用自动补兵
-                    </label>
-                    <div className="flex flex-wrap gap-2">
-                        <button
-                            type="button"
-                            onClick={handleMirrorCurrentArmy}
-                            className="px-2 py-1 rounded bg-emerald-900/40 border border-emerald-600/50 text-emerald-200 hover:bg-emerald-800/60 transition-colors"
-                        >
-                            以当前编制为目标
-                        </button>
-                        <button
-                            type="button"
-                            onClick={handleClearTargets}
-                            disabled={targetEntries.length === 0}
-                            className={`px-2 py-1 rounded border transition-colors ${targetEntries.length === 0
-                                ? 'border-gray-700 text-gray-500 cursor-not-allowed'
-                                : 'border-red-600/50 text-red-200 bg-red-900/30 hover:bg-red-900/50'
-                                }`}
-                        >
-                            清空目标
-                        </button>
+            <div className="glass-ancient p-3 rounded-xl border border-ancient-gold/30">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <Icon name="RefreshCcw" size={16} className="text-emerald-400" />
+                        <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                className="accent-emerald-400"
+                                checked={autoRecruitEnabled}
+                                onChange={(e) => handleToggleAutoRecruit(e.target.checked)}
+                            />
+                            <span className="font-bold font-decorative">自动补兵</span>
+                        </label>
                     </div>
+                    {autoRecruitEnabled && (
+                        <span className="text-xs text-emerald-400 flex items-center gap-1">
+                            <Icon name="Check" size={12} />
+                            已启用
+                        </span>
+                    )}
                 </div>
-
-                {targetEntries.length === 0 ? (
-                    <p className="text-xs text-gray-400 mt-3">
-                        暂未设置目标编制，可点击「以当前编制为目标」快速录入需要维持的兵力。
-                    </p>
-                ) : (
-                    <div className="mt-3 space-y-2 text-xs">
-                        {targetEntries.map(([unitId, target]) => {
-                            const unit = UNIT_TYPES[unitId];
-                            const currentCount = army[unitId] || 0;
-                            const pending = queueCounts[unitId] || 0;
-                            const shortage = Math.max(0, target - currentCount - pending);
-                            return (
-                                <div
-                                    key={unitId}
-                                    className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center bg-gray-900/30 border border-gray-700/60 rounded px-2 py-1"
-                                >
-                                    <div className="sm:col-span-3 font-semibold text-gray-100 flex items-center gap-2">
-                                        <span>{unit?.name || unitId}</span>
-                                        {shortage > 0 && (
-                                            <span className="text-red-400 text-[10px]">缺口 {shortage}</span>
-                                        )}
-                                    </div>
-                                    <div className="sm:col-span-5 text-gray-400">
-                                        现役 {currentCount} / 队列 {pending}
-                                    </div>
-                                    <div className="sm:col-span-4 flex items-center gap-2">
-                                        <span className="text-gray-500">目标</span>
-                                        <input
-                                            type="number"
-                                            min="0"
-                                            value={target}
-                                            onChange={(e) => handleTargetChange(unitId, e.target.value)}
-                                            className="w-20 bg-gray-900/60 border border-gray-700 rounded px-2 py-0.5 text-xs text-gray-100"
-                                        />
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                )}
+                <p className="text-xs text-gray-500 mt-2">
+                    {autoRecruitEnabled 
+                        ? '战斗中阵亡的士兵将自动加入训练队列进行补充。' 
+                        : '启用后，战斗中阵亡的士兵将自动加入训练队列。'}
+                </p>
             </div>
 
             {/* 兵种克制关系 */}
@@ -888,6 +837,21 @@ export const MilitaryTab = ({
                                     <span>财富：{Math.floor(activeNation.wealth || 0)}</span>
                                     <span>军事实力：{Math.floor((activeNation.militaryStrength ?? 1.0) * 100)}%</span>
                                     <span>人口：{Math.floor(activeNation.population || 1000)}</span>
+                                    <span className={(() => {
+                                        const initialReserve = (activeNation.wealth || 500) * 1.5;
+                                        const currentReserve = activeNation.lootReserve ?? initialReserve;
+                                        const ratio = currentReserve / Math.max(1, initialReserve);
+                                        if (ratio >= 0.7) return 'text-green-400';
+                                        if (ratio >= 0.3) return 'text-yellow-400';
+                                        return 'text-red-400';
+                                    })()}>
+                                        可掠夺：{(() => {
+                                            const initialReserve = (activeNation.wealth || 500) * 1.5;
+                                            const currentReserve = activeNation.lootReserve ?? initialReserve;
+                                            const ratio = Math.max(0, Math.min(1, currentReserve / Math.max(1, initialReserve)));
+                                            return Math.floor(ratio * 100);
+                                        })()}%
+                                    </span>
                                 </div>
                             )}
                         </div>
@@ -901,11 +865,24 @@ export const MilitaryTab = ({
                                 const requiredTechName = action.requiresTech
                                     ? TECHS.find(t => t.id === action.requiresTech)?.name || action.requiresTech
                                     : null;
+                                
+                                // 计算针对当前目标的冷却状态
+                                const lastActionDay = activeNation?.lastMilitaryActionDay?.[action.id] || 0;
+                                const cooldownDays = action.cooldownDays || 5;
+                                const daysSinceLastAction = day - lastActionDay;
+                                const isOnCooldown = lastActionDay > 0 && daysSinceLastAction < cooldownDays;
+                                const cooldownRemaining = isOnCooldown ? cooldownDays - daysSinceLastAction : 0;
+                                
+                                // 计算敌方掠夺储备状态
+                                const initialLootReserve = (activeNation?.wealth || 500) * 1.5;
+                                const currentLootReserve = activeNation?.lootReserve ?? initialLootReserve;
+                                const reserveRatio = Math.max(0, currentLootReserve / Math.max(1, initialLootReserve));
+                                const isLowReserve = reserveRatio < 0.3;
 
                                 return (
                                     <div
                                         key={action.id}
-                                        className={`p-3 rounded-lg border flex flex-col gap-3 ${hasRequiredTech
+                                        className={`p-3 rounded-lg border flex flex-col gap-3 ${hasRequiredTech && !isOnCooldown
                                                 ? 'border-gray-700 bg-gray-900/40'
                                                 : 'border-gray-800 bg-gray-900/20 opacity-60'
                                             }`}
@@ -923,15 +900,26 @@ export const MilitaryTab = ({
                                                             需要{requiredTechName}
                                                         </span>
                                                     )}
+                                                    {isOnCooldown && (
+                                                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-900/50 text-amber-300">
+                                                            <Icon name="Clock" size={10} className="inline mr-1" />
+                                                            冷却中 {cooldownRemaining}天
+                                                        </span>
+                                                    )}
                                                 </h4>
                                                 <p className="text-xs text-gray-400 mt-1">{action.desc}</p>
-                                                {action.cooldownDays && (
+                                                {action.cooldownDays && !isOnCooldown && (
                                                     <p className="text-[11px] text-amber-300 mt-1">
                                                         冷却：{action.cooldownDays} 天
                                                     </p>
                                                 )}
+                                                {isLowReserve && (
+                                                    <p className="text-[11px] text-orange-400 mt-1">
+                                                        ⚠️ 敌方资源已被大量掠夺，战利品将大幅减少
+                                                    </p>
+                                                )}
                                             </div>
-                                            <Icon name="Target" size={18} className={hasRequiredTech ? 'text-red-300' : 'text-gray-500'} />
+                                            <Icon name="Target" size={18} className={hasRequiredTech && !isOnCooldown ? 'text-red-300' : 'text-gray-500'} />
                                         </div>
 
                                         <div className="space-y-2 text-xs text-gray-300">
@@ -968,11 +956,11 @@ export const MilitaryTab = ({
 
                                         <button
                                             onClick={() => onLaunchBattle(action.id, activeNation?.id)}
-                                            disabled={totalUnits === 0 || !activeNation || !hasRequiredTech}
+                                            disabled={totalUnits === 0 || !activeNation || !hasRequiredTech || isOnCooldown}
                                             className="px-3 py-2 bg-red-600 hover:bg-red-500 disabled:bg-gray-600 disabled:text-gray-300 disabled:cursor-not-allowed text-white rounded text-sm font-semibold transition-colors flex items-center justify-center gap-2"
                                         >
                                             <Icon name="Sword" size={14} />
-                                            {hasRequiredTech ? '发起攻击' : `需研发${requiredTechName}`}
+                                            {isOnCooldown ? `冷却中(${cooldownRemaining}天)` : hasRequiredTech ? '发起攻击' : `需研发${requiredTechName}`}
                                         </button>
                                     </div>
                                 );

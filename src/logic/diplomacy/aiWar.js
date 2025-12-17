@@ -94,10 +94,15 @@ export const processRebelWarActions = ({
                 popLoss = Math.min(5, Math.max(1, Math.floor(raidStrength * 25)));
             }
 
-            // Apply player army losses
-            Object.entries(battleResult.defenderLosses || {}).forEach(([unitId, count]) => {
+            // Apply player army losses and record for auto-replenishment
+            const playerLosses = battleResult.defenderLosses || {};
+            Object.entries(playerLosses).forEach(([unitId, count]) => {
                 if (army[unitId]) army[unitId] = Math.max(0, army[unitId] - count);
             });
+            // Record losses in log for auto-replenishment processing
+            if (Object.keys(playerLosses).length > 0) {
+                logs.push(`AUTO_REPLENISH_LOSSES:${JSON.stringify(playerLosses)}`);
+            }
         }
 
         // Apply resource losses
@@ -437,12 +442,17 @@ export const processAIMilitaryAction = ({
             next.wealth = (next.wealth || 0) + Math.floor(lootValue * 0.08);
         }
 
-        // Apply army losses
-        Object.entries(battleResult.defenderLosses || {}).forEach(([unitId, count]) => {
+        // Apply army losses and record for auto-replenishment
+        const playerLosses = battleResult.defenderLosses || {};
+        Object.entries(playerLosses).forEach(([unitId, count]) => {
             if (army[unitId]) {
                 army[unitId] = Math.max(0, army[unitId] - count);
             }
         });
+        // Record losses in log for auto-replenishment processing
+        if (Object.keys(playerLosses).length > 0) {
+            logs.push(`AUTO_REPLENISH_LOSSES:${JSON.stringify(playerLosses)}`);
+        }
 
         const enemyLossCount = Object.values(battleResult.attackerLosses || {}).reduce(
             (sum, val) => sum + (val || 0),

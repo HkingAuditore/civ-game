@@ -840,7 +840,7 @@ export const simulateBattle = (attackerData, defenderData) => {
     const victory = attackerAdvantage > 0.5;
     const decisive = Math.abs(attackerAdvantage - 0.5) > 0.3; // 压倒性胜利
 
-    // 计算损失
+    // 计算损失 - 优化版：碾压级优势时显著降低攻击方损失
     const clampRate = (value, min, max) => Math.max(min, Math.min(max, value));
     const powerRatio = defenderPower > 0 ? attackerPower / defenderPower : 3;
     const safeRatio = Math.max(0.1, powerRatio);
@@ -849,8 +849,19 @@ export const simulateBattle = (attackerData, defenderData) => {
 
     if (victory) {
         const ratioFactor = Math.max(1, safeRatio);
-        attackerLossRate = clampRate((0.08 / ratioFactor) + 0.03, 0.03, 0.45);
-        defenderLossRate = clampRate(0.35 + Math.log10(ratioFactor + 1) * 0.45, 0.3, 0.95);
+        // 碾压级优势计算：战力比越高，损失越低
+        // ratioFactor = 2 时，attackerLossRate ≈ 2.5%
+        // ratioFactor = 5 时，attackerLossRate ≈ 1%
+        // ratioFactor = 10 时，attackerLossRate ≈ 0.5%
+        if (ratioFactor >= 3) {
+            // 碾压级优势：使用指数衰减公式
+            attackerLossRate = clampRate(0.03 / Math.pow(ratioFactor, 0.8), 0.005, 0.03);
+            defenderLossRate = clampRate(0.50 + Math.log10(ratioFactor) * 0.35, 0.60, 0.98);
+        } else {
+            // 普通优势
+            attackerLossRate = clampRate((0.06 / ratioFactor) + 0.02, 0.02, 0.35);
+            defenderLossRate = clampRate(0.35 + Math.log10(ratioFactor + 1) * 0.40, 0.35, 0.75);
+        }
     } else {
         const inverseRatio = Math.max(1, 1 / safeRatio);
         attackerLossRate = clampRate(0.32 + Math.log10(inverseRatio + 1) * 0.55, 0.25, 0.95);
