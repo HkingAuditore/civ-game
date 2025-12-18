@@ -18,6 +18,7 @@ export const StatusBar = ({
     netSilverPerDay,
     tradeStats = { tradeTax: 0 },
     armyFoodNeed,
+    silverUpkeepPerDay = 0, // 新增：从 App.jsx 传入的实际军费
     playerInstallmentPayment = null,
     activeEventEffects = {},
     onResourceDetailClick,
@@ -50,9 +51,11 @@ export const StatusBar = ({
     };
 
     const calendar = getCalendarInfo(gameState.daysElapsed || 0);
+    // 军费支出从 App.jsx 传入，包含完整的资源成本、时代加成、规模惩罚
+    // 这里只保留用于显示的 armyFoodNeed（传统食粮需求）
     const foodPrice = gameState.market?.prices?.food ?? (RESOURCES.food?.basePrice || 1);
     const wageRatio = gameState.militaryWageRatio || 1;
-    const silverUpkeepPerDay = armyFoodNeed * foodPrice * wageRatio;
+    // 实际军费由 App.jsx 计算，这里只用于向后兼容的显示
 
     const tradeTax = tradeStats?.tradeTax || 0;
     const policyIncome = taxes.breakdown?.policyIncome || 0;

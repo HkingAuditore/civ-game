@@ -1,5 +1,5 @@
 import { BUILDINGS, STRATA, EPOCHS, RESOURCES, TECHS, ECONOMIC_INFLUENCE } from '../config';
-import { calculateArmyPopulation, calculateArmyFoodNeed, calculateArmyCapacityNeed } from '../config';
+import { calculateArmyPopulation, calculateArmyFoodNeed, calculateArmyCapacityNeed, calculateArmyMaintenance, calculateArmyScalePenalty } from '../config';
 import { getBuildingEffectiveConfig } from '../config/buildingUpgrades';
 import { isResourceUnlocked } from '../utils/resources';
 import { calculateForeignPrice } from '../utils/foreignTrade';
@@ -1420,19 +1420,80 @@ export const simulateTick = ({
         }
     });
 
-    const wageMultiplier = Math.max(0, militaryWageRatio ?? 0);
-    const foodPrice = getPrice('food');
-    const baseArmyWage = armyFoodNeed * foodPrice * wageMultiplier;
+    // === 新军费计算系统 ===
+    // 1. 获取军队资源维护需求
+    const armyMaintenance = calculateArmyMaintenance(army);
 
-    if (baseArmyWage > 0) {
-        const wageDue = baseArmyWage;
+    // 2. 从市场购买维护资源（消耗资源、增加需求）
+    let totalResourceCost = 0;
+    const armyResourceConsumption = {};
+
+    Object.entries(armyMaintenance).forEach(([resource, needed]) => {
+        if (needed <= 0) return;
+        if (resource === 'silver') {
+            // 银币直接计入成本
+            totalResourceCost += needed;
+            return;
+        }
+
+        // 从市场购买：消耗库存资源
+        const available = res[resource] || 0;
+        const consumed = Math.min(available, needed);
+
+        if (consumed > 0) {
+            res[resource] = available - consumed;
+            rates[resource] = (rates[resource] || 0) - consumed;
+            armyResourceConsumption[resource] = consumed;
+
+            // 增加市场需求（影响价格）
+            demand[resource] = (demand[resource] || 0) + needed;
+        }
+
+        // 按市场价计算银币成本
+        const price = getPrice(resource);
+        totalResourceCost += needed * price;
+
+        // 如果资源不足，记录日志
+        if (consumed < needed && tick % 30 === 0) {
+            const shortage = needed - consumed;
+            logs.push(`⚠️ 军队维护资源不足：缺少 ${RESOURCES[resource]?.name || resource} ${shortage.toFixed(1)}/日`);
+        }
+    });
+
+    // 3. 计算时代加成和规模惩罚
+    const epochMultiplier = 1 + epoch * 0.1;
+    const armyPopulation = calculateArmyPopulation(army);
+    const scalePenalty = calculateArmyScalePenalty(armyPopulation, population);
+    const effectiveWageMultiplier = Math.max(0.5, militaryWageRatio ?? 1);
+
+    // 4. 总军费 = 资源成本 × 时代加成 × 规模惩罚 × 军饷倍率
+    const totalArmyCost = totalResourceCost * epochMultiplier * scalePenalty * effectiveWageMultiplier;
+
+    // 记录军费数据（用于战争赔款计算）
+    const armyExpenseResult = {
+        dailyExpense: totalArmyCost,
+        resourceCost: totalResourceCost,
+        epochMultiplier,
+        scalePenalty,
+        wageMultiplier: effectiveWageMultiplier,
+        resourceConsumption: armyResourceConsumption
+    };
+
+    if (totalArmyCost > 0) {
         const available = res.silver || 0;
-        if (available >= wageDue) {
-            res.silver = available - wageDue;
-            rates.silver = (rates.silver || 0) - wageDue;
-            roleWagePayout.soldier = (roleWagePayout.soldier || 0) + wageDue;
-        } else if (wageDue > 0) {
-            logs.push('银币不足，军饷被拖欠，军心不稳。');
+        if (available >= totalArmyCost) {
+            res.silver = available - totalArmyCost;
+            rates.silver = (rates.silver || 0) - totalArmyCost;
+            roleWagePayout.soldier = (roleWagePayout.soldier || 0) + totalArmyCost;
+        } else if (totalArmyCost > 0) {
+            // 部分支付
+            const partialPay = available * 0.9; // 留10%底
+            if (partialPay > 0) {
+                res.silver = available - partialPay;
+                rates.silver = (rates.silver || 0) - partialPay;
+                roleWagePayout.soldier = (roleWagePayout.soldier || 0) + partialPay;
+            }
+            logs.push(`⚠️ 军饷不足！应付${totalArmyCost.toFixed(0)}银币，仅能支付${partialPay.toFixed(0)}银币，军心不稳。`);
         }
     }
 
@@ -2180,6 +2241,12 @@ export const simulateTick = ({
         updateAINationInventory({ nation: next, tick, gameSpeed });
         if (next.isAtWar) {
             next.warDuration = (next.warDuration || 0) + 1;
+            // 累计与该国战争期间的军费支出（用于战争赔款计算）
+            // 注意：如果同时与多个国家交战，军费按国家数量分摊
+            const warringNationsCount = updatedNations.filter(n => n.isAtWar).length || 1;
+            const dailyExpenseShare = (armyExpenseResult?.dailyExpense || 0) / warringNationsCount;
+            next.warTotalExpense = (next.warTotalExpense || 0) + dailyExpenseShare;
+
             if (visibleEpoch >= 1) {
                 // REFACTORED: Using module function for AI military action
                 const militaryResult = processAIMilitaryAction({
@@ -2200,6 +2267,7 @@ export const simulateTick = ({
             checkAISurrenderDemand({ nation: next, tick, population, playerWealth: playerWealthBaseline, logs });
         } else if (next.warDuration) {
             next.warDuration = 0;
+            next.warTotalExpense = 0; // 清除战争军费记录
         }
         const relation = next.relation ?? 50;
 
@@ -3074,6 +3142,7 @@ export const simulateTick = ({
         jobFill: buildingJobFill,
         jobsAvailable,
         taxes,
+        dailyMilitaryExpense: armyExpenseResult, // 新增：每日军费数据（用于战争赔款计算）
         needsShortages: classShortages,
         needsReport,
         livingStandardStreaks: updatedLivingStandardStreaks,

@@ -2,7 +2,7 @@
 // 使用拆分后的钩子和组件，保持代码简洁
 
 import React, { useEffect, useRef, useState, useMemo } from 'react';
-import { GAME_SPEEDS, EPOCHS, RESOURCES, STRATA, calculateArmyFoodNeed, BUILDINGS, EVENTS } from './config';
+import { GAME_SPEEDS, EPOCHS, RESOURCES, STRATA, calculateArmyFoodNeed, calculateTotalArmyExpense, BUILDINGS, EVENTS } from './config';
 import { getCalendarInfo } from './utils/calendar';
 import { useGameState, useGameLoop, useGameActions, useSound, useEpicTheme, useViewportHeight } from './hooks';
 import {
@@ -476,9 +476,16 @@ function GameApp({ gameState }) {
     const taxes = gameState.taxes || { total: 0, breakdown: { headTax: 0, industryTax: 0, subsidy: 0 }, efficiency: 1 };
     const dayScale = 1; // 收入计算已不受gameSpeed影响，固定为1
     const armyFoodNeed = calculateArmyFoodNeed(gameState.army || {});
-    const foodPrice = gameState.market?.prices?.food ?? (RESOURCES.food?.basePrice || 1);
     const wageRatio = gameState.militaryWageRatio || 1;
-    const silverUpkeepPerDay = armyFoodNeed * foodPrice * wageRatio;
+    // 新军费计算系统：使用完整的维护成本计算（包含规模惩罚和时代加成）
+    const armyExpenseData = calculateTotalArmyExpense(
+        gameState.army || {},
+        gameState.market?.prices || {},
+        gameState.epoch || 0,
+        gameState.population || 100,
+        wageRatio
+    );
+    const silverUpkeepPerDay = armyExpenseData.dailyExpense;
     const tradeStats = gameState.tradeStats || { tradeTax: 0 };
     const tradeTax = tradeStats.tradeTax || 0;
     const playerInstallmentExpense = (gameState.playerInstallmentPayment && gameState.playerInstallmentPayment.remainingDays > 0)
@@ -567,6 +574,7 @@ function GameApp({ gameState }) {
                     netSilverPerDay={netSilverPerDay}
                     tradeStats={tradeStats}
                     armyFoodNeed={armyFoodNeed}
+                    silverUpkeepPerDay={silverUpkeepPerDay}
                     playerInstallmentPayment={gameState.playerInstallmentPayment}
                     activeEventEffects={gameState.activeEventEffects}
                     onResourceDetailClick={(key) => gameState.setResourceDetailView(key)}
