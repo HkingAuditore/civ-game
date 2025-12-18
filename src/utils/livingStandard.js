@@ -128,22 +128,29 @@ export function getLivingStandardByScore(score) {
 
 /**
  * 计算财富乘数（消费能力）- 用于奢侈需求解锁
- * 新算法：同时考虑收入和财富
+ * 新算法：同时考虑收入、财富和阶层弹性
  * - 收入决定"赚钱能力"（有多少钱进账）
  * - 财富决定"消费意愿"（敢不敢花钱）
+ * - 弹性决定"消费增长速度"（收入增加时消费增长多快）
  * @param {number} incomeRatio - 收入比率（人均收入 / 基础成本）
  * @param {number} wealthRatio - 财富比率（人均财富 / 基准财富）
+ * @param {number} wealthElasticity - 财富弹性系数（0.3=底层, 1.0=基准, 1.8=顶层）
  * @returns {number} 财富乘数
  */
-export function calculateWealthMultiplier(incomeRatio, wealthRatio = 1) {
+export function calculateWealthMultiplier(incomeRatio, wealthRatio = 1, wealthElasticity = 1.0) {
     // 1. 基于收入的消费能力（理论上限）
     let incomeMultiplier;
     if (incomeRatio <= 0) {
         incomeMultiplier = 0.3;
     } else if (incomeRatio < 1) {
-        incomeMultiplier = 0.3 + incomeRatio * 0.7;
+        // 弹性系数影响收入不足时的消费意愿
+        // 低弹性阶层即使收入低也会尽量维持基本消费
+        incomeMultiplier = 0.3 + incomeRatio * 0.7 * Math.min(1.2, wealthElasticity);
     } else {
-        incomeMultiplier = Math.sqrt(incomeRatio) * (1 + Math.log(incomeRatio) * 0.25);
+        // 高弹性阶层：收入增加时消费能力增长更快
+        const baseGrowth = Math.sqrt(incomeRatio) * (1 + Math.log(incomeRatio) * 0.25);
+        // 使用弹性系数调节增长速度
+        incomeMultiplier = 1 + (baseGrowth - 1) * wealthElasticity;
     }
 
     // 2. 基于财富的消费意愿（约束因子）
@@ -160,7 +167,8 @@ export function calculateWealthMultiplier(incomeRatio, wealthRatio = 1) {
         wealthFactor = 1.0;
     } else {
         // 富裕：略微增加消费意愿（有钱任性）
-        wealthFactor = Math.min(1.3, 1.0 + (wealthRatio - 2) * 0.05);
+        // 高弹性阶层更愿意挥霍
+        wealthFactor = Math.min(1.3 + (wealthElasticity - 1) * 0.1, 1.0 + (wealthRatio - 2) * 0.05 * wealthElasticity);
     }
 
     // 3. 最终消费能力 = 收入能力 × 财富意愿

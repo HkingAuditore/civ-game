@@ -7,7 +7,7 @@ import { getUpgradeCountAtOrAboveLevel } from '../utils/buildingUpgradeUtils';
 import { calculateArmyCapacityNeed, calculateArmyPopulation, simulateBattle, calculateBattlePower } from '../config';
 import { calculateForeignPrice, calculateTradeStatus } from '../utils/foreignTrade';
 import { generateSound, SOUND_TYPES } from '../config/sounds';
-import { getEnemyUnitsForEpoch } from '../config/militaryActions';
+import { getEnemyUnitsForEpoch, calculateProportionalLoot } from '../config/militaryActions';
 import { isResourceUnlocked } from '../utils/resources';
 import { calculateDynamicGiftCost, calculateProvokeCost } from '../utils/diplomaticUtils';
 import { filterEventEffects } from '../utils/eventEffectFilter';
@@ -902,32 +902,24 @@ export const useGameActions = (gameState, addLog) => {
             }
 
             // Calculate proportional loot based on lootConfig if available
+            // [FIXED] Now uses calculateProportionalLoot which has hard caps
             if (mission.lootConfig) {
-                const enemyWealth = targetNation.wealth || 500;
-                Object.entries(mission.lootConfig).forEach(([resource, config]) => {
-                    const playerAmount = resources?.[resource] || 0;
+                const proportionalLoot = calculateProportionalLoot(resources, targetNation, mission.lootConfig);
+                
+                Object.entries(proportionalLoot).forEach(([resource, amount]) => {
+                    if (amount > 0) {
+                        // 应用储备系数
+                        const adjustedAmount = Math.floor(amount * lootMultiplier);
+                        
+                        // Add some randomness (±20%)
+                        const randomFactor = 0.8 + Math.random() * 0.4;
+                        const finalAmount = Math.floor(adjustedAmount * randomFactor);
 
-                    // Base amount from enemy wealth percentage
-                    const enemyBaseLoot = Math.floor(enemyWealth * config.enemyPercent);
-
-                    // Scale based on player's own resources (late game scaling)
-                    const playerScaledLoot = Math.floor(playerAmount * config.playerPercent);
-
-                    // Final loot calculation with reserve multiplier
-                    const baseMin = config.baseMin || 10;
-                    let scaledAmount = Math.max(baseMin, Math.min(enemyBaseLoot, Math.max(enemyBaseLoot * 0.5, playerScaledLoot)));
-                    
-                    // 应用储备系数
-                    scaledAmount = Math.floor(scaledAmount * lootMultiplier);
-
-                    // Add some randomness (±20%)
-                    const randomFactor = 0.8 + Math.random() * 0.4;
-                    const finalAmount = Math.floor(scaledAmount * randomFactor);
-
-                    if (finalAmount > 0) {
-                        combinedLoot[resource] = (combinedLoot[resource] || 0) + finalAmount;
-                        // 银币计入总价值，其他资源按一定比例折算
-                        totalLootValue += resource === 'silver' ? finalAmount : finalAmount * 0.5;
+                        if (finalAmount > 0) {
+                            combinedLoot[resource] = (combinedLoot[resource] || 0) + finalAmount;
+                            // 银币计入总价值，其他资源按一定比例折算
+                            totalLootValue += resource === 'silver' ? finalAmount : finalAmount * 0.5;
+                        }
                     }
                 });
             } else {

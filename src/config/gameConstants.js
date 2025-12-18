@@ -258,7 +258,7 @@ export const RESOURCES = {
         }
     },
     furniture: {
-        name: "精美家具",
+        name: "家具",
         icon: 'Armchair',
         color: "text-amber-500",
         basePrice: 28,

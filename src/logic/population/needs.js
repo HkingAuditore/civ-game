@@ -39,11 +39,14 @@ export const processNeedsConsumption = ({
     const getResourceTaxRate = (resource) => resourceTaxRates[resource] || 0;
 
     // Helper to get consumption multiplier (for luxury needs unlock)
-    // 使用消费能力（同时考虑收入和财富）来决定奢侈需求解锁
+    // 使用消费能力（同时考虑收入、财富和阶层弹性）来决定奢侈需求解锁
     const getConsumptionMultiplier = (key) => {
         const def = STRATA[key];
         const count = popStructure[key] || 0;
         if (count <= 0) return 1;
+
+        // 获取阶层的财富弹性系数（默认1.0）
+        const wealthElasticity = def.wealthElasticity || 1.0;
 
         // 计算人均收入
         const income = classIncome[key] || 0;
@@ -69,8 +72,8 @@ export const processNeedsConsumption = ({
         // 计算收入比率
         const incomeRatio = essentialCost > 0 ? incomePerCapita / essentialCost : 1;
 
-        // 使用消费能力公式（同时考虑收入和财富）
-        return calculateWealthMultiplier(incomeRatio, wealthRatio);
+        // 使用消费能力公式（同时考虑收入、财富和弹性系数）
+        return calculateWealthMultiplier(incomeRatio, wealthRatio, wealthElasticity);
     };
 
 
@@ -279,13 +282,14 @@ export const calculateLivingStandards = ({
         const luxuryNeeds = def.luxuryNeeds || {};
         const luxuryThresholds = Object.keys(luxuryNeeds).map(Number).sort((a, b) => a - b);
 
-        // 用于确定奢侈需求解锁的消费能力（同时考虑收入和财富）
+        // 用于确定奢侈需求解锁的消费能力（同时考虑收入、财富和弹性）
+        const wealthElasticity = def.wealthElasticity || 1.0;
         const incomePerCapita = count > 0 ? incomeValue / count : 0;
         const essentialCostPerCapita = count > 0 ? essentialCost / count : 0;
         const incomeRatio = essentialCostPerCapita > 0 ? incomePerCapita / essentialCostPerCapita : 1;
         const wealthPerCapita = count > 0 ? wealthValue / count : 0;
         const wealthRatio = startingWealth > 0 ? wealthPerCapita / startingWealth : 0;
-        const consumptionMultiplier = calculateWealthMultiplier(incomeRatio, wealthRatio);
+        const consumptionMultiplier = calculateWealthMultiplier(incomeRatio, wealthRatio, wealthElasticity);
 
         // Base needs count
         const baseNeedsCount = def.needs

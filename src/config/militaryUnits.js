@@ -30,8 +30,8 @@ export const UNIT_TYPES = {
         speed: 3,
         range: 1,
 
-        recruitCost: { food: 25, wood: 12 },
-        maintenanceCost: { food: 0.35, silver: 0.12 },
+        recruitCost: { food: 500, wood: 240 },
+        maintenanceCost: { food: 7, silver: 2.4 },
         trainingTime: 2,
 
         populationCost: 1,
@@ -57,8 +57,8 @@ export const UNIT_TYPES = {
         speed: 3,
         range: 3,
 
-        recruitCost: { food: 30, wood: 15, stone: 5 },
-        maintenanceCost: { food: 0.4, silver: 0.15, stone: 0.1 },
+        recruitCost: { food: 600, wood: 300, stone: 100 },
+        maintenanceCost: { food: 8, silver: 3, stone: 2 },
         trainingTime: 3,
 
         populationCost: 1,
@@ -85,8 +85,8 @@ export const UNIT_TYPES = {
         speed: 3,
         range: 1,
 
-        recruitCost: { food: 55, wood: 35, copper: 12 },
-        maintenanceCost: { food: 0.55, silver: 0.35, copper: 0.05 },
+        recruitCost: { food: 1100, wood: 700, copper: 240 },
+        maintenanceCost: { food: 11, silver: 7, copper: 1 },
         trainingTime: 4,
 
         populationCost: 1,
@@ -112,8 +112,8 @@ export const UNIT_TYPES = {
         speed: 4,
         range: 4,
 
-        recruitCost: { food: 65, wood: 45, silver: 25 },
-        maintenanceCost: { food: 0.65, silver: 0.45, wood: 0.2 },
+        recruitCost: { food: 1300, wood: 900, silver: 500 },
+        maintenanceCost: { food: 13, silver: 9, wood: 4 },
         trainingTime: 5,
 
         populationCost: 1,
@@ -139,8 +139,8 @@ export const UNIT_TYPES = {
         speed: 6,
         range: 1,
 
-        recruitCost: { food: 100, wood: 60, copper: 30, silver: 40 },
-        maintenanceCost: { food: 1.2, silver: 0.7, wood: 0.3 },
+        recruitCost: { food: 2000, wood: 1200, copper: 600, silver: 800 },
+        maintenanceCost: { food: 24, silver: 14, wood: 6 },
         trainingTime: 6,
 
         populationCost: 1,
@@ -167,8 +167,8 @@ export const UNIT_TYPES = {
         speed: 2,
         range: 1,
 
-        recruitCost: { food: 100, copper: 40, iron: 20, silver: 50 },
-        maintenanceCost: { food: 0.75, silver: 0.55, iron: 0.08 },
+        recruitCost: { food: 2000, copper: 800, iron: 400, silver: 1000 },
+        maintenanceCost: { food: 15, silver: 11, iron: 1.6 },
         trainingTime: 6,
 
         populationCost: 1,
@@ -194,8 +194,8 @@ export const UNIT_TYPES = {
         speed: 4,
         range: 5,
 
-        recruitCost: { food: 85, wood: 50, copper: 25, silver: 45 },
-        maintenanceCost: { food: 0.7, silver: 0.5, wood: 0.25, copper: 0.05 },
+        recruitCost: { food: 1700, wood: 1000, copper: 500, silver: 900 },
+        maintenanceCost: { food: 14, silver: 10, wood: 5, copper: 1 },
         trainingTime: 6,
 
         populationCost: 1,
@@ -221,8 +221,8 @@ export const UNIT_TYPES = {
         speed: 8,
         range: 1,
 
-        recruitCost: { food: 120, silver: 60, iron: 25 },
-        maintenanceCost: { food: 1.2, silver: 0.8, iron: 0.06 },
+        recruitCost: { food: 2400, silver: 1200, iron: 500 },
+        maintenanceCost: { food: 24, silver: 16, iron: 1.2 },
         trainingTime: 7,
 
         populationCost: 1,
@@ -248,8 +248,8 @@ export const UNIT_TYPES = {
         speed: 1,
         range: 1,
 
-        recruitCost: { food: 150, wood: 200, iron: 50, silver: 80 },
-        maintenanceCost: { food: 1.2, silver: 0.8, wood: 0.5, iron: 0.1 },
+        recruitCost: { food: 3000, wood: 4000, iron: 1000, silver: 1600 },
+        maintenanceCost: { food: 24, silver: 16, wood: 10, iron: 2 },
         trainingTime: 10,
 
         populationCost: 2,
@@ -276,8 +276,8 @@ export const UNIT_TYPES = {
         speed: 2,
         range: 1,
 
-        recruitCost: { food: 140, iron: 60, silver: 80 },
-        maintenanceCost: { food: 0.9, silver: 0.7, iron: 0.12 },
+        recruitCost: { food: 2800, iron: 1200, silver: 1600 },
+        maintenanceCost: { food: 18, silver: 14, iron: 2.4 },
         trainingTime: 8,
 
         populationCost: 1,
@@ -303,8 +303,8 @@ export const UNIT_TYPES = {
         speed: 3,
         range: 5,
 
-        recruitCost: { food: 110, wood: 70, iron: 45, silver: 55 },
-        maintenanceCost: { food: 0.8, silver: 0.6, wood: 0.15, iron: 0.1 },
+        recruitCost: { food: 2200, wood: 1400, iron: 900, silver: 1100 },
+        maintenanceCost: { food: 16, silver: 12, wood: 3, iron: 2 },
         trainingTime: 7,
 
         populationCost: 1,
@@ -330,8 +330,8 @@ export const UNIT_TYPES = {
         speed: 6,
         range: 1,
 
-        recruitCost: { food: 250, iron: 100, silver: 160 },
-        maintenanceCost: { food: 1.8, silver: 1.3, iron: 0.2 },
+        recruitCost: { food: 5000, iron: 2000, silver: 3200 },
+        maintenanceCost: { food: 36, silver: 26, iron: 4 },
         trainingTime: 10,
 
         populationCost: 1,
@@ -357,8 +357,8 @@ export const UNIT_TYPES = {
         speed: 1,
         range: 6,
 
-        recruitCost: { food: 200, wood: 250, iron: 80, silver: 150 },
-        maintenanceCost: { food: 1.5, silver: 1.2, wood: 0.8, iron: 0.15, stone: 0.3 },
+        recruitCost: { food: 4000, wood: 5000, iron: 1600, silver: 3000 },
+        maintenanceCost: { food: 30, silver: 24, wood: 16, iron: 3, stone: 6 },
         trainingTime: 12,
 
         populationCost: 3,
@@ -385,8 +385,8 @@ export const UNIT_TYPES = {
         speed: 2,
         range: 2,
 
-        recruitCost: { food: 160, wood: 60, iron: 70, silver: 90 },
-        maintenanceCost: { food: 1.0, silver: 0.8, iron: 0.1 },
+        recruitCost: { food: 3200, wood: 1200, iron: 1400, silver: 1800 },
+        maintenanceCost: { food: 20, silver: 16, iron: 2 },
         trainingTime: 8,
 
         populationCost: 1,
@@ -412,8 +412,8 @@ export const UNIT_TYPES = {
         speed: 2,
         range: 4,
 
-        recruitCost: { food: 140, iron: 60, tools: 30, silver: 100 },
-        maintenanceCost: { food: 0.9, silver: 0.8, iron: 0.08, tools: 0.15 },
+        recruitCost: { food: 2800, iron: 1200, tools: 600, silver: 2000 },
+        maintenanceCost: { food: 18, silver: 16, iron: 1.6, tools: 3 },
         trainingTime: 9,
 
         populationCost: 1,
@@ -439,8 +439,8 @@ export const UNIT_TYPES = {
         speed: 6,
         range: 1,
 
-        recruitCost: { food: 300, iron: 120, silver: 200 },
-        maintenanceCost: { food: 2.0, silver: 1.5, iron: 0.25 },
+        recruitCost: { food: 6000, iron: 2400, silver: 4000 },
+        maintenanceCost: { food: 40, silver: 30, iron: 5 },
         trainingTime: 11,
 
         populationCost: 1,
@@ -466,8 +466,8 @@ export const UNIT_TYPES = {
         speed: 1,
         range: 6,
 
-        recruitCost: { food: 250, iron: 150, tools: 60, silver: 200 },
-        maintenanceCost: { food: 1.8, silver: 1.5, iron: 0.3, tools: 0.25 },
+        recruitCost: { food: 5000, iron: 3000, tools: 1200, silver: 4000 },
+        maintenanceCost: { food: 36, silver: 30, iron: 6, tools: 5 },
         trainingTime: 14,
 
         populationCost: 3,
@@ -494,8 +494,8 @@ export const UNIT_TYPES = {
         speed: 3,
         range: 3,
 
-        recruitCost: { food: 180, iron: 70, tools: 40, silver: 110 },
-        maintenanceCost: { food: 1.1, silver: 1.0, iron: 0.1, tools: 0.18 },
+        recruitCost: { food: 3600, iron: 1400, tools: 800, silver: 2200 },
+        maintenanceCost: { food: 22, silver: 20, iron: 2, tools: 3.6 },
         trainingTime: 9,
 
         populationCost: 1,
@@ -521,8 +521,8 @@ export const UNIT_TYPES = {
         speed: 3,
         range: 5,
 
-        recruitCost: { food: 200, iron: 80, tools: 50, silver: 130 },
-        maintenanceCost: { food: 1.2, silver: 1.1, iron: 0.12, tools: 0.22 },
+        recruitCost: { food: 4000, iron: 1600, tools: 1000, silver: 2600 },
+        maintenanceCost: { food: 24, silver: 22, iron: 2.4, tools: 4.4 },
         trainingTime: 10,
 
         populationCost: 1,
@@ -548,8 +548,8 @@ export const UNIT_TYPES = {
         speed: 7,
         range: 2,
 
-        recruitCost: { food: 280, iron: 90, tools: 45, silver: 180 },
-        maintenanceCost: { food: 2.0, silver: 1.5, iron: 0.15, tools: 0.2 },
+        recruitCost: { food: 5600, iron: 1800, tools: 900, silver: 3600 },
+        maintenanceCost: { food: 40, silver: 30, iron: 3, tools: 4 },
         trainingTime: 12,
 
         populationCost: 1,
@@ -575,8 +575,8 @@ export const UNIT_TYPES = {
         speed: 2,
         range: 7,
 
-        recruitCost: { food: 300, iron: 180, tools: 80, silver: 250 },
-        maintenanceCost: { food: 2.0, silver: 1.8, iron: 0.35, tools: 0.35 },
+        recruitCost: { food: 6000, iron: 3600, tools: 1600, silver: 5000 },
+        maintenanceCost: { food: 40, silver: 36, iron: 7, tools: 7 },
         trainingTime: 15,
 
         populationCost: 3,
@@ -603,8 +603,8 @@ export const UNIT_TYPES = {
         speed: 3,
         range: 4,
 
-        recruitCost: { food: 250, iron: 100, tools: 60, silver: 160 },
-        maintenanceCost: { food: 1.4, silver: 1.3, iron: 0.15, tools: 0.28 },
+        recruitCost: { food: 5000, iron: 2000, tools: 1200, silver: 3200 },
+        maintenanceCost: { food: 28, silver: 26, iron: 3, tools: 5.6 },
         trainingTime: 10,
 
         populationCost: 1,
@@ -630,8 +630,8 @@ export const UNIT_TYPES = {
         speed: 2,
         range: 5,
 
-        recruitCost: { food: 300, iron: 150, tools: 100, silver: 250 },
-        maintenanceCost: { food: 1.6, silver: 1.8, iron: 0.25, tools: 0.45 },
+        recruitCost: { food: 6000, iron: 3000, tools: 2000, silver: 5000 },
+        maintenanceCost: { food: 32, silver: 36, iron: 5, tools: 9 },
         trainingTime: 12,
 
         populationCost: 2,
@@ -657,8 +657,8 @@ export const UNIT_TYPES = {
         speed: 8,
         range: 1,
 
-        recruitCost: { food: 320, iron: 100, tools: 50, silver: 200 },
-        maintenanceCost: { food: 2.2, silver: 1.6, iron: 0.12, tools: 0.22 },
+        recruitCost: { food: 6400, iron: 2000, tools: 1000, silver: 4000 },
+        maintenanceCost: { food: 44, silver: 32, iron: 2.4, tools: 4.4 },
         trainingTime: 11,
 
         populationCost: 1,
@@ -684,8 +684,8 @@ export const UNIT_TYPES = {
         speed: 1,
         range: 8,
 
-        recruitCost: { food: 400, iron: 250, tools: 120, silver: 350 },
-        maintenanceCost: { food: 2.5, silver: 2.2, iron: 0.5, tools: 0.55 },
+        recruitCost: { food: 8000, iron: 5000, tools: 2400, silver: 7000 },
+        maintenanceCost: { food: 50, silver: 44, iron: 10, tools: 11 },
         trainingTime: 18,
 
         populationCost: 4,
@@ -887,23 +887,36 @@ export const simulateBattle = (attackerData, defenderData) => {
     });
 
     // 计算掠夺资源（按比例计算，考虑敌方财富）
+    // [FIXED] 添加硬性上限防止后期资源爆炸
     let loot = {};
     if (victory) {
         // Base loot multiplier depends on victory type
         const baseLootMultiplier = decisive ? 0.08 : 0.04; // 8% or 4% of enemy wealth
         const wealthBasedLoot = defenderWealth * baseLootMultiplier;
 
+        // 硬性上限 - 无论敌方多富有，单次战斗的战利品都不会超过这些值
+        const LOOT_CAPS = {
+            food: 500,
+            wood: 300,
+            stone: 200,
+            silver: 1500,
+            iron: 150,
+            copper: 100,
+            cloth: 100,
+            tools: 80,
+        };
+
         // Diversified loot based on enemy wealth with proportional scaling
-        // The formula ensures loot scales with game progress while remaining meaningful
+        // Apply hard caps to prevent late-game overflow
         loot = {
-            food: Math.floor(wealthBasedLoot * 0.25),    // 25% of loot value
-            wood: Math.floor(wealthBasedLoot * 0.12),    // 12% of loot value
-            stone: Math.floor(wealthBasedLoot * 0.08),   // 8% of loot value
-            silver: Math.floor(wealthBasedLoot * 0.30),  // 30% of loot value
-            iron: Math.floor(wealthBasedLoot * 0.10),    // 10% of loot value
-            copper: Math.floor(wealthBasedLoot * 0.05),  // 5% of loot value
-            cloth: Math.floor(wealthBasedLoot * 0.05),   // 5% of loot value
-            tools: Math.floor(wealthBasedLoot * 0.05),   // 5% of loot value
+            food: Math.min(LOOT_CAPS.food, Math.floor(wealthBasedLoot * 0.25)),
+            wood: Math.min(LOOT_CAPS.wood, Math.floor(wealthBasedLoot * 0.12)),
+            stone: Math.min(LOOT_CAPS.stone, Math.floor(wealthBasedLoot * 0.08)),
+            silver: Math.min(LOOT_CAPS.silver, Math.floor(wealthBasedLoot * 0.30)),
+            iron: Math.min(LOOT_CAPS.iron, Math.floor(wealthBasedLoot * 0.10)),
+            copper: Math.min(LOOT_CAPS.copper, Math.floor(wealthBasedLoot * 0.05)),
+            cloth: Math.min(LOOT_CAPS.cloth, Math.floor(wealthBasedLoot * 0.05)),
+            tools: Math.min(LOOT_CAPS.tools, Math.floor(wealthBasedLoot * 0.05)),
         };
 
         // Remove zero or negative values
