@@ -178,6 +178,11 @@ export const simulateTick = ({
     // console.log('[TICK START]', tick); // Commented for performance
     const res = { ...resources };
     const priceMap = { ...(market?.prices || {}) };
+    // NEW: Track actual consumption by stratum for UI display
+    const stratumConsumption = {}; 
+    // NEW: Track supply source breakdown
+    const supplyBreakdown = {};
+    
     const policies = taxPolicies || {};
     const headTaxRates = policies.headTaxRates || {};
     const resourceTaxRates = policies.resourceTaxRates || {};
@@ -213,6 +218,7 @@ export const simulateTick = ({
         return Math.max(defaultWageEstimate, getLivingCostFloor(role));
     };
     const demand = {};
+    const demandBreakdown = {};
     const supply = {};
     const wealth = initializeWealth(classWealth);
     const getHeadTaxRate = (key) => {
@@ -1081,6 +1087,9 @@ export const simulateTick = ({
 
                     // 统计实际消费的需求量，而不是原始需求量
                     demand[resKey] = (demand[resKey] || 0) + consumed;
+                    // NEW: Track demand breakdown
+                    if (!demandBreakdown[resKey]) demandBreakdown[resKey] = { buildings: {}, pop: 0 };
+                    demandBreakdown[resKey].buildings[b.id] = (demandBreakdown[resKey].buildings[b.id] || 0) + consumed;
                 }
                 if (consumed <= 0) continue;
                 res[resKey] = available - consumed;
@@ -1248,6 +1257,10 @@ export const simulateTick = ({
                 if (isTradableResource(resKey)) {
                     sellProduction(resKey, amount, ownerKey);
                     rates[resKey] = (rates[resKey] || 0) + amount;
+
+                    // NEW: Track building supply
+                    if (!supplyBreakdown[resKey]) supplyBreakdown[resKey] = { buildings: {}, imports: 0 };
+                    supplyBreakdown[resKey].buildings[b.id] = (supplyBreakdown[resKey].buildings[b.id] || 0) + amount;
                 } else {
                     res[resKey] = (res[resKey] || 0) + amount;
                 }
@@ -1378,6 +1391,11 @@ export const simulateTick = ({
                                     res[target.resource] = (res[target.resource] || 0) + importAmount;
                                     supply[target.resource] = (supply[target.resource] || 0) + importAmount;
                                     rates[target.resource] = (rates[target.resource] || 0) + importAmount;
+                                    
+                                    // NEW: Track import supply
+                                    if (!supplyBreakdown[target.resource]) supplyBreakdown[target.resource] = { buildings: {}, imports: 0 };
+                                    supplyBreakdown[target.resource].imports = (supplyBreakdown[target.resource].imports || 0) + importAmount;
+
                                     remainingAmount = Math.max(0, remainingAmount - importAmount);
 
                                     // Record full import revenue as income, not just profit
@@ -1677,6 +1695,10 @@ export const simulateTick = ({
 
                     // 统计实际消费的需求量，而不是原始需求量
                     demand[resKey] = (demand[resKey] || 0) + amount;
+                    
+                    // NEW: Track consumption by stratum
+                    if (!stratumConsumption[key]) stratumConsumption[key] = {};
+                    stratumConsumption[key][resKey] = (stratumConsumption[key][resKey] || 0) + amount;
                 }
 
                 // 记录短缺原因
@@ -3136,6 +3158,9 @@ export const simulateTick = ({
             supply,
             wages: updatedWages,
             needsShortages: classShortages,
+            stratumConsumption, // NEW: Return actual consumption breakdown
+            supplyBreakdown,    // NEW: Return supply breakdown
+            demandBreakdown,    // NEW: Return demand breakdown
         },
         classIncome: roleWagePayout,
         classExpense: roleExpense,

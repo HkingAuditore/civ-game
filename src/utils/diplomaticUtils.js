@@ -11,10 +11,10 @@ export const INSTALLMENT_CONFIG = {
     DURATION_DAYS: 365,    // 分期持续天数（1年）
 };
 
-/** 赔款计算系数 - 大幅提高以匹配战争成本 */
+/** 赔款计算系数 - [NERFED] 削弱50%以防止银币溢出 */
 const PEACE_PAYMENT_COEFFICIENTS = {
-    demanding: { high: 250, standard: 180, low: 120 },   // 玩家索赔（己方优势）- 大幅提高
-    offering: { high: 120, standard: 90, low: 60 },      // 玩家求和（己方劣势）- 适度提高
+    demanding: { high: 120, standard: 80, low: 50 },    // 玩家索赔（己方优势）
+    offering: { high: 60, standard: 40, low: 25 },      // 玩家求和（己方劣势）
 };
 
 /** 赔款硬上限 */
@@ -117,10 +117,10 @@ export function calculatePeacePayment(warScore, enemyLosses, warDuration, target
         absScore * coef.low + losses * 35 + duration * 12 + warExpense * 0.1
     );
 
-    // 添加基于敌方财富的保底赔款（至少索要敌方财富的一定比例）
-    const wealthFloorHigh = Math.floor(wealth * 0.35);      // 高档至少35%财富
-    const wealthFloorStandard = Math.floor(wealth * 0.25);  // 标准档至少25%财富
-    const wealthFloorLow = Math.floor(wealth * 0.15);       // 低档至少15%财富
+    // 添加基于敌方财富的保底赔款 - [NERFED] 降低比例以防止银币溢出
+    const wealthFloorHigh = Math.floor(wealth * 0.18);      // 高档至少18%财富
+    const wealthFloorStandard = Math.floor(wealth * 0.12);  // 标准档至少12%财富
+    const wealthFloorLow = Math.floor(wealth * 0.06);       // 低档至少6%财富
 
     // 应用上限（硬上限和目标财富的较小值）
     const wealthHeadroom = Math.max(50000, wealth * 2 + 50000);
@@ -138,9 +138,9 @@ export function calculatePeacePayment(warScore, enemyLosses, warDuration, target
     const effectiveCap = Math.min(PEACE_PAYMENT_HARD_CAP, wealthHeadroom, armyExpenseCap);
 
     return {
-        high: Math.max(1500, wealthFloorHigh, Math.min(effectiveCap, rawHigh)),
-        standard: Math.max(1000, wealthFloorStandard, Math.min(effectiveCap, rawStandard)),
-        low: Math.max(500, wealthFloorLow, Math.min(effectiveCap, rawLow)),
+        high: Math.max(600, wealthFloorHigh, Math.min(effectiveCap, rawHigh)),
+        standard: Math.max(400, wealthFloorStandard, Math.min(effectiveCap, rawStandard)),
+        low: Math.max(200, wealthFloorLow, Math.min(effectiveCap, rawLow)),
         // 返回详细信息用于调试/显示
         breakdown: {
             scoreComponent,
