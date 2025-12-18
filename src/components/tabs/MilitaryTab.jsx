@@ -313,7 +313,7 @@ export const MilitaryTab = ({
     const waitingCount = (militaryQueue || []).filter(item => item.status === 'waiting').length;
     const trainingCount = (militaryQueue || []).filter(item => item.status === 'training').length;
     const totalArmyCount = totalUnits + waitingCount + trainingCount;
-    
+
     // 计算军队总人口占用
     const totalArmyPopulation = calculateArmyPopulation(army);
     // 计算训练队列中的人口占用
@@ -368,6 +368,11 @@ export const MilitaryTab = ({
         // 检查时代
         if (unit.epoch > epoch) return false;
 
+        // 检查是否已淘汰
+        const epochDiff = epoch - unit.epoch;
+        const obsoleteThreshold = unit.obsoleteAfterEpochs || 2;
+        if (epochDiff > obsoleteThreshold) return false;
+
         // 检查资源
         for (let resource in unit.recruitCost) {
             if ((resources[resource] || 0) < unit.recruitCost[resource]) return false;
@@ -391,6 +396,13 @@ export const MilitaryTab = ({
         // 检查时代
         if (unit.epoch > epoch) {
             return `需要升级到 ${EPOCHS[unit.epoch].name}`;
+        }
+
+        // 检查是否已淘汰
+        const epochDiff = epoch - unit.epoch;
+        const obsoleteThreshold = unit.obsoleteAfterEpochs || 2;
+        if (epochDiff > obsoleteThreshold) {
+            return `该兵种已淘汰，无法继续招募`;
         }
 
         // 检查资源
@@ -474,8 +486,8 @@ export const MilitaryTab = ({
                                     <span
                                         key={resource}
                                         className={`text-xs px-2 py-1 rounded ${(resources[resource] || 0) >= cost
-                                                ? 'bg-green-900/30 text-green-400'
-                                                : 'bg-red-900/30 text-red-400'
+                                            ? 'bg-green-900/30 text-green-400'
+                                            : 'bg-red-900/30 text-red-400'
                                             }`}
                                     >
                                         {RESOURCES[resource]?.name || resource}: -{cost.toFixed(1)}/日
@@ -529,8 +541,8 @@ export const MilitaryTab = ({
                     )}
                 </div>
                 <p className="text-xs text-gray-500 mt-2">
-                    {autoRecruitEnabled 
-                        ? '战斗中阵亡的士兵将自动加入训练队列进行补充。' 
+                    {autoRecruitEnabled
+                        ? '战斗中阵亡的士兵将自动加入训练队列进行补充。'
                         : '启用后，战斗中阵亡的士兵将自动加入训练队列。'}
                 </p>
             </div>
@@ -597,7 +609,11 @@ export const MilitaryTab = ({
                         .filter(([, unit]) => {
                             // Filter by epoch unlock
                             if (unit.epoch > epoch) return false;
-                            // Filter out obsolete units
+
+                            // Always show if we have this unit (so we can disband it)
+                            if ((army[unitId] || 0) > 0) return true;
+
+                            // Filter out obsolete units for recruitment list
                             const epochDiff = epoch - unit.epoch;
                             const obsoleteThreshold = unit.obsoleteAfterEpochs || 2;
                             return epochDiff <= obsoleteThreshold;
@@ -617,8 +633,8 @@ export const MilitaryTab = ({
                                     onMouseLeave={() => canHover && setHoveredUnit({ unit: null, element: null })}
                                     onClick={() => onShowUnitDetails && onShowUnitDetails(unit)}
                                     className={`group relative p-2 rounded-lg border transition-all cursor-pointer ${affordable
-                                            ? 'glass-ancient border border-ancient-gold/30 hover:border-red-500/60 hover:shadow-glow-gold'
-                                            : 'bg-gray-700/50 border border-ancient-gold/20'
+                                        ? 'glass-ancient border border-ancient-gold/30 hover:border-red-500/60 hover:shadow-glow-gold'
+                                        : 'bg-gray-700/50 border border-ancient-gold/20'
                                         }`}
                                 >
                                     {/* 单位头部 - 紧凑版 */}
@@ -685,8 +701,8 @@ export const MilitaryTab = ({
                                             disabled={!affordable}
                                             title={!affordable ? getRecruitDisabledReason(unit) : '点击招募'}
                                             className={`w-full px-2 py-1 rounded text-[10px] font-semibold transition-colors ${affordable
-                                                    ? 'bg-green-600 hover:bg-green-500 text-white'
-                                                    : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                                                ? 'bg-green-600 hover:bg-green-500 text-white'
+                                                : 'bg-gray-600 text-gray-400 cursor-not-allowed'
                                                 }`}
                                         >
                                             <div className="flex items-center justify-center gap-1">
@@ -865,14 +881,14 @@ export const MilitaryTab = ({
                                 const requiredTechName = action.requiresTech
                                     ? TECHS.find(t => t.id === action.requiresTech)?.name || action.requiresTech
                                     : null;
-                                
+
                                 // 计算针对当前目标的冷却状态
                                 const lastActionDay = activeNation?.lastMilitaryActionDay?.[action.id] || 0;
                                 const cooldownDays = action.cooldownDays || 5;
                                 const daysSinceLastAction = day - lastActionDay;
                                 const isOnCooldown = lastActionDay > 0 && daysSinceLastAction < cooldownDays;
                                 const cooldownRemaining = isOnCooldown ? cooldownDays - daysSinceLastAction : 0;
-                                
+
                                 // 计算敌方掠夺储备状态
                                 const initialLootReserve = (activeNation?.wealth || 500) * 1.5;
                                 const currentLootReserve = activeNation?.lootReserve ?? initialLootReserve;
@@ -883,8 +899,8 @@ export const MilitaryTab = ({
                                     <div
                                         key={action.id}
                                         className={`p-3 rounded-lg border flex flex-col gap-3 ${hasRequiredTech && !isOnCooldown
-                                                ? 'border-gray-700 bg-gray-900/40'
-                                                : 'border-gray-800 bg-gray-900/20 opacity-60'
+                                            ? 'border-gray-700 bg-gray-900/40'
+                                            : 'border-gray-800 bg-gray-900/20 opacity-60'
                                             }`}
                                     >
                                         <div className="flex items-start justify-between gap-2">
@@ -1020,7 +1036,7 @@ export const MilitaryTab = ({
                 document.body
             )}
 
-{/* 悬浮提示框 Portal */}
+            {/* 悬浮提示框 Portal */}
             <UnitTooltip
                 unit={hoveredUnit.unit}
                 anchorElement={hoveredUnit.element}
