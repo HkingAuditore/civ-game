@@ -84,20 +84,38 @@ export function calculateProvokeCost(playerWealth, targetNationWealth) {
  * @param {number} warDuration - 战争持续时间（天）
  * @param {number} targetWealth - 目标国家财富
  * @param {'demanding'|'offering'} mode - 索赔还是求和
+ * @param {number} playerTotalWarExpense - 玩家战争期间总军费支出（可选）
  * @returns {Object} { high, standard, low } 三档赔款金额
  */
-export function calculatePeacePayment(warScore, enemyLosses, warDuration, targetWealth, mode = 'demanding') {
+export function calculatePeacePayment(warScore, enemyLosses, warDuration, targetWealth, mode = 'demanding', playerTotalWarExpense = 0) {
     const absScore = Math.abs(warScore || 0);
     const losses = enemyLosses || 0;
     const duration = warDuration || 0;
     const wealth = targetWealth || 0;
+    const warExpense = playerTotalWarExpense || 0;
 
     const coef = PEACE_PAYMENT_COEFFICIENTS[mode] || PEACE_PAYMENT_COEFFICIENTS.demanding;
 
-    // 计算各档赔款 - 大幅提高敌方损失的权重（每个敌军损失约50-80银币赔偿）
-    const rawHigh = Math.ceil(absScore * coef.high + losses * 80 + duration * 25);
-    const rawStandard = Math.ceil(absScore * coef.standard + losses * 50 + duration * 18);
-    const rawLow = Math.ceil(absScore * coef.low + losses * 35 + duration * 12);
+    // === 方案B：军费作为赔款计算要素 ===
+    // 基础赔款组成：
+    // 1. 战争分数贡献
+    // 2. 敌方损失贡献（每人约50-80银币）
+    // 3. 战争持续时间贡献
+    // 4. 玩家军费投入贡献（新增！占比30%）
+
+    const scoreComponent = absScore * coef.high;
+    const lossComponent = losses * 80;
+    const durationComponent = duration * 25;
+    // 军费贡献：战争期间总军费的30%可以作为赔款索取
+    const expenseComponent = warExpense * 0.3;
+
+    const rawHigh = Math.ceil(scoreComponent + lossComponent + durationComponent + expenseComponent);
+    const rawStandard = Math.ceil(
+        absScore * coef.standard + losses * 50 + duration * 18 + warExpense * 0.2
+    );
+    const rawLow = Math.ceil(
+        absScore * coef.low + losses * 35 + duration * 12 + warExpense * 0.1
+    );
 
     // 添加基于敌方财富的保底赔款（至少索要敌方财富的一定比例）
     const wealthFloorHigh = Math.floor(wealth * 0.35);      // 高档至少35%财富
@@ -106,14 +124,43 @@ export function calculatePeacePayment(warScore, enemyLosses, warDuration, target
 
     // 应用上限（硬上限和目标财富的较小值）
     const wealthHeadroom = Math.max(50000, wealth * 2 + 50000);
-    const effectiveCap = Math.min(PEACE_PAYMENT_HARD_CAP, wealthHeadroom);
+
+    // 军费上限：最多索取战争期间总军费的 (1 + warScore/100)
+    // 例如：warScore=100 → 最多索取2倍军费
+    let armyExpenseCap = PEACE_PAYMENT_HARD_CAP;
+    if (warExpense > 0 && mode === 'demanding') {
+        const warScoreMultiplier = 1 + absScore / 100;
+        armyExpenseCap = warExpense * warScoreMultiplier;
+        // 保底：至少能索取50%的战争军费
+        armyExpenseCap = Math.max(warExpense * 0.5, armyExpenseCap);
+    }
+
+    const effectiveCap = Math.min(PEACE_PAYMENT_HARD_CAP, wealthHeadroom, armyExpenseCap);
 
     return {
         high: Math.max(1500, wealthFloorHigh, Math.min(effectiveCap, rawHigh)),
         standard: Math.max(1000, wealthFloorStandard, Math.min(effectiveCap, rawStandard)),
         low: Math.max(500, wealthFloorLow, Math.min(effectiveCap, rawLow)),
+        // 返回详细信息用于调试/显示
+        breakdown: {
+            scoreComponent,
+            lossComponent,
+            durationComponent,
+            expenseComponent,
+            rawHigh,
+            rawStandard,
+            rawLow
+        },
+        caps: {
+            hardCap: PEACE_PAYMENT_HARD_CAP,
+            wealthCap: wealthHeadroom,
+            armyExpenseCap,
+            effectiveCap
+        }
     };
 }
+
+
 
 /**
  * 计算AI主动求和时的赔款金额

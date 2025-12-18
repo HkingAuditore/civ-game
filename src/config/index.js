@@ -53,8 +53,12 @@ export {
     calculateArmyMaintenance,
     calculateArmyCapacityNeed,
     calculateArmyPopulation,
+    calculateArmyScalePenalty,
+    calculateArmyMaintenanceCost,
+    calculateTotalArmyExpense,
     simulateBattle
 } from './militaryUnits';
+
 
 // 产业链系统
 export {

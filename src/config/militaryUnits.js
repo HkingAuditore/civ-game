@@ -1034,3 +1034,124 @@ export const calculateArmyPopulation = (army) => {
 
     return totalPopulation;
 };
+
+/**
+ * 计算军队规模惩罚系数
+ * 军队占人口比例越高，维护成本越高
+ * @param {number} armyPopulation - 军队人口占用
+ * @param {number} totalPopulation - 总人口
+ * @returns {number} 规模惩罚系数 (1.0 ~ 2.0+)
+ */
+export const calculateArmyScalePenalty = (armyPopulation, totalPopulation) => {
+    if (totalPopulation <= 0 || armyPopulation <= 0) return 1.0;
+
+    const armyRatio = armyPopulation / totalPopulation;
+
+    // 规模惩罚表：
+    // 0-10%: ×1.0
+    // 10-20%: ×1.25
+    // 20-30%: ×1.5
+    // 30-40%: ×1.75
+    // 40%+: ×2.0+
+
+    if (armyRatio <= 0.10) {
+        return 1.0;
+    } else if (armyRatio <= 0.20) {
+        return 1.0 + (armyRatio - 0.10) * 2.5; // 0.10->1.0, 0.20->1.25
+    } else if (armyRatio <= 0.30) {
+        return 1.25 + (armyRatio - 0.20) * 2.5; // 0.20->1.25, 0.30->1.5
+    } else if (armyRatio <= 0.40) {
+        return 1.5 + (armyRatio - 0.30) * 2.5; // 0.30->1.5, 0.40->1.75
+    } else {
+        // 40%以上继续线性增加
+        return 1.75 + (armyRatio - 0.40) * 2.5;
+    }
+};
+
+/**
+ * 计算军队资源维护成本（按市场价折算为银币）
+ * @param {Object} army - 军队对象 {unitId: count}
+ * @param {Object} priceMap - 资源价格映射 {resource: price}
+ * @param {number} epoch - 当前时代
+ * @returns {Object} { resourceCost, epochMultiplier, totalCost }
+ */
+export const calculateArmyMaintenanceCost = (army, priceMap = {}, epoch = 0) => {
+    const maintenance = calculateArmyMaintenance(army);
+
+    let resourceCost = 0;
+    const costBreakdown = {};
+
+    // 默认价格，当市场价格不可用时使用
+    const defaultPrices = {
+        food: 1,
+        silver: 1,
+        wood: 0.8,
+        stone: 0.6,
+        copper: 2,
+        iron: 3,
+        tools: 5,
+        coal: 2
+    };
+
+    Object.entries(maintenance).forEach(([resource, amount]) => {
+        if (resource === 'silver') {
+            // 银币直接加
+            resourceCost += amount;
+            costBreakdown[resource] = amount;
+        } else {
+            // 其他资源按市场价折算
+            const price = priceMap[resource] || defaultPrices[resource] || 1;
+            const cost = amount * price;
+            resourceCost += cost;
+            costBreakdown[resource] = cost;
+        }
+    });
+
+    // 时代加成：每时代+10%维护成本
+    const epochMultiplier = 1 + epoch * 0.1;
+    const totalCost = resourceCost * epochMultiplier;
+
+    return {
+        resourceCost,      // 基础资源成本
+        epochMultiplier,   // 时代系数
+        totalCost,         // 包含时代加成的总成本
+        breakdown: costBreakdown
+    };
+};
+
+/**
+ * 计算军队总维护支出（包含规模惩罚）
+ * @param {Object} army - 军队对象
+ * @param {Object} priceMap - 资源价格映射
+ * @param {number} epoch - 当前时代
+ * @param {number} totalPopulation - 总人口
+ * @param {number} wageMultiplier - 军饷倍率
+ * @returns {Object} 完整的军费计算结果
+ */
+export const calculateTotalArmyExpense = (army, priceMap = {}, epoch = 0, totalPopulation = 100, wageMultiplier = 1) => {
+    const armyPopulation = calculateArmyPopulation(army);
+    const armyCount = Object.values(army).reduce((sum, count) => sum + count, 0);
+
+    // 1. 计算资源维护成本
+    const maintenanceCost = calculateArmyMaintenanceCost(army, priceMap, epoch);
+
+    // 2. 计算规模惩罚
+    const scalePenalty = calculateArmyScalePenalty(armyPopulation, totalPopulation);
+
+    // 3. 应用军饷倍率
+    const effectiveWageMultiplier = Math.max(0.5, wageMultiplier);
+
+    // 4. 总军费 = 资源成本(含时代加成) × 规模惩罚 × 军饷倍率
+    const totalExpense = maintenanceCost.totalCost * scalePenalty * effectiveWageMultiplier;
+
+    return {
+        dailyExpense: totalExpense,
+        resourceCost: maintenanceCost.resourceCost,
+        epochMultiplier: maintenanceCost.epochMultiplier,
+        scalePenalty,
+        wageMultiplier: effectiveWageMultiplier,
+        armyCount,
+        armyPopulation,
+        breakdown: maintenanceCost.breakdown
+    };
+};

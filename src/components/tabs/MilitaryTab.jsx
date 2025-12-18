@@ -4,7 +4,7 @@
 import React, { useState, useMemo, useRef, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '../common/UIComponents';
-import { UNIT_TYPES, UNIT_CATEGORIES, BUILDINGS, calculateArmyMaintenance, calculateArmyFoodNeed, calculateBattlePower, calculateArmyPopulation, RESOURCES, MILITARY_ACTIONS, TECHS, EPOCHS } from '../../config';
+import { UNIT_TYPES, UNIT_CATEGORIES, BUILDINGS, calculateArmyMaintenance, calculateArmyFoodNeed, calculateBattlePower, calculateArmyPopulation, calculateTotalArmyExpense, RESOURCES, MILITARY_ACTIONS, TECHS, EPOCHS } from '../../config';
 import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
 import { filterUnlockedResources } from '../../utils/resources';
 
@@ -333,10 +333,16 @@ export const MilitaryTab = ({
     });
 
     const maintenance = calculateArmyMaintenance(army);
-    // 军饷只计算实际在编军人（已完成训练的），不包括训练队列中的
+    // 新军费计算系统：完整军费包含资源成本、时代加成、规模惩罚
     const totalFoodNeed = calculateArmyFoodNeed(army);
-    const foodPrice = market?.prices?.food ?? (RESOURCES.food?.basePrice || 1);
-    const totalWage = totalFoodNeed * foodPrice * militaryWageRatio;
+    const armyExpenseData = calculateTotalArmyExpense(
+        army,
+        market?.prices || {},
+        epoch,
+        _population || 100,
+        militaryWageRatio
+    );
+    const totalWage = armyExpenseData.dailyExpense;
     const playerPower = calculateBattlePower(army, epoch);
     // 只显示可见且处于战争状态的国家
     const warringNations = (nations || []).filter((nation) =>
@@ -499,10 +505,27 @@ export const MilitaryTab = ({
                 })()}
 
                 <div className="mt-3 pt-3 border-t border-gray-700">
-                    <p className="text-xs text-gray-400 mb-2">军饷（每日）：</p>
+                    <p className="text-xs text-gray-400 mb-2">每日军费：</p>
                     <div className="flex items-center gap-2 text-sm">
                         <Icon name="Coins" size={14} className="text-yellow-400" />
                         <span className="text-yellow-300 font-mono">-{totalWage.toFixed(2)} 银币</span>
+                    </div>
+                    {/* 军费分解显示 */}
+                    <div className="mt-2 grid grid-cols-3 gap-2 text-[10px]">
+                        <div className="bg-gray-800/50 rounded px-2 py-1">
+                            <span className="text-gray-400">时代加成</span>
+                            <span className="text-cyan-300 ml-1">×{armyExpenseData.epochMultiplier.toFixed(1)}</span>
+                        </div>
+                        <div className="bg-gray-800/50 rounded px-2 py-1">
+                            <span className="text-gray-400">规模惩罚</span>
+                            <span className={`ml-1 ${armyExpenseData.scalePenalty > 1 ? 'text-orange-300' : 'text-green-300'}`}>
+                                ×{armyExpenseData.scalePenalty.toFixed(2)}
+                            </span>
+                        </div>
+                        <div className="bg-gray-800/50 rounded px-2 py-1">
+                            <span className="text-gray-400">军饷倍率</span>
+                            <span className="text-yellow-300 ml-1">×{militaryWageRatio.toFixed(1)}</span>
+                        </div>
                     </div>
                     <div className="mt-2 flex items-center gap-2 text-[11px] text-gray-400">
                         <span>军饷倍率</span>
@@ -513,7 +536,7 @@ export const MilitaryTab = ({
                             onChange={(e) => onUpdateWageRatio && onUpdateWageRatio(parseFloat(e.target.value) || 0)}
                             className="w-20 bg-gray-900/60 border border-gray-700 rounded px-2 py-0.5 text-xs text-gray-100"
                         />
-                        <span className="text-gray-500">军饷 = 食粮需求 × 粮价 × 倍率</span>
+                        <span className="text-gray-500">军费 = 资源成本 × 时代 × 规模 × 倍率</span>
                     </div>
                 </div>
             </div>
@@ -606,12 +629,12 @@ export const MilitaryTab = ({
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-2">
                     {Object.entries(UNIT_TYPES)
-                        .filter(([, unit]) => {
+                        .filter(([id, unit]) => {
                             // Filter by epoch unlock
                             if (unit.epoch > epoch) return false;
 
                             // Always show if we have this unit (so we can disband it)
-                            if ((army[unitId] || 0) > 0) return true;
+                            if ((army[id] || 0) > 0) return true;
 
                             // Filter out obsolete units for recruitment list
                             const epochDiff = epoch - unit.epoch;
@@ -672,10 +695,12 @@ export const MilitaryTab = ({
                                                 </span>
                                             </div>
                                             {Object.entries(unit.maintenanceCost || {}).filter(([r, c]) => r !== 'food' && r !== 'silver' && c > 0).length > 0 && (
-                                                <div className="flex flex-wrap gap-0.5 text-[8px]">
+                                                <div className="flex flex-wrap gap-1 text-[9px]">
                                                     {Object.entries(unit.maintenanceCost || {}).filter(([r, c]) => r !== 'food' && r !== 'silver' && c > 0).map(([res, cost]) => (
-                                                        <span key={res} className="text-gray-400">
-                                                            {RESOURCES[res]?.name?.slice(0, 1) || res}:{cost.toFixed(1)}
+                                                        <span key={res} className="flex items-center gap-0.5 bg-gray-800/50 px-1 py-0.5 rounded text-gray-300">
+                                                            <Icon name={RESOURCES[res]?.icon || 'Package'} size={10} className="text-gray-400" />
+                                                            <span>{RESOURCES[res]?.name || res}</span>
+                                                            <span className="text-yellow-300">{cost.toFixed(1)}</span>
                                                         </span>
                                                     ))}
                                                 </div>
