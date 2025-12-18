@@ -141,17 +141,17 @@ export const processRebelWarActions = ({
             next.lastSurrenderDemandDay = tick;
 
             const currentSilver = res.silver || 0;
-            
+
             // 始终计算所有三种要求类型，让玩家自行选择
             // 屠杀要求：基于人口比例或战争优势
-            const massacrePopBase = Math.floor((population || 0) * 0.05); 
+            const massacrePopBase = Math.floor((population || 0) * 0.05);
             const massacreScoreBase = Math.floor(rebelWarAdvantage / 4);
             const maxPopCost = Math.max(0, (population || 100) - 10);
             const massacreAmount = Math.min(Math.max(massacrePopBase, massacreScoreBase, 10), maxPopCost);
-            
+
             // 改革妥协：10% 现有银币，最低 100（一次性支付，转入阶层财富）
             const reformAmount = Math.max(100, Math.floor(currentSilver * 0.1));
-            
+
             // 强制补贴：改革金额的3倍，分365天支付（每日支付）
             const subsidyTotalAmount = reformAmount * 3;
             const subsidyDailyAmount = Math.ceil(subsidyTotalAmount / 365);
@@ -541,6 +541,7 @@ export const checkAISurrenderDemand = ({
     nation,
     tick,
     population,
+    playerWealth,
     logs,
 }) => {
     const next = nation;
@@ -553,7 +554,8 @@ export const checkAISurrenderDemand = ({
 
             let demandType = 'tribute';
             const warDuration = next.warDuration || 0;
-            let demandAmount = calculateAISurrenderDemand(aiWarScore, warDuration);
+            // 传入玩家财富，使赔款计算与玩家主动求和时一致
+            let demandAmount = calculateAISurrenderDemand(aiWarScore, warDuration, playerWealth);
 
             if (aiWarScore > 100) {
                 demandType = 'territory';

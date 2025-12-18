@@ -48,7 +48,7 @@ export const updateNations = ({
         // Process war-related updates
         if (next.isAtWar) {
             next.warDuration = (next.warDuration || 0) + 1;
-            
+
             // Process war actions and battles
             processWarActions({
                 nation: next,
@@ -72,6 +72,7 @@ export const updateNations = ({
                 nation: next,
                 tick,
                 population,
+                playerWealth: playerWealthBaseline,
                 logs
             });
         } else if (next.warDuration) {
@@ -157,7 +158,7 @@ export const updateNations = ({
 const processWarActions = ({ nation, tick, epoch, res, army, stabilityValue, logs }) => {
     // Frequency of AI actions based on aggression
     const actionFrequency = Math.max(10, Math.floor(30 - (nation.aggression || 0.3) * 20));
-    
+
     if (tick % actionFrequency !== 0) return;
 
     const actionRoll = Math.random();
@@ -185,7 +186,7 @@ const processWarActions = ({ nation, tick, epoch, res, army, stabilityValue, log
         const lossMultiplier = { raid: 0.15, assault: 0.25, scorched_earth: 0.2 }[actionType] || 0.15;
         const foodLoss = Math.floor((res.food || 0) * lossMultiplier);
         const silverLoss = Math.floor((res.silver || 0) * lossMultiplier * 0.5);
-        
+
         if (foodLoss > 0) res.food = Math.max(0, (res.food || 0) - foodLoss);
         if (silverLoss > 0) res.silver = Math.max(0, (res.silver || 0) - silverLoss);
 
@@ -249,9 +250,9 @@ const checkPeaceRequest = ({ nation, tick, logs }) => {
     const canRequestPeace = (tick - lastPeaceRequestDay) >= PEACE_REQUEST_COOLDOWN_DAYS;
 
     if ((nation.warScore || 0) > 12 && canRequestPeace) {
-        const willingness = Math.min(0.5, 
-            0.03 + (nation.warScore || 0) / 120 + 
-            (nation.warDuration || 0) / 400 + 
+        const willingness = Math.min(0.5,
+            0.03 + (nation.warScore || 0) / 120 +
+            (nation.warDuration || 0) / 400 +
             Math.min(0.15, (nation.enemyLosses || 0) / 500)
         );
 
@@ -275,9 +276,9 @@ const checkPeaceRequest = ({ nation, tick, logs }) => {
  * Check if AI should demand player surrender
  * @private
  */
-const checkSurrenderDemand = ({ nation, tick, population, logs }) => {
+const checkSurrenderDemand = ({ nation, tick, population, playerWealth, logs }) => {
     const aiWarScore = -(nation.warScore || 0);
-    
+
     if (aiWarScore > 25 && (nation.warDuration || 0) > 30) {
         const lastDemandDay = nation.lastSurrenderDemandDay || 0;
         if (tick - lastDemandDay >= 60 && Math.random() < 0.03) {
@@ -285,7 +286,8 @@ const checkSurrenderDemand = ({ nation, tick, population, logs }) => {
 
             let demandType = 'tribute';
             const warDuration = nation.warDuration || 0;
-            let demandAmount = calculateAISurrenderDemand(aiWarScore, warDuration);
+            // 传入玩家财富，使赔款计算与玩家主动求和时一致
+            let demandAmount = calculateAISurrenderDemand(aiWarScore, warDuration, playerWealth);
 
             if (aiWarScore > 100) {
                 demandType = 'territory';
@@ -372,7 +374,7 @@ const checkWarDeclaration = ({ nation, nations, tick, epoch, res, stabilityValue
 
     // Check global cooldown
     const recentWarDeclarations = (nations || []).some(n =>
-        n.isAtWar && n.warStartDay && 
+        n.isAtWar && n.warStartDay &&
         (tick - n.warStartDay) < GLOBAL_WAR_COOLDOWN &&
         n.id !== nation.id
     );
@@ -487,10 +489,10 @@ const updateNationEconomy = ({ nation, tick, epoch, playerPopulationBaseline, pl
     const playerTargetPopulation = playerPopulationBaseline * populationFactor * eraMomentum;
     const playerTargetWealth = playerWealthBaseline * wealthFactor * eraMomentum;
 
-    const blendedTargetPopulation = aiOwnTargetPopulation * (1 - playerInfluenceFactor) + 
-                                    playerTargetPopulation * playerInfluenceFactor;
-    const blendedTargetWealth = aiOwnTargetWealth * (1 - playerInfluenceFactor) + 
-                                playerTargetWealth * playerInfluenceFactor;
+    const blendedTargetPopulation = aiOwnTargetPopulation * (1 - playerInfluenceFactor) +
+        playerTargetPopulation * playerInfluenceFactor;
+    const blendedTargetWealth = aiOwnTargetWealth * (1 - playerInfluenceFactor) +
+        playerTargetWealth * playerInfluenceFactor;
 
     // Template boosts
     const templatePopulationBoost = Math.max(1, (nation.wealthTemplate || 800) / Math.max(800, playerWealthBaseline) * 0.8);
@@ -509,7 +511,7 @@ const updateNationEconomy = ({ nation, tick, epoch, playerPopulationBaseline, pl
 
     const currentPopulation = nation.population ?? desiredPopulation;
     const populationNoise = (Math.random() - 0.5) * volatility * desiredPopulation * 0.04;
-    let adjustedPopulation = currentPopulation + 
+    let adjustedPopulation = currentPopulation +
         (desiredPopulation - currentPopulation) * populationDriftRate + populationNoise;
     if (nation.isAtWar) {
         adjustedPopulation -= currentPopulation * 0.012;
@@ -518,7 +520,7 @@ const updateNationEconomy = ({ nation, tick, epoch, playerPopulationBaseline, pl
 
     const currentWealth = nation.wealth ?? desiredWealth;
     const wealthNoise = (Math.random() - 0.5) * volatility * desiredWealth * 0.05;
-    let adjustedWealth = currentWealth + 
+    let adjustedWealth = currentWealth +
         (desiredWealth - currentWealth) * wealthDriftRate + wealthNoise;
     if (nation.isAtWar) {
         adjustedWealth -= currentWealth * 0.015;

@@ -2100,3 +2100,25 @@
         margin-top: 0;
     }
 }
+
+/* ==================== 总览按钮安全区域适配 ==================== */
+/* 竖屏模式下，总览按钮需要考虑刘海屏/状态栏的安全区域 */
+@media (orientation: portrait) {
+    .overview-btn-safe-area {
+        top: calc(52px + env(safe-area-inset-top, 0px));
+    }
+}
+
+/* sm 断点及以上的竖屏模式 */
+@media (orientation: portrait) and (min-width: 640px) {
+    .overview-btn-safe-area {
+        top: calc(60px + env(safe-area-inset-top, 0px));
+    }
+}
+
+/* 横屏模式下，刘海在侧边，不需要顶部偏移 */
+@media (orientation: landscape) {
+    .overview-btn-safe-area {
+        top: 52px;
+    }
+}

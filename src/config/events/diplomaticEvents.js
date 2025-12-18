@@ -21,24 +21,24 @@ export function createRebelDemandSurrenderEvent(nation, eventData, callback) {
     const stratumName = STRATA[eventData.rebellionStratum]?.name || '起义阶层';
     const stratumKey = eventData.rebellionStratum;
     const warAdvantage = eventData.warAdvantage || 100;
-    
+
     // 检测是否是联盟叛乱
     const coalitionStrata = eventData.coalitionStrata || [stratumKey];
     const isCoalition = coalitionStrata.length > 1;
-    const coalitionNames = isCoalition 
+    const coalitionNames = isCoalition
         ? coalitionStrata.map(k => STRATA[k]?.name || k).join('、')
         : stratumName;
-    
+
     // 从新格式读取金额，兼容旧格式
     const massacreAmount = eventData.massacreAmount || eventData.demandAmount || 10;
     const reformAmount = eventData.reformAmount || Math.max(100, massacreAmount * 10);
     // 强制补贴：总金额为改革的3倍，分365天按日支付
     const subsidyTotalAmount = eventData.subsidyTotalAmount || reformAmount * 3;
     const subsidyDailyAmount = eventData.subsidyDailyAmount || Math.ceil(subsidyTotalAmount / 365);
-    
+
     let title = `${nation.name} 的最后通牒`;
     let icon = 'AlertTriangle';
-    
+
     // 根据战争优势调整描述的严重程度
     let description = `${nation.name} 在战争中占据优势，向你发出最后通牒！\n\n`;
     if (warAdvantage > 200) {
@@ -49,14 +49,14 @@ export function createRebelDemandSurrenderEvent(nation, eventData, callback) {
     } else {
         description += `虽然叛军稍占上风，但局势仍有转圜余地。他们提出以下条件供你考虑：\n\n`;
     }
-    
+
     description += `你可以选择接受以下任一条件来结束这场叛乱：`;
 
     // 补贴和改革的描述 - 如果是联盟，说明按比例分配
     const subsidyDesc = isCoalition
         ? `接受向${coalitionNames}支付为期一年的强制补贴（按比例分配）。每日支付 ${subsidyDailyAmount.toLocaleString()} 银币，共 ${subsidyTotalAmount.toLocaleString()} 银币。`
         : `接受向${stratumName}支付为期一年的强制补贴。每日支付 ${subsidyDailyAmount.toLocaleString()} 银币，共 ${subsidyTotalAmount.toLocaleString()} 银币。`;
-    
+
     const reformDesc = isCoalition
         ? `一次性支付 ${reformAmount.toLocaleString()} 银币进行改革（按比例分配给${coalitionNames}）。`
         : `一次性支付 ${reformAmount.toLocaleString()} 银币进行改革，这笔钱将直接转入${stratumName}的财富。`;
@@ -74,9 +74,9 @@ export function createRebelDemandSurrenderEvent(nation, eventData, callback) {
             text: `强制补贴`,
             description: subsidyDesc,
             effects: {},
-            callback: () => callback('accept', nation, { 
-                ...eventData, 
-                demandType: 'subsidy', 
+            callback: () => callback('accept', nation, {
+                ...eventData,
+                demandType: 'subsidy',
                 demandAmount: subsidyTotalAmount,
                 subsidyDailyAmount,
                 subsidyStratum: stratumKey,
@@ -88,9 +88,9 @@ export function createRebelDemandSurrenderEvent(nation, eventData, callback) {
             text: `改革妥协`,
             description: reformDesc,
             effects: {},
-            callback: () => callback('accept', nation, { 
-                ...eventData, 
-                demandType: 'reform', 
+            callback: () => callback('accept', nation, {
+                ...eventData,
+                demandType: 'reform',
                 demandAmount: reformAmount,
                 reformStratum: stratumKey,
                 coalitionStrata
@@ -221,7 +221,7 @@ export function createEnemyPeaceRequestEvent(nation, tribute, warScore, callback
         const highTribute = Math.max(baseTribute * 2, Math.ceil(paymentSet.high * 1.5));
         const installmentPlan = calculateInstallmentPlan(highTribute);
         const installmentAmount = installmentPlan.dailyAmount;
-const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(20, Math.floor(estimatedPopulation * 0.20)));
+        const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(20, Math.floor(estimatedPopulation * 0.20)));
         const annexPopulation = Math.max(estimatedPopulation, nation.population || 1000);
 
         options.push({
@@ -271,7 +271,7 @@ const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(20, Math.fl
         const highTribute = Math.max(baseTribute * 1.5, paymentSet.high);
         const installmentPlan = calculateInstallmentPlan(highTribute);
         const installmentAmount = installmentPlan.dailyAmount;
-const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(15, Math.floor(estimatedPopulation * 0.12)));
+        const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(15, Math.floor(estimatedPopulation * 0.12)));
 
         options.push({
             id: 'demand_more',
@@ -320,7 +320,7 @@ const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(15, Math.fl
         const standardTribute = Math.max(baseTribute, paymentSet.standard);
         const installmentPlan = calculateInstallmentPlan(Math.max(standardTribute, paymentSet.low));
         const installmentAmount = installmentPlan.dailyAmount;
-const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(10, Math.floor(estimatedPopulation * 0.08)));
+        const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(10, Math.floor(estimatedPopulation * 0.08)));
 
         options.push({
             id: 'accept',
@@ -422,7 +422,7 @@ export function createPlayerPeaceProposalEvent(
 
     if (warScore > 350) {
         const highTribute = Math.ceil(demandingPayments.high * 1.4);
-const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(25, Math.floor((nation.population || nation.basePopulation || 1000) * 0.25)));
+        const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(25, Math.floor((nation.population || nation.basePopulation || 1000) * 0.25)));
         const annexPopulation = nation.population || nation.basePopulation || 1000;
 
         options.push({
@@ -456,7 +456,7 @@ const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(25, Math.fl
     } else if (warScore > 150) {
         const highTribute = Math.max(demandingPayments.high, demandingPayments.standard * 1.3);
         const installmentPlan = calculateInstallmentPlan(highTribute);
-const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(15, Math.floor((nation.population || nation.basePopulation || 1000) * 0.12)));
+        const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(15, Math.floor((nation.population || nation.basePopulation || 1000) * 0.12)));
 
         options.push({
             id: 'demand_high',
@@ -489,7 +489,7 @@ const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(15, Math.fl
     } else if (warScore > 50) {
         const standardTribute = Math.max(demandingPayments.standard, demandingPayments.low);
         const installmentPlan = calculateInstallmentPlan(standardTribute);
-const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(10, Math.floor((nation.population || nation.basePopulation || 1000) * 0.08)));
+        const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(10, Math.floor((nation.population || nation.basePopulation || 1000) * 0.08)));
 
         options.push({
             id: 'demand_standard',
@@ -515,7 +515,7 @@ const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(10, Math.fl
     } else if (warScore < -200) {
         const payment = Math.max(offeringPayments.high, offeringPayments.standard);
         const installmentPlan = calculateInstallmentPlan(payment);
-const populationOffer = calculateTerritoryOffer(0.15, 200);
+        const populationOffer = calculateTerritoryOffer(0.15, 200);
 
         options.push({
             id: 'pay_high',
@@ -541,7 +541,7 @@ const populationOffer = calculateTerritoryOffer(0.15, 200);
     } else if (warScore < -50) {
         const payment = Math.max(offeringPayments.standard, offeringPayments.low);
         const installmentPlan = calculateInstallmentPlan(payment);
-const populationOffer = calculateTerritoryOffer(0.10, 280);
+        const populationOffer = calculateTerritoryOffer(0.10, 280);
 
         options.push({
             id: 'pay_standard',
@@ -981,41 +981,155 @@ export function createAllyAttackedEvent(ally, attacker, callback) {
  * @param {Function} callback - 回调 (accept: boolean) => void
  * @returns {Object} - 外交事件对象
  */
-export function createAIDemandSurrenderEvent(nation, warScore, demands, callback) {
-    const demandDescriptions = {
-        tribute: `支付${demands.amount}银币作为赔款`,
-        territory: `割让${demands.amount}人口作为领土`,
-        open_market: `在${Math.round(demands.amount / 365)}年内开放市场`,
+/**
+ * 创建外交事件 - AI要求玩家投降
+ * 复用玩家主动求和时的选项生成逻辑，只是事件名称和描述不同
+ * @param {Object} nation - 要求投降的国家
+ * @param {number} warScore - 战争分数(负数表示AI占优)
+ * @param {Object} demands - 要求内容 { type: 'tribute' | 'territory' | 'open_market', amount: number } (保留兼容)
+ * @param {Object} playerState - 玩家状态 { population, maxPopulation, wealth }（或旧的callback兼容）
+ * @param {Function} callback - 回调 (actionType: string, amount: number) => void
+ * @returns {Object} - 外交事件对象
+ */
+export function createAIDemandSurrenderEvent(nation, warScore, demands, playerStateOrCallback, callbackArg) {
+    // 兼容旧的调用方式: createAIDemandSurrenderEvent(nation, warScore, demands, callback)
+    let playerState = {};
+    let callback = callbackArg;
+    if (typeof playerStateOrCallback === 'function') {
+        // 旧的调用方式，只有4个参数
+        callback = playerStateOrCallback;
+        playerState = {};
+    } else {
+        playerState = playerStateOrCallback || {};
+    }
+
+    const options = [];
+    const playerPopulationBase = Math.max(
+        200,
+        playerState.population || playerState.maxPopulation || 1000
+    );
+    const playerWealth = playerState.wealth || 10000;
+
+    // 使用与玩家主动投降相同的计算逻辑
+    const aiWarScore = Math.abs(warScore); // AI的优势分数（正数）
+    const wealthBaseline = playerWealth; // 使用玩家财富作为基准
+    const effectiveDuration = nation.warDuration || 0;
+
+    // 计算赔款选项 - 使用 offering 模式（玩家支付）
+    const offeringPayments = calculatePeacePayment(aiWarScore, 0, effectiveDuration, wealthBaseline, 'offering');
+
+    // 计算割地选项
+    const calculateTerritoryOffer = (maxPercent, severityDivisor) => {
+        const warPressure = aiWarScore / severityDivisor;
+        const durationPressure = Math.max(0, effectiveDuration) / 4000;
+        const severity = Math.min(maxPercent, Math.max(0.012, warPressure + durationPressure));
+        const capped = Math.floor(playerPopulationBase * severity);
+        const hardCap = Math.floor(playerPopulationBase * maxPercent);
+        return Math.min(MAX_TERRITORY_POPULATION, Math.max(3, Math.min(hardCap, capped)));
     };
 
-    const demandText = demandDescriptions[demands.type] || '接受他们的条件';
+    // 根据AI优势程度生成不同的选项（与玩家主动投降时相同的分档逻辑）
+    if (aiWarScore > 200) {
+        // AI大优势 - 要求更苛刻
+        const payment = Math.max(offeringPayments.high, offeringPayments.standard);
+        const installmentPlan = calculateInstallmentPlan(payment);
+        const populationOffer = calculateTerritoryOffer(0.15, 200);
+
+        options.push({
+            id: 'pay_high',
+            text: '支付赔款',
+            description: `拿出${formatNumber(payment)}银币平息战火。`,
+            effects: {},
+            callback: () => callback('pay_high', payment),
+        });
+        options.push({
+            id: 'pay_installment',
+            text: '请求分期赔款',
+            description: `在${INSTALLMENT_CONFIG.DURATION_DAYS}天内每日支付${formatNumber(installmentPlan.dailyAmount)}银币,共计${formatNumber(installmentPlan.totalAmount)}银币。`,
+            effects: {},
+            callback: () => callback('pay_installment', installmentPlan.dailyAmount),
+        });
+        options.push({
+            id: 'offer_population',
+            text: '割地求和',
+            description: `交出${formatNumber(populationOffer)}人口换取停火。`,
+            effects: {},
+            callback: () => callback('offer_population', populationOffer),
+        });
+    } else if (aiWarScore > 50) {
+        // AI有优势
+        const payment = Math.max(offeringPayments.standard, offeringPayments.low);
+        const installmentPlan = calculateInstallmentPlan(payment);
+        const populationOffer = calculateTerritoryOffer(0.10, 280);
+
+        options.push({
+            id: 'pay_standard',
+            text: '支付赔款',
+            description: `拿出${formatNumber(payment)}银币平息战火。`,
+            effects: {},
+            callback: () => callback('pay_standard', payment),
+        });
+        options.push({
+            id: 'pay_installment',
+            text: '请求分期赔款',
+            description: `在${INSTALLMENT_CONFIG.DURATION_DAYS}天内每日支付${formatNumber(installmentPlan.dailyAmount)}银币,共计${formatNumber(installmentPlan.totalAmount)}银币。`,
+            effects: {},
+            callback: () => callback('pay_installment', installmentPlan.dailyAmount),
+        });
+        options.push({
+            id: 'offer_population',
+            text: '割地求和',
+            description: `交出${formatNumber(populationOffer)}人口换取停火。`,
+            effects: {},
+            callback: () => callback('offer_population', populationOffer),
+        });
+    } else {
+        // AI优势较小
+        const payment = Math.max(50, offeringPayments.low);
+        const installmentPlan = calculateInstallmentPlan(payment);
+
+        options.push({
+            id: 'pay_moderate',
+            text: '支付赔款',
+            description: `拿出${formatNumber(payment)}银币作为诚意。`,
+            effects: {},
+            callback: () => callback('pay_moderate', payment),
+        });
+        options.push({
+            id: 'pay_installment',
+            text: '请求分期赔款',
+            description: `在${INSTALLMENT_CONFIG.DURATION_DAYS}天内每日支付${formatNumber(installmentPlan.dailyAmount)}银币,共计${formatNumber(installmentPlan.totalAmount)}银币。`,
+            effects: {},
+            callback: () => callback('pay_installment', installmentPlan.dailyAmount),
+        });
+    }
+
+    // 添加拒绝选项
+    options.push({
+        id: 'reject',
+        text: '拒绝!继续战斗!',
+        description: '战争将继续进行',
+        effects: {},
+        callback: () => callback('reject', 0),
+    });
+
+    // 根据AI优势程度生成不同的描述
+    let description = '';
+    if (aiWarScore > 200) {
+        description = `${nation.name}的使节带着傲慢的姿态前来。他们在战争中占据压倒性优势(战争分数:${Math.round(aiWarScore)}),并要求你接受苛刻的条件。如果拒绝,战争将继续进行。`;
+    } else if (aiWarScore > 50) {
+        description = `${nation.name}的使节带着傲慢的姿态前来。他们在战争中占据优势(战争分数:${Math.round(aiWarScore)}),并要求你接受他们的条件。如果拒绝,战争将继续进行。`;
+    } else {
+        description = `${nation.name}的使节前来谈判。虽然他们在战争中略占上风(战争分数:${Math.round(aiWarScore)}),但条件相对温和。如果拒绝,战争将继续进行。`;
+    }
 
     return {
         id: `ai_demand_surrender_${nation.id}_${Date.now()}`,
         name: `${nation.name}要求投降`,
         icon: 'Swords',
         image: null,
-        description: `${nation.name}的使节带着傲慢的姿态前来。他们在战争中占据优势(战争分数:${Math.abs(Math.round(warScore))}),并要求你接受他们的条件。
-
-他们的要求:${demandText}
-
-如果拒绝,战争将继续进行。`,
+        description,
         isDiplomaticEvent: true,
-        options: [
-            {
-                id: 'accept',
-                text: '接受条件',
-                description: demandText,
-                effects: {},
-                callback: () => callback(true),
-            },
-            {
-                id: 'reject',
-                text: '拒绝!继续战斗!',
-                description: '战争将继续进行',
-                effects: {},
-                callback: () => callback(false),
-            },
-        ],
+        options,
     };
 }

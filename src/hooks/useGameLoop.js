@@ -1017,12 +1017,12 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 if (amount <= 0) return;
                 adjustedResources[resource] = Math.max(0, (adjustedResources[resource] || 0) - amount);
             });
-            
+
             // 处理强制补贴效果（每日从国库支付给指定阶层）
-            const forcedSubsidies = Array.isArray(current.activeEventEffects?.forcedSubsidy) 
-                ? current.activeEventEffects.forcedSubsidy 
+            const forcedSubsidies = Array.isArray(current.activeEventEffects?.forcedSubsidy)
+                ? current.activeEventEffects.forcedSubsidy
                 : [];
-            
+
             // 计算补贴对各阶层财富的增加量（稍后合并到 adjustedClassWealth）
             const subsidyWealthDelta = {};
             if (forcedSubsidies.length > 0) {
@@ -1030,12 +1030,12 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     if (subsidy.remainingDays > 0) {
                         const dailyAmount = subsidy.dailyAmount || 0;
                         const stratumKey = subsidy.stratumKey;
-                        
+
                         // 从国库扣除
                         const treasuryBefore = adjustedResources.silver || 0;
                         const actualPayment = Math.min(dailyAmount, treasuryBefore);
                         adjustedResources.silver = treasuryBefore - actualPayment;
-                        
+
                         // 记录阶层财富增加量
                         if (stratumKey && actualPayment > 0) {
                             subsidyWealthDelta[stratumKey] = (subsidyWealthDelta[stratumKey] || 0) + actualPayment;
@@ -1044,7 +1044,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 });
                 // forcedSubsidy 的天数递减和过期清理在下面统一处理
             }
-            
+
             setResources(adjustedResources);
 
             // 处理强制补贴效果的每日更新
@@ -1056,9 +1056,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     const updatedSubsidies = forcedSubsidies
                         .map(s => ({ ...s, remainingDays: s.remainingDays - 1 }))
                         .filter(s => s.remainingDays > 0);
-                    
+
                     console.log('[GAME LOOP] Updating subsidies:', forcedSubsidies.length, '->', updatedSubsidies.length);
-                    
+
                     return {
                         ...prev,
                         forcedSubsidy: updatedSubsidies
@@ -2316,7 +2316,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                 const jsonStr = log.replace('REBEL_DEMAND_SURRENDER:', '');
                                 const data = JSON.parse(jsonStr);
                                 const nation = result.nations?.find(n => n.id === data.nationId);
-                                
+
                                 if (nation) {
                                     const event = createRebelDemandSurrenderEvent(nation, data, (action, nationObj, eventData) => {
                                         console.log('[REBEL ULTIMATUM] Callback triggered:', action, eventData.demandType);
@@ -2328,7 +2328,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                 setPopulation(prev => Math.max(10, prev - popLoss));
                                                 setMaxPop(prev => Math.max(20, prev - popLoss));
                                                 addLog(`💀 叛军进行了大屠杀，你失去了 ${popLoss} 人口和人口上限！`);
-                                                
+
                                                 // 对应阶层人口也需减少
                                                 const massacreStratumKey = nationObj.rebellionStratum;
                                                 if (massacreStratumKey) {
@@ -2342,13 +2342,13 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                 const reformAmount = eventData.demandAmount || 0;
                                                 const coalitionStrata = eventData.coalitionStrata || [eventData.reformStratum || nationObj.rebellionStratum];
                                                 console.log('[REBEL REFORM] Amount:', reformAmount, 'Coalition:', coalitionStrata);
-                                                
+
                                                 // 扣除银币
                                                 setResources(prev => ({
                                                     ...prev,
                                                     silver: Math.max(0, (prev.silver || 0) - reformAmount)
                                                 }));
-                                                
+
                                                 // 按人口比例分配给各阶层
                                                 const popShare = {};
                                                 let totalPop = 0;
@@ -2357,7 +2357,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                     popShare[sKey] = pop;
                                                     totalPop += pop;
                                                 });
-                                                
+
                                                 // 如果总人口为0，平均分配
                                                 if (totalPop === 0) {
                                                     coalitionStrata.forEach(sKey => {
@@ -2365,7 +2365,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                     });
                                                     totalPop = coalitionStrata.length;
                                                 }
-                                                
+
                                                 // 将钱按比例转入各阶层财富
                                                 const distributions = [];
                                                 setClassWealth(prev => {
@@ -2379,9 +2379,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                     console.log('[REBEL REFORM] Distributed:', distributions.join(', '));
                                                     return newWealth;
                                                 });
-                                                
-                                                const distribDesc = coalitionStrata.length > 1 
-                                                    ? `（按比例分配给：${distributions.join('、')}）` 
+
+                                                const distribDesc = coalitionStrata.length > 1
+                                                    ? `（按比例分配给：${distributions.join('、')}）`
                                                     : '';
                                                 addLog(`💸 你接受了叛军的改革要求，支付了 ${reformAmount} 银币${distribDesc}。`);
                                             } else if (eventData.demandType === 'subsidy') {
@@ -2390,7 +2390,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                 const subsidyTotal = eventData.demandAmount || 0;
                                                 const coalitionStrata = eventData.coalitionStrata || [eventData.subsidyStratum || nationObj.rebellionStratum];
                                                 console.log('[REBEL SUBSIDY] Daily:', subsidyDaily, 'Total:', subsidyTotal, 'Coalition:', coalitionStrata);
-                                                
+
                                                 // 按人口比例计算每个阶层的份额
                                                 const popShare = {};
                                                 let totalPop = 0;
@@ -2399,7 +2399,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                     popShare[sKey] = pop;
                                                     totalPop += pop;
                                                 });
-                                                
+
                                                 // 如果总人口为0，平均分配
                                                 if (totalPop === 0) {
                                                     coalitionStrata.forEach(sKey => {
@@ -2407,18 +2407,18 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                     });
                                                     totalPop = coalitionStrata.length;
                                                 }
-                                                
+
                                                 // 为每个阶层添加补贴效果
                                                 const subsidyDescParts = [];
                                                 setActiveEventEffects(prev => {
                                                     console.log('[REBEL SUBSIDY] Previous state:', prev);
-                                                    
+
                                                     const newSubsidies = coalitionStrata.map(sKey => {
                                                         const share = popShare[sKey] / totalPop;
                                                         const dailyAmount = Math.floor(subsidyDaily * share);
                                                         const stratumName = STRATA[sKey]?.name || sKey;
                                                         subsidyDescParts.push(`${stratumName}(${dailyAmount}/天)`);
-                                                        
+
                                                         return {
                                                             id: `rebel_subsidy_${nationObj.id}_${sKey}_${Date.now()}`,
                                                             type: 'rebel_forced_subsidy',
@@ -2430,7 +2430,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                             createdAt: current.daysElapsed,
                                                         };
                                                     });
-                                                    
+
                                                     const newEffects = {
                                                         ...prev,
                                                         forcedSubsidy: [
@@ -2441,9 +2441,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                     console.log('[REBEL SUBSIDY] Added', newSubsidies.length, 'subsidies');
                                                     return newEffects;
                                                 });
-                                                
-                                                const distribDesc = coalitionStrata.length > 1 
-                                                    ? `（按比例分配给：${subsidyDescParts.join('、')}）` 
+
+                                                const distribDesc = coalitionStrata.length > 1
+                                                    ? `（按比例分配给：${subsidyDescParts.join('、')}）`
                                                     : `给${STRATA[coalitionStrata[0]]?.name || '起义阶层'}`;
                                                 addLog(`📜 你接受了叛军的强制补贴要求，将在未来一年内每日支付 ${subsidyDaily} 银币${distribDesc}（共 ${subsidyTotal} 银币）。`);
                                             }
@@ -2487,7 +2487,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             try {
                                 const jsonStr = log.replace('AUTO_REPLENISH_LOSSES:', '');
                                 const losses = JSON.parse(jsonStr);
-                                
+
                                 // 将损失的士兵加入训练队列
                                 const replenishItems = [];
                                 Object.entries(losses).forEach(([unitId, lossCount]) => {
@@ -2507,7 +2507,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                         }
                                     }
                                 });
-                                
+
                                 if (replenishItems.length > 0) {
                                     setMilitaryQueue(prev => [...prev, ...replenishItems]);
                                     const summary = Object.entries(losses)
@@ -2689,41 +2689,66 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                 const eventData = JSON.parse(jsonStr);
                                 const nation = result.nations?.find(n => n.id === eventData.nationId);
                                 if (nation && currentActions && currentActions.triggerDiplomaticEvent) {
+                                    // 传入玩家状态以便正确计算赔款选项
+                                    const playerState = {
+                                        population: current.population || 100,
+                                        maxPopulation: current.maxPop || 1000,
+                                        wealth: current.resources?.silver || 10000,
+                                    };
                                     const event = createAIDemandSurrenderEvent(
                                         nation,
                                         eventData.warScore,
                                         { type: eventData.demandType, amount: eventData.demandAmount },
-                                        (accepted) => {
-                                            if (accepted) {
-                                                // 玩家接受投降条件
-                                                if (eventData.demandType === 'tribute') {
-                                                    // 验证玩家是否有足够银币
-                                                    const currentSilver = current.resources?.silver || 0;
-                                                    if (currentSilver < eventData.demandAmount) {
-                                                        addLog(`❌ 银币不足（需要 ${eventData.demandAmount}，当前 ${Math.floor(currentSilver)}），无法接受投降条件！`);
-                                                        return;
-                                                    }
-                                                    setResources(prev => ({ ...prev, silver: Math.max(0, (prev.silver || 0) - eventData.demandAmount) }));
-                                                    addLog(`💰 你向 ${nation.name} 支付了 ${eventData.demandAmount} 银币赔款。`);
-                                                } else if (eventData.demandType === 'territory') {
-                                                    // 验证玩家是否有足够人口
-                                                    const currentPop = current.population || 0;
-                                                    if (currentPop < eventData.demandAmount + 10) {  // 保留最低 10 人口
-                                                        addLog(`❌ 人口不足（需要 ${eventData.demandAmount}，当前 ${Math.floor(currentPop)}），无法接受投降条件！`);
-                                                        return;
-                                                    }
-                                                    setPopulation(prev => Math.max(10, prev - eventData.demandAmount));
-                                                    setMaxPop(prev => Math.max(10, prev - eventData.demandAmount));
-                                                    addLog(`🏴 你向 ${nation.name} 割让了 ${eventData.demandAmount} 人口的领土。`);
-                                                } else if (eventData.demandType === 'open_market') {
-                                                    // 设置开放市场状态（玩家开放市场给AI）
-                                                    addLog(`📖 你同意向 ${nation.name} 开放市场 ${Math.round(eventData.demandAmount / 365)} 年。`);
-                                                }
-                                                // 结束战争
-                                                setNations(prev => prev.map(n => n.id === nation.id ? { ...n, isAtWar: false, warScore: 0, warDuration: 0, peaceTreatyUntil: current.daysElapsed + 365 } : n));
-                                            } else {
+                                        playerState,
+                                        (actionType, amount) => {
+                                            if (actionType === 'reject') {
                                                 addLog(`⚔️ 你拒绝了 ${nation.name} 的投降要求，战争继续！`);
+                                                return;
                                             }
+
+                                            // 根据选择类型处理不同的投降条件
+                                            if (actionType === 'pay_high' || actionType === 'pay_standard' || actionType === 'pay_moderate') {
+                                                // 一次性支付赔款
+                                                const currentSilver = current.resources?.silver || 0;
+                                                if (currentSilver < amount) {
+                                                    addLog(`❌ 银币不足（需要 ${amount}，当前 ${Math.floor(currentSilver)}），无法接受投降条件！`);
+                                                    return;
+                                                }
+                                                setResources(prev => ({ ...prev, silver: Math.max(0, (prev.silver || 0) - amount) }));
+                                                addLog(`💰 你向 ${nation.name} 支付了 ${amount} 银币赔款。`);
+                                            } else if (actionType === 'pay_installment') {
+                                                // 分期付款 - amount 是每日金额
+                                                setNations(prev => prev.map(n => n.id === nation.id ? {
+                                                    ...n,
+                                                    installmentPayment: {
+                                                        amount: amount,
+                                                        remainingDays: 365,
+                                                        totalAmount: amount * 365,
+                                                        paidAmount: 0,
+                                                        isPlayerPaying: true, // 标记是玩家支付给AI
+                                                    }
+                                                } : n));
+                                                addLog(`📜 你同意在365天内每日向 ${nation.name} 支付 ${amount} 银币（共计 ${amount * 365} 银币）。`);
+                                            } else if (actionType === 'offer_population') {
+                                                // 割让人口
+                                                const currentPop = current.population || 0;
+                                                if (currentPop < amount + 10) {
+                                                    addLog(`❌ 人口不足（需要 ${amount}，当前 ${Math.floor(currentPop)}），无法接受投降条件！`);
+                                                    return;
+                                                }
+                                                setPopulation(prev => Math.max(10, prev - amount));
+                                                setMaxPop(prev => Math.max(10, prev - amount));
+                                                addLog(`🏴 你向 ${nation.name} 割让了 ${amount} 人口的领土。`);
+                                            }
+
+                                            // 结束战争
+                                            setNations(prev => prev.map(n => n.id === nation.id ? {
+                                                ...n,
+                                                isAtWar: false,
+                                                warScore: 0,
+                                                warDuration: 0,
+                                                peaceTreatyUntil: current.daysElapsed + 365
+                                            } : n));
                                         }
                                     );
                                     currentActions.triggerDiplomaticEvent(event);

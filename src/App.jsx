@@ -625,7 +625,7 @@ function GameApp({ gameState }) {
             ></div>
 
             {/* 移动端总览按钮 - 紧贴顶部状态栏下方，史诗金属风格 */}
-            <div className="lg:hidden fixed top-[52px] sm:top-[60px] left-1/2 -translate-x-1/2 z-40">
+            <div className="lg:hidden fixed left-1/2 -translate-x-1/2 z-40 overview-btn-safe-area">
                 <button
                     type="button"
                     onClick={() => gameState.setActiveTab('overview')}

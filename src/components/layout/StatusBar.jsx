@@ -380,10 +380,10 @@ export const StatusBar = ({
                                                         </div>
                                                     )}
                                                     {/* 强制补贴支出 - DEBUG */}
-                                                    <div className="stat-item-compact bg-purple-900/30">
+                                                    {/* <div className="stat-item-compact bg-purple-900/30">
                                                         <span className="text-purple-300">调试:补贴数</span>
                                                         <span className="text-purple-300 font-mono">{activeEventEffects?.forcedSubsidy?.length || 0}</span>
-                                                    </div>
+                                                    </div> */}
                                                     {activeEventEffects?.forcedSubsidy?.length > 0 && (
                                                         <div className="text-xs text-amber-400 mb-1">
                                                             强制补贴 ({activeEventEffects.forcedSubsidy.length}项):

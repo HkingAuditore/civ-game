@@ -132,10 +132,13 @@ export function calculateAIPeaceTribute(warScore, enemyLosses, warDuration, aiWe
  * 计算AI要求玩家投降时的索赔金额
  * @param {number} aiWarScore - AI优势分数（正数）
  * @param {number} warDuration - 战争持续时间
+ * @param {number} playerWealth - 玩家财富（用于计算合理赔款）
  * @returns {number} 索赔金额
  */
-export function calculateAISurrenderDemand(aiWarScore, warDuration) {
-    const payment = calculatePeacePayment(aiWarScore, 0, warDuration, PEACE_PAYMENT_HARD_CAP, 'demanding');
+export function calculateAISurrenderDemand(aiWarScore, warDuration, playerWealth = 10000) {
+    // 使用玩家财富作为基准，与玩家主动求和时的算法保持一致
+    // 使用 'offering' 模式（与玩家主动投降时相同），这样赔款系数会更合理
+    const payment = calculatePeacePayment(aiWarScore, 0, warDuration, playerWealth, 'offering');
     return payment.standard;
 }
 

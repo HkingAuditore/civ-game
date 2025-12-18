@@ -2196,7 +2196,8 @@ export const simulateTick = ({
             checkAIPeaceRequest({ nation: next, tick, logs });
 
             // REFACTORED: Using module function for AI surrender demand check
-            checkAISurrenderDemand({ nation: next, tick, population, logs });
+            // 传入玩家财富，使赔款计算与玩家主动求和时一致
+            checkAISurrenderDemand({ nation: next, tick, population, playerWealth: playerWealthBaseline, logs });
         } else if (next.warDuration) {
             next.warDuration = 0;
         }
