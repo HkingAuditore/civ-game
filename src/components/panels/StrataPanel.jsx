@@ -80,11 +80,9 @@ export const StrataPanel = ({
                 const totalExpense = (classExpense[key] || 0) / safeDayScale;
                 const incomePerCapita = totalIncome / Math.max(count, 1);
                 const expensePerCapita = totalExpense / Math.max(count, 1);
-                const netWealthDelta = (classWealthDelta[key] || 0) / safeDayScale;
-                const netIncomePerCapita =
-                    netWealthDelta !== undefined && netWealthDelta !== null
-                        ? netWealthDelta / Math.max(count, 1)
-                        : incomePerCapita - expensePerCapita;
+                // Net income should be income minus expense, not wealth delta
+                // Wealth delta includes many other factors (market trades, events, etc.)
+                const netIncomePerCapita = incomePerCapita - expensePerCapita;
                 const shortages = classShortages[key] || [];
 
                 // 使用从simulation传来的生活水平数据，如果没有则使用简化计算

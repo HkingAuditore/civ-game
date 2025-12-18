@@ -1380,10 +1380,11 @@ export const simulateTick = ({
                                     rates[target.resource] = (rates[target.resource] || 0) + importAmount;
                                     remainingAmount = Math.max(0, remainingAmount - importAmount);
 
-                                    const profit = importCost - exportValue;
-                                    if (profit > 0) {
-                                        directIncomeApplied[marketOwnerKey] = (directIncomeApplied[marketOwnerKey] || 0) + profit;
-                                        roleWagePayout[marketOwnerKey] = (roleWagePayout[marketOwnerKey] || 0) + profit;
+                                    // Record full import revenue as income, not just profit
+                                    // This ensures income - expense = wealth change
+                                    if (importCost > 0) {
+                                        directIncomeApplied[marketOwnerKey] = (directIncomeApplied[marketOwnerKey] || 0) + importCost;
+                                        roleWagePayout[marketOwnerKey] = (roleWagePayout[marketOwnerKey] || 0) + importCost;
                                     }
 
                                     if (importCost > logThreshold) {
@@ -1940,6 +1941,8 @@ export const simulateTick = ({
                 const fleeingCapital = perCapWealth * leaving;
 
                 // 关键修改：扣除离开人口带走的财富（资本外逃）
+                // Note: This is NOT recorded as expense because it's population movement,
+                // not economic activity. The wealth moves with the people leaving.
                 if (fleeingCapital > 0) {
                     wealth[key] = Math.max(0, currentWealth - fleeingCapital);
                 }
