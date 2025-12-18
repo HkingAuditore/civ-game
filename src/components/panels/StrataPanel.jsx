@@ -245,7 +245,8 @@ export const StrataPanel = ({
                                             )}
                                             <div className="flex-1" />
                                             {strata.organization > 0 && (
-                                                <span className={`font-mono ${strata.organization >= 70 ? 'text-red-400' : strata.organization >= 30 ? 'text-orange-400' : 'text-yellow-400'}`}>
+                                                <span className={`font-mono flex items-center gap-0.5 ${strata.organization >= 70 ? 'text-red-400' : strata.organization >= 30 ? 'text-orange-400' : 'text-yellow-400'}`}>
+                                                    <Icon name={strata.orgStageIcon} size={9} className={strata.organization >= 70 ? 'animate-pulse' : ''} />
                                                     {strata.organization.toFixed(0)}%
                                                 </span>
                                             )}
@@ -255,15 +256,38 @@ export const StrataPanel = ({
                                             </span>
                                         </div>
 
-                                        {/* 财产和净收入 */}
+                                        {/* 财产和净收入 + 短缺资源 */}
                                         <div className="flex items-center justify-between text-[8px]">
-                                            <span className="text-ancient-parchment font-mono flex items-center gap-0.5">
-                                                <Icon name="Coins" size={8} className="text-ancient-gold" />
-                                                {strata.wealthValue.toFixed(0)}
-                                            </span>
-                                            <span className={`font-mono font-bold ${strata.netIncomePerCapita >= 0 ? 'text-green-300' : 'text-red-300'}`}>
-                                                {strata.netIncomePerCapita > 0 ? '+' : ''}{strata.netIncomePerCapita.toFixed(1)}
-                                            </span>
+                                            <div className="flex items-center gap-1">
+                                                <span className="text-ancient-parchment font-mono flex items-center gap-0.5">
+                                                    <Icon name="Coins" size={8} className="text-ancient-gold" />
+                                                    {strata.wealthValue.toFixed(0)}
+                                                </span>
+                                                <span className={`font-mono font-bold ${strata.netIncomePerCapita >= 0 ? 'text-green-300' : 'text-red-300'}`}>
+                                                    {strata.netIncomePerCapita > 0 ? '+' : ''}{strata.netIncomePerCapita.toFixed(1)}
+                                                </span>
+                                            </div>
+                                            {/* 短缺资源图标 - 最多显示3个 */}
+                                            {strata.shortages.length > 0 && (
+                                                <div className="flex items-center gap-0.5">
+                                                    {strata.shortages.slice(0, 3).map((shortage, idx) => {
+                                                        const resKey = typeof shortage === 'string' ? shortage : shortage.resource;
+                                                        const res = RESOURCES[resKey];
+                                                        return (
+                                                            <Icon
+                                                                key={`${strata.key}-shortage-${idx}`}
+                                                                name={res?.icon || 'HelpCircle'}
+                                                                size={9}
+                                                                className="text-red-400"
+                                                                title={`${res?.name || resKey} 短缺`}
+                                                            />
+                                                        );
+                                                    })}
+                                                    {strata.shortages.length > 3 && (
+                                                        <span className="text-red-400 text-[7px]">+{strata.shortages.length - 3}</span>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </div>

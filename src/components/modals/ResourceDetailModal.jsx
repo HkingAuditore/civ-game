@@ -1001,6 +1001,20 @@ const ResourceDetailContent = ({
                                         <p className="text-[10px] lg:text-xs uppercase tracking-wide text-gray-500 mb-1.5 lg:mb-2">交易税调整</p>
                                         <div className="flex items-center gap-2 lg:gap-4">
                                             <div className="flex items-center gap-1">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const currentValue = parseFloat(draftTaxRate ?? (currentTaxRate * 100));
+                                                        const newValue = isNaN(currentValue) ? -10 : -currentValue;
+                                                        handleTaxDraftChange(String(newValue));
+                                                        // 触发提交
+                                                        setTimeout(() => commitTaxDraft(), 0);
+                                                    }}
+                                                    className="btn-compact flex-shrink-0 w-7 h-7 bg-gray-700 hover:bg-gray-600 border border-gray-500 rounded-lg text-xs font-bold text-gray-300 flex items-center justify-center transition-colors"
+                                                    title="切换正负值（税收/补贴）"
+                                                >
+                                                    ±
+                                                </button>
                                                 <input
                                                     type="text"
                                                     inputMode="decimal"
@@ -1013,7 +1027,7 @@ const ResourceDetailContent = ({
                                                             e.target.blur();
                                                         }
                                                     }}
-                                                    className="w-16 lg:w-24 bg-gray-800/70 border border-gray-600 text-base lg:text-lg font-mono text-gray-200 rounded-lg px-1.5 lg:px-2 py-1 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 text-center"
+                                                    className="w-14 lg:w-20 bg-gray-800/70 border border-gray-600 text-base lg:text-lg font-mono text-gray-200 rounded-lg px-1.5 lg:px-2 py-1 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 text-center"
                                                 />
                                                 <span className="text-base lg:text-lg font-semibold text-emerald-300">%</span>
                                             </div>
