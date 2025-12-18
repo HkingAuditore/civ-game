@@ -44,11 +44,17 @@ export const updateAINationInventory = ({
         foreignResourceKeys.forEach((resourceKey) => {
             const bias = resourceBiasMap[resourceKey] ?? 1;
             const currentStock = next.inventory[resourceKey] || 0;
-            const targetInventory = 500;
+            // 目标库存根据资源偏差调整：特产资源目标更高，稀缺资源目标更低
+            // bias=1.5时目标1125，bias=0.5时目标250，bias=1时目标500
+            const targetInventory = Math.round(500 * Math.pow(bias, 1.2));
             const baseProductionRate = 3.0 * gameSpeed;
             const baseConsumptionRate = 3.0 * gameSpeed * warConsumptionMultiplier;
-            const productionRate = baseProductionRate * bias;
-            const consumptionRate = baseConsumptionRate / Math.max(bias, 0.25);
+            // 特产资源：生产多，消费少 -> 容易盈余
+            // 稀缺资源：生产少，消费多 -> 容易缺口
+            // 普通资源：平衡
+            // 使用更激进的指数让差异更明显
+            const productionRate = baseProductionRate * Math.pow(bias, 1.0);  // bias=1.5时生产4.5，bias=0.5时生产1.5
+            const consumptionRate = baseConsumptionRate * Math.pow(1 / bias, 0.6);  // bias=1.5时消费2.2，bias=0.5时消费4.1
             const stockRatio = currentStock / targetInventory;
 
             let productionAdjustment = 1.0;
@@ -69,7 +75,7 @@ export const updateAINationInventory = ({
             }
 
             const correction = (targetInventory - currentStock) * 0.01 * gameSpeed;
-            const randomShock = (Math.random() - 0.5) * targetInventory * 0.3 * gameSpeed;
+            const randomShock = (Math.random() - 0.5) * targetInventory * 0.1 * gameSpeed;
             const finalProduction = productionRate * productionAdjustment;
             const finalConsumption = consumptionRate * consumptionAdjustment;
             const netChange = (finalProduction - finalConsumption) + correction + randomShock;

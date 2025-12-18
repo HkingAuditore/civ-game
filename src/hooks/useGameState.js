@@ -242,15 +242,17 @@ const buildInitialNations = () => {
         const targetInventory = 500;
         if (nation.economyTraits?.resourceBias) {
             Object.entries(nation.economyTraits.resourceBias).forEach(([resourceKey, bias]) => {
+                // 使用与 aiEconomy.js 一致的目标库存公式
+                const dynamicTarget = Math.round(500 * Math.pow(bias, 1.2));
                 if (bias > 1) {
-                    // 特产资源：高库存，在目标值的1.2-1.8倍之间 (600-900)
-                    inventory[resourceKey] = Math.floor(targetInventory * (1.2 + Math.random() * 0.6));
+                    // 特产资源：高库存，在目标值的1.0-1.5倍之间（已经很高了）
+                    inventory[resourceKey] = Math.floor(dynamicTarget * (1.0 + Math.random() * 0.5));
                 } else if (bias < 1) {
-                    // 稀缺资源：低库存，在目标值的0.2-0.5倍之间 (100-250)
-                    inventory[resourceKey] = Math.floor(targetInventory * (0.2 + Math.random() * 0.3));
+                    // 稀缺资源：低库存，在目标值的0.3-0.6倍之间
+                    inventory[resourceKey] = Math.floor(dynamicTarget * (0.3 + Math.random() * 0.3));
                 } else {
-                    // 中性资源：中等库存，在目标值的0.8-1.2倍之间 (400-600)
-                    inventory[resourceKey] = Math.floor(targetInventory * (0.8 + Math.random() * 0.4));
+                    // 中性资源：中等库存，在目标值的0.8-1.2倍之间
+                    inventory[resourceKey] = Math.floor(dynamicTarget * (0.8 + Math.random() * 0.4));
                 }
             });
         }
