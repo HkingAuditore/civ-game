@@ -58,12 +58,16 @@ export const calculateForeignPrice = (resourceKey, nation, tick = 0) => {
     const normalizedBias = Math.max(0.6, Math.min(1.6, bias));
     const biasFactor = 1 + (normalizedBias - 1) * 0.25;
 
-    // 战争物价上涨系数：战争中的国家物价上涨10%-25%
-    const isInAnyWar = nation.isAtWar || (nation.foreignWars && Object.values(nation.foreignWars).some(w => w?.isAtWar));
-    const warPriceFactor = isInAnyWar ? (1.1 + (nation.aggression || 0.2) * 0.3) : 1.0;
+    // 战争物价上涨系数：每场战争增加15%物价（最高+75%）
+    const warCount = nation.foreignWars
+        ? Object.values(nation.foreignWars).filter(w => w?.isAtWar).length
+        : 0;
+    const totalWarCount = (nation.isAtWar ? 1 : 0) + warCount;
+    const warPriceFactor = totalWarCount > 0 ? (1 + Math.min(0.75, totalWarCount * 0.15)) : 1.0;
 
     let price = base * biasFactor * inventoryFactor * warPriceFactor;
-    price = Math.max(base * 0.25, Math.min(base * 3.5, price)); // 战争时允许更高的价格上限
+    price = Math.max(base * 0.25, Math.min(base * 4.0, price)); // 战争时允许更高的价格上限（3.5->4.0）
+
 
     return Math.max(0.5, parseFloat(price.toFixed(2)));
 };

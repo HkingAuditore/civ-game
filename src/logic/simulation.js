@@ -2243,7 +2243,7 @@ export const simulateTick = ({
             next.warDuration = (next.warDuration || 0) + 1;
             // 累计与该国战争期间的军费支出（用于战争赔款计算）
             // 注意：如果同时与多个国家交战，军费按国家数量分摊
-            const warringNationsCount = updatedNations.filter(n => n.isAtWar).length || 1;
+            const warringNationsCount = (nations || []).filter(n => n.isAtWar).length || 1;
             const dailyExpenseShare = (armyExpenseResult?.dailyExpense || 0) / warringNationsCount;
             next.warTotalExpense = (next.warTotalExpense || 0) + dailyExpenseShare;
 

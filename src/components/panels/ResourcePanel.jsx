@@ -120,7 +120,7 @@ export const ResourcePanel = ({
                   bg-gradient-to-br from-ancient-ink/60 via-transparent to-ancient-ink/40
                   border border-ancient-gold/15 hover:border-ancient-gold/40
                   hover:shadow-glow-gold overflow-hidden"
-                                title={`${info.name}: ${amount.toFixed(0)} | 价格: ${price.toFixed(2)} | 产出: ${rate > 0 ? '+' : ''}${rate.toFixed(1)}/日`}
+                                title={`${info.name}: ${amount.toFixed(0)} | 价格: ${price.toFixed(2)} | 变化: ${rate > 0 ? '+' : ''}${rate.toFixed(1)}/日`}
                             >
                                 {/* 背景装饰 */}
                                 <div className="absolute inset-0 bg-gradient-to-r from-ancient-gold/0 via-ancient-gold/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -145,7 +145,7 @@ export const ResourcePanel = ({
                                         {formatCompactNumber(amount)}
                                     </div>
 
-                                    {/* 第三行：价格 + 产出 */}
+                                    {/* 第三行：价格 + 变化 */}
                                     <div className="flex items-center justify-between gap-1 mt-1 font-bold text-[11px] min-w-0">
                                         <span className="text-ancient-stone flex items-center gap-0.5 min-w-0 truncate">
                                             <Icon name="Coins" size={8} className="text-ancient-gold/70" />
@@ -172,7 +172,7 @@ export const ResourcePanel = ({
                                 <span>资源</span>
                                 <span className="text-right w-12">库存</span>
                                 <span className="text-right w-12">价格</span>
-                                <span className="text-right w-12">产出</span>
+                                <span className="text-right w-12">变化</span>
                             </div>
 
                             {visibleResources.map(([key, info]) => {
@@ -221,7 +221,7 @@ export const ResourcePanel = ({
                                 <span className="xl:hidden w-5" />
                                 <span className="text-right whitespace-nowrap">库存</span>
                                 <span className="text-right whitespace-nowrap">价格</span>
-                                <span className="hidden xl:block text-right whitespace-nowrap">产出</span>
+                                <span className="hidden xl:block text-right whitespace-nowrap">变化</span>
                             </div>
 
                             {visibleResources.map(([key, info]) => {

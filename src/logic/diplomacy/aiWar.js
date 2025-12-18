@@ -920,33 +920,103 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
                     nation.wealth = Math.max(100, (nation.wealth || 500) - loot);
                 }
 
+                // 获取或生成本场战争的结束分数阈值（存储在war对象中，避免每次重新随机）
+                if (!war.endScoreThreshold) {
+                    war.endScoreThreshold = 25 + Math.floor(Math.random() * 56); // 25~80
+                }
+
                 const absoluteWarScore = Math.abs(war.warScore || 0);
                 const nationExhausted = (nation.population || 100) < 30 || (nation.wealth || 500) < 200;
                 const enemyExhausted = (enemy.population || 100) < 30 || (enemy.wealth || 500) < 200;
-                const exhaustionEndChance = (nationExhausted || enemyExhausted) ? 0.15 : 0.05;
 
-                if (absoluteWarScore > 25 || Math.random() < exhaustionEndChance) {
+                // 大幅降低随机结束概率
+                const exhaustionEndChance = (nationExhausted || enemyExhausted) ? 0.03 : 0.005;
+
+                // 战争结束条件：达到阈值 或 小概率随机结束
+                if (absoluteWarScore >= war.endScoreThreshold || Math.random() < exhaustionEndChance) {
                     const winner = (war.warScore || 0) > 0 ? nation : enemy;
                     const loser = winner.id === nation.id ? enemy : nation;
+                    const finalScore = Math.abs(war.warScore || 0);
 
-                    const populationTransfer = Math.floor((loser.population || 100) * 0.10);
-                    const wealthTransfer = Math.floor((loser.wealth || 500) * 0.15);
+                    // 根据战争分数确定胜负等级和赔偿比例
+                    let victoryTier = 'draw';
+                    let populationTransferRate = 0;
+                    let wealthTransferRate = 0;
+                    let peaceDuration = 365; // 默认1年
+                    let tierName = '僵持';
+
+                    if (finalScore >= 200) {
+                        victoryTier = 'overwhelming';
+                        populationTransferRate = 0.25;
+                        wealthTransferRate = 0.35;
+                        peaceDuration = 365 * 3; // 3年
+                        tierName = '压倒性胜利';
+                    } else if (finalScore >= 100) {
+                        victoryTier = 'major';
+                        populationTransferRate = 0.15;
+                        wealthTransferRate = 0.25;
+                        peaceDuration = Math.floor(365 * 2.5); // 2.5年
+                        tierName = '大胜';
+                    } else if (finalScore >= 50) {
+                        victoryTier = 'minor';
+                        populationTransferRate = 0.08;
+                        wealthTransferRate = 0.12;
+                        peaceDuration = 365 * 2; // 2年
+                        tierName = '小胜';
+                    } else if (finalScore >= 25) {
+                        victoryTier = 'pyrrhic';
+                        populationTransferRate = 0.03;
+                        wealthTransferRate = 0.05;
+                        peaceDuration = Math.floor(365 * 1.5); // 1.5年
+                        tierName = '惨胜';
+                    }
+                    // finalScore < 25 保持 draw，无赔偿
+
+                    // 执行赔偿转移
+                    const populationTransfer = Math.floor((loser.population || 100) * populationTransferRate);
+                    const wealthTransfer = Math.floor((loser.wealth || 500) * wealthTransferRate);
 
                     winner.population = (winner.population || 100) + populationTransfer;
                     winner.wealth = (winner.wealth || 500) + wealthTransfer;
                     loser.population = Math.max(10, (loser.population || 100) - populationTransfer);
                     loser.wealth = Math.max(100, (loser.wealth || 500) - wealthTransfer);
 
-                    nation.foreignWars[enemyId] = { isAtWar: false, peaceTreatyUntil: tick + 730 };
-                    enemy.foreignWars[nation.id] = { isAtWar: false, peaceTreatyUntil: tick + 730 };
+                    // 检查吞并条件：压倒性胜利 + 败方人口<30 + 财富<300
+                    let isAnnexed = false;
+                    if (victoryTier === 'overwhelming' &&
+                        (loser.population || 100) < 30 &&
+                        (loser.wealth || 500) < 300) {
+                        // 执行吞并：获胜方获得败方全部资源
+                        winner.population = (winner.population || 100) + (loser.population || 0);
+                        winner.wealth = (winner.wealth || 500) + (loser.wealth || 0);
+                        loser.isAnnexed = true;
+                        loser.annexedBy = winner.id;
+                        loser.annexedAt = tick;
+                        loser.population = 0;
+                        loser.wealth = 0;
+                        isAnnexed = true;
+                    }
 
+                    // 设置和平条约
+                    nation.foreignWars[enemyId] = { isAtWar: false, peaceTreatyUntil: tick + peaceDuration };
+                    enemy.foreignWars[nation.id] = { isAtWar: false, peaceTreatyUntil: tick + peaceDuration };
+
+                    // 关系变化：失败程度越高，关系下降越多
+                    const relationDrop = 10 + Math.floor(finalScore / 10);
                     if (!nation.foreignRelations) nation.foreignRelations = {};
                     if (!enemy.foreignRelations) enemy.foreignRelations = {};
-                    nation.foreignRelations[enemyId] = clamp((nation.foreignRelations[enemyId] || 50) - 20, 0, 100);
-                    enemy.foreignRelations[nation.id] = clamp((enemy.foreignRelations[nation.id] || 50) - 20, 0, 100);
+                    nation.foreignRelations[enemyId] = clamp((nation.foreignRelations[enemyId] || 50) - relationDrop, 0, 100);
+                    enemy.foreignRelations[nation.id] = clamp((enemy.foreignRelations[nation.id] || 50) - relationDrop, 0, 100);
 
+                    // 生成日志
                     const warDurationDays = tick - (war.warStartDay || tick);
-                    logs.push(`📢 国际新闻：${winner.name} 在与 ${loser.name} 历时${warDurationDays}天的战争中获胜！`);
+                    if (isAnnexed) {
+                        logs.push(`📢 国际新闻：${winner.name} 在历时${warDurationDays}天的战争中彻底击败 ${loser.name}，将其吞并！`);
+                    } else if (victoryTier === 'draw') {
+                        logs.push(`📢 国际新闻：${nation.name} 与 ${enemy.name} 经过${warDurationDays}天的战争后握手言和。`);
+                    } else {
+                        logs.push(`📢 国际新闻：${winner.name} 在与 ${loser.name} 历时${warDurationDays}天的战争中取得${tierName}！`);
+                    }
                 }
             }
         });
