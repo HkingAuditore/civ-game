@@ -261,23 +261,39 @@ const ResourceTaxCard = ({
                     </span>
                 </div>
             </div>
-            {/* 控制区：输入框 */}
-            <input
-                type="text"
-                inputMode="numeric"
-                step="0.01"
-                value={draftRate ?? ((currentRate * 100).toFixed(0))}
-                onChange={(e) => onDraftChange(resourceKey, e.target.value)}
-                onBlur={() => onCommit(resourceKey)}
-                onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                        onCommit(resourceKey);
-                        e.target.blur();
-                    }
-                }}
-                className="w-full bg-gray-900/70 border border-gray-600 text-[11px] text-gray-200 rounded px-1.5 py-0.5 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
-                placeholder="税率%"
-            />
+            {/* 控制区：输入框 + 正负切换按钮 */}
+            <div className="flex items-center gap-1">
+                <button
+                    type="button"
+                    onClick={() => {
+                        const currentValue = parseFloat(draftRate ?? (currentRate * 100));
+                        const newValue = isNaN(currentValue) ? -10 : -currentValue;
+                        onDraftChange(resourceKey, String(newValue));
+                        // 触发提交
+                        setTimeout(() => onCommit(resourceKey), 0);
+                    }}
+                    className="btn-compact flex-shrink-0 w-5 h-5 bg-gray-700 hover:bg-gray-600 border border-gray-500 rounded text-[9px] font-bold text-gray-300 flex items-center justify-center transition-colors"
+                    title="切换正负值（税收/补贴）"
+                >
+                    ±
+                </button>
+                <input
+                    type="text"
+                    inputMode="numeric"
+                    step="0.01"
+                    value={draftRate ?? ((currentRate * 100).toFixed(0))}
+                    onChange={(e) => onDraftChange(resourceKey, e.target.value)}
+                    onBlur={() => onCommit(resourceKey)}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                            onCommit(resourceKey);
+                            e.target.blur();
+                        }
+                    }}
+                    className="flex-grow min-w-0 bg-gray-900/70 border border-gray-600 text-[11px] text-gray-200 rounded px-1.5 py-0.5 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
+                    placeholder="税率%"
+                />
+            </div>
             <div className="mt-1.5 border-t border-gray-800/70 pt-1.5 space-y-1.5">
                 {/* 进口关税 */}
                 <div>
@@ -336,7 +352,7 @@ const ResourceTaxCard = ({
     );
 };
 // 营业税卡片组件
-const BusinessTaxCard = ({ building, multiplier, buildingCount, draftMultiplier, onDraftChange, onCommit }) => {
+const BusinessTaxCard = ({ building, multiplier, buildingCount, draftMultiplier, onDraftChange, onCommit, onToggleSign }) => {
     const base = building.businessTaxBase ?? 0.1; // 默认税基
     const currentMultiplier = multiplier ?? 1;
     const finalRate = currentMultiplier * base;
@@ -388,23 +404,33 @@ const BusinessTaxCard = ({ building, multiplier, buildingCount, draftMultiplier,
                 </div>
             </div>
 
-            {/* 控制区：输入框 */}
-            <input
-                type="text"
-                inputMode="decimal"
-                step="0.05"
-                value={draftMultiplier ?? (currentMultiplier ?? 1)}
-                onChange={(e) => onDraftChange(building.id, e.target.value)}
-                onBlur={() => onCommit(building.id)}
-                onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                        onCommit(building.id);
-                        e.target.blur();
-                    }
-                }}
-                className="w-full bg-gray-900/70 border border-gray-600 text-[11px] text-gray-200 rounded px-1.5 py-0 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
-                placeholder="税率系数"
-            />
+            {/* 控制区：输入框 + 正负切换按钮 */}
+            <div className="flex items-center gap-1">
+                <button
+                    type="button"
+                    onClick={() => onToggleSign && onToggleSign(building.id, draftMultiplier ?? currentMultiplier)}
+                    className="btn-compact flex-shrink-0 w-5 h-5 bg-gray-700 hover:bg-gray-600 border border-gray-500 rounded text-[9px] font-bold text-gray-300 flex items-center justify-center transition-colors"
+                    title="切换正负值（税收/补贴）"
+                >
+                    ±
+                </button>
+                <input
+                    type="text"
+                    inputMode="decimal"
+                    step="0.05"
+                    value={draftMultiplier ?? (currentMultiplier ?? 1)}
+                    onChange={(e) => onDraftChange(building.id, e.target.value)}
+                    onBlur={() => onCommit(building.id)}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                            onCommit(building.id);
+                            e.target.blur();
+                        }
+                    }}
+                    className="flex-grow min-w-0 bg-gray-900/70 border border-gray-600 text-[11px] text-gray-200 rounded px-1.5 py-0 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
+                    placeholder="税率系数"
+                />
+            </div>
         </div>
     );
 };
@@ -613,6 +639,24 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
         });
     };
 
+    // 切换营业税正负值（用于移动端无法输入负号的情况）
+    const toggleBusinessSign = (key, currentValue) => {
+        const parsed = parseFloat(currentValue);
+        const newValue = isNaN(parsed) ? -1 : -parsed;
+        onUpdateTaxPolicies(prev => ({
+            ...prev,
+            businessTaxRates: {
+                ...(prev?.businessTaxRates || {}),
+                [key]: newValue,
+            },
+        }));
+        setBusinessDrafts(prev => {
+            const next = { ...prev };
+            delete next[key];
+            return next;
+        });
+    };
+
     // 获取所有已解锁的资源
     const unlockedResourceKeys = React.useMemo(() => {
         return Object.keys(RESOURCES).filter(key => {
@@ -737,8 +781,33 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
                     )}
                 </div>
 
-                {/* 第三行：输入框 */}
+                {/* 第三行：输入框 + 正负切换按钮 */}
                 <div className="flex items-center gap-1">
+                    <button
+                        type="button"
+                        onClick={() => {
+                            const currentValue = parseFloat(headDrafts[key] ?? headRates[key] ?? 1);
+                            const newValue = isNaN(currentValue) ? -1 : -currentValue;
+                            handleHeadDraftChange(key, String(newValue));
+                            // 立即提交变更
+                            onUpdateTaxPolicies(prev => ({
+                                ...prev,
+                                headTaxRates: {
+                                    ...(prev?.headTaxRates || {}),
+                                    [key]: newValue,
+                                },
+                            }));
+                            setHeadDrafts(prev => {
+                                const next = { ...prev };
+                                delete next[key];
+                                return next;
+                            });
+                        }}
+                        className="btn-compact flex-shrink-0 w-5 h-5 bg-gray-700 hover:bg-gray-600 border border-gray-500 rounded text-[9px] font-bold text-gray-300 flex items-center justify-center transition-colors"
+                        title="切换正负值（税收/补贴）"
+                    >
+                        ±
+                    </button>
                     <input
                         type="text"
                         inputMode="decimal"
@@ -752,7 +821,7 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
                                 e.target.blur();
                             }
                         }}
-                        className="w-full bg-gray-900/70 border border-gray-600 text-[11px] text-gray-200 rounded px-1 py-0 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
+                        className="flex-grow min-w-0 bg-gray-900/70 border border-gray-600 text-[11px] text-gray-200 rounded px-1 py-0 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
                         placeholder="税率系数"
                     />
                 </div>
@@ -959,6 +1028,7 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
                                                     draftMultiplier={businessDrafts[building.id]}
                                                     onDraftChange={handleBusinessDraftChange}
                                                     onCommit={commitBusinessDraft}
+                                                    onToggleSign={toggleBusinessSign}
                                                 />
                                             ))}
                                         </div>

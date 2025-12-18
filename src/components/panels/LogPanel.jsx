@@ -59,9 +59,9 @@ export const LogPanel = ({ logs, hideContainer = false }) => {
     // Transform technical logs to human-readable format
     const displayLogs = logs.map(transformLog);
 
-    // 内容部分
+    // 内容部分 - 如果hideContainer为true，不添加滚动限制（由外部容器控制）
     const content = (
-        <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-ancient-gold/40">
+        <div className={hideContainer ? "space-y-1.5" : "space-y-1.5 max-h-48 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-ancient-gold/40"}>
             {displayLogs.length === 0 ? (
                 <p className="text-xs text-ancient-stone opacity-70 italic text-center py-4">
                     暂无事件

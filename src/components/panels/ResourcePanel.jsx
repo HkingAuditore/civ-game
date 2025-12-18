@@ -164,7 +164,7 @@ export const ResourcePanel = ({
 
             {/* 列表视图 */}
             {viewMode === 'list' && (
-                <div className="space-y-0.5">
+                <div className="space-y-0.5 row-compact">
                     {showDetailedMobile ? (
                         <>
                             <div className="grid grid-cols-[20px_1fr_auto_auto_auto] items-center gap-x-2 text-[10px] text-ancient-stone px-1 pb-0.5 opacity-70">

@@ -345,22 +345,42 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                     <div className="grid grid-cols-2 gap-2 items-center">
                         <div>
                             <div className="text-[10px] text-gray-400 mb-0.5 leading-none">税率系数</div>
-                            <input
-                                type="text"
-                                inputMode="decimal"
-                                step="0.05"
-                                value={draftMultiplier ?? businessTaxMultiplier}
-                                onChange={(e) => handleDraftChange(e.target.value)}
-                                onBlur={commitDraft}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                        commitDraft();
-                                        e.target.blur();
-                                    }
-                                }}
-                                className="w-full bg-gray-800/70 border border-gray-600 text-sm text-gray-200 rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
-                                placeholder="税率系数"
-                            />
+                            <div className="flex items-center gap-1">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const currentValue = parseFloat(draftMultiplier ?? businessTaxMultiplier);
+                                        const newValue = isNaN(currentValue) ? -1 : -currentValue;
+                                        handleDraftChange(String(newValue));
+                                        // 直接提交
+                                        onUpdateTaxPolicies(prev => ({
+                                            ...prev,
+                                            businessTaxRates: { ...(prev?.businessTaxRates || {}), [building.id]: newValue },
+                                        }));
+                                        setDraftMultiplier(null);
+                                    }}
+                                    className="btn-compact flex-shrink-0 w-6 h-6 bg-gray-700 hover:bg-gray-600 border border-gray-500 rounded text-[10px] font-bold text-gray-300 flex items-center justify-center transition-colors"
+                                    title="切换正负值（税收/补贴）"
+                                >
+                                    ±
+                                </button>
+                                <input
+                                    type="text"
+                                    inputMode="decimal"
+                                    step="0.05"
+                                    value={draftMultiplier ?? businessTaxMultiplier}
+                                    onChange={(e) => handleDraftChange(e.target.value)}
+                                    onBlur={commitDraft}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            commitDraft();
+                                            e.target.blur();
+                                        }
+                                    }}
+                                    className="flex-grow min-w-0 bg-gray-800/70 border border-gray-600 text-sm text-gray-200 rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
+                                    placeholder="税率系数"
+                                />
+                            </div>
                         </div>
                         <div>
                             <div className="text-[10px] text-gray-400 mb-0.5 leading-none">实际税额 (每次产出)</div>

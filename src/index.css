@@ -1728,6 +1728,15 @@
         min-width: auto;
     }
 
+    /* Compact buttons (like sign toggle ±) should not be enlarged */
+    .btn-compact,
+    button.btn-compact,
+    .row-compact,
+    .row-compact button {
+        min-height: auto !important;
+        min-width: auto !important;
+    }
+
     /* 移动端卡片优化 */
     .card-mobile {
         padding: 10px;
