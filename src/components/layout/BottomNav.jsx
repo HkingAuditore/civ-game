@@ -60,7 +60,6 @@ export const BottomNav = ({ activeTab, onTabChange, epoch = 0 }) => {
             className="fixed bottom-0 left-0 right-0 z-50 lg:hidden"
             role="tablist"
             aria-label="主标签切换"
-            style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
         >
             {/* 时代主题色背景层 */}
             <div className="absolute inset-0">
@@ -141,6 +140,15 @@ export const BottomNav = ({ activeTab, onTabChange, epoch = 0 }) => {
                     })}
                 </div>
             </div>
+            
+            {/* 底部安全区域填充 - 适配全面屏手势区域 */}
+            <div 
+                className="relative w-full"
+                style={{
+                    height: 'env(safe-area-inset-bottom, 0px)',
+                    background: 'var(--theme-background, rgb(17, 24, 39))'
+                }}
+            />
         </nav>
     );
 };
