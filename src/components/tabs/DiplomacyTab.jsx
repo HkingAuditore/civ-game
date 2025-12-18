@@ -397,7 +397,7 @@ export const DiplomacyTab = ({
                 </button>
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-3 h-[calc(100vh-260px)] md:h-[900px]">
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-3 h-[calc(var(--real-viewport-height,100vh)-260px)] md:h-[900px]">
                 <div className="glass-ancient rounded-xl border border-ancient-gold/30 flex flex-col overflow-hidden">
                     <div className="px-2 py-1.5 border-b border-gray-700/80 text-[15px] uppercase tracking-wide text-gray-400 font-decorative font-bold">
                         国家列表
@@ -442,7 +442,7 @@ export const DiplomacyTab = ({
                     </div>
                 </div>
 
-                <div className="xl:col-span-2 space-y-2 max-h-[calc(100vh-180px)] md:max-h-[900px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500">
+                <div className="xl:col-span-2 space-y-2 max-h-[calc(var(--real-viewport-height,100vh)-180px)] md:max-h-[900px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500">
                     {selectedNation ? (
                         <React.Fragment>
                             <div className="bg-gray-800/60 p-2 rounded-lg border border-gray-700">

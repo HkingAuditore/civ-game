@@ -7,3 +7,4 @@ export { useGameActions } from './useGameActions';
 export { useSound } from './useSound';
 export { useEpicTheme, useEpochClasses, getEpochStyles } from './useEpicTheme';
 export { useNumberAnimation } from './useNumberAnimation';
+export { useViewportHeight, getViewportHeight, vh } from './useViewportHeight';

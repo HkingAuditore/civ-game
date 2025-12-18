@@ -199,7 +199,7 @@ export const StrataPanel = ({
                 {/* 阶层列表 - 使用自定义滚动条样式 */}
                 <div
                     className="flex-1 overflow-y-auto pr-0.5 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500"
-                    style={{ maxHeight: 'calc(100vh - 520px)', minHeight: '300px' }}
+                    style={{ maxHeight: 'calc(var(--real-viewport-height, 100vh) - 520px)', minHeight: '200px' }}
                 >
                     {/* 移动端和小窗口：网格布局 - 使用好感度作为背景填充 */}
                     <div className={`${forceRowLayout ? 'hidden' : 'md:hidden'} grid grid-cols-2 sm:grid-cols-3 gap-1`}>

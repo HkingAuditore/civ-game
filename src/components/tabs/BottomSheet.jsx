@@ -61,7 +61,8 @@ export const BottomSheet = ({
 
                     {/* 内容面板 */}
                     <motion.div
-                        className="relative w-full max-w-2xl glass-epic border-t-2 lg:border-2 border-ancient-gold/30 rounded-t-2xl lg:rounded-2xl shadow-metal-xl flex flex-col max-h-[85vh]"
+                        className="relative w-full max-w-2xl glass-epic border-t-2 lg:border-2 border-ancient-gold/30 rounded-t-2xl lg:rounded-2xl shadow-metal-xl flex flex-col"
+                        style={{ maxHeight: 'calc(var(--real-viewport-height, 100vh) * 0.85)' }}
                         initial={{ y: "100%", opacity: 0 }}
                         animate={{ y: 0, opacity: 1 }}
                         exit={{ y: "100%", opacity: 0 }}

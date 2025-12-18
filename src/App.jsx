@@ -4,7 +4,7 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { GAME_SPEEDS, EPOCHS, RESOURCES, STRATA, calculateArmyFoodNeed, BUILDINGS, EVENTS } from './config';
 import { getCalendarInfo } from './utils/calendar';
-import { useGameState, useGameLoop, useGameActions, useSound, useEpicTheme } from './hooks';
+import { useGameState, useGameLoop, useGameActions, useSound, useEpicTheme, useViewportHeight } from './hooks';
 import {
     Icon,
     FloatingText
@@ -77,6 +77,9 @@ export default function App() {
 function GameApp({ gameState }) {
     // 应用史诗主题
     const epicTheme = useEpicTheme(gameState.epoch);
+
+    // 初始化动态视口高度（解决移动端 vh 不准确问题）
+    useViewportHeight();
 
     // 添加日志函数
     const addLog = (msg) => {

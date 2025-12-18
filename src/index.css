@@ -4,1850 +4,2090 @@
 
 /* Epic Historical Theme - Custom CSS Variables */
 @layer base {
-  :root {
-    /* Epic Color Palette - Inspired by ancient civilizations */
-    --color-ancient-gold: #d4af37;
-    --color-bronze: #cd7f32;
-    --color-marble: #f5f5dc;
-    --color-stone: #8b7355;
-    --color-parchment: #f4e8d0;
-    --color-ink: #2c1810;
-    --color-royal-purple: #6a0dad;
-    --color-empire-red: #8b0000;
-    --theme-primary: #d97706;
-    --theme-secondary: #92400e;
-    --theme-accent: #fbbf24;
-    --theme-text: #fef3c7;
-    --theme-text-muted: rgba(254, 243, 199, 0.7);
-    --theme-border: rgba(217, 119, 6, 0.4);
-    --theme-highlight: rgba(251, 191, 36, 0.3);
-    --theme-glow: rgba(217, 119, 6, 0.5);
-    --theme-bg-gradient: linear-gradient(135deg, #1a1410 0%, #2c1810 50%, #1a1410 100%);
-    --theme-bg: #1a1410;
-    --theme-surface: rgba(34, 24, 14, 0.92);
-    --theme-surface-alt: rgba(61, 36, 21, 0.85);
-    --theme-surface-muted: rgba(32, 22, 14, 0.7);
-    --theme-surface-trans: rgba(32, 22, 14, 0.55);
-    --theme-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(217, 119, 6, 0.3);
-    
-    /* Texture overlays */
-    --texture-paper: url("data:image/svg+xml,%3Csvg width='100' height='100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' /%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23noise)' opacity='0.05'/%3E%3C/svg%3E");
-    
-    /* Shadow depths for layered UI */
-    --shadow-ancient: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(139, 115, 85, 0.2);
-    --shadow-epic: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(212, 175, 55, 0.1);
-    --shadow-monument: 0 20px 50px -12px rgba(0, 0, 0, 0.7), 0 10px 20px -5px rgba(139, 0, 0, 0.2);
-    
-    /* Safe area insets for notch/fullscreen devices */
-    --safe-area-top: env(safe-area-inset-top, 0px);
-    --safe-area-bottom: env(safe-area-inset-bottom, 0px);
-    --safe-area-left: env(safe-area-inset-left, 0px);
-    --safe-area-right: env(safe-area-inset-right, 0px);
-  }
-  
-  body {
-    @apply antialiased;
-    font-family: 'Inter', 'Noto Sans SC', system-ui, sans-serif;
-    background: var(--theme-bg-gradient, linear-gradient(135deg, #1a1410 0%, #2c1810 50%, #1a1410 100%));
-    background-color: var(--theme-bg, #1a1410);
-    background-attachment: fixed;
-    color: var(--theme-text, #fef3c7);
-    position: relative;
-  }
-  
-  /* Ancient paper texture overlay */
-  body::before {
-    content: '';
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-image: var(--texture-paper);
-    opacity: 0.03;
-    pointer-events: none;
-    z-index: 1;
-  }
-  
-  /* Epic border decorations */
-  body::after {
-    content: '';
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    border: 2px solid rgba(212, 175, 55, 0.1);
-    border-image: linear-gradient(45deg, 
-      transparent 0%, 
-      var(--theme-highlight, rgba(212, 175, 55, 0.3)) 35%, 
-      var(--theme-border, rgba(205, 127, 50, 0.3)) 65%, 
-      transparent 100%) 1;
-    pointer-events: none;
-    z-index: 2;
-  }
+    :root {
+        /* Epic Color Palette - Inspired by ancient civilizations */
+        --color-ancient-gold: #d4af37;
+        --color-bronze: #cd7f32;
+        --color-marble: #f5f5dc;
+        --color-stone: #8b7355;
+        --color-parchment: #f4e8d0;
+        --color-ink: #2c1810;
+        --color-royal-purple: #6a0dad;
+        --color-empire-red: #8b0000;
+        --theme-primary: #d97706;
+        --theme-secondary: #92400e;
+        --theme-accent: #fbbf24;
+        --theme-text: #fef3c7;
+        --theme-text-muted: rgba(254, 243, 199, 0.7);
+        --theme-border: rgba(217, 119, 6, 0.4);
+        --theme-highlight: rgba(251, 191, 36, 0.3);
+        --theme-glow: rgba(217, 119, 6, 0.5);
+        --theme-bg-gradient: linear-gradient(135deg, #1a1410 0%, #2c1810 50%, #1a1410 100%);
+        --theme-bg: #1a1410;
+        --theme-surface: rgba(34, 24, 14, 0.92);
+        --theme-surface-alt: rgba(61, 36, 21, 0.85);
+        --theme-surface-muted: rgba(32, 22, 14, 0.7);
+        --theme-surface-trans: rgba(32, 22, 14, 0.55);
+        --theme-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(217, 119, 6, 0.3);
 
-  /* Global scrollbar styling - metallic epic rails */
-  *::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
-    background-color: var(--theme-bg, rgba(17, 12, 9, 0.85));
-  }
+        /* Texture overlays */
+        --texture-paper: url("data:image/svg+xml,%3Csvg width='100' height='100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' /%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23noise)' opacity='0.05'/%3E%3C/svg%3E");
 
-  *::-webkit-scrollbar-track {
-    background: linear-gradient(
-      135deg,
-      var(--theme-surface, rgba(34, 24, 14, 0.9)),
-      var(--theme-surface-alt, rgba(61, 36, 21, 0.85))
-    );
-    border: 1px solid var(--theme-border, rgba(205, 127, 50, 0.4));
-    box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.6),
-      inset 0 0 8px var(--theme-glow, rgba(217, 119, 6, 0.25));
-    border-radius: 999px;
-  }
+        /* Shadow depths for layered UI */
+        --shadow-ancient: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(139, 115, 85, 0.2);
+        --shadow-epic: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(212, 175, 55, 0.1);
+        --shadow-monument: 0 20px 50px -12px rgba(0, 0, 0, 0.7), 0 10px 20px -5px rgba(139, 0, 0, 0.2);
 
-  *::-webkit-scrollbar-thumb {
-    background: linear-gradient(
-      135deg,
-      var(--theme-secondary, #92400e) 0%,
-      var(--theme-primary, #d97706) 55%,
-      var(--theme-accent, #fbbf24) 100%
-    );
-    border: 1px solid var(--theme-highlight, rgba(251, 191, 36, 0.4));
-    border-radius: 999px;
-    box-shadow: 0 0 6px var(--theme-glow, rgba(212, 175, 55, 0.4)),
-      inset 0 0 4px rgba(0, 0, 0, 0.65);
-  }
+        /* Safe area insets for notch/fullscreen devices */
+        --safe-area-top: env(safe-area-inset-top, 0px);
+        --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+        --safe-area-left: env(safe-area-inset-left, 0px);
+        --safe-area-right: env(safe-area-inset-right, 0px);
 
-  *::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(
-      135deg,
-      var(--theme-accent, #fbbf24) 0%,
-      var(--theme-primary, #d97706) 70%,
-      var(--theme-secondary, #92400e) 100%
-    );
-    box-shadow: 0 0 12px var(--theme-glow, rgba(255, 215, 128, 0.8)),
-      inset 0 0 6px rgba(0, 0, 0, 0.5);
-  }
+        /* Dynamic viewport height - will be set by JavaScript */
+        /* Fallback to 1vh if JS hasn't loaded yet */
+        --vh: 1vh;
+        --real-viewport-height: 100vh;
+        --safe-viewport-height: 100vh;
 
-  *::-webkit-scrollbar-corner {
-    background: var(--theme-surface, rgba(34, 24, 14, 0.9));
-  }
+        /* Common height values using dynamic vh */
+        --header-height: 56px;
+        --header-height-sm: 64px;
+        --header-height-lg: 80px;
+        --bottom-nav-height: 64px;
+    }
 
-  body {
-    scrollbar-color: var(--theme-primary, #d97706) var(--theme-surface, rgba(34, 24, 14, 0.85));
-    scrollbar-width: thin;
-  }
+    body {
+        @apply antialiased;
+        font-family: 'Inter', 'Noto Sans SC', system-ui, sans-serif;
+        background: var(--theme-bg-gradient, linear-gradient(135deg, #1a1410 0%, #2c1810 50%, #1a1410 100%));
+        background-color: var(--theme-bg, #1a1410);
+        background-attachment: fixed;
+        color: var(--theme-text, #fef3c7);
+        position: relative;
+    }
 
-  .status-bar-scroll {
-    scrollbar-width: thin;
-  }
+    /* Ancient paper texture overlay */
+    body::before {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-image: var(--texture-paper);
+        opacity: 0.03;
+        pointer-events: none;
+        z-index: 1;
+    }
 
-  @media (max-width: 768px) {
+    /* Epic border decorations */
+    body::after {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        border: 2px solid rgba(212, 175, 55, 0.1);
+        border-image: linear-gradient(45deg,
+                transparent 0%,
+                var(--theme-highlight, rgba(212, 175, 55, 0.3)) 35%,
+                var(--theme-border, rgba(205, 127, 50, 0.3)) 65%,
+                transparent 100%) 1;
+        pointer-events: none;
+        z-index: 2;
+    }
+
+    /* Global scrollbar styling - metallic epic rails */
+    *::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+        background-color: var(--theme-bg, rgba(17, 12, 9, 0.85));
+    }
+
+    *::-webkit-scrollbar-track {
+        background: linear-gradient(135deg,
+                var(--theme-surface, rgba(34, 24, 14, 0.9)),
+                var(--theme-surface-alt, rgba(61, 36, 21, 0.85)));
+        border: 1px solid var(--theme-border, rgba(205, 127, 50, 0.4));
+        box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.6),
+            inset 0 0 8px var(--theme-glow, rgba(217, 119, 6, 0.25));
+        border-radius: 999px;
+    }
+
+    *::-webkit-scrollbar-thumb {
+        background: linear-gradient(135deg,
+                var(--theme-secondary, #92400e) 0%,
+                var(--theme-primary, #d97706) 55%,
+                var(--theme-accent, #fbbf24) 100%);
+        border: 1px solid var(--theme-highlight, rgba(251, 191, 36, 0.4));
+        border-radius: 999px;
+        box-shadow: 0 0 6px var(--theme-glow, rgba(212, 175, 55, 0.4)),
+            inset 0 0 4px rgba(0, 0, 0, 0.65);
+    }
+
+    *::-webkit-scrollbar-thumb:hover {
+        background: linear-gradient(135deg,
+                var(--theme-accent, #fbbf24) 0%,
+                var(--theme-primary, #d97706) 70%,
+                var(--theme-secondary, #92400e) 100%);
+        box-shadow: 0 0 12px var(--theme-glow, rgba(255, 215, 128, 0.8)),
+            inset 0 0 6px rgba(0, 0, 0, 0.5);
+    }
+
+    *::-webkit-scrollbar-corner {
+        background: var(--theme-surface, rgba(34, 24, 14, 0.9));
+    }
+
+    body {
+        scrollbar-color: var(--theme-primary, #d97706) var(--theme-surface, rgba(34, 24, 14, 0.85));
+        scrollbar-width: thin;
+    }
+
     .status-bar-scroll {
-      scrollbar-width: none;
-      -ms-overflow-style: none;
+        scrollbar-width: thin;
     }
 
-    .status-bar-scroll::-webkit-scrollbar {
-      display: none;
+    @media (max-width: 768px) {
+        .status-bar-scroll {
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+
+        .status-bar-scroll::-webkit-scrollbar {
+            display: none;
+        }
     }
-  }
 }
 
 /* Custom Scrollbar - Ancient Scroll Style */
 @layer utilities {
-  /* Webkit browsers (Chrome, Safari, Edge) */
-  .scrollbar-ancient::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
 
-  .scrollbar-ancient::-webkit-scrollbar-track {
-    background: linear-gradient(to right, #2c1810, #3d2415, #2c1810);
-    border-radius: 4px;
-    box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.5);
-  }
+    /* Dynamic Viewport Height Utilities */
+    /* 使用 --real-viewport-height 代替 100vh 解决移动端浏览器地址栏问题 */
+    .h-screen-dynamic {
+        height: var(--real-viewport-height, 100vh);
+    }
 
-  .scrollbar-ancient::-webkit-scrollbar-thumb {
-    background: linear-gradient(135deg, #cd7f32, #d4af37, #cd7f32);
-    border-radius: 4px;
-    border: 1px solid rgba(212, 175, 55, 0.3);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-  }
+    .max-h-screen-dynamic {
+        max-height: var(--real-viewport-height, 100vh);
+    }
 
-  .scrollbar-ancient::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(135deg, #d4af37, #f4e8d0, #d4af37);
-    box-shadow: 0 0 8px rgba(212, 175, 55, 0.6);
-  }
+    .min-h-screen-dynamic {
+        min-height: var(--real-viewport-height, 100vh);
+    }
 
-  /* Thin scrollbar variant */
-  .scrollbar-thin::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
+    /* 常用模态框高度 */
+    .max-h-modal-85 {
+        max-height: calc(var(--real-viewport-height, 100vh) * 0.85);
+    }
 
-  .scrollbar-thin::-webkit-scrollbar-track {
-    background: rgba(44, 24, 16, 0.3);
-    border-radius: 3px;
-  }
+    .max-h-modal-90 {
+        max-height: calc(var(--real-viewport-height, 100vh) * 0.90);
+    }
 
-  .scrollbar-thin::-webkit-scrollbar-thumb {
-    background: rgba(212, 175, 55, 0.4);
-    border-radius: 3px;
-  }
+    .max-h-modal-95 {
+        max-height: calc(var(--real-viewport-height, 100vh) * 0.95);
+    }
 
-  .scrollbar-thin:hover::-webkit-scrollbar-thumb,
-  .hover\:scrollbar-thumb-gold:hover::-webkit-scrollbar-thumb {
-    background: rgba(212, 175, 55, 0.7);
-  }
+    /* Webkit browsers (Chrome, Safari, Edge) */
+    .scrollbar-ancient::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
 
-  /* Firefox scrollbar */
-  .scrollbar-ancient {
-    scrollbar-width: thin;
-    scrollbar-color: #d4af37 #2c1810;
-  }
+    .scrollbar-ancient::-webkit-scrollbar-track {
+        background: linear-gradient(to right, #2c1810, #3d2415, #2c1810);
+        border-radius: 4px;
+        box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.5);
+    }
 
-  .scrollbar-thin {
-    scrollbar-width: thin;
-    scrollbar-color: rgba(212, 175, 55, 0.4) rgba(44, 24, 16, 0.3);
-  }
+    .scrollbar-ancient::-webkit-scrollbar-thumb {
+        background: linear-gradient(135deg, #cd7f32, #d4af37, #cd7f32);
+        border-radius: 4px;
+        border: 1px solid rgba(212, 175, 55, 0.3);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
 
-  /* Hide scrollbar */
-  .scrollbar-hide::-webkit-scrollbar {
-    display: none;
-  }
+    .scrollbar-ancient::-webkit-scrollbar-thumb:hover {
+        background: linear-gradient(135deg, #d4af37, #f4e8d0, #d4af37);
+        box-shadow: 0 0 8px rgba(212, 175, 55, 0.6);
+    }
 
-  .scrollbar-hide {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
-  
-  /* Epic Glass Morphism - Ancient Stone Effect with Metal Texture */
-  .glass-ancient {
-    background: linear-gradient(135deg, 
-      var(--theme-surface, rgba(44, 24, 16, 0.85)) 0%, 
-      var(--theme-surface-alt, rgba(61, 36, 21, 0.75)) 50%, 
-      var(--theme-surface, rgba(44, 24, 16, 0.85)) 100%);
-    backdrop-filter: blur(12px) saturate(150%);
-    border: 1px solid var(--theme-border, rgba(212, 175, 55, 0.2));
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4),
-                0 2px 4px -1px rgba(0, 0, 0, 0.35),
-                inset 0 2px 0 rgba(255, 255, 255, 0.08),
-                inset 0 -2px 0 rgba(0, 0, 0, 0.45),
-                inset 1px 0 0 var(--theme-highlight, rgba(212, 175, 55, 0.15)),
-                inset -1px 0 0 rgba(0, 0, 0, 0.25);
-  }
-  
-  .glass-epic {
-    background: linear-gradient(135deg, 
-      var(--theme-surface-alt, rgba(26, 20, 16, 0.9)) 0%, 
-      var(--theme-surface, rgba(44, 24, 16, 0.85)) 50%, 
-      var(--theme-surface-alt, rgba(26, 20, 16, 0.9)) 100%);
-    backdrop-filter: blur(16px) saturate(180%);
-    border: 2px solid var(--theme-border, rgba(212, 175, 55, 0.3));
-    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.5),
-                0 4px 8px rgba(0, 0, 0, 0.4),
-                inset 0 3px 0 rgba(255, 255, 255, 0.15),
-                inset 0 -3px 0 rgba(0, 0, 0, 0.5),
-                inset 2px 0 0 var(--theme-highlight, rgba(212, 175, 55, 0.2)),
-                inset -2px 0 0 rgba(0, 0, 0, 0.3),
-                0 0 20px var(--theme-glow, rgba(212, 175, 55, 0.2));
-  }
-  
-  /* Monument-level importance with enhanced metal effect */
-  .glass-monument {
-    background: linear-gradient(135deg, 
-      var(--theme-surface-alt, rgba(26, 20, 16, 0.95)) 0%, 
-      var(--theme-surface, rgba(44, 24, 16, 0.9)) 25%,
-      var(--theme-surface-alt, rgba(61, 36, 21, 0.9)) 50%,
-      var(--theme-surface, rgba(44, 24, 16, 0.9)) 75%,
-      var(--theme-surface-alt, rgba(26, 20, 16, 0.95)) 100%);
-    backdrop-filter: blur(20px) saturate(200%);
-    border: 3px solid var(--theme-border, rgba(212, 175, 55, 0.4));
-    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.6),
-                0 6px 12px rgba(0, 0, 0, 0.5),
-                inset 0 4px 0 rgba(255, 255, 255, 0.2),
-                inset 0 -4px 0 rgba(0, 0, 0, 0.6),
-                inset 3px 0 0 var(--theme-highlight, rgba(212, 175, 55, 0.25)),
-                inset -3px 0 0 rgba(0, 0, 0, 0.4),
-                0 0 30px var(--theme-glow, rgba(212, 175, 55, 0.3));
-  }
-  
-  /* Epic Glow Effects with Metal Highlights */
-  .glow-gold {
-    box-shadow: 0 0 10px var(--theme-glow, rgba(212, 175, 55, 0.3)),
-                0 0 20px var(--theme-glow, rgba(212, 175, 55, 0.2)),
-                0 0 30px var(--theme-glow, rgba(212, 175, 55, 0.15)),
-                inset 0 1px 0 var(--theme-highlight, rgba(255, 235, 180, 0.3));
-  }
-  
-  .glow-gold-intense {
-    box-shadow: 0 0 15px var(--theme-glow, rgba(212, 175, 55, 0.5)),
-                0 0 30px var(--theme-glow, rgba(212, 175, 55, 0.3)),
-                0 0 45px var(--theme-glow, rgba(212, 175, 55, 0.2)),
-                inset 0 2px 0 var(--theme-highlight, rgba(255, 235, 180, 0.4)),
-                inset 0 -2px 0 rgba(0, 0, 0, 0.3);
-  }
-  
-  .glow-bronze {
-    box-shadow: 0 0 10px rgba(205, 127, 50, 0.3),
-                0 0 20px rgba(205, 127, 50, 0.2),
-                inset 0 1px 0 rgba(255, 200, 150, 0.2);
-  }
-  
-  .glow-empire {
-    box-shadow: 0 0 15px rgba(139, 0, 0, 0.4),
-                0 0 30px rgba(139, 0, 0, 0.2),
-                inset 0 1px 0 rgba(255, 100, 100, 0.2);
-  }
-  
-  /* Metal Texture Classes */
-  .metal-gold {
-    background: linear-gradient(135deg, 
-      #b8860b 0%, 
-      #d4af37 25%, 
-      #f4e8d0 50%, 
-      #d4af37 75%, 
-      #b8860b 100%);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5),
-                inset 0 2px 0 rgba(255, 235, 180, 0.4),
-                inset 0 -2px 0 rgba(139, 90, 0, 0.4),
-                0 0 20px rgba(212, 175, 55, 0.3);
-  }
-  
-  .metal-bronze {
-    background: linear-gradient(135deg, 
-      #8b4513 0%, 
-      #cd7f32 25%, 
-      #e6a85c 50%, 
-      #cd7f32 75%, 
-      #8b4513 100%);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5),
-                inset 0 2px 0 rgba(255, 200, 150, 0.3),
-                inset 0 -2px 0 rgba(100, 50, 20, 0.4),
-                0 0 15px rgba(205, 127, 50, 0.3);
-  }
-  
-  .metal-steel {
-    background: linear-gradient(135deg, 
-      #4a5568 0%, 
-      #718096 25%, 
-      #cbd5e0 50%, 
-      #718096 75%, 
-      #4a5568 100%);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6),
-                inset 0 2px 0 rgba(255, 255, 255, 0.3),
-                inset 0 -2px 0 rgba(0, 0, 0, 0.5),
-                0 0 10px rgba(200, 200, 220, 0.2);
-  }
-  
-  /* Embossed Effect */
-  .emboss {
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3),
-                inset 0 -1px 0 rgba(0, 0, 0, 0.4),
-                0 2px 4px rgba(0, 0, 0, 0.3);
-  }
-  
-  .emboss-deep {
-    box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.4),
-                inset 0 -2px 0 rgba(0, 0, 0, 0.5),
-                0 4px 8px rgba(0, 0, 0, 0.4);
-  }
-  
-  /* Beveled Edge Effect */
-  .bevel {
-    box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.3),
-                inset -1px -1px 0 rgba(0, 0, 0, 0.4),
-                0 2px 4px rgba(0, 0, 0, 0.2);
-  }
-  
-  .bevel-deep {
-    box-shadow: inset 2px 2px 0 rgba(255, 255, 255, 0.4),
-                inset -2px -2px 0 rgba(0, 0, 0, 0.5),
-                0 4px 8px rgba(0, 0, 0, 0.3);
-  }
-  
-  /* Ancient Border Decorations */
-  .border-ancient {
-    border-image: linear-gradient(135deg, 
-      rgba(212, 175, 55, 0.3), 
-      rgba(205, 127, 50, 0.5), 
-      rgba(212, 175, 55, 0.3)) 1;
-  }
-  
-  .border-epic {
-    position: relative;
-    border: 2px solid transparent;
-    background: linear-gradient(135deg, rgba(26, 20, 16, 0.9), rgba(44, 24, 16, 0.85)) padding-box,
-                linear-gradient(135deg, #d4af37, #cd7f32, #d4af37) border-box;
-  }
-  
-  /* Corner Ornaments */
-  .corner-ornament::before,
-  .corner-ornament::after {
-    content: '';
-    position: absolute;
-    width: 20px;
-    height: 20px;
-    border: 2px solid rgba(212, 175, 55, 0.4);
-  }
-  
-  .corner-ornament::before {
-    top: -2px;
-    left: -2px;
-    border-right: none;
-    border-bottom: none;
-  }
-  
-  .corner-ornament::after {
-    bottom: -2px;
-    right: -2px;
-    border-left: none;
-    border-top: none;
-  }
-  
-  /* Epic Animations */
-  @keyframes shimmer {
-    0% {
-      background-position: -1000px 0;
+    /* Thin scrollbar variant */
+    .scrollbar-thin::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
     }
-    100% {
-      background-position: 1000px 0;
-    }
-  }
-  
-  @keyframes pulse-gold {
-    0%, 100% {
-      box-shadow: 0 0 10px rgba(212, 175, 55, 0.3);
-    }
-    50% {
-      box-shadow: 0 0 20px rgba(212, 175, 55, 0.6);
-    }
-  }
-  
-  @keyframes float {
-    0%, 100% {
-      transform: translateY(0px);
-    }
-    50% {
-      transform: translateY(-10px);
-    }
-  }
-  
-  @keyframes fade-in-up {
-    from {
-      opacity: 0;
-      transform: translateY(20px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-  
-  @keyframes slide-in-right {
-    from {
-      opacity: 0;
-      transform: translateX(50px);
-    }
-    to {
-      opacity: 1;
-      transform: translateX(0);
-    }
-  }
-  
-  @keyframes scale-in {
-    from {
-      opacity: 0;
-      transform: scale(0.9);
-    }
-    to {
-      opacity: 1;
-      transform: scale(1);
-    }
-  }
 
-  @keyframes slide-down {
-    from {
-      opacity: 0;
-      transform: translateY(-20px);
+    .scrollbar-thin::-webkit-scrollbar-track {
+        background: rgba(44, 24, 16, 0.3);
+        border-radius: 3px;
     }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
 
-  @keyframes slide-up {
-    from {
-      opacity: 0;
-      transform: translateY(20px);
+    .scrollbar-thin::-webkit-scrollbar-thumb {
+        background: rgba(212, 175, 55, 0.4);
+        border-radius: 3px;
     }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
 
-  .animate-slide-down {
-    animation: slide-down 0.3s ease-out forwards;
-  }
-
-  .animate-slide-up {
-    animation: slide-up 0.3s ease-out forwards;
-  }
-
-  .animate-shimmer {
-    background: linear-gradient(90deg, 
-      transparent 0%, 
-      rgba(212, 175, 55, 0.2) 50%, 
-      transparent 100%);
-    background-size: 1000px 100%;
-    animation: shimmer 3s infinite;
-  }
-  
-  .animate-pulse-gold {
-    animation: pulse-gold 2s ease-in-out infinite;
-  }
-  
-  .animate-float {
-    animation: float 3s ease-in-out infinite;
-  }
-  
-  .animate-fade-in-up {
-    animation: fade-in-up 0.6s ease-out;
-  }
-  
-  .animate-slide-in-right {
-    animation: slide-in-right 0.5s ease-out;
-  }
-  
-  .animate-scale-in {
-    animation: scale-in 0.4s ease-out;
-  }
-
-  /* ==================== 新增动画特效 ==================== */
-  
-  /* 闪烁金光效果 */
-  @keyframes sparkle {
-    0%, 100% { opacity: 0; transform: scale(0) rotate(0deg); }
-    50% { opacity: 1; transform: scale(1) rotate(180deg); }
-  }
-  
-  /* 波纹扩散效果 */
-  @keyframes ripple {
-    0% { transform: scale(0.8); opacity: 1; }
-    100% { transform: scale(2); opacity: 0; }
-  }
-  
-  /* 心跳效果 */
-  @keyframes heartbeat {
-    0%, 100% { transform: scale(1); }
-    25% { transform: scale(1.05); }
-    50% { transform: scale(1); }
-    75% { transform: scale(1.08); }
-  }
-  
-  /* 呼吸发光效果 */
-  @keyframes breathe-glow {
-    0%, 100% { 
-      box-shadow: 0 0 8px var(--theme-glow, rgba(212, 175, 55, 0.3)),
-                  inset 0 0 4px var(--theme-glow, rgba(212, 175, 55, 0.1));
+    .scrollbar-thin:hover::-webkit-scrollbar-thumb,
+    .hover\:scrollbar-thumb-gold:hover::-webkit-scrollbar-thumb {
+        background: rgba(212, 175, 55, 0.7);
     }
-    50% { 
-      box-shadow: 0 0 16px var(--theme-glow, rgba(212, 175, 55, 0.5)),
-                  0 0 24px var(--theme-glow, rgba(212, 175, 55, 0.2)),
-                  inset 0 0 8px var(--theme-glow, rgba(212, 175, 55, 0.2));
-    }
-  }
-  
-  /* 数字跳动效果 */
-  @keyframes number-pop {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.2); }
-    100% { transform: scale(1); }
-  }
-  
-  /* 滑入弹跳效果 */
-  @keyframes slide-bounce {
-    0% { transform: translateY(20px); opacity: 0; }
-    60% { transform: translateY(-5px); opacity: 1; }
-    100% { transform: translateY(0); opacity: 1; }
-  }
-  
-  /* 摇晃提示效果 */
-  @keyframes shake-alert {
-    0%, 100% { transform: translateX(0); }
-    10%, 30%, 50%, 70%, 90% { transform: translateX(-2px); }
-    20%, 40%, 60%, 80% { transform: translateX(2px); }
-  }
-  
-  /* 旋转闪耀效果 */
-  @keyframes spin-glow {
-    0% { transform: rotate(0deg); filter: brightness(1); }
-    50% { filter: brightness(1.3); }
-    100% { transform: rotate(360deg); filter: brightness(1); }
-  }
-  
-  /* 渐显淡出循环 */
-  @keyframes fade-pulse {
-    0%, 100% { opacity: 0.5; }
-    50% { opacity: 1; }
-  }
-  
-  /* 边框流动效果 */
-  @keyframes border-flow {
-    0% { background-position: 0% 50%; }
-    50% { background-position: 100% 50%; }
-    100% { background-position: 0% 50%; }
-  }
-  
-  /* 动画工具类 */
-  .animate-sparkle {
-    animation: sparkle 1.5s ease-in-out infinite;
-  }
-  
-  .animate-ripple {
-    animation: ripple 1s ease-out;
-  }
-  
-  .animate-heartbeat {
-    animation: heartbeat 1.5s ease-in-out infinite;
-  }
-  
-  .animate-breathe-glow {
-    animation: breathe-glow 3s ease-in-out infinite;
-  }
-  
-  .animate-number-pop {
-    animation: number-pop 0.3s ease-out;
-  }
-  
-  .animate-slide-bounce {
-    animation: slide-bounce 0.5s ease-out;
-  }
-  
-  .animate-shake-alert {
-    animation: shake-alert 0.5s ease-in-out;
-  }
-  
-  .animate-spin-glow {
-    animation: spin-glow 2s linear infinite;
-  }
-  
-  .animate-fade-pulse {
-    animation: fade-pulse 2s ease-in-out infinite;
-  }
-  
-  /* 交互动效增强 */
-  .hover-lift {
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
-  }
-  
-  .hover-lift:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3), 0 0 15px var(--theme-glow, rgba(212, 175, 55, 0.2));
-  }
-  
-  .hover-glow {
-    transition: box-shadow 0.3s ease;
-  }
-  
-  .hover-glow:hover {
-    box-shadow: 0 0 20px var(--theme-glow, rgba(212, 175, 55, 0.4));
-  }
-  
-  .hover-scale {
-    transition: transform 0.2s ease;
-  }
-  
-  .hover-scale:hover {
-    transform: scale(1.05);
-  }
-  
-  .hover-scale:active {
-    transform: scale(0.98);
-  }
-  
-  /* 资源变化动画 */
-  .resource-increase {
-    animation: number-pop 0.3s ease-out;
-    color: #22c55e !important;
-  }
-  
-  .resource-decrease {
-    animation: shake-alert 0.3s ease-out;
-    color: #ef4444 !important;
-  }
-  
-  /* 边框流动效果 */
-  .border-flow {
-    background: linear-gradient(90deg, 
-      var(--theme-border, rgba(212, 175, 55, 0.2)) 0%,
-      var(--theme-accent, rgba(251, 191, 36, 0.5)) 25%,
-      var(--theme-border, rgba(212, 175, 55, 0.2)) 50%,
-      var(--theme-accent, rgba(251, 191, 36, 0.5)) 75%,
-      var(--theme-border, rgba(212, 175, 55, 0.2)) 100%);
-    background-size: 200% 100%;
-    animation: border-flow 3s linear infinite;
-  }
-  
-  /* 加载动画 */
-  .loading-dots::after {
-    content: '';
-    animation: loading-dots 1.5s steps(4, end) infinite;
-  }
-  
-  @keyframes loading-dots {
-    0% { content: ''; }
-    25% { content: '.'; }
-    50% { content: '..'; }
-    75% { content: '...'; }
-  }
-  
-  /* 卡片入场动画（依序延迟） */
-  .stagger-1 { animation-delay: 0.05s; }
-  .stagger-2 { animation-delay: 0.1s; }
-  .stagger-3 { animation-delay: 0.15s; }
-  .stagger-4 { animation-delay: 0.2s; }
-  .stagger-5 { animation-delay: 0.25s; }
-  .stagger-6 { animation-delay: 0.3s; }
-  
-  /* 通知/徽章动画 */
-  .badge-pulse {
-    position: relative;
-  }
-  
-  .badge-pulse::after {
-    content: '';
-    position: absolute;
-    inset: -2px;
-    border-radius: inherit;
-    background: inherit;
-    animation: ripple 1.5s ease-out infinite;
-    z-index: -1;
-  }
-  
-  /* Text Effects - Ancient Inscriptions */
-  .text-ancient {
-    color: var(--color-ancient-gold);
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5),
-                 0 0 10px rgba(212, 175, 55, 0.3);
-    font-weight: 600;
-    letter-spacing: 0.05em;
-  }
-  
-  .text-epic {
-    background: linear-gradient(135deg, #d4af37, #f4e8d0, #d4af37);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    text-shadow: 0 2px 8px rgba(212, 175, 55, 0.4);
-    font-weight: 700;
-    letter-spacing: 0.08em;
-  }
-  
-  .text-monument {
-    background: linear-gradient(135deg, #d4af37 0%, #f4e8d0 25%, #cd7f32 50%, #f4e8d0 75%, #d4af37 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    background-size: 200% auto;
-    animation: shimmer 4s linear infinite;
-    font-weight: 800;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-  }
-  
-  /* Button Styles - Epic Actions */
-  .btn-ancient {
-    @apply glass-ancient px-6 py-3 rounded-lg font-semibold;
-    @apply transition-all duration-300 ease-out;
-    @apply hover:glow-gold hover:scale-105;
-    @apply active:scale-95;
-    color: var(--color-ancient-gold);
-    position: relative;
-    overflow: hidden;
-  }
-  
-  .btn-ancient::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.2), transparent);
-    transition: left 0.5s;
-  }
-  
-  .btn-ancient:hover::before {
-    left: 100%;
-  }
-  
-  .btn-epic {
-    @apply glass-epic px-8 py-4 rounded-xl font-bold;
-    @apply transition-all duration-300 ease-out;
-    @apply hover:glow-gold-intense hover:scale-110;
-    @apply active:scale-95;
-    background: linear-gradient(135deg, rgba(212, 175, 55, 0.2), rgba(205, 127, 50, 0.2));
-    color: var(--color-ancient-gold);
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-  }
 
-  .btn-epoch-primary {
-    background: linear-gradient(135deg, var(--theme-secondary, #92400e), var(--theme-primary, #d97706));
-    border: 1px solid var(--theme-border, rgba(212, 175, 55, 0.35));
-    color: var(--theme-text, #fef3c7);
-    box-shadow: 0 0 8px var(--theme-glow, rgba(212, 175, 55, 0.3));
-    transition: background 0.3s ease, box-shadow 0.3s ease, filter 0.3s ease;
-  }
+    /* Firefox scrollbar */
+    .scrollbar-ancient {
+        scrollbar-width: thin;
+        scrollbar-color: #d4af37 #2c1810;
+    }
 
-  .btn-epoch-primary:hover:not(:disabled) {
-    filter: brightness(1.08);
-    box-shadow: 0 0 12px var(--theme-glow, rgba(212, 175, 55, 0.45));
-  }
+    .scrollbar-thin {
+        scrollbar-width: thin;
+        scrollbar-color: rgba(212, 175, 55, 0.4) rgba(44, 24, 16, 0.3);
+    }
 
-  .btn-epoch-primary:active:not(:disabled) {
-    filter: brightness(0.95);
-  }
-  
-  /* Card Styles - Historical Documents */
-  .card-ancient {
-    @apply glass-ancient rounded-xl p-6;
-    @apply transition-all duration-300;
-    @apply hover:glow-gold hover:-translate-y-1;
-    position: relative;
-  }
-  
-  .card-epic {
-    @apply glass-epic rounded-2xl p-8;
-    @apply transition-all duration-500;
-    @apply hover:glow-gold-intense hover:-translate-y-2;
-    @apply corner-ornament;
-    position: relative;
-  }
-  
-  /* Divider - Ancient Separator */
-  .divider-ancient {
-    height: 2px;
-    background: linear-gradient(90deg, 
-      transparent 0%, 
-      rgba(212, 175, 55, 0.3) 20%, 
-      rgba(205, 127, 50, 0.5) 50%, 
-      rgba(212, 175, 55, 0.3) 80%, 
-      transparent 100%);
-    position: relative;
-  }
-  
-  .divider-ancient::before {
-    content: '\2727';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    color: var(--color-ancient-gold);
-    background: rgba(26, 20, 16, 0.9);
-    padding: 0 12px;
-    font-size: 12px;
-  }
-  
-  /* Responsive Typography */
-  @media (max-width: 640px) {
-    .text-monument {
-      font-size: 1.25rem;
+    /* Hide scrollbar */
+    .scrollbar-hide::-webkit-scrollbar {
+        display: none;
     }
-    
-    .text-epic {
-      font-size: 1rem;
+
+    .scrollbar-hide {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
     }
-  }
-  
-  @media (min-width: 1024px) {
-    .text-monument {
-      font-size: 2rem;
+
+    /* Epic Glass Morphism - Ancient Stone Effect with Metal Texture */
+    .glass-ancient {
+        background: linear-gradient(135deg,
+                var(--theme-surface, rgba(44, 24, 16, 0.85)) 0%,
+                var(--theme-surface-alt, rgba(61, 36, 21, 0.75)) 50%,
+                var(--theme-surface, rgba(44, 24, 16, 0.85)) 100%);
+        backdrop-filter: blur(12px) saturate(150%);
+        border: 1px solid var(--theme-border, rgba(212, 175, 55, 0.2));
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4),
+            0 2px 4px -1px rgba(0, 0, 0, 0.35),
+            inset 0 2px 0 rgba(255, 255, 255, 0.08),
+            inset 0 -2px 0 rgba(0, 0, 0, 0.45),
+            inset 1px 0 0 var(--theme-highlight, rgba(212, 175, 55, 0.15)),
+            inset -1px 0 0 rgba(0, 0, 0, 0.25);
     }
-  }
-  
-  /* Print Styles - For documentation */
-  @media print {
-    body::before,
-    body::after {
-      display: none;
+
+    .glass-epic {
+        background: linear-gradient(135deg,
+                var(--theme-surface-alt, rgba(26, 20, 16, 0.9)) 0%,
+                var(--theme-surface, rgba(44, 24, 16, 0.85)) 50%,
+                var(--theme-surface-alt, rgba(26, 20, 16, 0.9)) 100%);
+        backdrop-filter: blur(16px) saturate(180%);
+        border: 2px solid var(--theme-border, rgba(212, 175, 55, 0.3));
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.5),
+            0 4px 8px rgba(0, 0, 0, 0.4),
+            inset 0 3px 0 rgba(255, 255, 255, 0.15),
+            inset 0 -3px 0 rgba(0, 0, 0, 0.5),
+            inset 2px 0 0 var(--theme-highlight, rgba(212, 175, 55, 0.2)),
+            inset -2px 0 0 rgba(0, 0, 0, 0.3),
+            0 0 20px var(--theme-glow, rgba(212, 175, 55, 0.2));
     }
-    
-    .glass-ancient,
-    .glass-epic,
+
+    /* Monument-level importance with enhanced metal effect */
     .glass-monument {
-      background: white;
-      border: 1px solid #ccc;
+        background: linear-gradient(135deg,
+                var(--theme-surface-alt, rgba(26, 20, 16, 0.95)) 0%,
+                var(--theme-surface, rgba(44, 24, 16, 0.9)) 25%,
+                var(--theme-surface-alt, rgba(61, 36, 21, 0.9)) 50%,
+                var(--theme-surface, rgba(44, 24, 16, 0.9)) 75%,
+                var(--theme-surface-alt, rgba(26, 20, 16, 0.95)) 100%);
+        backdrop-filter: blur(20px) saturate(200%);
+        border: 3px solid var(--theme-border, rgba(212, 175, 55, 0.4));
+        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.6),
+            0 6px 12px rgba(0, 0, 0, 0.5),
+            inset 0 4px 0 rgba(255, 255, 255, 0.2),
+            inset 0 -4px 0 rgba(0, 0, 0, 0.6),
+            inset 3px 0 0 var(--theme-highlight, rgba(212, 175, 55, 0.25)),
+            inset -3px 0 0 rgba(0, 0, 0, 0.4),
+            0 0 30px var(--theme-glow, rgba(212, 175, 55, 0.3));
     }
-  }
+
+    /* Epic Glow Effects with Metal Highlights */
+    .glow-gold {
+        box-shadow: 0 0 10px var(--theme-glow, rgba(212, 175, 55, 0.3)),
+            0 0 20px var(--theme-glow, rgba(212, 175, 55, 0.2)),
+            0 0 30px var(--theme-glow, rgba(212, 175, 55, 0.15)),
+            inset 0 1px 0 var(--theme-highlight, rgba(255, 235, 180, 0.3));
+    }
+
+    .glow-gold-intense {
+        box-shadow: 0 0 15px var(--theme-glow, rgba(212, 175, 55, 0.5)),
+            0 0 30px var(--theme-glow, rgba(212, 175, 55, 0.3)),
+            0 0 45px var(--theme-glow, rgba(212, 175, 55, 0.2)),
+            inset 0 2px 0 var(--theme-highlight, rgba(255, 235, 180, 0.4)),
+            inset 0 -2px 0 rgba(0, 0, 0, 0.3);
+    }
+
+    .glow-bronze {
+        box-shadow: 0 0 10px rgba(205, 127, 50, 0.3),
+            0 0 20px rgba(205, 127, 50, 0.2),
+            inset 0 1px 0 rgba(255, 200, 150, 0.2);
+    }
+
+    .glow-empire {
+        box-shadow: 0 0 15px rgba(139, 0, 0, 0.4),
+            0 0 30px rgba(139, 0, 0, 0.2),
+            inset 0 1px 0 rgba(255, 100, 100, 0.2);
+    }
+
+    /* Metal Texture Classes */
+    .metal-gold {
+        background: linear-gradient(135deg,
+                #b8860b 0%,
+                #d4af37 25%,
+                #f4e8d0 50%,
+                #d4af37 75%,
+                #b8860b 100%);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5),
+            inset 0 2px 0 rgba(255, 235, 180, 0.4),
+            inset 0 -2px 0 rgba(139, 90, 0, 0.4),
+            0 0 20px rgba(212, 175, 55, 0.3);
+    }
+
+    .metal-bronze {
+        background: linear-gradient(135deg,
+                #8b4513 0%,
+                #cd7f32 25%,
+                #e6a85c 50%,
+                #cd7f32 75%,
+                #8b4513 100%);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5),
+            inset 0 2px 0 rgba(255, 200, 150, 0.3),
+            inset 0 -2px 0 rgba(100, 50, 20, 0.4),
+            0 0 15px rgba(205, 127, 50, 0.3);
+    }
+
+    .metal-steel {
+        background: linear-gradient(135deg,
+                #4a5568 0%,
+                #718096 25%,
+                #cbd5e0 50%,
+                #718096 75%,
+                #4a5568 100%);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6),
+            inset 0 2px 0 rgba(255, 255, 255, 0.3),
+            inset 0 -2px 0 rgba(0, 0, 0, 0.5),
+            0 0 10px rgba(200, 200, 220, 0.2);
+    }
+
+    /* Embossed Effect */
+    .emboss {
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3),
+            inset 0 -1px 0 rgba(0, 0, 0, 0.4),
+            0 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    .emboss-deep {
+        box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.4),
+            inset 0 -2px 0 rgba(0, 0, 0, 0.5),
+            0 4px 8px rgba(0, 0, 0, 0.4);
+    }
+
+    /* Beveled Edge Effect */
+    .bevel {
+        box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.3),
+            inset -1px -1px 0 rgba(0, 0, 0, 0.4),
+            0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    .bevel-deep {
+        box-shadow: inset 2px 2px 0 rgba(255, 255, 255, 0.4),
+            inset -2px -2px 0 rgba(0, 0, 0, 0.5),
+            0 4px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Ancient Border Decorations */
+    .border-ancient {
+        border-image: linear-gradient(135deg,
+                rgba(212, 175, 55, 0.3),
+                rgba(205, 127, 50, 0.5),
+                rgba(212, 175, 55, 0.3)) 1;
+    }
+
+    .border-epic {
+        position: relative;
+        border: 2px solid transparent;
+        background: linear-gradient(135deg, rgba(26, 20, 16, 0.9), rgba(44, 24, 16, 0.85)) padding-box,
+            linear-gradient(135deg, #d4af37, #cd7f32, #d4af37) border-box;
+    }
+
+    /* Corner Ornaments */
+    .corner-ornament::before,
+    .corner-ornament::after {
+        content: '';
+        position: absolute;
+        width: 20px;
+        height: 20px;
+        border: 2px solid rgba(212, 175, 55, 0.4);
+    }
+
+    .corner-ornament::before {
+        top: -2px;
+        left: -2px;
+        border-right: none;
+        border-bottom: none;
+    }
+
+    .corner-ornament::after {
+        bottom: -2px;
+        right: -2px;
+        border-left: none;
+        border-top: none;
+    }
+
+    /* Epic Animations */
+    @keyframes shimmer {
+        0% {
+            background-position: -1000px 0;
+        }
+
+        100% {
+            background-position: 1000px 0;
+        }
+    }
+
+    @keyframes pulse-gold {
+
+        0%,
+        100% {
+            box-shadow: 0 0 10px rgba(212, 175, 55, 0.3);
+        }
+
+        50% {
+            box-shadow: 0 0 20px rgba(212, 175, 55, 0.6);
+        }
+    }
+
+    @keyframes float {
+
+        0%,
+        100% {
+            transform: translateY(0px);
+        }
+
+        50% {
+            transform: translateY(-10px);
+        }
+    }
+
+    @keyframes fade-in-up {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    @keyframes slide-in-right {
+        from {
+            opacity: 0;
+            transform: translateX(50px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+
+    @keyframes scale-in {
+        from {
+            opacity: 0;
+            transform: scale(0.9);
+        }
+
+        to {
+            opacity: 1;
+            transform: scale(1);
+        }
+    }
+
+    @keyframes slide-down {
+        from {
+            opacity: 0;
+            transform: translateY(-20px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    @keyframes slide-up {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .animate-slide-down {
+        animation: slide-down 0.3s ease-out forwards;
+    }
+
+    .animate-slide-up {
+        animation: slide-up 0.3s ease-out forwards;
+    }
+
+    .animate-shimmer {
+        background: linear-gradient(90deg,
+                transparent 0%,
+                rgba(212, 175, 55, 0.2) 50%,
+                transparent 100%);
+        background-size: 1000px 100%;
+        animation: shimmer 3s infinite;
+    }
+
+    .animate-pulse-gold {
+        animation: pulse-gold 2s ease-in-out infinite;
+    }
+
+    .animate-float {
+        animation: float 3s ease-in-out infinite;
+    }
+
+    .animate-fade-in-up {
+        animation: fade-in-up 0.6s ease-out;
+    }
+
+    .animate-slide-in-right {
+        animation: slide-in-right 0.5s ease-out;
+    }
+
+    .animate-scale-in {
+        animation: scale-in 0.4s ease-out;
+    }
+
+    /* ==================== 新增动画特效 ==================== */
+
+    /* 闪烁金光效果 */
+    @keyframes sparkle {
+
+        0%,
+        100% {
+            opacity: 0;
+            transform: scale(0) rotate(0deg);
+        }
+
+        50% {
+            opacity: 1;
+            transform: scale(1) rotate(180deg);
+        }
+    }
+
+    /* 波纹扩散效果 */
+    @keyframes ripple {
+        0% {
+            transform: scale(0.8);
+            opacity: 1;
+        }
+
+        100% {
+            transform: scale(2);
+            opacity: 0;
+        }
+    }
+
+    /* 心跳效果 */
+    @keyframes heartbeat {
+
+        0%,
+        100% {
+            transform: scale(1);
+        }
+
+        25% {
+            transform: scale(1.05);
+        }
+
+        50% {
+            transform: scale(1);
+        }
+
+        75% {
+            transform: scale(1.08);
+        }
+    }
+
+    /* 呼吸发光效果 */
+    @keyframes breathe-glow {
+
+        0%,
+        100% {
+            box-shadow: 0 0 8px var(--theme-glow, rgba(212, 175, 55, 0.3)),
+                inset 0 0 4px var(--theme-glow, rgba(212, 175, 55, 0.1));
+        }
+
+        50% {
+            box-shadow: 0 0 16px var(--theme-glow, rgba(212, 175, 55, 0.5)),
+                0 0 24px var(--theme-glow, rgba(212, 175, 55, 0.2)),
+                inset 0 0 8px var(--theme-glow, rgba(212, 175, 55, 0.2));
+        }
+    }
+
+    /* 数字跳动效果 */
+    @keyframes number-pop {
+        0% {
+            transform: scale(1);
+        }
+
+        50% {
+            transform: scale(1.2);
+        }
+
+        100% {
+            transform: scale(1);
+        }
+    }
+
+    /* 滑入弹跳效果 */
+    @keyframes slide-bounce {
+        0% {
+            transform: translateY(20px);
+            opacity: 0;
+        }
+
+        60% {
+            transform: translateY(-5px);
+            opacity: 1;
+        }
+
+        100% {
+            transform: translateY(0);
+            opacity: 1;
+        }
+    }
+
+    /* 摇晃提示效果 */
+    @keyframes shake-alert {
+
+        0%,
+        100% {
+            transform: translateX(0);
+        }
+
+        10%,
+        30%,
+        50%,
+        70%,
+        90% {
+            transform: translateX(-2px);
+        }
+
+        20%,
+        40%,
+        60%,
+        80% {
+            transform: translateX(2px);
+        }
+    }
+
+    /* 旋转闪耀效果 */
+    @keyframes spin-glow {
+        0% {
+            transform: rotate(0deg);
+            filter: brightness(1);
+        }
+
+        50% {
+            filter: brightness(1.3);
+        }
+
+        100% {
+            transform: rotate(360deg);
+            filter: brightness(1);
+        }
+    }
+
+    /* 渐显淡出循环 */
+    @keyframes fade-pulse {
+
+        0%,
+        100% {
+            opacity: 0.5;
+        }
+
+        50% {
+            opacity: 1;
+        }
+    }
+
+    /* 边框流动效果 */
+    @keyframes border-flow {
+        0% {
+            background-position: 0% 50%;
+        }
+
+        50% {
+            background-position: 100% 50%;
+        }
+
+        100% {
+            background-position: 0% 50%;
+        }
+    }
+
+    /* 动画工具类 */
+    .animate-sparkle {
+        animation: sparkle 1.5s ease-in-out infinite;
+    }
+
+    .animate-ripple {
+        animation: ripple 1s ease-out;
+    }
+
+    .animate-heartbeat {
+        animation: heartbeat 1.5s ease-in-out infinite;
+    }
+
+    .animate-breathe-glow {
+        animation: breathe-glow 3s ease-in-out infinite;
+    }
+
+    .animate-number-pop {
+        animation: number-pop 0.3s ease-out;
+    }
+
+    .animate-slide-bounce {
+        animation: slide-bounce 0.5s ease-out;
+    }
+
+    .animate-shake-alert {
+        animation: shake-alert 0.5s ease-in-out;
+    }
+
+    .animate-spin-glow {
+        animation: spin-glow 2s linear infinite;
+    }
+
+    .animate-fade-pulse {
+        animation: fade-pulse 2s ease-in-out infinite;
+    }
+
+    /* 交互动效增强 */
+    .hover-lift {
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .hover-lift:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3), 0 0 15px var(--theme-glow, rgba(212, 175, 55, 0.2));
+    }
+
+    .hover-glow {
+        transition: box-shadow 0.3s ease;
+    }
+
+    .hover-glow:hover {
+        box-shadow: 0 0 20px var(--theme-glow, rgba(212, 175, 55, 0.4));
+    }
+
+    .hover-scale {
+        transition: transform 0.2s ease;
+    }
+
+    .hover-scale:hover {
+        transform: scale(1.05);
+    }
+
+    .hover-scale:active {
+        transform: scale(0.98);
+    }
+
+    /* 资源变化动画 */
+    .resource-increase {
+        animation: number-pop 0.3s ease-out;
+        color: #22c55e !important;
+    }
+
+    .resource-decrease {
+        animation: shake-alert 0.3s ease-out;
+        color: #ef4444 !important;
+    }
+
+    /* 边框流动效果 */
+    .border-flow {
+        background: linear-gradient(90deg,
+                var(--theme-border, rgba(212, 175, 55, 0.2)) 0%,
+                var(--theme-accent, rgba(251, 191, 36, 0.5)) 25%,
+                var(--theme-border, rgba(212, 175, 55, 0.2)) 50%,
+                var(--theme-accent, rgba(251, 191, 36, 0.5)) 75%,
+                var(--theme-border, rgba(212, 175, 55, 0.2)) 100%);
+        background-size: 200% 100%;
+        animation: border-flow 3s linear infinite;
+    }
+
+    /* 加载动画 */
+    .loading-dots::after {
+        content: '';
+        animation: loading-dots 1.5s steps(4, end) infinite;
+    }
+
+    @keyframes loading-dots {
+        0% {
+            content: '';
+        }
+
+        25% {
+            content: '.';
+        }
+
+        50% {
+            content: '..';
+        }
+
+        75% {
+            content: '...';
+        }
+    }
+
+    /* 卡片入场动画（依序延迟） */
+    .stagger-1 {
+        animation-delay: 0.05s;
+    }
+
+    .stagger-2 {
+        animation-delay: 0.1s;
+    }
+
+    .stagger-3 {
+        animation-delay: 0.15s;
+    }
+
+    .stagger-4 {
+        animation-delay: 0.2s;
+    }
+
+    .stagger-5 {
+        animation-delay: 0.25s;
+    }
+
+    .stagger-6 {
+        animation-delay: 0.3s;
+    }
+
+    /* 通知/徽章动画 */
+    .badge-pulse {
+        position: relative;
+    }
+
+    .badge-pulse::after {
+        content: '';
+        position: absolute;
+        inset: -2px;
+        border-radius: inherit;
+        background: inherit;
+        animation: ripple 1.5s ease-out infinite;
+        z-index: -1;
+    }
+
+    /* Text Effects - Ancient Inscriptions */
+    .text-ancient {
+        color: var(--color-ancient-gold);
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5),
+            0 0 10px rgba(212, 175, 55, 0.3);
+        font-weight: 600;
+        letter-spacing: 0.05em;
+    }
+
+    .text-epic {
+        background: linear-gradient(135deg, #d4af37, #f4e8d0, #d4af37);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        text-shadow: 0 2px 8px rgba(212, 175, 55, 0.4);
+        font-weight: 700;
+        letter-spacing: 0.08em;
+    }
+
+    .text-monument {
+        background: linear-gradient(135deg, #d4af37 0%, #f4e8d0 25%, #cd7f32 50%, #f4e8d0 75%, #d4af37 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        background-size: 200% auto;
+        animation: shimmer 4s linear infinite;
+        font-weight: 800;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+    }
+
+    /* Button Styles - Epic Actions */
+    .btn-ancient {
+        @apply glass-ancient px-6 py-3 rounded-lg font-semibold;
+        @apply transition-all duration-300 ease-out;
+        @apply hover:glow-gold hover:scale-105;
+        @apply active:scale-95;
+        color: var(--color-ancient-gold);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .btn-ancient::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.2), transparent);
+        transition: left 0.5s;
+    }
+
+    .btn-ancient:hover::before {
+        left: 100%;
+    }
+
+    .btn-epic {
+        @apply glass-epic px-8 py-4 rounded-xl font-bold;
+        @apply transition-all duration-300 ease-out;
+        @apply hover:glow-gold-intense hover:scale-110;
+        @apply active:scale-95;
+        background: linear-gradient(135deg, rgba(212, 175, 55, 0.2), rgba(205, 127, 50, 0.2));
+        color: var(--color-ancient-gold);
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+    }
+
+    .btn-epoch-primary {
+        background: linear-gradient(135deg, var(--theme-secondary, #92400e), var(--theme-primary, #d97706));
+        border: 1px solid var(--theme-border, rgba(212, 175, 55, 0.35));
+        color: var(--theme-text, #fef3c7);
+        box-shadow: 0 0 8px var(--theme-glow, rgba(212, 175, 55, 0.3));
+        transition: background 0.3s ease, box-shadow 0.3s ease, filter 0.3s ease;
+    }
+
+    .btn-epoch-primary:hover:not(:disabled) {
+        filter: brightness(1.08);
+        box-shadow: 0 0 12px var(--theme-glow, rgba(212, 175, 55, 0.45));
+    }
+
+    .btn-epoch-primary:active:not(:disabled) {
+        filter: brightness(0.95);
+    }
+
+    /* Card Styles - Historical Documents */
+    .card-ancient {
+        @apply glass-ancient rounded-xl p-6;
+        @apply transition-all duration-300;
+        @apply hover:glow-gold hover:-translate-y-1;
+        position: relative;
+    }
+
+    .card-epic {
+        @apply glass-epic rounded-2xl p-8;
+        @apply transition-all duration-500;
+        @apply hover:glow-gold-intense hover:-translate-y-2;
+        @apply corner-ornament;
+        position: relative;
+    }
+
+    /* Divider - Ancient Separator */
+    .divider-ancient {
+        height: 2px;
+        background: linear-gradient(90deg,
+                transparent 0%,
+                rgba(212, 175, 55, 0.3) 20%,
+                rgba(205, 127, 50, 0.5) 50%,
+                rgba(212, 175, 55, 0.3) 80%,
+                transparent 100%);
+        position: relative;
+    }
+
+    .divider-ancient::before {
+        content: '\2727';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: var(--color-ancient-gold);
+        background: rgba(26, 20, 16, 0.9);
+        padding: 0 12px;
+        font-size: 12px;
+    }
+
+    /* Responsive Typography */
+    @media (max-width: 640px) {
+        .text-monument {
+            font-size: 1.25rem;
+        }
+
+        .text-epic {
+            font-size: 1rem;
+        }
+    }
+
+    @media (min-width: 1024px) {
+        .text-monument {
+            font-size: 2rem;
+        }
+    }
+
+    /* Print Styles - For documentation */
+    @media print {
+
+        body::before,
+        body::after {
+            display: none;
+        }
+
+        .glass-ancient,
+        .glass-epic,
+        .glass-monument {
+            background: white;
+            border: 1px solid #ccc;
+        }
+    }
 }
 
 @layer components {
-  /* 装饰性标题 - 衬线字体，适用于大字号(>=14px)装饰性标题、品牌文字 */
-  .title-decorative {
-    font-family: 'Cinzel', 'Noto Serif SC', 'Georgia', serif;
-    letter-spacing: 0.08em;
-  }
 
-  /* 保留旧类名作为别名，用于大字号标签标题的装饰性用途 */
-  .tab-title-serif {
-    font-family: 'Cinzel', 'Noto Serif SC', 'Georgia', serif;
-    letter-spacing: 0.08em;
-  }
+    /* 装饰性标题 - 衬线字体，适用于大字号(>=14px)装饰性标题、品牌文字 */
+    .title-decorative {
+        font-family: 'Cinzel', 'Noto Serif SC', 'Georgia', serif;
+        letter-spacing: 0.08em;
+    }
 
-  /* 普通标签标题 - 无衬线字体，适用于小字号(<14px)标签、按钮、数据 */
-  .tab-title {
-    font-family: 'Inter', 'Noto Sans SC', system-ui, sans-serif;
-    letter-spacing: 0.05em;
-  }
+    /* 保留旧类名作为别名，用于大字号标签标题的装饰性用途 */
+    .tab-title-serif {
+        font-family: 'Cinzel', 'Noto Serif SC', 'Georgia', serif;
+        letter-spacing: 0.08em;
+    }
 
-  /* 表头装饰样式 - 仅用于大字号表格标题 */
-  .table-header-decorative {
-    font-family: 'Cinzel', 'Noto Serif SC', 'Georgia', serif;
-    letter-spacing: 0.05em;
-  }
+    /* 普通标签标题 - 无衬线字体，适用于小字号(<14px)标签、按钮、数据 */
+    .tab-title {
+        font-family: 'Inter', 'Noto Sans SC', system-ui, sans-serif;
+        letter-spacing: 0.05em;
+    }
 
-  /* 普通表头 - 无衬线字体，便于数据阅读 */
-  .table-header,
-  table thead th {
-    font-family: 'Inter', 'Noto Sans SC', system-ui, sans-serif;
-    letter-spacing: 0.03em;
-    font-weight: 600;
-  }
+    /* 表头装饰样式 - 仅用于大字号表格标题 */
+    .table-header-decorative {
+        font-family: 'Cinzel', 'Noto Serif SC', 'Georgia', serif;
+        letter-spacing: 0.05em;
+    }
 
-  /* Era-aware remap for legacy gray utility classes */
-  .bg-gray-950\/70,
-  .bg-gray-950\/60,
-  .bg-gray-900,
-  .bg-gray-900\/95,
-  .bg-gray-900\/90,
-  .bg-gray-900\/80,
-  .bg-gray-800,
-  .bg-gray-800\/90,
-  .bg-gray-700,
-  .bg-gray-700\/90,
-  .bg-gray-600 {
-    background: linear-gradient(
-      135deg,
-      var(--theme-surface-alt, rgba(61, 36, 21, 0.85)),
-      var(--theme-surface, rgba(44, 24, 16, 0.85))
-    ) !important;
-    border: 1px solid var(--theme-border, rgba(212, 175, 55, 0.25));
-    box-shadow: var(--theme-shadow, var(--shadow-ancient));
-    backdrop-filter: blur(12px) saturate(150%);
-  }
+    /* 普通表头 - 无衬线字体，便于数据阅读 */
+    .table-header,
+    table thead th {
+        font-family: 'Inter', 'Noto Sans SC', system-ui, sans-serif;
+        letter-spacing: 0.03em;
+        font-weight: 600;
+    }
 
-  .bg-gray-900\/70,
-  .bg-gray-900\/60,
-  .bg-gray-800\/70,
-  .bg-gray-800\/60,
-  .bg-gray-700\/80,
-  .bg-gray-700\/70,
-  .bg-gray-700\/60,
-  .bg-gray-600\/60 {
-    background-color: var(--theme-surface-alt, rgba(61, 36, 21, 0.75)) !important;
-    border: 1px solid var(--theme-border, rgba(212, 175, 55, 0.2));
-    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.2);
-    backdrop-filter: blur(8px);
-  }
+    /* Era-aware remap for legacy gray utility classes */
+    .bg-gray-950\/70,
+    .bg-gray-950\/60,
+    .bg-gray-900,
+    .bg-gray-900\/95,
+    .bg-gray-900\/90,
+    .bg-gray-900\/80,
+    .bg-gray-800,
+    .bg-gray-800\/90,
+    .bg-gray-700,
+    .bg-gray-700\/90,
+    .bg-gray-600 {
+        background: linear-gradient(135deg,
+                var(--theme-surface-alt, rgba(61, 36, 21, 0.85)),
+                var(--theme-surface, rgba(44, 24, 16, 0.85))) !important;
+        border: 1px solid var(--theme-border, rgba(212, 175, 55, 0.25));
+        box-shadow: var(--theme-shadow, var(--shadow-ancient));
+        backdrop-filter: blur(12px) saturate(150%);
+    }
 
-  .bg-gray-900\/50,
-  .bg-gray-900\/40,
-  .bg-gray-900\/30,
-  .bg-gray-900\/20,
-  .bg-gray-800\/50,
-  .bg-gray-800\/40,
-  .bg-gray-800\/30,
-  .bg-gray-800\/20,
-  .bg-gray-700\/50,
-  .bg-gray-700\/40,
-  .bg-gray-700\/30,
-  .bg-gray-700\/20,
-  .bg-gray-600\/50 {
-    background-color: var(--theme-surface-trans, rgba(32, 22, 14, 0.5)) !important;
-    border: 1px solid var(--theme-border, rgba(212, 175, 55, 0.15));
-    backdrop-filter: blur(6px);
-  }
+    .bg-gray-900\/70,
+    .bg-gray-900\/60,
+    .bg-gray-800\/70,
+    .bg-gray-800\/60,
+    .bg-gray-700\/80,
+    .bg-gray-700\/70,
+    .bg-gray-700\/60,
+    .bg-gray-600\/60 {
+        background-color: var(--theme-surface-alt, rgba(61, 36, 21, 0.75)) !important;
+        border: 1px solid var(--theme-border, rgba(212, 175, 55, 0.2));
+        box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.2);
+        backdrop-filter: blur(8px);
+    }
 
-  /* Border remap */
-  .border-gray-900,
-  .border-gray-800,
-  .border-gray-700,
-  .border-gray-600,
-  .border-gray-500,
-  .border-gray-400,
-  .border-gray-700\/80,
-  .border-gray-700\/60,
-  .border-gray-700\/50,
-  .border-gray-800\/80,
-  .border-gray-800\/60,
-  .border-gray-800\/50 {
-    border-color: var(--theme-border, rgba(212, 175, 55, 0.35)) !important;
-  }
+    .bg-gray-900\/50,
+    .bg-gray-900\/40,
+    .bg-gray-900\/30,
+    .bg-gray-900\/20,
+    .bg-gray-800\/50,
+    .bg-gray-800\/40,
+    .bg-gray-800\/30,
+    .bg-gray-800\/20,
+    .bg-gray-700\/50,
+    .bg-gray-700\/40,
+    .bg-gray-700\/30,
+    .bg-gray-700\/20,
+    .bg-gray-600\/50 {
+        background-color: var(--theme-surface-trans, rgba(32, 22, 14, 0.5)) !important;
+        border: 1px solid var(--theme-border, rgba(212, 175, 55, 0.15));
+        backdrop-filter: blur(6px);
+    }
 
-  /* Text tone remap */
-  .text-gray-100,
-  .text-gray-200,
-  .text-white {
-    color: var(--theme-text, #fef3c7) !important;
-  }
-  .text-gray-300,
-  .text-gray-400 {
-    color: var(--theme-text-muted, rgba(254, 243, 199, 0.75)) !important;
-  }
-  .text-gray-500,
-  .text-gray-600 {
-    color: rgba(254, 243, 199, 0.6) !important;
-  }
+    /* Border remap */
+    .border-gray-900,
+    .border-gray-800,
+    .border-gray-700,
+    .border-gray-600,
+    .border-gray-500,
+    .border-gray-400,
+    .border-gray-700\/80,
+    .border-gray-700\/60,
+    .border-gray-700\/50,
+    .border-gray-800\/80,
+    .border-gray-800\/60,
+    .border-gray-800\/50 {
+        border-color: var(--theme-border, rgba(212, 175, 55, 0.35)) !important;
+    }
 
-  /* Shadow remap */
-  .shadow-lg {
-    box-shadow: var(--shadow-ancient) !important;
-  }
-  .shadow-xl {
-    box-shadow: var(--shadow-epic) !important;
-  }
-  .shadow-2xl {
-    box-shadow: var(--shadow-monument) !important;
-  }
+    /* Text tone remap */
+    .text-gray-100,
+    .text-gray-200,
+    .text-white {
+        color: var(--theme-text, #fef3c7) !important;
+    }
+
+    .text-gray-300,
+    .text-gray-400 {
+        color: var(--theme-text-muted, rgba(254, 243, 199, 0.75)) !important;
+    }
+
+    .text-gray-500,
+    .text-gray-600 {
+        color: rgba(254, 243, 199, 0.6) !important;
+    }
+
+    /* Shadow remap */
+    .shadow-lg {
+        box-shadow: var(--shadow-ancient) !important;
+    }
+
+    .shadow-xl {
+        box-shadow: var(--shadow-epic) !important;
+    }
+
+    .shadow-2xl {
+        box-shadow: var(--shadow-monument) !important;
+    }
 }
 
 /* ==================== 新增：增强史诗感和移动端优化样式 ==================== */
 
 @layer utilities {
-  /* 紧凑信息展示网格 - 减少滚动 */
-  .info-grid-compact {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
-    gap: 4px;
-  }
-  
-  .info-grid-compact-sm {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
-    gap: 3px;
-  }
 
-  /* 史诗图标框架样式 - 适配游戏画面 */
-  .icon-epic-frame {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background: linear-gradient(135deg, 
-      var(--theme-surface-alt, rgba(61, 36, 21, 0.8)) 0%,
-      var(--theme-surface, rgba(44, 24, 16, 0.9)) 50%,
-      var(--theme-surface-alt, rgba(61, 36, 21, 0.8)) 100%);
-    border: 1px solid var(--theme-border, rgba(212, 175, 55, 0.3));
-    border-radius: 6px;
-    box-shadow: 
-      0 2px 4px rgba(0, 0, 0, 0.3),
-      inset 0 1px 0 rgba(255, 255, 255, 0.1),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.2);
-    transition: all 0.2s ease;
-  }
-  
-  .icon-epic-frame:hover {
-    border-color: var(--theme-accent, rgba(251, 191, 36, 0.5));
-    box-shadow: 
-      0 4px 8px rgba(0, 0, 0, 0.4),
-      0 0 12px var(--theme-glow, rgba(212, 175, 55, 0.3)),
-      inset 0 1px 0 rgba(255, 255, 255, 0.15),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.3);
-  }
+    /* 紧凑信息展示网格 - 减少滚动 */
+    .info-grid-compact {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+        gap: 4px;
+    }
 
-  /* 图标尺寸变体 */
-  .icon-frame-xs { width: 24px; height: 24px; padding: 3px; }
-  .icon-frame-sm { width: 28px; height: 28px; padding: 4px; }
-  .icon-frame-md { width: 32px; height: 32px; padding: 5px; }
-  .icon-frame-lg { width: 40px; height: 40px; padding: 6px; }
+    .info-grid-compact-sm {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
+        gap: 3px;
+    }
 
-  /* ==================== 金属质感图标样式 ==================== */
-  
-  /* 基础金属图标 - 带有金属光泽和立体感 */
-  .icon-metal {
-    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4))
-            drop-shadow(0 0 2px var(--theme-glow, rgba(212, 175, 55, 0.15)));
-    transition: all 0.2s ease;
-  }
-  
-  .icon-metal:hover {
-    filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.5))
-            drop-shadow(0 0 4px var(--theme-glow, rgba(212, 175, 55, 0.25)));
-  }
+    /* 史诗图标框架样式 - 适配游戏画面 */
+    .icon-epic-frame {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg,
+                var(--theme-surface-alt, rgba(61, 36, 21, 0.8)) 0%,
+                var(--theme-surface, rgba(44, 24, 16, 0.9)) 50%,
+                var(--theme-surface-alt, rgba(61, 36, 21, 0.8)) 100%);
+        border: 1px solid var(--theme-border, rgba(212, 175, 55, 0.3));
+        border-radius: 6px;
+        box-shadow:
+            0 2px 4px rgba(0, 0, 0, 0.3),
+            inset 0 1px 0 rgba(255, 255, 255, 0.1),
+            inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+        transition: all 0.2s ease;
+    }
 
-  /* 金色金属图标 */
-  .icon-metal-gold {
-    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4))
-            drop-shadow(0 0 3px rgba(212, 175, 55, 0.2));
-    color: var(--theme-accent, #fbbf24);
-  }
+    .icon-epic-frame:hover {
+        border-color: var(--theme-accent, rgba(251, 191, 36, 0.5));
+        box-shadow:
+            0 4px 8px rgba(0, 0, 0, 0.4),
+            0 0 12px var(--theme-glow, rgba(212, 175, 55, 0.3)),
+            inset 0 1px 0 rgba(255, 255, 255, 0.15),
+            inset 0 -1px 0 rgba(0, 0, 0, 0.3);
+    }
 
-  /* 青铜金属图标 */
-  .icon-metal-bronze {
-    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4))
-            drop-shadow(0 0 3px rgba(205, 127, 50, 0.2));
-    color: #cd7f32;
-  }
+    /* 图标尺寸变体 */
+    .icon-frame-xs {
+        width: 24px;
+        height: 24px;
+        padding: 3px;
+    }
 
-  /* 钢铁金属图标 */
-  .icon-metal-steel {
-    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5))
-            drop-shadow(0 0 2px rgba(161, 161, 170, 0.15));
-    color: #a1a1aa;
-  }
+    .icon-frame-sm {
+        width: 28px;
+        height: 28px;
+        padding: 4px;
+    }
 
-  /* 红色金属图标（军事） */
-  .icon-metal-red {
-    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4))
-            drop-shadow(0 0 3px rgba(248, 113, 113, 0.2));
-    color: #f87171;
-  }
+    .icon-frame-md {
+        width: 32px;
+        height: 32px;
+        padding: 5px;
+    }
 
-  /* 蓝色金属图标（科技） */
-  .icon-metal-blue {
-    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4))
-            drop-shadow(0 0 3px rgba(96, 165, 250, 0.2));
-    color: #60a5fa;
-  }
+    .icon-frame-lg {
+        width: 40px;
+        height: 40px;
+        padding: 6px;
+    }
 
-  /* 紫色金属图标（政策） */
-  .icon-metal-purple {
-    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4))
-            drop-shadow(0 0 3px rgba(168, 85, 247, 0.2));
-    color: #a855f7;
-  }
+    /* ==================== 金属质感图标样式 ==================== */
 
-  /* 绿色金属图标 */
-  .icon-metal-green {
-    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4))
-            drop-shadow(0 0 3px rgba(74, 222, 128, 0.2));
-    color: #4ade80;
-  }
+    /* 基础金属图标 - 带有金属光泽和立体感 */
+    .icon-metal {
+        filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4)) drop-shadow(0 0 2px var(--theme-glow, rgba(212, 175, 55, 0.15)));
+        transition: all 0.2s ease;
+    }
 
-  /* 金属图标容器 - 带框架的图标 */
-  .icon-metal-container {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background: linear-gradient(135deg, 
-      var(--theme-surface-alt, rgba(61, 36, 21, 0.9)) 0%,
-      var(--theme-surface, rgba(44, 24, 16, 0.95)) 50%,
-      var(--theme-surface-alt, rgba(61, 36, 21, 0.9)) 100%);
-    border: 1px solid var(--theme-border, rgba(212, 175, 55, 0.35));
-    border-radius: 8px;
-    padding: 6px;
-    box-shadow: 
-      0 2px 4px rgba(0, 0, 0, 0.35),
-      0 0 6px var(--theme-glow, rgba(212, 175, 55, 0.08)),
-      inset 0 1px 0 rgba(255, 255, 255, 0.1),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.25);
-    transition: all 0.2s ease;
-  }
+    .icon-metal:hover {
+        filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 4px var(--theme-glow, rgba(212, 175, 55, 0.25)));
+    }
 
-  .icon-metal-container:hover {
-    border-color: var(--theme-accent, rgba(251, 191, 36, 0.5));
-    box-shadow: 
-      0 3px 6px rgba(0, 0, 0, 0.4),
-      0 0 8px var(--theme-glow, rgba(212, 175, 55, 0.15)),
-      inset 0 1px 0 rgba(255, 255, 255, 0.12),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.3);
-  }
+    /* 金色金属图标 */
+    .icon-metal-gold {
+        filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4)) drop-shadow(0 0 3px rgba(212, 175, 55, 0.2));
+        color: var(--theme-accent, #fbbf24);
+    }
 
-  /* 大型金属图标容器（用于面板标题） */
-  .icon-metal-container-lg {
-    padding: 10px;
-    border-radius: 10px;
-    border-width: 2px;
-    box-shadow: 
-      0 3px 8px rgba(0, 0, 0, 0.4),
-      0 0 10px var(--theme-glow, rgba(212, 175, 55, 0.1)),
-      inset 0 1px 0 rgba(255, 255, 255, 0.15),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.3);
-  }
+    /* 青铜金属图标 */
+    .icon-metal-bronze {
+        filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4)) drop-shadow(0 0 3px rgba(205, 127, 50, 0.2));
+        color: #cd7f32;
+    }
 
-  /* 金属徽章样式 */
-  .badge-metal {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 4px 8px;
-    background: linear-gradient(135deg, 
-      var(--theme-surface, rgba(44, 24, 16, 0.9)) 0%,
-      var(--theme-surface-alt, rgba(61, 36, 21, 0.85)) 100%);
-    border: 1px solid var(--theme-border, rgba(212, 175, 55, 0.35));
-    border-radius: 6px;
-    font-size: 11px;
-    font-weight: 600;
-    box-shadow: 
-      0 2px 4px rgba(0, 0, 0, 0.3),
-      inset 0 1px 0 rgba(255, 255, 255, 0.1),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.2);
-  }
+    /* 钢铁金属图标 */
+    .icon-metal-steel {
+        filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 2px rgba(161, 161, 170, 0.15));
+        color: #a1a1aa;
+    }
 
-  /* 资源图标特殊样式 */
-  .resource-icon-gold { border-color: rgba(212, 175, 55, 0.5); background: linear-gradient(135deg, rgba(212, 175, 55, 0.15), rgba(205, 127, 50, 0.1)); }
-  .resource-icon-food { border-color: rgba(34, 197, 94, 0.4); background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(22, 163, 74, 0.08)); }
-  .resource-icon-wood { border-color: rgba(139, 115, 85, 0.5); background: linear-gradient(135deg, rgba(139, 115, 85, 0.15), rgba(101, 67, 33, 0.1)); }
-  .resource-icon-stone { border-color: rgba(156, 163, 175, 0.4); background: linear-gradient(135deg, rgba(156, 163, 175, 0.1), rgba(107, 114, 128, 0.08)); }
-  .resource-icon-iron { border-color: rgba(107, 114, 128, 0.5); background: linear-gradient(135deg, rgba(107, 114, 128, 0.15), rgba(75, 85, 99, 0.1)); }
-  .resource-icon-military { border-color: rgba(239, 68, 68, 0.4); background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(220, 38, 38, 0.08)); }
+    /* 红色金属图标（军事） */
+    .icon-metal-red {
+        filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4)) drop-shadow(0 0 3px rgba(248, 113, 113, 0.2));
+        color: #f87171;
+    }
 
-  /* 紧凑徽章样式 */
-  .badge-compact {
-    display: inline-flex;
-    align-items: center;
-    gap: 2px;
-    padding: 2px 6px;
-    font-size: 9px;
-    font-weight: 600;
-    border-radius: 4px;
-    background: var(--theme-surface-trans, rgba(32, 22, 14, 0.5));
-    border: 1px solid var(--theme-border, rgba(212, 175, 55, 0.2));
-    white-space: nowrap;
-  }
+    /* 蓝色金属图标（科技） */
+    .icon-metal-blue {
+        filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4)) drop-shadow(0 0 3px rgba(96, 165, 250, 0.2));
+        color: #60a5fa;
+    }
 
-  /* 信息条目紧凑样式 */
-  .stat-item-compact {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 4px 6px;
-    background: var(--theme-surface-trans, rgba(32, 22, 14, 0.4));
-    border-radius: 4px;
-    border: 1px solid var(--theme-border, rgba(212, 175, 55, 0.15));
-    font-size: 10px;
-  }
+    /* 紫色金属图标（政策） */
+    .icon-metal-purple {
+        filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4)) drop-shadow(0 0 3px rgba(168, 85, 247, 0.2));
+        color: #a855f7;
+    }
 
-  /* 史诗卡片悬浮增强 */
-  .card-epic-hover {
-    transition: all 0.3s ease;
-  }
-  
-  .card-epic-hover:hover {
-    transform: translateY(-2px);
-    box-shadow: 
-      0 8px 20px rgba(0, 0, 0, 0.4),
-      0 0 20px var(--theme-glow, rgba(212, 175, 55, 0.2)),
-      inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  }
+    /* 绿色金属图标 */
+    .icon-metal-green {
+        filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4)) drop-shadow(0 0 3px rgba(74, 222, 128, 0.2));
+        color: #4ade80;
+    }
 
-  /* 移动端优化滚动容器 */
-  .scroll-container-mobile {
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior: contain;
-    scroll-behavior: smooth;
-  }
+    /* 金属图标容器 - 带框架的图标 */
+    .icon-metal-container {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg,
+                var(--theme-surface-alt, rgba(61, 36, 21, 0.9)) 0%,
+                var(--theme-surface, rgba(44, 24, 16, 0.95)) 50%,
+                var(--theme-surface-alt, rgba(61, 36, 21, 0.9)) 100%);
+        border: 1px solid var(--theme-border, rgba(212, 175, 55, 0.35));
+        border-radius: 8px;
+        padding: 6px;
+        box-shadow:
+            0 2px 4px rgba(0, 0, 0, 0.35),
+            0 0 6px var(--theme-glow, rgba(212, 175, 55, 0.08)),
+            inset 0 1px 0 rgba(255, 255, 255, 0.1),
+            inset 0 -1px 0 rgba(0, 0, 0, 0.25);
+        transition: all 0.2s ease;
+    }
 
-  /* 水平滚动容器 - 用于紧凑展示 */
-  .scroll-x-compact {
-    display: flex;
-    overflow-x: auto;
-    gap: 6px;
-    padding: 4px 0;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-  }
-  
-  .scroll-x-compact::-webkit-scrollbar {
-    display: none;
-  }
+    .icon-metal-container:hover {
+        border-color: var(--theme-accent, rgba(251, 191, 36, 0.5));
+        box-shadow:
+            0 3px 6px rgba(0, 0, 0, 0.4),
+            0 0 8px var(--theme-glow, rgba(212, 175, 55, 0.15)),
+            inset 0 1px 0 rgba(255, 255, 255, 0.12),
+            inset 0 -1px 0 rgba(0, 0, 0, 0.3);
+    }
 
-  /* 折叠面板头部 */
-  .collapse-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 8px 12px;
-    background: var(--theme-surface-alt, rgba(61, 36, 21, 0.6));
-    border: 1px solid var(--theme-border, rgba(212, 175, 55, 0.2));
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-  }
-  
-  .collapse-header:hover {
-    background: var(--theme-surface, rgba(44, 24, 16, 0.8));
-    border-color: var(--theme-accent, rgba(251, 191, 36, 0.4));
-  }
+    /* 大型金属图标容器（用于面板标题） */
+    .icon-metal-container-lg {
+        padding: 10px;
+        border-radius: 10px;
+        border-width: 2px;
+        box-shadow:
+            0 3px 8px rgba(0, 0, 0, 0.4),
+            0 0 10px var(--theme-glow, rgba(212, 175, 55, 0.1)),
+            inset 0 1px 0 rgba(255, 255, 255, 0.15),
+            inset 0 -1px 0 rgba(0, 0, 0, 0.3);
+    }
 
-  /* 史诗装饰线 */
-  .epic-divider {
-    height: 1px;
-    background: linear-gradient(90deg, 
-      transparent 0%, 
-      var(--theme-border, rgba(212, 175, 55, 0.3)) 20%, 
-      var(--theme-accent, rgba(251, 191, 36, 0.5)) 50%, 
-      var(--theme-border, rgba(212, 175, 55, 0.3)) 80%, 
-      transparent 100%);
-    margin: 8px 0;
-  }
+    /* 金属徽章样式 */
+    .badge-metal {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 8px;
+        background: linear-gradient(135deg,
+                var(--theme-surface, rgba(44, 24, 16, 0.9)) 0%,
+                var(--theme-surface-alt, rgba(61, 36, 21, 0.85)) 100%);
+        border: 1px solid var(--theme-border, rgba(212, 175, 55, 0.35));
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 600;
+        box-shadow:
+            0 2px 4px rgba(0, 0, 0, 0.3),
+            inset 0 1px 0 rgba(255, 255, 255, 0.1),
+            inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+    }
 
-  .epic-divider-vertical {
-    width: 1px;
-    height: 100%;
-    background: linear-gradient(180deg, 
-      transparent 0%, 
-      var(--theme-border, rgba(212, 175, 55, 0.3)) 20%, 
-      var(--theme-accent, rgba(251, 191, 36, 0.5)) 50%, 
-      var(--theme-border, rgba(212, 175, 55, 0.3)) 80%, 
-      transparent 100%);
-  }
+    /* 资源图标特殊样式 */
+    .resource-icon-gold {
+        border-color: rgba(212, 175, 55, 0.5);
+        background: linear-gradient(135deg, rgba(212, 175, 55, 0.15), rgba(205, 127, 50, 0.1));
+    }
 
-  /* 状态指示器增强 */
-  .status-indicator {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    animation: pulse 2s ease-in-out infinite;
-  }
-  
-  .status-indicator-positive { background: #22c55e; box-shadow: 0 0 6px rgba(34, 197, 94, 0.6); }
-  .status-indicator-negative { background: #ef4444; box-shadow: 0 0 6px rgba(239, 68, 68, 0.6); }
-  .status-indicator-warning { background: #eab308; box-shadow: 0 0 6px rgba(234, 179, 8, 0.6); }
-  .status-indicator-neutral { background: #6b7280; box-shadow: 0 0 4px rgba(107, 114, 128, 0.4); }
+    .resource-icon-food {
+        border-color: rgba(34, 197, 94, 0.4);
+        background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(22, 163, 74, 0.08));
+    }
 
-  /* 进度条史诗风格 */
-  .progress-epic {
-    height: 4px;
-    background: var(--theme-surface-trans, rgba(32, 22, 14, 0.6));
-    border-radius: 2px;
-    overflow: hidden;
-    border: 1px solid var(--theme-border, rgba(212, 175, 55, 0.2));
-  }
-  
-  .progress-epic-bar {
-    height: 100%;
-    background: linear-gradient(90deg, 
-      var(--theme-secondary, #92400e), 
-      var(--theme-primary, #d97706), 
-      var(--theme-accent, #fbbf24));
-    border-radius: 2px;
-    transition: width 0.3s ease;
-    box-shadow: 0 0 8px var(--theme-glow, rgba(217, 119, 6, 0.5));
-  }
+    .resource-icon-wood {
+        border-color: rgba(139, 115, 85, 0.5);
+        background: linear-gradient(135deg, rgba(139, 115, 85, 0.15), rgba(101, 67, 33, 0.1));
+    }
 
-  /* 数值变化动画 */
-  .value-change-positive {
-    color: #22c55e;
-    animation: value-flash-green 0.5s ease-out;
-  }
-  
-  .value-change-negative {
-    color: #ef4444;
-    animation: value-flash-red 0.5s ease-out;
-  }
+    .resource-icon-stone {
+        border-color: rgba(156, 163, 175, 0.4);
+        background: linear-gradient(135deg, rgba(156, 163, 175, 0.1), rgba(107, 114, 128, 0.08));
+    }
 
-  @keyframes value-flash-green {
-    0% { background-color: rgba(34, 197, 94, 0.3); }
-    100% { background-color: transparent; }
-  }
-  
-  @keyframes value-flash-red {
-    0% { background-color: rgba(239, 68, 68, 0.3); }
-    100% { background-color: transparent; }
-  }
+    .resource-icon-iron {
+        border-color: rgba(107, 114, 128, 0.5);
+        background: linear-gradient(135deg, rgba(107, 114, 128, 0.15), rgba(75, 85, 99, 0.1));
+    }
 
-  /* 移动端触摸反馈 */
-  .touch-feedback {
-    -webkit-tap-highlight-color: transparent;
-    touch-action: manipulation;
-  }
-  
-  .touch-feedback:active {
-    transform: scale(0.98);
-    opacity: 0.9;
-  }
+    .resource-icon-military {
+        border-color: rgba(239, 68, 68, 0.4);
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(220, 38, 38, 0.08));
+    }
 
-  /* 浮动工具提示优化 */
-  .tooltip-epic {
-    position: absolute;
-    z-index: 100;
-    padding: 8px 12px;
-    background: var(--theme-surface-alt, rgba(26, 20, 16, 0.95));
-    border: 1px solid var(--theme-border, rgba(212, 175, 55, 0.4));
-    border-radius: 8px;
-    font-size: 11px;
-    color: var(--theme-text, #fef3c7);
-    box-shadow: 
-      0 4px 16px rgba(0, 0, 0, 0.5),
-      0 0 12px var(--theme-glow, rgba(212, 175, 55, 0.2));
-    backdrop-filter: blur(8px);
-    max-width: 280px;
-    pointer-events: none;
-  }
+    /* 紧凑徽章样式 */
+    .badge-compact {
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
+        padding: 2px 6px;
+        font-size: 9px;
+        font-weight: 600;
+        border-radius: 4px;
+        background: var(--theme-surface-trans, rgba(32, 22, 14, 0.5));
+        border: 1px solid var(--theme-border, rgba(212, 175, 55, 0.2));
+        white-space: nowrap;
+    }
 
-  /* 标签栏紧凑样式 */
-  .tab-compact {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-    padding: 6px 10px;
-    font-size: 11px;
-    font-weight: 600;
-    border-radius: 6px;
-    transition: all 0.2s ease;
-    background: transparent;
-    border: 1px solid transparent;
-  }
-  
-  .tab-compact:hover {
-    background: var(--theme-surface-trans, rgba(32, 22, 14, 0.5));
-    border-color: var(--theme-border, rgba(212, 175, 55, 0.2));
-  }
-  
-  .tab-compact.active {
-    background: linear-gradient(135deg, 
-      var(--theme-surface, rgba(44, 24, 16, 0.8)),
-      var(--theme-surface-alt, rgba(61, 36, 21, 0.7)));
-    border-color: var(--theme-accent, rgba(251, 191, 36, 0.4));
-    color: var(--theme-accent, #fbbf24);
-    box-shadow: 
-      0 2px 8px rgba(0, 0, 0, 0.3),
-      0 0 12px var(--theme-glow, rgba(212, 175, 55, 0.2));
-  }
+    /* 信息条目紧凑样式 */
+    .stat-item-compact {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 4px 6px;
+        background: var(--theme-surface-trans, rgba(32, 22, 14, 0.4));
+        border-radius: 4px;
+        border: 1px solid var(--theme-border, rgba(212, 175, 55, 0.15));
+        font-size: 10px;
+    }
 
-  /* 紧凑按钮组 */
-  .btn-group-compact {
-    display: inline-flex;
-    border-radius: 6px;
-    overflow: hidden;
-    border: 1px solid var(--theme-border, rgba(212, 175, 55, 0.2));
-  }
-  
-  .btn-group-compact > button {
-    padding: 4px 8px;
-    font-size: 10px;
-    background: var(--theme-surface-trans, rgba(32, 22, 14, 0.5));
-    border: none;
-    border-right: 1px solid var(--theme-border, rgba(212, 175, 55, 0.2));
-    transition: all 0.2s ease;
-  }
-  
-  .btn-group-compact > button:last-child {
-    border-right: none;
-  }
-  
-  .btn-group-compact > button:hover,
-  .btn-group-compact > button.active {
-    background: var(--theme-surface, rgba(44, 24, 16, 0.8));
-  }
+    /* 史诗卡片悬浮增强 */
+    .card-epic-hover {
+        transition: all 0.3s ease;
+    }
 
-  /* 面板折叠动画 */
-  .panel-collapse {
-    overflow: hidden;
-    transition: max-height 0.3s ease-out, opacity 0.3s ease-out;
-  }
-  
-  .panel-collapse.collapsed {
-    max-height: 0;
-    opacity: 0;
-  }
-  
-  .panel-collapse.expanded {
-    max-height: 2000px;
-    opacity: 1;
-  }
+    .card-epic-hover:hover {
+        transform: translateY(-2px);
+        box-shadow:
+            0 8px 20px rgba(0, 0, 0, 0.4),
+            0 0 20px var(--theme-glow, rgba(212, 175, 55, 0.2)),
+            inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    }
+
+    /* 移动端优化滚动容器 */
+    .scroll-container-mobile {
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+        scroll-behavior: smooth;
+    }
+
+    /* 水平滚动容器 - 用于紧凑展示 */
+    .scroll-x-compact {
+        display: flex;
+        overflow-x: auto;
+        gap: 6px;
+        padding: 4px 0;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+    }
+
+    .scroll-x-compact::-webkit-scrollbar {
+        display: none;
+    }
+
+    /* 折叠面板头部 */
+    .collapse-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 12px;
+        background: var(--theme-surface-alt, rgba(61, 36, 21, 0.6));
+        border: 1px solid var(--theme-border, rgba(212, 175, 55, 0.2));
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .collapse-header:hover {
+        background: var(--theme-surface, rgba(44, 24, 16, 0.8));
+        border-color: var(--theme-accent, rgba(251, 191, 36, 0.4));
+    }
+
+    /* 史诗装饰线 */
+    .epic-divider {
+        height: 1px;
+        background: linear-gradient(90deg,
+                transparent 0%,
+                var(--theme-border, rgba(212, 175, 55, 0.3)) 20%,
+                var(--theme-accent, rgba(251, 191, 36, 0.5)) 50%,
+                var(--theme-border, rgba(212, 175, 55, 0.3)) 80%,
+                transparent 100%);
+        margin: 8px 0;
+    }
+
+    .epic-divider-vertical {
+        width: 1px;
+        height: 100%;
+        background: linear-gradient(180deg,
+                transparent 0%,
+                var(--theme-border, rgba(212, 175, 55, 0.3)) 20%,
+                var(--theme-accent, rgba(251, 191, 36, 0.5)) 50%,
+                var(--theme-border, rgba(212, 175, 55, 0.3)) 80%,
+                transparent 100%);
+    }
+
+    /* 状态指示器增强 */
+    .status-indicator {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        animation: pulse 2s ease-in-out infinite;
+    }
+
+    .status-indicator-positive {
+        background: #22c55e;
+        box-shadow: 0 0 6px rgba(34, 197, 94, 0.6);
+    }
+
+    .status-indicator-negative {
+        background: #ef4444;
+        box-shadow: 0 0 6px rgba(239, 68, 68, 0.6);
+    }
+
+    .status-indicator-warning {
+        background: #eab308;
+        box-shadow: 0 0 6px rgba(234, 179, 8, 0.6);
+    }
+
+    .status-indicator-neutral {
+        background: #6b7280;
+        box-shadow: 0 0 4px rgba(107, 114, 128, 0.4);
+    }
+
+    /* 进度条史诗风格 */
+    .progress-epic {
+        height: 4px;
+        background: var(--theme-surface-trans, rgba(32, 22, 14, 0.6));
+        border-radius: 2px;
+        overflow: hidden;
+        border: 1px solid var(--theme-border, rgba(212, 175, 55, 0.2));
+    }
+
+    .progress-epic-bar {
+        height: 100%;
+        background: linear-gradient(90deg,
+                var(--theme-secondary, #92400e),
+                var(--theme-primary, #d97706),
+                var(--theme-accent, #fbbf24));
+        border-radius: 2px;
+        transition: width 0.3s ease;
+        box-shadow: 0 0 8px var(--theme-glow, rgba(217, 119, 6, 0.5));
+    }
+
+    /* 数值变化动画 */
+    .value-change-positive {
+        color: #22c55e;
+        animation: value-flash-green 0.5s ease-out;
+    }
+
+    .value-change-negative {
+        color: #ef4444;
+        animation: value-flash-red 0.5s ease-out;
+    }
+
+    @keyframes value-flash-green {
+        0% {
+            background-color: rgba(34, 197, 94, 0.3);
+        }
+
+        100% {
+            background-color: transparent;
+        }
+    }
+
+    @keyframes value-flash-red {
+        0% {
+            background-color: rgba(239, 68, 68, 0.3);
+        }
+
+        100% {
+            background-color: transparent;
+        }
+    }
+
+    /* 移动端触摸反馈 */
+    .touch-feedback {
+        -webkit-tap-highlight-color: transparent;
+        touch-action: manipulation;
+    }
+
+    .touch-feedback:active {
+        transform: scale(0.98);
+        opacity: 0.9;
+    }
+
+    /* 浮动工具提示优化 */
+    .tooltip-epic {
+        position: absolute;
+        z-index: 100;
+        padding: 8px 12px;
+        background: var(--theme-surface-alt, rgba(26, 20, 16, 0.95));
+        border: 1px solid var(--theme-border, rgba(212, 175, 55, 0.4));
+        border-radius: 8px;
+        font-size: 11px;
+        color: var(--theme-text, #fef3c7);
+        box-shadow:
+            0 4px 16px rgba(0, 0, 0, 0.5),
+            0 0 12px var(--theme-glow, rgba(212, 175, 55, 0.2));
+        backdrop-filter: blur(8px);
+        max-width: 280px;
+        pointer-events: none;
+    }
+
+    /* 标签栏紧凑样式 */
+    .tab-compact {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        padding: 6px 10px;
+        font-size: 11px;
+        font-weight: 600;
+        border-radius: 6px;
+        transition: all 0.2s ease;
+        background: transparent;
+        border: 1px solid transparent;
+    }
+
+    .tab-compact:hover {
+        background: var(--theme-surface-trans, rgba(32, 22, 14, 0.5));
+        border-color: var(--theme-border, rgba(212, 175, 55, 0.2));
+    }
+
+    .tab-compact.active {
+        background: linear-gradient(135deg,
+                var(--theme-surface, rgba(44, 24, 16, 0.8)),
+                var(--theme-surface-alt, rgba(61, 36, 21, 0.7)));
+        border-color: var(--theme-accent, rgba(251, 191, 36, 0.4));
+        color: var(--theme-accent, #fbbf24);
+        box-shadow:
+            0 2px 8px rgba(0, 0, 0, 0.3),
+            0 0 12px var(--theme-glow, rgba(212, 175, 55, 0.2));
+    }
+
+    /* 紧凑按钮组 */
+    .btn-group-compact {
+        display: inline-flex;
+        border-radius: 6px;
+        overflow: hidden;
+        border: 1px solid var(--theme-border, rgba(212, 175, 55, 0.2));
+    }
+
+    .btn-group-compact>button {
+        padding: 4px 8px;
+        font-size: 10px;
+        background: var(--theme-surface-trans, rgba(32, 22, 14, 0.5));
+        border: none;
+        border-right: 1px solid var(--theme-border, rgba(212, 175, 55, 0.2));
+        transition: all 0.2s ease;
+    }
+
+    .btn-group-compact>button:last-child {
+        border-right: none;
+    }
+
+    .btn-group-compact>button:hover,
+    .btn-group-compact>button.active {
+        background: var(--theme-surface, rgba(44, 24, 16, 0.8));
+    }
+
+    /* 面板折叠动画 */
+    .panel-collapse {
+        overflow: hidden;
+        transition: max-height 0.3s ease-out, opacity 0.3s ease-out;
+    }
+
+    .panel-collapse.collapsed {
+        max-height: 0;
+        opacity: 0;
+    }
+
+    .panel-collapse.expanded {
+        max-height: 2000px;
+        opacity: 1;
+    }
 }
 
 /* ==================== 移动端响应式优化 ==================== */
 
 @media (max-width: 640px) {
-  /* 移动端基础优化 */
-  body {
-    font-size: 14px;
-    -webkit-text-size-adjust: 100%;
-  }
 
-  /* 底部安全区域 */
-  .pb-safe {
-    padding-bottom: max(env(safe-area-inset-bottom), 16px);
-  }
+    /* 移动端基础优化 */
+    body {
+        font-size: 14px;
+        -webkit-text-size-adjust: 100%;
+    }
 
-  /* 更紧凑的间距 */
-  .glass-ancient,
-  .glass-epic,
-  .glass-monument {
-    padding: 8px !important;
-  }
+    /* 底部安全区域 */
+    .pb-safe {
+        padding-bottom: max(env(safe-area-inset-bottom), 16px);
+    }
 
-  /* 优化触摸目标大小 */
-  button,
-  [role="button"],
-  .clickable {
-    min-height: 40px;
-    min-width: 40px;
-  }
+    /* 更紧凑的间距 */
+    .glass-ancient,
+    .glass-epic,
+    .glass-monument {
+        padding: 8px !important;
+    }
 
-  /* Build tab buttons stay compact even on small screens */
-  .build-tab button {
-    min-height: auto;
-    min-width: auto;
-  }
+    /* 优化触摸目标大小 */
+    button,
+    [role="button"],
+    .clickable {
+        min-height: 40px;
+        min-width: 40px;
+    }
 
-  /* Game control buttons can shrink below default 40px */
-  .game-controls button {
-    min-height: auto;
-    min-width: auto;
-  }
+    /* Build tab buttons stay compact even on small screens */
+    .build-tab button {
+        min-height: auto;
+        min-width: auto;
+    }
 
-  /* 移动端卡片优化 */
-  .card-mobile {
-    padding: 10px;
-    border-radius: 10px;
-  }
+    /* Game control buttons can shrink below default 40px */
+    .game-controls button {
+        min-height: auto;
+        min-width: auto;
+    }
 
-  /* 移动端信息密度增加 */
-  .text-compact-mobile {
-    font-size: 10px;
-    line-height: 1.3;
-  }
+    /* 移动端卡片优化 */
+    .card-mobile {
+        padding: 10px;
+        border-radius: 10px;
+    }
 
-  /* 隐藏移动端不必要元素 */
-  .hide-mobile {
-    display: none !important;
-  }
+    /* 移动端信息密度增加 */
+    .text-compact-mobile {
+        font-size: 10px;
+        line-height: 1.3;
+    }
+
+    /* 隐藏移动端不必要元素 */
+    .hide-mobile {
+        display: none !important;
+    }
 }
 
 /* ==================== 平板响应式 ==================== */
 
 @media (min-width: 641px) and (max-width: 1023px) {
-  .glass-ancient,
-  .glass-epic,
-  .glass-monument {
-    padding: 12px !important;
-  }
+
+    .glass-ancient,
+    .glass-epic,
+    .glass-monument {
+        padding: 12px !important;
+    }
 }
 
 /* ==================== 桌面端增强 ==================== */
 
 @media (min-width: 1024px) {
-  /* 桌面端悬浮效果增强 */
-  .hover-lift:hover {
-    transform: translateY(-4px);
-    box-shadow: 
-      0 12px 30px rgba(0, 0, 0, 0.4),
-      0 0 25px var(--theme-glow, rgba(212, 175, 55, 0.25));
-  }
 
-  /* 桌面端信息展示优化 */
-  .info-row-desktop {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 8px;
-  }
+    /* 桌面端悬浮效果增强 */
+    .hover-lift:hover {
+        transform: translateY(-4px);
+        box-shadow:
+            0 12px 30px rgba(0, 0, 0, 0.4),
+            0 0 25px var(--theme-glow, rgba(212, 175, 55, 0.25));
+    }
 
-  /* 显示桌面端专有元素 */
-  .show-desktop {
-    display: block !important;
-  }
+    /* 桌面端信息展示优化 */
+    .info-row-desktop {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 8px;
+    }
+
+    /* 显示桌面端专有元素 */
+    .show-desktop {
+        display: block !important;
+    }
 }
 
 /* ==================== 特殊主题适配 ==================== */
 
 /* 石器时代特殊效果 */
 [data-epoch="0"] .glass-epic {
-  background: linear-gradient(135deg, 
-    rgba(26, 20, 16, 0.92) 0%, 
-    rgba(44, 28, 16, 0.88) 50%, 
-    rgba(26, 20, 16, 0.92) 100%);
+    background: linear-gradient(135deg,
+            rgba(26, 20, 16, 0.92) 0%,
+            rgba(44, 28, 16, 0.88) 50%,
+            rgba(26, 20, 16, 0.92) 100%);
 }
 
 /* 青铜时代特殊效果 */
 [data-epoch="1"] .glass-epic {
-  background: linear-gradient(135deg, 
-    rgba(28, 20, 16, 0.92) 0%, 
-    rgba(45, 28, 16, 0.88) 50%, 
-    rgba(28, 20, 16, 0.92) 100%);
+    background: linear-gradient(135deg,
+            rgba(28, 20, 16, 0.92) 0%,
+            rgba(45, 28, 16, 0.88) 50%,
+            rgba(28, 20, 16, 0.92) 100%);
 }
 
 /* 古典时代特殊效果 */
 [data-epoch="2"] .glass-epic {
-  background: linear-gradient(135deg, 
-    rgba(26, 16, 16, 0.92) 0%, 
-    rgba(44, 16, 16, 0.88) 50%, 
-    rgba(26, 16, 16, 0.92) 100%);
+    background: linear-gradient(135deg,
+            rgba(26, 16, 16, 0.92) 0%,
+            rgba(44, 16, 16, 0.88) 50%,
+            rgba(26, 16, 16, 0.92) 100%);
 }
 
 /* 中世纪特殊效果 */
 [data-epoch="3"] .glass-epic {
-  background: linear-gradient(135deg, 
-    rgba(20, 16, 26, 0.92) 0%, 
-    rgba(28, 16, 44, 0.88) 50%, 
-    rgba(20, 16, 26, 0.92) 100%);
+    background: linear-gradient(135deg,
+            rgba(20, 16, 26, 0.92) 0%,
+            rgba(28, 16, 44, 0.88) 50%,
+            rgba(20, 16, 26, 0.92) 100%);
 }
 
 /* 探索时代特殊效果 */
 [data-epoch="4"] .glass-epic {
-  background: linear-gradient(135deg, 
-    rgba(16, 20, 26, 0.92) 0%, 
-    rgba(16, 44, 44, 0.88) 50%, 
-    rgba(16, 20, 26, 0.92) 100%);
+    background: linear-gradient(135deg,
+            rgba(16, 20, 26, 0.92) 0%,
+            rgba(16, 44, 44, 0.88) 50%,
+            rgba(16, 20, 26, 0.92) 100%);
 }
 
 /* 启蒙时代特殊效果 */
 [data-epoch="5"] .glass-epic {
-  background: linear-gradient(135deg, 
-    rgba(16, 20, 26, 0.92) 0%, 
-    rgba(16, 28, 44, 0.88) 50%, 
-    rgba(16, 20, 26, 0.92) 100%);
+    background: linear-gradient(135deg,
+            rgba(16, 20, 26, 0.92) 0%,
+            rgba(16, 28, 44, 0.88) 50%,
+            rgba(16, 20, 26, 0.92) 100%);
 }
 
 /* 工业时代特殊效果 */
 [data-epoch="6"] .glass-epic {
-  background: linear-gradient(135deg, 
-    rgba(18, 20, 26, 0.92) 0%, 
-    rgba(28, 28, 44, 0.88) 50%, 
-    rgba(18, 20, 26, 0.92) 100%);
+    background: linear-gradient(135deg,
+            rgba(18, 20, 26, 0.92) 0%,
+            rgba(28, 28, 44, 0.88) 50%,
+            rgba(18, 20, 26, 0.92) 100%);
 }
 
 /* 现代特殊效果 */
 [data-epoch="7"] .glass-epic {
-  background: linear-gradient(135deg, 
-    rgba(20, 16, 26, 0.92) 0%, 
-    rgba(28, 20, 44, 0.88) 50%, 
-    rgba(20, 16, 26, 0.92) 100%);
+    background: linear-gradient(135deg,
+            rgba(20, 16, 26, 0.92) 0%,
+            rgba(28, 20, 44, 0.88) 50%,
+            rgba(20, 16, 26, 0.92) 100%);
 }
 
 /* ==================== 全面屏安全区支持 ==================== */
 /* Safe area support for notched/fullscreen devices */
 @supports (padding-top: env(safe-area-inset-top)) {
-  /* Apply left/right safe area padding to main content in landscape */
-  .main-content-landscape {
-    padding-left: max(0.5rem, env(safe-area-inset-left));
-    padding-right: max(0.5rem, env(safe-area-inset-right));
-  }
 
-  /* Status bar scroll area needs left/right safe area in landscape */
-  .status-bar-scroll {
-    padding-left: max(0.5rem, env(safe-area-inset-left));
-    padding-right: max(0.5rem, env(safe-area-inset-right));
-  }
+    /* Apply left/right safe area padding to main content in landscape */
+    .main-content-landscape {
+        padding-left: max(0.5rem, env(safe-area-inset-left));
+        padding-right: max(0.5rem, env(safe-area-inset-right));
+    }
 
-  /* Bottom nav needs left/right safe area in landscape */
-  nav[role="tablist"] {
-    padding-left: env(safe-area-inset-left);
-    padding-right: env(safe-area-inset-right);
-  }
+    /* Status bar scroll area needs left/right safe area in landscape */
+    .status-bar-scroll {
+        padding-left: max(0.5rem, env(safe-area-inset-left));
+        padding-right: max(0.5rem, env(safe-area-inset-right));
+    }
+
+    /* Bottom nav needs left/right safe area in landscape */
+    nav[role="tablist"] {
+        padding-left: env(safe-area-inset-left);
+        padding-right: env(safe-area-inset-right);
+    }
 }
 
 /* ==================== 移动端横屏优化 ==================== */
 /* Mobile landscape mode - when screen height is limited (e.g. phone in landscape) */
 /* Only apply to non-desktop screens (below 1024px width) */
 @media (orientation: landscape) and (max-height: 500px) and (max-width: 1023px) {
-  /* StatusBar compact mode in landscape */
-  .status-bar-scroll {
-    padding-top: 0.25rem !important;
-    padding-bottom: 0.25rem !important;
-  }
 
-  /* Reduce header placeholder height */
-  .header-placeholder-landscape {
-    height: 2.25rem !important;
-  }
+    /* StatusBar compact mode in landscape */
+    .status-bar-scroll {
+        padding-top: 0.25rem !important;
+        padding-bottom: 0.25rem !important;
+    }
 
-  /* Reduce main content bottom padding */
-  .main-content-landscape {
-    padding-bottom: 3rem !important;
-    padding-top: 0.25rem !important;
-  }
+    /* Reduce header placeholder height */
+    .header-placeholder-landscape {
+        height: 2.25rem !important;
+    }
 
-  /* BottomNav compact mode - reduce height significantly */
-  .landscape-compact-nav {
-    height: 2.5rem !important;
-  }
+    /* Reduce main content bottom padding */
+    .main-content-landscape {
+        padding-bottom: 3rem !important;
+        padding-top: 0.25rem !important;
+    }
 
-  /* Hide tab labels in landscape, show only icons */
-  nav[role="tablist"] .tab-title {
-    display: none !important;
-  }
+    /* BottomNav compact mode - reduce height significantly */
+    .landscape-compact-nav {
+        height: 2.5rem !important;
+    }
 
-  /* Smaller icons in landscape bottom nav */
-  nav[role="tablist"] button svg {
-    width: 20px !important;
-    height: 20px !important;
-  }
+    /* Hide tab labels in landscape, show only icons */
+    nav[role="tablist"] .tab-title {
+        display: none !important;
+    }
 
-  /* Reduce icon container padding */
-  nav[role="tablist"] button > div:first-child {
-    padding: 2px !important;
-  }
+    /* Smaller icons in landscape bottom nav */
+    nav[role="tablist"] button svg {
+        width: 20px !important;
+        height: 20px !important;
+    }
 
-  /* GameControls position adjustment for shorter bottom nav */
-  .game-controls-landscape {
-    bottom: 44px !important;
-  }
+    /* Reduce icon container padding */
+    nav[role="tablist"] button>div:first-child {
+        padding: 2px !important;
+    }
 
-  /* Scale down game controls in landscape */
-  .game-controls-landscape > div {
-    transform: scale(0.85) !important;
-    transform-origin: bottom right !important;
-  }
+    /* GameControls position adjustment for shorter bottom nav */
+    .game-controls-landscape {
+        bottom: 44px !important;
+    }
 
-  /* Reduce glass panel padding for more content space */
-  .glass-ancient,
-  .glass-epic,
-  .glass-monument {
-    padding: 4px !important;
-  }
+    /* Scale down game controls in landscape */
+    .game-controls-landscape>div {
+        transform: scale(0.85) !important;
+        transform-origin: bottom right !important;
+    }
 
-  /* Smaller text in landscape */
-  .text-compact-landscape {
-    font-size: 9px !important;
-    line-height: 1.2 !important;
-  }
+    /* Reduce glass panel padding for more content space */
+    .glass-ancient,
+    .glass-epic,
+    .glass-monument {
+        padding: 4px !important;
+    }
 
-  /* Tab container min-height reduction */
-  .tab-container-landscape {
-    min-height: 200px !important;
-  }
+    /* Smaller text in landscape */
+    .text-compact-landscape {
+        font-size: 9px !important;
+        line-height: 1.2 !important;
+    }
 
-  /* Also override the Tailwind min-h class */
-  .tab-container-landscape.min-h-\[500px\] {
-    min-height: 200px !important;
-  }
+    /* Tab container min-height reduction */
+    .tab-container-landscape {
+        min-height: 200px !important;
+    }
 
-  /* Reduce tab content padding */
-  .glass-epic > div > .p-3 {
-    padding: 0.5rem !important;
-  }
+    /* Also override the Tailwind min-h class */
+    .tab-container-landscape.min-h-\[500px\] {
+        min-height: 200px !important;
+    }
 
-  /* Reduce card margins and gaps */
-  .grid.gap-3,
-  .grid.gap-4 {
-    gap: 0.5rem !important;
-  }
+    /* Reduce tab content padding */
+    .glass-epic>div>.p-3 {
+        padding: 0.5rem !important;
+    }
 
-  .space-y-3 > * + *,
-  .space-y-4 > * + * {
-    margin-top: 0.5rem !important;
-  }
+    /* Reduce card margins and gaps */
+    .grid.gap-3,
+    .grid.gap-4 {
+        gap: 0.5rem !important;
+    }
 
-  /* StatusBar items more compact */
-  .status-bar-scroll .gap-2 {
-    gap: 0.375rem !important;
-  }
+    .space-y-3>*+*,
+    .space-y-4>*+* {
+        margin-top: 0.5rem !important;
+    }
 
-  .status-bar-scroll .gap-1\.5 {
-    gap: 0.25rem !important;
-  }
+    /* StatusBar items more compact */
+    .status-bar-scroll .gap-2 {
+        gap: 0.375rem !important;
+    }
 
-  /* Smaller capsule buttons in status bar */
-  .status-bar-scroll .px-2 {
-    padding-left: 0.375rem !important;
-    padding-right: 0.375rem !important;
-  }
+    .status-bar-scroll .gap-1\.5 {
+        gap: 0.25rem !important;
+    }
 
-  .status-bar-scroll .py-1 {
-    padding-top: 0.125rem !important;
-    padding-bottom: 0.125rem !important;
-  }
+    /* Smaller capsule buttons in status bar */
+    .status-bar-scroll .px-2 {
+        padding-left: 0.375rem !important;
+        padding-right: 0.375rem !important;
+    }
 
-  /* Reduce font sizes in status bar */
-  .status-bar-scroll .text-\[11px\],
-  .status-bar-scroll .text-\[10px\],
-  .status-bar-scroll .text-\[9px\] {
-    font-size: 8px !important;
-  }
+    .status-bar-scroll .py-1 {
+        padding-top: 0.125rem !important;
+        padding-bottom: 0.125rem !important;
+    }
 
-  .status-bar-scroll .text-xs {
-    font-size: 10px !important;
-  }
+    /* Reduce font sizes in status bar */
+    .status-bar-scroll .text-\[11px\],
+    .status-bar-scroll .text-\[10px\],
+    .status-bar-scroll .text-\[9px\] {
+        font-size: 8px !important;
+    }
 
-  /* Hide non-essential status bar items on very small landscape */
-  .status-bar-scroll .hidden.sm\\:flex {
-    display: none !important;
-  }
+    .status-bar-scroll .text-xs {
+        font-size: 10px !important;
+    }
+
+    /* Hide non-essential status bar items on very small landscape */
+    .status-bar-scroll .hidden.sm\\:flex {
+        display: none !important;
+    }
 }
 
 /* Medium landscape screens (tablet landscape or larger phones) */
 @media (orientation: landscape) and (min-height: 501px) and (max-height: 650px) and (max-width: 1023px) {
-  .status-bar-scroll {
-    padding-top: 0.375rem !important;
-    padding-bottom: 0.375rem !important;
-  }
+    .status-bar-scroll {
+        padding-top: 0.375rem !important;
+        padding-bottom: 0.375rem !important;
+    }
 
-  .header-placeholder-landscape {
-    height: 2.75rem !important;
-  }
+    .header-placeholder-landscape {
+        height: 2.75rem !important;
+    }
 
-  .main-content-landscape {
-    padding-bottom: 3.5rem !important;
-    padding-top: 0.375rem !important;
-  }
+    .main-content-landscape {
+        padding-bottom: 3.5rem !important;
+        padding-top: 0.375rem !important;
+    }
 
-  .landscape-compact-nav {
-    height: 2.75rem !important;
-  }
+    .landscape-compact-nav {
+        height: 2.75rem !important;
+    }
 
-  /* Smaller tab labels */
-  nav[role="tablist"] .tab-title {
-    font-size: 8px !important;
-  }
+    /* Smaller tab labels */
+    nav[role="tablist"] .tab-title {
+        font-size: 8px !important;
+    }
 
-  .game-controls-landscape {
-    bottom: 48px !important;
-  }
+    .game-controls-landscape {
+        bottom: 48px !important;
+    }
 
-  .glass-ancient,
-  .glass-epic,
-  .glass-monument {
-    padding: 6px !important;
-  }
+    .glass-ancient,
+    .glass-epic,
+    .glass-monument {
+        padding: 6px !important;
+    }
 
-  .grid.gap-3,
-  .grid.gap-4 {
-    gap: 0.625rem !important;
-  }
+    .grid.gap-3,
+    .grid.gap-4 {
+        gap: 0.625rem !important;
+    }
 }
 
 /* ==================== 打印样式保留 ==================== */
 
 /* Weather Effects */
 .bg-rain-pattern {
-  background-image: url("data:image/svg+xml,%3Csvg width='20' height='20' viewBox='0 0 20 20' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L2 5' stroke='%234fc3f7' stroke-width='1' opacity='0.5'/%3E%3C/svg%3E");
-  background-size: 20px 20px;
+    background-image: url("data:image/svg+xml,%3Csvg width='20' height='20' viewBox='0 0 20 20' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L2 5' stroke='%234fc3f7' stroke-width='1' opacity='0.5'/%3E%3C/svg%3E");
+    background-size: 20px 20px;
 }
 
 .bg-snow-pattern {
-  background-image: url("data:image/svg+xml,%3Csvg width='20' height='20' viewBox='0 0 20 20' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='2' cy='2' r='1' fill='%23ffffff' opacity='0.8'/%3E%3C/svg%3E");
-  background-size: 20px 20px;
+    background-image: url("data:image/svg+xml,%3Csvg width='20' height='20' viewBox='0 0 20 20' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='2' cy='2' r='1' fill='%23ffffff' opacity='0.8'/%3E%3C/svg%3E");
+    background-size: 20px 20px;
 }
 
 @keyframes weather-slide {
-  from { background-position: 0 0; }
-  to { background-position: -20px 20px; }
+    from {
+        background-position: 0 0;
+    }
+
+    to {
+        background-position: -20px 20px;
+    }
 }
 
 .animate-weather-slide {
-  animation: weather-slide 0.5s linear infinite;
+    animation: weather-slide 0.5s linear infinite;
 }
 
 /* ==================== 横竖屏 Safe Area 适配 ==================== */
 /* 竖屏模式（portrait）：保留刘海适配 */
 @media (orientation: portrait) {
-  .status-bar-safe-area {
-    padding-top: env(safe-area-inset-top, 0px);
-  }
-  
-  .header-safe-area-margin {
-    margin-top: env(safe-area-inset-top, 0px);
-  }
+    .status-bar-safe-area {
+        padding-top: env(safe-area-inset-top, 0px);
+    }
+
+    .header-safe-area-margin {
+        margin-top: env(safe-area-inset-top, 0px);
+    }
 }
 
 /* 横屏模式（landscape）：不预留顶部空间，刘海在侧边 */
 @media (orientation: landscape) {
-  .status-bar-safe-area {
-    padding-top: 0;
-  }
-  
-  .header-safe-area-margin {
-    margin-top: 0;
-  }
+    .status-bar-safe-area {
+        padding-top: 0;
+    }
+
+    .header-safe-area-margin {
+        margin-top: 0;
+    }
 }
