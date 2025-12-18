@@ -802,7 +802,7 @@ export const useGameActions = (gameState, addLog) => {
         const cooldownKey = `military_${nationId}_${missionId}`;
         const lastActionDay = targetNation.lastMilitaryActionDay?.[missionId] || 0;
         const cooldownDays = mission.cooldownDays || 5;
-        const daysSinceLastAction = day - lastActionDay;
+        const daysSinceLastAction = daysElapsed - lastActionDay;
         
         if (lastActionDay > 0 && daysSinceLastAction < cooldownDays) {
             const remainingDays = cooldownDays - daysSinceLastAction;
@@ -826,7 +826,8 @@ export const useGameActions = (gameState, addLog) => {
         const enemyEpoch = Math.max(targetNation.appearEpoch || 0, Math.min(epoch, targetNation.expireEpoch ?? epoch));
 
         // 计算敌方军事实力（受战争消耗影响）
-        const militaryStrength = targetNation.militaryStrength ?? 1.0; // 1.0 = 满实力，随战争降低
+        // 确保最小值为0.1，避免敌方完全没有军队
+        const militaryStrength = Math.max(0.1, targetNation.militaryStrength ?? 1.0); // 1.0 = 满实力，随战争降低
         const wealthFactor = Math.max(0.3, Math.min(1.5, (targetNation.wealth || 500) / 800)); // 财富影响兵力
         const aggressionFactor = 1 + (targetNation.aggression || 0.2);
         const warScoreFactor = 1 + Math.max(-0.5, (targetNation.warScore || 0) / 120);
@@ -985,10 +986,13 @@ export const useGameActions = (gameState, addLog) => {
                 if (lossCount > 0) {
                     const unit = UNIT_TYPES[unitId];
                     if (unit && unit.epoch <= epoch) {
+                        const trainTime = unit.trainingTime || unit.trainDays || 1;
                         for (let i = 0; i < lossCount; i++) {
                             replenishItems.push({
                                 unitId,
-                                remainingDays: unit.trainDays || 1,
+                                status: 'waiting',
+                                totalTime: trainTime,
+                                remainingTime: trainTime,
                                 isAutoReplenish: true, // 标记为自动补兵
                             });
                         }
@@ -1052,7 +1056,7 @@ export const useGameActions = (gameState, addLog) => {
             // 更新军事行动冷却记录
             const updatedLastMilitaryActionDay = {
                 ...(n.lastMilitaryActionDay || {}),
-                [missionId]: day,
+                [missionId]: daysElapsed,
             };
 
             return {

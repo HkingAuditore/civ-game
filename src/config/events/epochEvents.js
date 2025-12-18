@@ -356,6 +356,257 @@ export const EPOCH_EVENTS = [
         ],
     },
 
+    // === 新增石器时代事件 ===
+    {
+        id: 'wild_beast_taming',
+        name: '驯服野兽',
+        icon: 'Dog',
+        image: null,
+        description: '孩子们在营地外发现了一窝被遗弃的狼崽，它们瑟瑟发抖，眼神中满是惊恐。有人认为可以将它们养大成为狩猎的帮手，但老人们担心野性难驯，会给部落带来灾祸。',
+        triggerConditions: {
+            maxEpoch: 0,
+            minPopulation: 20,
+        },
+        options: [
+            {
+                id: 'adopt_cubs',
+                text: '收养狼崽',
+                description: '精心喂养，尝试驯化它们。',
+                effects: {
+                    resourcePercent: { food: -0.02, science: 0.025 },
+                    approval: { peasant: 8, soldier: 12 },
+                    resourceDemandMod: { food: 0.03 },
+                },
+                randomEffects: [
+                    {
+                        chance: 0.4,
+                        effects: { resourcePercent: { food: 0.05 }, approval: { soldier: 15 } },
+                        description: '狼崽长大后成为出色的猎犬，狩猎效率大增！',
+                    },
+                ],
+            },
+            {
+                id: 'release_cubs',
+                text: '放归荒野',
+                description: '野兽终归属于荒野，让它们自由生活。',
+                effects: { stability: 3, approval: { cleric: 10, peasant: 5 } },
+            },
+            {
+                id: 'kill_cubs',
+                text: '杀死狼崽',
+                description: '狼是危险的敌人，斩草除根。',
+                effects: { resourcePercent: { food: 0.01 }, stability: -3, approval: { soldier: 5, cleric: -15, peasant: -10 } },
+            },
+        ],
+    },
+    {
+        id: 'sacred_cave_paintings',
+        name: '神圣壁画',
+        icon: 'Palette',
+        image: null,
+        description: '猎人们在深山中发现了一个隐秘的洞穴，里面满是用赭石和木炭绘制的神秘图案——奔跑的野牛、持矛的猎人、还有无法辨认的神秘符号。萨满认为这是祖先留下的神谕。',
+        triggerConditions: { maxEpoch: 0 },
+        options: [
+            {
+                id: 'sacred_site',
+                text: '设为圣地',
+                description: '将洞穴封存，只允许萨满进入祭祀。',
+                effects: { resourcePercent: { culture: 0.04 }, stability: 8, approval: { cleric: 25, peasant: 5 } },
+            },
+            {
+                id: 'study_paintings',
+                text: '研究壁画',
+                description: '让所有人都来观看学习，从中寻找狩猎的智慧。',
+                effects: { resourcePercent: { science: 0.03, culture: 0.02 }, approval: { cleric: -10, artisan: 15, peasant: 10 } },
+            },
+            {
+                id: 'add_own_paintings',
+                text: '添加新画',
+                description: '让我们的工匠也在洞穴中留下记录。',
+                effects: { resourcePercent: { culture: 0.03, science: 0.02 }, approval: { artisan: 20, cleric: -5 } },
+            },
+        ],
+    },
+    {
+        id: 'tribal_marriage',
+        name: '部落联姻',
+        icon: 'Heart',
+        image: null,
+        description: '河对岸的部落派来使者，带来了珍贵的贝壳和兽皮作为礼物。他们提议将首领的女儿嫁给你部落最勇敢的猎人，以建立两个部落之间的永久和平。',
+        triggerConditions: { maxEpoch: 1, minPopulation: 25 },
+        options: [
+            {
+                id: 'accept_marriage',
+                text: '欣然接受',
+                description: '这是和平与繁荣的开始。',
+                effects: { populationPercent: 0.03, stability: 12, approval: { peasant: 15, cleric: 10 } },
+            },
+            {
+                id: 'demand_more',
+                text: '要求更多嫁妆',
+                description: '我们的猎人很优秀，值得更多。',
+                effects: { resourcePercent: { food: 0.02 }, stability: -5, approval: { soldier: 10, peasant: -5 } },
+                randomEffects: [
+                    { chance: 0.4, effects: { resourcePercent: { food: 0.03 } }, description: '对方同意了更多条件！' },
+                    { chance: 0.3, effects: { stability: -10, approval: { peasant: -10 } }, description: '对方愤然离去，联姻破裂！' },
+                ],
+            },
+            {
+                id: 'refuse_marriage',
+                text: '婉言拒绝',
+                description: '我们不需要外族的介入。',
+                effects: { stability: -3, approval: { soldier: 8, cleric: -8, peasant: -5 } },
+            },
+        ],
+    },
+    {
+        id: 'great_flood_legend',
+        name: '洪水传说',
+        icon: 'Waves',
+        image: null,
+        description: '篝火边，白发苍苍的长老讲述着一个古老的故事：很久以前，天神降下滔天洪水，吞没了整个世界，只有一对夫妻乘着木筏活了下来。长老说，只有虔诚祭祀，才能避免灾难重演。',
+        triggerConditions: { maxEpoch: 0 },
+        options: [
+            {
+                id: 'grand_sacrifice',
+                text: '举行大祭',
+                description: '按照传说中的方式，向天神献祭。',
+                effects: { resourcePercent: { food: -0.03, culture: 0.04 }, stability: 10, approval: { cleric: 20, peasant: 10 } },
+            },
+            {
+                id: 'build_rafts',
+                text: '建造木筏',
+                description: '以防万一，先准备逃生工具。',
+                effects: { resourcePercent: { wood: -0.03, science: 0.02 }, approval: { artisan: 15, peasant: 5 } },
+            },
+            {
+                id: 'dismiss_legend',
+                text: '只是故事而已',
+                description: '这不过是老人们吓唬孩子的传说。',
+                effects: { stability: -5, approval: { cleric: -20, soldier: 10 } },
+            },
+        ],
+    },
+    {
+        id: 'first_pottery',
+        name: '第一件陶器',
+        icon: 'Cylinder',
+        image: null,
+        description: '一个女人在篝火边用泥巴捏了一个小碗来盛水。第二天早上，她惊讶地发现碗变得又硬又结实！这个发现引起了整个部落的好奇。',
+        triggerConditions: { maxEpoch: 0 },
+        options: [
+            {
+                id: 'encourage_pottery',
+                text: '鼓励制陶',
+                description: '让更多人学习这项技术。',
+                effects: { resourcePercent: { science: 0.04 }, approval: { artisan: 20, peasant: 10 }, buildingProductionMod: { stone_tool_workshop: 0.1 } },
+            },
+            {
+                id: 'sacred_craft',
+                text: '神圣技艺',
+                description: '这是神灵的恩赐，只有被选中的人才能制作。',
+                effects: { resourcePercent: { culture: 0.03, science: 0.02 }, approval: { cleric: 15, artisan: -10 } },
+            },
+            {
+                id: 'focus_hunting',
+                text: '专注狩猎',
+                description: '这种玩意儿不如多打些猎物实在。',
+                effects: { stability: -3, approval: { soldier: 10, artisan: -15 } },
+            },
+        ],
+    },
+    {
+        id: 'star_reader',
+        name: '观星者',
+        icon: 'Star',
+        image: null,
+        description: '一个年轻人每天晚上都仰望星空，记录星星的位置变化。他声称自己能从星象中预测季节更替和猎物迁徙。有人认为他是疯子，有人认为他是先知。',
+        triggerConditions: { maxEpoch: 1 },
+        options: [
+            {
+                id: 'support_stargazer',
+                text: '支持他的研究',
+                description: '给他食物和时间，让他继续观察。',
+                effects: { resourcePercent: { food: -0.015, science: 0.05 }, approval: { scribe: 20, cleric: -5 }, buildingProductionMod: { all: 0.02 } },
+            },
+            {
+                id: 'make_him_shaman',
+                text: '让他成为萨满助手',
+                description: '他的能力应该为神灵服务。',
+                effects: { resourcePercent: { culture: 0.03, science: 0.02 }, approval: { cleric: 15, scribe: 5 } },
+            },
+            {
+                id: 'force_work',
+                text: '让他去干活',
+                description: '做梦不能填饱肚子，该干活了。',
+                effects: { stability: -3, approval: { scribe: -15, soldier: 8 } },
+            },
+        ],
+    },
+    {
+        id: 'bone_oracle',
+        name: '骨卜占卜',
+        icon: 'Skull',
+        image: null,
+        description: '萨满将一块兽骨投入火中，随着噼啪声响，骨头上出现了神秘的裂纹。萨满盯着这些裂纹，脸色逐渐凝重——他说这预示着大事将要发生。',
+        triggerConditions: { maxEpoch: 0 },
+        options: [
+            {
+                id: 'follow_oracle',
+                text: '遵从神谕',
+                description: '让萨满解读神意，指导部落行动。',
+                effects: { resourcePercent: { culture: 0.03 }, stability: 8, approval: { cleric: 20, peasant: 5 } },
+                randomEffects: [
+                    { chance: 0.5, effects: { resourcePercent: { food: 0.03 }, stability: 5 }, description: '萨满的预言应验了！部落对神灵更加虔诚。' },
+                ],
+            },
+            {
+                id: 'question_oracle',
+                text: '质疑占卜',
+                description: '这不过是被火烧裂的骨头而已。',
+                effects: { resourcePercent: { science: 0.02 }, stability: -8, approval: { cleric: -25, soldier: 10 } },
+            },
+            {
+                id: 'learn_divination',
+                text: '学习占卜',
+                description: '让更多人学习解读骨卜，不让知识被垄断。',
+                effects: { resourcePercent: { science: 0.02, culture: 0.02 }, approval: { cleric: -10, scribe: 15 } },
+            },
+        ],
+    },
+    {
+        id: 'rival_tribe_encounter',
+        name: '遭遇敌对部落',
+        icon: 'Swords',
+        image: null,
+        description: '狩猎队在山谷中与另一个部落的战士狭路相逢。对方人数与我们相当，双方剑拔弩张，一触即发。空气中弥漫着紧张的气息，每个人都在等待首领的命令。',
+        triggerConditions: { maxEpoch: 1, minPopulation: 30 },
+        options: [
+            {
+                id: 'attack_rivals',
+                text: '先发制人',
+                description: '趁他们没准备好，发起攻击！',
+                effects: { populationPercent: -0.02, stability: -5, approval: { soldier: 20, peasant: -15 } },
+                randomEffects: [
+                    { chance: 0.5, effects: { resourcePercent: { food: 0.05 }, approval: { soldier: 15 } }, description: '战斗胜利！我们缴获了敌人的物资！' },
+                    { chance: 0.3, effects: { populationPercent: -0.03, stability: -10 }, description: '战斗惨烈，双方都损失惨重...' },
+                ],
+            },
+            {
+                id: 'show_strength',
+                text: '武力威慑',
+                description: '展示我们的力量，但不主动攻击。',
+                effects: { resourcePercent: { food: -0.01 }, stability: 3, approval: { soldier: 10, peasant: 5 } },
+            },
+            {
+                id: 'peaceful_retreat',
+                text: '和平撤退',
+                description: '没有必要为此流血，我们可以从另一条路走。',
+                effects: { stability: 5, approval: { soldier: -15, peasant: 15, cleric: 10 } },
+            },
+        ],
+    },
+
     // ==========================================
     // 青铜时代 (Epoch 1) - Bronze Age Events
     // ==========================================
@@ -5130,6 +5381,150 @@ export const EPOCH_EVENTS = [
                         description: '抗议演变为暴动！',
                     },
                 ],
+            },
+        ],
+    },
+    // === 历史典故事件 ===
+    {
+        id: 'burning_books',
+        name: '焚书禁学',
+        icon: 'Flame',
+        image: null,
+        description: '宰相进言：民间流传着许多异端邪说和诽谤朝廷的文章，它们动摇人心，威胁统治。他建议收缴并焚毁所有私藏的经典著作，只保留官方认可的版本。一些学者闻讯后惊恐不已，试图藏匿书籍。',
+        triggerConditions: { minEpoch: 2, maxEpoch: 4, minPopulation: 100 },
+        options: [
+            {
+                id: 'burn_all',
+                text: '焚毁一切异书',
+                description: '统一思想，消除隐患。处死私藏者以儆效尤。',
+                effects: { resourcePercent: { culture: -0.15, science: -0.1 }, stability: 20, approval: { scribe: -50, cleric: -30, soldier: 15, official: 25 } },
+            },
+            {
+                id: 'selective_ban',
+                text: '只禁政治敏感内容',
+                description: '保留技术和医学书籍，只焚毁煽动性文章。',
+                effects: { resourcePercent: { culture: -0.05 }, stability: 10, approval: { scribe: -20, official: 15 } },
+            },
+            {
+                id: 'reject_proposal',
+                text: '拒绝焚书',
+                description: '知识是文明的根基，不能因恐惧而毁灭它。',
+                effects: { resourcePercent: { culture: 0.05, science: 0.03 }, stability: -10, approval: { scribe: 30, cleric: 15, official: -20 } },
+            },
+        ],
+    },
+    {
+        id: 'maritime_ban',
+        name: '海禁之争',
+        icon: 'Ship',
+        image: null,
+        description: '沿海地区海盗猖獗，走私活动也日益嚣张。有大臣建议实施海禁——禁止一切民间海上贸易，片帆不得下海。商人们闻讯大为恐慌，他们的生计全赖于海上贸易。',
+        triggerConditions: { minEpoch: 3, maxEpoch: 5, minPopulation: 150 },
+        options: [
+            {
+                id: 'total_ban',
+                text: '全面海禁',
+                description: '犯禁者斩！彻底杜绝海患。',
+                effects: { stability: 15, approval: { merchant: -40, peasant: 10, official: 20 }, buildingProductionMod: { dockyard: -0.5, market: -0.2 } },
+            },
+            {
+                id: 'licensed_trade',
+                text: '官方许可贸易',
+                description: '只允许持有官方牌照的船只出海。',
+                effects: { resourcePercent: { silver: 0.05 }, approval: { merchant: -15, official: 15 } },
+            },
+            {
+                id: 'strengthen_navy',
+                text: '加强海防',
+                description: '与其禁海，不如建设强大的海军剿灭海盗。',
+                effects: { resourcePercent: { silver: -0.08 }, approval: { merchant: 20, soldier: 15, official: -10 }, buildingProductionMod: { dockyard: 0.15 } },
+            },
+        ],
+    },
+    {
+        id: 'exam_scandal',
+        name: '科场舞弊',
+        icon: 'FileWarning',
+        image: null,
+        description: '今年的科举考试爆出惊天丑闻！有人发现主考官私下泄题，收受贿赂，让豪门子弟冒名顶替。落榜士子群情激愤，聚集在贡院门口抗议。此事若处理不当，将动摇整个选官制度的根基。',
+        triggerConditions: { minEpoch: 2, maxEpoch: 5, minPopulation: 100 },
+        options: [
+            {
+                id: 'severe_punishment',
+                text: '严惩涉案官员',
+                description: '斩首示众，株连九族，以儆效尤！',
+                effects: { populationPercent: -0.01, stability: 15, approval: { scribe: 25, official: -20, peasant: 15 } },
+            },
+            {
+                id: 'quiet_resolution',
+                text: '低调处理',
+                description: '革职查办但不公开，维护朝廷体面。',
+                effects: { stability: -5, approval: { scribe: -15, official: 10, landowner: 10 } },
+                randomEffects: [{ chance: 0.4, effects: { stability: -15, approval: { scribe: -20, peasant: -10 } }, description: '消息走漏，民间舆论哗然！' }],
+            },
+            {
+                id: 'reform_system',
+                text: '改革考试制度',
+                description: '趁此机会推行匿名阅卷、糊名制度。',
+                effects: { resourcePercent: { silver: -0.03, science: 0.05 }, approval: { scribe: 30, official: -15 } },
+            },
+        ],
+    },
+    {
+        id: 'great_wall_project',
+        name: '长城工程',
+        icon: 'Building',
+        image: null,
+        description: '北方游牧民族的威胁日益严重，将军们提议在边境修筑一座绵延千里的长城。这将是史无前例的浩大工程，需要征发数十万民夫，耗费无数钱粮。但若能建成，将成为抵御外敌的钢铁屏障。',
+        triggerConditions: { minEpoch: 2, maxEpoch: 4, minPopulation: 150 },
+        options: [
+            {
+                id: 'build_wall',
+                text: '倾全国之力修筑',
+                description: '功在当代，利在千秋！',
+                effects: { resourcePercent: { silver: -0.12, food: -0.08 }, populationPercent: -0.05, stability: -15, approval: { soldier: 25, peasant: -35, artisan: -20 } },
+                randomEffects: [{ chance: 0.5, effects: { stability: 20, approval: { soldier: 20 } }, description: '长城建成！北方边境固若金汤！' }],
+            },
+            {
+                id: 'partial_fortification',
+                text: '修建关键要塞',
+                description: '只在战略要地修筑城堡和关隘。',
+                effects: { resourcePercent: { silver: -0.05 }, approval: { soldier: 15, peasant: -10 } },
+            },
+            {
+                id: 'diplomatic_approach',
+                text: '和亲贸易',
+                description: '与其修墙，不如通过联姻和贸易来化解敌意。',
+                effects: { resourcePercent: { silver: -0.03, culture: 0.04 }, approval: { merchant: 20, soldier: -20, peasant: 15 } },
+            },
+        ],
+    },
+    {
+        id: 'paper_money_crisis',
+        name: '纸币危机',
+        icon: 'Banknote',
+        image: null,
+        description: '为了应付战争开支，朝廷大量印制纸币。起初人们还愿意接受，但现在纸币越来越不值钱，物价飞涨。市场上，一筐纸币只能换一斗米。商人们开始拒收官方纸币，民间私下以铜钱和银子交易。',
+        triggerConditions: { minEpoch: 3, maxEpoch: 5, minPopulation: 120 },
+        options: [
+            {
+                id: 'force_acceptance',
+                text: '强制流通',
+                description: '拒收者以抗旨论处！',
+                effects: { stability: -20, approval: { merchant: -35, peasant: -25, official: 10 }, buildingProductionMod: { market: -0.3, industry: -0.15 } },
+                randomEffects: [{ chance: 0.4, effects: { stability: -25 }, description: '各地爆发抗议，商业活动几乎停滞！' }],
+            },
+            {
+                id: 'currency_reform',
+                text: '货币改革',
+                description: '回收旧币，发行新币，以实物储备背书。',
+                effects: { resourcePercent: { silver: -0.1 }, stability: 10, approval: { merchant: 20, peasant: 15 }, buildingProductionMod: { market: 0.1 } },
+            },
+            {
+                id: 'return_to_metal',
+                text: '恢复金属货币',
+                description: '废除纸币，重新使用铜钱和银两。',
+                effects: { resourcePercent: { silver: -0.05 }, stability: 5, approval: { merchant: 25, peasant: 20, official: -15 } },
             },
         ],
     },

@@ -842,7 +842,8 @@ export const simulateBattle = (attackerData, defenderData) => {
 
     // 计算损失 - 优化版：碾压级优势时显著降低攻击方损失
     const clampRate = (value, min, max) => Math.max(min, Math.min(max, value));
-    const powerRatio = defenderPower > 0 ? attackerPower / defenderPower : 3;
+    // 当敌方战力为0时，使用极高的powerRatio（100）来表示绝对碾压
+    const powerRatio = defenderPower > 0 ? attackerPower / defenderPower : 100;
     const safeRatio = Math.max(0.1, powerRatio);
     let attackerLossRate;
     let defenderLossRate;
@@ -855,7 +856,9 @@ export const simulateBattle = (attackerData, defenderData) => {
         // ratioFactor = 10 时，attackerLossRate ≈ 0.5%
         if (ratioFactor >= 3) {
             // 碾压级优势：使用指数衰减公式
-            attackerLossRate = clampRate(0.03 / Math.pow(ratioFactor, 0.8), 0.005, 0.03);
+            // ratioFactor >= 50 时，损失可以低至 0.1%
+            const minLossRate = ratioFactor >= 50 ? 0.001 : 0.005;
+            attackerLossRate = clampRate(0.03 / Math.pow(ratioFactor, 0.8), minLossRate, 0.03);
             defenderLossRate = clampRate(0.50 + Math.log10(ratioFactor) * 0.35, 0.60, 0.98);
         } else {
             // 普通优势

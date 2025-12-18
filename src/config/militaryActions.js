@@ -9,6 +9,7 @@
  */
 export const getEnemyUnitsForEpoch = (epoch, actionType) => {
   // 根据时代定义兵种池
+  // 注意: 所有兵种ID必须与 UNIT_TYPES 中定义的一致
   const epochUnits = {
     0: { // 石器时代
       light: ['militia', 'slinger'],
@@ -17,33 +18,33 @@ export const getEnemyUnitsForEpoch = (epoch, actionType) => {
     },
     1: { // 青铜时代
       light: ['militia', 'slinger', 'spearman'],
-      medium: ['spearman', 'archer', 'light_cavalry'],
-      heavy: ['spearman', 'archer', 'light_cavalry', 'swordsman'],
+      medium: ['spearman', 'archer', 'chariot'],
+      heavy: ['spearman', 'archer', 'chariot'],
     },
     2: { // 古典时代
       light: ['spearman', 'archer', 'light_cavalry'],
-      medium: ['heavy_infantry', 'crossbowman', 'knight'],
-      heavy: ['heavy_infantry', 'crossbowman', 'knight', 'swordsman'],
+      medium: ['hoplite', 'composite_archer', 'light_cavalry'],
+      heavy: ['hoplite', 'composite_archer', 'light_cavalry', 'battering_ram'],
     },
     3: { // 封建时代
       light: ['heavy_infantry', 'crossbowman', 'knight'],
-      medium: ['heavy_infantry', 'crossbowman', 'knight'],
-      heavy: ['heavy_infantry', 'crossbowman', 'knight'],
+      medium: ['heavy_infantry', 'crossbowman', 'knight', 'trebuchet'],
+      heavy: ['heavy_infantry', 'crossbowman', 'knight', 'trebuchet'],
     },
-    4: { // 工业时代
+    4: { // 火药时代
+      light: ['pikeman', 'arquebus', 'cuirassier'],
+      medium: ['pikeman', 'arquebus', 'cuirassier', 'bombard'],
+      heavy: ['pikeman', 'arquebus', 'cuirassier', 'bombard'],
+    },
+    5: { // 启蒙时代
       light: ['musketeer', 'dragoon'],
-      medium: ['musketeer', 'dragoon', 'cannon'],
-      heavy: ['musketeer', 'dragoon', 'cannon'],
+      medium: ['musketeer', 'rifleman', 'dragoon', 'cannon'],
+      heavy: ['musketeer', 'rifleman', 'dragoon', 'cannon'],
     },
-    5: { // 现代
-      light: ['rifleman', 'modern_infantry'],
-      medium: ['rifleman', 'modern_infantry', 'tank'],
-      heavy: ['rifleman', 'modern_infantry', 'tank', 'artillery'],
-    },
-    6: { // 信息时代
-      light: ['modern_infantry', 'tank'],
-      medium: ['modern_infantry', 'tank', 'modern_artillery'],
-      heavy: ['modern_infantry', 'tank', 'modern_artillery'],
+    6: { // 工业时代
+      light: ['line_infantry', 'lancer'],
+      medium: ['line_infantry', 'gatling', 'lancer', 'artillery'],
+      heavy: ['line_infantry', 'gatling', 'lancer', 'artillery'],
     },
   };
 

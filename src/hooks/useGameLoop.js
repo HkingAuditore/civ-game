@@ -2494,10 +2494,13 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                     if (lossCount > 0) {
                                         const unit = UNIT_TYPES[unitId];
                                         if (unit && unit.epoch <= epoch) {
+                                            const trainTime = unit.trainDays || 1;
                                             for (let i = 0; i < lossCount; i++) {
                                                 replenishItems.push({
                                                     unitId,
-                                                    remainingDays: unit.trainDays || 1,
+                                                    status: 'waiting',
+                                                    totalTime: trainTime,
+                                                    remainingTime: trainTime,
                                                     isAutoReplenish: true,
                                                 });
                                             }
