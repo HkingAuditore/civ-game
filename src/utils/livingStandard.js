@@ -135,9 +135,10 @@ export function getLivingStandardByScore(score) {
  * @param {number} incomeRatio - 收入比率（人均收入 / 基础成本）
  * @param {number} wealthRatio - 财富比率（人均财富 / 基准财富）
  * @param {number} wealthElasticity - 财富弹性系数（0.3=底层, 1.0=基准, 1.8=顶层）
+ * @param {number} maxMultiplier - 消费倍数上限（底层3, 中层6, 上层10）
  * @returns {number} 财富乘数
  */
-export function calculateWealthMultiplier(incomeRatio, wealthRatio = 1, wealthElasticity = 1.0) {
+export function calculateWealthMultiplier(incomeRatio, wealthRatio = 1, wealthElasticity = 1.0, maxMultiplier = 6.0) {
     // 1. 基于收入的消费能力（理论上限）
     let incomeMultiplier;
     if (incomeRatio <= 0) {
@@ -174,7 +175,46 @@ export function calculateWealthMultiplier(incomeRatio, wealthRatio = 1, wealthEl
     // 3. 最终消费能力 = 收入能力 × 财富意愿
     const wealthMultiplier = incomeMultiplier * wealthFactor;
 
-    return Math.max(0.3, Math.min(6.0, wealthMultiplier));
+    // 使用阶层配置的上限（底层3倍, 中层6倍, 上层10倍）
+    return Math.max(0.3, Math.min(maxMultiplier, wealthMultiplier));
+}
+
+/**
+ * 计算解锁乘数（用于奢侈需求解锁判断）
+ * 与 calculateWealthMultiplier 区别：不受阶层消费上限限制
+ * 这样即使底层阶级消费能力被限制在3倍，也能解锁所有奢侈需求档位
+ * @param {number} incomeRatio - 收入比率（人均收入 / 基础成本）
+ * @param {number} wealthRatio - 财富比率（人均财富 / 基准财富）
+ * @param {number} wealthElasticity - 财富弹性系数（0.3=底层, 1.0=基准, 1.8=顶层）
+ * @returns {number} 解锁乘数（无阶级上限限制）
+ */
+export function calculateUnlockMultiplier(incomeRatio, wealthRatio = 1, wealthElasticity = 1.0) {
+    // 1. 基于收入的消费能力（理论上限）
+    let incomeMultiplier;
+    if (incomeRatio <= 0) {
+        incomeMultiplier = 0.3;
+    } else if (incomeRatio < 1) {
+        incomeMultiplier = 0.3 + incomeRatio * 0.7 * Math.min(1.2, wealthElasticity);
+    } else {
+        const baseGrowth = Math.sqrt(incomeRatio) * (1 + Math.log(incomeRatio) * 0.25);
+        incomeMultiplier = 1 + (baseGrowth - 1) * wealthElasticity;
+    }
+
+    // 2. 基于财富的消费意愿
+    let wealthFactor;
+    if (wealthRatio < 0.3) {
+        wealthFactor = 0.4;
+    } else if (wealthRatio < 1) {
+        wealthFactor = 0.4 + (wealthRatio - 0.3) * 0.86;
+    } else if (wealthRatio < 2) {
+        wealthFactor = 1.0;
+    } else {
+        wealthFactor = Math.min(1.3 + (wealthElasticity - 1) * 0.1, 1.0 + (wealthRatio - 2) * 0.05 * wealthElasticity);
+    }
+
+    // 3. 解锁乘数 = 收入能力 × 财富意愿（使用固定上限10，让所有阶级都能解锁全部奢侈需求）
+    const unlockMultiplier = incomeMultiplier * wealthFactor;
+    return Math.max(0.3, Math.min(10.0, unlockMultiplier));
 }
 
 /**
@@ -275,6 +315,7 @@ export function calculateLivingStandardScore(incomeAdequacy, satisfactionRate, f
  * @param {number} params.totalLuxuryTiers - 总奢侈需求档位数
  * @param {number} params.previousScore - 上一次的评分（用于平滑）
  * @param {boolean} params.isNewStratum - 是否是新创建的阶层
+ * @param {number} params.maxConsumptionMultiplier - 阶层消费倍数上限（底层3, 中层6, 上层10）
  * @returns {object} 完整的生活水平数据
  */
 export function calculateLivingStandardData({
@@ -290,6 +331,7 @@ export function calculateLivingStandardData({
     totalLuxuryTiers = 0,
     previousScore = null,
     isNewStratum = false,
+    maxConsumptionMultiplier = 6,
 }) {
     if (count <= 0) {
         return null;
@@ -348,9 +390,9 @@ export function calculateLivingStandardData({
     // 根据分数确定等级
     const livingStandard = getLivingStandardByScore(smoothedScore);
 
-    // 计算消费能力乘数（同时考虑收入和财富）
+    // 计算消费能力乘数（同时考虑收入和财富，使用阶层配置的上限）
     const incomeRatio = essentialCostPerCapita > 0 ? incomePerCapita / essentialCostPerCapita : 1;
-    const wealthMultiplier = calculateWealthMultiplier(incomeRatio, realWealthRatio);
+    const wealthMultiplier = calculateWealthMultiplier(incomeRatio, realWealthRatio, 1.0, maxConsumptionMultiplier);
 
     // 奢侈需求解锁比例
     const luxuryUnlockRatio = totalLuxuryTiers > 0 ? unlockedLuxuryTiers / totalLuxuryTiers : 0;

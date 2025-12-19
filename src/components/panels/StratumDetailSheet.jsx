@@ -3,7 +3,7 @@ import { Icon } from '../common/UIComponents';
 import { STRATA, RESOURCES } from '../../config';
 import { formatEffectDetails } from '../../utils/effectFormatter';
 import { isResourceUnlocked } from '../../utils/resources';
-import { calculateLivingStandardData, calculateWealthMultiplier, LIVING_STANDARD_LEVELS } from '../../utils/livingStandard';
+import { calculateLivingStandardData, calculateWealthMultiplier, calculateUnlockMultiplier, LIVING_STANDARD_LEVELS } from '../../utils/livingStandard';
 import {
     getOrganizationStage,
     getStageName,
@@ -115,12 +115,16 @@ export const StratumDetailSheet = ({
             }
         });
         const incomeRatio = essentialCost > 0 ? incomePerCapita / essentialCost : 1;
-        const fallbackMultiplier = calculateWealthMultiplier(incomeRatio, wealthRatio);
+        // 解锁乘数（不受阶层上限限制，用于解锁判断）
+        const unlockMultiplier = calculateUnlockMultiplier(incomeRatio, wealthRatio, stratum.wealthElasticity || 1.0);
+        // 消费倍率（受阶层上限限制，用于 UI 显示）
+        const maxConsumptionMultiplier = stratum.maxConsumptionMultiplier || 6;
+        const fallbackMultiplier = calculateWealthMultiplier(incomeRatio, wealthRatio, stratum.wealthElasticity || 1.0, maxConsumptionMultiplier);
 
         let unlockedLuxuryTiers = 0;
         let effectiveNeedsCount = baseNeedsCount;
         for (const threshold of luxuryThresholds) {
-            if (fallbackMultiplier >= threshold) {
+            if (unlockMultiplier >= threshold) {
                 unlockedLuxuryTiers++;
                 const tierNeeds = luxuryNeeds[threshold];
                 const unlockedResources = Object.keys(tierNeeds).filter(r => isResourceUnlocked(r, epoch, techsUnlocked));
@@ -142,6 +146,7 @@ export const StratumDetailSheet = ({
             totalLuxuryTiers: luxuryThresholds.length,
             previousScore: null,
             isNewStratum: true,
+            maxConsumptionMultiplier,
         });
     }
 
@@ -163,12 +168,25 @@ export const StratumDetailSheet = ({
         score: livingStandardScore = 0,
     } = livingStandardData || {};
 
-    // 已解锁的奢侈需求详情（使用消费能力判断）
+    // 计算解锁乘数（用于奢侈需求解锁判断，不受阶层消费上限限制）
+    // 这里重新计算是因为 livingStandardData 中的 wealthMultiplier 是受上限限制的
+    const startingWealthForCalc = stratum.startingWealth || 80;
+    const wealthPerCapitaForCalc = count > 0 ? wealthValue / count : 0;
+    const wealthRatioForCalc = startingWealthForCalc > 0 ? wealthPerCapitaForCalc / startingWealthForCalc : 0;
+    const baseNeedsForCalc = stratum.needs || {};
+    let essentialCostForCalc = 0;
+    ['food', 'cloth'].forEach(resKey => {
+        if (baseNeedsForCalc[resKey]) essentialCostForCalc += baseNeedsForCalc[resKey] * 1;
+    });
+    const incomeRatioForCalc = essentialCostForCalc > 0 ? incomePerCapita / essentialCostForCalc : 1;
+    const unlockMultiplier = calculateUnlockMultiplier(incomeRatioForCalc, wealthRatioForCalc, stratum.wealthElasticity || 1.0);
+
+    // 已解锁的奢侈需求详情（使用解锁乘数判断，不受阶层消费上限限制）
     const luxuryNeeds = stratum.luxuryNeeds || {};
     const luxuryThresholds = Object.keys(luxuryNeeds).map(Number).sort((a, b) => a - b);
     let unlockedLuxuryNeedsDetail = [];
     for (const threshold of luxuryThresholds) {
-        if (wealthMultiplier >= threshold) {
+        if (unlockMultiplier >= threshold) {
             const tierNeeds = luxuryNeeds[threshold];
             // Only show unlocked resources in tooltip
             const unlockedResources = Object.keys(tierNeeds).filter(r => isResourceUnlocked(r, epoch, techsUnlocked));
@@ -519,10 +537,10 @@ export const StratumDetailSheet = ({
                                 }
                             }
                             // Add unlocked luxury needs (only if resource is unlocked)
-                            // 使用消费能力（wealthMultiplier）判断
+                            // 使用解锁乘数（unlockMultiplier）判断，不受阶层消费上限限制
                             if (stratum.luxuryNeeds) {
                                 for (const threshold of luxuryThresholds) {
-                                    if (wealthMultiplier >= threshold) {
+                                    if (unlockMultiplier >= threshold) {
                                         const tierNeeds = stratum.luxuryNeeds[threshold];
                                         for (const [resKey, amount] of Object.entries(tierNeeds)) {
                                             // Skip resources that are not yet unlocked in current epoch/tech
