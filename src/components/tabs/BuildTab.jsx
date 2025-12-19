@@ -9,7 +9,7 @@ import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
 import { filterUnlockedResources } from '../../utils/resources';
 import { getPublicAssetUrl } from '../../utils/assetPath';
 import { getBuildingImageUrl } from '../../utils/imageRegistry';
-import { getBuildingEffectiveConfig } from '../../config/buildingUpgrades';
+import { getBuildingEffectiveConfig, BUILDING_UPGRADES, getUpgradeCost } from '../../config/buildingUpgrades';
 
 /**
  * 建筑悬浮提示框 (使用 Portal)
@@ -180,6 +180,7 @@ const CompactBuildingCard = ({
     techsUnlocked,
     jobFill,
     resources,
+    hasUpgrades,
 }) => {
     const VisualIcon = Icon;
 
@@ -189,6 +190,20 @@ const CompactBuildingCard = ({
             onMouseEnter={onMouseEnter}
             onMouseLeave={onMouseLeave}
         >
+            {/* 升级提示 - 仅在有建筑且可升级时显示 */}
+            {count > 0 && hasUpgrades && (
+                <div
+                    className="absolute -top-1.5 -right-1.5 z-20 bg-gray-900 rounded-full shadow-lg border border-blue-500/50 animate-pulse cursor-pointer"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onShowDetails(building.id, { scrollToUpgrade: true }); // 点击直接打开详情页，并滚动到升级面板
+                    }}
+                    title="可升级"
+                >
+                    <VisualIcon name="ArrowUpCircle" size={14} className="text-blue-400" />
+                </div>
+            )}
+
             {/* 点击区域，用于显示详情 */}
             <div
                 className="flex-grow flex flex-col items-center cursor-pointer"
@@ -503,6 +518,43 @@ export const BuildTab = ({
                                     }
                                 }
 
+                                // 检查是否有任何实例未满级且资源足够升级
+                                const maxLevel = BUILDING_UPGRADES[building.id]?.length || 0;
+                                let canUpgradeAny = false;
+                                if (count > 0 && maxLevel > 0) {
+                                    for (let i = 0; i < count; i++) {
+                                        const currentLevel = upgradeLevels[i] || 0;
+                                        if (currentLevel < maxLevel) {
+                                            const targetLevel = currentLevel + 1;
+
+                                            // 计算当前已达到目标等级或更高级别的实例数量（用于成本递增）
+                                            let existingCountAtTarget = 0;
+                                            for (let j = 0; j < count; j++) {
+                                                if ((upgradeLevels[j] || 0) >= targetLevel) {
+                                                    existingCountAtTarget++;
+                                                }
+                                            }
+
+                                            // 获取升级成本
+                                            const upgradeCost = getUpgradeCost(building.id, targetLevel, existingCountAtTarget);
+
+                                            // 检查是否买得起
+                                            if (upgradeCost) {
+                                                const silverCost = upgradeCost.silver || 0;
+                                                const affordable = (resources.silver || 0) >= silverCost &&
+                                                    Object.entries(upgradeCost).every(([res, amount]) =>
+                                                        res === 'silver' ? true : (resources[res] || 0) >= amount
+                                                    );
+
+                                                if (affordable) {
+                                                    canUpgradeAny = true;
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
                                 const cost = calculateCost(building);
                                 const silverCost = calculateSilverCost(cost, market);
                                 const hasMaterials = Object.entries(cost).every(([res, val]) => (resources[res] || 0) >= val);
@@ -529,6 +581,7 @@ export const BuildTab = ({
                                         jobFill={jobFill}
                                         resources={resources}
                                         onShowDetails={onShowDetails}
+                                        hasUpgrades={canUpgradeAny}
                                     />
                                 );
                             })}
