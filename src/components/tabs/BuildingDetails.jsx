@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Icon } from '../common/UIComponents';
 import { RESOURCES, STRATA, EPOCHS } from '../../config';
 import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
@@ -12,34 +12,111 @@ import { canBuildingUpgrade } from '../../utils/buildingUpgradeUtils';
 const MIN_ROLE_WAGE = 0.1;
 
 /**
- * 获取角色基础工资（简化版）
+ * 获取角色的市场工资（直接从 market.wages 获取）
+ * 这是 simulation.js 计算后的真实平均工资
  */
-const getRoleBaseWage = (role, market = {}) => {
+const getMarketWage = (role, market = {}) => {
     const wageFromMarket = market?.wages?.[role];
     if (Number.isFinite(wageFromMarket) && wageFromMarket > 0) {
         return wageFromMarket;
     }
+    // Fallback: 使用阶层起始财富估算
     const starting = STRATA[role]?.startingWealth;
     if (Number.isFinite(starting) && starting > 0) {
         return Math.max(MIN_ROLE_WAGE, starting / 40);
     }
-    return 1;
+    return MIN_ROLE_WAGE;
 };
 
 /**
- * 计算工资压力因子（简化版）
- * @param {Object} params - 参数
- * @returns {number} 工资压力因子 (0.65-1.4)
+ * 计算建筑当前所有级别的加权平均收入
+ * 雇员收入 = market.wages[role]
+ * 业主收入 = (产出价值 - 投入成本 - 营业税 - 其他雇员工资) / 业主岗位数
+ * @param {Object} building - 建筑配置
+ * @param {number} count - 建筑数量
+ * @param {Object} upgradeLevels - 各建筑实例的升级等级 {0: 1, 1: 0, 2: 2, ...}
+ * @param {Object} market - 市场数据
+ * @param {Object} taxPolicies - 税收政策
+ * @returns {Object} 各角色的加权平均收入 {role: { avgIncome, isOwner }}
  */
-const calculateWagePressure = ({ outputValue, inputCost, baseWageBudget }) => {
-    if (baseWageBudget <= 0) return 1;
-    const valueAvailable = Math.max(0, outputValue - inputCost);
-    const coverage = valueAvailable / baseWageBudget;
-    if (!Number.isFinite(coverage)) return 1;
-    if (coverage >= 1) {
-        return Math.min(1.4, 1 + (coverage - 1) * 0.35);
+const calculateBuildingAverageIncomes = (building, count, upgradeLevels = {}, market = {}, taxPolicies = {}) => {
+    if (!building || count <= 0) return {};
+
+    const ownerKey = building?.owner;
+    const getResourcePrice = (key) => {
+        if (!key || key === 'silver') return 1;
+        return market?.prices?.[key] ?? (RESOURCES[key]?.basePrice || 0);
+    };
+
+    // 统计各等级建筑数量
+    const levelCounts = {};
+    for (let i = 0; i < count; i++) {
+        const lvl = upgradeLevels[i] || 0;
+        levelCounts[lvl] = (levelCounts[lvl] || 0) + 1;
     }
-    return Math.max(0.65, 1 - (1 - coverage) * 0.5);
+
+    // 计算每个角色在各等级的总岗位数和总收入
+    const roleStats = {}; // { role: { totalSlots: number, totalIncome: number, isOwner: boolean } }
+
+    for (const [lvlStr, lvlCount] of Object.entries(levelCounts)) {
+        const lvl = parseInt(lvlStr);
+        const config = getBuildingEffectiveConfig(building, lvl);
+        const jobs = config.jobs || {};
+
+        // 计算该等级每座建筑的产出价值和投入成本
+        const outputValue = Object.entries(config.output || {}).reduce(
+            (sum, [res, val]) => sum + getResourcePrice(res) * val, 0
+        );
+        const inputValue = Object.entries(config.input || {}).reduce(
+            (sum, [res, val]) => sum + getResourcePrice(res) * val, 0
+        );
+
+        // 营业税
+        const businessTaxMultiplier = taxPolicies?.businessTaxRates?.[building.id] ?? 1;
+        const businessTaxBase = building.businessTaxBase ?? 0.1;
+        const businessTax = businessTaxBase * businessTaxMultiplier;
+
+        // 计算非业主雇员的工资总和
+        let nonOwnerWageCost = 0;
+        for (const [role, slotsPerBuilding] of Object.entries(jobs)) {
+            if (!Number.isFinite(slotsPerBuilding) || slotsPerBuilding <= 0) continue;
+            if (role === ownerKey) continue; // 跳过业主
+            const wage = getMarketWage(role, market);
+            nonOwnerWageCost += wage * slotsPerBuilding;
+        }
+
+        // 业主每座建筑的利润 = 产出 - 投入 - 营业税 - 其他雇员工资
+        const ownerProfitPerBuilding = outputValue - inputValue - businessTax - nonOwnerWageCost;
+        const ownerSlots = jobs[ownerKey] || 0;
+        const ownerIncomePerSlot = ownerSlots > 0 ? ownerProfitPerBuilding / ownerSlots : 0;
+
+        for (const [role, slotsPerBuilding] of Object.entries(jobs)) {
+            if (!Number.isFinite(slotsPerBuilding) || slotsPerBuilding <= 0) continue;
+
+            const totalSlotsAtLevel = slotsPerBuilding * lvlCount;
+            const isOwner = role === ownerKey;
+            const incomePerSlot = isOwner ? ownerIncomePerSlot : getMarketWage(role, market);
+
+            if (!roleStats[role]) {
+                roleStats[role] = { totalSlots: 0, totalIncome: 0, isOwner };
+            }
+            roleStats[role].totalSlots += totalSlotsAtLevel;
+            roleStats[role].totalIncome += incomePerSlot * totalSlotsAtLevel;
+        }
+    }
+
+    // 计算加权平均
+    const result = {};
+    for (const [role, stats] of Object.entries(roleStats)) {
+        if (stats.totalSlots > 0) {
+            result[role] = {
+                avgIncome: stats.totalIncome / stats.totalSlots,
+                isOwner: stats.isOwner
+            };
+        }
+    }
+
+    return result;
 };
 
 /**
@@ -404,61 +481,29 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
         const actualAmount = demandBreakdown[resKey]?.buildings?.[building.id] ?? baseAmount;
         return [resKey, actualAmount, baseAmount];
     }).filter(([, amount]) => amount > 0);
+    // 计算当前建筑所有级别的加权平均收入（区分业主和雇员）
+    const buildingAvgIncomes = useMemo(() => {
+        return calculateBuildingAverageIncomes(building, count, upgradeLevels, market, taxPolicies);
+    }, [building, count, upgradeLevels, market, taxPolicies]);
+
     const jobBreakdown = useMemo(() => {
         const ownerKey = building?.owner;
-        const getPrice = (key) => {
-            if (!key || key === 'silver') return 1;
-            return market?.prices?.[key] ?? (RESOURCES[key]?.basePrice || 0);
-        };
 
-        // 计算产出价值
-        let outputValue = 0;
-        Object.entries(effectiveTotalStats.output || {}).forEach(([resKey, amount]) => {
-            if (resKey === 'maxPop') return;
-            if (Number.isFinite(amount) && amount > 0) {
-                outputValue += amount * getPrice(resKey);
-            }
-        });
-
-        // 计算投入成本
-        let inputCost = 0;
-        Object.entries(effectiveTotalStats.input || {}).forEach(([resKey, amount]) => {
-            if (Number.isFinite(amount) && amount > 0) {
-                inputCost += amount * getPrice(resKey);
-            }
-        });
-
-        // 计算基础工资预算（非业主）
-        let baseWageBudget = 0;
-        Object.entries(effectiveTotalStats.jobs || {}).forEach(([role, slots]) => {
-            if (role !== ownerKey && slots > 0) {
-                baseWageBudget += getRoleBaseWage(role, market) * slots;
-            }
-        });
-
-        // 计算工资压力因子
-        const wagePressure = calculateWagePressure({ outputValue, inputCost, baseWageBudget });
-        const headTaxRates = taxPolicies?.headTaxRates || {};
+        // 使用当前建筑的加权平均收入（所有级别的平均）
+        // 业主收入 = (产出 - 投入 - 营业税 - 其他雇员工资) / 业主岗位数
+        // 雇员收入 = market.wages[role]
 
         return Object.entries(effectiveTotalStats.jobs || {}).map(([role, required]) => {
             const filled = Math.min(jobFill?.[building.id]?.[role] ?? 0, required);
             const fillPercent = required > 0 ? (filled / required) * 100 : 0;
-            const baseWage = getRoleBaseWage(role, market);
             const isOwner = role === ownerKey;
 
-            let actualWage;
-            if (isOwner) {
-                // 业主获得利润分配
-                const profit = outputValue - inputCost - baseWageBudget * wagePressure;
-                const ownerSlots = required > 0 ? required : 1;
-                actualWage = Math.max(MIN_ROLE_WAGE, baseWage + profit / ownerSlots);
-            } else {
-                // 雇员工资 = 基础工资 × 工资压力 - 人头税
-                const headBase = STRATA[role]?.headTaxBase ?? 0;
-                const headRate = headTaxRates[role] ?? 1;
-                const headTaxCost = headBase * headRate;
-                actualWage = Math.max(MIN_ROLE_WAGE, baseWage * wagePressure - headTaxCost);
-            }
+            // 使用当前建筑的加权平均收入
+            const incomeData = buildingAvgIncomes[role];
+            const actualIncome = incomeData?.avgIncome;
+            const displayIncome = Number.isFinite(actualIncome)
+                ? actualIncome
+                : getMarketWage(role, market);
 
             return {
                 role,
@@ -466,13 +511,11 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                 filled,
                 fillPercent,
                 name: STRATA[role]?.name || role,
-                baseWage,
-                actualWage: parseFloat(actualWage.toFixed(2)),
-                wagePressure: parseFloat(wagePressure.toFixed(2)),
+                actualIncome: parseFloat(displayIncome.toFixed(2)),
                 isOwner
             };
         }).sort((a, b) => b.required - a.required);
-    }, [effectiveTotalStats, jobFill, building, market, taxPolicies]);
+    }, [effectiveTotalStats, jobFill, building, market, buildingAvgIncomes]);
 
     // 营业税逻辑
     const businessTaxMultiplier = taxPolicies?.businessTaxRates?.[building.id] ?? 1;
@@ -693,7 +736,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                 {jobBreakdown.length > 0 && (
                     <div className="space-y-3">
                         <div className="text-[10px] uppercase text-gray-400 tracking-wide">岗位明细</div>
-                        {jobBreakdown.map(({ role, name, required, filled, fillPercent, actualWage, wagePressure, isOwner }) => (
+                {jobBreakdown.map(({ role, name, required, filled, fillPercent, actualIncome, isOwner }) => (
                             <div key={role} className="bg-gray-900/40 border border-gray-700/70 rounded-lg px-3 py-2">
                                 <div className="flex items-center justify-between text-xs text-gray-200">
                                     <span className="flex items-center gap-1">
@@ -713,15 +756,10 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                     </div>
                                     <div className="flex items-center gap-1">
                                         <Icon name="Wallet" size={10} className={isOwner ? 'text-amber-400' : 'text-yellow-400'} />
-                                        <span className={`font-mono font-semibold ${isOwner ? 'text-amber-300' : 'text-yellow-300'}`}>
-                                            {actualWage.toFixed(2)}
+                                        <span className={`font-mono font-semibold ${actualIncome < 0 ? 'text-red-400' : isOwner ? 'text-amber-300' : 'text-yellow-300'}`}>
+                                            {actualIncome.toFixed(2)}
                                         </span>
                                         <Icon name="Coins" size={10} className="text-yellow-200" />
-                                        {!isOwner && wagePressure !== 1 && (
-                                            <span className={`ml-1 text-[9px] ${wagePressure > 1 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                                ×{wagePressure}
-                                            </span>
-                                        )}
                                     </div>
                                 </div>
                                 <div className="w-full bg-gray-700 rounded-full h-2">
@@ -730,7 +768,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                             </div>
                         ))}
                         <p className="text-[9px] text-gray-600 mt-1">
-                            💡 预估实发工资。业主收入 = 利润分配 + 工资；雇员工资 = 基础工资 × 工资压力 - 人头税
+                            💡 业主收入 = (产出-投入-营业税-雇员工资)/岗位数；雇员收入 = 市场工资
                         </p>
                     </div>
                 )}

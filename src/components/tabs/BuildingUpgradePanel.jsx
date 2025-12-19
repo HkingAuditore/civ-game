@@ -113,101 +113,72 @@ const LongPressButton = ({
  */
 const MIN_ROLE_WAGE = 0.1;
 
-const getRoleBaseWage = (role, market = {}) => {
+/**
+ * 获取角色的市场工资（直接从 market.wages 获取）
+ * 这是 simulation.js 计算后的真实平均工资
+ */
+const getMarketWage = (role, market = {}) => {
     const wageFromMarket = market?.wages?.[role];
     if (Number.isFinite(wageFromMarket) && wageFromMarket > 0) {
         return wageFromMarket;
     }
+    // Fallback: 使用阶层起始财富估算
     const starting = STRATA[role]?.startingWealth;
     if (Number.isFinite(starting) && starting > 0) {
         return Math.max(MIN_ROLE_WAGE, starting / 40);
     }
-    return 1;
+    return MIN_ROLE_WAGE;
 };
 
-const getResourceTaxRate = (resource, taxPolicies = {}) => {
-    return taxPolicies?.resourceTaxRates?.[resource] ?? 0;
-};
-
-const getResourcePrice = (resource, market = {}) => {
-    const price = market?.prices?.[resource];
-    if (Number.isFinite(price) && price > 0) return price;
-    const base = RESOURCES[resource]?.basePrice;
-    if (Number.isFinite(base) && base > 0) return base;
-    return 1;
-};
-
-const estimateLaborEconomics = (config, market, taxPolicies) => {
-    let outputValue = 0;
-    let inputCost = 0;
-
-    Object.entries(config.output || {}).forEach(([resKey, amount]) => {
-        if (resKey === 'maxPop') return;
-        if (!Number.isFinite(amount) || amount <= 0) return;
-        const price = getResourcePrice(resKey, market);
-        const netTax = getResourceTaxRate(resKey, taxPolicies);
-        outputValue += amount * price * (1 - netTax);
-    });
-
-    Object.entries(config.input || {}).forEach(([resKey, amount]) => {
-        if (!Number.isFinite(amount) || amount <= 0) return;
-        const price = getResourcePrice(resKey, market);
-        const netTax = getResourceTaxRate(resKey, taxPolicies);
-        inputCost += amount * price * (1 + netTax);
-    });
-
-    return { outputValue, inputCost };
-};
-
-const estimateRoleWagesForConfig = (config, building, market, taxPolicies) => {
+/**
+ * 计算每个角色的真实收入
+ * 雇员收入 = market.wages[role]
+ * 业主收入 = (产出价值 - 投入成本 - 营业税 - 其他雇员工资) / 业主岗位数
+ */
+const getRoleIncomesForConfig = (config, building, market, taxPolicies = {}) => {
+    const ownerKey = building?.owner;
     const jobEntries = Object.entries(config.jobs || {}).filter(([, slots]) => Number.isFinite(slots) && slots > 0);
     if (jobEntries.length === 0) return {};
 
-    const baseWageMap = {};
-    let totalSlots = 0;
-    let baseWageBudget = 0;
+    const getResourcePrice = (key) => {
+        if (!key || key === 'silver') return 1;
+        return market?.prices?.[key] ?? (RESOURCES[key]?.basePrice || 0);
+    };
+
+    // 计算产出价值和投入成本
+    const outputValue = Object.entries(config.output || {}).reduce(
+        (sum, [res, val]) => sum + getResourcePrice(res) * val, 0
+    );
+    const inputValue = Object.entries(config.input || {}).reduce(
+        (sum, [res, val]) => sum + getResourcePrice(res) * val, 0
+    );
+
+    // 营业税
+    const businessTaxMultiplier = taxPolicies?.businessTaxRates?.[building.id] ?? 1;
+    const businessTaxBase = building.businessTaxBase ?? 0.1;
+    const businessTax = businessTaxBase * businessTaxMultiplier;
+
+    // 计算非业主雇员的工资总和
+    let nonOwnerWageCost = 0;
     jobEntries.forEach(([role, slots]) => {
-        const baseWage = getRoleBaseWage(role, market);
-        baseWageMap[role] = baseWage;
-        totalSlots += slots;
-        baseWageBudget += baseWage * slots;
+        if (role === ownerKey) return; // 跳过业主
+        const wage = getMarketWage(role, market);
+        nonOwnerWageCost += wage * slots;
     });
 
-    if (totalSlots <= 0) {
-        const fallback = {};
-        jobEntries.forEach(([role]) => {
-            fallback[role] = { wage: parseFloat(getRoleBaseWage(role, market).toFixed(2)) };
-        });
-        return fallback;
-    }
-
-    const avgBaseWagePerSlot = baseWageBudget / totalSlots;
-    const { outputValue, inputCost } = estimateLaborEconomics(config, market, taxPolicies);
-    const businessTaxBase = building?.businessTaxBase ?? 0;
-    const businessTaxMultiplier = taxPolicies?.businessTaxRates?.[building?.id] ?? 1;
-    const businessTaxPerBuilding = businessTaxBase * businessTaxMultiplier;
-    const valueAvailableForLabor = outputValue - inputCost - businessTaxPerBuilding;
-    const valuePerSlot = valueAvailableForLabor / totalSlots;
-    const headTaxRates = taxPolicies?.headTaxRates || {};
+    // 业主每座建筑的利润 = 产出 - 投入 - 营业税 - 其他雇员工资
+    const ownerProfitPerBuilding = outputValue - inputValue - businessTax - nonOwnerWageCost;
+    const ownerSlots = config.jobs?.[ownerKey] || 0;
+    const ownerIncomePerSlot = ownerSlots > 0 ? ownerProfitPerBuilding / ownerSlots : 0;
 
     const result = {};
-    jobEntries.forEach(([role, slots]) => {
-        const base = baseWageMap[role];
-        const normalization = avgBaseWagePerSlot > 0 ? base / avgBaseWagePerSlot : 1;
-        let wage;
-        if (valuePerSlot > 0) {
-            wage = valuePerSlot * normalization;
-        } else if (avgBaseWagePerSlot > 0) {
-            wage = avgBaseWagePerSlot * 0.5 * normalization;
-        } else {
-            wage = base;
-        }
-        const headBase = STRATA[role]?.headTaxBase ?? 0;
-        const headRate = headTaxRates[role] ?? 1;
-        const headTaxCost = headBase * headRate;
-        wage = Math.max(MIN_ROLE_WAGE, wage - headTaxCost);
+    jobEntries.forEach(([role]) => {
+        const isOwner = role === ownerKey;
+        const income = isOwner ? ownerIncomePerSlot : getMarketWage(role, market);
+
         result[role] = {
-            wage: parseFloat(wage.toFixed(2)),
+            income: parseFloat(income.toFixed(2)),
+            isOwner,
         };
     });
 
@@ -321,8 +292,8 @@ export const BuildingUpgradePanel = ({
         const hasInput = Object.keys(config.input || {}).length > 0;
         const jobEntries = Object.entries(config.jobs || {});
         const hasJobs = jobEntries.length > 0;
-        const wageEstimates = hasJobs
-            ? estimateRoleWagesForConfig(config, building, market, taxPolicies)
+        const incomeEstimates = hasJobs
+            ? getRoleIncomesForConfig(config, building, market, taxPolicies)
             : {};
 
         return (
@@ -364,8 +335,9 @@ export const BuildingUpgradePanel = ({
                         <div className="text-[10px] text-sky-300 uppercase tracking-wider mb-0.5">岗位</div>
                         <div className="space-y-1">
                             {jobEntries.map(([key, val]) => {
-                                const wageInfo = wageEstimates[key];
-                                const wage = wageInfo?.wage ?? getRoleBaseWage(key, market);
+                                const incomeInfo = incomeEstimates[key];
+                                const income = incomeInfo?.income ?? getMarketWage(key, market);
+                                const isOwner = incomeInfo?.isOwner ?? false;
                                 return (
                                     <div
                                         key={`job-${key}`}
@@ -374,12 +346,15 @@ export const BuildingUpgradePanel = ({
                                         <div className="flex items-center gap-1 text-sky-100">
                                             <Icon name={STRATA[key]?.icon || 'User'} size={12} />
                                             <span>{STRATA[key]?.name || key}</span>
+                                            {isOwner && (
+                                                <span className="text-[9px] text-amber-400 bg-amber-900/40 px-1 py-0.5 rounded">业主</span>
+                                            )}
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <span className="font-mono text-blue-200">×{val}</span>
-                                            <span className="inline-flex items-center gap-0.5 text-yellow-300">
+                                            <span className={`inline-flex items-center gap-0.5 ${income < 0 ? 'text-red-400' : isOwner ? 'text-amber-300' : 'text-yellow-300'}`}>
                                                 <Icon name="Wallet" size={10} />
-                                                {wage.toFixed(2)}
+                                                {income.toFixed(2)}
                                                 <Icon name="Coins" size={10} className="text-yellow-200" />
                                             </span>
                                         </div>
