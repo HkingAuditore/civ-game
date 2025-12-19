@@ -1,10 +1,10 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace = "com.hayekciv.marketeconomy"
+    namespace = "com.ToyEmpires.civgame"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.hayekciv.marketeconomy"
+        applicationId "com.ToyEmpires.civgame"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
