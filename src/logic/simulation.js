@@ -423,8 +423,9 @@ export const simulateTick = ({
                 const config = getBuildingEffectiveConfig(b, level);
 
                 // Apply building-specific and category bonuses
-                let buildingBonus = buildingBonuses[b.id] || 1;
-                const catBonus = categoryBonuses[b.cat] || 1;
+                // Note: buildingBonuses and categoryBonuses use additive mode (0 = no bonus, 0.12 = +12%)
+                let buildingBonus = 1 + (buildingBonuses[b.id] || 0);
+                const catBonus = 1 + (categoryBonuses[b.cat] || 0);
                 buildingBonus *= catBonus;
 
                 // maxPop

@@ -292,11 +292,12 @@ export const processAIPlayerInteraction = (visibleNations, tick, epoch, logs) =>
 
         // AI gift to player
         const lastGiftDay = nation.lastGiftToPlayerDay || 0;
-        const giftCooldown = 365;
+        const giftCooldown = 730; // Increased from 365 to 730 days (2 years) to reduce frequency
         const canGift = (tick - lastGiftDay) >= giftCooldown;
 
-        const giftChance = 0.0002 + (playerRelation / 50000) + (wealth / 5000000);
-        if (canGift && wealth > 800 && playerRelation >= 60 && aggression < 0.5 && Math.random() < giftChance) {
+        // Reduced base chance and wealth influence to make gifts less frequent
+        const giftChance = 0.0001 + (playerRelation / 100000) + (wealth / 20000000);
+        if (canGift && wealth > 1000 && playerRelation >= 70 && aggression < 0.4 && Math.random() < giftChance) {
             const giftAmount = calculateAIGiftAmount(wealth);
             nation.wealth = Math.max(0, nation.wealth - giftAmount);
             nation.lastGiftToPlayerDay = tick;
