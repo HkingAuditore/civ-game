@@ -2619,7 +2619,11 @@ export const simulateTick = ({
         // 计算当前库存可以支撑多少天
         const dailyDemand = adjustedDemand;
         const inventoryStock = res[resource] || 0;
-        const inventoryDays = dailyDemand > 0 ? inventoryStock / dailyDemand : inventoryTargetDays;
+        // 当库存为0时，无论需求如何都应该触发短缺价格（返回极低天数）
+        // 当库存>0但需求=0时，库存充足，返回目标天数
+        const inventoryDays = inventoryStock <= 0 
+            ? 0.01  // 库存为0时，视为极度短缺，触发最大涨价
+            : (dailyDemand > 0 ? inventoryStock / dailyDemand : inventoryTargetDays);
 
         // DEBUG: 价格计算调试日志（每5个tick输出一次，避免刷屏）
         // if (tick % 5 === 0 && (resource === 'food' || resource === 'cloth' || resource === 'tools')) {
