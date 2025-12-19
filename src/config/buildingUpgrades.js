@@ -48,7 +48,7 @@ export const BUILDING_UPGRADES = {
         {
             name: "林场",
             cost: { plank: 60, brick: 30, tools: 20, silver: 600 },
-            input: { tools: 0.1, food: 0.25 }, // reasonable input increase
+            input: { tools: 0.1 }, // tools only, food removed
             output: { wood: 4.61, food: 0.15 }, // 1.8x + 林场野味
             jobs: { lumberjack: 3 }, // +1 lumberjack only
         },
@@ -244,16 +244,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "大剧场",
             cost: { stone: 120, brick: 40, silver: 400 },
-            input: { fine_clothes: 0.12 },
-            output: { culture: 1.56 }, // 1.3x
-            jobs: { cleric: 2 }, // keep same, efficiency upgrade
+            input: { fine_clothes: 0.06 }, // 降低消耗
+            output: { culture: 1.56, silver: 0.8 }, // 1.3x + 门票收入
+            jobs: { cleric: 1 }, // 减少岗位，提升人均效率
         },
         {
             name: "宏伟剧场",
             cost: { brick: 80, furniture: 20, silver: 900 },
-            input: { fine_clothes: 0.18, ale: 0.06 }, // 演出招待
-            output: { culture: 2.16, silver: 0.15 }, // 1.8x + 门票收入
-            jobs: { cleric: 3 }, // +1 cleric only (peasant not needed)
+            input: { fine_clothes: 0.08, ale: 0.03 }, // 降低消耗
+            output: { culture: 2.16, silver: 1.5 }, // 1.8x + 高额门票
+            jobs: { cleric: 2 }, // 适度增加
         },
     ],
 
@@ -409,16 +409,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "大教堂",
             cost: { brick: 80, furniture: 25, silver: 500 },
-            input: { furniture: 0.1, fine_clothes: 0.08 },
-            output: { culture: 1.04, silver: 0.65 }, // 1.3x
-            jobs: { cleric: 3 }, // keep same, efficiency upgrade
+            input: { furniture: 0.05, fine_clothes: 0.04 }, // 降低消耗
+            output: { culture: 1.04, silver: 1.2 }, // 1.3x + 奉献收入
+            jobs: { cleric: 2 }, // 减少岗位
         },
         {
             name: "主教座堂",
             cost: { brick: 150, furniture: 40, silver: 1200 },
-            input: { furniture: 0.15, fine_clothes: 0.12, papyrus: 0.03 }, // 需要经书纸张
-            output: { culture: 1.44, silver: 0.9, science: 0.1 }, // 1.8x + 神学研究
-            jobs: { cleric: 4 }, // +1 cleric only
+            input: { furniture: 0.06, fine_clothes: 0.05, papyrus: 0.02 }, // 降低消耗
+            output: { culture: 1.44, silver: 2.0, science: 0.15 }, // 1.8x + 高额奉献 + 神学
+            jobs: { cleric: 3 }, // 减少岗位
         },
     ],
 
@@ -473,7 +473,7 @@ export const BUILDING_UPGRADES = {
             name: "贸易枢纽",
             cost: { brick: 120, spice: 60, silver: 1300 },
             input: { spice: 0.35, cloth: 0.06 }, // 需要帆布
-            output: { food: 3.6, silver: 0.25, spice: 0.05 }, // 1.8x + 转口贸易
+            output: { food: 3.6, silver: 0.4 }, // 1.8x + 贸易利润
             jobs: { merchant: 4 }, // +1 merchant only
         },
     ],
@@ -502,16 +502,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "文人咖啡馆",
             cost: { plank: 80, coffee: 25, silver: 400 },
-            input: { coffee: 0.35, delicacies: 0.15 },
-            output: { culture: 1.3, science: 1.3 }, // 1.3x
-            jobs: { merchant: 1, scribe: 2 }, // keep same, efficiency upgrade
+            input: { coffee: 0.2, delicacies: 0.08 }, // 降低消耗
+            output: { culture: 1.3, science: 1.3, silver: 0.6 }, // 1.3x + 消费收入
+            jobs: { merchant: 1, scribe: 1 }, // 减少scribe岗位
         },
         {
             name: "沙龙",
             cost: { brick: 60, furniture: 25, silver: 900 },
-            input: { coffee: 0.5, delicacies: 0.2 },
-            output: { culture: 1.8, science: 1.8 }, // 1.8x
-            jobs: { merchant: 1, scribe: 2 }, // keep same, efficiency upgrade
+            input: { coffee: 0.3, delicacies: 0.1 }, // 降低消耗
+            output: { culture: 1.8, science: 1.8, silver: 1.2 }, // 1.8x + 高端消费
+            jobs: { merchant: 1, scribe: 2 }, // 适度增加
         },
     ],
 

@@ -46,7 +46,7 @@ export const FESTIVAL_EFFECTS = {
             icon: 'Wrench',
             type: 'permanent',
             effects: {
-                production: 0.025 // 全局生产 +2.5% (永久buff可叠加，降低单次效果)
+                production: 0.06 // 全局生产 +6% (永久buff可叠加)
             },
             flavorText: '工匠们发现了更好的打磨技术，这将永远改变部落的生产方式。'
         },
@@ -72,7 +72,7 @@ export const FESTIVAL_EFFECTS = {
             icon: 'Flame',
             type: 'permanent',
             effects: {
-                industry: 0.03 // 永久buff可叠加，降低单次效果
+                industry: 0.07 // 永久buff可叠加
             },
             flavorText: '火焰不再只是取暖的工具，更成为改造世界的力量。'
         },
@@ -95,7 +95,7 @@ export const FESTIVAL_EFFECTS = {
             icon: 'Image',
             type: 'permanent',
             effects: {
-                cultureBonus: 0.04 // 永久buff可叠加，降低单次效果
+                cultureBonus: 0.08 // 永久buff可叠加
             },
             flavorText: '壁画上的图案记录着祖先的智慧，代代相传。'
         },
@@ -133,7 +133,7 @@ export const FESTIVAL_EFFECTS = {
             type: 'permanent',
             effects: {
                 categories: {
-                    gather: 0.05 // 永久buff可叠加，降低单次效果
+                    gather: 0.10 // 永久buff可叠加
                 }
             },
             flavorText: '精心打磨的石器更加锋利耐用，狩猎和采集变得更加高效。'
@@ -173,7 +173,7 @@ export const FESTIVAL_EFFECTS = {
             icon: 'Flame',
             type: 'permanent',
             effects: {
-                industry: 0.04 // 工业产出 +4% (永久buff可叠加)
+                industry: 0.08 // 工业产出 +8% (永久buff可叠加)
             },
             flavorText: '铁匠们发现了新的合金配方，这是冶金史上的重大突破。'
         },
@@ -198,8 +198,8 @@ export const FESTIVAL_EFFECTS = {
             icon: 'FileText',
             type: 'permanent',
             effects: {
-                cultureBonus: 0.05, // 永久buff可叠加
-                scienceBonus: 0.05 // 永久buff可叠加
+                cultureBonus: 0.10, // 永久buff可叠加
+                scienceBonus: 0.10 // 永久buff可叠加
             },
             flavorText: '刻在泥板上的符号记录着历史，文明迈入新纪元。'
         },
@@ -222,7 +222,7 @@ export const FESTIVAL_EFFECTS = {
             description: '成立商人组织，永久提升税收',
             icon: 'Coins', type: 'permanent',
             effects: {
-                taxIncome: 0.06, // 永久buff可叠加
+                taxIncome: 0.12, // 永久buff可叠加
             },
             flavorText: '商人们联合起来，建立了规范的贸易秩序。'
         },
@@ -247,8 +247,8 @@ export const FESTIVAL_EFFECTS = {
             icon: 'Circle',
             type: 'permanent',
             effects: {
-                production: 0.04, // 永久buff可叠加
-                taxIncome: 0.05 // 永久buff可叠加
+                production: 0.08, // 永久buff可叠加
+                taxIncome: 0.10 // 永久buff可叠加
             },
             flavorText: '车轮的发明让运输变得更加便捷，贸易蓬勃发展。'
         },
@@ -304,7 +304,7 @@ export const FESTIVAL_EFFECTS = {
             type: 'permanent',
             effects: {
                 categories: {
-                    industry: 0.05 // 工业类建筑 +5% (永久buff可叠加)
+                    industry: 0.10 // 工业类建筑 +10% (永久buff可叠加)
                 }
             },
             flavorText: '建筑大师们传授技艺，石柱和拱门的艺术将流传千古。'
@@ -316,8 +316,8 @@ export const FESTIVAL_EFFECTS = {
             icon: 'Library',
             type: 'permanent',
             effects: {
-                scienceBonus: 0.06, // 永久buff可叠加
-                cultureBonus: 0.06, // 永久buff可叠加
+                scienceBonus: 0.12, // 永久buff可叠加
+                cultureBonus: 0.12, // 永久buff可叠加
             },
             flavorText: '无数卷轴和书籍汇聚于此，成为知识的殿堂。'
         },
@@ -367,8 +367,8 @@ export const FESTIVAL_EFFECTS = {
             icon: 'Drama',
             type: 'permanent',
             effects: {
-                cultureBonus: 0.075, // 永久buff可叠加
-                stability: 0.04 // 永久buff可叠加
+                cultureBonus: 0.15, // 永久buff可叠加
+                stability: 0.08 // 永久buff可叠加
             },
             flavorText: '悲剧和喜剧在剧场上演，艺术繁荣发展。'
         },
@@ -379,8 +379,8 @@ export const FESTIVAL_EFFECTS = {
             icon: 'Route',
             type: 'permanent',
             effects: {
-                taxIncome: 0.075, // 永久buff可叠加
-                production: 0.04 // 永久buff可叠加
+                taxIncome: 0.15, // 永久buff可叠加
+                production: 0.08 // 永久buff可叠加
             },
             flavorText: '商队往来不绝，丝绸之路带来繁荣。'
         },
@@ -438,7 +438,7 @@ export const FESTIVAL_EFFECTS = {
             icon: 'Users',
             type: 'permanent',
             effects: {
-                production: 0.025 // 生产效率 +2.5% (永久buff可叠加)
+                production: 0.06 // 生产效率 +6% (永久buff可叠加)
             },
             flavorText: '工匠们组成行会，规范了生产标准和质量控制。'
         },
@@ -462,8 +462,8 @@ export const FESTIVAL_EFFECTS = {
             icon: 'BookHeart',
             type: 'permanent',
             effects: {
-                scienceBonus: 0.05, // 永久buff可叠加
-                cultureBonus: 0.06 // 永久buff可叠加
+                scienceBonus: 0.10, // 永久buff可叠加
+                cultureBonus: 0.12 // 永久buff可叠加
             },
             flavorText: '修士们抄写古籍，在黑暗时代保存着文明的火种。'
         },
@@ -504,7 +504,7 @@ export const FESTIVAL_EFFECTS = {
             icon: 'Store',
             type: 'permanent',
             effects: {
-                taxIncome: 0.09, // 永久buff可叠加
+                taxIncome: 0.18, // 永久buff可叠加
             },
             flavorText: '国王授予城镇市场特权，商业活动更加活跃。'
         },
@@ -515,9 +515,9 @@ export const FESTIVAL_EFFECTS = {
             icon: 'Heart',
             type: 'permanent',
             effects: {
-                militaryBonus: 0.06, // 永久buff可叠加
-                cultureBonus: 0.05, // 永久buff可叠加
-                stability: 0.04 // 永久buff可叠加
+                militaryBonus: 0.12, // 永久buff可叠加
+                cultureBonus: 0.10, // 永久buff可叠加
+                stability: 0.08 // 永久buff可叠加
             },
             flavorText: '荣誉、勇气、忠诚——骑士精神成为时代的标志。'
         },
@@ -572,8 +572,8 @@ export const FESTIVAL_EFFECTS = {
             icon: 'Map',
             type: 'permanent',
             effects: {
-                production: 0.05, // 永久buff可叠加
-                scienceBonus: 0.04 // 永久buff可叠加
+                production: 0.10, // 永久buff可叠加
+                scienceBonus: 0.08 // 永久buff可叠加
             },
             flavorText: '航海家们传授经验，培养新一代的探险者。'
         },
@@ -597,8 +597,8 @@ export const FESTIVAL_EFFECTS = {
             icon: 'MapPin',
             type: 'permanent',
             effects: {
-                scienceBonus: 0.06, // 永久buff可叠加
-                taxIncome: 0.075 // 永久buff可叠加
+                scienceBonus: 0.12, // 永久buff可叠加
+                taxIncome: 0.15 // 永久buff可叠加
             },
             flavorText: '精确的地图让航海更加安全，贸易更加频繁。'
         },
@@ -623,8 +623,8 @@ export const FESTIVAL_EFFECTS = {
             icon: 'Printer',
             type: 'permanent',
             effects: {
-                cultureBonus: 0.075, // 永久buff可叠加
-                scienceBonus: 0.075, // 永久buff可叠加
+                cultureBonus: 0.15, // 永久buff可叠加
+                scienceBonus: 0.15, // 永久buff可叠加
             },
             flavorText: '印刷机让知识快速传播，文明进入新纪元。'
         },
@@ -649,8 +649,8 @@ export const FESTIVAL_EFFECTS = {
             icon: 'Zap',
             type: 'permanent',
             effects: {
-                militaryBonus: 0.09, // 永久buff可叠加
-                industry: 0.05 // 永久buff可叠加
+                militaryBonus: 0.18, // 永久buff可叠加
+                industry: 0.10 // 永久buff可叠加
             },
             flavorText: '火药的轰鸣改变了战争的面貌，旧时代的骑士成为历史。'
         },
@@ -704,8 +704,8 @@ export const FESTIVAL_EFFECTS = {
             icon: 'GraduationCap',
             type: 'permanent',
             effects: {
-                scienceBonus: 0.06, // 永久buff可叠加
-                cultureBonus: 0.06, // 永久buff可叠加
+                scienceBonus: 0.12, // 永久buff可叠加
+                cultureBonus: 0.12, // 永久buff可叠加
             },
             flavorText: '普及教育让更多人获得知识，这将改变整个社会。'
         },
@@ -729,8 +729,8 @@ export const FESTIVAL_EFFECTS = {
             icon: 'Book',
             type: 'permanent',
             effects: {
-                scienceBonus: 0.09, // 永久buff可叠加
-                cultureBonus: 0.075 // 永久buff可叠加
+                scienceBonus: 0.18, // 永久buff可叠加
+                cultureBonus: 0.15 // 永久buff可叠加
             },
             flavorText: '汇集人类知识的巨著，启蒙时代的纪念碑。'
         },
@@ -755,8 +755,8 @@ export const FESTIVAL_EFFECTS = {
             icon: 'Beaker',
             type: 'permanent',
             effects: {
-                scienceBonus: 0.1, // 永久buff可叠加
-                production: 0.05 // 永久buff可叠加
+                scienceBonus: 0.20, // 永久buff可叠加
+                production: 0.10 // 永久buff可叠加
             },
             flavorText: '实验和观察成为探索真理的基础，科学进入新阶段。'
         },
@@ -781,8 +781,8 @@ export const FESTIVAL_EFFECTS = {
             icon: 'Users',
             type: 'permanent',
             effects: {
-                stability: 0.075, // 永久buff可叠加
-                cultureBonus: 0.06, // 永久buff可叠加
+                stability: 0.15, // 永久buff可叠加
+                cultureBonus: 0.12, // 永久buff可叠加
             },
             flavorText: '人人生而平等，这一理念深入人心。'
         },
@@ -839,8 +839,8 @@ export const FESTIVAL_EFFECTS = {
             icon: 'Factory',
             type: 'permanent',
             effects: {
-                industry: 0.075, // 永久buff可叠加
-                production: 0.06 // 永久buff可叠加
+                industry: 0.15, // 永久buff可叠加
+                production: 0.12 // 永久buff可叠加
             },
             flavorText: '标准化生产彻底改变了制造业，效率提升了数倍。'
         },
@@ -864,9 +864,9 @@ export const FESTIVAL_EFFECTS = {
             icon: 'Hammer',
             type: 'permanent',
             effects: {
-                industry: 0.09, // 永久buff可叠加
-                militaryBonus: 0.075, // 永久buff可叠加
-                production: 0.05 // 永久buff可叠加
+                industry: 0.18, // 永久buff可叠加
+                militaryBonus: 0.15, // 永久buff可叠加
+                production: 0.10 // 永久buff可叠加
             },
             flavorText: '钢铁是工业的骨骼，支撑着现代化建设。'
         },
@@ -890,9 +890,9 @@ export const FESTIVAL_EFFECTS = {
             icon: 'Heart',
             type: 'permanent',
             effects: {
-                maxPop: 12, // 永久buff可叠加
-                stability: 0.06, // 永久buff可叠加
-                production: 0.04 // 永久buff可叠加
+                maxPop: 25, // 永久buff可叠加
+                stability: 0.12, // 永久buff可叠加
+                production: 0.08 // 永久buff可叠加
             },
             flavorText: '清洁的水源和医疗服务让人们更加健康。'
         },
@@ -917,10 +917,10 @@ export const FESTIVAL_EFFECTS = {
             icon: 'Zap',
             type: 'permanent',
             effects: {
-                production: 0.075, // 永久buff可叠加
-                industry: 0.1, // 永久buff可叠加
-                scienceBonus: 0.075, // 永久buff可叠加
-                cultureBonus: 0.05 // 永久buff可叠加
+                production: 0.15, // 永久buff可叠加
+                industry: 0.20, // 永久buff可叠加
+                scienceBonus: 0.15, // 永久buff可叠加
+                cultureBonus: 0.10 // 永久buff可叠加
             },
             flavorText: '电灯照亮黑夜，电力驱动机器，世界进入电气时代。'
         },
@@ -976,9 +976,9 @@ export const FESTIVAL_EFFECTS = {
             icon: 'Cpu',
             type: 'permanent',
             effects: {
-                production: 0.075, // 永久buff可叠加
-                scienceBonus: 0.075, // 永久buff可叠加
-                cultureBonus: 0.075, // 永久buff可叠加
+                production: 0.15, // 永久buff可叠加
+                scienceBonus: 0.15, // 永久buff可叠加
+                cultureBonus: 0.15, // 永久buff可叠加
             },
             flavorText: '互联网和计算机技术彻底改变了社会运作方式。'
         },
@@ -1003,9 +1003,9 @@ export const FESTIVAL_EFFECTS = {
             icon: 'Wifi',
             type: 'permanent',
             effects: {
-                scienceBonus: 0.1, // 永久buff可叠加
-                cultureBonus: 0.09, // 永久buff可叠加
-                taxIncome: 0.1, // 永久buff可叠加
+                scienceBonus: 0.20, // 永久buff可叠加
+                cultureBonus: 0.18, // 永久buff可叠加
+                taxIncome: 0.20, // 永久buff可叠加
             },
             flavorText: '信息高速公路连接世界，知识无远弗届。'
         },
@@ -1030,9 +1030,9 @@ export const FESTIVAL_EFFECTS = {
             icon: 'Brain',
             type: 'permanent',
             effects: {
-                scienceBonus: 0.125, // 永久buff可叠加
-                production: 0.1, // 永久buff可叠加
-                industry: 0.1, // 永久buff可叠加
+                scienceBonus: 0.25, // 永久buff可叠加
+                production: 0.20, // 永久buff可叠加
+                industry: 0.20, // 永久buff可叠加
             },
             flavorText: '人工智能改变了一切，机器学会思考。'
         },
@@ -1057,9 +1057,9 @@ export const FESTIVAL_EFFECTS = {
             icon: 'Globe',
             type: 'permanent',
             effects: {
-                stability: 0.1, // 永久buff可叠加
-                taxIncome: 0.125, // 永久buff可叠加
-                cultureBonus: 0.075 // 永久buff可叠加
+                stability: 0.20, // 永久buff可叠加
+                taxIncome: 0.25, // 永久buff可叠加
+                cultureBonus: 0.15 // 永久buff可叠加
             },
             flavorText: '国家间的边界逐渐模糊，人类命运共同体形成。'
         },
