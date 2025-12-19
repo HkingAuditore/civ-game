@@ -347,10 +347,10 @@ function GameApp({ gameState }) {
     };
 
     // 新增：处理显示建筑详情的函数
-    const handleShowBuildingDetails = (buildingId) => {
+    const handleShowBuildingDetails = (buildingId, options = {}) => {
         const building = BUILDINGS.find(b => b.id === buildingId);
         if (building) {
-            setActiveSheet({ type: 'building', data: building });
+            setActiveSheet({ type: 'building', data: building, options });
         }
     };
 
@@ -1113,6 +1113,7 @@ function GameApp({ gameState }) {
                         onBatchDowngrade={actions.batchDowngradeBuilding}
                         taxPolicies={gameState.taxPolicies}
                         onUpdateTaxPolicies={gameState.setTaxPolicies}
+                        scrollToUpgrade={activeSheet.options?.scrollToUpgrade}
                     />)}
             </BottomSheet>
 

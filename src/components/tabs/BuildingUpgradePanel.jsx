@@ -439,7 +439,7 @@ export const BuildingUpgradePanel = ({
                 </div>
                 {!canAfford && (
                     <p className="text-[10px] text-red-300">
-                        库存或银币不足，需先从市场补齐再升级。
+                        库存或银币不足。
                     </p>
                 )}
             </div>

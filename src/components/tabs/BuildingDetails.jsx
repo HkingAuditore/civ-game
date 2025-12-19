@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Icon } from '../common/UIComponents';
 import { RESOURCES, STRATA, EPOCHS } from '../../config';
 import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
@@ -248,7 +248,7 @@ const formatCompactCost = (value) => {
     return Math.floor(value).toString();
 };
 
-export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade, onDowngrade, onBatchUpgrade, onBatchDowngrade, taxPolicies, onUpdateTaxPolicies }) => {
+export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade, onDowngrade, onBatchUpgrade, onBatchDowngrade, taxPolicies, onUpdateTaxPolicies, scrollToUpgrade }) => {
     if (!building || !gameState) return null;
 
     const { resources, epoch, market, buildings, buildingUpgrades, jobFill } = gameState;
@@ -322,6 +322,16 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
             setImageError(false);
         }
     }
+
+    // 自动滚动到升级面板
+    const upgradePanelRef = useRef(null);
+    useEffect(() => {
+        if (scrollToUpgrade && upgradePanelRef.current) {
+            setTimeout(() => {
+                upgradePanelRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 100); // 稍微延迟以确保渲染完成
+        }
+    }, [scrollToUpgrade, building.id]);
 
     // --- 复用计算逻辑 ---
     // --- 复用 BuildTab 中的计算逻辑 ---
@@ -736,7 +746,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                 {jobBreakdown.length > 0 && (
                     <div className="space-y-3">
                         <div className="text-[10px] uppercase text-gray-400 tracking-wide">岗位明细</div>
-                {jobBreakdown.map(({ role, name, required, filled, fillPercent, actualIncome, isOwner }) => (
+                        {jobBreakdown.map(({ role, name, required, filled, fillPercent, actualIncome, isOwner }) => (
                             <div key={role} className="bg-gray-900/40 border border-gray-700/70 rounded-lg px-3 py-2">
                                 <div className="flex items-center justify-between text-xs text-gray-200">
                                     <span className="flex items-center gap-1">
@@ -810,19 +820,21 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
 
             {/* 建筑升级面板 */}
             {count > 0 && canBuildingUpgrade(building.id) && (
-                <BuildingUpgradePanel
-                    building={building}
-                    count={count}
-                    epoch={epoch}
-                    upgradeLevels={upgradeLevels}
-                    resources={resources}
-                    market={market}
-                    taxPolicies={taxPolicies}
-                    onUpgrade={(instanceIndex) => onUpgrade?.(building.id, instanceIndex)}
-                    onDowngrade={(instanceIndex) => onDowngrade?.(building.id, instanceIndex)}
-                    onBatchUpgrade={(fromLevel, upgradeCount) => onBatchUpgrade?.(building.id, fromLevel, upgradeCount)}
-                    onBatchDowngrade={(fromLevel, downgradeCount) => onBatchDowngrade?.(building.id, fromLevel, downgradeCount)}
-                />
+                <div ref={upgradePanelRef}>
+                    <BuildingUpgradePanel
+                        building={building}
+                        count={count}
+                        epoch={epoch}
+                        upgradeLevels={upgradeLevels}
+                        resources={resources}
+                        market={market}
+                        taxPolicies={taxPolicies}
+                        onUpgrade={(instanceIndex) => onUpgrade?.(building.id, instanceIndex)}
+                        onDowngrade={(instanceIndex) => onDowngrade?.(building.id, instanceIndex)}
+                        onBatchUpgrade={(fromLevel, upgradeCount) => onBatchUpgrade?.(building.id, fromLevel, upgradeCount)}
+                        onBatchDowngrade={(fromLevel, downgradeCount) => onBatchDowngrade?.(building.id, fromLevel, downgradeCount)}
+                    />
+                </div>
             )}
 
             {/* 操作按钮 */}
