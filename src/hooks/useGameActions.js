@@ -412,60 +412,118 @@ export const useGameActions = (gameState, addLog) => {
         const requestedCount = Math.min(upgradeCount, candidates.length);
         if (requestedCount <= 0) return;
 
-        // 计算已有的同等级或更高升级数量，用于成本递增
-        const existingUpgradeCount = getUpgradeCountAtOrAboveLevel(fromLevel + 1, buildingCount, currentUpgradeLevels);
+        // 计算初始已有的同等级或更高升级数量，用于成本递增
+        const baseExistingCount = getUpgradeCountAtOrAboveLevel(fromLevel + 1, buildingCount, currentUpgradeLevels);
 
-        const upgradeCost = getUpgradeCost(buildingId, fromLevel + 1, existingUpgradeCount);
-        if (!upgradeCost) return;
+        // 逐个计算每座建筑的升级成本，考虑成本递增
+        // 总资源成本和银币成本
+        const totalResourceCost = {};
+        let totalSilverCost = 0;
+        const individualCosts = []; // 存储每座建筑的成本，用于后续验证
 
-        // 计算单个升级的银币成本（资源按市场价）
-        let singleSilverCost = 0;
-        for (const [resource, amount] of Object.entries(upgradeCost)) {
-            if (resource === 'silver') {
-                singleSilverCost += amount;
-            } else {
-                const marketPrice = getMarketPrice(resource);
-                singleSilverCost += amount * marketPrice;
+        for (let i = 0; i < requestedCount; i++) {
+            // 第i座升级时，已有 baseExistingCount + i 座已升级
+            const currentExistingCount = baseExistingCount + i;
+            const cost = getUpgradeCost(buildingId, fromLevel + 1, currentExistingCount);
+            if (!cost) {
+                // 如果无法获取成本，停止计算
+                break;
+            }
+
+            individualCosts.push(cost);
+
+            // 累加资源成本
+            for (const [resource, amount] of Object.entries(cost)) {
+                if (resource === 'silver') {
+                    totalSilverCost += amount;
+                } else {
+                    totalResourceCost[resource] = (totalResourceCost[resource] || 0) + amount;
+                    // 计算银币成本
+                    const marketPrice = getMarketPrice(resource);
+                    totalSilverCost += amount * marketPrice;
+                }
             }
         }
 
-        // 计算市场库存能支持多少次升级
-        let maxByMaterials = requestedCount;
-        for (const [resource, amount] of Object.entries(upgradeCost)) {
-            if (resource === 'silver') continue;
+        // 检查资源是否足够
+        let canAffordCount = individualCosts.length;
+
+        // 检查市场库存
+        for (const [resource, totalAmount] of Object.entries(totalResourceCost)) {
             const available = resources[resource] || 0;
-            const maxTimes = Math.floor(available / amount);
-            maxByMaterials = Math.min(maxByMaterials, maxTimes);
+            if (available < totalAmount) {
+                // 资源不足，需要计算实际能升级多少
+                let accumulated = 0;
+                for (let i = 0; i < individualCosts.length; i++) {
+                    accumulated += individualCosts[i][resource] || 0;
+                    if (accumulated > available) {
+                        canAffordCount = Math.min(canAffordCount, i);
+                        break;
+                    }
+                }
+            }
         }
 
-        // 计算银币能支持多少次升级
+        // 检查银币是否足够
         const availableSilver = resources.silver || 0;
-        const maxBySilver = singleSilverCost > 0
-            ? Math.floor(availableSilver / singleSilverCost)
-            : requestedCount;
+        let accumulatedSilver = 0;
+        for (let i = 0; i < canAffordCount; i++) {
+            const cost = individualCosts[i];
+            let silverForThis = 0;
+            for (const [resource, amount] of Object.entries(cost)) {
+                if (resource === 'silver') {
+                    silverForThis += amount;
+                } else {
+                    silverForThis += amount * getMarketPrice(resource);
+                }
+            }
+            if (accumulatedSilver + silverForThis > availableSilver) {
+                canAffordCount = i;
+                break;
+            }
+            accumulatedSilver += silverForThis;
+        }
 
-        // 实际可升级数量
-        const successCount = Math.min(requestedCount, maxByMaterials, maxBySilver);
+        const successCount = canAffordCount;
 
         if (successCount <= 0) {
-            if (maxByMaterials <= 0) {
-                addLog(`市场资源不足，无法批量升级 ${building.name}。`);
-            } else {
-                addLog(`银币不足，无法批量升级 ${building.name}。`);
+            // 检查是资源不足还是银币不足
+            const firstCost = getUpgradeCost(buildingId, fromLevel + 1, baseExistingCount);
+            if (firstCost) {
+                const hasMaterials = Object.entries(firstCost).every(([resource, amount]) => {
+                    if (resource === 'silver') return true;
+                    return (resources[resource] || 0) >= amount;
+                });
+                if (!hasMaterials) {
+                    addLog(`市场资源不足，无法批量升级 ${building.name}。`);
+                } else {
+                    addLog(`银币不足，无法批量升级 ${building.name}。`);
+                }
             }
             return;
         }
 
-        // 扣除资源和银币
-        const newRes = { ...resources };
-        for (const [resource, amount] of Object.entries(upgradeCost)) {
-            if (resource !== 'silver') {
-                const totalNeeded = amount * successCount;
-                newRes[resource] = Math.max(0, (newRes[resource] || 0) - totalNeeded);
+        // 重新计算实际消耗的资源和银币
+        const actualResourceCost = {};
+        let actualSilverCost = 0;
+        for (let i = 0; i < successCount; i++) {
+            const cost = individualCosts[i];
+            for (const [resource, amount] of Object.entries(cost)) {
+                if (resource === 'silver') {
+                    actualSilverCost += amount;
+                } else {
+                    actualResourceCost[resource] = (actualResourceCost[resource] || 0) + amount;
+                    actualSilverCost += amount * getMarketPrice(resource);
+                }
             }
         }
-        const totalSilverCost = singleSilverCost * successCount;
-        newRes.silver = Math.max(0, (newRes.silver || 0) - totalSilverCost);
+
+        // 扣除资源和银币
+        const newRes = { ...resources };
+        for (const [resource, amount] of Object.entries(actualResourceCost)) {
+            newRes[resource] = Math.max(0, (newRes[resource] || 0) - amount);
+        }
+        newRes.silver = Math.max(0, (newRes.silver || 0) - actualSilverCost);
         setResources(newRes);
 
         // 更新升级等级
@@ -479,7 +537,7 @@ export const useGameActions = (gameState, addLog) => {
         }
         setBuildingUpgrades(newUpgrades);
 
-        addLog(`⬆️ 批量升级了 ${successCount} 座 ${building.name}！（花费 ${Math.ceil(totalSilverCost)} 银币）`);
+        addLog(`⬆️ 批量升级了 ${successCount} 座 ${building.name}！（花费 ${Math.ceil(actualSilverCost)} 银币）`);
 
         try {
             const soundGenerator = generateSound(SOUND_TYPES.LEVEL_UP);
@@ -803,7 +861,7 @@ export const useGameActions = (gameState, addLog) => {
         const lastActionDay = targetNation.lastMilitaryActionDay?.[missionId] || 0;
         const cooldownDays = mission.cooldownDays || 5;
         const daysSinceLastAction = daysElapsed - lastActionDay;
-        
+
         if (lastActionDay > 0 && daysSinceLastAction < cooldownDays) {
             const remainingDays = cooldownDays - daysSinceLastAction;
             addLog(`⏳ 针对 ${targetNation.name} 的${mission.name}行动尚在冷却中，还需 ${remainingDays} 天。`);
@@ -867,7 +925,7 @@ export const useGameActions = (gameState, addLog) => {
         const result = simulateBattle(attackerData, defenderData);
         let resourcesGained = {};
         let totalLootValue = 0; // 记录本次掠夺总价值，用于扣减敌方储备
-        
+
         if (result.victory) {
             const combinedLoot = {};
             const mergeLoot = (source) => {
@@ -882,7 +940,7 @@ export const useGameActions = (gameState, addLog) => {
             // 初始储备 = 敌方财富 × 1.5，战争中会逐渐被掠夺耗尽
             const initialLootReserve = (targetNation.wealth || 500) * 1.5;
             const currentLootReserve = targetNation.lootReserve ?? initialLootReserve;
-            
+
             // 计算储备系数：储备越少，能掠夺的越少
             // 储备 100% 时系数 = 1.0，储备 50% 时系数 = 0.5，储备 10% 时系数 = 0.1
             const reserveRatio = Math.max(0.05, currentLootReserve / Math.max(1, initialLootReserve));
@@ -905,12 +963,12 @@ export const useGameActions = (gameState, addLog) => {
             // [FIXED] Now uses calculateProportionalLoot which has hard caps
             if (mission.lootConfig) {
                 const proportionalLoot = calculateProportionalLoot(resources, targetNation, mission.lootConfig);
-                
+
                 Object.entries(proportionalLoot).forEach(([resource, amount]) => {
                     if (amount > 0) {
                         // 应用储备系数
                         const adjustedAmount = Math.floor(amount * lootMultiplier);
-                        
+
                         // Add some randomness (±20%)
                         const randomFactor = 0.8 + Math.random() * 0.4;
                         const finalAmount = Math.floor(adjustedAmount * randomFactor);
@@ -935,7 +993,7 @@ export const useGameActions = (gameState, addLog) => {
                     }
                 });
             }
-            
+
             // 如果储备已经很低，显示提示信息
             if (reserveRatio < 0.3) {
                 addLog(`⚠️ ${targetNation.name} 的资源已被大量掠夺，可获取的战利品大幅减少。`);
@@ -962,7 +1020,7 @@ export const useGameActions = (gameState, addLog) => {
 
         // 处理军队损失
         const lossesToReplenish = result.attackerLosses || {};
-        
+
         setArmy(prevArmy => {
             const updated = { ...prevArmy };
             Object.entries(lossesToReplenish).forEach(([unitId, lossCount]) => {
@@ -970,7 +1028,7 @@ export const useGameActions = (gameState, addLog) => {
             });
             return updated;
         });
-        
+
         // 自动补兵：如果启用了自动补兵，将死亡的士兵加入训练队列
         if (autoRecruitEnabled) {
             const replenishItems = [];
@@ -991,7 +1049,7 @@ export const useGameActions = (gameState, addLog) => {
                     }
                 }
             });
-            
+
             if (replenishItems.length > 0) {
                 setMilitaryQueue(prev => [...prev, ...replenishItems]);
                 const summary = Object.entries(lossesToReplenish)
@@ -1041,8 +1099,8 @@ export const useGameActions = (gameState, addLog) => {
             // 计算新的掠夺储备 - 扣除本次掠夺的价值
             const initialLootReserve = (n.wealth || 500) * 1.5;
             const currentLootReserve = n.lootReserve ?? initialLootReserve;
-            const newLootReserve = result.victory 
-                ? Math.max(0, currentLootReserve - totalLootValue) 
+            const newLootReserve = result.victory
+                ? Math.max(0, currentLootReserve - totalLootValue)
                 : currentLootReserve;
 
             // 更新军事行动冷却记录
@@ -1647,7 +1705,7 @@ export const useGameActions = (gameState, addLog) => {
             } else {
                 setNations(prev => prev.map(n =>
                     n.id === nationId
-                    ? {
+                        ? {
                             ...n,
                             isAtWar: false,
                             warScore: 0,
@@ -1865,17 +1923,17 @@ export const useGameActions = (gameState, addLog) => {
                         setNations(prev => prev.map(n =>
                             n.id === nationId
                                 ? {
-                                ...n,
-                                isAtWar: false,
-                                warScore: 0,
-                                warDuration: 0,
-                                enemyLosses: 0,
-                                population: remainingPopulation,
-                                relation: clampRelation((n.relation || 0) + 7),
-                                peaceTreatyUntil,
-                                lootReserve: undefined, // 重置掠夺储备
-                                lastMilitaryActionDay: undefined, // 重置军事行动冷却
-                            }
+                                    ...n,
+                                    isAtWar: false,
+                                    warScore: 0,
+                                    warDuration: 0,
+                                    enemyLosses: 0,
+                                    population: remainingPopulation,
+                                    relation: clampRelation((n.relation || 0) + 7),
+                                    peaceTreatyUntil,
+                                    lootReserve: undefined, // 重置掠夺储备
+                                    lastMilitaryActionDay: undefined, // 重置军事行动冷却
+                                }
                                 : n
                         ));
                         addLog(`${targetNation.name} 接受了和平协议，提供了 ${amount} 人口。${rebellionLogSuffix}`);
