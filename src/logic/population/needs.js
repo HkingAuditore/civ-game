@@ -6,7 +6,7 @@
 import { STRATA, RESOURCES } from '../../config';
 import { isResourceUnlocked } from '../../utils/resources';
 import { isTradableResource, getBasePrice } from '../utils/helpers';
-import { calculateLivingStandardData, calculateWealthMultiplier } from '../../utils/livingStandard';
+import { calculateLivingStandardData, calculateWealthMultiplier, calculateUnlockMultiplier } from '../../utils/livingStandard';
 
 /**
  * Process needs consumption for all strata
@@ -38,9 +38,9 @@ export const processNeedsConsumption = ({
 
     const getResourceTaxRate = (resource) => resourceTaxRates[resource] || 0;
 
-    // Helper to get consumption multiplier (for luxury needs unlock)
-    // 使用消费能力（同时考虑收入、财富和阶层弹性）来决定奢侈需求解锁
-    const getConsumptionMultiplier = (key) => {
+    // Helper to get unlock multiplier (for luxury needs unlock - NOT capped by maxConsumptionMultiplier)
+    // 用于决定奢侈需求解锁，不受阶层消费上限限制
+    const getUnlockMultiplier = (key) => {
         const def = STRATA[key];
         const count = popStructure[key] || 0;
         if (count <= 0) return 1;
@@ -72,8 +72,8 @@ export const processNeedsConsumption = ({
         // 计算收入比率
         const incomeRatio = essentialCost > 0 ? incomePerCapita / essentialCost : 1;
 
-        // 使用消费能力公式（同时考虑收入、财富和弹性系数）
-        return calculateWealthMultiplier(incomeRatio, wealthRatio, wealthElasticity);
+        // 使用解锁乘数公式（不受阶层消费上限限制，所有阶层都能解锁全部奢侈需求）
+        return calculateUnlockMultiplier(incomeRatio, wealthRatio, wealthElasticity);
     };
 
 
@@ -93,14 +93,14 @@ export const processNeedsConsumption = ({
         let tracked = 0;
 
         // Calculate effective needs (base + unlocked luxury tiers)
-        // 使用消费能力（wealthMultiplier）决定奢侈需求解锁
-        const consumptionMultiplier = getConsumptionMultiplier(key);
+        // 使用解锁乘数（unlockMultiplier）决定奢侈需求解锁（不受阶层消费上限限制）
+        const unlockMultiplier = getUnlockMultiplier(key);
         const effectiveNeeds = { ...baseNeeds };
 
-        // Add luxury needs based on consumption multiplier
+        // Add luxury needs based on unlock multiplier
         const luxuryThresholds = Object.keys(luxuryNeeds).map(Number).sort((a, b) => a - b);
         luxuryThresholds.forEach(threshold => {
-            if (consumptionMultiplier >= threshold) {
+            if (unlockMultiplier >= threshold) {
                 const tierNeeds = luxuryNeeds[threshold];
                 Object.entries(tierNeeds).forEach(([resKey, amount]) => {
                     if (isResourceUnlocked(resKey, epoch, techsUnlocked)) {
@@ -282,25 +282,30 @@ export const calculateLivingStandards = ({
         const luxuryNeeds = def.luxuryNeeds || {};
         const luxuryThresholds = Object.keys(luxuryNeeds).map(Number).sort((a, b) => a - b);
 
-        // 用于确定奢侈需求解锁的消费能力（同时考虑收入、财富和弹性）
+        // 计算解锁乘数（不受阶层消费上限限制，用于奢侈需求解锁判断）
         const wealthElasticity = def.wealthElasticity || 1.0;
         const incomePerCapita = count > 0 ? incomeValue / count : 0;
         const essentialCostPerCapita = count > 0 ? essentialCost / count : 0;
         const incomeRatio = essentialCostPerCapita > 0 ? incomePerCapita / essentialCostPerCapita : 1;
         const wealthPerCapita = count > 0 ? wealthValue / count : 0;
         const wealthRatio = startingWealth > 0 ? wealthPerCapita / startingWealth : 0;
-        const consumptionMultiplier = calculateWealthMultiplier(incomeRatio, wealthRatio, wealthElasticity);
+        
+        // 解锁乘数：不受阶层上限限制，所有阶层都能解锁全部奢侈需求
+        const unlockMultiplier = calculateUnlockMultiplier(incomeRatio, wealthRatio, wealthElasticity);
+        // 消费倍率：受阶层上限限制（底层3, 中层6, 上层10）
+        const maxConsumptionMultiplier = def.maxConsumptionMultiplier || 6;
+        const consumptionMultiplier = calculateWealthMultiplier(incomeRatio, wealthRatio, wealthElasticity, maxConsumptionMultiplier);
 
         // Base needs count
         const baseNeedsCount = def.needs
             ? Object.keys(def.needs).filter(r => isResourceUnlocked(r, epoch, techsUnlocked)).length
             : 0;
 
-        // Count unlocked luxury tiers (基于消费能力)
+        // Count unlocked luxury tiers (基于解锁乘数，不受阶层消费上限限制)
         let unlockedLuxuryTiers = 0;
         let effectiveNeedsCount = baseNeedsCount;
         for (const threshold of luxuryThresholds) {
-            if (consumptionMultiplier >= threshold) {
+            if (unlockMultiplier >= threshold) {
                 unlockedLuxuryTiers++;
                 const tierNeeds = luxuryNeeds[threshold];
                 const unlockedResources = Object.keys(tierNeeds)
@@ -329,6 +334,7 @@ export const calculateLivingStandards = ({
             totalLuxuryTiers: luxuryThresholds.length,
             previousScore,
             isNewStratum,
+            maxConsumptionMultiplier,
         });
 
         // Update streak

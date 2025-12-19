@@ -30,6 +30,7 @@ export const STRATA = {
         startingWealth: 80,
         defaultResource: 'food',
         wealthElasticity: 0.5, // 底层阶级：收入翻倍时消费只增50%
+        maxConsumptionMultiplier: 3, // 底层阶级消费上限3倍
         needs: { food: 0.55, cloth: 0.08, ale: 0.04 },
         // Dynamic needs: unlock when wealth ratio >= threshold
         luxuryNeeds: {
@@ -61,6 +62,7 @@ export const STRATA = {
         startingWealth: 90,
         defaultResource: 'wood',
         wealthElasticity: 0.6, // 体力劳动者：消费增长适中
+        maxConsumptionMultiplier: 3, // 底层阶级消费上限3倍
         needs: { food: 0.65, cloth: 0.10, ale: 0.04 },
         luxuryNeeds: {
             1.5: { stone: 0.01 },                     // 更好工具和工作衣物
@@ -91,6 +93,7 @@ export const STRATA = {
         startingWealth: 50,
         defaultResource: 'food',
         wealthElasticity: 0.4, // 最底层：收入增长转化消费最慢
+        maxConsumptionMultiplier: 3, // 底层阶级消费上限3倍
         needs: { food: 0.50, cloth: 0.06, ale: 0.03 },
         luxuryNeeds: {
             2.0: {},                      // 基本舒适品
@@ -122,6 +125,7 @@ export const STRATA = {
         startingWealth: 150,
         defaultResource: 'plank',
         wealthElasticity: 0.7, // 工人阶级：消费增长中等
+        maxConsumptionMultiplier: 6, // 中层阶级消费上限6倍
         needs: { food: 0.70, cloth: 0.12, tools: 0.05, ale: 0.07 },
         luxuryNeeds: {
             1.8: { plank: 0.02 },          // 更好工具，麦酒，板材
@@ -152,6 +156,7 @@ export const STRATA = {
         startingWealth: 200,
         defaultResource: 'tools',
         wealthElasticity: 0.8, // 手工业者：消费意愿较强
+        maxConsumptionMultiplier: 6, // 中层阶级消费上限6倍
         needs: { food: 0.80, cloth: 0.14, tools: 0.06, ale: 0.08, furniture: 0.04 },
         luxuryNeeds: {
             1.8: { copper: 0.015, spice: 0.04 },   // 铜料，香料，家具
@@ -181,6 +186,7 @@ export const STRATA = {
         startingWealth: 120,
         defaultResource: 'stone',
         wealthElasticity: 0.6, // 体力劳动者：消费增长适中
+        maxConsumptionMultiplier: 4, // 中层阶级消费上限6倍
         needs: { food: 0.70, cloth: 0.12, ale: 0.05 },
         luxuryNeeds: {
             1.8: { wood: 0.03 },          // 采矿工具，麦酒，衣物
@@ -210,6 +216,7 @@ export const STRATA = {
         startingWealth: 500,
         defaultResource: 'spice',
         wealthElasticity: 1.5, // 商人：收入转化消费能力很强
+        maxConsumptionMultiplier: 10, // 中层阶级消费上限6倍
         needs: { food: 1.80, delicacies: 0.60, cloth: 0.25, spice: 0.20, furniture: 0.12, plank: 0.08, ale: 0.15, fine_clothes: 0.10, culture: 0.12 },
         luxuryNeeds: {
             1.5: { coffee: 0.14 },         // 咖啡，华服，文化
@@ -248,6 +255,7 @@ export const STRATA = {
         startingWealth: 300,
         defaultResource: 'spice',
         wealthElasticity: 0.7, // 水手：消费增长中等
+        maxConsumptionMultiplier: 6, // 中层阶级消费上限6倍
         needs: { food: 0.75, cloth: 0.12, spice: 0.12, ale: 0.12 },
         luxuryNeeds: {
             1.8: { tools: 0.05 },          // 麦酒，香料，工具
@@ -276,6 +284,7 @@ export const STRATA = {
         startingWealth: 250,
         defaultResource: 'papyrus',
         wealthElasticity: 1.0, // 学者：收入转化消费正常
+        maxConsumptionMultiplier: 6, // 中层阶级消费上限6倍
         needs: { food: 0.85, cloth: 0.15, papyrus: 0.10, furniture: 0.05 },
         luxuryNeeds: {
             1.5: { coffee: 0.07, culture: 0.06 },         // 咖啡，纸张，文化
@@ -305,12 +314,13 @@ export const STRATA = {
         startingWealth: 180,
         defaultResource: 'tools',
         wealthElasticity: 0.6, // 军人：消费需求稳定
+        maxConsumptionMultiplier: 6, // 中层阶级消费上限6倍
         needs: { food: 0.85, cloth: 0.12, ale: 0.08 },
         luxuryNeeds: {
             2.0: { tools: 0.07, copper: 0.025 },          // 麦酒，武器/盔甲，铜器
             2.5: { furniture: 0.05, spice: 0.05, culture: 0.04 },    // 家具，香料，文化
             3.5: { fine_clothes: 0.07, delicacies: 0.07, steel: 0.025 }, // 华服，珍馐，钢
-            5.0: { food: 0.50, brick: 0.05 }, // 充足食物，衣物，砖块，文化
+            5.0: { brick: 0.05 }, // 充足食物，衣物，砖块，文化
             7.0: { coffee: 0.09, stone: 0.05 }, // 咖啡，石材，工具，麦酒
             10.0: {}, // 华服，珍馐，钢，文化
             14.0: {} // 砖块，板材，铜器，家具
@@ -333,6 +343,7 @@ export const STRATA = {
         startingWealth: 220,
         defaultResource: 'culture',
         wealthElasticity: 0.9, // 神职：消费增长较快（奉献精神）
+        maxConsumptionMultiplier: 6, // 中层阶级消费上限6倍
         needs: { food: 0.90, cloth: 0.15, papyrus: 0.08, ale: 0.06, culture: 0.10 },
         luxuryNeeds: {
             1.5: { plank: 0.02 },      // 纸张，文化，板材
@@ -362,6 +373,7 @@ export const STRATA = {
         startingWealth: 400,
         defaultResource: 'science',
         wealthElasticity: 1.2, // 官员：消费增长快
+        maxConsumptionMultiplier: 10, // 上层阶级消费上限10倍
         needs: { food: 1.20, delicacies: 0.50, cloth: 0.20, papyrus: 0.12, coffee: 0.08, furniture: 0.10, stone: 0.04, fine_clothes: 0.10, culture: 0.15 },
         luxuryNeeds: {
             1.3: {},  // 咖啡，华服，文化
@@ -391,6 +403,7 @@ export const STRATA = {
         startingWealth: 800,
         defaultResource: 'food',
         wealthElasticity: 1.4, // 地主：消费增长很快
+        maxConsumptionMultiplier: 10, // 上层阶级消费上限10倍
         needs: { food: 2.00, delicacies: 0.80, cloth: 0.30, spice: 0.20, furniture: 0.18, brick: 0.10, plank: 0.10, fine_clothes: 0.15, culture: 0.18 },
         luxuryNeeds: {
             1.3: { delicacies: 0.40, fine_clothes: 0.12, culture: 0.12 },  // 珍馐，华服，文化
@@ -420,6 +433,7 @@ export const STRATA = {
         startingWealth: 1200,
         defaultResource: 'steel',
         wealthElasticity: 1.8, // 资本家：消费增长最快
+        maxConsumptionMultiplier: 10, // 上层阶级消费上限10倍
         needs: { food: 2.50, delicacies: 0.70, cloth: 0.35, coffee: 0.15, furniture: 0.15, steel: 0.05, culture: 0.20 },
         luxuryNeeds: {
             1.3: { fine_clothes: 0.12, culture: 0.12 },  // 咖啡，华服，文化
@@ -449,6 +463,7 @@ export const STRATA = {
         startingWealth: 600,
         defaultResource: 'tools',
         wealthElasticity: 1.0, // 骑士：消费增长正常
+        maxConsumptionMultiplier: 10, // 上层阶级消费上限10倍
         needs: { food: 1.50, delicacies: 0.90, cloth: 0.25, coffee: 0.10, furniture: 0.15, ale: 0.15, culture: 0.12 },
         luxuryNeeds: {
             1.3: { delicacies: 0.40, fine_clothes: 0.10, culture: 0.08 },  // 珍馐，华服，文化
@@ -478,6 +493,7 @@ export const STRATA = {
         startingWealth: 700,
         defaultResource: 'steel',
         wealthElasticity: 1.1, // 工程师：技术精英消费增长较快
+        maxConsumptionMultiplier: 10, // 上层阶级消费上限10倍
         needs: { food: 1.00, cloth: 0.18, coffee: 0.12, ale: 0.08, furniture: 0.10, culture: 0.12 },
         luxuryNeeds: {
             1.3: { fine_clothes: 0.08, culture: 0.08 },  // 咖啡，华服，文化
@@ -506,6 +522,7 @@ export const STRATA = {
         influenceBase: 0.3,
         startingWealth: 30,
         wealthElasticity: 0.3, // 失业者：收入增长转化消费最慢（优先储蓄）
+        maxConsumptionMultiplier: 3, // 底层阶级消费上限3倍
         needs: { food: 0.40, cloth: 0.05 },
         luxuryNeeds: {
             2.5: { ale: 0.04, food: 0.10 },            // 麦酒，食物

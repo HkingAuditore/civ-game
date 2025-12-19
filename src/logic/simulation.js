@@ -1645,7 +1645,7 @@ export const simulateTick = ({
                     // 财富高于基准时，使用平方根+对数曲线，增长更平缓
                     rawWealthMultiplier = Math.sqrt(wealthRatio) * (1 + Math.log(wealthRatio) * 0.25);
                 }
-                const wealthMultiplier = Math.max(0.3, Math.min(6.0, rawWealthMultiplier));
+                const wealthMultiplier = Math.max(0.3, Math.min(def.maxConsumptionMultiplier || 6, rawWealthMultiplier));
                 // 记录财富乘数（取最后一次计算的值，用于UI显示）
                 if (!stratumWealthMultipliers[key] || Math.abs(wealthMultiplier - 1) > Math.abs(stratumWealthMultipliers[key] - 1)) {
                     stratumWealthMultipliers[key] = wealthMultiplier;
