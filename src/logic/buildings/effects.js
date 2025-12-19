@@ -17,7 +17,8 @@ const TECH_MAP = TECHS.reduce((acc, tech) => {
  */
 export const initializeBonuses = () => ({
     buildingBonuses: {},
-    categoryBonuses: { gather: 1, industry: 1, civic: 1, military: 1 },
+    // 使用累加模式：初始值为 0，表示 +0% 加成
+    categoryBonuses: { gather: 0, industry: 0, civic: 0, military: 0 },
     passiveGains: {},
     perPopPassiveGains: {},      // NEW: { resource: amountPerPopulation }
     incomePercentBonus: 0,       // NEW: percentage bonus to silver income
@@ -51,23 +52,23 @@ export const applyEffects = (effects, bonuses) => {
         decreeResourceSupplyMod
     } = bonuses;
 
-    // Building-specific bonuses
+    // Building-specific bonuses - 使用累加模式
     if (effects.buildings) {
         Object.entries(effects.buildings).forEach(([id, percent]) => {
             if (!id || typeof percent !== 'number') return;
-            const factor = 1 + percent;
-            if (!Number.isFinite(factor) || factor <= 0) return;
-            buildingBonuses[id] = (buildingBonuses[id] || 1) * factor;
+            if (!Number.isFinite(percent)) return;
+            // 累加百分比：初始为 0，每次加上 percent
+            buildingBonuses[id] = (buildingBonuses[id] || 0) + percent;
         });
     }
 
-    // Category bonuses
+    // Category bonuses - 使用累加模式
     if (effects.categories) {
         Object.entries(effects.categories).forEach(([cat, percent]) => {
             if (!cat || typeof percent !== 'number') return;
-            const factor = 1 + percent;
-            if (!Number.isFinite(factor) || factor <= 0) return;
-            categoryBonuses[cat] = (categoryBonuses[cat] || 1) * factor;
+            if (!Number.isFinite(percent)) return;
+            // 累加百分比：初始为 0，每次加上 percent
+            categoryBonuses[cat] = (categoryBonuses[cat] || 0) + percent;
         });
     }
 

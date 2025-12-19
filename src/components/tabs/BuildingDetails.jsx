@@ -1,12 +1,46 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Icon } from '../common/UIComponents';
-import { RESOURCES, STRATA } from '../../config';
+import { RESOURCES, STRATA, EPOCHS } from '../../config';
 import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
 import { getPublicAssetUrl } from '../../utils/assetPath';
 import { getBuildingImageUrl } from '../../utils/imageRegistry';
 import { BuildingUpgradePanel } from './BuildingUpgradePanel';
 import { getBuildingEffectiveConfig } from '../../config/buildingUpgrades';
 import { canBuildingUpgrade } from '../../utils/buildingUpgradeUtils';
+
+// 最低工资下限
+const MIN_ROLE_WAGE = 0.1;
+
+/**
+ * 获取角色基础工资（简化版）
+ */
+const getRoleBaseWage = (role, market = {}) => {
+    const wageFromMarket = market?.wages?.[role];
+    if (Number.isFinite(wageFromMarket) && wageFromMarket > 0) {
+        return wageFromMarket;
+    }
+    const starting = STRATA[role]?.startingWealth;
+    if (Number.isFinite(starting) && starting > 0) {
+        return Math.max(MIN_ROLE_WAGE, starting / 40);
+    }
+    return 1;
+};
+
+/**
+ * 计算工资压力因子（简化版）
+ * @param {Object} params - 参数
+ * @returns {number} 工资压力因子 (0.65-1.4)
+ */
+const calculateWagePressure = ({ outputValue, inputCost, baseWageBudget }) => {
+    if (baseWageBudget <= 0) return 1;
+    const valueAvailable = Math.max(0, outputValue - inputCost);
+    const coverage = valueAvailable / baseWageBudget;
+    if (!Number.isFinite(coverage)) return 1;
+    if (coverage >= 1) {
+        return Math.min(1.4, 1 + (coverage - 1) * 0.35);
+    }
+    return Math.max(0.65, 1 - (1 - coverage) * 0.5);
+};
 
 /**
  * 建筑沉浸式英雄图片组件
@@ -264,21 +298,181 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
         return sum + Math.min(required, filled);
     }, 0);
     const jobFillRate = totalJobSlots > 0 ? (totalJobsFilled / totalJobSlots) * 100 : 0;
-    const totalInputs = Object.entries(effectiveTotalStats.input || {});
-    const totalOutputs = Object.entries(effectiveTotalStats.output || {});
+
+    // 获取实际产出/投入数据（包含科技和事件加成）
+    const supplyBreakdown = market?.supplyBreakdown || {};
+    const demandBreakdown = market?.demandBreakdown || {};
+
+    // 获取加成来源数据
+    const modifierSources = market?.modifiers?.sources || {};
+    const techsUnlocked = gameState.techsUnlocked || [];
+    const activeBuffs = gameState.activeBuffs || [];
+    const activeDebuffs = gameState.activeDebuffs || [];
+
+    // 计算建筑的各项加成（使用加法叠加，与 simulation.js 完全一致）
+    const getBuildingModifiers = (b) => {
+        const modList = [];
+        let bonusSum = 0;  // 累加百分比加成
+
+        // 1. 时代加成
+        const currentEpoch = EPOCHS[epoch] || {};
+        if (currentEpoch.bonuses) {
+            if (b.cat === 'gather' && currentEpoch.bonuses.gatherBonus) {
+                const pct = currentEpoch.bonuses.gatherBonus;
+                bonusSum += pct;
+                modList.push({ label: '时代加成', pct });
+            }
+            if (b.cat === 'industry' && currentEpoch.bonuses.industryBonus) {
+                const pct = currentEpoch.bonuses.industryBonus;
+                bonusSum += pct;
+                modList.push({ label: '时代加成', pct });
+            }
+        }
+
+        // 2. 全局生产/工业 modifier（来自 buff/debuff）
+        let productionPct = 0;
+        let industryPct = 0;
+        activeBuffs.forEach(buff => {
+            if (buff.production) productionPct += buff.production;
+            if (buff.industryBonus) industryPct += buff.industryBonus;
+        });
+        activeDebuffs.forEach(debuff => {
+            if (debuff.production) productionPct += debuff.production;
+            if (debuff.industryBonus) industryPct += debuff.industryBonus;
+        });
+        // 政令加成
+        const productionBonus = modifierSources.productionBonus || 0;
+        const industryBonus = modifierSources.industryBonus || 0;
+        productionPct += productionBonus;
+        industryPct += industryBonus;
+
+        if ((b.cat === 'gather' || b.cat === 'civic') && productionPct !== 0) {
+            bonusSum += productionPct;
+            modList.push({ label: '生产修正', pct: productionPct });
+        }
+        if (b.cat === 'industry' && industryPct !== 0) {
+            bonusSum += industryPct;
+            modList.push({ label: '工业修正', pct: industryPct });
+        }
+
+        // 3. 类别加成 - 来自科技（现在直接存储加成百分比，如 0.25 = +25%）
+        const techCategoryBonus = modifierSources.techCategoryBonus?.[b.cat] || 0;
+        if (techCategoryBonus !== 0) {
+            bonusSum += techCategoryBonus;
+            modList.push({ label: '类别科技', pct: techCategoryBonus });
+        }
+
+        // 4. 事件加成
+        const eventBuildingMod = modifierSources.eventBuildingProduction?.[b.id] || 0;
+        const eventCategoryMod = modifierSources.eventBuildingProduction?.[b.cat] || 0;
+        const eventAllMod = modifierSources.eventBuildingProduction?.['all'] || 0;
+        if (eventBuildingMod !== 0) {
+            bonusSum += eventBuildingMod;
+            modList.push({ label: '事件(建筑)', pct: eventBuildingMod });
+        }
+        if (eventCategoryMod !== 0) {
+            bonusSum += eventCategoryMod;
+            modList.push({ label: '事件(类别)', pct: eventCategoryMod });
+        }
+        if (eventAllMod !== 0) {
+            bonusSum += eventAllMod;
+            modList.push({ label: '事件(全局)', pct: eventAllMod });
+        }
+
+        // 5. 建筑特定科技加成（现在直接存储加成百分比，如 0.25 = +25%）
+        const techBuildingBonus = modifierSources.techBuildingBonus?.[b.id] || 0;
+        if (techBuildingBonus !== 0) {
+            bonusSum += techBuildingBonus;
+            modList.push({ label: '科技(建筑)', pct: techBuildingBonus });
+        }
+
+        const totalMultiplier = 1 + bonusSum;
+        return { totalMultiplier: parseFloat(totalMultiplier.toFixed(4)), bonusSum, modList, hasBonus: modList.length > 0 };
+    };
+
+    const buildingModifiers = getBuildingModifiers(building);
+
+    // 计算实际产出（优先使用 supplyBreakdown 中的数据，包含加成）
+    const totalOutputs = Object.entries(effectiveTotalStats.output || {}).map(([resKey, baseAmount]) => {
+        const actualAmount = supplyBreakdown[resKey]?.buildings?.[building.id] ?? baseAmount;
+        const hasBonus = actualAmount !== baseAmount && actualAmount > 0;
+        return [resKey, actualAmount, baseAmount, hasBonus];
+    }).filter(([, amount]) => amount > 0);
+
+    // 计算实际投入（优先使用 demandBreakdown 中的数据）
+    const totalInputs = Object.entries(effectiveTotalStats.input || {}).map(([resKey, baseAmount]) => {
+        const actualAmount = demandBreakdown[resKey]?.buildings?.[building.id] ?? baseAmount;
+        return [resKey, actualAmount, baseAmount];
+    }).filter(([, amount]) => amount > 0);
     const jobBreakdown = useMemo(() => {
+        const ownerKey = building?.owner;
+        const getPrice = (key) => {
+            if (!key || key === 'silver') return 1;
+            return market?.prices?.[key] ?? (RESOURCES[key]?.basePrice || 0);
+        };
+
+        // 计算产出价值
+        let outputValue = 0;
+        Object.entries(effectiveTotalStats.output || {}).forEach(([resKey, amount]) => {
+            if (resKey === 'maxPop') return;
+            if (Number.isFinite(amount) && amount > 0) {
+                outputValue += amount * getPrice(resKey);
+            }
+        });
+
+        // 计算投入成本
+        let inputCost = 0;
+        Object.entries(effectiveTotalStats.input || {}).forEach(([resKey, amount]) => {
+            if (Number.isFinite(amount) && amount > 0) {
+                inputCost += amount * getPrice(resKey);
+            }
+        });
+
+        // 计算基础工资预算（非业主）
+        let baseWageBudget = 0;
+        Object.entries(effectiveTotalStats.jobs || {}).forEach(([role, slots]) => {
+            if (role !== ownerKey && slots > 0) {
+                baseWageBudget += getRoleBaseWage(role, market) * slots;
+            }
+        });
+
+        // 计算工资压力因子
+        const wagePressure = calculateWagePressure({ outputValue, inputCost, baseWageBudget });
+        const headTaxRates = taxPolicies?.headTaxRates || {};
+
         return Object.entries(effectiveTotalStats.jobs || {}).map(([role, required]) => {
             const filled = Math.min(jobFill?.[building.id]?.[role] ?? 0, required);
             const fillPercent = required > 0 ? (filled / required) * 100 : 0;
+            const baseWage = getRoleBaseWage(role, market);
+            const isOwner = role === ownerKey;
+
+            let actualWage;
+            if (isOwner) {
+                // 业主获得利润分配
+                const profit = outputValue - inputCost - baseWageBudget * wagePressure;
+                const ownerSlots = required > 0 ? required : 1;
+                actualWage = Math.max(MIN_ROLE_WAGE, baseWage + profit / ownerSlots);
+            } else {
+                // 雇员工资 = 基础工资 × 工资压力 - 人头税
+                const headBase = STRATA[role]?.headTaxBase ?? 0;
+                const headRate = headTaxRates[role] ?? 1;
+                const headTaxCost = headBase * headRate;
+                actualWage = Math.max(MIN_ROLE_WAGE, baseWage * wagePressure - headTaxCost);
+            }
+
             return {
                 role,
                 required,
                 filled,
                 fillPercent,
-                name: STRATA[role]?.name || role
+                name: STRATA[role]?.name || role,
+                baseWage,
+                actualWage: parseFloat(actualWage.toFixed(2)),
+                wagePressure: parseFloat(wagePressure.toFixed(2)),
+                isOwner
             };
         }).sort((a, b) => b.required - a.required);
-    }, [effectiveTotalStats.jobs, jobFill, building.id]);
+    }, [effectiveTotalStats, jobFill, building, market, taxPolicies]);
 
     // 营业税逻辑
     const businessTaxMultiplier = taxPolicies?.businessTaxRates?.[building.id] ?? 1;
@@ -415,16 +609,26 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                     <div>
-                        <div className="text-[10px] uppercase text-emerald-300 mb-1 tracking-wide">总产出</div>
+                        <div className="text-[10px] uppercase text-emerald-300 mb-1 tracking-wide flex items-center gap-1">
+                            总产出
+                            {totalOutputs.some(([, , , hasBonus]) => hasBonus) && (
+                                <span className="text-amber-400" title="包含科技/事件加成">★</span>
+                            )}
+                        </div>
                         {totalOutputs.length > 0 ? (
                             <div className="flex flex-wrap gap-1.5">
-                                {totalOutputs.map(([resKey, amount]) => (
-                                    <ResourceSummaryBadge
+                                {totalOutputs.map(([resKey, amount, baseAmount, hasBonus]) => (
+                                    <span
                                         key={`total-out-${resKey}`}
-                                        label={RESOURCES[resKey]?.name || resKey}
-                                        amount={amount}
-                                        positive
-                                    />
+                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-semibold bg-emerald-900/30 border-emerald-600/40 text-emerald-200"
+                                        title={hasBonus ? `基础: ${formatResourceAmount(baseAmount)} / 实际: ${formatResourceAmount(amount)}` : undefined}
+                                    >
+                                        <span>{RESOURCES[resKey]?.name || resKey}</span>
+                                        <span className="font-mono">
+                                            +{formatResourceAmount(amount)}
+                                            {hasBonus && <span className="text-amber-400 ml-0.5">★</span>}
+                                        </span>
+                                    </span>
                                 ))}
                             </div>
                         ) : (
@@ -449,26 +653,85 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                         )}
                     </div>
                 </div>
+
+                {/* 生产加成明细 */}
+                {buildingModifiers.hasBonus && (
+                    <div className="mb-3 p-2 rounded-lg bg-amber-900/10 border border-amber-600/30">
+                        <div className="text-[10px] uppercase text-amber-300/80 mb-1.5 tracking-wide flex items-center gap-1">
+                            <Icon name="Zap" size={10} className="text-amber-400" />
+                            生产加成明细
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                            {buildingModifiers.modList.map((mod, idx) => (
+                                <span
+                                    key={idx}
+                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-semibold ${mod.pct >= 0
+                                        ? 'bg-amber-900/30 border-amber-500/40 text-amber-200'
+                                        : 'bg-rose-900/30 border-rose-500/40 text-rose-200'
+                                        }`}
+                                >
+                                    <span>{mod.label}</span>
+                                    <span className={`font-mono ${mod.pct >= 0 ? 'text-amber-300' : 'text-rose-300'}`}>
+                                        {mod.pct >= 0 ? '+' : ''}{(mod.pct * 100).toFixed(0)}%
+                                    </span>
+                                </span>
+                            ))}
+                            {buildingModifiers.modList.length > 0 && (
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-semibold ${buildingModifiers.bonusSum >= 0
+                                    ? 'bg-emerald-900/30 border-emerald-500/40 text-emerald-200'
+                                    : 'bg-rose-900/30 border-rose-500/40 text-rose-200'
+                                    }`}>
+                                    <span>累计</span>
+                                    <span className={`font-mono ${buildingModifiers.bonusSum >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
+                                        {buildingModifiers.bonusSum >= 0 ? '+' : ''}{(buildingModifiers.bonusSum * 100).toFixed(0)}%
+                                    </span>
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                )}
                 {jobBreakdown.length > 0 && (
                     <div className="space-y-3">
                         <div className="text-[10px] uppercase text-gray-400 tracking-wide">岗位明细</div>
-                        {jobBreakdown.map(({ role, name, required, filled, fillPercent }) => (
+                        {jobBreakdown.map(({ role, name, required, filled, fillPercent, actualWage, wagePressure, isOwner }) => (
                             <div key={role} className="bg-gray-900/40 border border-gray-700/70 rounded-lg px-3 py-2">
                                 <div className="flex items-center justify-between text-xs text-gray-200">
-                                    <span>{name}</span>
+                                    <span className="flex items-center gap-1">
+                                        {name}
+                                        {isOwner && (
+                                            <span className="text-[9px] text-amber-400 bg-amber-900/40 px-1 py-0.5 rounded">业主</span>
+                                        )}
+                                    </span>
                                     <span className="font-mono text-gray-300">
                                         {Math.round(filled)}/{Math.round(required)}
                                     </span>
                                 </div>
-                                <div className="text-[10px] text-gray-500 mb-1">
-                                    <span className="mr-2">总岗位 {Math.round(required)}</span>
-                                    <span>实到 {Math.round(filled)}</span>
+                                <div className="flex items-center justify-between text-[10px] text-gray-500 mb-1">
+                                    <div>
+                                        <span className="mr-2">总岗位 {Math.round(required)}</span>
+                                        <span>实到 {Math.round(filled)}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        <Icon name="Wallet" size={10} className={isOwner ? 'text-amber-400' : 'text-yellow-400'} />
+                                        <span className={`font-mono font-semibold ${isOwner ? 'text-amber-300' : 'text-yellow-300'}`}>
+                                            {actualWage.toFixed(2)}
+                                        </span>
+                                        <Icon name="Coins" size={10} className="text-yellow-200" />
+                                        {!isOwner && wagePressure !== 1 && (
+                                            <span className={`ml-1 text-[9px] ${wagePressure > 1 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                ×{wagePressure}
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
                                 <div className="w-full bg-gray-700 rounded-full h-2">
                                     <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${Math.min(100, fillPercent)}%` }} />
                                 </div>
                             </div>
                         ))}
+                        <p className="text-[9px] text-gray-600 mt-1">
+                            💡 预估实发工资。业主收入 = 利润分配 + 工资；雇员工资 = 基础工资 × 工资压力 - 人头税
+                        </p>
                     </div>
                 )}
             </DetailSection>

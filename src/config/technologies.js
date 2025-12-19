@@ -23,7 +23,7 @@ export const TECHS = [
         desc: "伐木场产出提升 25%。",
         cost: { science: 150 },
         epoch: 0,
-        effects: { buildings: { lumber_camp: 0.25 } },
+        effects: { buildings: { lumber_camp: 0.12 } },
     },
     {
         id: 'flint_knapping',
@@ -31,7 +31,7 @@ export const TECHS = [
         desc: "采石场效率增加 25%。",
         cost: { science: 210 },
         epoch: 0,
-        effects: { buildings: { quarry: 0.25 } },
+        effects: { buildings: { quarry: 0.12 } },
     },
     {
         id: 'animal_husbandry',
@@ -47,7 +47,7 @@ export const TECHS = [
         desc: "农田储粮效率 +10%。",
         cost: { science: 300 },
         epoch: 0,
-        effects: { buildings: { farm: 0.1 } },
+        effects: { buildings: { farm: 0.05 } },
     },
     {
         id: 'tool_making',
@@ -55,7 +55,7 @@ export const TECHS = [
         desc: "解锁石器作坊，提供早期稳定的工具来源。采集建筑效率 +10%。",
         cost: { science: 270 },
         epoch: 0,
-        effects: { categories: { gather: 0.1 } },
+        effects: { categories: { gather: 0.05 } },
     },
     {
         id: 'basic_irrigation',
@@ -63,7 +63,7 @@ export const TECHS = [
         desc: "开凿浅渠把河水引入农田，产量提升 15%。",
         cost: { science: 360 },
         epoch: 0,
-        effects: { buildings: { farm: 0.15 } },
+        effects: { buildings: { farm: 0.08 } },
     },
     {
         id: 'oral_tradition',
@@ -71,7 +71,7 @@ export const TECHS = [
         desc: "长者口述史诗，图书馆的整理效率提升 15%。",
         cost: { science: 330 },
         epoch: 0,
-        effects: { buildings: { library: 0.15 } },
+        effects: { buildings: { library: 0.08 } },
     },
     {
         id: 'communal_granary',
@@ -96,7 +96,7 @@ export const TECHS = [
         desc: "采集建筑整体效率 +20%。",
         cost: { science: 480 },
         epoch: 0,
-        effects: { categories: { gather: 0.2 } },
+        effects: { categories: { gather: 0.1 } },
     },
 
     // 青铜时代
@@ -114,7 +114,7 @@ export const TECHS = [
         desc: "允许建造锯木厂，工业效率 +5%。",
         cost: { science: 750 },
         epoch: 1,
-        effects: { categories: { industry: 0.05 } },
+        effects: { categories: { industry: 0.03 } },
     },
     {
         id: 'copper_mining',
@@ -130,7 +130,7 @@ export const TECHS = [
         desc: "青铜铸坊产出 +30%，铁矿井同步获得 +15%。",
         cost: { science: 960 },
         epoch: 1,
-        effects: { buildings: { bronze_foundry: 0.3, mine: 0.15 } },
+        effects: { buildings: { bronze_foundry: 0.15, mine: 0.08 } },
     },
     {
         id: 'horse_collar',
@@ -138,7 +138,7 @@ export const TECHS = [
         desc: "农田与庄园增产 10%。",
         cost: { science: 780 },
         epoch: 1,
-        effects: { buildings: { farm: 0.1, large_estate: 0.1 } },
+        effects: { buildings: { farm: 0.05, large_estate: 0.05 } },
     },
     {
         id: 'caravan_trade',
@@ -146,7 +146,7 @@ export const TECHS = [
         desc: "市场银币收入 +35%。",
         cost: { science: 900 },
         epoch: 1,
-        effects: { buildings: { market: 0.35 } },
+        effects: { buildings: { market: 0.18 } },
     },
     {
         id: 'granary_architecture',
@@ -154,7 +154,7 @@ export const TECHS = [
         desc: "粮仓产出 +25%，并额外提供 +5% 人口上限。",
         cost: { science: 960 },
         epoch: 1,
-        effects: { buildings: { granary: 0.25 }, maxPop: 0.05 },
+        effects: { buildings: { granary: 0.12 }, maxPop: 0.05 },
     },
     {
         id: 'primitive_weaving',
@@ -162,7 +162,7 @@ export const TECHS = [
         desc: "使用简易织机将羊毛加工为布料。织布坊效率 +10%。",
         cost: { science: 820 },
         epoch: 1,
-        effects: { buildings: { loom_house: 0.10 } },
+        effects: { buildings: { loom_house: 0.05 } },
     },
 
     // 古典时代
@@ -172,7 +172,7 @@ export const TECHS = [
         desc: "造纸工坊效率 +20%。",
         cost: { science: 1575 },
         epoch: 2,
-        effects: { buildings: { reed_works: 0.2 } },
+        effects: { buildings: { reed_works: 0.12 } },
     },
     {
         id: 'culinary_arts',
@@ -204,7 +204,7 @@ export const TECHS = [
         desc: "图书馆科研 +25%。",
         cost: { science: 1645 },
         epoch: 2,
-        effects: { buildings: { library: 0.25 } },
+        effects: { buildings: { library: 0.15 } },
     },
     {
         id: 'amphitheater_design',
@@ -220,7 +220,7 @@ export const TECHS = [
         desc: "木屋效率 +20%，人口上限 +5%。",
         cost: { science: 1820 },
         epoch: 2,
-        effects: { buildings: { house: 0.2 }, maxPop: 0.05 },
+        effects: { buildings: { house: 0.12 }, maxPop: 0.05 },
     },
     {
         id: 'republican_code',
@@ -228,7 +228,7 @@ export const TECHS = [
         desc: "完善的法律体系提升社会运转效率。民生建筑效率 +15%，人口上限 +5%。",
         cost: { science: 1960 },
         epoch: 2,
-        effects: { categories: { civic: 0.15 }, maxPop: 0.05 },
+        effects: { categories: { civic: 0.09 }, maxPop: 0.05 },
     },
     {
         id: 'road_system',
@@ -236,7 +236,7 @@ export const TECHS = [
         desc: "采集作业效率 +10%。",
         cost: { science: 2100 },
         epoch: 2,
-        effects: { categories: { gather: 0.1 } },
+        effects: { categories: { gather: 0.06 } },
     },
     {
         id: 'advanced_weaving',
@@ -244,7 +244,7 @@ export const TECHS = [
         desc: "改进织布工具和织机设计，提升纺织效率。织布坊效率 +20%。",
         cost: { science: 1950 },
         epoch: 2,
-        effects: { buildings: { loom_house: 0.2 } },
+        effects: { buildings: { loom_house: 0.12 } },
     },
 
     // 封建时代
@@ -254,7 +254,7 @@ export const TECHS = [
         desc: "庄园耕作效率 +15%。",
         cost: { science: 3500 },
         epoch: 3,
-        effects: { buildings: { large_estate: 0.15 } },
+        effects: { buildings: { large_estate: 0.09 } },
     },
     {
         id: 'basic_weaving',
@@ -262,7 +262,7 @@ export const TECHS = [
         desc: "新型的纺织工具。织布坊效率 +25%。",
         cost: { science: 3150 },
         epoch: 3,
-        effects: { buildings: { loom_house: 0.25 } },
+        effects: { buildings: { loom_house: 0.15 } },
     },
     {
         id: 'theology',
@@ -270,7 +270,7 @@ export const TECHS = [
         desc: "教堂文化产出 +30%。",
         cost: { science: 3850 },
         epoch: 3,
-        effects: { buildings: { church: 0.3 } },
+        effects: { buildings: { church: 0.18 } },
     },
     {
         id: 'bureaucracy',
@@ -278,7 +278,7 @@ export const TECHS = [
         desc: "解锁市政厅，建立高效的行政管理体系。采集、工业、市政建筑效率 +5%，每人每日获得 0.002 文化。",
         cost: { science: 4200 },
         epoch: 3,
-        effects: { categories: { gather: 0.05, industry: 0.05, civic: 0.05 }, perPopPassive: { culture: 0.002 } },
+        effects: { categories: { gather: 0.03, industry: 0.03, civic: 0.03 }, perPopPassive: { culture: 0.002 } },
     },
     {
         id: 'three_field_system',
@@ -286,7 +286,7 @@ export const TECHS = [
         desc: "农田与庄园额外 +15% 产量。",
         cost: { science: 3850 },
         epoch: 3,
-        effects: { buildings: { farm: 0.15, large_estate: 0.15 } },
+        effects: { buildings: { farm: 0.09, large_estate: 0.09 } },
     },
     {
         id: 'stone_keep_engineering',
@@ -294,7 +294,7 @@ export const TECHS = [
         desc: "居住建筑人口上限加成 10%。",
         cost: { science: 4025 },
         epoch: 3,
-        effects: { buildings: { hut: 0.1, house: 0.1 } },
+        effects: { buildings: { hut: 0.06, house: 0.06 } },
     },
 
     {
@@ -303,7 +303,7 @@ export const TECHS = [
         desc: "礼拜设施文化产出提升 15%。",
         cost: { science: 1190 },
         epoch: 3,
-        effects: { buildings: { church: 0.15 } },
+        effects: { buildings: { church: 0.09 } },
     },
     {
         id: 'ironworking',
@@ -311,7 +311,7 @@ export const TECHS = [
         desc: "解锁铁器铺，并且铁矿井效率 +30%。",
         cost: { science: 1500 },
         epoch: 2,
-        effects: { buildings: { mine: 0.3 } },
+        effects: { buildings: { mine: 0.18 } },
     },
     // 探索时代
     {
@@ -320,7 +320,7 @@ export const TECHS = [
         desc: "船坞香料获取 +25%。",
         cost: { science: 6300 },
         epoch: 4,
-        effects: { buildings: { dockyard: 0.25 } },
+        effects: { buildings: { dockyard: 0.18 } },
     },
     {
         id: 'charter_companies',
@@ -328,7 +328,7 @@ export const TECHS = [
         desc: "贸易港银币产出 +30%，财政收入 +5%。",
         cost: { science: 6650 },
         epoch: 4,
-        effects: { buildings: { trade_port: 0.3 }, incomePercent: 0.05 },
+        effects: { buildings: { trade_port: 0.21 }, incomePercent: 0.05 },
     },
     {
         id: 'navigator_schooling',
@@ -336,7 +336,7 @@ export const TECHS = [
         desc: "航海学院科研提升 30%。",
         cost: { science: 7000 },
         epoch: 4,
-        effects: { buildings: { navigator_school: 0.3 } },
+        effects: { buildings: { navigator_school: 0.21 } },
     },
     {
         id: 'naval_artillery',
@@ -344,7 +344,7 @@ export const TECHS = [
         desc: "船坞额外获得 15% 产量。",
         cost: { science: 7350 },
         epoch: 4,
-        effects: { buildings: { dockyard: 0.15 } },
+        effects: { buildings: { dockyard: 0.10 } },
     },
     {
         id: 'colonial_ledgers',
@@ -352,7 +352,7 @@ export const TECHS = [
         desc: "系统化的殖民地档案管理，提升海外贸易效率。船坞和贸易港效率 +20%，财政收入 +5%。",
         cost: { science: 7700 },
         epoch: 4,
-        effects: { buildings: { dockyard: 0.2, trade_port: 0.2 }, incomePercent: 0.05 },
+        effects: { buildings: { dockyard: 0.14, trade_port: 0.14 }, incomePercent: 0.05 },
     },
     {
         id: 'spice_monopolies',
@@ -360,7 +360,7 @@ export const TECHS = [
         desc: "贸易港再获 15% 产量。",
         cost: { science: 8050 },
         epoch: 4,
-        effects: { buildings: { trade_port: 0.15 } },
+        effects: { buildings: { trade_port: 0.10 } },
     },
 
     // 启蒙时代
@@ -394,7 +394,7 @@ export const TECHS = [
         desc: "图书馆 +25% 科研，每人每日获得 0.001 文化。",
         cost: { science: 17100 },
         epoch: 5,
-        effects: { buildings: { library: 0.25 }, perPopPassive: { culture: 0.001 } },
+        effects: { buildings: { library: 0.18 }, perPopPassive: { culture: 0.001 } },
     },
     {
         id: 'social_contract',
@@ -402,7 +402,7 @@ export const TECHS = [
         desc: "启蒙思想推动社会进步。民生建筑效率 +20%，人口上限 +5%，每人每日获得 0.003 文化。",
         cost: { science: 18000 },
         epoch: 5,
-        effects: { categories: { civic: 0.2 }, maxPop: 0.05, perPopPassive: { culture: 0.003 } },
+        effects: { categories: { civic: 0.14 }, maxPop: 0.05, perPopPassive: { culture: 0.003 } },
     },
     {
         id: 'salon_debates',
@@ -410,7 +410,7 @@ export const TECHS = [
         desc: "剧场文化再增 15%。",
         cost: { science: 18900 },
         epoch: 5,
-        effects: { buildings: { amphitheater: 0.15 } },
+        effects: { buildings: { amphitheater: 0.10 } },
     },
 
     // 工业时代
@@ -436,7 +436,7 @@ export const TECHS = [
         desc: "解锁工厂，工业建筑效率 +10%。",
         cost: { science: 27000 },
         epoch: 6,
-        effects: { categories: { industry: 0.1 } },
+        effects: { categories: { industry: 0.07 } },
     },
     {
         id: 'steam_power',
@@ -444,7 +444,7 @@ export const TECHS = [
         desc: "工业建筑再获 +20% 产量。",
         cost: { science: 28800 },
         epoch: 6,
-        effects: { categories: { industry: 0.2 } },
+        effects: { categories: { industry: 0.14 } },
     },
     {
         id: 'chemical_fertilizer',
@@ -452,7 +452,7 @@ export const TECHS = [
         desc: "农田与庄园 +20% 产出。",
         cost: { science: 27000 },
         epoch: 6,
-        effects: { buildings: { farm: 0.2, large_estate: 0.2 } },
+        effects: { buildings: { farm: 0.14, large_estate: 0.14 } },
     },
     {
         id: 'rail_network',
@@ -460,7 +460,7 @@ export const TECHS = [
         desc: "铁路枢纽效率 +30%，采集 +10%。",
         cost: { science: 27900 },
         epoch: 6,
-        effects: { buildings: { rail_depot: 0.3 }, categories: { gather: 0.1 } },
+        effects: { buildings: { rail_depot: 0.21 }, categories: { gather: 0.07 } },
     },
     {
         id: 'precision_tools',
@@ -468,7 +468,7 @@ export const TECHS = [
         desc: "工厂产出 +25%。",
         cost: { science: 28800 },
         epoch: 6,
-        effects: { buildings: { factory: 0.25 } },
+        effects: { buildings: { factory: 0.18 } },
     },
 
     // 军事科技
@@ -478,7 +478,7 @@ export const TECHS = [
         desc: "解锁训练场，提供更多军事容量。军事建筑效率 +15%。",
         cost: { science: 2800 },
         epoch: 2,
-        effects: { categories: { military: 0.15 } },
+        effects: { categories: { military: 0.10 } },
     },
     {
         id: 'fortification',
@@ -486,7 +486,7 @@ export const TECHS = [
         desc: "解锁要塞，大幅提升军事容量。军事建筑效率 +25%，人口上限 +5%。",
         cost: { science: 8400 },
         epoch: 4,
-        effects: { categories: { military: 0.25 }, maxPop: 0.05 },
+        effects: { categories: { military: 0.18 }, maxPop: 0.05 },
     },
 
     // ========== 高级工业科技 ==========
@@ -498,7 +498,7 @@ export const TECHS = [
         desc: "解锁织布坊和成衣作坊，水力驱动的飞梭织机大幅提升布料产量。织布坊效率 +20%，成衣作坊效率 +15%。",
         cost: { science: 13500 },
         epoch: 5,
-        effects: { buildings: { loom_house: 0.20, tailor_workshop: 0.15 } },
+        effects: { buildings: { loom_house: 0.14, tailor_workshop: 0.10 } },
     },
     {
         id: 'assembly_line',
@@ -506,7 +506,7 @@ export const TECHS = [
         desc: "解锁纺织厂和服装工厂，标准化分工使产量大幅提升。纺织厂效率 +25%，服装工厂效率 +20%。",
         cost: { science: 26100 },
         epoch: 6,
-        effects: { buildings: { textile_mill: 0.25, garment_factory: 0.20 } },
+        effects: { buildings: { textile_mill: 0.18, garment_factory: 0.14 } },
     },
 
     // 木材加工产业升级科技
@@ -516,7 +516,7 @@ export const TECHS = [
         desc: "解锁锯木厂和伐木场升级，水轮驱动的圆锯效率远超手工。锯木厂效率 +25%，伐木场效率 +15%。",
         cost: { science: 12600 },
         epoch: 5,
-        effects: { buildings: { sawmill: 0.25, lumber_camp: 0.15 } },
+        effects: { buildings: { sawmill: 0.18, lumber_camp: 0.10 } },
     },
     {
         id: 'mass_production',
@@ -524,7 +524,7 @@ export const TECHS = [
         desc: "解锁木材加工厂和家具工坊，标准化零件实现批量生产。木材加工厂效率 +20%，家具工坊效率 +25%。",
         cost: { science: 25200 },
         epoch: 6,
-        effects: { buildings: { lumber_mill: 0.20, furniture_workshop: 0.25 } },
+        effects: { buildings: { lumber_mill: 0.14, furniture_workshop: 0.18 } },
     },
 
     // 冶金产业升级科技
@@ -534,7 +534,7 @@ export const TECHS = [
         desc: "解锁铁器铺和青铜铸坊升级，改良熔炉与合金配方提升工具质量。铁器铺效率 +20%，青铜铸坊效率 +15%。",
         cost: { science: 7700 },
         epoch: 4,
-        effects: { buildings: { iron_tool_workshop: 0.20, bronze_foundry: 0.15 } },
+        effects: { buildings: { iron_tool_workshop: 0.14, bronze_foundry: 0.10 } },
     },
     {
         id: 'bessemer_process',
@@ -542,7 +542,7 @@ export const TECHS = [
         desc: "解锁炼钢厂和冶金工坊，吹入空气快速去碳，钢铁产量剧增。炼钢厂效率 +30%，冶金工坊效率 +25%。",
         cost: { science: 27900 },
         epoch: 6,
-        effects: { buildings: { steel_foundry: 0.30, metallurgy_workshop: 0.25 } },
+        effects: { buildings: { steel_foundry: 0.21, metallurgy_workshop: 0.18 } },
     },
 
     // 建材产业升级科技
@@ -552,7 +552,7 @@ export const TECHS = [
         desc: "解锁砖窯升级，环形窑与传送带实现连续烧制。砖窯效率 +25%。",
         cost: { science: 11700 },
         epoch: 5,
-        effects: { buildings: { brickworks: 0.25 } },
+        effects: { buildings: { brickworks: 0.18 } },
     },
     {
         id: 'standardized_construction',
@@ -560,7 +560,7 @@ export const TECHS = [
         desc: "解锁建材厂，预制构件加速建设、降低成本。建材厂效率 +25%，人口上限 +5%。",
         cost: { science: 24300 },
         epoch: 6,
-        effects: { buildings: { building_materials_plant: 0.25 }, maxPop: 0.05 },
+        effects: { buildings: { building_materials_plant: 0.18 }, maxPop: 0.05 },
     },
 
     // 食品加工产业升级科技
@@ -570,7 +570,7 @@ export const TECHS = [
         desc: "解锁罐头厂，密封罐装技术延长食品保质期。",
         cost: { science: 22500 },
         epoch: 6,
-        effects: { buildings: { culinary_kitchen: 0.25 } },
+        effects: { buildings: { culinary_kitchen: 0.18 } },
     },
     {
         id: 'distillation',
@@ -578,7 +578,7 @@ export const TECHS = [
         desc: "解锁蒸馏酒厂，分离提纯出高度烈酒。",
         cost: { science: 14400 },
         epoch: 5,
-        effects: { buildings: { brewery: 0.30 } },
+        effects: { buildings: { brewery: 0.21 } },
     },
 
     // 造纸印刷产业升级科技
@@ -588,7 +588,7 @@ export const TECHS = [
         desc: "解锁造纸厂，木材纤维取代手工纸浆，产量倍增。",
         cost: { science: 13050 },
         epoch: 5,
-        effects: { buildings: { reed_works: 0.30 } },
+        effects: { buildings: { reed_works: 0.21 } },
     },
     {
         id: 'mass_media',
@@ -596,7 +596,7 @@ export const TECHS = [
         desc: "解锁印刷所和出版社，报纸杂志覆盖全民，舆论力量崛起。印刷所效率 +30%，出版社效率 +20%。",
         cost: { science: 24750 },
         epoch: 6,
-        effects: { buildings: { printing_house: 0.30, publishing_house: 0.20 } },
+        effects: { buildings: { printing_house: 0.21, publishing_house: 0.14 } },
     },
 
     // 高级采集科技
@@ -606,7 +606,7 @@ export const TECHS = [
         desc: "解锁工业矿场，蒸汽泵排水、铁轨运矿，开采深层矿脉。",
         cost: { science: 23400 },
         epoch: 6,
-        effects: { buildings: { mine: 0.25, coal_mine: 0.20 } },
+        effects: { buildings: { mine: 0.18, coal_mine: 0.14 } },
     },
     {
         id: 'agricultural_machinery',
@@ -614,7 +614,7 @@ export const TECHS = [
         desc: "解锁机械化农场，蒸汽拖拉机与收割机解放大量人力。",
         cost: { science: 25200 },
         epoch: 6,
-        effects: { buildings: { farm: 0.25, large_estate: 0.30 } },
+        effects: { buildings: { farm: 0.18, large_estate: 0.21 } },
     },
     {
         id: 'steam_logging',
@@ -622,7 +622,7 @@ export const TECHS = [
         desc: "解锁伐木公司，蒸汽锯与窄轨铁路运输原木。",
         cost: { science: 22500 },
         epoch: 6,
-        effects: { buildings: { lumber_camp: 0.30 } },
+        effects: { buildings: { lumber_camp: 0.21 } },
     },
 
     // 高级文化与城市科技
@@ -632,7 +632,7 @@ export const TECHS = [
         desc: "解锁大学，系统化培养专业人才。",
         cost: { science: 15750 },
         epoch: 5,
-        effects: { buildings: { library: 0.20, navigator_school: 0.20 } },
+        effects: { buildings: { library: 0.14, navigator_school: 0.14 } },
     },
     {
         id: 'grand_arts',
@@ -640,7 +640,7 @@ export const TECHS = [
         desc: "解锁歌剧院，戏剧与音乐的殿堂。",
         cost: { science: 17100 },
         epoch: 5,
-        effects: { buildings: { amphitheater: 0.25, church: 0.15 } },
+        effects: { buildings: { amphitheater: 0.18, church: 0.10 } },
     },
     {
         id: 'urban_architecture',
@@ -648,7 +648,7 @@ export const TECHS = [
         desc: "解锁公寓楼，多层建筑容纳更多城市人口。人口上限 +6%。",
         cost: { science: 26100 },
         epoch: 6,
-        effects: { buildings: { house: 0.20 }, maxPop: 0.06 },
+        effects: { buildings: { house: 0.14 }, maxPop: 0.06 },
     },
     {
         id: 'financial_capitalism',
@@ -656,6 +656,6 @@ export const TECHS = [
         desc: "解锁证券交易所，股票与债券调配社会资本。贸易港效率 +20%，铁路枢纽效率 +15%，财政收入 +8%。",
         cost: { science: 29250 },
         epoch: 6,
-        effects: { buildings: { trade_port: 0.20, rail_depot: 0.15 }, incomePercent: 0.08 },
+        effects: { buildings: { trade_port: 0.14, rail_depot: 0.10 }, incomePercent: 0.08 },
     },
 ];

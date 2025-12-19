@@ -454,7 +454,7 @@ export const StratumDetailModal = ({
                   <Icon name="Star" size={16} className="text-yellow-400" />
                   阶层特性
                 </h3>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                   <div className="bg-gray-700/50 p-3 rounded">
                     <p className="text-xs text-gray-400 mb-1">财富权重</p>
                     <p className="text-sm text-white">{stratum.wealthWeight}x</p>
@@ -462,6 +462,16 @@ export const StratumDetailModal = ({
                   <div className="bg-gray-700/50 p-3 rounded">
                     <p className="text-xs text-gray-400 mb-1">影响力基数</p>
                     <p className="text-sm text-white">{stratum.influenceBase}</p>
+                  </div>
+                  <div className="bg-gray-700/50 p-3 rounded">
+                    <p className="text-xs text-gray-400 mb-1">财富弹性</p>
+                    <p className={`text-sm font-bold ${
+                      (stratum.wealthElasticity || 1.0) >= 1.5 ? 'text-purple-400' :
+                      (stratum.wealthElasticity || 1.0) >= 1.0 ? 'text-blue-400' :
+                      (stratum.wealthElasticity || 1.0) >= 0.7 ? 'text-green-400' :
+                      'text-yellow-400'
+                    }`}>{stratum.wealthElasticity || 1.0}</p>
+                    <p className="text-[10px] text-gray-500 mt-0.5">收入转化消费速度</p>
                   </div>
                 </div>
               </div>

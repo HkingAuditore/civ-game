@@ -23,14 +23,14 @@ export const BUILDING_UPGRADES = {
         {
             name: "灌溉田",
             cost: { wood: 50, stone: 20, tools: 5, silver: 300 },
-            input: { tools: 0.02 },
+            input: { tools: 0.08, wood: 0.1 }, // increased tools, added wood for irrigation
             output: { food: 5.2 }, // 1.3x
             jobs: { peasant: 3 },
         },
         {
             name: "精耕田",
             cost: { plank: 80, brick: 40, tools: 15, silver: 800 },
-            input: { tools: 0.05 },
+            input: { tools: 0.15, wood: 0.2 }, // increased tools and wood
             output: { food: 7.2 }, // 1.8x
             jobs: { peasant: 4 },
         },
@@ -41,14 +41,14 @@ export const BUILDING_UPGRADES = {
         {
             name: "大伐木场",
             cost: { wood: 80, stone: 30, tools: 10, silver: 250 },
-            input: { tools: 0.05 },
+            input: { tools: 0.1, food: 0.3 }, // added food for workers
             output: { wood: 4.2 }, // 1.3x
             jobs: { lumberjack: 3 },
         },
         {
             name: "林场",
             cost: { plank: 60, brick: 30, tools: 20, silver: 600 },
-            input: { tools: 0.1 },
+            input: { tools: 0.18, food: 0.4 }, // increased inputs
             output: { wood: 5.8, food: 0.2 }, // 1.8x + 林场野味
             jobs: { lumberjack: 4 },
         },
@@ -59,14 +59,14 @@ export const BUILDING_UPGRADES = {
         {
             name: "深坑采石场",
             cost: { wood: 80, stone: 50, tools: 15, silver: 300 },
-            input: { tools: 0.05, wood: 0.2 },
+            input: { tools: 0.12, wood: 0.3, food: 0.3 }, // added food for workers
             output: { stone: 3.25 }, // 1.3x
             jobs: { miner: 3 },
         },
         {
             name: "大采石场",
             cost: { plank: 80, stone: 100, tools: 30, silver: 700 },
-            input: { tools: 0.1, wood: 0.3 },
+            input: { tools: 0.2, wood: 0.5, food: 0.5 }, // increased all inputs
             output: { stone: 4.5, copper: 0.03 }, // 1.8x + 伴生矿
             jobs: { miner: 4 },
         },
@@ -171,14 +171,14 @@ export const BUILDING_UPGRADES = {
         {
             name: "深铜矿",
             cost: { wood: 120, tools: 20, silver: 350 },
-            input: { tools: 0.05, wood: 0.3 },
+            input: { tools: 0.12, wood: 0.4, food: 0.4 }, // increased inputs, added food
             output: { copper: 0.65 }, // 1.3x
             jobs: { miner: 4 },
         },
         {
             name: "大铜矿",
             cost: { plank: 80, tools: 40, silver: 800 },
-            input: { tools: 0.1, wood: 0.5 },
+            input: { tools: 0.2, wood: 0.6, food: 0.6 }, // increased all inputs
             output: { copper: 0.9, stone: 0.2 }, // 1.8x + 废石利用
             jobs: { miner: 5 },
         },
@@ -354,14 +354,14 @@ export const BUILDING_UPGRADES = {
         {
             name: "深井铁矿",
             cost: { plank: 80, tools: 25, silver: 400 },
-            input: { tools: 0.05 },
+            input: { tools: 0.15, wood: 0.4, food: 0.6 }, // added wood (supports), food (miners)
             output: { iron: 0.65 }, // 1.3x
             jobs: { miner: 6, capitalist: 1 },
         },
         {
             name: "大铁矿",
             cost: { brick: 60, tools: 40, silver: 900 },
-            input: { tools: 0.08 },
+            input: { tools: 0.25, wood: 0.6, food: 0.8 }, // increased all inputs
             output: { iron: 0.9, coal: 0.07 }, // 1.8x + 煤层伴生
             jobs: { miner: 8, capitalist: 1 },
         },
@@ -391,15 +391,15 @@ export const BUILDING_UPGRADES = {
         {
             name: "繁荣庄园",
             cost: { plank: 60, tools: 20, silver: 400 },
-            input: { tools: 0.02 },
-            output: { food: 23.4 }, // 1.3x
+            input: { tools: 0.2, wood: 0.3 }, // significantly increased tools for farming equipment
+            output: { food: 20.0 }, // reduced from 23.4, ~1.1x multiplier
             jobs: { serf: 8, landowner: 1 },
         },
         {
             name: "领主庄园",
             cost: { brick: 50, furniture: 15, silver: 900 },
-            input: { tools: 0.04 },
-            output: { food: 32.4, cloth: 0.2, ale: 0.07 }, // 1.8x + 庄园织布&自酿
+            input: { tools: 0.4, wood: 0.5, cloth: 0.1 }, // much higher input requirements
+            output: { food: 25.0, cloth: 0.15, ale: 0.05 }, // reduced from 32.4, ~1.4x multiplier
             jobs: { serf: 10, landowner: 1 },
         },
     ],
@@ -670,14 +670,14 @@ export const BUILDING_UPGRADES = {
         {
             name: "深煤矿",
             cost: { plank: 150, tools: 40, silver: 500 },
-            input: { tools: 0.08 },
+            input: { tools: 0.2, wood: 0.5, food: 0.8 }, // added wood (pit props), food (miners)
             output: { coal: 0.85 }, // 1.3x
             jobs: { miner: 8, capitalist: 1 },
         },
         {
             name: "大煤矿",
             cost: { brick: 100, tools: 60, silver: 1100 },
-            input: { tools: 0.12 },
+            input: { tools: 0.35, wood: 0.8, food: 1.0 }, // increased all inputs
             output: { coal: 1.17, iron: 0.07 }, // 1.8x + 煤矿伴生铁
             jobs: { miner: 10, capitalist: 1 },
         },
@@ -724,14 +724,14 @@ export const BUILDING_UPGRADES = {
         {
             name: "大工业矿场",
             cost: { steel: 150, tools: 60, silver: 850 },
-            input: { tools: 0.1, coal: 0.2 },
+            input: { tools: 0.25, coal: 0.4, wood: 0.5, food: 1.0 }, // added wood and food
             output: { iron: 1.95, copper: 0.65 }, // 1.3x
             jobs: { miner: 10, engineer: 2, capitalist: 1 },
         },
         {
             name: "矿业公司",
             cost: { steel: 250, tools: 100, silver: 1900 },
-            input: { tools: 0.15, coal: 0.3 },
+            input: { tools: 0.4, coal: 0.6, wood: 0.8, food: 1.2 }, // significantly increased
             output: { iron: 2.7, copper: 0.9 }, // 1.8x
             jobs: { miner: 12, engineer: 2, capitalist: 1 },
         },
@@ -742,15 +742,15 @@ export const BUILDING_UPGRADES = {
         {
             name: "大机械农场",
             cost: { steel: 100, tools: 50, silver: 750 },
-            input: { tools: 0.06, coal: 0.12 },
-            output: { food: 26.0 }, // 1.3x
+            input: { tools: 0.25, coal: 0.3, iron: 0.1 }, // increased inputs for machinery maintenance
+            output: { food: 24.0 }, // reduced from 26.0, ~1.2x multiplier
             jobs: { peasant: 4, worker: 2, engineer: 1, capitalist: 1 },
         },
         {
             name: "工业农场",
             cost: { steel: 170, tools: 80, silver: 1700 },
-            input: { tools: 0.1, coal: 0.18, dye: 0.05 }, // 需要染料（棉花加工）
-            output: { food: 36.0, cloth: 0.35 }, // 1.8x + 机械化棉花
+            input: { tools: 0.45, coal: 0.5, iron: 0.15, dye: 0.05 }, // significantly increased inputs
+            output: { food: 30.0, cloth: 0.25 }, // reduced from 36.0, ~1.5x multiplier
             jobs: { peasant: 5, worker: 2, engineer: 1, capitalist: 1 },
         },
     ],
@@ -760,15 +760,15 @@ export const BUILDING_UPGRADES = {
         {
             name: "大伐木公司",
             cost: { steel: 60, tools: 40, silver: 650 },
-            input: { tools: 0.05, coal: 0.1 },
-            output: { wood: 13.0 }, // 1.3x
+            input: { tools: 0.2, coal: 0.2, food: 0.6 }, // increased for machinery and workers
+            output: { wood: 12.0 }, // reduced from 13.0
             jobs: { lumberjack: 6, worker: 2, engineer: 1, capitalist: 1 },
         },
         {
             name: "林业公司",
             cost: { steel: 120, tools: 60, silver: 1500 },
-            input: { tools: 0.08, coal: 0.15 },
-            output: { wood: 18.0 }, // 1.8x
+            input: { tools: 0.35, coal: 0.35, food: 0.8 }, // significantly increased inputs
+            output: { wood: 15.0 }, // reduced from 18.0
             jobs: { lumberjack: 8, worker: 2, engineer: 1, capitalist: 1 },
         },
     ],

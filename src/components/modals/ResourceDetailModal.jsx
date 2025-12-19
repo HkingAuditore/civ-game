@@ -760,12 +760,15 @@ const ResourceDetailContent = ({
             const baseAmount = perBuilding * count;
             baseSupplyTotal += baseAmount;
 
-            // 建筑产出加成
-            const techBuildingMod = (sources.techBuildingBonus?.[building.id] || 1) - 1;
-            const eventBuildingMod = sources.eventBuildingProduction?.[building.id] || 0;
-            const techCategoryMod = (sources.techCategoryBonus?.[building.cat] || 1) - 1;
-            const eventCategoryMod = sources.eventBuildingProduction?.[building.cat] || 0;
-            const buildingMultiplier = 1 + techBuildingMod + eventBuildingMod + techCategoryMod + eventCategoryMod;
+            // 建筑产出加成 - 使用加法叠加（与 simulation.js 一致）
+            // 现在直接存储加成百分比（如 0.25 = +25%）
+            const techBuildingPct = sources.techBuildingBonus?.[building.id] || 0;
+            const eventBuildingPct = sources.eventBuildingProduction?.[building.id] || 0;
+            const techCategoryPct = sources.techCategoryBonus?.[building.cat] || 0;
+            const eventCategoryPct = sources.eventBuildingProduction?.[building.cat] || 0;
+            // 加法叠加：所有百分比相加
+            const totalBonusPct = techBuildingPct + eventBuildingPct + techCategoryPct + eventCategoryPct;
+            const buildingMultiplier = 1 + totalBonusPct;
 
             const theoreticalAmount = baseAmount * buildingMultiplier * resourceSupplyMultiplier;
             const actualAmount = realProduction > 0 ? realProduction : theoreticalAmount; // use > 0 because initialization was ?? 0
@@ -773,10 +776,10 @@ const ResourceDetailContent = ({
             actualSupplyTotal += theoreticalAmount; // Keep calculating total based on theory for "Theoretical Capacity" metric
 
             const modList = [];
-            if (techBuildingMod !== 0) modList.push(`科技 x${(1 + techBuildingMod).toFixed(2)}`);
-            if (eventBuildingMod !== 0) modList.push(`事件 x${(1 + eventBuildingMod).toFixed(2)}`);
-            if (techCategoryMod !== 0) modList.push(`类别科技 x${(1 + techCategoryMod).toFixed(2)}`);
-            if (eventCategoryMod !== 0) modList.push(`类别事件 x${(1 + eventCategoryMod).toFixed(2)}`);
+            if (techBuildingPct !== 0) modList.push(`科技 +${(techBuildingPct * 100).toFixed(0)}%`);
+            if (eventBuildingPct !== 0) modList.push(`事件 +${(eventBuildingPct * 100).toFixed(0)}%`);
+            if (techCategoryPct !== 0) modList.push(`类别科技 +${(techCategoryPct * 100).toFixed(0)}%`);
+            if (eventCategoryPct !== 0) modList.push(`类别事件 +${(eventCategoryPct * 100).toFixed(0)}%`);
 
             acc.push({
                 id: building.id,

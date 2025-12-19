@@ -164,6 +164,105 @@ function GameApp({ gameState }) {
     const [showEmpireScene, setShowEmpireScene] = useState(false);
     const [activeSheet, setActiveSheet] = useState({ type: null, data: null });
 
+    // Global keyboard shortcuts: Space to toggle pause, Escape to close menus
+    useEffect(() => {
+        const handleKeyDown = (event) => {
+            // Ignore if typing in an input field, textarea, or contenteditable element
+            const target = event.target;
+            if (
+                target.tagName === 'INPUT' ||
+                target.tagName === 'TEXTAREA' ||
+                target.isContentEditable
+            ) {
+                return;
+            }
+
+            // Space key: Toggle pause/play
+            if (event.code === 'Space') {
+                event.preventDefault(); // Prevent page scrolling
+                gameState.setIsPaused(prev => !prev);
+                return;
+            }
+
+            // Escape key: Close menus/modals in priority order
+            if (event.key === 'Escape') {
+                // Priority 1: Close activeSheet (building details, stratum details, etc.)
+                if (activeSheet.type !== null) {
+                    setActiveSheet({ type: null, data: null });
+                    return;
+                }
+
+                // Priority 2: Close settings panel
+                if (isSettingsOpen) {
+                    setIsSettingsOpen(false);
+                    return;
+                }
+
+                // Priority 3: Close wiki modal
+                if (isWikiOpen) {
+                    setIsWikiOpen(false);
+                    return;
+                }
+
+                // Priority 4: Close battle result modal
+                if (gameState.battleResult) {
+                    gameState.setBattleResult(null);
+                    return;
+                }
+
+                // Priority 5: Close stratum detail modal
+                if (gameState.stratumDetailView) {
+                    gameState.setStratumDetailView(null);
+                    return;
+                }
+
+                // Priority 6: Close resource detail modal
+                if (gameState.resourceDetailView) {
+                    gameState.setResourceDetailView(null);
+                    return;
+                }
+
+                // Priority 7: Close population detail modal
+                if (gameState.populationDetailView) {
+                    gameState.setPopulationDetailView(false);
+                    return;
+                }
+
+                // Priority 8: Close strata panel (mobile)
+                if (showStrata) {
+                    setShowStrata(false);
+                    return;
+                }
+
+                // Priority 9: Close market panel (mobile)
+                if (showMarket) {
+                    setShowMarket(false);
+                    return;
+                }
+
+                // Priority 10: Close empire scene panel
+                if (showEmpireScene) {
+                    setShowEmpireScene(false);
+                    return;
+                }
+
+                // Note: currentEvent and festivalModal have their own ESC handling via BottomSheet
+                // and may have preventEscapeClose enabled, so we don't handle them here
+            }
+        };
+
+        document.addEventListener('keydown', handleKeyDown);
+        return () => document.removeEventListener('keydown', handleKeyDown);
+    }, [
+        gameState,
+        activeSheet.type,
+        isSettingsOpen,
+        isWikiOpen,
+        showStrata,
+        showMarket,
+        showEmpireScene
+    ]);
+
     // 处理庆典效果选择
     const handleFestivalSelect = (selectedEffect) => {
         if (!selectedEffect) return;

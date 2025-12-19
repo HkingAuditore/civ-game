@@ -179,10 +179,15 @@ export const simulateTick = ({
     const res = { ...resources };
     const priceMap = { ...(market?.prices || {}) };
     // NEW: Track actual consumption by stratum for UI display
-    const stratumConsumption = {}; 
+    const stratumConsumption = {};
     // NEW: Track supply source breakdown
     const supplyBreakdown = {};
-    
+
+    // WAR STATE: Check if player is at war with any nation
+    // Used for wartime modifiers (3x military stratum demand, 3x army maintenance)
+    const isPlayerAtWar = (nations || []).some(n => n.isAtWar === true);
+    const WAR_MILITARY_MULTIPLIER = 3.0; // Wartime multiplier for military class needs and army maintenance
+
     const policies = taxPolicies || {};
     const headTaxRates = policies.headTaxRates || {};
     const resourceTaxRates = policies.resourceTaxRates || {};
@@ -806,64 +811,62 @@ export const simulateTick = ({
         // -----------------------------
         const currentEpoch = EPOCHS[epoch];
 
+        // ========== 加法叠加模式 ==========
+        // 收集所有加成百分比，最后统一计算 multiplier = 1 + 所有加成之和
+        let bonusSum = 0;
+
+        // 1. 时代加成
         if (currentEpoch && currentEpoch.bonuses) {
             if (b.cat === 'gather' && currentEpoch.bonuses.gatherBonus) {
-                multiplier *= (1 + currentEpoch.bonuses.gatherBonus);
+                bonusSum += currentEpoch.bonuses.gatherBonus;
             }
             if (b.cat === 'industry' && currentEpoch.bonuses.industryBonus) {
-                multiplier *= (1 + currentEpoch.bonuses.industryBonus);
+                bonusSum += currentEpoch.bonuses.industryBonus;
             }
         }
 
-        // Apply global production/industry modifiers
-        let productionModifier = 1.0;
-        let industryModifier = 1.0;
+        // 2. 全局生产/工业 modifier（来自 buff/debuff）
+        let productionBonusSum = 0;
+        let industryBonusSum = 0;
         productionBuffs.forEach(buff => {
-            if (buff.production) productionModifier += buff.production;
-            if (buff.industryBonus) industryModifier += buff.industryBonus;
+            if (buff.production) productionBonusSum += buff.production;
+            if (buff.industryBonus) industryBonusSum += buff.industryBonus;
         });
         productionDebuffs.forEach(debuff => {
-            if (debuff.production) productionModifier += debuff.production;
-            if (debuff.industryBonus) industryModifier += debuff.industryBonus;
+            if (debuff.production) productionBonusSum += debuff.production;
+            if (debuff.industryBonus) industryBonusSum += debuff.industryBonus;
         });
-        productionModifier *= (1 + productionBonus);
-        industryModifier *= (1 + industryBonus);
+        // 政令加成
+        productionBonusSum += productionBonus;
+        industryBonusSum += industryBonus;
 
         if (b.cat === 'gather' || b.cat === 'civic') {
-            multiplier *= productionModifier;
+            bonusSum += productionBonusSum;
         }
         if (b.cat === 'industry') {
-            multiplier *= industryModifier;
+            bonusSum += industryBonusSum;
         }
 
-        if (techsUnlocked.includes('wheel') && b.cat === 'gather') {
-            multiplier *= 1.2;
-        }
-        if (techsUnlocked.includes('pottery') && b.id === 'farm') {
-            multiplier *= 1.1;
-        }
-        if (techsUnlocked.includes('basic_irrigation') && b.id === 'farm') {
-            multiplier *= 1.15;
-        }
+        // 3. 类别加成（categoryBonuses 现在直接存储加成百分比，如 0.25 = +25%）
         const categoryBonus = categoryBonuses[b.cat];
-        if (categoryBonus && categoryBonus !== 1) {
-            multiplier *= categoryBonus;
+        if (categoryBonus && categoryBonus !== 0) {
+            bonusSum += categoryBonus;
         }
 
-        // Apply event building production modifiers
-        // Check for specific building modifier first, then category modifier
+        // 4. 事件加成
         const buildingSpecificMod = eventBuildingProductionModifiers[b.id] || 0;
         const buildingCategoryMod = eventBuildingProductionModifiers[b.cat] || 0;
-        // Also check for 'all' modifier that affects all buildings
         const buildingAllMod = eventBuildingProductionModifiers['all'] || 0;
-        const totalEventMod = buildingSpecificMod + buildingCategoryMod + buildingAllMod;
-        if (totalEventMod !== 0) {
-            multiplier *= (1 + totalEventMod);
-        }
+        bonusSum += buildingSpecificMod + buildingCategoryMod + buildingAllMod;
+
+        // 5. 建筑特定科技加成（buildingBonuses 现在直接存储加成百分比，如 0.25 = +25%）
         const buildingBonus = buildingBonuses[b.id];
-        if (buildingBonus && buildingBonus !== 1) {
-            multiplier *= buildingBonus;
+        if (buildingBonus && buildingBonus !== 0) {
+            bonusSum += buildingBonus;
         }
+
+        // 应用加成：基础乘数 × (1 + 总加成)
+        multiplier *= (1 + bonusSum);
 
         let staffingRatio = 1.0;
         let totalSlots = 0;
@@ -1391,7 +1394,7 @@ export const simulateTick = ({
                                     res[target.resource] = (res[target.resource] || 0) + importAmount;
                                     supply[target.resource] = (supply[target.resource] || 0) + importAmount;
                                     rates[target.resource] = (rates[target.resource] || 0) + importAmount;
-                                    
+
                                     // NEW: Track import supply
                                     if (!supplyBreakdown[target.resource]) supplyBreakdown[target.resource] = { buildings: {}, imports: 0 };
                                     supplyBreakdown[target.resource].imports = (supplyBreakdown[target.resource].imports || 0) + importAmount;
@@ -1440,7 +1443,13 @@ export const simulateTick = ({
 
     // === 新军费计算系统 ===
     // 1. 获取军队资源维护需求
-    const armyMaintenance = calculateArmyMaintenance(army);
+    const baseArmyMaintenance = calculateArmyMaintenance(army);
+    
+    // Apply wartime multiplier: 3x army maintenance during war
+    const armyMaintenance = {};
+    Object.entries(baseArmyMaintenance).forEach(([resource, amount]) => {
+        armyMaintenance[resource] = isPlayerAtWar ? amount * WAR_MILITARY_MULTIPLIER : amount;
+    });
 
     // 2. 从市场购买维护资源（消耗资源、增加需求）
     let totalResourceCost = 0;
@@ -1597,6 +1606,11 @@ export const simulateTick = ({
             if (totalStratumDemandMod !== 0) {
                 requirement *= (1 + totalStratumDemandMod);
             }
+            
+            // 3. Wartime military class demand multiplier (3x for soldier and knight during war)
+            if (isPlayerAtWar && (key === 'soldier' || key === 'knight')) {
+                requirement *= WAR_MILITARY_MULTIPLIER;
+            }
 
             // 应用需求弹性调整
             if (isTradableResource(resKey)) {
@@ -1695,7 +1709,7 @@ export const simulateTick = ({
 
                     // 统计实际消费的需求量，而不是原始需求量
                     demand[resKey] = (demand[resKey] || 0) + amount;
-                    
+
                     // NEW: Track consumption by stratum
                     if (!stratumConsumption[key]) stratumConsumption[key] = {};
                     stratumConsumption[key][resKey] = (stratumConsumption[key][resKey] || 0) + amount;
@@ -3201,6 +3215,9 @@ export const simulateTick = ({
                 eventBuildingProduction: eventBuildingProductionModifiers,
                 techBuildingBonus: buildingBonuses,
                 techCategoryBonus: categoryBonuses,
+                // 全局生产加成（来自政令和节日）
+                productionBonus: productionBonus,
+                industryBonus: industryBonus,
                 // 阶层财富增长对需求的影响（财富越高需求越高）
                 stratumWealthMultiplier: stratumWealthMultipliers,
             },

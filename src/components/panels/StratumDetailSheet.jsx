@@ -349,7 +349,7 @@ export const StratumDetailSheet = ({
                                         ×{wealthMultiplier.toFixed(2)}
                                     </div>
                                     <div className="text-[8px] text-gray-500 leading-none">
-                                        需求购买倍率
+                                        倍率 | 弹性: {stratum.wealthElasticity ?? 1.0}
                                     </div>
                                 </div>
                                 <div className="bg-gray-800/40 rounded px-2 py-1">
