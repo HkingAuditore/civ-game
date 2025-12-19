@@ -1,4 +1,4 @@
-package com.hayekciv.marketeconomy;
+package com.ToyEmpires.civgame;
 
 import android.os.Build;
 import android.os.Bundle;
