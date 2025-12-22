@@ -3,6 +3,7 @@
 
 import React from 'react';
 import { Icon } from '../common/UIComponents';
+import { RESOURCES } from '../../config';
 
 /**
  * Transform technical logs to human-readable format
@@ -43,10 +44,9 @@ const transformLog = (log) => {
             // Format: AI_TRADE_EVENT:{"nationId":"...","nationName":"...","resource":"...","amount":...,"price":...,"type":"buy"|"sell","totalValue":...}
             const action = tradeData.type === 'buy' ? '购买' : '出售';
             const preposition = tradeData.type === 'buy' ? '从市场' : '向市场';
-            // We need to access RESOURCES config to get resource name if possible, 
-            // but transformLog is outside component. We'll use the key as fallback or try to infer.
-            // Since we can't easily import RESOURCES here without check, we'll just use the key capitalized.
-            const resourceName = tradeData.resource.charAt(0).toUpperCase() + tradeData.resource.slice(1);
+            // Use RESOURCES config to get localized name, fallback to capitalized key
+            const resourceConfig = RESOURCES[tradeData.resource];
+            const resourceName = resourceConfig ? resourceConfig.name : (tradeData.resource.charAt(0).toUpperCase() + tradeData.resource.slice(1));
 
             return `⚖️ 贸易报告：${tradeData.nationName} ${preposition}${action}了 ${tradeData.amount} ${resourceName}（总价 ${Math.round(tradeData.totalValue)} 银币）。`;
         } catch (e) {
