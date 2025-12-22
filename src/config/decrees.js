@@ -35,7 +35,7 @@ export const DECREES = [
     unlockEpoch: 0,
     cost: {},
     effects: ['公共服务产出 +10%', '科研产出 +5%', '文化需求 +15%', '神职人员好感 +10'],
-    drawbacks: ['每日 -2 银币祭祀开销'],
+    drawbacks: ['银币产出 -2%（祭祀开销）'],
     modifiers: {
       categories: { civic: 0.10 },
       buildings: { library: 0.05 },
@@ -54,7 +54,7 @@ export const DECREES = [
     unlockEpoch: 0,
     cost: {},
     effects: ['采集产出 +12%', '军事产出 +5%', '食物供应 +15%', '军人好感 +5'],
-    drawbacks: ['每日 -2 食物（宴会消耗）'],
+    drawbacks: ['食物产出 -2%（宴会消耗）'],
     modifiers: {
       categories: { gather: 0.12, military: 0.05 },
       passivePercent: { food: -0.02 },  // Feast consumption
@@ -165,7 +165,7 @@ export const DECREES = [
     unlockEpoch: 1,
     cost: {},
     effects: ['军事产出 +20%', '军事建筑产出 +15%', '武器需求 +18%', '军人好感 +15', '骑士好感 +12'],
-    drawbacks: ['采集产出 -8%', '每日 -4 银币军饷', '农民好感 -10'],
+    drawbacks: ['采集产出 -8%', '银币产出 -4%（军饷）', '农民好感 -10'],
     modifiers: {
       categories: { military: 0.20, gather: -0.08 },
       buildings: { barracks: 0.15, training_ground: 0.15 },
@@ -189,7 +189,7 @@ export const DECREES = [
     unlockEpoch: 2,
     cost: {},
     effects: ['居民需求 -18%', '公共服务 +10%', '食物需求 +15%', '文化需求 +20%', '平民好感 +15'],
-    drawbacks: ['每日 -6 食物', '每日 -4 银币'],
+    drawbacks: ['食物产出 -6%', '银币产出 -4%'],
     modifiers: {
       needsReduction: 0.18,
       categories: { civic: 0.10 },
@@ -264,7 +264,7 @@ export const DECREES = [
     unlockEpoch: 2,
     cost: {},
     effects: ['军事产出 +18%', '兵营产出 +20%', '军人消费 +12%', '工具需求 +15%', '军人好感 +12'],
-    drawbacks: ['每日 -5 银币训练费', '每日 -3 食物'],
+    drawbacks: ['银币产出 -5%（训练费）', '食物产出 -3%'],
     modifiers: {
       categories: { military: 0.18 },
       buildings: { barracks: 0.20, training_ground: 0.15 },
@@ -283,7 +283,7 @@ export const DECREES = [
     unlockEpoch: 2,
     cost: {},
     effects: ['手工业产出 +15%', '工业产出 +8%', '工匠消费 +10%', '布料供应 +12%', '工匠好感 +15'],
-    drawbacks: ['每日 -4 银币行会补贴'],
+drawbacks: ['银币产出 -4%（行会补贴）'],
     modifiers: {
       buildings: {
         loom_house: 0.15,
@@ -307,7 +307,7 @@ export const DECREES = [
     unlockEpoch: 2,
     cost: {},
     effects: ['采集产出 +10%', '工业产出 +8%', '军事产出 +5%', '商人消费 +15%', '石材需求 +10%', '商人好感 +10'],
-    drawbacks: ['每日 -6 银币维护'],
+    drawbacks: ['银币产出 -6%（维护）'],
     modifiers: {
       categories: { gather: 0.10, industry: 0.08, military: 0.05 },
       passivePercent: { silver: -0.06 },  // Road maintenance
@@ -331,7 +331,7 @@ export const DECREES = [
     unlockEpoch: 3,
     cost: {},
     effects: ['军事产出 +22%', '军事建筑 +15%', '骑士消费 +20%', '食物需求 +10%', '骑士好感 +15', '地主好感 +10'],
-    drawbacks: ['采集产出 -10%', '每日 -3 食物', '农民好感 -12'],
+    drawbacks: ['采集产出 -10%', '食物产出 -3%', '农民好感 -12'],
     modifiers: {
       categories: { military: 0.22, gather: -0.10 },
       buildings: { barracks: 0.15, fortress: 0.15 },
@@ -432,7 +432,7 @@ export const DECREES = [
     unlockEpoch: 3,
     cost: {},
     effects: ['工业产出 +15%', '手工业建筑 +12%', '工匠消费 +15%', '家具供应 +12%', '工匠好感 +18'],
-    drawbacks: ['居民需求 +6%', '每日 -3 银币', '商人好感 -10', '消费者好感 -5'],
+    drawbacks: ['居民需求 +6%', '银币产出 -3%', '商人好感 -10', '消费者好感 -5'],
     modifiers: {
       categories: { industry: 0.15 },
       buildings: {
@@ -457,7 +457,7 @@ export const DECREES = [
     unlockEpoch: 3,
     cost: {},
     effects: ['军事产出 +15%', '文化产出 +10%', '骑士消费 +18%', '地主消费 +12%', '酒需求 +20%', '骑士好感 +15', '地主好感 +8'],
-    drawbacks: ['每日 -5 银币比武开销', '每日 -2 食物宴席'],
+    drawbacks: ['银币产出 -5%（比武开销）', '食物产出 -2%（宴席）'],
     modifiers: {
       categories: { military: 0.15 },
       passivePercent: { silver: -0.05, food: -0.02 },  // Tournament expenses
@@ -501,7 +501,7 @@ export const DECREES = [
     category: 'economy',
     unlockEpoch: 4,
     cost: {},
-    effects: ['船坞/港口产出 +25%', '每日 +8 银币航运利润', '水手消费 +15%', '香料供应 +10%', '水手好感 +15'],
+    effects: ['船坞/港口产出 +25%', '银币产出 +8%（航运利润）', '水手消费 +15%', '香料供应 +10%', '水手好感 +15'],
     drawbacks: ['采集产出 -6%', '居民需求 +5%'],
     modifiers: {
       buildings: {
@@ -524,7 +524,7 @@ export const DECREES = [
     category: 'economy',
     unlockEpoch: 4,
     cost: {},
-    effects: ['采集产出 +22%', '每日 +6 银币贡赋', '佃农消费 -20%', '粮食供应 +15%', '地主好感 +15'],
+    effects: ['采集产出 +22%', '银币产出 +6%（贡赋）', '佃农消费 -20%', '粮食供应 +15%', '地主好感 +15'],
     drawbacks: ['公共服务 -10%', '人口上限 -8%', '佃农好感 -25', '农民好感 -15'],
     modifiers: {
       categories: { gather: 0.22, civic: -0.10 },
@@ -543,8 +543,8 @@ export const DECREES = [
     category: 'economy',
     unlockEpoch: 4,
     cost: {},
-    effects: ['市场产出 +20%', '每日 +10 银币分红', '资本家消费 +25%', '商人消费 +18%', '香料需求 +20%', '资本家好感 +20', '商人好感 +15'],
-    drawbacks: ['每日 -4 食物（公司运营）'],
+    effects: ['市场产出 +20%', '银币产出 +10%（分红）', '资本家消费 +25%', '商人消费 +18%', '香料需求 +20%', '资本家好感 +20', '商人好感 +15'],
+    drawbacks: ['食物产出 -4%（公司运营）'],
     modifiers: {
       buildings: {
         market: 0.20,
@@ -583,7 +583,7 @@ export const DECREES = [
     category: 'economy',
     unlockEpoch: 4,
     cost: {},
-    effects: ['每日 +12 银币（贸易顺差）', '商人消费 -12%', '香料需求 -20%', '布料供应 +8%', '官员好感 +8'],
+    effects: ['银币产出 +12%（贸易顺差）', '商人消费 -12%', '香料需求 -20%', '布料供应 +8%', '官员好感 +8'],
     drawbacks: ['进口商品 -15%', '工业产出 -5%', '商人好感 -15'],
     modifiers: {
       passivePercent: { silver: 0.12 },  // Trade surplus
@@ -603,7 +603,7 @@ export const DECREES = [
     category: 'culture',
     unlockEpoch: 4,
     cost: {},
-    effects: ['印刷产出 +25%', '每日 +4 银币特许费', '学者消费 -10%', '莎草纸供应 +15%'],
+    effects: ['印刷产出 +25%', '银币产出 +4%（特许费）', '学者消费 -10%', '莎草纸供应 +15%'],
     drawbacks: ['科研产出 -8%', '学者好感 -12'],
     modifiers: {
       buildings: {
@@ -625,7 +625,7 @@ export const DECREES = [
     category: 'economy',
     unlockEpoch: 4,
     cost: {},
-    effects: ['农场/庄园产出 +20%', '每日 +0.5 香料/咖啡', '地主消费 +15%', '咖啡供应 +20%', '香料供应 +18%', '地主好感 +18', '资本家好感 +12'],
+    effects: ['农场/庄园产出 +20%', '香料/咖啡 +0.5', '地主消费 +15%', '咖啡供应 +20%', '香料供应 +18%', '地主好感 +18', '资本家好感 +12'],
     drawbacks: ['居民需求 +10%', '公共服务 -6%', '佃农好感 -15', '农民好感 -10'],
     modifiers: {
       buildings: {
@@ -655,7 +655,7 @@ export const DECREES = [
     unlockEpoch: 5,
     cost: {},
     effects: ['公共服务 +18%', '科研产出 +12%', '工业产出 +8%', '官员消费 +15%', '工程师消费 +12%', '官员好感 +12', '工程师好感 +10'],
-    drawbacks: ['每日 -8 银币改革开支'],
+    drawbacks: ['银币产出 -8%（改革开支）'],
     modifiers: {
       categories: { civic: 0.18, industry: 0.08 },
       buildings: { library: 0.12, university: 0.12 },
@@ -692,7 +692,7 @@ export const DECREES = [
     unlockEpoch: 5,
     cost: {},
     effects: ['大学产出 +30%', '科研产出 +20%', '学者消费 +25%', '莎草纸需求 +20%', '学者好感 +20', '工程师好感 +12'],
-    drawbacks: ['每日 -8 银币学术经费'],
+    drawbacks: ['银币产出 -8%（学术经费）'],
     modifiers: {
       buildings: {
         university: 0.30,
@@ -737,7 +737,7 @@ export const DECREES = [
     unlockEpoch: 5,
     cost: {},
     effects: ['工业产出 +15%', '工厂产出 +18%', '工程师消费 +20%', '钢铁供应 +10%', '工程师好感 +18'],
-    drawbacks: ['每日 -5 银币专利管理', '工匠好感 -8'],
+    drawbacks: ['银币产出 -5%（专利管理）', '工匠好感 -8'],
     modifiers: {
       categories: { industry: 0.15 },
       buildings: {
@@ -783,7 +783,7 @@ export const DECREES = [
     unlockEpoch: 5,
     cost: {},
     effects: ['军事产出 +25%', '要塞产出 +20%', '军人消费 +20%', '工具需求 +15%', '食物需求 +12%', '军人好感 +18'],
-    drawbacks: ['每日 -10 银币军饿', '每日 -5 食物军粮', '农民好感 -8'],
+    drawbacks: ['银币产出 -10%（军饷）', '食物产出 -5%（军粮）', '农民好感 -8'],
     modifiers: {
       categories: { military: 0.25 },
       buildings: { fortress: 0.20, barracks: 0.15 },
@@ -826,7 +826,7 @@ export const DECREES = [
     unlockEpoch: 6,
     cost: {},
     effects: ['居民需求 -12%', '人口上限 +10%', '工人消费 +10%', '工具需求 -8%', '工人好感 +20'],
-    drawbacks: ['工业产出 -8%', '每日 -4 银币监察费', '资本家好感 -12'],
+    drawbacks: ['工业产出 -8%', '银币产出 -4%（监察费）', '资本家好感 -12'],
     modifiers: {
       needsReduction: 0.12,
       maxPop: 0.10,
@@ -884,7 +884,7 @@ export const DECREES = [
     unlockEpoch: 6,
     cost: {},
     effects: ['居民需求 -15%', '公共服务 +10%', '工人消费 +18%', '资本家消费 -15%', '工人好感 +25'],
-    drawbacks: ['工业产出 -10%', '每日 -5 银币', '资本家好感 -20'],
+drawbacks: ['工业产出 -10%', '银币产出 -5%', '资本家好感 -20'],
     modifiers: {
       needsReduction: 0.15,
       categories: { civic: 0.10, industry: -0.10 },
@@ -902,7 +902,7 @@ export const DECREES = [
     unlockEpoch: 6,
     cost: {},
     effects: ['采集产出 +15%', '工业产出 +15%', '军事产出 +10%', '工程师消费 +20%', '钢铁需求 +25%', '工人消费 +15%', '工程师好感 +18', '工人好感 +12'],
-    drawbacks: ['每日 -12 银币建设维护'],
+    drawbacks: ['银币产出 -12%（建设维护）'],
     modifiers: {
       categories: { gather: 0.15, industry: 0.15, military: 0.10 },
       passivePercent: { silver: -0.12 },  // Railway maintenance
@@ -920,7 +920,7 @@ export const DECREES = [
     unlockEpoch: 6,
     cost: {},
     effects: ['军事产出 +30%', '军事建筑 +25%', '军人消费 +25%', '食物需求 +18%', '工具需求 +20%', '军人好感 +15'],
-    drawbacks: ['采集产出 -15%', '工业产出 -8%', '每日 -6 食物', '农民好感 -15', '工人好感 -10'],
+    drawbacks: ['采集产出 -15%', '工业产出 -8%', '食物产出 -6%', '农民好感 -15', '工人好感 -10'],
     modifiers: {
       categories: { military: 0.30, gather: -0.15, industry: -0.08 },
       buildings: { barracks: 0.25, training_ground: 0.25, fortress: 0.20 },
@@ -939,7 +939,7 @@ export const DECREES = [
     unlockEpoch: 6,
     cost: {},
     effects: ['科研产出 +20%', '公共服务 +15%', '人口上限 +10%', '学者消费 +15%', '莎草纸需求 +15%', '学者好感 +15', '工人好感 +8'],
-    drawbacks: ['每日 -10 银币教育经费'],
+    drawbacks: ['银币产出 -10%（教育经费）'],
     modifiers: {
       buildings: { library: 0.20, university: 0.15 },
       categories: { civic: 0.15 },
@@ -959,7 +959,7 @@ export const DECREES = [
     category: 'economy',
     unlockEpoch: 6,
     cost: {},
-    effects: ['市场/港口产出 +20%', '每日 +15 银币贸易利润', '商人消费 +15%', '香料需求 +12%', '咖啡需求 +10%', '商人好感 +15'],
+    effects: ['市场/港口产出 +20%', '银币产出 +15%（贸易利润）', '商人消费 +15%', '香料需求 +12%', '咖啡需求 +10%', '商人好感 +15'],
     drawbacks: ['工业产出 -5%（货币紧缩）', '工人好感 -5'],
     modifiers: {
       buildings: {
@@ -1006,7 +1006,7 @@ export const DECREES = [
     unlockEpoch: 2,
     cost: {},
     effects: ['军事产出 +35%', '工业产出 +12%', '军人消费 +30%', '工具需求 +25%', '工具供应 +15%', '军人好感 +20'],
-    drawbacks: ['公共服务 -15%', '居民需求 +12%', '每日 -8 食物', '农民好感 -15', '商人好感 -10'],
+    drawbacks: ['公共服务 -15%', '居民需求 +12%', '食物产出 -8%', '农民好感 -15', '商人好感 -10'],
     modifiers: {
       categories: { military: 0.35, industry: 0.12, civic: -0.15 },
       needsReduction: -0.12,
@@ -1025,8 +1025,8 @@ export const DECREES = [
     category: 'social',
     unlockEpoch: 1,
     cost: {},
-    effects: ['居民需求 -10%', '每日 +3 食物储备效率', '粮食需求 -8%', '粮食供应 +8%', '农民好感 +10'],
-    drawbacks: ['每日 -5 银币管理费'],
+    effects: ['居民需求 -10%', '食物产出 +3%（储备效率）', '粮食需求 -8%', '粮食供应 +8%', '农民好感 +10'],
+    drawbacks: ['银币产出 -5%（管理费）'],
     modifiers: {
       needsReduction: 0.10,
       passivePercent: { food: 0.03, silver: -0.05 },  // Granary storage efficiency
@@ -1043,7 +1043,7 @@ export const DECREES = [
     category: 'social',
     unlockEpoch: 1,
     cost: {},
-    effects: ['居民需求 -15%', '每日 +4 银币罚款', '奢侈品需求 -20%', '地主消费 -18%', '布料需求 -12%'],
+    effects: ['居民需求 -15%', '银币产出 +4%（罚款）', '奢侈品需求 -20%', '地主消费 -18%', '布料需求 -12%'],
     drawbacks: ['工业产出 -10%', '文化产出 -8%', '商人好感 -15', '工匠好感 -10'],
     modifiers: {
       needsReduction: 0.15,
@@ -1064,7 +1064,7 @@ export const DECREES = [
     unlockEpoch: 2,
     cost: {},
     effects: ['军事产出 +20%', '军人消费 +15%', '工具需求 +12%', '军人好感 +12'],
-    drawbacks: ['每日 -12 银币雇佣费'],
+    drawbacks: ['银币产出 -12%（雇佣费）'],
     modifiers: {
       categories: { military: 0.20 },
       passivePercent: { silver: -0.12 },  // Mercenary pay
@@ -1081,7 +1081,7 @@ export const DECREES = [
     category: 'economy',
     unlockEpoch: 4,
     cost: {},
-    effects: ['每日 +0.6 香料/咖啡', '每日 +10 银币', '商人消费 +20%', '香料供应 +25%', '咖啡供应 +25%', '商人好感 +15', '资本家好感 +12'],
+    effects: ['香料/咖啡 +0.6', '银币产出 +10%', '商人消费 +20%', '香料供应 +25%', '咖啡供应 +25%', '商人好感 +15', '资本家好感 +12'],
     drawbacks: ['公共服务 -12%', '居民需求 +8%'],
     modifiers: {
       passivePercent: { silver: 0.10 },  // Colonial revenue
