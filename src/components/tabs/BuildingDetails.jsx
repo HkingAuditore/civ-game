@@ -829,8 +829,8 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                         resources={resources}
                         market={market}
                         taxPolicies={taxPolicies}
-                        onUpgrade={(instanceIndex) => onUpgrade?.(building.id, instanceIndex)}
-                        onDowngrade={(instanceIndex) => onDowngrade?.(building.id, instanceIndex)}
+                        onUpgrade={(fromLevel) => onUpgrade?.(building.id, fromLevel)}
+                        onDowngrade={(fromLevel) => onDowngrade?.(building.id, fromLevel)}
                         onBatchUpgrade={(fromLevel, upgradeCount) => onBatchUpgrade?.(building.id, fromLevel, upgradeCount)}
                         onBatchDowngrade={(fromLevel, downgradeCount) => onBatchDowngrade?.(building.id, fromLevel, downgradeCount)}
                     />
