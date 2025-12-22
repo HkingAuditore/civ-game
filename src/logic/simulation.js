@@ -3238,7 +3238,7 @@ export const simulateTick = ({
             // 4. Log the upgrade
             const ownerName = STRATA[ownerKey]?.name || ownerKey;
             const upgradeName = BUILDING_UPGRADES[buildingId]?.[fromLevel]?.name || `等级${toLevel}`;
-            logs.push(`🏗️ ${ownerName}自主升级了 ${b.name} → ${upgradeName}（花费 ${Math.ceil(totalSilverCost)} 银币）`);
+            logs.push(`🏗️ ${ownerName}自发投资了自己的产业 ${b.name} → ${upgradeName}（花费 ${Math.ceil(totalSilverCost)} 银币）`);
             
             // Only upgrade one building per type per tick to avoid rapid changes
             break;

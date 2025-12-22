@@ -517,7 +517,7 @@ export const CoalitionPanel = ({
                         </div>
                         <div className="flex items-center py-0.5">
                             <span className="text-[10px] text-gray-400 flex items-center gap-1 flex-shrink-0">
-                                <Icon name="Users" size={10} className="text-orange-400" />在野阶层组织度变化修正
+                                <Icon name="Users" size={10} className="text-orange-400" />在野阶层组织度增长倍率
                             </span>
                             <span className="flex-1 mx-2 border-b border-dotted border-gray-600/50"></span>
                             <span className={`text-xs font-bold ${orgModifier <= 1 ? 'text-green-400' : 'text-red-400'}`}>

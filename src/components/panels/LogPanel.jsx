@@ -35,12 +35,66 @@ const transformLog = (log) => {
         }
     }
 
-    // Transform WAR_DECLARATION_EVENT logs
+    // Transform AI_TRADE_EVENT logs
+    if (log.includes('AI_TRADE_EVENT:')) {
+        try {
+            const jsonStr = log.replace('AI_TRADE_EVENT:', '');
+            const tradeData = JSON.parse(jsonStr);
+            // Format: AI_TRADE_EVENT:{"nationId":"...","nationName":"...","resource":"...","amount":...,"price":...,"type":"buy"|"sell","totalValue":...}
+            const action = tradeData.type === 'buy' ? '购买' : '出售';
+            const preposition = tradeData.type === 'buy' ? '从市场' : '向市场';
+            // We need to access RESOURCES config to get resource name if possible, 
+            // but transformLog is outside component. We'll use the key as fallback or try to infer.
+            // Since we can't easily import RESOURCES here without check, we'll just use the key capitalized.
+            const resourceName = tradeData.resource.charAt(0).toUpperCase() + tradeData.resource.slice(1);
+
+            return `⚖️ 贸易报告：${tradeData.nationName} ${preposition}${action}了 ${tradeData.amount} ${resourceName}（总价 ${Math.round(tradeData.totalValue)} 银币）。`;
+        } catch (e) {
+            return `⚖️ 发生了一笔大宗国际贸易。`;
+        }
+    }
+
+    // Transform AI_DEMAND_SURRENDER logs
+    if (log.includes('AI_DEMAND_SURRENDER:')) {
+        try {
+            const jsonStr = log.replace('AI_DEMAND_SURRENDER:', '');
+            const data = JSON.parse(jsonStr);
+            // Format: {"nationId":"...","nationName":"...","warScore":...,"demandType":"...","demandAmount":...}
+            let demandText = '';
+            switch (data.demandType) {
+                case 'tribute': demandText = `支付 ${data.demandAmount} 银币赔款`; break;
+                case 'territory': demandText = `割让 ${data.demandAmount} 人口对应的领土`; break;
+                case 'open_market': demandText = `开放市场 ${data.demandAmount} 天`; break;
+                default: demandText = '无条件投降';
+            }
+            return `🏳️ 劝降通牒：${data.nationName} 要求你${demandText}以结束战争！`;
+        } catch (e) {
+            return `🏳️ 敌国发来了劝降通牒。`;
+        }
+    }
+
+    // Transform AI_BREAK_ALLIANCE logs
+    if (log.includes('AI_BREAK_ALLIANCE:')) {
+        try {
+            const jsonStr = log.replace('AI_BREAK_ALLIANCE:', '');
+            const data = JSON.parse(jsonStr);
+            // Format: {"nationId":"...","nationName":"...","reason":"..."}
+            const reasonText = data.reason === 'relation_low' ? '关系恶化' : '长期遭受冷落';
+            return `💔 同盟破裂：${data.nationName} 因为${reasonText}，单方面宣布解除与你的同盟关系。`;
+        } catch (e) {
+            return `💔 你的一个盟友解除了盟约。`;
+        }
+    }
+
+    // Transform WAR_DECLARATION_EVENT logs (Existing logic, kept for context but checking if update needed)
+    // The original code had this, we just keep it or ensure we didn't overwrite it if it was in the range.
+    // The previous tool call view showed it was there.
     if (log.includes('WAR_DECLARATION_EVENT:')) {
         try {
             const jsonStr = log.replace('WAR_DECLARATION_EVENT:', '');
             const warData = JSON.parse(jsonStr);
-            return `⚔️ ${warData.nationName} 对你宣战！`;
+            const reason = warData.reason === 'wealth' ? '觊觎你的财富' : '扩张领土';
+            return `⚔️ 宣战布告：${warData.nationName} ${reason ? `出于${reason}` : ''}对你宣战！`;
         } catch (e) {
             return `⚔️ 有国家对你宣战！`;
         }
