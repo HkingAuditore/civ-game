@@ -1081,6 +1081,51 @@ export const calculateArmyScalePenalty = (armyPopulation, totalPopulation) => {
     }
 };
 
+// 默认资源价格，当市场价格不可用时使用
+const DEFAULT_RESOURCE_PRICES = {
+    food: 1,
+    silver: 1,
+    wood: 0.8,
+    stone: 0.6,
+    copper: 2,
+    iron: 3,
+    tools: 5,
+    coal: 2
+};
+
+/**
+ * 计算单个单位的预估每日军费（包含资源成本和时代加成）
+ * @param {Object} unit - 单位对象
+ * @param {Object} priceMap - 资源价格映射 {resource: price}
+ * @param {number} epoch - 当前时代
+ * @param {number} wageMultiplier - 军饷倍率
+ * @returns {number} 预估每日军费（银币）
+ */
+export const calculateUnitExpense = (unit, priceMap = {}, epoch = 0, wageMultiplier = 1) => {
+    if (!unit || !unit.maintenanceCost) return 0;
+
+    let resourceCost = 0;
+
+    Object.entries(unit.maintenanceCost).forEach(([resource, amount]) => {
+        if (resource === 'silver') {
+            // 银币直接加
+            resourceCost += amount;
+        } else {
+            // 其他资源按市场价折算
+            const price = priceMap[resource] || DEFAULT_RESOURCE_PRICES[resource] || 1;
+            resourceCost += amount * price;
+        }
+    });
+
+    // 时代加成：每时代+10%维护成本
+    const epochMultiplier = 1 + epoch * 0.1;
+
+    // 应用军饷倍率（最低0.5）
+    const effectiveWageMultiplier = Math.max(0.5, wageMultiplier);
+
+    return resourceCost * epochMultiplier * effectiveWageMultiplier;
+};
+
 /**
  * 计算军队资源维护成本（按市场价折算为银币）
  * @param {Object} army - 军队对象 {unitId: count}
@@ -1094,18 +1139,6 @@ export const calculateArmyMaintenanceCost = (army, priceMap = {}, epoch = 0) => 
     let resourceCost = 0;
     const costBreakdown = {};
 
-    // 默认价格，当市场价格不可用时使用
-    const defaultPrices = {
-        food: 1,
-        silver: 1,
-        wood: 0.8,
-        stone: 0.6,
-        copper: 2,
-        iron: 3,
-        tools: 5,
-        coal: 2
-    };
-
     Object.entries(maintenance).forEach(([resource, amount]) => {
         if (resource === 'silver') {
             // 银币直接加
@@ -1113,7 +1146,7 @@ export const calculateArmyMaintenanceCost = (army, priceMap = {}, epoch = 0) => 
             costBreakdown[resource] = amount;
         } else {
             // 其他资源按市场价折算
-            const price = priceMap[resource] || defaultPrices[resource] || 1;
+            const price = priceMap[resource] || DEFAULT_RESOURCE_PRICES[resource] || 1;
             const cost = amount * price;
             resourceCost += cost;
             costBreakdown[resource] = cost;

@@ -139,7 +139,7 @@ export const StratumDetailSheet = ({
             expense: totalExpense * count,
             wealthValue,
             startingWealth,
-            essentialCost: 0,
+            essentialCost: essentialCost * count, // 传入总基础生存成本（非人均）
             shortagesCount: shortages.length,
             effectiveNeedsCount,
             unlockedLuxuryTiers,

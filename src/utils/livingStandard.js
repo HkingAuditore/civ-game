@@ -391,7 +391,10 @@ export function calculateLivingStandardData({
     const livingStandard = getLivingStandardByScore(smoothedScore);
 
     // 计算消费能力乘数（同时考虑收入和财富，使用阶层配置的上限）
-    const incomeRatio = essentialCostPerCapita > 0 ? incomePerCapita / essentialCostPerCapita : 1;
+    // 当没有基础成本数据时，根据实际收入判断：有收入给予较高值，无收入则为0
+    const incomeRatio = essentialCostPerCapita > 0
+        ? incomePerCapita / essentialCostPerCapita
+        : (incomePerCapita > 0 ? 10 : 0);
     const wealthMultiplier = calculateWealthMultiplier(incomeRatio, realWealthRatio, 1.0, maxConsumptionMultiplier);
 
     // 奢侈需求解锁比例

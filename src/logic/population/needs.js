@@ -286,10 +286,13 @@ export const calculateLivingStandards = ({
         const wealthElasticity = def.wealthElasticity || 1.0;
         const incomePerCapita = count > 0 ? incomeValue / count : 0;
         const essentialCostPerCapita = count > 0 ? essentialCost / count : 0;
-        const incomeRatio = essentialCostPerCapita > 0 ? incomePerCapita / essentialCostPerCapita : 1;
+        // 当没有基础成本数据时，根据实际收入判断：有收入给予较高值，无收入则为0
+        const incomeRatio = essentialCostPerCapita > 0
+            ? incomePerCapita / essentialCostPerCapita
+            : (incomePerCapita > 0 ? 10 : 0);
         const wealthPerCapita = count > 0 ? wealthValue / count : 0;
         const wealthRatio = startingWealth > 0 ? wealthPerCapita / startingWealth : 0;
-        
+
         // 解锁乘数：不受阶层上限限制，所有阶层都能解锁全部奢侈需求
         const unlockMultiplier = calculateUnlockMultiplier(incomeRatio, wealthRatio, wealthElasticity);
         // 消费倍率：受阶层上限限制（底层3, 中层6, 上层10）

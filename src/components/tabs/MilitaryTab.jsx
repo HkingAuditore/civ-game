@@ -4,7 +4,7 @@
 import React, { useState, useMemo, useRef, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '../common/UIComponents';
-import { UNIT_TYPES, UNIT_CATEGORIES, BUILDINGS, calculateArmyMaintenance, calculateArmyFoodNeed, calculateBattlePower, calculateArmyPopulation, calculateTotalArmyExpense, RESOURCES, MILITARY_ACTIONS, TECHS, EPOCHS } from '../../config';
+import { UNIT_TYPES, UNIT_CATEGORIES, BUILDINGS, calculateArmyMaintenance, calculateArmyFoodNeed, calculateBattlePower, calculateArmyPopulation, calculateTotalArmyExpense, calculateUnitExpense, RESOURCES, MILITARY_ACTIONS, TECHS, EPOCHS } from '../../config';
 import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
 import { filterUnlockedResources } from '../../utils/resources';
 
@@ -68,7 +68,7 @@ const WAR_SCORE_GUIDE = [
 /**
  * 军事单位悬浮提示框 (使用 Portal)
  */
-const UnitTooltip = ({ unit, resources, market, militaryWageRatio, anchorElement }) => {
+const UnitTooltip = ({ unit, resources, market, militaryWageRatio, epoch, anchorElement }) => {
     const tooltipRef = useRef(null);
     const [tooltipSize, setTooltipSize] = useState({ width: 288, height: 400 }); // Default w-72 = 288px
 
@@ -138,8 +138,8 @@ const UnitTooltip = ({ unit, resources, market, militaryWageRatio, anchorElement
                     </div>
                     <div className="flex items-center gap-1 mt-1">
                         <Icon name="Coins" size={12} className="text-yellow-400" />
-                        <span className="text-gray-300">军饷:</span>
-                        <span className="text-yellow-300">{((unit.maintenanceCost?.silver || 0) * militaryWageRatio).toFixed(2)} 银币/日</span>
+                        <span className="text-gray-300">预估军费:</span>
+                        <span className="text-yellow-300">{calculateUnitExpense(unit, market?.prices || {}, epoch, militaryWageRatio).toFixed(2)} 银币/日</span>
                     </div>
                 </div>
             </div>
@@ -689,9 +689,9 @@ export const MilitaryTab = ({
                                         {/* 维护费显示 */}
                                         <div className="bg-gray-900/40 rounded px-1.5 py-1">
                                             <div className="flex justify-between mb-0.5">
-                                                <span className="text-gray-400">军饷</span>
+                                                <span className="text-gray-400">预估军费</span>
                                                 <span className="text-yellow-300 text-[9px]">
-                                                    {((unit.maintenanceCost?.silver || 0) * militaryWageRatio).toFixed(1)}银/日
+                                                    {calculateUnitExpense(unit, market?.prices || {}, epoch, militaryWageRatio).toFixed(1)}银/日
                                                 </span>
                                             </div>
                                             {Object.entries(unit.maintenanceCost || {}).filter(([r, c]) => r !== 'food' && r !== 'silver' && c > 0).length > 0 && (
@@ -1068,6 +1068,7 @@ export const MilitaryTab = ({
                 resources={resources}
                 market={market}
                 militaryWageRatio={militaryWageRatio}
+                epoch={epoch}
             />
         </div>
     );

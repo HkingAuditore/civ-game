@@ -56,6 +56,7 @@ export {
     calculateArmyScalePenalty,
     calculateArmyMaintenanceCost,
     calculateTotalArmyExpense,
+    calculateUnitExpense,
     simulateBattle
 } from './militaryUnits';
 
