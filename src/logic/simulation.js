@@ -3207,8 +3207,8 @@ export const simulateTick = ({
     // Owner Auto-Upgrade: Wealthy owners will automatically upgrade their buildings
     // Uses BASE cost (no scaling with existing upgrades) as per user requirement
     const updatedBuildingUpgrades = { ...buildingUpgrades };
-    const OWNER_UPGRADE_WEALTH_THRESHOLD = 2.0; // Per-capita wealth must be >= 2x base upgrade cost
-    const OWNER_UPGRADE_CHANCE_PER_TICK = 0.005; // 0.5% chance per tick per eligible building type
+    const OWNER_UPGRADE_WEALTH_THRESHOLD = 1.5; // Per-capita wealth must be >= 1.5x base upgrade cost
+    const OWNER_UPGRADE_CHANCE_PER_TICK = 0.02; // 2% chance per tick per eligible building type
     
     BUILDINGS.forEach(b => {
         const buildingId = b.id;

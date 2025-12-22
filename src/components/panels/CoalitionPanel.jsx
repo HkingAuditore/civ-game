@@ -176,18 +176,18 @@ const getGovernmentType = (coalition, classInfluence, totalInfluence) => {
         const hasUpper = coalition.some(k => STRATA_GROUPS.upper.keys.includes(k));
         const hasMiddle = coalition.some(k => STRATA_GROUPS.middle.keys.includes(k));
         const hasLower = coalition.some(k => STRATA_GROUPS.lower.keys.includes(k));
-        
+
         if (hasUpper && hasMiddle && hasLower) {
             if (memberCount >= 8) {
                 return { name: '全民联合政府', description: '跨越阶级的广泛联盟', icon: 'Globe', color: 'text-green-400' };
             }
             return { name: '民族团结政府', description: '各阶层联合执政', icon: 'Users', color: 'text-teal-400' };
         }
-        
+
         if (proletariatShare >= 0.5) {
             return { name: '人民阵线', description: '以劳动阶层为主体的广泛联盟', icon: 'Flag', color: 'text-red-500' };
         }
-        
+
         return { name: '大联盟政府', description: '多阶层联合执政', icon: 'Users', color: 'text-blue-400' };
     }
 
@@ -552,6 +552,7 @@ export const CoalitionPanel = ({
                         <div className="text-[10px] text-amber-300/80">
                             <p className="font-semibold mb-1">联盟代价：</p>
                             <ul className="list-disc list-inside space-y-0.5 text-amber-300/70">
+                                <li>组织度增长速度：<span className="text-red-400">+50%</span>（联盟阶层期望更高）</li>
                                 <li>税收负担阈值：{(COALITION_SENSITIVITY.TAX_THRESHOLD_NORMAL * 100).toFixed(0)}% → <span className="text-red-400">{(COALITION_SENSITIVITY.TAX_THRESHOLD_COALITION * 100).toFixed(0)}%</span></li>
                                 <li>收入目标乘数：×{COALITION_SENSITIVITY.INCOME_MULTIPLIER_NORMAL.toFixed(2)} → <span className="text-red-400">×{COALITION_SENSITIVITY.INCOME_MULTIPLIER_COALITION.toFixed(2)}</span></li>
                                 <li>基础短缺压力：{COALITION_SENSITIVITY.BASIC_SHORTAGE_PRESSURE_NORMAL}/项 → <span className="text-red-400">{COALITION_SENSITIVITY.BASIC_SHORTAGE_PRESSURE_COALITION}/项</span></li>
