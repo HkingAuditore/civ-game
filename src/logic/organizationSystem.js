@@ -38,25 +38,28 @@ export const STAGE_THRESHOLDS = {
 };
 
 // 阶层影响力倍增器 - 权贵阶层组织能力更强
+// 与 strata.js 中的17个阶级保持一致
 export const STRATUM_ORGANIZATION_MULTIPLIER = {
-    landowner: 1.5,
-    capitalist: 2.0,
-    knight: 1.3,
-    official: 1.2,
-    merchant: 1.1,
-    engineer: 1.0,
-    navigator: 1.0,
-    cleric: 0.9,
-    scribe: 0.9,
-    artisan: 0.8,
-    worker: 1.0,
-    miner: 0.9,
-    lumberjack: 0.8,
-    soldier: 1.2,
-    peasant: 0.8,
-    serf: 0.6,
-    slave: 0.3,
-    unemployed: 0.2,
+    // 上层阶级
+    capitalist: 2.4,    // 资本家 (原2.0)
+    landowner: 1.8,     // 地主 (原1.5)
+    knight: 1.6,        // 骑士 (原1.3)
+    official: 1.5,      // 官员 (原1.2)
+    engineer: 1.4,      // 工程师 (原1.0)
+    // 中层阶级
+    merchant: 1.5,      // 商人 (原1.1)
+    soldier: 1.5,       // 军人 (原1.2)
+    navigator: 1.3,     // 水手 (原1.0)
+    cleric: 1.2,        // 神职人员 (原0.9)
+    scribe: 1.2,        // 学者 (原0.9)
+    worker: 1.3,        // 工人 (原1.0)
+    artisan: 1.2,       // 工匠 (原0.8)
+    miner: 1.2,         // 矿工 (原0.9)
+    // 底层阶级
+    peasant: 1.1,       // 自耕农 (原0.8)
+    lumberjack: 1.1,    // 樵夫 (原0.8)
+    serf: 0.9,          // 佃农 (原0.6)
+    unemployed: 0.4,    // 失业者 (原0.2)
 };
 
 // 阶层对立关系 - 用于"分化"行动
@@ -165,7 +168,7 @@ const DRIVER_WEIGHTS = {
 };
 
 const PASSIVE_DEMAND_DURATION = 60;
-const ORGANIZATION_GROWTH_MULTIPLIER = 0.65;
+const ORGANIZATION_GROWTH_MULTIPLIER = 1.0; // 0.65 -> 1.0 加快组织度增长
 
 const getStabilityGrowthModifier = (stability = 50) => {
     if (!Number.isFinite(stability)) return 1;

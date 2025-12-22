@@ -35,22 +35,23 @@ export const COALITION_APPROVAL_CAP_PENALTY = {
 };
 
 // 联盟阶层敏感度配置
+// 联盟阶层对不满因素更敏感，组织度增长更快
 export const COALITION_SENSITIVITY = {
-    // 税收负担阈值：普通50%，联盟35%
+    // 税收负担阈值：普通50%，联盟20%（更低容忍度）
     TAX_THRESHOLD_NORMAL: 0.50,
-    TAX_THRESHOLD_COALITION: 0.35,
+    TAX_THRESHOLD_COALITION: 0.20,  // 0.25 -> 0.20
 
-    // 收入目标乘数：普通1.08，联盟1.25
+    // 收入目标乘数：普通1.08，联盟1.60（更高预期）
     INCOME_MULTIPLIER_NORMAL: 1.08,
-    INCOME_MULTIPLIER_COALITION: 1.25,
+    INCOME_MULTIPLIER_COALITION: 1.60,  // 1.40 -> 1.60
 
-    // 基础短缺压力系数：普通0.6，联盟0.9
+    // 基础短缺压力系数：普通0.6，联盟1.2
     BASIC_SHORTAGE_PRESSURE_NORMAL: 0.6,
-    BASIC_SHORTAGE_PRESSURE_COALITION: 0.9,
+    BASIC_SHORTAGE_PRESSURE_COALITION: 1.2,  // 0.9 -> 1.2
 
-    // 奢侈短缺压力系数：普通0.2，联盟0.35
+    // 奢侈短缺压力系数：普通0.2，联盟0.5
     LUXURY_SHORTAGE_PRESSURE_NORMAL: 0.2,
-    LUXURY_SHORTAGE_PRESSURE_COALITION: 0.35,
+    LUXURY_SHORTAGE_PRESSURE_COALITION: 0.5,  // 0.35 -> 0.5
 };
 
 // ============ 核心函数 ============
@@ -274,14 +275,15 @@ export function getEligibleCoalitionStrata(popStructure = {}) {
  * 获取合法性对非联盟阶层组织度增长的修正系数
  * 高合法性 -> 非联盟阶层组织度增长缓慢
  * 低合法性/非法 -> 组织度增长更快
+ * 联盟成员有额外增长加成
  * @param {number} legitimacy - 合法性值 (0-100)
  * @param {boolean} isCoalitionMember - 是否为联盟成员
  * @returns {number} 组织度增长速度乘数
  */
 export function getLegitimacyOrganizationModifier(legitimacy, isCoalitionMember) {
-    // 联盟成员不受此修正影响（他们有自己的敏感度机制）
+    // 联盟成员有额外的组织度增长加成（他们的期望更高，更容易不满）
     if (isCoalitionMember) {
-        return 1.0;
+        return 1.5;  // 联盟成员：组织度增长速度 +50%
     }
 
     const level = getLegitimacyLevel(legitimacy);
