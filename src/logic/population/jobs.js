@@ -4,7 +4,14 @@
  */
 
 import { STRATA } from '../../config';
-import { ROLE_PRIORITY, JOB_MIGRATION_RATIO } from '../utils/constants';
+import {
+    ROLE_PRIORITY,
+    JOB_MIGRATION_RATIO,
+    STRATUM_TIERS,
+    TIER_PROMOTION_WEALTH_RATIO,
+    TIER_SEEK_WEALTH_THRESHOLD,
+    TIER_UPGRADE_ATTRACTIVENESS_BONUS
+} from '../utils/constants';
 
 /**
  * Initialize job availability tracking
@@ -38,13 +45,13 @@ export const initializeExpenseTracking = () => {
     const roleExpense = {};
     const roleHeadTaxPaid = {};
     const roleBusinessTaxPaid = {};
-    
+
     Object.keys(STRATA).forEach(key => {
         roleExpense[key] = 0;
         roleHeadTaxPaid[key] = 0;
         roleBusinessTaxPaid[key] = 0;
     });
-    
+
     return { roleExpense, roleHeadTaxPaid, roleBusinessTaxPaid };
 };
 
@@ -59,7 +66,7 @@ export const allocatePopulation = ({
     jobsAvailable,
     wealth
 }) => {
-    const hasPreviousPopStructure = previousPopStructure && 
+    const hasPreviousPopStructure = previousPopStructure &&
         Object.keys(previousPopStructure).length > 0;
     const popStructure = {};
 
@@ -161,7 +168,9 @@ export const handleLayoffs = ({
 };
 
 /**
- * Fill job vacancies from unemployed population
+ * Fill job vacancies with social mobility constraints
+ * - Tier 0/1 jobs: Can be filled directly by unemployed
+ * - Tier 2/3 jobs: Require candidates from lower tier with sufficient wealth
  * @param {Object} params - Hiring parameters
  * @returns {Object} Updated population structure and wealth
  */
@@ -181,6 +190,31 @@ export const fillVacancies = ({
         return wage - Math.max(0, taxCost);
     };
 
+    // Get the wealth requirement to enter a target role
+    const getWealthRequirement = (targetRole) => {
+        const targetTier = STRATUM_TIERS[targetRole] ?? 0;
+        const wealthRatio = TIER_PROMOTION_WEALTH_RATIO[targetTier] ?? 0;
+        const targetStartingWealth = STRATA[targetRole]?.startingWealth ?? 100;
+        return targetStartingWealth * wealthRatio;
+    };
+
+    // Check if a source role can provide candidates for target role
+    const canProvideCandidate = (sourceRole, targetRole) => {
+        const sourceTier = STRATUM_TIERS[sourceRole] ?? 0;
+        const targetTier = STRATUM_TIERS[targetRole] ?? 0;
+
+        // For Tier 0/1 jobs, anyone can fill
+        if (targetTier <= 1) return true;
+
+        // For Tier 2+ jobs:
+        // - Can be filled by same tier (re-employment after layoff)
+        // - Can be filled by tier-1 with sufficient wealth
+        if (sourceTier === targetTier) return true;
+        if (sourceTier === targetTier - 1) return true;
+
+        return false;
+    };
+
     // Rank vacancies by net income
     const vacancyRanking = ROLE_PRIORITY.map((role, index) => {
         const slots = Math.max(0, jobsAvailable[role] || 0);
@@ -192,6 +226,8 @@ export const fillVacancies = ({
             vacancy,
             netIncome: estimateRoleNetIncome(role),
             priorityIndex: index,
+            tier: STRATUM_TIERS[role] ?? 0,
+            wealthRequired: getWealthRequirement(role)
         };
     })
         .filter(Boolean)
@@ -200,25 +236,91 @@ export const fillVacancies = ({
             return a.priorityIndex - b.priorityIndex;
         });
 
-    // Fill vacancies
+    // Fill vacancies with tier-based constraints
     vacancyRanking.forEach(entry => {
-        const availableUnemployed = popStructure.unemployed || 0;
-        if (availableUnemployed <= 0) return;
+        let remainingVacancy = entry.vacancy;
 
-        const hiring = Math.min(entry.vacancy, availableUnemployed);
-        if (hiring <= 0) return;
+        // For Tier 0/1 jobs: direct hire from unemployed
+        if (entry.tier <= 1) {
+            const availableUnemployed = popStructure.unemployed || 0;
+            if (availableUnemployed <= 0 || remainingVacancy <= 0) return;
 
-        // Transfer population from unemployed with wealth
-        const unemployedWealth = wealth.unemployed || 0;
-        const perCapWealth = availableUnemployed > 0 ? unemployedWealth / availableUnemployed : 0;
+            const hiring = Math.min(remainingVacancy, availableUnemployed);
+            if (hiring <= 0) return;
 
-        popStructure[entry.role] = (popStructure[entry.role] || 0) + hiring;
-        popStructure.unemployed = Math.max(0, availableUnemployed - hiring);
+            const unemployedWealth = wealth.unemployed || 0;
+            const perCapWealth = availableUnemployed > 0 ? unemployedWealth / availableUnemployed : 0;
 
-        if (perCapWealth > 0) {
-            const transfer = perCapWealth * hiring;
-            wealth.unemployed = Math.max(0, unemployedWealth - transfer);
-            wealth[entry.role] = (wealth[entry.role] || 0) + transfer;
+            popStructure[entry.role] = (popStructure[entry.role] || 0) + hiring;
+            popStructure.unemployed = Math.max(0, availableUnemployed - hiring);
+
+            if (perCapWealth > 0) {
+                const transfer = perCapWealth * hiring;
+                wealth.unemployed = Math.max(0, unemployedWealth - transfer);
+                wealth[entry.role] = (wealth[entry.role] || 0) + transfer;
+            }
+        } else {
+            // For Tier 2/3 jobs: hire from eligible lower tiers with wealth requirement
+            // First, try to hire from same-tier unemployed (re-employment)
+            // Then, try to hire from tier-1 roles with sufficient wealth
+
+            const candidateRoles = Object.keys(STRATUM_TIERS)
+                .filter(role => {
+                    if (!canProvideCandidate(role, entry.role)) return false;
+                    if (role === entry.role) return false; // Don't hire from same role
+                    const pop = popStructure[role] || 0;
+                    return pop > 0;
+                })
+                .sort((a, b) => {
+                    // Prioritize unemployed (same tier re-employment), then lower tier
+                    const tierA = STRATUM_TIERS[a] ?? 0;
+                    const tierB = STRATUM_TIERS[b] ?? 0;
+                    if (a === 'unemployed') return -1;
+                    if (b === 'unemployed') return 1;
+                    return tierB - tierA; // Higher tier first (closer to target)
+                });
+
+            for (const sourceRole of candidateRoles) {
+                if (remainingVacancy <= 0) break;
+
+                const sourcePop = popStructure[sourceRole] || 0;
+                if (sourcePop <= 0) continue;
+
+                const sourceWealth = wealth[sourceRole] || 0;
+                const perCapWealth = sourcePop > 0 ? sourceWealth / sourcePop : 0;
+
+                // Check wealth requirement (except for same-tier re-employment)
+                const sourceTier = STRATUM_TIERS[sourceRole] ?? 0;
+                if (sourceTier < entry.tier && perCapWealth < entry.wealthRequired) {
+                    continue; // Not wealthy enough
+                }
+
+                // Calculate how many can be promoted
+                let eligibleCount;
+                if (sourceTier === entry.tier || entry.wealthRequired <= 0) {
+                    // Same tier or no requirement: all eligible
+                    eligibleCount = sourcePop;
+                } else {
+                    // Lower tier: need to meet wealth requirement
+                    // All are equally wealthy (average), so either all qualify or none
+                    eligibleCount = perCapWealth >= entry.wealthRequired ? sourcePop : 0;
+                }
+
+                const hiring = Math.min(remainingVacancy, eligibleCount);
+                if (hiring <= 0) continue;
+
+                // Transfer population and wealth
+                popStructure[entry.role] = (popStructure[entry.role] || 0) + hiring;
+                popStructure[sourceRole] = Math.max(0, sourcePop - hiring);
+
+                if (perCapWealth > 0) {
+                    const transfer = perCapWealth * hiring;
+                    wealth[sourceRole] = Math.max(0, sourceWealth - transfer);
+                    wealth[entry.role] = (wealth[entry.role] || 0) + transfer;
+                }
+
+                remainingVacancy -= hiring;
+            }
         }
     });
 
@@ -226,7 +328,9 @@ export const fillVacancies = ({
 };
 
 /**
- * Handle job migration between roles
+ * Handle job migration between roles with social mobility preferences
+ * - Wealthy populations are more inclined to seek higher-tier positions
+ * - Higher tier jobs get attractiveness bonus when wealth threshold is met
  * @param {Object} params - Migration parameters
  * @returns {Object} Updated population structure and wealth
  */
@@ -256,32 +360,63 @@ export const handleJobMigration = ({
             if (r.pop <= 0 || r.role === 'soldier') return false;
             const percentageThreshold = r.perCap * 0.05;
             const adjustedDeltaThreshold = -Math.max(0.5, Math.min(50, percentageThreshold));
-            return r.potentialIncome < averagePotentialIncome * 0.7 || 
-                   r.perCapDelta < adjustedDeltaThreshold;
+            return r.potentialIncome < averagePotentialIncome * 0.7 ||
+                r.perCapDelta < adjustedDeltaThreshold;
         })
         .reduce((lowest, current) => {
             if (!lowest) return current;
             if (current.potentialIncome < lowest.potentialIncome) return current;
-            if (current.potentialIncome === lowest.potentialIncome && 
+            if (current.potentialIncome === lowest.potentialIncome &&
                 current.perCapDelta < lowest.perCapDelta) return current;
             return lowest;
         }, null);
 
     if (!sourceCandidate) return { popStructure, wealth };
 
-    // Find target candidate (better opportunity)
+    // Calculate source role's wealth status for tier-seeking behavior
+    const sourceTier = STRATUM_TIERS[sourceCandidate.role] ?? 0;
+    const sourceStartingWealth = STRATA[sourceCandidate.role]?.startingWealth ?? 100;
+    const sourceWealth = wealth[sourceCandidate.role] || 0;
+    const sourcePerCapWealth = sourceCandidate.pop > 0 ? sourceWealth / sourceCandidate.pop : 0;
+    const isWealthyEnoughToSeekTier = sourcePerCapWealth >= sourceStartingWealth * TIER_SEEK_WEALTH_THRESHOLD;
+
+    // Calculate effective attractiveness for a target role
+    // Includes tier upgrade bonus when wealth threshold is met
+    const calculateEffectiveAttractiveness = (targetRole, basePotentialIncome) => {
+        const targetTier = STRATUM_TIERS[targetRole] ?? 0;
+        const tierDiff = targetTier - sourceTier;
+
+        // Base attractiveness is the potential income
+        let attractiveness = basePotentialIncome;
+
+        // Add tier upgrade bonus if wealthy enough and target is higher tier
+        if (isWealthyEnoughToSeekTier && tierDiff > 0) {
+            // Each tier increase adds TIER_UPGRADE_ATTRACTIVENESS_BONUS (20%) to attractiveness
+            const tierBonus = attractiveness * TIER_UPGRADE_ATTRACTIVENESS_BONUS * tierDiff;
+            attractiveness += tierBonus;
+        }
+
+        return attractiveness;
+    };
+
+    // Find target candidate (better opportunity) with tier preference
     const targetCandidate = activeRoleMetrics
         .filter(r => {
             if (r.role === sourceCandidate.role || r.vacancy <= 0) return false;
             if (r.role === 'soldier') {
                 return r.potentialIncome > sourceCandidate.potentialIncome * 1.3;
             }
+            // Calculate effective attractiveness including tier bonus
+            const effectiveAttractiveness = calculateEffectiveAttractiveness(r.role, r.potentialIncome);
             return hasBuildingVacancyForRole(r.role) &&
-                r.potentialIncome > sourceCandidate.potentialIncome * 1.3;
+                effectiveAttractiveness > sourceCandidate.potentialIncome * 1.3;
         })
         .reduce((best, current) => {
             if (!best) return current;
-            if (current.potentialIncome > best.potentialIncome) return current;
+            // Compare using effective attractiveness
+            const currentAttractiveness = calculateEffectiveAttractiveness(current.role, current.potentialIncome);
+            const bestAttractiveness = calculateEffectiveAttractiveness(best.role, best.potentialIncome);
+            if (currentAttractiveness > bestAttractiveness) return current;
             return best;
         }, null);
 
@@ -309,9 +444,7 @@ export const handleJobMigration = ({
 
         if (migrants > 0) {
             // Transfer wealth
-            const sourceWealth = wealth[sourceCandidate.role] || 0;
-            const perCapWealth = sourceCandidate.pop > 0 ? sourceWealth / sourceCandidate.pop : 0;
-            const migratingWealth = perCapWealth * migrants;
+            const migratingWealth = sourcePerCapWealth * migrants;
 
             if (migratingWealth > 0) {
                 wealth[sourceCandidate.role] = Math.max(0, sourceWealth - migratingWealth);
