@@ -31,7 +31,7 @@ const TAB_CONFIG = {
         border: 'border-cyan-500/50'
     },
     politics: {
-        label: '政令',
+        label: '行政',
         icon: 'Gavel',
         color: 'from-purple-500 to-violet-600',
         glow: 'shadow-purple-500/40',
@@ -140,9 +140,9 @@ export const BottomNav = ({ activeTab, onTabChange, epoch = 0 }) => {
                     })}
                 </div>
             </div>
-            
+
             {/* 底部安全区域填充 - 适配全面屏手势区域 */}
-            <div 
+            <div
                 className="relative w-full"
                 style={{
                     height: 'env(safe-area-inset-bottom, 0px)',

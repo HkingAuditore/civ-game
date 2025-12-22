@@ -6,6 +6,7 @@ import { STRATA } from '../config/strata';
 import { RESOURCES } from '../config';
 import { REBELLION_PHASE } from '../config/events/rebellionEvents';
 import { PASSIVE_DEMAND_TYPES } from './demands';
+import { getCoalitionSensitivity, isCoalitionMember, getLegitimacyOrganizationModifier, calculateCoalitionInfluenceShare, calculateLegitimacy } from './rulingCoalition';
 
 // =========== 常量定义 ===========
 
@@ -218,6 +219,7 @@ const buildDriverContext = (stratumKey, {
     classLivingStandard = {},
     livingStandardStreaks = {},
     currentDay = 0,
+    rulingCoalition = [], // 新增：执政联盟成员
 } = {}) => {
     const stratum = STRATA[stratumKey] || {};
     const basicNeeds = stratum.needs || {};
@@ -279,17 +281,26 @@ const buildDriverContext = (stratumKey, {
     const taxBurdenRatio = incomePerCapita > 0
         ? totalTaxPerCapita / incomePerCapita
         : (totalTaxPerCapita > 0 ? 1 : 0);
-    const taxThreshold = 0.50;
+
+    // 执政联盟敏感度配置：联盟阶层使用更低的阈值
+    const isCoalition = isCoalitionMember(stratumKey, rulingCoalition);
+    const sensitivity = getCoalitionSensitivity(isCoalition);
+
+    const taxThreshold = sensitivity.taxThreshold; // 联盟0.35, 普通0.50
     const taxPressureRaw = Math.max(0, (taxBurdenRatio - taxThreshold) / 0.4);
     const taxPressure = Math.min(1.8, taxPressureRaw);
 
     const basicOutOfStock = countShortageByReason(basicShortages, 'outOfStock');
     const basicUnaffordable = countShortageByReason(basicShortages, 'unaffordable');
-    const basicShortagePressure = Math.min(2, basicOutOfStock * 0.6 + basicUnaffordable * 0.45);
+    // 联盟阶层短缺压力更高
+    const basicPressurePerItem = sensitivity.basicShortagePressure; // 联盟0.9, 普通0.6
+    const basicShortagePressure = Math.min(2, basicOutOfStock * basicPressurePerItem + basicUnaffordable * (basicPressurePerItem * 0.75));
 
     const luxuryOutOfStock = countShortageByReason(luxuryShortages, 'outOfStock');
     const luxuryUnaffordable = countShortageByReason(luxuryShortages, 'unaffordable');
-    const luxuryShortagePressure = Math.min(1, luxuryOutOfStock * 0.2 + luxuryUnaffordable * 0.15);
+    // 联盟阶层奢侈短缺压力更高
+    const luxuryPressurePerItem = sensitivity.luxuryShortagePressure; // 联盟0.35, 普通0.2
+    const luxuryShortagePressure = Math.min(1, luxuryOutOfStock * luxuryPressurePerItem + luxuryUnaffordable * (luxuryPressurePerItem * 0.75));
 
     let basicNeedsCost = 0;
     basicNeedsKeys.forEach(resource => {
@@ -300,7 +311,9 @@ const buildDriverContext = (stratumKey, {
     const livingStandard = getSatisfactionRate(classLivingStandard[stratumKey]);
     const livingStandardData = classLivingStandard[stratumKey];
     const observedCost = expensePerCapita > 0 ? expensePerCapita : basicNeedsCost;
-    let targetIncome = observedCost * (livingStandard < 0.6 ? 1.25 : 1.08);
+    // 联盟阶层收入目标更高
+    const incomeMultiplier = sensitivity.incomeMultiplier; // 联盟1.25, 普通1.08
+    let targetIncome = observedCost * (livingStandard < 0.6 ? 1.25 : incomeMultiplier);
     if (targetIncome <= 0) {
         targetIncome = 0.01;
     }
@@ -496,6 +509,9 @@ export function updateStratumOrganization(
         hasActivePromise = false,
         driverContext = {},
         hasBasicShortage = true,
+        rulingCoalition = [], // 执政联盟成员
+        classInfluence = {}, // 各阶层影响力
+        totalInfluence = 0, // 总影响力
     } = options || {};
     // 初始化默认状态
     const state = {
@@ -539,6 +555,13 @@ export function updateStratumOrganization(
     if (growthRate > 0) {
         growthRate *= getStabilityGrowthModifier(stability);
         growthRate *= ORGANIZATION_GROWTH_MULTIPLIER;
+
+        // 应用合法性修正：高合法性时非联盟阶层组织度增长缓慢
+        const coalitionInfluenceShare = calculateCoalitionInfluenceShare(rulingCoalition, classInfluence, totalInfluence);
+        const currentLegitimacy = calculateLegitimacy(coalitionInfluenceShare);
+        const isInCoalition = isCoalitionMember(stratumKey, rulingCoalition);
+        const legitimacyMod = getLegitimacyOrganizationModifier(currentLegitimacy, isInCoalition);
+        growthRate *= legitimacyMod;
     }
 
     state.activeDemands = driverContext.demands || [];
@@ -612,6 +635,8 @@ export function updateAllOrganizationStates(
         classLivingStandard = {},
         livingStandardStreaks = {},
         epoch = 0,
+        rulingCoalition = [], // 执政联盟成员
+        // 注意：classInfluence 和 totalInfluence 已经是函数参数，不需要在这里解构
     } = options || {};
     const epochValue = Number.isFinite(epoch) ? epoch : 0;
 
@@ -683,6 +708,7 @@ export function updateAllOrganizationStates(
             livingStandardStreaks,
             epoch: epochValue,
             currentDay,
+            rulingCoalition, // 传递执政联盟成员
         });
 
         const currentState = organizationStates[stratumKey];
@@ -697,6 +723,9 @@ export function updateAllOrganizationStates(
                 hasActivePromise,
                 driverContext,
                 hasBasicShortage: !!driverContext.hasBasicShortage,
+                rulingCoalition, // 传递执政联盟成员
+                classInfluence, // 传递各阶层影响力
+                totalInfluence, // 传递总影响力
             }
         );
     });

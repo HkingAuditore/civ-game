@@ -32,7 +32,12 @@ export const initializeBonuses = () => ({
     productionBonus: 0,
     industryBonus: 0,
     taxBonus: 0,
-    needsReduction: 0
+    needsReduction: 0,
+    // 新增：庆典/科技/政令的特殊加成
+    stabilityBonus: 0,      // 稳定度加成
+    scienceBonus: 0,        // 科研产出加成
+    cultureBonus: 0,        // 文化产出加成
+    militaryBonus: 0        // 军事力量加成
 });
 
 /**
@@ -102,6 +107,19 @@ export const applyEffects = (effects, bonuses) => {
     }
     if (effects.needsReduction) {
         bonuses.needsReduction += effects.needsReduction;
+    }
+    // 新增：处理庆典的特殊加成效果
+    if (effects.stability) {
+        bonuses.stabilityBonus += effects.stability;
+    }
+    if (effects.scienceBonus) {
+        bonuses.scienceBonus += effects.scienceBonus;
+    }
+    if (effects.cultureBonus) {
+        bonuses.cultureBonus += effects.cultureBonus;
+    }
+    if (effects.militaryBonus) {
+        bonuses.militaryBonus += effects.militaryBonus;
     }
 
     // Demand modifiers

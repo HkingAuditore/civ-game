@@ -672,6 +672,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
         buildingUpgrades,
         autoRecruitEnabled,
         targetArmyComposition,
+        rulingCoalition, // 执政联盟成员
+        legitimacy, // 当前合法性值
+        setLegitimacy, // 合法性更新函数
     } = gameState;
 
     // 使用ref保存最新状态，避免闭包问题
@@ -724,6 +727,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
         totalInfluence,
         birthAccumulator,
         stability,
+        rulingCoalition, // 执政联盟成员
+        legitimacy, // 当前合法性值
     });
 
     const saveGameRef = useRef(gameState.saveGame);
@@ -790,8 +795,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
             totalInfluence,
             birthAccumulator,
             stability,
+            rulingCoalition, // 执政联盟成员
+            legitimacy, // 当前合法性值
         };
-    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, livingStandardStreaks, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability]);
+    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, livingStandardStreaks, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability, rulingCoalition, legitimacy]);
 
     useEffect(() => {
         if (!autoRecruitEnabled) return;
@@ -963,6 +970,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 eventResourceDemandModifiers: resourceDemandModifiers,
                 eventStratumDemandModifiers: stratumDemandModifiers,
                 eventBuildingProductionModifiers: buildingProductionModifiers,
+                previousLegitimacy: current.legitimacy ?? 0, // 传递上一tick的合法性，用于税收修正
             });
 
             const soldierPopulationAfterEvents = Number.isFinite(result.popStructure?.soldier)
@@ -1207,6 +1215,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
             setActiveBuffs(result.activeBuffs);
             setActiveDebuffs(result.activeDebuffs);
             setStability(result.stability);
+            // 更新执政联盟合法性
+            if (typeof setLegitimacy === 'function' && result.legitimacy !== undefined) {
+                setLegitimacy(result.legitimacy);
+            }
             setTaxes(result.taxes || {
                 total: 0,
                 breakdown: { headTax: 0, industryTax: 0, subsidy: 0, policyIncome: 0, policyExpense: 0 },
@@ -1257,6 +1269,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     classLivingStandard: result.classLivingStandard || {},
                     livingStandardStreaks: result.livingStandardStreaks || current.livingStandardStreaks || {},
                     epoch: current.epoch || 0,
+                    rulingCoalition: current.rulingCoalition || [], // 执政联盟
+                    // 注意：classInfluence/totalInfluence 已是位置参数，无需在此重复
                 }
             );
 

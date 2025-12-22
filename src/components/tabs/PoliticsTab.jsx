@@ -6,6 +6,7 @@ import { createPortal } from 'react-dom';
 import { Icon } from '../common/UIComponents';
 import { STRATA, RESOURCES, EPOCHS, BUILDINGS } from '../../config';
 import { isResourceUnlocked } from '../../utils/resources';
+import { CoalitionPanel } from '../panels/CoalitionPanel';
 
 // 判断是否为供需修正相关的效果文本
 const isSupplyDemandEffect = (text) => {
@@ -446,7 +447,27 @@ const BusinessTaxCard = ({ building, multiplier, buildingCount, draftMultiplier,
  * @param {Object} buildings - 当前建筑数量
  * @param {number} epoch - 当前时代编号
  */
-export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicies, popStructure = {}, buildings = {}, market = {}, epoch = 0, techsUnlocked = [], onShowDecreeDetails, jobFill = {}, jobsAvailable = {} }) => {
+export const PoliticsTab = ({
+    decrees,
+    onToggle,
+    taxPolicies,
+    onUpdateTaxPolicies,
+    popStructure = {},
+    buildings = {},
+    market = {},
+    epoch = 0,
+    techsUnlocked = [],
+    onShowDecreeDetails,
+    jobFill = {},
+    jobsAvailable = {},
+    // 执政联盟 props
+    rulingCoalition = [],
+    onUpdateCoalition,
+    classInfluence = {},
+    totalInfluence = 0,
+    legitimacy = 0,
+    classApproval = {}, // 新增：各阶层满意度
+}) => {
     // 按类别分组政令
     const categories = {
         economy: { name: '经济政策', icon: 'Coins', color: 'text-yellow-400' },
@@ -866,6 +887,19 @@ export const PoliticsTab = ({ decrees, onToggle, taxPolicies, onUpdateTaxPolicie
 
     return (
         <div className="space-y-4">
+
+            {/* 执政联盟面板 */}
+            {onUpdateCoalition && (
+                <CoalitionPanel
+                    rulingCoalition={rulingCoalition}
+                    onUpdateCoalition={onUpdateCoalition}
+                    classInfluence={classInfluence}
+                    totalInfluence={totalInfluence}
+                    legitimacy={legitimacy}
+                    popStructure={popStructure}
+                    classApproval={classApproval}
+                />
+            )}
 
             {/* 税收政策调节 */}
             {onUpdateTaxPolicies && (

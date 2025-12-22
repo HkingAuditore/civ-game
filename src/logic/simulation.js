@@ -8,6 +8,14 @@ import { getEnemyUnitsForEpoch } from '../config/militaryActions';
 import { calculateLivingStandardData, getSimpleLivingStandard } from '../utils/livingStandard';
 import { calculateLivingStandards } from './population/needs';
 import { calculateAIGiftAmount, calculateAIPeaceTribute, calculateAISurrenderDemand } from '../utils/diplomaticUtils';
+import {
+    calculateCoalitionInfluenceShare,
+    calculateLegitimacy,
+    getLegitimacyTaxModifier,
+    getLegitimacyApprovalModifier,
+    getCoalitionApprovalCapPenalty,
+    isCoalitionMember,
+} from './rulingCoalition';
 
 // ============================================================================
 // REFACTORED MODULE IMPORTS
@@ -174,6 +182,8 @@ export const simulateTick = ({
     eventBuildingProductionModifiers = {}, // { buildingIdOrCat: percentModifier }
     livingStandardStreaks = {},
     buildingUpgrades = {}, // 建筑升级状态
+    rulingCoalition = [], // 执政联盟成员阶层
+    previousLegitimacy = 0, // 上一tick的合法性值，用于计算税收修正
 }) => {
     // console.log('[TICK START]', tick); // Commented for performance
     const res = { ...resources };
@@ -624,7 +634,15 @@ export const simulateTick = ({
 
     let taxModifier = 1.0;
 
-    const effectiveTaxModifier = Math.max(0, taxModifier);
+    // 执政联盟合法性计算（初步，待影响力计算后会精确计算）
+    // 此处使用上一tick的数据估算，避免循环依赖
+    let coalitionLegitimacy = 0;
+    // 使用上一tick的合法性计算税收修正（避免循环依赖）
+    let legitimacyTaxModifier = getLegitimacyTaxModifier(previousLegitimacy);
+
+    // 将合法性税收修正和庆典/政令/科技的税收加成整合到总体税收修正中
+    // bonuses.taxBonus 是来自 effects.taxIncome 的累加值（如庆典效果、政令效果等）
+    const effectiveTaxModifier = Math.max(0, taxModifier * legitimacyTaxModifier * (1 + (bonuses.taxBonus || 0)));
 
     // 自动填补（招工）：失业者优先进入净收入更高的岗位
     const estimateRoleNetIncome = (role) => {
@@ -1253,6 +1271,14 @@ export const simulateTick = ({
                     if (supplyMod !== 0) {
                         amount *= (1 + supplyMod);
                     }
+
+                    // 应用庆典/科技/政令的特殊资源加成
+                    if (resKey === 'science' && bonuses.scienceBonus) {
+                        amount *= (1 + bonuses.scienceBonus);
+                    }
+                    if (resKey === 'culture' && bonuses.cultureBonus) {
+                        amount *= (1 + bonuses.cultureBonus);
+                    }
                 }
 
                 // Skip maxPop - it's calculated separately in the building count loop above
@@ -1445,7 +1471,7 @@ export const simulateTick = ({
     // === 新军费计算系统 ===
     // 1. 获取军队资源维护需求
     const baseArmyMaintenance = calculateArmyMaintenance(army);
-    
+
     // Apply wartime multiplier: 3x army maintenance during war
     const armyMaintenance = {};
     Object.entries(baseArmyMaintenance).forEach(([resource, amount]) => {
@@ -1607,7 +1633,7 @@ export const simulateTick = ({
             if (totalStratumDemandMod !== 0) {
                 requirement *= (1 + totalStratumDemandMod);
             }
-            
+
             // 3. Wartime military class demand multiplier (3x for soldier and knight during war)
             if (isPlayerAtWar && (key === 'soldier' || key === 'knight')) {
                 requirement *= WAR_MILITARY_MULTIPLIER;
@@ -1865,7 +1891,15 @@ export const simulateTick = ({
 
         // 获取生活水平对满意度的上限影响
         const livingStandard = classLivingStandard[key];
-        const livingStandardApprovalCap = livingStandard?.approvalCap ?? 100;
+        let livingStandardApprovalCap = livingStandard?.approvalCap ?? 100;
+
+        // 执政联盟阶层的approvalCap惩罚（期望提高）
+        const isCoalition = isCoalitionMember(key, rulingCoalition);
+        if (isCoalition) {
+            const livingLevel = livingStandard?.level || '温饱';
+            const penalty = getCoalitionApprovalCapPenalty(livingLevel, true);
+            livingStandardApprovalCap = Math.max(0, livingStandardApprovalCap - penalty);
+        }
 
         let targetApproval = 70; // Base approval
 
@@ -2020,6 +2054,22 @@ export const simulateTick = ({
     });
 
     let totalInfluence = Object.values(classInfluence).reduce((sum, val) => sum + val, 0);
+
+    // 执政联盟合法性精确计算（影响力已计算完成）
+    const coalitionInfluenceShare = calculateCoalitionInfluenceShare(rulingCoalition, classInfluence, totalInfluence);
+    coalitionLegitimacy = calculateLegitimacy(coalitionInfluenceShare);
+    legitimacyTaxModifier = getLegitimacyTaxModifier(coalitionLegitimacy);
+    const legitimacyApprovalModifier = getLegitimacyApprovalModifier(coalitionLegitimacy);
+
+    // 非法政府满意度惩罚（对所有阶层应用）
+    if (legitimacyApprovalModifier < 0) {
+        Object.keys(classApproval).forEach(key => {
+            classApproval[key] = Math.max(0, Math.min(100,
+                (classApproval[key] || 50) + legitimacyApprovalModifier
+            ));
+        });
+    }
+
     let exodusPopulationLoss = 0;
     let extraStabilityPenalty = 0;
     // 修正人口外流（Exodus）：愤怒人口离开时带走财富（资本外逃）
@@ -2621,7 +2671,7 @@ export const simulateTick = ({
         const inventoryStock = res[resource] || 0;
         // 当库存为0时，无论需求如何都应该触发短缺价格（返回极低天数）
         // 当库存>0但需求=0时，库存充足，返回目标天数
-        const inventoryDays = inventoryStock <= 0 
+        const inventoryDays = inventoryStock <= 0
             ? 0.01  // 库存为0时，视为极度短缺，触发最大涨价
             : (dailyDemand > 0 ? inventoryStock / dailyDemand : inventoryTargetDays);
 
@@ -3170,6 +3220,8 @@ export const simulateTick = ({
         activeBuffs: newActiveBuffs,
         activeDebuffs: newActiveDebuffs,
         stability: stabilityValue,
+        legitimacy: coalitionLegitimacy, // 执政联盟合法性
+        legitimacyTaxModifier, // 税收修正系数
         logs,
         market: {
             prices: updatedPrices,

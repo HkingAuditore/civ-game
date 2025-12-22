@@ -865,7 +865,7 @@ function GameApp({ gameState }) {
                                     { id: 'build', label: '建设', icon: 'Hammer' },
                                     { id: 'military', label: '军事', icon: 'Swords' },
                                     { id: 'tech', label: '科技', icon: 'Cpu' },
-                                    { id: 'politics', label: '政令', icon: 'Gavel' },
+                                    { id: 'politics', label: '行政', icon: 'Gavel' },
                                     { id: 'diplo', label: '外交', icon: 'Globe' },
                                 ].map(tab => (
                                     <button
@@ -978,6 +978,13 @@ function GameApp({ gameState }) {
                                                 onShowDecreeDetails={handleShowDecreeDetails}
                                                 jobFill={gameState.jobFill}
                                                 jobsAvailable={gameState.jobsAvailable}
+                                                // 执政联盟 props
+                                                rulingCoalition={gameState.rulingCoalition}
+                                                onUpdateCoalition={gameState.setRulingCoalition}
+                                                classInfluence={gameState.classInfluence}
+                                                totalInfluence={gameState.totalInfluence}
+                                                legitimacy={gameState.legitimacy}
+                                                classApproval={gameState.classApproval}
                                             />
                                         )}
 

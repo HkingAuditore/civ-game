@@ -411,6 +411,10 @@ export const useGameState = () => {
     // 格式: { [stratumKey]: { dissatisfactionDays: number, phase: string, influenceShare: number } }
     const [rebellionStates, setRebellionStates] = useState({});
 
+    // ========== 执政联盟状态 ==========
+    const [rulingCoalition, setRulingCoalition] = useState([]); // 联盟成员阶层键数组
+    const [legitimacy, setLegitimacy] = useState(0); // 合法性值 (0-100)
+
     // ========== 教程系统状态 ==========
     const [showTutorial, setShowTutorial] = useState(() => {
         // 检查是否已完成教程
@@ -582,6 +586,8 @@ export const useGameState = () => {
                 eventEffectSettings,
                 activeEventEffects,
                 rebellionStates,
+                rulingCoalition,
+                legitimacy,
                 actionCooldowns,
                 actionUsage,
                 promiseTasks,
@@ -688,6 +694,8 @@ export const useGameState = () => {
             forcedSubsidy: Array.isArray(loadedEffects.forcedSubsidy) ? loadedEffects.forcedSubsidy : [],
         });
         setRebellionStates(data.rebellionStates || {});
+        setRulingCoalition(data.rulingCoalition || []);
+        setLegitimacy(data.legitimacy || 0);
         setActionCooldowns(data.actionCooldowns || {});
         setActionUsage(data.actionUsage || {});
         setPromiseTasks(data.promiseTasks || []);
@@ -993,6 +1001,12 @@ export const useGameState = () => {
         // 叛乱系统
         rebellionStates,
         setRebellionStates,
+
+        // 执政联盟
+        rulingCoalition,
+        setRulingCoalition,
+        legitimacy,
+        setLegitimacy,
 
         // UI
         logs,
