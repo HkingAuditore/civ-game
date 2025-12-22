@@ -945,6 +945,7 @@ function GameApp({ gameState }) {
                                                 onToggleAutoRecruit={gameState.setAutoRecruitEnabled}
                                                 targetArmyComposition={gameState.targetArmyComposition}
                                                 onUpdateTargetComposition={gameState.setTargetArmyComposition}
+                                                militaryBonus={gameState.modifiers?.militaryBonus}
                                             />
                                         )}
 

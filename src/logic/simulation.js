@@ -263,6 +263,7 @@ export const simulateTick = ({
         buildingBonuses,
         categoryBonuses,
         passiveGains,
+        passivePercentGains,   // NEW: percentage-based passive resource modifiers
         perPopPassiveGains,    // NEW: per-population passive gains
         decreeResourceDemandMod,
         decreeStratumDemandMod,
@@ -300,6 +301,25 @@ export const simulateTick = ({
 
     // Apply festival effects using module function
     applyFestivalEffects(activeFestivalEffects, bonuses);
+
+    // Apply active buffs (Strata bonuses)
+    if (Array.isArray(productionBuffs)) {
+        productionBuffs.forEach(buff => {
+            applyEffects(buff, bonuses);
+        });
+    }
+
+    // Apply active debuffs (Strata penalties)
+    if (Array.isArray(productionDebuffs)) {
+        productionDebuffs.forEach(debuff => {
+            applyEffects(debuff, bonuses);
+        });
+    }
+
+    // Apply Epoch bonuses
+    if (EPOCHS && EPOCHS[epoch] && EPOCHS[epoch].bonuses) {
+        applyEffects(EPOCHS[epoch].bonuses, bonuses);
+    }
 
     // Sync mutable values back from bonuses object after module function calls
     decreeSilverIncome = bonuses.decreeSilverIncome;
@@ -740,6 +760,33 @@ export const simulateTick = ({
                 res[resKey] = current - spent;
                 rates[resKey] = (rates[resKey] || 0) - spent;
             }
+        }
+    });
+
+    // NEW: Apply percentage-based passive resource modifiers
+    // These scale with current resource rates (positive modifier increases production, negative decreases)
+    Object.entries(passivePercentGains || {}).forEach(([resKey, percent]) => {
+        if (!percent) return;
+        const currentRate = rates[resKey] || 0;
+        // For positive rates: modifier increases/decreases the production
+        // For negative rates (consumption): modifier increases/decreases the consumption
+        if (currentRate !== 0) {
+            const modification = Math.abs(currentRate) * percent;
+            if (currentRate >= 0) {
+                // Production resource: positive percent = more production
+                res[resKey] = (res[resKey] || 0) + modification;
+                rates[resKey] = currentRate + modification;
+            } else {
+                // Consumption resource: positive percent = less consumption (better)
+                res[resKey] = (res[resKey] || 0) - modification;
+                rates[resKey] = currentRate - modification;
+            }
+        } else {
+            // If rate is 0, use a base value scaled by population for the modifier
+            const baseValue = totalPopulation * 0.01; // 1% of population as base
+            const modification = baseValue * percent;
+            res[resKey] = (res[resKey] || 0) + modification;
+            rates[resKey] = (rates[resKey] || 0) + modification;
         }
     });
 
@@ -2168,49 +2215,25 @@ export const simulateTick = ({
         }
     });
 
-    // Calculate weighted average of class approval based on influence share
-    let weightedApprovalSum = 0;
-    let totalWeight = 0;
-
-    Object.keys(STRATA).forEach(key => {
-        const count = popStructure[key] || 0;
-        if (count === 0) return;
-        const approval = classApproval[key] || 50;
-        const influence = classInfluence[key] || 0;
-        const influenceShare = totalInfluence > 0 ? influence / totalInfluence : 0;
-
-        weightedApprovalSum += approval * influenceShare;
-        totalWeight += influenceShare;
+    // REFACTORED: Using module function for stability calculation
+    // This ensures consistency and proper application of all bonuses (including festivals)
+    const {
+        stabilityValue,
+        targetStability,
+        efficiency,
+        stabilityFactor
+    } = calculateStabilityFromModule({
+        popStructure,
+        classApproval,
+        classInfluence,
+        totalInfluence,
+        newActiveBuffs,
+        newActiveDebuffs,
+        eventStabilityModifier,
+        extraStabilityPenalty,
+        currentStability,
+        stabilityBonus: bonuses.stabilityBonus || 0
     });
-
-    // Base stability from weighted average of class approval
-    let baseStability = totalWeight > 0 ? weightedApprovalSum : 50;
-    if (eventStabilityModifier) {
-        baseStability += eventStabilityModifier;
-    }
-
-    // Add buff/debuff modifiers
-    let stabilityModifier = 0;
-    newActiveBuffs.forEach(buff => {
-        if (buff.stability) stabilityModifier += buff.stability;
-    });
-    newActiveDebuffs.forEach(debuff => {
-        if (debuff.stability) stabilityModifier += debuff.stability;
-    });
-    stabilityModifier -= extraStabilityPenalty;
-
-    // Final stability value: base + modifiers, clamped to 0-100 (this is the TARGET)
-    const targetStability = Math.max(0, Math.min(100, baseStability + stabilityModifier));
-
-    // NEW: Inertia-based stability calculation
-    // Stability drifts towards target at STABILITY_INERTIA (5%) per tick, making crises feel weightier
-    // REFACTORED: Using STABILITY_INERTIA imported from ./utils/constants
-    const stabilityValue = Math.max(0, Math.min(100,
-        currentStability + (targetStability - currentStability) * STABILITY_INERTIA
-    ));
-
-    const stabilityFactor = Math.min(1.5, Math.max(0.5, 1 + (stabilityValue - 50) / 100));
-    const efficiency = stabilityFactor;
 
     const visibleEpoch = epoch;
     // 记录本回合来自战争赔款（含分期）的财政收入
@@ -3275,6 +3298,8 @@ export const simulateTick = ({
                 // 全局生产加成（来自政令和节日）
                 productionBonus: productionBonus,
                 industryBonus: industryBonus,
+                // 军事加成
+                militaryBonus: bonuses.militaryBonus,
                 // 阶层财富增长对需求的影响（财富越高需求越高）
                 stratumWealthMultiplier: stratumWealthMultipliers,
             },

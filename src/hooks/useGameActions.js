@@ -77,6 +77,7 @@ export const useGameActions = (gameState, addLog) => {
         buildingUpgrades,
         setBuildingUpgrades,
         autoRecruitEnabled,
+        modifiers,
     } = gameState;
 
     const [pendingDiplomaticEvents, setPendingDiplomaticEvents] = useState([]);
@@ -953,7 +954,7 @@ export const useGameActions = (gameState, addLog) => {
         const attackerData = {
             army,
             epoch,
-            militaryBuffs: 0,
+            militaryBuffs: modifiers?.militaryBonus || 0,
         };
 
         // 计算敌方时代（基于国家的出现和消失时代）
@@ -1385,7 +1386,7 @@ export const useGameActions = (gameState, addLog) => {
             }
 
             case 'demand': {
-                const armyPower = calculateBattlePower(army, epoch);
+                const armyPower = calculateBattlePower(army, epoch, modifiers?.militaryBonus || 0);
                 const successChance = Math.max(0.1, (armyPower / (armyPower + 200)) * 0.6 + (targetNation.relation || 0) / 300);
                 if (Math.random() < successChance) {
                     const tribute = Math.min(targetNation.wealth || 0, Math.ceil(150 + armyPower * 0.25));

@@ -675,6 +675,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
         rulingCoalition, // 执政联盟成员
         legitimacy, // 当前合法性值
         setLegitimacy, // 合法性更新函数
+        setModifiers, // Modifiers更新函数
     } = gameState;
 
     // 使用ref保存最新状态，避免闭包问题
@@ -972,6 +973,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 eventBuildingProductionModifiers: buildingProductionModifiers,
                 previousLegitimacy: current.legitimacy ?? 0, // 传递上一tick的合法性，用于税收修正
             });
+
+            // 更新 Modifiers 状态供 UI 显示
+            setModifiers(result.modifiers || {});
 
             const soldierPopulationAfterEvents = Number.isFinite(result.popStructure?.soldier)
                 ? result.popStructure.soldier

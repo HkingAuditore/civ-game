@@ -20,6 +20,7 @@ export const initializeBonuses = () => ({
     // 使用累加模式：初始值为 0，表示 +0% 加成
     categoryBonuses: { gather: 0, industry: 0, civic: 0, military: 0 },
     passiveGains: {},
+    passivePercentGains: {},     // NEW: Percentage-based passive resource modifiers
     perPopPassiveGains: {},      // NEW: { resource: amountPerPopulation }
     incomePercentBonus: 0,       // NEW: percentage bonus to silver income
     decreeResourceDemandMod: {},
@@ -77,11 +78,19 @@ export const applyEffects = (effects, bonuses) => {
         });
     }
 
-    // Passive gains
+    // Passive gains (absolute values - for small amounts like culture, science)
     if (effects.passive) {
         Object.entries(effects.passive).forEach(([resKey, amount]) => {
             if (!resKey || typeof amount !== 'number') return;
             passiveGains[resKey] = (passiveGains[resKey] || 0) + amount;
+        });
+    }
+
+    // Passive percent gains (percentage-based modifiers for resources like silver, food)
+    if (effects.passivePercent) {
+        Object.entries(effects.passivePercent).forEach(([resKey, percent]) => {
+            if (!resKey || typeof percent !== 'number') return;
+            bonuses.passivePercentGains[resKey] = (bonuses.passivePercentGains[resKey] || 0) + percent;
         });
     }
 
@@ -120,6 +129,19 @@ export const applyEffects = (effects, bonuses) => {
     }
     if (effects.militaryBonus) {
         bonuses.militaryBonus += effects.militaryBonus;
+    }
+
+    // Support legacy keys from config files (epochs.js, strata.js)
+    if (effects.gatherBonus) {
+        categoryBonuses.gather = (categoryBonuses.gather || 0) + effects.gatherBonus;
+    }
+    if (effects.industryBonus) {
+        bonuses.industryBonus += effects.industryBonus;
+    }
+    if (effects.knowledgeBonus) {
+        // Map knowledgeBonus to scienceBonus if not handled otherwise, or use as is if needed. 
+        // Based on usages, knowledge often correlates with science.
+        bonuses.scienceBonus += effects.knowledgeBonus;
     }
 
     // Demand modifiers

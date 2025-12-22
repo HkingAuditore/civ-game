@@ -251,6 +251,7 @@ export const MilitaryTab = ({
     onToggleAutoRecruit,
     targetArmyComposition = {},
     onUpdateTargetComposition,
+    militaryBonus = 0,
 }) => {
     const [hoveredUnit, setHoveredUnit] = useState({ unit: null, element: null });
     const [showWarScoreInfo, setShowWarScoreInfo] = useState(false);
@@ -343,7 +344,7 @@ export const MilitaryTab = ({
         militaryWageRatio
     );
     const totalWage = armyExpenseData.dailyExpense;
-    const playerPower = calculateBattlePower(army, epoch);
+    const playerPower = calculateBattlePower(army, epoch, militaryBonus);
     // 只显示可见且处于战争状态的国家
     const warringNations = (nations || []).filter((nation) =>
         nation.isAtWar &&
@@ -843,6 +844,11 @@ export const MilitaryTab = ({
                     <span>
                         当前战力评估：
                         <span className="text-white font-semibold">{playerPower.toFixed(0)}</span>
+                        {militaryBonus !== 0 && (
+                            <span className={`text-xs ml-2 ${militaryBonus > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                ({militaryBonus > 0 ? '+' : ''}{(militaryBonus * 100).toFixed(0)}%)
+                            </span>
+                        )}
                     </span>
                     <span>
                         现役兵力：

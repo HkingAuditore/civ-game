@@ -415,6 +415,9 @@ export const useGameState = () => {
     const [rulingCoalition, setRulingCoalition] = useState([]); // 联盟成员阶层键数组
     const [legitimacy, setLegitimacy] = useState(0); // 合法性值 (0-100)
 
+    // ========== 游戏运算中间值（Modifiers） ==========
+    const [modifiers, setModifiers] = useState({});
+
     // ========== 教程系统状态 ==========
     const [showTutorial, setShowTutorial] = useState(() => {
         // 检查是否已完成教程
@@ -1007,6 +1010,10 @@ export const useGameState = () => {
         setRulingCoalition,
         legitimacy,
         setLegitimacy,
+
+        // Modifiers
+        modifiers,
+        setModifiers,
 
         // UI
         logs,

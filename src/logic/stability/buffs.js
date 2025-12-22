@@ -28,8 +28,8 @@ export const calculateBuffsAndDebuffs = ({
 
         const approval = classApproval[key] || 50;
         const satisfiedNeeds = (needsReport[key]?.satisfactionRatio ?? 1) >= 0.9;
-        const influenceShare = totalInfluence > 0 
-            ? (classInfluence[key] || 0) / totalInfluence 
+        const influenceShare = totalInfluence > 0
+            ? (classInfluence[key] || 0) / totalInfluence
             : 0;
 
         // Buff multiplier based on influence
@@ -71,7 +71,8 @@ export const calculateStability = ({
     newActiveDebuffs,
     eventStabilityModifier = 0,
     extraStabilityPenalty = 0,
-    currentStability = 50
+    currentStability = 50,
+    stabilityBonus = 0 // NEW: Stability bonus from other sources (e.g. festivals)
 }) => {
     // Calculate weighted average of class approval
     let weightedApprovalSum = 0;
@@ -103,6 +104,12 @@ export const calculateStability = ({
     newActiveDebuffs.forEach(debuff => {
         if (debuff.stability) stabilityModifier += debuff.stability;
     });
+
+    // Apply stability bonus (percentage of base stability)
+    if (stabilityBonus) {
+        stabilityModifier += baseStability * stabilityBonus;
+    }
+
     stabilityModifier -= extraStabilityPenalty;
 
     // Target stability (clamped to 0-100)

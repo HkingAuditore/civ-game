@@ -130,25 +130,29 @@ export const calculateClassApproval = ({
             targetApproval -= penalty;
         }
 
-        // Event modifiers
+        // Event modifiers (temporary, affects target approval)
         const eventBonus = eventApprovalModifiers?.[key] || 0;
         if (eventBonus) {
             targetApproval += eventBonus;
         }
 
-        // Decree modifiers
-        const decreeBonus = decreeApprovalModifiers[key] || 0;
-        if (decreeBonus) {
-            targetApproval += decreeBonus;
-        }
-
-        // Gradual adjustment with inertia
+        // Gradual adjustment with inertia (base approval without decree effects)
         const currentApproval = classApproval[key] || 50;
         const adjustmentSpeed = 0.02;
         let newApproval = currentApproval + (targetApproval - currentApproval) * adjustmentSpeed;
 
-        // Apply living standard cap
+        // Apply living standard cap (before decree modifier)
         newApproval = Math.min(newApproval, livingStandardApprovalCap);
+
+        // Decree modifiers - applied AFTER inertia calculation
+        // This ensures decree effects are immediate and persistent, not subject to gradual decay
+        const decreeModifier = decreeApprovalModifiers[key] || 0;
+        if (decreeModifier) {
+            // Direct absolute value adjustment to final approval
+            // Positive modifier: add directly (capped at 100)
+            // Negative modifier: subtract directly (floored at 0)
+            newApproval += decreeModifier;
+        }
 
         classApproval[key] = Math.max(0, Math.min(100, newApproval));
     });

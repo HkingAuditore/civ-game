@@ -34,6 +34,215 @@ const STRATA_GROUPS = {
     },
 };
 
+// 阶层分类定义（用于政体判断）
+const STRATA_CATEGORIES = {
+    // 传统贵族/精英阶层
+    aristocracy: ['landowner', 'knight', 'official'],
+    // 资产阶级
+    bourgeoisie: ['capitalist', 'merchant', 'engineer'],
+    // 工农阶级
+    proletariat: ['worker', 'miner', 'peasant', 'serf', 'lumberjack'],
+    // 军事阶层
+    military: ['soldier', 'knight'],
+    // 宗教阶层
+    clerical: ['cleric'],
+    // 知识阶层
+    intellectual: ['scribe', 'engineer'],
+    // 商业阶层
+    commercial: ['merchant', 'navigator'],
+    // 农业阶层
+    agrarian: ['peasant', 'serf', 'landowner', 'lumberjack'],
+    // 工业阶层
+    industrial: ['worker', 'artisan', 'capitalist', 'engineer', 'miner'],
+};
+
+/**
+ * 获取政体描述词
+ * @param {string[]} coalition - 联盟成员阶层键数组
+ * @param {Object} classInfluence - 各阶层影响力
+ * @param {number} totalInfluence - 总影响力
+ * @returns {Object} { name: 政体名称, description: 描述, icon: 图标, color: 颜色 }
+ */
+const getGovernmentType = (coalition, classInfluence, totalInfluence) => {
+    if (coalition.length === 0) {
+        return {
+            name: '无执政联盟',
+            description: '尚未建立执政联盟，政府缺乏社会基础',
+            icon: 'HelpCircle',
+            color: 'text-gray-400',
+        };
+    }
+
+    // 计算联盟内各分类的影响力占比
+    const getCategoryInfluence = (category) => {
+        let influence = 0;
+        STRATA_CATEGORIES[category].forEach(stratum => {
+            if (coalition.includes(stratum)) {
+                influence += classInfluence[stratum] || 0;
+            }
+        });
+        return influence;
+    };
+
+    // 计算联盟总影响力
+    let coalitionTotalInfluence = 0;
+    coalition.forEach(key => {
+        coalitionTotalInfluence += classInfluence[key] || 0;
+    });
+
+    // 计算各分类在联盟中的占比
+    const getShare = (category) => {
+        if (coalitionTotalInfluence <= 0) return 0;
+        return getCategoryInfluence(category) / coalitionTotalInfluence;
+    };
+
+    const aristocracyShare = getShare('aristocracy');
+    const bourgeoisieShare = getShare('bourgeoisie');
+    const proletariatShare = getShare('proletariat');
+    const militaryShare = getShare('military');
+    const clericalShare = getShare('clerical');
+    const commercialShare = getShare('commercial');
+    const agrarianShare = getShare('agrarian');
+    const industrialShare = getShare('industrial');
+
+    // 计算联盟成员数量
+    const memberCount = coalition.length;
+
+    // 检查特定阶层是否在联盟中
+    const hasStratum = (key) => coalition.includes(key);
+
+    // 政体判断逻辑（按优先级）
+
+    // 1. 单一阶层执政 - 特殊政体
+    if (memberCount === 1) {
+        const singleMember = coalition[0];
+        const singleGovernments = {
+            landowner: { name: '封建地主专制', description: '由大地主阶级独揽政权', icon: 'Castle', color: 'text-amber-500' },
+            capitalist: { name: '垄断资本独裁', description: '资本家独占国家权力', icon: 'Briefcase', color: 'text-blue-400' },
+            knight: { name: '军事贵族专政', description: '骑士阶层掌控一切', icon: 'Shield', color: 'text-red-500' },
+            official: { name: '官僚集权', description: '官僚阶层垄断政权', icon: 'ScrollText', color: 'text-purple-400' },
+            merchant: { name: '商业寡头政治', description: '商人阶层掌控国家', icon: 'Coins', color: 'text-yellow-400' },
+            cleric: { name: '神权政治', description: '神职人员统治国家', icon: 'Cross', color: 'text-indigo-400' },
+            soldier: { name: '军人专政', description: '军队独揽大权', icon: 'Swords', color: 'text-red-400' },
+            worker: { name: '工人无产阶级专政', description: '工人阶级独揽政权', icon: 'Hammer', color: 'text-red-600' },
+            peasant: { name: '农民专政', description: '农民阶级掌控政权', icon: 'Wheat', color: 'text-green-500' },
+            engineer: { name: '技术官僚政治', description: '工程师主导国家', icon: 'Cog', color: 'text-cyan-400' },
+            scribe: { name: '学者治国', description: '知识分子掌权', icon: 'Feather', color: 'text-blue-300' },
+            artisan: { name: '行会共和', description: '工匠行会主政', icon: 'Anvil', color: 'text-orange-400' },
+            navigator: { name: '海上共和国', description: '航海家主导政权', icon: 'Compass', color: 'text-teal-400' },
+            miner: { name: '矿业工人政权', description: '矿工阶级执政', icon: 'Pickaxe', color: 'text-gray-400' },
+            serf: { name: '农奴起义政权', description: '佃农阶级执政', icon: 'Users', color: 'text-brown-400' },
+            lumberjack: { name: '林业工人政权', description: '樵夫阶级执政', icon: 'Trees', color: 'text-green-600' },
+        };
+        return singleGovernments[singleMember] || { name: '独裁政体', description: '单一阶层执政', icon: 'Crown', color: 'text-amber-400' };
+    }
+
+    // 2. 特定组合政体
+    // 工农联盟
+    if (hasStratum('worker') && hasStratum('peasant') && proletariatShare >= 0.7) {
+        if (memberCount === 2) {
+            return { name: '工农联合政府', description: '工人和农民阶级联合执政', icon: 'Handshake', color: 'text-red-500' };
+        }
+        return { name: '人民民主专政', description: '以工农联盟为基础的人民政权', icon: 'Users', color: 'text-red-600' };
+    }
+
+    // 资产阶级民主（资本家+商人）
+    if (bourgeoisieShare >= 0.6 && !hasStratum('landowner') && !hasStratum('knight')) {
+        if (hasStratum('worker') || hasStratum('artisan')) {
+            return { name: '资产阶级共和国', description: '资产阶级主导的民主政体', icon: 'Building2', color: 'text-blue-400' };
+        }
+        return { name: '资本主义寡头政治', description: '资产阶级独占政权', icon: 'Briefcase', color: 'text-blue-500' };
+    }
+
+    // 贵族联盟
+    if (aristocracyShare >= 0.6) {
+        if (hasStratum('cleric')) {
+            return { name: '封建神权联盟', description: '传统贵族与教会联合执政', icon: 'Crown', color: 'text-purple-500' };
+        }
+        return { name: '贵族寡头政治', description: '传统贵族阶层联合执政', icon: 'Castle', color: 'text-amber-500' };
+    }
+
+    // 军政府
+    if (militaryShare >= 0.5) {
+        if (hasStratum('capitalist') || hasStratum('landowner')) {
+            return { name: '军事-精英联盟', description: '军队与精英阶层联合执政', icon: 'Shield', color: 'text-red-500' };
+        }
+        return { name: '军人政府', description: '军事力量主导的政权', icon: 'Swords', color: 'text-red-600' };
+    }
+
+    // 3. 大联盟政体
+    if (memberCount >= 5) {
+        // 全民政府（包含上中下各阶层）
+        const hasUpper = coalition.some(k => STRATA_GROUPS.upper.keys.includes(k));
+        const hasMiddle = coalition.some(k => STRATA_GROUPS.middle.keys.includes(k));
+        const hasLower = coalition.some(k => STRATA_GROUPS.lower.keys.includes(k));
+        
+        if (hasUpper && hasMiddle && hasLower) {
+            if (memberCount >= 8) {
+                return { name: '全民联合政府', description: '跨越阶级的广泛联盟', icon: 'Globe', color: 'text-green-400' };
+            }
+            return { name: '民族团结政府', description: '各阶层联合执政', icon: 'Users', color: 'text-teal-400' };
+        }
+        
+        if (proletariatShare >= 0.5) {
+            return { name: '人民阵线', description: '以劳动阶层为主体的广泛联盟', icon: 'Flag', color: 'text-red-500' };
+        }
+        
+        return { name: '大联盟政府', description: '多阶层联合执政', icon: 'Users', color: 'text-blue-400' };
+    }
+
+    // 4. 按主导阶层分类的政体
+    // 工业主导
+    if (industrialShare >= 0.6) {
+        if (hasStratum('capitalist')) {
+            return { name: '工业资本主义政府', description: '工业资产阶级主导', icon: 'Factory', color: 'text-blue-500' };
+        }
+        if (hasStratum('worker') && hasStratum('artisan')) {
+            return { name: '劳工联合政府', description: '工业劳动者联合执政', icon: 'Hammer', color: 'text-orange-500' };
+        }
+    }
+
+    // 农业主导
+    if (agrarianShare >= 0.6) {
+        if (hasStratum('landowner') && proletariatShare > 0) {
+            return { name: '地主-农民联盟', description: '农村阶层联合执政', icon: 'Wheat', color: 'text-green-500' };
+        }
+        if (proletariatShare >= 0.5) {
+            return { name: '农民政府', description: '农民阶级主导政权', icon: 'Wheat', color: 'text-green-600' };
+        }
+    }
+
+    // 商业主导
+    if (commercialShare >= 0.5) {
+        return { name: '商业共和国', description: '商业阶层主导政权', icon: 'Ship', color: 'text-teal-400' };
+    }
+
+    // 知识分子主导
+    if (hasStratum('scribe') && hasStratum('engineer')) {
+        return { name: '技术精英政府', description: '知识分子联合执政', icon: 'GraduationCap', color: 'text-cyan-400' };
+    }
+
+    // 5. 按阶层数量和成分的通用分类
+    if (proletariatShare >= 0.7) {
+        return { name: '无产阶级政府', description: '劳动人民掌握政权', icon: 'Hammer', color: 'text-red-500' };
+    }
+
+    if (bourgeoisieShare + aristocracyShare >= 0.7) {
+        return { name: '精英联盟政府', description: '上层阶级联合执政', icon: 'Crown', color: 'text-amber-400' };
+    }
+
+    // 6. 默认政体
+    if (memberCount === 2) {
+        return { name: '双头政治', description: '两个阶层联合执政', icon: 'Scale', color: 'text-gray-400' };
+    }
+
+    if (memberCount === 3) {
+        return { name: '三方联盟', description: '三个阶层共同执政', icon: 'Triangle', color: 'text-gray-400' };
+    }
+
+    return { name: '联合政府', description: '多阶层联合执政', icon: 'Users', color: 'text-gray-400' };
+};
+
 /**
  * 执政联盟面板
  * @param {Object} props
@@ -64,6 +273,11 @@ export const CoalitionPanel = ({
             share += classInfluence[key] || 0;
         });
         return share / totalInfluence;
+    }, [rulingCoalition, classInfluence, totalInfluence]);
+
+    // 计算政体描述词
+    const governmentType = React.useMemo(() => {
+        return getGovernmentType(rulingCoalition, classInfluence, totalInfluence);
     }, [rulingCoalition, classInfluence, totalInfluence]);
 
     // 实时计算合法性值和等级（不依赖传入的 legitimacy，暂停时也能更新）
@@ -206,6 +420,26 @@ export const CoalitionPanel = ({
                 </div>
             </div>
 
+            {/* 政体描述词徽章 */}
+            <div className="mb-3 p-2 bg-gray-800/50 rounded-lg border border-gray-700/50">
+                <div className="flex items-center gap-2">
+                    <Icon name={governmentType.icon} size={18} className={governmentType.color} />
+                    <div className="flex-1">
+                        <div className={`text-sm font-bold ${governmentType.color}`}>
+                            {governmentType.name}
+                        </div>
+                        <div className="text-[10px] text-gray-500">
+                            {governmentType.description}
+                        </div>
+                    </div>
+                    {rulingCoalition.length > 0 && (
+                        <div className="text-[10px] text-gray-500 bg-gray-900/50 px-1.5 py-0.5 rounded">
+                            {rulingCoalition.length}个阶层
+                        </div>
+                    )}
+                </div>
+            </div>
+
             {/* 合法性说明 */}
             <div className="mb-3 p-2 bg-gray-900/30 rounded-lg">
                 <div className="flex items-center justify-between mb-1">
@@ -283,7 +517,7 @@ export const CoalitionPanel = ({
                         </div>
                         <div className="flex items-center py-0.5">
                             <span className="text-[10px] text-gray-400 flex items-center gap-1 flex-shrink-0">
-                                <Icon name="Users" size={10} className="text-orange-400" />非联盟组织度
+                                <Icon name="Users" size={10} className="text-orange-400" />在野阶层组织度变化修正
                             </span>
                             <span className="flex-1 mx-2 border-b border-dotted border-gray-600/50"></span>
                             <span className={`text-xs font-bold ${orgModifier <= 1 ? 'text-green-400' : 'text-red-400'}`}>
