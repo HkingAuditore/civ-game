@@ -670,6 +670,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
         classInfluence,
         totalInfluence,
         buildingUpgrades,
+        setBuildingUpgrades, // For owner auto-upgrade
         autoRecruitEnabled,
         targetArmyComposition,
         rulingCoalition, // 执政联盟成员
@@ -1247,6 +1248,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
             }
             if (result.jobsAvailable) {
                 setJobsAvailable(result.jobsAvailable);
+            }
+            // Update building upgrades from owner auto-upgrade
+            if (result.buildingUpgrades) {
+                setBuildingUpgrades(result.buildingUpgrades);
             }
             // 每次 Tick 推进 1 天（而非 gameSpeed 天）
             // 加速效果通过增加 Tick 频率实现，而非增加每次推进的天数
