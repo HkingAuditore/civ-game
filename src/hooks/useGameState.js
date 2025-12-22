@@ -412,7 +412,8 @@ export const useGameState = () => {
     const [rebellionStates, setRebellionStates] = useState({});
 
     // ========== 执政联盟状态 ==========
-    const [rulingCoalition, setRulingCoalition] = useState([]); // 联盟成员阶层键数组
+    // 默认自耕农(peasant)为联盟成员
+    const [rulingCoalition, setRulingCoalition] = useState(['peasant']); // 联盟成员阶层键数组
     const [legitimacy, setLegitimacy] = useState(0); // 合法性值 (0-100)
 
     // ========== 游戏运算中间值（Modifiers） ==========
@@ -697,7 +698,9 @@ export const useGameState = () => {
             forcedSubsidy: Array.isArray(loadedEffects.forcedSubsidy) ? loadedEffects.forcedSubsidy : [],
         });
         setRebellionStates(data.rebellionStates || {});
-        setRulingCoalition(data.rulingCoalition || []);
+        // 如果存档没有联盟或为空数组，默认使用自耕农
+        const loadedCoalition = data.rulingCoalition;
+        setRulingCoalition(Array.isArray(loadedCoalition) && loadedCoalition.length > 0 ? loadedCoalition : ['peasant']);
         setLegitimacy(data.legitimacy || 0);
         setActionCooldowns(data.actionCooldowns || {});
         setActionUsage(data.actionUsage || {});
