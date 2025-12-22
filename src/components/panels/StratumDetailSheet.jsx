@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, memo } from 'react';
 import { Icon } from '../common/UIComponents';
 import { STRATA, RESOURCES } from '../../config';
 import { formatEffectDetails } from '../../utils/effectFormatter';
@@ -22,7 +22,7 @@ import { DemandsList } from './DemandsList';
  * 阶层详情底部面板组件
  * 在BottomSheet中显示阶层的详细信息
  */
-export const StratumDetailSheet = ({
+const StratumDetailSheetComponent = ({
     stratumKey,
     popStructure,
     population = 0,
@@ -885,3 +885,6 @@ export const StratumDetailSheet = ({
         </div>
     );
 };
+
+// Memoized for performance - prevents re-render when props unchanged
+export const StratumDetailSheet = memo(StratumDetailSheetComponent);

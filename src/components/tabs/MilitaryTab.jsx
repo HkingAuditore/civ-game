@@ -1,7 +1,7 @@
 // 军事标签页组件
 // 显示可招募的兵种、当前军队和战斗功能
 
-import React, { useState, useMemo, useRef, useLayoutEffect } from 'react';
+import React, { useState, useMemo, useRef, useLayoutEffect, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '../common/UIComponents';
 import { UNIT_TYPES, UNIT_CATEGORIES, BUILDINGS, calculateArmyMaintenance, calculateArmyFoodNeed, calculateBattlePower, calculateArmyPopulation, calculateTotalArmyExpense, calculateUnitExpense, RESOURCES, MILITARY_ACTIONS, TECHS, EPOCHS } from '../../config';
@@ -227,7 +227,7 @@ const UnitTooltip = ({ unit, resources, market, militaryWageRatio, epoch, anchor
  * @param {Function} onSelectTarget - 设置目标
  * @param {Function} onLaunchBattle - 发起战斗回调
  */
-export const MilitaryTab = ({
+const MilitaryTabComponent = ({
     army,
     militaryQueue,
     resources,
@@ -1079,3 +1079,6 @@ export const MilitaryTab = ({
         </div>
     );
 };
+
+// Memoized for performance - prevents re-render when props unchanged
+export const MilitaryTab = memo(MilitaryTabComponent);
