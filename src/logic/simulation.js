@@ -1,6 +1,6 @@
 import { BUILDINGS, STRATA, EPOCHS, RESOURCES, TECHS, ECONOMIC_INFLUENCE } from '../config';
 import { calculateArmyPopulation, calculateArmyFoodNeed, calculateArmyCapacityNeed, calculateArmyMaintenance, calculateArmyScalePenalty } from '../config';
-import { getBuildingEffectiveConfig } from '../config/buildingUpgrades';
+import { getBuildingEffectiveConfig, getUpgradeCost, getMaxUpgradeLevel, BUILDING_UPGRADES } from '../config/buildingUpgrades';
 import { isResourceUnlocked } from '../utils/resources';
 import { calculateForeignPrice } from '../utils/foreignTrade';
 import { simulateBattle, UNIT_TYPES } from '../config/militaryUnits';
@@ -3203,6 +3203,142 @@ export const simulateTick = ({
         }
     }
 
+    // ========== 业主自动升级建筑系统 ==========
+    // Owner Auto-Upgrade: Wealthy owners will automatically upgrade their buildings
+    // Uses BASE cost (no scaling with existing upgrades) as per user requirement
+    const updatedBuildingUpgrades = { ...buildingUpgrades };
+    const OWNER_UPGRADE_WEALTH_THRESHOLD = 2.0; // Per-capita wealth must be >= 2x base upgrade cost
+    const OWNER_UPGRADE_CHANCE_PER_TICK = 0.005; // 0.5% chance per tick per eligible building type
+    
+    BUILDINGS.forEach(b => {
+        const buildingId = b.id;
+        const count = builds[buildingId] || 0;
+        if (count <= 0) return;
+        
+        // Skip buildings without upgrades or without an owner (state-owned)
+        const maxLevel = getMaxUpgradeLevel(buildingId);
+        if (maxLevel <= 0) return;
+        
+        const ownerKey = b.owner;
+        if (!ownerKey || ownerKey === 'state') return;
+        
+        // Get owner's population and wealth
+        const ownerPop = popStructure[ownerKey] || 0;
+        if (ownerPop <= 0) return;
+        
+        const ownerWealth = wealth[ownerKey] || 0;
+        const perCapitaWealth = ownerWealth / ownerPop;
+        
+        // Get current upgrade distribution for this building
+        const currentLevelCounts = updatedBuildingUpgrades[buildingId] || {};
+        
+        // Count buildings at each level
+        let accounted = 0;
+        for (const [, lvlCount] of Object.entries(currentLevelCounts)) {
+            if (typeof lvlCount === 'number' && lvlCount > 0) {
+                accounted += lvlCount;
+            }
+        }
+        const level0Count = count - accounted; // Buildings at level 0
+        
+        // Find the lowest level building that can be upgraded
+        // Start from level 0 and go up
+        for (let fromLevel = 0; fromLevel < maxLevel; fromLevel++) {
+            const atThisLevel = fromLevel === 0 ? level0Count : (currentLevelCounts[fromLevel] || 0);
+            if (atThisLevel <= 0) continue;
+            
+            // Get BASE upgrade cost (no scaling, existingUpgradeCount = 0)
+            const baseCost = getUpgradeCost(buildingId, fromLevel + 1, 0);
+            if (!baseCost) continue;
+            
+            // Calculate total cost in silver (resources at market price)
+            let totalSilverCost = 0;
+            for (const [resource, amount] of Object.entries(baseCost)) {
+                if (resource === 'silver') {
+                    totalSilverCost += amount;
+                } else {
+                    const price = priceMap[resource] || 1;
+                    totalSilverCost += amount * price;
+                }
+            }
+            
+            // Check if owner is wealthy enough (per-capita wealth >= threshold * cost)
+            if (perCapitaWealth < OWNER_UPGRADE_WEALTH_THRESHOLD * totalSilverCost) {
+                continue; // Owner not wealthy enough for this upgrade
+            }
+            
+            // Random chance to trigger upgrade
+            if (Math.random() > OWNER_UPGRADE_CHANCE_PER_TICK) {
+                continue; // Upgrade not triggered this tick
+            }
+            
+            // Check if market has enough resources
+            const hasResources = Object.entries(baseCost).every(([resource, amount]) => {
+                if (resource === 'silver') return true;
+                return (res[resource] || 0) >= amount;
+            });
+            
+            if (!hasResources) {
+                continue; // Not enough resources in market
+            }
+            
+            // Check if owner can afford (has enough wealth)
+            if (ownerWealth < totalSilverCost) {
+                continue; // Owner doesn't have enough wealth
+            }
+            
+            // === Execute the upgrade ===
+            
+            // 1. Deduct resources from market
+            Object.entries(baseCost).forEach(([resource, amount]) => {
+                if (resource !== 'silver') {
+                    res[resource] = Math.max(0, (res[resource] || 0) - amount);
+                }
+            });
+            
+            // 2. Deduct cost from owner's wealth
+            wealth[ownerKey] = Math.max(0, ownerWealth - totalSilverCost);
+            
+            // 3. Update building upgrade levels
+            if (!updatedBuildingUpgrades[buildingId]) {
+                updatedBuildingUpgrades[buildingId] = {};
+            }
+            
+            // Decrease count at fromLevel (if > 0)
+            if (fromLevel > 0) {
+                updatedBuildingUpgrades[buildingId][fromLevel] = 
+                    Math.max(0, (updatedBuildingUpgrades[buildingId][fromLevel] || 0) - 1);
+                if (updatedBuildingUpgrades[buildingId][fromLevel] <= 0) {
+                    delete updatedBuildingUpgrades[buildingId][fromLevel];
+                }
+            }
+            
+            // Increase count at toLevel
+            const toLevel = fromLevel + 1;
+            updatedBuildingUpgrades[buildingId][toLevel] = 
+                (updatedBuildingUpgrades[buildingId][toLevel] || 0) + 1;
+            
+            // Clean up empty entries
+            if (Object.keys(updatedBuildingUpgrades[buildingId]).length === 0) {
+                delete updatedBuildingUpgrades[buildingId];
+            }
+            
+            // 4. Log the upgrade
+            const ownerName = STRATA[ownerKey]?.name || ownerKey;
+            const upgradeName = BUILDING_UPGRADES[buildingId]?.[fromLevel]?.name || `等级${toLevel}`;
+            logs.push(`🏗️ ${ownerName}自主升级了 ${b.name} → ${upgradeName}（花费 ${Math.ceil(totalSilverCost)} 银币）`);
+            
+            // Only upgrade one building per type per tick to avoid rapid changes
+            break;
+        }
+    });
+    
+    // Update classWealthResult after owner upgrades
+    Object.keys(STRATA).forEach(key => {
+        classWealthResult[key] = Math.max(0, wealth[key] || 0);
+    });
+    totalWealth = Object.values(classWealthResult).reduce((sum, val) => sum + val, 0);
+
     taxBreakdown.policyIncome = decreeSilverIncome;
     taxBreakdown.policyExpense = decreeSilverExpense;
 
@@ -3267,6 +3403,7 @@ export const simulateTick = ({
         livingStandardStreaks: updatedLivingStandardStreaks,
         nations: updatedNations,
         merchantState: updatedMerchantState,
+        buildingUpgrades: updatedBuildingUpgrades, // Owner auto-upgrade results
         // 加成修饰符数据，供UI显示"谁吃到了buff"
         modifiers: {
             // 需求修饰符
