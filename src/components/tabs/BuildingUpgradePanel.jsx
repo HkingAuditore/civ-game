@@ -446,23 +446,13 @@ export const BuildingUpgradePanel = ({
         );
     };
 
-    // 处理升级/降级
+    // 处理升级/降级（新格式：直接传递等级）
     const handleUpgradeOne = (levelNum) => {
-        for (let i = 0; i < count; i++) {
-            if ((upgradeLevels[i] || 0) === levelNum) {
-                onUpgrade?.(i);
-                break;
-            }
-        }
+        onUpgrade?.(levelNum);
     };
 
     const handleDowngradeOne = (levelNum) => {
-        for (let i = 0; i < count; i++) {
-            if ((upgradeLevels[i] || 0) === levelNum) {
-                onDowngrade?.(i);
-                break;
-            }
-        }
+        onDowngrade?.(levelNum);
     };
 
     const handleUpgradeAll = (levelNum, levelCount) => {

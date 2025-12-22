@@ -32,7 +32,9 @@ export const ROLE_PRIORITY = [
 ];
 
 // Job migration ratio - percentage of population that can migrate per tick
-export const JOB_MIGRATION_RATIO = 0.1;
+export const JOB_MIGRATION_RATIO = 0.05;
+// Guaranteed migration ratio when source role population is low (below LOW_POP_THRESHOLD)
+export const JOB_MIGRATION_LOW_POP_GUARANTEE = 0.3;
 
 // Price calculation constants
 export const PRICE_FLOOR = 0.0001;

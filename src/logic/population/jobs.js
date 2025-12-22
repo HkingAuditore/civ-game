@@ -7,6 +7,8 @@ import { STRATA } from '../../config';
 import {
     ROLE_PRIORITY,
     JOB_MIGRATION_RATIO,
+    JOB_MIGRATION_LOW_POP_GUARANTEE,
+    LOW_POP_THRESHOLD,
     STRATUM_TIERS,
     TIER_PROMOTION_WEALTH_RATIO,
     TIER_SEEK_WEALTH_THRESHOLD,
@@ -422,8 +424,12 @@ export const handleJobMigration = ({
 
     if (!targetCandidate) return { popStructure, wealth };
 
-    // Execute migration
-    let migrants = Math.floor(sourceCandidate.pop * JOB_MIGRATION_RATIO);
+    // Execute migration with low population guarantee
+    // When source role has low population, use higher migration ratio to ensure quick reallocation
+    const effectiveMigrationRatio = sourceCandidate.pop < LOW_POP_THRESHOLD
+        ? JOB_MIGRATION_LOW_POP_GUARANTEE
+        : JOB_MIGRATION_RATIO;
+    let migrants = Math.floor(sourceCandidate.pop * effectiveMigrationRatio);
     if (migrants <= 0 && sourceCandidate.pop > 0) migrants = 1;
     migrants = Math.min(migrants, targetCandidate.vacancy);
 

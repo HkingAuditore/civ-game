@@ -3,6 +3,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { DECREES, COUNTRIES, RESOURCES, STRATA } from '../config';
+import { isOldUpgradeFormat, migrateUpgradesToNewFormat } from '../utils/buildingUpgradeUtils';
 
 const SAVE_KEY = 'civ_game_save_data_v1';
 const AUTOSAVE_KEY = 'civ_game_autosave_v1';
@@ -328,7 +329,7 @@ export const useGameState = () => {
 
     // ========== 建筑与科技状态 ==========
     const [buildings, setBuildings] = useState({});
-    const [buildingUpgrades, setBuildingUpgrades] = useState({}); // 建筑升级等级 { buildingId: { instanceIndex: level } }
+    const [buildingUpgrades, setBuildingUpgrades] = useState({}); // 建筑升级等级 { buildingId: { level: count } } - 每个等级的建筑数量
     const [techsUnlocked, setTechsUnlocked] = useState([]);
     const [epoch, setEpoch] = useState(0);
 
@@ -605,7 +606,13 @@ export const useGameState = () => {
         setMaxPopBonus(data.maxPopBonus || 0);
         setBirthAccumulator(data.birthAccumulator || 0);
         setBuildings(data.buildings || {});
-        setBuildingUpgrades(data.buildingUpgrades || {});
+        // 升级格式迁移：检测旧格式并自动转换
+        let upgrades = data.buildingUpgrades || {};
+        if (isOldUpgradeFormat(upgrades, data.buildings)) {
+            console.log('[Save Migration] Detected old buildingUpgrades format, migrating...');
+            upgrades = migrateUpgradesToNewFormat(upgrades, data.buildings);
+        }
+        setBuildingUpgrades(upgrades);
         setTechsUnlocked(data.techsUnlocked || []);
         setEpoch(data.epoch ?? 0);
         setActiveTab(data.activeTab || 'build');

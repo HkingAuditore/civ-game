@@ -1,5 +1,6 @@
 // 建筑升级效果计算工具
 // 用于 simulation.js 和其他需要考虑升级效果的地方
+// 新数据格式: { buildingId: { level: count } } - 每个等级有多少座建筑
 
 import { BUILDING_UPGRADES, getBuildingEffectiveConfig } from '../config/buildingUpgrades';
 
@@ -9,10 +10,10 @@ import { BUILDING_UPGRADES, getBuildingEffectiveConfig } from '../config/buildin
  * 
  * @param {Object} building - 基础建筑配置
  * @param {number} count - 建筑数量
- * @param {Object} upgradeLevels - 该建筑类型的升级等级 { instanceIndex: level }
+ * @param {Object} levelCounts - 该建筑类型的等级分布 { level: count }
  * @returns {Object} { input, output, jobs } 总体效果
  */
-export const calculateBuildingTotalEffects = (building, count, upgradeLevels = {}) => {
+export const calculateBuildingTotalEffects = (building, count, levelCounts = {}) => {
     if (!building || count <= 0) {
         return { input: {}, output: {}, jobs: {} };
     }
@@ -31,54 +32,60 @@ export const calculateBuildingTotalEffects = (building, count, upgradeLevels = {
         });
     };
 
-    // 遍历每个建筑实例
-    for (let i = 0; i < count; i++) {
-        const level = upgradeLevels[i] || 0;
-        const config = getBuildingEffectiveConfig(building, level);
+    // 计算显式记录的等级
+    let accounted = 0;
+    for (const [levelStr, levelCount] of Object.entries(levelCounts)) {
+        const level = parseInt(levelStr);
+        if (!Number.isFinite(level) || levelCount <= 0) continue;
 
-        addToTotal(totalInput, config.input);
-        addToTotal(totalOutput, config.output);
-        addToTotal(totalJobs, config.jobs);
+        const config = getBuildingEffectiveConfig(building, level);
+        addToTotal(totalInput, config.input, levelCount);
+        addToTotal(totalOutput, config.output, levelCount);
+        addToTotal(totalJobs, config.jobs, levelCount);
+        accounted += levelCount;
+    }
+
+    // 剩余的建筑视为0级
+    const remaining = count - accounted;
+    if (remaining > 0) {
+        const config = getBuildingEffectiveConfig(building, 0);
+        addToTotal(totalInput, config.input, remaining);
+        addToTotal(totalOutput, config.output, remaining);
+        addToTotal(totalJobs, config.jobs, remaining);
     }
 
     return { input: totalInput, output: totalOutput, jobs: totalJobs };
 };
 
 /**
- * 获取单个建筑实例的有效配置
- * 
- * @param {Object} building - 基础建筑配置
- * @param {number} instanceIndex - 实例索引
- * @param {Object} upgradeLevels - 该建筑类型的升级等级
- * @returns {Object} 有效配置
- */
-export const getSingleBuildingConfig = (building, instanceIndex, upgradeLevels = {}) => {
-    const level = upgradeLevels[instanceIndex] || 0;
-    return getBuildingEffectiveConfig(building, level);
-};
-
-/**
- * 统计建筑各等级的分布
+ * 获取建筑各等级的分布
+ * 新格式下直接返回 levelCounts，补全0级的数量
  * 
  * @param {string} buildingId - 建筑ID
  * @param {number} count - 建筑总数
- * @param {Object} upgradeLevels - 升级等级 { instanceIndex: level }
- * @returns {Object} { [level]: count } 各等级的数量
+ * @param {Object} levelCounts - 等级分布 { level: count }
+ * @returns {Object} { [level]: count } 各等级的数量（包含0级）
  */
-export const getBuildingLevelDistribution = (buildingId, count, upgradeLevels = {}) => {
-    const distribution = { 0: 0 }; // 基础等级
-
-    // 获取最大升级等级
+export const getBuildingLevelDistribution = (buildingId, count, levelCounts = {}) => {
     const maxLevel = BUILDING_UPGRADES[buildingId]?.length || 0;
-    for (let i = 1; i <= maxLevel; i++) {
+    const distribution = {};
+
+    // 初始化所有等级为0
+    for (let i = 0; i <= maxLevel; i++) {
         distribution[i] = 0;
     }
 
-    // 统计每个实例的等级
-    for (let i = 0; i < count; i++) {
-        const level = upgradeLevels[i] || 0;
-        distribution[level] = (distribution[level] || 0) + 1;
+    // 填入已记录的等级数量
+    let accounted = 0;
+    for (const [levelStr, levelCount] of Object.entries(levelCounts)) {
+        const level = parseInt(levelStr);
+        if (!Number.isFinite(level) || levelCount <= 0) continue;
+        distribution[level] = (distribution[level] || 0) + levelCount;
+        accounted += levelCount;
     }
+
+    // 剩余的建筑视为0级
+    distribution[0] = Math.max(0, count - accounted + (distribution[0] || 0));
 
     return distribution;
 };
@@ -99,16 +106,96 @@ export const canBuildingUpgrade = (buildingId) => {
  * 
  * @param {number} targetLevel - 目标升级等级
  * @param {number} count - 建筑总数
- * @param {Object} upgradeLevels - 升级等级 { instanceIndex: level }
+ * @param {Object} levelCounts - 等级分布 { level: count }
  * @returns {number} 已升级到该等级或更高的数量
  */
-export const getUpgradeCountAtOrAboveLevel = (targetLevel, count, upgradeLevels = {}) => {
+export const getUpgradeCountAtOrAboveLevel = (targetLevel, count, levelCounts = {}) => {
     let upgradeCount = 0;
-    for (let i = 0; i < count; i++) {
-        const level = upgradeLevels[i] || 0;
-        if (level >= targetLevel) {
-            upgradeCount++;
+    for (const [levelStr, levelCount] of Object.entries(levelCounts)) {
+        const level = parseInt(levelStr);
+        if (Number.isFinite(level) && level >= targetLevel && levelCount > 0) {
+            upgradeCount += levelCount;
         }
     }
     return upgradeCount;
+};
+
+/**
+ * 迁移旧格式的 buildingUpgrades 到新格式
+ * 旧格式: { buildingId: { instanceIndex: level } }
+ * 新格式: { buildingId: { level: count } }
+ * 
+ * @param {Object} oldUpgrades - 旧格式的升级数据
+ * @param {Object} buildings - 建筑数量 { buildingId: count }
+ * @returns {Object} 新格式的升级数据
+ */
+export const migrateUpgradesToNewFormat = (oldUpgrades, buildings = {}) => {
+    if (!oldUpgrades || typeof oldUpgrades !== 'object') {
+        return {};
+    }
+
+    const newUpgrades = {};
+
+    for (const [buildingId, instanceLevels] of Object.entries(oldUpgrades)) {
+        if (!instanceLevels || typeof instanceLevels !== 'object') continue;
+
+        // 检测是否是旧格式：key 是数字字符串且值也是数字（实例索引→等级）
+        // 新格式下，key 代表等级，值代表数量，通常等级范围小(0-3)，数量可能较大
+        // 旧格式下，key 代表实例索引(0, 1, 2, ...)，值代表等级(0-3)
+
+        const keys = Object.keys(instanceLevels);
+        const values = Object.values(instanceLevels);
+
+        // 启发式判断：如果 key 的最大值大于可能的最大等级(比如5)，则可能是旧格式
+        const maxKey = Math.max(...keys.map(k => parseInt(k)).filter(k => Number.isFinite(k)));
+        const maxLevel = BUILDING_UPGRADES[buildingId]?.length || 0;
+
+        const isOldFormat = maxKey > maxLevel;
+
+        if (isOldFormat) {
+            // 旧格式：统计每个等级有多少实例
+            const levelCounts = {};
+            for (const [, level] of Object.entries(instanceLevels)) {
+                if (typeof level === 'number' && level > 0) {
+                    levelCounts[level] = (levelCounts[level] || 0) + 1;
+                }
+            }
+            if (Object.keys(levelCounts).length > 0) {
+                newUpgrades[buildingId] = levelCounts;
+            }
+        } else {
+            // 已经是新格式或无法判断，保持原样
+            newUpgrades[buildingId] = { ...instanceLevels };
+        }
+    }
+
+    return newUpgrades;
+};
+
+/**
+ * 检测 buildingUpgrades 是否是旧格式
+ * 
+ * @param {Object} upgrades - buildingUpgrades 数据
+ * @param {Object} buildings - 建筑数量
+ * @returns {boolean}
+ */
+export const isOldUpgradeFormat = (upgrades, buildings = {}) => {
+    if (!upgrades || typeof upgrades !== 'object') return false;
+
+    for (const [buildingId, instanceLevels] of Object.entries(upgrades)) {
+        if (!instanceLevels || typeof instanceLevels !== 'object') continue;
+
+        const keys = Object.keys(instanceLevels);
+        if (keys.length === 0) continue;
+
+        const maxKey = Math.max(...keys.map(k => parseInt(k)).filter(k => Number.isFinite(k)));
+        const maxLevel = BUILDING_UPGRADES[buildingId]?.length || 0;
+
+        // 如果有任何 key 大于最大等级，说明是旧格式
+        if (maxKey > maxLevel) {
+            return true;
+        }
+    }
+
+    return false;
 };
