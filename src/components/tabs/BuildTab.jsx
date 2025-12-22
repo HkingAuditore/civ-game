@@ -1,7 +1,7 @@
 // 建设标签页组件
 // 显示可建造的建筑列表
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '../common/UIComponents';
 import { BUILDINGS, RESOURCES, STRATA } from '../../config';
@@ -314,7 +314,7 @@ const CompactBuildingCard = ({
             * @param {Function} onBuy - 购买建筑回调
             * @param {Function} onSell - 出售建筑回调
             */
-export const BuildTab = ({
+const BuildTabComponent = ({
     buildings,
     resources,
     epoch,
@@ -604,3 +604,6 @@ export const BuildTab = ({
         </div>
     );
 };
+
+// Memoized for performance - prevents re-render when props unchanged
+export const BuildTab = memo(BuildTabComponent);

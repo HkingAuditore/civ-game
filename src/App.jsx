@@ -1,7 +1,7 @@
 // 文明崛起 - 主应用文件
 // 使用拆分后的钩子和组件，保持代码简洁
 
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { GAME_SPEEDS, EPOCHS, RESOURCES, STRATA, calculateArmyFoodNeed, calculateTotalArmyExpense, BUILDINGS, EVENTS } from './config';
 import { getCalendarInfo } from './utils/calendar';
 import { useGameState, useGameLoop, useGameActions, useSound, useEpicTheme, useViewportHeight } from './hooks';
@@ -81,12 +81,12 @@ function GameApp({ gameState }) {
     // 初始化动态视口高度（解决移动端 vh 不准确问题）
     useViewportHeight();
 
-    // 添加日志函数
-    const addLog = (msg) => {
+    // 添加日志函数 - memoized to prevent unnecessary re-renders
+    const addLog = useCallback((msg) => {
         if (gameState?.setLogs) {
             gameState.setLogs(prev => [msg, ...prev].slice(0, 8));
         }
-    };
+    }, [gameState]);
 
     const formatFestivalEffects = (effects) => {
         if (!effects) return '无特殊效果。';
@@ -346,36 +346,36 @@ function GameApp({ gameState }) {
         }));
     };
 
-    // 新增：处理显示建筑详情的函数
-    const handleShowBuildingDetails = (buildingId, options = {}) => {
+    // 新增：处理显示建筑详情的函数 - memoized
+    const handleShowBuildingDetails = useCallback((buildingId, options = {}) => {
         const building = BUILDINGS.find(b => b.id === buildingId);
         if (building) {
             setActiveSheet({ type: 'building', data: building, options });
         }
-    };
+    }, []);
 
-    // 新增：关闭 BottomSheet 的函数
-    const closeSheet = () => setActiveSheet({ type: null, data: null });
+    // 新增：关闭 BottomSheet 的函数 - memoized
+    const closeSheet = useCallback(() => setActiveSheet({ type: null, data: null }), []);
 
-    // 处理阶层详情点击
-    const handleStratumDetailClick = (stratumKey) => {
+    // 处理阶层详情点击 - memoized
+    const handleStratumDetailClick = useCallback((stratumKey) => {
         setActiveSheet({ type: 'stratum', data: stratumKey });
-    };
+    }, []);
 
-    // 处理军事单位详情点击
-    const handleShowUnitDetails = (unit) => {
+    // 处理军事单位详情点击 - memoized
+    const handleShowUnitDetails = useCallback((unit) => {
         setActiveSheet({ type: 'unit', data: unit });
-    };
+    }, []);
 
-    // 处理科技详情点击
-    const handleShowTechDetails = (tech, status) => {
+    // 处理科技详情点击 - memoized
+    const handleShowTechDetails = useCallback((tech, status) => {
         setActiveSheet({ type: 'tech', data: { tech, status } });
-    };
+    }, []);
 
-    // 处理政策详情点击
-    const handleShowDecreeDetails = (decree) => {
+    // 处理政策详情点击 - memoized
+    const handleShowDecreeDetails = useCallback((decree) => {
         setActiveSheet({ type: 'decree', data: decree });
-    };
+    }, []);
 
     const estimateMilitaryPower = () => {
         const army = gameState.army || {};

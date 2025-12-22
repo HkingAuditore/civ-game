@@ -1,7 +1,7 @@
 // 政令标签页组件
 // 显示可用政令和切换功能
 
-import React from 'react';
+import React, { memo } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '../common/UIComponents';
 import { STRATA, RESOURCES, EPOCHS, BUILDINGS } from '../../config';
@@ -447,7 +447,7 @@ const BusinessTaxCard = ({ building, multiplier, buildingCount, draftMultiplier,
  * @param {Object} buildings - 当前建筑数量
  * @param {number} epoch - 当前时代编号
  */
-export const PoliticsTab = ({
+const PoliticsTabComponent = ({
     decrees,
     onToggle,
     taxPolicies,
@@ -1229,3 +1229,6 @@ export const PoliticsTab = ({
         </div>
     );
 };
+
+// Memoized for performance - prevents re-render when props unchanged
+export const PoliticsTab = memo(PoliticsTabComponent);

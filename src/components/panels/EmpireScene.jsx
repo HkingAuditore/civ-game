@@ -1,10 +1,10 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, memo } from 'react';
 
 /**
  * EmpireScene - 帝国场景可视化组件
  * 适配修复版
  */
-export default function EmpireScene({
+function EmpireSceneComponent({
     daysElapsed = 0,
     season = '春季',
     population = 0,
@@ -1420,3 +1420,6 @@ export default function EmpireScene({
         </div >
     );
 }
+
+// Memoized for performance - prevents re-render when props unchanged
+export default memo(EmpireSceneComponent);

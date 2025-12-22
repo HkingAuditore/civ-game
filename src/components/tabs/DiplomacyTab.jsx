@@ -1,7 +1,7 @@
 // 外交标签页
 // 展示国家状态、贸易套利与和平谈判
 
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, memo } from 'react';
 import { Icon } from '../common/UIComponents';
 import { Modal } from '../common/UnifiedUI';
 import { DeclareWarModal } from '../modals/DeclareWarModal';
@@ -200,7 +200,7 @@ const formatCulturalTraitValue = (trait, value) => {
     return '';
 };
 
-export const DiplomacyTab = ({
+const DiplomacyTabComponent = ({
     nations = [],
     epoch = 0,
     market = {},
@@ -1090,3 +1090,6 @@ export const DiplomacyTab = ({
         </div>
     );
 };
+
+// Memoized for performance - prevents re-render when props unchanged
+export const DiplomacyTab = memo(DiplomacyTabComponent);

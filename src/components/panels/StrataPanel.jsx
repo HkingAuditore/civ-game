@@ -1,7 +1,7 @@
 // 社会阶层面板组件
 // 显示各个社会阶层的人口、好感度和影响力
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, memo } from 'react';
 import { Icon } from '../common/UIComponents';
 import { STRATA, RESOURCES } from '../../config';
 import { formatEffectDetails } from '../../utils/effectFormatter';
@@ -36,7 +36,7 @@ const getLivingStandardLevelName = (iconName) => {
  * @param {Object} classLivingStandard - 阶层生活水平数据（从simulation计算得出）
  * @param {Function} onDetailClick - 点击详情回调
  */
-export const StrataPanel = ({
+const StrataPanelComponent = ({
     popStructure,
     classApproval,
     classInfluence,
@@ -582,3 +582,6 @@ export const StrataPanel = ({
         </div>
     );
 };
+
+// Memoized for performance - prevents re-render when props unchanged
+export const StrataPanel = memo(StrataPanelComponent);
