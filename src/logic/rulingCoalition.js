@@ -187,14 +187,14 @@ export function getLegitimacyLevelInfo(level) {
  * 合法性 0 → 0.3倍税收效率
  * 合法性 100 → 1.5倍税收效率
  * @param {number} legitimacy - 合法性值 (0-100)
- * @returns {number} 税收修正系数 (0.3 ~ 1.5)
+ * @returns {number} 税收修正系数 (0.3 ~ 1.0)
  */
 export function getLegitimacyTaxModifier(legitimacy) {
     // 线性映射：legitimacy [0, 100] → modifier [0.3, 1.5]
     // modifier = 0.3 + (legitimacy / 100) * (1.5 - 0.3)
     // modifier = 0.3 + legitimacy * 0.012
     const clampedLegitimacy = Math.min(100, Math.max(0, legitimacy));
-    return 0.3 + (clampedLegitimacy / 100) * 1.2;
+    return 0.3 + (clampedLegitimacy / 100) * 0.7;
 }
 
 /**

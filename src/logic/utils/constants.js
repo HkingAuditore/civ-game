@@ -32,9 +32,33 @@ export const ROLE_PRIORITY = [
 ];
 
 // Job migration ratio - percentage of population that can migrate per tick
-export const JOB_MIGRATION_RATIO = 0.05;
+// Reduced from 0.05 to 0.02 to slow down migration frequency
+export const JOB_MIGRATION_RATIO = 0.02;
 // Guaranteed migration ratio when source role population is low (below LOW_POP_THRESHOLD)
-export const JOB_MIGRATION_LOW_POP_GUARANTEE = 0.3;
+export const JOB_MIGRATION_LOW_POP_GUARANTEE = 0.2;
+
+// ============== Migration Tier Resistance Constants ==============
+// These control how difficult it is to migrate between different tiers
+// Higher value = more resistance = needs larger income difference to trigger
+
+// Same-tier (horizontal) migration resistance - limits frequent swapping between same-tier roles
+// e.g., peasant ↔ lumberjack, worker ↔ artisan
+export const SAME_TIER_MIGRATION_RESISTANCE = 1.5;
+
+// Downward migration resistance - makes it harder to move to lower-tier roles
+// Only applies to voluntary migration (not layoffs)
+export const DOWNGRADE_MIGRATION_RESISTANCE = 2.0;
+
+// Multi-tier downgrade resistance multiplier (per additional tier below)
+export const MULTI_TIER_DOWNGRADE_PENALTY = 1.5;
+
+// Upward migration bonus - makes it easier to move to higher-tier roles
+// Value < 1 means less income difference required
+export const UPGRADE_MIGRATION_BONUS = 0.8;
+
+// Migration cooldown per source role (in ticks)
+// After migration from a role, that role enters cooldown before another migration can occur
+export const MIGRATION_COOLDOWN_TICKS = 5;
 
 // Price calculation constants
 export const PRICE_FLOOR = 0.0001;
@@ -86,8 +110,8 @@ export const STRATUM_TIERS = {
 export const TIER_PROMOTION_WEALTH_RATIO = {
     0: 0,     // 进入 Tier 0 无财富门槛
     1: 0,     // 进入 Tier 1 无财富门槛
-    2: 0.8,   // 进入 Tier 2 需要目标阶层 startingWealth 的 200%
-    3: 0.8    // 进入 Tier 3 需要目标阶层 startingWealth 的 300%
+    2: 0.8,   // 进入 Tier 2 需要目标阶层 startingWealth 的 80%
+    3: 0.8    // 进入 Tier 3 需要目标阶层 startingWealth 的 80%
 };
 
 // Wealth threshold for active tier seeking (multiple of current startingWealth)

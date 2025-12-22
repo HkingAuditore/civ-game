@@ -463,11 +463,11 @@ export function calculateOrganizationGrowthRate(approval, influenceShare, stabil
 
     // 当满意度 < 45 时开始增长, 满意度越低增长越快
     if (approval < 45) {
-        // 基础怒气: 满意度30 -> +0.25/天, 满意度0 -> +1.0/天 (降低了50%)
+        // 基础怒气: 满意度30 -> +0.33/天, 满意度0 -> +1.0/天
         const baseAnger = (45 - approval) / 45 * 1.0;
 
         // 影响力加成 (影响力越高，组织能力越强)
-        const influenceBonus = 1 + influenceShare * 0.3; // 降低影响力加成
+        const influenceBonus = 1 + influenceShare * 0.3;
 
         return baseAnger * stratumMultiplier * influenceBonus * stabilityDampening;
     }
@@ -555,6 +555,9 @@ export function updateStratumOrganization(
         growthRate = 0;
     }
 
+    // 提前判断是否为联盟成员
+    const isInCoalition = isCoalitionMember(stratumKey, rulingCoalition);
+
     if (growthRate > 0) {
         growthRate *= getStabilityGrowthModifier(stability);
         growthRate *= ORGANIZATION_GROWTH_MULTIPLIER;
@@ -562,7 +565,6 @@ export function updateStratumOrganization(
         // 应用合法性修正：高合法性时非联盟阶层组织度增长缓慢
         const coalitionInfluenceShare = calculateCoalitionInfluenceShare(rulingCoalition, classInfluence, totalInfluence);
         const currentLegitimacy = calculateLegitimacy(coalitionInfluenceShare);
-        const isInCoalition = isCoalitionMember(stratumKey, rulingCoalition);
         const legitimacyMod = getLegitimacyOrganizationModifier(currentLegitimacy, isInCoalition);
         growthRate *= legitimacyMod;
     }
@@ -573,7 +575,10 @@ export function updateStratumOrganization(
     // 更新组织度
     let newOrganization = Math.max(0, Math.min(100, state.organization + growthRate));
 
-    if (!hasBasicShortage && approval < 45) {
+    // 只有在无基础短缺且满意度较高(>60)时，才限制组织度上限为50%
+    // 这意味着生活条件良好的阶层难以发动叛乱
+    // 注意：执政联盟成员也受此限制（如果他们很满意，就不该造反）
+    if (!hasBasicShortage && approval > 60) {
         const maxOrganizationWithoutBasicShortage = 50;
         if (newOrganization > maxOrganizationWithoutBasicShortage) {
             newOrganization = maxOrganizationWithoutBasicShortage;
@@ -583,7 +588,9 @@ export function updateStratumOrganization(
         }
     }
 
-    if (influenceShare < MIN_REBELLION_INFLUENCE) {
+    // 影响力过低时的组织度上限
+    // 【修改】执政联盟成员不受此限制
+    if (!isInCoalition && influenceShare < MIN_REBELLION_INFLUENCE) {
         const cappedOrganization = 75;
         if (newOrganization > cappedOrganization) {
             newOrganization = cappedOrganization;

@@ -368,6 +368,7 @@ export const useGameState = () => {
     const [classShortages, setClassShortages] = useState({});
     const [classLivingStandard, setClassLivingStandard] = useState({}); // 各阶层生活水平数据
     const [livingStandardStreaks, setLivingStandardStreaks] = useState(buildInitialLivingStandardStreaks());
+    const [migrationCooldowns, setMigrationCooldowns] = useState({}); // 阶层迁移冷却状态 { roleKey: ticksRemaining }
     const [populationDetailView, setPopulationDetailView] = useState(false);
     const [history, setHistory] = useState(buildInitialHistory());
     const [eventEffectSettings, setEventEffectSettings] = useState(DEFAULT_EVENT_EFFECT_SETTINGS);
@@ -560,6 +561,7 @@ export const useGameState = () => {
                 classShortages,
                 classLivingStandard,
                 livingStandardStreaks,
+                migrationCooldowns,
                 populationDetailView,
                 history,
                 daysElapsed,
@@ -649,6 +651,7 @@ export const useGameState = () => {
         setClassShortages(data.classShortages || {});
         setClassLivingStandard(data.classLivingStandard || {});
         setLivingStandardStreaks(data.livingStandardStreaks || buildInitialLivingStandardStreaks());
+        setMigrationCooldowns(data.migrationCooldowns || {});
         setPopulationDetailView(data.populationDetailView || false);
         setHistory(data.history || buildInitialHistory());
         setDaysElapsed(data.daysElapsed || 0);
@@ -939,6 +942,8 @@ export const useGameState = () => {
         setClassLivingStandard,
         livingStandardStreaks,
         setLivingStandardStreaks,
+        migrationCooldowns,
+        setMigrationCooldowns,
         populationDetailView,
         setPopulationDetailView,
         history,

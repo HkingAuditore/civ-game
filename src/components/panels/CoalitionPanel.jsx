@@ -552,11 +552,12 @@ export const CoalitionPanel = ({
                         <div className="text-[10px] text-amber-300/80">
                             <p className="font-semibold mb-1">联盟代价：</p>
                             <ul className="list-disc list-inside space-y-0.5 text-amber-300/70">
-                                <li>组织度增长速度：<span className="text-red-400">+50%</span>（联盟阶层期望更高）</li>
-                                <li>税收负担阈值：{(COALITION_SENSITIVITY.TAX_THRESHOLD_NORMAL * 100).toFixed(0)}% → <span className="text-red-400">{(COALITION_SENSITIVITY.TAX_THRESHOLD_COALITION * 100).toFixed(0)}%</span></li>
-                                <li>收入目标乘数：×{COALITION_SENSITIVITY.INCOME_MULTIPLIER_NORMAL.toFixed(2)} → <span className="text-red-400">×{COALITION_SENSITIVITY.INCOME_MULTIPLIER_COALITION.toFixed(2)}</span></li>
-                                <li>基础短缺压力：{COALITION_SENSITIVITY.BASIC_SHORTAGE_PRESSURE_NORMAL}/项 → <span className="text-red-400">{COALITION_SENSITIVITY.BASIC_SHORTAGE_PRESSURE_COALITION}/项</span></li>
-                                <li>奢侈短缺压力：{COALITION_SENSITIVITY.LUXURY_SHORTAGE_PRESSURE_NORMAL}/项 → <span className="text-red-400">{COALITION_SENSITIVITY.LUXURY_SHORTAGE_PRESSURE_COALITION}/项</span></li>
+                                <li>提高叛乱组织度增速：<span className="text-red-400">+50%</span>（联盟阶层掌握更多政治权利，更容易组织叛乱）</li>
+                                <li>降低叛乱门槛：<span className="text-red-400">无视低影响力阶层无法叛乱的限制</span></li>
+                                <li>更难以接受高税负：税负占比的不满阈值{(COALITION_SENSITIVITY.TAX_THRESHOLD_NORMAL * 100).toFixed(0)}% → <span className="text-red-400">{(COALITION_SENSITIVITY.TAX_THRESHOLD_COALITION * 100).toFixed(0)}%</span></li>
+                                <li>需要更高的预期收入：预期收入×{COALITION_SENSITIVITY.INCOME_MULTIPLIER_NORMAL.toFixed(2)} → <span className="text-red-400">×{COALITION_SENSITIVITY.INCOME_MULTIPLIER_COALITION.toFixed(2)}</span></li>
+                                <li>基础物资短缺将造成更多不满：{COALITION_SENSITIVITY.BASIC_SHORTAGE_PRESSURE_NORMAL}/项 → <span className="text-red-400">{COALITION_SENSITIVITY.BASIC_SHORTAGE_PRESSURE_COALITION}/项</span></li>
+                                <li>奢侈品短缺将造成更多不满：{COALITION_SENSITIVITY.LUXURY_SHORTAGE_PRESSURE_NORMAL}/项 → <span className="text-red-400">{COALITION_SENSITIVITY.LUXURY_SHORTAGE_PRESSURE_COALITION}/项</span></li>
                             </ul>
                         </div>
                     </div>

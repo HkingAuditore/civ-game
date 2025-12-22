@@ -1,8 +1,10 @@
 // 游戏循环钩子
 // 处理游戏的核心循环逻辑，包括资源生产、人口增长等
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { simulateTick } from '../logic/simulation';
+// Web Worker for offloading simulation to background thread
+import SimulationWorker from '../workers/simulation.worker.js?worker';
 import { calculateArmyMaintenance, calculateArmyPopulation, UNIT_TYPES, STRATA, RESOURCES } from '../config';
 import { getRandomFestivalEffects } from '../config/festivalEffects';
 import { initCheatCodes } from './cheatCodes';
@@ -625,6 +627,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
         setClassLivingStandard,
         livingStandardStreaks,
         setLivingStandardStreaks,
+        migrationCooldowns,
+        setMigrationCooldowns,
         activeBuffs,
         activeDebuffs,
         army,
@@ -738,6 +742,120 @@ export const useGameLoop = (gameState, addLog, actions) => {
     const AUTO_RECRUIT_BATCH_LIMIT = 3;
     const AUTO_RECRUIT_FAIL_COOLDOWN = 5000;
 
+    // ========== Web Worker Integration ==========
+    // Worker instance and status for background simulation
+    const workerRef = useRef(null);
+    const workerReadyRef = useRef(false);
+    const pendingSimulationRef = useRef(null); // Stores callback for pending worker result
+    const [useWorker, setUseWorker] = useState(true); // Whether to attempt using worker
+
+    // Initialize Web Worker
+    useEffect(() => {
+        // Only initialize if we want to use Worker and haven't already
+        if (!useWorker || workerRef.current) return;
+
+        try {
+            const worker = new SimulationWorker();
+            
+            worker.onmessage = (event) => {
+                const { type, payload, error } = event.data;
+                
+                if (type === 'READY') {
+                    console.log('[GameLoop] Simulation Worker ready');
+                    workerReadyRef.current = true;
+                } else if (type === 'RESULT') {
+                    // Handle simulation result from Worker
+                    if (pendingSimulationRef.current) {
+                        pendingSimulationRef.current.resolve(payload);
+                        pendingSimulationRef.current = null;
+                    }
+                } else if (type === 'ERROR') {
+                    console.error('[GameLoop] Worker error:', error);
+                    if (pendingSimulationRef.current) {
+                        pendingSimulationRef.current.reject(new Error(error));
+                        pendingSimulationRef.current = null;
+                    }
+                }
+            };
+            
+            worker.onerror = (error) => {
+                console.error('[GameLoop] Worker crashed:', error);
+                workerReadyRef.current = false;
+                setUseWorker(false); // Disable worker, fallback to main thread
+                if (pendingSimulationRef.current) {
+                    pendingSimulationRef.current.reject(new Error('Worker crashed'));
+                    pendingSimulationRef.current = null;
+                }
+            };
+            
+            workerRef.current = worker;
+        } catch (error) {
+            console.warn('[GameLoop] Failed to create Worker, using main thread:', error);
+            setUseWorker(false);
+        }
+        
+        return () => {
+            if (workerRef.current) {
+                workerRef.current.terminate();
+                workerRef.current = null;
+                workerReadyRef.current = false;
+            }
+        };
+    }, [useWorker]);
+
+    // Helper to run simulation (Worker or main thread)
+    const runSimulation = useCallback((simulationParams) => {
+        // Check if Worker is available and ready
+        if (useWorker && workerRef.current && workerReadyRef.current && !pendingSimulationRef.current) {
+            return new Promise((resolve, reject) => {
+                pendingSimulationRef.current = { resolve, reject };
+                
+                // Set timeout for worker response
+                const timeout = setTimeout(() => {
+                    if (pendingSimulationRef.current) {
+                        console.warn('[GameLoop] Worker timeout, falling back to main thread');
+                        pendingSimulationRef.current = null;
+                        // Fallback to synchronous execution
+                        try {
+                            const result = simulateTick(simulationParams);
+                            resolve(result);
+                        } catch (err) {
+                            reject(err);
+                        }
+                    }
+                }, 2000); // 2 second timeout
+                
+                try {
+                    workerRef.current.postMessage({
+                        type: 'SIMULATE',
+                        payload: simulationParams
+                    });
+                    
+                    // Replace resolve to clear timeout on success
+                    const originalResolve = pendingSimulationRef.current.resolve;
+                    pendingSimulationRef.current.resolve = (result) => {
+                        clearTimeout(timeout);
+                        originalResolve(result);
+                    };
+                } catch (postError) {
+                    // PostMessage failed (non-cloneable data), fallback
+                    clearTimeout(timeout);
+                    pendingSimulationRef.current = null;
+                    console.warn('[GameLoop] postMessage failed:', postError);
+                    try {
+                        const result = simulateTick(simulationParams);
+                        resolve(result);
+                    } catch (err) {
+                        reject(err);
+                    }
+                }
+            });
+        }
+        
+        // Fallback: synchronous execution on main thread
+        return Promise.resolve(simulateTick(simulationParams));
+    }, [useWorker]);
+
     useEffect(() => {
         saveGameRef.current = gameState.saveGame;
     }, [gameState.saveGame]);
@@ -766,6 +884,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
             nations,
             classWealth,
             livingStandardStreaks,
+            migrationCooldowns,
             army,
             militaryQueue,
             jobFill,
@@ -800,7 +919,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
             rulingCoalition, // 执政联盟成员
             legitimacy, // 当前合法性值
         };
-    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, livingStandardStreaks, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability, rulingCoalition, legitimacy]);
+    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, livingStandardStreaks, migrationCooldowns, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability, rulingCoalition, legitimacy]);
 
     useEffect(() => {
         if (!autoRecruitEnabled) return;
@@ -943,6 +1062,34 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 }
             }
 
+            // check activeFestivalEffects expiration
+            const currentFestivalEffects = current.activeFestivalEffects || [];
+            if (currentFestivalEffects.length > 0) {
+                const currentDay = current.daysElapsed || 0;
+                let hasChange = false;
+                
+                const remainingEffects = currentFestivalEffects.filter(effect => {
+                    if (effect.type === 'permanent') return true;
+                    
+                    const duration = effect.duration || 360;
+                    const activatedAt = effect.activatedAt !== undefined ? effect.activatedAt : currentDay;
+                    const elapsed = currentDay - activatedAt;
+                    
+                    if (elapsed >= duration) {
+                        hasChange = true;
+                        addLog(`庆典「${effect.name}」的影响已消退。`);
+                        return false;
+                    }
+                    return true;
+                });
+
+                if (hasChange) {
+                    setActiveFestivalEffects(remainingEffects);
+                    // Update local reference so current tick uses correct effects
+                    current.activeFestivalEffects = remainingEffects;
+                }
+            }
+
             // 执行游戏模拟
             // 【关键】强制将 gameSpeed 设为 1，确保单次 Tick 只计算 1 个单位时间的产出
             // 原因：我们已经通过调整 setInterval 的频率来实现加速（时间流）
@@ -960,7 +1107,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 current.activeEventEffects,
                 current.eventEffectSettings,
             );
-            const result = simulateTick({
+            
+            // Build simulation parameters
+            const simulationParams = {
                 ...current,
                 tick: current.daysElapsed || 0,
                 gameSpeed: 1, // 强制归一化为 1，防止倍率叠加
@@ -973,7 +1122,22 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 eventStratumDemandModifiers: stratumDemandModifiers,
                 eventBuildingProductionModifiers: buildingProductionModifiers,
                 previousLegitimacy: current.legitimacy ?? 0, // 传递上一tick的合法性，用于税收修正
-            });
+            };
+            
+            // Execute simulation
+            // Phase 1: Use synchronous execution (Worker infrastructure ready for Phase 2 async mode)
+            // TODO: Enable async mode once result handling is refactored
+            const workerAvailable = useWorker && workerRef.current && workerReadyRef.current;
+            if (workerAvailable && !pendingSimulationRef.current) {
+                // Log that Worker is ready but we're using sync for now (only log once per session)
+                if (!workerRef.current._loggedReady) {
+                    console.log('[GameLoop] Web Worker is ready. Using synchronous mode (Phase 1).');
+                    workerRef.current._loggedReady = true;
+                }
+            }
+            
+            // Execute synchronously (Phase 1 - stable implementation)
+            const result = simulateTick(simulationParams);
 
             // 更新 Modifiers 状态供 UI 显示
             setModifiers(result.modifiers || {});
@@ -1233,6 +1397,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
             setClassShortages(result.needsShortages || {});
             setClassLivingStandard(result.classLivingStandard || {});
             setLivingStandardStreaks(result.livingStandardStreaks || current.livingStandardStreaks || {});
+            setMigrationCooldowns(result.migrationCooldowns || current.migrationCooldowns || {});
             setMerchantState(prev => {
                 const nextState = result.merchantState || current.merchantState || { pendingTrades: [], lastTradeTime: 0 };
                 if (prev === nextState) {

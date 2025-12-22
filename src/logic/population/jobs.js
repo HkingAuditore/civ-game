@@ -12,7 +12,13 @@ import {
     STRATUM_TIERS,
     TIER_PROMOTION_WEALTH_RATIO,
     TIER_SEEK_WEALTH_THRESHOLD,
-    TIER_UPGRADE_ATTRACTIVENESS_BONUS
+    TIER_UPGRADE_ATTRACTIVENESS_BONUS,
+    // New migration resistance constants
+    SAME_TIER_MIGRATION_RESISTANCE,
+    DOWNGRADE_MIGRATION_RESISTANCE,
+    MULTI_TIER_DOWNGRADE_PENALTY,
+    UPGRADE_MIGRATION_BONUS,
+    MIGRATION_COOLDOWN_TICKS
 } from '../utils/constants';
 
 /**
@@ -333,8 +339,10 @@ export const fillVacancies = ({
  * Handle job migration between roles with social mobility preferences
  * - Wealthy populations are more inclined to seek higher-tier positions
  * - Higher tier jobs get attractiveness bonus when wealth threshold is met
+ * - Tier-based resistance: same-tier and downward migrations are harder
+ * - Cooldown mechanism: roles that recently had migration cannot migrate again
  * @param {Object} params - Migration parameters
- * @returns {Object} Updated population structure and wealth
+ * @returns {Object} Updated population structure, wealth, and cooldown state
  */
 export const handleJobMigration = ({
     popStructure,
@@ -342,13 +350,23 @@ export const handleJobMigration = ({
     roleMetrics,
     hasBuildingVacancyForRole,
     reserveBuildingVacancyForRole,
-    logs
+    logs,
+    migrationCooldowns = {}  // New: track cooldowns for each role
 }) => {
-    if (JOB_MIGRATION_RATIO <= 0) return { popStructure, wealth };
+    if (JOB_MIGRATION_RATIO <= 0) return { popStructure, wealth, migrationCooldowns };
+
+    // Decrease all cooldowns by 1 each tick
+    const updatedCooldowns = {};
+    Object.entries(migrationCooldowns).forEach(([role, cooldown]) => {
+        if (cooldown > 1) {
+            updatedCooldowns[role] = cooldown - 1;
+        }
+        // If cooldown reaches 0 or 1, remove it from tracking
+    });
 
     // Calculate average potential income
     const activeRoleMetrics = roleMetrics.filter(r => r.pop > 0 && r.role !== 'soldier');
-    if (activeRoleMetrics.length === 0) return { popStructure, wealth };
+    if (activeRoleMetrics.length === 0) return { popStructure, wealth, migrationCooldowns: updatedCooldowns };
 
     const totalPotentialIncome = activeRoleMetrics.reduce(
         (sum, r) => sum + r.potentialIncome * r.pop, 0
@@ -356,10 +374,13 @@ export const handleJobMigration = ({
     const totalPop = activeRoleMetrics.reduce((sum, r) => sum + r.pop, 0);
     const averagePotentialIncome = totalPop > 0 ? totalPotentialIncome / totalPop : 0;
 
-    // Find source candidate (struggling role)
+    // Find source candidate (struggling role) - exclude roles on cooldown
     const sourceCandidate = activeRoleMetrics
         .filter(r => {
             if (r.pop <= 0 || r.role === 'soldier') return false;
+            // Check cooldown - role cannot be source if on cooldown
+            if (updatedCooldowns[r.role] && updatedCooldowns[r.role] > 0) return false;
+            
             const percentageThreshold = r.perCap * 0.05;
             const adjustedDeltaThreshold = -Math.max(0.5, Math.min(50, percentageThreshold));
             return r.potentialIncome < averagePotentialIncome * 0.7 ||
@@ -373,7 +394,7 @@ export const handleJobMigration = ({
             return lowest;
         }, null);
 
-    if (!sourceCandidate) return { popStructure, wealth };
+    if (!sourceCandidate) return { popStructure, wealth, migrationCooldowns: updatedCooldowns };
 
     // Calculate source role's wealth status for tier-seeking behavior
     const sourceTier = STRATUM_TIERS[sourceCandidate.role] ?? 0;
@@ -381,6 +402,30 @@ export const handleJobMigration = ({
     const sourceWealth = wealth[sourceCandidate.role] || 0;
     const sourcePerCapWealth = sourceCandidate.pop > 0 ? sourceWealth / sourceCandidate.pop : 0;
     const isWealthyEnoughToSeekTier = sourcePerCapWealth >= sourceStartingWealth * TIER_SEEK_WEALTH_THRESHOLD;
+
+    /**
+     * Calculate the tier-based resistance multiplier for migration
+     * - Upward: easier (lower multiplier)
+     * - Same tier: harder (higher multiplier)  
+     * - Downward: much harder (highest multiplier)
+     */
+    const getTierResistanceMultiplier = (targetRole) => {
+        const targetTier = STRATUM_TIERS[targetRole] ?? 0;
+        const tierDiff = targetTier - sourceTier;
+
+        if (tierDiff > 0) {
+            // Upward migration - easier (bonus)
+            return UPGRADE_MIGRATION_BONUS;
+        } else if (tierDiff === 0) {
+            // Same tier migration - harder (resistance)
+            return SAME_TIER_MIGRATION_RESISTANCE;
+        } else {
+            // Downward migration - much harder
+            // Apply additional penalty for each tier below
+            const tiersBelowCount = Math.abs(tierDiff);
+            return DOWNGRADE_MIGRATION_RESISTANCE * Math.pow(MULTI_TIER_DOWNGRADE_PENALTY, tiersBelowCount - 1);
+        }
+    };
 
     // Calculate effective attractiveness for a target role
     // Includes tier upgrade bonus when wealth threshold is met
@@ -401,17 +446,24 @@ export const handleJobMigration = ({
         return attractiveness;
     };
 
-    // Find target candidate (better opportunity) with tier preference
+    // Find target candidate (better opportunity) with tier preference and resistance
     const targetCandidate = activeRoleMetrics
         .filter(r => {
             if (r.role === sourceCandidate.role || r.vacancy <= 0) return false;
+            
+            // Get the resistance multiplier for this migration direction
+            const resistanceMultiplier = getTierResistanceMultiplier(r.role);
+            // Base threshold is 1.3x income difference, modified by resistance
+            const effectiveThreshold = 1.3 * resistanceMultiplier;
+            
             if (r.role === 'soldier') {
-                return r.potentialIncome > sourceCandidate.potentialIncome * 1.3;
+                return r.potentialIncome > sourceCandidate.potentialIncome * effectiveThreshold;
             }
+            
             // Calculate effective attractiveness including tier bonus
             const effectiveAttractiveness = calculateEffectiveAttractiveness(r.role, r.potentialIncome);
             return hasBuildingVacancyForRole(r.role) &&
-                effectiveAttractiveness > sourceCandidate.potentialIncome * 1.3;
+                effectiveAttractiveness > sourceCandidate.potentialIncome * effectiveThreshold;
         })
         .reduce((best, current) => {
             if (!best) return current;
@@ -422,7 +474,7 @@ export const handleJobMigration = ({
             return best;
         }, null);
 
-    if (!targetCandidate) return { popStructure, wealth };
+    if (!targetCandidate) return { popStructure, wealth, migrationCooldowns: updatedCooldowns };
 
     // Execute migration with low population guarantee
     // When source role has low population, use higher migration ratio to ensure quick reallocation
@@ -460,8 +512,11 @@ export const handleJobMigration = ({
             // Transfer population
             popStructure[sourceCandidate.role] = Math.max(0, sourceCandidate.pop - migrants);
             popStructure[targetCandidate.role] = (popStructure[targetCandidate.role] || 0) + migrants;
+
+            // Set cooldown for the source role to prevent rapid consecutive migrations
+            updatedCooldowns[sourceCandidate.role] = MIGRATION_COOLDOWN_TICKS;
         }
     }
 
-    return { popStructure, wealth };
+    return { popStructure, wealth, migrationCooldowns: updatedCooldowns };
 };

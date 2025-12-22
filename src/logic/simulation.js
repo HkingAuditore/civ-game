@@ -184,6 +184,7 @@ export const simulateTick = ({
     buildingUpgrades = {}, // 建筑升级状态
     rulingCoalition = [], // 执政联盟成员阶层
     previousLegitimacy = 0, // 上一tick的合法性值，用于计算税收修正
+    migrationCooldowns = {}, // 阶层迁移冷却状态
 }) => {
     // console.log('[TICK START]', tick); // Commented for performance
     const res = { ...resources };
@@ -3076,109 +3077,20 @@ export const simulateTick = ({
         ? activeRoleMetrics.reduce((sum, r) => sum + (r.perCap * r.pop), 0) / totalMigratablePop
         : 0;
 
-    // 寻找收入低于平均水平的源职业（排除军人，军人不能转职到其他岗位）
-    // 改进：对于富裕阶层（如商人），使用基于人均财富百分比的阈值
-    // 商人进货一次可能花几百块，但只要这只占财富的一小部分，就不应触发转职
-    const sourceCandidate = activeRoleMetrics
-        .filter(r => {
-            if (r.pop <= 0 || r.role === 'soldier') return false;
-
-            // 改用基于人均财富百分比的阈值
-            // 当单tick亏损超过人均财富的5%时，才认为是"严重亏损"需要考虑转职
-            // 例如：商人人均财富500银币，则亏损阈值为 -500 * 0.05 = -25
-            // 同时设置一个最小阈值（-0.5）和最大阈值（-50），防止极端情况
-            const percentageThreshold = r.perCap * 0.05; // 5% of per capita wealth
-            const adjustedDeltaThreshold = -Math.max(0.5, Math.min(50, percentageThreshold));
-
-            // 收入过低 或 亏损超过调整后的阈值（人均财富的5%）
-            return r.potentialIncome < averagePotentialIncome * 0.7 || r.perCapDelta < adjustedDeltaThreshold;
-        })
-        .reduce((lowest, current) => {
-            if (!lowest) return current;
-            if (current.potentialIncome < lowest.potentialIncome) return current;
-            if (current.potentialIncome === lowest.potentialIncome && current.perCapDelta < lowest.perCapDelta) return current;
-            return lowest;
-        }, null);
-
-    // 寻找收入显著更高的目标职业（必须有空缺，且必须是不同职业）
-    // 军人岗位特殊处理：允许平民转职成军人（当军饷高且有岗位空缺时），但军人不需要检查建筑空缺
-    let targetCandidate = null;
-    if (sourceCandidate) {
-        targetCandidate = activeRoleMetrics
-            .filter(r => {
-                // 基本条件：不同职业且有空缺
-                if (r.role === sourceCandidate.role || r.vacancy <= 0) return false;
-                // 军人岗位特殊处理：不需要建筑空缺，但需要有岗位空缺（来自训练队列）
-                if (r.role === 'soldier') {
-                    // 军人岗位空缺来自训练队列的等待人员
-                    return r.potentialIncome > sourceCandidate.potentialIncome * 1.3;
-                }
-                // 其他职业需要有建筑空缺
-                return hasBuildingVacancyForRole(r.role) &&
-                    r.potentialIncome > sourceCandidate.potentialIncome * 1.3;
-            })
-            .reduce((best, current) => {
-                if (!best) return current;
-                if (current.potentialIncome > best.potentialIncome) return current;
-                if (current.potentialIncome === best.potentialIncome && current.perCapDelta > best.perCapDelta) return best;
-                return best;
-            }, null);
-    }
-
-    // 执行转职并转移财富
-    if (sourceCandidate && targetCandidate) {
-        // 如果迁移比例为0，直接返回，不执行任何迁移
-        if (JOB_MIGRATION_RATIO <= 0) {
-            // do nothing
-        } else {
-            let placementInfo = null;
-            let migrants = Math.floor(sourceCandidate.pop * JOB_MIGRATION_RATIO);
-            // 只有当迁移比例大于0时才允许强制迁移
-            if (migrants <= 0 && sourceCandidate.pop > 0 && JOB_MIGRATION_RATIO > 0) migrants = 1;
-            migrants = Math.min(migrants, targetCandidate.vacancy);
-
-            if (migrants > 0) {
-                // 军人岗位特殊处理：不需要预留建筑空缺
-                if (targetCandidate.role === 'soldier') {
-                    // 直接使用空缺数，placementInfo 留空
-                    placementInfo = { buildingId: null, buildingName: '军营', count: migrants };
-                } else {
-                    const placement = reserveBuildingVacancyForRole(targetCandidate.role, migrants);
-                    if (!placement || placement.count <= 0) {
-                        migrants = 0;
-                    } else {
-                        migrants = placement.count;
-                        placementInfo = placement;
-                    }
-                }
-            }
-
-            if (migrants > 0) {
-                // 关键：执行财富转移
-                const sourceWealth = wealth[sourceCandidate.role] || 0;
-                const perCapWealth = sourceCandidate.pop > 0 ? sourceWealth / sourceCandidate.pop : 0;
-                const migratingWealth = perCapWealth * migrants;
-
-                if (migratingWealth > 0) {
-                    wealth[sourceCandidate.role] = Math.max(0, sourceWealth - migratingWealth);
-                    wealth[targetCandidate.role] = (wealth[targetCandidate.role] || 0) + migratingWealth;
-                }
-
-                // 执行人口转移
-                popStructure[sourceCandidate.role] = Math.max(0, sourceCandidate.pop - migrants);
-                popStructure[targetCandidate.role] = (popStructure[targetCandidate.role] || 0) + migrants;
-
-                const sourceName = STRATA[sourceCandidate.role]?.name || sourceCandidate.role; const targetName = STRATA[targetCandidate.role]?.name || targetCandidate.role;
-                const incomeGain = ((targetCandidate.potentialIncome - sourceCandidate.potentialIncome) / Math.max(0.01, sourceCandidate.potentialIncome) * 100).toFixed(0);
-                const placementNote = placementInfo?.buildingName ? `（目标建筑：${placementInfo.buildingName}）` : '';
-                // 转职到军人时显示特殊日志
-                // if (targetCandidate.role === 'soldier') {
-                //     logs.push(`⚔️ ${migrants} 名 ${sourceName} 响应高薪号召入伍，加入军队训练`);
-                // }
-                //   logs.push(`💼 ${migrants} 名 ${sourceName} 转职为 ${targetName}${placementNote}（预期收益提升 ${incomeGain}%）`);
-            }
-        }
-    }
+    // 使用handleJobMigration处理阶层迁移（包含tier阻力系数和冷却机制）
+    const migrationResult = handleJobMigration({
+        popStructure,
+        wealth,
+        roleMetrics: activeRoleMetrics,
+        hasBuildingVacancyForRole,
+        reserveBuildingVacancyForRole,
+        logs,
+        migrationCooldowns
+    });
+    // 更新迁移后的状态
+    Object.assign(popStructure, migrationResult.popStructure);
+    Object.assign(wealth, migrationResult.wealth);
+    const updatedMigrationCooldowns = migrationResult.migrationCooldowns;
 
     // 商人交易已在转职逻辑前执行，这里只需应用收入到财富
     applyRoleIncomeToWealth();
@@ -3404,6 +3316,7 @@ export const simulateTick = ({
         nations: updatedNations,
         merchantState: updatedMerchantState,
         buildingUpgrades: updatedBuildingUpgrades, // Owner auto-upgrade results
+        migrationCooldowns: updatedMigrationCooldowns, // 阶层迁移冷却状态
         // 加成修饰符数据，供UI显示"谁吃到了buff"
         modifiers: {
             // 需求修饰符
