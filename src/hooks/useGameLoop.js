@@ -742,6 +742,11 @@ export const useGameLoop = (gameState, addLog, actions) => {
     const autoRecruitCooldownRef = useRef({});
     const AUTO_RECRUIT_BATCH_LIMIT = 3;
     const AUTO_RECRUIT_FAIL_COOLDOWN = 5000;
+    
+    // ========== 历史数据节流 ==========
+    // 每 HISTORY_UPDATE_INTERVAL 个 tick 才更新一次历史数据，减少内存操作
+    const historyUpdateCounterRef = useRef(0);
+    const HISTORY_UPDATE_INTERVAL = 5; // 每5个tick更新一次历史数据
 
     // ========== Web Worker Integration ==========
     // Worker instance and status for background simulation
@@ -1126,19 +1131,15 @@ export const useGameLoop = (gameState, addLog, actions) => {
             };
             
             // Execute simulation
-            // Phase 1: Use synchronous execution (Worker infrastructure ready for Phase 2 async mode)
-            // TODO: Enable async mode once result handling is refactored
-            const workerAvailable = useWorker && workerRef.current && workerReadyRef.current;
-            if (workerAvailable && !pendingSimulationRef.current) {
-                // Log that Worker is ready but we're using sync for now (only log once per session)
-                if (!workerRef.current._loggedReady) {
-                    console.log('[GameLoop] Web Worker is ready. Using synchronous mode (Phase 1).');
-                    workerRef.current._loggedReady = true;
+            // Phase 2: Use async Worker execution for better performance on low-end devices
+            // The runSimulation function handles Worker availability check and fallback
+            runSimulation(simulationParams).then(result => {
+                if (!result) {
+                    console.error('[GameLoop] Simulation returned null result');
+                    return;
                 }
-            }
-            
-            // Execute synchronously (Phase 1 - stable implementation)
-            const result = simulateTick(simulationParams);
+                
+                // 以下是处理模拟结果的代码，包装在 then 回调中
 
             // 更新 Modifiers 状态供 UI 显示
             setModifiers(result.modifiers || {});
@@ -1325,37 +1326,48 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 modifiers: result.modifiers || {},
             };
 
+            // ========== 历史数据节流更新 ==========
+            // 只在计数器到达间隔时更新历史数据，减少 80% 的数组操作
+            const shouldUpdateHistory = historyUpdateCounterRef.current >= HISTORY_UPDATE_INTERVAL;
+            if (shouldUpdateHistory) {
+                historyUpdateCounterRef.current = 0;
+            } else {
+                historyUpdateCounterRef.current++;
+            }
+
             const MAX_HISTORY_POINTS = 90;
-            setHistory(prevHistory => {
-                const appendValue = (series = [], value) => {
-                    const nextSeries = [...series, value];
-                    if (nextSeries.length > MAX_HISTORY_POINTS) {
-                        nextSeries.shift();
-                    }
-                    return nextSeries;
-                };
-
-                const safeHistory = prevHistory || {};
-                const nextHistory = {
-                    ...safeHistory,
-                    treasury: appendValue(safeHistory.treasury, result.resources?.silver || 0),
-                    tax: appendValue(safeHistory.tax, result.taxes?.total || 0),
-                    population: appendValue(safeHistory.population, result.population || 0),
-                };
-
-                const previousClassHistory = safeHistory.class || {};
-                const classHistory = { ...previousClassHistory };
-                Object.keys(STRATA).forEach(key => {
-                    const entry = previousClassHistory[key] || { pop: [], income: [], expense: [] };
-                    classHistory[key] = {
-                        pop: appendValue(entry.pop, result.popStructure?.[key] || 0),
-                        income: appendValue(entry.income, result.classIncome?.[key] || 0),
-                        expense: appendValue(entry.expense, result.classExpense?.[key] || 0),
+            if (shouldUpdateHistory) {
+                setHistory(prevHistory => {
+                    const appendValue = (series = [], value) => {
+                        const nextSeries = [...series, value];
+                        if (nextSeries.length > MAX_HISTORY_POINTS) {
+                            nextSeries.shift();
+                        }
+                        return nextSeries;
                     };
+
+                    const safeHistory = prevHistory || {};
+                    const nextHistory = {
+                        ...safeHistory,
+                        treasury: appendValue(safeHistory.treasury, result.resources?.silver || 0),
+                        tax: appendValue(safeHistory.tax, result.taxes?.total || 0),
+                        population: appendValue(safeHistory.population, result.population || 0),
+                    };
+
+                    const previousClassHistory = safeHistory.class || {};
+                    const classHistory = { ...previousClassHistory };
+                    Object.keys(STRATA).forEach(key => {
+                        const entry = previousClassHistory[key] || { pop: [], income: [], expense: [] };
+                        classHistory[key] = {
+                            pop: appendValue(entry.pop, result.popStructure?.[key] || 0),
+                            income: appendValue(entry.income, result.classIncome?.[key] || 0),
+                            expense: appendValue(entry.expense, result.classExpense?.[key] || 0),
+                        };
+                    });
+                    nextHistory.class = classHistory;
+                    return nextHistory;
                 });
-                nextHistory.class = classHistory;
-                return nextHistory;
-            });
+            }
 
             // 更新所有状态 - 使用批量更新减少重渲染次数
             // 将所有 setState 调用包装在 unstable_batchedUpdates 中
@@ -1380,8 +1392,11 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 setClassWealthDelta(wealthDelta);
                 setClassIncome(result.classIncome || {});
                 setClassExpense(result.classExpense || {});
-                setClassWealthHistory(wealthHistory);
-                setClassNeedsHistory(needsHistory);
+                // 历史数据只在节流条件满足时更新
+                if (shouldUpdateHistory) {
+                    setClassWealthHistory(wealthHistory);
+                    setClassNeedsHistory(needsHistory);
+                }
                 setTotalInfluence(result.totalInfluence);
                 setTotalWealth(adjustedTotalWealth);
                 setActiveBuffs(result.activeBuffs);
@@ -3085,6 +3100,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
                 // 返回未完成的训练（排除已完成的）
                 return updated.filter(item => !(item.status === 'training' && item.remainingTime <= 0));
+            });
+            }).catch(error => {
+                console.error('[GameLoop] Simulation error:', error);
             });
         }, tickInterval); // 根据游戏速度动态调整执行频率
 
