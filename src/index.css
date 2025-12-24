@@ -2126,38 +2126,62 @@
 /* ==================== 低性能模式优化 ==================== */
 /* 当检测到低端设备或用户手动启用时，禁用高消耗的视觉效果 */
 
+/* 全局禁用 backdrop-filter 和 filter 效果 - 这是导致低端设备渲染问题的主要原因 */
+.low-perf-mode * {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+
 /* 禁用所有 backdrop-filter 模糊效果 */
 .low-perf-mode .glass-ancient,
 .low-perf-mode .glass-epic,
 .low-perf-mode .glass-monument {
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
+    filter: none !important;
+    -webkit-filter: none !important;
 }
 
-/* 使用纯色背景替代模糊效果 */
+/* 使用完全不透明的纯色背景替代模糊效果 - 避免透明度引起的合成问题 */
 .low-perf-mode .glass-ancient {
-    background: rgba(44, 24, 16, 0.95) !important;
+    background: #2c1810 !important;
+    border: 1px solid rgba(212, 175, 55, 0.3) !important;
 }
 
 .low-perf-mode .glass-epic {
-    background: rgba(26, 20, 16, 0.98) !important;
+    background: #1a1410 !important;
+    border: 1px solid rgba(212, 175, 55, 0.25) !important;
 }
 
 .low-perf-mode .glass-monument {
-    background: rgba(26, 20, 16, 0.99) !important;
+    background: #1a1410 !important;
+    border: 1px solid rgba(212, 175, 55, 0.2) !important;
 }
 
 /* 禁用其他组件的模糊效果 */
-.low-perf-mode [class*="backdrop-blur"] {
+.low-perf-mode [class*="backdrop-blur"],
+.low-perf-mode [class*="blur-"],
+.low-perf-mode [style*="backdrop-filter"],
+.low-perf-mode [style*="filter"] {
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
+    filter: none !important;
+    -webkit-filter: none !important;
 }
 
-/* 简化阴影效果 */
+/* 简化阴影效果 - 使用简单的单层阴影 */
 .low-perf-mode .glass-ancient,
 .low-perf-mode .glass-epic,
 .low-perf-mode .glass-monument {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5) !important;
+}
+
+/* 启用硬件加速以提高渲染性能 */
+.low-perf-mode .glass-ancient,
+.low-perf-mode .glass-epic,
+.low-perf-mode .glass-monument {
+    transform: translateZ(0);
+    will-change: auto;
 }
 
 /* 禁用持续动画 */

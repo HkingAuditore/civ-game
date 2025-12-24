@@ -24,10 +24,16 @@
 
 
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
+        <!-- Android 12+ SplashScreen API 必需的配置 -->
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
+        
+        <!-- 兼容旧版本的配置 -->
         <item name="android:background">@drawable/splash_background</item>
+        <item name="android:windowBackground">@drawable/splash_background</item>
+        
         <!-- 确保状态栏和导航栏也是深色 -->
         <item name="android:statusBarColor">@color/splash_background</item>
         <item name="android:navigationBarColor">@color/splash_background</item>
-        <item name="android:windowBackground">@drawable/splash_background</item>
     </style>
 </resources>
