@@ -324,7 +324,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
 
             {/* 事件选项 */}
             <div className="space-y-2">
-                <h3 className="text-xs font-bold text-ancient-stone uppercase tracking-wider flex items-center gap-1.5">
+                <h3 className="text-xs font-bold text-ancient-stone uppercase tracking-wider flex items-center gap-1.5 mb-1">
                     <Icon name="Target" size={12} className="text-ancient-gold " />
                     选择你的行动
                 </h3>
@@ -332,7 +332,20 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                     <button
                         key={option.id}
                         onClick={() => handleOptionClick(option)}
-                        className="w-full text-left glass-ancient hover:bg-ancient-gold/10 rounded-xl p-3 border border-ancient-gold/20 hover:border-ancient-gold/40 transition-all group hover:shadow-glow-gold font-sans"
+                        className="w-full text-left rounded-xl p-3 transition-all group font-sans"
+                        style={{
+                            background: 'linear-gradient(135deg, rgba(44, 24, 16, 0.95) 0%, rgba(61, 36, 21, 0.92) 50%, rgba(44, 24, 16, 0.95) 100%)',
+                            // 使用 box-shadow 实现稳定的边框效果，避免 border 在移动端的渲染问题
+                            boxShadow: 'inset 0 0 0 1px rgba(212, 175, 55, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3)',
+                        }}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.boxShadow = 'inset 0 0 0 1px rgba(212, 175, 55, 0.7), 0 0 15px rgba(212, 175, 55, 0.3)';
+                            e.currentTarget.style.background = 'linear-gradient(135deg, rgba(54, 34, 26, 0.98) 0%, rgba(71, 46, 31, 0.95) 50%, rgba(54, 34, 26, 0.98) 100%)';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.boxShadow = 'inset 0 0 0 1px rgba(212, 175, 55, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3)';
+                            e.currentTarget.style.background = 'linear-gradient(135deg, rgba(44, 24, 16, 0.95) 0%, rgba(61, 36, 21, 0.92) 50%, rgba(44, 24, 16, 0.95) 100%)';
+                        }}
                     >
                         <div className="flex items-start justify-between gap-2">
                             <div className="flex-1 min-w-0">

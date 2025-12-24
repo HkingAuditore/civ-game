@@ -3,6 +3,7 @@ import React, { useEffect, useState, useMemo, memo } from 'react';
 /**
  * EmpireScene - 帝国场景可视化组件
  * 适配修复版
+ * 性能优化：isVisible=false 时停止动画以节省 GPU/CPU 资源
  */
 function EmpireSceneComponent({
     daysElapsed = 0,
@@ -11,7 +12,8 @@ function EmpireSceneComponent({
     stability = 100,
     wealth = 0,
     epoch = 0,
-    builds = {}
+    builds = {},
+    isVisible = true  // 新增：控制动画是否运行
 }) {
     const [dayProgress, setDayProgress] = useState(0);
     const [weatherRandom, setWeatherRandom] = useState(0.5);
@@ -24,6 +26,9 @@ function EmpireSceneComponent({
     const HORIZON_Y = 85;
 
     useEffect(() => {
+        // 性能优化：不可见时不启动动画定时器
+        if (!isVisible) return;
+
         // Performance optimization: reduced update frequency from 50ms to 150ms
         // Step size increased proportionally (0.002 * 3 = 0.006) to maintain same animation speed
         const dayInterval = setInterval(() => {
@@ -39,7 +44,7 @@ function EmpireSceneComponent({
             clearInterval(dayInterval);
             clearInterval(weatherInterval);
         };
-    }, []);
+    }, [isVisible]);
 
     // 1. 天空状态
     const skyState = useMemo(() => {

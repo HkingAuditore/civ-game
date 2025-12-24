@@ -107,10 +107,10 @@ export default {
       colors: {
         // Epic Ancient Colors
         ancient: {
-          gold: '#ffcf33ff',
+          gold: '#ffcf33',
           bronze: '#cd7f32',
           marble: '#f5f5dc',
-          stone: '#edd7bbff',
+          stone: '#edd7bb',
           parchment: '#f4e8d0',
           ink: '#2c1810',
           'royal-purple': '#6a0dad',
