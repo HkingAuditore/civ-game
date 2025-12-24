@@ -150,14 +150,14 @@ export const SettingsPanel = ({
                 </div>
                 <input
                     type="range"
-                    min={15}
+                    min={60}
                     max={300}
                     step={15}
                     value={autoSaveInterval}
                     onChange={(e) => onIntervalChange(Number(e.target.value))}
                     className="w-full accent-emerald-500"
                 />
-                <p className="text-[11px] text-gray-400">最短 15 秒，最长 5 分钟。</p>
+                <p className="text-[11px] text-gray-400">最短 60 秒，最长 5 分钟。</p>
             </div>
 
             <div className="text-[11px] text-gray-400 flex items-center gap-2">

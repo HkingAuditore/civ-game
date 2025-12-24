@@ -164,6 +164,19 @@ function GameApp({ gameState }) {
     const [showEmpireScene, setShowEmpireScene] = useState(false);
     const [activeSheet, setActiveSheet] = useState({ type: null, data: null });
 
+    // Responsive detection: only render sidebars on desktop to avoid hidden components consuming resources
+    const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 1024);
+    const [isTablet, setIsTablet] = useState(() => window.innerWidth >= 768);
+
+    useEffect(() => {
+        const handleResize = () => {
+            setIsDesktop(window.innerWidth >= 1024);
+            setIsTablet(window.innerWidth >= 768);
+        };
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
     // Global keyboard shortcuts: Space to toggle pause, Escape to close menus
     useEffect(() => {
         const handleKeyDown = (event) => {
@@ -807,8 +820,9 @@ function GameApp({ gameState }) {
                 {/* 移动端：单列布局，桌面端：三列布局 */}
                 <div className="grid grid-cols-1 md:grid-cols-[2fr_8fr] lg:grid-cols-12 gap-3 sm:gap-4">
 
-                    {/* 左侧边栏 - 桌面端显示 */}
-                    <aside className="hidden md:block md:col-span-1 lg:col-span-2 space-y-4 order-2 md:order-1 lg:order-1">
+                    {/* 左侧边栏 - 桌面端显示 (使用条件渲染避免移动端渲染隐藏组件) */}
+                    {isTablet && (
+                    <aside className="md:col-span-1 lg:col-span-2 space-y-4 order-2 md:order-1 lg:order-1">
                         {/* 国内市场面板 - 紧凑设计 */}
                         <EpicCard variant="ancient" className="p-2 animate-fade-in-up">
                             <ResourcePanel
@@ -850,6 +864,7 @@ function GameApp({ gameState }) {
                             <span className="relative z-10">手动采集</span>
                         </button>
                     </aside>
+                    )}
 
                     {/* 中间内容区 - 主操作面板 */}
                     <section className="md:col-span-1 lg:col-span-8 space-y-3 sm:space-y-4 order-1 md:order-2 lg:order-2">
@@ -1042,8 +1057,9 @@ function GameApp({ gameState }) {
                         </div>
                     </section>
 
-                    {/* 右侧边栏 - 桌面端显示 */}
-                    <aside className="hidden lg:block lg:col-span-2 order-3 space-y-4">
+                    {/* 右侧边栏 - 桌面端显示 (使用条件渲染避免移动端渲染隐藏组件) */}
+                    {isDesktop && (
+                    <aside className="lg:col-span-2 order-3 space-y-4">
                         {/* 帝国场景可视化 */}
                         <div className="bg-gray-900/60 backdrop-blur-md rounded-xl border border-white/10 shadow-glass overflow-hidden">
                             <EmpireScene
@@ -1054,6 +1070,7 @@ function GameApp({ gameState }) {
                                 wealth={gameState.resources.silver}
                                 epoch={gameState.epoch}
                                 builds={gameState.buildings}
+                                isVisible={true}  // 桌面端侧边栏始终可见
                             />
                         </div>
 
@@ -1092,6 +1109,7 @@ function GameApp({ gameState }) {
                             </div>
                         </details>
                     </aside>
+                    )}
                 </div>
             </main>
 
@@ -1289,6 +1307,7 @@ function GameApp({ gameState }) {
                             wealth={gameState.resources.silver}
                             epoch={gameState.epoch}
                             builds={gameState.buildings}
+                            isVisible={showEmpireScene}  // 移动端只在打开时激活动画
                         />
                     </div>
 

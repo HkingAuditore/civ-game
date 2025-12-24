@@ -1009,18 +1009,18 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
         // 暂停时不设置游戏循环定时器，但自动保存定时器需要单独处理
         if (isPaused) {
-            // 设置独立的自动保存定时器
+            // 设置独立的自动保存定时器（每60秒检查一次）
             const autoSaveTimer = setInterval(() => {
                 const current = stateRef.current;
                 if (current.isAutoSaveEnabled) {
-                    const intervalSeconds = Math.max(5, current.autoSaveInterval || 60);
+                    const intervalSeconds = Math.max(60, current.autoSaveInterval || 60);
                     const elapsed = Date.now() - (current.lastAutoSaveTime || 0);
                     if (elapsed >= intervalSeconds * 1000 && saveGameRef.current) {
                         saveGameRef.current({ source: 'auto' });
                         stateRef.current.lastAutoSaveTime = Date.now();
                     }
                 }
-            }, 1000);
+            }, 60000);
 
             return () => clearInterval(autoSaveTimer);
         }
@@ -1034,7 +1034,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
             // 自动存档检测：即使暂停也照常运行，避免长时间停留丢进度
             if (current.isAutoSaveEnabled) {
-                const intervalSeconds = Math.max(5, current.autoSaveInterval || 60);
+                const intervalSeconds = Math.max(60, current.autoSaveInterval || 60);
                 const elapsed = Date.now() - (current.lastAutoSaveTime || 0);
                 if (elapsed >= intervalSeconds * 1000 && saveGameRef.current) {
                     saveGameRef.current({ source: 'auto' });

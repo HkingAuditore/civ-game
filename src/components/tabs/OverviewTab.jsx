@@ -60,7 +60,7 @@ export const OverviewTab = ({
                         </span>
                     </div>
                 </div>
-                <div className="max-h-[280px] overflow-y-auto p-1">
+                <div className="max-h-[280px] overflow-y-auto p-2">
                     <StrataPanel
                         popStructure={popStructure}
                         classApproval={classApproval}

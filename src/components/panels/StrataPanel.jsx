@@ -202,26 +202,35 @@ const StrataPanelComponent = ({
                     style={{ maxHeight: 'calc(var(--real-viewport-height, 100vh) - 520px)', minHeight: '200px' }}
                 >
                     {/* 移动端和小窗口：网格布局 - 使用好感度作为背景填充 */}
-                    <div className={`${forceRowLayout ? 'hidden' : 'md:hidden'} grid grid-cols-2 sm:grid-cols-3 gap-1`}>
+                    <div className={`${forceRowLayout ? 'hidden' : 'md:hidden'} grid grid-cols-2 sm:grid-cols-3 gap-1.5 p-0.5`}>
                         {strataData.map((strata) => {
-                            // 计算好感度对应的背景颜色
-                            const getApprovalBgGradient = (approval) => {
+                            // 计算好感度对应的背景颜色 - 使用更稳定的渐变方式，包含基础背景色
+                            const getApprovalBgStyle = (approval) => {
+                                // 基础背景色：深色半透明
+                                const baseBg = 'rgba(20, 20, 30, 0.7)';
+                                // 根据好感度选择颜色
+                                let color;
                                 if (approval >= 70) {
-                                    return `linear-gradient(to right, rgba(34, 197, 94, 0.15) 0%, rgba(34, 197, 94, 0.15) ${approval}%, rgba(31, 41, 55, 0.5) ${approval}%, rgba(31, 41, 55, 0.5) 100%)`;
+                                    color = 'rgba(34, 197, 94, 0.2)';
                                 } else if (approval >= 40) {
-                                    return `linear-gradient(to right, rgba(234, 179, 8, 0.15) 0%, rgba(234, 179, 8, 0.15) ${approval}%, rgba(31, 41, 55, 0.5) ${approval}%, rgba(31, 41, 55, 0.5) 100%)`;
+                                    color = 'rgba(234, 179, 8, 0.2)';
                                 } else {
-                                    return `linear-gradient(to right, rgba(239, 68, 68, 0.15) 0%, rgba(239, 68, 68, 0.15) ${approval}%, rgba(31, 41, 55, 0.5) ${approval}%, rgba(31, 41, 55, 0.5) 100%)`;
+                                    color = 'rgba(239, 68, 68, 0.2)';
                                 }
+                                return {
+                                    background: `linear-gradient(to right, ${color} 0%, ${color} ${approval}%, ${baseBg} ${approval}%, ${baseBg} 100%)`,
+                                    // 使用 box-shadow 实现稳定的边框效果，避免 border 在移动端的渲染问题
+                                    boxShadow: `inset 0 0 0 1px rgba(212, 175, 55, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3)`,
+                                };
                             };
+
+                            const cardStyle = getApprovalBgStyle(strata.approval);
 
                             return (
                                 <div
                                     key={`grid-${strata.key}`}
-                                    className="relative rounded-lg overflow-hidden hover:scale-[1.02] transition-all cursor-pointer border border-ancient-gold/30 shadow-ancient hover:shadow-glow-gold backdrop-blur-sm"
-                                    style={{
-                                        background: getApprovalBgGradient(strata.approval),
-                                    }}
+                                    className="relative rounded-lg overflow-hidden hover:scale-[1.02] transition-all cursor-pointer backdrop-blur-sm"
+                                    style={cardStyle}
                                     onClick={() => onDetailClick && onDetailClick(strata.key)}
                                 >
                                     {/* 卡片内容 */}
