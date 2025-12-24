@@ -822,48 +822,48 @@ function GameApp({ gameState }) {
 
                     {/* 左侧边栏 - 桌面端显示 (使用条件渲染避免移动端渲染隐藏组件) */}
                     {isTablet && (
-                    <aside className="md:col-span-1 lg:col-span-2 space-y-4 order-2 md:order-1 lg:order-1">
-                        {/* 国内市场面板 - 紧凑设计 */}
-                        <EpicCard variant="ancient" className="p-2 animate-fade-in-up">
-                            <ResourcePanel
-                                resources={gameState.resources}
-                                rates={gameState.rates}
-                                market={gameState.market}
-                                epoch={gameState.epoch}
-                                onDetailClick={(key) => gameState.setResourceDetailView(key)}
+                        <aside className="md:col-span-1 lg:col-span-2 space-y-4 order-2 md:order-1 lg:order-1">
+                            {/* 国内市场面板 - 紧凑设计 */}
+                            <EpicCard variant="ancient" className="p-2 animate-fade-in-up">
+                                <ResourcePanel
+                                    resources={gameState.resources}
+                                    rates={gameState.rates}
+                                    market={gameState.market}
+                                    epoch={gameState.epoch}
+                                    onDetailClick={(key) => gameState.setResourceDetailView(key)}
+                                />
+                            </EpicCard>
+
+                            {/* 社会阶层面板 */}
+                            <StrataPanel
+                                popStructure={gameState.popStructure}
+                                classApproval={gameState.classApproval}
+                                classInfluence={gameState.classInfluence}
+                                stability={gameState.stability}
+                                population={gameState.population}
+                                activeBuffs={gameState.activeBuffs}
+                                activeDebuffs={gameState.activeDebuffs}
+                                classWealth={gameState.classWealth}
+                                classWealthDelta={gameState.classWealthDelta}
+                                classShortages={gameState.classShortages}
+                                classIncome={classIncomeWithSubsidy}
+                                classExpense={gameState.classExpense}
+                                classLivingStandard={gameState.classLivingStandard}
+                                rebellionStates={gameState.rebellionStates}
+                                dayScale={1}
+                                onDetailClick={handleStratumDetailClick}
                             />
-                        </EpicCard>
 
-                        {/* 社会阶层面板 */}
-                        <StrataPanel
-                            popStructure={gameState.popStructure}
-                            classApproval={gameState.classApproval}
-                            classInfluence={gameState.classInfluence}
-                            stability={gameState.stability}
-                            population={gameState.population}
-                            activeBuffs={gameState.activeBuffs}
-                            activeDebuffs={gameState.activeDebuffs}
-                            classWealth={gameState.classWealth}
-                            classWealthDelta={gameState.classWealthDelta}
-                            classShortages={gameState.classShortages}
-                            classIncome={classIncomeWithSubsidy}
-                            classExpense={gameState.classExpense}
-                            classLivingStandard={gameState.classLivingStandard}
-                            rebellionStates={gameState.rebellionStates}
-                            dayScale={1}
-                            onDetailClick={handleStratumDetailClick}
-                        />
-
-                        {/* 手动采集按钮 */}
-                        <button
-                            onClick={manualGather}
-                            className="relative w-full py-3 btn-epic rounded-xl font-bold shadow-epic active:scale-95 transition-all flex items-center justify-center gap-2 overflow-hidden group"
-                        >
-                            <div className="absolute inset-0 bg-gradient-to-r from-emerald-600/20 via-emerald-500/30 to-emerald-600/20 animate-shimmer" />
-                            <Icon name="Pickaxe" size={16} className="relative z-10" />
-                            <span className="relative z-10">手动采集</span>
-                        </button>
-                    </aside>
+                            {/* 手动采集按钮 */}
+                            <button
+                                onClick={manualGather}
+                                className="relative w-full py-3 btn-epic rounded-xl font-bold shadow-epic active:scale-95 transition-all flex items-center justify-center gap-2 overflow-hidden group"
+                            >
+                                <div className="absolute inset-0 bg-gradient-to-r from-emerald-600/20 via-emerald-500/30 to-emerald-600/20 animate-shimmer" />
+                                <Icon name="Pickaxe" size={16} className="relative z-10" />
+                                <span className="relative z-10">手动采集</span>
+                            </button>
+                        </aside>
                     )}
 
                     {/* 中间内容区 - 主操作面板 */}
@@ -1059,56 +1059,56 @@ function GameApp({ gameState }) {
 
                     {/* 右侧边栏 - 桌面端显示 (使用条件渲染避免移动端渲染隐藏组件) */}
                     {isDesktop && (
-                    <aside className="lg:col-span-2 order-3 space-y-4">
-                        {/* 帝国场景可视化 */}
-                        <div className="bg-gray-900/60 backdrop-blur-md rounded-xl border border-white/10 shadow-glass overflow-hidden">
-                            <EmpireScene
-                                daysElapsed={gameState.daysElapsed}
-                                season={calendar.season}
-                                population={gameState.population}
-                                stability={gameState.stability}
-                                wealth={gameState.resources.silver}
-                                epoch={gameState.epoch}
-                                builds={gameState.buildings}
-                                isVisible={true}  // 桌面端侧边栏始终可见
-                            />
-                        </div>
-
-                        {/* 日志面板 */}
-                        <LogPanel logs={gameState.logs} />
-
-                        {/* 游戏提示 - 紧凑折叠设计 */}
-                        <details className="glass-ancient rounded-xl border border-blue-500/20 shadow-md group">
-                            <summary className="px-3 py-2 cursor-pointer flex items-center justify-between text-xs font-bold text-blue-300 hover:text-blue-200 transition-colors">
-                                <span className="flex items-center gap-2">
-                                    <Icon name="Lightbulb" size={12} />
-                                    统治指南
-                                </span>
-                                <Icon name="ChevronDown" size={12} className="transform group-open:rotate-180 transition-transform" />
-                            </summary>
-                            <div className="px-3 pb-3 text-[10px] text-gray-300 space-y-1.5">
-                                <p>• <span className="text-white">市场是经济核心</span>：供需关系决定价格，影响税收。</p>
-                                <p>• <span className="text-white">国库与库存</span>：银币是命脉，资源不足会自动购买。</p>
-                                <p>• <span className="text-white">三大税收</span>：人头税、交易税、营业税各有作用。</p>
+                        <aside className="lg:col-span-2 order-3 space-y-4">
+                            {/* 帝国场景可视化 */}
+                            <div className="bg-gray-900/60 backdrop-blur-md rounded-xl border border-white/10 shadow-glass overflow-hidden">
+                                <EmpireScene
+                                    daysElapsed={gameState.daysElapsed}
+                                    season={calendar.season}
+                                    population={gameState.population}
+                                    stability={gameState.stability}
+                                    wealth={gameState.resources.silver}
+                                    epoch={gameState.epoch}
+                                    builds={gameState.buildings}
+                                    isVisible={true}  // 桌面端侧边栏始终可见
+                                />
                             </div>
-                        </details>
 
-                        <details className="glass-ancient rounded-xl border border-emerald-500/20 shadow-md group">
-                            <summary className="px-3 py-2 cursor-pointer flex items-center justify-between text-xs font-bold text-emerald-300 hover:text-emerald-200 transition-colors">
-                                <span className="flex items-center gap-2">
-                                    <Icon name="BookOpen" size={12} />
-                                    新手入门
-                                </span>
-                                <Icon name="ChevronDown" size={12} className="transform group-open:rotate-180 transition-transform" />
-                            </summary>
-                            <div className="px-3 pb-3 text-[10px] text-gray-200 space-y-1.5">
-                                <p><span className="text-white font-semibold">1.</span> 确保银币正增长</p>
-                                <p><span className="text-white font-semibold">2.</span> 在政令面板调整税率</p>
-                                <p><span className="text-white font-semibold">3.</span> 建设工业赚取税收</p>
-                                <p><span className="text-white font-semibold">4.</span> 满足阶层消费需求</p>
-                            </div>
-                        </details>
-                    </aside>
+                            {/* 日志面板 */}
+                            <LogPanel logs={gameState.logs} />
+
+                            {/* 游戏提示 - 紧凑折叠设计 */}
+                            <details className="glass-ancient rounded-xl border border-blue-500/20 shadow-md group">
+                                <summary className="px-3 py-2 cursor-pointer flex items-center justify-between text-xs font-bold text-blue-300 hover:text-blue-200 transition-colors">
+                                    <span className="flex items-center gap-2">
+                                        <Icon name="Lightbulb" size={12} />
+                                        统治指南
+                                    </span>
+                                    <Icon name="ChevronDown" size={12} className="transform group-open:rotate-180 transition-transform" />
+                                </summary>
+                                <div className="px-3 pb-3 text-[10px] text-gray-300 space-y-1.5">
+                                    <p>• <span className="text-white">市场是经济核心</span>：供需关系决定价格，影响税收。</p>
+                                    <p>• <span className="text-white">国库与库存</span>：银币是命脉，资源不足会自动购买。</p>
+                                    <p>• <span className="text-white">三大税收</span>：人头税、交易税、营业税各有作用。</p>
+                                </div>
+                            </details>
+
+                            <details className="glass-ancient rounded-xl border border-emerald-500/20 shadow-md group">
+                                <summary className="px-3 py-2 cursor-pointer flex items-center justify-between text-xs font-bold text-emerald-300 hover:text-emerald-200 transition-colors">
+                                    <span className="flex items-center gap-2">
+                                        <Icon name="BookOpen" size={12} />
+                                        新手入门
+                                    </span>
+                                    <Icon name="ChevronDown" size={12} className="transform group-open:rotate-180 transition-transform" />
+                                </summary>
+                                <div className="px-3 pb-3 text-[10px] text-gray-200 space-y-1.5">
+                                    <p><span className="text-white font-semibold">1.</span> 确保银币正增长</p>
+                                    <p><span className="text-white font-semibold">2.</span> 在政令面板调整税率</p>
+                                    <p><span className="text-white font-semibold">3.</span> 建设工业赚取税收</p>
+                                    <p><span className="text-white font-semibold">4.</span> 满足阶层消费需求</p>
+                                </div>
+                            </details>
+                        </aside>
                     )}
                 </div>
             </main>

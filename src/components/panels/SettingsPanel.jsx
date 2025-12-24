@@ -187,8 +187,8 @@ export const SettingsPanel = ({
                     onClick={onAutoLoad}
                     disabled={!autoSaveAvailable}
                     className={`col-span-2 flex items-center justify-center gap-1 px-3 py-2 rounded-lg border transition-colors ${autoSaveAvailable
-                            ? 'bg-amber-700/30 hover:bg-amber-700/50 border-amber-500/30 text-amber-200'
-                            : 'bg-gray-700/40 border-gray-600 text-gray-400 cursor-not-allowed'
+                        ? 'bg-amber-700/30 hover:bg-amber-700/50 border-amber-500/30 text-amber-200'
+                        : 'bg-gray-700/40 border-gray-600 text-gray-400 cursor-not-allowed'
                         }`}
                     title={autoSaveAvailable ? '读取最近的自动存档' : '暂无自动存档'}
                 >
@@ -215,8 +215,8 @@ export const SettingsPanel = ({
                         onClick={handleExport}
                         disabled={!onExportSave || isExporting}
                         className={`flex items-center justify-center gap-1 px-3 py-2 rounded-lg border transition-colors ${isExporting
-                                ? 'bg-blue-900/30 border-blue-700/40 text-blue-200 cursor-wait'
-                                : 'bg-blue-700/20 hover:bg-blue-700/40 border-blue-500/30 text-blue-100'
+                            ? 'bg-blue-900/30 border-blue-700/40 text-blue-200 cursor-wait'
+                            : 'bg-blue-700/20 hover:bg-blue-700/40 border-blue-500/30 text-blue-100'
                             } ${!onExportSave ? 'opacity-40 cursor-not-allowed' : ''}`}
                     >
                         {isExporting ? (
@@ -231,8 +231,8 @@ export const SettingsPanel = ({
                         onClick={() => fileInputRef.current?.click()}
                         disabled={!onImportSave || isImporting}
                         className={`flex items-center justify-center gap-1 px-3 py-2 rounded-lg border transition-colors ${isImporting
-                                ? 'bg-purple-900/30 border-purple-700/40 text-purple-200 cursor-wait'
-                                : 'bg-purple-700/20 hover:bg-purple-700/40 border-purple-500/30 text-purple-100'
+                            ? 'bg-purple-900/30 border-purple-700/40 text-purple-200 cursor-wait'
+                            : 'bg-purple-700/20 hover:bg-purple-700/40 border-purple-500/30 text-purple-100'
                             } ${!onImportSave ? 'opacity-40 cursor-not-allowed' : ''}`}
                     >
                         {isImporting ? (
@@ -401,6 +401,25 @@ export const SettingsPanel = ({
                         </button>
                     </div>
                 )}
+            </div>
+
+            {/* 关于与法律 */}
+            <div className="border-t border-gray-700 pt-4 space-y-3">
+                <h4 className="text-sm font-bold text-gray-200 flex items-center gap-2">
+                    <Icon name="Info" size={16} /> 关于
+                </h4>
+                <a
+                    href="./privacy.html"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-gray-700/30 hover:bg-gray-700/50 border border-gray-600 text-gray-300 transition-colors"
+                >
+                    <span className="flex items-center gap-2 text-sm">
+                        <Icon name="Shield" size={14} />
+                        隐私政策
+                    </span>
+                    <Icon name="ExternalLink" size={14} className="text-gray-500" />
+                </a>
             </div>
         </div>
     );

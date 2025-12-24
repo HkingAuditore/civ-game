@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>隐私政策 - 哈耶克的文明：市场经济</title>
+    <meta name="description" content="《哈耶克的文明：市场经济》游戏隐私政策">
+    <link rel="icon" type="image/png" href="./logo.png">
+    <link rel="preconnect" href="https://fonts.loli.net" crossorigin>
+    <link href="https://fonts.loli.net/css2?family=Noto+Serif+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Noto Serif SC', serif;
+            background: linear-gradient(135deg, #1a1410 0%, #2c1810 50%, #1a1410 100%);
+            color: #e5e7eb;
+            min-height: 100vh;
+            line-height: 1.8;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* 顶部导航 */
+        .header {
+            position: sticky;
+            top: 0;
+            background: rgba(26, 20, 16, 0.95);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(212, 175, 55, 0.3);
+            padding: 16px 20px;
+            margin: -20px -20px 30px -20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            z-index: 100;
+        }
+
+        .back-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: rgba(55, 65, 81, 0.8);
+            border: 1px solid rgba(107, 114, 128, 0.5);
+            border-radius: 8px;
+            color: #d1d5db;
+            text-decoration: none;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .back-btn:hover {
+            background: rgba(75, 85, 99, 0.8);
+            border-color: rgba(212, 175, 55, 0.5);
+            color: #fcd34d;
+        }
+
+        .header-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #fcd34d;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .header-spacer {
+            width: 80px;
+        }
+
+        /* 主标题 */
+        .main-title {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .main-title h1 {
+            font-size: 32px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #d4af37 0%, #f4e8d0 50%, #d4af37 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 16px;
+        }
+
+        .update-info {
+            color: #9ca3af;
+            font-size: 14px;
+        }
+
+        /* 章节样式 */
+        .section {
+            background: rgba(31, 41, 55, 0.5);
+            border: 1px solid rgba(75, 85, 99, 0.5);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+
+        .section h2 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #fcd34d;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section h3 {
+            font-size: 15px;
+            font-weight: 600;
+            color: #86efac;
+            margin: 16px 0 8px 0;
+        }
+
+        .section h3.warning {
+            color: #fca5a5;
+        }
+
+        .section p {
+            color: #d1d5db;
+            font-size: 14px;
+            margin-bottom: 12px;
+        }
+
+        .section ul {
+            margin: 12px 0;
+            padding-left: 24px;
+        }
+
+        .section li {
+            color: #9ca3af;
+            font-size: 14px;
+            margin-bottom: 6px;
+        }
+
+        .section li strong {
+            color: #d1d5db;
+        }
+
+        /* 高亮框 */
+        .highlight {
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 12px;
+        }
+
+        .highlight p {
+            color: #86efac;
+            font-weight: 500;
+            margin: 0;
+        }
+
+        .highlight.blue {
+            background: rgba(59, 130, 246, 0.15);
+            border-color: rgba(59, 130, 246, 0.3);
+        }
+
+        .highlight.blue p {
+            color: #93c5fd;
+        }
+
+        /* 表格 */
+        .table-wrapper {
+            overflow-x: auto;
+            margin: 16px 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        th, td {
+            padding: 10px 12px;
+            text-align: left;
+            border-bottom: 1px solid rgba(75, 85, 99, 0.5);
+        }
+
+        th {
+            background: rgba(55, 65, 81, 0.8);
+            color: #d1d5db;
+            font-weight: 500;
+        }
+
+        td {
+            color: #9ca3af;
+        }
+
+        /* 联系信息 */
+        .contact-link {
+            color: #fcd34d;
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+
+        .contact-link:hover {
+            color: #fde68a;
+            text-decoration: underline;
+        }
+
+        /* 页脚 */
+        .footer {
+            text-align: center;
+            padding: 40px 0;
+            border-top: 1px solid rgba(75, 85, 99, 0.3);
+            margin-top: 40px;
+        }
+
+        .footer p {
+            color: #6b7280;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+
+        .footer .version {
+            font-size: 12px;
+            color: #4b5563;
+        }
+
+        /* 图标 SVG */
+        .icon {
+            width: 20px;
+            height: 20px;
+            stroke: currentColor;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            fill: none;
+        }
+
+        .icon-small {
+            width: 16px;
+            height: 16px;
+        }
+
+        /* 响应式 */
+        @media (max-width: 640px) {
+            .container {
+                padding: 12px;
+            }
+
+            .header {
+                margin: -12px -12px 20px -12px;
+                padding: 12px 16px;
+            }
+
+            .header-title {
+                font-size: 14px;
+            }
+
+            .main-title h1 {
+                font-size: 24px;
+            }
+
+            .section {
+                padding: 16px;
+            }
+
+            .section h2 {
+                font-size: 16px;
+            }
+
+            .back-btn span {
+                display: none;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <!-- 顶部导航 -->
+        <header class="header">
+            <a href="./" class="back-btn">
+                <svg class="icon icon-small" viewBox="0 0 24 24">
+                    <line x1="19" y1="12" x2="5" y2="12"></line>
+                    <polyline points="12 19 5 12 12 5"></polyline>
+                </svg>
+                <span>返回游戏</span>
+            </a>
+            <div class="header-title">
+                <svg class="icon" viewBox="0 0 24 24">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                </svg>
+                隐私政策
+            </div>
+            <div class="header-spacer"></div>
+        </header>
+
+        <!-- 主标题 -->
+        <div class="main-title">
+            <h1>隐私政策</h1>
+            <p class="update-info">
+                最后更新日期：2025年12月24日<br>
+                生效日期：2025年12月24日
+            </p>
+        </div>
+
+        <!-- 欢迎 -->
+        <section class="section">
+            <h2>
+                <svg class="icon" viewBox="0 0 24 24">
+                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                </svg>
+                欢迎
+            </h2>
+            <p>
+                欢迎使用《哈耶克的文明：市场经济》。本游戏由 ToyEmpires 开发和运营。
+                我们非常重视您的隐私保护，并致力于保护您的个人信息安全。
+            </p>
+        </section>
+
+        <!-- 1. 信息收集 -->
+        <section class="section">
+            <h2>
+                <svg class="icon" viewBox="0 0 24 24">
+                    <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+                    <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+                    <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+                </svg>
+                1. 信息收集
+            </h2>
+
+            <h3>我们收集的信息</h3>
+            <div class="highlight">
+                <p>本游戏是一款完全离线的单机游戏，我们不会主动收集您的任何个人身份信息。</p>
+            </div>
+            <p>本游戏仅在您的设备本地存储以下信息：</p>
+            <ul>
+                <li><strong>游戏存档数据</strong>：包括游戏进度、建筑数据、资源状态等</li>
+                <li><strong>游戏设置</strong>：包括音效设置、音量偏好等</li>
+                <li><strong>教程完成状态</strong>：记录是否已完成新手教程</li>
+            </ul>
+
+            <h3 class="warning">我们不收集的信息</h3>
+            <ul>
+                <li>个人身份信息（姓名、电话、邮箱等）</li>
+                <li>位置信息</li>
+                <li>设备标识符</li>
+                <li>联系人信息</li>
+                <li>照片或媒体文件</li>
+                <li>使用行为分析数据</li>
+            </ul>
+        </section>
+
+        <!-- 2. 信息使用 -->
+        <section class="section">
+            <h2>
+                <svg class="icon" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="3"></circle>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                </svg>
+                2. 信息使用
+            </h2>
+            <p>本游戏收集的所有数据仅用于以下目的：</p>
+            <ul>
+                <li><strong>保存游戏进度</strong>：确保您可以继续之前的游戏</li>
+                <li><strong>个性化设置</strong>：记住您的偏好设置</li>
+                <li><strong>教程引导</strong>：避免重复显示新手引导</li>
+            </ul>
+        </section>
+
+        <!-- 3. 信息存储 -->
+        <section class="section">
+            <h2>
+                <svg class="icon" viewBox="0 0 24 24">
+                    <line x1="22" y1="12" x2="2" y2="12"></line>
+                    <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path>
+                    <line x1="6" y1="16" x2="6.01" y2="16"></line>
+                    <line x1="10" y1="16" x2="10.01" y2="16"></line>
+                </svg>
+                3. 信息存储
+            </h2>
+
+            <h3>存储位置</h3>
+            <p>所有游戏数据均存储在您的设备本地，使用浏览器的 localStorage 技术。这意味着：</p>
+            <ul>
+                <li>数据完全保留在您的设备上</li>
+                <li>数据不会上传到任何远程服务器</li>
+                <li>数据不会与任何第三方共享</li>
+            </ul>
+
+            <h3>数据删除</h3>
+            <p>您可以通过以下方式删除游戏数据：</p>
+            <ul>
+                <li><strong>游戏内删除</strong>：使用游戏内的"删除存档"功能</li>
+                <li><strong>应用数据清除</strong>：通过设备设置清除应用数据</li>
+                <li><strong>卸载应用</strong>：卸载本游戏将删除所有本地数据</li>
+            </ul>
+        </section>
+
+        <!-- 4. 信息共享 -->
+        <section class="section">
+            <h2>
+                <svg class="icon" viewBox="0 0 24 24">
+                    <circle cx="18" cy="5" r="3"></circle>
+                    <circle cx="6" cy="12" r="3"></circle>
+                    <circle cx="18" cy="19" r="3"></circle>
+                    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+                    <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+                </svg>
+                4. 信息共享
+            </h2>
+            <div class="highlight blue">
+                <p>我们不会将您的任何信息与第三方共享。</p>
+            </div>
+            <p>本游戏：</p>
+            <ul>
+                <li>不包含任何第三方分析工具或SDK</li>
+                <li>不包含广告服务</li>
+                <li>不需要用户注册或登录</li>
+                <li>不具备联网功能</li>
+            </ul>
+        </section>
+
+        <!-- 5. 儿童隐私 -->
+        <section class="section">
+            <h2>
+                <svg class="icon" viewBox="0 0 24 24">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="9" cy="7" r="4"></circle>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                </svg>
+                5. 儿童隐私
+            </h2>
+            <p>
+                本游戏适合所有年龄段的用户。由于我们不收集任何个人信息，因此不存在针对儿童的特殊隐私风险。
+            </p>
+        </section>
+
+        <!-- 6. 权限说明 -->
+        <section class="section">
+            <h2>
+                <svg class="icon" viewBox="0 0 24 24">
+                    <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path>
+                </svg>
+                6. 权限说明
+            </h2>
+            <p>本游戏请求的设备权限极少：</p>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>权限</th>
+                            <th>用途</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>存储访问</td>
+                            <td>保存游戏进度到本地存储</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- 7. 您的权利 -->
+        <section class="section">
+            <h2>
+                <svg class="icon" viewBox="0 0 24 24">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="8.5" cy="7" r="4"></circle>
+                    <polyline points="17 11 19 13 23 9"></polyline>
+                </svg>
+                7. 您的权利
+            </h2>
+            <p>根据适用的数据保护法律，您可能享有以下权利：</p>
+            <ul>
+                <li><strong>访问权</strong>：您可以随时查看游戏内存储的数据</li>
+                <li><strong>删除权</strong>：您可以随时删除所有游戏数据</li>
+                <li><strong>数据携带权</strong>：游戏数据存储在您的设备上，完全由您控制</li>
+            </ul>
+        </section>
+
+        <!-- 8. 联系我们 -->
+        <section class="section">
+            <h2>
+                <svg class="icon" viewBox="0 0 24 24">
+                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                    <polyline points="22,6 12,13 2,6"></polyline>
+                </svg>
+                8. 联系我们
+            </h2>
+            <p>如果您对本隐私政策有任何疑问、意见或投诉，请通过以下方式联系我们：</p>
+            <ul>
+                <li>
+                    <strong>电子邮件</strong>：
+                    <a href="mailto:HkingAuditore@Gmail.com" class="contact-link">HkingAuditore@Gmail.com</a>
+                </li>
+                <li>
+                    <strong>开发者网站</strong>：
+                    <a href="https://toyempires.top/civ-game/" target="_blank" rel="noopener noreferrer" class="contact-link">https://toyempires.top/civ-game/</a>
+                </li>
+            </ul>
+        </section>
+
+        <!-- 9. 适用法律 -->
+        <section class="section">
+            <h2>
+                <svg class="icon" viewBox="0 0 24 24">
+                    <line x1="12" y1="1" x2="12" y2="23"></line>
+                    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                </svg>
+                9. 适用法律
+            </h2>
+            <p>
+                本隐私政策的解释和执行均适用中华人民共和国法律。如发生争议，双方应友好协商解决；
+                协商不成的，任何一方均可向有管辖权的人民法院提起诉讼。
+            </p>
+        </section>
+
+        <!-- 页脚 -->
+        <footer class="footer">
+            <p>感谢您选择《哈耶克的文明：市场经济》！</p>
+            <p class="version">本隐私政策版本：1.0</p>
+        </footer>
+    </div>
+</body>
+
+</html>
