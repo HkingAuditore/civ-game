@@ -4,7 +4,7 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { GAME_SPEEDS, EPOCHS, RESOURCES, STRATA, calculateArmyFoodNeed, calculateTotalArmyExpense, BUILDINGS, EVENTS } from './config';
 import { getCalendarInfo } from './utils/calendar';
-import { useGameState, useGameLoop, useGameActions, useSound, useEpicTheme, useViewportHeight } from './hooks';
+import { useGameState, useGameLoop, useGameActions, useSound, useEpicTheme, useViewportHeight, useDevicePerformance } from './hooks';
 import {
     Icon,
     FloatingText
@@ -80,6 +80,9 @@ function GameApp({ gameState }) {
 
     // 初始化动态视口高度（解决移动端 vh 不准确问题）
     useViewportHeight();
+
+    // 初始化设备性能检测（自动启用低端设备优化）
+    useDevicePerformance();
 
     // 添加日志函数 - memoized to prevent unnecessary re-renders
     const addLog = useCallback((msg) => {

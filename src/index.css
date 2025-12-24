@@ -2122,3 +2122,163 @@
         top: 52px;
     }
 }
+
+/* ==================== 低性能模式优化 ==================== */
+/* 当检测到低端设备或用户手动启用时，禁用高消耗的视觉效果 */
+
+/* 禁用所有 backdrop-filter 模糊效果 */
+.low-perf-mode .glass-ancient,
+.low-perf-mode .glass-epic,
+.low-perf-mode .glass-monument {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+
+/* 使用纯色背景替代模糊效果 */
+.low-perf-mode .glass-ancient {
+    background: rgba(44, 24, 16, 0.95) !important;
+}
+
+.low-perf-mode .glass-epic {
+    background: rgba(26, 20, 16, 0.98) !important;
+}
+
+.low-perf-mode .glass-monument {
+    background: rgba(26, 20, 16, 0.99) !important;
+}
+
+/* 禁用其他组件的模糊效果 */
+.low-perf-mode [class*="backdrop-blur"] {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+
+/* 简化阴影效果 */
+.low-perf-mode .glass-ancient,
+.low-perf-mode .glass-epic,
+.low-perf-mode .glass-monument {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5) !important;
+}
+
+/* 禁用持续动画 */
+.low-perf-mode .animate-shimmer,
+.low-perf-mode .animate-pulse-gold,
+.low-perf-mode .animate-float,
+.low-perf-mode .animate-breathe-glow,
+.low-perf-mode .animate-spin-glow,
+.low-perf-mode .animate-fade-pulse,
+.low-perf-mode .border-flow,
+.low-perf-mode .animate-weather-slide {
+    animation: none !important;
+}
+
+/* 保留必要的入场动画但简化 */
+.low-perf-mode .animate-fade-in-up,
+.low-perf-mode .animate-slide-in-right,
+.low-perf-mode .animate-scale-in,
+.low-perf-mode .animate-slide-down,
+.low-perf-mode .animate-slide-up,
+.low-perf-mode .animate-slide-bounce {
+    animation-duration: 0.15s !important;
+    animation-timing-function: ease-out !important;
+}
+
+/* 禁用悬停动画 */
+.low-perf-mode .hover-lift,
+.low-perf-mode .hover-glow,
+.low-perf-mode .hover-scale {
+    transition: none !important;
+}
+
+.low-perf-mode .hover-lift:hover,
+.low-perf-mode .hover-glow:hover,
+.low-perf-mode .hover-scale:hover {
+    transform: none !important;
+    box-shadow: inherit !important;
+}
+
+/* 优化模态框渲染 */
+.low-perf-mode [role="dialog"],
+.low-perf-mode .fixed.inset-0 {
+    will-change: opacity;
+    transform: translateZ(0);
+}
+
+/* 优化滚动容器 */
+.low-perf-mode .overflow-y-auto,
+.low-perf-mode .overflow-x-auto {
+    will-change: scroll-position;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* 禁用金属光泽效果 */
+.low-perf-mode .metal-gold,
+.low-perf-mode .metal-bronze,
+.low-perf-mode .metal-steel {
+    background: var(--theme-surface-alt, rgba(61, 36, 21, 0.9)) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4) !important;
+}
+
+/* 简化发光效果 */
+.low-perf-mode .glow-gold,
+.low-perf-mode .glow-gold-intense,
+.low-perf-mode .glow-bronze,
+.low-perf-mode .glow-empire {
+    box-shadow: none !important;
+}
+
+/* 禁用 body 伪元素装饰 */
+.low-perf-mode body::before,
+.low-perf-mode body::after {
+    display: none !important;
+}
+
+/* 简化按钮效果 */
+.low-perf-mode .btn-ancient::before,
+.low-perf-mode .btn-epic::before {
+    display: none !important;
+}
+
+/* 优化转场动画 */
+.low-perf-mode * {
+    transition-duration: 0.1s !important;
+}
+
+/* 但保留用户交互反馈 */
+.low-perf-mode button,
+.low-perf-mode [role="button"],
+.low-perf-mode a {
+    transition-duration: 0.05s !important;
+}
+
+/* 禁用复杂文字效果 */
+.low-perf-mode .text-monument {
+    animation: none !important;
+    background: none !important;
+    -webkit-background-clip: unset !important;
+    background-clip: unset !important;
+    -webkit-text-fill-color: var(--color-ancient-gold) !important;
+    color: var(--color-ancient-gold) !important;
+}
+
+/* 确保 SVG 图表流畅渲染 */
+.low-perf-mode svg {
+    shape-rendering: optimizeSpeed;
+}
+
+/* 对于支持 prefers-reduced-motion 的设备，也应用简化样式 */
+@media (prefers-reduced-motion: reduce) {
+
+    .glass-ancient,
+    .glass-epic,
+    .glass-monument {
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+    }
+
+    * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}

@@ -49,11 +49,21 @@ const calculateBuildingAverageIncomes = (building, count, upgradeLevels = {}, ma
     };
 
     // 统计各等级建筑数量
-    const levelCounts = {};
-    for (let i = 0; i < count; i++) {
-        const lvl = upgradeLevels[i] || 0;
-        levelCounts[lvl] = (levelCounts[lvl] || 0) + 1;
-    }
+    // upgradeLevels 格式为 { 等级: 数量 }
+    let upgradedCount = 0;
+    Object.entries(upgradeLevels).forEach(([lvlStr, lvlCount]) => {
+        const lvl = parseInt(lvlStr);
+        if (Number.isFinite(lvl) && lvl > 0 && lvlCount > 0) {
+            upgradedCount += lvlCount;
+        }
+    });
+    const levelCounts = { 0: Math.max(0, count - upgradedCount) };
+    Object.entries(upgradeLevels).forEach(([lvlStr, lvlCount]) => {
+        const lvl = parseInt(lvlStr);
+        if (Number.isFinite(lvl) && lvl > 0 && lvlCount > 0) {
+            levelCounts[lvl] = lvlCount;
+        }
+    });
 
     // 计算每个角色在各等级的总岗位数和总收入
     const roleStats = {}; // { role: { totalSlots: number, totalIncome: number, isOwner: boolean } }
@@ -262,12 +272,23 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
         const levelCounts = {};
 
         // 统计各等级建筑数量
+        // upgradeData 格式为 { 等级: 数量 }
         let hasUpgrades = false;
-        for (let i = 0; i < count; i++) {
-            const lvl = upgradeData[i] || 0;
-            if (lvl > 0) hasUpgrades = true;
-            levelCounts[lvl] = (levelCounts[lvl] || 0) + 1;
-        }
+        let upgradedCount = 0;
+        Object.entries(upgradeData).forEach(([lvlStr, lvlCount]) => {
+            const lvl = parseInt(lvlStr);
+            if (Number.isFinite(lvl) && lvl > 0 && lvlCount > 0) {
+                upgradedCount += lvlCount;
+                hasUpgrades = true;
+            }
+        });
+        levelCounts[0] = Math.max(0, count - upgradedCount);
+        Object.entries(upgradeData).forEach(([lvlStr, lvlCount]) => {
+            const lvl = parseInt(lvlStr);
+            if (Number.isFinite(lvl) && lvl > 0 && lvlCount > 0) {
+                levelCounts[lvl] = lvlCount;
+            }
+        });
 
         if (!hasUpgrades && levelCounts[0] === count) {
             // 快速路径：无升级，总值为 基础 * count
