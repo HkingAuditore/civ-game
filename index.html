@@ -16,6 +16,7 @@
     </script>
     <script>
         // Early performance detection - runs before CSS loads to prevent rendering issues
+        // 新策略：默认开启低性能模式，只有检测到高端设备才关闭
         (function () {
             var STORAGE_KEY = 'civ_performance_mode';
             var savedMode = null;
@@ -25,50 +26,68 @@
 
             // If user explicitly chose high performance mode, respect that
             if (savedMode === 'high') {
-                return;
+                console.log('[Performance] User forced high-perf mode');
+                return; // 不添加 low-perf-mode class
             }
 
             // If user explicitly chose low performance mode, apply it
             if (savedMode === 'low') {
                 document.documentElement.classList.add('low-perf-mode');
+                console.log('[Performance] User forced low-perf mode');
                 return;
             }
 
-            // Auto-detection mode
-            var isLowEnd = false;
-            var isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-
-            // Check device memory (Chrome only)
-            if (navigator.deviceMemory !== undefined && navigator.deviceMemory < 4) {
-                isLowEnd = true;
+            // 自动检测模式：默认启用低性能模式，只有高端设备才禁用
+            // 高端设备标准：8核以上 CPU 且 8GB 以上内存
+            var isHighEnd = false;
+            
+            var deviceMemory = navigator.deviceMemory;
+            var cpuCores = navigator.hardwareConcurrency;
+            
+            // 只有同时满足高内存和高核心数才视为高端设备
+            if (deviceMemory !== undefined && cpuCores !== undefined) {
+                if (deviceMemory >= 8 && cpuCores >= 8) {
+                    isHighEnd = true;
+                    console.log('[Performance] High-end device detected: ' + cpuCores + ' cores, ' + deviceMemory + 'GB RAM');
+                }
             }
 
-            // Check CPU cores
-            if (navigator.hardwareConcurrency !== undefined && navigator.hardwareConcurrency < 4) {
-                isLowEnd = true;
+            // 额外的高端设备检测：PC 端检测高端 GPU
+            if (!isHighEnd && cpuCores >= 8) {
+                try {
+                    var canvas = document.createElement('canvas');
+                    var gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+                    if (gl) {
+                        var debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+                        if (debugInfo) {
+                            var renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL).toLowerCase();
+                            // 高端 GPU 列表
+                            var highEndGPUs = [
+                                'rtx 30', 'rtx 40', 'rtx 50',  // NVIDIA RTX 30/40/50 系列
+                                'rx 6', 'rx 7',                 // AMD RX 6000/7000 系列
+                                'arc a7',                       // Intel Arc 高端
+                                'apple m1', 'apple m2', 'apple m3', 'apple m4', // Apple Silicon
+                                'adreno 7', 'adreno 8',         // 高通高端
+                                'mali-g7', 'mali-g9',           // ARM 高端
+                            ];
+                            var isHighEndGPU = highEndGPUs.some(function(gpu) {
+                                return renderer.indexOf(gpu) !== -1;
+                            });
+                            if (isHighEndGPU) {
+                                isHighEnd = true;
+                                console.log('[Performance] High-end GPU detected: ' + renderer);
+                            }
+                        }
+                    }
+                } catch (e) { }
             }
 
-            // Check for old Android versions
-            if (/Android [1-7]\./i.test(navigator.userAgent)) {
-                isLowEnd = true;
-            }
-
-            // Check for prefers-reduced-motion
-            if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-                isLowEnd = true;
-            }
-
-            // IMPORTANT: For mobile devices where we cannot detect hardware info, default to safe mode
-            // This prevents rendering issues on low-end devices that don't report their specs
-            if (isMobile && navigator.deviceMemory === undefined && navigator.hardwareConcurrency === undefined) {
-                // Can't detect hardware on this mobile device - be conservative
-                isLowEnd = true;
-                console.log('[Performance] Mobile device with unknown specs - defaulting to low-perf mode');
-            }
-
-            if (isLowEnd) {
+            // 默认启用低性能模式，除非是高端设备
+            if (!isHighEnd) {
                 document.documentElement.classList.add('low-perf-mode');
-                console.log('[Performance] Early detection: low-perf-mode enabled');
+                console.log('[Performance] Default low-perf mode enabled (not a high-end device)');
+            } else {
+                console.log('[Performance] High-perf mode enabled for high-end device');
             }
         })();
     </script>

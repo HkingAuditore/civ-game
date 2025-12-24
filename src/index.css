@@ -2158,7 +2158,9 @@
     border: 1px solid rgba(212, 175, 55, 0.2) !important;
 }
 
-/* 禁用其他组件的模糊效果 */
+
+/* 禁用其他组件的模糊效果，并添加实色背景作为替代 */
+/* 使用 CSS 变量以适配不同时代主题色 */
 .low-perf-mode [class*="backdrop-blur"],
 .low-perf-mode [class*="blur-"],
 .low-perf-mode [style*="backdrop-filter"],
@@ -2167,6 +2169,21 @@
     -webkit-backdrop-filter: none !important;
     filter: none !important;
     -webkit-filter: none !important;
+    /* 使用主题表面色作为实色背景替代 */
+    background-color: var(--theme-surface, rgba(34, 24, 14, 0.95)) !important;
+}
+
+/* 特别处理 Tailwind 的 bg-xxx/xx 半透明背景类 - 在低性能模式下使用不透明背景 */
+.low-perf-mode [class*="bg-stone-900\\/"],
+.low-perf-mode [class*="bg-orange-950\\/"],
+.low-perf-mode [class*="bg-amber-900\\/"],
+.low-perf-mode [class*="bg-blue-950\\/"],
+.low-perf-mode [class*="bg-cyan-900\\/"],
+.low-perf-mode [class*="bg-purple-950\\/"],
+.low-perf-mode [class*="bg-gray-800\\/"],
+.low-perf-mode [class*="bg-green-950\\/"],
+.low-perf-mode [class*="bg-black\\/"] {
+    background-color: var(--theme-surface, rgba(34, 24, 14, 0.95)) !important;
 }
 
 /* 简化阴影效果 - 使用简单的单层阴影 */

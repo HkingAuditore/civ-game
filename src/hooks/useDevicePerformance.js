@@ -25,34 +25,37 @@ let cachedIsLowEnd = null;
 let isInitialized = false;
 
 /**
- * 检测设备是否为低端设备
- * @returns {boolean} true 表示低端设备
+ * 检测设备是否需要启用低性能模式
+ * 新策略：默认返回 true（启用低性能模式），只有高端设备才返回 false
+ * 高端设备标准：8核以上 CPU 且 (8GB 以上内存 或 高端 GPU)
+ * @returns {boolean} true 表示需要低性能模式
  */
 function detectLowEndDevice() {
     if (typeof window === 'undefined' || typeof navigator === 'undefined') {
-        return false;
+        return true; // 默认启用低性能模式
     }
 
-    // 1. 检测设备内存（仅 Chrome 支持）
-    // deviceMemory 返回 GB 为单位的内存量
     const deviceMemory = navigator.deviceMemory;
-    if (deviceMemory !== undefined && deviceMemory < 4) {
-        console.log('[Performance] Low-end device detected: deviceMemory =', deviceMemory, 'GB');
-        return true;
-    }
-
-    // 2. 检测 CPU 核心数
     const cpuCores = navigator.hardwareConcurrency;
-    if (cpuCores !== undefined && cpuCores < 4) {
-        console.log('[Performance] Low-end device detected: hardwareConcurrency =', cpuCores);
+
+    // 首先检查用户是否偏好减少动画 - 无论设备多强大都要尊重用户选择
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        console.log('[Performance] User prefers reduced motion');
         return true;
     }
 
-    // 3. 检测移动端 + 低端 GPU（通过 canvas 测试）
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    // 检查是否为高端设备：需要同时满足高内存和高核心数
+    let isHighEnd = false;
     
-    if (isMobile) {
-        // 使用 canvas API 进行简单性能测试
+    if (deviceMemory !== undefined && cpuCores !== undefined) {
+        if (deviceMemory >= 8 && cpuCores >= 8) {
+            isHighEnd = true;
+            console.log('[Performance] High-end device detected:', cpuCores, 'cores,', deviceMemory, 'GB RAM');
+        }
+    }
+
+    // 额外检测：如果 CPU 核心数足够多，检测是否有高端 GPU
+    if (!isHighEnd && cpuCores >= 8) {
         try {
             const canvas = document.createElement('canvas');
             const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
@@ -60,66 +63,39 @@ function detectLowEndDevice() {
                 const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
                 if (debugInfo) {
                     const renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
-                    // 已知的低端 GPU 和移动端 SoC 型号（扩展列表）
-                    const lowEndGPUs = [
-                        // Mali 系列
-                        'Mali-4', 'Mali-T', 'Mali-G5', 'Mali-G31', 'Mali-G51', 'Mali-G52',
-                        // Adreno 系列（中低端）
-                        'Adreno 3', 'Adreno 4', 'Adreno 5', 'Adreno 6',
-                        // PowerVR 系列
-                        'PowerVR SGX', 'PowerVR GE', 'PowerVR Rogue',
-                        // 其他
-                        'VideoCore', 'GE8', 'IMG', 'Vivante',
-                        // Intel 集成显卡
-                        'Intel HD Graphics', 'Intel UHD Graphics 6',
-                    ];
-                    // 低端移动 SoC 型号
-                    const lowEndSoCs = [
-                        'MT67', 'MT65', 'Helio G', 'Helio A', 'Helio P',
-                        'Dimensity 600', 'Dimensity 700',
-                        'Snapdragon 4', 'Snapdragon 6',
-                        'Exynos 7', 'Exynos 8',
-                        'Unisoc', 'Spreadtrum',
-                    ];
                     const rendererLower = renderer.toLowerCase();
-                    const isLowEndGPU = lowEndGPUs.some(gpu => rendererLower.includes(gpu.toLowerCase()));
-                    const isLowEndSoC = lowEndSoCs.some(soc => rendererLower.includes(soc.toLowerCase()));
-                    if (isLowEndGPU || isLowEndSoC) {
-                        console.log('[Performance] Low-end GPU/SoC detected:', renderer);
-                        return true;
+                    
+                    // 高端 GPU 列表
+                    const highEndGPUs = [
+                        'rtx 30', 'rtx 40', 'rtx 50',          // NVIDIA RTX 30/40/50 系列
+                        'rx 6', 'rx 7',                         // AMD RX 6000/7000 系列
+                        'arc a7',                               // Intel Arc 高端
+                        'apple m1', 'apple m2', 'apple m3', 'apple m4', // Apple Silicon
+                        'adreno 7', 'adreno 8',                 // 高通高端
+                        'mali-g7', 'mali-g9',                   // ARM 高端
+                    ];
+                    
+                    const isHighEndGPU = highEndGPUs.some(gpu => rendererLower.includes(gpu.toLowerCase()));
+                    if (isHighEndGPU) {
+                        isHighEnd = true;
+                        console.log('[Performance] High-end GPU detected:', renderer);
                     }
                 }
             }
         } catch (e) {
-            // WebGL 不可用，可能是低端设备
-            console.log('[Performance] WebGL detection failed, assuming low-end device');
-            return true;
-        }
-
-        // 4. 移动端额外检测：对于无法检测硬件信息的设备，默认启用安全模式
-        // 这是关键改进：很多低端设备不支持 deviceMemory 和 hardwareConcurrency API
-        // 为防止这些设备上出现渲染问题，默认启用低性能模式
-        if (deviceMemory === undefined && cpuCores === undefined) {
-            // 无法检测硬件信息 - 移动端默认保守处理
-            console.log('[Performance] Mobile device with unknown hardware specs, defaulting to low-perf mode');
-            return true;
-        }
-        
-        // 老版本 Android 系统
-        const isOldAndroid = /Android [1-8]\./i.test(navigator.userAgent);
-        if (isOldAndroid) {
-            console.log('[Performance] Old Android version detected (Android 8 or below)');
-            return true;
+            // WebGL 检测失败，保持默认
         }
     }
 
-    // 5. 检测用户是否偏好减少动画
-    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-        console.log('[Performance] User prefers reduced motion');
-        return true;
+    // 如果是高端设备，返回 false（不需要低性能模式）
+    if (isHighEnd) {
+        console.log('[Performance] High-perf mode enabled for high-end device');
+        return false;
     }
 
-    return false;
+    // 默认返回 true（启用低性能模式）
+    console.log('[Performance] Default low-perf mode enabled (not a high-end device)');
+    return true;
 }
 
 /**
