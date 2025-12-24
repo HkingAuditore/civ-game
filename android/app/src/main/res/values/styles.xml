@@ -24,6 +24,10 @@
 
 
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
-        <item name="android:background">@drawable/splash</item>
+        <item name="android:background">@drawable/splash_background</item>
+        <!-- 确保状态栏和导航栏也是深色 -->
+        <item name="android:statusBarColor">@color/splash_background</item>
+        <item name="android:navigationBarColor">@color/splash_background</item>
+        <item name="android:windowBackground">@drawable/splash_background</item>
     </style>
 </resources>

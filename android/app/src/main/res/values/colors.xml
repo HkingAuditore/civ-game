@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="colorPrimary">#2c1810</color>
+    <color name="colorPrimaryDark">#1a1410</color>
+    <color name="colorAccent">#d4af37</color>
+    <!-- Splash 背景色，与 Web 加载界面一致 -->
+    <color name="splash_background">#1a1410</color>
+</resources>
