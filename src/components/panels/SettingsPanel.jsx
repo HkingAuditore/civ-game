@@ -99,7 +99,7 @@ export const SettingsPanel = ({
     };
 
     return (
-        <div className="bg-gray-900/90 backdrop-blur border border-gray-700 rounded-xl p-4 space-y-4 shadow-lg">
+        <div className="bg-gray-900/90 backdrop-blur border border-gray-700 rounded-xl p-4 space-y-4 shadow-lg max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between">
                 <h3 className="text-sm font-bold text-gray-200 flex items-center gap-2">
                     <Icon name="Sliders" size={16} /> 设置
