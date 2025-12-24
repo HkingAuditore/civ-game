@@ -446,11 +446,35 @@ export const simulateTick = ({
     BUILDINGS.forEach(b => {
         const count = builds[b.id] || 0;
         if (count > 0) {
-            const upgradeLevels = buildingUpgrades[b.id] || {};
+            // buildingUpgrades[b.id] 格式为 { 等级: 数量 }，例如 { "1": 2, "2": 1 }
+            // 表示 2个1级建筑，1个2级建筑
+            const levelCounts = buildingUpgrades[b.id] || {};
+            
+            // 计算已升级的建筑数量
+            let upgradedCount = 0;
+            Object.entries(levelCounts).forEach(([lvlStr, lvlCount]) => {
+                const lvl = parseInt(lvlStr);
+                if (Number.isFinite(lvl) && lvl > 0 && lvlCount > 0) {
+                    upgradedCount += lvlCount;
+                }
+            });
+            
+            // 0级（未升级）的数量 = 总数 - 已升级数量
+            const level0Count = Math.max(0, count - upgradedCount);
+            
+            // 构建完整的等级分布，用于后续遍历
+            const fullLevelCounts = { 0: level0Count };
+            Object.entries(levelCounts).forEach(([lvlStr, lvlCount]) => {
+                const lvl = parseInt(lvlStr);
+                if (Number.isFinite(lvl) && lvl > 0 && lvlCount > 0) {
+                    fullLevelCounts[lvl] = lvlCount;
+                }
+            });
 
-            // 遍历每个建筑实例，累加其效果
-            for (let i = 0; i < count; i++) {
-                const level = upgradeLevels[i] || 0;
+            // 遍历每个等级，累加其效果
+            Object.entries(fullLevelCounts).forEach(([lvlStr, lvlCount]) => {
+                if (lvlCount <= 0) return;
+                const level = parseInt(lvlStr);
                 const config = getBuildingEffectiveConfig(b, level);
 
                 // Apply building-specific and category bonuses
@@ -459,20 +483,20 @@ export const simulateTick = ({
                 const catBonus = 1 + (categoryBonuses[b.cat] || 0);
                 buildingBonus *= catBonus;
 
-                // maxPop
+                // maxPop - 乘以该等级建筑数量
                 if (config.output?.maxPop) {
-                    totalMaxPop += (config.output.maxPop * buildingBonus);
+                    totalMaxPop += (config.output.maxPop * buildingBonus * lvlCount);
                 }
 
-                // militaryCapacity
+                // militaryCapacity - 乘以该等级建筑数量
                 if (config.output?.militaryCapacity) {
-                    militaryCapacity += (config.output.militaryCapacity * buildingBonus);
+                    militaryCapacity += (config.output.militaryCapacity * buildingBonus * lvlCount);
                 }
 
-                // jobs - 使用升级后的配置
+                // jobs - 使用升级后的配置，乘以该等级建筑数量
                 if (config.jobs) {
                     for (let role in config.jobs) {
-                        jobsAvailable[role] = (jobsAvailable[role] || 0) + config.jobs[role];
+                        jobsAvailable[role] = (jobsAvailable[role] || 0) + config.jobs[role] * lvlCount;
                     }
                 }
 
@@ -485,7 +509,7 @@ export const simulateTick = ({
                         }
                     });
                 }
-            }
+            });
         }
     });
     // console.log('[TICK] Buildings processed. militaryCapacity:', militaryCapacity); // Commented for performance
@@ -848,26 +872,42 @@ export const simulateTick = ({
         let multiplier = 1.0;
 
         // --- 计算升级加成后的基础数值 ---
-        const upgradeLevels = buildingUpgrades[b.id] || {};
+        // buildingUpgrades[b.id] 格式为 { 等级: 数量 }，例如 { "1": 2, "2": 1 }
+        const storedLevelCounts = buildingUpgrades[b.id] || {};
         const effectiveOps = { input: {}, output: {}, jobs: {} };
-        const levelCounts = {};
+        
+        // 计算已升级的建筑数量
+        let upgradedCount = 0;
         let hasUpgrades = false;
+        Object.entries(storedLevelCounts).forEach(([lvlStr, lvlCount]) => {
+            const lvl = parseInt(lvlStr);
+            if (Number.isFinite(lvl) && lvl > 0 && lvlCount > 0) {
+                upgradedCount += lvlCount;
+                hasUpgrades = true;
+            }
+        });
+        
+        // 0级（未升级）的数量 = 总数 - 已升级数量
+        const level0Count = Math.max(0, count - upgradedCount);
+        
+        // 构建完整的等级分布
+        const levelCounts = { 0: level0Count };
+        Object.entries(storedLevelCounts).forEach(([lvlStr, lvlCount]) => {
+            const lvl = parseInt(lvlStr);
+            if (Number.isFinite(lvl) && lvl > 0 && lvlCount > 0) {
+                levelCounts[lvl] = lvlCount;
+            }
+        });
 
-        // 统计各等级建筑数量
-        for (let i = 0; i < count; i++) {
-            const lvl = upgradeLevels[i] || 0;
-            if (lvl > 0) hasUpgrades = true;
-            levelCounts[lvl] = (levelCounts[lvl] || 0) + 1;
-        }
-
-        if (!hasUpgrades && levelCounts[0] === count) {
+        if (!hasUpgrades && level0Count === count) {
             // 无升级快速路径
             if (b.input) for (const [k, v] of Object.entries(b.input)) effectiveOps.input[k] = v * count;
             if (b.output) for (const [k, v] of Object.entries(b.output)) effectiveOps.output[k] = v * count;
             if (b.jobs) for (const [k, v] of Object.entries(b.jobs)) effectiveOps.jobs[k] = v * count;
         } else {
-            // 聚合计算
+            // 聚合计算各等级建筑的input/output/jobs
             for (const [lvlStr, lvlCount] of Object.entries(levelCounts)) {
+                if (lvlCount <= 0) continue;
                 const lvl = parseInt(lvlStr);
                 const config = getBuildingEffectiveConfig(b, lvl);
                 if (config.input) for (const [k, v] of Object.entries(config.input)) effectiveOps.input[k] = (effectiveOps.input[k] || 0) + v * lvlCount;
@@ -2724,12 +2764,26 @@ export const simulateTick = ({
             if (buildingCount <= 0) return;
 
             // 获取该建筑的升级等级分布
-            const upgradeLevels = buildingUpgrades[building.id] || {};
-            const levelCounts = {};
-            for (let i = 0; i < buildingCount; i++) {
-                const level = upgradeLevels[i] || 0;
-                levelCounts[level] = (levelCounts[level] || 0) + 1;
-            }
+            // buildingUpgrades[building.id] 格式为 { 等级: 数量 }
+            const storedLevelCounts = buildingUpgrades[building.id] || {};
+            
+            // 计算已升级的建筑数量
+            let upgradedCount = 0;
+            Object.entries(storedLevelCounts).forEach(([lvlStr, lvlCount]) => {
+                const lvl = parseInt(lvlStr);
+                if (Number.isFinite(lvl) && lvl > 0 && lvlCount > 0) {
+                    upgradedCount += lvlCount;
+                }
+            });
+            
+            // 构建完整的等级分布（包括0级）
+            const levelCounts = { 0: Math.max(0, buildingCount - upgradedCount) };
+            Object.entries(storedLevelCounts).forEach(([lvlStr, lvlCount]) => {
+                const lvl = parseInt(lvlStr);
+                if (Number.isFinite(lvl) && lvl > 0 && lvlCount > 0) {
+                    levelCounts[lvl] = lvlCount;
+                }
+            });
 
             // 按等级分组计算
             Object.entries(levelCounts).forEach(([levelStr, count]) => {

@@ -3,7 +3,54 @@
 
 import React, { useRef, useState } from 'react';
 import { Icon } from '../common/UIComponents';
-import { useSound } from '../../hooks';
+import { useSound, useDevicePerformance, PERFORMANCE_MODES } from '../../hooks';
+
+/**
+ * 性能模式设置组件
+ * 允许用户手动切换性能模式以优化低端设备体验
+ */
+const PerformanceModeSection = () => {
+    const { isLowPerformanceMode, performanceMode, setPerformanceMode } = useDevicePerformance();
+
+    const modeOptions = [
+        { value: PERFORMANCE_MODES.AUTO, label: '自动', desc: '根据设备自动选择' },
+        { value: PERFORMANCE_MODES.HIGH, label: '高品质', desc: '全部特效' },
+        { value: PERFORMANCE_MODES.LOW, label: '流畅', desc: '禁用特效' },
+    ];
+
+    return (
+        <div className="border-t border-gray-700 pt-4 space-y-3">
+            <h4 className="text-sm font-bold text-gray-200 flex items-center gap-2">
+                <Icon name="Zap" size={16} /> 性能模式
+            </h4>
+            <p className="text-[11px] text-gray-400 leading-relaxed">
+                低端设备可启用"流畅"模式，禁用背景模糊和动画效果以提升稳定性。
+            </p>
+
+            <div className="flex gap-2">
+                {modeOptions.map(opt => (
+                    <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setPerformanceMode(opt.value)}
+                        className={`flex-1 px-3 py-2 rounded-lg border text-xs transition-colors ${performanceMode === opt.value
+                                ? 'bg-emerald-700/40 border-emerald-500/50 text-emerald-200'
+                                : 'bg-gray-700/30 border-gray-600/50 text-gray-300 hover:bg-gray-700/50'
+                            }`}
+                    >
+                        <div className="font-medium">{opt.label}</div>
+                        <div className="text-[10px] text-gray-400 mt-0.5">{opt.desc}</div>
+                    </button>
+                ))}
+            </div>
+
+            <div className="text-[11px] text-gray-400 flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full ${isLowPerformanceMode ? 'bg-amber-400' : 'bg-emerald-400'}`} />
+                当前状态：{isLowPerformanceMode ? '流畅模式（特效已禁用）' : '高品质模式'}
+            </div>
+        </div>
+    );
+};
 
 export const SettingsPanel = ({
     isAutoSaveEnabled,
@@ -319,6 +366,9 @@ export const SettingsPanel = ({
           </div>
         </div>
       </div> */}
+
+            {/* 性能模式设置 */}
+            <PerformanceModeSection />
 
             {/* 音效设置 */}
             <div className="border-t border-gray-700 pt-4 space-y-4">

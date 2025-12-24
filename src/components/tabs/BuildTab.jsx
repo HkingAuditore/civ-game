@@ -490,19 +490,33 @@ const BuildTabComponent = ({
                                 const upgradeLevels = buildingUpgrades[building.id] || {};
 
                                 // 计算平均建筑属性 (用于显示)
+                                // buildingUpgrades[building.id] 格式为 { 等级: 数量 }
                                 let averageBuilding = building;
                                 if (count > 0) {
+                                    // 计算已升级的建筑数量
+                                    let upgradedCount = 0;
                                     let hasUpgrades = false;
-                                    const levelCounts = {};
-                                    for (let i = 0; i < count; i++) {
-                                        const lvl = upgradeLevels[i] || 0;
-                                        if (lvl > 0) hasUpgrades = true;
-                                        levelCounts[lvl] = (levelCounts[lvl] || 0) + 1;
-                                    }
+                                    Object.entries(upgradeLevels).forEach(([lvlStr, lvlCount]) => {
+                                        const lvl = parseInt(lvlStr);
+                                        if (Number.isFinite(lvl) && lvl > 0 && lvlCount > 0) {
+                                            upgradedCount += lvlCount;
+                                            hasUpgrades = true;
+                                        }
+                                    });
+
+                                    // 构建完整的等级分布
+                                    const levelCounts = { 0: Math.max(0, count - upgradedCount) };
+                                    Object.entries(upgradeLevels).forEach(([lvlStr, lvlCount]) => {
+                                        const lvl = parseInt(lvlStr);
+                                        if (Number.isFinite(lvl) && lvl > 0 && lvlCount > 0) {
+                                            levelCounts[lvl] = lvlCount;
+                                        }
+                                    });
 
                                     if (hasUpgrades) {
                                         const effectiveOps = { input: {}, output: {}, jobs: {} };
                                         for (const [lvlStr, lvlCount] of Object.entries(levelCounts)) {
+                                            if (lvlCount <= 0) continue;
                                             const lvl = parseInt(lvlStr);
                                             const config = getBuildingEffectiveConfig(building, lvl);
                                             if (config.input) for (const [k, v] of Object.entries(config.input)) effectiveOps.input[k] = (effectiveOps.input[k] || 0) + v * lvlCount;
@@ -518,22 +532,40 @@ const BuildTabComponent = ({
                                     }
                                 }
 
-                                // 检查是否有任何实例未满级且资源足够升级
+                                // 检查是否有任何等级未满级且资源足够升级
                                 const maxLevel = BUILDING_UPGRADES[building.id]?.length || 0;
                                 let canUpgradeAny = false;
                                 if (count > 0 && maxLevel > 0) {
-                                    for (let i = 0; i < count; i++) {
-                                        const currentLevel = upgradeLevels[i] || 0;
+                                    // 构建完整的等级分布
+                                    let upgradedCount = 0;
+                                    Object.entries(upgradeLevels).forEach(([lvlStr, lvlCount]) => {
+                                        const lvl = parseInt(lvlStr);
+                                        if (Number.isFinite(lvl) && lvl > 0 && lvlCount > 0) {
+                                            upgradedCount += lvlCount;
+                                        }
+                                    });
+                                    const levelCounts = { 0: Math.max(0, count - upgradedCount) };
+                                    Object.entries(upgradeLevels).forEach(([lvlStr, lvlCount]) => {
+                                        const lvl = parseInt(lvlStr);
+                                        if (Number.isFinite(lvl) && lvl > 0 && lvlCount > 0) {
+                                            levelCounts[lvl] = lvlCount;
+                                        }
+                                    });
+
+                                    // 检查每个等级是否可以升级
+                                    for (const [lvlStr, lvlCount] of Object.entries(levelCounts)) {
+                                        if (lvlCount <= 0) continue;
+                                        const currentLevel = parseInt(lvlStr);
                                         if (currentLevel < maxLevel) {
                                             const targetLevel = currentLevel + 1;
 
                                             // 计算当前已达到目标等级或更高级别的实例数量（用于成本递增）
                                             let existingCountAtTarget = 0;
-                                            for (let j = 0; j < count; j++) {
-                                                if ((upgradeLevels[j] || 0) >= targetLevel) {
-                                                    existingCountAtTarget++;
+                                            Object.entries(levelCounts).forEach(([l, c]) => {
+                                                if (parseInt(l) >= targetLevel && c > 0) {
+                                                    existingCountAtTarget += c;
                                                 }
-                                            }
+                                            });
 
                                             // 获取升级成本
                                             const upgradeCost = getUpgradeCost(building.id, targetLevel, existingCountAtTarget);
