@@ -2,6 +2,7 @@
 // 处理游戏的核心循环逻辑，包括资源生产、人口增长等
 
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { unstable_batchedUpdates } from 'react-dom';
 import { simulateTick } from '../logic/simulation';
 // Web Worker for offloading simulation to background thread
 import SimulationWorker from '../workers/simulation.worker.js?worker';
@@ -1356,71 +1357,74 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 return nextHistory;
             });
 
-            // 更新所有状态
-            setPopStructure(result.popStructure);
-            setMaxPop(result.maxPop);
-            setRates(result.rates);      // 由于现在每次 Tick 都是 1 天的产出，rates 已经是每天的速率，无需再除以 gameSpeed
-            setRates(result.rates || {});
-            setClassApproval(result.classApproval);
-            const adjustedInfluence = { ...(result.classInfluence || {}) };
-            Object.entries(classInfluenceShift || {}).forEach(([key, delta]) => {
-                if (!delta) return;
-                adjustedInfluence[key] = (adjustedInfluence[key] || 0) + delta;
-            });
-            setClassInfluence(adjustedInfluence);
-            const wealthDelta = {};
-            Object.keys(adjustedClassWealth).forEach(key => {
-                const prevWealth = current.classWealth?.[key] || 0;
-                wealthDelta[key] = adjustedClassWealth[key] - prevWealth;
-            });
-            setClassWealth(adjustedClassWealth);
-            setClassWealthDelta(wealthDelta);
-            setClassIncome(result.classIncome || {});
-            setClassExpense(result.classExpense || {});
-            setClassWealthHistory(wealthHistory);
-            setClassNeedsHistory(needsHistory);
-            setTotalInfluence(result.totalInfluence);
-            setTotalWealth(adjustedTotalWealth);
-            setActiveBuffs(result.activeBuffs);
-            setActiveDebuffs(result.activeDebuffs);
-            setStability(result.stability);
-            // 更新执政联盟合法性
-            if (typeof setLegitimacy === 'function' && result.legitimacy !== undefined) {
-                setLegitimacy(result.legitimacy);
-            }
-            setTaxes(result.taxes || {
-                total: 0,
-                breakdown: { headTax: 0, industryTax: 0, subsidy: 0, policyIncome: 0, policyExpense: 0 },
-                efficiency: 1,
-            });
-            setMarket(adjustedMarket);
-            setClassShortages(result.needsShortages || {});
-            setClassLivingStandard(result.classLivingStandard || {});
-            setLivingStandardStreaks(result.livingStandardStreaks || current.livingStandardStreaks || {});
-            setMigrationCooldowns(result.migrationCooldowns || current.migrationCooldowns || {});
-            setMerchantState(prev => {
-                const nextState = result.merchantState || current.merchantState || { pendingTrades: [], lastTradeTime: 0 };
-                if (prev === nextState) {
-                    return prev;
+            // 更新所有状态 - 使用批量更新减少重渲染次数
+            // 将所有 setState 调用包装在 unstable_batchedUpdates 中
+            // 这可以将 30+ 次渲染合并为 1 次，大幅提升低端设备性能
+            unstable_batchedUpdates(() => {
+                setPopStructure(result.popStructure);
+                setMaxPop(result.maxPop);
+                setRates(result.rates || {});
+                setClassApproval(result.classApproval);
+                const adjustedInfluence = { ...(result.classInfluence || {}) };
+                Object.entries(classInfluenceShift || {}).forEach(([key, delta]) => {
+                    if (!delta) return;
+                    adjustedInfluence[key] = (adjustedInfluence[key] || 0) + delta;
+                });
+                setClassInfluence(adjustedInfluence);
+                const wealthDelta = {};
+                Object.keys(adjustedClassWealth).forEach(key => {
+                    const prevWealth = current.classWealth?.[key] || 0;
+                    wealthDelta[key] = adjustedClassWealth[key] - prevWealth;
+                });
+                setClassWealth(adjustedClassWealth);
+                setClassWealthDelta(wealthDelta);
+                setClassIncome(result.classIncome || {});
+                setClassExpense(result.classExpense || {});
+                setClassWealthHistory(wealthHistory);
+                setClassNeedsHistory(needsHistory);
+                setTotalInfluence(result.totalInfluence);
+                setTotalWealth(adjustedTotalWealth);
+                setActiveBuffs(result.activeBuffs);
+                setActiveDebuffs(result.activeDebuffs);
+                setStability(result.stability);
+                // 更新执政联盟合法性
+                if (typeof setLegitimacy === 'function' && result.legitimacy !== undefined) {
+                    setLegitimacy(result.legitimacy);
                 }
-                return nextState;
+                setTaxes(result.taxes || {
+                    total: 0,
+                    breakdown: { headTax: 0, industryTax: 0, subsidy: 0, policyIncome: 0, policyExpense: 0 },
+                    efficiency: 1,
+                });
+                setMarket(adjustedMarket);
+                setClassShortages(result.needsShortages || {});
+                setClassLivingStandard(result.classLivingStandard || {});
+                setLivingStandardStreaks(result.livingStandardStreaks || current.livingStandardStreaks || {});
+                setMigrationCooldowns(result.migrationCooldowns || current.migrationCooldowns || {});
+                setMerchantState(prev => {
+                    const nextState = result.merchantState || current.merchantState || { pendingTrades: [], lastTradeTime: 0 };
+                    if (prev === nextState) {
+                        return prev;
+                    }
+                    return nextState;
+                });
+                if (result.nations) {
+                    setNations(result.nations);
+                }
+                if (result.jobFill) {
+                    setJobFill(result.jobFill);
+                }
+                if (result.jobsAvailable) {
+                    setJobsAvailable(result.jobsAvailable);
+                }
+                // Update building upgrades from owner auto-upgrade
+                if (result.buildingUpgrades) {
+                    setBuildingUpgrades(result.buildingUpgrades);
+                }
+                // 每次 Tick 推进 1 天（而非 gameSpeed 天）
+                // 加速效果通过增加 Tick 频率实现，而非增加每次推进的天数
+                setDaysElapsed(prev => prev + 1);
             });
-            if (result.nations) {
-                setNations(result.nations);
-            }
-            if (result.jobFill) {
-                setJobFill(result.jobFill);
-            }
-            if (result.jobsAvailable) {
-                setJobsAvailable(result.jobsAvailable);
-            }
-            // Update building upgrades from owner auto-upgrade
-            if (result.buildingUpgrades) {
-                setBuildingUpgrades(result.buildingUpgrades);
-            }
-            // 每次 Tick 推进 1 天（而非 gameSpeed 天）
-            // 加速效果通过增加 Tick 频率实现，而非增加每次推进的天数
-            setDaysElapsed(prev => prev + 1);
 
             // ========== 组织度系统更新 ==========
             // 使用新的组织度机制替代旧的RNG叛乱系统
