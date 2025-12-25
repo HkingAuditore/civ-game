@@ -41,14 +41,26 @@ export const updateAINationInventory = ({
         const isInAnyWar = next.isAtWar || (next.foreignWars && Object.values(next.foreignWars).some(w => w?.isAtWar));
         const warConsumptionMultiplier = isInAnyWar ? (1.3 + (next.aggression || 0.2) * 0.5) : 1.0;
 
+        // 时代系数：让后期外国产出和库存显著增加
+        // epoch 0=1x, 1=1.5x, 2=2x, 3=2.8x, 4=3.6x, 5=4.5x, 6=5.5x
+        const epoch = next.epoch || 0;
+        const epochMultiplier = 1 + epoch * 0.5 + Math.pow(epoch, 1.3) * 0.1;
+
+        // 财富系数：让富裕国家有更高产出
+        const wealthFactor = Math.max(0.8, Math.min(2.0, (next.wealth || 1000) / 1000));
+
         foreignResourceKeys.forEach((resourceKey) => {
             const bias = resourceBiasMap[resourceKey] ?? 1;
             const currentStock = next.inventory[resourceKey] || 0;
-            // 目标库存根据资源偏差调整：特产资源目标更高，稀缺资源目标更低
-            // bias=1.5时目标1125，bias=0.5时目标250，bias=1时目标500
-            const targetInventory = Math.round(500 * Math.pow(bias, 1.2));
-            const baseProductionRate = 3.0 * gameSpeed;
-            const baseConsumptionRate = 3.0 * gameSpeed * warConsumptionMultiplier;
+            // 目标库存根据资源偏差、时代和财富调整
+            // bias=1.5时基础目标1125，bias=0.5时目标250，bias=1时目标500
+            // 后期（epoch 6）目标会是基础的5.5倍
+            const baseTargetInventory = Math.round(500 * Math.pow(bias, 1.2));
+            const targetInventory = Math.round(baseTargetInventory * epochMultiplier * wealthFactor);
+            
+            // 生产率和消费率也随时代增长
+            const baseProductionRate = 3.0 * gameSpeed * epochMultiplier * wealthFactor;
+            const baseConsumptionRate = 3.0 * gameSpeed * epochMultiplier * wealthFactor * warConsumptionMultiplier;
             // 特产资源：生产多，消费少 -> 容易盈余
             // 稀缺资源：生产少，消费多 -> 容易缺口
             // 普通资源：平衡

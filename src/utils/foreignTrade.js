@@ -34,10 +34,10 @@ export const calculateForeignPrice = (resourceKey, nation, tick = 0) => {
     // 财富系数：轻微影响市场容量（限制范围避免过大波动）
     const wealthFactor = Math.max(0.8, Math.min(1.5, (nation.wealth || 1000) / 1000));
 
-    // 时代系数：使用线性增长而非指数增长
-    // epoch 0=1x, 1=1.2x, 2=1.4x, 3=1.6x, 4=1.8x, 5=2x, 6=2.2x
+    // 时代系数：后期显著增长以支持出口玩法
+    // epoch 0=1x, 1=1.5x, 2=2x, 3=2.8x, 4=3.6x, 5=4.5x, 6=5.5x
     const epoch = nation.epoch || 0;
-    const epochFactor = 1 + epoch * 0.2;
+    const epochFactor = 1 + epoch * 0.5 + Math.pow(epoch, 1.3) * 0.1;
 
     const targetInventory = baseInventory * wealthFactor * epochFactor;
 
@@ -95,10 +95,10 @@ export const calculateTradeStatus = (resourceKey, nation = {}, daysElapsed = 0) 
     // 财富系数：轻微影响市场容量（限制范围避免过大）
     const wealthFactor = Math.max(0.8, Math.min(1.5, (nation.wealth || 1000) / 1000));
 
-    // 时代系数：使用线性增长而非指数增长，避免产生巨大的目标库存
-    // epoch 0=1x, 1=1.2x, 2=1.4x, 3=1.6x, 4=1.8x, 5=2x, 6=2.2x
+    // 时代系数：后期显著增长以支持出口玩法
+    // epoch 0=1x, 1=1.5x, 2=2x, 3=2.8x, 4=3.6x, 5=4.5x, 6=5.5x
     const epoch = nation.epoch || 0;
-    const epochFactor = 1 + epoch * 0.2;
+    const epochFactor = 1 + epoch * 0.5 + Math.pow(epoch, 1.3) * 0.1;
 
     const baseTarget = baseInventory * wealthFactor * epochFactor;
     const volatility =

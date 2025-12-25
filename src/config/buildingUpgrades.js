@@ -72,21 +72,21 @@ export const BUILDING_UPGRADES = {
         },
     ],
 
-    // loom_house: base output 1.92 cloth, owner: peasant, base jobs: peasant:2
+    // loom_house: base output 1.92 cloth, owner: worker, base jobs: peasant:2
     loom_house: [
         {
             name: "织布坊",
             cost: { wood: 80, stone: 40, tools: 10, silver: 250 },
             input: { tools: 0.02 },
             output: { cloth: 2.5 }, // 1.3x
-            jobs: { peasant: 2 }, // keep same, efficiency upgrade
+            jobs: { worker: 2 }, // keep same, efficiency upgrade
         },
         {
             name: "大织布坊",
             cost: { plank: 60, brick: 40, tools: 20, silver: 600 },
             input: { tools: 0.04, dye: 0.03 }, // 新增染料需求
             output: { cloth: 3.46, culture: 0.05 }, // 1.8x + 织艺文化
-            jobs: { peasant: 3 }, // +1 peasant only
+            jobs: { worker: 3 }, // +1 worker only
         },
     ],
 

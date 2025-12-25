@@ -212,8 +212,8 @@ export const BUILDINGS = [
         desc: "家庭式纺纱织布，保障民众衣物供应。",
         baseCost: { wood: 35, food: 20 },
         output: { cloth: 1.92 },
-        jobs: { peasant: 2 },
-        owner: 'peasant',
+        jobs: { worker: 2 },
+        owner: 'worker',
         epoch: 0,
         cat: 'industry',
         visual: { icon: 'Shirt', color: 'bg-indigo-800', text: 'text-indigo-200' }
