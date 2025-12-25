@@ -17,6 +17,7 @@ import {
     FESTIVAL_EFFECTS,
     STATIC_DIPLOMATIC_EVENTS,
 } from '../../config';
+import { POLITY_DEFINITIONS, formatPolityEffects } from '../../config/polityEffects';
 
 // --- 核心机制攻略文案数据 ---
 const MECHANICS_GUIDES = [
@@ -881,18 +882,72 @@ const MECHANICS_GUIDES = [
                     '组织度增长速度：联盟成员+50%（更容易组织反抗）'
                 ]
             },
-            { type: 'h4', text: '6. 政体类型' },
-            { type: 'p', text: '根据联盟成员的组成，系统会自动判断政体类型：' },
+            { type: 'h4', text: '6. 政体系统详解' },
+            { type: 'p', text: '根据联盟成员的组成，系统会自动判断政体类型。政体会提供不同的加成或惩罚效果。' },
+            { type: 'h5', text: '📌 单一阶层专制（只选一个阶层）' },
             {
                 type: 'list', items: [
-                    '贵族寡头：以地主、骑士、官员为主',
-                    '资产阶级共和：以资本家、商人、工程师为主',
-                    '工农联盟：以工人、农民、矿工为主',
-                    '军事独裁：以军人、骑士为主',
-                    '神权政治：以神职人员为主',
-                    '联合政府：多阶层联合执政'
+                    '【封建地主专制】地主独揽 → 采集+15%，农田产出+20%',
+                    '【垄断资本独裁】资本家独占 → 工业+20%，税收+15%',
+                    '【军事贵族专政】骑士掌控 → 军事+25%，稳定+5%',
+                    '【官僚集权】官员垄断 → 生产+10%，税收+12%，文化+8%',
+                    '【商业寡头政治】商人掌控 → 市场/贸易港产出+25%，税收+15%',
+                    '【神权政治】神职人员统治 → 文化+25%，稳定+10%，科研-15%',
+                    '【军人专政】军人独揽 → 军事+30%，稳定-5%',
+                    '【工人无产阶级专政】工人阶级 → 工业+18%，工人消费-12%，税收-10%',
+                    '【农民专政】农民阶级 → 采集+20%，农田产出+18%',
+                    '【技术官僚政治】工程师主导 → 科研+25%，工业+12%',
+                    '【学者治国】知识分子掌权 → 科研+20%，文化+15%，军事-10%',
+                    '【行会共和】工匠行会主政 → 织坊产出+25%，工业+15%',
+                    '【海上共和国】航海家主导 → 船坞产出+30%，税收+10%',
+                    '【矿业工人政权】矿工阶级 → 矿场产出+30%，采集+15%'
                 ]
-            }
+            },
+            { type: 'h5', text: '⚔️ 特定组合政体（特定阶层组合）' },
+            {
+                type: 'list', items: [
+                    '【工农联合政府】工人+农民 → 采集+12%，工业+10%，消费-8%',
+                    '【人民民主专政】工农为基础，无产阶级≥70% → 采集+10%，工业+12%，消费-15%',
+                    '【资产阶级共和国】资产阶级≥60%，含工人/工匠 → 工业+15%，税收+12%',
+                    '【资本主义寡头政治】资产阶级≥60%，无贵族 → 工业+18%，税收+18%',
+                    '【封建神权联盟】贵族≥60%，含神职 → 采集+12%，文化+15%，稳定+8%，科研-10%',
+                    '【贵族寡头政治】贵族≥60% → 采集+10%，税收+12%',
+                    '【军事-精英联盟】军事≥50%，含资本家/地主 → 军事+20%，税收+8%',
+                    '【军人政府】军事≥50% → 军事+22%，稳定-3%',
+                    '【技术精英政府】含学者+工程师 → 科研+18%，工业+10%'
+                ]
+            },
+            { type: 'h5', text: '🌍 大联盟政体（5个以上阶层）' },
+            {
+                type: 'list', items: [
+                    '【全民联合政府】≥8阶层，含上/中/下层 → 生产+8%，稳定+12%',
+                    '【民族团结政府】≥5阶层，含上/中/下层 → 生产+5%，稳定+10%，人口上限+15',
+                    '【人民阵线】≥5阶层，无产阶级≥50% → 采集+10%，工业+10%，消费-10%',
+                    '【大联盟政府】≥5阶层 → 生产+5%，稳定+5%'
+                ]
+            },
+            { type: 'h5', text: '🏭 产业主导政体' },
+            {
+                type: 'list', items: [
+                    '【工业资本主义政府】工业阶层≥60%，含资本家 → 工业+20%，税收+12%',
+                    '【劳工联合政府】工业阶层≥60%，含工人/工匠 → 工业+15%，消费-8%',
+                    '【地主-农民联盟】农业阶层≥60%，含地主 → 采集+18%，食物需求-8%',
+                    '【农民政府】农业阶层≥60%，无产阶级≥50% → 采集+18%，食物需求-10%',
+                    '【商业共和国】商业阶层≥50% → 市场产出+20%，税收+12%',
+                    '【无产阶级政府】无产阶级≥70% → 采集+12%，工业+12%，税收-10%',
+                    '【精英联盟政府】上层阶级≥70% → 税收+15%'
+                ]
+            },
+            { type: 'h5', text: '🔢 默认政体' },
+            {
+                type: 'list', items: [
+                    '【双头政治】2个阶层 → 稳定+3%',
+                    '【三方联盟】3个阶层 → 稳定+5%',
+                    '【联合政府】其他情况 → 稳定+3%',
+                    '【无执政联盟】未选择联盟 → 生产-10%，税收-20%，稳定-15%'
+                ]
+            },
+            { type: 'p', text: '💡 提示：优先级高的政体会覆盖低优先级政体。单一阶层专制优先级最高(1000)，默认政体优先级最低(0)。' }
         ]
     },
     {
@@ -1101,6 +1156,7 @@ const MECHANICS_GUIDES = [
 ];
 const CATEGORY_CONFIG = [
     { id: 'mechanics', label: '核心机制', icon: 'BookOpen' },
+    { id: 'polities', label: '政体系统', icon: 'Crown' },
     { id: 'economy', label: '社会阶层', icon: 'Users' },
     { id: 'buildings', label: '建筑设施', icon: 'Home' },
     { id: 'military', label: '军事单位', icon: 'Shield' },
@@ -1259,7 +1315,68 @@ function buildWikiData() {
                 type: 'event',
                 data: { ...e, type: 'diplomatic' },
             })),
-        ],
+        ].filter((event, index, self) =>
+            // 去重：只保留第一次出现的id
+            self.findIndex(e => e.id === event.id) === index
+        ),
+        polities: POLITY_DEFINITIONS.filter(p => p.priority >= 0).map(polity => {
+            // 生成触发条件描述
+            const cond = polity.conditions || {};
+            let conditionDesc = '';
+            if (cond.exactCoalition) {
+                const names = cond.exactCoalition.map(k => STRATA[k]?.name || k).join('、');
+                conditionDesc = `仅选择【${names}】`;
+            } else if (cond.maxSize === 1) {
+                conditionDesc = '只选择1个阶层';
+            } else if (cond.exactSize === 2) {
+                conditionDesc = '选择2个阶层';
+            } else if (cond.exactSize === 3) {
+                conditionDesc = '选择3个阶层';
+            } else if (cond.minSize) {
+                conditionDesc = `选择≥${cond.minSize}个阶层`;
+            } else {
+                const parts = [];
+                if (cond.includes) {
+                    const names = cond.includes.map(k => STRATA[k]?.name || k).join('、');
+                    parts.push(`包含${names}`);
+                }
+                if (cond.includesAny) {
+                    const names = cond.includesAny.map(k => STRATA[k]?.name || k).join('/');
+                    parts.push(`包含${names}其一`);
+                }
+                if (cond.excludes) {
+                    const names = cond.excludes.map(k => STRATA[k]?.name || k).join('、');
+                    parts.push(`排除${names}`);
+                }
+                if (cond.minCategoryShare) {
+                    Object.entries(cond.minCategoryShare).forEach(([cat, val]) => {
+                        const catNames = { aristocracy: '贵族', bourgeoisie: '资产阶级', proletariat: '无产阶级', military: '军事', agrarian: '农业', industrial: '工业', commercial: '商业' };
+                        if (val > 0.001) parts.push(`${catNames[cat] || cat}≥${(val * 100).toFixed(0)}%`);
+                    });
+                }
+                if (cond.includesGroup) {
+                    const groupNames = { upper: '上层', middle: '中层', lower: '下层' };
+                    const names = cond.includesGroup.map(g => groupNames[g] || g).join('/');
+                    parts.push(`包含${names}阶层`);
+                }
+                conditionDesc = parts.length > 0 ? parts.join('，') : '默认';
+            }
+            // 格式化效果
+            const effectsList = formatPolityEffects(polity.effects);
+            return {
+                id: polity.name,
+                name: polity.name,
+                summary: polity.description,
+                icon: polity.icon || 'Crown',
+                iconColor: polity.color || 'text-amber-400',
+                type: 'polity',
+                data: {
+                    ...polity,
+                    conditionDesc,
+                    effectsList,
+                },
+            };
+        }),
     };
 }
 
@@ -1690,6 +1807,8 @@ const renderEntryDetails = (entry) => {
             return renderDecreeDetails(data);
         case 'resource':
             return renderResourceDetails(data);
+        case 'polity':
+            return renderPolityDetails(data);
         case 'event':
             return renderEventDetails(data);
         default:
@@ -2008,6 +2127,58 @@ const buildTriggerConditionLines = (conditions) => {
     }
 
     return lines;
+};
+
+// --- 政体显示逻辑 ---
+const renderPolityDetails = (data) => {
+    return (
+        <div className="space-y-6">
+            {/* 描述 */}
+            <div className="bg-gray-800/40 p-4 rounded-xl border border-gray-700/50">
+                <p className="text-gray-300 leading-relaxed text-sm">{data.description}</p>
+            </div>
+
+            {/* 触发条件 */}
+            <div>
+                <h4 className="text-sm font-medium text-gray-400 mb-2 border-l-4 border-indigo-500/50 pl-3">触发条件</h4>
+                <div className="bg-gray-800/60 p-3 rounded-lg border border-gray-700/50">
+                    <p className="text-indigo-300 text-sm">{data.conditionDesc || '默认'}</p>
+                </div>
+            </div>
+
+            {/* 优先级 */}
+            <div className="flex items-center gap-2">
+                <span className="text-gray-500 text-xs">优先级：</span>
+                <span className={`px-2 py-0.5 rounded text-xs font-medium ${data.priority >= 900 ? 'bg-amber-900/50 text-amber-300' : data.priority >= 700 ? 'bg-blue-900/50 text-blue-300' : 'bg-gray-800 text-gray-400'}`}>
+                    {data.priority}
+                </span>
+                <span className="text-gray-600 text-xs">
+                    （优先级越高越优先匹配）
+                </span>
+            </div>
+
+            {/* 政体效果 */}
+            {data.effectsList && data.effectsList.length > 0 && (
+                <div>
+                    <h4 className="text-sm font-medium text-gray-400 mb-3 border-l-4 border-emerald-500/50 pl-3">政体效果</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {data.effectsList.map((effect, idx) => (
+                            <div
+                                key={idx}
+                                className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${effect.positive
+                                    ? 'bg-emerald-900/20 border-emerald-700/40 text-emerald-300'
+                                    : 'bg-red-900/20 border-red-700/40 text-red-300'
+                                    }`}
+                            >
+                                <span className={`w-1.5 h-1.5 rounded-full ${effect.positive ? 'bg-emerald-400' : 'bg-red-400'}`} />
+                                <span className="text-sm">{effect.text}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
 };
 
 // --- 事件显示逻辑 ---
