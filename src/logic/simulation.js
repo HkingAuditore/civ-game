@@ -326,13 +326,13 @@ export const simulateTick = ({
     // 根据当前执政联盟计算政体，并应用政体效果
     // Use previous tick data to avoid circular dependency and TDZ issues
     if (rulingCoalition && rulingCoalition.length > 0) {
-        const influenceData = calculateClassInfluence({ 
-            popStructure: previousPopStructure, 
-            classWealthResult: classWealth 
+        const influenceData = calculateClassInfluence({
+            popStructure: previousPopStructure,
+            classWealthResult: classWealth
         });
         const currentPolity = getGovernmentType(
-            rulingCoalition, 
-            influenceData.classInfluence, 
+            rulingCoalition,
+            influenceData.classInfluence,
             influenceData.totalInfluence
         );
         const polityEffects = getPolityEffects(currentPolity.name);
@@ -471,7 +471,7 @@ export const simulateTick = ({
             // buildingUpgrades[b.id] 格式为 { 等级: 数量 }，例如 { "1": 2, "2": 1 }
             // 表示 2个1级建筑，1个2级建筑
             const levelCounts = buildingUpgrades[b.id] || {};
-            
+
             // 计算已升级的建筑数量
             let upgradedCount = 0;
             Object.entries(levelCounts).forEach(([lvlStr, lvlCount]) => {
@@ -480,10 +480,10 @@ export const simulateTick = ({
                     upgradedCount += lvlCount;
                 }
             });
-            
+
             // 0级（未升级）的数量 = 总数 - 已升级数量
             const level0Count = Math.max(0, count - upgradedCount);
-            
+
             // 构建完整的等级分布，用于后续遍历
             const fullLevelCounts = { 0: level0Count };
             Object.entries(levelCounts).forEach(([lvlStr, lvlCount]) => {
@@ -897,7 +897,7 @@ export const simulateTick = ({
         // buildingUpgrades[b.id] 格式为 { 等级: 数量 }，例如 { "1": 2, "2": 1 }
         const storedLevelCounts = buildingUpgrades[b.id] || {};
         const effectiveOps = { input: {}, output: {}, jobs: {} };
-        
+
         // 计算已升级的建筑数量
         let upgradedCount = 0;
         let hasUpgrades = false;
@@ -908,10 +908,10 @@ export const simulateTick = ({
                 hasUpgrades = true;
             }
         });
-        
+
         // 0级（未升级）的数量 = 总数 - 已升级数量
         const level0Count = Math.max(0, count - upgradedCount);
-        
+
         // 构建完整的等级分布
         const levelCounts = { 0: level0Count };
         Object.entries(storedLevelCounts).forEach(([lvlStr, lvlCount]) => {
@@ -2793,7 +2793,7 @@ export const simulateTick = ({
             // 获取该建筑的升级等级分布
             // buildingUpgrades[building.id] 格式为 { 等级: 数量 }
             const storedLevelCounts = buildingUpgrades[building.id] || {};
-            
+
             // 计算已升级的建筑数量
             let upgradedCount = 0;
             Object.entries(storedLevelCounts).forEach(([lvlStr, lvlCount]) => {
@@ -2802,7 +2802,7 @@ export const simulateTick = ({
                     upgradedCount += lvlCount;
                 }
             });
-            
+
             // 构建完整的等级分布（包括0级）
             const levelCounts = { 0: Math.max(0, buildingCount - upgradedCount) };
             Object.entries(storedLevelCounts).forEach(([lvlStr, lvlCount]) => {
@@ -3108,6 +3108,105 @@ export const simulateTick = ({
         return classWealth?.[role] || 0;
     };
 
+    /**
+     * 为空岗位预估收入（区分业主和雇员）
+     * 解决恶性循环：无人工作 → 收入为0 → 更无人愿意去
+     * @param {string} role - 角色key
+     * @returns {number} 预估的人均收入
+     */
+    const estimateVacantRoleIncome = (role) => {
+        // 空岗位吸引力加成系数
+        const VACANT_BONUS = 1.2;
+
+        let ownerIncome = 0;
+        let ownerSlots = 0;
+        let employeeWage = 0;
+        let employeeSlots = 0;
+
+        BUILDINGS.forEach(building => {
+            const count = builds[building.id] || 0;
+            if (count <= 0) return;
+
+            const config = getBuildingEffectiveConfig(building, 0);
+            const jobs = config.jobs || {};
+            const roleSlots = jobs[role] || 0;
+            if (roleSlots <= 0) return;
+
+            const isOwner = building.owner === role;
+
+            if (isOwner) {
+                // ===== 业主收入预估 =====
+                // 计算建筑产出价值
+                let outputValue = 0;
+                if (config.output) {
+                    Object.entries(config.output).forEach(([resource, amount]) => {
+                        if (!amount || amount <= 0) return;
+                        if (!RESOURCES[resource]) return; // 跳过 maxPop, militaryCapacity 等
+                        const price = priceMap[resource] || getBasePrice(resource);
+                        outputValue += amount * price;
+                    });
+                }
+
+                // 计算原材料成本
+                let inputCost = 0;
+                if (config.input) {
+                    Object.entries(config.input).forEach(([resource, amount]) => {
+                        if (!amount || amount <= 0) return;
+                        const price = priceMap[resource] || getBasePrice(resource);
+                        inputCost += amount * price;
+                    });
+                }
+
+                // 计算雇员工资支出（除业主外的其他岗位）
+                let wageCost = 0;
+                Object.entries(jobs).forEach(([jobRole, slots]) => {
+                    if (jobRole === role || !slots || slots <= 0) return;
+                    const wage = getExpectedWage(jobRole);
+                    wageCost += wage * slots;
+                });
+
+                // 计算税费成本（人头税 + 营业税）
+                const headBase = STRATA[role]?.headTaxBase ?? 0.01;
+                const headTaxCost = headBase * getHeadTaxRate(role) * effectiveTaxModifier;
+                const businessTaxBase = building.businessTaxBase ?? 0.1;
+                const businessTaxRate = policies?.businessTaxRates?.[building.id] ?? 1;
+                const businessTaxCost = businessTaxBase * businessTaxRate;
+
+                // 业主净收入 = 产出 - 原材料 - 雇员工资 - 税费
+                const netProfit = outputValue - inputCost - wageCost - headTaxCost - businessTaxCost;
+                const profitPerOwner = roleSlots > 0 ? netProfit / roleSlots : 0;
+
+                ownerIncome += profitPerOwner * roleSlots * count;
+                ownerSlots += roleSlots * count;
+
+            } else {
+                // ===== 雇员工资预估 =====
+                const expectedWage = getExpectedWage(role);
+
+                // 计算税后工资
+                const headBase = STRATA[role]?.headTaxBase ?? 0.01;
+                const taxCost = headBase * getHeadTaxRate(role) * effectiveTaxModifier;
+                const netWage = expectedWage - taxCost;
+
+                employeeWage += netWage * roleSlots * count;
+                employeeSlots += roleSlots * count;
+            }
+        });
+
+        // 计算加权平均收入
+        const totalSlots = ownerSlots + employeeSlots;
+        if (totalSlots <= 0) {
+            // 没有建筑提供这个岗位，使用默认预期工资
+            return getExpectedWage(role) * VACANT_BONUS;
+        }
+
+        const totalIncome = ownerIncome + employeeWage;
+        const averageIncome = totalIncome / totalSlots;
+
+        // 应用吸引力加成
+        return Math.max(0, averageIncome * VACANT_BONUS);
+    };
+
     const activeRoleMetrics = ROLE_PRIORITY.map(role => {
         const pop = popStructure[role] || 0;
         const wealthNow = getRoleWealthSnapshot(role);
@@ -3129,10 +3228,19 @@ export const simulateTick = ({
         const effectivePerCapDelta = role === 'merchant' ? netIncomePerCapita : perCapWealthDelta;
         const historicalIncomePerCapita = lastTickIncome !== null ? lastTickIncome : effectivePerCapDelta;
         const fallbackIncome = netIncomePerCapita !== 0 ? netIncomePerCapita : disposableWage;
-        // 商人特例：优先使用当前运营收入（Net Income），忽略因进货导致的财富（Wealth）波动
-        const incomeSignal = (role === 'merchant' || historicalIncomePerCapita !== 0)
-            ? (role === 'merchant' ? fallbackIncome : historicalIncomePerCapita)
-            : fallbackIncome;
+
+        // 【空岗位预估收入】当该行业无人工作时，使用基于建筑产出的预估收入
+        // 解决恶性循环：无人工作 → 收入为0 → 更无人愿意去
+        let incomeSignal;
+        if (pop === 0) {
+            // 无人工作时，使用预估收入（区分业主和雇员）
+            incomeSignal = estimateVacantRoleIncome(role);
+        } else if (role === 'merchant' || historicalIncomePerCapita !== 0) {
+            // 商人特例：优先使用当前运营收入（Net Income），忽略因进货导致的财富（Wealth）波动
+            incomeSignal = role === 'merchant' ? fallbackIncome : historicalIncomePerCapita;
+        } else {
+            incomeSignal = fallbackIncome;
+        }
         const stabilityBonus = perCap > 0 ? perCap * 0.002 : 0;
 
         // 以上一tick的人均净收入为主导，辅以小幅稳定性奖励，避免理论工资误导
@@ -3202,29 +3310,29 @@ export const simulateTick = ({
     const updatedBuildingUpgrades = { ...buildingUpgrades };
     const OWNER_UPGRADE_WEALTH_THRESHOLD = 1.5; // Per-capita wealth must be >= 1.5x base upgrade cost
     const OWNER_UPGRADE_CHANCE_PER_TICK = 0.02; // 2% chance per tick per eligible building type
-    
+
     BUILDINGS.forEach(b => {
         const buildingId = b.id;
         const count = builds[buildingId] || 0;
         if (count <= 0) return;
-        
+
         // Skip buildings without upgrades or without an owner (state-owned)
         const maxLevel = getMaxUpgradeLevel(buildingId);
         if (maxLevel <= 0) return;
-        
+
         const ownerKey = b.owner;
         if (!ownerKey || ownerKey === 'state') return;
-        
+
         // Get owner's population and wealth
         const ownerPop = popStructure[ownerKey] || 0;
         if (ownerPop <= 0) return;
-        
+
         const ownerWealth = wealth[ownerKey] || 0;
         const perCapitaWealth = ownerWealth / ownerPop;
-        
+
         // Get current upgrade distribution for this building
         const currentLevelCounts = updatedBuildingUpgrades[buildingId] || {};
-        
+
         // Count buildings at each level
         let accounted = 0;
         for (const [, lvlCount] of Object.entries(currentLevelCounts)) {
@@ -3233,17 +3341,17 @@ export const simulateTick = ({
             }
         }
         const level0Count = count - accounted; // Buildings at level 0
-        
+
         // Find the lowest level building that can be upgraded
         // Start from level 0 and go up
         for (let fromLevel = 0; fromLevel < maxLevel; fromLevel++) {
             const atThisLevel = fromLevel === 0 ? level0Count : (currentLevelCounts[fromLevel] || 0);
             if (atThisLevel <= 0) continue;
-            
+
             // Get BASE upgrade cost (no scaling, existingUpgradeCount = 0)
             const baseCost = getUpgradeCost(buildingId, fromLevel + 1, 0);
             if (!baseCost) continue;
-            
+
             // Calculate total cost in silver (resources at market price)
             let totalSilverCost = 0;
             for (const [resource, amount] of Object.entries(baseCost)) {
@@ -3254,78 +3362,78 @@ export const simulateTick = ({
                     totalSilverCost += amount * price;
                 }
             }
-            
+
             // Check if owner is wealthy enough (per-capita wealth >= threshold * cost)
             if (perCapitaWealth < OWNER_UPGRADE_WEALTH_THRESHOLD * totalSilverCost) {
                 continue; // Owner not wealthy enough for this upgrade
             }
-            
+
             // Random chance to trigger upgrade
             if (Math.random() > OWNER_UPGRADE_CHANCE_PER_TICK) {
                 continue; // Upgrade not triggered this tick
             }
-            
+
             // Check if market has enough resources
             const hasResources = Object.entries(baseCost).every(([resource, amount]) => {
                 if (resource === 'silver') return true;
                 return (res[resource] || 0) >= amount;
             });
-            
+
             if (!hasResources) {
                 continue; // Not enough resources in market
             }
-            
+
             // Check if owner can afford (has enough wealth)
             if (ownerWealth < totalSilverCost) {
                 continue; // Owner doesn't have enough wealth
             }
-            
+
             // === Execute the upgrade ===
-            
+
             // 1. Deduct resources from market
             Object.entries(baseCost).forEach(([resource, amount]) => {
                 if (resource !== 'silver') {
                     res[resource] = Math.max(0, (res[resource] || 0) - amount);
                 }
             });
-            
+
             // 2. Deduct cost from owner's wealth
             wealth[ownerKey] = Math.max(0, ownerWealth - totalSilverCost);
-            
+
             // 3. Update building upgrade levels
             if (!updatedBuildingUpgrades[buildingId]) {
                 updatedBuildingUpgrades[buildingId] = {};
             }
-            
+
             // Decrease count at fromLevel (if > 0)
             if (fromLevel > 0) {
-                updatedBuildingUpgrades[buildingId][fromLevel] = 
+                updatedBuildingUpgrades[buildingId][fromLevel] =
                     Math.max(0, (updatedBuildingUpgrades[buildingId][fromLevel] || 0) - 1);
                 if (updatedBuildingUpgrades[buildingId][fromLevel] <= 0) {
                     delete updatedBuildingUpgrades[buildingId][fromLevel];
                 }
             }
-            
+
             // Increase count at toLevel
             const toLevel = fromLevel + 1;
-            updatedBuildingUpgrades[buildingId][toLevel] = 
+            updatedBuildingUpgrades[buildingId][toLevel] =
                 (updatedBuildingUpgrades[buildingId][toLevel] || 0) + 1;
-            
+
             // Clean up empty entries
             if (Object.keys(updatedBuildingUpgrades[buildingId]).length === 0) {
                 delete updatedBuildingUpgrades[buildingId];
             }
-            
+
             // 4. Log the upgrade
             const ownerName = STRATA[ownerKey]?.name || ownerKey;
             const upgradeName = BUILDING_UPGRADES[buildingId]?.[fromLevel]?.name || `等级${toLevel}`;
             logs.push(`🏗️ ${ownerName}自发投资了自己的产业 ${b.name} → ${upgradeName}（花费 ${Math.ceil(totalSilverCost)} 银币）`);
-            
+
             // Only upgrade one building per type per tick to avoid rapid changes
             break;
         }
     });
-    
+
     // Update classWealthResult after owner upgrades
     Object.keys(STRATA).forEach(key => {
         classWealthResult[key] = Math.max(0, wealth[key] || 0);

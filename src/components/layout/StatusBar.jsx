@@ -40,13 +40,45 @@ export const StatusBar = ({
     const silverInfoRef = useRef(null);
     const taxHoverTimeoutRef = useRef(null);
     const taxPinStateRef = useRef(isTaxDetailPinned);
-    const [taxPopoverPos, setTaxPopoverPos] = useState({ top: 0, left: 0 });
+    const [taxPopoverPos, setTaxPopoverPos] = useState({ top: 0, left: 0, scale: 1, adjustedLeft: false });
     const computeTaxPopoverPos = () => {
         if (!taxDetailButtonRef.current) return null;
         const rect = taxDetailButtonRef.current.getBoundingClientRect();
+        const popoverWidth = 288; // w-72 = 18rem = 288px
+        const screenWidth = window.innerWidth;
+        const padding = 8; // 边距
+
+        // 计算弹窗居中位置
+        let centerX = rect.left + rect.width / 2;
+        let adjustedLeft = false;
+
+        // 检查右边界：如果弹窗右边会超出屏幕，调整位置
+        const rightEdge = centerX + popoverWidth / 2;
+        if (rightEdge > screenWidth - padding) {
+            centerX = screenWidth - padding - popoverWidth / 2;
+            adjustedLeft = true;
+        }
+
+        // 检查左边界：如果弹窗左边会超出屏幕，调整位置
+        const leftEdge = centerX - popoverWidth / 2;
+        if (leftEdge < padding) {
+            centerX = padding + popoverWidth / 2;
+            adjustedLeft = true;
+        }
+
+        // 计算缩放比例：当屏幕宽度小于弹窗宽度+边距时进行缩放
+        let scale = 1;
+        const minWidth = popoverWidth + padding * 2;
+        if (screenWidth < minWidth) {
+            scale = (screenWidth - padding * 2) / popoverWidth;
+            centerX = screenWidth / 2; // 缩放时居中
+        }
+
         return {
             top: rect.bottom + 8,
-            left: rect.left + rect.width / 2,
+            left: centerX,
+            scale,
+            adjustedLeft,
         };
     };
 
@@ -309,7 +341,8 @@ export const StatusBar = ({
                                             style={{
                                                 top: `${taxPopoverPos.top}px`,
                                                 left: `${taxPopoverPos.left}px`,
-                                                transform: 'translateX(-50%)',
+                                                transform: `translateX(-50%) scale(${taxPopoverPos.scale || 1})`,
+                                                transformOrigin: 'top center',
                                             }}
                                         >
                                             <div

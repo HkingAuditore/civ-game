@@ -737,7 +737,7 @@ const PoliticsTabComponent = ({
         });
     }, [buildings]);
 
-    // 按类别分组建筑
+    // 按类别分组建筑（排除不收营业税的建筑：居住类建筑和军事建筑）
     const buildingsByCategory = React.useMemo(() => {
         const categories = {
             gather: { name: '采集建筑', buildings: [] },
@@ -747,6 +747,13 @@ const PoliticsTabComponent = ({
 
         builtBuildings.forEach(building => {
             const cat = building.cat || 'civic';
+            // 判断是否为居住性建筑（无owner且产出maxPop的civic建筑）
+            const isHousingBuilding = building.cat === 'civic' && !building.owner && building.output?.maxPop > 0;
+            // 判断是否为军事建筑
+            const isMilitaryBuilding = building.cat === 'military';
+            // 居住性建筑和军事建筑不收营业税，不在营业税面板显示
+            if (isHousingBuilding || isMilitaryBuilding) return;
+            
             if (categories[cat]) {
                 categories[cat].buildings.push(building);
             }
