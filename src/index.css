@@ -2307,6 +2307,46 @@
     shape-rendering: optimizeSpeed;
 }
 
+/* ==================== 输入框聚焦时的额外优化 ==================== */
+/* 当输入框聚焦时（移动端键盘弹出），进一步减少重绘和布局计算 */
+
+/* 在输入状态下禁用非必要的动画和过渡 */
+.low-perf-mode input:focus ~ *,
+.low-perf-mode textarea:focus ~ *,
+.low-perf-mode [contenteditable="true"]:focus ~ * {
+    animation: none !important;
+    transition: none !important;
+}
+
+/* 输入框本身保持简单的样式，避免复杂的聚焦效果 */
+.low-perf-mode input:focus,
+.low-perf-mode textarea:focus,
+.low-perf-mode select:focus {
+    outline: 2px solid rgba(212, 175, 55, 0.5) !important;
+    outline-offset: -2px !important;
+    box-shadow: none !important;
+    transition: none !important;
+}
+
+/* 移动端特定：在输入时固定容器防止布局跳动 */
+@media (max-width: 1023px) {
+    .low-perf-mode .main-content:has(input:focus),
+    .low-perf-mode .main-content:has(textarea:focus) {
+        /* 防止键盘弹出时的布局重计算 */
+        contain: layout style;
+    }
+    
+    /* 减少移动端的复杂背景合成 */
+    .low-perf-mode body {
+        background-attachment: scroll !important;
+    }
+    
+    /* 移动端禁用所有 transform 动画以减少 GPU 负载 */
+    .low-perf-mode *:not(button):not([role="button"]) {
+        transform: none !important;
+    }
+}
+
 /* 对于支持 prefers-reduced-motion 的设备，也应用简化样式 */
 @media (prefers-reduced-motion: reduce) {
 
