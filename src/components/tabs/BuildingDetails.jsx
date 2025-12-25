@@ -603,8 +603,15 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                 <p className="text-sm text-gray-300 px-1">{building.desc}</p>
             )}
 
-            {/* 营业税调整 */}
-            {onUpdateTaxPolicies && (
+            {/* 营业税调整 - 居住性建筑和军事建筑不显示 */}
+            {onUpdateTaxPolicies && (() => {
+                // 判断是否为居住性建筑（无owner且产出maxPop的civic建筑）
+                const isHousingBuilding = building.cat === 'civic' && !building.owner && building.output?.maxPop > 0;
+                // 判断是否为军事建筑
+                const isMilitaryBuilding = building.cat === 'military';
+                // 居住性建筑和军事建筑不收营业税，不显示设置UI
+                if (isHousingBuilding || isMilitaryBuilding) return null;
+                return (
                 <div className="bg-gray-900/50 p-3 rounded-lg border border-gray-700/80">
                     <h4 className="text-xs font-semibold text-gray-300 mb-2 flex items-center gap-1.5 font-decorative">
                         <Icon name="Sliders" size={16} className="text-yellow-400" />
@@ -669,7 +676,8 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                         实际税额 = 建筑基准税额({businessTaxBase.toFixed(2)}) × 税率系数。负数系数代表补贴。
                     </p>
                 </div>
-            )}
+                );
+            })()}
 
             <DetailSection title="当前运行概览" icon="Activity">
                 <div className="grid grid-cols-2 gap-2 mb-3">
