@@ -68,6 +68,22 @@ export const applyEffects = (effects, bonuses) => {
         });
     }
 
+    // buildingProductionMod - 同 buildings 的处理方式
+    // 用于政体效果和事件效果的建筑产出修正
+    if (effects.buildingProductionMod) {
+        Object.entries(effects.buildingProductionMod).forEach(([idOrCat, percent]) => {
+            if (!idOrCat || typeof percent !== 'number') return;
+            if (!Number.isFinite(percent)) return;
+            // 检查是否是类别（gather, industry, civic, military）
+            const validCategories = ['gather', 'industry', 'civic', 'military', 'all'];
+            if (validCategories.includes(idOrCat)) {
+                categoryBonuses[idOrCat] = (categoryBonuses[idOrCat] || 0) + percent;
+            } else {
+                buildingBonuses[idOrCat] = (buildingBonuses[idOrCat] || 0) + percent;
+            }
+        });
+    }
+
     // Category bonuses - 使用累加模式
     if (effects.categories) {
         Object.entries(effects.categories).forEach(([cat, percent]) => {
@@ -227,6 +243,17 @@ export const applyFestivalEffects = (activeFestivalEffects, bonuses) => {
         if (!festivalEffect || !festivalEffect.effects) return;
         applyEffects(festivalEffect.effects, bonuses);
     });
+};
+
+/**
+ * Apply polity effects
+ * 根据当前政体类型应用效果
+ * @param {Object} polityEffects - 政体效果对象
+ * @param {Object} bonuses - Bonus structures to modify
+ */
+export const applyPolityEffects = (polityEffects, bonuses) => {
+    if (!polityEffects) return;
+    applyEffects(polityEffects, bonuses);
 };
 
 /**

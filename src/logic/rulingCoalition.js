@@ -299,3 +299,164 @@ export function getLegitimacyOrganizationModifier(legitimacy, isCoalitionMember)
             return 1.5;  // 非法政府：增长速度提升50%
     }
 }
+
+// ============ 政体判断系统 ============
+
+// 阶层分类定义（用于政体判断）
+export const STRATA_CATEGORIES = {
+    // 传统贵族/精英阶层
+    aristocracy: ['landowner', 'knight', 'official'],
+    // 资产阶级
+    bourgeoisie: ['capitalist', 'merchant', 'engineer'],
+    // 工农阶级
+    proletariat: ['worker', 'miner', 'peasant', 'serf', 'lumberjack'],
+    // 军事阶层
+    military: ['soldier', 'knight'],
+    // 宗教阶层
+    clerical: ['cleric'],
+    // 知识阶层
+    intellectual: ['scribe', 'engineer'],
+    // 商业阶层
+    commercial: ['merchant', 'navigator'],
+    // 农业阶层
+    agrarian: ['peasant', 'serf', 'landowner', 'lumberjack'],
+    // 工业阶层
+    industrial: ['worker', 'artisan', 'capitalist', 'engineer', 'miner'],
+};
+
+// 阶层分组，用于UI显示
+export const STRATA_GROUPS = {
+    upper: {
+        name: '上流阶级',
+        keys: ['merchant', 'official', 'landowner', 'capitalist', 'knight', 'engineer'],
+    },
+    middle: {
+        name: '中产阶级',
+        keys: ['artisan', 'soldier', 'cleric', 'scribe', 'navigator'],
+    },
+    lower: {
+        name: '下层阶级',
+        keys: ['peasant', 'serf', 'lumberjack', 'worker', 'miner'],
+    },
+};
+
+import { POLITY_DEFINITIONS } from '../config/polityEffects';
+
+/**
+ * 获取政体描述词
+ * @param {string[]} coalition - 联盟成员阶层键数组
+ * @param {Object} classInfluence - 各阶层影响力
+ * @param {number} totalInfluence - 总影响力
+ * @returns {Object} { name: 政体名称, description: 描述, icon: 图标, color: 颜色 }
+ */
+export function getGovernmentType(coalition, classInfluence, totalInfluence) {
+    if (coalition.length === 0) {
+        return getPolityByName('无执政联盟') || {
+            name: '无执政联盟',
+            description: '尚未建立执政联盟，政府缺乏社会基础',
+            icon: 'HelpCircle',
+            color: 'text-gray-400',
+        };
+    }
+
+    // 计算联盟总影响力
+    let coalitionTotalInfluence = 0;
+    coalition.forEach(key => {
+        coalitionTotalInfluence += classInfluence[key] || 0;
+    });
+
+    // 缓存分类占比，避免重复计算
+    const categoryShareCache = {};
+
+    const getCategoryInfluence = (category) => {
+        let influence = 0;
+        const strata = STRATA_CATEGORIES[category] || [];
+        strata.forEach(stratum => {
+            if (coalition.includes(stratum)) {
+                influence += classInfluence[stratum] || 0;
+            }
+        });
+        return influence;
+    };
+
+    const getShare = (category) => {
+        if (categoryShareCache[category] !== undefined) return categoryShareCache[category];
+        if (coalitionTotalInfluence <= 0) return 0;
+        const share = getCategoryInfluence(category) / coalitionTotalInfluence;
+        categoryShareCache[category] = share;
+        return share;
+    };
+
+    // 匹配逻辑
+    const matches = POLITY_DEFINITIONS.filter(def => {
+        const cond = def.conditions;
+        if (!cond) return true; // 无条件则默认匹配（如联合政府）
+
+        const memberCount = coalition.length;
+
+        // 1. 数量检查
+        if (cond.minSize !== undefined && memberCount < cond.minSize) return false;
+        if (cond.maxSize !== undefined && memberCount > cond.maxSize) return false;
+        if (cond.exactSize !== undefined && memberCount !== cond.exactSize) return false;
+
+        // 2. 精确成员检查
+        if (cond.exactCoalition) {
+            if (memberCount !== cond.exactCoalition.length) return false;
+            // 必须每个要求的成员都在联盟中
+            if (!cond.exactCoalition.every(k => coalition.includes(k))) return false;
+        }
+
+        // 3. 包含/排除检查
+        if (cond.includes) {
+            if (!cond.includes.every(k => coalition.includes(k))) return false;
+        }
+        if (cond.excludes) {
+            if (cond.excludes.some(k => coalition.includes(k))) return false;
+        }
+        if (cond.includesAny) {
+            if (!cond.includesAny.some(k => coalition.includes(k))) return false;
+        }
+
+        // 4. 组包含检查 (includesGroup: ['upper', 'middle'] -> 均需至少有一个)
+        if (cond.includesGroup) {
+            for (const groupKey of cond.includesGroup) {
+                const groupDef = STRATA_GROUPS[groupKey];
+                if (!groupDef) continue;
+                if (!groupDef.keys.some(k => coalition.includes(k))) return false;
+            }
+        }
+
+        // 5. 分类占比检查
+        if (cond.minCategoryShare) {
+            for (const [cat, threshold] of Object.entries(cond.minCategoryShare)) {
+                if (getShare(cat) < threshold) return false;
+            }
+        }
+
+        // 6. 总分类占比检查
+        if (cond.minTotalShare) {
+            for (const req of cond.minTotalShare) {
+                let sum = 0;
+                req.categories.forEach(c => sum += getShare(c));
+                if (sum < req.threshold) return false;
+            }
+        }
+
+        return true;
+    });
+
+    // 按优先级排序，取最高者
+    matches.sort((a, b) => (b.priority || 0) - (a.priority || 0));
+
+    if (matches.length > 0) {
+        return matches[0];
+    }
+
+    return { name: '联合政府', description: '多阶层联合执政', icon: 'Users', color: 'text-gray-400' };
+}
+
+// 辅助：按名称获取定义（用于Fallback）
+function getPolityByName(name) {
+    return POLITY_DEFINITIONS.find(d => d.name === name);
+}
+

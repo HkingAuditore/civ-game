@@ -15,7 +15,9 @@ import {
     getLegitimacyApprovalModifier,
     getCoalitionApprovalCapPenalty,
     isCoalitionMember,
+    getGovernmentType, // Determine current polity
 } from './rulingCoalition';
+import { getPolityEffects } from '../config/polityEffects';
 
 // ============================================================================
 // REFACTORED MODULE IMPORTS
@@ -101,6 +103,7 @@ import {
     applyTechEffects,
     applyDecreeEffects,
     applyFestivalEffects,
+    applyPolityEffects, // Apply polity effects helper
     calculateTotalMaxPop,
 } from './buildings';
 
@@ -315,6 +318,23 @@ export const simulateTick = ({
         productionDebuffs.forEach(debuff => {
             applyEffects(debuff, bonuses);
         });
+    }
+
+    // Apply Polity Effects (Government Type Bonuses)
+    // 根据当前执政联盟计算政体，并应用政体效果
+    // Use previous tick data to avoid circular dependency and TDZ issues
+    if (rulingCoalition && rulingCoalition.length > 0) {
+        const influenceData = calculateClassInfluence({ 
+            popStructure: previousPopStructure, 
+            classWealthResult: classWealth 
+        });
+        const currentPolity = getGovernmentType(
+            rulingCoalition, 
+            influenceData.classInfluence, 
+            influenceData.totalInfluence
+        );
+        const polityEffects = getPolityEffects(currentPolity.name);
+        applyPolityEffects(polityEffects, bonuses);
     }
 
     // Apply Epoch bonuses
