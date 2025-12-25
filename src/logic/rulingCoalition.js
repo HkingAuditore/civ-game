@@ -41,9 +41,9 @@ export const COALITION_SENSITIVITY = {
     TAX_THRESHOLD_NORMAL: 0.50,
     TAX_THRESHOLD_COALITION: 0.20,  // 0.25 -> 0.20
 
-    // 收入目标乘数：普通1.08，联盟1.60（更高预期）
+    // 收入目标乘数：普通1.08，联盟1.50（更高预期）
     INCOME_MULTIPLIER_NORMAL: 1.08,
-    INCOME_MULTIPLIER_COALITION: 1.60,  // 1.40 -> 1.60
+    INCOME_MULTIPLIER_COALITION: 1.50,  // 1.40 -> 1.50
 
     // 基础短缺压力系数：普通0.6，联盟1.2
     BASIC_SHORTAGE_PRESSURE_NORMAL: 0.6,
