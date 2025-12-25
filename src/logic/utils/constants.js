@@ -121,3 +121,7 @@ export const TIER_SEEK_WEALTH_THRESHOLD = 2.0;
 // Bonus attractiveness for higher tier jobs (per tier difference)
 // 每提升一级阶层，吸引力额外增加 20%
 export const TIER_UPGRADE_ATTRACTIVENESS_BONUS = 0.2;
+
+// 空岗位吸引力加成系数（让空岗位预估收入稍微偏高，吸引人去尝试）
+// Vacant role attractiveness bonus - makes estimated income slightly higher to encourage migration
+export const VACANT_ROLE_ATTRACTIVENESS_BONUS = 1.2;
