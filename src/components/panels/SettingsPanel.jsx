@@ -24,7 +24,7 @@ const PerformanceModeSection = () => {
                 <Icon name="Zap" size={16} /> 性能模式
             </h4>
             <p className="text-[11px] text-gray-400 leading-relaxed">
-                低端设备可启用"流畅"模式，禁用背景模糊和动画效果以提升稳定性。
+                如遇到卡顿、发热或界面显示问题，请尝试切换到"流畅"模式。
             </p>
 
             <div className="flex gap-2">
@@ -47,6 +47,19 @@ const PerformanceModeSection = () => {
             <div className="text-[11px] text-gray-400 flex items-center gap-2">
                 <span className={`w-2 h-2 rounded-full ${isLowPerformanceMode ? 'bg-amber-400' : 'bg-emerald-400'}`} />
                 当前状态：{isLowPerformanceMode ? '流畅模式（特效已禁用）' : '高品质模式'}
+            </div>
+
+            {/* Mobile performance tips */}
+            <div className="mt-2 p-2 bg-gray-800/50 rounded-lg border border-gray-700/50">
+                <p className="text-[10px] text-gray-400 leading-relaxed">
+                    <span className="text-amber-400 font-medium">💡 手机用户提示：</span>
+                    <br />
+                    • 流畅模式可大幅减少发热和耗电
+                    <br />
+                    • 输入框操作后如卡顿，点击空白处恢复
+                    <br />
+                    • 横屏模式下界面更完整
+                </p>
             </div>
         </div>
     );
