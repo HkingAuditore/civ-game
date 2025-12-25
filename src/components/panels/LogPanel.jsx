@@ -86,6 +86,17 @@ const transformLog = (log) => {
         }
     }
 
+    // Transform AI_MERCY_PEACE_OFFER logs (AI offers unconditional peace when player is desperate)
+    if (log.includes('AI_MERCY_PEACE_OFFER:')) {
+        try {
+            const jsonStr = log.replace('AI_MERCY_PEACE_OFFER:', '');
+            const data = JSON.parse(jsonStr);
+            return `🕊️ 和平提议：${data.nationName} 见你国力衰弱，愿意无条件停战。`;
+        } catch (e) {
+            return `🕊️ 敌国提出了和平提议。`;
+        }
+    }
+
     // Transform WAR_DECLARATION_EVENT logs (Existing logic, kept for context but checking if update needed)
     // The original code had this, we just keep it or ensure we didn't overwrite it if it was in the range.
     // The previous tool call view showed it was there.

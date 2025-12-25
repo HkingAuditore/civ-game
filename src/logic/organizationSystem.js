@@ -7,6 +7,14 @@ import { RESOURCES } from '../config';
 import { REBELLION_PHASE } from '../config/events/rebellionEvents';
 import { PASSIVE_DEMAND_TYPES } from './demands';
 import { getCoalitionSensitivity, isCoalitionMember, getLegitimacyOrganizationModifier, calculateCoalitionInfluenceShare, calculateLegitimacy } from './rulingCoalition';
+import {
+    getDifficultyConfig,
+    DEFAULT_DIFFICULTY,
+    applyOrganizationGrowthModifier,
+    getSatisfactionThreshold,
+    getStabilityDampeningBonus,
+    isInGracePeriod,
+} from '../config/difficulty';
 
 // =========== 常量定义 ===========
 
@@ -170,10 +178,15 @@ const DRIVER_WEIGHTS = {
 const PASSIVE_DEMAND_DURATION = 60;
 const ORGANIZATION_GROWTH_MULTIPLIER = 1.0; // 0.65 -> 1.0 加快组织度增长
 
-const getStabilityGrowthModifier = (stability = 50) => {
+// Base satisfaction threshold (can be modified by difficulty)
+const BASE_SATISFACTION_THRESHOLD = 45;
+
+const getStabilityGrowthModifier = (stability = 50, difficultyLevel = DEFAULT_DIFFICULTY) => {
     if (!Number.isFinite(stability)) return 1;
     const normalized = Math.max(-1, Math.min(1, (50 - stability) / 50));
-    const modifier = 1 + normalized * 0.6;
+    // Apply difficulty bonus to stability dampening
+    const stabilityBonus = getStabilityDampeningBonus(difficultyLevel);
+    const modifier = 1 + normalized * (0.6 - stabilityBonus);
     return Math.max(0.35, Math.min(1.75, modifier));
 };
 
@@ -452,19 +465,24 @@ export function getOrganizationStage(organization) {
  * @param {number} influenceShare - 影响力占比 (0-1)
  * @param {number} stability - 稳定性 (0-100)
  * @param {string} stratumKey - 阶层键
+ * @param {string} difficultyLevel - 游戏难度
  * @returns {number} 每日增长率 (可为负数表示衰减)
  */
-export function calculateOrganizationGrowthRate(approval, influenceShare, stability, stratumKey) {
+export function calculateOrganizationGrowthRate(approval, influenceShare, stability, stratumKey, difficultyLevel = DEFAULT_DIFFICULTY) {
     // 阶层倍增器
     const stratumMultiplier = STRATUM_ORGANIZATION_MULTIPLIER[stratumKey] || 1.0;
 
     // 稳定性阻尼: stability 100 -> 阻尼80%, stability 0 -> 无阻尼
     const stabilityDampening = 1 - (stability / 100) * 0.8;
 
-    // 当满意度 < 45 时开始增长, 满意度越低增长越快
-    if (approval < 45) {
+    // Get satisfaction threshold from difficulty settings
+    const satisfactionThreshold = getSatisfactionThreshold(difficultyLevel);
+    const decayThreshold = satisfactionThreshold + 5; // Decay starts 5 points above growth threshold
+
+    // 当满意度 < threshold 时开始增长, 满意度越低增长越快
+    if (approval < satisfactionThreshold) {
         // 基础怒气: 满意度30 -> +0.33/天, 满意度0 -> +1.0/天
-        const baseAnger = (45 - approval) / 45 * 1.0;
+        const baseAnger = (satisfactionThreshold - approval) / satisfactionThreshold * 1.0;
 
         // 影响力加成 (影响力越高，组织能力越强)
         const influenceBonus = 1 + influenceShare * 0.3;
@@ -472,8 +490,8 @@ export function calculateOrganizationGrowthRate(approval, influenceShare, stabil
         return baseAnger * stratumMultiplier * influenceBonus * stabilityDampening;
     }
 
-    // 当满意度 > 50 时开始衰减
-    if (approval > 50) {
+    // 当满意度 > decayThreshold 时开始衰减
+    if (approval > decayThreshold) {
         // 基础衰减率
         let decayRate = -0.3; // 降低衰减速度以保持平衡
 
@@ -485,7 +503,7 @@ export function calculateOrganizationGrowthRate(approval, influenceShare, stabil
         return decayRate;
     }
 
-    // 满意度在 45-50 之间: 不增不减
+    // 满意度在 threshold 到 decayThreshold 之间: 不增不减
     return 0;
 }
 
@@ -515,6 +533,7 @@ export function updateStratumOrganization(
         rulingCoalition = [], // 执政联盟成员
         classInfluence = {}, // 各阶层影响力
         totalInfluence = 0, // 总影响力
+        difficultyLevel = DEFAULT_DIFFICULTY, // 游戏难度
     } = options || {};
     // 初始化默认状态
     const state = {
@@ -538,8 +557,8 @@ export function updateStratumOrganization(
         state.organizationPaused = Math.max(0, state.organizationPaused - 1);
     }
 
-    // 计算增长率
-    let growthRate = calculateOrganizationGrowthRate(approval, influenceShare, stability, stratumKey);
+    // 计算增长率 (with difficulty)
+    let growthRate = calculateOrganizationGrowthRate(approval, influenceShare, stability, stratumKey, difficultyLevel);
     const driverScore = Number.isFinite(driverContext.driverScore) ? driverContext.driverScore : 0;
 
     if (driverScore !== 0) {
@@ -559,14 +578,20 @@ export function updateStratumOrganization(
     const isInCoalition = isCoalitionMember(stratumKey, rulingCoalition);
 
     if (growthRate > 0) {
-        growthRate *= getStabilityGrowthModifier(stability);
+        growthRate *= getStabilityGrowthModifier(stability, difficultyLevel);
         growthRate *= ORGANIZATION_GROWTH_MULTIPLIER;
+        
+        // Apply difficulty modifier to growth rate
+        growthRate = applyOrganizationGrowthModifier(growthRate, difficultyLevel);
 
         // 应用合法性修正：高合法性时非联盟阶层组织度增长缓慢
         const coalitionInfluenceShare = calculateCoalitionInfluenceShare(rulingCoalition, classInfluence, totalInfluence);
         const currentLegitimacy = calculateLegitimacy(coalitionInfluenceShare);
         const legitimacyMod = getLegitimacyOrganizationModifier(currentLegitimacy, isInCoalition);
         growthRate *= legitimacyMod;
+    } else if (growthRate < 0) {
+        // Apply difficulty modifier to decay rate (inverse - higher multiplier = faster decay)
+        growthRate = applyOrganizationGrowthModifier(growthRate, difficultyLevel);
     }
 
     state.activeDemands = driverContext.demands || [];
@@ -646,9 +671,13 @@ export function updateAllOrganizationStates(
         livingStandardStreaks = {},
         epoch = 0,
         rulingCoalition = [], // 执政联盟成员
+        difficultyLevel = DEFAULT_DIFFICULTY, // 游戏难度
         // 注意：classInfluence 和 totalInfluence 已经是函数参数，不需要在这里解构
     } = options || {};
     const epochValue = Number.isFinite(epoch) ? epoch : 0;
+    
+    // Check if we're in the grace period (easy mode protection)
+    const inGracePeriod = isInGracePeriod(currentDay, difficultyLevel);
 
     const newStates = {};
 
@@ -659,7 +688,8 @@ export function updateAllOrganizationStates(
         }
 
         // 石器时代（epoch 0）禁止任何阶层积累组织度，防止早期叛乱
-        if (epochValue <= 0) {
+        // Also prevent organization during grace period (easy mode)
+        if (epochValue <= 0 || inGracePeriod) {
             const prev = organizationStates[stratumKey];
             newStates[stratumKey] = {
                 organization: 0,
@@ -736,6 +766,7 @@ export function updateAllOrganizationStates(
                 rulingCoalition, // 传递执政联盟成员
                 classInfluence, // 传递各阶层影响力
                 totalInfluence, // 传递总影响力
+                difficultyLevel, // 传递游戏难度
             }
         );
     });

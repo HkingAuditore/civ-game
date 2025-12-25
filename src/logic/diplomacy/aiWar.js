@@ -16,6 +16,16 @@ import {
     MAX_CONCURRENT_WARS,
     GLOBAL_WAR_COOLDOWN
 } from '../utils';
+import {
+    DEFAULT_DIFFICULTY,
+    applyWarDeclarationModifier,
+    applyMilitaryActionModifier,
+    getMinWarEpoch,
+    getMilitaryCooldownBonus,
+    applyRaidDamageModifier,
+    applyPopulationLossModifier,
+    isInGracePeriod,
+} from '../../config/difficulty';
 
 /**
  * Process rebel nation war actions (raids and surrender demands)
@@ -239,6 +249,7 @@ export const processAIMilitaryAction = ({
     resources,
     army,
     logs,
+    difficultyLevel = DEFAULT_DIFFICULTY,
 }) => {
     let raidPopulationLoss = 0;
     const next = nation;
@@ -246,24 +257,33 @@ export const processAIMilitaryAction = ({
 
     // Only process in epoch 1+
     if (epoch < 1) return { raidPopulationLoss };
+    
+    // Skip military actions during grace period (easy mode)
+    if (isInGracePeriod(tick, difficultyLevel)) {
+        return { raidPopulationLoss };
+    }
 
-    // Military action cooldown check
+    // Military action cooldown check (with difficulty bonus)
     const lastMilitaryActionDay = next.lastMilitaryActionDay || 0;
+    const cooldownBonus = getMilitaryCooldownBonus(difficultyLevel);
     if (!next.militaryCooldownDays) {
-        next.militaryCooldownDays = 7 + Math.floor(Math.random() * 24);
+        next.militaryCooldownDays = Math.max(5, 7 + Math.floor(Math.random() * 24) + cooldownBonus);
     }
     const canTakeMilitaryAction = (tick - lastMilitaryActionDay) >= next.militaryCooldownDays;
 
     const disadvantage = Math.max(0, -(next.warScore || 0));
-    const actionChance = Math.min(0.18, 0.02 + (next.aggression || 0.2) * 0.04 + disadvantage / 400);
+    let actionChance = Math.min(0.18, 0.02 + (next.aggression || 0.2) * 0.04 + disadvantage / 400);
+    
+    // Apply difficulty modifier to action chance
+    actionChance = applyMilitaryActionModifier(actionChance, difficultyLevel);
 
     if (!canTakeMilitaryAction || Math.random() >= actionChance) {
         return { raidPopulationLoss };
     }
 
-    // Record action time and reset cooldown
+    // Record action time and reset cooldown (with difficulty bonus)
     next.lastMilitaryActionDay = tick;
-    next.militaryCooldownDays = 7 + Math.floor(Math.random() * 24);
+    next.militaryCooldownDays = Math.max(5, 7 + Math.floor(Math.random() * 24) + cooldownBonus);
 
     // Generate enemy army
     const enemyEpoch = Math.max(next.appearEpoch || 0, Math.min(epoch, next.expireEpoch ?? epoch));
@@ -370,16 +390,23 @@ export const processAIMilitaryAction = ({
 
     if (totalDefenders === 0) {
         // No defenders - action succeeds
-        const foodLoss = Math.floor((res.food || 0) * actionStrength * actionLossMultiplier);
-        const silverLoss = Math.floor((res.silver || 0) * (actionStrength / 2) * actionLossMultiplier);
+        let foodLoss = Math.floor((res.food || 0) * actionStrength * actionLossMultiplier);
+        let silverLoss = Math.floor((res.silver || 0) * (actionStrength / 2) * actionLossMultiplier);
         let woodLoss = 0;
+        
+        // Apply difficulty modifier to damage
+        foodLoss = applyRaidDamageModifier(foodLoss, difficultyLevel);
+        silverLoss = applyRaidDamageModifier(silverLoss, difficultyLevel);
+        
         if (actionType === 'scorched_earth') {
             woodLoss = Math.floor((res.wood || 0) * actionStrength * 0.8);
+            woodLoss = applyRaidDamageModifier(woodLoss, difficultyLevel);
             if (woodLoss > 0) res.wood = Math.max(0, (res.wood || 0) - woodLoss);
         }
         if (foodLoss > 0) res.food = Math.max(0, (res.food || 0) - foodLoss);
         if (silverLoss > 0) res.silver = Math.max(0, (res.silver || 0) - silverLoss);
-        const popLoss = Math.min(Math.floor(3 * actionLossMultiplier), Math.max(1, Math.floor(actionStrength * 20 * actionLossMultiplier)));
+        let popLoss = Math.min(Math.floor(3 * actionLossMultiplier), Math.max(1, Math.floor(actionStrength * 20 * actionLossMultiplier)));
+        popLoss = applyPopulationLossModifier(popLoss, difficultyLevel);
         raidPopulationLoss += popLoss;
 
         const raidData = {
@@ -433,15 +460,22 @@ export const processAIMilitaryAction = ({
         let popLoss = 0;
 
         if (battleResult.victory) {
-            foodLoss = Math.floor((res.food || 0) * actionStrength * actionLossMultiplier);
-            silverLoss = Math.floor((res.silver || 0) * (actionStrength / 2) * actionLossMultiplier);
+            let foodLoss = Math.floor((res.food || 0) * actionStrength * actionLossMultiplier);
+            let silverLoss = Math.floor((res.silver || 0) * (actionStrength / 2) * actionLossMultiplier);
+            
+            // Apply difficulty modifier to damage
+            foodLoss = applyRaidDamageModifier(foodLoss, difficultyLevel);
+            silverLoss = applyRaidDamageModifier(silverLoss, difficultyLevel);
+            
             if (actionType === 'scorched_earth') {
                 woodLoss = Math.floor((res.wood || 0) * actionStrength * 0.8);
+                woodLoss = applyRaidDamageModifier(woodLoss, difficultyLevel);
                 if (woodLoss > 0) res.wood = Math.max(0, (res.wood || 0) - woodLoss);
             }
             if (foodLoss > 0) res.food = Math.max(0, (res.food || 0) - foodLoss);
             if (silverLoss > 0) res.silver = Math.max(0, (res.silver || 0) - silverLoss);
-            popLoss = Math.min(Math.floor(3 * actionLossMultiplier), Math.max(1, Math.floor(actionStrength * 20 * actionLossMultiplier)));
+            let popLoss = Math.min(Math.floor(3 * actionLossMultiplier), Math.max(1, Math.floor(actionStrength * 20 * actionLossMultiplier)));
+            popLoss = applyPopulationLossModifier(popLoss, difficultyLevel);
             raidPopulationLoss += popLoss;
             const lootValue = foodLoss + silverLoss + woodLoss;
             next.wealth = (next.wealth || 0) + Math.floor(lootValue * 0.08);
@@ -577,6 +611,101 @@ export const checkAISurrenderDemand = ({
 };
 
 /**
+ * Check if AI should offer unconditional peace when player is in desperate situation
+ * This prevents the frustrating scenario where player cannot surrender due to lack of resources
+ * @param {Object} params - Parameters
+ * @param {Object} params.nation - AI nation object (mutable)
+ * @param {number} params.tick - Current game tick
+ * @param {number} params.population - Player population
+ * @param {number} params.playerWealth - Player total wealth (silver)
+ * @param {Object} params.resources - Player resources
+ * @param {Array} params.logs - Log array (mutable)
+ */
+export const checkMercyPeace = ({
+    nation,
+    tick,
+    population,
+    playerWealth,
+    resources,
+    logs,
+}) => {
+    const next = nation;
+    
+    // Only check if at war and not already requesting peace
+    if (!next.isAtWar || next.isPeaceRequesting) {
+        return;
+    }
+
+    // Check cooldown for mercy peace offers (shorter than normal peace request)
+    const lastMercyOfferDay = next.lastMercyPeaceOfferDay || 0;
+    const MERCY_PEACE_COOLDOWN = 30; // Can offer mercy peace every 30 days
+    if (tick - lastMercyOfferDay < MERCY_PEACE_COOLDOWN) {
+        return;
+    }
+
+    // Define "desperate situation" thresholds
+    const silverAmount = resources?.silver || 0;
+    const foodAmount = resources?.food || 0;
+    const totalResources = silverAmount + foodAmount + (resources?.wood || 0);
+    
+    // Conditions for player being in desperate situation:
+    // 1. Very low population (< 20) OR
+    // 2. Very low wealth AND population under pressure
+    // 3. War has lasted for a while (at least 30 days)
+    const isDesperatePopulation = population < 20;
+    const isDesperateWealth = playerWealth < 50 && silverAmount < 30;
+    const isResourceDepleted = totalResources < 100 && population < 50;
+    const warDuration = next.warDuration || 0;
+    const warLastedLongEnough = warDuration >= 30;
+
+    // Check if player is in a truly desperate situation
+    const isDesperateSituation = warLastedLongEnough && (
+        isDesperatePopulation ||
+        (isDesperateWealth && population < 50) ||
+        (isResourceDepleted && isDesperateWealth)
+    );
+
+    if (!isDesperateSituation) {
+        return;
+    }
+
+    // AI's willingness to offer mercy peace depends on:
+    // 1. How long the war has lasted (longer = more likely)
+    // 2. AI's aggression (less aggressive = more likely)
+    // 3. How desperate the player is (more desperate = more likely)
+    const aggression = next.aggression || 0.3;
+    const desperationFactor = Math.min(1, (
+        (isDesperatePopulation ? 0.4 : 0) +
+        (isDesperateWealth ? 0.3 : 0) +
+        (isResourceDepleted ? 0.2 : 0) +
+        (population < 10 ? 0.3 : 0) // Extra factor for very low population
+    ));
+    
+    // Base chance increases with war duration and desperation, decreases with aggression
+    const baseChance = 0.05 + (warDuration / 500) + (desperationFactor * 0.3);
+    const aggressionPenalty = aggression * 0.15;
+    const mercyChance = Math.min(0.5, Math.max(0.1, baseChance - aggressionPenalty));
+
+    // Check if AI decides to offer mercy peace
+    if (Math.random() < mercyChance) {
+        next.lastMercyPeaceOfferDay = tick;
+        next.isMercyPeaceOffering = true;
+        next.mercyPeaceOfferDay = tick;
+        
+        // Log the mercy peace offer
+        logs.push(`🕊️ ${next.name} 见你已无力继续战斗，愿意无条件议和。`);
+        logs.push(`AI_MERCY_PEACE_OFFER:${JSON.stringify({
+            nationId: next.id,
+            nationName: next.name,
+            warScore: next.warScore,
+            warDuration: warDuration,
+            playerPopulation: population,
+            playerWealth: playerWealth
+        })}`);
+    }
+};
+
+/**
  * Check war declaration conditions for an AI nation
  * @param {Object} params - Parameters
  * @param {Object} params.nation - AI nation to check (mutable)
@@ -595,11 +724,20 @@ export const checkWarDeclaration = ({
     resources,
     stabilityValue,
     logs,
+    difficultyLevel = DEFAULT_DIFFICULTY,
 }) => {
     const next = nation;
     const res = resources;
     const relation = next.relation ?? 50;
     const aggression = next.aggression ?? 0.2;
+    
+    // Get minimum epoch for war declaration based on difficulty
+    const minWarEpoch = getMinWarEpoch(difficultyLevel);
+    
+    // Skip war declarations during grace period (easy mode)
+    if (isInGracePeriod(tick, difficultyLevel)) {
+        return;
+    }
 
     // Count current wars with player
     const currentWarsWithPlayer = (nations || []).filter(n =>
@@ -616,15 +754,17 @@ export const checkWarDeclaration = ({
         ? Math.pow(0.3, currentWarsWithPlayer)
         : 1.0;
 
-    // Calculate declaration chance
+    // Calculate declaration chance (only allowed from minWarEpoch based on difficulty)
     const hostility = Math.max(0, (50 - relation) / 70);
     const unrest = stabilityValue < 35 ? 0.02 : 0;
     const aggressionBonus = aggression > 0.5 ? aggression * 0.03 : 0;
 
-    // 只在铁器时代(epoch 2)及以上才允许AI宣战，石器和青铜时代禁止
-    let declarationChance = epoch >= 2
+    let declarationChance = epoch >= minWarEpoch
         ? Math.min(0.08, (aggression * 0.04) + (hostility * 0.025) + unrest + aggressionBonus)
         : 0;
+    
+    // Apply difficulty modifier to declaration chance
+    declarationChance = applyWarDeclarationModifier(declarationChance, difficultyLevel);
 
     declarationChance *= warCountPenalty;
 
@@ -648,14 +788,13 @@ export const checkWarDeclaration = ({
         logs.push(`WAR_DECLARATION_EVENT:${JSON.stringify({ nationId: next.id, nationName: next.name })}`);
     }
 
-    // Wealth-based war check
+    // Wealth-based war check (also respects minWarEpoch from difficulty)
     const playerWealth = (res.food || 0) + (res.silver || 0) + (res.wood || 0);
     const aiWealth = next.wealth || 500;
     const aiMilitaryStrength = next.militaryStrength ?? 1.0;
 
-    // 财富战争也需要在铁器时代及以上
     if (!next.isAtWar && !hasPeaceTreaty && !isPlayerAlly &&
-        epoch >= 2 &&
+        epoch >= minWarEpoch &&
         playerWealth > aiWealth * 2 &&
         aiMilitaryStrength > 0.8 &&
         relation < 50 &&
@@ -663,7 +802,9 @@ export const checkWarDeclaration = ({
         currentWarsWithPlayer < MAX_CONCURRENT_WARS &&
         !recentWarDeclarations) {
 
-        const wealthWarChance = 0.001 * aggression * (playerWealth / aiWealth - 1);
+        let wealthWarChance = 0.001 * aggression * (playerWealth / aiWealth - 1);
+        // Apply difficulty modifier
+        wealthWarChance = applyWarDeclarationModifier(wealthWarChance, difficultyLevel);
         if (Math.random() < wealthWarChance) {
             next.isAtWar = true;
             next.warStartDay = tick;

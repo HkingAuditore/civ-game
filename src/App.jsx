@@ -1539,6 +1539,8 @@ function GameApp({ gameState }) {
                             isSaving={gameState.isSaving}
                             timeSettings={gameState.eventEffectSettings}
                             onTimeSettingsChange={gameState.setEventEffectSettings}
+                            difficulty={gameState.difficulty}
+                            onDifficultyChange={gameState.setDifficulty}
                             onClose={() => setIsSettingsOpen(false)}
                         />
                     </div>

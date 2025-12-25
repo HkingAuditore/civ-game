@@ -682,6 +682,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
         legitimacy, // 当前合法性值
         setLegitimacy, // 合法性更新函数
         setModifiers, // Modifiers更新函数
+        difficulty, // 游戏难度
     } = gameState;
 
     // 使用ref保存最新状态，避免闭包问题
@@ -736,6 +737,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
         stability,
         rulingCoalition, // 执政联盟成员
         legitimacy, // 当前合法性值
+        difficulty, // 游戏难度
     });
 
     const saveGameRef = useRef(gameState.saveGame);
@@ -924,8 +926,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
             stability,
             rulingCoalition, // 执政联盟成员
             legitimacy, // 当前合法性值
+            difficulty, // 游戏难度
         };
-    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, livingStandardStreaks, migrationCooldowns, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability, rulingCoalition, legitimacy]);
+    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, livingStandardStreaks, migrationCooldowns, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability, rulingCoalition, legitimacy, difficulty]);
 
     useEffect(() => {
         if (!autoRecruitEnabled) return;
@@ -1463,6 +1466,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     livingStandardStreaks: result.livingStandardStreaks || current.livingStandardStreaks || {},
                     epoch: current.epoch || 0,
                     rulingCoalition: current.rulingCoalition || [], // 执政联盟
+                    difficultyLevel: current.difficulty, // 游戏难度
                     // 注意：classInfluence/totalInfluence 已是位置参数，无需在此重复
                 }
             );
@@ -2963,6 +2967,68 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                 }
                             } catch (e) {
                                 console.error('[EVENT DEBUG] Failed to parse AI Demand Surrender event:', e);
+                            }
+                        }
+
+                        // 检测AI主动提出无条件和平事件（玩家处于绝境时）
+                        if (log.includes('AI_MERCY_PEACE_OFFER:')) {
+                            try {
+                                const jsonStr = log.replace('AI_MERCY_PEACE_OFFER:', '');
+                                const eventData = JSON.parse(jsonStr);
+                                const nation = result.nations?.find(n => n.id === eventData.nationId);
+                                if (nation && currentActions && currentActions.triggerDiplomaticEvent) {
+                                    // 创建仁慈和平事件
+                                    const event = {
+                                        id: `mercy_peace_${eventData.nationId}_${Date.now()}`,
+                                        type: 'diplomacy',
+                                        title: '🕊️ 无条件和平提议',
+                                        description: `${eventData.nationName} 见你国力衰弱，已无力继续作战，愿意无条件停战。\n\n这是一个难得的喘息机会，接受后双方将签订和平条约。`,
+                                        nationId: eventData.nationId,
+                                        nationName: eventData.nationName,
+                                        warScore: eventData.warScore,
+                                        warDuration: eventData.warDuration,
+                                        options: [
+                                            {
+                                                id: 'accept',
+                                                label: '🕊️ 接受和平',
+                                                description: '结束战争，签订和平条约',
+                                                style: 'success',
+                                            },
+                                            {
+                                                id: 'reject',
+                                                label: '⚔️ 拒绝',
+                                                description: '继续战争（不推荐）',
+                                                style: 'danger',
+                                            },
+                                        ],
+                                        onSelect: (optionId) => {
+                                            if (optionId === 'accept') {
+                                                // 接受和平，结束战争
+                                                setNations(prev => prev.map(n => n.id === eventData.nationId ? {
+                                                    ...n,
+                                                    isAtWar: false,
+                                                    warScore: 0,
+                                                    warDuration: 0,
+                                                    peaceTreatyUntil: current.daysElapsed + 365, // 1年和平条约
+                                                    isMercyPeaceOffering: false,
+                                                    relation: Math.min(100, (n.relation || 50) + 10), // 关系略微改善
+                                                } : n));
+                                                addLog(`🕊️ 你接受了 ${eventData.nationName} 的和平提议，战争结束。`);
+                                            } else {
+                                                // 拒绝和平
+                                                setNations(prev => prev.map(n => n.id === eventData.nationId ? {
+                                                    ...n,
+                                                    isMercyPeaceOffering: false,
+                                                } : n));
+                                                addLog(`⚔️ 你拒绝了 ${eventData.nationName} 的和平提议，战争继续。`);
+                                            }
+                                        },
+                                    };
+                                    currentActions.triggerDiplomaticEvent(event);
+                                    console.log('[EVENT DEBUG] AI Mercy Peace Offer event triggered:', nation.name);
+                                }
+                            } catch (e) {
+                                console.error('[EVENT DEBUG] Failed to parse AI Mercy Peace Offer event:', e);
                             }
                         }
 

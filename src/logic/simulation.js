@@ -125,6 +125,7 @@ import {
     processAIMilitaryAction,
     checkAIPeaceRequest,
     checkAISurrenderDemand,
+    checkMercyPeace,
     checkWarDeclaration,
     processCollectiveAttackWarmonger,
     processAIAIWarDeclaration,
@@ -188,6 +189,7 @@ export const simulateTick = ({
     rulingCoalition = [], // 执政联盟成员阶层
     previousLegitimacy = 0, // 上一tick的合法性值，用于计算税收修正
     migrationCooldowns = {}, // 阶层迁移冷却状态
+    difficulty, // 游戏难度设置
 }) => {
     // console.log('[TICK START]', tick); // Commented for performance
     const res = { ...resources };
@@ -2427,6 +2429,7 @@ export const simulateTick = ({
                     resources: res,
                     army,
                     logs,
+                    difficultyLevel: difficulty,
                 });
                 raidPopulationLoss += militaryResult.raidPopulationLoss;
             }
@@ -2436,6 +2439,9 @@ export const simulateTick = ({
             // REFACTORED: Using module function for AI surrender demand check
             // 传入玩家财富，使赔款计算与玩家主动求和时一致
             checkAISurrenderDemand({ nation: next, tick, population, playerWealth: playerWealthBaseline, logs });
+
+            // Check if AI should offer unconditional peace when player is in desperate situation
+            checkMercyPeace({ nation: next, tick, population, playerWealth: playerWealthBaseline, resources: res, logs });
         } else if (next.warDuration) {
             next.warDuration = 0;
             next.warTotalExpense = 0; // 清除战争军费记录
@@ -2462,6 +2468,7 @@ export const simulateTick = ({
             resources: res,
             stabilityValue,
             logs,
+            difficultyLevel: difficulty,
         });
 
 

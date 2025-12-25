@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { DECREES, COUNTRIES, RESOURCES, STRATA } from '../config';
 import { isOldUpgradeFormat, migrateUpgradesToNewFormat } from '../utils/buildingUpgradeUtils';
+import { DEFAULT_DIFFICULTY } from '../config/difficulty';
 
 const SAVE_KEY = 'civ_game_save_data_v1';
 const AUTOSAVE_KEY = 'civ_game_autosave_v1';
@@ -342,6 +343,7 @@ export const useGameState = () => {
     const [isAutoSaveEnabled, setIsAutoSaveEnabled] = useState(true); // 自动存档开关
     const [lastAutoSaveTime, setLastAutoSaveTime] = useState(() => Date.now()); // 上次自动存档时间
     const [isSaving, setIsSaving] = useState(false); // UI保存状态指示
+    const [difficulty, setDifficulty] = useState(DEFAULT_DIFFICULTY); // 游戏难度
     const savingIndicatorTimer = useRef(null);
 
     // ========== 政令与外交状态 ==========
@@ -600,6 +602,7 @@ export const useGameState = () => {
                 autoSaveInterval,
                 isAutoSaveEnabled,
                 lastAutoSaveTime: nextLastAuto,
+                difficulty,
                 updatedAt: timestamp,
                 saveSource: source,
             },
@@ -690,6 +693,7 @@ export const useGameState = () => {
         setAutoSaveInterval(data.autoSaveInterval ?? 60);
         setIsAutoSaveEnabled(data.isAutoSaveEnabled ?? true);
         setLastAutoSaveTime(data.lastAutoSaveTime || Date.now());
+        setDifficulty(data.difficulty || DEFAULT_DIFFICULTY);
         setEventEffectSettings(data.eventEffectSettings || DEFAULT_EVENT_EFFECT_SETTINGS);
         const loadedEffects = data.activeEventEffects || {};
         setActiveEventEffects({
@@ -894,6 +898,8 @@ export const useGameState = () => {
         lastAutoSaveTime,
         setLastAutoSaveTime,
         isSaving,
+        difficulty,
+        setDifficulty,
 
         // 政令与外交
         decrees,

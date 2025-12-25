@@ -327,7 +327,7 @@ export const GameControls = ({
                                         className="w-full flex items-center px-3 py-2 text-[10px] font-semibold text-ancient-parchment hover:bg-ancient-gold/10 transition-colors rounded touch-feedback"
                                     >
                                         <Icon name="Settings" size={12} />
-                                        <span className="ml-2">存档设置</span>
+                                        <span className="ml-2">设置</span>
                                     </button>
 
                                     <div className="my-1 h-px bg-gradient-to-r from-transparent via-ancient-gold/30 to-transparent mx-2"></div>

@@ -23,16 +23,58 @@ export const PERFORMANCE_MODES = {
 // 缓存检测结果，避免重复计算
 let cachedIsLowEnd = null;
 let isInitialized = false;
+let cachedIsMobile = null;
+
+/**
+ * 检测是否为移动设备
+ * @returns {boolean}
+ */
+function detectMobileDevice() {
+    if (cachedIsMobile !== null) return cachedIsMobile;
+    
+    if (typeof window === 'undefined' || typeof navigator === 'undefined') {
+        cachedIsMobile = false;
+        return false;
+    }
+
+    // 检测触摸屏
+    const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    
+    // 检测屏幕尺寸（小于1024px宽度认为是移动端）
+    const isSmallScreen = window.innerWidth < 1024;
+    
+    // 检测 User Agent
+    const ua = navigator.userAgent.toLowerCase();
+    const mobileKeywords = ['android', 'iphone', 'ipad', 'ipod', 'mobile', 'tablet'];
+    const isMobileUA = mobileKeywords.some(keyword => ua.includes(keyword));
+    
+    // 综合判断：UA 匹配 或 (触摸屏 + 小屏幕)
+    cachedIsMobile = isMobileUA || (hasTouch && isSmallScreen);
+    
+    if (cachedIsMobile) {
+        console.log('[Performance] Mobile device detected');
+    }
+    
+    return cachedIsMobile;
+}
 
 /**
  * 检测设备是否需要启用低性能模式
- * 新策略：默认返回 true（启用低性能模式），只有高端设备才返回 false
- * 高端设备标准：8核以上 CPU 且 (8GB 以上内存 或 高端 GPU)
+ * 新策略：
+ * 1. 移动设备：始终返回 true（流畅模式）
+ * 2. 桌面设备：只有高端设备才返回 false
+ * 高端桌面设备标准：8核以上 CPU 且 (8GB 以上内存 或 高端 GPU)
  * @returns {boolean} true 表示需要低性能模式
  */
 function detectLowEndDevice() {
     if (typeof window === 'undefined' || typeof navigator === 'undefined') {
         return true; // 默认启用低性能模式
+    }
+
+    // 移动设备始终使用流畅模式
+    if (detectMobileDevice()) {
+        console.log('[Performance] Mobile device - forcing low-perf mode');
+        return true;
     }
 
     const deviceMemory = navigator.deviceMemory;

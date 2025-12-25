@@ -4,6 +4,7 @@
 import React, { useRef, useState } from 'react';
 import { Icon } from '../common/UIComponents';
 import { useSound, useDevicePerformance, PERFORMANCE_MODES } from '../../hooks';
+import { DIFFICULTY_LEVELS, getDifficultyOptions } from '../../config/difficulty';
 
 /**
  * 性能模式设置组件
@@ -13,7 +14,7 @@ const PerformanceModeSection = () => {
     const { isLowPerformanceMode, performanceMode, setPerformanceMode } = useDevicePerformance();
 
     const modeOptions = [
-        { value: PERFORMANCE_MODES.AUTO, label: '自动', desc: '根据设备自动选择' },
+        { value: PERFORMANCE_MODES.AUTO, label: '自动', desc: '手机流畅/电脑自动' },
         { value: PERFORMANCE_MODES.HIGH, label: '高品质', desc: '全部特效' },
         { value: PERFORMANCE_MODES.LOW, label: '流畅', desc: '禁用特效' },
     ];
@@ -24,7 +25,7 @@ const PerformanceModeSection = () => {
                 <Icon name="Zap" size={16} /> 性能模式
             </h4>
             <p className="text-[11px] text-gray-400 leading-relaxed">
-                如遇到卡顿、发热或界面显示问题，请尝试切换到"流畅"模式。
+                手机默认使用流畅模式，如需高画质请手动切换。
             </p>
 
             <div className="flex gap-2">
@@ -52,13 +53,108 @@ const PerformanceModeSection = () => {
             {/* Mobile performance tips */}
             <div className="mt-2 p-2 bg-gray-800/50 rounded-lg border border-gray-700/50">
                 <p className="text-[10px] text-gray-400 leading-relaxed">
-                    <span className="text-amber-400 font-medium">💡 手机用户提示：</span>
+                    <span className="text-amber-400 font-medium">📱 移动端默认流畅模式</span>
                     <br />
-                    • 流畅模式可大幅减少发热和耗电
+                    • 减少发热和耗电，体验更稳定
                     <br />
-                    • 输入框操作后如卡顿，点击空白处恢复
+                    • 如需高画质，请选择"高品质"
                     <br />
-                    • 横屏模式下界面更完整
+                    • 横屏模式下界面显示更完整
+                </p>
+            </div>
+        </div>
+    );
+};
+
+/**
+ * Difficulty Setting Section
+ * Allows player to choose game difficulty
+ */
+const DifficultySectionComponent = ({ currentDifficulty, onDifficultyChange }) => {
+    const difficultyOptions = getDifficultyOptions();
+    
+    return (
+        <div className="border-t border-gray-700 pt-4 space-y-3">
+            <h4 className="text-sm font-bold text-gray-200 flex items-center gap-2">
+                <Icon name="Target" size={16} /> 游戏难度
+            </h4>
+            <p className="text-[11px] text-gray-400 leading-relaxed">
+                调整游戏难度会影响内乱和敌国攻击的频率与强度。更改后立即生效。
+            </p>
+
+            <div className="flex gap-2">
+                {difficultyOptions.map(opt => (
+                    <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => onDifficultyChange && onDifficultyChange(opt.id)}
+                        className={`flex-1 px-3 py-2 rounded-lg border text-xs transition-colors ${
+                            currentDifficulty === opt.id
+                                ? opt.id === DIFFICULTY_LEVELS.EASY
+                                    ? 'bg-emerald-700/40 border-emerald-500/50 text-emerald-200'
+                                    : opt.id === DIFFICULTY_LEVELS.HARD
+                                        ? 'bg-red-700/40 border-red-500/50 text-red-200'
+                                        : 'bg-amber-700/40 border-amber-500/50 text-amber-200'
+                                : 'bg-gray-700/30 border-gray-600/50 text-gray-300 hover:bg-gray-700/50'
+                        }`}
+                    >
+                        <div className="font-medium">
+                            <span className="mr-1">{opt.icon}</span>
+                            {opt.name}
+                        </div>
+                        <div className="text-[10px] text-gray-400 mt-0.5">{opt.description}</div>
+                    </button>
+                ))}
+            </div>
+
+            <div className="text-[11px] text-gray-400 flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full ${
+                    currentDifficulty === DIFFICULTY_LEVELS.EASY ? 'bg-emerald-400' :
+                    currentDifficulty === DIFFICULTY_LEVELS.HARD ? 'bg-red-400' : 'bg-amber-400'
+                }`} />
+                当前难度：{difficultyOptions.find(o => o.id === currentDifficulty)?.name || '普通'}
+            </div>
+
+            {/* Difficulty tips */}
+            <div className="mt-2 p-2 bg-gray-800/50 rounded-lg border border-gray-700/50">
+                <p className="text-[10px] text-gray-400 leading-relaxed">
+                    {currentDifficulty === DIFFICULTY_LEVELS.EASY && (
+                        <>
+                            <span className="text-emerald-400 font-medium">🌱 简单模式已启用</span>
+                            <br />
+                            • 组织度增长速度降低50%
+                            <br />
+                            • 敌国攻击概率降低50%
+                            <br />
+                            • AI宣战需要更高时代
+                            <br />
+                            • 适合新手熟悉游戏机制
+                        </>
+                    )}
+                    {currentDifficulty === DIFFICULTY_LEVELS.NORMAL && (
+                        <>
+                            <span className="text-amber-400 font-medium">⚖️ 普通模式</span>
+                            <br />
+                            • 标准游戏体验
+                            <br />
+                            • 平衡的叛乱与战争机制
+                            <br />
+                            • 适合有一定经验的玩家
+                        </>
+                    )}
+                    {currentDifficulty === DIFFICULTY_LEVELS.HARD && (
+                        <>
+                            <span className="text-red-400 font-medium">🔥 困难模式已启用</span>
+                            <br />
+                            • 组织度增长速度提高50%
+                            <br />
+                            • 敌国攻击概率提高50%
+                            <br />
+                            • AI更早可以宣战
+                            <br />
+                            • 适合寻求挑战的老玩家
+                        </>
+                    )}
                 </p>
             </div>
         </div>
@@ -81,6 +177,8 @@ export const SettingsPanel = ({
     onClose,
     timeSettings,
     onTimeSettingsChange,
+    difficulty,
+    onDifficultyChange,
 }) => {
     const { enabled: soundEnabled, volume, toggleSound, setVolume, playSound, SOUND_TYPES } = useSound();
     const fileInputRef = useRef(null);
@@ -379,6 +477,12 @@ export const SettingsPanel = ({
           </div>
         </div>
       </div> */}
+
+            {/* 游戏难度设置 */}
+            <DifficultySectionComponent
+                currentDifficulty={difficulty}
+                onDifficultyChange={onDifficultyChange}
+            />
 
             {/* 性能模式设置 */}
             <PerformanceModeSection />
