@@ -4,7 +4,7 @@
 import React, { useState, useMemo, useRef, useLayoutEffect, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '../common/UIComponents';
-import { UNIT_TYPES, UNIT_CATEGORIES, BUILDINGS, calculateArmyMaintenance, calculateArmyFoodNeed, calculateBattlePower, calculateArmyPopulation, calculateTotalArmyExpense, calculateUnitExpense, RESOURCES, MILITARY_ACTIONS, TECHS, EPOCHS } from '../../config';
+import { UNIT_TYPES, UNIT_CATEGORIES, BUILDINGS, calculateArmyMaintenance, calculateArmyFoodNeed, calculateBattlePower, calculateArmyPopulation, calculateTotalArmyExpense, calculateUnitExpense, calculateNationBattlePower, RESOURCES, MILITARY_ACTIONS, TECHS, EPOCHS } from '../../config';
 import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
 import { filterUnlockedResources } from '../../utils/resources';
 
@@ -255,8 +255,9 @@ const MilitaryTabComponent = ({
 }) => {
     const [hoveredUnit, setHoveredUnit] = useState({ unit: null, element: null });
     const [showWarScoreInfo, setShowWarScoreInfo] = useState(false);
-    const canHover = window.matchMedia('(hover: hover)').matches;
-
+    // More reliable hover detection: requires both hover capability AND fine pointer (mouse/trackpad)
+    // This prevents tooltips from showing on touch devices that falsely report hover support
+    const canHover = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
     const queueCounts = (militaryQueue || []).reduce((acc, item) => {
         if (!item?.unitId) return acc;
         acc[item.unitId] = (acc[item.unitId] || 0) + 1;
@@ -905,8 +906,13 @@ const MilitaryTabComponent = ({
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             {MILITARY_ACTIONS.map((action) => {
-                                const totalEnemyMin = action.baseUnitCount?.min || 0;
-                                const totalEnemyMax = action.baseUnitCount?.max || 0;
+                                // 使用派遣比例计算敌方战力
+                                const deploymentRatio = action.deploymentRatio || { min: 0.1, max: 0.2 };
+                                const nationTotalPower = activeNation ? calculateNationBattlePower(activeNation, epoch) : 0;
+                                const enemyPowerMin = Math.floor(nationTotalPower * deploymentRatio.min);
+                                const enemyPowerMax = Math.floor(nationTotalPower * deploymentRatio.max);
+                                // 格式化战力显示
+                                const formatPower = (p) => p >= 10000 ? `${(p / 1000).toFixed(1)}K` : p.toFixed(0);
                                 // Check if required tech is unlocked
                                 const hasRequiredTech = !action.requiresTech || techsUnlocked.includes(action.requiresTech);
                                 const requiredTechName = action.requiresTech
@@ -971,9 +977,15 @@ const MilitaryTabComponent = ({
 
                                         <div className="space-y-2 text-xs text-gray-300">
                                             <div className="flex items-center justify-between">
-                                                <span className="text-gray-400">敌军规模</span>
-                                                <span>
-                                                    {totalEnemyMin}-{totalEnemyMax} 人
+                                                <span className="text-gray-400">敌方派遣</span>
+                                                <span className="text-yellow-300">
+                                                    {Math.floor(deploymentRatio.min * 100)}-{Math.floor(deploymentRatio.max * 100)}%
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-gray-400">预估敌方战力</span>
+                                                <span className="text-red-300 font-mono">
+                                                    {formatPower(enemyPowerMin)} - {formatPower(enemyPowerMax)}
                                                 </span>
                                             </div>
                                             <div>

@@ -180,7 +180,8 @@ const TechTabComponent = ({
     onShowTechDetails, // 新增：显示科技详情回调
 }) => {
     const [hoveredTech, setHoveredTech] = useState({ tech: null, element: null });
-    const canHover = window.matchMedia('(hover: hover)').matches;
+    // Check for both hover capability AND fine pointer (mouse/trackpad) to correctly exclude touch devices
+    const canHover = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
 
     const handleMouseEnter = (e, tech) => {
         if (canHover) setHoveredTech({ tech, element: e.currentTarget });

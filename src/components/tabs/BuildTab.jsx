@@ -328,7 +328,9 @@ const BuildTabComponent = ({
     market,
 }) => {
     const [hoveredBuilding, setHoveredBuilding] = useState({ building: null, element: null });
-    const canHover = window.matchMedia('(hover: hover)').matches;
+    // More reliable hover detection: requires both hover capability AND fine pointer (mouse/trackpad)
+    // This prevents tooltips from showing on touch devices that falsely report hover support
+    const canHover = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
 
     const handleMouseEnter = (e, building, cost, resources) => {
         if (canHover) setHoveredBuilding({ building, element: e.currentTarget, cost, resources });

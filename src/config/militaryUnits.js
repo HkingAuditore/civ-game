@@ -776,6 +776,128 @@ export const calculateBattlePower = (army, epoch, militaryBuffs = 0, soldierWage
     return totalPower;
 };
 
+/**
+ * 根据时代获取可用的兵种列表
+ * @param {number} epoch - 当前时代
+ * @returns {Array} 可用兵种ID数组
+ */
+const getAvailableUnitsForEpoch = (epoch) => {
+    const available = [];
+    Object.entries(UNIT_TYPES).forEach(([unitId, unit]) => {
+        // 兵种时代 <= 当前时代，且未过时
+        const epochDiff = epoch - unit.epoch;
+        const obsoleteThreshold = unit.obsoleteAfterEpochs || 2;
+        if (unit.epoch <= epoch && epochDiff <= obsoleteThreshold) {
+            available.push(unitId);
+        }
+    });
+    return available;
+};
+
+/**
+ * 为AI国家生成虚拟军队组成
+ * 每次战斗临时生成，数量基于人口、militaryStrength和时代
+ * @param {Object} nation - 国家对象
+ * @param {number} epoch - 当前时代
+ * @param {number} deploymentRatio - 派遣比例 (0-1)，默认1.0表示全部派遣
+ * @returns {Object} 军队对象 { unitId: count, ... }
+ */
+export const generateNationArmy = (nation, epoch, deploymentRatio = 1.0) => {
+    const population = nation?.population || 100;
+    const militaryStrength = nation?.militaryStrength ?? 1.0;
+    const aggression = nation?.aggression || 0.3;
+
+    // 基础军队规模 = 人口 × 军事强度 × 基础比例(10%) × 时代系数
+    const epochFactor = 1 + epoch * 0.15;
+    const baseArmySize = Math.floor(population * militaryStrength * 0.10 * epochFactor);
+
+    // 应用派遣比例
+    const deployedSize = Math.max(1, Math.floor(baseArmySize * deploymentRatio));
+
+    // 获取当前时代可用兵种
+    const availableUnits = getAvailableUnitsForEpoch(epoch);
+    if (availableUnits.length === 0) {
+        return { militia: deployedSize };
+    }
+
+    // 按类别分配军队（根据国家侵略性调整比例）
+    const army = {};
+    let remaining = deployedSize;
+
+    // 侵略性高的国家更多进攻型单位
+    const infantryRatio = 0.35 + (1 - aggression) * 0.15;  // 35-50%
+    const rangedRatio = 0.25 + aggression * 0.1;           // 25-35%
+    const cavalryRatio = 0.20 + aggression * 0.1;          // 20-30%
+    const siegeRatio = 0.05;                                // 5%
+
+    // 过滤可用兵种按类别
+    const infantryUnits = availableUnits.filter(id => UNIT_TYPES[id]?.category === 'infantry');
+    const rangedUnits = availableUnits.filter(id =>
+        UNIT_TYPES[id]?.category === 'archer' || UNIT_TYPES[id]?.category === 'gunpowder'
+    );
+    const cavalryUnits = availableUnits.filter(id => UNIT_TYPES[id]?.category === 'cavalry');
+    const siegeUnits = availableUnits.filter(id => UNIT_TYPES[id]?.category === 'siege');
+
+    // 分配步兵
+    if (infantryUnits.length > 0) {
+        const count = Math.floor(remaining * infantryRatio);
+        const unitId = infantryUnits[Math.floor(Math.random() * infantryUnits.length)];
+        army[unitId] = (army[unitId] || 0) + Math.max(1, count);
+        remaining -= count;
+    }
+
+    // 分配远程
+    if (rangedUnits.length > 0 && remaining > 0) {
+        const count = Math.floor(deployedSize * rangedRatio);
+        const unitId = rangedUnits[Math.floor(Math.random() * rangedUnits.length)];
+        army[unitId] = (army[unitId] || 0) + Math.max(1, count);
+        remaining -= count;
+    }
+
+    // 分配骑兵
+    if (cavalryUnits.length > 0 && remaining > 0) {
+        const count = Math.floor(deployedSize * cavalryRatio);
+        const unitId = cavalryUnits[Math.floor(Math.random() * cavalryUnits.length)];
+        army[unitId] = (army[unitId] || 0) + Math.max(1, count);
+        remaining -= count;
+    }
+
+    // 分配攻城
+    if (siegeUnits.length > 0 && remaining > 2) {
+        const count = Math.floor(deployedSize * siegeRatio);
+        if (count > 0) {
+            const unitId = siegeUnits[Math.floor(Math.random() * siegeUnits.length)];
+            army[unitId] = (army[unitId] || 0) + count;
+            remaining -= count;
+        }
+    }
+
+    // 剩余分配给步兵
+    if (remaining > 0 && infantryUnits.length > 0) {
+        const unitId = infantryUnits[0];
+        army[unitId] = (army[unitId] || 0) + remaining;
+    }
+
+    return army;
+};
+
+/**
+ * 计算AI国家的总战斗力
+ * @param {Object} nation - 国家对象
+ * @param {number} epoch - 当前时代
+ * @param {number} deploymentRatio - 派遣比例 (0-1)，默认1.0表示全部军队
+ * @returns {number} 战斗力值
+ */
+export const calculateNationBattlePower = (nation, epoch, deploymentRatio = 1.0) => {
+    const army = generateNationArmy(nation, epoch, deploymentRatio);
+    const aggression = nation?.aggression || 0.3;
+
+    // 侵略性作为军事buff（0.3侵略性 = 0军事buff，0.6侵略性 = +15%）
+    const militaryBuffs = Math.max(0, (aggression - 0.3) * 0.5);
+
+    return calculateBattlePower(army, epoch, militaryBuffs);
+};
+
 // 计算兵种克制效果
 export const calculateCounterBonus = (attackerArmy, defenderArmy) => {
     let bonusMultiplier = 1.0;

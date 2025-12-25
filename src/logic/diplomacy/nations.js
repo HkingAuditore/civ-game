@@ -316,20 +316,21 @@ const processRelationDecay = (nation) => {
     const relation = nation.relation ?? 50;
     let relationChange = 0;
 
+    // 减缓衰减速度：从0.02降低到0.005，让外交行动的效果更持久
     if (relation > 50) {
-        relationChange = -0.02;
+        relationChange = -0.005;
     } else if (relation < 50) {
-        relationChange = 0.02;
+        relationChange = 0.005;
     }
 
     nation.relation = Math.max(0, Math.min(100, relation + relationChange));
 
-    // AI-AI relation decay
+    // AI-AI relation decay - 同步减缓衰减速度
     if (nation.foreignRelations) {
         Object.keys(nation.foreignRelations).forEach(otherId => {
             let r = nation.foreignRelations[otherId] ?? 50;
-            if (r > 50) r -= 0.02;
-            else if (r < 50) r += 0.02;
+            if (r > 50) r -= 0.005;
+            else if (r < 50) r += 0.005;
             nation.foreignRelations[otherId] = Math.max(0, Math.min(100, r));
         });
     }
@@ -579,7 +580,8 @@ const processMonthlyRelationDecay = (nations) => {
 
         const currentRelation = nation.relation ?? 50;
         const isAlly = nation.alliedWithPlayer === true;
-        const decayRate = isAlly ? 0.1 : 0.5;
+        // 减缓月度衰减：盟友0.05，非盟友0.2（原来分别是0.1和0.5）
+        const decayRate = isAlly ? 0.05 : 0.2;
 
         let newRelation = currentRelation;
         if (currentRelation > 50) {

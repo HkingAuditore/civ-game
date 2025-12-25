@@ -189,9 +189,9 @@ const TradeRoutesModal = ({
     const importCount = bestImportOpportunities.length;
 
     const tabs = [
-        { id: 'active', label: '已建立路线', count: activeRoutes.length, icon: 'List' },
-        { id: 'bestExport', label: '出口机会', count: exportCount, icon: 'ArrowUpRight' },
-        { id: 'bestImport', label: '进口机会', count: importCount, icon: 'ArrowDownLeft' },
+        { id: 'active', label: '已建立路线', shortLabel: '路线', count: activeRoutes.length, icon: 'List' },
+        { id: 'bestExport', label: '出口机会', shortLabel: '出口', count: exportCount, icon: 'ArrowUpRight' },
+        { id: 'bestImport', label: '进口机会', shortLabel: '进口', count: importCount, icon: 'ArrowDownLeft' },
     ];
 
     const renderOpportunityRow = (opp, index, showRank = false) => {
@@ -322,8 +322,8 @@ const TradeRoutesModal = ({
             {/* Backdrop */}
             <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose}></div>
 
-            {/* Modal Content */}
-            <div className="relative w-full max-w-2xl glass-panel border-2 border-amber-500/30 rounded-2xl shadow-2xl overflow-hidden animate-slide-up bg-gray-900/90 max-h-[90vh] flex flex-col">
+            {/* Modal Content - Fixed height to prevent jumping when market data changes */}
+            <div className="relative w-full max-w-2xl glass-panel border-2 border-amber-500/30 rounded-2xl shadow-2xl overflow-hidden animate-slide-up bg-gray-900/90 h-[85vh] sm:h-[80vh] max-h-[700px] flex flex-col">
                 {/* Header */}
                 <div className="p-3 sm:p-4 border-b border-amber-500/20 bg-gradient-to-r from-amber-900/40 to-gray-900/60 flex items-center justify-between flex-shrink-0">
                     <div className="flex items-center gap-2 sm:gap-3">
@@ -355,7 +355,9 @@ const TradeRoutesModal = ({
                                 }`}
                         >
                             <Icon name={tab.icon} size={14} />
-                            <span className="hidden xs:inline sm:inline">{tab.label}</span>
+                            {/* Show short label on narrow screens, full label on wider screens */}
+                            <span className="sm:hidden">{tab.shortLabel}</span>
+                            <span className="hidden sm:inline">{tab.label}</span>
                             <span className={`px-1 sm:px-1.5 py-0.5 rounded text-[10px] sm:text-xs ${activeTab === tab.id ? 'bg-amber-500/20 text-amber-200' : 'bg-gray-700 text-gray-400'
                                 }`}>
                                 {tab.count}

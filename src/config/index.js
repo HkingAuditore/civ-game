@@ -40,7 +40,12 @@ export {
     EPOCH_EVENTS,
     CLASS_CONFLICT_EVENTS,
     ECONOMIC_EVENTS,
-    STATIC_DIPLOMATIC_EVENTS
+    STATIC_DIPLOMATIC_EVENTS,
+    // 联盟加入诉求事件
+    checkCoalitionDemandCondition,
+    createCoalitionDemandEvent,
+    checkAndCreateCoalitionDemandEvent,
+    resetCoalitionEventCooldowns,
 } from './events';
 // 军事单位系统
 export {
@@ -57,6 +62,8 @@ export {
     calculateArmyMaintenanceCost,
     calculateTotalArmyExpense,
     calculateUnitExpense,
+    generateNationArmy,
+    calculateNationBattlePower,
     simulateBattle
 } from './militaryUnits';
 

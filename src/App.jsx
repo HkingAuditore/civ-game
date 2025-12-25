@@ -2,7 +2,7 @@
 // 使用拆分后的钩子和组件，保持代码简洁
 
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
-import { GAME_SPEEDS, EPOCHS, RESOURCES, STRATA, calculateArmyFoodNeed, calculateTotalArmyExpense, BUILDINGS, EVENTS } from './config';
+import { GAME_SPEEDS, EPOCHS, RESOURCES, STRATA, calculateArmyFoodNeed, calculateTotalArmyExpense, BUILDINGS, EVENTS, checkAndCreateCoalitionDemandEvent } from './config';
 import { getCalendarInfo } from './utils/calendar';
 import { useGameState, useGameLoop, useGameActions, useSound, useEpicTheme, useViewportHeight, useDevicePerformance } from './hooks';
 import {
@@ -154,14 +154,32 @@ function GameApp({ gameState }) {
 
         const deltaDays = currentDay - lastEventCheckDayRef.current;
 
-        // 每经过 20 个游戏内日检查一次，并以 10% 概率触发事件
+        // 每经过 30 个游戏内日检查一次
         if (deltaDays >= 30) {
             lastEventCheckDayRef.current = currentDay;
+
+            // 优先检查联盟诉求事件（在野阶层影响力>=20%）
+            // 只传递可序列化的数据，避免 Worker 序列化错误
+            const coalitionEventData = {
+                rulingCoalition: gameState.rulingCoalition,
+                classInfluence: gameState.classInfluence,
+                totalInfluence: gameState.totalInfluence,
+                popStructure: gameState.popStructure,
+                classExpense: gameState.classExpense,
+                daysElapsed: gameState.daysElapsed,
+            };
+            const coalitionEvent = checkAndCreateCoalitionDemandEvent(coalitionEventData, 60);
+            if (coalitionEvent) {
+                actions.triggerDiplomaticEvent(coalitionEvent);
+                return;
+            }
+
+            // 10% 概率触发随机事件
             if (Math.random() < 0.1) {
                 actions.triggerRandomEvent();
             }
         }
-    }, [gameState.daysElapsed, gameState.isPaused, gameState.currentEvent, actions]);
+    }, [gameState.daysElapsed, gameState.isPaused, gameState.currentEvent, actions, gameState.rulingCoalition, gameState.classInfluence, gameState.totalInfluence, gameState.popStructure, gameState.classExpense]);
 
 
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -1014,6 +1032,14 @@ function GameApp({ gameState }) {
                                                 totalInfluence={gameState.totalInfluence}
                                                 legitimacy={gameState.legitimacy}
                                                 classApproval={gameState.classApproval}
+                                                // 银币相关 props
+                                                silver={gameState.resources?.silver || 0}
+                                                onSpendSilver={(amount) => {
+                                                    gameState.setResources(prev => ({
+                                                        ...prev,
+                                                        silver: Math.max(0, (prev.silver || 0) - amount)
+                                                    }));
+                                                }}
                                             />
                                         )}
 

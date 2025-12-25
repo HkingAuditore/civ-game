@@ -1117,20 +1117,91 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 current.eventEffectSettings,
             );
 
-            // Build simulation parameters
+            // Build simulation parameters - 手动列出可序列化字段，排除函数对象（如 actions）
+            // 这样可以正确启用 Web Worker 加速，避免 DataCloneError
             const simulationParams = {
-                ...current,
-                tick: current.daysElapsed || 0,
-                gameSpeed: 1, // 强制归一化为 1，防止倍率叠加
+                // 基础游戏数据
+                resources: current.resources,
+                market: current.market,
+                buildings: current.buildings,
+                buildingUpgrades: current.buildingUpgrades,
+                population: current.population,
+                popStructure: current.popStructure,
+                birthAccumulator: current.birthAccumulator,
+                maxPopBonus: current.maxPopBonus,
+                epoch: current.epoch,
+                techsUnlocked: current.techsUnlocked,
+                decrees: current.decrees,
+                nations: current.nations,
+                classWealth: current.classWealth,
+                classApproval: current.classApproval,
+                classInfluence: current.classInfluence,
+                totalInfluence: current.totalInfluence,
+                stability: current.stability,
+
+                // 军事相关
+                army: current.army,
+                militaryQueue: current.militaryQueue,
+                militaryWageRatio: current.militaryWageRatio,
+                autoRecruitEnabled: current.autoRecruitEnabled,
+                targetArmyComposition: current.targetArmyComposition,
+
+                // 工作和经济
+                jobFill: current.jobFill,
+                jobsAvailable: current.jobsAvailable,
+                taxPolicies: current.taxPolicies,
+                livingStandardStreaks: current.livingStandardStreaks,
+                migrationCooldowns: current.migrationCooldowns,
+
+                // 贸易
+                merchantState: current.merchantState,
+                tradeRoutes: current.tradeRoutes,
+                tradeStats: current.tradeStats,
+
+                // Buff/Debuff
+                activeBuffs: current.activeBuffs,
+                activeDebuffs: current.activeDebuffs,
+
+                // 历史数据
+                classWealthHistory: current.classWealthHistory,
+                classNeedsHistory: current.classNeedsHistory,
+
+                // 时间和节日
+                daysElapsed: current.daysElapsed,
                 activeFestivalEffects: current.activeFestivalEffects || [],
+                lastFestivalYear: current.lastFestivalYear,
+
+                // 行动冷却
+                actionCooldowns: current.actionCooldowns,
+                actionUsage: current.actionUsage,
+                promiseTasks: current.promiseTasks,
+
+                // 事件效果
+                activeEventEffects: current.activeEventEffects,
+                eventEffectSettings: current.eventEffectSettings,
+
+                // 叛乱系统
+                rebellionStates: current.rebellionStates,
+
+                // 执政联盟
+                rulingCoalition: current.rulingCoalition,
+                legitimacy: current.legitimacy,
+
+                // 难度
+                difficulty: current.difficulty,
+
+                // 游戏速度（强制归一化）
+                gameSpeed: 1,
+                tick: current.daysElapsed || 0,
+
+                // 事件修正器
                 eventApprovalModifiers: approvalModifiers,
                 eventStabilityModifier: stabilityModifier,
-                currentStability: current.stability ?? 50, // 传递当前稳定度，用于惯性计算
-                // Economic modifiers from events
+                currentStability: current.stability ?? 50,
                 eventResourceDemandModifiers: resourceDemandModifiers,
                 eventStratumDemandModifiers: stratumDemandModifiers,
                 eventBuildingProductionModifiers: buildingProductionModifiers,
-                previousLegitimacy: current.legitimacy ?? 0, // 传递上一tick的合法性，用于税收修正
+                previousLegitimacy: current.legitimacy ?? 0,
             };
 
             // Execute simulation

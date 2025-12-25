@@ -7,6 +7,7 @@ import { Modal } from '../common/UnifiedUI';
 import { DeclareWarModal } from '../modals/DeclareWarModal';
 import TradeRoutesModal from '../modals/TradeRoutesModal';
 import { RESOURCES } from '../../config';
+import { calculateNationBattlePower } from '../../config/militaryUnits';
 import { calculateForeignPrice, calculateTradeStatus } from '../../utils/foreignTrade';
 import { calculateDynamicGiftCost, calculateProvokeCost } from '../../utils/diplomaticUtils';
 
@@ -499,10 +500,11 @@ const DiplomacyTabComponent = ({
                                     </div>
                                 </div>
 
-                                {/* 大致兵力估算 - 关系越好越准确 */}
+                                {/* 大致兵力估算 - 使用真实战力计算，关系越好越准确 */}
                                 {(() => {
                                     const relation = selectedNation?.relation || 0;
-                                    const baseStrength = (selectedNation?.militaryStrength ?? 1.0) * (selectedNation?.population || 100) * (1 + (selectedNation?.aggression || 0.3));
+                                    // 使用真实战力计算
+                                    const realPower = calculateNationBattlePower(selectedNation, epoch);
                                     // 关系影响情报准确度：关系越好，误差越小
                                     const accuracyFactor = Math.max(0.1, relation / 100); // 0.1 - 1.0
                                     const errorRange = 1 - accuracyFactor; // 0 - 0.9
@@ -514,9 +516,11 @@ const DiplomacyTabComponent = ({
                                         seedHash |= 0;
                                     }
                                     const stableRandom = ((Math.abs(seedHash) % 1000) / 1000) - 0.5; // Range: -0.5 to 0.5
-                                    const estimatedStrength = Math.floor(baseStrength * (1 + stableRandom * errorRange * 2));
-                                    const strengthLabel = relation >= 60 ? `约 ${estimatedStrength}` :
-                                        relation >= 40 ? `${Math.floor(estimatedStrength * 0.8)} - ${Math.floor(estimatedStrength * 1.2)}` :
+                                    const estimatedPower = Math.floor(realPower * (1 + stableRandom * errorRange * 0.5));
+                                    // 格式化显示
+                                    const formatPower = (p) => p >= 10000 ? `${(p / 1000).toFixed(1)}K` : p.toFixed(0);
+                                    const strengthLabel = relation >= 60 ? `约 ${formatPower(estimatedPower)}` :
+                                        relation >= 40 ? `${formatPower(Math.floor(estimatedPower * 0.8))} - ${formatPower(Math.floor(estimatedPower * 1.2))}` :
                                             relation >= 20 ? '情报不足' : '未知';
                                     return (
                                         <div className="p-2 rounded border border-red-500/20 bg-red-900/10 flex items-center justify-between mb-2">
