@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import { BUILDINGS, EPOCHS, RESOURCES, TECHS, MILITARY_ACTIONS, UNIT_TYPES, EVENTS, getRandomEvent, createWarDeclarationEvent, createGiftEvent, createPeaceRequestEvent, createEnemyPeaceRequestEvent, createPlayerPeaceProposalEvent, createBattleEvent, createAllianceRequestEvent, createAllianceProposalResultEvent, createAllianceBreakEvent, createNationAnnexedEvent, STRATA, BUILDING_UPGRADES, getMaxUpgradeLevel, getUpgradeCost } from '../config';
 import { getUpgradeCountAtOrAboveLevel } from '../utils/buildingUpgradeUtils';
-import { calculateArmyCapacityNeed, calculateArmyPopulation, simulateBattle, calculateBattlePower } from '../config';
+import { calculateArmyCapacityNeed, calculateArmyPopulation, simulateBattle, calculateBattlePower, generateNationArmy } from '../config';
 import { calculateForeignPrice, calculateTradeStatus } from '../utils/foreignTrade';
 import { generateSound, SOUND_TYPES } from '../config/sounds';
 import { getEnemyUnitsForEpoch, calculateProportionalLoot } from '../config/militaryActions';
@@ -960,37 +960,13 @@ export const useGameActions = (gameState, addLog) => {
         // 计算敌方时代（基于国家的出现和消失时代）
         const enemyEpoch = Math.max(targetNation.appearEpoch || 0, Math.min(epoch, targetNation.expireEpoch ?? epoch));
 
-        // 计算敌方军事实力（受战争消耗影响）
-        // 确保最小值为0.1，避免敌方完全没有军队
-        const militaryStrength = Math.max(0.1, targetNation.militaryStrength ?? 1.0); // 1.0 = 满实力，随战争降低
-        const wealthFactor = Math.max(0.3, Math.min(1.5, (targetNation.wealth || 500) / 800)); // 财富影响兵力
-        const aggressionFactor = 1 + (targetNation.aggression || 0.2);
-        const warScoreFactor = 1 + Math.max(-0.5, (targetNation.warScore || 0) / 120);
+        // 使用派遣比例生成敌方军队
+        const deploymentRatio = mission.deploymentRatio || { min: 0.1, max: 0.2 };
+        // 随机选择派遣比例范围内的值
+        const actualDeploymentRatio = deploymentRatio.min + Math.random() * (deploymentRatio.max - deploymentRatio.min);
 
-        // 综合实力系数：军事实力 × 财富 × 侵略性 × 战争分数
-        const overallStrength = militaryStrength * wealthFactor * aggressionFactor * warScoreFactor;
-
-        // 根据敌方时代和行动类型获取兵种池
-        const unitScale = mission.unitScale || 'medium';
-        const availableUnits = getEnemyUnitsForEpoch(enemyEpoch, unitScale);
-
-        // 生成敌方军队
-        const defenderArmy = {};
-        const baseCount = mission.baseUnitCount || { min: 10, max: 15 };
-        const totalUnitsBase = baseCount.min + Math.random() * (baseCount.max - baseCount.min);
-        const enemyTotalUnits = Math.floor(totalUnitsBase * overallStrength);
-
-        // 将总兵力分配到各兵种
-        availableUnits.forEach((unitId, index) => {
-            if (UNIT_TYPES[unitId]) {
-                // 每个兵种分配一定比例的兵力，带有随机性
-                const ratio = 0.5 + Math.random() * 0.8; // 0.5-1.3的随机比例
-                const count = Math.floor((enemyTotalUnits / availableUnits.length) * ratio);
-                if (count > 0) {
-                    defenderArmy[unitId] = count;
-                }
-            }
-        });
+        // 使用 generateNationArmy 生成敌方军队
+        const defenderArmy = generateNationArmy(targetNation, enemyEpoch, actualDeploymentRatio);
 
         const defenderData = {
             army: defenderArmy,
@@ -2832,6 +2808,25 @@ export const useGameActions = (gameState, addLog) => {
                             : n
                     ));
                     addLog(`🕊️ 与 ${target.name} 的战争结束，签订和平协议`);
+                }
+            }
+
+            // ========== 执政联盟修改效果 ==========
+            // modifyCoalition: { addToCoalition: 'stratumKey' } 或 { removeFromCoalition: 'stratumKey' }
+            if (effects.modifyCoalition) {
+                const { addToCoalition, removeFromCoalition } = effects.modifyCoalition;
+                if (addToCoalition && typeof gameState.setRulingCoalition === 'function') {
+                    gameState.setRulingCoalition(prev => {
+                        if (prev.includes(addToCoalition)) return prev;
+                        return [...prev, addToCoalition];
+                    });
+                    addLog(`🤝 ${getStratumName(addToCoalition)} 已加入执政联盟`);
+                }
+                if (removeFromCoalition && typeof gameState.setRulingCoalition === 'function') {
+                    gameState.setRulingCoalition(prev =>
+                        prev.filter(k => k !== removeFromCoalition)
+                    );
+                    addLog(`👋 ${getStratumName(removeFromCoalition)} 已退出执政联盟`);
                 }
             }
         };

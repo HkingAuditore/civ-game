@@ -99,3 +99,18 @@ export {
     createCoalitionRebellionEvent,
     calculateCoalitionPopLoss,
 };
+
+// 联盟加入诉求事件系统
+import {
+    checkCoalitionDemandCondition,
+    createCoalitionDemandEvent,
+    checkAndCreateCoalitionDemandEvent,
+    resetCoalitionEventCooldowns,
+} from './coalitionEvents';
+
+export {
+    checkCoalitionDemandCondition,
+    createCoalitionDemandEvent,
+    checkAndCreateCoalitionDemandEvent,
+    resetCoalitionEventCooldowns,
+};

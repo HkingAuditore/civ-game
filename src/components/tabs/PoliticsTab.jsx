@@ -466,7 +466,10 @@ const PoliticsTabComponent = ({
     classInfluence = {},
     totalInfluence = 0,
     legitimacy = 0,
-    classApproval = {}, // 新增：各阶层满意度
+    classApproval = {}, // 各阶层满意度
+    // 银币相关 props
+    silver = 0,
+    onSpendSilver,
 }) => {
     // 按类别分组政令
     const categories = {
@@ -753,7 +756,7 @@ const PoliticsTabComponent = ({
             const isMilitaryBuilding = building.cat === 'military';
             // 居住性建筑和军事建筑不收营业税，不在营业税面板显示
             if (isHousingBuilding || isMilitaryBuilding) return;
-            
+
             if (categories[cat]) {
                 categories[cat].buildings.push(building);
             }
@@ -905,6 +908,8 @@ const PoliticsTabComponent = ({
                     legitimacy={legitimacy}
                     popStructure={popStructure}
                     classApproval={classApproval}
+                    silver={silver}
+                    onSpendSilver={onSpendSilver}
                 />
             )}
 

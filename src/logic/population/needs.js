@@ -28,7 +28,8 @@ export const processNeedsConsumption = ({
     roleWagePayout,
     classIncome = {}, // 新增：收入数据
     tick,
-    logs
+    logs,
+    producedResources = null  // 已生产资源集合（用于门控需求）
 }) => {
     const res = { ...resources };
     const updatedWealth = { ...wealth };
@@ -115,6 +116,9 @@ export const processNeedsConsumption = ({
         Object.entries(effectiveNeeds).forEach(([resKey, base]) => {
             // Skip if resource not unlocked
             if (!isResourceUnlocked(resKey, epoch, techsUnlocked)) return;
+
+            // 检查是否有生产该资源的建筑（无建筑则无需求）
+            if (producedResources && !producedResources.has(resKey)) return;
 
             const perCapita = base * needsRequirementMultiplier;
             const requirement = perCapita * count;

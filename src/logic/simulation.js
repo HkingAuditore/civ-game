@@ -1720,7 +1720,7 @@ export const simulateTick = ({
                 // Fallback to epoch check for resources without tech requirement
                 continue;
             }
-            if (!potentialResources.has(resKey)) {
+            if (!producedResources.has(resKey)) {
                 continue;
             }
 
