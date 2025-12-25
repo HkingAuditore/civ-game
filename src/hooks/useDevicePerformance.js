@@ -71,8 +71,8 @@ function detectLowEndDevice() {
                         'rx 6', 'rx 7',                         // AMD RX 6000/7000 系列
                         'arc a7',                               // Intel Arc 高端
                         'apple m1', 'apple m2', 'apple m3', 'apple m4', // Apple Silicon
-                        'adreno 7', 'adreno 8',                 // 高通高端
-                        'mali-g7', 'mali-g9',                   // ARM 高端
+                        'adreno 8',                 // 高通高端
+                        'mali-g9',                   // ARM 高端
                     ];
                     
                     const isHighEndGPU = highEndGPUs.some(gpu => rendererLower.includes(gpu.toLowerCase()));
