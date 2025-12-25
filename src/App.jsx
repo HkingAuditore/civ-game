@@ -43,6 +43,8 @@ import { UnitDetailSheet } from './components/panels/UnitDetailSheet';
 import { TechDetailSheet } from './components/panels/TechDetailSheet';
 import { DecreeDetailSheet } from './components/panels/DecreeDetailSheet';
 import { EventDetail } from './components/modals/EventDetail';
+import { DifficultySelectionModal } from './components/modals/DifficultySelectionModal';
+import { SaveSlotModal } from './components/modals/SaveSlotModal';
 import { executeStrategicAction, STRATEGIC_ACTIONS } from './logic/strategicActions';
 import { getOrganizationStage, getPhaseFromStage } from './logic/organizationSystem';
 import { createPromiseTask, PROMISE_CONFIG } from './logic/promiseTasks';
@@ -164,6 +166,9 @@ function GameApp({ gameState }) {
 
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isWikiOpen, setIsWikiOpen] = useState(false);
+    const [showDifficultyModal, setShowDifficultyModal] = useState(false); // 难度选择弹窗
+    const [showSaveSlotModal, setShowSaveSlotModal] = useState(false); // 存档槽位弹窗
+    const [saveSlotModalMode, setSaveSlotModalMode] = useState('save'); // 'save' | 'load'
     const [showEmpireScene, setShowEmpireScene] = useState(false);
     const [activeSheet, setActiveSheet] = useState({ type: null, data: null });
 
@@ -340,6 +345,9 @@ function GameApp({ gameState }) {
         localStorage.setItem('tutorial_completed', 'true');
         addLog('ℹ️ 已跳过教程，可以在右侧查看统治指南。');
     };
+
+    // 删除 GameControls 中的 confirm 对话框，使用弹窗替代
+    // 参见 GameControls.jsx 中的重置按钮
 
     // 重新打开教程
     const handleReopenTutorial = () => {
@@ -636,19 +644,25 @@ function GameApp({ gameState }) {
     const autoSaveAvailable = gameState.hasAutoSave();
 
     const handleManualSave = () => {
-        gameState.saveGame();
+        // 打开保存弹窗
+        setSaveSlotModalMode('save');
+        setShowSaveSlotModal(true);
     };
 
     const handleLoadManual = () => {
-        gameState.loadGame({ source: 'manual' });
+        // 打开加载弹窗
+        setSaveSlotModalMode('load');
+        setShowSaveSlotModal(true);
     };
 
-    const handleLoadAuto = () => {
-        if (!gameState.hasAutoSave()) {
-            addLog('⚠️ 暂未检测到自动存档。');
-            return;
-        }
-        gameState.loadGame({ source: 'auto' });
+    const handleSaveToSlot = (slotIndex) => {
+        gameState.saveGame({ slotIndex });
+        setShowSaveSlotModal(false);
+    };
+
+    const handleLoadFromSlot = (slotIndex) => {
+        gameState.loadGame({ slotIndex });
+        setShowSaveSlotModal(false);
     };
 
     const handleExportSave = async () => {
@@ -704,15 +718,13 @@ function GameApp({ gameState }) {
                             onPauseToggle={() => gameState.setIsPaused(!gameState.isPaused)}
                             onSpeedChange={(speed) => gameState.setGameSpeed(speed)}
                             onSave={handleManualSave}
-                            onLoadManual={handleLoadManual}
-                            onLoadAuto={handleLoadAuto}
+                            onLoad={handleLoadManual}
                             onExportSave={handleExportSave}
                             onImportSave={handleImportSave}
                             onSettings={() => setIsSettingsOpen(true)}
-                            onReset={() => gameState.resetGame()}
+                            onReset={() => setShowDifficultyModal(true)}
                             onTutorial={handleReopenTutorial}
                             onWiki={() => setIsWikiOpen(true)}
-                            autoSaveAvailable={autoSaveAvailable}
                             onTriggerEvent={actions.triggerRandomEvent}
                         />
                     }
@@ -727,16 +739,14 @@ function GameApp({ gameState }) {
                         onPauseToggle={() => gameState.setIsPaused(!gameState.isPaused)}
                         onSpeedChange={(speed) => gameState.setGameSpeed(speed)}
                         onSave={handleManualSave}
-                        onLoadManual={handleLoadManual}
-                        onLoadAuto={handleLoadAuto}
+                        onLoad={handleLoadManual}
                         onExportSave={handleExportSave}
                         onImportSave={handleImportSave}
                         onSettings={() => setIsSettingsOpen(true)}
-                        onReset={() => gameState.resetGame()}
+                        onReset={() => setShowDifficultyModal(true)}
                         onTutorial={handleReopenTutorial}
                         onWiki={() => setIsWikiOpen(true)}
                         menuDirection="up"
-                        autoSaveAvailable={autoSaveAvailable}
                         onTriggerEvent={actions.triggerRandomEvent}
                     />
                 </div>
@@ -1530,12 +1540,8 @@ function GameApp({ gameState }) {
                             onToggleAutoSave={gameState.setIsAutoSaveEnabled}
                             onIntervalChange={gameState.setAutoSaveInterval}
                             lastAutoSaveTime={gameState.lastAutoSaveTime}
-                            onManualSave={handleManualSave}
-                            onManualLoad={handleLoadManual}
-                            onAutoLoad={handleLoadAuto}
                             onExportSave={handleExportSave}
                             onImportSave={handleImportSave}
-                            autoSaveAvailable={autoSaveAvailable}
                             isSaving={gameState.isSaving}
                             timeSettings={gameState.eventEffectSettings}
                             onTimeSettingsChange={gameState.setEventEffectSettings}
@@ -1546,6 +1552,24 @@ function GameApp({ gameState }) {
                     </div>
                 </div>
             )}
+
+            {/* 难度选择弹窗 */}
+            <DifficultySelectionModal
+                isOpen={showDifficultyModal}
+                onConfirm={(selectedDifficulty) => {
+                    setShowDifficultyModal(false);
+                    gameState.resetGame(selectedDifficulty);
+                }}
+                onCancel={() => setShowDifficultyModal(false)}
+            />
+
+            {/* 存档槽位选择弹窗 */}
+            <SaveSlotModal
+                isOpen={showSaveSlotModal}
+                mode={saveSlotModalMode}
+                onSelect={saveSlotModalMode === 'save' ? handleSaveToSlot : handleLoadFromSlot}
+                onCancel={() => setShowSaveSlotModal(false)}
+            />
         </div>
     );
 }

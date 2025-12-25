@@ -18,20 +18,17 @@ export const GameControls = ({
     onPauseToggle,
     onSpeedChange,
     onSave,
-    onLoadManual,
-    onLoadAuto,
+    onLoad,
     onExportSave,
     onImportSave,
     onSettings,
     onReset,
     onTutorial,
     onWiki,
-    autoSaveAvailable,
     menuDirection = 'down',
     onTriggerEvent,
 }) => {
     const [isGameMenuOpen, setIsGameMenuOpen] = useState(false);
-    const [isLoadMenuOpen, setIsLoadMenuOpen] = useState(false);
     const [isHelpMenuOpen, setIsHelpMenuOpen] = useState(false);
     const [gameMenuPos, setGameMenuPos] = useState(null);
     const [helpMenuPos, setHelpMenuPos] = useState(null);
@@ -241,85 +238,46 @@ export const GameControls = ({
                                         <span className="ml-2">保存进度</span>
                                     </button>
 
+                                    <button
+                                        onClick={() => { onLoad(); setIsGameMenuOpen(false); }}
+                                        className="w-full flex items-center px-3 py-2 text-[10px] font-semibold text-purple-300 hover:bg-ancient-gold/10 transition-colors rounded touch-feedback"
+                                    >
+                                        <Icon name="Upload" size={12} />
+                                        <span className="ml-2">读取存档</span>
+                                    </button>
+
                                     <div className="relative">
                                         <button
-                                            onClick={() => setIsLoadMenuOpen(!isLoadMenuOpen)}
-                                            className="w-full flex items-center justify-between px-3 py-2 text-[10px] font-semibold text-purple-300 hover:bg-ancient-gold/10 transition-colors rounded touch-feedback"
+                                            onClick={async () => {
+                                                if (typeof onExportSave === 'function') {
+                                                    await onExportSave();
+                                                }
+                                                setIsGameMenuOpen(false);
+                                            }}
+                                            disabled={!onExportSave}
+                                            className={cn(
+                                                'w-full flex items-center px-3 py-2 text-[10px] font-semibold transition-colors rounded touch-feedback',
+                                                onExportSave ? 'text-emerald-200 hover:bg-ancient-gold/10' : 'text-ancient-stone/40 cursor-not-allowed'
+                                            )}
                                         >
-                                            <div className="flex items-center">
-                                                <Icon name="Upload" size={12} />
-                                                <span className="ml-2">读取存档</span>
-                                            </div>
-                                            <Icon name={isLoadMenuOpen ? 'ChevronDown' : 'ChevronRight'} size={10} />
+                                            <Icon name="UploadCloud" size={10} />
+                                            <span className="ml-2">导出存档</span>
                                         </button>
-
-                                        {isLoadMenuOpen && (
-                                            <div className={cn(
-                                                'absolute w-36 rounded-lg border border-ancient-gold/30 glass-epic shadow-monument py-1 animate-slide-up',
-                                                menuDirection === 'up'
-                                                    ? 'right-full bottom-0 mr-1 origin-bottom-right'
-                                                    : 'right-full top-0 mr-1 origin-top-right'
-                                            )}>
-                                                <button
-                                                    onClick={() => { onLoadManual(); setIsGameMenuOpen(false); setIsLoadMenuOpen(false); }}
-                                                    className="w-full flex items-center px-3 py-2 text-[10px] font-semibold text-ancient-parchment hover:bg-ancient-gold/10 transition-colors rounded touch-feedback"
-                                                >
-                                                    <Icon name="Upload" size={10} />
-                                                    <span className="ml-2">手动存档</span>
-                                                </button>
-                                                <button
-                                                    onClick={() => {
-                                                        if (autoSaveAvailable) {
-                                                            onLoadAuto();
-                                                            setIsGameMenuOpen(false);
-                                                            setIsLoadMenuOpen(false);
-                                                        }
-                                                    }}
-                                                    disabled={!autoSaveAvailable}
-                                                    className={cn(
-                                                        'w-full flex items-center justify-between px-3 py-2 text-[10px] font-semibold transition-colors rounded touch-feedback',
-                                                        autoSaveAvailable
-                                                            ? 'text-amber-300 hover:bg-ancient-gold/10'
-                                                            : 'text-ancient-stone/40 cursor-not-allowed'
-                                                    )}
-                                                >
-                                                    <span className="ml-2">自动存档</span>
-                                                    <Icon name="Clock" size={10} />
-                                                </button>
-                                                <button
-                                                    onClick={async () => {
-                                                        if (typeof onExportSave === 'function') {
-                                                            await onExportSave();
-                                                        }
-                                                        setIsGameMenuOpen(false);
-                                                        setIsLoadMenuOpen(false);
-                                                    }}
-                                                    disabled={!onExportSave}
-                                                    className={cn(
-                                                        'w-full flex items-center px-3 py-2 text-[10px] font-semibold transition-colors rounded touch-feedback',
-                                                        onExportSave ? 'text-emerald-200 hover:bg-ancient-gold/10' : 'text-ancient-stone/40 cursor-not-allowed'
-                                                    )}
-                                                >
-                                                    <Icon name="UploadCloud" size={10} />
-                                                    <span className="ml-2">导出存档</span>
-                                                </button>
-                                                <button
-                                                    onClick={() => {
-                                                        if (onImportSave) {
-                                                            importInputRef.current?.click();
-                                                        }
-                                                    }}
-                                                    disabled={!onImportSave}
-                                                    className={cn(
-                                                        'w-full flex items-center px-3 py-2 text-[10px] font-semibold transition-colors rounded touch-feedback',
-                                                        onImportSave ? 'text-blue-200 hover:bg-ancient-gold/10' : 'text-ancient-stone/40 cursor-not-allowed'
-                                                    )}
-                                                >
-                                                    <Icon name="DownloadCloud" size={10} />
-                                                    <span className="ml-2">导入存档</span>
-                                                </button>
-                                            </div>
-                                        )}
+                                        <button
+                                            onClick={() => {
+                                                if (onImportSave) {
+                                                    importInputRef.current?.click();
+                                                }
+                                            }}
+                                            disabled={!onImportSave}
+                                            className={cn(
+                                                'w-full flex items-center px-3 py-2 text-[10px] font-semibold transition-colors rounded touch-feedback',
+                                                onImportSave ? 'text-blue-200 hover:bg-ancient-gold/10' : 'text-ancient-stone/40 cursor-not-allowed'
+                                            )}
+                                        >
+                                            <Icon name="DownloadCloud" size={10} />
+                                            <span className="ml-2">导入存档</span>
+                                        </button>
                                     </div>
 
                                     <button
@@ -334,10 +292,8 @@ export const GameControls = ({
 
                                     <button
                                         onClick={() => {
-                                            if (window.confirm('确定要重置游戏吗？所有进度将丢失。')) {
-                                                onReset();
-                                                setIsGameMenuOpen(false);
-                                            }
+                                            onReset();
+                                            setIsGameMenuOpen(false);
                                         }}
                                         className="w-full flex items-center px-3 py-2 text-[10px] font-semibold text-red-300 hover:bg-red-500/10 transition-colors rounded touch-feedback"
                                     >

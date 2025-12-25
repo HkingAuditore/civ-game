@@ -35,8 +35,8 @@ const PerformanceModeSection = () => {
                         type="button"
                         onClick={() => setPerformanceMode(opt.value)}
                         className={`flex-1 px-3 py-2 rounded-lg border text-xs transition-colors ${performanceMode === opt.value
-                                ? 'bg-emerald-700/40 border-emerald-500/50 text-emerald-200'
-                                : 'bg-gray-700/30 border-gray-600/50 text-gray-300 hover:bg-gray-700/50'
+                            ? 'bg-emerald-700/40 border-emerald-500/50 text-emerald-200'
+                            : 'bg-gray-700/30 border-gray-600/50 text-gray-300 hover:bg-gray-700/50'
                             }`}
                     >
                         <div className="font-medium">{opt.label}</div>
@@ -72,7 +72,7 @@ const PerformanceModeSection = () => {
  */
 const DifficultySectionComponent = ({ currentDifficulty, onDifficultyChange }) => {
     const difficultyOptions = getDifficultyOptions();
-    
+
     return (
         <div className="border-t border-gray-700 pt-4 space-y-3">
             <h4 className="text-sm font-bold text-gray-200 flex items-center gap-2">
@@ -88,15 +88,14 @@ const DifficultySectionComponent = ({ currentDifficulty, onDifficultyChange }) =
                         key={opt.id}
                         type="button"
                         onClick={() => onDifficultyChange && onDifficultyChange(opt.id)}
-                        className={`flex-1 px-3 py-2 rounded-lg border text-xs transition-colors ${
-                            currentDifficulty === opt.id
+                        className={`flex-1 px-3 py-2 rounded-lg border text-xs transition-colors ${currentDifficulty === opt.id
                                 ? opt.id === DIFFICULTY_LEVELS.EASY
                                     ? 'bg-emerald-700/40 border-emerald-500/50 text-emerald-200'
                                     : opt.id === DIFFICULTY_LEVELS.HARD
                                         ? 'bg-red-700/40 border-red-500/50 text-red-200'
                                         : 'bg-amber-700/40 border-amber-500/50 text-amber-200'
                                 : 'bg-gray-700/30 border-gray-600/50 text-gray-300 hover:bg-gray-700/50'
-                        }`}
+                            }`}
                     >
                         <div className="font-medium">
                             <span className="mr-1">{opt.icon}</span>
@@ -108,10 +107,9 @@ const DifficultySectionComponent = ({ currentDifficulty, onDifficultyChange }) =
             </div>
 
             <div className="text-[11px] text-gray-400 flex items-center gap-2">
-                <span className={`w-2 h-2 rounded-full ${
-                    currentDifficulty === DIFFICULTY_LEVELS.EASY ? 'bg-emerald-400' :
-                    currentDifficulty === DIFFICULTY_LEVELS.HARD ? 'bg-red-400' : 'bg-amber-400'
-                }`} />
+                <span className={`w-2 h-2 rounded-full ${currentDifficulty === DIFFICULTY_LEVELS.EASY ? 'bg-emerald-400' :
+                        currentDifficulty === DIFFICULTY_LEVELS.HARD ? 'bg-red-400' : 'bg-amber-400'
+                    }`} />
                 当前难度：{difficultyOptions.find(o => o.id === currentDifficulty)?.name || '普通'}
             </div>
 
@@ -167,12 +165,8 @@ export const SettingsPanel = ({
     onToggleAutoSave,
     onIntervalChange,
     lastAutoSaveTime,
-    onManualSave,
-    onManualLoad,
-    onAutoLoad,
     onExportSave,
     onImportSave,
-    autoSaveAvailable,
     isSaving,
     onClose,
     timeSettings,
@@ -323,42 +317,7 @@ export const SettingsPanel = ({
                 <span>上次自动存档：{renderLastAutoSave()}</span>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 text-xs">
-                <button
-                    type="button"
-                    onClick={onManualSave}
-                    className="flex items-center justify-center gap-1 px-3 py-2 rounded-lg bg-emerald-700/30 hover:bg-emerald-700/50 border border-emerald-500/30 text-emerald-200 transition-colors"
-                >
-                    <Icon name="Save" size={14} />
-                    手动存档
-                </button>
-                <button
-                    type="button"
-                    onClick={onManualLoad}
-                    className="flex items-center justify-center gap-1 px-3 py-2 rounded-lg bg-purple-700/30 hover:bg-purple-700/50 border border-purple-500/30 text-purple-200 transition-colors"
-                >
-                    <Icon name="Download" size={14} />
-                    读手动档
-                </button>
-                <button
-                    type="button"
-                    onClick={onAutoLoad}
-                    disabled={!autoSaveAvailable}
-                    className={`col-span-2 flex items-center justify-center gap-1 px-3 py-2 rounded-lg border transition-colors ${autoSaveAvailable
-                        ? 'bg-amber-700/30 hover:bg-amber-700/50 border-amber-500/30 text-amber-200'
-                        : 'bg-gray-700/40 border-gray-600 text-gray-400 cursor-not-allowed'
-                        }`}
-                    title={autoSaveAvailable ? '读取最近的自动存档' : '暂无自动存档'}
-                >
-                    <Icon name="Clock" size={14} />
-                    读自动档
-                </button>
-            </div>
 
-            <div className="text-[11px] text-gray-400 flex items-center gap-2">
-                <span className={`w-2 h-2 rounded-full ${autoSaveAvailable ? 'bg-emerald-400' : 'bg-gray-500'}`} />
-                {autoSaveAvailable ? '检测到自动存档，可随时读取。' : '尚未生成自动存档。'}
-            </div>
 
             <div className="border-t border-gray-700 pt-4 space-y-3">
                 <h4 className="text-sm font-bold text-gray-200 flex items-center gap-2">

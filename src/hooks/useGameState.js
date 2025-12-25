@@ -4,13 +4,82 @@
 import { useEffect, useRef, useState } from 'react';
 import { DECREES, COUNTRIES, RESOURCES, STRATA } from '../config';
 import { isOldUpgradeFormat, migrateUpgradesToNewFormat } from '../utils/buildingUpgradeUtils';
-import { DEFAULT_DIFFICULTY } from '../config/difficulty';
+import { DEFAULT_DIFFICULTY, getDifficultyConfig } from '../config/difficulty';
 
-const SAVE_KEY = 'civ_game_save_data_v1';
+// 多存档槽位系统
+const SAVE_SLOT_COUNT = 3; // 手动存档槽位数量
+const SAVE_SLOT_PREFIX = 'civ_game_save_slot_';
 const AUTOSAVE_KEY = 'civ_game_autosave_v1';
 const SAVE_FORMAT_VERSION = 1;
 const SAVE_FILE_EXTENSION = 'cgsave';
 const SAVE_OBFUSCATION_KEY = 'civ_game_simple_mask_v1';
+
+// 兼容旧存档的 key（用于迁移）
+const LEGACY_SAVE_KEY = 'civ_game_save_data_v1';
+
+/**
+ * 获取所有存档槽位信息
+ * @returns {Array} 存档槽位信息数组
+ */
+export const getAllSaveSlots = () => {
+    if (typeof window === 'undefined') return [];
+
+    const slots = [];
+
+    // 获取手动存档槽位
+    for (let i = 0; i < SAVE_SLOT_COUNT; i++) {
+        const key = `${SAVE_SLOT_PREFIX}${i}`;
+        const raw = localStorage.getItem(key);
+        if (raw) {
+            try {
+                const data = JSON.parse(raw);
+                const diffConfig = getDifficultyConfig(data.difficulty);
+                slots.push({
+                    slotIndex: i,
+                    isEmpty: false,
+                    name: `存档 ${i + 1}`,
+                    updatedAt: data.updatedAt,
+                    daysElapsed: data.daysElapsed || 0,
+                    epoch: data.epoch || 0,
+                    population: data.population || 0,
+                    difficulty: data.difficulty || DEFAULT_DIFFICULTY,
+                    difficultyName: diffConfig?.name || '普通',
+                    difficultyIcon: diffConfig?.icon || '⚖️',
+                });
+            } catch (e) {
+                slots.push({ slotIndex: i, isEmpty: true, name: `存档 ${i + 1}` });
+            }
+        } else {
+            slots.push({ slotIndex: i, isEmpty: true, name: `存档 ${i + 1}` });
+        }
+    }
+
+    // 获取自动存档
+    const autoRaw = localStorage.getItem(AUTOSAVE_KEY);
+    if (autoRaw) {
+        try {
+            const data = JSON.parse(autoRaw);
+            const diffConfig = getDifficultyConfig(data.difficulty);
+            slots.push({
+                slotIndex: -1,
+                isAutoSave: true,
+                isEmpty: false,
+                name: '自动存档',
+                updatedAt: data.updatedAt,
+                daysElapsed: data.daysElapsed || 0,
+                epoch: data.epoch || 0,
+                population: data.population || 0,
+                difficulty: data.difficulty || DEFAULT_DIFFICULTY,
+                difficultyName: diffConfig?.name || '普通',
+                difficultyIcon: diffConfig?.icon || '⚖️',
+            });
+        } catch (e) {
+            // 自动存档损坏，忽略
+        }
+    }
+
+    return slots;
+};
 
 const textEncoder = typeof TextEncoder !== 'undefined' ? new TextEncoder() : null;
 const textDecoder = typeof TextDecoder !== 'undefined' ? new TextDecoder() : null;
@@ -471,43 +540,73 @@ export const useGameState = () => {
         hasInitializedRef.current = true;
 
         try {
-            const autoRaw = localStorage.getItem(AUTOSAVE_KEY);
-            const manualRaw = localStorage.getItem(SAVE_KEY);
+            // 收集所有存档的时间戳
+            const saves = [];
 
-            if (!autoRaw && !manualRaw) {
-                // No saves found, start fresh
-                return;
+            // 检查手动存档槽位
+            for (let i = 0; i < SAVE_SLOT_COUNT; i++) {
+                const key = `${SAVE_SLOT_PREFIX}${i}`;
+                const raw = localStorage.getItem(key);
+                if (raw) {
+                    try {
+                        const data = JSON.parse(raw);
+                        if (data.updatedAt) {
+                            saves.push({ slotIndex: i, updatedAt: data.updatedAt, source: 'manual' });
+                        }
+                    } catch (e) {
+                        console.warn(`Failed to parse slot ${i}:`, e);
+                    }
+                }
             }
 
-            let autoTime = 0;
-            let manualTime = 0;
-
+            // 检查自动存档
+            const autoRaw = localStorage.getItem(AUTOSAVE_KEY);
             if (autoRaw) {
                 try {
                     const autoData = JSON.parse(autoRaw);
-                    autoTime = autoData?.updatedAt || 0;
+                    if (autoData.updatedAt) {
+                        saves.push({ slotIndex: -1, updatedAt: autoData.updatedAt, source: 'auto' });
+                    }
                 } catch (e) {
                     console.warn('Failed to parse auto-save:', e);
                 }
             }
 
-            if (manualRaw) {
+            // 检查旧版存档并迁移到槽位0
+            const legacyRaw = localStorage.getItem(LEGACY_SAVE_KEY);
+            if (legacyRaw && saves.filter(s => s.source === 'manual').length === 0) {
                 try {
-                    const manualData = JSON.parse(manualRaw);
-                    manualTime = manualData?.updatedAt || 0;
+                    // 迁移旧存档到槽位0
+                    localStorage.setItem(`${SAVE_SLOT_PREFIX}0`, legacyRaw);
+                    localStorage.removeItem(LEGACY_SAVE_KEY);
+                    const legacyData = JSON.parse(legacyRaw);
+                    if (legacyData.updatedAt) {
+                        saves.push({ slotIndex: 0, updatedAt: legacyData.updatedAt, source: 'manual' });
+                    }
+                    console.log('Migrated legacy save to slot 0');
                 } catch (e) {
-                    console.warn('Failed to parse manual save:', e);
+                    console.warn('Failed to migrate legacy save:', e);
                 }
             }
 
-            // Load the most recent save
-            if (autoTime > 0 || manualTime > 0) {
-                const loadSource = autoTime > manualTime ? 'auto' : 'manual';
-                // Use setTimeout to ensure loadGame has access to addLogEntry
-                setTimeout(() => {
-                    loadGame({ source: loadSource });
-                }, 0);
+            if (saves.length === 0) {
+                // No saves found, start fresh - check for new game difficulty
+                const newGameDifficulty = localStorage.getItem('new_game_difficulty');
+                if (newGameDifficulty) {
+                    setDifficulty(newGameDifficulty);
+                    localStorage.removeItem('new_game_difficulty');
+                }
+                return;
             }
+
+            // 找到最新的存档
+            saves.sort((a, b) => b.updatedAt - a.updatedAt);
+            const mostRecent = saves[0];
+
+            // Use setTimeout to ensure loadGame has access to addLogEntry
+            setTimeout(() => {
+                loadGame({ source: mostRecent.source, slotIndex: mostRecent.slotIndex });
+            }, 0);
         } catch (error) {
             console.warn('Auto-load failed:', error);
         }
@@ -714,17 +813,31 @@ export const useGameState = () => {
         setPromiseTasks(data.promiseTasks || []);
     };
 
-    const saveGame = ({ source = 'manual' } = {}) => {
+    const saveGame = ({ source = 'manual', slotIndex = 0 } = {}) => {
         try {
             const timestamp = Date.now();
             const { payload } = buildSavePayload({ source, timestamp });
-            const targetKey = source === 'auto' ? AUTOSAVE_KEY : SAVE_KEY;
+
+            // 确定存储 key
+            let targetKey;
+            let friendlyName;
+            if (source === 'auto') {
+                targetKey = AUTOSAVE_KEY;
+                friendlyName = '自动存档';
+            } else {
+                // 手动存档使用槽位
+                const safeIndex = Math.max(0, Math.min(SAVE_SLOT_COUNT - 1, slotIndex));
+                targetKey = `${SAVE_SLOT_PREFIX}${safeIndex}`;
+                friendlyName = `存档 ${safeIndex + 1}`;
+            }
+
             localStorage.setItem(targetKey, JSON.stringify(payload));
             triggerSavingIndicator();
+
             if (source === 'auto') {
                 setLastAutoSaveTime(timestamp);
             } else {
-                addLogEntry('💾 游戏已成功保存！');
+                addLogEntry(`💾 游戏已保存到${friendlyName}！`);
             }
         } catch (error) {
             console.error(`${source === 'auto' ? 'Auto' : 'Manual'} save failed:`, error);
@@ -737,21 +850,37 @@ export const useGameState = () => {
         }
     };
 
-    const loadGame = ({ source = 'manual' } = {}) => {
+    const loadGame = ({ source = 'manual', slotIndex = 0 } = {}) => {
         try {
-            const targetKey = source === 'auto' ? AUTOSAVE_KEY : SAVE_KEY;
-            const friendly = source === 'auto' ? '自动' : '手动';
+            // 确定存储 key
+            let targetKey;
+            let friendlyName;
+
+            if (source === 'auto' || slotIndex === -1) {
+                // 加载自动存档
+                targetKey = AUTOSAVE_KEY;
+                friendlyName = '自动存档';
+            } else {
+                // 加载手动存档槽位
+                const safeIndex = Math.max(0, Math.min(SAVE_SLOT_COUNT - 1, slotIndex));
+                targetKey = `${SAVE_SLOT_PREFIX}${safeIndex}`;
+                friendlyName = `存档 ${safeIndex + 1}`;
+            }
+
             const rawData = localStorage.getItem(targetKey);
             if (!rawData) {
-                addLogEntry(`⚠️ 未找到任何${friendly}存档数据。`);
-                return;
+                addLogEntry(`⚠️ 未找到${friendlyName}数据。`);
+                return false;
             }
+
             const data = JSON.parse(rawData);
             applyLoadedGameState(data);
-            addLogEntry(source === 'auto' ? '📂 自动存档读取成功！' : '📂 读取存档成功！');
+            addLogEntry(`📂 ${friendlyName}读取成功！`);
+            return true;
         } catch (error) {
             console.error('Load game failed:', error);
             addLogEntry(`❌ 读取存档失败：${error.message}`);
+            return false;
         }
     };
 
@@ -823,7 +952,7 @@ export const useGameState = () => {
                 updatedAt: processed.updatedAt || parsed.updatedAt || Date.now(),
                 lastAutoSaveTime: processed.lastAutoSaveTime || lastAutoSaveTime || Date.now(),
             };
-            localStorage.setItem(SAVE_KEY, JSON.stringify(normalized));
+            localStorage.setItem(`${SAVE_SLOT_PREFIX}0`, JSON.stringify(normalized));
             applyLoadedGameState(normalized);
             addLogEntry('📥 已从备份文件导入存档！');
             return true;
@@ -834,14 +963,20 @@ export const useGameState = () => {
         }
     };
 
-    const resetGame = () => {
+    const resetGame = (selectedDifficulty = null) => {
         if (typeof window === 'undefined') {
             return;
         }
-        const confirmed = window.confirm('确认要重置游戏并清除存档吗？该操作不可撤销。');
-        if (!confirmed) return;
-        localStorage.removeItem(SAVE_KEY);
+        // 清除所有存档槽位
+        for (let i = 0; i < SAVE_SLOT_COUNT; i++) {
+            localStorage.removeItem(`${SAVE_SLOT_PREFIX}${i}`);
+        }
         localStorage.removeItem(AUTOSAVE_KEY);
+        localStorage.removeItem(LEGACY_SAVE_KEY);
+        // 如果指定了难度，保存到 localStorage 以便新游戏启动时使用
+        if (selectedDifficulty) {
+            localStorage.setItem('new_game_difficulty', selectedDifficulty);
+        }
         window.location.reload();
     };
 
