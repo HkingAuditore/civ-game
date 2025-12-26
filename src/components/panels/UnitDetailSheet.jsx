@@ -42,11 +42,58 @@ export const UnitDetailSheet = ({
   // 当前拥有的该单位数量
   const currentCount = army[unit.id] || 0;
   const hasUnits = currentCount > 0;
+  const [longPressState, setLongPressState] = React.useState({ active: false, progress: 0 });
+  const longPressRef = React.useRef({ timer: null, raf: null, start: 0, triggered: false });
 
   // 获取类别信息
   const categoryInfo = UNIT_CATEGORIES[unit.category] || {};
   // 获取时代信息
   const epochInfo = EPOCHS[unit.epoch] || {};
+
+  const clearLongPress = () => {
+    if (longPressRef.current.timer) clearTimeout(longPressRef.current.timer);
+    if (longPressRef.current.raf) cancelAnimationFrame(longPressRef.current.raf);
+    longPressRef.current.timer = null;
+    longPressRef.current.raf = null;
+    longPressRef.current.start = 0;
+    longPressRef.current.triggered = false;
+    setLongPressState({ active: false, progress: 0 });
+  };
+
+  const startLongPress = () => {
+    clearLongPress();
+    longPressRef.current.start = performance.now();
+    longPressRef.current.triggered = false;
+    setLongPressState({ active: true, progress: 0 });
+
+    const tick = (now) => {
+      const elapsed = now - longPressRef.current.start;
+      const progress = Math.min(1, elapsed / 500);
+      setLongPressState({ active: true, progress });
+      if (progress < 1 && !longPressRef.current.triggered) {
+        longPressRef.current.raf = requestAnimationFrame(tick);
+      }
+    };
+
+    longPressRef.current.raf = requestAnimationFrame(tick);
+    longPressRef.current.timer = setTimeout(() => {
+      longPressRef.current.triggered = true;
+      setLongPressState({ active: true, progress: 1 });
+      if (onDisbandAll) {
+        onDisbandAll(unit.id);
+        onClose();
+      }
+    }, 500);
+  };
+
+  const handlePressEnd = () => {
+    const { triggered } = longPressRef.current;
+    clearLongPress();
+    if (!triggered && onDisband) {
+      onDisband(unit.id);
+      onClose();
+    }
+  };
 
   return (
     <div className="space-y-2">
@@ -313,9 +360,9 @@ export const UnitDetailSheet = ({
             }
           }}
           disabled={!canAfford || !onRecruit}
-          className={`flex-1 flex items-center justify-center gap-1 px-2 py-2 rounded font-bold text-xs transition-all ${
+          className={`flex-1 flex items-center justify-center gap-1 px-2 py-2 rounded font-bold text-xs transition-all active:scale-95 ${
             canAfford && onRecruit
-              ? 'bg-green-600 hover:bg-green-500 text-white active:scale-95'
+              ? 'bg-green-600 hover:bg-green-500 text-white active:brightness-110'
               : 'bg-gray-600 text-gray-400 cursor-not-allowed'
           }`}
         >
@@ -327,69 +374,47 @@ export const UnitDetailSheet = ({
         <button
           onMouseDown={(e) => {
             if (!hasUnits || !onDisband) return;
-            const btn = e.currentTarget;
-            btn.dataset.longPressTriggered = 'false';
-            const timer = setTimeout(() => {
-              btn.dataset.longPressTriggered = 'true';
-              if (onDisbandAll) {
-                onDisbandAll(unit.id);
-                onClose();
-              }
-            }, 500);
-            btn.dataset.longPressTimer = String(timer);
+            e.stopPropagation();
+            startLongPress();
           }}
           onMouseUp={(e) => {
-            const btn = e.currentTarget;
-            clearTimeout(Number(btn.dataset.longPressTimer));
-            if (btn.dataset.longPressTriggered !== 'true') {
-              if (onDisband) {
-                onDisband(unit.id);
-                onClose();
-              }
-            }
+            e.stopPropagation();
+            handlePressEnd();
           }}
           onMouseLeave={(e) => {
-            clearTimeout(Number(e.currentTarget.dataset.longPressTimer));
+            clearLongPress();
           }}
           onContextMenu={(e) => {
             e.preventDefault();
           }}
           onTouchStart={(e) => {
             e.preventDefault();
-            const btn = e.currentTarget;
-            btn.dataset.longPressTriggered = 'false';
-            const timer = setTimeout(() => {
-              btn.dataset.longPressTriggered = 'true';
-              if (onDisbandAll) {
-                onDisbandAll(unit.id);
-                onClose();
-              }
-            }, 500);
-            btn.dataset.longPressTimer = String(timer);
+            startLongPress();
           }}
           onTouchMove={(e) => {
-            clearTimeout(Number(e.currentTarget.dataset.longPressTimer));
+            clearLongPress();
           }}
           onTouchEnd={(e) => {
             e.preventDefault();
-            const btn = e.currentTarget;
-            clearTimeout(Number(btn.dataset.longPressTimer));
-            if (btn.dataset.longPressTriggered !== 'true') {
-              if (onDisband) {
-                onDisband(unit.id);
-                onClose();
-              }
-            }
+            handlePressEnd();
           }}
           disabled={!hasUnits || !onDisband}
-          className={`px-3 py-2 rounded font-bold text-xs transition-all select-none ${
+          className={`relative overflow-hidden px-3 py-2 rounded font-bold text-xs transition-all select-none ${
             hasUnits && onDisband
               ? 'bg-red-600/80 hover:bg-red-500 text-white active:scale-95'
               : 'bg-gray-600 text-gray-400 cursor-not-allowed'
           }`}
           title="点击解散1个，长按解散全部"
         >
-          解散
+          <span className="relative z-10">解散</span>
+          {longPressState.active && longPressState.progress > 0 && (
+            <div className="absolute inset-0 bg-red-900/40">
+              <div
+                className="h-full bg-red-200/40"
+                style={{ width: `${Math.round(longPressState.progress * 100)}%` }}
+              />
+            </div>
+          )}
         </button>
       </div>
     </div>

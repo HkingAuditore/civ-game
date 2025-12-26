@@ -257,6 +257,9 @@ const MilitaryTabComponent = ({
 }) => {
     const [hoveredUnit, setHoveredUnit] = useState({ unit: null, element: null });
     const [showWarScoreInfo, setShowWarScoreInfo] = useState(false);
+    const [longPressState, setLongPressState] = useState({ unitId: null, progress: 0 });
+    const longPressRef = useRef({ timer: null, raf: null, start: 0, unitId: null, triggered: false });
+    const [activeSection, setActiveSection] = useState('soldiers');
     // More reliable hover detection: requires both hover capability AND fine pointer (mouse/trackpad)
     // This prevents tooltips from showing on touch devices that falsely report hover support
     const canHover = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
@@ -296,6 +299,50 @@ const MilitaryTabComponent = ({
             if (count > 0) snapshot[unitId] = count;
         });
         onUpdateTargetComposition(snapshot);
+    };
+
+    const clearLongPress = () => {
+        if (longPressRef.current.timer) clearTimeout(longPressRef.current.timer);
+        if (longPressRef.current.raf) cancelAnimationFrame(longPressRef.current.raf);
+        longPressRef.current.timer = null;
+        longPressRef.current.raf = null;
+        longPressRef.current.start = 0;
+        longPressRef.current.unitId = null;
+        longPressRef.current.triggered = false;
+        setLongPressState({ unitId: null, progress: 0 });
+    };
+
+    const startLongPress = (unitId) => {
+        clearLongPress();
+        longPressRef.current.unitId = unitId;
+        longPressRef.current.start = performance.now();
+        longPressRef.current.triggered = false;
+        setLongPressState({ unitId, progress: 0 });
+
+        const tick = (now) => {
+            if (longPressRef.current.unitId !== unitId) return;
+            const elapsed = now - longPressRef.current.start;
+            const progress = Math.min(1, elapsed / 500);
+            setLongPressState({ unitId, progress });
+            if (progress < 1 && !longPressRef.current.triggered) {
+                longPressRef.current.raf = requestAnimationFrame(tick);
+            }
+        };
+
+        longPressRef.current.raf = requestAnimationFrame(tick);
+        longPressRef.current.timer = setTimeout(() => {
+            longPressRef.current.triggered = true;
+            setLongPressState({ unitId, progress: 1 });
+            onDisbandAll && onDisbandAll(unitId);
+        }, 500);
+    };
+
+    const handlePressEnd = (unitId) => {
+        const { triggered } = longPressRef.current;
+        clearLongPress();
+        if (!triggered) {
+            onDisband(unitId);
+        }
     };
 
     const handleClearTargets = () => {
@@ -437,6 +484,32 @@ const MilitaryTabComponent = ({
 
     return (
         <div className="space-y-4">
+            <div className="flex items-center gap-2 text-sm rounded-full glass-ancient border border-ancient-gold/30 p-1 shadow-metal-sm">
+                <button
+                    className={`w-1/2 py-2 rounded-full border-2 transition-all ${activeSection === 'soldiers'
+                        ? 'bg-ancient-gold/20 border-ancient-gold/70 text-ancient-parchment shadow-gold-metal'
+                        : 'border-transparent text-ancient-stone hover:text-ancient-parchment'}`}
+                    onClick={() => setActiveSection('soldiers')}
+                >
+                    <span className="flex items-center justify-center gap-1.5 font-bold">
+                        <Icon name="Users" size={14} />
+                        士兵
+                    </span>
+                </button>
+                <button
+                    className={`w-1/2 py-2 rounded-full border-2 transition-all ${activeSection === 'battle'
+                        ? 'bg-red-900/40 border-ancient-gold/60 text-red-100 shadow-metal-sm'
+                        : 'border-transparent text-ancient-stone hover:text-ancient-parchment'}`}
+                    onClick={() => setActiveSection('battle')}
+                >
+                    <span className="flex items-center justify-center gap-1.5 font-bold">
+                        <Icon name="Swords" size={14} />
+                        战斗
+                    </span>
+                </button>
+            </div>
+            {activeSection === 'soldiers' && (
+                <>
             {/* 军队概览 */}
             <div className="glass-ancient p-4 rounded-xl border border-ancient-gold/30">
                 <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300 font-decorative">
@@ -716,8 +789,8 @@ const MilitaryTabComponent = ({
                                             onClick={(e) => { e.stopPropagation(); onRecruit(unitId); }}
                                             disabled={!affordable}
                                             title={!affordable ? getRecruitDisabledReason(unit) : '点击招募'}
-                                            className={`flex-1 px-2 py-1 rounded text-[10px] font-semibold transition-colors ${affordable
-                                                ? 'bg-green-600 hover:bg-green-500 text-white'
+                                            className={`flex-1 px-2 py-1 rounded text-[10px] font-semibold transition-all active:scale-95 ${affordable
+                                                ? 'bg-green-600 hover:bg-green-500 text-white active:brightness-110'
                                                 : 'bg-gray-600 text-gray-400 cursor-not-allowed'
                                                 }`}
                                         >
@@ -733,52 +806,36 @@ const MilitaryTabComponent = ({
                                             <button
                                                 onMouseDown={(e) => {
                                                     e.stopPropagation();
-                                                    const btn = e.currentTarget;
-                                                    btn.dataset.longPressTriggered = 'false';
-                                                    const timer = setTimeout(() => {
-                                                        btn.dataset.longPressTriggered = 'true';
-                                                        onDisbandAll && onDisbandAll(unitId);
-                                                    }, 500);
-                                                    btn.dataset.longPressTimer = String(timer);
+                                                    startLongPress(unitId);
                                                 }}
                                                 onMouseUp={(e) => {
                                                     e.stopPropagation();
-                                                    const btn = e.currentTarget;
-                                                    clearTimeout(Number(btn.dataset.longPressTimer));
-                                                    if (btn.dataset.longPressTriggered !== 'true') {
-                                                        onDisband(unitId);
-                                                    }
+                                                    handlePressEnd(unitId);
                                                 }}
-                                                onMouseLeave={(e) => {
-                                                    clearTimeout(Number(e.currentTarget.dataset.longPressTimer));
-                                                }}
+                                                onMouseLeave={() => clearLongPress()}
                                                 onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
                                                 onTouchStart={(e) => {
                                                     e.preventDefault();
                                                     e.stopPropagation();
-                                                    const btn = e.currentTarget;
-                                                    btn.dataset.longPressTriggered = 'false';
-                                                    const timer = setTimeout(() => {
-                                                        btn.dataset.longPressTriggered = 'true';
-                                                        onDisbandAll && onDisbandAll(unitId);
-                                                    }, 500);
-                                                    btn.dataset.longPressTimer = String(timer);
+                                                    startLongPress(unitId);
                                                 }}
-                                                onTouchMove={(e) => {
-                                                    clearTimeout(Number(e.currentTarget.dataset.longPressTimer));
-                                                }}
+                                                onTouchMove={() => clearLongPress()}
                                                 onTouchEnd={(e) => {
                                                     e.preventDefault();
-                                                    const btn = e.currentTarget;
-                                                    clearTimeout(Number(btn.dataset.longPressTimer));
-                                                    if (btn.dataset.longPressTriggered !== 'true') {
-                                                        onDisband(unitId);
-                                                    }
+                                                    handlePressEnd(unitId);
                                                 }}
-                                                className="px-1.5 py-1 bg-red-600/80 hover:bg-red-500 text-white rounded text-[10px] transition-colors select-none"
+                                                className="relative px-1.5 py-1 bg-red-600/80 hover:bg-red-500 text-white rounded text-[10px] transition-colors select-none overflow-hidden"
                                                 title="点击解散1个，长按解散全部"
                                             >
-                                                解散
+                                                <span className="relative z-10">解散</span>
+                                                {longPressState.unitId === unitId && longPressState.progress > 0 && (
+                                                    <div className="absolute inset-0 bg-red-900/40 z-0">
+                                                        <div
+                                                            className="h-full bg-red-200/40"
+                                                            style={{ width: `${Math.round(longPressState.progress * 100)}%` }}
+                                                        />
+                                                    </div>
+                                                )}
                                             </button>
                                         )}
                                     </div>
@@ -865,8 +922,11 @@ const MilitaryTabComponent = ({
                     </div>
                 </div>
             )}
+                </>
+            )}
 
             {/* 军事行动 */}
+            {activeSection === 'battle' && (
             <div className="glass-ancient p-4 rounded-xl border border-ancient-gold/30">
                 <div className="flex items-center justify-between mb-3">
                     <h3 className="text-sm font-bold flex items-center gap-2 text-gray-300 font-decorative">
@@ -1074,6 +1134,7 @@ const MilitaryTabComponent = ({
                     <p className="text-xs text-yellow-400 mt-2">⚠️ 你需要先招募军队才能发起军事行动</p>
                 )}
             </div>
+            )}
 
             {showWarScoreInfo && createPortal(
                 <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/70 p-4">
