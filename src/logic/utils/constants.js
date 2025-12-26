@@ -34,7 +34,7 @@ export const ROLE_PRIORITY = [
 // Job migration ratio - percentage of population that can migrate per tick
 // Reduced from 0.05 to 0.02 to slow down migration frequency
 // Reduced to 0.005 to significantly stabilize job markets
-export const JOB_MIGRATION_RATIO = 0.005;
+export const JOB_MIGRATION_RATIO = 0.0025;
 // Guaranteed migration ratio when source role population is low (below LOW_POP_THRESHOLD)
 export const JOB_MIGRATION_LOW_POP_GUARANTEE = 0.2;
 
@@ -59,7 +59,7 @@ export const UPGRADE_MIGRATION_BONUS = 0.8;
 
 // Migration cooldown per source role (in ticks)
 // After migration from a role, that role enters cooldown before another migration can occur
-export const MIGRATION_COOLDOWN_TICKS = 10;
+export const MIGRATION_COOLDOWN_TICKS = 15;
 
 // Price calculation constants
 export const PRICE_FLOOR = 0.0001;

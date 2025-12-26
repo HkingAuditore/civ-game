@@ -1118,14 +1118,13 @@ const PoliticsTabComponent = ({
                             {catInfo.name}
                         </h3>
 
-                        {/* 政令列表 - 紧凑布局 */}
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-2">
+                        {/* 政令列表 - 固定宽度网格布局 */}
+                        <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-1.5">
                             {categoryDecrees.map((decree) => (
                                 <div
                                     key={decree.id}
                                     onClick={() => onShowDecreeDetails && onShowDecreeDetails(decree)}
                                     onMouseEnter={(e) => {
-                                        // Only show tooltip on desktop (lg breakpoint and above)
                                         if (window.innerWidth >= 1024) {
                                             setDecreeAnchorRect(e.currentTarget.getBoundingClientRect());
                                             setHoveredDecree(decree);
@@ -1135,54 +1134,21 @@ const PoliticsTabComponent = ({
                                         setHoveredDecree(null);
                                         setDecreeAnchorRect(null);
                                     }}
-                                    className={`relative p-2 rounded-lg border transition-all cursor-pointer ${decree.active
-                                        ? 'bg-green-900/20 border-green-600 shadow-lg'
-                                        : 'bg-gray-700/50 border-gray-600 hover:border-purple-500 hover:shadow-lg'
+                                    className={`flex flex-col items-center p-1.5 rounded border transition-all cursor-pointer ${decree.active
+                                        ? 'bg-green-900/30 border-green-600'
+                                        : 'bg-gray-700/50 border-gray-600 hover:border-purple-500'
                                         }`}
                                 >
-                                    {/* 政令头部 - 紧凑版 */}
-                                    <div className="flex flex-col items-center mb-2">
-                                        <div className="w-12 h-12 icon-metal-container icon-metal-container-lg rounded-lg flex items-center justify-center mb-1">
-                                            {decree.active ? (
-                                                <Icon name="Check" size={24} className="text-green-400 icon-metal-green" />
-                                            ) : (
-                                                <Icon name="FileText" size={24} className="text-purple-400 icon-metal-purple" />
-                                            )}
-                                        </div>
-                                        <h4 className="text-xs font-bold text-white text-center leading-tight font-decorative">{decree.name}</h4>
-                                        {decree.active && (
-                                            <span className="text-[10px] text-green-400 mt-0.5">生效中</span>
-                                        )}
-                                    </div>
-
-                                    {/* 简化的关键信息 */}
-                                    <div className="space-y-1 text-[10px] mb-2">
-                                        {decree.effects && decree.effects.length > 0 && (
-                                            <div className="bg-green-900/30 rounded px-1.5 py-1 text-center text-green-300">
-                                                {decree.effects.length}项正面效果
-                                            </div>
-                                        )}
-                                        {decree.drawbacks && decree.drawbacks.length > 0 && (
-                                            <div className="bg-red-900/30 rounded px-1.5 py-1 text-center text-red-300">
-                                                {decree.drawbacks.length}项负面效果
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* 切换按钮 - 紧凑版 */}
+                                    <span className="text-[10px] text-white text-center leading-tight mb-1 line-clamp-2">{decree.name}</span>
                                     <button
                                         onClick={(e) => { e.stopPropagation(); onToggle(decree.id); }}
-                                        className={`w-full px-2 py-1 rounded text-[10px] font-semibold transition-all ${decree.active
-                                            ? 'bg-red-600 hover:bg-red-500 text-white'
-                                            : 'bg-green-600 hover:bg-green-500 text-white'
+                                        className={`w-full px-1 py-0.5 rounded text-[9px] font-semibold ${decree.active
+                                            ? 'bg-red-600/80 hover:bg-red-500 text-white'
+                                            : 'bg-green-600/80 hover:bg-green-500 text-white'
                                             }`}
                                     >
-                                        <div className="flex items-center justify-center gap-1">
-                                            <Icon name={decree.active ? "X" : "Check"} size={10} />
-                                            {decree.active ? '废除' : '颁布'}
-                                        </div>
+                                        {decree.active ? '✓ 废除' : '颁布'}
                                     </button>
-
                                 </div>
                             ))}
                         </div>

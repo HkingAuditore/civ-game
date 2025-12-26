@@ -992,7 +992,9 @@ function GameApp({ gameState }) {
                                                 selectedTarget={gameState.selectedTarget}
                                                 onRecruit={actions.recruitUnit}
                                                 onDisband={actions.disbandUnit}
+                                                onDisbandAll={actions.disbandAllUnits}
                                                 onCancelTraining={actions.cancelTraining}
+                                                onCancelAllTraining={actions.cancelAllTraining}
                                                 onSelectTarget={gameState.setSelectedTarget}
                                                 onLaunchBattle={actions.launchBattle}
                                                 market={gameState.market}
@@ -1253,6 +1255,7 @@ function GameApp({ gameState }) {
                         army={gameState.army}
                         onRecruit={actions.recruitUnit}
                         onDisband={actions.disbandUnit}
+                        onDisbandAll={actions.disbandAllUnits}
                         onClose={closeSheet}
                     />
                 )}

@@ -17,6 +17,7 @@ export const UnitDetailSheet = ({
   army = {},
   onRecruit,
   onDisband,
+  onDisbandAll, // 新增：一键解散某种兵种所有单位
   onClose,
 }) => {
   if (!unit) {
@@ -190,7 +191,7 @@ export const UnitDetailSheet = ({
                     <span className="text-xs text-gray-300">{resourceInfo?.name || resource}</span>
                   </div>
                   <span className={`text-xs font-bold font-mono ${hasEnough ? 'text-green-400' : 'text-red-400'}`}>
-                    {cost} ({(resources[resource] || 0).toFixed(1)})
+                    {cost}
                   </span>
                 </div>
               </div>
@@ -218,32 +219,57 @@ export const UnitDetailSheet = ({
         </h3>
         <div className="bg-gray-800/40 rounded px-2 py-1.5">
           {/* 资源消耗列表 */}
-          <div className="space-y-1 mb-2">
-            {Object.entries(unit.maintenanceCost || {}).map(([resource, cost]) => {
-              const resourceInfo = RESOURCES[resource];
-              if (!resourceInfo || cost <= 0) return null;
+          <div className="space-y-1">
+            {(() => {
+              const prices = market?.prices || {};
+              let totalDailyCost = 0;
+              const resourceItems = Object.entries(unit.maintenanceCost || {}).map(([resource, cost]) => {
+                const resourceInfo = RESOURCES[resource];
+                if (!resourceInfo || cost <= 0) return null;
+                const price = prices[resource] || 1;
+                const silverValue = resource === 'silver' ? cost * militaryWageRatio : cost * price;
+                totalDailyCost += silverValue;
+                const isAffordable = (resources[resource] || 0) >= cost;
+                return (
+                  <div key={resource} className="flex items-center justify-between">
+                    <span className="flex items-center gap-1 text-[10px] text-gray-300">
+                      <Icon name={resourceInfo.icon || 'Package'} size={10} className={resourceInfo.color || 'text-gray-400'} />
+                      {resourceInfo.name}
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className={`text-[10px] font-mono ${isAffordable ? 'text-gray-300' : 'text-red-400'}`}>
+                        -{cost.toFixed(1)}/日
+                      </span>
+                      {resource !== 'silver' && (
+                        <span className="text-yellow-400/70 text-[9px] font-mono">
+                          ≈{silverValue.toFixed(1)}<Icon name="Coins" size={8} className="inline ml-0.5" />
+                        </span>
+                      )}
+                      {resource === 'silver' && (
+                        <span className="text-yellow-400/70 text-[9px] font-mono">
+                          ×{militaryWageRatio.toFixed(1)}
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                );
+              }).filter(Boolean);
+              
               return (
-                <div key={resource} className="flex items-center justify-between">
-                  <span className="text-[9px] text-gray-400">{resourceInfo.name}</span>
-                  <span className="text-xs font-bold text-white font-mono">-{cost.toFixed(2)}/日</span>
-                </div>
+                <>
+                  {resourceItems}
+                  <div className="flex items-center justify-between pt-1.5 mt-1.5 border-t border-gray-700/50">
+                    <span className="flex items-center gap-1 text-[10px] text-gray-400">
+                      <Icon name="Coins" size={10} className="text-yellow-400" />
+                      资源折算
+                    </span>
+                    <span className="text-xs font-bold text-yellow-300 font-mono">
+                      ≈{totalDailyCost.toFixed(1)}<Icon name="Coins" size={10} className="inline ml-0.5" />/日
+                    </span>
+                  </div>
+                </>
               );
-            })}
-          </div>
-          <div className="flex items-center justify-between mb-1 pt-1 border-t border-gray-700">
-            <span className="text-[9px] text-gray-400">基础银币维护</span>
-            <span className="text-xs font-bold text-white font-mono">{baseSilverMaintenance.toFixed(2)} 银币</span>
-          </div>
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[9px] text-gray-400">军饷倍率</span>
-            <span className="text-xs font-bold text-white font-mono">×{militaryWageRatio.toFixed(2)}</span>
-          </div>
-          <div className="flex items-center justify-between pt-1 border-t border-gray-700">
-            <div className="flex items-center gap-1">
-              <Icon name="Coins" size={12} className="text-yellow-400" />
-              <span className="text-xs text-gray-300">实际军饷</span>
-            </div>
-            <span className="text-sm font-bold text-yellow-300 font-mono">{dailyWage.toFixed(2)} 银币/日</span>
+            })()}
           </div>
         </div>
       </div>
@@ -277,7 +303,7 @@ export const UnitDetailSheet = ({
       </div>
 
       {/* 操作按钮 */}
-      <div className="grid grid-cols-2 gap-2 pt-2">
+      <div className="flex gap-2 pt-2">
         {/* 招募按钮 */}
         <button
           onClick={() => {
@@ -287,17 +313,17 @@ export const UnitDetailSheet = ({
             }
           }}
           disabled={!canAfford || !onRecruit}
-          className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-bold text-sm transition-all ${
+          className={`flex-1 flex items-center justify-center gap-1 px-2 py-2 rounded font-bold text-xs transition-all ${
             canAfford && onRecruit
-              ? 'bg-green-600 hover:bg-green-500 text-white shadow-lg hover:shadow-xl active:scale-95'
+              ? 'bg-green-600 hover:bg-green-500 text-white active:scale-95'
               : 'bg-gray-600 text-gray-400 cursor-not-allowed'
           }`}
         >
-          <Icon name="Plus" size={18} />
-          <span>招募单位</span>
+          <Icon name="Plus" size={14} />
+          <span>招募</span>
         </button>
 
-        {/* 解散按钮 */}
+        {/* 解散按钮 - 点击解散1个，长按解散全部 */}
         <button
           onClick={() => {
             if (onDisband) {
@@ -305,15 +331,34 @@ export const UnitDetailSheet = ({
               onClose();
             }
           }}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            if (onDisbandAll) {
+              onDisbandAll(unit.id);
+              onClose();
+            }
+          }}
+          onTouchStart={(e) => {
+            const timer = setTimeout(() => {
+              if (onDisbandAll) {
+                onDisbandAll(unit.id);
+                onClose();
+              }
+            }, 500);
+            e.currentTarget.dataset.longPressTimer = timer;
+          }}
+          onTouchEnd={(e) => {
+            clearTimeout(Number(e.currentTarget.dataset.longPressTimer));
+          }}
           disabled={!hasUnits || !onDisband}
-          className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-bold text-sm transition-all ${
+          className={`px-3 py-2 rounded font-bold text-xs transition-all ${
             hasUnits && onDisband
-              ? 'bg-red-600 hover:bg-red-500 text-white shadow-lg hover:shadow-xl active:scale-95'
+              ? 'bg-red-600/80 hover:bg-red-500 text-white active:scale-95'
               : 'bg-gray-600 text-gray-400 cursor-not-allowed'
           }`}
+          title="点击解散1个，长按解散全部"
         >
-          <Icon name="Minus" size={18} />
-          <span>解散单位</span>
+          解散
         </button>
       </div>
     </div>

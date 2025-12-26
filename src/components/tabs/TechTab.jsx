@@ -553,9 +553,9 @@ const TechTabComponent = ({
                                     </div>
                                 </button>
                                 {isExpanded && (
-                                    <div className="border-t border-gray-800 px-3 py-4">
+                                    <div className="border-t border-gray-800 px-3 py-2">
                                         {visibleTechs.length > 0 ? (
-                                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-2">
+                                            <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 gap-1.5">
                                                 {visibleTechs.map((tech) => {
                                                     const status = getTechStatus(tech);
                                                     const silverCost = calculateSilverCost(tech.cost, market);
@@ -567,61 +567,28 @@ const TechTabComponent = ({
                                                             onMouseEnter={(e) => handleMouseEnter(e, tech)}
                                                             onMouseLeave={() => canHover && setHoveredTech({ tech: null, element: null })}
                                                             onClick={() => onShowTechDetails && onShowTechDetails(tech, status)}
-                                                            className={`group relative p-2 rounded-lg border transition-all cursor-pointer ${status === 'unlocked'
-                                                                    ? 'bg-green-900/20 border-green-600'
+                                                            className={`flex flex-col items-center p-1.5 rounded border transition-all cursor-pointer ${status === 'unlocked'
+                                                                    ? 'bg-green-900/30 border-green-600'
                                                                     : affordable
-                                                                        ? 'glass-ancient border border-ancient-gold/30 hover:border-blue-400/70 hover:shadow-glow-gold'
-                                                                        : 'bg-gray-700/50 border border-ancient-gold/20'
+                                                                        ? 'bg-gray-700/50 border-blue-500/50 hover:border-blue-400'
+                                                                        : 'bg-gray-700/50 border-gray-600'
                                                                 }`}
                                                         >
-                                                            {/* 科技头部 - 紧凑版 */}
-                                                            <div className="flex flex-col items-center mb-2">
-                                                                <div className="w-12 h-12 icon-metal-container icon-metal-container-lg rounded-lg flex items-center justify-center mb-1">
-                                                                    {status === 'unlocked' ? (
-                                                                        <Icon name="Check" size={24} className="text-green-400 icon-metal-green" />
-                                                                    ) : (
-                                                                        <Icon name="Lightbulb" size={24} className="text-blue-400 icon-metal-blue" />
-                                                                    )}
-                                                                </div>
-                                                                <h5 className="text-xs font-bold text-white text-center leading-tight font-decorative">{tech.name}</h5>
-                                                            </div>
-
-                                                            {/* 简化的关键信息 */}
-                                                            {status !== 'unlocked' && (
-                                                                <div className="space-y-1 text-[10px] mb-2">
-                                                                    {TECH_BUILDING_UNLOCKS[tech.id]?.length > 0 && (
-                                                                        <div className="bg-amber-900/30 rounded px-1.5 py-1 text-center text-amber-300">
-                                                                            解锁{TECH_BUILDING_UNLOCKS[tech.id].length}个建筑
-                                                                        </div>
-                                                                    )}
-                                                                    {tech.effect && (
-                                                                        <div className="bg-blue-900/30 rounded px-1.5 py-1 text-center text-blue-300">
-                                                                            有特殊效果
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            )}
-
-                                                            {/* 操作按钮 - 紧凑版 */}
+                                                            <span className="text-[10px] text-white text-center leading-tight mb-1 line-clamp-1">{tech.name}</span>
                                                             {status === 'unlocked' ? (
-                                                                <div className="text-center py-1 bg-green-900/30 rounded text-[10px] text-green-400 font-semibold">
-                                                                    ✓ 已研究
-                                                                </div>
+                                                                <span className="text-[9px] text-green-400">✓已研究</span>
                                                             ) : (
                                                                 <button
                                                                     onClick={(e) => { e.stopPropagation(); onResearch(tech.id); }}
                                                                     disabled={!affordable}
-                                                                    className={`w-full px-2 py-1 rounded text-[10px] font-semibold transition-colors ${affordable
-                                                                            ? 'bg-blue-600 hover:bg-blue-500 text-white'
+                                                                    className={`w-full px-1 py-0.5 rounded text-[9px] font-semibold ${affordable
+                                                                            ? 'bg-blue-600/80 hover:bg-blue-500 text-white'
                                                                             : 'bg-gray-600 text-gray-400 cursor-not-allowed'
                                                                         }`}
                                                                 >
-                                                                    <div className="flex items-center justify-center gap-1">
-                                                                        <Icon name="Zap" size={10} />
-                                                                        <span className={(resources.silver || 0) < silverCost ? 'text-red-300' : ''}>
-                                                                            {formatSilverCost(silverCost)}
-                                                                        </span>
-                                                                    </div>
+                                                                    <span className={(resources.silver || 0) < silverCost ? 'text-red-300' : ''}>
+                                                                        {formatSilverCost(silverCost)}
+                                                                    </span>
                                                                 </button>
                                                             )}
                                                         </div>

@@ -1,81 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import { Icon } from '../common/UIComponents';
 import { RESOURCES, STRATA, BUILDINGS } from '../../config';
 import { getPublicAssetUrl } from '../../utils/assetPath';
 import { getEventImageUrl } from '../../utils/imageRegistry';
 import { filterEventOptions } from '../../utils/eventEffectFilter';
-
-/**
- * 事件选项确认对话框组件
- * 在用户点击选项后显示，防止误触
- */
-const OptionConfirmDialog = ({ option, onConfirm, onCancel }) => {
-    if (!option) return null;
-
-    return createPortal(
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
-            {/* 遮罩层 */}
-            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onCancel}></div>
-
-            {/* 内容面板 */}
-            <div className="relative w-full max-w-sm glass-monument border-2 border-ancient-gold/40 rounded-2xl shadow-monument overflow-hidden animate-slide-up">
-                <div className="absolute inset-0 bg-gradient-to-br from-ancient-bronze/30 via-ancient-ink/70 to-ancient-bronze/20 opacity-80" />
-
-                <div className="relative z-10">
-                    {/* 头部 */}
-                    <div className="p-4 border-b border-ancient-gold/30 bg-gradient-to-r from-ancient-bronze/40 to-ancient-ink/60">
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-ancient-gold/20 border border-ancient-gold/30 flex items-center justify-center flex-shrink-0 shadow-inner">
-                                <Icon name="AlertCircle" size={22} className="text-ancient-gold" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <h2 className="text-base font-bold text-ancient-parchment leading-tight font-decorative">
-                                    确认选择
-                                </h2>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* 内容 */}
-                    <div className="p-4 space-y-3">
-                        <p className="text-sm text-ancient-parchment leading-relaxed font-sans">
-                            你确定要执行以下选项吗？
-                        </p>
-                        <div className="glass-ancient rounded-xl p-3 border border-ancient-gold/30">
-                            <p className="text-sm font-bold text-ancient leading-tight font-sans">
-                                {option.text}
-                            </p>
-                            {option.description && (
-                                <p className="text-[11px] text-ancient-stone mt-1.5 leading-snug font-sans">
-                                    {option.description}
-                                </p>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* 按钮区域 */}
-                    <div className="p-4 border-t border-ancient-gold/20 bg-ancient-ink/50 flex gap-3">
-                        <button
-                            onClick={onCancel}
-                            className="flex-1 px-4 py-2.5 bg-gray-600 hover:bg-gray-500 text-white rounded-lg text-sm font-bold transition-colors font-sans"
-                        >
-                            取消
-                        </button>
-                        <button
-                            onClick={onConfirm}
-                            className="flex-1 px-4 py-2.5 bg-ancient-gold hover:bg-ancient text-ancient-ink rounded-lg text-sm font-bold transition-colors flex items-center justify-center gap-2 font-sans"
-                        >
-                            <Icon name="Check" size={14} />
-                            确认
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>,
-        document.body
-    );
-};
 
 /**
  * 事件沉浸式英雄图片组件
@@ -156,8 +84,8 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
     const [hasImage, setHasImage] = useState(false);
     const [imageError, setImageError] = useState(false);
     
-    // 待确认的选项
-    const [pendingOption, setPendingOption] = useState(null);
+    // 已选中的选项（用于确认前高亮显示）
+    const [selectedOption, setSelectedOption] = useState(null);
 
     // 使用 ref 追踪上一个事件对象引用
     const prevEventRef = React.useRef(null);
@@ -350,33 +278,21 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
     };
 
     const handleOptionClick = (option) => {
-        // 显示确认对话框而不是直接执行
-        setPendingOption(option);
+        // 点击选项时只是选中，不立即执行
+        setSelectedOption(option);
     };
 
     // 确认执行选项
     const handleConfirmOption = () => {
-        if (pendingOption) {
-            onSelectOption(event.id, pendingOption);
-            setPendingOption(null);
+        if (selectedOption) {
+            onSelectOption(event.id, selectedOption);
+            setSelectedOption(null);
             onClose();
         }
     };
 
-    // 取消选项
-    const handleCancelOption = () => {
-        setPendingOption(null);
-    };
-
     return (
         <div className="space-y-3 font-sans">
-            {/* 确认对话框 */}
-            <OptionConfirmDialog
-                option={pendingOption}
-                onConfirm={handleConfirmOption}
-                onCancel={handleCancelOption}
-            />
-
             {/* 沉浸式英雄区块 - 当有图片时显示，标题叠加在图片上 */}
             {!imageError && (
                 <EventHeroImage
@@ -424,23 +340,33 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                     <Icon name="Target" size={12} className="text-ancient-gold " />
                     选择你的行动
                 </h3>
-                {filteredOptions.map((option) => (
+                {filteredOptions.map((option) => {
+                    const isSelected = selectedOption?.id === option.id;
+                    return (
                     <button
                         key={option.id}
                         onClick={() => handleOptionClick(option)}
-                        className="w-full text-left rounded-xl p-3 transition-all group font-sans"
+                        className={`w-full text-left rounded-xl p-3 transition-all group font-sans ${isSelected ? 'ring-2 ring-ancient-gold ring-offset-2 ring-offset-gray-900' : ''}`}
                         style={{
-                            background: 'linear-gradient(135deg, rgba(44, 24, 16, 0.95) 0%, rgba(61, 36, 21, 0.92) 50%, rgba(44, 24, 16, 0.95) 100%)',
+                            background: isSelected
+                                ? 'linear-gradient(135deg, rgba(64, 44, 26, 0.98) 0%, rgba(81, 56, 31, 0.95) 50%, rgba(64, 44, 26, 0.98) 100%)'
+                                : 'linear-gradient(135deg, rgba(44, 24, 16, 0.95) 0%, rgba(61, 36, 21, 0.92) 50%, rgba(44, 24, 16, 0.95) 100%)',
                             // 使用 box-shadow 实现稳定的边框效果，避免 border 在移动端的渲染问题
-                            boxShadow: 'inset 0 0 0 1px rgba(212, 175, 55, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3)',
+                            boxShadow: isSelected
+                                ? 'inset 0 0 0 2px rgba(212, 175, 55, 0.9), 0 0 20px rgba(212, 175, 55, 0.4)'
+                                : 'inset 0 0 0 1px rgba(212, 175, 55, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3)',
                         }}
                         onMouseEnter={(e) => {
-                            e.currentTarget.style.boxShadow = 'inset 0 0 0 1px rgba(212, 175, 55, 0.7), 0 0 15px rgba(212, 175, 55, 0.3)';
-                            e.currentTarget.style.background = 'linear-gradient(135deg, rgba(54, 34, 26, 0.98) 0%, rgba(71, 46, 31, 0.95) 50%, rgba(54, 34, 26, 0.98) 100%)';
+                            if (!isSelected) {
+                                e.currentTarget.style.boxShadow = 'inset 0 0 0 1px rgba(212, 175, 55, 0.7), 0 0 15px rgba(212, 175, 55, 0.3)';
+                                e.currentTarget.style.background = 'linear-gradient(135deg, rgba(54, 34, 26, 0.98) 0%, rgba(71, 46, 31, 0.95) 50%, rgba(54, 34, 26, 0.98) 100%)';
+                            }
                         }}
                         onMouseLeave={(e) => {
-                            e.currentTarget.style.boxShadow = 'inset 0 0 0 1px rgba(212, 175, 55, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3)';
-                            e.currentTarget.style.background = 'linear-gradient(135deg, rgba(44, 24, 16, 0.95) 0%, rgba(61, 36, 21, 0.92) 50%, rgba(44, 24, 16, 0.95) 100%)';
+                            if (!isSelected) {
+                                e.currentTarget.style.boxShadow = 'inset 0 0 0 1px rgba(212, 175, 55, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3)';
+                                e.currentTarget.style.background = 'linear-gradient(135deg, rgba(44, 24, 16, 0.95) 0%, rgba(61, 36, 21, 0.92) 50%, rgba(44, 24, 16, 0.95) 100%)';
+                            }
                         }}
                     >
                         <div className="flex items-start justify-between gap-2">
@@ -711,13 +637,36 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                             </div>
 
                             <Icon
-                                name="ChevronRight"
+                                name={isSelected ? "Check" : "ChevronRight"}
                                 size={16}
-                                className="text-ancient-stone group-hover:text-ancient-gold transition-colors flex-shrink-0 mt-0.5"
+                                className={`${isSelected ? 'text-ancient-gold' : 'text-ancient-stone group-hover:text-ancient-gold'} transition-colors flex-shrink-0 mt-0.5`}
                             />
                         </div>
                     </button>
-                ))}
+                    );
+                })}
+            </div>
+
+            {/* 底部确认按钮 */}
+            <div className="pt-2 border-t border-ancient-gold/20">
+                <button
+                    onClick={handleConfirmOption}
+                    disabled={!selectedOption}
+                    className={`w-full px-4 py-3 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 font-sans ${
+                        selectedOption
+                            ? 'bg-gradient-to-r from-ancient-gold via-ancient to-ancient-gold hover:from-ancient hover:via-ancient-gold hover:to-ancient text-ancient-ink shadow-lg'
+                            : 'bg-gray-700/50 text-gray-500 cursor-not-allowed'
+                    }`}
+                >
+                    {selectedOption ? (
+                        <>
+                            <Icon name="Check" size={16} />
+                            确认选择：{selectedOption.text}
+                        </>
+                    ) : (
+                        '请先选择一个选项'
+                    )}
+                </button>
             </div>
 
             {/* 提示信息 */}
@@ -725,7 +674,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                 <div className="flex items-start gap-2">
                     <Icon name="Info" size={14} className="text-blue-400 flex-shrink-0 mt-0.5" />
                     <p className="text-blue-300 text-[11px] leading-snug font-sans">
-                        选择一个选项将立即生效，请仔细考虑每个选项的后果。
+                        点击选项进行选择，然后点击确认按钮执行。请仔细考虑每个选项的后果。
                     </p>
                 </div>
             </div>

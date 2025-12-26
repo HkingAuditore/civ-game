@@ -1708,33 +1708,23 @@
         padding: 8px !important;
     }
 
-    /* 优化触摸目标大小 */
+    /* 优化触摸目标大小 - 仅对主要交互按钮生效 */
+    .btn-touch,
+    .btn-primary {
+        min-height: 36px;
+        min-width: 36px;
+    }
+
+    /* 紧凑按钮不强制最小尺寸 */
     button,
     [role="button"],
-    .clickable {
-        min-height: 40px;
-        min-width: 40px;
-    }
-
-    /* Build tab buttons stay compact even on small screens */
-    .build-tab button {
-        min-height: auto;
-        min-width: auto;
-    }
-
-    /* Game control buttons can shrink below default 40px */
-    .game-controls button {
-        min-height: auto;
-        min-width: auto;
-    }
-
-    /* Compact buttons (like sign toggle ±) should not be enlarged */
+    .clickable,
     .btn-compact,
-    button.btn-compact,
-    .row-compact,
+    .build-tab button,
+    .game-controls button,
     .row-compact button {
-        min-height: auto !important;
-        min-width: auto !important;
+        min-height: auto;
+        min-width: auto;
     }
 
     /* 移动端卡片优化 */

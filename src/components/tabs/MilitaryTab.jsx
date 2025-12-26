@@ -198,7 +198,7 @@ const UnitTooltip = ({ unit, resources, market, militaryWageRatio, epoch, anchor
                 {Object.entries(unit.recruitCost).map(([resource, cost]) => (
                     <div key={resource} className="flex justify-between text-xs">
                         <span className="text-gray-300">{RESOURCES[resource]?.name || resource}</span>
-                        <span className={(resources[resource] || 0) >= cost ? 'text-green-400' : 'text-red-400'}>{cost} ({(resources[resource] || 0).toFixed(1)})</span>
+                        <span className={(resources[resource] || 0) >= cost ? 'text-green-400' : 'text-red-400'}>{cost}</span>
                     </div>
                 ))}
                 <div className="flex justify-between text-xs pt-1 border-t border-gray-700 mt-1">
@@ -239,7 +239,9 @@ const MilitaryTabComponent = ({
     selectedTarget,
     onRecruit,
     onDisband,
+    onDisbandAll, // 新增：一键解散某种兵种所有单位
     onCancelTraining, // 新增：取消训练回调
+    onCancelAllTraining, // 新增：一键取消所有训练
     onSelectTarget,
     onLaunchBattle,
     market,
@@ -486,21 +488,49 @@ const MilitaryTabComponent = ({
                 {/* 维护成本 */}
                 {(() => {
                     const unlockedMaintenance = filterUnlockedResources(maintenance, epoch, techsUnlocked);
+                    const prices = market?.prices || {};
+                    // Calculate total daily cost in silver
+                    let totalDailyCost = 0;
+                    Object.entries(unlockedMaintenance).forEach(([resource, cost]) => {
+                        if (resource === 'silver') {
+                            totalDailyCost += cost;
+                        } else {
+                            totalDailyCost += cost * (prices[resource] || 1);
+                        }
+                    });
                     return Object.keys(unlockedMaintenance).length > 0 && (
                         <div className="mt-3 pt-3 border-t border-gray-700">
                             <p className="text-xs text-gray-400 mb-2">维护成本（每日）：</p>
-                            <div className="flex flex-wrap gap-2">
-                                {Object.entries(unlockedMaintenance).map(([resource, cost]) => (
-                                    <span
-                                        key={resource}
-                                        className={`text-xs px-2 py-1 rounded ${(resources[resource] || 0) >= cost
-                                            ? 'bg-green-900/30 text-green-400'
-                                            : 'bg-red-900/30 text-red-400'
-                                            }`}
-                                    >
-                                        {RESOURCES[resource]?.name || resource}: -{cost.toFixed(1)}/日
-                                    </span>
-                                ))}
+                            <div className="space-y-1">
+                                {Object.entries(unlockedMaintenance).map(([resource, cost]) => {
+                                    const price = prices[resource] || 1;
+                                    const silverValue = resource === 'silver' ? cost : cost * price;
+                                    const isAffordable = (resources[resource] || 0) >= cost;
+                                    return (
+                                        <div key={resource} className="flex items-center justify-between text-xs">
+                                            <span className="flex items-center gap-1 text-gray-300">
+                                                <Icon name={RESOURCES[resource]?.icon || 'Package'} size={12} className="text-gray-400" />
+                                                {RESOURCES[resource]?.name || resource}
+                                            </span>
+                                            <span className="flex items-center gap-2">
+                                                <span className={isAffordable ? 'text-green-400' : 'text-red-400'}>
+                                                    -{cost.toFixed(1)}/日
+                                                </span>
+                                                {resource !== 'silver' && (
+                                                    <span className="text-yellow-400/70 text-[10px]">
+                                                        ≈{silverValue.toFixed(1)}<Icon name="Coins" size={8} className="inline ml-0.5" />
+                                                    </span>
+                                                )}
+                                            </span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-700/50 text-xs">
+                                <span className="text-gray-400">资源折算</span>
+                                <span className="text-yellow-300 flex items-center gap-0.5">
+                                    ≈{totalDailyCost.toFixed(1)}<Icon name="Coins" size={10} />/日
+                                </span>
                             </div>
                         </div>
                     );
@@ -662,72 +692,55 @@ const MilitaryTabComponent = ({
                                         : 'bg-gray-700/50 border border-ancient-gold/20'
                                         }`}
                                 >
-                                    {/* 单位头部 - 紧凑版 */}
-                                    <div className="flex flex-col items-center mb-2">
-                                        <div className="w-12 h-12 icon-metal-container icon-metal-container-lg rounded-lg flex items-center justify-center mb-1">
-                                            <Icon name={unit.icon || 'Swords'} size={24} className={`${categoryColor} icon-metal-red`} />
+                                    {/* 单位头部 - 超紧凑版 */}
+                                    <div className="flex items-center gap-2 mb-1.5">
+                                        <div className="w-10 h-10 icon-metal-container rounded-lg flex items-center justify-center flex-shrink-0">
+                                            <Icon name={unit.icon || 'Swords'} size={20} className={`${categoryColor} icon-metal-red`} />
                                         </div>
-                                        <h4 className="text-xs font-bold text-center leading-tight text-white font-decorative">{unit.name}</h4>
-                                        <p className="text-[10px] text-gray-400">×{army[unitId] || 0}</p>
-                                        {/* Category badge */}
-                                        <span className={`text-[9px] px-1.5 py-0.5 rounded-full mt-0.5 ${categoryInfo.color?.replace('text-', 'bg-').replace('-400', '-900/50')} ${categoryColor}`}>
-                                            {categoryInfo.name}
-                                        </span>
-                                    </div>
-
-                                    {/* 简化的关键属性 */}
-                                    <div className="space-y-1 text-[10px] mb-2">
-                                        <div className="bg-gray-900/40 rounded px-1.5 py-1 flex justify-between">
-                                            <span className="text-gray-400">攻/防</span>
-                                            <span className="text-white">{unit.attack}/{unit.defense}</span>
-                                        </div>
-                                        {/* 人口占用显示 */}
-                                        <div className="bg-gray-900/40 rounded px-1.5 py-1 flex justify-between">
-                                            <span className="text-gray-400">人口</span>
-                                            <span className={`${(unit.populationCost || 1) > 1 ? 'text-cyan-400' : 'text-white'}`}>
-                                                {unit.populationCost || 1} 人
-                                            </span>
-                                        </div>
-                                        {/* 维护费显示 */}
-                                        <div className="bg-gray-900/40 rounded px-1.5 py-1">
-                                            <div className="flex justify-between mb-0.5">
-                                                <span className="text-gray-400">预估军费</span>
-                                                <span className="text-yellow-300 text-[9px]">
-                                                    {calculateUnitExpense(unit, market?.prices || {}, epoch, militaryWageRatio).toFixed(1)}银/日
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-1">
+                                                <h4 className="text-xs font-bold text-white font-decorative truncate">{unit.name}</h4>
+                                                <span className="text-[10px] text-gray-400">×{army[unitId] || 0}</span>
+                                            </div>
+                                            <div className="flex items-center gap-1.5 text-[9px] text-gray-400">
+                                                <span className={`px-1 py-0.5 rounded ${categoryInfo.color?.replace('text-', 'bg-').replace('-400', '-900/50')} ${categoryColor}`}>
+                                                    {categoryInfo.name}
+                                                </span>
+                                                <span className="text-white">{unit.attack}/{unit.defense}</span>
+                                                <span className={`${(unit.populationCost || 1) > 1 ? 'text-cyan-400' : ''}`}>
+                                                    {unit.populationCost || 1}人
                                                 </span>
                                             </div>
-                                            {Object.entries(unit.maintenanceCost || {}).filter(([r, c]) => r !== 'food' && r !== 'silver' && c > 0).length > 0 && (
-                                                <div className="flex flex-wrap gap-1 text-[9px]">
-                                                    {Object.entries(unit.maintenanceCost || {}).filter(([r, c]) => r !== 'food' && r !== 'silver' && c > 0).map(([res, cost]) => (
-                                                        <span key={res} className="flex items-center gap-0.5 bg-gray-800/50 px-1 py-0.5 rounded text-gray-300">
-                                                            <Icon name={RESOURCES[res]?.icon || 'Package'} size={10} className="text-gray-400" />
-                                                            <span>{RESOURCES[res]?.name || res}</span>
-                                                            <span className="text-yellow-300">{cost.toFixed(1)}</span>
-                                                        </span>
-                                                    ))}
-                                                </div>
-                                            )}
                                         </div>
-                                        {/* Counter info */}
-                                        {Object.keys(unit.counters || {}).length > 0 && (
-                                            <div className="bg-green-900/30 rounded px-1.5 py-1 flex justify-between">
-                                                <span className="text-green-400">克制</span>
-                                                <span className="text-green-300 text-[9px]">
-                                                    {Object.entries(unit.counters).map(([cat, mult]) =>
-                                                        `${UNIT_CATEGORIES[cat]?.name || cat}+${Math.round((mult - 1) * 100)}%`
-                                                    ).join(', ')}
+                                    </div>
+
+                                    {/* 整合信息行 */}
+                                    <div className="text-[9px] mb-1.5 space-y-0.5">
+                                        <div className="flex items-center justify-between text-gray-400">
+<span className="flex items-center gap-0.5">军费 <span className="text-yellow-300">{calculateUnitExpense(unit, market?.prices || {}, epoch, militaryWageRatio).toFixed(1)}</span><Icon name="Coins" size={9} className="text-yellow-400" />/日</span>
+                                            {Object.entries(unit.maintenanceCost || {}).filter(([r, c]) => r !== 'food' && r !== 'silver' && c > 0).map(([res, cost]) => (
+                                                <span key={res} className="flex items-center gap-0.5">
+                                                    <Icon name={RESOURCES[res]?.icon || 'Package'} size={9} className="text-gray-400" />
+                                                    <span className="text-yellow-300">{cost.toFixed(1)}</span>
                                                 </span>
+                                            ))}
+                                        </div>
+                                        {Object.keys(unit.counters || {}).length > 0 && (
+                                            <div className="text-green-400">
+                                                克制 {Object.entries(unit.counters).map(([cat, mult]) =>
+                                                    `${UNIT_CATEGORIES[cat]?.name || cat}+${Math.round((mult - 1) * 100)}%`
+                                                ).join(' ')}
                                             </div>
                                         )}
                                     </div>
 
                                     {/* 操作按钮 - 紧凑版 */}
-                                    <div className="space-y-1">
+                                    <div className="flex gap-1">
                                         <button
                                             onClick={(e) => { e.stopPropagation(); onRecruit(unitId); }}
                                             disabled={!affordable}
                                             title={!affordable ? getRecruitDisabledReason(unit) : '点击招募'}
-                                            className={`w-full px-2 py-1 rounded text-[10px] font-semibold transition-colors ${affordable
+                                            className={`flex-1 px-2 py-1 rounded text-[10px] font-semibold transition-colors ${affordable
                                                 ? 'bg-green-600 hover:bg-green-500 text-white'
                                                 : 'bg-gray-600 text-gray-400 cursor-not-allowed'
                                                 }`}
@@ -743,10 +756,21 @@ const MilitaryTabComponent = ({
                                         {(army[unitId] || 0) > 0 && (
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); onDisband(unitId); }}
-                                                className="w-full px-2 py-1 bg-red-600 hover:bg-red-500 text-white rounded text-[10px] font-semibold transition-colors flex items-center justify-center gap-1"
+                                                onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onDisbandAll && onDisbandAll(unitId); }}
+                                                onTouchStart={(e) => {
+                                                    e.stopPropagation();
+                                                    const timer = setTimeout(() => {
+                                                        onDisbandAll && onDisbandAll(unitId);
+                                                    }, 500);
+                                                    e.currentTarget.dataset.longPressTimer = timer;
+                                                }}
+                                                onTouchEnd={(e) => {
+                                                    clearTimeout(Number(e.currentTarget.dataset.longPressTimer));
+                                                }}
+                                                className="px-1.5 py-1 bg-red-600/80 hover:bg-red-500 text-white rounded text-[10px] transition-colors"
+                                                title="点击解散1个，长按解散全部"
                                             >
-                                                <Icon name="Minus" size={10} />
-                                                解散
+                                                -1
                                             </button>
                                         )}
                                     </div>
@@ -759,10 +783,20 @@ const MilitaryTabComponent = ({
             {/* 训练队列 */}
             {militaryQueue.length > 0 && (
                 <div className="glass-ancient p-4 rounded-xl border border-ancient-gold/30">
-                    <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300 font-decorative">
-                        <Icon name="Clock" size={16} className="text-yellow-400" />
-                        训练队列
-                    </h3>
+                    <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-sm font-bold flex items-center gap-2 text-gray-300 font-decorative">
+                            <Icon name="Clock" size={16} className="text-yellow-400" />
+                            训练队列
+                        </h3>
+                        <button
+                            onClick={() => onCancelAllTraining && onCancelAllTraining()}
+                            className="text-[10px] flex items-center gap-1 px-2 py-1 rounded border border-red-500/40 text-red-300 hover:bg-red-500/20 transition-colors"
+                            title="取消所有训练（返还50%资源）"
+                        >
+                            <Icon name="Trash2" size={12} />
+                            清空队列
+                        </button>
+                    </div>
 
                     <div className="space-y-2 max-h-[360px] overflow-y-auto pr-2 custom-scrollbar">
                         {militaryQueue.map((item, idx) => {

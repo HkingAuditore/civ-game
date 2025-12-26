@@ -912,6 +912,60 @@ export const useGameActions = (gameState, addLog) => {
     };
 
     /**
+     * 一键取消所有训练队列
+     */
+    const cancelAllTraining = () => {
+        setMilitaryQueue(prev => {
+            if (prev.length === 0) return prev;
+
+            let totalRefundSilver = 0;
+            const totalRefundResources = {};
+
+            // Calculate total refund for all items
+            prev.forEach(item => {
+                const unit = UNIT_TYPES[item.unitId];
+                if (item.status === 'waiting' || item.status === 'training') {
+                    for (let resource in unit.recruitCost) {
+                        totalRefundResources[resource] = (totalRefundResources[resource] || 0) + Math.floor(unit.recruitCost[resource] * 0.5);
+                    }
+                    const silverCost = Object.entries(unit.recruitCost).reduce((sum, [resource, amount]) => {
+                        return sum + amount * getMarketPrice(resource);
+                    }, 0);
+                    totalRefundSilver += Math.floor(silverCost * 0.5);
+                }
+            });
+
+            // Refund all resources
+            setResources(prevRes => {
+                const newRes = { ...prevRes };
+                for (let resource in totalRefundResources) {
+                    newRes[resource] = (newRes[resource] || 0) + totalRefundResources[resource];
+                }
+                newRes.silver = (newRes.silver || 0) + totalRefundSilver;
+                return newRes;
+            });
+
+            addLog(`一键取消了 ${prev.length} 个训练任务，返还50%资源`);
+            return [];
+        });
+    };
+
+    /**
+     * 一键解散某种兵种的所有单位
+     * @param {string} unitId - 兵种ID
+     */
+    const disbandAllUnits = (unitId) => {
+        const count = army[unitId] || 0;
+        if (count <= 0) return;
+
+        setArmy(prev => ({
+            ...prev,
+            [unitId]: 0
+        }));
+        addLog(`解散了全部 ${count} 个 ${UNIT_TYPES[unitId].name}`);
+    };
+
+    /**
      * 发起战斗
      * @param {string} missionId - 行动类型
      * @param {string} nationId - 目标国家
@@ -3385,7 +3439,9 @@ export const useGameActions = (gameState, addLog) => {
         // 军事
         recruitUnit,
         disbandUnit,
+        disbandAllUnits,
         cancelTraining,
+        cancelAllTraining,
         launchBattle,
 
         // 外交
