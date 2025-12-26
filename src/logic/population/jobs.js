@@ -365,7 +365,7 @@ export const handleJobMigration = ({
     });
 
     // Calculate average potential income
-    const activeRoleMetrics = roleMetrics.filter(r => r.pop > 0 && r.role !== 'soldier');
+    const activeRoleMetrics = roleMetrics.filter(r => r.role !== 'soldier');
     if (activeRoleMetrics.length === 0) return { popStructure, wealth, migrationCooldowns: updatedCooldowns };
 
     const totalPotentialIncome = activeRoleMetrics.reduce(
@@ -380,7 +380,7 @@ export const handleJobMigration = ({
             if (r.pop <= 0 || r.role === 'soldier') return false;
             // Check cooldown - role cannot be source if on cooldown
             if (updatedCooldowns[r.role] && updatedCooldowns[r.role] > 0) return false;
-            
+
             const percentageThreshold = r.perCap * 0.05;
             const adjustedDeltaThreshold = -Math.max(0.5, Math.min(50, percentageThreshold));
             return r.potentialIncome < averagePotentialIncome * 0.7 ||
@@ -450,16 +450,16 @@ export const handleJobMigration = ({
     const targetCandidate = activeRoleMetrics
         .filter(r => {
             if (r.role === sourceCandidate.role || r.vacancy <= 0) return false;
-            
+
             // Get the resistance multiplier for this migration direction
             const resistanceMultiplier = getTierResistanceMultiplier(r.role);
             // Base threshold is 1.3x income difference, modified by resistance
             const effectiveThreshold = 1.3 * resistanceMultiplier;
-            
+
             if (r.role === 'soldier') {
                 return r.potentialIncome > sourceCandidate.potentialIncome * effectiveThreshold;
             }
-            
+
             // Calculate effective attractiveness including tier bonus
             const effectiveAttractiveness = calculateEffectiveAttractiveness(r.role, r.potentialIncome);
             return hasBuildingVacancyForRole(r.role) &&

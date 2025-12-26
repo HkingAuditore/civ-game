@@ -711,62 +711,22 @@ export const simulateTick = ({
     // bonuses.taxBonus 是来自 effects.taxIncome 的累加值（如庆典效果、政令效果等）
     const effectiveTaxModifier = Math.max(0, taxModifier * legitimacyTaxModifier * (1 + (bonuses.taxBonus || 0)));
 
-    // 自动填补（招工）：失业者优先进入净收入更高的岗位
-    const estimateRoleNetIncome = (role) => {
-        const wage = getExpectedWage(role);
-        const headBase = STRATA[role]?.headTaxBase ?? 0.01;
-        const taxCost = headBase * getHeadTaxRate(role) * effectiveTaxModifier;
-        return wage - Math.max(0, taxCost);
-    };
-
-    // console.log('[vacancy debug] diff =', diff, ', unemployed =', popStructure.unemployed || 0); // Commented for performance
-    const vacancyRanking = ROLE_PRIORITY.map((role, index) => {
-        const slots = Math.max(0, jobsAvailable[role] || 0);
-        const current = popStructure[role] || 0;
-        const vacancy = Math.max(0, slots - current);
-        if (role === 'soldier') {
-            // console.log('[SOLDIER VACANCY] slots:', slots, 'current:', current, 'vacancy:', vacancy); // Commented for performance
-        }
-        if (vacancy <= 0) return null;
-        return {
-            role,
-            vacancy,
-            netIncome: estimateRoleNetIncome(role),
-            priorityIndex: index,
-        };
-    })
-        .filter(Boolean)
-        .sort((a, b) => {
-            if (b.netIncome !== a.netIncome) return b.netIncome - a.netIncome;
-            return a.priorityIndex - b.priorityIndex;
-        });
-
-    // console.log('[VACANCY RANKING]', vacancyRanking.map(v => `${v.role}:${v.vacancy}`).join(', ')); // Commented for performance
-
-    vacancyRanking.forEach(entry => {
-        const availableUnemployed = popStructure.unemployed || 0;
-        if (availableUnemployed <= 0) return;
-
-        const hiring = Math.min(entry.vacancy, availableUnemployed);
-        if (hiring <= 0) return;
-
-        // 招工：失业者填补岗位，并携带财富
-        const unemployedWealth = wealth.unemployed || 0;
-        const perCapWealth = availableUnemployed > 0 ? unemployedWealth / availableUnemployed : 0;
-
-        popStructure[entry.role] = (popStructure[entry.role] || 0) + hiring;
-        popStructure.unemployed = Math.max(0, availableUnemployed - hiring);
-
-        if (entry.role === 'soldier') {
-            // console.log('[SOLDIER HIRING] hired:', hiring, 'new soldier count:', popStructure[entry.role]); // Commented for performance
-        }
-
-        if (perCapWealth > 0) {
-            const transfer = perCapWealth * hiring;
-            wealth.unemployed = Math.max(0, unemployedWealth - transfer);
-            wealth[entry.role] = (wealth[entry.role] || 0) + transfer;
-        }
+    // 自动填补（招工）：使用 job.js 中的 fillVacancies 函数，支持阶层流动
+    const filledResult = fillVacancies({
+        popStructure,
+        jobsAvailable,
+        wealth,
+        getExpectedWage,
+        getHeadTaxRate,
+        effectiveTaxModifier
     });
+
+    // 重新赋值更新后的人口结构和财富
+    // 注意：fillVacancies 会直接修改传入的对象引用，但在 React/Redux 模式下通常建议返回新对象
+    // 这里 fillVacancies 返回了 { popStructure, wealth }，我们将其解构回来确保引用正确
+    // (虽然 simulation.js 中 popStructure 和 wealth 是局部变量，可以直接修改)
+    // 保持代码清晰：
+    // const { popStructure: updatedPop, wealth: updatedWealth } = filledResult;
 
     const classApproval = {};
     const classInfluence = {};

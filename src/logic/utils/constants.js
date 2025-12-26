@@ -33,7 +33,8 @@ export const ROLE_PRIORITY = [
 
 // Job migration ratio - percentage of population that can migrate per tick
 // Reduced from 0.05 to 0.02 to slow down migration frequency
-export const JOB_MIGRATION_RATIO = 0.02;
+// Reduced to 0.005 to significantly stabilize job markets
+export const JOB_MIGRATION_RATIO = 0.005;
 // Guaranteed migration ratio when source role population is low (below LOW_POP_THRESHOLD)
 export const JOB_MIGRATION_LOW_POP_GUARANTEE = 0.2;
 
@@ -43,7 +44,7 @@ export const JOB_MIGRATION_LOW_POP_GUARANTEE = 0.2;
 
 // Same-tier (horizontal) migration resistance - limits frequent swapping between same-tier roles
 // e.g., peasant ↔ lumberjack, worker ↔ artisan
-export const SAME_TIER_MIGRATION_RESISTANCE = 1.5;
+export const SAME_TIER_MIGRATION_RESISTANCE = 2.5;
 
 // Downward migration resistance - makes it harder to move to lower-tier roles
 // Only applies to voluntary migration (not layoffs)
@@ -58,7 +59,7 @@ export const UPGRADE_MIGRATION_BONUS = 0.8;
 
 // Migration cooldown per source role (in ticks)
 // After migration from a role, that role enters cooldown before another migration can occur
-export const MIGRATION_COOLDOWN_TICKS = 5;
+export const MIGRATION_COOLDOWN_TICKS = 30;
 
 // Price calculation constants
 export const PRICE_FLOOR = 0.0001;
