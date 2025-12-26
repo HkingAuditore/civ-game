@@ -518,6 +518,9 @@ export const useGameState = () => {
         headTaxRates: buildDefaultHeadTaxRates(),
         resourceTaxRates: buildDefaultResourceTaxRates(),
         businessTaxRates: buildDefaultBusinessTaxRates(),
+        exportTariffMultipliers: {}, // 初始化为空对象，避免 undefined
+        importTariffMultipliers: {}, // 初始化为空对象，避免 undefined
+        resourceTariffMultipliers: {}, // 兼容旧版
     });
     const [jobFill, setJobFill] = useState({});
     const [jobsAvailable, setJobsAvailable] = useState({}); // 各阶层可用岗位数量
