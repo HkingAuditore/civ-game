@@ -32,11 +32,11 @@ repositories {
 
 configurations.all {
     resolutionStrategy {
-        // Force a consistent Kotlin stdlib version
-        force 'org.jetbrains.kotlin:kotlin-stdlib:1.9.24'
-        force 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.24'
-        force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.24'
-        // Force a consistent Kotlin coroutines version (1.9.0 required for Kotlin 1.9.24)
+        // Force a consistent Kotlin stdlib version (2.1.0 for capacitor-filesystem 8.x)
+        force 'org.jetbrains.kotlin:kotlin-stdlib:2.1.0'
+        force 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.1.0'
+        force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.1.0'
+        // Force a consistent Kotlin coroutines version
         force 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0'
         force 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0'
         force 'org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.9.0'

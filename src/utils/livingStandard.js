@@ -210,6 +210,11 @@ export function calculateWealthMultiplier(incomeRatio, wealthRatio = 1, wealthEl
  * @returns {number} 解锁乘数（无阶级上限限制）
  */
 export function calculateUnlockMultiplier(incomeRatio, wealthRatio = 1, wealthElasticity = 1.0) {
+    // 强制要求：仅当收入能满足基础生存需求(incomeRatio >= 1)时，才允许解锁奢侈需求
+    if (incomeRatio < 1.0) {
+        return 0;
+    }
+
     // 高财富比率可以补偿低收入（财富权重更高，因为解锁主要看积累）
     const effectiveRatio = Math.max(incomeRatio, wealthRatio * 0.7);
 
