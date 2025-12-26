@@ -1541,6 +1541,7 @@ function GameApp({ gameState }) {
                 preventBackdropClose={true}
                 showCloseButton={!Boolean(gameState.currentEvent?.options?.length)}
                 preventEscapeClose={Boolean(gameState.currentEvent?.options?.length)}
+                wrapperClassName="z-[80]"
             >
                 {gameState.currentEvent && (
                     <EventDetail

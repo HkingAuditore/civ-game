@@ -541,6 +541,7 @@ const PoliticsTabComponent = ({
     const [exportTariffDrafts, setExportTariffDrafts] = React.useState({});
     const [businessDrafts, setBusinessDrafts] = React.useState({});
     const [activeTaxTab, setActiveTaxTab] = React.useState('head'); // 'head', 'resource', 'business'
+    const [activeSection, setActiveSection] = React.useState('government'); // 'government', 'tax', 'decrees'
 
     // 悬浮提示状态（用于 Portal 方式显示）
     const [hoveredDecree, setHoveredDecree] = React.useState(null);
@@ -961,9 +962,44 @@ const PoliticsTabComponent = ({
 
     return (
         <div className="space-y-4">
+            <div className="flex items-center gap-2 text-sm rounded-full glass-ancient border border-ancient-gold/30 p-1 shadow-metal-sm">
+                <button
+                    className={`w-1/3 py-2 rounded-full border-2 transition-all ${activeSection === 'government'
+                        ? 'bg-ancient-gold/20 border-ancient-gold/70 text-ancient-parchment shadow-gold-metal'
+                        : 'border-transparent text-ancient-stone hover:text-ancient-parchment'}`}
+                    onClick={() => setActiveSection('government')}
+                >
+                    <span className="flex items-center justify-center gap-1.5 font-bold">
+                        <Icon name="Landmark" size={14} />
+                        政府
+                    </span>
+                </button>
+                <button
+                    className={`w-1/3 py-2 rounded-full border-2 transition-all ${activeSection === 'tax'
+                        ? 'bg-amber-900/30 border-ancient-gold/60 text-amber-100 shadow-metal-sm'
+                        : 'border-transparent text-ancient-stone hover:text-ancient-parchment'}`}
+                    onClick={() => setActiveSection('tax')}
+                >
+                    <span className="flex items-center justify-center gap-1.5 font-bold">
+                        <Icon name="DollarSign" size={14} />
+                        税收
+                    </span>
+                </button>
+                <button
+                    className={`w-1/3 py-2 rounded-full border-2 transition-all ${activeSection === 'decrees'
+                        ? 'bg-purple-900/40 border-ancient-gold/60 text-purple-100 shadow-metal-sm'
+                        : 'border-transparent text-ancient-stone hover:text-ancient-parchment'}`}
+                    onClick={() => setActiveSection('decrees')}
+                >
+                    <span className="flex items-center justify-center gap-1.5 font-bold">
+                        <Icon name="FileText" size={14} />
+                        政令
+                    </span>
+                </button>
+            </div>
 
             {/* 执政联盟面板 */}
-            {onUpdateCoalition && (
+            {activeSection === 'government' && onUpdateCoalition && (
                 <CoalitionPanel
                     rulingCoalition={rulingCoalition}
                     onUpdateCoalition={onUpdateCoalition}
@@ -978,7 +1014,7 @@ const PoliticsTabComponent = ({
             )}
 
             {/* 税收政策调节 */}
-            {onUpdateTaxPolicies && (
+            {activeSection === 'tax' && onUpdateTaxPolicies && (
                 <div className="glass-ancient p-4 rounded-xl border border-ancient-gold/30">
                     <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300 font-decorative">
                         <Icon name="DollarSign" size={16} className="text-yellow-400" />
@@ -1159,7 +1195,7 @@ const PoliticsTabComponent = ({
                 </div>
             )}
 
-            {unlockedDecrees.length === 0 && (
+            {activeSection === 'decrees' && unlockedDecrees.length === 0 && (
                 <div className="bg-yellow-900/20 border border-yellow-600/30 p-4 rounded-lg text-xs text-yellow-100">
                     <p className="font-semibold mb-1 flex items-center gap-2">
                         <Icon name="Lock" size={14} className="text-yellow-300" />
@@ -1172,7 +1208,7 @@ const PoliticsTabComponent = ({
             )}
 
             {/* 按类别显示政令 */}
-            {Object.entries(categories).map(([catKey, catInfo]) => {
+            {activeSection === 'decrees' && Object.entries(categories).map(([catKey, catInfo]) => {
                 const categoryDecrees = decreesByCategory[catKey] || [];
                 if (categoryDecrees.length === 0) return null;
 
@@ -1223,12 +1259,15 @@ const PoliticsTabComponent = ({
             })}
 
             {/* 政令悬浮提示框 - 使用 Portal */}
-            <DecreeTooltip
-                decree={hoveredDecree}
-                anchorRect={decreeAnchorRect}
-            />
+            {activeSection === 'decrees' && (
+                <DecreeTooltip
+                    decree={hoveredDecree}
+                    anchorRect={decreeAnchorRect}
+                />
+            )}
 
             {/* 当前生效的政令统计 */}
+            {activeSection === 'decrees' && (
             <div className="glass-ancient p-4 rounded-xl border border-ancient-gold/30">
                 <h3 className="text-sm font-bold mb-2 flex items-center gap-2 text-gray-300 font-decorative">
                     <Icon name="FileText" size={16} className="text-blue-400" />
@@ -1270,6 +1309,7 @@ const PoliticsTabComponent = ({
                     </p>
                 )}
             </div>
+            )}
         </div>
     );
 };

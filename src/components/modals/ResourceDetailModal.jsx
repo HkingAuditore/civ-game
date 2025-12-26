@@ -20,7 +20,7 @@ const ensureArray = (value) => {
     return Array.isArray(value) ? value : [value];
 };
 
-const MarketTrendChart = ({ series = [], height = 220 }) => {
+const MarketTrendChart = ({ series = [], height = 220, square = false }) => {
     const normalizedSeries = series
         .map(item => ({
             ...item,
@@ -48,13 +48,14 @@ const MarketTrendChart = ({ series = [], height = 220 }) => {
     const yRange = Math.max(yMax - yMin, 1);
 
     const width = 640;
+    const chartHeight = square ? 640 : height;
     const padding = 40;
     const totalPoints = Math.max(...normalizedSeries.map(item => item.data.length));
     const xStep = totalPoints > 1 ? (width - padding * 2) / (totalPoints - 1) : 0;
     const gridLines = 4;
     const ticks = Array.from({ length: gridLines + 1 }, (_, index) => ({
         value: yMin + (yRange / gridLines) * index,
-        y: height - padding - ((yMin + (yRange / gridLines) * index - yMin) / yRange) * (height - padding * 2),
+        y: chartHeight - padding - ((yMin + (yRange / gridLines) * index - yMin) / yRange) * (chartHeight - padding * 2),
     }));
 
     const buildSeriesPath = (data) => {
@@ -65,7 +66,7 @@ const MarketTrendChart = ({ series = [], height = 220 }) => {
                 const xIndex = offset + index;
                 const x = padding + xIndex * xStep;
                 const normalized = (value - yMin) / yRange;
-                const y = height - padding - normalized * (height - padding * 2);
+                const y = chartHeight - padding - normalized * (chartHeight - padding * 2);
                 return { x, y };
             })
             .filter(Boolean);
@@ -92,8 +93,8 @@ const MarketTrendChart = ({ series = [], height = 220 }) => {
                     </div>
                 ))}
             </div>
-            <div className="relative h-56 w-full overflow-hidden rounded-2xl bg-gray-950/60">
-                <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="h-full w-full">
+            <div className={`relative w-full overflow-hidden rounded-2xl bg-gray-950/60 ${square ? 'aspect-square' : 'h-56'}`}>
+                <svg viewBox={`0 0 ${width} ${chartHeight}`} preserveAspectRatio="xMidYMid meet" className="h-full w-full">
                     {ticks.map(({ value, y }, index) => (
                         <g key={`grid-${index}`}>
                             <line
@@ -164,17 +165,12 @@ const TAB_OPTIONS = [
 
 // --- 产业链可视化组件 (新版) ---
 
-// 连接线组件
-const LinkerLine = ({ label, subLabel }) => (
-    <div className="flex flex-col items-center justify-center px-2 min-w-[60px]">
-        {label && <span className="text-[10px] text-gray-400 mb-1">{label}</span>}
-        <div className="h-[2px] w-full bg-gradient-to-r from-gray-700 via-gray-500 to-gray-700 relative">
-            <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2">
-                <Icon name="ChevronRight" size={14} className="text-gray-500" />
-            </div>
-        </div>
-        {subLabel && <span className="text-[10px] text-emerald-400 mt-1">{subLabel}</span>}
-    </div>
+// 流向标记
+const FlowBadge = ({ label, direction = 'right' }) => (
+    <span className="inline-flex items-center gap-1 rounded-full border border-ancient-gold/30 bg-ancient-ink/50 px-2 py-0.5 text-[9px] text-ancient-parchment">
+        <Icon name={direction === 'right' ? 'ArrowRight' : 'ArrowLeft'} size={10} className="text-ancient-gold" />
+        {label}
+    </span>
 );
 
 // 生产节点组件 (建筑)
@@ -195,12 +191,12 @@ const ProductionNode = ({ buildingId, building, role, currentResource, count = 0
         ratioNode = (
             <div className="mt-1.5 space-y-0.5">
                 {inputs.length > 0 ? inputs.map(input => (
-                    <div key={input.key} className="text-[10px] text-gray-400 flex justify-between">
+                    <div key={input.key} className="text-[10px] text-ancient-stone flex justify-between">
                         <span>{input.name}</span>
-                        <span className="text-gray-500">x{input.ratio}</span>
+                        <span className="text-ancient-stone/80">x{input.ratio}</span>
                     </div>
                 )) : (
-                    <div className="text-[10px] text-gray-500">基础采集/生产</div>
+                    <div className="text-[10px] text-ancient-stone/80">基础采集/生产</div>
                 )}
             </div>
         );
@@ -215,34 +211,37 @@ const ProductionNode = ({ buildingId, building, role, currentResource, count = 0
         ratioNode = (
             <div className="mt-1.5 space-y-0.5">
                 {outputs.length > 0 ? outputs.map(output => (
-                    <div key={output.key} className="text-[10px] text-gray-400 flex justify-between">
+                    <div key={output.key} className="text-[10px] text-ancient-stone flex justify-between">
                         <span>→ {output.name}</span>
-                        <span className="text-gray-500">x{output.ratio}</span>
+                        <span className="text-ancient-stone/80">x{output.ratio}</span>
                     </div>
                 )) : (
-                    <div className="text-[10px] text-gray-500">作为终端消费</div>
+                    <div className="text-[10px] text-ancient-stone/80">作为终端消费</div>
                 )}
             </div>
         );
     }
 
     return (
-        <div className="relative group min-w-[140px] max-w-[160px] rounded-xl border border-gray-700 bg-gray-900/80 p-3 hover:border-gray-500 transition-colors">
-            <div className="flex items-center gap-2 mb-2">
-                <div className={`p-1.5 rounded-lg ${building.visual?.color || 'bg-gray-800'}`}>
-                    <Icon name={building.visual?.icon || 'Home'} size={14} className="text-white" />
+        <div className="relative group w-full min-w-[180px] rounded-xl border border-ancient-gold/20 bg-gray-900/70 p-3 shadow-metal-sm transition-colors hover:border-ancient-gold/40">
+            <div className="flex items-center justify-between gap-2 mb-2">
+                <div className="flex items-center gap-2 min-w-0">
+                    <div className={`p-1.5 rounded-lg ${building.visual?.color || 'bg-gray-800'} border border-white/10`}>
+                        <Icon name={building.visual?.icon || 'Home'} size={14} className="text-white" />
+                    </div>
+                    <div className="min-w-0">
+                        <p className="text-xs font-bold text-ancient-parchment truncate">{building.name}</p>
+                        <p className="text-[9px] text-ancient-stone">
+                            {count > 0 ? `已建 ${count | 0} 座` : '未建造'}
+                        </p>
+                    </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold text-white truncate">{building.name}</p>
-                    <p className="text-[9px] text-gray-400">
-                        {count > 0 ? `已建 ${count | 0} 座` : '未建造'}
-                    </p>
-                </div>
+                <FlowBadge label={isProducer ? '产出' : '消耗'} direction={isProducer ? 'right' : 'left'} />
             </div>
-            <div className="h-px bg-gray-800 w-full mb-1.5"></div>
+            <div className="h-px bg-ancient-gold/10 w-full mb-1.5"></div>
             {ratioNode}
-            <div className="mt-2 pt-1 border-t border-gray-800/50 flex justify-between items-center">
-                <span className="text-[9px] text-gray-500">{isProducer ? '产出' : '消耗'}/座</span>
+            <div className="mt-2 pt-1 border-t border-ancient-gold/10 flex justify-between items-center">
+                <span className="text-[9px] text-ancient-stone">{isProducer ? '产出' : '消耗'}/座</span>
                 <span className={`text-xs font-mono font-bold ${isProducer ? 'text-emerald-300' : 'text-rose-300'}`}>
                     {isProducer
                         ? building.output?.[currentResource]
@@ -280,52 +279,157 @@ const DynamicChainView = ({ resourceKey, buildings = {} }) => {
 
     return (
         <div className="space-y-6">
-            <div className="rounded-xl lg:rounded-2xl border border-gray-800 bg-gray-950/60 p-4 lg:p-6 overflow-x-auto">
-                <div className="min-w-[700px] flex items-stretch justify-center gap-4">
-
-                    {/* 上游：来源 */}
-                    <div className="flex-1 flex flex-col gap-3">
-                        <div className="text-center mb-2">
-                            <span className="px-2 py-0.5 rounded-full bg-emerald-950/50 border border-emerald-500/30 text-[10px] text-emerald-300">
+            <div className="glass-ancient rounded-xl lg:rounded-2xl border border-ancient-gold/20 p-4 lg:p-6">
+                <div className="lg:hidden space-y-4">
+                    <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                            <span className="px-2.5 py-1 rounded-full bg-emerald-950/60 border border-emerald-500/30 text-[10px] text-emerald-300">
                                 来源 / 生产
                             </span>
+                            <span className="text-[9px] text-ancient-stone">上游</span>
                         </div>
+                        <p className="text-[11px] text-ancient-stone">
+                            将原料生产为 <span className="text-ancient-parchment font-semibold">{resourceDef?.name}</span>。
+                        </p>
                         {producers.length > 0 ? (
-                            <div className="flex flex-col gap-3 items-end">
+                            <div className="space-y-2">
                                 {producers.map(b => (
-                                    <div key={b.id} className="flex items-center gap-2">
-                                        <ProductionNode
-                                            buildingId={b.id}
-                                            building={b}
-                                            role="producer"
-                                            currentResource={resourceKey}
-                                            count={buildings[b.id]}
-                                        />
-                                        <LinkerLine label="产出" />
-                                    </div>
+                                    <ProductionNode
+                                        key={b.id}
+                                        buildingId={b.id}
+                                        building={b}
+                                        role="producer"
+                                        currentResource={resourceKey}
+                                        count={buildings[b.id]}
+                                    />
                                 ))}
                             </div>
                         ) : (
-                            <div className="h-full flex items-center justify-center text-xs text-gray-600 italic px-8">
-                                无本地生产来源
-                                <br />(可能为基础资源或仅靠进口)
+                            <div className="rounded-lg border border-gray-800 bg-gray-900/40 p-3 text-xs text-gray-500 italic">
+                                无本地生产来源（可能为基础资源或仅靠进口）
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="flex items-center justify-center gap-2 text-xs text-ancient-stone">
+                        <Icon name="ArrowDown" size={14} className="text-ancient-gold" />
+                        进入核心资源
+                    </div>
+
+                    <div className="relative p-5 rounded-2xl border-2 border-ancient-gold/40 bg-ancient-ink/60 shadow-[0_0_30px_-5px_rgba(212,175,55,0.25)] backdrop-blur-sm">
+                        <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-ancient-ink border border-ancient-gold/40 rounded-full">
+                            <span className="text-[10px] font-bold text-ancient-gold uppercase tracking-widest">核心资源</span>
+                        </div>
+                        <div className="flex flex-col items-center gap-3">
+                            <div className="w-16 h-16 rounded-xl bg-gray-900 border border-ancient-gold/20 flex items-center justify-center shadow-inner">
+                                <Icon name={resourceDef?.icon || 'Package'} size={30} className={resourceDef?.color || 'text-white'} />
+                            </div>
+                            <div className="text-center">
+                                <h3 className="text-lg font-bold text-ancient-parchment">{resourceDef?.name}</h3>
+                                <p className="text-xs text-ancient-stone mt-1">
+                                    {(resourceDef?.tags || []).map(tag => {
+                                        const tagMap = {
+                                            'essential': '生活必需',
+                                            'raw_material': '原材料',
+                                            'industrial': '工业资材',
+                                            'manufactured': '制成品',
+                                            'luxury': '奢侈品',
+                                            'currency': '货币',
+                                            'special': '特殊资源',
+                                            'basic_need': '基本需求',
+                                            'luxury_need': '奢侈需求',
+                                            'construction': '建材',
+                                            'military': '军用',
+                                            'strategic': '战略',
+                                            'refined': '加工品',
+                                            'raw': '原材料',
+                                            'food': '食物'
+                                        };
+                                        return tagMap[tag] || tag;
+                                    }).join(' · ') || '资源'}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center justify-center gap-2 text-xs text-ancient-stone">
+                        <Icon name="ArrowDown" size={14} className="text-ancient-gold" />
+                        进入下游用途
+                    </div>
+
+                    <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                            <span className="px-2.5 py-1 rounded-full bg-rose-950/50 border border-rose-500/30 text-[10px] text-rose-300">
+                                用途 / 消耗
+                            </span>
+                            <span className="text-[9px] text-ancient-stone">下游</span>
+                        </div>
+                        <p className="text-[11px] text-ancient-stone">
+                            作为生产材料或终端消费进入产业链。
+                        </p>
+                        {consumers.length > 0 ? (
+                            <div className="space-y-2">
+                                {consumers.map(b => (
+                                    <ProductionNode
+                                        key={b.id}
+                                        buildingId={b.id}
+                                        building={b}
+                                        role="consumer"
+                                        currentResource={resourceKey}
+                                        count={buildings[b.id]}
+                                    />
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="rounded-lg border border-gray-800 bg-gray-900/40 p-3 text-xs text-gray-500 italic">
+                                无工业消耗用途（直接消费品/终端产品）
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <div className="hidden lg:grid grid-cols-[1fr_auto_1fr] gap-4 items-start">
+                    {/* 上游：来源 */}
+                    <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                            <span className="px-2.5 py-1 rounded-full bg-emerald-950/60 border border-emerald-500/30 text-[10px] text-emerald-300">
+                                来源 / 生产
+                            </span>
+                            <span className="text-[9px] text-ancient-stone">上游</span>
+                        </div>
+                        {producers.length > 0 ? (
+                            <div className="space-y-3">
+                                {producers.map(b => (
+                                    <ProductionNode
+                                        key={b.id}
+                                        buildingId={b.id}
+                                        building={b}
+                                        role="producer"
+                                        currentResource={resourceKey}
+                                        count={buildings[b.id]}
+                                    />
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="rounded-lg border border-gray-800 bg-gray-900/40 p-3 text-xs text-gray-500 italic">
+                                无本地生产来源（可能为基础资源或仅靠进口）
                             </div>
                         )}
                     </div>
 
                     {/* 核心：当前资源 */}
-                    <div className="flex flex-col justify-center items-center z-10 px-4">
-                        <div className="relative p-6 rounded-2xl border-2 border-indigo-500/50 bg-indigo-900/20 shadow-[0_0_30px_-5px_rgba(99,102,241,0.3)] backdrop-blur-sm">
-                            <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-gray-950 border border-indigo-500/50 rounded-full">
-                                <span className="text-[10px] font-bold text-indigo-300 uppercase tracking-widest">o</span>
+                    <div className="flex flex-col justify-center items-center">
+                        <div className="relative p-5 rounded-2xl border-2 border-ancient-gold/40 bg-ancient-ink/60 shadow-[0_0_30px_-5px_rgba(212,175,55,0.25)] backdrop-blur-sm">
+                            <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-ancient-ink border border-ancient-gold/40 rounded-full">
+                                <span className="text-[10px] font-bold text-ancient-gold uppercase tracking-widest">核心资源</span>
                             </div>
                             <div className="flex flex-col items-center gap-3">
-                                <div className="w-16 h-16 rounded-xl bg-gray-900 border border-gray-700 flex items-center justify-center shadow-inner">
-                                    <Icon name={resourceDef?.icon || 'Package'} size={32} className={resourceDef?.color || 'text-white'} />
+                                <div className="w-16 h-16 rounded-xl bg-gray-900 border border-ancient-gold/20 flex items-center justify-center shadow-inner">
+                                    <Icon name={resourceDef?.icon || 'Package'} size={30} className={resourceDef?.color || 'text-white'} />
                                 </div>
                                 <div className="text-center">
-                                    <h3 className="text-lg font-bold text-white">{resourceDef?.name}</h3>
-                                    <p className="text-xs text-gray-400 mt-1">
+                                    <h3 className="text-lg font-bold text-ancient-parchment">{resourceDef?.name}</h3>
+                                    <p className="text-xs text-ancient-stone mt-1">
                                         {(resourceDef?.tags || []).map(tag => {
                                             const tagMap = {
                                                 'essential': '生活必需',
@@ -353,31 +457,29 @@ const DynamicChainView = ({ resourceKey, buildings = {} }) => {
                     </div>
 
                     {/* 下游：去向 */}
-                    <div className="flex-1 flex flex-col gap-3">
-                        <div className="text-center mb-2">
-                            <span className="px-2 py-0.5 rounded-full bg-rose-950/50 border border-rose-500/30 text-[10px] text-rose-300">
+                    <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                            <span className="px-2.5 py-1 rounded-full bg-rose-950/50 border border-rose-500/30 text-[10px] text-rose-300">
                                 用途 / 消耗
                             </span>
+                            <span className="text-[9px] text-ancient-stone">下游</span>
                         </div>
                         {consumers.length > 0 ? (
-                            <div className="flex flex-col gap-3 items-start">
+                            <div className="space-y-3">
                                 {consumers.map(b => (
-                                    <div key={b.id} className="flex items-center gap-2">
-                                        <LinkerLine label="消耗" />
-                                        <ProductionNode
-                                            buildingId={b.id}
-                                            building={b}
-                                            role="consumer"
-                                            currentResource={resourceKey}
-                                            count={buildings[b.id]}
-                                        />
-                                    </div>
+                                    <ProductionNode
+                                        key={b.id}
+                                        buildingId={b.id}
+                                        building={b}
+                                        role="consumer"
+                                        currentResource={resourceKey}
+                                        count={buildings[b.id]}
+                                    />
                                 ))}
                             </div>
                         ) : (
-                            <div className="h-full flex items-center justify-center text-xs text-gray-600 italic px-8">
-                                无工业消耗用途
-                                <br />(直接消费品/终端产品)
+                            <div className="rounded-lg border border-gray-800 bg-gray-900/40 p-3 text-xs text-gray-500 italic">
+                                无工业消耗用途（直接消费品/终端产品）
                             </div>
                         )}
                     </div>
@@ -385,7 +487,7 @@ const DynamicChainView = ({ resourceKey, buildings = {} }) => {
             </div>
 
             {relevantChain && relevantChain.upgrades && (
-                <div className="rounded-xl border border-purple-500/20 bg-purple-950/10 p-4">
+                <div className="rounded-xl border border-ancient-gold/20 bg-gray-950/40 p-4">
                     <div className="flex items-center gap-2 mb-3">
                         <Icon name="Zap" size={16} className="text-purple-300" />
                         <h4 className="text-sm font-bold text-purple-100">产业链升级 ({relevantChain.name})</h4>
@@ -876,7 +978,7 @@ const ResourceDetailContent = ({
     const activeTabMeta = TAB_OPTIONS.find(tab => tab.id === activeTab);
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-end justify-center lg:items-center">
+        <div className="fixed inset-0 z-50 flex items-end justify-center lg:items-center status-bar-safe-area pt-2">
             {/* 遮罩层 */}
             <motion.div
                 className="absolute inset-0 bg-black/70"
@@ -889,7 +991,7 @@ const ResourceDetailContent = ({
 
             {/* 内容面板 */}
             <motion.div
-                className="relative w-full max-w-6xl glass-epic border-t-2 lg:border-2 border-ancient-gold/30 rounded-t-2xl lg:rounded-2xl shadow-metal-xl flex flex-col max-h-[95vh] overflow-hidden"
+                className="relative w-full max-w-6xl glass-epic border-t-2 lg:border-2 border-ancient-gold/30 rounded-t-2xl lg:rounded-2xl shadow-metal-xl flex flex-col max-h-[90vh] overflow-hidden"
                 initial={{ y: "100%", opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 exit={{ y: "100%", opacity: 0 }}
@@ -1016,15 +1118,15 @@ const ResourceDetailContent = ({
                     ) : (
                         <div className="flex h-full flex-col">
                             {/* 标签页 */}
-                            <div className="border-b border-gray-700 bg-gray-900/70 px-2 lg:px-3 pt-1.5 lg:pt-2 flex-shrink-0">
-                                <div className="flex items-center gap-1.5 lg:gap-2 overflow-x-auto pb-1.5 lg:pb-2">
+                            <div className="px-2 lg:px-3 pt-1.5 lg:pt-2 flex-shrink-0">
+                                <div className="flex items-center gap-2 text-[10px] lg:text-xs rounded-full glass-ancient border border-ancient-gold/30 p-1 shadow-metal-sm overflow-x-auto">
                                     {TAB_OPTIONS.map(tab => (
                                         <button
                                             key={tab.id}
                                             type="button"
-                                            className={`rounded-full px-2.5 lg:px-3 py-1 text-[9px] lg:text-[10px] font-semibold whitespace-nowrap ${tab.id === activeTab
-                                                ? 'bg-emerald-500/20 text-emerald-300'
-                                                : 'text-gray-400 hover:text-white'
+                                            className={`min-w-[64px] px-3 py-1.5 rounded-full border-2 font-semibold whitespace-nowrap transition-all ${tab.id === activeTab
+                                                ? 'bg-ancient-gold/20 border-ancient-gold/70 text-ancient-parchment shadow-gold-metal'
+                                                : 'border-transparent text-ancient-stone hover:text-ancient-parchment'
                                                 }`}
                                             onClick={() => setActiveTab(tab.id)}
                                         >
@@ -1188,6 +1290,7 @@ const ResourceDetailContent = ({
                                                             data: priceHistoryData,
                                                         },
                                                     ]}
+                                                    square
                                                 />
                                                 <div className="mt-2 grid grid-cols-2 gap-1.5">
                                                     <div className="rounded-lg border border-gray-800/60 bg-gray-900/60 p-1.5 text-center">
@@ -1223,6 +1326,7 @@ const ResourceDetailContent = ({
                                                             data: demandHistoryData,
                                                         },
                                                     ]}
+                                                    square
                                                 />
                                                 <div className="mt-2 grid grid-cols-3 gap-1.5">
                                                     <div className="rounded-lg border border-gray-800/60 bg-gray-900/60 p-1.5 text-center">

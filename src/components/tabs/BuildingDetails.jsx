@@ -327,6 +327,8 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
     }, [building, count, upgradeLevels]);
 
     const [draftMultiplier, setDraftMultiplier] = useState(null);
+    const [activeSection, setActiveSection] = useState('overview');
+    const hasUpgradePanel = count > 0 && canBuildingUpgrade(building.id);
 
     // 图片加载状态管理
     const [hasImage, setHasImage] = useState(false);
@@ -347,12 +349,15 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
     // 自动滚动到升级面板
     const upgradePanelRef = useRef(null);
     useEffect(() => {
-        if (scrollToUpgrade && upgradePanelRef.current) {
+        if (scrollToUpgrade && hasUpgradePanel) {
+            setActiveSection('upgrade');
             setTimeout(() => {
-                upgradePanelRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }, 100); // 稍微延迟以确保渲染完成
+                if (upgradePanelRef.current) {
+                    upgradePanelRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }, 150); // 稍微延迟以确保渲染完成
         }
-    }, [scrollToUpgrade, building.id]);
+    }, [scrollToUpgrade, building.id, hasUpgradePanel]);
 
     // --- 复用计算逻辑 ---
     // --- 复用 BuildTab 中的计算逻辑 ---
@@ -603,6 +608,36 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                 <p className="text-sm text-gray-300 px-1">{building.desc}</p>
             )}
 
+            <div className="flex items-center gap-2 text-sm rounded-full glass-ancient border border-ancient-gold/30 p-1 shadow-metal-sm">
+                <button
+                    className={`w-1/2 py-2 rounded-full border-2 transition-all ${activeSection === 'overview'
+                        ? 'bg-ancient-gold/20 border-ancient-gold/70 text-ancient-parchment shadow-gold-metal'
+                        : 'border-transparent text-ancient-stone hover:text-ancient-parchment'}`}
+                    onClick={() => setActiveSection('overview')}
+                >
+                    <span className="flex items-center justify-center gap-1.5 font-bold">
+                        <Icon name="LayoutGrid" size={14} />
+                        概览
+                    </span>
+                </button>
+                <button
+                    className={`w-1/2 py-2 rounded-full border-2 transition-all ${activeSection === 'upgrade'
+                        ? 'bg-blue-900/40 border-ancient-gold/60 text-blue-100 shadow-metal-sm'
+                        : 'border-transparent text-ancient-stone hover:text-ancient-parchment'} ${hasUpgradePanel ? '' : 'opacity-60 cursor-not-allowed'}`}
+                    onClick={() => {
+                        if (hasUpgradePanel) setActiveSection('upgrade');
+                    }}
+                    disabled={!hasUpgradePanel}
+                >
+                    <span className="flex items-center justify-center gap-1.5 font-bold">
+                        <Icon name="ArrowUpCircle" size={14} />
+                        升级
+                    </span>
+                </button>
+            </div>
+
+            {activeSection === 'overview' && (
+                <>
             {/* 营业税调整 - 居住性建筑和军事建筑不显示 */}
             {onUpdateTaxPolicies && (() => {
                 // 判断是否为居住性建筑（无owner且产出maxPop的civic建筑）
@@ -847,25 +882,6 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                 </div>
             </DetailSection>
 
-            {/* 建筑升级面板 */}
-            {count > 0 && canBuildingUpgrade(building.id) && (
-                <div ref={upgradePanelRef}>
-                    <BuildingUpgradePanel
-                        building={building}
-                        count={count}
-                        epoch={epoch}
-                        upgradeLevels={upgradeLevels}
-                        resources={resources}
-                        market={market}
-                        taxPolicies={taxPolicies}
-                        onUpgrade={(fromLevel) => onUpgrade?.(building.id, fromLevel)}
-                        onDowngrade={(fromLevel) => onDowngrade?.(building.id, fromLevel)}
-                        onBatchUpgrade={(fromLevel, upgradeCount) => onBatchUpgrade?.(building.id, fromLevel, upgradeCount)}
-                        onBatchDowngrade={(fromLevel, downgradeCount) => onBatchDowngrade?.(building.id, fromLevel, downgradeCount)}
-                    />
-                </div>
-            )}
-
             {/* 操作按钮 */}
             <div className="grid grid-cols-2 gap-4 pt-2">
                 <button
@@ -899,6 +915,34 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                     </button>
                 )}
             </div>
+                </>
+            )}
+
+            {activeSection === 'upgrade' && (
+                <>
+                    {hasUpgradePanel ? (
+                        <div ref={upgradePanelRef}>
+                            <BuildingUpgradePanel
+                                building={building}
+                                count={count}
+                                epoch={epoch}
+                                upgradeLevels={upgradeLevels}
+                                resources={resources}
+                                market={market}
+                                taxPolicies={taxPolicies}
+                                onUpgrade={(fromLevel) => onUpgrade?.(building.id, fromLevel)}
+                                onDowngrade={(fromLevel) => onDowngrade?.(building.id, fromLevel)}
+                                onBatchUpgrade={(fromLevel, upgradeCount) => onBatchUpgrade?.(building.id, fromLevel, upgradeCount)}
+                                onBatchDowngrade={(fromLevel, downgradeCount) => onBatchDowngrade?.(building.id, fromLevel, downgradeCount)}
+                            />
+                        </div>
+                    ) : (
+                        <div className="p-4 rounded-lg border border-gray-700/60 bg-gray-900/50 text-sm text-gray-400">
+                            当前建筑暂无可用升级。
+                        </div>
+                    )}
+                </>
+            )}
         </div>
     );
 };

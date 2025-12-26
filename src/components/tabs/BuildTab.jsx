@@ -455,16 +455,16 @@ const BuildTabComponent = ({
 
     return (
         <div className="space-y-4 build-tab">
-            <div className="flex flex-wrap gap-2 pb-1 border-b border-gray-700/60 mb-3">
+            <div className="flex items-center gap-2 text-sm rounded-full glass-ancient border border-ancient-gold/30 p-1 shadow-metal-sm overflow-x-auto">
                 {categoryFilters.map((filter) => {
                     const isActive = filter.key === activeCategory;
                     return (
                         <button
                             key={filter.key}
                             onClick={() => setActiveCategory(filter.key)}
-                            className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${isActive
-                                ? 'bg-blue-600 text-white shadow-inner'
-                                : 'bg-gray-700/70 text-gray-300 hover:bg-gray-600/60'
+                            className={`min-w-[64px] px-4 py-2 rounded-full border-2 text-xs font-semibold transition-all ${isActive
+                                ? 'bg-ancient-gold/20 border-ancient-gold/70 text-ancient-parchment shadow-gold-metal'
+                                : 'border-transparent text-ancient-stone hover:text-ancient-parchment'
                                 }`}
                             aria-pressed={isActive}
                         >

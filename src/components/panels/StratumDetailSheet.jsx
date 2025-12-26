@@ -266,41 +266,47 @@ const StratumDetailSheetComponent = ({
             </div>
 
             {/* Tab 导航 */}
-            <div className="flex border-b border-gray-700">
+            <div className="flex items-center gap-2 text-sm rounded-full glass-ancient border border-ancient-gold/30 p-1 shadow-metal-sm">
                 <button
                     onClick={() => setActiveTab('overview')}
-                    className={`flex-1 py-2 text-xs font-bold transition-colors flex items-center justify-center gap-1 ${activeTab === 'overview'
-                        ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-900/20'
-                        : 'text-gray-400 hover:text-gray-200'
+                    className={`w-1/3 py-2 rounded-full border-2 transition-all ${activeTab === 'overview'
+                        ? 'bg-ancient-gold/20 border-ancient-gold/70 text-ancient-parchment shadow-gold-metal'
+                        : 'border-transparent text-ancient-stone hover:text-ancient-parchment'
                         }`}
                 >
-                    <Icon name="FileText" size={12} />
-                    概览
+                    <span className="flex items-center justify-center gap-1.5 font-bold">
+                        <Icon name="FileText" size={12} />
+                        概览
+                    </span>
                 </button>
                 <button
                     onClick={() => setActiveTab('organization')}
-                    className={`flex-1 py-2 text-xs font-bold transition-colors flex items-center justify-center gap-1 ${activeTab === 'organization'
-                        ? 'text-orange-400 border-b-2 border-orange-400 bg-orange-900/20'
-                        : 'text-gray-400 hover:text-gray-200'
+                    className={`w-1/3 py-2 rounded-full border-2 transition-all ${activeTab === 'organization'
+                        ? 'bg-orange-900/40 border-ancient-gold/60 text-orange-100 shadow-metal-sm'
+                        : 'border-transparent text-ancient-stone hover:text-ancient-parchment'
                         }`}
                 >
-                    <Icon name="AlertTriangle" size={12} />
-                    组织度
-                    {(() => {
-                        const org = rebellionStates[stratumKey]?.organization ?? 0;
-                        if (org > 30) return <span className={`ml-1 px-1 py-0.5 rounded text-[9px] ${org >= 70 ? 'bg-red-600' : 'bg-orange-600'}`}>{org.toFixed(0)}%</span>;
-                        return null;
-                    })()}
+                    <span className="flex items-center justify-center gap-1.5 font-bold">
+                        <Icon name="AlertTriangle" size={12} />
+                        组织度
+                        {(() => {
+                            const org = rebellionStates[stratumKey]?.organization ?? 0;
+                            if (org > 30) return <span className={`ml-1 px-1 py-0.5 rounded text-[9px] ${org >= 70 ? 'bg-red-600' : 'bg-orange-600'}`}>{org.toFixed(0)}%</span>;
+                            return null;
+                        })()}
+                    </span>
                 </button>
                 <button
                     onClick={() => setActiveTab('finance')}
-                    className={`flex-1 py-2 text-xs font-bold transition-colors flex items-center justify-center gap-1 ${activeTab === 'finance'
-                        ? 'text-green-400 border-b-2 border-green-400 bg-green-900/20'
-                        : 'text-gray-400 hover:text-gray-200'
+                    className={`w-1/3 py-2 rounded-full border-2 transition-all ${activeTab === 'finance'
+                        ? 'bg-emerald-900/40 border-ancient-gold/60 text-emerald-100 shadow-metal-sm'
+                        : 'border-transparent text-ancient-stone hover:text-ancient-parchment'
                         }`}
                 >
-                    <Icon name="Coins" size={12} />
-                    财务
+                    <span className="flex items-center justify-center gap-1.5 font-bold">
+                        <Icon name="Coins" size={12} />
+                        财务
+                    </span>
                 </button>
             </div>
 
