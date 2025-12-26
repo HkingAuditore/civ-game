@@ -22,7 +22,8 @@ export const BottomSheet = ({
     showHeader = true,
     preventBackdropClose = false,
     showCloseButton = true,
-    preventEscapeClose = false
+    preventEscapeClose = false,
+    wrapperClassName = ''
 }) => {
     useEffect(() => {
         if (preventEscapeClose) return undefined;
@@ -45,7 +46,7 @@ export const BottomSheet = ({
         <AnimatePresence>
             {isOpen && (
                 <div
-                    className="fixed inset-0 z-50 flex items-end justify-center lg:items-center"
+                    className={`fixed inset-0 z-50 flex items-end justify-center lg:items-center ${wrapperClassName}`}
                     role="dialog"
                     aria-modal="true"
                 >

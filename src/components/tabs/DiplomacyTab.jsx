@@ -4,6 +4,7 @@
 import React, { useMemo, useState, useEffect, memo } from 'react';
 import { Icon } from '../common/UIComponents';
 import { Modal } from '../common/UnifiedUI';
+import { BottomSheet } from './BottomSheet';
 import { DeclareWarModal } from '../modals/DeclareWarModal';
 import TradeRoutesModal from '../modals/TradeRoutesModal';
 import { RESOURCES } from '../../config';
@@ -52,6 +53,36 @@ const formatStatValue = (value, unit = '') => {
     if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M${unit}`;
     if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K${unit}`;
     return `${Math.max(0, Math.floor(value))}${unit}`;
+};
+
+const getEstimatedMilitaryStrength = (nation, epoch, daysElapsed) => {
+    if (!nation) return { label: '未知', colorClass: 'text-gray-400' };
+    const relation = nation?.relation || 0;
+    const realPower = calculateNationBattlePower(nation, epoch);
+    const accuracyFactor = Math.max(0.1, relation / 100);
+    const errorRange = 1 - accuracyFactor;
+    const seedStr = `${nation?.id || 'unknown'}-${Math.floor(daysElapsed / 30)}`;
+    let seedHash = 0;
+    for (let i = 0; i < seedStr.length; i++) {
+        seedHash = ((seedHash << 5) - seedHash) + seedStr.charCodeAt(i);
+        seedHash |= 0;
+    }
+    const stableRandom = ((Math.abs(seedHash) % 1000) / 1000) - 0.5;
+    const estimatedPower = Math.floor(realPower * (1 + stableRandom * errorRange * 0.5));
+    const formatPower = (p) => (p >= 10000 ? `${(p / 1000).toFixed(1)}K` : p.toFixed(0));
+    const label = relation >= 60
+        ? `约 ${formatPower(estimatedPower)}`
+        : relation >= 40
+            ? `${formatPower(Math.floor(estimatedPower * 0.8))} - ${formatPower(Math.floor(estimatedPower * 1.2))}`
+            : relation >= 20
+                ? '情报不足'
+                : '未知';
+    const colorClass = relation >= 60
+        ? 'text-green-300'
+        : relation >= 40
+            ? 'text-yellow-300'
+            : 'text-gray-400';
+    return { label, colorClass };
 };
 
 // 动态送礼成本将在组件内根据双方财富计算
@@ -224,6 +255,8 @@ const DiplomacyTabComponent = ({
     const [showDeclareWarModal, setShowDeclareWarModal] = useState(false);
     // State for trade routes management modal
     const [showTradeRoutesModal, setShowTradeRoutesModal] = useState(false);
+    const [showNationModal, setShowNationModal] = useState(false);
+    const [sheetSection, setSheetSection] = useState('diplomacy');
 
     // 外交动作冷却时间配置（天数）
     const DIPLOMATIC_COOLDOWNS = {
@@ -273,6 +306,12 @@ const DiplomacyTabComponent = ({
             setSelectedNationId(visibleNations[0]?.id || null);
         }
     }, [selectedNationId, visibleNations]);
+
+    useEffect(() => {
+        if (showNationModal) {
+            setSheetSection('diplomacy');
+        }
+    }, [showNationModal]);
 
     const selectedNation =
         visibleNations.find((nation) => nation.id === selectedNationId) || visibleNations[0] || null;
@@ -418,7 +457,72 @@ const DiplomacyTabComponent = ({
                 </button>
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-3 h-[calc(var(--real-viewport-height,100vh)-260px)] md:h-[900px]">
+            <div className="md:hidden grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {visibleNations.map((nation) => {
+                    const relation = relationInfo(nation.relation || 0, nation.alliedWithPlayer === true);
+                    const militaryEstimate = getEstimatedMilitaryStrength(nation, epoch, daysElapsed);
+                    const compactMilitaryLabel = militaryEstimate.label === '情报不足'
+                        ? '情报不足'
+                        : militaryEstimate.label === '未知'
+                            ? '??'
+                            : militaryEstimate.label;
+                    return (
+                        <button
+                            key={nation.id}
+                            onClick={() => {
+                                setSelectedNationId(nation.id);
+                                setShowNationModal(true);
+                            }}
+                            className="w-full rounded-xl border border-ancient-gold/20 bg-gray-900/60 p-2 text-left transition-all hover:border-ancient-gold/40"
+                        >
+                            <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2 min-w-0">
+                                    <Icon name="Flag" size={14} className={nation.color || 'text-gray-300'} />
+                                    <span className="text-xs font-semibold text-white truncate">{nation.name || '未知国家'}</span>
+                                    <span className={`px-1.5 py-0.5 rounded text-[9px] ${relation.bg} ${relation.color} font-epic`}>
+                                        {relation.label}
+                                    </span>
+                                    {nation.isRebelNation && (
+                                        <span className="px-1.5 py-0.5 rounded text-[9px] bg-red-900 text-red-100 font-epic">
+                                            叛乱
+                                        </span>
+                                    )}
+                                </div>
+                                <Icon
+                                    name={(nation.isAtWar === true) ? 'Swords' : 'ShieldCheck'}
+                                    size={14}
+                                    className={(nation.isAtWar === true) ? 'text-red-400' : 'text-green-400'}
+                                />
+                            </div>
+                            <div className="mt-1 flex items-center gap-2 text-[11px] text-gray-200 font-body">
+                                <span className="flex items-center gap-1">
+                                    <Icon name="Users" size={10} className="text-blue-300" />
+                                    <span className="font-mono text-blue-100 font-semibold font-epic">
+                                        {formatStatValue(nation?.population, '')}
+                                    </span>
+                                </span>
+                                <span className="flex items-center gap-1">
+                                    <Icon name="Coins" size={10} className="text-amber-300" />
+                                    <span className="font-mono text-amber-100 font-semibold font-epic">
+                                        {formatStatValue(nation?.wealth, '')}
+                                    </span>
+                                </span>
+                                <span className="flex items-center gap-1">
+                                    <Icon name="Swords" size={10} className="text-red-300" />
+                                    <span className={`font-mono font-semibold font-epic ${militaryEstimate.colorClass}`}>
+                                        {compactMilitaryLabel}
+                                    </span>
+                                </span>
+                            </div>
+                        </button>
+                    );
+                })}
+                {visibleNations.length === 0 && (
+                    <div className="p-3 text-xs text-gray-400 font-body">当前时代暂无可接触的国家。</div>
+                )}
+            </div>
+
+            <div className="hidden md:grid grid-cols-1 xl:grid-cols-3 gap-3 h-[calc(var(--real-viewport-height,100vh)-260px)] md:h-[900px]">
                 <div className="glass-ancient rounded-xl border border-ancient-gold/30 flex flex-col overflow-hidden">
                     <div className="px-2 py-1.5 border-b border-gray-700/80 text-[15px] uppercase tracking-wide text-gray-400 font-decorative font-bold">
                         国家列表
@@ -522,37 +626,15 @@ const DiplomacyTabComponent = ({
 
                                 {/* 大致兵力估算 - 使用真实战力计算，关系越好越准确 */}
                                 {(() => {
-                                    const relation = selectedNation?.relation || 0;
-                                    // 使用真实战力计算
-                                    const realPower = calculateNationBattlePower(selectedNation, epoch);
-                                    // 关系影响情报准确度：关系越好，误差越小
-                                    const accuracyFactor = Math.max(0.1, relation / 100); // 0.1 - 1.0
-                                    const errorRange = 1 - accuracyFactor; // 0 - 0.9
-                                    // Use stable pseudo-random based on nation id and daysElapsed to avoid flickering
-                                    const seedStr = `${selectedNation?.id || 'unknown'}-${Math.floor(daysElapsed / 30)}`;
-                                    let seedHash = 0;
-                                    for (let i = 0; i < seedStr.length; i++) {
-                                        seedHash = ((seedHash << 5) - seedHash) + seedStr.charCodeAt(i);
-                                        seedHash |= 0;
-                                    }
-                                    const stableRandom = ((Math.abs(seedHash) % 1000) / 1000) - 0.5; // Range: -0.5 to 0.5
-                                    const estimatedPower = Math.floor(realPower * (1 + stableRandom * errorRange * 0.5));
-                                    // 格式化显示
-                                    const formatPower = (p) => p >= 10000 ? `${(p / 1000).toFixed(1)}K` : p.toFixed(0);
-                                    const strengthLabel = relation >= 60 ? `约 ${formatPower(estimatedPower)}` :
-                                        relation >= 40 ? `${formatPower(Math.floor(estimatedPower * 0.8))} - ${formatPower(Math.floor(estimatedPower * 1.2))}` :
-                                            relation >= 20 ? '情报不足' : '未知';
+                                    const strengthEstimate = getEstimatedMilitaryStrength(selectedNation, epoch, daysElapsed);
                                     return (
                                         <div className="p-2 rounded border border-red-500/20 bg-red-900/10 flex items-center justify-between mb-2">
                                             <div className="flex items-center gap-1 text-red-200 font-body">
                                                 <Icon name="Swords" size={12} />
                                                 军事力量
                                             </div>
-                                            <span className={`font-mono font-semibold font-epic ${relation >= 60 ? 'text-green-300' :
-                                                relation >= 40 ? 'text-yellow-300' :
-                                                    'text-gray-400'
-                                                }`}>
-                                                {strengthLabel}
+                                            <span className={`font-mono font-semibold font-epic ${strengthEstimate.colorClass}`}>
+                                                {strengthEstimate.label}
                                             </span>
                                         </div>
                                     );
@@ -1144,6 +1226,540 @@ const DiplomacyTabComponent = ({
                     }}
                 />
             )}
+
+            <BottomSheet
+                isOpen={showNationModal}
+                onClose={() => setShowNationModal(false)}
+                title={`${selectedNation?.name || '外交'} 互动`}
+                wrapperClassName="z-[80]"
+                showHeader={false}
+            >
+                <div className="max-h-[70vh] overflow-y-auto pr-1 pt-1">
+                    {selectedNation ? (
+                        <div className="space-y-2">
+                            <React.Fragment>
+                                <div className="bg-gray-900/70 p-2 rounded-lg border border-gray-700">
+                                    <div className="flex items-center justify-between gap-2 mb-2">
+                                        <div className="flex items-center gap-2">
+                                            <Icon name="Flag" size={16} className={selectedNation.color || 'text-gray-300'} />
+                                            <h3 className="text-lg font-bold text-[20px] text-white font-decorative">{selectedNation?.name || '未知国家'}</h3>
+                                        </div>
+                                        <Icon
+                                            name={(selectedNation?.isAtWar === true) ? 'Swords' : 'ShieldCheck'}
+                                            size={16}
+                                            className={(selectedNation?.isAtWar === true) ? 'text-red-400' : 'text-green-400'}
+                                        />
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
+                                        {selectedNation?.type && (
+                                            <span className="px-2 py-0.5 rounded bg-indigo-900/40 text-indigo-300 border border-indigo-500/30 font-epic">
+                                                {selectedNation.type}
+                                            </span>
+                                        )}
+                                        {selectedRelation && (
+                                            <span className={`px-2 py-0.5 rounded ${selectedRelation.bg} ${selectedRelation.color} font-epic`}>
+                                                {selectedRelation.label}
+                                            </span>
+                                        )}
+                                        {selectedNation.isRebelNation && (
+                                            <span className="px-2 py-0.5 rounded bg-red-900 text-red-100 font-epic">
+                                                叛乱
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="bg-gray-800/60 p-2 rounded-lg border border-gray-700">
+                                    <div className="flex items-center justify-between gap-2 mb-3">
+                                        <div className="flex items-center gap-1.5 font-bold text-[15px] text-gray-300 font-decorative">
+                                            <Icon name="Compass" size={12} className="text-amber-300" />
+                                            外交总览
+                                        </div>
+                                        <div className="flex items-center gap-2 text-[13px] rounded-full bg-gray-900/60 border border-gray-700 p-1">
+                                            <button
+                                                className={`px-4 py-1.5 rounded-full border shadow-sm transition-all ${sheetSection === 'diplomacy'
+                                                    ? 'bg-amber-500/30 border-amber-400/60 text-amber-100 shadow-amber-500/20'
+                                                    : 'bg-gray-900/60 border-gray-700 text-gray-400 hover:text-gray-200 hover:border-gray-500'}`}
+                                                onClick={() => setSheetSection('diplomacy')}
+                                            >
+                                                <span className="flex items-center gap-1">
+                                                    <Icon name="Handshake" size={12} />
+                                                    互动
+                                                </span>
+                                            </button>
+                                            <button
+                                                className={`px-4 py-1.5 rounded-full border shadow-sm transition-all ${sheetSection === 'trade'
+                                                    ? 'bg-blue-500/30 border-blue-400/60 text-blue-100 shadow-blue-500/20'
+                                                    : 'bg-gray-900/60 border-gray-700 text-gray-400 hover:text-gray-200 hover:border-gray-500'}`}
+                                                onClick={() => setSheetSection('trade')}
+                                            >
+                                                <span className="flex items-center gap-1">
+                                                    <Icon name="Coins" size={12} />
+                                                    贸易
+                                                </span>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {selectedNation?.desc && sheetSection === 'diplomacy' && (
+                                        <div className="mb-1.5 p-1.5 bg-gray-900/40 rounded border border-gray-700/50">
+                                            <p className="text-[10px] text-gray-300 leading-relaxed font-body">
+                                                <Icon name="BookOpen" size={10} className="inline mr-1 text-amber-300" />
+                                                {selectedNation.desc}
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    <div className="grid grid-cols-3 gap-2 mb-2 text-[12px] font-body">
+                                        <div className="p-2 rounded border border-blue-500/20 bg-blue-900/10">
+                                            <div className="flex items-center gap-1 text-blue-200 font-body text-[15px] uppercase tracking-wide">
+                                                <Icon name="Users" size={12} />
+                                                人口
+                                            </div>
+                                            <div className="mt-1.5 font-mono text-blue-100 font-semibold font-epic text-sm">
+                                                {formatStatValue(selectedNation?.population, '')}
+                                            </div>
+                                        </div>
+                                        <div className="p-2 rounded border border-amber-500/20 bg-amber-900/10">
+                                            <div className="flex items-center gap-1 text-amber-200 font-body text-[15px] uppercase tracking-wide">
+                                                <Icon name="Coins" size={12} />
+                                                财富
+                                            </div>
+                                            <div className="mt-1.5 font-mono text-amber-100 font-semibold font-epic text-sm">
+                                                {formatStatValue(selectedNation?.wealth, ' 银币')}
+                                            </div>
+                                        </div>
+                                        {(() => {
+                                            const strengthEstimate = getEstimatedMilitaryStrength(selectedNation, epoch, daysElapsed);
+                                            return (
+                                                <div className="p-2 rounded border border-red-500/20 bg-red-900/10">
+                                                    <div className="flex items-center gap-1 text-red-200 font-body text-[15px] uppercase tracking-wide">
+                                                        <Icon name="Swords" size={12} />
+                                                        军事
+                                                    </div>
+                                                    <div className={`mt-1.5 font-mono font-semibold font-epic text-sm ${strengthEstimate.colorClass}`}>
+                                                        {strengthEstimate.label}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
+                                    </div>
+
+                                    {sheetSection === 'diplomacy' && (
+                                        <React.Fragment>
+                                            {selectedNation?.foreignWars && Object.keys(selectedNation.foreignWars).some(
+                                                id => selectedNation.foreignWars[id]?.isAtWar && visibleNations.find(n => n.id === id)
+                                            ) && (
+                                                    <div className="p-1.5 rounded border border-orange-500/20 bg-orange-900/10 mb-1.5">
+                                                        <div className="flex items-center gap-1 text-orange-200 font-body mb-1">
+                                                            <Icon name="Flame" size={12} />
+                                                            正在与其他国家交战
+                                                        </div>
+                                                        <div className="flex flex-wrap gap-1">
+                                                            {Object.keys(selectedNation.foreignWars)
+                                                                .filter(id => selectedNation.foreignWars[id]?.isAtWar)
+                                                                .map(enemyId => {
+                                                                    const enemy = visibleNations.find(n => n.id === enemyId);
+                                                                    return enemy ? (
+                                                                        <span key={enemyId} className="px-1.5 py-0.5 rounded bg-red-900/40 text-red-200 text-[10px] font-body">
+                                                                            ⚔️ {enemy.name}
+                                                                        </span>
+                                                                    ) : null;
+                                                                })}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                            <div className="text-[15px] font-bold text-gray-200 font-decorative flex items-center gap-1 mb-2">
+                                                <Icon name="Sparkles" size={12} className="text-amber-300" />
+                                                外交行动
+                                            </div>
+                                            <div className="grid grid-cols-3 gap-2 text-[13px] font-body">
+                                                {(() => {
+                                                    const giftCooldown = getDiplomaticCooldown(selectedNation, 'gift');
+                                                    return (
+                                                        <button
+                                                            className={`px-3 py-2.5 rounded text-white flex items-center justify-center gap-1 font-semibold font-body ${giftCooldown.isOnCooldown ? 'bg-gray-600 cursor-not-allowed' : 'bg-green-600 hover:bg-green-500'}`}
+                                                            onClick={() => handleSimpleAction(selectedNation.id, 'gift')}
+                                                            disabled={giftCooldown.isOnCooldown}
+                                                            title={giftCooldown.isOnCooldown ? `冷却中（还需${giftCooldown.remainingDays}天）` : '赠送礼物提升关系'}
+                                                        >
+                                                            <Icon name="Gift" size={12} />
+                                                            {giftCooldown.isOnCooldown ? `礼物(${giftCooldown.remainingDays}天)` : '礼物'}
+                                                        </button>
+                                                    );
+                                                })()}
+                                                {(() => {
+                                                    const demandCooldown = getDiplomaticCooldown(selectedNation, 'demand');
+                                                    return (
+                                                        <button
+                                                            className={`px-3 py-2.5 rounded text-white flex items-center justify-center gap-1 font-semibold font-body ${demandCooldown.isOnCooldown ? 'bg-gray-600 cursor-not-allowed' : 'bg-yellow-600 hover:bg-yellow-500'}`}
+                                                            onClick={() => handleSimpleAction(selectedNation.id, 'demand')}
+                                                            disabled={demandCooldown.isOnCooldown}
+                                                            title={demandCooldown.isOnCooldown ? `冷却中（还需${demandCooldown.remainingDays}天）` : '向该国索要贡品'}
+                                                        >
+                                                            <Icon name="ShieldAlert" size={12} />
+                                                            {demandCooldown.isOnCooldown ? `索要(${demandCooldown.remainingDays}天)` : '索要'}
+                                                        </button>
+                                                    );
+                                                })()}
+                                                <button
+                                                    className={`px-3 py-2.5 rounded text-white flex items-center justify-center gap-1 font-semibold font-body ${selectedNation.isAtWar ? 'bg-purple-600 hover:bg-purple-500' : 'bg-red-600 hover:bg-red-500'
+                                                        }`}
+                                                    onClick={() => {
+                                                        if (selectedNation?.isAtWar === true) {
+                                                            handleSimpleAction(selectedNation.id, 'peace');
+                                                        } else {
+                                                            setShowDeclareWarModal(true);
+                                                        }
+                                                    }}
+                                                >
+                                                    <Icon name={(selectedNation?.isAtWar === true) ? 'Flag' : 'Swords'} size={12} />
+                                                    {(selectedNation?.isAtWar === true) ? '求和' : '宣战'}
+                                                </button>
+                                            </div>
+
+                                            <div className="mt-2 grid grid-cols-2 gap-2 text-[13px] font-body">
+                                                {(() => {
+                                                    const provokeCooldown = getDiplomaticCooldown(selectedNation, 'provoke');
+                                                    return (
+                                                        <button
+                                                            className={`px-3 py-2.5 rounded text-white flex items-center justify-center gap-1 font-semibold font-body ${provokeCooldown.isOnCooldown ? 'bg-gray-600 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-500'}`}
+                                                            onClick={() => {
+                                                                setProvokeTargetId(null);
+                                                                setShowProvokeModal(true);
+                                                            }}
+                                                            disabled={provokeCooldown.isOnCooldown}
+                                                            title={provokeCooldown.isOnCooldown ? `冷却中（还需${provokeCooldown.remainingDays}天）` : '花费银币离间该国与另一国家的关系'}
+                                                        >
+                                                            <Icon name="MessageSquareWarning" size={12} />
+                                                            {provokeCooldown.isOnCooldown ? `挑拨(${provokeCooldown.remainingDays}天)` : '挑拨关系'}
+                                                        </button>
+                                                    );
+                                                })()}
+                                                {selectedNation?.alliedWithPlayer === true ? (
+                                                    <button
+                                                        className="px-3 py-2.5 bg-red-700 hover:bg-red-600 rounded text-white flex items-center justify-center gap-1 font-semibold font-body"
+                                                        onClick={() => handleSimpleAction(selectedNation.id, 'break_alliance')}
+                                                        title="解除与该国的同盟关系"
+                                                    >
+                                                        <Icon name="UserMinus" size={12} /> 解除同盟
+                                                    </button>
+                                                ) : (() => {
+                                                    const allianceCooldown = getDiplomaticCooldown(selectedNation, 'propose_alliance');
+                                                    const relationOk = (selectedNation?.relation || 0) >= 60;
+                                                    const notAtWar = !selectedNation?.isAtWar;
+                                                    const canPropose = relationOk && notAtWar && !allianceCooldown.isOnCooldown;
+
+                                                    let titleText = '请求与该国建立正式同盟';
+                                                    if (allianceCooldown.isOnCooldown) {
+                                                        titleText = `冷却中（还需${allianceCooldown.remainingDays}天）`;
+                                                    } else if (!relationOk) {
+                                                        titleText = `关系需达到60才能请求结盟（当前：${Math.round(selectedNation?.relation || 0)}）`;
+                                                    } else if (!notAtWar) {
+                                                        titleText = '无法与交战国结盟';
+                                                    }
+
+                                                    return (
+                                                        <button
+                                                            className={`px-3 py-2.5 rounded text-white flex items-center justify-center gap-1 font-semibold font-body ${canPropose ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-gray-600 cursor-not-allowed'}`}
+                                                            onClick={() => handleSimpleAction(selectedNation.id, 'propose_alliance')}
+                                                            disabled={!canPropose}
+                                                            title={titleText}
+                                                        >
+                                                            <Icon name="Users" size={12} />
+                                                            {allianceCooldown.isOnCooldown ? `结盟(${allianceCooldown.remainingDays}天)` : '请求结盟'}
+                                                        </button>
+                                                    );
+                                                })()}
+                                            </div>
+
+                                            <div className="mt-1 text-[9px] text-gray-400 flex items-center justify-between font-epic">
+                                                <span className="flex items-center gap-1">
+                                                    <Icon name="Coins" size={10} className="text-amber-300" />
+                                                    礼物成本：{calculateDynamicGiftCost(resources.silver || 0, selectedNation?.wealth || 0)} 银币 | 挑拨成本：{calculateProvokeCost(resources.silver || 0, selectedNation?.wealth || 0)} 银币
+                                                </span>
+                                            </div>
+
+                                            {selectedPreferences.length > 0 && (
+                                                <div className="mt-1.5">
+                                                    <div className="text-[10px] text-gray-400 uppercase tracking-wide mb-1 flex items-center gap-1 font-decorative">
+                                                        <Icon name="Package" size={10} className="text-amber-300" />
+                                                        偏好资源
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {selectedPreferences.slice(0, 4).map((pref) => (
+                                                            <span
+                                                                key={pref.key}
+                                                                className="px-2 py-0.5 rounded-full bg-gray-900/40 border border-amber-500/30 text-[10px] text-amber-100 flex items-center gap-1 font-body"
+                                                                title={`倾向度 x${pref.bias.toFixed(1)}`}
+                                                            >
+                                                                <Icon name={pref.icon} size={10} className={pref.color || 'text-amber-200'} />
+                                                                <span className="font-body">{pref.name}</span>
+                                                                <span className="text-amber-300 font-mono text-[9px] font-epic">x{pref.bias.toFixed(1)}</span>
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </React.Fragment>
+                                    )}
+                                </div>
+
+                                    {sheetSection === 'trade' && (
+                                    <div className="bg-gray-800/60 p-2 rounded-lg border border-gray-700">
+                                        {(() => {
+                                            const nationRelation = selectedNation?.relation || 0;
+                                            const isAllyWithNation = selectedNation?.alliedWithPlayer === true;
+                                            const isOpenMarketActive = selectedNation?.openMarketUntil && daysElapsed < selectedNation.openMarketUntil;
+                                            const openMarketRemainingDays = isOpenMarketActive ? selectedNation.openMarketUntil - daysElapsed : 0;
+                                            const maxRoutesWithNation = isOpenMarketActive ? 999 : getMaxTradeRoutesForRelation(nationRelation, isAllyWithNation);
+                                            const currentRoutesWithNation = getRouteCountWithNation(tradeRoutes.routes, selectedNation?.id);
+                                            const canCreateMore = currentRoutesWithNation < maxRoutesWithNation && currentRouteCount < merchantJobLimit;
+
+                                            return (
+                                                <React.Fragment>
+                                                    <div className="flex items-center justify-between mb-2">
+                                                        <h3 className="text-xs font-bold text-white flex items-center gap-1 font-decorative">
+                                                            <Icon name="Route" size={12} className="text-blue-300" />
+                                                            贸易路线管理
+                                                        </h3>
+                                                        <div className="text-[10px] text-gray-400 font-body">
+                                                            <div className="font-body">创建贸易路线以自动进出口资源</div>
+                                                            <div className="mt-0.5 font-epic">
+                                                                <span className={activeRouteCount < currentRouteCount ? 'text-yellow-400' : 'text-blue-400'}>
+                                                                    有效路线: {activeRouteCount}/{currentRouteCount}
+                                                                </span>
+                                                                <span className="text-gray-500 mx-1">|</span>
+                                                                <span className={currentRouteCount >= merchantJobLimit ? 'text-red-400' : 'text-green-400'}>
+                                                                    商人上限: {merchantJobLimit}
+                                                                </span>
+                                                                <span className="text-gray-500 mx-1">|</span>
+                                                                <span className="text-amber-400">商人在岗: {merchantCount}/{merchantJobLimit}</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className={`mb-2 p-2 rounded border ${isOpenMarketActive ? 'bg-green-900/30 border-green-600/30' : 'bg-indigo-900/30 border-indigo-600/30'}`}>
+                                                        <div className="flex items-center justify-between text-[10px]">
+                                                            <span className={`flex items-center gap-1 font-body ${isOpenMarketActive ? 'text-green-300' : 'text-indigo-300'}`}>
+                                                                <Icon name={isOpenMarketActive ? 'Store' : 'Heart'} size={10} />
+                                                                与 {selectedNation?.name} 的贸易路线
+                                                            </span>
+                                                            <span className={`font-epic ${isOpenMarketActive ? 'text-green-300' : (currentRoutesWithNation >= maxRoutesWithNation ? 'text-red-300' : 'text-green-300')}`}>
+                                                                {isOpenMarketActive ? `${currentRoutesWithNation}/无限制` : `${currentRoutesWithNation}/${maxRoutesWithNation}`}
+                                                            </span>
+                                                        </div>
+                                                        {isOpenMarketActive ? (
+                                                            <div className="text-[9px] text-green-400 mt-1 font-body">
+                                                                🏪 开放市场协议生效中！剩余 {Math.ceil(openMarketRemainingDays / 365)} 年 {openMarketRemainingDays % 365} 天
+                                                                <span className="text-green-300 ml-1">(贸易路线不受关系限制)</span>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="text-[9px] text-gray-400 mt-1 font-body">
+                                                                {isAllyWithNation ? (
+                                                                    <span className="text-green-400">🤝 正式盟友 → 最多 {maxRoutesWithNation} 条路线</span>
+                                                                ) : (
+                                                                    <>
+                                                                        关系值 {Math.round(nationRelation)} → 最多 {maxRoutesWithNation} 条路线
+                                                                        {maxRoutesWithNation === 0 && <span className="text-red-400 ml-1">(敌对无法贸易)</span>}
+                                                                        {maxRoutesWithNation === 1 && <span className="text-yellow-400 ml-1">(冷淡)</span>}
+                                                                        {maxRoutesWithNation === 2 && <span className="text-gray-300 ml-1">(中立)</span>}
+                                                                        {maxRoutesWithNation === 3 && <span className="text-blue-400 ml-1">(友好)</span>}
+                                                                        {maxRoutesWithNation === 4 && <span className="text-emerald-400 ml-1">(亲密)</span>}
+                                                                    </>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    {activeRouteCount < currentRouteCount && (
+                                                        <div className="mb-2 p-2 bg-yellow-900/30 border border-yellow-600/30 rounded text-[10px] text-yellow-300 font-body">
+                                                            <Icon name="AlertTriangle" size={12} className="inline mr-1" />
+                                                            当前有 {currentRouteCount - activeRouteCount} 条贸易路线未激活。需要更多商人在岗才能激活所有路线。
+                                                        </div>
+                                                    )}
+                                                    {currentRouteCount >= merchantJobLimit && (
+                                                        <div className="mb-2 p-2 bg-red-900/30 border border-red-600/30 rounded text-[10px] text-red-300 font-body">
+                                                            <Icon name="AlertCircle" size={12} className="inline mr-1" />
+                                                            贸易路线数量已达上限。建造更多贸易站以增加商人岗位上限。
+                                                        </div>
+                                                    )}
+                                                    {currentRoutesWithNation >= maxRoutesWithNation && maxRoutesWithNation > 0 && (
+                                                        <div className="mb-2 p-2 bg-purple-900/30 border border-purple-600/30 rounded text-[10px] text-purple-300 font-body">
+                                                            <Icon name="UserX" size={12} className="inline mr-1" />
+                                                            与 {selectedNation?.name} 的贸易路线已达关系上限（{maxRoutesWithNation}条）。提升关系可增加贸易路线数量。
+                                                        </div>
+                                                    )}
+                                                    {maxRoutesWithNation === 0 && (
+                                                        <div className="mb-2 p-2 bg-red-900/30 border border-red-600/30 rounded text-[10px] text-red-300 font-body">
+                                                            <Icon name="Ban" size={12} className="inline mr-1" />
+                                                            与 {selectedNation?.name} 关系敌对，无法建立贸易路线。请改善关系至少达到20。
+                                                        </div>
+                                                    )}
+
+                                                    <div className="space-y-1">
+                                                        {tradableResources.map(([key, res]) => {
+                                                            if (!selectedNation) return null;
+                                                            const local = getLocalPrice(key);
+                                                            const foreign = calculateForeignPrice(selectedNation, key, local, epoch);
+                                                            const diff = foreign - local;
+                                                            const tradeStatus = calculateTradeStatus(key, selectedNation, daysElapsed);
+                                                            const shortageCapacity = Math.floor(tradeStatus.shortageAmount || 0);
+                                                            const surplusCapacity = Math.floor(tradeStatus.surplusAmount || 0);
+                                                            const isAtWar = selectedNation?.isAtWar === true;
+                                                            const hasExportRoute = hasTradeRoute(selectedNation.id, key, 'export');
+                                                            const hasImportRoute = hasTradeRoute(selectedNation.id, key, 'import');
+                                                            const canCreateNewRoute = !canCreateMore && !hasExportRoute && !hasImportRoute;
+                                                            const relationBlocked = currentRoutesWithNation >= maxRoutesWithNation;
+
+                                                            return (
+                                                                <div key={key} className="bg-gray-900/40 rounded p-1.5 border border-gray-700/50">
+                                                                    <div className="flex items-center justify-between mb-1">
+                                                                        <div className="flex items-center gap-1.5">
+                                                                            <Icon name={res.icon || 'Box'} size={12} className={res.color || 'text-gray-400'} />
+                                                                            <span className="text-xs font-semibold text-white font-body">{res.name}</span>
+                                                                        </div>
+                                                                        <div className="flex items-center gap-1 text-[10px] font-epic">
+                                                                            {tradeStatus.isShortage && (
+                                                                                <span className="px-1.5 py-0.5 rounded-full bg-red-900/40 text-red-200 border border-red-600/40">
+                                                                                    缺货 {shortageCapacity}
+                                                                                </span>
+                                                                            )}
+                                                                            {tradeStatus.isSurplus && (
+                                                                                <span className="px-1.5 py-0.5 rounded-full bg-green-900/40 text-green-200 border border-green-600/40">
+                                                                                    盈余 {surplusCapacity}
+                                                                                </span>
+                                                                            )}
+                                                                            {!tradeStatus.isShortage && !tradeStatus.isSurplus && (
+                                                                                <span className="px-1.5 py-0.5 rounded-full bg-gray-800/60 text-gray-300 border border-gray-700">
+                                                                                    平衡 0
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="flex items-center justify-between text-[10px]">
+                                                                        <div className="flex gap-2 text-gray-400 font-body">
+                                                                            <span>本地: <span className="text-white font-mono font-epic">{local.toFixed(1)}</span></span>
+                                                                            <span>外国: <span className={`font-mono font-epic ${diff > 0 ? 'text-green-300' : 'text-red-300'}`}>{foreign.toFixed(1)}</span></span>
+                                                                        </div>
+                                                                        <div className="flex gap-1">
+                                                                            <button
+                                                                                className={`px-1.5 py-0.5 rounded text-white flex items-center gap-0.5 font-body ${hasExportRoute
+                                                                                    ? 'bg-red-600 hover:bg-red-500'
+                                                                                    : (isAtWar || (relationBlocked && !hasExportRoute))
+                                                                                        ? 'bg-gray-600 cursor-not-allowed'
+                                                                                        : 'bg-teal-600 hover:bg-teal-500'
+                                                                                    }`}
+                                                                                onClick={() => handleTradeRoute(key, 'export')}
+                                                                                disabled={(isAtWar && !hasExportRoute) || (relationBlocked && !hasExportRoute)}
+                                                                                title={isAtWar && !hasExportRoute ? '战争期间无法创建新贸易路线' : (relationBlocked && !hasExportRoute ? '关系限制：已达该国贸易路线上限' : '')}
+                                                                            >
+                                                                                <Icon name={hasExportRoute ? 'X' : 'ArrowUpRight'} size={10} />
+                                                                                {hasExportRoute ? '取消' : '出口'}
+                                                                            </button>
+                                                                            <button
+                                                                                className={`px-1.5 py-0.5 rounded text-white flex items-center gap-0.5 font-body ${hasImportRoute
+                                                                                    ? 'bg-red-600 hover:bg-red-500'
+                                                                                    : (isAtWar || (relationBlocked && !hasImportRoute))
+                                                                                        ? 'bg-gray-600 cursor-not-allowed'
+                                                                                        : 'bg-purple-600 hover:bg-purple-500'
+                                                                                    }`}
+                                                                                onClick={() => handleTradeRoute(key, 'import')}
+                                                                                disabled={(isAtWar && !hasImportRoute) || (relationBlocked && !hasImportRoute)}
+                                                                                title={isAtWar && !hasImportRoute ? '战争期间无法创建新贸易路线' : (relationBlocked && !hasImportRoute ? '关系限制：已达该国贸易路线上限' : '')}
+                                                                            >
+                                                                                <Icon name={hasImportRoute ? 'X' : 'ArrowDownLeft'} size={10} />
+                                                                                {hasImportRoute ? '取消' : '进口'}
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                    {canCreateNewRoute && (
+                                                                        <div className="mt-1 text-[9px] text-yellow-300 font-body">
+                                                                            当前贸易路线已达上限或商人不足，无法新增路线。
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </React.Fragment>
+                                            );
+                                        })()}
+                                    </div>
+                                    )}
+
+                                    {sheetSection === 'diplomacy' && (
+                                    <React.Fragment>
+                                    {selectedNation.peaceTreatyUntil && daysElapsed < selectedNation.peaceTreatyUntil && (
+                                        <div className="bg-green-900/20 p-2 rounded-lg border border-green-600/30 mb-2">
+                                            <h3 className="text-xs font-bold text-white flex items-center gap-1 mb-1.5 font-decorative">
+                                                <Icon name="HandHeart" size={12} className="text-green-300" />
+                                                和平协议
+                                            </h3>
+                                            <p className="text-[10px] text-gray-300 font-body">
+                                                剩余天数: <span className="text-green-300 font-semibold font-epic">{selectedNation.peaceTreatyUntil - daysElapsed}</span>
+                                            </p>
+                                            {selectedNation.installmentPayment && (
+                                                <p className="text-[10px] text-gray-300 mt-1 font-body">
+                                                    分期支付: 每天 <span className="text-yellow-300 font-semibold font-epic">{selectedNation.installmentPayment.amount}</span> 银币
+                                                    （剩余 <span className="text-white font-semibold font-epic">{selectedNation.installmentPayment.remainingDays}</span> 天）
+                                                </p>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {selectedNation.isAtWar && (
+                                        <div className="bg-red-900/20 p-2 rounded-lg border border-red-600/30">
+                                            <h3 className="text-xs font-bold text-white flex items-center gap-1 mb-1.5 font-decorative">
+                                                <Icon name="AlertTriangle" size={12} className="text-red-300" />
+                                                战争状态
+                                            </h3>
+                                            <div className="flex items-center justify-between text-[10px] mb-1.5 font-body">
+                                                <div className="flex gap-2 text-gray-300 font-body">
+                                                    <span>分数: <span className="text-red-300 font-semibold font-epic">{selectedNation.warScore?.toFixed(0) || 0}</span></span>
+                                                    <span>天数: <span className="text-white font-semibold font-epic">{selectedNation.warDuration || 0}</span></span>
+                                                    <span>损失: <span className="text-white font-semibold font-epic">{selectedNation.enemyLosses || 0}</span></span>
+                                                    <span>实力: <span className={`font-semibold font-epic ${(selectedNation.militaryStrength ?? 1.0) > 0.7 ? 'text-green-300' : (selectedNation.militaryStrength ?? 1.0) > 0.4 ? 'text-yellow-300' : 'text-red-300'}`}>{Math.floor((selectedNation.militaryStrength ?? 1.0) * 100)}%</span></span>
+                                                </div>
+                                            </div>
+                                            <p className="text-[10px] text-gray-400 mb-1.5 font-body">{renderPeaceHint(selectedNation)}</p>
+                                            <button
+                                                className="w-full px-2 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded text-xs font-semibold font-body"
+                                                onClick={() => handleSimpleAction(selectedNation.id, 'peace')}
+                                            >
+                                                提出和平协议
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {playerInstallmentPayment && playerInstallmentPayment.nationId === selectedNation.id && (
+                                        <div className="bg-yellow-900/20 p-2 rounded-lg border border-yellow-600/30 mt-2">
+                                            <h3 className="text-xs font-bold text-white flex items-center gap-1 mb-1.5 font-decorative">
+                                                <Icon name="Coins" size={12} className="text-yellow-300" />
+                                                你的分期支付
+                                            </h3>
+                                            <p className="text-[10px] text-gray-300 font-body">
+                                                每天支付: <span className="text-yellow-300 font-semibold font-epic">{playerInstallmentPayment.amount}</span> 银币
+                                            </p>
+                                            <p className="text-[10px] text-gray-300 mt-1 font-body">
+                                                剩余天数: <span className="text-white font-semibold font-epic">{playerInstallmentPayment.remainingDays}</span>
+                                            </p>
+                                            <p className="text-[10px] text-gray-300 mt-1 font-body">
+                                                已支付: <span className="text-green-300 font-semibold font-epic">{playerInstallmentPayment.paidAmount}</span> /
+                                                <span className="text-white font-semibold font-epic"> {playerInstallmentPayment.totalAmount}</span> 银币
+                                            </p>
+                                        </div>
+                                    )}
+                                    </React.Fragment>
+                                    )}
+                            </React.Fragment>
+                        </div>
+                    ) : (
+                        <div className="text-sm text-gray-400 font-body">暂无可交互的国家。</div>
+                    )}
+                </div>
+            </BottomSheet>
         </div>
     );
 };

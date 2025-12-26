@@ -74,13 +74,19 @@ export const Modal = ({
   footer,
   size = 'md',
   showCloseButton = true,
+  overlayClassName = '',
+  containerClassName = '',
 }) => {
   if (!isOpen) return null;
 
   return (
-    <div className={MODAL_STYLES.overlay} onClick={onClose}>
+    <div className={cn(MODAL_STYLES.overlay, overlayClassName)} onClick={onClose}>
       <div
-        className={cn(MODAL_STYLES.container.base, MODAL_STYLES.container[size])}
+        className={cn(
+          MODAL_STYLES.container.base,
+          MODAL_STYLES.container[size],
+          containerClassName
+        )}
         onClick={(e) => e.stopPropagation()}
       >
         {/* 头部 */}

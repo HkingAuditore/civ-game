@@ -1283,9 +1283,9 @@ export const useGameActions = (gameState, addLog) => {
         // 外交动作冷却时间配置（天数）
         const DIPLOMATIC_COOLDOWNS = {
             gift: 30,           // 送礼：30天冷却
-            demand: 60,         // 索要：60天冷却
-            provoke: 90,        // 挑拨：90天冷却
-            propose_alliance: 60, // 请求结盟：60天冷却
+            demand: 30,         // 索要：30天冷却
+            provoke: 30,        // 挑拨：30天冷却
+            propose_alliance: 30, // 请求结盟：30天冷却
             break_alliance: 0,  // 解除同盟：无冷却（但有严重后果）
         };
 
