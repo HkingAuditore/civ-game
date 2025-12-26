@@ -2182,8 +2182,9 @@
 
 
 /* 禁用其他组件的模糊效果，并使用时代主题色+金属质感背景替代 */
-.low-perf-mode [class*="backdrop-blur"],
-.low-perf-mode [style*="backdrop-filter"] {
+/* 排除总览按钮（.overview-btn-safe-area 内的元素），让它保留内联样式 */
+.low-perf-mode [class*="backdrop-blur"]:not(.overview-btn-safe-area *),
+.low-perf-mode [style*="backdrop-filter"]:not(.overview-btn-safe-area *) {
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
     /* 使用时代主题色背景+金属质感 */
@@ -2194,6 +2195,13 @@
     box-shadow: 
         inset 0 1px 0 var(--theme-highlight, rgba(255, 255, 255, 0.08)),
         inset 0 -1px 0 rgba(0, 0, 0, 0.25) !important;
+}
+
+/* 总览按钮 - 低性能模式下禁用blur但保留原背景 */
+.low-perf-mode .overview-btn-safe-area [class*="backdrop-blur"] {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    /* 不覆盖背景，让内联样式生效 */
 }
 
 /* 底部导航栏 - 使用时代主题色渐变背景+金属质感 */
