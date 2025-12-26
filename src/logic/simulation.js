@@ -2770,23 +2770,6 @@ export const simulateTick = ({
         if (res[k] < 0) res[k] = 0;
     });
 
-    const collectedHeadTax = taxBreakdown.headTax * efficiency;
-    const collectedIndustryTax = taxBreakdown.industryTax * efficiency;
-    const collectedBusinessTax = taxBreakdown.businessTax * efficiency;
-    const collectedTariff = (taxBreakdown.tariff || 0) * efficiency; // 关税收入
-    const tariffSubsidy = taxBreakdown.tariffSubsidy || 0; // 关税补贴支出
-    const totalCollectedTax = collectedHeadTax + collectedIndustryTax + collectedBusinessTax + collectedTariff;
-
-    // 将税收与战争赔款一并视为财政收入
-    const baseFiscalIncome = totalCollectedTax + warIndemnityIncome;
-    // NEW: Apply income percentage bonus (from tech/decree effects)
-    const incomePercentMultiplier = Math.max(0, 1 + incomePercentBonus);
-    const totalFiscalIncome = baseFiscalIncome * incomePercentMultiplier;
-
-    res.silver = (res.silver || 0) + totalFiscalIncome;
-    rates.silver = (rates.silver || 0) + totalFiscalIncome;
-
-
     // console.log('[TICK] Starting price and wage updates...'); // Commented for performance
     const updatedPrices = { ...priceMap };
     const updatedWages = {};
@@ -3608,6 +3591,22 @@ export const simulateTick = ({
         classWealthResult[key] = Math.max(0, wealth[key] || 0);
     });
     totalWealth = Object.values(classWealthResult).reduce((sum, val) => sum + val, 0);
+
+    const collectedHeadTax = taxBreakdown.headTax * efficiency;
+    const collectedIndustryTax = taxBreakdown.industryTax * efficiency;
+    const collectedBusinessTax = taxBreakdown.businessTax * efficiency;
+    const collectedTariff = (taxBreakdown.tariff || 0) * efficiency; // 关税收入
+    const tariffSubsidy = taxBreakdown.tariffSubsidy || 0; // 关税补贴支出
+    const totalCollectedTax = collectedHeadTax + collectedIndustryTax + collectedBusinessTax + collectedTariff;
+
+    // 将税收与战争赔款一并视为财政收入
+    const baseFiscalIncome = totalCollectedTax + warIndemnityIncome;
+    // NEW: Apply income percentage bonus (from tech/decree effects)
+    const incomePercentMultiplier = Math.max(0, 1 + incomePercentBonus);
+    const totalFiscalIncome = baseFiscalIncome * incomePercentMultiplier;
+
+    res.silver = (res.silver || 0) + totalFiscalIncome;
+    rates.silver = (rates.silver || 0) + totalFiscalIncome;
 
     taxBreakdown.policyIncome = decreeSilverIncome;
     taxBreakdown.policyExpense = decreeSilverExpense;
