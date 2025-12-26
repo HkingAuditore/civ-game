@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { DECREES, COUNTRIES, RESOURCES, STRATA } from '../config';
 import { isOldUpgradeFormat, migrateUpgradesToNewFormat } from '../utils/buildingUpgradeUtils';
 import { DEFAULT_DIFFICULTY, getDifficultyConfig } from '../config/difficulty';
+import { getScenarioById } from '../config/scenarios';
 import { Share } from '@capacitor/share';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 
@@ -382,6 +383,13 @@ const buildInitialNations = () => {
     });
 };
 
+const buildScenarioPopulation = (scenarioOverrides) => {
+    if (!scenarioOverrides?.popStructure) return null;
+    const total = Object.values(scenarioOverrides.popStructure)
+        .reduce((sum, value) => sum + (Number(value) || 0), 0);
+    return total || null;
+};
+
 /**
  * 游戏状态管理钩子
  * 集中管理所有游戏状态
@@ -538,6 +546,77 @@ export const useGameState = () => {
         setLogs(prev => [message, ...prev].slice(0, 8));
     };
 
+    const applyScenarioConfig = (scenarioId) => {
+        if (!scenarioId) return;
+        const scenario = getScenarioById(scenarioId);
+        if (!scenario) return;
+
+        const overrides = scenario.overrides || {};
+
+        if (overrides.resources) {
+            setResources({ ...INITIAL_RESOURCES, ...overrides.resources });
+        }
+
+        if (overrides.buildings) {
+            setBuildings(overrides.buildings);
+        }
+
+        if (overrides.buildingUpgrades) {
+            setBuildingUpgrades(overrides.buildingUpgrades);
+        }
+
+        if (overrides.techsUnlocked) {
+            setTechsUnlocked(overrides.techsUnlocked);
+        }
+
+        if (typeof overrides.epoch === 'number') {
+            setEpoch(overrides.epoch);
+        }
+
+        if (overrides.classApproval) {
+            setClassApproval(overrides.classApproval);
+        }
+
+        if (overrides.classInfluence) {
+            setClassInfluence(overrides.classInfluence);
+        }
+
+        if (overrides.classWealth) {
+            setClassWealth({ ...buildInitialWealth(), ...overrides.classWealth });
+        }
+
+        if (typeof overrides.stability === 'number') {
+            setStability(overrides.stability);
+        }
+
+        if (overrides.rulingCoalition) {
+            setRulingCoalition(overrides.rulingCoalition);
+        }
+
+        if (typeof overrides.maxPopBonus === 'number') {
+            setMaxPopBonus(overrides.maxPopBonus);
+        }
+
+        if (overrides.popStructure) {
+            setPopStructure(overrides.popStructure);
+        }
+
+        const scenarioPopulation = buildScenarioPopulation(overrides);
+        const targetPopulation = typeof overrides.population === 'number'
+            ? overrides.population
+            : scenarioPopulation;
+
+        if (typeof targetPopulation === 'number') {
+            setPopulation(targetPopulation);
+            const nextMaxPop = typeof overrides.maxPop === 'number'
+                ? Math.max(overrides.maxPop, targetPopulation)
+                : Math.max(10, targetPopulation);
+            setMaxPop(nextMaxPop);
+        } else if (typeof overrides.maxPop === 'number') {
+            setMaxPop(overrides.maxPop);
+        }
+    };
+
     // Auto-load the most recent save on startup
     const hasInitializedRef = useRef(false);
     useEffect(() => {
@@ -555,6 +634,11 @@ export const useGameState = () => {
                 if (newGameDifficulty) {
                     setDifficulty(newGameDifficulty);
                     localStorage.removeItem('new_game_difficulty');
+                }
+                const newGameScenario = localStorage.getItem('new_game_scenario');
+                if (newGameScenario) {
+                    applyScenarioConfig(newGameScenario);
+                    localStorage.removeItem('new_game_scenario');
                 }
                 // 跳过自动加载，开始新游戏
                 return;
@@ -615,6 +699,11 @@ export const useGameState = () => {
                 if (newGameDifficulty) {
                     setDifficulty(newGameDifficulty);
                     localStorage.removeItem('new_game_difficulty');
+                }
+                const newGameScenario = localStorage.getItem('new_game_scenario');
+                if (newGameScenario) {
+                    applyScenarioConfig(newGameScenario);
+                    localStorage.removeItem('new_game_scenario');
                 }
                 return;
             }
@@ -1259,15 +1348,21 @@ export const useGameState = () => {
     };
 
     // 开始新游戏（不删除现有存档）
-    const resetGame = (selectedDifficulty = null) => {
+    const resetGame = (options = null) => {
         if (typeof window === 'undefined') {
             return;
         }
+        const normalized = typeof options === 'string'
+            ? { difficulty: options }
+            : (options || {});
         // 标记为新游戏模式，启动时不加载任何存档
         localStorage.setItem('start_new_game', 'true');
         // 如果指定了难度，保存到 localStorage 以便新游戏启动时使用
-        if (selectedDifficulty) {
-            localStorage.setItem('new_game_difficulty', selectedDifficulty);
+        if (normalized.difficulty) {
+            localStorage.setItem('new_game_difficulty', normalized.difficulty);
+        }
+        if (normalized.scenarioId) {
+            localStorage.setItem('new_game_scenario', normalized.scenarioId);
         }
         window.location.reload();
     };

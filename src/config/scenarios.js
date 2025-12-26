@@ -1,0 +1,172 @@
+// 情景模式配置
+// 通过配置化方式定义开局条件
+
+export const SCENARIOS = [
+    {
+        id: 'agrarian_realm',
+        name: '沃野同盟',
+        icon: '🌾',
+        description: '粮食与基础农业起势迅速，适合稳扎稳打。',
+        tags: ['农业强', '人口偏农'],
+        highlights: ['开局农田与粮仓', '自耕农与佃农比例高', '食物储备充足'],
+        overrides: {
+            resources: { food: 1200, wood: 300, stone: 250, silver: 500, culture: 260 },
+            population: 60,
+            popStructure: {
+                peasant: 28,
+                serf: 12,
+                lumberjack: 6,
+                landowner: 2,
+                unemployed: 12,
+            },
+            buildings: { farm: 4, granary: 1, hut: 6, large_estate: 1 },
+            maxPop: 70,
+        },
+    },
+    {
+        id: 'industrial_hub',
+        name: '铁火工坊',
+        icon: '🏭',
+        description: '工矿基础雄厚，工业体系起步更早。',
+        tags: ['工业强', '资源偏矿'],
+        highlights: ['矿场与工坊开局', '工人矿工占比高', '工具与铁储备'],
+        overrides: {
+            resources: { iron: 320, tools: 180, coal: 120, stone: 350, silver: 600 },
+            population: 70,
+            popStructure: {
+                worker: 22,
+                miner: 14,
+                artisan: 8,
+                peasant: 12,
+                capitalist: 2,
+                unemployed: 12,
+            },
+            buildings: { mine: 3, iron_tool_workshop: 1, brickworks: 1, sawmill: 1, factory: 1 },
+            epoch: 3,
+            maxPop: 85,
+        },
+    },
+    {
+        id: 'trade_port',
+        name: '商贸港湾',
+        icon: '⚓',
+        description: '贸易与航海驱动经济，现金流充沛。',
+        tags: ['商业强', '贸易起步'],
+        highlights: ['市场与贸易站开局', '商人与水手占比高', '银币与香料储备'],
+        overrides: {
+            resources: { silver: 1600, spice: 180, coffee: 90, papyrus: 120, food: 400 },
+            population: 65,
+            popStructure: {
+                merchant: 10,
+                navigator: 8,
+                worker: 10,
+                artisan: 6,
+                peasant: 16,
+                unemployed: 15,
+            },
+            buildings: { market: 1, trading_post: 2, dockyard: 1, trade_port: 1 },
+            epoch: 4,
+            maxPop: 80,
+        },
+    },
+    {
+        id: 'restive_frontier',
+        name: '纷争边境',
+        icon: '🔥',
+        description: '民心不稳，叛乱风险高，但军力基础更足。',
+        tags: ['易造反', '军政紧张'],
+        highlights: ['稳定度偏低', '军人比例较高', '适合挑战玩法'],
+        overrides: {
+            resources: { food: 500, wood: 260, stone: 280, silver: 300, tools: 60 },
+            population: 55,
+            popStructure: {
+                peasant: 16,
+                serf: 10,
+                soldier: 10,
+                worker: 6,
+                unemployed: 13,
+            },
+            buildings: { barracks: 1, training_ground: 1, hut: 4, farm: 2 },
+            stability: 35,
+            classApproval: { peasant: 35, serf: 30, worker: 40, soldier: 45, unemployed: 30 },
+            maxPop: 65,
+        },
+    },
+    {
+        id: 'ancient_city',
+        name: '古城遗脉',
+        icon: '🏛️',
+        description: '继承旧文明的基础设施，但人心尚需整合。',
+        tags: ['建筑积累', '城市开局'],
+        highlights: ['市政与文化建筑齐备', '人口更集中', '适合走文化路线'],
+        overrides: {
+            resources: { food: 500, wood: 220, stone: 300, culture: 450, silver: 500 },
+            population: 75,
+            popStructure: {
+                peasant: 20,
+                worker: 12,
+                artisan: 8,
+                cleric: 4,
+                official: 3,
+                unemployed: 28,
+            },
+            buildings: { town_hall: 1, church: 1, amphitheater: 1, house: 6, granary: 1 },
+            epoch: 2,
+            maxPop: 90,
+        },
+    },
+    {
+        id: 'late_epoch',
+        name: '后纪元起航',
+        icon: '🧭',
+        description: '从更高时代起步，科技与资源更成熟。',
+        tags: ['后期时代', '快速发展'],
+        highlights: ['更高时代开局', '资源与工具储备', '适合快节奏发展'],
+        overrides: {
+            resources: { food: 900, wood: 600, stone: 550, tools: 220, silver: 1200, culture: 500 },
+            population: 85,
+            popStructure: {
+                worker: 18,
+                artisan: 10,
+                merchant: 6,
+                official: 4,
+                peasant: 20,
+                unemployed: 27,
+            },
+            buildings: { house: 8, market: 1, library: 1, brickworks: 1, sawmill: 1 },
+            epoch: 4,
+            techsUnlocked: ['caravan_trade', 'urban_planning', 'printing_press'],
+            maxPop: 100,
+        },
+    },
+    {
+        id: 'rich_treasury',
+        name: '富庶金库',
+        icon: '💰',
+        description: '财政充裕，适合以资本推动发展。',
+        tags: ['有钱', '财政优势'],
+        highlights: ['银币与财富丰厚', '高阶层更富', '适合投资路线'],
+        overrides: {
+            resources: { silver: 3000, food: 400, wood: 240, stone: 200 },
+            population: 50,
+            popStructure: {
+                peasant: 14,
+                worker: 6,
+                merchant: 4,
+                landowner: 2,
+                capitalist: 1,
+                unemployed: 23,
+            },
+            classWealth: { merchant: 900, landowner: 1400, capitalist: 2200 },
+            buildings: { market: 1, trading_post: 1, house: 3 },
+            maxPop: 60,
+        },
+    },
+];
+
+export const getScenarioOptions = () => SCENARIOS;
+
+export const getScenarioById = (scenarioId) => {
+    if (!scenarioId) return null;
+    return SCENARIOS.find(scenario => scenario.id === scenarioId) || null;
+};

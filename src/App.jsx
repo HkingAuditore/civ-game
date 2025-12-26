@@ -1600,9 +1600,9 @@ function GameApp({ gameState }) {
             {/* 难度选择弹窗 */}
             <DifficultySelectionModal
                 isOpen={showDifficultyModal}
-                onConfirm={(selectedDifficulty) => {
+                onConfirm={({ difficulty, scenarioId }) => {
                     setShowDifficultyModal(false);
-                    gameState.resetGame(selectedDifficulty);
+                    gameState.resetGame({ difficulty, scenarioId });
                 }}
                 onCancel={() => setShowDifficultyModal(false)}
             />
