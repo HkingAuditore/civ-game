@@ -1215,7 +1215,7 @@ const PoliticsTabComponent = ({
                 return (
                     <div key={catKey} className="glass-ancient p-4 rounded-xl border border-ancient-gold/30">
                         {/* 类别标题 */}
-                        <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300 font-decorative">
+                        <h3 className="text-[17px] font-bold mb-3 flex items-center gap-2 text-gray-300 font-decorative">
                             <Icon name={catInfo.icon} size={16} className={catInfo.color} />
                             {catInfo.name}
                         </h3>
@@ -1236,15 +1236,15 @@ const PoliticsTabComponent = ({
                                         setHoveredDecree(null);
                                         setDecreeAnchorRect(null);
                                     }}
-                                    className={`flex flex-col items-center p-1.5 rounded border transition-all cursor-pointer ${decree.active
-                                        ? 'bg-green-900/30 border-green-600'
-                                        : 'bg-gray-700/50 border-gray-600 hover:border-purple-500'
+                                    className={`group flex flex-col items-center p-1.5 rounded-lg border transition-all cursor-pointer active:scale-[0.98] ${decree.active
+                                        ? 'glass-ancient border-green-600/60'
+                                        : 'glass-ancient border-ancient-gold/20 hover:border-purple-500/70 hover:shadow-glow-gold'
                                         }`}
                                 >
-                                    <span className="text-[10px] text-white text-center leading-tight mb-1 line-clamp-2">{decree.name}</span>
+                                    <span className="text-[13px] text-white text-center leading-tight mb-1 line-clamp-2">{decree.name}</span>
                                     <button
                                         onClick={(e) => { e.stopPropagation(); onToggle(decree.id); }}
-                                        className={`w-full px-1 py-0.5 rounded text-[9px] font-semibold ${decree.active
+                                        className={`w-full px-1 py-0.5 rounded text-[12px] font-semibold ${decree.active
                                             ? 'bg-red-600/80 hover:bg-red-500 text-white'
                                             : 'bg-green-600/80 hover:bg-green-500 text-white'
                                             }`}
