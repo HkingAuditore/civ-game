@@ -5,6 +5,8 @@ import { useEffect, useRef, useState } from 'react';
 import { DECREES, COUNTRIES, RESOURCES, STRATA } from '../config';
 import { isOldUpgradeFormat, migrateUpgradesToNewFormat } from '../utils/buildingUpgradeUtils';
 import { DEFAULT_DIFFICULTY, getDifficultyConfig } from '../config/difficulty';
+import { Share } from '@capacitor/share';
+import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 
 // 多存档槽位系统
 const SAVE_SLOT_COUNT = 3; // 手动存档槽位数量
@@ -927,7 +929,43 @@ export const useGameState = () => {
             const isNative = window.Capacitor?.isNativePlatform() || false;
             console.log('[Export] Environment:', { isMobile, isNative, platform: window.Capacitor?.getPlatform() || 'web', userAgent: navigator.userAgent });
 
-            // 方案1：Web Share API（支持分享文件的设备，仅限移动端）
+            // 方案0：原生 App 导出 (Capacitor Native)
+            // 使用 Filesystem 写入缓存，然后用 Share 插件分享文件
+            if (isNative) {
+                try {
+                    console.log('[Export] Trying Native Filesystem & Share...');
+                    // 写入临时文件到缓存目录
+                    const result = await Filesystem.writeFile({
+                        path: filename,
+                        data: fileJson,
+                        directory: Directory.Cache,
+                        encoding: Encoding.UTF8,
+                    });
+
+                    console.log('[Export] File written to:', result.uri);
+
+                    // 调用原生系统分享
+                    await Share.share({
+                        title: '导出存档',
+                        text: `文明崛起存档: ${filename}`,
+                        url: result.uri,
+                        dialogTitle: '保存或发送存档',
+                    });
+
+                    addLogEntry('📤 存档已导出！');
+                    return true;
+                } catch (nativeError) {
+                    console.error('[Export] Native export failed:', nativeError);
+                    if (nativeError.message !== 'Share canceled') {
+                        addLogEntry(`⚠️ 原生导出出错: ${nativeError.message}，尝试使用剪贴板。`);
+                    } else {
+                        return false; // 用户取消
+                    }
+                    // 如果失败，继续执行后备方案（主要是剪贴板）
+                }
+            }
+
+            // 方案1：Web Share API（支持分享文件的设备，仅限移动端 Web）
             // 在 PC 端尝试 Share API 可能会消耗用户手势，导致后续的下载被拦截，所以仅在移动端启用
             if (isMobile && navigator.share && navigator.canShare) {
                 try {
