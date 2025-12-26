@@ -4,7 +4,7 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { GAME_SPEEDS, EPOCHS, RESOURCES, STRATA, calculateArmyFoodNeed, calculateTotalArmyExpense, BUILDINGS, EVENTS, checkAndCreateCoalitionDemandEvent } from './config';
 import { getCalendarInfo } from './utils/calendar';
-import { useGameState, useGameLoop, useGameActions, useSound, useEpicTheme, useViewportHeight, useDevicePerformance } from './hooks';
+import { useGameState, useGameLoop, useGameActions, useSound, useEpicTheme, useViewportHeight, useDevicePerformance, useAchievements } from './hooks';
 import {
     Icon,
     FloatingText
@@ -46,6 +46,8 @@ import { EventDetail } from './components/modals/EventDetail';
 import { DifficultySelectionModal } from './components/modals/DifficultySelectionModal';
 import { SaveSlotModal } from './components/modals/SaveSlotModal';
 import { SaveTransferModal } from './components/modals/SaveTransferModal';
+import { AchievementsModal } from './components/modals/AchievementsModal';
+import { AchievementToast } from './components/common/AchievementToast';
 import { executeStrategicAction, STRATEGIC_ACTIONS } from './logic/strategicActions';
 import { getOrganizationStage, getPhaseFromStage } from './logic/organizationSystem';
 import { createPromiseTask, PROMISE_CONFIG } from './logic/promiseTasks';
@@ -139,6 +141,7 @@ function GameApp({ gameState }) {
     const lastEventCheckDayRef = useRef(null);
     const [showMarket, setShowMarket] = useState(false);  // 新增：控制国内市场弹窗
     const [showSaveTransferModal, setShowSaveTransferModal] = useState(false); // 新增：控制存档传输弹窗
+    const [showAchievementsModal, setShowAchievementsModal] = useState(false);
     const [expandedFestival, setExpandedFestival] = useState(null);
 
     // 事件系统：按游戏内天数定期触发随机事件
@@ -182,7 +185,6 @@ function GameApp({ gameState }) {
             }
         }
     }, [gameState.daysElapsed, gameState.isPaused, gameState.currentEvent, actions, gameState.rulingCoalition, gameState.classInfluence, gameState.totalInfluence, gameState.popStructure, gameState.classExpense]);
-
 
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isWikiOpen, setIsWikiOpen] = useState(false);
@@ -662,6 +664,7 @@ function GameApp({ gameState }) {
     const netTrendIcon = netSilverPerDay >= 0 ? 'TrendingUp' : 'TrendingDown';
     const calendar = getCalendarInfo(gameState.daysElapsed || 0);
     const autoSaveAvailable = gameState.hasAutoSave();
+    useAchievements(gameState, { netSilverPerDay, tradeTax, taxes });
 
     const handleManualSave = () => {
         // 打开保存弹窗
@@ -753,6 +756,7 @@ function GameApp({ gameState }) {
                             onSave={handleManualSave}
                             onLoad={handleLoadManual}
                             onSaveTransfer={() => setShowSaveTransferModal(true)}
+                            onAchievements={() => setShowAchievementsModal(true)}
                             onSettings={() => setIsSettingsOpen(true)}
                             onReset={() => setShowDifficultyModal(true)}
                             onTutorial={handleReopenTutorial}
@@ -773,6 +777,7 @@ function GameApp({ gameState }) {
                         onSave={handleManualSave}
                         onLoad={handleLoadManual}
                         onSaveTransfer={() => setShowSaveTransferModal(true)}
+                        onAchievements={() => setShowAchievementsModal(true)}
                         onSettings={() => setIsSettingsOpen(true)}
                         onReset={() => setShowDifficultyModal(true)}
                         onTutorial={handleReopenTutorial}
@@ -1464,6 +1469,13 @@ function GameApp({ gameState }) {
                 }}
             />
 
+            <AchievementToast
+                notifications={gameState.achievementNotifications || []}
+                onDismiss={(notificationId) => {
+                    gameState.dismissAchievementNotification(notificationId);
+                }}
+            />
+
             {/* 战斗结果模态框（点击通知后显示详情） */}
             {gameState.battleResult && (
                 <BattleResultModal
@@ -1623,6 +1635,13 @@ function GameApp({ gameState }) {
                 onExportClipboard={handleExportClipboard}
                 onImportFile={handleImportSave}
                 onImportClipboard={handleImportFromClipboard}
+            />
+
+            {/* 成就弹窗 */}
+            <AchievementsModal
+                isOpen={showAchievementsModal}
+                onClose={() => setShowAchievementsModal(false)}
+                unlockedAchievements={gameState.unlockedAchievements}
             />
         </div>
     );
