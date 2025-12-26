@@ -45,6 +45,7 @@ import { DecreeDetailSheet } from './components/panels/DecreeDetailSheet';
 import { EventDetail } from './components/modals/EventDetail';
 import { DifficultySelectionModal } from './components/modals/DifficultySelectionModal';
 import { SaveSlotModal } from './components/modals/SaveSlotModal';
+import { SaveTransferModal } from './components/modals/SaveTransferModal';
 import { executeStrategicAction, STRATEGIC_ACTIONS } from './logic/strategicActions';
 import { getOrganizationStage, getPhaseFromStage } from './logic/organizationSystem';
 import { createPromiseTask, PROMISE_CONFIG } from './logic/promiseTasks';
@@ -137,6 +138,7 @@ function GameApp({ gameState }) {
     const [showStrata, setShowStrata] = useState(false);
     const lastEventCheckDayRef = useRef(null);
     const [showMarket, setShowMarket] = useState(false);  // 新增：控制国内市场弹窗
+    const [showSaveTransferModal, setShowSaveTransferModal] = useState(false); // 新增：控制存档传输弹窗
     const [expandedFestival, setExpandedFestival] = useState(null);
 
     // 事件系统：按游戏内天数定期触发随机事件
@@ -700,6 +702,19 @@ function GameApp({ gameState }) {
         return false;
     };
 
+    const handleImportFromClipboard = async () => {
+        if (typeof gameState.importSaveFromText === 'function') {
+            return gameState.importSaveFromText();
+        }
+        return false;
+    };
+
+    const handleExportClipboard = async () => {
+        if (typeof gameState.exportSaveToClipboard === 'function') {
+            await gameState.exportSaveToClipboard();
+        }
+    };
+
     return (
         <div className="min-h-screen font-epic text-theme-text transition-all duration-1000 relative">
             {/* Dynamic Era Background */}
@@ -737,8 +752,7 @@ function GameApp({ gameState }) {
                             onSpeedChange={(speed) => gameState.setGameSpeed(speed)}
                             onSave={handleManualSave}
                             onLoad={handleLoadManual}
-                            onExportSave={handleExportSave}
-                            onImportSave={handleImportSave}
+                            onSaveTransfer={() => setShowSaveTransferModal(true)}
                             onSettings={() => setIsSettingsOpen(true)}
                             onReset={() => setShowDifficultyModal(true)}
                             onTutorial={handleReopenTutorial}
@@ -758,8 +772,7 @@ function GameApp({ gameState }) {
                         onSpeedChange={(speed) => gameState.setGameSpeed(speed)}
                         onSave={handleManualSave}
                         onLoad={handleLoadManual}
-                        onExportSave={handleExportSave}
-                        onImportSave={handleImportSave}
+                        onSaveTransfer={() => setShowSaveTransferModal(true)}
                         onSettings={() => setIsSettingsOpen(true)}
                         onReset={() => setShowDifficultyModal(true)}
                         onTutorial={handleReopenTutorial}
@@ -1595,6 +1608,16 @@ function GameApp({ gameState }) {
                 mode={saveSlotModalMode}
                 onSelect={saveSlotModalMode === 'save' ? handleSaveToSlot : handleLoadFromSlot}
                 onCancel={() => setShowSaveSlotModal(false)}
+            />
+
+            {/* 存档传输弹窗 */}
+            <SaveTransferModal
+                isOpen={showSaveTransferModal}
+                onClose={() => setShowSaveTransferModal(false)}
+                onExportFile={handleExportSave}
+                onExportClipboard={handleExportClipboard}
+                onImportFile={handleImportSave}
+                onImportClipboard={handleImportFromClipboard}
             />
         </div>
     );

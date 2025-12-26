@@ -920,68 +920,174 @@ export const useGameState = () => {
             const iso = new Date(timestamp).toISOString().replace(/[:.]/g, '-');
             const filename = `civ-save-${iso}.${SAVE_FILE_EXTENSION}`;
 
-            // 检测是否为移动端
+            // 检测运行环境
             const isMobile = /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent);
+            // 只有当运行在原生平台（iOS/Android）时才认为是 Native 环境
+            // 在 Web 端（包括 PC 浏览器和移动端浏览器），即使引入了 Capacitor 也是 Web 平台，支持下载链接
+            const isNative = window.Capacitor?.isNativePlatform() || false;
+            console.log('[Export] Environment:', { isMobile, isNative, platform: window.Capacitor?.getPlatform() || 'web', userAgent: navigator.userAgent });
 
-            // 移动端：优先使用 Web Share API
+            // 方案1：Web Share API（支持分享文件的设备，仅限移动端）
+            // 在 PC 端尝试 Share API 可能会消耗用户手势，导致后续的下载被拦截，所以仅在移动端启用
             if (isMobile && navigator.share && navigator.canShare) {
-                const file = new File([blob], filename, { type: 'application/octet-stream' });
-                const shareData = { files: [file] };
+                try {
+                    const file = new File([blob], filename, { type: 'application/octet-stream' });
+                    const shareData = { files: [file] };
 
-                // 检查是否支持分享文件
-                if (navigator.canShare(shareData)) {
-                    try {
+                    if (navigator.canShare(shareData)) {
+                        console.log('[Export] Trying Web Share API with file...');
                         await navigator.share(shareData);
                         addLogEntry('📤 存档已通过分享导出！');
                         return true;
-                    } catch (shareError) {
-                        // 用户取消分享不算错误
-                        if (shareError.name === 'AbortError') {
-                            addLogEntry('ℹ️ 已取消分享。');
-                            return false;
-                        }
-                        // 其他分享错误，回退到剪贴板方式
-                        console.warn('Share API failed, falling back to clipboard:', shareError);
                     }
+                } catch (shareError) {
+                    if (shareError.name === 'AbortError') {
+                        addLogEntry('ℹ️ 已取消分享。');
+                        return false;
+                    }
+                    console.warn('[Export] Share API with file failed:', shareError);
                 }
             }
 
-            // 移动端备用方案：复制到剪贴板
-            if (isMobile && navigator.clipboard && navigator.clipboard.writeText) {
+            // 方案2：桌面浏览器下载（非移动端/Web端）
+            // 优先尝试下载文件，这是最符合用户预期的"导出到文件"的行为
+            // 即使是 Capacitor Web 版（PC浏览器），isNative 也是 false，可以下载
+            if (!isNative) {
                 try {
+                    console.log('[Export] Trying download link...');
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = filename;
+                    link.style.display = 'none';
+                    document.body.appendChild(link);
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    link.click();
+                    setTimeout(() => {
+                        document.body.removeChild(link);
+                        URL.revokeObjectURL(url);
+                    }, 1000);
+                    addLogEntry(note);
+                    return true;
+                } catch (downloadError) {
+                    console.warn('[Export] Download link failed:', downloadError);
+                }
+            }
+
+            // 方案3：剪贴板 API（作为后备方案）
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                try {
+                    console.log('[Export] Trying Clipboard API...');
                     await navigator.clipboard.writeText(fileJson);
-                    addLogEntry('📋 存档数据已复制到剪贴板！请粘贴保存到文本文件。');
+                    addLogEntry('📋 存档数据已复制到剪贴板！请粘贴保存到备忘录或文本文件。');
                     return true;
                 } catch (clipboardError) {
-                    console.warn('Clipboard write failed:', clipboardError);
+                    console.warn('[Export] Clipboard API failed:', clipboardError);
                 }
             }
 
-            // 桌面端或移动端回退：使用传统下载方式
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = filename;
+            // 方案4（最终保底）：弹窗提示用户手动复制
+            console.log('[Export] Falling back to prompt...');
+            // 缩短存档数据用于显示（太长会导致弹窗问题）
+            const shortData = fileJson.length > 500
+                ? fileJson.substring(0, 500) + '...[数据已截断，请使用下方完整复制]'
+                : fileJson;
 
-            // 确保链接在 DOM 中并可见（某些浏览器需要）
-            link.style.display = 'none';
-            document.body.appendChild(link);
+            // 创建一个隐藏的 textarea 用于复制
+            const textarea = document.createElement('textarea');
+            textarea.value = fileJson;
+            textarea.style.position = 'fixed';
+            textarea.style.left = '-9999px';
+            textarea.style.top = '0';
+            document.body.appendChild(textarea);
+            textarea.focus();
+            textarea.select();
 
-            // 使用 setTimeout 确保 DOM 更新
-            await new Promise(resolve => setTimeout(resolve, 100));
-            link.click();
+            try {
+                const copied = document.execCommand('copy');
+                document.body.removeChild(textarea);
+                if (copied) {
+                    addLogEntry('📋 存档数据已复制到剪贴板！请粘贴保存到备忘录。');
+                    alert('存档数据已复制到剪贴板！\n\n请打开备忘录或其他文本应用，粘贴保存。');
+                    return true;
+                }
+            } catch (execError) {
+                document.body.removeChild(textarea);
+                console.warn('[Export] execCommand copy failed:', execError);
+            }
 
-            // 延迟清理
-            setTimeout(() => {
-                document.body.removeChild(link);
-                URL.revokeObjectURL(url);
-            }, 1000);
+            // 如果所有方案都失败，显示存档数据让用户手动复制
+            addLogEntry('⚠️ 自动导出失败，请手动复制存档数据。');
+            const userCopied = window.prompt(
+                '自动导出失败。请手动长按下方文本全选复制，保存到备忘录：\n（文本很长，请确保全部复制）',
+                fileJson
+            );
 
-            addLogEntry(note);
-            return true;
+            if (userCopied !== null) {
+                addLogEntry('📋 请确保已复制完整存档数据。');
+                return true;
+            }
+
+            return false;
         } catch (error) {
             console.error('Export save failed:', error);
             addLogEntry(`❌ 导出存档失败：${error.message}`);
+            throw error;
+        }
+    };
+
+    // 导出存档到剪贴板
+    const exportSaveToClipboard = async () => {
+        try {
+            const timestamp = Date.now();
+            const { payload } = buildSavePayload({ source: 'clipboard-export', timestamp });
+            let fileJson = JSON.stringify(payload);
+            if (canObfuscate) {
+                fileJson = JSON.stringify({
+                    format: SAVE_FORMAT_VERSION,
+                    obfuscated: true,
+                    data: encodeSavePayload(payload),
+                    updatedAt: payload.updatedAt,
+                });
+            }
+
+            // 尝试使用 Clipboard API
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                try {
+                    await navigator.clipboard.writeText(fileJson);
+                    addLogEntry('📋 存档已复制到剪贴板！');
+                    return true;
+                } catch (clipboardError) {
+                    console.warn('[Export] Clipboard API failed:', clipboardError);
+                }
+            }
+
+            // 回退方案：使用 execCommand
+            const textarea = document.createElement('textarea');
+            textarea.value = fileJson;
+            textarea.style.position = 'fixed';
+            textarea.style.left = '-9999px';
+            textarea.style.top = '0';
+            document.body.appendChild(textarea);
+            textarea.focus();
+            textarea.select();
+
+            try {
+                const copied = document.execCommand('copy');
+                document.body.removeChild(textarea);
+                if (copied) {
+                    addLogEntry('📋 存档已复制到剪贴板！');
+                    return true;
+                }
+            } catch (execError) {
+                document.body.removeChild(textarea);
+                console.warn('[Export] execCommand copy failed:', execError);
+            }
+
+            throw new Error('无法复制到剪贴板');
+        } catch (error) {
+            console.error('Export to clipboard failed:', error);
+            addLogEntry(`❌ 复制失败：${error.message}`);
             throw error;
         }
     };
@@ -1023,6 +1129,71 @@ export const useGameState = () => {
         } catch (error) {
             console.error('Import save failed:', error);
             addLogEntry(`❌ 导入存档失败：${error.message}`);
+            throw error;
+        }
+    };
+
+    // 从文本/剪贴板导入存档
+    const importSaveFromText = async (textInput = null) => {
+        try {
+            let jsonString = textInput;
+
+            // 如果没有传入文本，尝试从剪贴板读取或弹窗让用户粘贴
+            if (!jsonString) {
+                // 方案1：尝试从剪贴板读取
+                if (navigator.clipboard && navigator.clipboard.readText) {
+                    try {
+                        jsonString = await navigator.clipboard.readText();
+                        if (jsonString && jsonString.trim()) {
+                            console.log('[Import] Read from clipboard, length:', jsonString.length);
+                        }
+                    } catch (clipboardError) {
+                        console.warn('[Import] Clipboard read failed:', clipboardError);
+                    }
+                }
+
+                // 方案2：如果剪贴板读取失败或为空，弹窗让用户粘贴
+                if (!jsonString || !jsonString.trim()) {
+                    jsonString = window.prompt(
+                        '请粘贴存档数据：\n（长按输入框，选择粘贴）',
+                        ''
+                    );
+                    if (jsonString === null) {
+                        addLogEntry('ℹ️ 已取消导入。');
+                        return false;
+                    }
+                }
+            }
+
+            if (!jsonString || !jsonString.trim()) {
+                throw new Error('存档数据为空');
+            }
+
+            // 解析 JSON
+            const parsed = JSON.parse(jsonString.trim());
+            const processed = parsed && parsed.obfuscated && parsed.data
+                ? decodeSavePayload(parsed.data)
+                : parsed;
+
+            const normalized = {
+                ...processed,
+                saveFormatVersion: processed.saveFormatVersion || parsed.format || SAVE_FORMAT_VERSION,
+                saveSource: 'text-import',
+                updatedAt: processed.updatedAt || parsed.updatedAt || Date.now(),
+                lastAutoSaveTime: processed.lastAutoSaveTime || lastAutoSaveTime || Date.now(),
+            };
+
+            localStorage.setItem(`${SAVE_SLOT_PREFIX}0`, JSON.stringify(normalized));
+            applyLoadedGameState(normalized);
+            addLogEntry('📥 已从剪贴板导入存档！');
+            return true;
+        } catch (error) {
+            console.error('Import from text failed:', error);
+            if (error instanceof SyntaxError) {
+                addLogEntry('❌ 导入失败：存档数据格式无效，请确保完整复制。');
+            } else {
+                addLogEntry(`❌ 导入存档失败：${error.message}`);
+            }
             throw error;
         }
     };
@@ -1243,7 +1414,9 @@ export const useGameState = () => {
         saveGame,
         loadGame,
         exportSaveToBinary,
+        exportSaveToClipboard,
         importSaveFromBinary,
+        importSaveFromText,
         hasAutoSave,
         resetGame,
     };
