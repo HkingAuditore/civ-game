@@ -11,6 +11,7 @@ export { DECREES } from './decrees';
 export { COUNTRIES } from './countries';
 export { MILITARY_ACTIONS } from './militaryActions';
 export { TUTORIAL_STEPS } from './tutorialSteps';
+export { ACHIEVEMENTS } from './achievements';
 
 // 建筑升级配置
 export {

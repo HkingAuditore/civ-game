@@ -20,6 +20,7 @@ export const GameControls = ({
     onSave,
     onLoad,
     onSaveTransfer,
+    onAchievements,
     onSettings,
     onReset,
     onTutorial,
@@ -259,6 +260,21 @@ export const GameControls = ({
                                     >
                                         <Icon name="RefreshCw" size={10} />
                                         <span className="ml-2">存档传输</span>
+                                    </button>
+
+                                    <button
+                                        onClick={() => {
+                                            onAchievements?.();
+                                            setIsGameMenuOpen(false);
+                                        }}
+                                        disabled={!onAchievements}
+                                        className={cn(
+                                            'w-full flex items-center px-3 py-2 text-[10px] font-semibold transition-colors rounded touch-feedback',
+                                            onAchievements ? 'text-amber-200 hover:bg-ancient-gold/10' : 'text-ancient-stone/40 cursor-not-allowed'
+                                        )}
+                                    >
+                                        <Icon name="Award" size={12} />
+                                        <span className="ml-2">成就</span>
                                     </button>
 
                                     <button

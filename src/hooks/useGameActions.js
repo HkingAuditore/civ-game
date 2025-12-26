@@ -1004,6 +1004,9 @@ export const useGameActions = (gameState, addLog) => {
             addLog('没有可用的军队');
             return;
         }
+        const attackerUnitEntries = Object.entries(army).filter(([, count]) => count > 0);
+        const attackerAllCavalry = attackerUnitEntries.length > 0
+            && attackerUnitEntries.every(([unitId]) => UNIT_TYPES[unitId]?.category === 'cavalry');
 
         const attackerData = {
             army,
@@ -1240,6 +1243,7 @@ export const useGameActions = (gameState, addLog) => {
         }));
 
         setBattleResult({
+            id: `battle_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
             victory: result.victory,
             actionType: mission.id,
             missionName: mission.name,
@@ -1252,6 +1256,8 @@ export const useGameActions = (gameState, addLog) => {
             losses: result.attackerLosses || {},
             enemyLosses: result.defenderLosses || {},
             resourcesGained,
+            attackerAllCavalry,
+            attackerTotalUnits: totalUnits,
             nationName: targetNation.name,
             description: (result.battleReport || []).join('\n'),
         });

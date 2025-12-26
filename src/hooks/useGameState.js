@@ -19,6 +19,32 @@ const SAVE_OBFUSCATION_KEY = 'civ_game_simple_mask_v1';
 
 // 兼容旧存档的 key（用于迁移）
 const LEGACY_SAVE_KEY = 'civ_game_save_data_v1';
+const ACHIEVEMENT_STORAGE_KEY = 'civ_game_achievements_v1';
+const ACHIEVEMENT_PROGRESS_KEY = 'civ_game_achievement_progress_v1';
+
+const loadAchievementsFromStorage = () => {
+    if (typeof window === 'undefined') return [];
+    try {
+        const raw = localStorage.getItem(ACHIEVEMENT_STORAGE_KEY);
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+        console.warn('Failed to load achievements:', error);
+        return [];
+    }
+};
+
+const loadAchievementProgressFromStorage = () => {
+    if (typeof window === 'undefined') return {};
+    try {
+        const raw = localStorage.getItem(ACHIEVEMENT_PROGRESS_KEY);
+        const parsed = raw ? JSON.parse(raw) : {};
+        return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (error) {
+        console.warn('Failed to load achievement progress:', error);
+        return {};
+    }
+};
 
 /**
  * 获取所有存档槽位信息
@@ -513,6 +539,11 @@ export const useGameState = () => {
     const [currentEvent, setCurrentEvent] = useState(null); // 当前显示的事件
     const [eventHistory, setEventHistory] = useState([]); // 事件历史记录
 
+    // ========== 成就系统状态 ==========
+    const [unlockedAchievements, setUnlockedAchievements] = useState(loadAchievementsFromStorage);
+    const [achievementNotifications, setAchievementNotifications] = useState([]);
+    const [achievementProgress, setAchievementProgress] = useState(loadAchievementProgressFromStorage);
+
     // ========== UI状态 ==========
     const [logs, setLogs] = useState(["文明的黎明已至，第 1 年春季从这里开启，请分配你的人民工作吧。"]);
     const [clicks, setClicks] = useState([]);
@@ -614,6 +645,52 @@ export const useGameState = () => {
             setMaxPop(nextMaxPop);
         } else if (typeof overrides.maxPop === 'number') {
             setMaxPop(overrides.maxPop);
+        }
+
+        // ========== 新增配置项支持 ==========
+
+        // 政令激活配置
+        if (overrides.activeDecrees && Array.isArray(overrides.activeDecrees)) {
+            setDecrees(prev => prev.map(d => ({
+                ...d,
+                active: overrides.activeDecrees.includes(d.id)
+            })));
+        }
+
+        // 外交关系配置
+        if (overrides.nationRelations) {
+            setNations(prev => prev.map(n => ({
+                ...n,
+                relation: typeof overrides.nationRelations[n.id] === 'number'
+                    ? overrides.nationRelations[n.id]
+                    : n.relation
+            })));
+        }
+
+        // 初始军队配置
+        if (overrides.army) {
+            setArmy(overrides.army);
+        }
+
+        // 市场价格配置
+        if (overrides.marketPrices) {
+            setMarket(prev => ({
+                ...prev,
+                prices: { ...prev.prices, ...overrides.marketPrices }
+            }));
+        }
+
+        // 合法性配置
+        if (typeof overrides.legitimacy === 'number') {
+            setLegitimacy(overrides.legitimacy);
+        }
+
+        // 税收政策配置
+        if (overrides.taxPolicies) {
+            setTaxPolicies(prev => ({
+                ...prev,
+                ...overrides.taxPolicies
+            }));
         }
     };
 
@@ -1367,6 +1444,52 @@ export const useGameState = () => {
         window.location.reload();
     };
 
+    const unlockAchievement = (achievement) => {
+        if (!achievement?.id) return;
+        setUnlockedAchievements(prev => {
+            if (prev.some(item => item.id === achievement.id)) return prev;
+            const unlockedAt = Date.now();
+            const next = [...prev, { id: achievement.id, unlockedAt }];
+            if (typeof window !== 'undefined') {
+                try {
+                    localStorage.setItem(ACHIEVEMENT_STORAGE_KEY, JSON.stringify(next));
+                } catch (error) {
+                    console.warn('Failed to save achievements:', error);
+                }
+            }
+            setAchievementNotifications(list => [
+                ...list,
+                {
+                    id: `${achievement.id}-${unlockedAt}`,
+                    name: achievement.name,
+                    description: achievement.description,
+                    icon: achievement.icon,
+                },
+            ]);
+            return next;
+        });
+    };
+
+    const incrementAchievementProgress = (key, amount = 1) => {
+        if (!key) return;
+        setAchievementProgress(prev => {
+            const nextValue = (prev?.[key] || 0) + amount;
+            const next = { ...(prev || {}), [key]: nextValue };
+            if (typeof window !== 'undefined') {
+                try {
+                    localStorage.setItem(ACHIEVEMENT_PROGRESS_KEY, JSON.stringify(next));
+                } catch (error) {
+                    console.warn('Failed to save achievement progress:', error);
+                }
+            }
+            return next;
+        });
+    };
+
+    const dismissAchievementNotification = (notificationId) => {
+        setAchievementNotifications(prev => prev.filter(item => item.id !== notificationId));
+    };
+
     const hasAutoSave = () => {
         if (typeof window === 'undefined') return false;
         return !!localStorage.getItem(AUTOSAVE_KEY);
@@ -1534,6 +1657,13 @@ export const useGameState = () => {
         setCurrentEvent,
         eventHistory,
         setEventHistory,
+        unlockedAchievements,
+        setUnlockedAchievements,
+        achievementNotifications,
+        unlockAchievement,
+        dismissAchievementNotification,
+        achievementProgress,
+        incrementAchievementProgress,
 
         // 和平协议
         playerInstallmentPayment,
