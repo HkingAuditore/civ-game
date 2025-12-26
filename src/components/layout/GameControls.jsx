@@ -320,7 +320,7 @@ export const GameControls = ({
                                         className="w-full flex items-center px-3 py-2 text-[10px] font-semibold text-red-300 hover:bg-red-500/10 transition-colors rounded touch-feedback"
                                     >
                                         <Icon name="RefreshCw" size={12} />
-                                        <span className="ml-2">重置游戏</span>
+                                        <span className="ml-2">另开新档</span>
                                     </button>
                                 </div>
                             </div>

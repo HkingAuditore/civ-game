@@ -1,5 +1,5 @@
 // 难度选择模态框组件
-// 在重置游戏时弹出，让玩家选择难度
+// 在另开新档时弹出，让玩家选择难度
 
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -130,13 +130,13 @@ export const DifficultySelectionModal = ({ isOpen, onConfirm, onCancel }) => {
                             })}
                         </div>
 
-                        {/* 警告提示 */}
+                        {/* 提示信息 */}
                         <div className="flex-shrink-0 px-4">
-                            <div className="bg-red-900/30 border border-red-500/30 p-3 rounded-lg">
+                            <div className="bg-blue-900/30 border border-blue-500/30 p-3 rounded-lg">
                                 <div className="flex items-start gap-2">
-                                    <Icon name="AlertTriangle" size={14} className="text-red-400 flex-shrink-0 mt-0.5" />
-                                    <p className="text-[10px] text-red-300 leading-relaxed">
-                                        <span className="font-bold">警告：</span>重置游戏将清除所有存档数据，该操作不可撤销。
+                                    <Icon name="Info" size={14} className="text-blue-400 flex-shrink-0 mt-0.5" />
+                                    <p className="text-[10px] text-blue-300 leading-relaxed">
+                                        <span className="font-bold">提示：</span>开始新游戏不会删除您的现有存档，您可以随时通过读取存档继续之前的游戏。
                                     </p>
                                 </div>
                             </div>
@@ -155,7 +155,7 @@ export const DifficultySelectionModal = ({ isOpen, onConfirm, onCancel }) => {
                                     onClick={handleConfirm}
                                     className="flex-1 px-4 py-2.5 rounded-lg text-sm font-bold bg-gradient-to-r from-red-600 via-red-500 to-orange-500 hover:from-red-500 hover:via-red-400 hover:to-orange-400 text-white shadow-lg transition-all"
                                 >
-                                    确认重置
+                                    开始新游戏
                                 </button>
                             </div>
                         </div>

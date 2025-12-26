@@ -540,6 +540,20 @@ export const useGameState = () => {
         hasInitializedRef.current = true;
 
         try {
+            // 检查是否是新游戏模式（从"另开新档"进入）
+            const startNewGame = localStorage.getItem('start_new_game');
+            if (startNewGame === 'true') {
+                localStorage.removeItem('start_new_game');
+                // 检查新游戏难度设置
+                const newGameDifficulty = localStorage.getItem('new_game_difficulty');
+                if (newGameDifficulty) {
+                    setDifficulty(newGameDifficulty);
+                    localStorage.removeItem('new_game_difficulty');
+                }
+                // 跳过自动加载，开始新游戏
+                return;
+            }
+
             // 收集所有存档的时间戳
             const saves = [];
 
@@ -905,14 +919,64 @@ export const useGameState = () => {
             const blob = new Blob([fileJson], { type: 'application/octet-stream' });
             const iso = new Date(timestamp).toISOString().replace(/[:.]/g, '-');
             const filename = `civ-save-${iso}.${SAVE_FILE_EXTENSION}`;
+
+            // 检测是否为移动端
+            const isMobile = /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent);
+
+            // 移动端：优先使用 Web Share API
+            if (isMobile && navigator.share && navigator.canShare) {
+                const file = new File([blob], filename, { type: 'application/octet-stream' });
+                const shareData = { files: [file] };
+
+                // 检查是否支持分享文件
+                if (navigator.canShare(shareData)) {
+                    try {
+                        await navigator.share(shareData);
+                        addLogEntry('📤 存档已通过分享导出！');
+                        return true;
+                    } catch (shareError) {
+                        // 用户取消分享不算错误
+                        if (shareError.name === 'AbortError') {
+                            addLogEntry('ℹ️ 已取消分享。');
+                            return false;
+                        }
+                        // 其他分享错误，回退到剪贴板方式
+                        console.warn('Share API failed, falling back to clipboard:', shareError);
+                    }
+                }
+            }
+
+            // 移动端备用方案：复制到剪贴板
+            if (isMobile && navigator.clipboard && navigator.clipboard.writeText) {
+                try {
+                    await navigator.clipboard.writeText(fileJson);
+                    addLogEntry('📋 存档数据已复制到剪贴板！请粘贴保存到文本文件。');
+                    return true;
+                } catch (clipboardError) {
+                    console.warn('Clipboard write failed:', clipboardError);
+                }
+            }
+
+            // 桌面端或移动端回退：使用传统下载方式
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
             link.download = filename;
+
+            // 确保链接在 DOM 中并可见（某些浏览器需要）
+            link.style.display = 'none';
             document.body.appendChild(link);
+
+            // 使用 setTimeout 确保 DOM 更新
+            await new Promise(resolve => setTimeout(resolve, 100));
             link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
+
+            // 延迟清理
+            setTimeout(() => {
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            }, 1000);
+
             addLogEntry(note);
             return true;
         } catch (error) {
@@ -963,16 +1027,13 @@ export const useGameState = () => {
         }
     };
 
+    // 开始新游戏（不删除现有存档）
     const resetGame = (selectedDifficulty = null) => {
         if (typeof window === 'undefined') {
             return;
         }
-        // 清除所有存档槽位
-        for (let i = 0; i < SAVE_SLOT_COUNT; i++) {
-            localStorage.removeItem(`${SAVE_SLOT_PREFIX}${i}`);
-        }
-        localStorage.removeItem(AUTOSAVE_KEY);
-        localStorage.removeItem(LEGACY_SAVE_KEY);
+        // 标记为新游戏模式，启动时不加载任何存档
+        localStorage.setItem('start_new_game', 'true');
         // 如果指定了难度，保存到 localStorage 以便新游戏启动时使用
         if (selectedDifficulty) {
             localStorage.setItem('new_game_difficulty', selectedDifficulty);
