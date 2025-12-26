@@ -491,7 +491,7 @@ const TechTabComponent = ({
 
             {/* 科技树 */}
             <div className="glass-ancient p-4 rounded-xl border border-ancient-gold/30">
-                <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300 font-decorative">
+                <h3 className="font-bold mb-3 text-[19px] flex items-center gap-2 text-gray-300 font-decorative">
                     <Icon name="Lightbulb" size={16} className="text-yellow-400" />
                     科技树
                 </h3>
@@ -543,7 +543,7 @@ const TechTabComponent = ({
                                 >
                                     <div className="flex items-center gap-2">
                                         <Icon name={isExpanded ? 'ArrowDown' : 'ArrowRight'} size={16} className="text-purple-300" />
-                                        <span className="font-bold">{epochInfo?.name}</span>
+                                        <span className="font-bold text-[16px] font-decorative ">{epochInfo?.name}</span>
                                         {summary?.hasResearchable && (
                                             <span className="h-2 w-2 rounded-full bg-yellow-300 animate-pulse" />
                                         )}
@@ -567,21 +567,27 @@ const TechTabComponent = ({
                                                             onMouseEnter={(e) => handleMouseEnter(e, tech)}
                                                             onMouseLeave={() => canHover && setHoveredTech({ tech: null, element: null })}
                                                             onClick={() => onShowTechDetails && onShowTechDetails(tech, status)}
-                                                            className={`flex flex-col items-center p-1.5 rounded border transition-all cursor-pointer ${status === 'unlocked'
-                                                                    ? 'bg-green-900/30 border-green-600'
+                                                            className={`group flex flex-col items-center p-1.5 rounded-lg border transition-all cursor-pointer active:scale-[0.98] ${status === 'unlocked'
+                                                                    ? 'glass-ancient border-green-600/60'
                                                                     : affordable
-                                                                        ? 'bg-gray-700/50 border-blue-500/50 hover:border-blue-400'
-                                                                        : 'bg-gray-700/50 border-gray-600'
+                                                                        ? 'glass-ancient border-ancient-gold/30 hover:border-blue-400/70 hover:shadow-glow-gold'
+                                                                        : 'bg-gray-800/60 border-gray-600'
                                                                 }`}
                                                         >
-                                                            <span className="text-[10px] text-white text-center leading-tight mb-1 line-clamp-1">{tech.name}</span>
+                                                            <span className="text-[13px] text-white text-center leading-tight mb-0.5 line-clamp-1">{tech.name}</span>
+                                                            {status !== 'unlocked' && (
+                                                                <span className="text-[9px] text-cyan-300 font-mono mb-0.5 inline-flex items-center gap-1">
+                                                                    <Icon name={RESOURCES.science?.icon || 'Flask'} size={10} className="text-cyan-300" />
+                                                                    {tech.cost?.science ?? 0}
+                                                                </span>
+                                                            )}
                                                             {status === 'unlocked' ? (
                                                                 <span className="text-[9px] text-green-400">✓已研究</span>
                                                             ) : (
                                                                 <button
                                                                     onClick={(e) => { e.stopPropagation(); onResearch(tech.id); }}
                                                                     disabled={!affordable}
-                                                                    className={`w-full px-1 py-0.5 rounded text-[9px] font-semibold ${affordable
+                                                                    className={`w-full px-1 py-0.5 rounded text-[11px] font-semibold ${affordable
                                                                             ? 'bg-blue-600/80 hover:bg-blue-500 text-white'
                                                                             : 'bg-gray-600 text-gray-400 cursor-not-allowed'
                                                                         }`}
