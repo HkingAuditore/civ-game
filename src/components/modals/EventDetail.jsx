@@ -1,9 +1,81 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Icon } from '../common/UIComponents';
 import { RESOURCES, STRATA, BUILDINGS } from '../../config';
 import { getPublicAssetUrl } from '../../utils/assetPath';
 import { getEventImageUrl } from '../../utils/imageRegistry';
 import { filterEventOptions } from '../../utils/eventEffectFilter';
+
+/**
+ * 事件选项确认对话框组件
+ * 在用户点击选项后显示，防止误触
+ */
+const OptionConfirmDialog = ({ option, onConfirm, onCancel }) => {
+    if (!option) return null;
+
+    return createPortal(
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+            {/* 遮罩层 */}
+            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onCancel}></div>
+
+            {/* 内容面板 */}
+            <div className="relative w-full max-w-sm glass-monument border-2 border-ancient-gold/40 rounded-2xl shadow-monument overflow-hidden animate-slide-up">
+                <div className="absolute inset-0 bg-gradient-to-br from-ancient-bronze/30 via-ancient-ink/70 to-ancient-bronze/20 opacity-80" />
+
+                <div className="relative z-10">
+                    {/* 头部 */}
+                    <div className="p-4 border-b border-ancient-gold/30 bg-gradient-to-r from-ancient-bronze/40 to-ancient-ink/60">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-ancient-gold/20 border border-ancient-gold/30 flex items-center justify-center flex-shrink-0 shadow-inner">
+                                <Icon name="AlertCircle" size={22} className="text-ancient-gold" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <h2 className="text-base font-bold text-ancient-parchment leading-tight font-decorative">
+                                    确认选择
+                                </h2>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* 内容 */}
+                    <div className="p-4 space-y-3">
+                        <p className="text-sm text-ancient-parchment leading-relaxed font-sans">
+                            你确定要执行以下选项吗？
+                        </p>
+                        <div className="glass-ancient rounded-xl p-3 border border-ancient-gold/30">
+                            <p className="text-sm font-bold text-ancient leading-tight font-sans">
+                                {option.text}
+                            </p>
+                            {option.description && (
+                                <p className="text-[11px] text-ancient-stone mt-1.5 leading-snug font-sans">
+                                    {option.description}
+                                </p>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* 按钮区域 */}
+                    <div className="p-4 border-t border-ancient-gold/20 bg-ancient-ink/50 flex gap-3">
+                        <button
+                            onClick={onCancel}
+                            className="flex-1 px-4 py-2.5 bg-gray-600 hover:bg-gray-500 text-white rounded-lg text-sm font-bold transition-colors font-sans"
+                        >
+                            取消
+                        </button>
+                        <button
+                            onClick={onConfirm}
+                            className="flex-1 px-4 py-2.5 bg-ancient-gold hover:bg-ancient text-ancient-ink rounded-lg text-sm font-bold transition-colors flex items-center justify-center gap-2 font-sans"
+                        >
+                            <Icon name="Check" size={14} />
+                            确认
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>,
+        document.body
+    );
+};
 
 /**
  * 事件沉浸式英雄图片组件
@@ -83,6 +155,9 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
     // 图片加载状态管理
     const [hasImage, setHasImage] = useState(false);
     const [imageError, setImageError] = useState(false);
+    
+    // 待确认的选项
+    const [pendingOption, setPendingOption] = useState(null);
 
     // 使用 ref 追踪上一个事件对象引用
     const prevEventRef = React.useRef(null);
@@ -275,12 +350,33 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
     };
 
     const handleOptionClick = (option) => {
-        onSelectOption(event.id, option);
-        onClose();
+        // 显示确认对话框而不是直接执行
+        setPendingOption(option);
+    };
+
+    // 确认执行选项
+    const handleConfirmOption = () => {
+        if (pendingOption) {
+            onSelectOption(event.id, pendingOption);
+            setPendingOption(null);
+            onClose();
+        }
+    };
+
+    // 取消选项
+    const handleCancelOption = () => {
+        setPendingOption(null);
     };
 
     return (
         <div className="space-y-3 font-sans">
+            {/* 确认对话框 */}
+            <OptionConfirmDialog
+                option={pendingOption}
+                onConfirm={handleConfirmOption}
+                onCancel={handleCancelOption}
+            />
+
             {/* 沉浸式英雄区块 - 当有图片时显示，标题叠加在图片上 */}
             {!imageError && (
                 <EventHeroImage

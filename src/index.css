@@ -2142,82 +2142,93 @@
     -webkit-filter: none !important;
 }
 
-/* 使用完全不透明的纯色背景替代模糊效果 - 避免透明度引起的合成问题 */
+/* 使用时代主题色+金属质感替代模糊效果 - 跟随时代风格 */
 .low-perf-mode .glass-ancient {
-    background: #2c1810 !important;
-    border: 1px solid rgba(212, 175, 55, 0.3) !important;
+    background: linear-gradient(145deg,
+        var(--theme-surface, #2c1810) 0%,
+        var(--theme-surface-alt, #3d2415) 40%,
+        var(--theme-surface, #2c1810) 100%) !important;
+    border: 1px solid var(--theme-border, rgba(212, 175, 55, 0.35)) !important;
+    box-shadow: 
+        inset 0 1px 0 var(--theme-highlight, rgba(255, 255, 255, 0.1)),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.3),
+        0 2px 4px rgba(0, 0, 0, 0.4) !important;
 }
 
 .low-perf-mode .glass-epic {
-    background: #1a1410 !important;
-    border: 1px solid rgba(212, 175, 55, 0.25) !important;
+    background: linear-gradient(145deg,
+        var(--theme-surface-alt, #1a1410) 0%,
+        var(--theme-surface, #2c1810) 35%,
+        var(--theme-surface-alt, #1a1410) 100%) !important;
+    border: 1px solid var(--theme-border, rgba(212, 175, 55, 0.4)) !important;
+    box-shadow: 
+        inset 0 2px 0 var(--theme-highlight, rgba(255, 255, 255, 0.12)),
+        inset 0 -2px 0 rgba(0, 0, 0, 0.35),
+        0 3px 6px rgba(0, 0, 0, 0.45) !important;
 }
 
 .low-perf-mode .glass-monument {
-    background: #1a1410 !important;
-    border: 1px solid rgba(212, 175, 55, 0.2) !important;
+    background: linear-gradient(145deg,
+        var(--theme-surface-alt, #1a1410) 0%,
+        var(--theme-surface, #2c1810) 30%,
+        var(--theme-surface-alt, #3d2415) 60%,
+        var(--theme-surface, #2c1810) 100%) !important;
+    border: 2px solid var(--theme-border, rgba(212, 175, 55, 0.45)) !important;
+    box-shadow: 
+        inset 0 3px 0 var(--theme-highlight, rgba(255, 255, 255, 0.15)),
+        inset 0 -3px 0 rgba(0, 0, 0, 0.4),
+        0 4px 8px rgba(0, 0, 0, 0.5) !important;
 }
 
 
-/* 禁用其他组件的模糊效果 */
-/* 注意：不再设置 background-color，避免影响不该被影响的元素 */
+/* 禁用其他组件的模糊效果，并使用时代主题色+金属质感背景替代 */
 .low-perf-mode [class*="backdrop-blur"],
 .low-perf-mode [style*="backdrop-filter"] {
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
+    /* 使用时代主题色背景+金属质感 */
+    background: linear-gradient(145deg,
+        var(--theme-surface, rgba(44, 24, 16, 0.95)) 0%,
+        var(--theme-surface-alt, rgba(61, 36, 21, 0.9)) 50%,
+        var(--theme-surface, rgba(44, 24, 16, 0.95)) 100%) !important;
+    box-shadow: 
+        inset 0 1px 0 var(--theme-highlight, rgba(255, 255, 255, 0.08)),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.25) !important;
 }
 
-/* 只对明确需要模糊背景替代的容器元素添加实色背景 */
-/* 底部导航栏 - 需要有背景遮挡 */
-.low-perf-mode nav[role="tablist"] > div[class*="backdrop-blur"] {
+/* 底部导航栏 - 使用时代主题色渐变背景+金属质感 */
+.low-perf-mode nav[role="tablist"] {
     background: linear-gradient(to top, 
-        var(--theme-background, rgb(17, 24, 39)) 0%, 
-        var(--theme-surface, rgb(31, 41, 55)) 100%) !important;
+        var(--theme-bg, #1a1410) 0%, 
+        var(--theme-surface, #2c1810) 40%,
+        var(--theme-surface-alt, #3d2415) 100%) !important;
+    border-top: 1px solid var(--theme-border, rgba(212, 175, 55, 0.3)) !important;
+    box-shadow: 
+        inset 0 1px 0 var(--theme-highlight, rgba(255, 255, 255, 0.08)),
+        0 -2px 8px rgba(0, 0, 0, 0.4) !important;
 }
 
-/* 阶层面板卡片 - 确保有稳定的深色背景，不依赖 backdrop-filter */
-.low-perf-mode [class*="backdrop-blur-sm"] {
-    /* 添加一个深色半透明背景作为后备 */
-    background-color: rgba(20, 20, 30, 0.85) !important;
+/* 半透明背景元素 - 使用时代主题色+金属质感替代 */
+/* 匹配 bg-xxx/xx 格式的类名（Tailwind 会生成带斜杠的类名） */
+.low-perf-mode [class*="bg-gray-900/"],
+.low-perf-mode [class*="bg-gray-800/"],
+.low-perf-mode [class*="bg-black/"],
+.low-perf-mode [class*="bg-stone-900/"],
+.low-perf-mode [class*="bg-amber-900/"],
+.low-perf-mode [class*="bg-orange-950/"] {
+    background: linear-gradient(145deg,
+        var(--theme-surface, rgba(44, 24, 16, 0.92)) 0%,
+        var(--theme-surface-alt, rgba(61, 36, 21, 0.85)) 100%) !important;
+    box-shadow: 
+        inset 0 1px 0 var(--theme-highlight, rgba(255, 255, 255, 0.06)),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.2) !important;
 }
 
-/* 科技树时代分组 - 确保背景可见 */
-.low-perf-mode .bg-gray-900\/40 {
-    background-color: rgba(17, 24, 39, 0.9) !important;
-}
-
-/* 表格和列表项 - 确保深色背景 */
-.low-perf-mode button[class*="border-b"][class*="border-ancient-gold"] {
-    background-color: transparent !important;
-}
-
-/* 半透明背景色的稳定回退 - 使用更可靠的选择器 */
-.low-perf-mode .bg-black\/20,
-.low-perf-mode .bg-black\/30,
-.low-perf-mode .bg-black\/40,
-.low-perf-mode .bg-black\/50 {
-    background-color: rgba(0, 0, 0, 0.4) !important;
-}
-
-.low-perf-mode .bg-gray-800\/50,
-.low-perf-mode .bg-gray-800\/60,
-.low-perf-mode .bg-gray-800\/70,
-.low-perf-mode .bg-gray-800\/80 {
-    background-color: rgba(31, 41, 55, 0.85) !important;
-}
-
-.low-perf-mode .bg-gray-900\/30,
-.low-perf-mode .bg-gray-900\/40,
-.low-perf-mode .bg-gray-900\/50,
-.low-perf-mode .bg-gray-900\/60 {
-    background-color: rgba(17, 24, 39, 0.85) !important;
-}
-
-/* 简化阴影效果 - 使用简单的单层阴影 */
+/* 金属质感阴影效果 - 保留立体感 */
 .low-perf-mode .glass-ancient,
 .low-perf-mode .glass-epic,
 .low-perf-mode .glass-monument {
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5) !important;
+    /* 阴影已在上面各自定义，这里不覆盖 */
 }
 
 /* 启用硬件加速以提高渲染性能 */
