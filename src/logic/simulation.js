@@ -1,4 +1,4 @@
-import { BUILDINGS, STRATA, EPOCHS, RESOURCES, TECHS, ECONOMIC_INFLUENCE } from '../config';
+import { BUILDINGS, STRATA, EPOCHS, RESOURCES, TECHS, ECONOMIC_INFLUENCE, WEALTH_DECAY_RATE } from '../config';
 import { calculateArmyPopulation, calculateArmyFoodNeed, calculateArmyCapacityNeed, calculateArmyMaintenance, calculateArmyScalePenalty } from '../config';
 import { getBuildingEffectiveConfig, getUpgradeCost, getMaxUpgradeLevel, BUILDING_UPGRADES } from '../config/buildingUpgrades';
 import { isResourceUnlocked } from '../utils/resources';
@@ -199,6 +199,26 @@ export const simulateTick = ({
     // NEW: Track supply source breakdown
     const supplyBreakdown = {};
 
+    // NEW: Detailed financial tracking
+    const classFinancialData = {};
+    if (Object.keys(STRATA).length > 0) {
+        Object.keys(STRATA).forEach(key => {
+            classFinancialData[key] = {
+                income: { wage: 0, ownerRevenue: 0, subsidy: 0 },
+                expense: {
+                    headTax: 0,
+                    transactionTax: 0,
+                    businessTax: 0,
+                    tariffs: 0,
+                    essentialNeeds: {},  // 基础需求消费 { resource: cost }
+                    luxuryNeeds: {},     // 奢侈需求消费 { resource: cost }
+                    decay: 0,
+                    productionCosts: 0
+                }
+            };
+        });
+    }
+
     // WAR STATE: Check if player is at war with any nation
     // Used for wartime modifiers (3x military stratum demand, 3x army maintenance)
     const isPlayerAtWar = (nations || []).some(n => n.isAtWar === true);
@@ -369,6 +389,10 @@ export const simulateTick = ({
         // 特殊处理银币产出：直接作为所有者收入，不进入国库，不交税
         if (resource === 'silver' && amount > 0) {
             roleWagePayout[ownerKey] = (roleWagePayout[ownerKey] || 0) + amount;
+            if (classFinancialData[ownerKey]) {
+                // Silver production is direct revenue
+                classFinancialData[ownerKey].income.ownerRevenue = (classFinancialData[ownerKey].income.ownerRevenue || 0) + amount;
+            }
             return;
         }
         if (amount <= 0) return;
@@ -402,6 +426,55 @@ export const simulateTick = ({
 
             // 记录owner的净销售收入（在tick结束时统一结算到wealth）
             roleWagePayout[ownerKey] = (roleWagePayout[ownerKey] || 0) + netIncome;
+
+            // NEW: Detailed tracking
+            if (classFinancialData[ownerKey]) {
+                // Track net income as owner revenue (profit from sales)
+                classFinancialData[ownerKey].income.ownerRevenue = (classFinancialData[ownerKey].income.ownerRevenue || 0) + netIncome;
+
+                // Track tax/subsidy
+                if (taxAmount > 0) {
+                    // Transaction tax paid by owner (deducted from gross to get net)
+                    // Currently logic: netIncome = grossIncome. Tax is consumed from Buyer?
+                    // Wait, check lines 384-387:
+                    // if (taxAmount > 0) { // Consumer tax, not producer tax... commented out logic? }
+                    // Actually, lines 384-387 are empty/commented out logic for consumer tax.
+                    // But if taxAmount > 0, does the owner pay it?
+                    // Currently in `sellProduction`:
+                    // const taxAmount = grossIncome * taxRate;
+                    // let netIncome = grossIncome;
+                    // if (taxAmount > 0) { ... nothing happens to netIncome ... }
+                    // So for positive tax, it seems the owner receives the full grossIncome?
+                    // And the buyer pays... wait, `sellProduction` just records the production.
+                    // The tax is paid when the buyer BUYS it?
+                    // Let's look at `building processed` loop line 1151:
+                    // const taxPaid = baseCost * taxRate;
+                    // taxBreakdown.industryTax += taxPaid;
+                    // wealth[ownerKey] -= totalCost;
+
+                    // `sellProduction` is called when a building PRODUCES output.
+                    // It puts it into `res`.
+                    // The tax logic inside `sellProduction` seems completely partially implemented or just for subsidies?
+                    // If taxAmount > 0, it does NOTHING to netIncome or taxBreakdown in the current code (lines 384-387 are empty comments).
+                    // So currently output tax (production tax) is effectively 0 unless it's a subsidy?
+                    // Line 389: else if (taxAmount < 0) { ... netIncome += subsidy ... }
+
+                    // So for now, we only track Subsidy here.
+                } else if (taxAmount < 0) {
+                    const subsidyAmount = Math.abs(taxAmount);
+                    // Already added to netIncome if treasury allowed
+                    // Just track it as subsidy component
+                    // Note: we can't tell here if treasury failed without variable access, 
+                    // but `sellProduction` modifies `res.silver` so we assume it worked if logic matched.
+                    // Actually logic at 391 checks treasury.
+                    if ((res.silver || 0) >= subsidyAmount) { // Re-check condition or rely on code flow?
+                        // Since we are adding logging, we should probably just rely on `taxBreakdown.subsidy` change?
+                        // But `taxBreakdown` is local.
+                        // Let's assume successful if subsidy > 0.
+                        classFinancialData[ownerKey].income.subsidy = (classFinancialData[ownerKey].income.subsidy || 0) + subsidyAmount;
+                    }
+                }
+            }
         }
     };
 
@@ -821,6 +894,9 @@ export const simulateTick = ({
                 // 记录人头税支出
                 roleHeadTaxPaid[key] = (roleHeadTaxPaid[key] || 0) + paid;
                 roleExpense[key] = (roleExpense[key] || 0) + paid;
+                if (classFinancialData[key]) {
+                    classFinancialData[key].expense.headTax = (classFinancialData[key].expense.headTax || 0) + paid;
+                }
             } else {
                 const subsidyNeeded = -due;
                 const treasury = res.silver || 0;
@@ -830,6 +906,10 @@ export const simulateTick = ({
                     taxBreakdown.subsidy += subsidyNeeded;
                     // 记录政府补助收入
                     roleWagePayout[key] = (roleWagePayout[key] || 0) + subsidyNeeded;
+
+                    if (classFinancialData[key]) {
+                        classFinancialData[key].income.subsidy = (classFinancialData[key].income.subsidy || 0) + subsidyNeeded;
+                    }
                 }
             }
         }
@@ -1094,7 +1174,11 @@ export const simulateTick = ({
         // 居住类建筑（无owner且产出maxPop的civic建筑）不收营业税
         const isHousingBuilding = b.cat === 'civic' && !b.owner && b.output?.maxPop > 0;
         const isMilitaryBuilding = b.cat === 'military';
-        const businessTaxPerBuilding = (isHousingBuilding || isMilitaryBuilding) ? 0 : getBusinessTaxRate(b.id);
+        // 营业税额 = 建筑基准税额 × 税率系数
+        // businessTaxBase 默认为 0.1，税率系数由玩家设置（默认1）
+        const businessTaxBase = b.businessTaxBase ?? 0.1;
+        const businessTaxMultiplier = (isHousingBuilding || isMilitaryBuilding) ? 0 : getBusinessTaxRate(b.id);
+        const businessTaxPerBuilding = businessTaxBase * businessTaxMultiplier;
         const estimatedBusinessTax = businessTaxPerBuilding * count * targetMultiplier;
 
         const totalOperatingCostPerMultiplier = inputCostPerMultiplier + wageCostPerMultiplier;
@@ -1164,6 +1248,9 @@ export const simulateTick = ({
                             totalCost -= subsidyAmount;
                             // Record resource purchase subsidy as income for building owner
                             roleWagePayout[ownerKey] = (roleWagePayout[ownerKey] || 0) + subsidyAmount;
+                            if (classFinancialData[ownerKey]) {
+                                classFinancialData[ownerKey].income.subsidy = (classFinancialData[ownerKey].income.subsidy || 0) + subsidyAmount;
+                            }
                         } else {
                             if (tick % 20 === 0) {
                                 logs.push(`国库空虚，无法为 ${b.name} 支付 ${RESOURCES[resKey]?.name || resKey} 交易补贴！`);
@@ -1172,10 +1259,18 @@ export const simulateTick = ({
                     } else if (taxPaid > 0) {
                         taxBreakdown.industryTax += taxPaid;
                         totalCost += taxPaid;
+                        if (classFinancialData[ownerKey]) {
+                            classFinancialData[ownerKey].expense.transactionTax = (classFinancialData[ownerKey].expense.transactionTax || 0) + taxPaid;
+                        }
                     }
 
                     wealth[ownerKey] = Math.max(0, (wealth[ownerKey] || 0) - totalCost);
                     roleExpense[ownerKey] = (roleExpense[ownerKey] || 0) + totalCost;
+
+                    // NEW: Track production costs separately
+                    if (classFinancialData[ownerKey]) {
+                        classFinancialData[ownerKey].expense.productionCosts = (classFinancialData[ownerKey].expense.productionCosts || 0) + totalCost;
+                    }
 
                     // 统计实际消费的需求量，而不是原始需求量
                     demand[resKey] = (demand[resKey] || 0) + consumed;
@@ -1315,6 +1410,9 @@ export const simulateTick = ({
             if (plan.filled > 0 && actualSlotWage > 0) {
                 const payout = actualSlotWage * plan.filled;
                 roleWagePayout[plan.role] = (roleWagePayout[plan.role] || 0) + payout;
+                if (classFinancialData[plan.role]) {
+                    classFinancialData[plan.role].income.wage = (classFinancialData[plan.role].income.wage || 0) + payout;
+                }
             }
         });
 
@@ -1382,6 +1480,11 @@ export const simulateTick = ({
                     roleBusinessTaxPaid[ownerKey] = (roleBusinessTaxPaid[ownerKey] || 0) + totalBusinessTax;
                     roleExpense[ownerKey] = (roleExpense[ownerKey] || 0) + totalBusinessTax;
                     taxBreakdown.businessTax += totalBusinessTax;
+
+                    if (classFinancialData[ownerKey]) {
+                        // 营业税单独记录
+                        classFinancialData[ownerKey].expense.businessTax = (classFinancialData[ownerKey].expense.businessTax || 0) + totalBusinessTax;
+                    }
                 } else {
                     // 业主财产不足，放弃收税
                     if (tick % 30 === 0 && ownerWealth < totalBusinessTax * 0.5) {
@@ -1397,6 +1500,9 @@ export const simulateTick = ({
                     wealth[ownerKey] = (wealth[ownerKey] || 0) + subsidyAmount;
                     roleWagePayout[ownerKey] = (roleWagePayout[ownerKey] || 0) + subsidyAmount;
                     taxBreakdown.subsidy += subsidyAmount;
+                    if (classFinancialData[ownerKey]) {
+                        classFinancialData[ownerKey].income.subsidy = (classFinancialData[ownerKey].income.subsidy || 0) + subsidyAmount;
+                    }
                 } else {
                     if (tick % 30 === 0) {
                         logs.push(`⚠️ 国库空虚，无法为 ${b.name} 支付营业补贴！`);
@@ -1802,6 +1908,45 @@ export const simulateTick = ({
                     // NEW: Track consumption by stratum
                     if (!stratumConsumption[key]) stratumConsumption[key] = {};
                     stratumConsumption[key][resKey] = (stratumConsumption[key][resKey] || 0) + amount;
+
+                    if (classFinancialData[key]) {
+                        // 分类记录：baseNeeds 中的资源是必需品，其他是奢侈品
+                        // 存储 { cost, quantity, price } 以便 UI 显示详情
+                        const needEntry = {
+                            cost: totalCost,
+                            quantity: amount,
+                            price: price
+                        };
+
+                        if (def.needs && def.needs.hasOwnProperty(resKey)) {
+                            // 必需品消费
+                            classFinancialData[key].expense.essentialNeeds = classFinancialData[key].expense.essentialNeeds || {};
+                            const existing = classFinancialData[key].expense.essentialNeeds[resKey];
+                            if (existing && typeof existing === 'object') {
+                                existing.cost += totalCost;
+                                existing.quantity += amount;
+                            } else {
+                                classFinancialData[key].expense.essentialNeeds[resKey] = needEntry;
+                            }
+                        } else {
+                            // 奢侈品消费
+                            classFinancialData[key].expense.luxuryNeeds = classFinancialData[key].expense.luxuryNeeds || {};
+                            const existing = classFinancialData[key].expense.luxuryNeeds[resKey];
+                            if (existing && typeof existing === 'object') {
+                                existing.cost += totalCost;
+                                existing.quantity += amount;
+                            } else {
+                                classFinancialData[key].expense.luxuryNeeds[resKey] = needEntry;
+                            }
+                        }
+
+                        // Also track transaction tax component for needs
+                        // Note: taxBreakdown.industryTax is updated above for positive tax
+                        // taxPaid was calculated above
+                        if (taxPaid > 0) {
+                            classFinancialData[key].expense.transactionTax = (classFinancialData[key].expense.transactionTax || 0) + taxPaid;
+                        }
+                    }
                 }
 
                 // 记录短缺原因
@@ -2092,9 +2237,12 @@ export const simulateTick = ({
     // Wealth Decay (Lifestyle Inflation)
     // Prevents infinite accumulation by "burning" a small percentage of wealth daily
     // representing maintenance, services, and non-goods consumption.
+    // NEW: Decay is based on per-capita wealth percentage, not total wealth
     Object.keys(STRATA).forEach(key => {
         const currentWealth = wealth[key] || 0;
-        if (currentWealth > 0) {
+        const population = popStructure[key] || 0;
+
+        if (currentWealth > 0 && population > 0) {
             // Check living standard to see if decay should apply
             // Only apply decay if living standard is at least "Subsistence" (温饱)
             // Levels: 赤贫 (Destitute), 贫困 (Poor), 温饱 (Subsistence), 小康 (Comfortable)...
@@ -2106,10 +2254,18 @@ export const simulateTick = ({
                 return;
             }
 
-            const decay = Math.ceil(currentWealth * 0.005); // 0.5% daily decay
+            // Calculate per-capita wealth and apply decay rate
+            const perCapitaWealth = currentWealth / population;
+            const perCapitaDecay = perCapitaWealth * WEALTH_DECAY_RATE;
+            // Total decay = per-capita decay × population (but use floor to avoid excessive rounding up)
+            const decay = Math.max(1, Math.floor(perCapitaDecay * population));
+
             wealth[key] = Math.max(0, currentWealth - decay);
             // Record decay as expense so UI balances
             roleExpense[key] = (roleExpense[key] || 0) + decay;
+            if (classFinancialData[key]) {
+                classFinancialData[key].expense.decay = (classFinancialData[key].expense.decay || 0) + decay;
+            }
         }
     });
 
@@ -2471,14 +2627,14 @@ export const simulateTick = ({
         updatedNations = processMonthlyRelationDecay(updatedNations, tick);
     }
 
-    // REFACTORED: Using module function for ally cold events
-    processAllyColdEvents(updatedNations, tick, logs);
-
-
     // Filter visible nations for diplomacy processing
     const visibleNations = updatedNations.filter(n =>
         epoch >= (n.appearEpoch ?? 0) && (n.expireEpoch == null || epoch <= n.expireEpoch) && !n.isRebelNation
     );
+
+    // REFACTORED: Using module function for ally cold events
+    // Note: Must use visibleNations to avoid triggering events for destroyed/expired nations
+    processAllyColdEvents(visibleNations, tick, logs);
 
     // REFACTORED: Using module function for AI gift diplomacy
     processAIGiftDiplomacy(visibleNations, logs);
@@ -3045,6 +3201,7 @@ export const simulateTick = ({
         pendingTrades: merchantState.pendingTrades || [],
         lastTradeTime: merchantState.lastTradeTime || 0,
         gameSpeed,
+        classFinancialData, // Pass detailed financial tracking
         logs,
     });
     const merchantLockedCapital = Math.max(0, updatedMerchantState.lockedCapital ?? sumLockedCapital(updatedMerchantState.pendingTrades));
@@ -3052,6 +3209,45 @@ export const simulateTick = ({
     const merchantCapitalInvested = updatedMerchantState.capitalInvestedThisTick || 0;
     if ('capitalInvestedThisTick' in updatedMerchantState) {
         delete updatedMerchantState.capitalInvestedThisTick;
+    }
+
+    // Generate merchant trade summary log (aggregate completed trades for this tick)
+    const completedTrades = updatedMerchantState.completedTrades || [];
+    if (completedTrades.length > 0) {
+        // Aggregate by type and resource
+        const tradeSummary = { export: {}, import: {} };
+        let totalProfit = 0;
+        completedTrades.forEach(trade => {
+            const key = trade.resource;
+            if (!tradeSummary[trade.type][key]) {
+                tradeSummary[trade.type][key] = { amount: 0, profit: 0 };
+            }
+            tradeSummary[trade.type][key].amount += trade.amount;
+            tradeSummary[trade.type][key].profit += trade.profit;
+            totalProfit += trade.profit;
+        });
+        
+        // Generate summary log message
+        const parts = [];
+        Object.keys(tradeSummary.export).forEach(resKey => {
+            const data = tradeSummary.export[resKey];
+            const resName = RESOURCES[resKey]?.name || resKey;
+            parts.push(`出口${resName}${data.amount.toFixed(1)}`);
+        });
+        Object.keys(tradeSummary.import).forEach(resKey => {
+            const data = tradeSummary.import[resKey];
+            const resName = RESOURCES[resKey]?.name || resKey;
+            parts.push(`进口${resName}${data.amount.toFixed(1)}`);
+        });
+        
+        if (parts.length > 0) {
+            const profitText = totalProfit >= 0 ? `盈利${totalProfit.toFixed(1)}` : `亏损${Math.abs(totalProfit).toFixed(1)}`;
+            logs.push(`🛒 商人自主贸易: ${parts.join(', ')}，${profitText}银币`);
+        }
+    }
+    // Clean up completedTrades from state (not needed for persistence)
+    if ('completedTrades' in updatedMerchantState) {
+        delete updatedMerchantState.completedTrades;
     }
 
     // 增强转职（Migration）逻辑：基于市场价格和潜在收益的职业流动
@@ -3463,6 +3659,7 @@ export const simulateTick = ({
         jobFill: buildingJobFill,
         jobsAvailable,
         taxes,
+        classFinancialData, // NEW: Return detailed financial data
         dailyMilitaryExpense: armyExpenseResult, // 新增：每日军费数据（用于战争赔款计算）
         needsShortages: classShortages,
         needsReport,
@@ -3505,8 +3702,10 @@ export const simulateTick = ({
                 // 军事加成
                 militaryBonus: bonuses.militaryBonus,
                 // 阶层财富增长对需求的影响（财富越高需求越高）
+                // 阶层财富增长对需求的影响（财富越高需求越高）
                 stratumWealthMultiplier: stratumWealthMultipliers,
             },
         },
+        army, // 确保返回army状态，以便保存战斗损失
     };
 };

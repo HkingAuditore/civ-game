@@ -34,6 +34,7 @@ const StratumDetailSheetComponent = ({
     classExpense,
     classShortages,
     classLivingStandard = {}, // 新增：从simulation传来的生活水平数据
+    classFinancialData = {}, // Detailed financial breakdown
     rebellionStates = {}, // 新增：组织度状态
     actionCooldowns = {},
     actionUsage = {},
@@ -290,6 +291,16 @@ const StratumDetailSheetComponent = ({
                         if (org > 30) return <span className={`ml-1 px-1 py-0.5 rounded text-[9px] ${org >= 70 ? 'bg-red-600' : 'bg-orange-600'}`}>{org.toFixed(0)}%</span>;
                         return null;
                     })()}
+                </button>
+                <button
+                    onClick={() => setActiveTab('finance')}
+                    className={`flex-1 py-2 text-xs font-bold transition-colors flex items-center justify-center gap-1 ${activeTab === 'finance'
+                        ? 'text-green-400 border-b-2 border-green-400 bg-green-900/20'
+                        : 'text-gray-400 hover:text-gray-200'
+                        }`}
+                >
+                    <Icon name="Coins" size={12} />
+                    财务
                 </button>
             </div>
 
@@ -883,6 +894,243 @@ const StratumDetailSheetComponent = ({
                             </>
                         );
                     })()}
+                </div>
+            )}
+            {/* 财务Tab内容 */}
+            {activeTab === 'finance' && (
+                <div className="space-y-2">
+                    {/* 总收支概览 */}
+                    <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
+                        <h3 className="text-[10px] font-bold text-white mb-1.5 flex items-center gap-1">
+                            <Icon name="TrendingUp" size={12} className="text-green-400" />
+                            每日人均收支总览
+                        </h3>
+                        <div className="grid grid-cols-3 gap-2">
+                            <div>
+                                <div className="text-[9px] text-gray-400 mb-0.5 leading-none">总收入</div>
+                                <div className="text-sm font-bold text-green-400 font-mono leading-none">
+                                    +{incomePerCapita.toFixed(2)}
+                                </div>
+                            </div>
+                            <div>
+                                <div className="text-[9px] text-gray-400 mb-0.5 leading-none">总支出</div>
+                                <div className="text-sm font-bold text-red-400 font-mono leading-none">
+                                    -{expensePerCapita.toFixed(2)}
+                                </div>
+                            </div>
+                            <div>
+                                <div className="text-[9px] text-gray-400 mb-0.5 leading-none">净收益</div>
+                                <div className={`text-sm font-bold font-mono leading-none ${netIncomePerCapita >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                    {netIncomePerCapita >= 0 ? '+' : ''}{netIncomePerCapita.toFixed(2)}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* 收入明细 */}
+                    <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
+                        <h3 className="text-[10px] font-bold text-white mb-2 flex items-center gap-1">
+                            <Icon name="ArrowDownLeft" size={12} className="text-green-400" />
+                            收入构成 (人均/日)
+                        </h3>
+                        {(() => {
+                            const data = classFinancialData[stratumKey]?.income || {};
+                            const wage = (data.wage || 0) / safeDayScale / Math.max(count, 1);
+                            const ownerRevenue = (data.ownerRevenue || 0) / safeDayScale / Math.max(count, 1);
+                            const subsidy = (data.subsidy || 0) / safeDayScale / Math.max(count, 1);
+
+                            return (
+                                <div className="space-y-1.5">
+                                    {wage > 0.001 && (
+                                        <div className="flex justify-between items-center text-xs">
+                                            <span className="text-gray-300">工资收入</span>
+                                            <span className="text-green-400 font-mono">+{wage.toFixed(2)}</span>
+                                        </div>
+                                    )}
+                                    {ownerRevenue > 0.001 && (
+                                        <div className="flex justify-between items-center text-xs">
+                                            <span className="text-gray-300">经营营收</span>
+                                            <span className="text-green-400 font-mono">+{ownerRevenue.toFixed(2)}</span>
+                                        </div>
+                                    )}
+                                    {subsidy > 0.001 && (
+                                        <div className="flex justify-between items-center text-xs">
+                                            <span className="text-gray-300">政府补贴</span>
+                                            <span className="text-green-400 font-mono">+{subsidy.toFixed(2)}</span>
+                                        </div>
+                                    )}
+                                    {wage <= 0.001 && ownerRevenue <= 0.001 && subsidy <= 0.001 && (
+                                        <div className="text-gray-500 text-xs italic text-center">暂无显著收入</div>
+                                    )}
+                                </div>
+                            );
+                        })()}
+                    </div>
+
+                    {/* 支出明细 */}
+                    <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
+                        <h3 className="text-[10px] font-bold text-white mb-2 flex items-center gap-1">
+                            <Icon name="ArrowUpRight" size={12} className="text-red-400" />
+                            支出构成 (人均/日)
+                        </h3>
+                        {(() => {
+                            const data = classFinancialData[stratumKey]?.expense || {};
+                            const headTax = (data.headTax || 0) / safeDayScale / Math.max(count, 1);
+                            const transactionTax = (data.transactionTax || 0) / safeDayScale / Math.max(count, 1);
+                            const businessTax = (data.businessTax || 0) / safeDayScale / Math.max(count, 1);
+                            const tariffs = (data.tariffs || 0) / safeDayScale / Math.max(count, 1);
+
+                            // 必需品消费
+                            const essentialNeedsRaw = typeof data.essentialNeeds === 'object'
+                                ? Object.values(data.essentialNeeds).reduce((sum, entry) => {
+                                    const cost = typeof entry === 'object' ? entry.cost : entry;
+                                    return sum + (cost || 0);
+                                }, 0)
+                                : 0;
+                            const essentialNeeds = essentialNeedsRaw / safeDayScale / Math.max(count, 1);
+
+                            // 奢侈品消费
+                            const luxuryNeedsRaw = typeof data.luxuryNeeds === 'object'
+                                ? Object.values(data.luxuryNeeds).reduce((sum, entry) => {
+                                    const cost = typeof entry === 'object' ? entry.cost : entry;
+                                    return sum + (cost || 0);
+                                }, 0)
+                                : 0;
+                            const luxuryNeeds = luxuryNeedsRaw / safeDayScale / Math.max(count, 1);
+
+                            const decayRaw = (data.decay || 0);
+                            const decay = decayRaw / safeDayScale / Math.max(count, 1);
+
+                            const productionCostsRaw = (data.productionCosts || 0);
+                            const productionCosts = productionCostsRaw / safeDayScale / Math.max(count, 1);
+
+                            // Calculate 'Other' based on total roleExpense vs tracked items
+                            const trackedTotal = headTax + transactionTax + businessTax + tariffs + essentialNeeds + luxuryNeeds + decay + productionCosts;
+                            const other = Math.max(0, expensePerCapita - trackedTotal);
+
+                            return (
+                                <div className="space-y-1.5">
+                                    {headTax > 0.001 && (
+                                        <div className="flex justify-between items-center text-xs">
+                                            <span className="text-gray-300">人头税</span>
+                                            <span className="text-red-400 font-mono">-{headTax.toFixed(2)}</span>
+                                        </div>
+                                    )}
+                                    {transactionTax > 0.001 && (
+                                        <div className="flex justify-between items-center text-xs">
+                                            <span className="text-gray-300">交易税</span>
+                                            <span className="text-red-400 font-mono">-{transactionTax.toFixed(2)}</span>
+                                        </div>
+                                    )}
+                                    {businessTax > 0.001 && (
+                                        <div className="flex justify-between items-center text-xs">
+                                            <span className="text-gray-300">营业税</span>
+                                            <span className="text-red-400 font-mono">-{businessTax.toFixed(2)}</span>
+                                        </div>
+                                    )}
+                                    {tariffs > 0.001 && (
+                                        <div className="flex justify-between items-center text-xs">
+                                            <span className="text-gray-300">关税支出</span>
+                                            <span className="text-red-400 font-mono">-{tariffs.toFixed(2)}</span>
+                                        </div>
+                                    )}
+                                    {productionCosts > 0.001 && (
+                                        <div className="flex justify-between items-center text-xs">
+                                            <span className="text-gray-300">生产经营投入</span>
+                                            <span className="text-red-400 font-mono">-{productionCosts.toFixed(2)}</span>
+                                        </div>
+                                    )}
+                                    {essentialNeeds > 0.001 && (
+                                        <div className="space-y-1">
+                                            <div className="flex justify-between items-center text-xs">
+                                                <span className="text-gray-300 font-medium">必需品消费</span>
+                                                <span className="text-red-400 font-mono">-{essentialNeeds.toFixed(2)}</span>
+                                            </div>
+                                            {/* 各资源明细 */}
+                                            <div className="pl-2 space-y-0.5 border-l-2 border-gray-700">
+                                                {Object.entries(data.essentialNeeds || {}).map(([resKey, entry]) => {
+                                                    const costVal = typeof entry === 'object' ? entry.cost : entry;
+                                                    const qtyVal = typeof entry === 'object' ? entry.quantity : 0;
+                                                    const priceVal = typeof entry === 'object' ? entry.price : 0;
+                                                    const perCapitaCost = costVal / safeDayScale / Math.max(count, 1);
+                                                    const perCapitaQty = qtyVal / safeDayScale / Math.max(count, 1);
+                                                    if (perCapitaCost < 0.001) return null;
+                                                    const resInfo = RESOURCES[resKey];
+                                                    return (
+                                                        <div key={resKey} className="flex items-center justify-between text-[10px] gap-1">
+                                                            <span className="flex items-center gap-1 text-gray-400">
+                                                                <Icon name={resInfo?.icon || 'Package'} size={10} className={resInfo?.color || 'text-gray-400'} />
+                                                                {resInfo?.name || resKey}
+                                                            </span>
+                                                            <span className="flex items-center gap-0.5 text-gray-500">
+                                                                <span className="font-mono">{perCapitaQty.toFixed(2)}</span>
+                                                                <span>×</span>
+                                                                <span className="font-mono">{priceVal.toFixed(2)}</span>
+                                                                <Icon name="Coins" size={8} className="text-yellow-500" />
+                                                                <span>=</span>
+                                                                <span className="text-red-300 font-mono">-{perCapitaCost.toFixed(2)}</span>
+                                                            </span>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {luxuryNeeds > 0.001 && (
+                                        <div className="space-y-1">
+                                            <div className="flex justify-between items-center text-xs">
+                                                <span className="text-gray-300 font-medium">奢侈品消费</span>
+                                                <span className="text-red-400 font-mono">-{luxuryNeeds.toFixed(2)}</span>
+                                            </div>
+                                            {/* 各资源明细 */}
+                                            <div className="pl-2 space-y-0.5 border-l-2 border-gray-700">
+                                                {Object.entries(data.luxuryNeeds || {}).map(([resKey, entry]) => {
+                                                    const costVal = typeof entry === 'object' ? entry.cost : entry;
+                                                    const qtyVal = typeof entry === 'object' ? entry.quantity : 0;
+                                                    const priceVal = typeof entry === 'object' ? entry.price : 0;
+                                                    const perCapitaCost = costVal / safeDayScale / Math.max(count, 1);
+                                                    const perCapitaQty = qtyVal / safeDayScale / Math.max(count, 1);
+                                                    if (perCapitaCost < 0.001) return null;
+                                                    const resInfo = RESOURCES[resKey];
+                                                    return (
+                                                        <div key={resKey} className="flex items-center justify-between text-[10px] gap-1">
+                                                            <span className="flex items-center gap-1 text-gray-400">
+                                                                <Icon name={resInfo?.icon || 'Package'} size={10} className={resInfo?.color || 'text-gray-400'} />
+                                                                {resInfo?.name || resKey}
+                                                            </span>
+                                                            <span className="flex items-center gap-0.5 text-gray-500">
+                                                                <span className="font-mono">{perCapitaQty.toFixed(2)}</span>
+                                                                <span>×</span>
+                                                                <span className="font-mono">{priceVal.toFixed(2)}</span>
+                                                                <Icon name="Coins" size={8} className="text-yellow-500" />
+                                                                <span>=</span>
+                                                                <span className="text-red-300 font-mono">-{perCapitaCost.toFixed(2)}</span>
+                                                            </span>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {decay > 0.001 && (
+                                        <div className="flex justify-between items-center text-xs">
+                                            <span className="text-gray-300">生活损耗</span>
+                                            <span className="text-red-400 font-mono">-{decay.toFixed(2)}</span>
+                                        </div>
+                                    )}
+                                    {other > 0.01 && (
+                                        <div className="flex justify-between items-center text-xs">
+                                            <span className="text-gray-300">其他支出</span>
+                                            <span className="text-red-400 font-mono">-{other.toFixed(2)}</span>
+                                        </div>
+                                    )}
+                                    {expensePerCapita <= 0.001 && (
+                                        <div className="text-gray-500 text-xs italic text-center">暂无显著支出</div>
+                                    )}
+                                </div>
+                            );
+                        })()}
+                    </div>
                 </div>
             )}
         </div>

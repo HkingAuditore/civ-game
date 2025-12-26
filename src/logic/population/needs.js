@@ -27,6 +27,7 @@ export const processNeedsConsumption = ({
     roleExpense,
     roleWagePayout,
     classIncome = {}, // 新增：收入数据
+    classFinancialData = {}, // 新增：详细财务跟踪
     tick,
     logs,
     potentialResources = null  // 已解锁建筑可产出资源集合（用于门控需求）
@@ -165,6 +166,19 @@ export const processNeedsConsumption = ({
                     updatedWealth[key] = Math.max(0, (updatedWealth[key] || 0) - actualCost);
                     roleExpense[key] = (roleExpense[key] || 0) + actualCost;
                     satisfied = amount;
+
+                    // 分类记录消费支出到详细财务数据
+                    if (classFinancialData[key]) {
+                        if (baseNeeds.hasOwnProperty(resKey)) {
+                            // 必需品消费
+                            classFinancialData[key].expense.essentialNeeds[resKey] =
+                                (classFinancialData[key].expense.essentialNeeds[resKey] || 0) + actualCost;
+                        } else {
+                            // 奢侈品消费
+                            classFinancialData[key].expense.luxuryNeeds[resKey] =
+                                (classFinancialData[key].expense.luxuryNeeds[resKey] || 0) + actualCost;
+                        }
+                    }
 
                     // Track actual demand
                     updatedDemand[resKey] = (updatedDemand[resKey] || 0) + amount;

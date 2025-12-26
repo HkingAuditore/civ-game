@@ -612,70 +612,70 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                 // 居住性建筑和军事建筑不收营业税，不显示设置UI
                 if (isHousingBuilding || isMilitaryBuilding) return null;
                 return (
-                <div className="bg-gray-900/50 p-3 rounded-lg border border-gray-700/80">
-                    <h4 className="text-xs font-semibold text-gray-300 mb-2 flex items-center gap-1.5 font-decorative">
-                        <Icon name="Sliders" size={16} className="text-yellow-400" />
-                        营业税调整
-                    </h4>
-                    <div className="grid grid-cols-2 gap-2 items-center">
-                        <div>
-                            <div className="text-[10px] text-gray-400 mb-0.5 leading-none">税率系数</div>
-                            <div className="flex items-center gap-1">
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        const currentValue = parseFloat(draftMultiplier ?? businessTaxMultiplier);
-                                        const newValue = isNaN(currentValue) ? -1 : -currentValue;
-                                        handleDraftChange(String(newValue));
-                                        // 直接提交
-                                        onUpdateTaxPolicies(prev => ({
-                                            ...prev,
-                                            businessTaxRates: { ...(prev?.businessTaxRates || {}), [building.id]: newValue },
-                                        }));
-                                        setDraftMultiplier(null);
-                                    }}
-                                    className="btn-compact flex-shrink-0 w-6 h-6 bg-gray-700 hover:bg-gray-600 border border-gray-500 rounded text-[10px] font-bold text-gray-300 flex items-center justify-center transition-colors"
-                                    title="切换正负值（税收/补贴）"
-                                >
-                                    ±
-                                </button>
-                                <input
-                                    type="text"
-                                    inputMode="decimal"
-                                    step="0.05"
-                                    value={draftMultiplier ?? businessTaxMultiplier}
-                                    onChange={(e) => handleDraftChange(e.target.value)}
-                                    onBlur={commitDraft}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                            commitDraft();
-                                            e.target.blur();
-                                        }
-                                    }}
-                                    className="flex-grow min-w-0 bg-gray-800/70 border border-gray-600 text-sm text-gray-200 rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
-                                    placeholder="税率系数"
-                                />
+                    <div className="bg-gray-900/50 p-3 rounded-lg border border-gray-700/80">
+                        <h4 className="text-xs font-semibold text-gray-300 mb-2 flex items-center gap-1.5 font-decorative">
+                            <Icon name="Sliders" size={16} className="text-yellow-400" />
+                            营业税调整
+                        </h4>
+                        <div className="grid grid-cols-2 gap-2 items-center">
+                            <div>
+                                <div className="text-[10px] text-gray-400 mb-0.5 leading-none">税率系数</div>
+                                <div className="flex items-center gap-1">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const currentValue = parseFloat(draftMultiplier ?? businessTaxMultiplier);
+                                            const newValue = isNaN(currentValue) ? -1 : -currentValue;
+                                            handleDraftChange(String(newValue));
+                                            // 直接提交
+                                            onUpdateTaxPolicies(prev => ({
+                                                ...prev,
+                                                businessTaxRates: { ...(prev?.businessTaxRates || {}), [building.id]: newValue },
+                                            }));
+                                            setDraftMultiplier(null);
+                                        }}
+                                        className="btn-compact flex-shrink-0 w-6 h-6 bg-gray-700 hover:bg-gray-600 border border-gray-500 rounded text-[10px] font-bold text-gray-300 flex items-center justify-center transition-colors"
+                                        title="切换正负值（税收/补贴）"
+                                    >
+                                        ±
+                                    </button>
+                                    <input
+                                        type="text"
+                                        inputMode="decimal"
+                                        step="0.05"
+                                        value={draftMultiplier ?? businessTaxMultiplier}
+                                        onChange={(e) => handleDraftChange(e.target.value)}
+                                        onBlur={commitDraft}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                commitDraft();
+                                                e.target.blur();
+                                            }
+                                        }}
+                                        className="flex-grow min-w-0 bg-gray-800/70 border border-gray-600 text-sm text-gray-200 rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
+                                        placeholder="税率系数"
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <div className="text-[10px] text-gray-400 mb-0.5 leading-none">实际税额 (每次产出)</div>
+                                <div className="bg-gray-800/50 rounded px-2 py-1.5 text-center">
+                                    <span className={`text-sm font-bold font-mono ${actualBusinessTax > 0 ? 'text-yellow-300' : actualBusinessTax < 0 ? 'text-green-300' : 'text-gray-400'
+                                        }`}>
+                                        {actualBusinessTax < 0 ? '补贴 ' : ''}{Math.abs(actualBusinessTax).toFixed(3)}
+                                    </span>
+                                    <Icon
+                                        name={actualBusinessTax > 0 ? "TrendingUp" : actualBusinessTax < 0 ? "TrendingDown" : "Coins"}
+                                        size={12}
+                                        className={`inline-block ml-1 ${actualBusinessTax > 0 ? 'text-yellow-400' : actualBusinessTax < 0 ? 'text-green-400' : 'text-gray-500'}`}
+                                    />
+                                </div>
                             </div>
                         </div>
-                        <div>
-                            <div className="text-[10px] text-gray-400 mb-0.5 leading-none">实际税额 (每次产出)</div>
-                            <div className="bg-gray-800/50 rounded px-2 py-1.5 text-center">
-                                <span className={`text-sm font-bold font-mono ${actualBusinessTax > 0 ? 'text-yellow-300' : actualBusinessTax < 0 ? 'text-green-300' : 'text-gray-400'
-                                    }`}>
-                                    {actualBusinessTax < 0 ? '补贴 ' : ''}{Math.abs(actualBusinessTax).toFixed(3)}
-                                </span>
-                                <Icon
-                                    name={actualBusinessTax > 0 ? "TrendingUp" : actualBusinessTax < 0 ? "TrendingDown" : "Coins"}
-                                    size={12}
-                                    className={`inline-block ml-1 ${actualBusinessTax > 0 ? 'text-yellow-400' : actualBusinessTax < 0 ? 'text-green-400' : 'text-gray-500'}`}
-                                />
-                            </div>
-                        </div>
+                        <p className="text-[10px] text-gray-500 mt-1.5">
+                            实际税额 = 基准税额({businessTaxBase.toFixed(2)}) × 税率系数 × 生产效率。生产加成会增加实际征收的税额。负数系数代表补贴。
+                        </p>
                     </div>
-                    <p className="text-[10px] text-gray-500 mt-1.5">
-                        实际税额 = 建筑基准税额({businessTaxBase.toFixed(2)}) × 税率系数。负数系数代表补贴。
-                    </p>
-                </div>
                 );
             })()}
 

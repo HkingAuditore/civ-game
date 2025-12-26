@@ -276,6 +276,7 @@ export const fillVacancies = ({
                 .filter(role => {
                     if (!canProvideCandidate(role, entry.role)) return false;
                     if (role === entry.role) return false; // Don't hire from same role
+                    if (role === 'soldier') return false; // Soldier cannot migrate to other jobs
                     const pop = popStructure[role] || 0;
                     return pop > 0;
                 })

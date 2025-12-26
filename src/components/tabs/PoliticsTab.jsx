@@ -1054,7 +1054,7 @@ const PoliticsTabComponent = ({
                                     <Icon name="Info" size={12} className="text-blue-400" />
                                     <span className="font-semibold">营业税说明</span>
                                 </p>
-                                <p>对建筑经营征收的税收。税率系数越高，每个建筑每次运营时缴纳的税收越多。</p>
+                                <p>对建筑每次产出征收的税收。实际税额 = 基准税额 × 税率系数 × 生产效率。生产加成越高，税收越多。负数系数代表政府补贴。</p>
                             </div>
 
                             {/* 按建筑类别显示 */}

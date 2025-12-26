@@ -1213,6 +1213,7 @@ function GameApp({ gameState }) {
                         classWealthDelta={gameState.classWealthDelta}
                         classIncome={classIncomeWithSubsidy}
                         classExpense={gameState.classExpense}
+                        classFinancialData={gameState.classFinancialData}
                         classShortages={gameState.classShortages}
                         classLivingStandard={gameState.classLivingStandard}
                         rebellionStates={gameState.rebellionStates}

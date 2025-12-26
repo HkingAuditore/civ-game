@@ -42,13 +42,16 @@ export const simulateMerchantTrade = ({
     pendingTrades = [],
     lastTradeTime = 0,
     gameSpeed = 1,
+
+    classFinancialData, // NEW: detailed tracking
     logs,
 }) => {
     const merchantCount = popStructure?.merchant || 0;
     if (merchantCount <= 0) {
-        return { pendingTrades, lastTradeTime, lockedCapital: 0, capitalInvestedThisTick: 0 };
+        return { pendingTrades, lastTradeTime, lockedCapital: 0, capitalInvestedThisTick: 0, completedTrades: [] };
     }
     let capitalInvestedThisTick = 0;
+    const completedTrades = []; // Track completed trades for logging
 
     const resourceTaxRates = taxPolicies?.resourceTaxRates || {};
     const importTariffMultipliers = taxPolicies?.importTariffMultipliers || taxPolicies?.resourceTariffMultipliers || {};
@@ -111,6 +114,15 @@ export const simulateMerchantTrade = ({
                 supply[trade.resource] = (supply[trade.resource] || 0) + trade.amount;
             }
 
+            // Track completed trade for logging
+            completedTrades.push({
+                type: trade.type,
+                resource: trade.resource,
+                amount: trade.amount,
+                revenue: trade.revenue,
+                profit: trade.profit
+            });
+
             if (tradeConfig.enableDebugLog) {
                 console.log(`[Merchant Debug] ✅ Trade complete:`, {
                     type: trade.type === 'export' ? 'Export' : 'Import',
@@ -133,7 +145,7 @@ export const simulateMerchantTrade = ({
         if (tradeConfig.enableDebugLog) {
             console.log(`[Merchant Debug] ⏳ Trade cooldown: ${(tradeConfig.tradeCooldown - ticksSinceLastTrade).toFixed(1)} days remaining`);
         }
-        return { pendingTrades: updatedPendingTrades, lastTradeTime, lockedCapital: 0, capitalInvestedThisTick: 0 };
+        return { pendingTrades: updatedPendingTrades, lastTradeTime, lockedCapital: 0, capitalInvestedThisTick: 0, completedTrades };
     }
 
     const tradableKeys = Object.keys(RESOURCES).filter(key => isTradableResource(key));
@@ -189,6 +201,8 @@ export const simulateMerchantTrade = ({
                 getLocalPrice,
                 getForeignPrice,
                 roleWagePayout,
+                classFinancialData,
+                taxPolicies,
                 tick,
                 logs
             });
@@ -212,6 +226,7 @@ export const simulateMerchantTrade = ({
                 getLocalPrice,
                 getForeignPrice,
                 roleExpense,
+                classFinancialData,
                 tick,
                 logs
             });
@@ -232,7 +247,8 @@ export const simulateMerchantTrade = ({
         pendingTrades: updatedPendingTrades,
         lastTradeTime,
         lockedCapital,
-        capitalInvestedThisTick
+        capitalInvestedThisTick,
+        completedTrades
     };
 };
 
@@ -253,6 +269,8 @@ const executeExportTrade = ({
     getForeignPrice,
     getResourceTaxRate,
     roleWagePayout,
+    classFinancialData,
+    taxPolicies, // Added for detailed financial tracking
     tick,
     logs
 }) => {
@@ -319,6 +337,34 @@ const executeExportTrade = ({
                 taxBreakdown.industryTax += totalAppliedTax;
             }
 
+            // [Detailed Financials]
+            if (classFinancialData && classFinancialData.merchant) {
+                const baseRate = taxPolicies?.resourceTaxRates?.[resourceKey] || 0;
+                // Export tax breakdown: base = transaction tax, extra = tariff
+                const effectiveRate = taxRate;
+                const tariffRate = effectiveRate - baseRate;
+
+                const totalTaxPaid = cost * effectiveRate * batchMultiplier;
+                const tariffPaid = cost * tariffRate * batchMultiplier;
+
+                if (Math.abs(tariffPaid) > 0.001) {
+                    classFinancialData.merchant.expense.tariffs = (classFinancialData.merchant.expense.tariffs || 0) + tariffPaid;
+                    const remainingTax = totalTaxPaid - tariffPaid;
+                    if (remainingTax > 0) classFinancialData.merchant.expense.transactionTax = (classFinancialData.merchant.expense.transactionTax || 0) + remainingTax;
+                } else {
+                    if (totalTaxPaid > 0) classFinancialData.merchant.expense.transactionTax = (classFinancialData.merchant.expense.transactionTax || 0) + totalTaxPaid;
+                }
+
+                if (profit > 0) {
+                    classFinancialData.merchant.income.ownerRevenue = (classFinancialData.merchant.income.ownerRevenue || 0) + profit * batchMultiplier;
+                }
+
+                const subsidy = totalAppliedTax < 0 ? Math.abs(totalAppliedTax) : 0;
+                if (subsidy > 0) {
+                    classFinancialData.merchant.income.subsidy = (classFinancialData.merchant.income.subsidy || 0) + subsidy;
+                }
+            }
+
             res[resourceKey] = Math.max(0, (res[resourceKey] || 0) - totalAmount);
             supply[resourceKey] = Math.max(0, (supply[resourceKey] || 0) - totalAmount);
 
@@ -357,6 +403,7 @@ const executeImportTrade = ({
     getForeignPrice,
     getResourceTaxRate,
     roleExpense,
+    classFinancialData,
     tick,
     logs
 }) => {
@@ -415,6 +462,35 @@ const executeImportTrade = ({
                 taxBreakdown.subsidy += subsidy;
             } else {
                 taxBreakdown.industryTax += totalAppliedTax;
+            }
+
+            // [Detailed Financials]
+            if (classFinancialData && classFinancialData.merchant) {
+                const baseRate = taxPolicies?.resourceTaxRates?.[resourceKey] || 0;
+                // Import tax breakdown
+                const effectiveRate = taxRate;
+                const tariffRate = effectiveRate - baseRate;
+
+                const totalTaxPaid = grossRevenue * effectiveRate * batchMultiplier;
+                const tariffPaid = grossRevenue * tariffRate * batchMultiplier;
+
+                if (Math.abs(tariffPaid) > 0.001) {
+                    classFinancialData.merchant.expense.tariffs = (classFinancialData.merchant.expense.tariffs || 0) + tariffPaid;
+                    const remainingTax = totalTaxPaid - tariffPaid;
+                    if (remainingTax > 0) classFinancialData.merchant.expense.transactionTax = (classFinancialData.merchant.expense.transactionTax || 0) + remainingTax;
+                } else {
+                    if (totalTaxPaid > 0) classFinancialData.merchant.expense.transactionTax = (classFinancialData.merchant.expense.transactionTax || 0) + totalTaxPaid;
+                }
+
+                const profit = totalNetRevenue - totalCost;
+                if (profit > 0) {
+                    classFinancialData.merchant.income.ownerRevenue = (classFinancialData.merchant.income.ownerRevenue || 0) + profit;
+                }
+
+                const subsidy = totalAppliedTax < 0 ? Math.abs(totalAppliedTax) : 0;
+                if (subsidy > 0) {
+                    classFinancialData.merchant.income.subsidy = (classFinancialData.merchant.income.subsidy || 0) + subsidy;
+                }
             }
 
             return {

@@ -59,7 +59,7 @@ export const UPGRADE_MIGRATION_BONUS = 0.8;
 
 // Migration cooldown per source role (in ticks)
 // After migration from a role, that role enters cooldown before another migration can occur
-export const MIGRATION_COOLDOWN_TICKS = 5;
+export const MIGRATION_COOLDOWN_TICKS = 10;
 
 // Price calculation constants
 export const PRICE_FLOOR = 0.0001;

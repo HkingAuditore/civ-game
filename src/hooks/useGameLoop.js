@@ -611,6 +611,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
         setClassWealthDelta,
         setClassIncome,
         setClassExpense,
+        setClassFinancialData, // Detailed financial data setter
         classWealthHistory,
         setClassWealthHistory,
         classNeedsHistory,
@@ -1466,6 +1467,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     setClassWealthDelta(wealthDelta);
                     setClassIncome(result.classIncome || {});
                     setClassExpense(result.classExpense || {});
+                    setClassFinancialData(result.classFinancialData || {});
                     // 历史数据只在节流条件满足时更新
                     if (shouldUpdateHistory) {
                         setClassWealthHistory(wealthHistory);
@@ -1488,6 +1490,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     setMarket(adjustedMarket);
                     setClassShortages(result.needsShortages || {});
                     setClassLivingStandard(result.classLivingStandard || {});
+                    if (result.army) {
+                        setArmy(result.army); // 保存战斗损失
+                    }
                     setLivingStandardStreaks(result.livingStandardStreaks || current.livingStandardStreaks || {});
                     setMigrationCooldowns(result.migrationCooldowns || current.migrationCooldowns || {});
                     setMerchantState(prev => {
@@ -2770,33 +2775,81 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                     const jsonStr = log.replace('AUTO_REPLENISH_LOSSES:', '');
                                     const losses = JSON.parse(jsonStr);
 
-                                    // 将损失的士兵加入训练队列
-                                    const replenishItems = [];
+                                    // 计算补兵成本
+                                    let totalSilverCost = 0;
+                                    const totalResourceCost = {};
+                                    let canAfford = true;
+                                    const prices = result.market?.prices || current.market?.prices || {};
+
                                     Object.entries(losses).forEach(([unitId, lossCount]) => {
-                                        if (lossCount > 0) {
-                                            const unit = UNIT_TYPES[unitId];
-                                            if (unit && unit.epoch <= epoch) {
-                                                const trainTime = unit.trainDays || 1;
-                                                for (let i = 0; i < lossCount; i++) {
-                                                    replenishItems.push({
-                                                        unitId,
-                                                        status: 'waiting',
-                                                        totalTime: trainTime,
-                                                        remainingTime: trainTime,
-                                                        isAutoReplenish: true,
-                                                    });
-                                                }
-                                            }
-                                        }
+                                        if (lossCount <= 0) return;
+                                        const unit = UNIT_TYPES[unitId];
+                                        if (!unit) return;
+
+                                        const cost = unit.recruitCost || {};
+                                        // 累计资源成本
+                                        Object.entries(cost).forEach(([res, amount]) => {
+                                            totalResourceCost[res] = (totalResourceCost[res] || 0) + amount * lossCount;
+                                        });
+
+                                        // 累计银币成本 (物资价值) matches recruitUnit logic
+                                        const unitSilverCost = Object.entries(cost).reduce((sum, [res, amount]) => {
+                                            const price = prices[res] || 10;
+                                            return sum + amount * price;
+                                        }, 0);
+                                        totalSilverCost += unitSilverCost * lossCount;
                                     });
 
-                                    if (replenishItems.length > 0) {
-                                        setMilitaryQueue(prev => [...prev, ...replenishItems]);
-                                        const summary = Object.entries(losses)
-                                            .filter(([_, count]) => count > 0)
-                                            .map(([unitId, count]) => `${UNIT_TYPES[unitId]?.name || unitId} ×${count}`)
-                                            .join('、');
-                                        addLog(`🔄 自动补兵：${summary} 已加入训练队列。`);
+                                    // 检查余额
+                                    const currentRes = current.resources || {};
+                                    if ((currentRes.silver || 0) < totalSilverCost) canAfford = false;
+                                    if (canAfford) {
+                                        Object.entries(totalResourceCost).forEach(([res, amount]) => {
+                                            if ((currentRes[res] || 0) < amount) canAfford = false;
+                                        });
+                                    }
+
+                                    if (!canAfford) {
+                                        addLog(`❌ 资金或资源不足，已取消本次自动补兵（需 ${Math.ceil(totalSilverCost)} 银币）。`);
+                                    } else {
+                                        // 扣除资源
+                                        setResources(prev => {
+                                            const next = { ...prev };
+                                            next.silver = Math.max(0, (next.silver || 0) - totalSilverCost);
+                                            Object.entries(totalResourceCost).forEach(([res, amount]) => {
+                                                next[res] = Math.max(0, (next[res] || 0) - amount);
+                                            });
+                                            return next;
+                                        });
+
+                                        // 将损失的士兵加入训练队列
+                                        const replenishItems = [];
+                                        Object.entries(losses).forEach(([unitId, lossCount]) => {
+                                            if (lossCount > 0) {
+                                                const unit = UNIT_TYPES[unitId];
+                                                if (unit && unit.epoch <= epoch) {
+                                                    const trainTime = unit.trainDays || 1;
+                                                    for (let i = 0; i < lossCount; i++) {
+                                                        replenishItems.push({
+                                                            unitId,
+                                                            status: 'waiting',
+                                                            totalTime: trainTime,
+                                                            remainingTime: trainTime,
+                                                            isAutoReplenish: true,
+                                                        });
+                                                    }
+                                                }
+                                            }
+                                        });
+
+                                        if (replenishItems.length > 0) {
+                                            setMilitaryQueue(prev => [...prev, ...replenishItems]);
+                                            const summary = Object.entries(losses)
+                                                .filter(([_, count]) => count > 0)
+                                                .map(([unitId, count]) => `${UNIT_TYPES[unitId]?.name || unitId} ×${count}`)
+                                                .join('、');
+                                            addLog(`🔄 自动补兵：已花费资金招募 ${summary} 加入训练队列。`);
+                                        }
                                     }
                                 } catch (e) {
                                     console.error('[AUTO_REPLENISH] Failed to parse losses:', e);

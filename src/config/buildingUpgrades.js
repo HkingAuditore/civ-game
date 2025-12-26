@@ -430,14 +430,14 @@ export const BUILDING_UPGRADES = {
             name: "大船坞",
             cost: { plank: 120, tools: 30, silver: 500 },
             input: { wood: 0.4, tools: 0.02 },
-            output: { spice: 0.46 }, // 1.3x
+            output: { spice: 0.9 }, // 1.3x
             jobs: { navigator: 2, worker: 2, merchant: 1 }, // keep same, efficiency upgrade
         },
         {
             name: "皇家船厂",
             cost: { plank: 200, iron: 40, silver: 1100 },
             input: { wood: 0.6, tools: 0.03, cloth: 0.06 }, // 需要帆布
-            output: { spice: 0.63, silver: 0.25, science: 0.05 }, // 1.8x + 贸易利润&航海测绘
+            output: { spice: 1.2, silver: 0.25, science: 0.05 }, // 1.8x + 贸易利润&航海测绘
             jobs: { navigator: 3, worker: 2, merchant: 1 }, // +1 navigator only
         },
     ],

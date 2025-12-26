@@ -10,6 +10,13 @@
 export const GAME_SPEEDS = [1, 2, 5];
 
 /**
+ * 财富衰减率 (生活损耗/Lifestyle Inflation)
+ * 每日按比例衰减财富，防止无限积累
+ * 0.005 = 0.5% per day
+ */
+export const WEALTH_DECAY_RATE = 0.01;
+
+/**
  * 资源类型配置
  * 每个资源包含：
  * - name: 资源名称
@@ -102,7 +109,7 @@ export const RESOURCES = {
         basePrice: 1.5,
         minPrice: 0.015,
         maxPrice: 15,
-        defaultOwner: 'artisan',
+        defaultOwner: 'worker',
         unlockEpoch: 0,
         tags: ['essential', 'raw_material', 'manufactured'],
         // 必需品制成品：中等稳定性
