@@ -2159,31 +2159,58 @@
 }
 
 
-/* 禁用其他组件的模糊效果，并添加实色背景作为替代 */
-/* 使用 CSS 变量以适配不同时代主题色 */
+/* 禁用其他组件的模糊效果 */
+/* 注意：不再设置 background-color，避免影响不该被影响的元素 */
 .low-perf-mode [class*="backdrop-blur"],
-.low-perf-mode [class*="blur-"],
-.low-perf-mode [style*="backdrop-filter"],
-.low-perf-mode [style*="filter"] {
+.low-perf-mode [style*="backdrop-filter"] {
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
-    filter: none !important;
-    -webkit-filter: none !important;
-    /* 使用主题表面色作为实色背景替代 */
-    background-color: var(--theme-surface, rgba(34, 24, 14, 0.95)) !important;
 }
 
-/* 特别处理 Tailwind 的 bg-xxx/xx 半透明背景类 - 在低性能模式下使用不透明背景 */
-.low-perf-mode [class*="bg-stone-900\\/"],
-.low-perf-mode [class*="bg-orange-950\\/"],
-.low-perf-mode [class*="bg-amber-900\\/"],
-.low-perf-mode [class*="bg-blue-950\\/"],
-.low-perf-mode [class*="bg-cyan-900\\/"],
-.low-perf-mode [class*="bg-purple-950\\/"],
-.low-perf-mode [class*="bg-gray-800\\/"],
-.low-perf-mode [class*="bg-green-950\\/"],
-.low-perf-mode [class*="bg-black\\/"] {
-    background-color: var(--theme-surface, rgba(34, 24, 14, 0.95)) !important;
+/* 只对明确需要模糊背景替代的容器元素添加实色背景 */
+/* 底部导航栏 - 需要有背景遮挡 */
+.low-perf-mode nav[role="tablist"] > div[class*="backdrop-blur"] {
+    background: linear-gradient(to top, 
+        var(--theme-background, rgb(17, 24, 39)) 0%, 
+        var(--theme-surface, rgb(31, 41, 55)) 100%) !important;
+}
+
+/* 阶层面板卡片 - 确保有稳定的深色背景，不依赖 backdrop-filter */
+.low-perf-mode [class*="backdrop-blur-sm"] {
+    /* 添加一个深色半透明背景作为后备 */
+    background-color: rgba(20, 20, 30, 0.85) !important;
+}
+
+/* 科技树时代分组 - 确保背景可见 */
+.low-perf-mode .bg-gray-900\/40 {
+    background-color: rgba(17, 24, 39, 0.9) !important;
+}
+
+/* 表格和列表项 - 确保深色背景 */
+.low-perf-mode button[class*="border-b"][class*="border-ancient-gold"] {
+    background-color: transparent !important;
+}
+
+/* 半透明背景色的稳定回退 - 使用更可靠的选择器 */
+.low-perf-mode .bg-black\/20,
+.low-perf-mode .bg-black\/30,
+.low-perf-mode .bg-black\/40,
+.low-perf-mode .bg-black\/50 {
+    background-color: rgba(0, 0, 0, 0.4) !important;
+}
+
+.low-perf-mode .bg-gray-800\/50,
+.low-perf-mode .bg-gray-800\/60,
+.low-perf-mode .bg-gray-800\/70,
+.low-perf-mode .bg-gray-800\/80 {
+    background-color: rgba(31, 41, 55, 0.85) !important;
+}
+
+.low-perf-mode .bg-gray-900\/30,
+.low-perf-mode .bg-gray-900\/40,
+.low-perf-mode .bg-gray-900\/50,
+.low-perf-mode .bg-gray-900\/60 {
+    background-color: rgba(17, 24, 39, 0.85) !important;
 }
 
 /* 简化阴影效果 - 使用简单的单层阴影 */
