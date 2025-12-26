@@ -2773,7 +2773,9 @@ export const simulateTick = ({
     const collectedHeadTax = taxBreakdown.headTax * efficiency;
     const collectedIndustryTax = taxBreakdown.industryTax * efficiency;
     const collectedBusinessTax = taxBreakdown.businessTax * efficiency;
-    const totalCollectedTax = collectedHeadTax + collectedIndustryTax + collectedBusinessTax;
+    const collectedTariff = (taxBreakdown.tariff || 0) * efficiency; // 关税收入
+    const tariffSubsidy = taxBreakdown.tariffSubsidy || 0; // 关税补贴支出
+    const totalCollectedTax = collectedHeadTax + collectedIndustryTax + collectedBusinessTax + collectedTariff;
 
     // 将税收与战争赔款一并视为财政收入
     const baseFiscalIncome = totalCollectedTax + warIndemnityIncome;
@@ -3185,6 +3187,12 @@ export const simulateTick = ({
 
     // 【修复】在转职评估前先执行商人交易，确保商人收入被正确计算
     const previousMerchantWealth = classWealthResult.merchant || 0;
+    // DEBUG: 调试商人贸易调用
+    console.log('[SIMULATION DEBUG] Calling simulateMerchantTrade, policies:', {
+        hasExportTariff: !!policies.exportTariffMultipliers,
+        hasImportTariff: !!policies.importTariffMultipliers,
+        merchantPop: popStructure?.merchant || 0,
+    });
     const updatedMerchantState = simulateMerchantTrade({
         res,
         wealth,
@@ -3226,7 +3234,7 @@ export const simulateTick = ({
             tradeSummary[trade.type][key].profit += trade.profit;
             totalProfit += trade.profit;
         });
-        
+
         // Generate summary log message
         const parts = [];
         Object.keys(tradeSummary.export).forEach(resKey => {
@@ -3239,7 +3247,7 @@ export const simulateTick = ({
             const resName = RESOURCES[resKey]?.name || resKey;
             parts.push(`进口${resName}${data.amount.toFixed(1)}`);
         });
-        
+
         if (parts.length > 0) {
             const profitText = totalProfit >= 0 ? `盈利${totalProfit.toFixed(1)}` : `亏损${Math.abs(totalProfit).toFixed(1)}`;
             logs.push(`🛒 商人自主贸易: ${parts.join(', ')}，${profitText}银币`);
@@ -3606,6 +3614,7 @@ export const simulateTick = ({
 
     const netTax = totalCollectedTax
         - taxBreakdown.subsidy
+        - tariffSubsidy // 关税补贴支出
         + warIndemnityIncome
         + decreeSilverIncome
         - decreeSilverExpense;
@@ -3616,10 +3625,18 @@ export const simulateTick = ({
             headTax: collectedHeadTax,
             industryTax: collectedIndustryTax,
             businessTax: collectedBusinessTax,
+            tariff: collectedTariff, // 新增：关税收入
+            tariffSubsidy, // 新增：关税补贴支出
             subsidy: taxBreakdown.subsidy,
             warIndemnity: warIndemnityIncome,
             policyIncome: decreeSilverIncome,
             policyExpense: decreeSilverExpense,
+            // DEBUG: 调试关税策略
+            _debug_tariffPolicies: {
+                hasExport: !!policies.exportTariffMultipliers,
+                hasImport: !!policies.importTariffMultipliers,
+                rawTariff: taxBreakdown.tariff || 0,
+            },
         },
     };
 

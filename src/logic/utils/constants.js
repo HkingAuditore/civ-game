@@ -76,7 +76,7 @@ export const MERCHANT_LOG_VOLUME_RATIO = 0.05;
 export const MERCHANT_LOG_PROFIT_THRESHOLD = 50;
 
 // Peace request cooldown (days, approximately 1 month)
-export const PEACE_REQUEST_COOLDOWN_DAYS = 30;
+export const PEACE_REQUEST_COOLDOWN_DAYS = 5;
 
 // Population growth constants
 // Increased to let prosperous empires experience visibly faster birth growth

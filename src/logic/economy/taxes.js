@@ -13,6 +13,8 @@ export const initializeTaxBreakdown = () => ({
     headTax: 0,
     industryTax: 0,
     businessTax: 0,
+    tariff: 0,
+    tariffSubsidy: 0, // 关税补贴（负关税产生的支出）
     subsidy: 0,
     policyIncome: 0,
     policyExpense: 0,
@@ -135,10 +137,13 @@ export const calculateFinalTaxes = (
     const collectedHeadTax = taxBreakdown.headTax * efficiency;
     const collectedIndustryTax = taxBreakdown.industryTax * efficiency;
     const collectedBusinessTax = taxBreakdown.businessTax * efficiency;
-    const totalCollectedTax = collectedHeadTax + collectedIndustryTax + collectedBusinessTax;
+    const collectedTariff = (taxBreakdown.tariff || 0) * efficiency;
+    const tariffSubsidy = taxBreakdown.tariffSubsidy || 0; // 关税补贴支出
+    const totalCollectedTax = collectedHeadTax + collectedIndustryTax + collectedBusinessTax + collectedTariff;
 
     const netTax = totalCollectedTax
         - taxBreakdown.subsidy
+        - tariffSubsidy // 扣除关税补贴支出
         + warIndemnityIncome
         + taxBreakdown.policyIncome
         - taxBreakdown.policyExpense;
@@ -150,6 +155,8 @@ export const calculateFinalTaxes = (
             headTax: collectedHeadTax,
             industryTax: collectedIndustryTax,
             businessTax: collectedBusinessTax,
+            tariff: collectedTariff,
+            tariffSubsidy, // 返回关税补贴金额
             subsidy: taxBreakdown.subsidy,
             warIndemnity: warIndemnityIncome,
             policyIncome: taxBreakdown.policyIncome,

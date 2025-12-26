@@ -477,8 +477,9 @@ const ResourceDetailContent = ({
 
     const currentTaxRate = taxPolicies?.resourceTaxRates?.[resourceKey] ?? 0;
     // 进口/出口关税（向后兼容旧的resourceTariffMultipliers）
-    const currentImportTariff = taxPolicies?.importTariffMultipliers?.[resourceKey] ?? taxPolicies?.resourceTariffMultipliers?.[resourceKey] ?? 1;
-    const currentExportTariff = taxPolicies?.exportTariffMultipliers?.[resourceKey] ?? taxPolicies?.resourceTariffMultipliers?.[resourceKey] ?? 1;
+    // 关税倍率：0=无关税，1=100%关税，<0=补贴
+    const currentImportTariff = taxPolicies?.importTariffMultipliers?.[resourceKey] ?? taxPolicies?.resourceTariffMultipliers?.[resourceKey] ?? 0;
+    const currentExportTariff = taxPolicies?.exportTariffMultipliers?.[resourceKey] ?? taxPolicies?.resourceTariffMultipliers?.[resourceKey] ?? 0;
 
     const handleTaxDraftChange = (raw) => {
         setDraftTaxRate(raw);
@@ -507,7 +508,7 @@ const ResourceDetailContent = ({
     const commitImportTariffDraft = () => {
         if (draftImportTariff === null || !onUpdateTaxPolicies) return;
         const parsed = parseFloat(draftImportTariff);
-        const multiplier = Number.isNaN(parsed) ? 1 : Math.max(0, parsed);
+        const multiplier = Number.isNaN(parsed) ? 0 : parsed;  // Allow negative for subsidies
         onUpdateTaxPolicies(prev => ({
             ...prev,
             importTariffMultipliers: {
@@ -521,7 +522,7 @@ const ResourceDetailContent = ({
     const commitExportTariffDraft = () => {
         if (draftExportTariff === null || !onUpdateTaxPolicies) return;
         const parsed = parseFloat(draftExportTariff);
-        const multiplier = Number.isNaN(parsed) ? 1 : Math.max(0, parsed);
+        const multiplier = Number.isNaN(parsed) ? 0 : parsed;  // Allow negative for subsidies
         onUpdateTaxPolicies(prev => ({
             ...prev,
             exportTariffMultipliers: {

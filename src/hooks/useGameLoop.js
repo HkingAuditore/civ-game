@@ -132,9 +132,9 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
             // 商人在国内购买资源
             const domesticPurchaseCost = localPrice * exportAmount;  // 商人在国内的购买成本
             const taxRate = taxPolicies?.resourceTaxRates?.[resource] || 0; // 获取该资源的交易税率
-            // 出口使用出口关税倍率
-            const tariffMultiplier = Math.max(0, taxPolicies?.exportTariffMultipliers?.[resource] ?? taxPolicies?.resourceTariffMultipliers?.[resource] ?? 1);
-            const effectiveTaxRate = taxRate * tariffMultiplier;
+            // 出口使用出口关税倍率：0=无关税，1=100%关税，<0=补贴
+            const tariffMultiplier = taxPolicies?.exportTariffMultipliers?.[resource] ?? taxPolicies?.resourceTariffMultipliers?.[resource] ?? 0;
+            const effectiveTaxRate = taxRate * (1 + tariffMultiplier);
             const tradeTax = domesticPurchaseCost * effectiveTaxRate; // 玩家获得的交易税
 
             // 商人在国外销售
@@ -192,9 +192,9 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
             // 商人在国内销售
             const domesticSaleRevenue = localPrice * importAmount;  // 商人在国内的销售收入
             const taxRate = taxPolicies?.resourceTaxRates?.[resource] || 0; // 获取该资源的交易税率
-            // 进口使用进口关税倍率
-            const tariffMultiplier = Math.max(0, taxPolicies?.importTariffMultipliers?.[resource] ?? taxPolicies?.resourceTariffMultipliers?.[resource] ?? 1);
-            const effectiveTaxRate = taxRate * tariffMultiplier;
+            // 进口使用进口关税倍率：0=无关税，1=100%关税，<0=补贴
+            const tariffMultiplier = taxPolicies?.importTariffMultipliers?.[resource] ?? taxPolicies?.resourceTariffMultipliers?.[resource] ?? 0;
+            const effectiveTaxRate = taxRate * (1 + tariffMultiplier);
             const tradeTax = domesticSaleRevenue * effectiveTaxRate; // 玩家获得的交易税
             const merchantProfit = domesticSaleRevenue - foreignPurchaseCost - tradeTax; // 商人获得的利润（含关税成本）
 
@@ -1481,6 +1481,16 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     // 更新执政联盟合法性
                     if (typeof setLegitimacy === 'function' && result.legitimacy !== undefined) {
                         setLegitimacy(result.legitimacy);
+                    }
+                    // DEBUG: 调试关税值
+                    if (result.taxes?.breakdown) {
+                        console.log('[MAIN THREAD DEBUG] result.taxes.breakdown:', result.taxes.breakdown);
+                        // 额外打印 taxPolicies 内容
+                        console.log('[MAIN THREAD DEBUG] current.taxPolicies:', {
+                            exportTariffMultipliers: current.taxPolicies?.exportTariffMultipliers,
+                            importTariffMultipliers: current.taxPolicies?.importTariffMultipliers,
+                            resourceTariffMultipliers: current.taxPolicies?.resourceTariffMultipliers,
+                        });
                     }
                     setTaxes(result.taxes || {
                         total: 0,

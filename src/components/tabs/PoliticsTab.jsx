@@ -233,6 +233,8 @@ const ResourceTaxCard = ({
     onExportTariffDraftChange,
     onImportTariffCommit,
     onExportTariffCommit,
+    onImportTariffToggleSign, // 新增：进口关税正负切换
+    onExportTariffToggleSign, // 新增：出口关税正负切换
 }) => {
     // 当税率为负时，作为"交易补贴"运作
     const currentRate = rate ?? 0;
@@ -303,24 +305,36 @@ const ResourceTaxCard = ({
                             <Icon name="ArrowDownLeft" size={10} className="text-blue-400" />
                             进口关税
                         </span>
-                        <span className="text-gray-200 font-mono text-xs">{currentImportTariff.toFixed(2)}×</span>
+                        <span className={`font-mono text-xs ${currentImportTariff < 0 ? 'text-green-300' : 'text-gray-200'}`}>
+                            {currentImportTariff < 0 ? '补贴 ' : ''}{currentImportTariff.toFixed(2)}×
+                        </span>
                     </div>
-                    <input
-                        type="text"
-                        inputMode="decimal"
-                        step="0.1"
-                        value={draftImportTariff ?? currentImportTariff.toFixed(2)}
-                        onChange={(e) => onImportTariffDraftChange(resourceKey, e.target.value)}
-                        onBlur={() => onImportTariffCommit(resourceKey)}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                                onImportTariffCommit(resourceKey);
-                                e.target.blur();
-                            }
-                        }}
-                        className="w-full bg-gray-900/70 border border-gray-600 text-[11px] text-gray-200 rounded px-1.5 py-0.5 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
-                        placeholder="进口倍率"
-                    />
+                    <div className="flex items-center gap-1">
+                        <button
+                            type="button"
+                            onClick={() => onImportTariffToggleSign && onImportTariffToggleSign(resourceKey, draftImportTariff ?? currentImportTariff)}
+                            className="btn-compact flex-shrink-0 w-5 h-5 bg-gray-700 hover:bg-gray-600 border border-gray-500 rounded text-[9px] font-bold text-gray-300 flex items-center justify-center transition-colors"
+                            title="切换正负值（关税/补贴）"
+                        >
+                            ±
+                        </button>
+                        <input
+                            type="text"
+                            inputMode="decimal"
+                            step="0.1"
+                            value={draftImportTariff ?? currentImportTariff.toFixed(2)}
+                            onChange={(e) => onImportTariffDraftChange(resourceKey, e.target.value)}
+                            onBlur={() => onImportTariffCommit(resourceKey)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    onImportTariffCommit(resourceKey);
+                                    e.target.blur();
+                                }
+                            }}
+                            className="flex-grow min-w-0 bg-gray-900/70 border border-gray-600 text-[11px] text-gray-200 rounded px-1.5 py-0.5 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
+                            placeholder="进口倍率"
+                        />
+                    </div>
                 </div>
                 {/* 出口关税 */}
                 <div>
@@ -329,24 +343,36 @@ const ResourceTaxCard = ({
                             <Icon name="ArrowUpRight" size={10} className="text-green-400" />
                             出口关税
                         </span>
-                        <span className="text-gray-200 font-mono text-xs">{currentExportTariff.toFixed(2)}×</span>
+                        <span className={`font-mono text-xs ${currentExportTariff < 0 ? 'text-green-300' : 'text-gray-200'}`}>
+                            {currentExportTariff < 0 ? '补贴 ' : ''}{currentExportTariff.toFixed(2)}×
+                        </span>
                     </div>
-                    <input
-                        type="text"
-                        inputMode="decimal"
-                        step="0.1"
-                        value={draftExportTariff ?? currentExportTariff.toFixed(2)}
-                        onChange={(e) => onExportTariffDraftChange(resourceKey, e.target.value)}
-                        onBlur={() => onExportTariffCommit(resourceKey)}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                                onExportTariffCommit(resourceKey);
-                                e.target.blur();
-                            }
-                        }}
-                        className="w-full bg-gray-900/70 border border-gray-600 text-[11px] text-gray-200 rounded px-1.5 py-0.5 focus:ring-1 focus:ring-green-500 focus:border-green-500 text-center"
-                        placeholder="出口倍率"
-                    />
+                    <div className="flex items-center gap-1">
+                        <button
+                            type="button"
+                            onClick={() => onExportTariffToggleSign && onExportTariffToggleSign(resourceKey, draftExportTariff ?? currentExportTariff)}
+                            className="btn-compact flex-shrink-0 w-5 h-5 bg-gray-700 hover:bg-gray-600 border border-gray-500 rounded text-[9px] font-bold text-gray-300 flex items-center justify-center transition-colors"
+                            title="切换正负值（关税/补贴）"
+                        >
+                            ±
+                        </button>
+                        <input
+                            type="text"
+                            inputMode="decimal"
+                            step="0.1"
+                            value={draftExportTariff ?? currentExportTariff.toFixed(2)}
+                            onChange={(e) => onExportTariffDraftChange(resourceKey, e.target.value)}
+                            onBlur={() => onExportTariffCommit(resourceKey)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    onExportTariffCommit(resourceKey);
+                                    e.target.blur();
+                                }
+                            }}
+                            className="flex-grow min-w-0 bg-gray-900/70 border border-gray-600 text-[11px] text-gray-200 rounded px-1.5 py-0.5 focus:ring-1 focus:ring-green-500 focus:border-green-500 text-center"
+                            placeholder="出口倍率"
+                        />
+                    </div>
                 </div>
             </div>
         </div>
@@ -608,7 +634,7 @@ const PoliticsTabComponent = ({
     const commitImportTariffDraft = (key) => {
         if (importTariffDrafts[key] === undefined) return;
         const parsed = parseFloat(importTariffDrafts[key]);
-        const multiplier = Number.isNaN(parsed) ? 1 : Math.max(0, parsed);
+        const multiplier = Number.isNaN(parsed) ? 0 : parsed;  // Allow negative for subsidies
         onUpdateTaxPolicies?.(prev => ({
             ...prev,
             importTariffMultipliers: {
@@ -626,7 +652,7 @@ const PoliticsTabComponent = ({
     const commitExportTariffDraft = (key) => {
         if (exportTariffDrafts[key] === undefined) return;
         const parsed = parseFloat(exportTariffDrafts[key]);
-        const multiplier = Number.isNaN(parsed) ? 1 : Math.max(0, parsed);
+        const multiplier = Number.isNaN(parsed) ? 0 : parsed;  // Allow negative for subsidies
         onUpdateTaxPolicies?.(prev => ({
             ...prev,
             exportTariffMultipliers: {
@@ -675,6 +701,42 @@ const PoliticsTabComponent = ({
             },
         }));
         setBusinessDrafts(prev => {
+            const next = { ...prev };
+            delete next[key];
+            return next;
+        });
+    };
+
+    // 切换进口关税正负值（用于移动端无法输入负号的情况）
+    const toggleImportTariffSign = (key, currentValue) => {
+        const parsed = parseFloat(currentValue);
+        const newValue = isNaN(parsed) ? -1 : -parsed;
+        onUpdateTaxPolicies?.(prev => ({
+            ...prev,
+            importTariffMultipliers: {
+                ...(prev?.importTariffMultipliers || {}),
+                [key]: newValue,
+            },
+        }));
+        setImportTariffDrafts(prev => {
+            const next = { ...prev };
+            delete next[key];
+            return next;
+        });
+    };
+
+    // 切换出口关税正负值（用于移动端无法输入负号的情况）
+    const toggleExportTariffSign = (key, currentValue) => {
+        const parsed = parseFloat(currentValue);
+        const newValue = isNaN(parsed) ? -1 : -parsed;
+        onUpdateTaxPolicies?.(prev => ({
+            ...prev,
+            exportTariffMultipliers: {
+                ...(prev?.exportTariffMultipliers || {}),
+                [key]: newValue,
+            },
+        }));
+        setExportTariffDrafts(prev => {
             const next = { ...prev };
             delete next[key];
             return next;
@@ -888,6 +950,8 @@ const PoliticsTabComponent = ({
                             onExportTariffDraftChange={handleExportTariffDraftChange}
                             onImportTariffCommit={commitImportTariffDraft}
                             onExportTariffCommit={commitExportTariffDraft}
+                            onImportTariffToggleSign={toggleImportTariffSign}
+                            onExportTariffToggleSign={toggleExportTariffSign}
                         />
                     ))}
                 </div>
@@ -1038,6 +1102,8 @@ const PoliticsTabComponent = ({
                                                     onExportTariffDraftChange={handleExportTariffDraftChange}
                                                     onImportTariffCommit={commitImportTariffDraft}
                                                     onExportTariffCommit={commitExportTariffDraft}
+                                                    onImportTariffToggleSign={toggleImportTariffSign}
+                                                    onExportTariffToggleSign={toggleExportTariffSign}
                                                 />
                                             ))}
                                     </div>

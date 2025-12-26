@@ -89,7 +89,10 @@ export const StatusBar = ({
     const wageRatio = gameState.militaryWageRatio || 1;
     // 实际军费由 App.jsx 计算，这里只用于向后兼容的显示
 
-    const tradeTax = tradeStats?.tradeTax || 0;
+    // Tariff from taxBreakdown (merchant autonomous trade) + tradeStats (AI diplomatic trade)
+    const tariffFromBreakdown = taxes.breakdown?.tariff || 0;
+    const tariffFromTradeStats = tradeStats?.tradeTax || 0;
+    const tradeTax = tariffFromBreakdown + tariffFromTradeStats;
     const policyIncome = taxes.breakdown?.policyIncome || 0;
     const policyExpense = taxes.breakdown?.policyExpense || 0;
     const netSilverClass = netSilverPerDay >= 0 ? 'text-green-300' : 'text-red-300';
@@ -401,6 +404,12 @@ export const StatusBar = ({
                                                         <div className="stat-item-compact">
                                                             <span className="text-ancient-stone">补助支出</span>
                                                             <span className="text-red-300 font-mono">-{taxes.breakdown.subsidy.toFixed(1)}</span>
+                                                        </div>
+                                                    )}
+                                                    {(taxes.breakdown?.tariffSubsidy || 0) > 0 && (
+                                                        <div className="stat-item-compact">
+                                                            <span className="text-ancient-stone">关税补贴</span>
+                                                            <span className="text-red-300 font-mono">-{taxes.breakdown.tariffSubsidy.toFixed(1)}</span>
                                                         </div>
                                                     )}
                                                     {policyExpense > 0 && (

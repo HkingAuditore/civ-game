@@ -103,13 +103,13 @@ const BuildingTooltip = ({ building, count, epoch, techsUnlocked, jobFill, ancho
                             {Object.entries(unlockedOutput).map(([res, val]) => (
                                 <div key={`out-${res}`} className="flex justify-between">
                                     <span className="text-gray-200">{RESOURCES[res]?.name || res}</span>
-                                    <span className="text-green-400 font-mono">+{val}</span>
+                                    <span className="text-green-400 font-mono">+{val.toFixed(2)}</span>
                                 </div>
                             ))}
                             {Object.entries(unlockedInput).map(([res, val]) => (
                                 <div key={`in-${res}`} className="flex justify-between">
                                     <span className="text-gray-200">{RESOURCES[res]?.name || res}</span>
-                                    <span className="text-red-400 font-mono">-{val}</span>
+                                    <span className="text-red-400 font-mono">-{val.toFixed(2)}</span>
                                 </div>
                             ))}
                         </div>

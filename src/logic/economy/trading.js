@@ -56,16 +56,18 @@ export const simulateMerchantTrade = ({
     const resourceTaxRates = taxPolicies?.resourceTaxRates || {};
     const importTariffMultipliers = taxPolicies?.importTariffMultipliers || taxPolicies?.resourceTariffMultipliers || {};
     const exportTariffMultipliers = taxPolicies?.exportTariffMultipliers || taxPolicies?.resourceTariffMultipliers || {};
-    // 获取有效税率：基础税率 × 关税倍率（根据贸易类型区分进口/出口）
+    // 获取有效税率：基础交易税率 + 关税率（关税现在独立于交易税）
+    // 交易税率：0.1 = 10%交易税
+    // 关税倍率：1 = 100%关税（0无关税，<0补贴）- 现在直接作为百分比使用
     const getImportTaxRate = (resource) => {
         const baseTaxRate = resourceTaxRates[resource] || 0;
-        const tariffMultiplier = Math.max(0, importTariffMultipliers[resource] ?? 1);
-        return baseTaxRate * tariffMultiplier;
+        const tariffRate = importTariffMultipliers[resource] ?? 0; // 关税率直接作为百分比
+        return baseTaxRate + tariffRate; // 加法叠加，而非乘法
     };
     const getExportTaxRate = (resource) => {
         const baseTaxRate = resourceTaxRates[resource] || 0;
-        const tariffMultiplier = Math.max(0, exportTariffMultipliers[resource] ?? 1);
-        return baseTaxRate * tariffMultiplier;
+        const tariffRate = exportTariffMultipliers[resource] ?? 0; // 关税率直接作为百分比
+        return baseTaxRate + tariffRate; // 加法叠加，而非乘法
     };
 
     // Get foreign trading partners
@@ -330,23 +332,45 @@ const executeExportTrade = ({
         if ((wealth.merchant || 0) >= totalOutlay && (res[resourceKey] || 0) >= totalAmount) {
             wealth.merchant -= totalOutlay;
 
+            // Separate tariff from base transaction tax for taxBreakdown
+            const baseRate = taxPolicies?.resourceTaxRates?.[resourceKey] || 0;
+            const tariffRate = taxPolicies?.exportTariffMultipliers?.[resourceKey] ?? taxPolicies?.resourceTariffMultipliers?.[resourceKey] ?? 0;
+            // Tariff rate is now used directly as percentage (1 = 100% tariff)
+            const baseTaxPaid = cost * baseRate * batchMultiplier;
+            const tariffPaid = cost * tariffRate * batchMultiplier;
+            // DEBUG: 调试关税
+            console.log('[EXPORT TRADE DEBUG]', resourceKey, {
+                tariffRate,
+                tariffPaid,
+                cost,
+                batchMultiplier,
+                'taxPolicies?.exportTariffMultipliers': taxPolicies?.exportTariffMultipliers,
+            });
+
+            // 记录关税（无论总税收正负，关税都要独立记录）
+            if (tariffPaid > 0) {
+                taxBreakdown.tariff = (taxBreakdown.tariff || 0) + tariffPaid;
+            } else if (tariffPaid < 0) {
+                // Negative tariff = export subsidy, record separately
+                taxBreakdown.tariffSubsidy = (taxBreakdown.tariffSubsidy || 0) + Math.abs(tariffPaid);
+            }
+
+            // 记录基础交易税和补贴
             if (totalAppliedTax < 0) {
+                // 总税为负 = 补贴大于税收，从国库支付补贴
                 const subsidy = Math.abs(totalAppliedTax);
                 res.silver -= subsidy;
                 taxBreakdown.subsidy += subsidy;
             } else {
-                taxBreakdown.industryTax += totalAppliedTax;
+                // 总税为正，记录基础交易税到industryTax
+                if (baseTaxPaid > 0) {
+                    taxBreakdown.industryTax += baseTaxPaid;
+                }
             }
 
             // [Detailed Financials]
             if (classFinancialData && classFinancialData.merchant) {
-                const baseRate = taxPolicies?.resourceTaxRates?.[resourceKey] || 0;
-                // Export tax breakdown: base = transaction tax, extra = tariff
-                const effectiveRate = taxRate;
-                const tariffRate = effectiveRate - baseRate;
-
-                const totalTaxPaid = cost * effectiveRate * batchMultiplier;
-                const tariffPaid = cost * tariffRate * batchMultiplier;
+                const totalTaxPaid = cost * taxRate * batchMultiplier;
 
                 if (Math.abs(tariffPaid) > 0.001) {
                     classFinancialData.merchant.expense.tariffs = (classFinancialData.merchant.expense.tariffs || 0) + tariffPaid;
@@ -458,23 +482,37 @@ const executeImportTrade = ({
             wealth.merchant -= totalCost;
             roleExpense.merchant = (roleExpense.merchant || 0) + totalCost;
 
+            // Separate tariff from base transaction tax for taxBreakdown
+            const baseRate = taxPolicies?.resourceTaxRates?.[resourceKey] || 0;
+            const tariffRate = taxPolicies?.importTariffMultipliers?.[resourceKey] ?? taxPolicies?.resourceTariffMultipliers?.[resourceKey] ?? 0;
+            // Tariff rate is now used directly as percentage (1 = 100% tariff)
+            const baseTaxPaid = grossRevenue * baseRate * batchMultiplier;
+            const tariffPaid = grossRevenue * tariffRate * batchMultiplier;
+
+            // 记录关税（无论总税收正负，关税都要独立记录）
+            if (tariffPaid > 0) {
+                taxBreakdown.tariff = (taxBreakdown.tariff || 0) + tariffPaid;
+            } else if (tariffPaid < 0) {
+                // Negative tariff = import subsidy, record separately
+                taxBreakdown.tariffSubsidy = (taxBreakdown.tariffSubsidy || 0) + Math.abs(tariffPaid);
+            }
+
+            // 记录基础交易税和补贴
             if (totalAppliedTax < 0) {
+                // 总税为负 = 补贴大于税收，从国库支付补贴
                 const subsidy = Math.abs(totalAppliedTax);
                 res.silver -= subsidy;
                 taxBreakdown.subsidy += subsidy;
             } else {
-                taxBreakdown.industryTax += totalAppliedTax;
+                // 总税为正，记录基础交易税到industryTax
+                if (baseTaxPaid > 0) {
+                    taxBreakdown.industryTax += baseTaxPaid;
+                }
             }
 
             // [Detailed Financials]
             if (classFinancialData && classFinancialData.merchant) {
-                const baseRate = taxPolicies?.resourceTaxRates?.[resourceKey] || 0;
-                // Import tax breakdown
-                const effectiveRate = taxRate;
-                const tariffRate = effectiveRate - baseRate;
-
-                const totalTaxPaid = grossRevenue * effectiveRate * batchMultiplier;
-                const tariffPaid = grossRevenue * tariffRate * batchMultiplier;
+                const totalTaxPaid = grossRevenue * taxRate * batchMultiplier;
 
                 if (Math.abs(tariffPaid) > 0.001) {
                     classFinancialData.merchant.expense.tariffs = (classFinancialData.merchant.expense.tariffs || 0) + tariffPaid;

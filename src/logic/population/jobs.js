@@ -278,7 +278,21 @@ export const fillVacancies = ({
                     if (role === entry.role) return false; // Don't hire from same role
                     if (role === 'soldier') return false; // Soldier cannot migrate to other jobs
                     const pop = popStructure[role] || 0;
-                    return pop > 0;
+                    if (pop <= 0) return false;
+                    
+                    // CRITICAL FIX: For same-tier roles, only allow hiring from:
+                    // 1. unemployed pool (always allowed)
+                    // 2. roles that have surplus population (pop > jobsAvailable)
+                    // This prevents oscillation where worker↔artisan steal each other's workers
+                    const sourceTier = STRATUM_TIERS[role] ?? 0;
+                    const targetTier = entry.tier;
+                    if (sourceTier === targetTier && role !== 'unemployed') {
+                        const sourceSlots = jobsAvailable[role] || 0;
+                        // Only hire from this role if it has MORE people than job slots
+                        if (pop <= sourceSlots) return false;
+                    }
+                    
+                    return true;
                 })
                 .sort((a, b) => {
                     // Prioritize unemployed (same tier re-employment), then lower tier
@@ -514,8 +528,11 @@ export const handleJobMigration = ({
             popStructure[sourceCandidate.role] = Math.max(0, sourceCandidate.pop - migrants);
             popStructure[targetCandidate.role] = (popStructure[targetCandidate.role] || 0) + migrants;
 
-            // Set cooldown for the source role to prevent rapid consecutive migrations
+            // Set cooldown for BOTH source and target roles to prevent:
+            // 1. Source role from migrating again too soon
+            // 2. Target role from reverse-migrating back (prevents A→B then B→A oscillation)
             updatedCooldowns[sourceCandidate.role] = MIGRATION_COOLDOWN_TICKS;
+            updatedCooldowns[targetCandidate.role] = MIGRATION_COOLDOWN_TICKS;
         }
     }
 

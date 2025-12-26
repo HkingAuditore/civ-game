@@ -206,16 +206,16 @@ const StrataPanelComponent = ({
                         {strataData.map((strata) => {
                             // 计算好感度对应的背景颜色 - 使用更稳定的渐变方式，包含基础背景色
                             const getApprovalBgStyle = (approval) => {
-                                // 基础背景色：深色半透明
-                                const baseBg = 'rgba(20, 20, 30, 0.7)';
-                                // 根据好感度选择颜色
+                                // 基础背景色：深色不透明，确保低性能模式下也能清晰显示
+                                const baseBg = 'rgba(20, 20, 30, 0.95)';
+                                // 根据好感度选择颜色 - 使用更鲜明的颜色
                                 let color;
                                 if (approval >= 70) {
-                                    color = 'rgba(34, 197, 94, 0.2)';
+                                    color = 'rgba(34, 197, 94, 0.35)';
                                 } else if (approval >= 40) {
-                                    color = 'rgba(234, 179, 8, 0.2)';
+                                    color = 'rgba(234, 179, 8, 0.35)';
                                 } else {
-                                    color = 'rgba(239, 68, 68, 0.2)';
+                                    color = 'rgba(239, 68, 68, 0.35)';
                                 }
                                 return {
                                     background: `linear-gradient(to right, ${color} 0%, ${color} ${approval}%, ${baseBg} ${approval}%, ${baseBg} 100%)`,
@@ -229,7 +229,7 @@ const StrataPanelComponent = ({
                             return (
                                 <div
                                     key={`grid-${strata.key}`}
-                                    className="relative rounded-lg overflow-hidden hover:scale-[1.02] transition-all cursor-pointer backdrop-blur-sm"
+                                    className="strata-card relative rounded-lg overflow-hidden hover:scale-[1.02] transition-all cursor-pointer"
                                     style={cardStyle}
                                     onClick={() => onDetailClick && onDetailClick(strata.key)}
                                 >

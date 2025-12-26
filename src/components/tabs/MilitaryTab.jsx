@@ -755,22 +755,54 @@ const MilitaryTabComponent = ({
 
                                         {(army[unitId] || 0) > 0 && (
                                             <button
-                                                onClick={(e) => { e.stopPropagation(); onDisband(unitId); }}
-                                                onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onDisbandAll && onDisbandAll(unitId); }}
-                                                onTouchStart={(e) => {
+                                                onMouseDown={(e) => {
                                                     e.stopPropagation();
+                                                    const btn = e.currentTarget;
+                                                    btn.dataset.longPressTriggered = 'false';
                                                     const timer = setTimeout(() => {
+                                                        btn.dataset.longPressTriggered = 'true';
                                                         onDisbandAll && onDisbandAll(unitId);
                                                     }, 500);
-                                                    e.currentTarget.dataset.longPressTimer = timer;
+                                                    btn.dataset.longPressTimer = String(timer);
                                                 }}
-                                                onTouchEnd={(e) => {
+                                                onMouseUp={(e) => {
+                                                    e.stopPropagation();
+                                                    const btn = e.currentTarget;
+                                                    clearTimeout(Number(btn.dataset.longPressTimer));
+                                                    if (btn.dataset.longPressTriggered !== 'true') {
+                                                        onDisband(unitId);
+                                                    }
+                                                }}
+                                                onMouseLeave={(e) => {
                                                     clearTimeout(Number(e.currentTarget.dataset.longPressTimer));
                                                 }}
-                                                className="px-1.5 py-1 bg-red-600/80 hover:bg-red-500 text-white rounded text-[10px] transition-colors"
+                                                onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                                                onTouchStart={(e) => {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                    const btn = e.currentTarget;
+                                                    btn.dataset.longPressTriggered = 'false';
+                                                    const timer = setTimeout(() => {
+                                                        btn.dataset.longPressTriggered = 'true';
+                                                        onDisbandAll && onDisbandAll(unitId);
+                                                    }, 500);
+                                                    btn.dataset.longPressTimer = String(timer);
+                                                }}
+                                                onTouchMove={(e) => {
+                                                    clearTimeout(Number(e.currentTarget.dataset.longPressTimer));
+                                                }}
+                                                onTouchEnd={(e) => {
+                                                    e.preventDefault();
+                                                    const btn = e.currentTarget;
+                                                    clearTimeout(Number(btn.dataset.longPressTimer));
+                                                    if (btn.dataset.longPressTriggered !== 'true') {
+                                                        onDisband(unitId);
+                                                    }
+                                                }}
+                                                className="px-1.5 py-1 bg-red-600/80 hover:bg-red-500 text-white rounded text-[10px] transition-colors select-none"
                                                 title="点击解散1个，长按解散全部"
                                             >
-                                                -1
+                                                解散
                                             </button>
                                         )}
                                     </div>

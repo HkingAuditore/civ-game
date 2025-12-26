@@ -2172,9 +2172,9 @@
 
 
 /* 禁用其他组件的模糊效果，并使用时代主题色+金属质感背景替代 */
-/* 排除总览按钮（.overview-btn-safe-area 内的元素），让它保留内联样式 */
-.low-perf-mode [class*="backdrop-blur"]:not(.overview-btn-safe-area *),
-.low-perf-mode [style*="backdrop-filter"]:not(.overview-btn-safe-area *) {
+/* 排除总览按钮和社会阶层卡片，让它们保留内联样式 */
+.low-perf-mode [class*="backdrop-blur"]:not(.overview-btn-safe-area *):not(.strata-card),
+.low-perf-mode [style*="backdrop-filter"]:not(.overview-btn-safe-area *):not(.strata-card) {
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
     /* 使用时代主题色背景+金属质感 */

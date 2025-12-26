@@ -325,33 +325,64 @@ export const UnitDetailSheet = ({
 
         {/* 解散按钮 - 点击解散1个，长按解散全部 */}
         <button
-          onClick={() => {
-            if (onDisband) {
-              onDisband(unit.id);
-              onClose();
-            }
-          }}
-          onContextMenu={(e) => {
-            e.preventDefault();
-            if (onDisbandAll) {
-              onDisbandAll(unit.id);
-              onClose();
-            }
-          }}
-          onTouchStart={(e) => {
+          onMouseDown={(e) => {
+            if (!hasUnits || !onDisband) return;
+            const btn = e.currentTarget;
+            btn.dataset.longPressTriggered = 'false';
             const timer = setTimeout(() => {
+              btn.dataset.longPressTriggered = 'true';
               if (onDisbandAll) {
                 onDisbandAll(unit.id);
                 onClose();
               }
             }, 500);
-            e.currentTarget.dataset.longPressTimer = timer;
+            btn.dataset.longPressTimer = String(timer);
           }}
-          onTouchEnd={(e) => {
+          onMouseUp={(e) => {
+            const btn = e.currentTarget;
+            clearTimeout(Number(btn.dataset.longPressTimer));
+            if (btn.dataset.longPressTriggered !== 'true') {
+              if (onDisband) {
+                onDisband(unit.id);
+                onClose();
+              }
+            }
+          }}
+          onMouseLeave={(e) => {
             clearTimeout(Number(e.currentTarget.dataset.longPressTimer));
           }}
+          onContextMenu={(e) => {
+            e.preventDefault();
+          }}
+          onTouchStart={(e) => {
+            e.preventDefault();
+            const btn = e.currentTarget;
+            btn.dataset.longPressTriggered = 'false';
+            const timer = setTimeout(() => {
+              btn.dataset.longPressTriggered = 'true';
+              if (onDisbandAll) {
+                onDisbandAll(unit.id);
+                onClose();
+              }
+            }, 500);
+            btn.dataset.longPressTimer = String(timer);
+          }}
+          onTouchMove={(e) => {
+            clearTimeout(Number(e.currentTarget.dataset.longPressTimer));
+          }}
+          onTouchEnd={(e) => {
+            e.preventDefault();
+            const btn = e.currentTarget;
+            clearTimeout(Number(btn.dataset.longPressTimer));
+            if (btn.dataset.longPressTriggered !== 'true') {
+              if (onDisband) {
+                onDisband(unit.id);
+                onClose();
+              }
+            }
+          }}
           disabled={!hasUnits || !onDisband}
-          className={`px-3 py-2 rounded font-bold text-xs transition-all ${
+          className={`px-3 py-2 rounded font-bold text-xs transition-all select-none ${
             hasUnits && onDisband
               ? 'bg-red-600/80 hover:bg-red-500 text-white active:scale-95'
               : 'bg-gray-600 text-gray-400 cursor-not-allowed'

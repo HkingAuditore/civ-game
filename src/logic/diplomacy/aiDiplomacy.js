@@ -213,13 +213,14 @@ export const processAIPlayerTrade = (visibleNations, tick, resources, market, lo
         const resourceKey = tradeableResources[Math.floor(Math.random() * tradeableResources.length)];
         const resourcePrice = market?.prices?.[resourceKey] || (RESOURCES[resourceKey]?.basePrice || 1);
 
-        // 使用玩家设置的税率和关税倍率计算有效关税率
+        // 使用玩家设置的税率和关税率计算有效税率
         // AI买入 = 玩家出口（使用出口关税），AI卖出 = 玩家进口（使用进口关税）
+        // 关税率现在独立于交易税：总税率 = 交易税 + 关税（加法叠加）
         const baseTaxRate = taxPolicies?.resourceTaxRates?.[resourceKey] || 0;
-        const tariffMultiplier = isBuying
-            ? Math.max(0, taxPolicies?.exportTariffMultipliers?.[resourceKey] ?? taxPolicies?.resourceTariffMultipliers?.[resourceKey] ?? 1)
-            : Math.max(0, taxPolicies?.importTariffMultipliers?.[resourceKey] ?? taxPolicies?.resourceTariffMultipliers?.[resourceKey] ?? 1);
-        const effectiveTariffRate = isOpenMarket ? 0 : baseTaxRate * tariffMultiplier;
+        const tariffRate = isBuying
+            ? (taxPolicies?.exportTariffMultipliers?.[resourceKey] ?? taxPolicies?.resourceTariffMultipliers?.[resourceKey] ?? 0)
+            : (taxPolicies?.importTariffMultipliers?.[resourceKey] ?? taxPolicies?.resourceTariffMultipliers?.[resourceKey] ?? 0);
+        const effectiveTariffRate = isOpenMarket ? 0 : baseTaxRate + tariffRate; // 改为加法
 
         const quantity = Math.floor(10 + Math.random() * 40);
         const baseValue = quantity * resourcePrice;
