@@ -476,6 +476,12 @@ const BuildTabComponent = ({
 
             {categoriesToRender.map(([catKey, catInfo]) => {
                 const categoryBuildings = BUILDINGS.filter(b => b.cat === catKey);
+                const categoryWorkers = categoryBuildings.reduce((sum, building) => {
+                    const buildingJobs = jobFill?.[building.id];
+                    if (!buildingJobs) return sum;
+                    const assigned = Object.values(buildingJobs).reduce((jobSum, count) => jobSum + (count || 0), 0);
+                    return sum + assigned;
+                }, 0);
 
                 return (
                     <div key={catKey} className="glass-ancient p-4 rounded-xl border border-ancient-gold/30">
@@ -483,6 +489,10 @@ const BuildTabComponent = ({
                         <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-gray-300 font-decorative">
                             <Icon name={catInfo.icon} size={16} className={catInfo.color} />
                             {catInfo.name}
+                            <span className="inline-flex items-center gap-1 text-[11px] font-normal text-gray-400">
+                                <Icon name="Users" size={12} className="text-gray-400" />
+                                {Math.round(categoryWorkers).toLocaleString()}
+                            </span>
                         </h3>
 
                         {/* 建筑列表 - 更紧凑布局 */}

@@ -702,36 +702,12 @@ const MilitaryTabComponent = ({
                                                 <h4 className="text-xs font-bold text-white font-decorative truncate">{unit.name}</h4>
                                                 <span className="text-[10px] text-gray-400">×{army[unitId] || 0}</span>
                                             </div>
-                                            <div className="flex items-center gap-1.5 text-[9px] text-gray-400">
-                                                <span className={`px-1 py-0.5 rounded ${categoryInfo.color?.replace('text-', 'bg-').replace('-400', '-900/50')} ${categoryColor}`}>
+                                            <div className="flex items-center gap-1 text-[9px] text-gray-400">
+                                                <span className={`px-1 py-0.5 rounded whitespace-nowrap ${categoryInfo.color?.replace('text-', 'bg-').replace('-400', '-900/50')} ${categoryColor}`}>
                                                     {categoryInfo.name}
                                                 </span>
-                                                <span className="text-white">{unit.attack}/{unit.defense}</span>
-                                                <span className={`${(unit.populationCost || 1) > 1 ? 'text-cyan-400' : ''}`}>
-                                                    {unit.populationCost || 1}人
-                                                </span>
                                             </div>
                                         </div>
-                                    </div>
-
-                                    {/* 整合信息行 */}
-                                    <div className="text-[9px] mb-1.5 space-y-0.5">
-                                        <div className="flex items-center justify-between text-gray-400">
-<span className="flex items-center gap-0.5">军费 <span className="text-yellow-300">{calculateUnitExpense(unit, market?.prices || {}, epoch, militaryWageRatio).toFixed(1)}</span><Icon name="Coins" size={9} className="text-yellow-400" />/日</span>
-                                            {Object.entries(unit.maintenanceCost || {}).filter(([r, c]) => r !== 'food' && r !== 'silver' && c > 0).map(([res, cost]) => (
-                                                <span key={res} className="flex items-center gap-0.5">
-                                                    <Icon name={RESOURCES[res]?.icon || 'Package'} size={9} className="text-gray-400" />
-                                                    <span className="text-yellow-300">{cost.toFixed(1)}</span>
-                                                </span>
-                                            ))}
-                                        </div>
-                                        {Object.keys(unit.counters || {}).length > 0 && (
-                                            <div className="text-green-400">
-                                                克制 {Object.entries(unit.counters).map(([cat, mult]) =>
-                                                    `${UNIT_CATEGORIES[cat]?.name || cat}+${Math.round((mult - 1) * 100)}%`
-                                                ).join(' ')}
-                                            </div>
-                                        )}
                                     </div>
 
                                     {/* 操作按钮 - 紧凑版 */}

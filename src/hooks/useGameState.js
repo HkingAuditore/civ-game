@@ -801,10 +801,26 @@ export const useGameState = () => {
             breakdown: { headTax: 0, industryTax: 0, subsidy: 0, policyIncome: 0, policyExpense: 0 },
             efficiency: 1,
         });
-        setTaxPolicies(data.taxPolicies || {
+        const defaultTaxPolicies = {
             headTaxRates: buildDefaultHeadTaxRates(),
             resourceTaxRates: buildDefaultResourceTaxRates(),
             businessTaxRates: buildDefaultBusinessTaxRates(),
+            exportTariffMultipliers: {},
+            importTariffMultipliers: {},
+            resourceTariffMultipliers: {},
+        };
+        const loadedTaxPolicies = data.taxPolicies || {};
+        setTaxPolicies({
+            ...defaultTaxPolicies,
+            ...loadedTaxPolicies,
+            exportTariffMultipliers: loadedTaxPolicies.exportTariffMultipliers
+                ?? loadedTaxPolicies.resourceTariffMultipliers
+                ?? defaultTaxPolicies.exportTariffMultipliers,
+            importTariffMultipliers: loadedTaxPolicies.importTariffMultipliers
+                ?? loadedTaxPolicies.resourceTariffMultipliers
+                ?? defaultTaxPolicies.importTariffMultipliers,
+            resourceTariffMultipliers: loadedTaxPolicies.resourceTariffMultipliers
+                ?? defaultTaxPolicies.resourceTariffMultipliers,
         });
         setJobFill(data.jobFill || {});
         setMarket(data.market || buildInitialMarket());

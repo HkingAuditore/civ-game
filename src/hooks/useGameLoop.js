@@ -3073,14 +3073,14 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                     });
                                                     addLog(`📜 你同意在365天内每日向 ${nation.name} 支付 ${amount} 银币（共计 ${amount * 365} 银币）。`);
                                                 } else if (actionType === 'offer_population') {
-                                                    // 割让人口
+                                                    // 割让人口：扣减人口与人口上限加成，避免下一tick被模拟重算覆盖
                                                     const currentPop = current.population || 0;
                                                     if (currentPop < amount + 10) {
                                                         addLog(`❌ 人口不足（需要 ${amount}，当前 ${Math.floor(currentPop)}），无法接受投降条件！`);
                                                         return;
                                                     }
                                                     setPopulation(prev => Math.max(10, prev - amount));
-                                                    setMaxPop(prev => Math.max(10, prev - amount));
+                                                    setMaxPopBonus(prev => Math.max(-currentPop + 10, prev - amount));
                                                     addLog(`🏴 你向 ${nation.name} 割让了 ${amount} 人口的领土。`);
                                                 }
 

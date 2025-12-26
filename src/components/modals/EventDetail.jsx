@@ -207,6 +207,15 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
         },
     };
 
+    const optionThemeStyles = {
+        baseBackground: 'linear-gradient(135deg, var(--theme-surface-trans) 0%, var(--theme-surface-muted) 50%, var(--theme-surface-trans) 100%)',
+        selectedBackground: 'linear-gradient(135deg, var(--theme-surface) 0%, var(--theme-surface-alt) 50%, var(--theme-surface) 100%)',
+        hoverBackground: 'linear-gradient(135deg, var(--theme-surface-alt) 0%, var(--theme-surface) 50%, var(--theme-surface-alt) 100%)',
+        baseShadow: 'inset 0 0 0 1px var(--theme-border), 0 2px 8px rgba(0, 0, 0, 0.35)',
+        selectedShadow: 'inset 0 0 0 2px var(--theme-accent), 0 0 18px var(--theme-glow)',
+        hoverShadow: 'inset 0 0 0 1px var(--theme-accent), 0 0 14px var(--theme-glow)',
+    };
+
     const getNationSelectorLabel = (selector, excludeList = []) => {
         // 如果是具体的国家ID（而非选择器关键字），直接显示国家名
         if (isDirectNationId(selector)) {
@@ -337,7 +346,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
             {/* 事件选项 */}
             <div className="space-y-2">
                 <h3 className="text-xs font-bold text-ancient-stone uppercase tracking-wider flex items-center gap-1.5 mb-1">
-                    <Icon name="Target" size={12} className="text-ancient-gold " />
+                    <Icon name="Target" size={12} style={{ color: 'var(--theme-accent)' }} />
                     选择你的行动
                 </h3>
                 {filteredOptions.map((option) => {
@@ -346,26 +355,26 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                     <button
                         key={option.id}
                         onClick={() => handleOptionClick(option)}
-                        className={`w-full text-left rounded-xl p-3 transition-all group font-sans ${isSelected ? 'ring-2 ring-ancient-gold ring-offset-2 ring-offset-gray-900' : ''}`}
+                        className="w-full text-left rounded-xl p-3 transition-all group font-sans"
                         style={{
                             background: isSelected
-                                ? 'linear-gradient(135deg, rgba(64, 44, 26, 0.98) 0%, rgba(81, 56, 31, 0.95) 50%, rgba(64, 44, 26, 0.98) 100%)'
-                                : 'linear-gradient(135deg, rgba(44, 24, 16, 0.95) 0%, rgba(61, 36, 21, 0.92) 50%, rgba(44, 24, 16, 0.95) 100%)',
+                                ? optionThemeStyles.selectedBackground
+                                : optionThemeStyles.baseBackground,
                             // 使用 box-shadow 实现稳定的边框效果，避免 border 在移动端的渲染问题
                             boxShadow: isSelected
-                                ? 'inset 0 0 0 2px rgba(212, 175, 55, 0.9), 0 0 20px rgba(212, 175, 55, 0.4)'
-                                : 'inset 0 0 0 1px rgba(212, 175, 55, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3)',
+                                ? optionThemeStyles.selectedShadow
+                                : optionThemeStyles.baseShadow,
                         }}
                         onMouseEnter={(e) => {
                             if (!isSelected) {
-                                e.currentTarget.style.boxShadow = 'inset 0 0 0 1px rgba(212, 175, 55, 0.7), 0 0 15px rgba(212, 175, 55, 0.3)';
-                                e.currentTarget.style.background = 'linear-gradient(135deg, rgba(54, 34, 26, 0.98) 0%, rgba(71, 46, 31, 0.95) 50%, rgba(54, 34, 26, 0.98) 100%)';
+                                e.currentTarget.style.boxShadow = optionThemeStyles.hoverShadow;
+                                e.currentTarget.style.background = optionThemeStyles.hoverBackground;
                             }
                         }}
                         onMouseLeave={(e) => {
                             if (!isSelected) {
-                                e.currentTarget.style.boxShadow = 'inset 0 0 0 1px rgba(212, 175, 55, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3)';
-                                e.currentTarget.style.background = 'linear-gradient(135deg, rgba(44, 24, 16, 0.95) 0%, rgba(61, 36, 21, 0.92) 50%, rgba(44, 24, 16, 0.95) 100%)';
+                                e.currentTarget.style.boxShadow = optionThemeStyles.baseShadow;
+                                e.currentTarget.style.background = optionThemeStyles.baseBackground;
                             }
                         }}
                     >
@@ -639,7 +648,8 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                             <Icon
                                 name={isSelected ? "Check" : "ChevronRight"}
                                 size={16}
-                                className={`${isSelected ? 'text-ancient-gold' : 'text-ancient-stone group-hover:text-ancient-gold'} transition-colors flex-shrink-0 mt-0.5`}
+                                className="transition-colors flex-shrink-0 mt-0.5"
+                                style={{ color: isSelected ? 'var(--theme-accent)' : 'var(--theme-text-muted)' }}
                             />
                         </div>
                     </button>
@@ -654,9 +664,13 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                     disabled={!selectedOption}
                     className={`w-full px-4 py-3 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 font-sans ${
                         selectedOption
-                            ? 'bg-gradient-to-r from-ancient-gold via-ancient to-ancient-gold hover:from-ancient hover:via-ancient-gold hover:to-ancient text-ancient-ink shadow-lg'
+                            ? 'btn-epoch-primary'
                             : 'bg-gray-700/50 text-gray-500 cursor-not-allowed'
                     }`}
+                    style={selectedOption ? {
+                        background: 'linear-gradient(135deg, var(--theme-secondary) 0%, var(--theme-primary) 55%, var(--theme-secondary) 100%)',
+                        boxShadow: '0 6px 18px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.18), inset 0 -2px 0 rgba(0, 0, 0, 0.45), 0 0 14px var(--theme-glow)',
+                    } : undefined}
                 >
                     {selectedOption ? (
                         <>
