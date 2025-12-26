@@ -1150,7 +1150,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 // 工作和经济
                 jobFill: current.jobFill,
                 jobsAvailable: current.jobsAvailable,
-                taxPolicies: current.taxPolicies,
+                taxPolicies: current.taxPolicies || {},
                 livingStandardStreaks: current.livingStandardStreaks,
                 migrationCooldowns: current.migrationCooldowns,
 

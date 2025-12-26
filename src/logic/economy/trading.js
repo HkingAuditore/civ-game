@@ -227,6 +227,7 @@ export const simulateMerchantTrade = ({
                 getForeignPrice,
                 roleExpense,
                 classFinancialData,
+                taxPolicies,
                 tick,
                 logs
             });
@@ -404,6 +405,7 @@ const executeImportTrade = ({
     getResourceTaxRate,
     roleExpense,
     classFinancialData,
+    taxPolicies,
     tick,
     logs
 }) => {

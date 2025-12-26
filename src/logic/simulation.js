@@ -2645,7 +2645,7 @@ export const simulateTick = ({
 
 
     // REFACTORED: Using module function for AI-Player trade
-    processAIPlayerTrade(visibleNations, tick, res, market, logs, taxPolicies);
+    processAIPlayerTrade(visibleNations, tick, res, market, logs, policies);
 
 
     // REFACTORED: Using module function for AI-Player interaction
@@ -2985,7 +2985,7 @@ export const simulateTick = ({
                 }
 
                 // 计算营业税成本
-                const businessTaxMultiplier = taxPolicies?.businessTaxRates?.[building.id] ?? 1;
+                const businessTaxMultiplier = policies?.businessTaxRates?.[building.id] ?? 1;
                 const businessTaxBase = building.businessTaxBase ?? 0.1;
                 const businessTaxCost = businessTaxBase * businessTaxMultiplier;
 
