@@ -106,12 +106,17 @@ export const processRebelWarActions = ({
 
             // Apply player army losses and record for auto-replenishment
             const playerLosses = battleResult.defenderLosses || {};
+            const actualLosses = {};
             Object.entries(playerLosses).forEach(([unitId, count]) => {
-                if (army[unitId]) army[unitId] = Math.max(0, army[unitId] - count);
+                if (army[unitId]) {
+                    const removed = Math.min(army[unitId], count);
+                    army[unitId] = Math.max(0, army[unitId] - removed);
+                    if (removed > 0) actualLosses[unitId] = removed;
+                }
             });
             // Record losses in log for auto-replenishment processing
-            if (Object.keys(playerLosses).length > 0) {
-                logs.push(`AUTO_REPLENISH_LOSSES:${JSON.stringify(playerLosses)}`);
+            if (Object.keys(actualLosses).length > 0) {
+                logs.push(`AUTO_REPLENISH_LOSSES:${JSON.stringify(actualLosses)}`);
             }
         }
 
@@ -257,7 +262,7 @@ export const processAIMilitaryAction = ({
 
     // Only process in epoch 1+
     if (epoch < 1) return { raidPopulationLoss };
-    
+
     // Skip military actions during grace period (easy mode)
     if (isInGracePeriod(tick, difficultyLevel)) {
         return { raidPopulationLoss };
@@ -273,7 +278,7 @@ export const processAIMilitaryAction = ({
 
     const disadvantage = Math.max(0, -(next.warScore || 0));
     let actionChance = Math.min(0.18, 0.02 + (next.aggression || 0.2) * 0.04 + disadvantage / 400);
-    
+
     // Apply difficulty modifier to action chance
     actionChance = applyMilitaryActionModifier(actionChance, difficultyLevel);
 
@@ -393,11 +398,11 @@ export const processAIMilitaryAction = ({
         let foodLoss = Math.floor((res.food || 0) * actionStrength * actionLossMultiplier);
         let silverLoss = Math.floor((res.silver || 0) * (actionStrength / 2) * actionLossMultiplier);
         let woodLoss = 0;
-        
+
         // Apply difficulty modifier to damage
         foodLoss = applyRaidDamageModifier(foodLoss, difficultyLevel);
         silverLoss = applyRaidDamageModifier(silverLoss, difficultyLevel);
-        
+
         if (actionType === 'scorched_earth') {
             woodLoss = Math.floor((res.wood || 0) * actionStrength * 0.8);
             woodLoss = applyRaidDamageModifier(woodLoss, difficultyLevel);
@@ -462,11 +467,11 @@ export const processAIMilitaryAction = ({
         if (battleResult.victory) {
             let foodLoss = Math.floor((res.food || 0) * actionStrength * actionLossMultiplier);
             let silverLoss = Math.floor((res.silver || 0) * (actionStrength / 2) * actionLossMultiplier);
-            
+
             // Apply difficulty modifier to damage
             foodLoss = applyRaidDamageModifier(foodLoss, difficultyLevel);
             silverLoss = applyRaidDamageModifier(silverLoss, difficultyLevel);
-            
+
             if (actionType === 'scorched_earth') {
                 woodLoss = Math.floor((res.wood || 0) * actionStrength * 0.8);
                 woodLoss = applyRaidDamageModifier(woodLoss, difficultyLevel);
@@ -483,14 +488,17 @@ export const processAIMilitaryAction = ({
 
         // Apply army losses and record for auto-replenishment
         const playerLosses = battleResult.defenderLosses || {};
+        const actualLosses = {};
         Object.entries(playerLosses).forEach(([unitId, count]) => {
             if (army[unitId]) {
-                army[unitId] = Math.max(0, army[unitId] - count);
+                const removed = Math.min(army[unitId], count);
+                army[unitId] = Math.max(0, army[unitId] - removed);
+                if (removed > 0) actualLosses[unitId] = removed;
             }
         });
         // Record losses in log for auto-replenishment processing
-        if (Object.keys(playerLosses).length > 0) {
-            logs.push(`AUTO_REPLENISH_LOSSES:${JSON.stringify(playerLosses)}`);
+        if (Object.keys(actualLosses).length > 0) {
+            logs.push(`AUTO_REPLENISH_LOSSES:${JSON.stringify(actualLosses)}`);
         }
 
         const enemyLossCount = Object.values(battleResult.attackerLosses || {}).reduce(
@@ -630,7 +638,7 @@ export const checkMercyPeace = ({
     logs,
 }) => {
     const next = nation;
-    
+
     // Only check if at war and not already requesting peace
     if (!next.isAtWar || next.isPeaceRequesting) {
         return;
@@ -647,7 +655,7 @@ export const checkMercyPeace = ({
     const silverAmount = resources?.silver || 0;
     const foodAmount = resources?.food || 0;
     const totalResources = silverAmount + foodAmount + (resources?.wood || 0);
-    
+
     // Conditions for player being in desperate situation:
     // 1. Very low population (< 20) OR
     // 2. Very low wealth AND population under pressure
@@ -680,7 +688,7 @@ export const checkMercyPeace = ({
         (isResourceDepleted ? 0.2 : 0) +
         (population < 10 ? 0.3 : 0) // Extra factor for very low population
     ));
-    
+
     // Base chance increases with war duration and desperation, decreases with aggression
     const baseChance = 0.05 + (warDuration / 500) + (desperationFactor * 0.3);
     const aggressionPenalty = aggression * 0.15;
@@ -691,7 +699,7 @@ export const checkMercyPeace = ({
         next.lastMercyPeaceOfferDay = tick;
         next.isMercyPeaceOffering = true;
         next.mercyPeaceOfferDay = tick;
-        
+
         // Log the mercy peace offer
         logs.push(`🕊️ ${next.name} 见你已无力继续战斗，愿意无条件议和。`);
         logs.push(`AI_MERCY_PEACE_OFFER:${JSON.stringify({
@@ -730,10 +738,10 @@ export const checkWarDeclaration = ({
     const res = resources;
     const relation = next.relation ?? 50;
     const aggression = next.aggression ?? 0.2;
-    
+
     // Get minimum epoch for war declaration based on difficulty
     const minWarEpoch = getMinWarEpoch(difficultyLevel);
-    
+
     // Skip war declarations during grace period (easy mode)
     if (isInGracePeriod(tick, difficultyLevel)) {
         return;
@@ -762,7 +770,7 @@ export const checkWarDeclaration = ({
     let declarationChance = epoch >= minWarEpoch
         ? Math.min(0.08, (aggression * 0.04) + (hostility * 0.025) + unrest + aggressionBonus)
         : 0;
-    
+
     // Apply difficulty modifier to declaration chance
     declarationChance = applyWarDeclarationModifier(declarationChance, difficultyLevel);
 
@@ -1003,13 +1011,25 @@ export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, 
  * @param {Array} logs - Log array (mutable)
  */
 export const processAIAIWarProgression = (visibleNations, updatedNations, tick, logs) => {
+    // Create a set of visible nation IDs for quick lookup
+    const visibleNationIds = new Set(visibleNations.map(n => n.id));
+    
     visibleNations.forEach(nation => {
         Object.keys(nation.foreignWars || {}).forEach(enemyId => {
             const war = nation.foreignWars[enemyId];
             if (!war?.isAtWar) return;
 
             const enemy = updatedNations.find(n => n.id === enemyId);
-            if (!enemy) return;
+            
+            // Clean up war state if enemy no longer exists or is no longer visible
+            if (!enemy || !visibleNationIds.has(enemyId)) {
+                // End war with destroyed/invisible nation
+                nation.foreignWars[enemyId] = { isAtWar: false };
+                if (enemy) {
+                    logs.push(`⚔️ ${nation.name} 与 ${enemy.name} 的战争因对方势力消亡而结束。`);
+                }
+                return;
+            }
 
             if (!enemy.foreignWars) enemy.foreignWars = {};
             if (!enemy.foreignWars[nation.id]) {

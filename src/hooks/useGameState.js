@@ -428,6 +428,7 @@ export const useGameState = () => {
     const [classWealthDelta, setClassWealthDelta] = useState({});
     const [classIncome, setClassIncome] = useState({});
     const [classExpense, setClassExpense] = useState({});
+    const [classFinancialData, setClassFinancialData] = useState({}); // Detailed financial breakdown
     const [classWealthHistory, setClassWealthHistory] = useState(buildInitialWealthHistory());
     const [classNeedsHistory, setClassNeedsHistory] = useState(buildInitialNeedsHistory());
     const [totalInfluence, setTotalInfluence] = useState(0);
@@ -665,6 +666,7 @@ export const useGameState = () => {
                 classWealthDelta,
                 classIncome,
                 classExpense,
+                classFinancialData,
                 classWealthHistory,
                 classNeedsHistory,
                 totalInfluence,
@@ -756,6 +758,7 @@ export const useGameState = () => {
         setClassWealthDelta(data.classWealthDelta || {});
         setClassIncome(data.classIncome || {});
         setClassExpense(data.classExpense || {});
+        setClassFinancialData(data.classFinancialData || {});
         setClassWealthHistory(data.classWealthHistory || buildInitialWealthHistory());
         setClassNeedsHistory(data.classNeedsHistory || buildInitialNeedsHistory());
         setTotalInfluence(data.totalInfluence || 0);
@@ -1327,6 +1330,8 @@ export const useGameState = () => {
         setClassIncome,
         classExpense,
         setClassExpense,
+        classFinancialData,
+        setClassFinancialData,
         classWealthHistory,
         setClassWealthHistory,
         classNeedsHistory,

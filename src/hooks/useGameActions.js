@@ -1072,7 +1072,18 @@ export const useGameActions = (gameState, addLog) => {
         }
 
         // 处理军队损失
-        const lossesToReplenish = result.attackerLosses || {};
+        // 处理军队损失
+        const lossesToReplenishRaw = result.attackerLosses || {};
+        const lossesToReplenish = {};
+
+        // 防御性修复：确保损失不超过实际拥有的军队数量
+        Object.entries(lossesToReplenishRaw).forEach(([unitId, lossCount]) => {
+            const currentCount = army[unitId] || 0;
+            const actualLoss = Math.min(currentCount, lossCount);
+            if (actualLoss > 0) {
+                lossesToReplenish[unitId] = actualLoss;
+            }
+        });
 
         setArmy(prevArmy => {
             const updated = { ...prevArmy };
@@ -1789,6 +1800,7 @@ export const useGameActions = (gameState, addLog) => {
                     ? {
                         ...n,
                         isAtWar: false,
+                        alliedWithPlayer: false, // 战争结束时清除同盟状态
                         warScore: 0,
                         warDuration: 0,
                         enemyLosses: 0,
@@ -1833,6 +1845,7 @@ export const useGameActions = (gameState, addLog) => {
                         ? {
                             ...n,
                             isAtWar: false,
+                            alliedWithPlayer: false, // 战争结束时清除同盟状态
                             warScore: 0,
                             warDuration: 0,
                             enemyLosses: 0,
@@ -1856,6 +1869,7 @@ export const useGameActions = (gameState, addLog) => {
                     ? {
                         ...n,
                         isAtWar: false,
+                        alliedWithPlayer: false, // 战争结束时清除同盟状态
                         warScore: 0,
                         warDuration: 0,
                         enemyLosses: 0,
@@ -1875,6 +1889,7 @@ export const useGameActions = (gameState, addLog) => {
                     ? {
                         ...n,
                         isAtWar: false,
+                        alliedWithPlayer: false, // 战争结束时清除同盟状态
                         warScore: 0,
                         warDuration: 0,
                         enemyLosses: 0,
@@ -1971,6 +1986,7 @@ export const useGameActions = (gameState, addLog) => {
                                 ...n,
                                 wealth: Math.max(0, (n.wealth || 0) - amount),
                                 isAtWar: false,
+                                alliedWithPlayer: false, // 战争结束时清除同盟状态
                                 warScore: 0,
                                 warDuration: 0,
                                 enemyLosses: 0,
@@ -1998,6 +2014,7 @@ export const useGameActions = (gameState, addLog) => {
                             ? {
                                 ...n,
                                 isAtWar: false,
+                                alliedWithPlayer: false, // 战争结束时清除同盟状态
                                 warScore: 0,
                                 warDuration: 0,
                                 enemyLosses: 0,
@@ -2050,6 +2067,7 @@ export const useGameActions = (gameState, addLog) => {
                                 ? {
                                     ...n,
                                     isAtWar: false,
+                                    alliedWithPlayer: false, // 战争结束时清除同盟状态
                                     warScore: 0,
                                     warDuration: 0,
                                     enemyLosses: 0,
@@ -2081,6 +2099,7 @@ export const useGameActions = (gameState, addLog) => {
                                 ...n,
                                 wealth: Math.max(0, (n.wealth || 0) - amount),
                                 isAtWar: false,
+                                alliedWithPlayer: false, // 战争结束时清除同盟状态
                                 warScore: 0,
                                 warDuration: 0,
                                 enemyLosses: 0,
@@ -2108,6 +2127,7 @@ export const useGameActions = (gameState, addLog) => {
                             ? {
                                 ...n,
                                 isAtWar: false,
+                                alliedWithPlayer: false, // 战争结束时清除同盟状态
                                 warScore: 0,
                                 warDuration: 0,
                                 enemyLosses: 0,
@@ -2137,6 +2157,7 @@ export const useGameActions = (gameState, addLog) => {
                             ? {
                                 ...n,
                                 isAtWar: false,
+                                alliedWithPlayer: false, // 战争结束时清除同盟状态
                                 warScore: 0,
                                 warDuration: 0,
                                 enemyLosses: 0,
@@ -2163,6 +2184,7 @@ export const useGameActions = (gameState, addLog) => {
                         ? {
                             ...n,
                             isAtWar: false,
+                            alliedWithPlayer: false, // 战争结束时清除同盟状态
                             warScore: 0,
                             warDuration: 0,
                             enemyLosses: 0,
@@ -2199,6 +2221,7 @@ export const useGameActions = (gameState, addLog) => {
                         ? {
                             ...n,
                             isAtWar: false,
+                            alliedWithPlayer: false, // 战争结束时清除同盟状态
                             warScore: 0,
                             warDuration: 0,
                             enemyLosses: 0,
@@ -2227,6 +2250,7 @@ export const useGameActions = (gameState, addLog) => {
                         ? {
                             ...n,
                             isAtWar: false,
+                            alliedWithPlayer: false, // 战争结束时清除同盟状态
                             warScore: 0,
                             warDuration: 0,
                             enemyLosses: 0,
@@ -2697,7 +2721,13 @@ export const useGameActions = (gameState, addLog) => {
             // ========== Diplomatic Effects ==========
             // Helper function to resolve nation selector
             const resolveNationSelector = (selector) => {
-                const visibleNations = nations.filter(n => n.visible !== false);
+                // 完整的可见性检查：包括 visible 属性、时代范围（appearEpoch/expireEpoch），并排除叛军
+                const visibleNations = nations.filter(n =>
+                    n.visible !== false &&
+                    epoch >= (n.appearEpoch ?? 0) &&
+                    (n.expireEpoch == null || epoch <= n.expireEpoch) &&
+                    !n.isRebelNation
+                );
                 if (!visibleNations.length) return [];
 
                 switch (selector) {

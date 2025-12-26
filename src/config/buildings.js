@@ -598,7 +598,7 @@ export const BUILDINGS = [
         desc: "建造远洋船队，换取异域香料。",
         baseCost: { plank: 200, tools: 40 },
         input: { wood: 0.50 },
-        output: { spice: 0.35 },
+        output: { spice: 0.7 },
         jobs: { navigator: 2, worker: 2, merchant: 1 },
         owner: 'merchant',
         epoch: 4,

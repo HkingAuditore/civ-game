@@ -560,7 +560,7 @@ const DiplomacyTabComponent = ({
 
                                 {/* 当前战争状态 */}
                                 {selectedNation?.foreignWars && Object.keys(selectedNation.foreignWars).some(
-                                    id => selectedNation.foreignWars[id]?.isAtWar
+                                    id => selectedNation.foreignWars[id]?.isAtWar && visibleNations.find(n => n.id === id)
                                 ) && (
                                         <div className="p-2 rounded border border-orange-500/20 bg-orange-900/10 mb-2">
                                             <div className="flex items-center gap-1 text-orange-200 font-body mb-1">
@@ -571,7 +571,7 @@ const DiplomacyTabComponent = ({
                                                 {Object.keys(selectedNation.foreignWars)
                                                     .filter(id => selectedNation.foreignWars[id]?.isAtWar)
                                                     .map(enemyId => {
-                                                        const enemy = nations.find(n => n.id === enemyId);
+                                                        const enemy = visibleNations.find(n => n.id === enemyId);
                                                         return enemy ? (
                                                             <span key={enemyId} className="px-1.5 py-0.5 rounded bg-red-900/40 text-red-200 text-[10px] font-body">
                                                                 ⚔️ {enemy.name}
