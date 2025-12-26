@@ -5,7 +5,7 @@ import { isResourceUnlocked } from '../utils/resources';
 import { calculateForeignPrice } from '../utils/foreignTrade';
 import { simulateBattle, UNIT_TYPES } from '../config/militaryUnits';
 import { getEnemyUnitsForEpoch } from '../config/militaryActions';
-import { calculateLivingStandardData, getSimpleLivingStandard } from '../utils/livingStandard';
+import { calculateLivingStandardData, getSimpleLivingStandard, calculateWealthMultiplier } from '../utils/livingStandard';
 import { calculateLivingStandards } from './population/needs';
 import { calculateAIGiftAmount, calculateAIPeaceTribute, calculateAISurrenderDemand } from '../utils/diplomaticUtils';
 import {
@@ -1720,7 +1720,8 @@ export const simulateTick = ({
                 // Fallback to epoch check for resources without tech requirement
                 continue;
             }
-            if (!producedResources.has(resKey)) {
+            if (!potentialResources.has(resKey)) {
+                // 只有已解锁建筑能产出的资源才会产生需求
                 continue;
             }
 
@@ -1767,21 +1768,12 @@ export const simulateTick = ({
                 const effectiveWealth = Math.max(currentWealth, projectedIncomeWealth);
 
                 const wealthRatio = effectiveWealth / startingWealth;
-                // 使用平方根曲线：财富增加时需求增长，但边际递减，比之前更克制
-                // wealthRatio=1 → multiplier=1, wealthRatio=4 → multiplier≈2.6, wealthRatio=9 → multiplier≈4.3
-                // 公式: multiplier = sqrt(wealthRatio) * (1 + ln(max(wealthRatio, 1)) * 0.2)
-                // 限制范围：最低0.3倍（财富极低时），最高5倍（避免财富过高导致需求爆炸）
-                let rawWealthMultiplier;
-                if (wealthRatio <= 0) {
-                    rawWealthMultiplier = 0.3;
-                } else if (wealthRatio < 1) {
-                    // 财富低于基准时，线性下降
-                    rawWealthMultiplier = 0.3 + wealthRatio * 0.7;
-                } else {
-                    // 财富高于基准时，使用平方根+对数曲线，增长更平缓
-                    rawWealthMultiplier = Math.sqrt(wealthRatio) * (1 + Math.log(wealthRatio) * 0.25);
-                }
-                const wealthMultiplier = Math.max(0.3, Math.min(def.maxConsumptionMultiplier || 6, rawWealthMultiplier));
+                // 2024-12更新：使用统一的calculateWealthMultiplier函数
+                // 该函数现在支持高财富比率补偿低收入
+                // incomeRatio在这里使用wealthRatio近似（因为高财富意味着历史上收入高）
+                const wealthElasticity = def.wealthElasticity || 1.0;
+                const maxMultiplier = def.maxConsumptionMultiplier || 6;
+                const wealthMultiplier = calculateWealthMultiplier(wealthRatio, wealthRatio, wealthElasticity, maxMultiplier);
                 // 记录财富乘数（取最后一次计算的值，用于UI显示）
                 if (!stratumWealthMultipliers[key] || Math.abs(wealthMultiplier - 1) > Math.abs(stratumWealthMultipliers[key] - 1)) {
                     stratumWealthMultipliers[key] = wealthMultiplier;
@@ -1803,7 +1795,7 @@ export const simulateTick = ({
 
                 // 确保需求不会变成负数或过大
                 requirement = Math.max(0, requirement);
-                requirement = Math.min(requirement, perCapita * count * needsRequirementMultiplier * 12); // 最多12倍（配合财富乘数上限10倍+其他加成）
+                requirement = Math.min(requirement, perCapita * count * needsRequirementMultiplier * 8); // 最多8倍（配合更低的财富乘数上限）
             }
             const available = res[resKey] || 0;
             let satisfied = 0;
@@ -2024,15 +2016,28 @@ export const simulateTick = ({
             targetApproval += 5; // Tax relief bonus
         }
 
-        // Resource Shortage Logic
+        // Resource Shortage Logic - 区分基础需求和奢侈需求短缺
+        const shortages = classShortages[key] || [];
+        const basicShortages = shortages.filter(s => s.isBasic);
+        const luxuryShortages = shortages.filter(s => !s.isBasic);
         const totalNeeds = satisfactionInfo?.totalTrackedNeeds ?? 0;
-        const unmetNeeds = (classShortages[key] || []).length;
-        if (unmetNeeds > 0 && totalNeeds > 0) {
-            if (unmetNeeds >= totalNeeds) {
-                targetApproval = Math.min(targetApproval, 0); // All needs unmet, drops to 0
+
+        // 基础需求短缺 - 严重惩罚
+        if (basicShortages.length > 0 && totalNeeds > 0) {
+            if (basicShortages.length >= Object.keys(STRATA[key]?.needs || {}).length) {
+                // 所有基础需求都短缺 → 上限0
+                targetApproval = Math.min(targetApproval, 0);
             } else {
-                targetApproval = Math.min(targetApproval, 30); // Partial shortage, capped at 30
+                // 部分基础需求短缺 → 上限30
+                targetApproval = Math.min(targetApproval, 30);
             }
+        }
+
+        // 奢侈需求短缺 - 较轻惩罚，与缺少数量相关
+        // 每缺少1种奢侈品，惩罚-3，最多惩罚-15
+        if (luxuryShortages.length > 0) {
+            const luxuryPenalty = Math.min(15, luxuryShortages.length * 3);
+            targetApproval -= luxuryPenalty;
         }
 
         const livingTracker = updatedLivingStandardStreaks[key] || {};

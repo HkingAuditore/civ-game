@@ -326,17 +326,30 @@ const buildDriverContext = (stratumKey, {
     });
     const livingStandard = getSatisfactionRate(classLivingStandard[stratumKey]);
     const livingStandardData = classLivingStandard[stratumKey];
-    const observedCost = expensePerCapita > 0 ? expensePerCapita : basicNeedsCost;
+
+    // 2024-12修复：使用基础需求成本作为目标收入基准，而非实际支出
+    // 实际支出可能很高（比如大量购买奢侈品），不应该作为"收入危机"的判断标准
     // 联盟阶层收入目标更高
     const incomeMultiplier = sensitivity.incomeMultiplier; // 联盟1.25, 普通1.08
-    let targetIncome = observedCost * (livingStandard < 0.6 ? 1.25 : incomeMultiplier);
+    let targetIncome = basicNeedsCost * (livingStandard < 0.6 ? 1.25 : incomeMultiplier);
     if (targetIncome <= 0) {
         targetIncome = 0.01;
     }
 
+    // 计算财富比率：用于判断是否有足够储蓄
+    const wealthValue = livingStandardData?.wealthPerCapita || 0;
+    const startingWealth = stratum.startingWealth || 80;
+    const wealthRatio = startingWealth > 0 ? wealthValue / startingWealth : 0;
+
+    // 有效收入：考虑财富可以补偿低收入（自给自足型阶层）
+    // 如果财富比率很高，即使收入低也不应该触发收入危机
+    const effectiveIncome = Math.max(incomePerCapita, wealthRatio * basicNeedsCost * 0.3);
+
     let lowIncomePressure = 0;
-    if (incomePerCapita < targetIncome * 0.97) {
-        const incomeGapRatio = Math.max(0, (targetIncome - incomePerCapita) / targetIncome);
+    // 只有当有效收入低于目标收入的97%时，才触发收入危机
+    // 高财富比率（>3x）的阶层完全免疫收入危机
+    if (wealthRatio < 3 && effectiveIncome < targetIncome * 0.97) {
+        const incomeGapRatio = Math.max(0, (targetIncome - effectiveIncome) / targetIncome);
         lowIncomePressure = Math.min(1.2, incomeGapRatio * 1.2);
     }
 
@@ -580,7 +593,7 @@ export function updateStratumOrganization(
     if (growthRate > 0) {
         growthRate *= getStabilityGrowthModifier(stability, difficultyLevel);
         growthRate *= ORGANIZATION_GROWTH_MULTIPLIER;
-        
+
         // Apply difficulty modifier to growth rate
         growthRate = applyOrganizationGrowthModifier(growthRate, difficultyLevel);
 
@@ -675,7 +688,7 @@ export function updateAllOrganizationStates(
         // 注意：classInfluence 和 totalInfluence 已经是函数参数，不需要在这里解构
     } = options || {};
     const epochValue = Number.isFinite(epoch) ? epoch : 0;
-    
+
     // Check if we're in the grace period (easy mode protection)
     const inGracePeriod = isInGracePeriod(currentDay, difficultyLevel);
 

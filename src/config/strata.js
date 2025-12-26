@@ -125,7 +125,7 @@ export const STRATA = {
         startingWealth: 150,
         defaultResource: 'plank',
         wealthElasticity: 0.7, // 工人阶级：消费增长中等
-        maxConsumptionMultiplier: 6, // 中层阶级消费上限6倍
+        maxConsumptionMultiplier: 3, // 底层阶级消费上限3倍（防止补贴导致消费爆炸）
         needs: { food: 0.70, cloth: 0.12, tools: 0.05, ale: 0.07 },
         luxuryNeeds: {
             1.8: { plank: 0.02 },          // 更好工具，麦酒，板材

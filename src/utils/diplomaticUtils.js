@@ -7,8 +7,8 @@
 
 /** 分期付款配置 */
 export const INSTALLMENT_CONFIG = {
-    TOTAL_MULTIPLIER: 5,  // 分期总额是单次赔款的5倍（原3倍）
-    DURATION_DAYS: 365,    // 分期持续天数（1年）
+    TOTAL_MULTIPLIER: 5,  // 分期总额是单次赔款的5倍
+    DURATION_DAYS: 1095,    // 分期持续天数（3年）
 };
 
 /** 赔款计算系数 - [NERFED] 削弱50%以防止银币溢出 */

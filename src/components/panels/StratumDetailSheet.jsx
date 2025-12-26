@@ -111,7 +111,9 @@ const StratumDetailSheetComponent = ({
         const essentialResources = ['food', 'cloth'];
         essentialResources.forEach(resKey => {
             if (baseNeeds[resKey]) {
-                essentialCost += baseNeeds[resKey] * 1; // 使用基础价格估算
+                // 使用资源配置中的基础价格（而非硬编码的1）
+                const basePrice = RESOURCES[resKey]?.basePrice || 1;
+                essentialCost += baseNeeds[resKey] * basePrice;
             }
         });
         const incomeRatio = essentialCost > 0 ? incomePerCapita / essentialCost : 1;
@@ -147,6 +149,7 @@ const StratumDetailSheetComponent = ({
             previousScore: null,
             isNewStratum: true,
             maxConsumptionMultiplier,
+            wealthElasticity: stratum.wealthElasticity || 1.0,
         });
     }
 

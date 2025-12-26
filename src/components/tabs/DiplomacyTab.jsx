@@ -225,6 +225,26 @@ const DiplomacyTabComponent = ({
     // State for trade routes management modal
     const [showTradeRoutesModal, setShowTradeRoutesModal] = useState(false);
 
+    // 外交动作冷却时间配置（天数）
+    const DIPLOMATIC_COOLDOWNS = {
+        gift: 30,           // 送礼：30天冷却
+        demand: 60,         // 索要：60天冷却
+        provoke: 90,        // 挑拨：90天冷却
+        propose_alliance: 60, // 请求结盟：60天冷却
+    };
+
+    // 计算外交动作冷却状态
+    const getDiplomaticCooldown = (nation, action) => {
+        if (!nation || !DIPLOMATIC_COOLDOWNS[action]) return { isOnCooldown: false, remainingDays: 0 };
+        const lastActionDay = nation.lastDiplomaticActionDay?.[action] || 0;
+        const cooldownDays = DIPLOMATIC_COOLDOWNS[action];
+        const daysSinceLastAction = daysElapsed - lastActionDay;
+        if (lastActionDay > 0 && daysSinceLastAction < cooldownDays) {
+            return { isOnCooldown: true, remainingDays: cooldownDays - daysSinceLastAction };
+        }
+        return { isOnCooldown: false, remainingDays: 0 };
+    };
+
     const tradableResources = useMemo(
         () =>
             Object.entries(RESOURCES).filter(
@@ -563,18 +583,34 @@ const DiplomacyTabComponent = ({
                                     )}
 
                                 <div className="flex gap-1.5 text-xs font-body">
-                                    <button
-                                        className="flex-1 px-2 py-1.5 bg-green-600 hover:bg-green-500 rounded text-white flex items-center justify-center gap-1 font-semibold font-body"
-                                        onClick={() => handleSimpleAction(selectedNation.id, 'gift')}
-                                    >
-                                        <Icon name="Gift" size={12} /> 礼物
-                                    </button>
-                                    <button
-                                        className="flex-1 px-2 py-1.5 bg-yellow-600 hover:bg-yellow-500 rounded text-white flex items-center justify-center gap-1 font-semibold font-body"
-                                        onClick={() => handleSimpleAction(selectedNation.id, 'demand')}
-                                    >
-                                        <Icon name="ShieldAlert" size={12} /> 索要
-                                    </button>
+                                    {(() => {
+                                        const giftCooldown = getDiplomaticCooldown(selectedNation, 'gift');
+                                        return (
+                                            <button
+                                                className={`flex-1 px-2 py-1.5 rounded text-white flex items-center justify-center gap-1 font-semibold font-body ${giftCooldown.isOnCooldown ? 'bg-gray-600 cursor-not-allowed' : 'bg-green-600 hover:bg-green-500'}`}
+                                                onClick={() => handleSimpleAction(selectedNation.id, 'gift')}
+                                                disabled={giftCooldown.isOnCooldown}
+                                                title={giftCooldown.isOnCooldown ? `冷却中（还需${giftCooldown.remainingDays}天）` : '赠送礼物提升关系'}
+                                            >
+                                                <Icon name="Gift" size={12} />
+                                                {giftCooldown.isOnCooldown ? `礼物(${giftCooldown.remainingDays}天)` : '礼物'}
+                                            </button>
+                                        );
+                                    })()}
+                                    {(() => {
+                                        const demandCooldown = getDiplomaticCooldown(selectedNation, 'demand');
+                                        return (
+                                            <button
+                                                className={`flex-1 px-2 py-1.5 rounded text-white flex items-center justify-center gap-1 font-semibold font-body ${demandCooldown.isOnCooldown ? 'bg-gray-600 cursor-not-allowed' : 'bg-yellow-600 hover:bg-yellow-500'}`}
+                                                onClick={() => handleSimpleAction(selectedNation.id, 'demand')}
+                                                disabled={demandCooldown.isOnCooldown}
+                                                title={demandCooldown.isOnCooldown ? `冷却中（还需${demandCooldown.remainingDays}天）` : '向该国索要贡品'}
+                                            >
+                                                <Icon name="ShieldAlert" size={12} />
+                                                {demandCooldown.isOnCooldown ? `索要(${demandCooldown.remainingDays}天)` : '索要'}
+                                            </button>
+                                        );
+                                    })()}
                                     <button
                                         className={`flex-1 px-2 py-1.5 rounded text-white flex items-center justify-center gap-1 font-semibold font-body ${selectedNation.isAtWar ? 'bg-purple-600 hover:bg-purple-500' : 'bg-red-600 hover:bg-red-500'
                                             }`}
@@ -595,16 +631,23 @@ const DiplomacyTabComponent = ({
 
                                 {/* 挑拨关系按钮 */}
                                 <div className="mt-1.5 flex gap-1.5 text-xs font-body">
-                                    <button
-                                        className="flex-1 px-2 py-1.5 bg-indigo-600 hover:bg-indigo-500 rounded text-white flex items-center justify-center gap-1 font-semibold font-body"
-                                        onClick={() => {
-                                            setProvokeTargetId(null);
-                                            setShowProvokeModal(true);
-                                        }}
-                                        title="花费银币离间该国与另一国家的关系"
-                                    >
-                                        <Icon name="MessageSquareWarning" size={12} /> 挑拨关系
-                                    </button>
+                                    {(() => {
+                                        const provokeCooldown = getDiplomaticCooldown(selectedNation, 'provoke');
+                                        return (
+                                            <button
+                                                className={`flex-1 px-2 py-1.5 rounded text-white flex items-center justify-center gap-1 font-semibold font-body ${provokeCooldown.isOnCooldown ? 'bg-gray-600 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-500'}`}
+                                                onClick={() => {
+                                                    setProvokeTargetId(null);
+                                                    setShowProvokeModal(true);
+                                                }}
+                                                disabled={provokeCooldown.isOnCooldown}
+                                                title={provokeCooldown.isOnCooldown ? `冷却中（还需${provokeCooldown.remainingDays}天）` : '花费银币离间该国与另一国家的关系'}
+                                            >
+                                                <Icon name="MessageSquareWarning" size={12} />
+                                                {provokeCooldown.isOnCooldown ? `挑拨(${provokeCooldown.remainingDays}天)` : '挑拨关系'}
+                                            </button>
+                                        );
+                                    })()}
                                 </div>
 
                                 {/* 结盟/解除联盟按钮 */}
@@ -617,23 +660,33 @@ const DiplomacyTabComponent = ({
                                         >
                                             <Icon name="UserMinus" size={12} /> 解除同盟
                                         </button>
-                                    ) : (
-                                        <button
-                                            className={`flex-1 px-2 py-1.5 rounded text-white flex items-center justify-center gap-1 font-semibold font-body ${(selectedNation?.relation || 0) >= 60 && !selectedNation?.isAtWar
-                                                ? 'bg-emerald-600 hover:bg-emerald-500'
-                                                : 'bg-gray-600 cursor-not-allowed'
-                                                }`}
-                                            onClick={() => handleSimpleAction(selectedNation.id, 'propose_alliance')}
-                                            disabled={(selectedNation?.relation || 0) < 60 || selectedNation?.isAtWar}
-                                            title={(selectedNation?.relation || 0) < 60
-                                                ? `关系需达到60才能请求结盟（当前：${Math.round(selectedNation?.relation || 0)}）`
-                                                : selectedNation?.isAtWar
-                                                    ? '无法与交战国结盟'
-                                                    : '请求与该国建立正式同盟'}
-                                        >
-                                            <Icon name="Users" size={12} /> 请求结盟
-                                        </button>
-                                    )}
+                                    ) : (() => {
+                                        const allianceCooldown = getDiplomaticCooldown(selectedNation, 'propose_alliance');
+                                        const relationOk = (selectedNation?.relation || 0) >= 60;
+                                        const notAtWar = !selectedNation?.isAtWar;
+                                        const canPropose = relationOk && notAtWar && !allianceCooldown.isOnCooldown;
+
+                                        let titleText = '请求与该国建立正式同盟';
+                                        if (allianceCooldown.isOnCooldown) {
+                                            titleText = `冷却中（还需${allianceCooldown.remainingDays}天）`;
+                                        } else if (!relationOk) {
+                                            titleText = `关系需达到60才能请求结盟（当前：${Math.round(selectedNation?.relation || 0)}）`;
+                                        } else if (!notAtWar) {
+                                            titleText = '无法与交战国结盟';
+                                        }
+
+                                        return (
+                                            <button
+                                                className={`flex-1 px-2 py-1.5 rounded text-white flex items-center justify-center gap-1 font-semibold font-body ${canPropose ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-gray-600 cursor-not-allowed'}`}
+                                                onClick={() => handleSimpleAction(selectedNation.id, 'propose_alliance')}
+                                                disabled={!canPropose}
+                                                title={titleText}
+                                            >
+                                                <Icon name="Users" size={12} />
+                                                {allianceCooldown.isOnCooldown ? `结盟(${allianceCooldown.remainingDays}天)` : '请求结盟'}
+                                            </button>
+                                        );
+                                    })()}
                                 </div>
 
                                 <div className="mt-1 text-[10px] text-gray-400 flex items-center justify-between font-epic">

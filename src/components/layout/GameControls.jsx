@@ -171,8 +171,30 @@ export const GameControls = ({
                     <span className="hidden sm:inline">{isPaused ? '继续' : '暂停'}</span>
                 </button>
 
-                {/* 速度选择按钮 */}
+                {/* 速度选择按钮 - 窄屏单按钮循环，宽屏多按钮 */}
                 <div className="flex items-center h-full">
+                    {/* 窄屏幕：单个循环切换按钮 */}
+                    <button
+                        className={cn(
+                            'sm:hidden h-full px-2 text-[9px] font-bold transition-all flex items-center justify-center touch-feedback',
+                            isPaused
+                                ? 'text-ancient-stone/40 cursor-not-allowed'
+                                : 'bg-gradient-to-b from-ancient-gold/25 to-ancient-bronze/15 text-ancient-gold hover:bg-ancient-gold/10'
+                        )}
+                        disabled={isPaused}
+                        onClick={() => {
+                            playSound(SOUND_TYPES.CLICK);
+                            // 循环切换速度：1 -> 2 -> 5 -> 1
+                            const currentIndex = GAME_SPEEDS.indexOf(gameSpeed);
+                            const nextIndex = (currentIndex + 1) % GAME_SPEEDS.length;
+                            onSpeedChange(GAME_SPEEDS[nextIndex]);
+                            if (isPaused) onPauseToggle();
+                        }}
+                        title={isPaused ? '请先继续游戏' : `当前${gameSpeed}倍速，点击切换`}
+                    >
+                        {gameSpeed}x
+                    </button>
+                    {/* 宽屏幕：多个速度按钮 */}
                     {GAME_SPEEDS.map((speed, idx) => (
                         <button
                             key={speed}
@@ -183,7 +205,7 @@ export const GameControls = ({
                             }}
                             disabled={isPaused}
                             className={cn(
-                                'h-full px-1.5 sm:px-2 text-[9px] sm:text-[10px] font-bold transition-all flex items-center justify-center touch-feedback',
+                                'hidden sm:flex h-full px-2 text-[10px] font-bold transition-all items-center justify-center touch-feedback',
                                 idx > 0 && 'border-l border-ancient-gold/10',
                                 isPaused
                                     ? 'text-ancient-stone/40 cursor-not-allowed'

@@ -1215,6 +1215,33 @@ export const useGameActions = (gameState, addLog) => {
         if (!targetNation) return;
         const clampRelation = (value) => Math.max(0, Math.min(100, value));
 
+        // 外交动作冷却时间配置（天数）
+        const DIPLOMATIC_COOLDOWNS = {
+            gift: 30,           // 送礼：30天冷却
+            demand: 60,         // 索要：60天冷却
+            provoke: 90,        // 挑拨：90天冷却
+            propose_alliance: 60, // 请求结盟：60天冷却
+            break_alliance: 0,  // 解除同盟：无冷却（但有严重后果）
+        };
+
+        // 检查外交动作冷却时间
+        const cooldownDays = DIPLOMATIC_COOLDOWNS[action];
+        if (cooldownDays && cooldownDays > 0) {
+            const lastActionDay = targetNation.lastDiplomaticActionDay?.[action] || 0;
+            const daysSinceLastAction = daysElapsed - lastActionDay;
+            if (lastActionDay > 0 && daysSinceLastAction < cooldownDays) {
+                const remainingDays = cooldownDays - daysSinceLastAction;
+                const actionNames = {
+                    gift: '送礼',
+                    demand: '索要',
+                    provoke: '挑拨',
+                    propose_alliance: '请求结盟',
+                };
+                addLog(`⏳ 对 ${targetNation.name} 的${actionNames[action] || action}行动尚在冷却中，还需 ${remainingDays} 天。`);
+                return;
+            }
+        }
+
         if (targetNation.isAtWar && (action === 'gift' || action === 'trade' || action === 'import' || action === 'demand')) {
             addLog(`${targetNation.name} 与你正处于战争状态，无法进行此外交行动。`);
             return;
@@ -1232,7 +1259,15 @@ export const useGameActions = (gameState, addLog) => {
                 setResources(prev => ({ ...prev, silver: prev.silver - giftCost }));
                 setNations(prev => prev.map(n =>
                     n.id === nationId
-                        ? { ...n, relation: clampRelation((n.relation || 0) + 10), wealth: (n.wealth || 0) + giftCost }
+                        ? {
+                            ...n,
+                            relation: clampRelation((n.relation || 0) + 10),
+                            wealth: (n.wealth || 0) + giftCost,
+                            lastDiplomaticActionDay: {
+                                ...(n.lastDiplomaticActionDay || {}),
+                                gift: daysElapsed,
+                            },
+                        }
                         : n
                 ));
                 addLog(`你向 ${targetNation.name} 赠送了价值 ${giftCost} 银币的礼物，关系提升了。`);
@@ -1373,6 +1408,10 @@ export const useGameActions = (gameState, addLog) => {
                                 ...n,
                                 wealth: Math.max(0, (n.wealth || 0) - tribute),
                                 relation: clampRelation((n.relation || 0) - 30),
+                                lastDiplomaticActionDay: {
+                                    ...(n.lastDiplomaticActionDay || {}),
+                                    demand: daysElapsed,
+                                },
                             }
                             : n
                     ));
@@ -1387,6 +1426,10 @@ export const useGameActions = (gameState, addLog) => {
                                 isAtWar: escalate ? true : n.isAtWar,
                                 warStartDay: escalate ? daysElapsed : n.warStartDay,
                                 warDuration: escalate ? 0 : n.warDuration,
+                                lastDiplomaticActionDay: {
+                                    ...(n.lastDiplomaticActionDay || {}),
+                                    demand: daysElapsed,
+                                },
                             }
                             : n
                     ));
@@ -1442,7 +1485,14 @@ export const useGameActions = (gameState, addLog) => {
                         if (n.id === nationId) {
                             const newForeignRelations = { ...(n.foreignRelations || {}) };
                             newForeignRelations[otherNation.id] = Math.max(0, (newForeignRelations[otherNation.id] || 50) - relationDamage);
-                            return { ...n, foreignRelations: newForeignRelations };
+                            return {
+                                ...n,
+                                foreignRelations: newForeignRelations,
+                                lastDiplomaticActionDay: {
+                                    ...(n.lastDiplomaticActionDay || {}),
+                                    provoke: daysElapsed,
+                                },
+                            };
                         }
                         if (n.id === otherNation.id) {
                             const newForeignRelations = { ...(n.foreignRelations || {}) };
@@ -1457,7 +1507,14 @@ export const useGameActions = (gameState, addLog) => {
                     // 失败：被发现，与目标国家关系下降
                     setNations(prev => prev.map(n =>
                         n.id === nationId
-                            ? { ...n, relation: clampRelation((n.relation || 0) - 15) }
+                            ? {
+                                ...n,
+                                relation: clampRelation((n.relation || 0) - 15),
+                                lastDiplomaticActionDay: {
+                                    ...(n.lastDiplomaticActionDay || {}),
+                                    provoke: daysElapsed,
+                                },
+                            }
                             : n
                     ));
                     addLog(`🕵️ 你的离间行动被 ${targetNation.name} 发现了，关系恶化！`);
@@ -1617,7 +1674,15 @@ export const useGameActions = (gameState, addLog) => {
                     // 结盟成功
                     setNations(prev => prev.map(n =>
                         n.id === nationId
-                            ? { ...n, alliedWithPlayer: true, relation: Math.min(100, (n.relation || 0) + 15) }
+                            ? {
+                                ...n,
+                                alliedWithPlayer: true,
+                                relation: Math.min(100, (n.relation || 0) + 15),
+                                lastDiplomaticActionDay: {
+                                    ...(n.lastDiplomaticActionDay || {}),
+                                    propose_alliance: daysElapsed,
+                                },
+                            }
                             : n
                     ));
                     const resultEvent = createAllianceProposalResultEvent(targetNation, true, () => { });
@@ -1627,7 +1692,14 @@ export const useGameActions = (gameState, addLog) => {
                     // 结盟被拒绝
                     setNations(prev => prev.map(n =>
                         n.id === nationId
-                            ? { ...n, relation: Math.max(0, (n.relation || 0) - 5) }
+                            ? {
+                                ...n,
+                                relation: Math.max(0, (n.relation || 0) - 5),
+                                lastDiplomaticActionDay: {
+                                    ...(n.lastDiplomaticActionDay || {}),
+                                    propose_alliance: daysElapsed,
+                                },
+                            }
                             : n
                     ));
                     const resultEvent = createAllianceProposalResultEvent(targetNation, false, () => { });

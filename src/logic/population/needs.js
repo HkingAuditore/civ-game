@@ -29,7 +29,7 @@ export const processNeedsConsumption = ({
     classIncome = {}, // 新增：收入数据
     tick,
     logs,
-    producedResources = null  // 已生产资源集合（用于门控需求）
+    potentialResources = null  // 已解锁建筑可产出资源集合（用于门控需求）
 }) => {
     const res = { ...resources };
     const updatedWealth = { ...wealth };
@@ -117,8 +117,8 @@ export const processNeedsConsumption = ({
             // Skip if resource not unlocked
             if (!isResourceUnlocked(resKey, epoch, techsUnlocked)) return;
 
-            // 检查是否有生产该资源的建筑（无建筑则无需求）
-            if (producedResources && !producedResources.has(resKey)) return;
+            // 检查是否有已解锁建筑能产出该资源（无已解锁建筑则无需求）
+            if (potentialResources && !potentialResources.has(resKey)) return;
 
             const perCapita = base * needsRequirementMultiplier;
             const requirement = perCapita * count;
@@ -184,7 +184,9 @@ export const processNeedsConsumption = ({
                     } else if (!canAfford && inStock) {
                         reason = 'unaffordable';
                     }
-                    shortages.push({ resource: resKey, reason });
+                    // 标记是否为基础需求（在阶层的needs配置中定义的）
+                    const isBasic = baseNeeds.hasOwnProperty(resKey);
+                    shortages.push({ resource: resKey, reason, isBasic });
                 }
             } else {
                 // Non-tradable resource - free consumption
@@ -199,7 +201,8 @@ export const processNeedsConsumption = ({
                 tracked += 1;
 
                 if (ratio < 0.99) {
-                    shortages.push({ resource: resKey, reason: 'outOfStock' });
+                    const isBasic = baseNeeds.hasOwnProperty(resKey);
+                    shortages.push({ resource: resKey, reason: 'outOfStock', isBasic });
                 }
             }
         });
@@ -276,8 +279,11 @@ export const calculateLivingStandards = ({
         essentialResources.forEach(resKey => {
             if (baseNeeds[resKey] && isResourceUnlocked(resKey, epoch, techsUnlocked)) {
                 const amount = baseNeeds[resKey] * count;
-                const price = getPrice(resKey);
-                essentialCost += amount * price;
+                const marketPrice = getPrice(resKey);
+                const basePrice = getBasePrice(resKey);
+                // 使用基础价格和市场价格的最大值，防止价格过低导致incomeRatio虚高
+                const effectivePrice = Math.max(marketPrice, basePrice);
+                essentialCost += amount * effectivePrice;
             }
         });
 
@@ -342,6 +348,7 @@ export const calculateLivingStandards = ({
             previousScore,
             isNewStratum,
             maxConsumptionMultiplier,
+            wealthElasticity,
         });
 
         // Update streak
