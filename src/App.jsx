@@ -1,7 +1,7 @@
 // 文明崛起 - 主应用文件
 // 使用拆分后的钩子和组件，保持代码简洁
 
-import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useMemo, useCallback, useDeferredValue } from 'react';
 import { GAME_SPEEDS, EPOCHS, RESOURCES, STRATA, calculateArmyFoodNeed, calculateTotalArmyExpense, BUILDINGS, EVENTS, checkAndCreateCoalitionDemandEvent } from './config';
 import { getCalendarInfo } from './utils/calendar';
 import { useGameState, useGameLoop, useGameActions, useSound, useEpicTheme, useViewportHeight, useDevicePerformance, useAchievements } from './hooks';
@@ -666,6 +666,22 @@ function GameApp({ gameState }) {
     const autoSaveAvailable = gameState.hasAutoSave();
     useAchievements(gameState, { netSilverPerDay, tradeTax, taxes });
 
+    const deferredResources = useDeferredValue(gameState.resources);
+    const deferredMarket = useDeferredValue(gameState.market);
+    const deferredBuildings = useDeferredValue(gameState.buildings);
+    const deferredBuildingUpgrades = useDeferredValue(gameState.buildingUpgrades);
+    const deferredJobFill = useDeferredValue(gameState.jobFill);
+    const deferredPopStructure = useDeferredValue(gameState.popStructure);
+    const deferredLogs = useDeferredValue(gameState.logs);
+    const deferredClassApproval = useDeferredValue(gameState.classApproval);
+    const deferredClassInfluence = useDeferredValue(gameState.classInfluence);
+    const deferredClassWealth = useDeferredValue(gameState.classWealth);
+    const deferredClassIncomeWithSubsidy = useDeferredValue(classIncomeWithSubsidy);
+    const deferredClassExpense = useDeferredValue(gameState.classExpense);
+    const deferredClassShortages = useDeferredValue(gameState.classShortages);
+    const deferredClassLivingStandard = useDeferredValue(gameState.classLivingStandard);
+    const deferredRebellionStates = useDeferredValue(gameState.rebellionStates);
+
     const handleManualSave = () => {
         // 打开保存弹窗
         setSaveSlotModalMode('save');
@@ -875,9 +891,9 @@ function GameApp({ gameState }) {
                             {/* 国内市场面板 - 紧凑设计 */}
                             <EpicCard variant="ancient" className="p-2 animate-fade-in-up">
                                 <ResourcePanel
-                                    resources={gameState.resources}
+                                    resources={deferredResources}
                                     rates={gameState.rates}
-                                    market={gameState.market}
+                                    market={deferredMarket}
                                     epoch={gameState.epoch}
                                     onDetailClick={(key) => gameState.setResourceDetailView(key)}
                                 />
@@ -885,20 +901,20 @@ function GameApp({ gameState }) {
 
                             {/* 社会阶层面板 */}
                             <StrataPanel
-                                popStructure={gameState.popStructure}
-                                classApproval={gameState.classApproval}
-                                classInfluence={gameState.classInfluence}
+                                popStructure={deferredPopStructure}
+                                classApproval={deferredClassApproval}
+                                classInfluence={deferredClassInfluence}
                                 stability={gameState.stability}
                                 population={gameState.population}
                                 activeBuffs={gameState.activeBuffs}
                                 activeDebuffs={gameState.activeDebuffs}
-                                classWealth={gameState.classWealth}
+                                classWealth={deferredClassWealth}
                                 classWealthDelta={gameState.classWealthDelta}
-                                classShortages={gameState.classShortages}
-                                classIncome={classIncomeWithSubsidy}
-                                classExpense={gameState.classExpense}
-                                classLivingStandard={gameState.classLivingStandard}
-                                rebellionStates={gameState.rebellionStates}
+                                classShortages={deferredClassShortages}
+                                classIncome={deferredClassIncomeWithSubsidy}
+                                classExpense={deferredClassExpense}
+                                classLivingStandard={deferredClassLivingStandard}
+                                rebellionStates={deferredRebellionStates}
                                 dayScale={1}
                                 onDetailClick={handleStratumDetailClick}
                             />
@@ -969,16 +985,16 @@ function GameApp({ gameState }) {
                                         {/* 建设标签页 */}
                                         {gameState.activeTab === 'build' && (
                                             <BuildTab
-                                                buildings={gameState.buildings}
-                                                resources={gameState.resources}
+                                                buildings={deferredBuildings}
+                                                resources={deferredResources}
                                                 epoch={gameState.epoch}
                                                 techsUnlocked={gameState.techsUnlocked}
-                                                popStructure={gameState.popStructure}
-                                                jobFill={gameState.jobFill}
-                                                buildingUpgrades={gameState.buildingUpgrades}
+                                                popStructure={deferredPopStructure}
+                                                jobFill={deferredJobFill}
+                                                buildingUpgrades={deferredBuildingUpgrades}
                                                 onBuy={actions.buyBuilding}
                                                 onSell={actions.sellBuilding}
-                                                market={gameState.market}
+                                                market={deferredMarket}
                                                 onShowDetails={handleShowBuildingDetails} // 补上缺失的 onShowDetails 属性
                                             />
                                         )}
@@ -1085,29 +1101,29 @@ function GameApp({ gameState }) {
                                         {gameState.activeTab === 'overview' && (
                                             <OverviewTab
                                                 // 阶层相关
-                                                popStructure={gameState.popStructure}
-                                                classApproval={gameState.classApproval}
-                                                classInfluence={gameState.classInfluence}
+                                                popStructure={deferredPopStructure}
+                                                classApproval={deferredClassApproval}
+                                                classInfluence={deferredClassInfluence}
                                                 stability={gameState.stability}
                                                 population={gameState.population}
                                                 activeBuffs={gameState.activeBuffs}
                                                 activeDebuffs={gameState.activeDebuffs}
-                                                classWealth={gameState.classWealth}
+                                                classWealth={deferredClassWealth}
                                                 classWealthDelta={gameState.classWealthDelta}
-                                                classShortages={gameState.classShortages}
-                                                classIncome={classIncomeWithSubsidy}
-                                                classExpense={gameState.classExpense}
-                                                classLivingStandard={gameState.classLivingStandard}
-                                                rebellionStates={gameState.rebellionStates}
+                                                classShortages={deferredClassShortages}
+                                                classIncome={deferredClassIncomeWithSubsidy}
+                                                classExpense={deferredClassExpense}
+                                                classLivingStandard={deferredClassLivingStandard}
+                                                rebellionStates={deferredRebellionStates}
                                                 onStratumDetailClick={handleStratumDetailClick}
                                                 // 市场相关
-                                                resources={gameState.resources}
+                                                resources={deferredResources}
                                                 rates={gameState.rates}
-                                                market={gameState.market}
+                                                market={deferredMarket}
                                                 epoch={gameState.epoch}
                                                 onResourceDetailClick={(key) => gameState.setResourceDetailView(key)}
                                                 // 日志
-                                                logs={gameState.logs}
+                                                logs={deferredLogs}
                                             />
                                         )}
                                     </motion.div>
@@ -1134,7 +1150,7 @@ function GameApp({ gameState }) {
                             </div>
 
                             {/* 日志面板 */}
-                            <LogPanel logs={gameState.logs} />
+                            <LogPanel logs={deferredLogs} />
 
                             {/* 游戏提示 - 紧凑折叠设计 */}
                             <details className="glass-ancient rounded-xl border border-blue-500/20 shadow-md group">
@@ -1309,20 +1325,20 @@ function GameApp({ gameState }) {
                 showHeader={true}
             >
                 <StrataPanel
-                    popStructure={gameState.popStructure}
-                    classApproval={gameState.classApproval}
-                    classInfluence={gameState.classInfluence}
+                    popStructure={deferredPopStructure}
+                    classApproval={deferredClassApproval}
+                    classInfluence={deferredClassInfluence}
                     stability={gameState.stability}
                     population={gameState.population}
                     activeBuffs={gameState.activeBuffs}
                     activeDebuffs={gameState.activeDebuffs}
-                    classWealth={gameState.classWealth}
+                    classWealth={deferredClassWealth}
                     classWealthDelta={gameState.classWealthDelta}
-                    classShortages={gameState.classShortages}
-                    classIncome={classIncomeWithSubsidy}
-                    classExpense={gameState.classExpense}
-                    classLivingStandard={gameState.classLivingStandard}
-                    rebellionStates={gameState.rebellionStates}
+                    classShortages={deferredClassShortages}
+                    classIncome={deferredClassIncomeWithSubsidy}
+                    classExpense={deferredClassExpense}
+                    classLivingStandard={deferredClassLivingStandard}
+                    rebellionStates={deferredRebellionStates}
                     dayScale={1}
                     onDetailClick={handleStratumDetailClick}
                     hideTitle={true}
@@ -1337,9 +1353,9 @@ function GameApp({ gameState }) {
                 showHeader={true}
             >
                 <ResourcePanel
-                    resources={gameState.resources}
+                    resources={deferredResources}
                     rates={gameState.rates}
-                    market={gameState.market}
+                    market={deferredMarket}
                     epoch={gameState.epoch}
                     title="资源总览"
                     showDetailedMobile={true}

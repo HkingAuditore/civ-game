@@ -114,7 +114,14 @@ export const TIER_PROMOTION_WEALTH_RATIO = {
     0: 0,     // 进入 Tier 0 无财富门槛
     1: 0,     // 进入 Tier 1 无财富门槛
     2: 0.5,   // 进入 Tier 2 需要目标阶层 startingWealth 的 50%
-    3: 0.5    // 进入 Tier 3 需要目标阶层 startingWealth 的 80%
+    3: 0.4    // 进入 Tier 3 需要目标阶层 startingWealth 的 40%
+};
+
+// Role-specific promotion wealth ratio overrides
+// 仅对特定阶层放宽晋升门槛（地主/资本家）
+export const ROLE_PROMOTION_WEALTH_RATIO_OVERRIDE = {
+    landowner: 0.35,
+    capitalist: 0.35
 };
 
 // Wealth threshold for active tier seeking (multiple of current startingWealth)

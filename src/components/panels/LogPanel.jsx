@@ -1,7 +1,7 @@
 // 日志面板组件
 // 显示游戏事件日志
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Icon } from '../common/UIComponents';
 import { RESOURCES } from '../../config';
 
@@ -121,8 +121,18 @@ const transformLog = (log) => {
  * @param {boolean} hideContainer - 是否隐藏外层容器和标题
  */
 export const LogPanel = ({ logs, hideContainer = false }) => {
-    // Transform technical logs to human-readable format
-    const displayLogs = logs.map(transformLog);
+    const MAX_DISPLAY_LOGS = 200;
+    const { displayLogs, totalCount } = useMemo(() => {
+        const safeLogs = Array.isArray(logs) ? logs : [];
+        const total = safeLogs.length;
+        const sliced = total > MAX_DISPLAY_LOGS
+            ? safeLogs.slice(total - MAX_DISPLAY_LOGS)
+            : safeLogs;
+        return {
+            displayLogs: sliced.map(transformLog),
+            totalCount: total
+        };
+    }, [logs]);
 
     // 内容部分 - 如果hideContainer为true，不添加滚动限制（由外部容器控制）
     const content = (
@@ -171,7 +181,7 @@ export const LogPanel = ({ logs, hideContainer = false }) => {
                         事件日志
                     </h3>
                     <span className="text-[11px] text-ancient-stone opacity-80">
-                        共 {displayLogs.length} 条
+                        共 {totalCount} 条
                     </span>
                 </div>
 

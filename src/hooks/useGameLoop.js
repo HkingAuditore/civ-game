@@ -765,7 +765,52 @@ export const useGameLoop = (gameState, addLog, actions) => {
     const workerRef = useRef(null);
     const workerReadyRef = useRef(false);
     const pendingSimulationRef = useRef(null); // Stores callback for pending worker result
+    const pendingLatestRef = useRef(null); // Stores latest queued simulation when worker is busy
     const [useWorker, setUseWorker] = useState(true); // Whether to attempt using worker
+
+    const startWorkerSimulation = useCallback((simulationParams, resolve, reject) => {
+        pendingSimulationRef.current = { resolve, reject };
+
+        // Set timeout for worker response
+        const timeout = setTimeout(() => {
+            if (pendingSimulationRef.current) {
+                console.warn('[GameLoop] Worker timeout, falling back to main thread');
+                pendingSimulationRef.current = null;
+                // Fallback to synchronous execution
+                try {
+                    const result = simulateTick(simulationParams);
+                    resolve(result);
+                } catch (err) {
+                    reject(err);
+                }
+            }
+        }, 2000); // 2 second timeout
+
+        try {
+            workerRef.current.postMessage({
+                type: 'SIMULATE',
+                payload: simulationParams
+            });
+
+            // Replace resolve to clear timeout on success
+            const originalResolve = pendingSimulationRef.current.resolve;
+            pendingSimulationRef.current.resolve = (result) => {
+                clearTimeout(timeout);
+                originalResolve(result);
+            };
+        } catch (postError) {
+            // PostMessage failed (non-cloneable data), fallback
+            clearTimeout(timeout);
+            pendingSimulationRef.current = null;
+            console.warn('[GameLoop] postMessage failed:', postError);
+            try {
+                const result = simulateTick(simulationParams);
+                resolve(result);
+            } catch (err) {
+                reject(err);
+            }
+        }
+    }, []);
 
     // Initialize Web Worker
     useEffect(() => {
@@ -787,11 +832,20 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         pendingSimulationRef.current.resolve(payload);
                         pendingSimulationRef.current = null;
                     }
+                    if (pendingLatestRef.current && workerRef.current && workerReadyRef.current) {
+                        const { params, resolve, reject } = pendingLatestRef.current;
+                        pendingLatestRef.current = null;
+                        startWorkerSimulation(params, resolve, reject);
+                    }
                 } else if (type === 'ERROR') {
                     console.error('[GameLoop] Worker error:', error);
                     if (pendingSimulationRef.current) {
                         pendingSimulationRef.current.reject(new Error(error));
                         pendingSimulationRef.current = null;
+                    }
+                    if (pendingLatestRef.current) {
+                        pendingLatestRef.current.reject(new Error(error));
+                        pendingLatestRef.current = null;
                     }
                 }
             };
@@ -803,6 +857,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 if (pendingSimulationRef.current) {
                     pendingSimulationRef.current.reject(new Error('Worker crashed'));
                     pendingSimulationRef.current = null;
+                }
+                if (pendingLatestRef.current) {
+                    pendingLatestRef.current.reject(new Error('Worker crashed'));
+                    pendingLatestRef.current = null;
                 }
             };
 
@@ -824,55 +882,29 @@ export const useGameLoop = (gameState, addLog, actions) => {
     // Helper to run simulation (Worker or main thread)
     const runSimulation = useCallback((simulationParams) => {
         // Check if Worker is available and ready
-        if (useWorker && workerRef.current && workerReadyRef.current && !pendingSimulationRef.current) {
-            return new Promise((resolve, reject) => {
-                pendingSimulationRef.current = { resolve, reject };
-
-                // Set timeout for worker response
-                const timeout = setTimeout(() => {
-                    if (pendingSimulationRef.current) {
-                        console.warn('[GameLoop] Worker timeout, falling back to main thread');
-                        pendingSimulationRef.current = null;
-                        // Fallback to synchronous execution
-                        try {
-                            const result = simulateTick(simulationParams);
-                            resolve(result);
-                        } catch (err) {
-                            reject(err);
-                        }
+        if (useWorker && workerRef.current && workerReadyRef.current) {
+            if (pendingSimulationRef.current) {
+                // Worker busy: keep only the latest frame
+                return new Promise((resolve, reject) => {
+                    if (pendingLatestRef.current) {
+                        pendingLatestRef.current.resolve({ __skipped: true });
                     }
-                }, 2000); // 2 second timeout
-
-                try {
-                    workerRef.current.postMessage({
-                        type: 'SIMULATE',
-                        payload: simulationParams
-                    });
-
-                    // Replace resolve to clear timeout on success
-                    const originalResolve = pendingSimulationRef.current.resolve;
-                    pendingSimulationRef.current.resolve = (result) => {
-                        clearTimeout(timeout);
-                        originalResolve(result);
+                    pendingLatestRef.current = {
+                        params: simulationParams,
+                        resolve,
+                        reject
                     };
-                } catch (postError) {
-                    // PostMessage failed (non-cloneable data), fallback
-                    clearTimeout(timeout);
-                    pendingSimulationRef.current = null;
-                    console.warn('[GameLoop] postMessage failed:', postError);
-                    try {
-                        const result = simulateTick(simulationParams);
-                        resolve(result);
-                    } catch (err) {
-                        reject(err);
-                    }
-                }
+                });
+            }
+
+            return new Promise((resolve, reject) => {
+                startWorkerSimulation(simulationParams, resolve, reject);
             });
         }
 
         // Fallback: synchronous execution on main thread
         return Promise.resolve(simulateTick(simulationParams));
-    }, [useWorker]);
+    }, [useWorker, startWorkerSimulation]);
 
     useEffect(() => {
         saveGameRef.current = gameState.saveGame;
@@ -1218,8 +1250,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
             // Phase 2: Use async Worker execution for better performance on low-end devices
             // The runSimulation function handles Worker availability check and fallback
             runSimulation(simulationParams).then(result => {
-                if (!result) {
-                    console.error('[GameLoop] Simulation returned null result');
+                if (!result || result.__skipped) {
+                    if (!result) {
+                        console.error('[GameLoop] Simulation returned null result');
+                    }
                     return;
                 }
 

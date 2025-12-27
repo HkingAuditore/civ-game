@@ -1,7 +1,7 @@
 // 建设标签页组件
 // 显示可建造的建筑列表
 
-import React, { useState, useEffect, useRef, memo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '../common/UIComponents';
 import { BUILDINGS, RESOURCES, STRATA } from '../../config';
@@ -303,6 +303,8 @@ const CompactBuildingCard = ({
     );
 };
 
+const MemoCompactBuildingCard = memo(CompactBuildingCard);
+
 
 /**
  * 建设标签页组件
@@ -330,7 +332,10 @@ const BuildTabComponent = ({
     const [hoveredBuilding, setHoveredBuilding] = useState({ building: null, element: null });
     // More reliable hover detection: requires both hover capability AND fine pointer (mouse/trackpad)
     // This prevents tooltips from showing on touch devices that falsely report hover support
-    const canHover = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+    const canHover = useMemo(() => {
+        if (typeof window === 'undefined' || !window.matchMedia) return false;
+        return window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+    }, []);
 
     const handleMouseEnter = (e, building, cost, resources) => {
         if (canHover) setHoveredBuilding({ building, element: e.currentTarget, cost, resources });
@@ -408,8 +413,8 @@ const BuildTabComponent = ({
     /**
      * 检查建筑是否可用
      * @param {Object} building - 建筑对象
-              * @returns {boolean}
-              */
+     * @returns {boolean}
+     */
     const isBuildingAvailable = (building) => {
         // 检查时代要求
         if (building.epoch > epoch) return false;
@@ -422,8 +427,8 @@ const BuildTabComponent = ({
     /**
      * 计算建筑成本
      * @param {Object} building - 建筑对象
-              * @returns {Object} 成本对象
-              */
+     * @returns {Object} 成本对象
+     */
     const calculateCost = (building) => {
         const count = buildings[building.id] || 0;
         const cost = {};
@@ -432,6 +437,168 @@ const BuildTabComponent = ({
         }
         return cost;
     };
+
+    const buildLevelCounts = (count, upgradeLevels) => {
+        let upgradedCount = 0;
+        Object.entries(upgradeLevels).forEach(([lvlStr, lvlCount]) => {
+            const lvl = parseInt(lvlStr);
+            if (Number.isFinite(lvl) && lvl > 0 && lvlCount > 0) {
+                upgradedCount += lvlCount;
+            }
+        });
+
+        const levelCounts = { 0: Math.max(0, count - upgradedCount) };
+        Object.entries(upgradeLevels).forEach(([lvlStr, lvlCount]) => {
+            const lvl = parseInt(lvlStr);
+            if (Number.isFinite(lvl) && lvl > 0 && lvlCount > 0) {
+                levelCounts[lvl] = lvlCount;
+            }
+        });
+
+        return levelCounts;
+    };
+
+    const buildingStatsById = useMemo(() => {
+        const stats = {};
+
+        BUILDINGS.forEach((building) => {
+            const count = buildings[building.id] || 0;
+            const upgradeLevels = buildingUpgrades[building.id] || {};
+            const cost = calculateCost(building);
+
+            let averageBuilding = building;
+            let levelCounts = null;
+            let hasAnyUpgrade = false;
+
+            if (count > 0) {
+                levelCounts = buildLevelCounts(count, upgradeLevels);
+                hasAnyUpgrade = Object.keys(levelCounts).some((lvlStr) => parseInt(lvlStr) > 0);
+            }
+
+            if (count > 0 && hasAnyUpgrade && levelCounts) {
+                const effectiveOps = { input: {}, output: {}, jobs: {} };
+                for (const [lvlStr, lvlCount] of Object.entries(levelCounts)) {
+                    if (lvlCount <= 0) continue;
+                    const lvl = parseInt(lvlStr);
+                    const config = getBuildingEffectiveConfig(building, lvl);
+                    if (config.input) {
+                        for (const [k, v] of Object.entries(config.input)) {
+                            effectiveOps.input[k] = (effectiveOps.input[k] || 0) + v * lvlCount;
+                        }
+                    }
+                    if (config.output) {
+                        for (const [k, v] of Object.entries(config.output)) {
+                            effectiveOps.output[k] = (effectiveOps.output[k] || 0) + v * lvlCount;
+                        }
+                    }
+                    if (config.jobs) {
+                        for (const [k, v] of Object.entries(config.jobs)) {
+                            effectiveOps.jobs[k] = (effectiveOps.jobs[k] || 0) + v * lvlCount;
+                        }
+                    }
+                }
+
+                const avg = { ...building, input: {}, output: {}, jobs: {} };
+                for (const [k, v] of Object.entries(effectiveOps.input)) avg.input[k] = v / count;
+                for (const [k, v] of Object.entries(effectiveOps.output)) avg.output[k] = v / count;
+                for (const [k, v] of Object.entries(effectiveOps.jobs)) avg.jobs[k] = v / count;
+                averageBuilding = avg;
+            }
+
+            const maxLevel = BUILDING_UPGRADES[building.id]?.length || 0;
+            const upgradeOptions = [];
+            if (count > 0 && maxLevel > 0 && levelCounts) {
+                for (const [lvlStr, lvlCount] of Object.entries(levelCounts)) {
+                    if (lvlCount <= 0) continue;
+                    const currentLevel = parseInt(lvlStr);
+                    if (currentLevel >= maxLevel) continue;
+                    const targetLevel = currentLevel + 1;
+
+                    let existingCountAtTarget = 0;
+                    Object.entries(levelCounts).forEach(([l, c]) => {
+                        if (parseInt(l) >= targetLevel && c > 0) {
+                            existingCountAtTarget += c;
+                        }
+                    });
+
+                    const upgradeCost = getUpgradeCost(building.id, targetLevel, existingCountAtTarget);
+                    if (upgradeCost) {
+                        upgradeOptions.push(upgradeCost);
+                    }
+                }
+            }
+
+            stats[building.id] = {
+                count,
+                averageBuilding,
+                cost,
+                upgradeOptions,
+            };
+        });
+
+        return stats;
+    }, [buildings, buildingUpgrades]);
+
+    const availableBuildingsByCategory = useMemo(() => {
+        const grouped = {};
+        BUILDINGS.forEach((building) => {
+            if (!isBuildingAvailable(building)) return;
+            const key = building.cat || 'misc';
+            if (!grouped[key]) grouped[key] = [];
+            grouped[key].push(building);
+        });
+        return grouped;
+    }, [epoch, techsUnlocked]);
+
+    const categoryWorkersByKey = useMemo(() => {
+        const workers = {};
+        Object.entries(availableBuildingsByCategory).forEach(([key, list]) => {
+            workers[key] = list.reduce((sum, building) => {
+                const buildingJobs = jobFill?.[building.id];
+                if (!buildingJobs) return sum;
+                const assigned = Object.values(buildingJobs).reduce((jobSum, count) => jobSum + (count || 0), 0);
+                return sum + assigned;
+            }, 0);
+        });
+        return workers;
+    }, [availableBuildingsByCategory, jobFill]);
+
+    const cardDataById = useMemo(() => {
+        const data = {};
+        BUILDINGS.forEach((building) => {
+            if (!isBuildingAvailable(building)) return;
+
+            const stats = buildingStatsById[building.id] || {};
+            const count = stats.count ?? 0;
+            const averageBuilding = stats.averageBuilding || building;
+            const cost = stats.cost || calculateCost(building);
+            const upgradeOptions = stats.upgradeOptions || [];
+            const canUpgradeAny = upgradeOptions.some((upgradeCost) => {
+                const silverCost = upgradeCost.silver || 0;
+                if ((resources.silver || 0) < silverCost) return false;
+                return Object.entries(upgradeCost).every(([res, amount]) =>
+                    res === 'silver' ? true : (resources[res] || 0) >= amount
+                );
+            });
+
+            const silverCost = calculateSilverCost(cost, market);
+            const hasMaterials = Object.entries(cost).every(([res, val]) => (resources[res] || 0) >= val);
+            const hasSilver = (resources.silver || 0) >= silverCost;
+            const affordable = hasMaterials && hasSilver;
+            const actualIncome = getActualOwnerPerCapitaIncome(averageBuilding, count);
+
+            data[building.id] = {
+                building: averageBuilding,
+                count,
+                cost,
+                canUpgradeAny,
+                silverCost,
+                affordable,
+                actualIncome,
+            };
+        });
+        return data;
+    }, [buildingStatsById, epoch, techsUnlocked, market, jobFill, resources]);
 
     // 按类别分组建筑
     const categories = {
@@ -475,13 +642,8 @@ const BuildTabComponent = ({
             </div>
 
             {categoriesToRender.map(([catKey, catInfo]) => {
-                const categoryBuildings = BUILDINGS.filter(b => b.cat === catKey);
-                const categoryWorkers = categoryBuildings.reduce((sum, building) => {
-                    const buildingJobs = jobFill?.[building.id];
-                    if (!buildingJobs) return sum;
-                    const assigned = Object.values(buildingJobs).reduce((jobSum, count) => jobSum + (count || 0), 0);
-                    return sum + assigned;
-                }, 0);
+                const categoryBuildings = availableBuildingsByCategory[catKey] || [];
+                const categoryWorkers = categoryWorkersByKey[catKey] || 0;
 
                 return (
                     <div key={catKey} className="glass-ancient p-4 rounded-xl border border-ancient-gold/30">
@@ -497,117 +659,21 @@ const BuildTabComponent = ({
 
                         {/* 建筑列表 - 更紧凑布局 */}
                         <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-9 2xl:grid-cols-11 gap-1">
-                            {categoryBuildings.filter(b => isBuildingAvailable(b)).map(building => {
-                                const count = buildings[building.id] || 0;
-                                const upgradeLevels = buildingUpgrades[building.id] || {};
-
-                                // 计算平均建筑属性 (用于显示)
-                                // buildingUpgrades[building.id] 格式为 { 等级: 数量 }
-                                let averageBuilding = building;
-                                if (count > 0) {
-                                    // 计算已升级的建筑数量
-                                    let upgradedCount = 0;
-                                    let hasUpgrades = false;
-                                    Object.entries(upgradeLevels).forEach(([lvlStr, lvlCount]) => {
-                                        const lvl = parseInt(lvlStr);
-                                        if (Number.isFinite(lvl) && lvl > 0 && lvlCount > 0) {
-                                            upgradedCount += lvlCount;
-                                            hasUpgrades = true;
-                                        }
-                                    });
-
-                                    // 构建完整的等级分布
-                                    const levelCounts = { 0: Math.max(0, count - upgradedCount) };
-                                    Object.entries(upgradeLevels).forEach(([lvlStr, lvlCount]) => {
-                                        const lvl = parseInt(lvlStr);
-                                        if (Number.isFinite(lvl) && lvl > 0 && lvlCount > 0) {
-                                            levelCounts[lvl] = lvlCount;
-                                        }
-                                    });
-
-                                    if (hasUpgrades) {
-                                        const effectiveOps = { input: {}, output: {}, jobs: {} };
-                                        for (const [lvlStr, lvlCount] of Object.entries(levelCounts)) {
-                                            if (lvlCount <= 0) continue;
-                                            const lvl = parseInt(lvlStr);
-                                            const config = getBuildingEffectiveConfig(building, lvl);
-                                            if (config.input) for (const [k, v] of Object.entries(config.input)) effectiveOps.input[k] = (effectiveOps.input[k] || 0) + v * lvlCount;
-                                            if (config.output) for (const [k, v] of Object.entries(config.output)) effectiveOps.output[k] = (effectiveOps.output[k] || 0) + v * lvlCount;
-                                            if (config.jobs) for (const [k, v] of Object.entries(config.jobs)) effectiveOps.jobs[k] = (effectiveOps.jobs[k] || 0) + v * lvlCount;
-                                        }
-
-                                        const avg = { ...building, input: {}, output: {}, jobs: {} };
-                                        for (const [k, v] of Object.entries(effectiveOps.input)) avg.input[k] = v / count;
-                                        for (const [k, v] of Object.entries(effectiveOps.output)) avg.output[k] = v / count;
-                                        for (const [k, v] of Object.entries(effectiveOps.jobs)) avg.jobs[k] = v / count;
-                                        averageBuilding = avg;
-                                    }
-                                }
-
-                                // 检查是否有任何等级未满级且资源足够升级
-                                const maxLevel = BUILDING_UPGRADES[building.id]?.length || 0;
-                                let canUpgradeAny = false;
-                                if (count > 0 && maxLevel > 0) {
-                                    // 构建完整的等级分布
-                                    let upgradedCount = 0;
-                                    Object.entries(upgradeLevels).forEach(([lvlStr, lvlCount]) => {
-                                        const lvl = parseInt(lvlStr);
-                                        if (Number.isFinite(lvl) && lvl > 0 && lvlCount > 0) {
-                                            upgradedCount += lvlCount;
-                                        }
-                                    });
-                                    const levelCounts = { 0: Math.max(0, count - upgradedCount) };
-                                    Object.entries(upgradeLevels).forEach(([lvlStr, lvlCount]) => {
-                                        const lvl = parseInt(lvlStr);
-                                        if (Number.isFinite(lvl) && lvl > 0 && lvlCount > 0) {
-                                            levelCounts[lvl] = lvlCount;
-                                        }
-                                    });
-
-                                    // 检查每个等级是否可以升级
-                                    for (const [lvlStr, lvlCount] of Object.entries(levelCounts)) {
-                                        if (lvlCount <= 0) continue;
-                                        const currentLevel = parseInt(lvlStr);
-                                        if (currentLevel < maxLevel) {
-                                            const targetLevel = currentLevel + 1;
-
-                                            // 计算当前已达到目标等级或更高级别的实例数量（用于成本递增）
-                                            let existingCountAtTarget = 0;
-                                            Object.entries(levelCounts).forEach(([l, c]) => {
-                                                if (parseInt(l) >= targetLevel && c > 0) {
-                                                    existingCountAtTarget += c;
-                                                }
-                                            });
-
-                                            // 获取升级成本
-                                            const upgradeCost = getUpgradeCost(building.id, targetLevel, existingCountAtTarget);
-
-                                            // 检查是否买得起
-                                            if (upgradeCost) {
-                                                const silverCost = upgradeCost.silver || 0;
-                                                const affordable = (resources.silver || 0) >= silverCost &&
-                                                    Object.entries(upgradeCost).every(([res, amount]) =>
-                                                        res === 'silver' ? true : (resources[res] || 0) >= amount
-                                                    );
-
-                                                if (affordable) {
-                                                    canUpgradeAny = true;
-                                                    break;
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-
-                                const cost = calculateCost(building);
-                                const silverCost = calculateSilverCost(cost, market);
-                                const hasMaterials = Object.entries(cost).every(([res, val]) => (resources[res] || 0) >= val);
-                                const hasSilver = (resources.silver || 0) >= silverCost;
-                                const affordable = hasMaterials && hasSilver;
-                                const actualIncome = getActualOwnerPerCapitaIncome(averageBuilding, count);
+                            {categoryBuildings.map(building => {
+                                const cardData = cardDataById[building.id];
+                                if (!cardData) return null;
+                                const {
+                                    building: averageBuilding,
+                                    count,
+                                    cost,
+                                    canUpgradeAny,
+                                    silverCost,
+                                    affordable,
+                                    actualIncome,
+                                } = cardData;
 
                                 return (
-                                    <CompactBuildingCard
+                                    <MemoCompactBuildingCard
                                         key={building.id}
                                         building={averageBuilding}
                                         count={count}

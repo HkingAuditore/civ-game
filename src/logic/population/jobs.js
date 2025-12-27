@@ -11,6 +11,7 @@ import {
     LOW_POP_THRESHOLD,
     STRATUM_TIERS,
     TIER_PROMOTION_WEALTH_RATIO,
+    ROLE_PROMOTION_WEALTH_RATIO_OVERRIDE,
     TIER_SEEK_WEALTH_THRESHOLD,
     TIER_UPGRADE_ATTRACTIVENESS_BONUS,
     // New migration resistance constants
@@ -202,7 +203,10 @@ export const fillVacancies = ({
     // Get the wealth requirement to enter a target role
     const getWealthRequirement = (targetRole) => {
         const targetTier = STRATUM_TIERS[targetRole] ?? 0;
-        const wealthRatio = TIER_PROMOTION_WEALTH_RATIO[targetTier] ?? 0;
+        const roleRatio = ROLE_PROMOTION_WEALTH_RATIO_OVERRIDE[targetRole];
+        const wealthRatio = Number.isFinite(roleRatio)
+            ? roleRatio
+            : (TIER_PROMOTION_WEALTH_RATIO[targetTier] ?? 0);
         const targetStartingWealth = STRATA[targetRole]?.startingWealth ?? 100;
         return targetStartingWealth * wealthRatio;
     };
