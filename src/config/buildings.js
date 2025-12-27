@@ -31,8 +31,8 @@ export const BUILDINGS = [
         // 农田的差异化经济配置：农民工资和价格受生活成本、税收影响较小（基础生产，相对稳定）
         marketConfig: {
             price: {
-                livingCostWeight: 0.15,    // 价格受生活成本影响较小（基础必需品）
-                taxCostWeight: 0.2,        // 价格受税收影响较小
+                livingCostWeight: 0.08,    // 价格受生活成本影响很小（粮食是最基础的必需品）
+                taxCostWeight: 0.15,       // 价格受税收影响较小
             },
             wage: {
                 livingCostWeight: 0.08,    // 工资受生活成本影响较小（农民工资相对固定）
@@ -216,8 +216,20 @@ export const BUILDINGS = [
         owner: 'worker',
         epoch: 0,
         cat: 'industry',
-        visual: { icon: 'Shirt', color: 'bg-indigo-800', text: 'text-indigo-200' }
+        visual: { icon: 'Shirt', color: 'bg-indigo-800', text: 'text-indigo-200' },
+        // 织布坊的差异化经济配置：布料作为基础必需品，价格应该相对稳定
+        marketConfig: {
+            price: {
+                livingCostWeight: 0.12,    // 价格受生活成本影响较小（基础必需品）
+                taxCostWeight: 0.15,       // 价格受税收影响较小
+            },
+            wage: {
+                livingCostWeight: 0.08,    // 工资受生活成本影响较小（工人工资相对固定）
+                taxCostWeight: 0.08,       // 工资受税收影响较小
+            },
+        }
     },
+
     {
         id: 'dye_works',
         name: "染坊",
@@ -326,6 +338,42 @@ export const BUILDINGS = [
     },
 
     {
+        id: 'manor_house',
+        name: "石砌宅邸",
+        desc: "贵族风格的石砌住宅，坚固耐久，彰显领主权威。",
+        baseCost: { brick: 120, plank: 80, iron: 15 },
+        output: { maxPop: 13 },
+        epoch: 3,
+        cat: 'civic',
+        requiresTech: 'manor_architecture',
+        visual: { icon: 'Castle', color: 'bg-blue-800', text: 'text-blue-200' }
+    },
+
+    {
+        id: 'townhouse',
+        name: "联排住宅",
+        desc: "港口城市流行的多层联排建筑，高效利用城市空间。",
+        baseCost: { brick: 180, plank: 120, tools: 25 },
+        output: { maxPop: 14 },
+        epoch: 4,
+        cat: 'civic',
+        requiresTech: 'colonial_architecture',
+        visual: { icon: 'Building', color: 'bg-cyan-800', text: 'text-cyan-200' }
+    },
+
+    {
+        id: 'civic_apartment',
+        name: "阁楼公馆",
+        desc: "启蒙时代流行的多层砖石建筑，优雅的阁楼设计为新兴中产阶级提供舒适居所。",
+        baseCost: { brick: 250, plank: 150, iron: 40, furniture: 20 },
+        output: { maxPop: 15 },
+        epoch: 5,
+        cat: 'civic',
+        requiresTech: 'enlightened_urbanism',
+        visual: { icon: 'Building2', color: 'bg-purple-800', text: 'text-purple-200' }
+    },
+
+    {
         id: 'granary',
         name: "粮仓",
         desc: "加固的干燥粮仓，提升人口承载。",
@@ -366,6 +414,65 @@ export const BUILDINGS = [
         visual: { icon: 'Cross', color: 'bg-purple-900', text: 'text-purple-200' }
     },
 
+
+    // ========== 封建时代新建筑 ==========
+    {
+        id: 'monastery_cellar',
+        name: "修道院酒窖",
+        desc: "修道士传承的酿酒技艺，出产上等美酒，彰显宗教文化。",
+        baseCost: { stone: 120, brick: 60, tools: 15 },
+        input: { food: 1.8, wood: 0.3 },
+        output: { ale: 2.0, culture: 0.25 },
+        jobs: { cleric: 1, worker: 2 },
+        owner: 'cleric',
+        epoch: 3,
+        cat: 'industry',
+        requiresTech: 'monastic_brewing',
+        visual: { icon: 'Wine', color: 'bg-purple-800', text: 'text-purple-200' }
+    },
+
+    {
+        id: 'wool_workshop',
+        name: "纺织工场",
+        desc: "规模化的羊毛加工作坊，封建领地的重要经济支柱。",
+        baseCost: { plank: 100, brick: 50, tools: 15 },
+        input: { food: 0.6, tools: 0.03 },
+        output: { cloth: 3.2, fine_clothes: 0.2 },
+        jobs: { serf: 3, worker: 2 },
+        owner: 'worker',
+        epoch: 3,
+        cat: 'industry',
+        requiresTech: 'wool_trade',
+        visual: { icon: 'Shirt', color: 'bg-indigo-700', text: 'text-indigo-200' },
+        // 纺织工场的差异化经济配置：继承织布坊的稳定价格特性
+        marketConfig: {
+            price: {
+                livingCostWeight: 0.12,
+                taxCostWeight: 0.15,
+            },
+            wage: {
+                livingCostWeight: 0.08,
+                taxCostWeight: 0.08,
+            },
+        }
+    },
+
+
+    {
+        id: 'stone_workshop',
+        name: "采石工场",
+        desc: "使用铁器工具的专业采石场，为城堡和教堂建设提供大量优质石料。",
+        baseCost: { plank: 80, iron: 30, tools: 20 },
+        input: { tools: 0.06 },
+        output: { stone: 3.5 },
+        jobs: { miner: 3, worker: 1 },
+        owner: 'miner',
+        epoch: 3,
+        cat: 'gather',
+        requiresTech: 'masonry_guild',
+        visual: { icon: 'Pickaxe', color: 'bg-stone-700', text: 'text-stone-200' }
+    },
+
     {
         id: 'amphitheater',
         name: "剧场",
@@ -393,6 +500,22 @@ export const BUILDINGS = [
         cat: 'civic',
         requiresTech: 'navigator_schooling',
         visual: { icon: 'Navigation', color: 'bg-cyan-900', text: 'text-cyan-200' }
+    },
+
+    // ========== 探索时代新建筑 ==========
+    {
+        id: 'dye_workshop',
+        name: "印染工坊",
+        desc: "使用新世界染料的专业印染作坊，如珍贵的胭脂虫红。",
+        baseCost: { brick: 100, plank: 80, tools: 20 },
+        input: { food: 0.8, cloth: 0.4, spice: 0.05 },
+        output: { dye: 1.2, fine_clothes: 0.3 },
+        jobs: { artisan: 2, worker: 2 },
+        owner: 'artisan',
+        epoch: 4,
+        cat: 'industry',
+        requiresTech: 'new_world_dyes',
+        visual: { icon: 'Paintbrush', color: 'bg-rose-800', text: 'text-rose-200' }
     },
 
     {

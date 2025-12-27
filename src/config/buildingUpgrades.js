@@ -422,6 +422,63 @@ export const BUILDING_UPGRADES = {
         },
     ],
 
+
+    // ========== 封建时代新建筑升级 ==========
+
+    // monastery_cellar: base output ale: 2.0, culture: 0.25, owner: cleric, base jobs: cleric:1, worker:2
+    monastery_cellar: [
+        {
+            name: "修道院大酒窖",
+            cost: { stone: 80, tools: 20, silver: 400 },
+            input: { food: 2.0, wood: 0.35 },
+            output: { ale: 2.6, culture: 0.33 }, // 1.3x
+            jobs: { cleric: 1, worker: 2 }, // keep same
+        },
+        {
+            name: "酿酒修道院",
+            cost: { brick: 100, furniture: 20, silver: 900 },
+            input: { food: 2.7, wood: 0.5 },
+            output: { ale: 3.6, culture: 0.45, science: 0.08 }, // 1.8x + 神学研究
+            jobs: { cleric: 2, worker: 2 }, // +1 cleric
+        },
+    ],
+
+    // wool_workshop: base output cloth: 3.2, fine_clothes: 0.2, owner: worker, base jobs: serf:3, worker:2
+    wool_workshop: [
+        {
+            name: "大纺织工场",
+            cost: { plank: 80, tools: 20, silver: 380 },
+            input: { food: 0.7, tools: 0.04 },
+            output: { cloth: 4.16, fine_clothes: 0.26 }, // 1.3x
+            jobs: { serf: 3, worker: 2 }, // keep same
+        },
+        {
+            name: "领主纺织工场",
+            cost: { brick: 60, tools: 35, silver: 850 },
+            input: { food: 1.0, tools: 0.06, dye: 0.05 }, // 需要染料
+            output: { cloth: 5.76, fine_clothes: 0.36, culture: 0.05 }, // 1.8x + 织艺文化
+            jobs: { serf: 4, worker: 2 }, // +1 serf
+        },
+    ],
+
+    // stone_workshop: base output stone: 3.5, owner: miner, base jobs: miner:3, worker:1
+    stone_workshop: [
+        {
+            name: "大采石工场",
+            cost: { plank: 60, iron: 25, silver: 350 },
+            input: { tools: 0.08, food: 0.15 },
+            output: { stone: 4.55 }, // 1.3x
+            jobs: { miner: 3, worker: 1 }, // keep same
+        },
+        {
+            name: "皇家采石场",
+            cost: { brick: 80, iron: 40, silver: 800 },
+            input: { tools: 0.12, food: 0.25 },
+            output: { stone: 6.3, brick: 0.15 }, // 1.8x + 砖石加工
+            jobs: { miner: 4, worker: 1 }, // +1 miner
+        },
+    ],
+
     // ========== 探索时代建筑 ==========
 
     // dockyard: base output 0.35 spice, owner: merchant, base jobs: navigator:2, worker:2, merchant:1
@@ -478,7 +535,29 @@ export const BUILDING_UPGRADES = {
         },
     ],
 
+
+    // ========== 探索时代新建筑升级 ==========
+
+    // dye_workshop: base output dye: 1.2, fine_clothes: 0.3, owner: artisan, base jobs: artisan:2, worker:2
+    dye_workshop: [
+        {
+            name: "大印染工坊",
+            cost: { brick: 80, tools: 25, silver: 480 },
+            input: { food: 0.9, cloth: 0.5, spice: 0.06 },
+            output: { dye: 1.56, fine_clothes: 0.39 }, // 1.3x
+            jobs: { artisan: 2, worker: 2 }, // keep same
+        },
+        {
+            name: "皇家印染工坊",
+            cost: { brick: 140, tools: 45, silver: 1050 },
+            input: { food: 1.2, cloth: 0.7, spice: 0.08, iron: 0.02 }, // 需要金属染缸
+            output: { dye: 2.16, fine_clothes: 0.54, culture: 0.08 }, // 1.8x + 织染艺术
+            jobs: { artisan: 3, worker: 2 }, // +1 artisan
+        },
+    ],
+
     // coffee_plantation: base output 0.4 coffee, owner: merchant, base jobs: serf:4, merchant:1
+
     coffee_plantation: [
         {
             name: "大种植园",

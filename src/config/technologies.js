@@ -296,6 +296,38 @@ export const TECHS = [
         epoch: 3,
         effects: { buildings: { hut: 0.06, house: 0.06 } },
     },
+    {
+        id: 'manor_architecture',
+        name: "庄园建筑学",
+        desc: "解锁石砌宅邸，贵族风格的坚固住宅，提供更多人口容量。宅邸效率 +15%，人口上限 +5%。",
+        cost: { science: 4550 },
+        epoch: 3,
+        effects: { buildings: { manor_house: 0.15 }, maxPop: 0.05 },
+    },
+    {
+        id: 'monastic_brewing',
+        name: "修道院酿造",
+        desc: "解锁修道院酒窖，修士传承的高级酿酒工艺。酒窖效率 +15%，教堂文化 +10%。",
+        cost: { science: 4200 },
+        epoch: 3,
+        effects: { buildings: { monastery_cellar: 0.15, church: 0.10 } },
+    },
+    {
+        id: 'wool_trade',
+        name: "羊毛贸易",
+        desc: "解锁纺织工场，封建时代最重要的纺织产业。纺织工场效率 +15%，织布坊效率 +10%。",
+        cost: { science: 3850 },
+        epoch: 3,
+        effects: { buildings: { wool_workshop: 0.15, loom_house: 0.10 } },
+    },
+    {
+        id: 'masonry_guild',
+        name: "石匠行会",
+        desc: "解锁采石工场，行会组织的专业采石作业。采石工场效率 +15%，采石场效率 +10%。",
+        cost: { science: 4025 },
+        epoch: 3,
+        effects: { buildings: { stone_workshop: 0.15, quarry: 0.10 } },
+    },
 
     {
         id: 'ritual_priesthood',
@@ -362,8 +394,25 @@ export const TECHS = [
         epoch: 4,
         effects: { buildings: { trade_port: 0.10 } },
     },
+    {
+        id: 'colonial_architecture',
+        name: "殖民建筑",
+        desc: "解锁联排住宅，港口城市流行的高效多层建筑。联排住宅效率 +15%，人口上限 +5%。",
+        cost: { science: 8400 },
+        epoch: 4,
+        effects: { buildings: { townhouse: 0.15 }, maxPop: 0.05 },
+    },
+    {
+        id: 'new_world_dyes',
+        name: "新世界染料",
+        desc: "解锁印染工坊，使用胭脂虫红等新世界珍贵染料。印染工坊效率 +15%，染坊效率 +10%。",
+        cost: { science: 7875 },
+        epoch: 4,
+        effects: { buildings: { dye_workshop: 0.15, dye_works: 0.10 } },
+    },
 
     // 启蒙时代
+
     {
         id: 'coffee_agronomy',
         name: "咖啡栽培学",
@@ -411,6 +460,14 @@ export const TECHS = [
         cost: { science: 18900 },
         epoch: 5,
         effects: { buildings: { amphitheater: 0.10 } },
+    },
+    {
+        id: 'enlightened_urbanism',
+        name: "启蒙城市主义",
+        desc: "解锁阁楼公馆，兼具优雅与实用的新式住宅区。阁楼公馆效率 +15%，人口上限 +6%。",
+        cost: { science: 19800 },
+        epoch: 5,
+        effects: { buildings: { civic_apartment: 0.15 }, maxPop: 0.06 },
     },
 
     // 工业时代
