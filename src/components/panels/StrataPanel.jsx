@@ -54,6 +54,7 @@ const StrataPanelComponent = ({
     dayScale = 1,
     hideTitle = false,  // 是否隐藏标题
     forceRowLayout = false, // 强制使用行式布局（用于总览视图）
+    bareMode = false,  // 裸模式：嵌入其他面板时去除外层装饰
 }) => {
     const safeDayScale = Math.max(dayScale, 0.0001);
     // 移除viewMode状态，因为我们将根据屏幕尺寸自动切换
@@ -153,18 +154,27 @@ const StrataPanelComponent = ({
         safeDayScale,
         totalInfluence, // 新增依赖
     ]);
+    // 裸模式使用简化容器样式
+    const containerClass = bareMode
+        ? 'flex flex-col relative'
+        : 'glass-epic p-1.5 rounded-xl border border-ancient-gold/20 shadow-epic min-h-[460px] flex flex-col relative overflow-hidden';
+
     return (
-        <div className="glass-epic p-1.5 rounded-xl border border-ancient-gold/20 shadow-epic min-h-[460px] flex flex-col relative overflow-hidden">
-            {/* 背景装饰 */}
-            <div className="absolute inset-0 bg-gradient-to-br from-ancient-ink/50 via-ancient-stone/20 to-ancient-ink/50 opacity-50" />
-            <div className="absolute inset-0 opacity-[0.02]">
-                <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
-                    <pattern id="strata-pattern" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse">
-                        <circle cx="20" cy="20" r="1" fill="currentColor" className="text-ancient-gold" />
-                    </pattern>
-                    <rect width="100%" height="100%" fill="url(#strata-pattern)" />
-                </svg>
-            </div>
+        <div className={containerClass}>
+            {/* 背景装饰 - 裸模式下不显示 */}
+            {!bareMode && (
+                <>
+                    <div className="absolute inset-0 bg-gradient-to-br from-ancient-ink/50 via-ancient-stone/20 to-ancient-ink/50 opacity-50" />
+                    <div className="absolute inset-0 opacity-[0.02]">
+                        <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
+                            <pattern id="strata-pattern" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse">
+                                <circle cx="20" cy="20" r="1" fill="currentColor" className="text-ancient-gold" />
+                            </pattern>
+                            <rect width="100%" height="100%" fill="url(#strata-pattern)" />
+                        </svg>
+                    </div>
+                </>
+            )}
             <div className="relative z-10 flex flex-col h-full">
                 {/* 标题和稳定度 */}
                 {!hideTitle && (
@@ -196,10 +206,10 @@ const StrataPanelComponent = ({
                 )}
 
 
-                {/* 阶层列表 - 使用自定义滚动条样式 */}
+                {/* 阶层列表 - 使用自定义滚动条样式；裸模式下不限制高度 */}
                 <div
                     className="flex-1 overflow-y-auto pr-0.5 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500"
-                    style={{ maxHeight: 'calc(var(--real-viewport-height, 100vh) - 520px)', minHeight: '200px' }}
+                    style={bareMode ? {} : { maxHeight: 'calc(var(--real-viewport-height, 100vh) - 520px)', minHeight: '200px' }}
                 >
                     {/* 移动端和小窗口：网格布局 - 使用好感度作为背景填充 */}
                     <div className={`${forceRowLayout ? 'hidden' : 'md:hidden'} grid grid-cols-2 sm:grid-cols-3 gap-1.5 p-0.5`}>

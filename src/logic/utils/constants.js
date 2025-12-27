@@ -77,8 +77,14 @@ export const MERCHANT_CAPACITY_WEALTH_DIVISOR = 100;
 export const MERCHANT_LOG_VOLUME_RATIO = 0.05;
 export const MERCHANT_LOG_PROFIT_THRESHOLD = 50;
 
-// Peace request cooldown (days, approximately 1 month)
-export const PEACE_REQUEST_COOLDOWN_DAYS = 5;
+// Peace request cooldown per nation (days)
+// Increased to prevent spam from individual nations
+export const PEACE_REQUEST_COOLDOWN_DAYS = 45;
+
+// Global peace request cooldown (days)
+// Prevents multiple nations from requesting peace simultaneously
+// When one nation requests peace, others must wait this duration
+export const GLOBAL_PEACE_REQUEST_COOLDOWN_DAYS =  30;
 
 // Population growth constants
 // Increased to let prosperous empires experience visibly faster birth growth

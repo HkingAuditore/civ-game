@@ -80,6 +80,7 @@ export const OverviewTab = ({
                         onDetailClick={onStratumDetailClick}
                         hideTitle={true}
                         forceRowLayout={false}
+                        bareMode={true}
                     />
                 </div>
             </section>

@@ -2459,6 +2459,15 @@ export const simulateTick = ({
     const playerPopulationBaseline = Math.max(5, population || 5);
     const playerWealthBaseline = Math.max(100, (res.silver ?? resources?.silver ?? 0));
 
+    // Track global peace request cooldown - find the most recent peace request across all nations
+    // This prevents multiple AI nations from spamming peace requests simultaneously
+    let lastGlobalPeaceRequest = -Infinity;
+    (nations || []).forEach(nation => {
+        if (nation.lastPeaceRequestDay && nation.lastPeaceRequestDay > lastGlobalPeaceRequest) {
+            lastGlobalPeaceRequest = nation.lastPeaceRequestDay;
+        }
+    });
+
     let updatedNations = (nations || []).map(nation => {
         const next = { ...nation };
         const visible = visibleEpoch >= (nation.appearEpoch ?? 0) && (nation.expireEpoch == null || visibleEpoch <= nation.expireEpoch);
@@ -2589,7 +2598,11 @@ export const simulateTick = ({
                 raidPopulationLoss += militaryResult.raidPopulationLoss;
             }
             // REFACTORED: Using module function for AI peace request check
-            checkAIPeaceRequest({ nation: next, tick, logs });
+            // Pass global cooldown to prevent multiple nations from requesting peace simultaneously
+            const peaceRequested = checkAIPeaceRequest({ nation: next, tick, lastGlobalPeaceRequest, logs });
+            if (peaceRequested) {
+                lastGlobalPeaceRequest = tick; // Update global cooldown for subsequent nations
+            }
 
             // REFACTORED: Using module function for AI surrender demand check
             // 传入玩家财富，使赔款计算与玩家主动求和时一致

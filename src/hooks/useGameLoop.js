@@ -1612,6 +1612,17 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     if (result.buildingUpgrades) {
                         setBuildingUpgrades(result.buildingUpgrades);
                     }
+                    // 更新事件效果状态（处理衰减和过期）
+                    // 注意：nextEffects 由 processTimedEventEffects 计算得出，需要写回状态
+                    setActiveEventEffects(prev => ({
+                        ...prev,
+                        approval: nextEffects.approval,
+                        stability: nextEffects.stability,
+                        resourceDemand: nextEffects.resourceDemand,
+                        stratumDemand: nextEffects.stratumDemand,
+                        buildingProduction: nextEffects.buildingProduction,
+                        // forcedSubsidy 由单独的逻辑处理，不在此更新
+                    }));
                     // 每次 Tick 推进 1 天（而非 gameSpeed 天）
                     // 加速效果通过增加 Tick 频率实现，而非增加每次推进的天数
                     setDaysElapsed(prev => prev + 1);
@@ -3228,7 +3239,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                         const event = {
                                             id: `mercy_peace_${eventData.nationId}_${Date.now()}`,
                                             type: 'diplomacy',
+                                            name: '🕊️ 无条件和平提议',
                                             title: '🕊️ 无条件和平提议',
+                                            icon: 'HandHeart',
+                                            isDiplomaticEvent: true,
                                             description: `${eventData.nationName} 见你国力衰弱，已无力继续作战，愿意无条件停战。\n\n这是一个难得的喘息机会，接受后双方将签订和平条约。`,
                                             nationId: eventData.nationId,
                                             nationName: eventData.nationName,
@@ -3237,39 +3251,40 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                             options: [
                                                 {
                                                     id: 'accept',
-                                                    label: '🕊️ 接受和平',
+                                                    text: '🕊️ 接受和平',
                                                     description: '结束战争，签订和平条约',
                                                     style: 'success',
+                                                    effects: {},
+                                                    callback: () => {
+                                                        // 接受和平，结束战争
+                                                        setNations(prev => prev.map(n => n.id === eventData.nationId ? {
+                                                            ...n,
+                                                            isAtWar: false,
+                                                            warScore: 0,
+                                                            warDuration: 0,
+                                                            peaceTreatyUntil: current.daysElapsed + 365, // 1年和平条约
+                                                            isMercyPeaceOffering: false,
+                                                            relation: Math.min(100, (n.relation || 50) + 10), // 关系略微改善
+                                                        } : n));
+                                                        addLog(`🕊️ 你接受了 ${eventData.nationName} 的和平提议，战争结束。`);
+                                                    },
                                                 },
                                                 {
                                                     id: 'reject',
-                                                    label: '⚔️ 拒绝',
+                                                    text: '⚔️ 拒绝',
                                                     description: '继续战争（不推荐）',
                                                     style: 'danger',
+                                                    effects: {},
+                                                    callback: () => {
+                                                        // 拒绝和平
+                                                        setNations(prev => prev.map(n => n.id === eventData.nationId ? {
+                                                            ...n,
+                                                            isMercyPeaceOffering: false,
+                                                        } : n));
+                                                        addLog(`⚔️ 你拒绝了 ${eventData.nationName} 的和平提议，战争继续。`);
+                                                    },
                                                 },
                                             ],
-                                            onSelect: (optionId) => {
-                                                if (optionId === 'accept') {
-                                                    // 接受和平，结束战争
-                                                    setNations(prev => prev.map(n => n.id === eventData.nationId ? {
-                                                        ...n,
-                                                        isAtWar: false,
-                                                        warScore: 0,
-                                                        warDuration: 0,
-                                                        peaceTreatyUntil: current.daysElapsed + 365, // 1年和平条约
-                                                        isMercyPeaceOffering: false,
-                                                        relation: Math.min(100, (n.relation || 50) + 10), // 关系略微改善
-                                                    } : n));
-                                                    addLog(`🕊️ 你接受了 ${eventData.nationName} 的和平提议，战争结束。`);
-                                                } else {
-                                                    // 拒绝和平
-                                                    setNations(prev => prev.map(n => n.id === eventData.nationId ? {
-                                                        ...n,
-                                                        isMercyPeaceOffering: false,
-                                                    } : n));
-                                                    addLog(`⚔️ 你拒绝了 ${eventData.nationName} 的和平提议，战争继续。`);
-                                                }
-                                            },
                                         };
                                         currentActions.triggerDiplomaticEvent(event);
                                         debugLog('event', '[EVENT DEBUG] AI Mercy Peace Offer event triggered:', nation.name);

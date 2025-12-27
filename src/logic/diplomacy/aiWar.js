@@ -13,6 +13,7 @@ import {
 import {
     clamp,
     PEACE_REQUEST_COOLDOWN_DAYS,
+    GLOBAL_PEACE_REQUEST_COOLDOWN_DAYS,
     MAX_CONCURRENT_WARS,
     GLOBAL_WAR_COOLDOWN
 } from '../utils';
@@ -540,20 +541,29 @@ export const processAIMilitaryAction = ({
  * @param {Object} params - Parameters
  * @param {Object} params.nation - AI nation object (mutable)
  * @param {number} params.tick - Current game tick
+ * @param {number} params.lastGlobalPeaceRequest - Last tick when any AI requested peace (for global cooldown)
  * @param {Array} params.logs - Log array (mutable)
+ * @returns {boolean} - Whether a peace request was made (for tracking global cooldown)
  */
 export const checkAIPeaceRequest = ({
     nation,
     tick,
+    lastGlobalPeaceRequest = -Infinity,
     logs,
 }) => {
     const next = nation;
     const lastPeaceRequestDay = Number.isFinite(next.lastPeaceRequestDay)
         ? next.lastPeaceRequestDay
         : -Infinity;
+    
+    // Check per-nation cooldown
     const canRequestPeace = (tick - lastPeaceRequestDay) >= PEACE_REQUEST_COOLDOWN_DAYS;
+    
+    // Check global cooldown - prevents multiple nations from requesting peace simultaneously
+    const globalCooldown = GLOBAL_PEACE_REQUEST_COOLDOWN_DAYS;
+    const globalReady = (tick - lastGlobalPeaceRequest) >= globalCooldown;
 
-    if ((next.warScore || 0) > 12 && canRequestPeace) {
+    if ((next.warScore || 0) > 12 && canRequestPeace && globalReady) {
         const willingness = Math.min(0.5, 0.03 + (next.warScore || 0) / 120 + (next.warDuration || 0) / 400) + Math.min(0.15, (next.enemyLosses || 0) / 500);
 
         if (Math.random() < willingness) {
@@ -567,8 +577,10 @@ export const checkAIPeaceRequest = ({
             next.isPeaceRequesting = true;
             next.peaceTribute = tribute;
             next.lastPeaceRequestDay = tick;
+            return true; // Signal that a peace request was made
         }
     }
+    return false; // No peace request made
 };
 
 /**
