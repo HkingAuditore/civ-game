@@ -1220,8 +1220,8 @@ const PoliticsTabComponent = ({
                             {catInfo.name}
                         </h3>
 
-                        {/* 政令列表 - 固定宽度网格布局 */}
-                        <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-1.5">
+                        {/* 政令列表 - 移动端2列，增加卡片宽度 */}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
                             {categoryDecrees.map((decree) => (
                                 <div
                                     key={decree.id}
@@ -1259,58 +1259,62 @@ const PoliticsTabComponent = ({
             })}
 
             {/* 政令悬浮提示框 - 使用 Portal */}
-            {activeSection === 'decrees' && (
-                <DecreeTooltip
-                    decree={hoveredDecree}
-                    anchorRect={decreeAnchorRect}
-                />
-            )}
+            {
+                activeSection === 'decrees' && (
+                    <DecreeTooltip
+                        decree={hoveredDecree}
+                        anchorRect={decreeAnchorRect}
+                    />
+                )
+            }
 
             {/* 当前生效的政令统计 */}
-            {activeSection === 'decrees' && (
-            <div className="glass-ancient p-4 rounded-xl border border-ancient-gold/30">
-                <h3 className="text-sm font-bold mb-2 flex items-center gap-2 text-gray-300 font-decorative">
-                    <Icon name="FileText" size={16} className="text-blue-400" />
-                    政令统计
-                </h3>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                    <div className="bg-gray-700/50 p-3 rounded">
-                        <p className="text-xs text-gray-400 mb-1">总政令数</p>
-                        <p className="text-lg font-bold text-white">{unlockedDecrees.length}</p>
+            {
+                activeSection === 'decrees' && (
+                    <div className="glass-ancient p-4 rounded-xl border border-ancient-gold/30">
+                        <h3 className="text-sm font-bold mb-2 flex items-center gap-2 text-gray-300 font-decorative">
+                            <Icon name="FileText" size={16} className="text-blue-400" />
+                            政令统计
+                        </h3>
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                            <div className="bg-gray-700/50 p-3 rounded">
+                                <p className="text-xs text-gray-400 mb-1">总政令数</p>
+                                <p className="text-lg font-bold text-white">{unlockedDecrees.length}</p>
+                            </div>
+                            <div className="bg-gray-700/50 p-3 rounded">
+                                <p className="text-xs text-gray-400 mb-1">生效中</p>
+                                <p className="text-lg font-bold text-green-400">
+                                    {unlockedActiveCount}
+                                </p>
+                            </div>
+                            <div className="bg-gray-700/50 p-3 rounded">
+                                <p className="text-xs text-gray-400 mb-1">未启用</p>
+                                <p className="text-lg font-bold text-gray-400">
+                                    {unlockedInactiveCount}
+                                </p>
+                            </div>
+                            <div className="bg-gray-700/50 p-3 rounded">
+                                <p className="text-xs text-gray-400 mb-1">政策效率</p>
+                                <p className="text-lg font-bold text-blue-400">
+                                    {policyEfficiency}%
+                                </p>
+                            </div>
+                            <div className="bg-gray-700/50 p-3 rounded">
+                                <p className="text-xs text-gray-400 mb-1">待解锁</p>
+                                <p className="text-lg font-bold text-yellow-300">
+                                    {lockedDecrees.length}
+                                </p>
+                            </div>
+                        </div>
+                        {lockedDecrees.length > 0 && (
+                            <p className="text-[11px] text-gray-400 mt-3">
+                                还有 {lockedDecrees.length} 条政令将在后续时代解锁{nextUnlockEpochName ? `，最近的是 ${nextUnlockEpochName}` : ''}。
+                            </p>
+                        )}
                     </div>
-                    <div className="bg-gray-700/50 p-3 rounded">
-                        <p className="text-xs text-gray-400 mb-1">生效中</p>
-                        <p className="text-lg font-bold text-green-400">
-                            {unlockedActiveCount}
-                        </p>
-                    </div>
-                    <div className="bg-gray-700/50 p-3 rounded">
-                        <p className="text-xs text-gray-400 mb-1">未启用</p>
-                        <p className="text-lg font-bold text-gray-400">
-                            {unlockedInactiveCount}
-                        </p>
-                    </div>
-                    <div className="bg-gray-700/50 p-3 rounded">
-                        <p className="text-xs text-gray-400 mb-1">政策效率</p>
-                        <p className="text-lg font-bold text-blue-400">
-                            {policyEfficiency}%
-                        </p>
-                    </div>
-                    <div className="bg-gray-700/50 p-3 rounded">
-                        <p className="text-xs text-gray-400 mb-1">待解锁</p>
-                        <p className="text-lg font-bold text-yellow-300">
-                            {lockedDecrees.length}
-                        </p>
-                    </div>
-                </div>
-                {lockedDecrees.length > 0 && (
-                    <p className="text-[11px] text-gray-400 mt-3">
-                        还有 {lockedDecrees.length} 条政令将在后续时代解锁{nextUnlockEpochName ? `，最近的是 ${nextUnlockEpochName}` : ''}。
-                    </p>
-                )}
-            </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     );
 };
 

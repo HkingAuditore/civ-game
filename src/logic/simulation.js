@@ -5,9 +5,10 @@ import { isResourceUnlocked } from '../utils/resources';
 import { calculateForeignPrice } from '../utils/foreignTrade';
 import { simulateBattle, UNIT_TYPES } from '../config/militaryUnits';
 import { getEnemyUnitsForEpoch } from '../config/militaryActions';
-import { calculateLivingStandardData, getSimpleLivingStandard, calculateWealthMultiplier } from '../utils/livingStandard';
+import { calculateLivingStandardData, getSimpleLivingStandard, calculateWealthMultiplier, calculateLuxuryConsumptionMultiplier, calculateUnlockMultiplier } from '../utils/livingStandard';
 import { calculateLivingStandards } from './population/needs';
 import { calculateAIGiftAmount, calculateAIPeaceTribute, calculateAISurrenderDemand } from '../utils/diplomaticUtils';
+import { debugLog } from '../utils/debugFlags';
 import {
     calculateCoalitionInfluenceShare,
     calculateLegitimacy,
@@ -1754,27 +1755,60 @@ export const simulateTick = ({
         const startingWealthForLuxury = def.startingWealth || 1;
         const currentWealthPerCapita = (wealth[key] || 0) / Math.max(1, count);
         const wealthRatioForLuxury = currentWealthPerCapita / startingWealthForLuxury;
+        const baseNeedsForCost = def.needs || {};
+        let essentialCostPerCapita = 0;
+        ['food', 'cloth'].forEach(resKey => {
+            if (baseNeedsForCost[resKey]) {
+                const marketPrice = getPrice(resKey);
+                const basePrice = RESOURCES[resKey]?.basePrice || 1;
+                const effectivePrice = Math.max(marketPrice, basePrice);
+                essentialCostPerCapita += baseNeedsForCost[resKey] * effectivePrice;
+            }
+        });
+        const incomePerCapita = (roleWagePayout[key] || 0) / Math.max(1, count);
+        const incomeRatioForLuxury = essentialCostPerCapita > 0
+            ? incomePerCapita / essentialCostPerCapita
+            : (incomePerCapita > 0 ? 10 : 0);
+        const maxConsumptionMultiplier = def.maxConsumptionMultiplier || 6;
+        const consumptionMultiplier = calculateWealthMultiplier(
+            incomeRatioForLuxury,
+            wealthRatioForLuxury,
+            def.wealthElasticity || 1.0,
+            maxConsumptionMultiplier
+        );
+        const livingStandardLevel = getSimpleLivingStandard(incomeRatioForLuxury).level;
+        const luxuryConsumptionMultiplier = calculateLuxuryConsumptionMultiplier({
+            consumptionMultiplier,
+            incomeRatio: incomeRatioForLuxury,
+            wealthRatio: wealthRatioForLuxury,
+            livingStandardLevel,
+        });
 
-        // Merge base needs with unlocked luxury needs based on wealth ratio
+        const unlockMultiplier = calculateUnlockMultiplier(
+            incomeRatioForLuxury,
+            wealthRatioForLuxury,
+            def.wealthElasticity || 1.0,
+            livingStandardLevel
+        );
+
+        // Merge base needs with unlocked luxury needs based on unlock multiplier
         const effectiveNeeds = { ...def.needs };
         if (def.luxuryNeeds) {
             // Sort thresholds to apply in order
             const thresholds = Object.keys(def.luxuryNeeds).map(Number).sort((a, b) => a - b);
             for (const threshold of thresholds) {
-                if (wealthRatioForLuxury >= threshold) {
+                if (unlockMultiplier >= threshold) {
                     const luxuryNeedsAtThreshold = def.luxuryNeeds[threshold];
                     for (const [resKey, amount] of Object.entries(luxuryNeedsAtThreshold)) {
                         // Add to existing need or create new
-                        effectiveNeeds[resKey] = (effectiveNeeds[resKey] || 0) + amount;
+                        effectiveNeeds[resKey] =
+                            (effectiveNeeds[resKey] || 0) + (amount * luxuryConsumptionMultiplier);
                     }
                 }
             }
         }
 
         for (const [resKey, perCapita] of Object.entries(effectiveNeeds)) {
-            if (def.defaultResource && def.defaultResource === resKey) {
-                continue;
-            }
             const resourceInfo = RESOURCES[resKey];
             // Check if resource requires a technology to unlock
             if (resourceInfo && resourceInfo.unlockTech) {
@@ -2244,13 +2278,13 @@ export const simulateTick = ({
 
         if (currentWealth > 0 && population > 0) {
             // Check living standard to see if decay should apply
-            // Only apply decay if living standard is at least "Subsistence" (温饱)
+            // Only apply decay if living standard is at least "Comfortable" (小康)
             // Levels: 赤贫 (Destitute), 贫困 (Poor), 温饱 (Subsistence), 小康 (Comfortable)...
             const standard = classLivingStandard[key];
             const level = standard?.level;
 
-            // Skip decay for Destitute and Poor
-            if (level === '赤贫' || level === '贫困') {
+            // Skip decay for Destitute, Poor, and Subsistence
+            if (level === '赤贫' || level === '贫困' || level === '温饱') {
                 return;
             }
 
@@ -3171,7 +3205,7 @@ export const simulateTick = ({
     // 【修复】在转职评估前先执行商人交易，确保商人收入被正确计算
     const previousMerchantWealth = classWealthResult.merchant || 0;
     // DEBUG: 调试商人贸易调用
-    console.log('[SIMULATION DEBUG] Calling simulateMerchantTrade, policies:', {
+    debugLog('simulation', '[SIMULATION DEBUG] Calling simulateMerchantTrade, policies:', {
         hasExportTariff: !!policies.exportTariffMultipliers,
         hasImportTariff: !!policies.importTariffMultipliers,
         merchantPop: popStructure?.merchant || 0,

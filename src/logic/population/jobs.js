@@ -18,7 +18,8 @@ import {
     DOWNGRADE_MIGRATION_RESISTANCE,
     MULTI_TIER_DOWNGRADE_PENALTY,
     UPGRADE_MIGRATION_BONUS,
-    MIGRATION_COOLDOWN_TICKS
+    MIGRATION_COOLDOWN_TICKS,
+    VACANCY_FILL_RATIO_PER_TICK
 } from '../utils/constants';
 
 /**
@@ -212,7 +213,7 @@ export const fillVacancies = ({
         const targetTier = STRATUM_TIERS[targetRole] ?? 0;
 
         // For Tier 0/1 jobs, anyone can fill
-        if (targetTier <= 1) return true;
+        if (targetTier <= 2) return true;
 
         // For Tier 2+ jobs:
         // - Can be filled by same tier (re-employment after layoff)
@@ -246,7 +247,11 @@ export const fillVacancies = ({
 
     // Fill vacancies with tier-based constraints
     vacancyRanking.forEach(entry => {
-        let remainingVacancy = entry.vacancy;
+        const perRoleFillCap = Math.max(
+            1,
+            Math.floor(entry.vacancy * VACANCY_FILL_RATIO_PER_TICK)
+        );
+        let remainingVacancy = Math.min(entry.vacancy, perRoleFillCap);
 
         // For Tier 0/1 jobs: direct hire from unemployed
         if (entry.tier <= 1) {

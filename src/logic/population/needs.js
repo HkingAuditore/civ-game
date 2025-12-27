@@ -6,7 +6,7 @@
 import { STRATA, RESOURCES } from '../../config';
 import { isResourceUnlocked } from '../../utils/resources';
 import { isTradableResource, getBasePrice } from '../utils/helpers';
-import { calculateLivingStandardData, calculateWealthMultiplier, calculateUnlockMultiplier } from '../../utils/livingStandard';
+import { calculateLivingStandardData, calculateWealthMultiplier, calculateUnlockMultiplier, calculateLuxuryConsumptionMultiplier, getSimpleLivingStandard } from '../../utils/livingStandard';
 
 /**
  * Process needs consumption for all strata
@@ -75,7 +75,8 @@ export const processNeedsConsumption = ({
         const incomeRatio = essentialCost > 0 ? incomePerCapita / essentialCost : 1;
 
         // 使用解锁乘数公式（不受阶层消费上限限制，所有阶层都能解锁全部奢侈需求）
-        return calculateUnlockMultiplier(incomeRatio, wealthRatio, wealthElasticity);
+        const livingStandardLevel = getSimpleLivingStandard(incomeRatio).level;
+        return calculateUnlockMultiplier(incomeRatio, wealthRatio, wealthElasticity, livingStandardLevel);
     };
 
 
@@ -97,6 +98,29 @@ export const processNeedsConsumption = ({
         // Calculate effective needs (base + unlocked luxury tiers)
         // 使用解锁乘数（unlockMultiplier）决定奢侈需求解锁（不受阶层消费上限限制）
         const unlockMultiplier = getUnlockMultiplier(key);
+        const startingWealth = def.startingWealth || 100;
+        const wealthPerCapita = count > 0 ? (wealth[key] || 0) / count : 0;
+        const wealthRatio = startingWealth > 0 ? wealthPerCapita / startingWealth : 0;
+        const income = classIncome[key] || 0;
+        const incomePerCapita = income / count;
+        let essentialCost = 0;
+        const essentialResources = ['food', 'cloth'];
+        essentialResources.forEach(resKey => {
+            if (baseNeeds[resKey] && isResourceUnlocked(resKey, epoch, techsUnlocked)) {
+                const price = priceMap[resKey] || getBasePrice(resKey);
+                essentialCost += baseNeeds[resKey] * price;
+            }
+        });
+        const incomeRatio = essentialCost > 0 ? incomePerCapita / essentialCost : (incomePerCapita > 0 ? 10 : 0);
+        const maxConsumptionMultiplier = def.maxConsumptionMultiplier || 6;
+        const consumptionMultiplier = calculateWealthMultiplier(incomeRatio, wealthRatio, def.wealthElasticity || 1.0, maxConsumptionMultiplier);
+        const livingStandardLevel = getSimpleLivingStandard(incomeRatio).level;
+        const luxuryConsumptionMultiplier = calculateLuxuryConsumptionMultiplier({
+            consumptionMultiplier,
+            incomeRatio,
+            wealthRatio,
+            livingStandardLevel,
+        });
         const effectiveNeeds = { ...baseNeeds };
 
         // Add luxury needs based on unlock multiplier
@@ -106,7 +130,8 @@ export const processNeedsConsumption = ({
                 const tierNeeds = luxuryNeeds[threshold];
                 Object.entries(tierNeeds).forEach(([resKey, amount]) => {
                     if (isResourceUnlocked(resKey, epoch, techsUnlocked)) {
-                        effectiveNeeds[resKey] = (effectiveNeeds[resKey] || 0) + amount;
+                        effectiveNeeds[resKey] =
+                            (effectiveNeeds[resKey] || 0) + (amount * luxuryConsumptionMultiplier);
                     }
                 });
             }
@@ -318,7 +343,8 @@ export const calculateLivingStandards = ({
         const wealthRatio = startingWealth > 0 ? wealthPerCapita / startingWealth : 0;
 
         // 解锁乘数：不受阶层上限限制，所有阶层都能解锁全部奢侈需求
-        const unlockMultiplier = calculateUnlockMultiplier(incomeRatio, wealthRatio, wealthElasticity);
+        const livingStandardLevel = getSimpleLivingStandard(incomeRatio).level;
+        const unlockMultiplier = calculateUnlockMultiplier(incomeRatio, wealthRatio, wealthElasticity, livingStandardLevel);
         // 消费倍率：受阶层上限限制（底层3, 中层6, 上层10）
         const maxConsumptionMultiplier = def.maxConsumptionMultiplier || 6;
         const consumptionMultiplier = calculateWealthMultiplier(incomeRatio, wealthRatio, wealthElasticity, maxConsumptionMultiplier);

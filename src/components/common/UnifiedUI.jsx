@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { Icon } from './UIComponents';
 import {
   getButtonStyles,
@@ -79,7 +80,7 @@ export const Modal = ({
 }) => {
   if (!isOpen) return null;
 
-  return (
+  const modalContent = (
     <div className={cn(MODAL_STYLES.overlay, overlayClassName)} onClick={onClose}>
       <div
         className={cn(
@@ -107,6 +108,8 @@ export const Modal = ({
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 };
 
 // ==================== 输入框组件 ====================

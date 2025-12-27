@@ -241,7 +241,7 @@ export const BUILDINGS = [
         output: { fine_clothes: 0.8, culture: 0.1 },
         jobs: { artisan: 2 },
         owner: 'artisan',
-        epoch: 2,
+        epoch: 1,
         cat: 'industry',
         requiresTech: 'tools',
         visual: { icon: 'Package', color: 'bg-indigo-900', text: 'text-indigo-100' }

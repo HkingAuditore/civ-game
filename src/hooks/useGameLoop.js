@@ -40,6 +40,7 @@ import {
     calculateCoalitionPopLoss,
 } from '../config/events';
 import { evaluatePromiseTasks } from '../logic/promiseTasks';
+import { debugLog, debugError, isDebugEnabled } from '../utils/debugFlags';
 // 叛乱事件（保留事件创建函数）
 import {
     hasAvailableMilitary,
@@ -270,7 +271,7 @@ const formatUnitSummary = (unitMap = {}) => {
 /**
  * 根据可用士兵数量同步现役部队与训练队列
  */
-const syncArmyWithSoldierPopulation = (armyState = {}, queueState = [], availableSoldiers = 0) => {
+const syncArmyWithSoldierPopulation = (armyState = {}, queueState = [], availableSoldiers = 0, autoRecruitEnabled = false) => {
     const safeArmy = armyState || {};
     const safeQueue = Array.isArray(queueState) ? queueState : [];
     const available = Number.isFinite(availableSoldiers) ? Math.max(0, availableSoldiers) : 0;
@@ -298,11 +299,9 @@ const syncArmyWithSoldierPopulation = (armyState = {}, queueState = [], availabl
     });
 
     let cancelledTraining = null;
-    // Add tolerance for population allocation lag
-    // The population allocation system may not immediately allocate enough soldiers
-    // when training starts or when soldiers are injured/killed in combat
-    // A base tolerance of 3 helps prevent unnecessary training interruptions
-    const trainingTolerance = 3;
+    // [FIX] 减小容差值，防止长期超员导致无限爆兵
+    // 只保留1点容差用于处理毕业时的时序问题
+    const trainingTolerance = 1;
     const effectiveAvailableForTraining = available + trainingTolerance;
 
     // console.log('[TRAINING SYNC] trainingPop:', trainingPopulation, 'available:', available,
@@ -335,20 +334,11 @@ const syncArmyWithSoldierPopulation = (armyState = {}, queueState = [], availabl
     const currentArmyPopulation = calculateArmyPopulation(safeArmy);
     let updatedArmy = null;
     let removedUnits = null;
+    let unitsToRequeue = null; // [NEW] 需要重新加入队列的单位（关闭自动补兵时使用）
 
-    // Calculate tolerance to account for timing issues when units graduate from training
-    // This prevents units from being immediately disbanded after completing training
-    // because the population allocation system hasn't had time to catch up yet
-    // 
-    // The tolerance needs to account for:
-    // 1. Units about to complete training (remainingTime <= 1)
-    // 2. Units that have already graduated but population allocation hasn't caught up
-    // 3. Multiple units graduating in the same tick
-    //
-    // We use a combination of:
-    // - Base tolerance of 3 (to handle most edge cases)
-    // - Plus any units about to graduate
-    let toleranceForNewGraduates = 3; // Base tolerance for population allocation lag
+    // [FIX] 减小容差值，只为即将毕业的单位保留容差
+    // 基础容差从3减到1，防止长期超员导致无限爆兵
+    let toleranceForNewGraduates = 1; // Base tolerance for population allocation lag
     safeQueue.forEach(item => {
         if (item && item.status === 'training' && item.remainingTime <= 1) {
             const popCost = getUnitPopulationCost(item.unitId);
@@ -365,9 +355,13 @@ const syncArmyWithSoldierPopulation = (armyState = {}, queueState = [], availabl
 
     if (currentArmyPopulation > effectiveAvailableForArmy) {
         let manpowerToRemove = currentArmyPopulation - effectiveAvailableForArmy;
-        // console.log('[ARMY SYNC] DISBANDING! manpowerToRemove:', manpowerToRemove); // Commented for performance
         updatedArmy = { ...safeArmy };
         removedUnits = {};
+        
+        // [FIX] 如果开启了自动补兵，记录需要重新排队的单位（保留编制意图）
+        if (autoRecruitEnabled) {
+            unitsToRequeue = {};
+        }
 
         const armyEntries = Object.entries(updatedArmy)
             .filter(([, count]) => count > 0)
@@ -376,8 +370,10 @@ const syncArmyWithSoldierPopulation = (armyState = {}, queueState = [], availabl
                 count,
                 popCost: getUnitPopulationCost(unitId),
                 epoch: UNIT_TYPES[unitId]?.epoch ?? 0,
+                trainingTime: UNIT_TYPES[unitId]?.trainingTime || 1, // [NEW] 记录训练时间用于重新排队
             }))
             .sort((a, b) => {
+                // 优先解散人口消耗高的单位
                 if (a.popCost === b.popCost) {
                     return a.epoch - b.epoch;
                 }
@@ -386,20 +382,32 @@ const syncArmyWithSoldierPopulation = (armyState = {}, queueState = [], availabl
 
         for (const entry of armyEntries) {
             if (manpowerToRemove <= 0) break;
-            const { unitId, popCost } = entry;
+            const { unitId, popCost, trainingTime } = entry;
             const removable = Math.min(entry.count, Math.ceil(manpowerToRemove / popCost));
             if (removable <= 0) continue;
+            
             updatedArmy[unitId] -= removable;
             manpowerToRemove -= removable * popCost;
+            
             if (updatedArmy[unitId] <= 0) {
                 delete updatedArmy[unitId];
             }
+            
             removedUnits[unitId] = (removedUnits[unitId] || 0) + removable;
+            
+            // [FIX] 如果开启了自动补兵，记录单位信息用于重新排队（保留编制意图）
+            if (autoRecruitEnabled) {
+                unitsToRequeue[unitId] = {
+                    count: (unitsToRequeue[unitId]?.count || 0) + removable,
+                    trainingTime: trainingTime,
+                };
+            }
         }
 
         if (Object.keys(removedUnits).length === 0) {
             removedUnits = null;
             updatedArmy = null;
+            unitsToRequeue = null;
         }
     }
 
@@ -408,6 +416,7 @@ const syncArmyWithSoldierPopulation = (armyState = {}, queueState = [], availabl
         updatedQueue: queueClone,
         removedUnits,
         cancelledTraining,
+        unitsToRequeue, // [NEW] 返回需要重新排队的单位
     };
 };
 
@@ -1229,7 +1238,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     const manpowerSync = syncArmyWithSoldierPopulation(
                         armyStateForQueue,
                         current.militaryQueue || [],
-                        soldierPopulationAfterEvents
+                        soldierPopulationAfterEvents,
+                        current.autoRecruitEnabled || false  // [NEW] 传入自动补兵开关状态
                     );
 
                     if (manpowerSync.updatedArmy) {
@@ -1241,7 +1251,30 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         queueOverrideForManpower = manpowerSync.updatedQueue;
                     }
 
-                    if (manpowerSync.removedUnits) {
+                    // [NEW] 处理需要重新排队的单位（关闭自动补兵时）
+                    if (manpowerSync.unitsToRequeue && Object.keys(manpowerSync.unitsToRequeue).length > 0) {
+                        const requeueItems = [];
+                        Object.entries(manpowerSync.unitsToRequeue).forEach(([unitId, data]) => {
+                            for (let i = 0; i < data.count; i++) {
+                                requeueItems.push({
+                                    unitId,
+                                    status: 'waiting',
+                                    totalTime: data.trainingTime,
+                                    remainingTime: data.trainingTime,
+                                    isRequeued: true, // 标记为重新排队
+                                });
+                            }
+                        });
+                        if (requeueItems.length > 0) {
+                            setMilitaryQueue(prev => [...(queueOverrideForManpower || prev), ...requeueItems]);
+                            queueOverrideForManpower = null; // 已处理，清空覆盖
+                            const summary = formatUnitSummary(manpowerSync.removedUnits);
+                            if (summary) {
+                                addLog(`⚠️ 军人人口不足，以下部队暂时解散并重新排入训练队列：${summary}`);
+                            }
+                        }
+                    } else if (manpowerSync.removedUnits) {
+                        // [FIX] 关闭自动补兵时，直接解散
                         const summary = formatUnitSummary(manpowerSync.removedUnits);
                         if (summary) {
                             addLog(`⚠️ 军人阶级人口骤减，以下部队被迫解散：${summary}`);
@@ -1311,7 +1344,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             .map(s => ({ ...s, remainingDays: s.remainingDays - 1 }))
                             .filter(s => s.remainingDays > 0);
 
-                        console.log('[GAME LOOP] Updating subsidies:', forcedSubsidies.length, '->', updatedSubsidies.length);
+                        debugLog('gameLoop', '[GAME LOOP] Updating subsidies:', forcedSubsidies.length, '->', updatedSubsidies.length);
 
                         return {
                             ...prev,
@@ -1483,10 +1516,11 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         setLegitimacy(result.legitimacy);
                     }
                     // DEBUG: 调试关税值
-                    if (result.taxes?.breakdown) {
-                        console.log('[MAIN THREAD DEBUG] result.taxes.breakdown:', result.taxes.breakdown);
+                    const mainThreadDebug = isDebugEnabled('mainThread');
+                    if (mainThreadDebug && result.taxes?.breakdown) {
+                        debugLog('mainThread', '[MAIN THREAD DEBUG] result.taxes.breakdown:', result.taxes.breakdown);
                         // 额外打印 taxPolicies 内容
-                        console.log('[MAIN THREAD DEBUG] current.taxPolicies:', {
+                        debugLog('mainThread', '[MAIN THREAD DEBUG] current.taxPolicies:', {
                             exportTariffMultipliers: current.taxPolicies?.exportTariffMultipliers,
                             importTariffMultipliers: current.taxPolicies?.importTariffMultipliers,
                             resourceTariffMultipliers: current.taxPolicies?.resourceTariffMultipliers,
@@ -1585,7 +1619,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
                         let event = null;
                         const rebellionCallback = (action, stratum, extraData) => {
-                            console.log('[ORGANIZATION] Action:', action, 'Stratum:', stratum, 'Data:', extraData);
+                            debugLog('gameLoop', '[ORGANIZATION] Action:', action, 'Stratum:', stratum, 'Data:', extraData);
                             if (current.actions?.handleRebellionAction) {
                                 current.actions.handleRebellionAction(action, stratum, extraData);
                             }
@@ -1910,7 +1944,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
                         // 触发叛乱平定事件弹窗
                         const collapseCallback = (action, nation) => {
-                            console.log('[REBELLION END]', action, nation?.name);
+                            debugLog('gameLoop', '[REBELLION END]', action, nation?.name);
                         };
                         const collapseEvent = createRebellionEndEvent(rebelNation, true, current.resources?.silver || 0, collapseCallback);
                         if (collapseEvent && current.actions?.triggerDiplomaticEvent) {
@@ -2276,10 +2310,15 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
                     // 检测外交事件并触发事件系统
                     const currentActions = current.actions;
-                    console.log('[EVENT DEBUG] actions:', !!currentActions, 'triggerDiplomaticEvent:', !!currentActions?.triggerDiplomaticEvent);
+                    const eventDebug = isDebugEnabled('event');
+                    if (eventDebug) {
+                        debugLog('event', '[EVENT DEBUG] actions:', !!currentActions, 'triggerDiplomaticEvent:', !!currentActions?.triggerDiplomaticEvent);
+                    }
                     if (currentActions && currentActions.triggerDiplomaticEvent) {
-                        console.log('[EVENT DEBUG] Checking logs:', result.logs);
-                        console.log('[EVENT DEBUG] Total logs count:', result.logs.length);
+                        if (eventDebug) {
+                            debugLog('event', '[EVENT DEBUG] Checking logs:', result.logs);
+                            debugLog('event', '[EVENT DEBUG] Total logs count:', result.logs.length);
+                        }
 
                         // 先解析突袭事件日志，触发战斗结果弹窗
                         const raidLogEntry = Array.isArray(result.logs)
@@ -2349,22 +2388,22 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                         isRaid: true,
                                     };
 
-                                    console.log('[EVENT DEBUG] Raid battle result created (pre-loop):', battleResult);
+                                    debugLog('event', '[EVENT DEBUG] Raid battle result created (pre-loop):', battleResult);
                                     // 使用非阻断式通知，不打断玩家操作
                                     currentActions.addBattleNotification(battleResult);
                                 }
                             } catch (e) {
-                                console.error('[EVENT DEBUG] Failed to parse raid event log:', e);
+                                debugError('event', '[EVENT DEBUG] Failed to parse raid event log:', e);
                             }
                         }
 
                         result.logs.forEach((log, index) => {
-                            console.log(`[EVENT DEBUG] Log ${index}: `, log);
-                            console.log(`[EVENT DEBUG] Log ${index} includes RAID_EVENT: `, log.includes('❗RAID_EVENT❗'));
+                            debugLog('event', `[EVENT DEBUG] Log ${index}: `, log);
+                            debugLog('event', `[EVENT DEBUG] Log ${index} includes RAID_EVENT: `, log.includes('❗RAID_EVENT❗'));
 
                             // 检测宣战事件（使用新的 WAR_DECLARATION_EVENT 标记）
                             if (log.includes('WAR_DECLARATION_EVENT:')) {
-                                console.log('[EVENT DEBUG] War declaration detected:', log);
+                                debugLog('event', '[EVENT DEBUG] War declaration detected:', log);
                                 try {
                                     const jsonStr = log.replace('WAR_DECLARATION_EVENT:', '');
                                     const warData = JSON.parse(jsonStr);
@@ -2375,7 +2414,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                     const aggressor = result.nations?.find(n => n.id === aggressorId);
                                     if (aggressor) {
                                         const event = createWarDeclarationEvent(aggressor, () => {
-                                            console.log('[EVENT DEBUG] War declaration acknowledged');
+                                            debugLog('event', '[EVENT DEBUG] War declaration acknowledged');
                                         });
                                         currentActions.triggerDiplomaticEvent(event);
                                     }
@@ -2490,7 +2529,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                     });
 
                                 } catch (e) {
-                                    console.error('[EVENT DEBUG] Failed to parse war declaration event:', e);
+                                    debugError('event', '[EVENT DEBUG] Failed to parse war declaration event:', e);
                                 }
                             }
                             // 兼容旧的宣战检测逻辑
@@ -2510,19 +2549,19 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
                             // 检测和平请求事件
                             if (log.includes('请求和平')) {
-                                console.log('[EVENT DEBUG] Peace request detected in log:', log);
+                                debugLog('event', '[EVENT DEBUG] Peace request detected in log:', log);
                                 const match = log.match(/🤝 (.+) 请求和平，愿意支付 (\d+) 银币作为赔款/);
-                                console.log('[EVENT DEBUG] Regex match result:', match);
+                                debugLog('event', '[EVENT DEBUG] Regex match result:', match);
                                 if (match) {
                                     const nationName = match[1];
                                     const tribute = parseInt(match[2], 10);
-                                    console.log('[EVENT DEBUG] Looking for nation:', nationName);
-                                    console.log('[EVENT DEBUG] result.nations:', result.nations?.map(n => ({ name: n.name, isPeaceRequesting: n.isPeaceRequesting })));
+                                    debugLog('event', '[EVENT DEBUG] Looking for nation:', nationName);
+                                    debugLog('event', '[EVENT DEBUG] result.nations:', result.nations?.map(n => ({ name: n.name, isPeaceRequesting: n.isPeaceRequesting })));
                                     const nation = result.nations?.find(n => n.name === nationName);
-                                    console.log('[EVENT DEBUG] Found nation:', nation?.name, 'isPeaceRequesting:', nation?.isPeaceRequesting);
+                                    debugLog('event', '[EVENT DEBUG] Found nation:', nation?.name, 'isPeaceRequesting:', nation?.isPeaceRequesting);
                                     if (nation && nation.isPeaceRequesting) {
-                                        console.log('[EVENT DEBUG] Creating peace request event...');
-                                        console.log('[EVENT DEBUG] Parameters:', {
+                                        debugLog('event', '[EVENT DEBUG] Creating peace request event...');
+                                        debugLog('event', '[EVENT DEBUG] Parameters:', {
                                             nation: nation.name,
                                             nationId: nation.id,
                                             tribute,
@@ -2543,12 +2582,12 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                     }
                                                 }
                                             );
-                                            console.log('[EVENT DEBUG] Event created:', event);
-                                            console.log('[EVENT DEBUG] Calling triggerDiplomaticEvent...');
+                                            debugLog('event', '[EVENT DEBUG] Event created:', event);
+                                            debugLog('event', '[EVENT DEBUG] Calling triggerDiplomaticEvent...');
                                             currentActions.triggerDiplomaticEvent(event);
-                                            console.log('[EVENT DEBUG] triggerDiplomaticEvent called');
+                                            debugLog('event', '[EVENT DEBUG] triggerDiplomaticEvent called');
                                         } catch (error) {
-                                            console.error('[EVENT DEBUG] Error creating or triggering event:', error);
+                                            debugError('event', '[EVENT DEBUG] Error creating or triggering event:', error);
                                         }
                                         // 清除和平请求标志，避免重复触发
                                         setNations(prev => prev.map(n =>
@@ -2565,7 +2604,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                     const nationName = surrenderMatch[1];
                                     const nation = result.nations?.find(n => n.name === nationName && n.isRebelNation);
                                     if (nation && nation.isPeaceRequesting) {
-                                        console.log('[EVENT DEBUG] Rebel surrender detected:', nationName);
+                                        debugLog('event', '[EVENT DEBUG] Rebel surrender detected:', nationName);
                                         // 创建叛军投降事件（直接使用叛乱结束事件）
                                         // 注意：回调只处理效果，不再调用 handleRebellionWarEnd 避免重复
                                         const surrenderEvent = createRebellionEndEvent(
@@ -2574,7 +2613,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                             current.resources?.silver || 0,
                                             (action) => {
                                                 // 效果由事件本身的 effects 处理，这里只做日志
-                                                console.log('[REBELLION SURRENDER]', action, nation?.name);
+                                                debugLog('gameLoop', '[REBELLION SURRENDER]', action, nation?.name);
                                             }
                                         );
                                         currentActions.triggerDiplomaticEvent(surrenderEvent);
@@ -2616,7 +2655,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
                                     if (nation) {
                                         const event = createRebelDemandSurrenderEvent(nation, data, (action, nationObj, eventData) => {
-                                            console.log('[REBEL ULTIMATUM] Callback triggered:', action, eventData.demandType);
+                                            debugLog('gameLoop', '[REBEL ULTIMATUM] Callback triggered:', action, eventData.demandType);
                                             if (action === 'accept') {
                                                 // 1. 根据类型扣除资源
                                                 if (eventData.demandType === 'massacre') {
@@ -2638,7 +2677,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                     // 改革妥协：一次性从国库扣除银币，转入该阶层的财富
                                                     const reformAmount = eventData.demandAmount || 0;
                                                     const coalitionStrata = eventData.coalitionStrata || [eventData.reformStratum || nationObj.rebellionStratum];
-                                                    console.log('[REBEL REFORM] Amount:', reformAmount, 'Coalition:', coalitionStrata);
+                                                    debugLog('gameLoop', '[REBEL REFORM] Amount:', reformAmount, 'Coalition:', coalitionStrata);
 
                                                     // 扣除银币
                                                     setResources(prev => ({
@@ -2673,7 +2712,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                             newWealth[sKey] = (newWealth[sKey] || 0) + amount;
                                                             distributions.push(`${STRATA[sKey]?.name || sKey}(${amount})`);
                                                         });
-                                                        console.log('[REBEL REFORM] Distributed:', distributions.join(', '));
+                                                        debugLog('gameLoop', '[REBEL REFORM] Distributed:', distributions.join(', '));
                                                         return newWealth;
                                                     });
 
@@ -2686,7 +2725,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                     const subsidyDaily = eventData.subsidyDailyAmount || Math.ceil((eventData.demandAmount || 0) / 365);
                                                     const subsidyTotal = eventData.demandAmount || 0;
                                                     const coalitionStrata = eventData.coalitionStrata || [eventData.subsidyStratum || nationObj.rebellionStratum];
-                                                    console.log('[REBEL SUBSIDY] Daily:', subsidyDaily, 'Total:', subsidyTotal, 'Coalition:', coalitionStrata);
+                                                    debugLog('gameLoop', '[REBEL SUBSIDY] Daily:', subsidyDaily, 'Total:', subsidyTotal, 'Coalition:', coalitionStrata);
 
                                                     // 按人口比例计算每个阶层的份额
                                                     const popShare = {};
@@ -2708,7 +2747,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                     // 为每个阶层添加补贴效果
                                                     const subsidyDescParts = [];
                                                     setActiveEventEffects(prev => {
-                                                        console.log('[REBEL SUBSIDY] Previous state:', prev);
+                                                        debugLog('gameLoop', '[REBEL SUBSIDY] Previous state:', prev);
 
                                                         const newSubsidies = coalitionStrata.map(sKey => {
                                                             const share = popShare[sKey] / totalPop;
@@ -2735,7 +2774,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                                 ...newSubsidies
                                                             ]
                                                         };
-                                                        console.log('[REBEL SUBSIDY] Added', newSubsidies.length, 'subsidies');
+                                                        debugLog('gameLoop', '[REBEL SUBSIDY] Added', newSubsidies.length, 'subsidies');
                                                         return newEffects;
                                                     });
 
@@ -2749,10 +2788,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                 // 使用 handleRebellionWarEnd 函数（与玩家主动求和使用相同的函数）
                                                 // 这个函数会正确删除叛军、重置状态并触发"屈辱的和平"事件
                                                 if (actions?.handleRebellionWarEnd) {
-                                                    console.log('[REBEL] Calling handleRebellionWarEnd for defeat...');
+                                                    debugLog('gameLoop', '[REBEL] Calling handleRebellionWarEnd for defeat...');
                                                     actions.handleRebellionWarEnd(nationObj.id, false); // false = 玩家失败
                                                 } else {
-                                                    console.error('[REBEL] handleRebellionWarEnd not available!');
+                                                    debugError('gameLoop', '[REBEL] handleRebellionWarEnd not available!');
                                                     // 备用方案：手动清理
                                                     const rebellionStratumKey = nationObj.rebellionStratum;
                                                     setNations(prev => prev.filter(n => n.id !== nationObj.id));
@@ -2775,7 +2814,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                         currentActions.triggerDiplomaticEvent(event);
                                     }
                                 } catch (e) {
-                                    console.error('[EVENT DEBUG] Failed to parse rebel demand:', e);
+                                    debugError('event', '[EVENT DEBUG] Failed to parse rebel demand:', e);
                                 }
                             }
 
@@ -2862,7 +2901,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                         }
                                     }
                                 } catch (e) {
-                                    console.error('[AUTO_REPLENISH] Failed to parse losses:', e);
+                                    debugError('gameLoop', '[AUTO_REPLENISH] Failed to parse losses:', e);
                                 }
                             }
 
@@ -2880,10 +2919,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                             addLog(`💰 你接受了 ${nation.name} 的礼物，获得 ${eventData.amount} 银币。`);
                                         });
                                         currentActions.triggerDiplomaticEvent(event);
-                                        console.log('[EVENT DEBUG] AI Gift event triggered:', nation.name, eventData.amount);
+                                        debugLog('event', '[EVENT DEBUG] AI Gift event triggered:', nation.name, eventData.amount);
                                     }
                                 } catch (e) {
-                                    console.error('[EVENT DEBUG] Failed to parse AI gift event:', e);
+                                    debugError('event', '[EVENT DEBUG] Failed to parse AI gift event:', e);
                                 }
                             }
 
@@ -2910,10 +2949,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                             }
                                         });
                                         currentActions.triggerDiplomaticEvent(event);
-                                        console.log('[EVENT DEBUG] AI Request event triggered:', nation.name, eventData.amount);
+                                        debugLog('event', '[EVENT DEBUG] AI Request event triggered:', nation.name, eventData.amount);
                                     }
                                 } catch (e) {
-                                    console.error('[EVENT DEBUG] Failed to parse AI request event:', e);
+                                    debugError('event', '[EVENT DEBUG] Failed to parse AI request event:', e);
                                 }
                             }
 
@@ -2942,10 +2981,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                             }
                                         });
                                         currentActions.triggerDiplomaticEvent(event);
-                                        console.log('[EVENT DEBUG] AI Alliance Request event triggered:', nation.name);
+                                        debugLog('event', '[EVENT DEBUG] AI Alliance Request event triggered:', nation.name);
                                     }
                                 } catch (e) {
-                                    console.error('[EVENT DEBUG] Failed to parse AI alliance request event:', e);
+                                    debugError('event', '[EVENT DEBUG] Failed to parse AI alliance request event:', e);
                                 }
                             }
 
@@ -2982,10 +3021,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                             }
                                         });
                                         currentActions.triggerDiplomaticEvent(event);
-                                        console.log('[EVENT DEBUG] Ally Cold event triggered:', nation.name);
+                                        debugLog('event', '[EVENT DEBUG] Ally Cold event triggered:', nation.name);
                                     }
                                 } catch (e) {
-                                    console.error('[EVENT DEBUG] Failed to parse Ally Cold event:', e);
+                                    debugError('event', '[EVENT DEBUG] Failed to parse Ally Cold event:', e);
                                 }
                             }
 
@@ -3023,7 +3062,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                         }
                                     }
                                 } catch (e) {
-                                    console.error('[EVENT DEBUG] Failed to parse AI Trade event:', e);
+                                    debugError('event', '[EVENT DEBUG] Failed to parse AI Trade event:', e);
                                 }
                             }
 
@@ -3095,10 +3134,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                             }
                                         );
                                         currentActions.triggerDiplomaticEvent(event);
-                                        console.log('[EVENT DEBUG] AI Demand Surrender event triggered:', nation.name);
+                                        debugLog('event', '[EVENT DEBUG] AI Demand Surrender event triggered:', nation.name);
                                     }
                                 } catch (e) {
-                                    console.error('[EVENT DEBUG] Failed to parse AI Demand Surrender event:', e);
+                                    debugError('event', '[EVENT DEBUG] Failed to parse AI Demand Surrender event:', e);
                                 }
                             }
 
@@ -3157,10 +3196,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                             },
                                         };
                                         currentActions.triggerDiplomaticEvent(event);
-                                        console.log('[EVENT DEBUG] AI Mercy Peace Offer event triggered:', nation.name);
+                                        debugLog('event', '[EVENT DEBUG] AI Mercy Peace Offer event triggered:', nation.name);
                                     }
                                 } catch (e) {
-                                    console.error('[EVENT DEBUG] Failed to parse AI Mercy Peace Offer event:', e);
+                                    debugError('event', '[EVENT DEBUG] Failed to parse AI Mercy Peace Offer event:', e);
                                 }
                             }
 
@@ -3174,7 +3213,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                         : '由于你多次忽视盟友问题';
                                     addLog(`💔 ${reasonText}，${eventData.nationName} 决定解除与你的同盟关系！`);
                                 } catch (e) {
-                                    console.error('[EVENT DEBUG] Failed to parse AI Break Alliance event:', e);
+                                    debugError('event', '[EVENT DEBUG] Failed to parse AI Break Alliance event:', e);
                                 }
                             }
 
@@ -3228,10 +3267,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                             }
                                         );
                                         currentActions.triggerDiplomaticEvent(event);
-                                        console.log('[EVENT DEBUG] Ally Attacked event triggered:', ally.name);
+                                        debugLog('event', '[EVENT DEBUG] Ally Attacked event triggered:', ally.name);
                                     }
                                 } catch (e) {
-                                    console.error('[EVENT DEBUG] Failed to parse Ally Attacked event:', e);
+                                    debugError('event', '[EVENT DEBUG] Failed to parse Ally Attacked event:', e);
                                 }
                             }
 

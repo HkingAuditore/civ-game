@@ -14,7 +14,7 @@ export const GAME_SPEEDS = [1, 2, 5];
  * 每日按比例衰减财富，防止无限积累
  * 0.005 = 0.5% per day
  */
-export const WEALTH_DECAY_RATE = 0.01;
+export const WEALTH_DECAY_RATE = 0.005;
 
 /**
  * 资源类型配置

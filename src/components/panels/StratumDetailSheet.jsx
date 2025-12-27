@@ -3,7 +3,7 @@ import { Icon } from '../common/UIComponents';
 import { STRATA, RESOURCES } from '../../config';
 import { formatEffectDetails } from '../../utils/effectFormatter';
 import { isResourceUnlocked } from '../../utils/resources';
-import { calculateLivingStandardData, calculateWealthMultiplier, calculateUnlockMultiplier, LIVING_STANDARD_LEVELS } from '../../utils/livingStandard';
+import { calculateLivingStandardData, calculateWealthMultiplier, calculateUnlockMultiplier, calculateLuxuryConsumptionMultiplier, LIVING_STANDARD_LEVELS } from '../../utils/livingStandard';
 import {
     getOrganizationStage,
     getStageName,
@@ -119,7 +119,12 @@ const StratumDetailSheetComponent = ({
         });
         const incomeRatio = essentialCost > 0 ? incomePerCapita / essentialCost : 1;
         // 解锁乘数（不受阶层上限限制，用于解锁判断）
-        const unlockMultiplier = calculateUnlockMultiplier(incomeRatio, wealthRatio, stratum.wealthElasticity || 1.0);
+        const unlockMultiplier = calculateUnlockMultiplier(
+            incomeRatio,
+            wealthRatio,
+            stratum.wealthElasticity || 1.0,
+            livingStandardLevel
+        );
         // 消费倍率（受阶层上限限制，用于 UI 显示）
         const maxConsumptionMultiplier = stratum.maxConsumptionMultiplier || 6;
         const fallbackMultiplier = calculateWealthMultiplier(incomeRatio, wealthRatio, stratum.wealthElasticity || 1.0, maxConsumptionMultiplier);
@@ -183,7 +188,18 @@ const StratumDetailSheetComponent = ({
         if (baseNeedsForCalc[resKey]) essentialCostForCalc += baseNeedsForCalc[resKey] * 1;
     });
     const incomeRatioForCalc = essentialCostForCalc > 0 ? incomePerCapita / essentialCostForCalc : 1;
-    const unlockMultiplier = calculateUnlockMultiplier(incomeRatioForCalc, wealthRatioForCalc, stratum.wealthElasticity || 1.0);
+    const unlockMultiplier = calculateUnlockMultiplier(
+        incomeRatioForCalc,
+        wealthRatioForCalc,
+        stratum.wealthElasticity || 1.0,
+        livingStandardLevel
+    );
+    const luxuryConsumptionMultiplier = calculateLuxuryConsumptionMultiplier({
+        consumptionMultiplier: wealthMultiplier,
+        incomeRatio: incomeRatioForCalc,
+        wealthRatio: wealthRatioForCalc,
+        livingStandardLevel,
+    });
 
     // 已解锁的奢侈需求详情（使用解锁乘数判断，不受阶层消费上限限制）
     const luxuryNeeds = stratum.luxuryNeeds || {};
@@ -566,12 +582,12 @@ const StratumDetailSheetComponent = ({
                                             // Skip resources that are not yet unlocked in current epoch/tech
                                             if (!isResourceUnlocked(resKey, epoch, techsUnlocked)) continue;
                                             if (effectiveNeedsMap[resKey]) {
-                                                effectiveNeedsMap[resKey].amount += amount;
+                                                effectiveNeedsMap[resKey].amount += (amount * luxuryConsumptionMultiplier);
                                                 if (!effectiveNeedsMap[resKey].isBase) {
                                                     effectiveNeedsMap[resKey].luxuryThreshold = Math.min(effectiveNeedsMap[resKey].luxuryThreshold || Infinity, threshold);
                                                 }
                                             } else {
-                                                effectiveNeedsMap[resKey] = { amount, isBase: false, luxuryThreshold: threshold };
+                                                effectiveNeedsMap[resKey] = { amount: amount * luxuryConsumptionMultiplier, isBase: false, luxuryThreshold: threshold };
                                             }
                                         }
                                     }
@@ -1120,7 +1136,7 @@ const StratumDetailSheetComponent = ({
                                     )}
                                     {decay > 0.001 && (
                                         <div className="flex justify-between items-center text-xs">
-                                            <span className="text-gray-300">生活损耗</span>
+                                            <span className="text-gray-300">富裕性挥霍</span>
                                             <span className="text-red-400 font-mono">-{decay.toFixed(2)}</span>
                                         </div>
                                     )}

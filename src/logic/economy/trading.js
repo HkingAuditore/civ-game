@@ -6,6 +6,7 @@
 import { STRATA, RESOURCES } from '../../config';
 import { calculateForeignPrice } from '../../utils/foreignTrade';
 import { isTradableResource } from '../utils/helpers';
+import { debugLog } from '../../utils/debugFlags';
 
 /**
  * Default merchant trade configuration
@@ -126,7 +127,7 @@ export const simulateMerchantTrade = ({
             });
 
             if (tradeConfig.enableDebugLog) {
-                console.log(`[Merchant Debug] ✅ Trade complete:`, {
+                debugLog('trade', `[Merchant Debug] ✅ Trade complete:`, {
                     type: trade.type === 'export' ? 'Export' : 'Import',
                     resource: trade.resource,
                     amount: trade.amount,
@@ -145,7 +146,7 @@ export const simulateMerchantTrade = ({
 
     if (!canTradeNow) {
         if (tradeConfig.enableDebugLog) {
-            console.log(`[Merchant Debug] ⏳ Trade cooldown: ${(tradeConfig.tradeCooldown - ticksSinceLastTrade).toFixed(1)} days remaining`);
+            debugLog('trade', `[Merchant Debug] ⏳ Trade cooldown: ${(tradeConfig.tradeCooldown - ticksSinceLastTrade).toFixed(1)} days remaining`);
         }
         return { pendingTrades: updatedPendingTrades, lastTradeTime, lockedCapital: 0, capitalInvestedThisTick: 0, completedTrades };
     }

@@ -193,6 +193,8 @@ export const BuildingUpgradePanel = ({
     resources,
     market = {},
     taxPolicies = {},
+    popStructure = {},
+    classFinancialData = {},
     onUpgrade,
     onDowngrade,
     onBatchUpgrade,
@@ -285,6 +287,15 @@ export const BuildingUpgradePanel = ({
         );
     };
 
+    const getRoleActualIncomePerCap = useCallback((role) => {
+        const popCount = popStructure?.[role] ?? 0;
+        if (!Number.isFinite(popCount) || popCount <= 0) return null;
+        const income = classFinancialData?.[role]?.income || {};
+        const totalIncome = (income.wage || 0) + (income.ownerRevenue || 0) + (income.subsidy || 0);
+        if (!Number.isFinite(totalIncome)) return null;
+        return totalIncome / popCount;
+    }, [popStructure, classFinancialData]);
+
     // 渲染等级配置（升级后的效果）
     const renderLevelConfig = (levelNum) => {
         const config = getBuildingEffectiveConfig(building, levelNum);
@@ -336,7 +347,10 @@ export const BuildingUpgradePanel = ({
                         <div className="space-y-1">
                             {jobEntries.map(([key, val]) => {
                                 const incomeInfo = incomeEstimates[key];
-                                const income = incomeInfo?.income ?? getMarketWage(key, market);
+                                const actualIncomePerCap = getRoleActualIncomePerCap(key);
+                                const income = Number.isFinite(actualIncomePerCap)
+                                    ? actualIncomePerCap
+                                    : incomeInfo?.income ?? getMarketWage(key, market);
                                 const isOwner = incomeInfo?.isOwner ?? false;
                                 return (
                                     <div
