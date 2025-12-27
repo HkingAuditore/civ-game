@@ -52,6 +52,10 @@
 - **large_estate**: A cinematic painting of a Manor House (Large Estate), Feudal Era. Grand stone house surrounded by fields. Feudal lord overlooking land. Agricultural wealth. Victoria 3 art style, oil painting texture. --ar 16:9
 - **town_hall**: A cinematic painting of a Town Hall, Feudal Era. Impressive stone building with a clock tower or bell. Center of civic life. Banners flying. Victoria 3 art style, oil painting texture. --ar 16:9
 - **church**: A cinematic painting of a Church, Feudal Era. Stone gothic architecture with stained glass windows. Spire reaching to sky. Spiritual atmosphere. Victoria 3 art style, oil painting texture. --ar 16:9
+- **monastery_cellar**: A cinematic painting of a Monastery Wine Cellar, Feudal Era. Ancient stone vaulted cellar with arched ceilings. Rows of wooden wine barrels aging in cool darkness. Monks in brown robes tending to the wines. Candlelit atmosphere with warm amber glow. Religious symbols on walls. Victoria 3 art style, oil painting texture, heavy impasto, rich details. --ar 16:9
+- **wool_workshop**: A cinematic painting of a Wool Workshop, Feudal Era. Half-timbered building with thatched roof. Wooden spinning wheels and large looms inside. Bundles of raw wool and finished cloth. Serfs working diligently. Rural manor setting. Victoria 3 art style, oil painting texture, heavy impasto, rich details. --ar 16:9
+- **stone_workshop**: A cinematic painting of a Stone Mason Workshop, Feudal Era. Open-air quarry with skilled craftsmen carving stone blocks. Iron chisels and hammers. Wooden scaffolding supporting partially carved architectural elements. Dust in the air. Gothic cathedral construction nearby. Victoria 3 art style, oil painting texture, heavy impasto, rich details. --ar 16:9
+- **manor_house**: A cinematic painting of a Stone Manor House, Feudal Era. Elegant stone residential building with gothic windows and crenellated roofline. Well-maintained courtyard with fountain. Noble family residence. Walled garden. Victoria 3 art style, oil painting texture, heavy impasto, rich details. --ar 16:9
 
 ## Epoch 4: Age of Exploration (探索时代)
 *Features: Maritime themes, maps, compasses, harbor structures.*
@@ -61,6 +65,8 @@
 - **trade_port**: A cinematic painting of a Trade Port, Exploration Era. Ships unloading exotic cargo (spices, silk). Bustling stone quay. Warehouses. Victoria 3 art style, oil painting texture. --ar 16:9
 - **fortress**: A cinematic painting of a Fortress, Exploration Era. Star-fort design with thick stone walls. Cannons pointing outward. Defensive strength. Victoria 3 art style, oil painting texture. --ar 16:9
 - **metallurgy_workshop**: A cinematic painting of a Metallurgy Workshop, Exploration Era. Advanced blast furnace. Refining metals. Industrial scale increasing. Victoria 3 art style, oil painting texture. --ar 16:9
+- **dye_workshop**: A cinematic painting of a Dye Workshop, Exploration Era. Large brick building with colorful fabrics hanging to dry. Vats filled with vibrant New World dyes - cochineal red, indigo blue. Artisans working with exotic pigments. Spice trade influence. Victoria 3 art style, oil painting texture, heavy impasto, rich details. --ar 16:9
+- **townhouse**: A cinematic painting of a Townhouse, Exploration Era. Row of connected multi-story brick and timber houses with tiled roofs. Narrow facades with tall windows. Urban port city setting. Merchants and sailors walking by. Victoria 3 art style, oil painting texture, heavy impasto, rich details. --ar 16:9
 
 ## Epoch 5: Enlightenment (启蒙时代)
 *Features: Rationalism, libraries, coffee, early machinery, water power.*
@@ -75,8 +81,10 @@
 - **paper_mill**: A cinematic painting of a Paper Mill, Enlightenment. Vats of pulp and pressing rollers. Water power. production of continuous paper rolls. Victoria 3 art style, oil painting texture. --ar 16:9
 - **university**: A cinematic painting of a University, Enlightenment. Grand neoclassical campus buildings. Students and professors in robes. Lawns and libraries. Victoria 3 art style, oil painting texture. --ar 16:9
 - **opera_house**: A cinematic painting of an Opera House, Enlightenment. Opulent baroque facade with statues. Grand entrance. Cultural prestige. Victoria 3 art style, oil painting texture. --ar 16:9
+- **civic_apartment**: A cinematic painting of a Civic Apartment Building, Enlightenment Era. Elegant multi-story stone building with mansard roof and decorative dormers. Wrought iron balconies. Rising middle class urban residence. Neoclassical architectural details. Victoria 3 art style, oil painting texture, heavy impasto, rich details. --ar 16:9
 
 ## Epoch 6: Age of Industry (工业时代)
+
 *Features: Steam power, smoke stacks, red brick factories, steel, railways, smog.*
 
 - **coal_mine**: A cinematic painting of a Coal Mine, Industrial Age. Headframe tower over mine shaft. Piles of black coal. Steam engines powering lifts. Soot and grime. Victoria 3 art style, oil painting texture. --ar 16:9
