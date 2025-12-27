@@ -184,21 +184,21 @@ export const BUILDING_UPGRADES = {
         },
     ],
 
-    // dye_works: base output 0.6 dye, owner: artisan, base jobs: peasant:2
+    // dye_works: base output 0.6 dye, owner: worker, base jobs: worker:2
     dye_works: [
         {
             name: "大染坊",
             cost: { wood: 60, stone: 25, tools: 10, silver: 250 },
             input: { food: 0.6, tools: 0.02 },
             output: { dye: 0.78 }, // 1.3x
-            jobs: { peasant: 2 }, // keep same, efficiency upgrade
+            jobs: { worker: 2 }, // keep same, efficiency upgrade
         },
         {
             name: "染色工坊",
             cost: { plank: 50, brick: 30, tools: 20, silver: 600 },
             input: { food: 0.9, tools: 0.04, cloth: 0.05 }, // 需要布料样本
             output: { dye: 1.08, culture: 0.05 }, // 1.8x + 染艺文化
-            jobs: { peasant: 3 }, // +1 peasant only (artisan too expensive for dye output value)
+            jobs: { worker: 3 }, // +1 worker only
         },
     ],
 
@@ -259,21 +259,21 @@ export const BUILDING_UPGRADES = {
 
     // ========== 古典/封建时代建筑 ==========
 
-    // reed_works: base output 0.6 papyrus, owner: peasant, base jobs: peasant:2
+    // reed_works: base output 0.6 papyrus, owner: worker, base jobs: worker:2
     reed_works: [
         {
             name: "改良造纸坊",
             cost: { wood: 60, tools: 10, silver: 220 },
             input: { tools: 0.01 },
             output: { papyrus: 0.78 }, // 1.3x
-            jobs: { peasant: 2 }, // keep same, efficiency upgrade
+            jobs: { worker: 2 }, // keep same, efficiency upgrade
         },
         {
             name: "大造纸坊",
             cost: { plank: 50, tools: 20, silver: 500 },
             input: { tools: 0.02 },
             output: { papyrus: 1.08, science: 0.05 }, // 1.8x + 研墨副产
-            jobs: { peasant: 3 }, // +1 peasant only
+            jobs: { worker: 3 }, // +1 worker only
         },
     ],
 
