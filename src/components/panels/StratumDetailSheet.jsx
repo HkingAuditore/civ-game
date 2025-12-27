@@ -123,7 +123,7 @@ const StratumDetailSheetComponent = ({
             incomeRatio,
             wealthRatio,
             stratum.wealthElasticity || 1.0,
-            livingStandardLevel
+            null
         );
         // 消费倍率（受阶层上限限制，用于 UI 显示）
         const maxConsumptionMultiplier = stratum.maxConsumptionMultiplier || 6;

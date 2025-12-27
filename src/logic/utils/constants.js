@@ -114,7 +114,7 @@ export const TIER_PROMOTION_WEALTH_RATIO = {
     0: 0,     // 进入 Tier 0 无财富门槛
     1: 0,     // 进入 Tier 1 无财富门槛
     2: 0.5,   // 进入 Tier 2 需要目标阶层 startingWealth 的 50%
-    3: 0.8    // 进入 Tier 3 需要目标阶层 startingWealth 的 80%
+    3: 0.5    // 进入 Tier 3 需要目标阶层 startingWealth 的 80%
 };
 
 // Wealth threshold for active tier seeking (multiple of current startingWealth)
