@@ -6,7 +6,7 @@ import { unstable_batchedUpdates } from 'react-dom';
 import { simulateTick } from '../logic/simulation';
 // Web Worker for offloading simulation to background thread
 import SimulationWorker from '../workers/simulation.worker.js?worker';
-import { calculateArmyMaintenance, calculateArmyPopulation, UNIT_TYPES, STRATA, RESOURCES } from '../config';
+import { BUILDINGS, calculateArmyMaintenance, calculateArmyPopulation, UNIT_TYPES, STRATA, RESOURCES } from '../config';
 import { getRandomFestivalEffects } from '../config/festivalEffects';
 import { initCheatCodes } from './cheatCodes';
 import { getCalendarInfo } from '../utils/calendar';
@@ -257,6 +257,24 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
 const getUnitPopulationCost = (unitId) => {
     const unit = UNIT_TYPES[unitId];
     return unit?.populationCost || 1;
+};
+
+const getMilitaryCapacity = (buildingState = {}) => {
+    let capacity = 0;
+    Object.entries(buildingState || {}).forEach(([buildingId, count]) => {
+        if (!count) return;
+        const building = BUILDINGS.find(b => b.id === buildingId);
+        if (building?.output?.militaryCapacity) {
+            capacity += building.output.militaryCapacity * count;
+        }
+    });
+    return capacity;
+};
+
+const getTotalArmyCount = (armyState = {}, queueState = []) => {
+    const armyCount = Object.values(armyState || {}).reduce((sum, count) => sum + (count || 0), 0);
+    const queueCount = Array.isArray(queueState) ? queueState.length : 0;
+    return armyCount + queueCount;
 };
 
 const formatUnitSummary = (unitMap = {}) => {
@@ -752,13 +770,14 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
     const saveGameRef = useRef(gameState.saveGame);
     const autoRecruitCooldownRef = useRef({});
+    const capacityTrimLogRef = useRef({ day: null });
     const AUTO_RECRUIT_BATCH_LIMIT = 3;
     const AUTO_RECRUIT_FAIL_COOLDOWN = 5000;
 
     // ========== 历史数据节流 ==========
     // 每 HISTORY_UPDATE_INTERVAL 个 tick 才更新一次历史数据，减少内存操作
     const historyUpdateCounterRef = useRef(0);
-    const HISTORY_UPDATE_INTERVAL = 5; // 每5个tick更新一次历史数据
+    const HISTORY_UPDATE_INTERVAL = 1; // 每1个tick更新一次历史数据（保留最近30天）
 
     // ========== Web Worker Integration ==========
     // Worker instance and status for background simulation
@@ -1405,7 +1424,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 const previousDemandHistory = current.market?.demandHistory || {};
                 const demandHistory = { ...previousDemandHistory };
 
-                const MAX_MARKET_HISTORY_POINTS = 60;
+                const MAX_MARKET_HISTORY_POINTS = 30;
 
                 Object.keys(result.market?.prices || {}).forEach(resource => {
                     const price = result.market?.prices?.[resource];
@@ -1437,7 +1456,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
                 const previousWealthHistory = current.classWealthHistory || {};
                 const wealthHistory = { ...previousWealthHistory };
-                const MAX_WEALTH_POINTS = 120;
+                const MAX_WEALTH_POINTS = 30;
                 Object.entries(result.classWealth || {}).forEach(([key, value]) => {
                     const series = wealthHistory[key] ? [...wealthHistory[key]] : [];
                     series.push(value);
@@ -1449,7 +1468,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
                 const previousNeedsHistory = current.classNeedsHistory || {};
                 const needsHistory = { ...previousNeedsHistory };
-                const MAX_NEEDS_POINTS = 120;
+                const MAX_NEEDS_POINTS = 30;
                 Object.entries(result.needsReport || {}).forEach(([key, report]) => {
                     const series = needsHistory[key] ? [...needsHistory[key]] : [];
                     series.push(report.satisfactionRatio);
@@ -1477,7 +1496,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     historyUpdateCounterRef.current++;
                 }
 
-                const MAX_HISTORY_POINTS = 90;
+                const MAX_HISTORY_POINTS = 30;
                 if (shouldUpdateHistory) {
                     setHistory(prevHistory => {
                         const appendValue = (series = [], value) => {
@@ -2857,6 +2876,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                 try {
                                     const jsonStr = log.replace('AUTO_REPLENISH_LOSSES:', '');
                                     const losses = JSON.parse(jsonStr);
+                                    const capacity = getMilitaryCapacity(current.buildings || {});
+                                    const totalArmyCount = getTotalArmyCount(current.army || {}, current.militaryQueue || []);
+                                    let availableSlots = capacity > 0 ? Math.max(0, capacity - totalArmyCount) : 0;
 
                                     // 计算补兵成本
                                     let totalSilverCost = 0;
@@ -2864,15 +2886,21 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                     let canAfford = true;
                                     const prices = result.market?.prices || current.market?.prices || {};
 
+                                    const replenishCounts = {};
                                     Object.entries(losses).forEach(([unitId, lossCount]) => {
                                         if (lossCount <= 0) return;
                                         const unit = UNIT_TYPES[unitId];
                                         if (!unit) return;
+                                        if (capacity > 0 && availableSlots <= 0) return;
+                                        const fillCount = capacity > 0 ? Math.min(lossCount, availableSlots) : lossCount;
+                                        if (fillCount <= 0) return;
+                                        replenishCounts[unitId] = fillCount;
+                                        availableSlots -= fillCount;
 
                                         const cost = unit.recruitCost || {};
                                         // 累计资源成本
                                         Object.entries(cost).forEach(([res, amount]) => {
-                                            totalResourceCost[res] = (totalResourceCost[res] || 0) + amount * lossCount;
+                                            totalResourceCost[res] = (totalResourceCost[res] || 0) + amount * fillCount;
                                         });
 
                                         // 累计银币成本 (物资价值) matches recruitUnit logic
@@ -2880,8 +2908,16 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                             const price = prices[res] || 10;
                                             return sum + amount * price;
                                         }, 0);
-                                        totalSilverCost += unitSilverCost * lossCount;
+                                        totalSilverCost += unitSilverCost * fillCount;
                                     });
+
+                                    const replenishTotal = Object.values(replenishCounts).reduce((sum, count) => sum + count, 0);
+                                    if (replenishTotal <= 0) {
+                                        if (capacity > 0) {
+                                            addLog('⚠️ 军事容量不足，自动补兵已暂停。');
+                                        }
+                                        return;
+                                    }
 
                                     // 检查余额
                                     const currentRes = current.resources || {};
@@ -2907,7 +2943,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
                                         // 将损失的士兵加入训练队列
                                         const replenishItems = [];
-                                        Object.entries(losses).forEach(([unitId, lossCount]) => {
+                                        Object.entries(replenishCounts).forEach(([unitId, lossCount]) => {
                                             if (lossCount > 0) {
                                                 const unit = UNIT_TYPES[unitId];
                                                 if (unit && unit.epoch <= epoch) {
@@ -2927,11 +2963,17 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
                                         if (replenishItems.length > 0) {
                                             setMilitaryQueue(prev => [...prev, ...replenishItems]);
-                                            const summary = Object.entries(losses)
+                                            const summary = Object.entries(replenishCounts)
                                                 .filter(([_, count]) => count > 0)
                                                 .map(([unitId, count]) => `${UNIT_TYPES[unitId]?.name || unitId} ×${count}`)
                                                 .join('、');
                                             addLog(`🔄 自动补兵：已花费资金招募 ${summary} 加入训练队列。`);
+                                            if (capacity > 0) {
+                                                const totalLosses = Object.values(losses).reduce((sum, count) => sum + (count || 0), 0);
+                                                if (replenishTotal < totalLosses) {
+                                                    addLog('⚠️ 军事容量不足，部分损失未能补充。');
+                                                }
+                                            }
                                         }
                                     }
                                 } catch (e) {
@@ -3316,9 +3358,34 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
                 // 处理训练队列
                 setMilitaryQueue(prev => {
-                    const baseQueue = queueOverrideForManpower || prev;
+                    let baseQueue = queueOverrideForManpower || prev;
                     const currentSoldierPop = (soldierPopulationAfterEvents ?? result.popStructure?.soldier) || 0;
                     const currentArmyCount = Object.values(armyStateForQueue || {}).reduce((sum, count) => sum + count, 0);
+                    const militaryCapacity = getMilitaryCapacity(current.buildings || {});
+
+                    if (militaryCapacity > 0) {
+                        const maxQueueSize = Math.max(0, militaryCapacity - currentArmyCount);
+                        if (baseQueue.length > maxQueueSize) {
+                            const trainingItems = baseQueue.filter(item => item.status === 'training');
+                            const waitingItems = baseQueue.filter(item => item.status !== 'training');
+                            let trimmedQueue = [];
+                            if (trainingItems.length >= maxQueueSize) {
+                                trimmedQueue = trainingItems.slice(0, maxQueueSize);
+                            } else {
+                                const remainingSlots = maxQueueSize - trainingItems.length;
+                                trimmedQueue = [...trainingItems, ...waitingItems.slice(0, remainingSlots)];
+                            }
+                            const removedCount = baseQueue.length - trimmedQueue.length;
+                            if (removedCount > 0) {
+                                const currentDay = current.daysElapsed || 0;
+                                if (capacityTrimLogRef.current.day !== currentDay) {
+                                    capacityTrimLogRef.current.day = currentDay;
+                                    addLog(`⚠️ 军事容量不足，已取消 ${removedCount} 个训练队列名额。`);
+                                }
+                            }
+                            baseQueue = trimmedQueue;
+                        }
+                    }
 
                     // 计算有多少岗位可以用于新训练
                     // 只计算已有军队和正在训练的，waiting状态的就是等待转为training的

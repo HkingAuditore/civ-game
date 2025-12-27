@@ -240,6 +240,174 @@ const buildInitialMerchantState = () => ({
     lockedCapital: 0,
 });
 
+const AUTO_SAVE_LIMITS = {
+    history: 30,
+    classHistory: 30,
+    eventHistory: 30,
+    classSeries: 30,
+    marketHistory: 30,
+};
+
+const AUTO_SAVE_AGGRESSIVE_LIMITS = {
+    history: 10,
+    classHistory: 10,
+    eventHistory: 10,
+    classSeries: 10,
+    marketHistory: 10,
+};
+
+const trimArray = (value, limit) => (Array.isArray(value) ? value.slice(-limit) : value);
+
+const trimClassSeriesMap = (seriesMap, limit) => {
+    if (!seriesMap || typeof seriesMap !== 'object') {
+        return seriesMap;
+    }
+    const trimmed = {};
+    Object.keys(seriesMap).forEach((key) => {
+        trimmed[key] = trimArray(seriesMap[key], limit);
+    });
+    return trimmed;
+};
+
+const trimHistorySnapshot = (history, limit) => {
+    if (!history || typeof history !== 'object') {
+        return history;
+    }
+    const next = {
+        ...history,
+        treasury: trimArray(history.treasury, limit),
+        tax: trimArray(history.tax, limit),
+        population: trimArray(history.population, limit),
+    };
+    if (history.class && typeof history.class === 'object') {
+        const classHistory = {};
+        Object.keys(history.class).forEach((key) => {
+            const entry = history.class[key] || {};
+            classHistory[key] = {
+                ...entry,
+                pop: trimArray(entry.pop, limit),
+                income: trimArray(entry.income, limit),
+                expense: trimArray(entry.expense, limit),
+            };
+        });
+        next.class = classHistory;
+    }
+    return next;
+};
+
+const trimMarketSnapshot = (market, limit) => {
+    if (!market || typeof market !== 'object') {
+        return market;
+    }
+    const trimSeriesMap = (seriesMap) => {
+        if (!seriesMap || typeof seriesMap !== 'object') {
+            return seriesMap;
+        }
+        const trimmed = {};
+        Object.keys(seriesMap).forEach((key) => {
+            trimmed[key] = trimArray(seriesMap[key], limit);
+        });
+        return trimmed;
+    };
+    return {
+        ...market,
+        priceHistory: trimSeriesMap(market.priceHistory),
+        supplyHistory: trimSeriesMap(market.supplyHistory),
+        demandHistory: trimSeriesMap(market.demandHistory),
+    };
+};
+
+const compactSavePayload = (payload, { aggressive = false } = {}) => {
+    const limits = aggressive ? AUTO_SAVE_AGGRESSIVE_LIMITS : AUTO_SAVE_LIMITS;
+    const compacted = {
+        ...payload,
+        history: trimHistorySnapshot(payload.history, limits.history),
+        classWealthHistory: trimClassSeriesMap(payload.classWealthHistory, limits.classSeries),
+        classNeedsHistory: trimClassSeriesMap(payload.classNeedsHistory, limits.classSeries),
+        market: trimMarketSnapshot(payload.market, limits.marketHistory),
+        eventHistory: trimArray(payload.eventHistory, limits.eventHistory),
+        clicks: [],
+    };
+    if (aggressive) {
+        compacted.history = buildInitialHistory();
+        compacted.classWealthHistory = buildInitialWealthHistory();
+        compacted.classNeedsHistory = buildInitialNeedsHistory();
+        compacted.eventHistory = [];
+        compacted.logs = [];
+    }
+    return compacted;
+};
+
+const buildMinimalAutoSavePayload = (payload) => ({
+    saveFormatVersion: payload.saveFormatVersion,
+    resources: payload.resources,
+    population: payload.population,
+    popStructure: payload.popStructure,
+    maxPop: payload.maxPop,
+    maxPopBonus: payload.maxPopBonus,
+    birthAccumulator: payload.birthAccumulator,
+    buildings: payload.buildings,
+    buildingUpgrades: payload.buildingUpgrades,
+    techsUnlocked: payload.techsUnlocked,
+    epoch: payload.epoch,
+    activeTab: payload.activeTab,
+    gameSpeed: payload.gameSpeed,
+    isPaused: payload.isPaused,
+    decrees: payload.decrees,
+    nations: payload.nations,
+    classApproval: payload.classApproval,
+    classInfluence: payload.classInfluence,
+    classWealth: payload.classWealth,
+    classWealthDelta: payload.classWealthDelta,
+    classIncome: payload.classIncome,
+    classExpense: payload.classExpense,
+    classFinancialData: payload.classFinancialData,
+    totalInfluence: payload.totalInfluence,
+    totalWealth: payload.totalWealth,
+    activeBuffs: payload.activeBuffs,
+    activeDebuffs: payload.activeDebuffs,
+    classInfluenceShift: payload.classInfluenceShift,
+    stability: payload.stability,
+    classShortages: payload.classShortages,
+    classLivingStandard: payload.classLivingStandard,
+    livingStandardStreaks: payload.livingStandardStreaks,
+    migrationCooldowns: payload.migrationCooldowns,
+    daysElapsed: payload.daysElapsed,
+    army: payload.army,
+    militaryQueue: payload.militaryQueue,
+    selectedTarget: payload.selectedTarget,
+    battleResult: payload.battleResult,
+    playerInstallmentPayment: payload.playerInstallmentPayment,
+    autoRecruitEnabled: payload.autoRecruitEnabled,
+    targetArmyComposition: payload.targetArmyComposition,
+    militaryWageRatio: payload.militaryWageRatio,
+    activeFestivalEffects: payload.activeFestivalEffects,
+    lastFestivalYear: payload.lastFestivalYear,
+    showTutorial: payload.showTutorial,
+    currentEvent: payload.currentEvent,
+    taxes: payload.taxes,
+    taxPolicies: payload.taxPolicies,
+    jobFill: payload.jobFill,
+    market: payload.market,
+    merchantState: payload.merchantState,
+    tradeRoutes: payload.tradeRoutes,
+    tradeStats: payload.tradeStats,
+    eventEffectSettings: payload.eventEffectSettings,
+    activeEventEffects: payload.activeEventEffects,
+    rebellionStates: payload.rebellionStates,
+    rulingCoalition: payload.rulingCoalition,
+    legitimacy: payload.legitimacy,
+    actionCooldowns: payload.actionCooldowns,
+    actionUsage: payload.actionUsage,
+    promiseTasks: payload.promiseTasks,
+    autoSaveInterval: payload.autoSaveInterval,
+    isAutoSaveEnabled: payload.isAutoSaveEnabled,
+    lastAutoSaveTime: payload.lastAutoSaveTime,
+    difficulty: payload.difficulty,
+    updatedAt: payload.updatedAt,
+    saveSource: payload.saveSource,
+});
+
 const DEFAULT_EVENT_EFFECT_SETTINGS = {
     approval: { duration: 30, decayRate: 0.04 },
     stability: { duration: 30, decayRate: 0.04 },
@@ -447,9 +615,11 @@ export const useGameState = () => {
     const [autoSaveInterval, setAutoSaveInterval] = useState(60); // 自动存档间隔（秒）
     const [isAutoSaveEnabled, setIsAutoSaveEnabled] = useState(true); // 自动存档开关
     const [lastAutoSaveTime, setLastAutoSaveTime] = useState(() => Date.now()); // 上次自动存档时间
+    const [autoSaveBlocked, setAutoSaveBlocked] = useState(false); // 自动存档因配额被禁用
     const [isSaving, setIsSaving] = useState(false); // UI保存状态指示
     const [difficulty, setDifficulty] = useState(DEFAULT_DIFFICULTY); // 游戏难度
     const savingIndicatorTimer = useRef(null);
+    const autoSaveQuotaNotifiedRef = useRef(false);
 
     // ========== 政令与外交状态 ==========
     const [decrees, setDecrees] = useState(DECREES);
@@ -928,8 +1098,14 @@ export const useGameState = () => {
         setClassIncome(data.classIncome || {});
         setClassExpense(data.classExpense || {});
         setClassFinancialData(data.classFinancialData || {});
-        setClassWealthHistory(data.classWealthHistory || buildInitialWealthHistory());
-        setClassNeedsHistory(data.classNeedsHistory || buildInitialNeedsHistory());
+        setClassWealthHistory(trimClassSeriesMap(
+            data.classWealthHistory || buildInitialWealthHistory(),
+            AUTO_SAVE_LIMITS.classSeries,
+        ));
+        setClassNeedsHistory(trimClassSeriesMap(
+            data.classNeedsHistory || buildInitialNeedsHistory(),
+            AUTO_SAVE_LIMITS.classSeries,
+        ));
         setTotalInfluence(data.totalInfluence || 0);
         setTotalWealth(data.totalWealth || 0);
         setActiveBuffs(data.activeBuffs || []);
@@ -943,7 +1119,7 @@ export const useGameState = () => {
         setLivingStandardStreaks(data.livingStandardStreaks || buildInitialLivingStandardStreaks());
         setMigrationCooldowns(data.migrationCooldowns || {});
         setPopulationDetailView(data.populationDetailView || false);
-        setHistory(data.history || buildInitialHistory());
+        setHistory(trimHistorySnapshot(data.history || buildInitialHistory(), AUTO_SAVE_LIMITS.history));
         setDaysElapsed(data.daysElapsed || 0);
         setArmy(data.army || {});
         setMilitaryQueue(data.militaryQueue || []);
@@ -958,7 +1134,7 @@ export const useGameState = () => {
         setLastFestivalYear(data.lastFestivalYear || 1);
         setShowTutorial(data.showTutorial ?? true);
         setCurrentEvent(data.currentEvent || null);
-        setEventHistory(data.eventHistory || []);
+        setEventHistory(trimArray(data.eventHistory || [], AUTO_SAVE_LIMITS.eventHistory));
         setLogs(Array.isArray(data.logs) ? data.logs : []);
         setClicks(Array.isArray(data.clicks) ? data.clicks : []);
         setRates(data.rates || {});
@@ -989,7 +1165,11 @@ export const useGameState = () => {
                 ?? defaultTaxPolicies.resourceTariffMultipliers,
         });
         setJobFill(data.jobFill || {});
-        setMarket(data.market || buildInitialMarket());
+        const loadedMarket = trimMarketSnapshot(
+            data.market || buildInitialMarket(),
+            AUTO_SAVE_LIMITS.marketHistory,
+        );
+        setMarket(loadedMarket);
         setMerchantState(data.merchantState || buildInitialMerchantState());
         setTradeRoutes(data.tradeRoutes || buildInitialTradeRoutes());
         setTradeStats(data.tradeStats || { tradeTax: 0 });
@@ -1018,13 +1198,18 @@ export const useGameState = () => {
     };
 
     const saveGame = ({ source = 'manual', slotIndex = 0 } = {}) => {
+        if (source === 'auto' && (autoSaveBlocked || !isAutoSaveEnabled)) {
+            return;
+        }
+        const timestamp = Date.now();
+        const { payload } = buildSavePayload({ source, timestamp });
+        const shouldCompact = source === 'auto';
+        const payloadToSave = shouldCompact ? compactSavePayload(payload) : payload;
+        let targetKey;
+        let friendlyName;
         try {
-            const timestamp = Date.now();
-            const { payload } = buildSavePayload({ source, timestamp });
 
             // 确定存储 key
-            let targetKey;
-            let friendlyName;
             if (source === 'auto') {
                 targetKey = AUTOSAVE_KEY;
                 friendlyName = '自动存档';
@@ -1035,7 +1220,7 @@ export const useGameState = () => {
                 friendlyName = `存档 ${safeIndex + 1}`;
             }
 
-            localStorage.setItem(targetKey, JSON.stringify(payload));
+            localStorage.setItem(targetKey, JSON.stringify(payloadToSave));
             triggerSavingIndicator();
 
             if (source === 'auto') {
@@ -1044,6 +1229,43 @@ export const useGameState = () => {
                 addLogEntry(`💾 游戏已保存到${friendlyName}！`);
             }
         } catch (error) {
+            const isQuotaExceeded = error?.name === 'QuotaExceededError'
+                || `${error?.message || ''}`.toLowerCase().includes('quota');
+            if (isQuotaExceeded) {
+                try {
+                    const compactedPayload = compactSavePayload(payload, { aggressive: true });
+                    localStorage.setItem(targetKey, JSON.stringify(compactedPayload));
+                    triggerSavingIndicator();
+                    if (source === 'auto') {
+                        setLastAutoSaveTime(timestamp);
+                    }
+                    addLogEntry('⚠️ 存档空间不足，已使用精简存档。');
+                    return;
+                } catch (fallbackError) {
+                    console.error('Compact save failed:', fallbackError);
+                }
+                if (source === 'auto') {
+                    try {
+                        const minimalPayload = buildMinimalAutoSavePayload(payload);
+                        localStorage.setItem(targetKey, JSON.stringify(minimalPayload));
+                        triggerSavingIndicator();
+                        setLastAutoSaveTime(timestamp);
+                        addLogEntry('⚠️ 自动存档已切换为最小存档。');
+                        return;
+                    } catch (minimalError) {
+                        console.error('Minimal auto save failed:', minimalError);
+                    }
+                }
+                if (source === 'auto') {
+                    setIsAutoSaveEnabled(false);
+                    setAutoSaveBlocked(true);
+                    if (!autoSaveQuotaNotifiedRef.current) {
+                        autoSaveQuotaNotifiedRef.current = true;
+                        addLogEntry('❌ 自动存档空间不足，已自动关闭。请清理旧存档或导出存档。');
+                    }
+                    return;
+                }
+            }
             console.error(`${source === 'auto' ? 'Auto' : 'Manual'} save failed:`, error);
             if (source === 'auto') {
                 addLogEntry(`❌ 自动存档失败：${error.message}`);
