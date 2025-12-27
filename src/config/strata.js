@@ -115,8 +115,7 @@ export const STRATA = {
         }
     },
 
-    // 中层阶级
-    worker: {
+        worker: {
         name: "工人",
         icon: 'Hammer',
         weight: 2,
@@ -147,6 +146,9 @@ export const STRATA = {
             dissatisfied: { desc: "工人罢工", industryBonus: -0.25 }
         }
     },
+
+
+    // 中层阶级
 
     artisan: {
         name: "工匠",

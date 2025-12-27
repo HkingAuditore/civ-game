@@ -473,46 +473,46 @@ const DiplomacyTabComponent = ({
                                 setSelectedNationId(nation.id);
                                 setShowNationModal(true);
                             }}
-                            className="w-full rounded-xl border border-ancient-gold/20 bg-gray-900/60 p-2 text-left transition-all hover:border-ancient-gold/40"
+                            className="w-full rounded-xl border border-ancient-gold/20 bg-gray-900/60 p-3 text-left transition-all hover:border-ancient-gold/40"
                         >
-                            <div className="flex items-center justify-between gap-2">
-                                <div className="flex items-center gap-2 min-w-0">
-                                    <Icon name="Flag" size={14} className={nation.color || 'text-gray-300'} />
-                                    <span className="text-sm font-semibold text-white truncate">{nation.name || '未知国家'}</span>
-                                    <span className={`px-1.5 py-0.5 rounded text-[10px] ${relation.bg} ${relation.color} font-epic`}>
-                                        {relation.label}
+                            {/* 第一行：国家名称和关系标签 */}
+                            <div className="flex items-center gap-2 mb-2">
+                                <Icon name="Flag" size={16} className={nation.color || 'text-gray-300'} />
+                                <span className="text-sm font-semibold text-white flex-1">{nation.name || '未知国家'}</span>
+                                <span className={`px-1.5 py-0.5 rounded text-[10px] flex-shrink-0 ${relation.bg} ${relation.color} font-epic`}>
+                                    {relation.label}
+                                </span>
+                                {nation.isRebelNation && (
+                                    <span className="px-1.5 py-0.5 rounded text-[10px] bg-red-900 text-red-100 font-epic flex-shrink-0">
+                                        叛乱
                                     </span>
-                                    {nation.isRebelNation && (
-                                        <span className="px-1.5 py-0.5 rounded text-[10px] bg-red-900 text-red-100 font-epic">
-                                            叛乱
-                                        </span>
-                                    )}
-                                </div>
-                                <div className="flex items-center gap-3 text-[12px] text-gray-200 font-body">
-                                    <span className="flex items-center gap-1">
-                                        <Icon name="Users" size={12} className="text-blue-300" />
-                                        <span className="font-mono text-blue-100 font-semibold font-epic">
-                                            {formatStatValue(nation?.population, '')}
-                                        </span>
+                                )}
+                                <Icon
+                                    name={(nation.isAtWar === true) ? 'Swords' : 'ShieldCheck'}
+                                    size={14}
+                                    className={(nation.isAtWar === true) ? 'text-red-400 flex-shrink-0' : 'text-green-400 flex-shrink-0'}
+                                />
+                            </div>
+                            {/* 第二行：数值统计 */}
+                            <div className="flex items-center justify-start gap-4 text-[11px] text-gray-200 font-body">
+                                <span className="flex items-center gap-1">
+                                    <Icon name="Users" size={12} className="text-blue-300" />
+                                    <span className="font-mono text-blue-100 font-semibold font-epic">
+                                        {formatStatValue(nation?.population, '')}
                                     </span>
-                                    <span className="flex items-center gap-1">
-                                        <Icon name="Coins" size={12} className="text-amber-300" />
-                                        <span className="font-mono text-amber-100 font-semibold font-epic">
-                                            {formatStatValue(nation?.wealth, '')}
-                                        </span>
+                                </span>
+                                <span className="flex items-center gap-1">
+                                    <Icon name="Coins" size={12} className="text-amber-300" />
+                                    <span className="font-mono text-amber-100 font-semibold font-epic">
+                                        {formatStatValue(nation?.wealth, '')}
                                     </span>
-                                    <span className="flex items-center gap-1">
-                                        <Icon name="Swords" size={12} className="text-red-300" />
-                                        <span className={`font-mono font-semibold font-epic ${militaryEstimate.colorClass}`}>
-                                            {compactMilitaryLabel}
-                                        </span>
+                                </span>
+                                <span className="flex items-center gap-1">
+                                    <Icon name="Swords" size={12} className="text-red-300" />
+                                    <span className={`font-mono font-semibold font-epic ${militaryEstimate.colorClass}`}>
+                                        {compactMilitaryLabel}
                                     </span>
-                                    <Icon
-                                        name={(nation.isAtWar === true) ? 'Swords' : 'ShieldCheck'}
-                                        size={14}
-                                        className={(nation.isAtWar === true) ? 'text-red-400' : 'text-green-400'}
-                                    />
-                                </div>
+                                </span>
                             </div>
                         </button>
                     );
@@ -1296,7 +1296,7 @@ const DiplomacyTabComponent = ({
                                     </button>
                                 </div>
                             </div>
-                            
+
                             <div className="px-3 pb-3 space-y-4">
                                 {/* --- STATS --- */}
                                 <div className="grid grid-cols-3 gap-2 text-xs">
@@ -1366,15 +1366,15 @@ const DiplomacyTabComponent = ({
                                                     );
                                                 })()}
                                                 {(() => {
-                                                const demandCooldown = getDiplomaticCooldown(selectedNation, 'demand');
-                                                return (
-                                                    <button
+                                                    const demandCooldown = getDiplomaticCooldown(selectedNation, 'demand');
+                                                    return (
+                                                        <button
                                                             className={`p-3 rounded-lg text-white flex flex-col items-center justify-center gap-1 font-semibold border border-white/10 shadow-metal-sm ${demandCooldown.isOnCooldown ? 'bg-gray-600/80 cursor-not-allowed' : 'bg-yellow-600 hover:bg-yellow-500'}`}
-                                                        onClick={() => handleSimpleAction(selectedNation.id, 'demand')}
-                                                        disabled={demandCooldown.isOnCooldown}
-                                                        title={demandCooldown.isOnCooldown ? `冷却中 (${demandCooldown.remainingDays}天)` : '索要贡品'}
-                                                    >
-                                                        <Icon name="ShieldAlert" size={14} />
+                                                            onClick={() => handleSimpleAction(selectedNation.id, 'demand')}
+                                                            disabled={demandCooldown.isOnCooldown}
+                                                            title={demandCooldown.isOnCooldown ? `冷却中 (${demandCooldown.remainingDays}天)` : '索要贡品'}
+                                                        >
+                                                            <Icon name="ShieldAlert" size={14} />
                                                             <span>{demandCooldown.isOnCooldown ? `${demandCooldown.remainingDays}天` : '索要'}</span>
                                                         </button>
                                                     );
@@ -1389,7 +1389,7 @@ const DiplomacyTabComponent = ({
                                             </div>
 
                                             <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
-                                            {(() => {
+                                                {(() => {
                                                     const provokeCooldown = getDiplomaticCooldown(selectedNation, 'provoke');
                                                     return (
                                                         <button
@@ -1440,7 +1440,7 @@ const DiplomacyTabComponent = ({
                                                 礼物成本: {calculateDynamicGiftCost(resources.silver || 0, selectedNation?.wealth || 0)} | 挑拨成本: {calculateProvokeCost(resources.silver || 0, selectedNation?.wealth || 0)}
                                             </div>
                                         </div>
-                                        
+
                                         {selectedPreferences.length > 0 && (
                                             <div className="p-3 glass-ancient rounded-lg border border-ancient-gold/20 shadow-metal-sm">
                                                 <h4 className="text-sm font-bold text-ancient-parchment font-decorative flex items-center gap-2 mb-2">
@@ -1462,7 +1462,25 @@ const DiplomacyTabComponent = ({
                                                 </div>
                                             </div>
                                         )}
-                                        
+
+                                        {selectedNation.peaceTreatyUntil && daysElapsed < selectedNation.peaceTreatyUntil && (
+                                            <div className="p-3 bg-green-900/20 rounded-lg border border-green-600/30 shadow-metal-sm">
+                                                <h4 className="text-base font-bold text-white flex items-center gap-2 mb-2 font-decorative">
+                                                    <Icon name="HandHeart" size={14} className="text-green-300" />
+                                                    和平协议
+                                                </h4>
+                                                <p className="text-xs text-gray-300 font-body">
+                                                    剩余天数: <span className="text-green-300 font-semibold font-epic">{selectedNation.peaceTreatyUntil - daysElapsed}</span>
+                                                </p>
+                                                {selectedNation.installmentPayment && (
+                                                    <p className="text-xs text-gray-300 mt-1 font-body">
+                                                        分期支付: 每天 <span className="text-yellow-300 font-semibold font-epic">{selectedNation.installmentPayment.amount}</span> 银币
+                                                        （剩余 <span className="text-white font-semibold font-epic">{selectedNation.installmentPayment.remainingDays}</span> 天）
+                                                    </p>
+                                                )}
+                                            </div>
+                                        )}
+
                                         {selectedNation.isAtWar && (
                                             <div className="p-3 bg-red-900/30 rounded-lg border border-red-600/50 shadow-metal-sm">
                                                 <h4 className="text-base font-bold text-white flex items-center gap-2 mb-2 font-decorative">
@@ -1497,7 +1515,7 @@ const DiplomacyTabComponent = ({
                                             const openMarketRemainingDays = isOpenMarketActive ? selectedNation.openMarketUntil - daysElapsed : 0;
                                             const maxRoutesWithNation = isOpenMarketActive ? 999 : getMaxTradeRoutesForRelation(nationRelation, isAllyWithNation);
                                             const currentRoutesWithNation = getRouteCountWithNation(tradeRoutes.routes, selectedNation?.id);
-                                            
+
                                             return (
                                                 <div className={`p-2.5 rounded-lg border shadow-metal-sm ${isOpenMarketActive ? 'bg-green-900/30 border-green-600/40' : 'bg-indigo-900/30 border-indigo-600/40'}`}>
                                                     <div className="flex items-center justify-between text-xs">
@@ -1521,7 +1539,7 @@ const DiplomacyTabComponent = ({
                                                 </div>
                                             );
                                         })()}
-                                        
+
                                         <div className="space-y-2">
                                             {tradableResources.map(([key, res]) => {
                                                 if (!selectedNation) return null;
@@ -1539,7 +1557,7 @@ const DiplomacyTabComponent = ({
                                                 const relationBlocked = currentRoutesWithNation >= maxRoutesWithNation;
                                                 const shortageCapacity = Math.floor(tradeStatus.shortageAmount || 0);
                                                 const surplusCapacity = Math.floor(tradeStatus.surplusAmount || 0);
-                                                
+
                                                 return (
                                                     <div key={key} className="glass-ancient rounded-lg p-2 border border-ancient-gold/20 shadow-metal-sm">
                                                         <div className="flex items-center justify-between mb-1.5">

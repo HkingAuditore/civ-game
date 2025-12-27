@@ -37,6 +37,8 @@ export const ROLE_PRIORITY = [
 export const JOB_MIGRATION_RATIO = 0.0025;
 // Guaranteed migration ratio when source role population is low (below LOW_POP_THRESHOLD)
 export const JOB_MIGRATION_LOW_POP_GUARANTEE = 0.2;
+// Limit how fast vacancies can be filled per tick to reduce oscillation
+export const VACANCY_FILL_RATIO_PER_TICK = 0.25;
 
 // ============== Migration Tier Resistance Constants ==============
 // These control how difficult it is to migrate between different tiers
@@ -59,7 +61,7 @@ export const UPGRADE_MIGRATION_BONUS = 0.8;
 
 // Migration cooldown per source role (in ticks)
 // After migration from a role, that role enters cooldown before another migration can occur
-export const MIGRATION_COOLDOWN_TICKS = 15;
+export const MIGRATION_COOLDOWN_TICKS = 5;
 
 // Price calculation constants
 export const PRICE_FLOOR = 0.0001;
@@ -102,7 +104,7 @@ export const GLOBAL_WAR_COOLDOWN = 30;
 export const STRATUM_TIERS = {
     unemployed: 0, serf: 0,
     peasant: 1, lumberjack: 1, miner: 1,
-    worker: 2, artisan: 2, soldier: 2, navigator: 2, scribe: 2, merchant: 2, cleric: 2,
+    worker: 1, artisan: 2, soldier: 2, navigator: 2, scribe: 2, merchant: 2, cleric: 2,
     official: 3, landowner: 3, capitalist: 3, knight: 3, engineer: 3
 };
 
@@ -111,7 +113,7 @@ export const STRATUM_TIERS = {
 export const TIER_PROMOTION_WEALTH_RATIO = {
     0: 0,     // 进入 Tier 0 无财富门槛
     1: 0,     // 进入 Tier 1 无财富门槛
-    2: 0.8,   // 进入 Tier 2 需要目标阶层 startingWealth 的 80%
+    2: 0.5,   // 进入 Tier 2 需要目标阶层 startingWealth 的 50%
     3: 0.8    // 进入 Tier 3 需要目标阶层 startingWealth 的 80%
 };
 

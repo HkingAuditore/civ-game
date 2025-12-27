@@ -7,6 +7,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Icon } from '../common/UIComponents';
 import { SimpleLineChart } from '../common/SimpleLineChart';
 import { RESOURCES, STRATA, BUILDINGS, UNIT_TYPES, INDUSTRY_CHAINS } from '../../config';
+import { calculateLuxuryConsumptionMultiplier, calculateUnlockMultiplier, getSimpleLivingStandard } from '../../utils/livingStandard';
+import { isResourceUnlocked } from '../../utils/resources';
 
 const formatAmount = (value) => {
     if (!Number.isFinite(value) || value === 0) return '0';
@@ -49,7 +51,7 @@ const MarketTrendChart = ({ series = [], height = 220, square = false }) => {
 
     const width = 640;
     const chartHeight = square ? 640 : height;
-    const padding = 40;
+    const padding = square ? 40 : Math.max(20, Math.round(chartHeight * 0.12));
     const totalPoints = Math.max(...normalizedSeries.map(item => item.data.length));
     const xStep = totalPoints > 1 ? (width - padding * 2) / (totalPoints - 1) : 0;
     const gridLines = 4;
@@ -93,7 +95,10 @@ const MarketTrendChart = ({ series = [], height = 220, square = false }) => {
                     </div>
                 ))}
             </div>
-            <div className={`relative w-full overflow-hidden rounded-2xl bg-gray-950/60 ${square ? 'aspect-square' : 'h-56'}`}>
+            <div
+                className={`relative w-full overflow-hidden rounded-2xl bg-gray-950/60 ${square ? 'aspect-square' : ''}`}
+                style={square ? undefined : { height: `${chartHeight}px` }}
+            >
                 <svg viewBox={`0 0 ${width} ${chartHeight}`} preserveAspectRatio="xMidYMid meet" className="h-full w-full">
                     {ticks.map(({ value, y }, index) => (
                         <g key={`grid-${index}`}>
@@ -556,8 +561,13 @@ const ResourceDetailContent = ({
     buildings = {},
     popStructure = {},
     wealth = {},
+    classIncome = {},
+    classLivingStandard = {},
     army = {},
+    dailyMilitaryExpense = null,
     history = {},
+    epoch = 0,
+    techsUnlocked = [],
     onClose,
     taxPolicies,
     onUpdateTaxPolicies,
@@ -697,6 +707,7 @@ const ResourceDetailContent = ({
         totalBaseSupply,
         totalActualDemand,
         totalActualSupply,
+        totalTheoreticalSupply,
     } = useMemo(() => {
         if (!resourceDef) {
             return {
@@ -708,6 +719,7 @@ const ResourceDetailContent = ({
                 totalBaseSupply: 0,
                 totalActualDemand: 0,
                 totalActualSupply: 0,
+                totalTheoreticalSupply: 0,
             };
         }
 
@@ -728,6 +740,7 @@ const ResourceDetailContent = ({
         let actualDemandTotal = 0;
         let baseSupplyTotal = 0;
         let actualSupplyTotal = 0;
+        let theoreticalSupplyTotal = 0;
 
         const stratumDemandList = Object.entries(STRATA).reduce((acc, [key, stratum]) => {
             const population = popStructure[key] || 0;
@@ -741,11 +754,41 @@ const ResourceDetailContent = ({
             // 财富乘数是独立的乘法因子
             const wealthMultiplier = sources.stratumWealthMultiplier?.[key] || 1;
 
+            const priceMap = market?.prices || {};
+            const baseNeeds = stratum.needs || {};
+            let essentialCostPerCapita = 0;
+            ['food', 'cloth'].forEach(resKey => {
+                if (baseNeeds[resKey] && isResourceUnlocked(resKey, epoch, techsUnlocked)) {
+                    const marketPrice = priceMap[resKey] || RESOURCES[resKey]?.basePrice || 1;
+                    const basePrice = RESOURCES[resKey]?.basePrice || 1;
+                    const effectivePrice = Math.max(marketPrice, basePrice);
+                    essentialCostPerCapita += baseNeeds[resKey] * effectivePrice;
+                }
+            });
+            const incomePerCapita = (classIncome[key] || 0) / Math.max(1, population);
+            const incomeRatio = essentialCostPerCapita > 0
+                ? incomePerCapita / essentialCostPerCapita
+                : (incomePerCapita > 0 ? 10 : 0);
+
             // 计算财富比例（用于判断奢侈需求解锁）
             const startingWealth = stratum.startingWealth || 1;
             const totalWealthForStratum = wealth[key] || (startingWealth * population);
             const perCapitaWealth = totalWealthForStratum / Math.max(1, population);
             const wealthRatio = perCapitaWealth / startingWealth;
+            const livingStandardLevel = classLivingStandard?.[key]?.level
+                || getSimpleLivingStandard(incomeRatio).level;
+            const unlockMultiplier = calculateUnlockMultiplier(
+                incomeRatio,
+                wealthRatio,
+                stratum.wealthElasticity || 1.0,
+                livingStandardLevel
+            );
+            const luxuryConsumptionMultiplier = calculateLuxuryConsumptionMultiplier({
+                consumptionMultiplier: wealthMultiplier,
+                incomeRatio,
+                wealthRatio,
+                livingStandardLevel,
+            });
 
             // 合并基础需求和已解锁的动态需求
             const effectiveNeeds = { ...(stratum.needs || {}) };
@@ -753,11 +796,12 @@ const ResourceDetailContent = ({
             if (stratum.luxuryNeeds) {
                 const thresholds = Object.keys(stratum.luxuryNeeds).map(Number).sort((a, b) => a - b);
                 for (const threshold of thresholds) {
-                    if (wealthRatio >= threshold) {
+                    if (unlockMultiplier >= threshold) {
                         unlockedLuxuryThreshold = threshold;
                         const luxuryNeedsAtThreshold = stratum.luxuryNeeds[threshold];
                         for (const [resKey, amount] of Object.entries(luxuryNeedsAtThreshold)) {
-                            effectiveNeeds[resKey] = (effectiveNeeds[resKey] || 0) + amount;
+                            effectiveNeeds[resKey] =
+                                (effectiveNeeds[resKey] || 0) + (amount * luxuryConsumptionMultiplier);
                         }
                     }
                 }
@@ -781,7 +825,7 @@ const ResourceDetailContent = ({
             actualDemandTotal += actualAmount;
 
             // NEW: Get actual consumption for this stratum if available
-            const realConsumption = stratumConsumption[key]?.[resourceKey] ?? null;
+            const realConsumption = stratumConsumption[key]?.[resourceKey];
 
             // 收集加成信息用于显示
             const modList = [];
@@ -811,8 +855,8 @@ const ResourceDetailContent = ({
                 icon: stratum.icon,
                 baseAmount,
                 theoreticalAmount: actualAmount, // Keep theoretical for comparison
-                amount: realConsumption !== null ? realConsumption : actualAmount, // Use actual if available
-                isActual: realConsumption !== null,
+                amount: realConsumption ?? 0,
+                isActual: realConsumption !== undefined,
                 formula,
                 mods: modList,
                 hasBonus: actualAmount !== baseAmount || isLuxuryNeed,
@@ -827,9 +871,9 @@ const ResourceDetailContent = ({
         const buildingDemandList = BUILDINGS.reduce((acc, building) => {
             const perBuilding = building.input?.[resourceKey] || 0;
             const count = buildings[building.id] || 0;
-            const realConsumption = demandBreakdown[resourceKey]?.buildings?.[building.id] ?? 0;
+            const realConsumption = demandBreakdown[resourceKey]?.buildings?.[building.id];
 
-            if ((!count && realConsumption <= 0) || (count > 0 && !perBuilding && realConsumption <= 0)) return acc;
+            if ((!count && (realConsumption ?? 0) <= 0) || (count > 0 && !perBuilding && (realConsumption ?? 0) <= 0)) return acc;
 
             const baseAmount = perBuilding * count;
             baseDemandTotal += baseAmount;
@@ -837,7 +881,7 @@ const ResourceDetailContent = ({
             const actualAmount = baseAmount * resourceDemandMultiplier;
             actualDemandTotal += actualAmount;
 
-            const finalAmount = realConsumption > 0 ? realConsumption : actualAmount;
+            const finalAmount = realConsumption ?? 0;
 
             acc.push({
                 id: building.id,
@@ -845,7 +889,7 @@ const ResourceDetailContent = ({
                 baseAmount,
                 amount: finalAmount,
                 theoreticalAmount: actualAmount,
-                isActual: realConsumption > 0,
+                isActual: realConsumption !== undefined,
                 formula: perBuilding > 0 ? `${count} 座 ` : '来自建筑升级',
                 hasBonus: finalAmount !== baseAmount,
             });
@@ -855,10 +899,10 @@ const ResourceDetailContent = ({
         const buildingSupplyList = BUILDINGS.reduce((acc, building) => {
             const perBuilding = building.output?.[resourceKey] || 0;
             const count = buildings[building.id] || 0;
-            const realProduction = supplyBreakdown[resourceKey]?.buildings?.[building.id] ?? 0;
+            const realProduction = supplyBreakdown[resourceKey]?.buildings?.[building.id];
 
             // Include if building exists AND (has base output OR has actual production from upgrades)
-            if (!count || (!perBuilding && realProduction <= 0)) return acc;
+            if (!count || (!perBuilding && (realProduction ?? 0) <= 0)) return acc;
 
             const baseAmount = perBuilding * count;
             baseSupplyTotal += baseAmount;
@@ -874,9 +918,10 @@ const ResourceDetailContent = ({
             const buildingMultiplier = 1 + totalBonusPct;
 
             const theoreticalAmount = baseAmount * buildingMultiplier * resourceSupplyMultiplier;
-            const actualAmount = realProduction > 0 ? realProduction : theoreticalAmount; // use > 0 because initialization was ?? 0
+            const actualAmount = realProduction ?? 0;
 
-            actualSupplyTotal += theoreticalAmount; // Keep calculating total based on theory for "Theoretical Capacity" metric
+            actualSupplyTotal += actualAmount;
+            theoreticalSupplyTotal += theoreticalAmount;
 
             const modList = [];
             if (techBuildingPct !== 0) modList.push(`科技 +${(techBuildingPct * 100).toFixed(0)}%`);
@@ -890,7 +935,7 @@ const ResourceDetailContent = ({
                 baseAmount,
                 theoreticalAmount,
                 amount: actualAmount,
-                isActual: realProduction > 0,
+                isActual: realProduction !== undefined,
                 formula: perBuilding > 0 ? `${count} 座` : '来自建筑升级',
                 mods: modList,
                 hasBonus: actualAmount !== baseAmount,
@@ -912,6 +957,7 @@ const ResourceDetailContent = ({
                 mods: [],
                 hasBonus: false,
             });
+            actualSupplyTotal += importAmount;
         }
 
 
@@ -924,12 +970,13 @@ const ResourceDetailContent = ({
             baseDemandTotal += baseAmount;
             const actualAmount = baseAmount * resourceDemandMultiplier;
             actualDemandTotal += actualAmount;
+            const actualConsumption = dailyMilitaryExpense?.resourceConsumption?.[resourceKey];
 
             acc.push({
                 id,
                 name: unit.name,
                 baseAmount,
-                amount: actualAmount, // Army demand should ideally also track actuals, but keeping simple for now
+                amount: actualConsumption ?? 0,
                 formula: `${count} 队 × ${perUnit}`,
                 hasBonus: actualAmount !== baseAmount,
             });
@@ -945,8 +992,9 @@ const ResourceDetailContent = ({
             totalBaseSupply: baseSupplyTotal,
             totalActualDemand: actualDemandTotal,
             totalActualSupply: actualSupplyTotal,
+            totalTheoreticalSupply: theoreticalSupplyTotal,
         };
-    }, [resourceDef, resourceKey, popStructure, buildings, army, market, wealth]);
+    }, [resourceDef, resourceKey, popStructure, buildings, army, market, wealth, classIncome, classLivingStandard, epoch, techsUnlocked, dailyMilitaryExpense]);
 
     // Removed early return and animationClass
     // Wrapper ensures resourceKey exists
@@ -1275,7 +1323,7 @@ const ResourceDetailContent = ({
                                             </div>
                                         </div>
                                         {/* 价格走势和供需走势 - 同行展示 */}
-                                        <div className="grid grid-cols-2 gap-2 lg:gap-3">
+                                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:gap-3">
                                             {/* 价格走势图 */}
                                             <div className="rounded-xl lg:rounded-2xl border border-gray-800 bg-gray-950/60 p-2 lg:p-4">
                                                 <div className="flex items-center justify-between mb-2">
@@ -1290,7 +1338,7 @@ const ResourceDetailContent = ({
                                                             data: priceHistoryData,
                                                         },
                                                     ]}
-                                                    square
+                                                    height={200}
                                                 />
                                                 <div className="mt-2 grid grid-cols-2 gap-1.5">
                                                     <div className="rounded-lg border border-gray-800/60 bg-gray-900/60 p-1.5 text-center">
@@ -1326,7 +1374,7 @@ const ResourceDetailContent = ({
                                                             data: demandHistoryData,
                                                         },
                                                     ]}
-                                                    square
+                                                    height={200}
                                                 />
                                                 <div className="mt-2 grid grid-cols-3 gap-1.5">
                                                     <div className="rounded-lg border border-gray-800/60 bg-gray-900/60 p-1.5 text-center">
@@ -1354,36 +1402,41 @@ const ResourceDetailContent = ({
                                         {(() => {
                                             const marketDemand = market?.demand?.[resourceKey] || 0;
                                             const marketSupply = market?.supply?.[resourceKey] || 0;
+                                            const actualDemandTotal =
+                                                stratumDemand.reduce((sum, item) => sum + item.amount, 0) +
+                                                buildingDemand.reduce((sum, item) => sum + item.amount, 0) +
+                                                armyDemand.reduce((sum, item) => sum + item.amount, 0);
+                                            const actualSupplyTotal = buildingSupply.reduce((sum, item) => sum + item.amount, 0);
 
-                                            // 只有当市场有数据且与理论值差异超过5%时才显示
-                                            const demandDiff = totalActualDemand > 0 ? Math.abs(marketDemand - totalActualDemand) / totalActualDemand : 0;
-                                            const supplyDiff = totalActualSupply > 0 ? Math.abs(marketSupply - totalActualSupply) / totalActualSupply : 0;
+                                            // 只有当市场有数据且与实际成交差异超过5%时才显示
+                                            const demandDiff = actualDemandTotal > 0 ? Math.abs(marketDemand - actualDemandTotal) / actualDemandTotal : 0;
+                                            const supplyDiff = actualSupplyTotal > 0 ? Math.abs(marketSupply - actualSupplyTotal) / actualSupplyTotal : 0;
 
                                             if ((marketDemand > 0 || marketSupply > 0) && (demandDiff > 0.05 || supplyDiff > 0.05)) {
                                                 return (
                                                     <div className="lg:col-span-2 rounded-xl border border-blue-500/30 bg-blue-950/20 p-2.5">
                                                         <div className="flex items-center gap-2 mb-2">
                                                             <Icon name="Info" size={14} className="text-blue-400" />
-                                                            <p className="text-[10px] lg:text-xs text-blue-200 font-medium">市场实际数据</p>
+                                                            <p className="text-[10px] lg:text-xs text-blue-200 font-medium">实际成交数据</p>
                                                         </div>
                                                         <div className="grid gap-2 grid-cols-2">
                                                             <div className="flex items-center justify-between px-2 py-1.5 rounded-lg border border-rose-500/30 bg-rose-950/30">
                                                                 <div>
-                                                                    <span className="text-[10px] text-rose-300">市场消费量</span>
-                                                                    {/* <span className="text-[8px] text-gray-500 ml-1">vs 理论{formatAmount(totalActualDemand)}</span> */}
+                                                                    <span className="text-[10px] text-rose-300">实际消费量</span>
+                                                                    <span className="text-[8px] text-gray-500 ml-1">需求 {formatAmount(marketDemand)}</span>
                                                                 </div>
-                                                                <span className="text-xs font-bold text-rose-400">{formatAmount(marketDemand)}</span>
+                                                                <span className="text-xs font-bold text-rose-400">{formatAmount(actualDemandTotal)}</span>
                                                             </div>
                                                             <div className="flex items-center justify-between px-2 py-1.5 rounded-lg border border-emerald-500/30 bg-emerald-950/30">
                                                                 <div>
-                                                                    <span className="text-[10px] text-emerald-300">市场供给量</span>
-                                                                    {/* <span className="text-[8px] text-gray-500 ml-1">vs 理论{formatAmount(totalActualSupply)}</span> */}
+                                                                    <span className="text-[10px] text-emerald-300">实际供给量</span>
+                                                                    <span className="text-[8px] text-gray-500 ml-1">市场 {formatAmount(marketSupply)}</span>
                                                                 </div>
-                                                                <span className="text-xs font-bold text-emerald-400">{formatAmount(marketSupply)}</span>
+                                                                <span className="text-xs font-bold text-emerald-400">{formatAmount(actualSupplyTotal)}</span>
                                                             </div>
                                                         </div>
                                                         <p className="text-[9px] text-gray-500 mt-1.5">
-                                                            理论值=人口需求×加成 | 市场值=实际交易量（受价格、购买力、库存影响）
+                                                            实际成交=真实购买/消耗；市场需求/供给可能包含未成交部分
                                                         </p>
                                                     </div>
                                                 );
@@ -1561,11 +1614,11 @@ const ResourceDetailContent = ({
                                                             <>
                                                                 实际供给 {formatAmount(buildingSupply.reduce((sum, item) => sum + item.amount, 0))}
                                                                 <span className="text-xs text-gray-500 ml-2 font-normal">
-                                                                    (理论产能: {formatAmount(totalActualSupply)})
+                                                                    (理论产能: {formatAmount(totalTheoreticalSupply)})
                                                                 </span>
                                                             </>
                                                         ) : (
-                                                            <>理论产能 {formatAmount(totalActualSupply)}</>
+                                                            <>理论产能 {formatAmount(totalTheoreticalSupply)}</>
                                                         )}
                                                     </p>
                                                 </div>
@@ -1638,9 +1691,9 @@ const ResourceDetailContent = ({
                                                 </div>
                                             )}
                                             <div className="mt-2 lg:mt-4 rounded-lg lg:rounded-xl border border-gray-800/60 bg-gray-900/60 p-2.5 lg:p-4 text-xs lg:text-sm text-gray-400">
-                                                理论产能 {formatAmount(totalActualSupply)} · 理论需求 {formatAmount(totalActualDemand)} · 理论缺口{' '}
-                                                {formatAmount(Math.max(0, totalActualDemand - totalActualSupply))}
-                                                {(totalBaseSupply !== totalActualSupply || totalBaseDemand !== totalActualDemand) && (
+                                                理论产能 {formatAmount(totalTheoreticalSupply)} · 理论需求 {formatAmount(totalActualDemand)} · 理论缺口{' '}
+                                                {formatAmount(Math.max(0, totalActualDemand - totalTheoreticalSupply))}
+                                                {(totalBaseSupply !== totalTheoreticalSupply || totalBaseDemand !== totalActualDemand) && (
                                                     <span className="text-gray-500 ml-2">
                                                         | 无加成: {formatAmount(totalBaseSupply)} / {formatAmount(totalBaseDemand)}
                                                     </span>

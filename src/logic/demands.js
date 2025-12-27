@@ -5,6 +5,7 @@
 
 import { STRATA } from '../config/strata';
 import { RESOURCES } from '../config';
+import { debugLog } from '../utils/debugFlags';
 
 // 获取资源的中文名称
 function getResourceName(resourceKey) {
@@ -317,7 +318,7 @@ export function analyzeDissatisfactionSources(stratumKey, context) {
 
     // 高影响力但低满意度（政治诉求）
     // 调试：打印关键参数
-    console.log(`[Demands] ${stratumKey}: influenceShare=${influenceShare.toFixed(3)}, approval=${approval}, totalInfluence=${totalInfluence}, influence=${influence}`);
+    debugLog('demands', `[Demands] ${stratumKey}: influenceShare=${influenceShare.toFixed(3)}, approval=${approval}, totalInfluence=${totalInfluence}, influence=${influence}`);
     if (influenceShare > 0.1 && approval < 40) {
         const contribution = Math.min(1, influenceShare * 2);
         sources.push({

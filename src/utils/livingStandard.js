@@ -192,10 +192,54 @@ export function calculateWealthMultiplier(incomeRatio, wealthRatio = 1, wealthEl
     }
 
     // 4. 最终消费能力 = 收入能力 × 财富意愿
-    const wealthMultiplier = incomeMultiplier * wealthFactor;
+    let wealthMultiplier = incomeMultiplier * wealthFactor;
+
+    // 存款较低时，限制消费能力上冲，避免赤贫/贫困也出现高消费倍率
+    if (wealthRatio < 0.5) {
+        wealthMultiplier = Math.min(wealthMultiplier, 0.8);
+    } else if (wealthRatio < 1.0) {
+        wealthMultiplier = Math.min(wealthMultiplier, 1.0);
+    } else if (wealthRatio < 2.0) {
+        wealthMultiplier = Math.min(wealthMultiplier, 1.2);
+    }
 
     // 使用阶层配置的上限（底层3倍, 中层6倍, 上层10倍）
     return Math.max(0.3, Math.min(maxMultiplier, wealthMultiplier));
+}
+
+export function calculateLuxuryConsumptionMultiplier({
+    consumptionMultiplier = 1,
+    incomeRatio = null,
+    wealthRatio = null,
+    livingStandardLevel = null,
+} = {}) {
+    const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+    const safeConsumption = Number.isFinite(consumptionMultiplier)
+        ? Math.max(0.3, consumptionMultiplier)
+        : 1;
+
+    const incomeFactor = Number.isFinite(incomeRatio)
+        ? clamp(0.4 + 0.6 * Math.min(1.5, incomeRatio), 0.3, 1.2)
+        : 1;
+    const wealthFactor = Number.isFinite(wealthRatio)
+        ? clamp(0.4 + 0.6 * Math.min(2, wealthRatio) / 2, 0.3, 1.2)
+        : 1;
+    const stabilityFactor = 0.6 + 0.4 * ((incomeFactor + wealthFactor) / 2);
+
+    const levelFactorMap = {
+        '赤贫': 0.05,
+        '贫困': 0.15,
+        '温饱': 0.4,
+        '小康': 0.9,
+        '富裕': 1.1,
+        '奢华': 1.25,
+    };
+    const levelFactor = livingStandardLevel
+        ? (levelFactorMap[livingStandardLevel] ?? 1)
+        : 1;
+
+    const rawMultiplier = safeConsumption * levelFactor * stabilityFactor;
+    return clamp(rawMultiplier, 0.05, 1.6);
 }
 
 /**
@@ -209,7 +253,7 @@ export function calculateWealthMultiplier(incomeRatio, wealthRatio = 1, wealthEl
  * @param {number} wealthElasticity - 财富弹性系数（0.3=底层, 1.0=基准, 1.8=顶层）
  * @returns {number} 解锁乘数（无阶级上限限制）
  */
-export function calculateUnlockMultiplier(incomeRatio, wealthRatio = 1, wealthElasticity = 1.0) {
+export function calculateUnlockMultiplier(incomeRatio, wealthRatio = 1, wealthElasticity = 1.0, livingStandardLevel = null) {
     // 强制要求：仅当收入能满足基础生存需求(incomeRatio >= 1) 或拥有一定积蓄(wealthRatio >= 2)时，才允许解锁奢侈需求
     // 这样防止赤贫阶层(穷且没存款)乱花钱，但允许富裕阶层(如食利者)消耗存款维持生活
     if (incomeRatio < 1.0 && wealthRatio < 2.0) {
@@ -257,7 +301,31 @@ export function calculateUnlockMultiplier(incomeRatio, wealthRatio = 1, wealthEl
 
     // 4. 解锁乘数 = 收入能力 × 财富意愿（使用固定上限10）
     const unlockMultiplier = incomeMultiplier * wealthFactor;
-    return Math.max(0.3, Math.min(10.0, unlockMultiplier));
+    let rawUnlock = Math.max(0.3, Math.min(10.0, unlockMultiplier));
+
+    if (!livingStandardLevel) {
+        return rawUnlock;
+    }
+
+    const levelCaps = {
+        '赤贫': 0,
+        '贫困': 0,
+        '温饱': 1.49,
+        '小康': 3.0,
+        '富裕': 6.0,
+        '奢华': 10.0,
+    };
+    const cap = levelCaps[livingStandardLevel];
+    if (cap === undefined) {
+        // Continue with wealth-based cap below if level is unknown
+    }
+
+    // 存款不足时禁止解锁奢侈需求（即使收入短期很高）
+    if (wealthRatio < 1.0) {
+        rawUnlock = Math.min(rawUnlock, 0.99);
+    }
+
+    return cap === undefined ? rawUnlock : Math.min(cap, rawUnlock);
 }
 
 /**

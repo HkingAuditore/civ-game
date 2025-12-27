@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { Icon } from '../common/UIComponents';
 import { RESOURCES, STRATA, EPOCHS } from '../../config';
 import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
@@ -261,7 +261,7 @@ const formatCompactCost = (value) => {
 export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade, onDowngrade, onBatchUpgrade, onBatchDowngrade, taxPolicies, onUpdateTaxPolicies, scrollToUpgrade }) => {
     if (!building || !gameState) return null;
 
-    const { resources, epoch, market, buildings, buildingUpgrades, jobFill } = gameState;
+    const { resources, epoch, market, buildings, buildingUpgrades, jobFill, popStructure, classFinancialData } = gameState;
     const count = buildings[building.id] || 0;
     const upgradeLevels = buildingUpgrades?.[building.id] || {};
 
@@ -522,6 +522,15 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
         return calculateBuildingAverageIncomes(building, count, upgradeLevels, market, taxPolicies);
     }, [building, count, upgradeLevels, market, taxPolicies]);
 
+    const getRoleActualIncomePerCap = useCallback((role) => {
+        const popCount = popStructure?.[role] ?? 0;
+        if (!Number.isFinite(popCount) || popCount <= 0) return null;
+        const income = classFinancialData?.[role]?.income || {};
+        const totalIncome = (income.wage || 0) + (income.ownerRevenue || 0) + (income.subsidy || 0);
+        if (!Number.isFinite(totalIncome)) return null;
+        return totalIncome / popCount;
+    }, [popStructure, classFinancialData]);
+
     const jobBreakdown = useMemo(() => {
         const ownerKey = building?.owner;
 
@@ -536,9 +545,11 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
 
             // 使用当前建筑的加权平均收入
             const incomeData = buildingAvgIncomes[role];
-            const actualIncome = incomeData?.avgIncome;
-            const displayIncome = Number.isFinite(actualIncome)
-                ? actualIncome
+            const actualIncomePerCap = getRoleActualIncomePerCap(role);
+            const displayIncome = Number.isFinite(actualIncomePerCap)
+                ? actualIncomePerCap
+                : Number.isFinite(incomeData?.avgIncome)
+                ? incomeData.avgIncome
                 : getMarketWage(role, market);
 
             return {
@@ -551,7 +562,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                 isOwner
             };
         }).sort((a, b) => b.required - a.required);
-    }, [effectiveTotalStats, jobFill, building, market, buildingAvgIncomes]);
+    }, [effectiveTotalStats, jobFill, building, market, buildingAvgIncomes, getRoleActualIncomePerCap]);
 
     // 营业税逻辑
     const businessTaxMultiplier = taxPolicies?.businessTaxRates?.[building.id] ?? 1;
@@ -842,7 +853,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                             </div>
                         ))}
                         <p className="text-[9px] text-gray-600 mt-1">
-                            💡 业主收入 = (产出-投入-营业税-雇员工资)/岗位数；雇员收入 = 市场工资
+                            💡 默认显示本期实际人均收入（全局）；若无数据则按建筑估算：业主=(产出-投入-营业税-雇员工资)/岗位，雇员=市场工资
                         </p>
                     </div>
                 )}
@@ -930,6 +941,8 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                 resources={resources}
                                 market={market}
                                 taxPolicies={taxPolicies}
+                                popStructure={popStructure}
+                                classFinancialData={classFinancialData}
                                 onUpgrade={(fromLevel) => onUpgrade?.(building.id, fromLevel)}
                                 onDowngrade={(fromLevel) => onDowngrade?.(building.id, fromLevel)}
                                 onBatchUpgrade={(fromLevel, upgradeCount) => onBatchUpgrade?.(building.id, fromLevel, upgradeCount)}

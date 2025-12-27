@@ -239,7 +239,7 @@ export const CoalitionPanel = ({
             {/* 编辑模式提示/按钮区 */}
             {!isEditMode ? (
                 <div className="mb-3 p-2 bg-gray-800/50 rounded-lg border border-gray-700/50">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                         <div className="text-xs text-gray-400">
                             <Icon name="Info" size={12} className="inline mr-1" />
                             改组政府需要花费银币
@@ -248,7 +248,7 @@ export const CoalitionPanel = ({
                             onClick={enterEditMode}
                             disabled={!canAffordChange}
                             className={`
-                                px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5
+                                px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap flex-shrink-0
                                 ${canAffordChange
                                     ? 'bg-amber-600 hover:bg-amber-500 text-white'
                                     : 'bg-gray-700 text-gray-500 cursor-not-allowed'

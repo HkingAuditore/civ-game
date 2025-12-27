@@ -1514,8 +1514,13 @@ function GameApp({ gameState }) {
                     buildings={gameState.buildings}
                     popStructure={gameState.popStructure}
                     wealth={gameState.classWealth}
+                    classIncome={classIncomeWithSubsidy}
+                    classLivingStandard={gameState.classLivingStandard}
                     army={gameState.army}
+                    dailyMilitaryExpense={gameState.dailyMilitaryExpense}
                     history={gameState.history}
+                    epoch={gameState.epoch}
+                    techsUnlocked={gameState.techsUnlocked}
                     onClose={() => gameState.setResourceDetailView(null)}
                     taxPolicies={gameState.taxPolicies}
                     onUpdateTaxPolicies={gameState.setTaxPolicies}

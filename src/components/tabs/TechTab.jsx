@@ -406,8 +406,8 @@ const TechTabComponent = ({
                                 {nextEpochInfo.req.science && (
                                     <span
                                         className={`text-xs px-2 py-1 rounded ${(resources.science || 0) >= nextEpochInfo.req.science
-                                                ? 'bg-green-900/30 text-green-400'
-                                                : 'bg-red-900/30 text-red-400'
+                                            ? 'bg-green-900/30 text-green-400'
+                                            : 'bg-red-900/30 text-red-400'
                                             }`}
                                     >
                                         {RESOURCES.science?.name || '科研'}: {(resources.science || 0).toFixed(0)} / {nextEpochInfo.req.science}
@@ -416,8 +416,8 @@ const TechTabComponent = ({
                                 {nextEpochInfo.req.population && (
                                     <span
                                         className={`text-xs px-2 py-1 rounded ${population >= nextEpochInfo.req.population
-                                                ? 'bg-green-900/30 text-green-400'
-                                                : 'bg-red-900/30 text-red-400'
+                                            ? 'bg-green-900/30 text-green-400'
+                                            : 'bg-red-900/30 text-red-400'
                                             }`}
                                     >
                                         人口: {population} / {nextEpochInfo.req.population}
@@ -426,8 +426,8 @@ const TechTabComponent = ({
                                 {nextEpochInfo.req.culture && (
                                     <span
                                         className={`text-xs px-2 py-1 rounded ${(resources.culture || 0) >= nextEpochInfo.req.culture
-                                                ? 'bg-green-900/30 text-green-400'
-                                                : 'bg-red-900/30 text-red-400'
+                                            ? 'bg-green-900/30 text-green-400'
+                                            : 'bg-red-900/30 text-red-400'
                                             }`}
                                     >
                                         {RESOURCES.culture?.name || '文化'}: {(resources.culture || 0).toFixed(0)} / {nextEpochInfo.req.culture}
@@ -443,8 +443,8 @@ const TechTabComponent = ({
                                     <span
                                         key={resource}
                                         className={`text-xs px-2 py-1 rounded ${(resources[resource] || 0) >= cost
-                                                ? 'bg-green-900/30 text-green-400'
-                                                : 'bg-red-900/30 text-red-400'
+                                            ? 'bg-green-900/30 text-green-400'
+                                            : 'bg-red-900/30 text-red-400'
                                             }`}
                                     >
                                         {RESOURCES[resource]?.name || resource}: {cost}
@@ -463,8 +463,8 @@ const TechTabComponent = ({
                             onClick={onUpgradeEpoch}
                             disabled={!canTriggerUpgrade}
                             className={`w-full px-4 py-3 rounded-lg text-sm font-bold transition-all border-2 ${canTriggerUpgrade
-                                    ? 'shadow-lg'
-                                    : 'bg-gray-600 text-gray-400 cursor-not-allowed border-gray-600'
+                                ? 'shadow-lg'
+                                : 'bg-gray-600 text-gray-400 cursor-not-allowed border-gray-600'
                                 }`}
                             style={canTriggerUpgrade ? upgradeButtonStyles : undefined}
                         >
@@ -555,7 +555,7 @@ const TechTabComponent = ({
                                 {isExpanded && (
                                     <div className="border-t border-gray-800 px-3 py-2">
                                         {visibleTechs.length > 0 ? (
-                                            <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 gap-1.5">
+                                            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-2">
                                                 {visibleTechs.map((tech) => {
                                                     const status = getTechStatus(tech);
                                                     const silverCost = calculateSilverCost(tech.cost, market);
@@ -568,10 +568,10 @@ const TechTabComponent = ({
                                                             onMouseLeave={() => canHover && setHoveredTech({ tech: null, element: null })}
                                                             onClick={() => onShowTechDetails && onShowTechDetails(tech, status)}
                                                             className={`group flex flex-col items-center p-1.5 rounded-lg border transition-all cursor-pointer active:scale-[0.98] ${status === 'unlocked'
-                                                                    ? 'glass-ancient border-green-600/60'
-                                                                    : affordable
-                                                                        ? 'glass-ancient border-ancient-gold/30 hover:border-blue-400/70 hover:shadow-glow-gold'
-                                                                        : 'bg-gray-800/60 border-gray-600'
+                                                                ? 'glass-ancient border-green-600/60'
+                                                                : affordable
+                                                                    ? 'glass-ancient border-ancient-gold/30 hover:border-blue-400/70 hover:shadow-glow-gold'
+                                                                    : 'bg-gray-800/60 border-gray-600'
                                                                 }`}
                                                         >
                                                             <span className="text-[13px] text-white text-center leading-tight mb-0.5 line-clamp-1">{tech.name}</span>
@@ -588,8 +588,8 @@ const TechTabComponent = ({
                                                                     onClick={(e) => { e.stopPropagation(); onResearch(tech.id); }}
                                                                     disabled={!affordable}
                                                                     className={`w-full px-1 py-0.5 rounded text-[11px] font-semibold ${affordable
-                                                                            ? 'bg-blue-600/80 hover:bg-blue-500 text-white'
-                                                                            : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                                                                        ? 'bg-blue-600/80 hover:bg-blue-500 text-white'
+                                                                        : 'bg-gray-600 text-gray-400 cursor-not-allowed'
                                                                         }`}
                                                                 >
                                                                     <span className={(resources.silver || 0) < silverCost ? 'text-red-300' : ''}>
