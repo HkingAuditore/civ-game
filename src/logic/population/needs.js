@@ -73,14 +73,12 @@ export const processNeedsConsumption = ({
         const incomeRatio = essentialCost > 0 ? incomePerCapita / essentialCost : (incomePerCapita > 0 ? 10 : 0);
         const maxConsumptionMultiplier = def.maxConsumptionMultiplier || 6;
         
-        // 消费能力：综合考虑收入和财富，受阶层上限限制
+        // 消费能力（受阶层上限限制）：用于计算实际购买量
         const consumptionMultiplier = calculateWealthMultiplier(incomeRatio, wealthRatio, def.wealthElasticity || 1.0, maxConsumptionMultiplier);
         
-        // 【核心改动】使用消费能力作为奢侈品解锁门槛
-        // 消费能力 < 1.0 时无法解锁任何奢侈品需求（贫困/赤贫状态）
-        // 消费能力 >= 1.5 时解锁第一档奢侈品
-        // 消费能力越高，解锁的档位越多
-        const unlockMultiplier = consumptionMultiplier;
+        // 解锁能力（不受阶层上限限制，统一上限10）：用于判断是否能解锁奢侈品需求
+        // 这样即使底层阶级（上限3）只要足够富裕也能解锁高级奢侈品，只是购买量受限
+        const unlockMultiplier = calculateWealthMultiplier(incomeRatio, wealthRatio, def.wealthElasticity || 1.0, 10);
         
         const livingStandardLevel = getSimpleLivingStandard(incomeRatio).level;
         const luxuryConsumptionMultiplier = calculateLuxuryConsumptionMultiplier({
@@ -91,8 +89,8 @@ export const processNeedsConsumption = ({
         });
         const effectiveNeeds = { ...baseNeeds };
 
-        // Add luxury needs based on consumption multiplier (not income ratio)
-        // 使用消费能力来决定奢侈品解锁，确保贫困阶层不会解锁奢侈品
+        // Add luxury needs based on unlock multiplier (uncapped)
+        // 使用不受阶层上限限制的解锁能力来决定奢侈品解锁
         const luxuryThresholds = Object.keys(luxuryNeeds).map(Number).sort((a, b) => a - b);
         luxuryThresholds.forEach(threshold => {
             if (unlockMultiplier >= threshold) {
@@ -311,19 +309,20 @@ export const calculateLivingStandards = ({
         const wealthPerCapita = count > 0 ? wealthValue / count : 0;
         const wealthRatio = startingWealth > 0 ? wealthPerCapita / startingWealth : 0;
 
-        // 消费倍率：综合考虑收入和财富，受阶层上限限制
+        // 消费倍率（受阶层上限限制）：用于计算实际购买量
         const maxConsumptionMultiplier = def.maxConsumptionMultiplier || 6;
         const consumptionMultiplier = calculateWealthMultiplier(incomeRatio, wealthRatio, wealthElasticity, maxConsumptionMultiplier);
         
-        // 【核心改动】使用消费能力作为奢侈品解锁门槛（与 processNeedsConsumption 保持一致）
-        const unlockMultiplier = consumptionMultiplier;
+        // 解锁能力（不受阶层上限限制，统一上限10）：用于判断是否能解锁奢侈品需求
+        // 与 processNeedsConsumption 保持一致
+        const unlockMultiplier = calculateWealthMultiplier(incomeRatio, wealthRatio, wealthElasticity, 10);
 
         // Base needs count
         const baseNeedsCount = def.needs
             ? Object.keys(def.needs).filter(r => isResourceUnlocked(r, epoch, techsUnlocked)).length
             : 0;
 
-        // Count unlocked luxury tiers (基于消费能力，贫困阶层无法解锁)
+        // Count unlocked luxury tiers (基于解锁能力，不受阶层消费上限限制)
         let unlockedLuxuryTiers = 0;
         let effectiveNeedsCount = baseNeedsCount;
         for (const threshold of luxuryThresholds) {
