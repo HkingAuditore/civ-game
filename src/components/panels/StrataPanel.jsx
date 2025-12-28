@@ -275,12 +275,12 @@ const StrataPanelComponent = ({
                                             </span>
                                         </div>
 
-                                        {/* 财产和净收入 + 短缺资源 */}
+                                        {/* 人均财富和净收入 + 短缺资源 */}
                                         <div className="flex items-center justify-between text-[8px]">
                                             <div className="flex items-center gap-1">
-                                                <span className="text-ancient-parchment font-mono flex items-center gap-0.5">
+                                                <span className="text-ancient-parchment font-mono flex items-center gap-0.5" title={`总财富: ${strata.wealthValue.toFixed(0)}`}>
                                                     <Icon name="Coins" size={8} className="text-ancient-gold" />
-                                                    {strata.wealthValue.toFixed(0)}
+                                                    {(strata.wealthValue / Math.max(strata.count, 1)).toFixed(0)}
                                                 </span>
                                                 <span className={`font-mono font-bold ${strata.netIncomePerCapita >= 0 ? 'text-green-300' : 'text-red-300'}`}>
                                                     {strata.netIncomePerCapita > 0 ? '+' : ''}{strata.netIncomePerCapita.toFixed(1)}
@@ -448,15 +448,15 @@ const StrataPanelComponent = ({
                                         </div>
                                     )}
 
-                                    {/* 影响力和财富 - 更紧凑 */}
+                                    {/* 影响力和人均财富 - 更紧凑 */}
                                     <div className="flex items-center justify-between text-[8px]">
                                         <div className="flex items-center gap-1">
                                             <span className="text-ancient-stone">影响</span>
                                             <span className="text-purple-400 font-semibold font-mono">{influenceShare.toFixed(1)}%</span>
                                         </div>
-                                        <div className="flex items-center gap-0.5" title="阶层总财富">
+                                        <div className="flex items-center gap-0.5" title={`人均财富 (总: ${wealthValue.toFixed(0)})`}>
                                             <Icon name="Coins" size={8} className="text-ancient-gold" />
-                                            <span className="text-ancient-parchment font-mono">{wealthValue.toFixed(0)}</span>
+                                            <span className="text-ancient-parchment font-mono">{(wealthValue / Math.max(count, 1)).toFixed(0)}</span>
                                         </div>
                                     </div>
 
