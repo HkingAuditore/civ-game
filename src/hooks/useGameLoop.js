@@ -23,6 +23,7 @@ import {
     createRebelDemandSurrenderEvent,
     REBEL_DEMAND_SURRENDER_TYPE,
 } from '../config/events';
+import { calculateTotalDailySalary } from '../logic/officials/manager';
 // 新版组织度系统
 import {
     updateAllOrganizationStates,
@@ -711,6 +712,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
         setLegitimacy, // 合法性更新函数
         setModifiers, // Modifiers更新函数
         difficulty, // 游戏难度
+        officials, // 官员系统
     } = gameState;
 
     // 使用ref保存最新状态，避免闭包问题
@@ -766,6 +768,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
         rulingCoalition, // 执政联盟成员
         legitimacy, // 当前合法性值
         difficulty, // 游戏难度
+        officials,
     });
 
     const saveGameRef = useRef(gameState.saveGame);
@@ -988,8 +991,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
             rulingCoalition, // 执政联盟成员
             legitimacy, // 当前合法性值
             difficulty, // 游戏难度
+            officials,
         };
-    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, livingStandardStreaks, migrationCooldowns, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability, rulingCoalition, legitimacy, difficulty]);
+    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, livingStandardStreaks, migrationCooldowns, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability, rulingCoalition, legitimacy, difficulty, officials]);
 
     useEffect(() => {
         if (!autoRecruitEnabled) return;
@@ -1178,6 +1182,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 current.eventEffectSettings,
             );
 
+            // 官员薪水计算
+            const officialDailySalary = calculateTotalDailySalary(current.officials || []);
+            const canAffordOfficials = (current.resources?.silver || 0) >= officialDailySalary;
+
             // Build simulation parameters - 手动列出可序列化字段，排除函数对象（如 actions）
             // 这样可以正确启用 Web Worker 加速，避免 DataCloneError
             const simulationParams = {
@@ -1263,6 +1271,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 eventStratumDemandModifiers: stratumDemandModifiers,
                 eventBuildingProductionModifiers: buildingProductionModifiers,
                 previousLegitimacy: current.legitimacy ?? 0,
+                
+                // 官员系统
+                officials: current.officials || [],
+                officialsPaid: canAffordOfficials,
             };
 
             // Execute simulation
@@ -1357,6 +1369,15 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     if (amount <= 0) return;
                     adjustedResources[resource] = Math.max(0, (adjustedResources[resource] || 0) - amount);
                 });
+                
+                // 扣除官员薪水
+                if (officialDailySalary > 0) {
+                     // 即使这一帧因为钱不够而导致效果减半，也会扣光剩余的钱（或者如果不够就不扣？通常游戏逻辑是尽可能扣，然后产生后果）
+                     // 根据之前设计：Salary Insufficiency Penalty: If the treasury lacks sufficient silver... officials will not be dismissed. Instead, all active official effects will be halved.
+                     // 前面已经根据 canAffordOfficials 传给了 simulateTick。
+                     // 这里我们实际扣款。如果不够，就扣光。
+                     adjustedResources.silver = Math.max(0, (adjustedResources.silver || 0) - officialDailySalary);
+                }
 
                 // 处理强制补贴效果（每日从国库支付给指定阶层）
                 const forcedSubsidies = Array.isArray(current.activeEventEffects?.forcedSubsidy)

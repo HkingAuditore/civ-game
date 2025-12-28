@@ -7,7 +7,6 @@ export { EPOCHS } from './epochs';
 export { STRATA } from './strata';
 export { BUILDINGS } from './buildings';
 export { TECHS } from './technologies';
-export { DECREES } from './decrees';
 export { COUNTRIES } from './countries';
 export { MILITARY_ACTIONS } from './militaryActions';
 export { TUTORIAL_STEPS } from './tutorialSteps';
@@ -92,3 +91,12 @@ export {
 
 // 庆典效果配置
 export { FESTIVAL_EFFECTS } from './festivalEffects';
+
+// 官员系统
+export {
+    OFFICIAL_EFFECT_TYPES,
+    OFFICIAL_DRAWBACK_TYPES,
+    generateName,
+    generateRandomOfficial,
+    calculateOfficialSalary
+} from './officials';
