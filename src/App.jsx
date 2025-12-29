@@ -1049,8 +1049,6 @@ function GameApp({ gameState }) {
                                         {/* 政令标签页 */}
                                         {gameState.activeTab === 'politics' && (
                                             <PoliticsTab
-                                                decrees={gameState.decrees}
-                                                onToggle={actions.toggleDecree}
                                                 taxPolicies={gameState.taxPolicies}
                                                 onUpdateTaxPolicies={gameState.setTaxPolicies}
                                                 popStructure={gameState.popStructure}
@@ -1068,6 +1066,7 @@ function GameApp({ gameState }) {
                                                 totalInfluence={gameState.totalInfluence}
                                                 legitimacy={gameState.legitimacy}
                                                 classApproval={gameState.classApproval}
+
                                                 // 银币相关 props
                                                 silver={gameState.resources?.silver || 0}
                                                 onSpendSilver={(amount) => {
@@ -1076,6 +1075,17 @@ function GameApp({ gameState }) {
                                                         silver: Math.max(0, (prev.silver || 0) - amount)
                                                     }));
                                                 }}
+
+                                                // 官员系统 props
+                                                officials={gameState.officials}
+                                                candidates={gameState.officialCandidates}
+                                                capacity={gameState.officialCapacity}
+                                                lastSelectionDay={gameState.lastSelectionDay}
+                                                currentTick={gameState.daysElapsed}
+                                                onTriggerSelection={actions.triggerOfficialSelection}
+                                                onHire={actions.hireNewOfficial}
+                                                onFire={actions.fireExistingOfficial}
+                                                resources={gameState.resources}
                                             />
                                         )}
 

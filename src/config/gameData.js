@@ -7,7 +7,6 @@ import { STRATA } from './strata';
 import { BUILDINGS } from './buildings';
 import { GAME_SPEEDS, RESOURCES } from './gameConstants';
 import { TECHS } from './technologies';
-import { DECREES } from './decrees';
 import { COUNTRIES } from './countries';
 import { MILITARY_ACTIONS } from './militaryActions';
 import { 
@@ -51,9 +50,6 @@ export {
   // 科技树
   TECHS,
   
-  // 政令配置
-  DECREES,
-
   // 固定军事行动
   MILITARY_ACTIONS,
 

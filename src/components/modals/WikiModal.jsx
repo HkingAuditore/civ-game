@@ -7,7 +7,6 @@ import { Icon } from '../common/UIComponents';
 import {
     BUILDINGS,
     TECHS,
-    DECREES,
     RESOURCES,
     UNIT_TYPES,
     STRATA,
@@ -1161,7 +1160,6 @@ const CATEGORY_CONFIG = [
     { id: 'buildings', label: '建筑设施', icon: 'Home' },
     { id: 'military', label: '军事单位', icon: 'Shield' },
     { id: 'technologies', label: '科技研究', icon: 'Cpu' },
-    { id: 'decrees', label: '国家政令', icon: 'Gavel' },
     { id: 'events', label: '事件列表', icon: 'Zap' },
     { id: 'resources', label: '物资资源', icon: 'Package' },
 ];
@@ -1249,15 +1247,6 @@ function buildWikiData() {
             iconColor: 'text-purple-200',
             type: 'technology',
             data: tech,
-        })),
-        decrees: (DECREES || []).map((decree) => ({
-            id: decree.id,
-            name: decree.name,
-            summary: decree.desc,
-            icon: 'Gavel',
-            iconColor: 'text-amber-200',
-            type: 'decree',
-            data: decree,
         })),
         resources: Object.entries(RESOURCES || {}).map(([id, data]) => ({
             id,

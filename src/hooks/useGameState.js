@@ -2,7 +2,7 @@
 // 集中管理所有游戏状态，避免App.jsx中状态定义过多
 
 import { useEffect, useRef, useState } from 'react';
-import { DECREES, COUNTRIES, RESOURCES, STRATA } from '../config';
+import { COUNTRIES, RESOURCES, STRATA } from '../config';
 import { isOldUpgradeFormat, migrateUpgradesToNewFormat } from '../utils/buildingUpgradeUtils';
 import { DEFAULT_DIFFICULTY, getDifficultyConfig } from '../config/difficulty';
 import { getScenarioById } from '../config/scenarios';
@@ -353,7 +353,6 @@ const buildMinimalAutoSavePayload = (payload) => ({
     activeTab: payload.activeTab,
     gameSpeed: payload.gameSpeed,
     isPaused: payload.isPaused,
-    decrees: payload.decrees,
     nations: payload.nations,
     classApproval: payload.classApproval,
     classInfluence: payload.classInfluence,
@@ -406,6 +405,10 @@ const buildMinimalAutoSavePayload = (payload) => ({
     difficulty: payload.difficulty,
     updatedAt: payload.updatedAt,
     saveSource: payload.saveSource,
+    officials: payload.officials,
+    officialCandidates: payload.officialCandidates,
+    lastSelectionDay: payload.lastSelectionDay,
+    officialCapacity: payload.officialCapacity,
 });
 
 const DEFAULT_EVENT_EFFECT_SETTINGS = {
@@ -434,26 +437,6 @@ const buildInitialTradeRoutes = () => ({
     // { nationId, resource, type: 'import'|'export', createdAt }
     routes: [],
 });
-
-// 合并存档中的政令数据与最新配置
-// 保留存档的active状态，但使用最新配置中的其他字段（如modifiers、effects、drawbacks等）
-const mergeDecreesWithConfig = (savedDecrees) => {
-    if (!savedDecrees || !Array.isArray(savedDecrees)) {
-        return DECREES;
-    }
-
-    // 创建存档政令的active状态映射
-    const savedActiveMap = {};
-    savedDecrees.forEach(d => {
-        savedActiveMap[d.id] = d.active;
-    });
-
-    // 使用最新的配置，但保留存档的active状态
-    return DECREES.map(configDecree => ({
-        ...configDecree,
-        active: savedActiveMap[configDecree.id] ?? configDecree.active,
-    }));
-};
 
 const isTradable = (resourceKey) => {
     if (resourceKey === 'silver') return false;
@@ -622,8 +605,13 @@ export const useGameState = () => {
     const autoSaveQuotaNotifiedRef = useRef(false);
 
     // ========== 政令与外交状态 ==========
-    const [decrees, setDecrees] = useState(DECREES);
     const [nations, setNations] = useState(buildInitialNations());
+
+    // ========== 官员系统状态 ==========
+    const [officials, setOfficials] = useState([]);           // 当前雇佣的官员
+    const [officialCandidates, setOfficialCandidates] = useState([]); // 当前候选人列表
+    const [lastSelectionDay, setLastSelectionDay] = useState(-999);   // 上次举办选拔的时间
+    const [officialCapacity, setOfficialCapacity] = useState(3);      // 官员容量
 
     // ========== 社会阶层状态 ==========
     const [classApproval, setClassApproval] = useState({});
@@ -819,14 +807,6 @@ export const useGameState = () => {
 
         // ========== 新增配置项支持 ==========
 
-        // 政令激活配置
-        if (overrides.activeDecrees && Array.isArray(overrides.activeDecrees)) {
-            setDecrees(prev => prev.map(d => ({
-                ...d,
-                active: overrides.activeDecrees.includes(d.id)
-            })));
-        }
-
         // 外交关系配置
         if (overrides.nationRelations) {
             setNations(prev => prev.map(n => ({
@@ -999,6 +979,10 @@ export const useGameState = () => {
                 isPaused,
                 decrees,
                 nations,
+                officials,
+                officialCandidates,
+                lastSelectionDay,
+                officialCapacity,
                 classApproval,
                 classInfluence,
                 classWealth,
@@ -1089,8 +1073,11 @@ export const useGameState = () => {
         setActiveTab(data.activeTab || 'build');
         setGameSpeed(data.gameSpeed ?? 1);
         setIsPaused(data.isPaused ?? false);
-        setDecrees(mergeDecreesWithConfig(data.decrees));
         setNations(data.nations || buildInitialNations());
+        setOfficials(data.officials || []);
+        setOfficialCandidates(data.officialCandidates || []);
+        setLastSelectionDay(data.lastSelectionDay ?? -999);
+        setOfficialCapacity(data.officialCapacity ?? 3);
         setClassApproval(data.classApproval || {});
         setClassInfluence(data.classInfluence || {});
         setClassWealth(data.classWealth || buildInitialWealth());
@@ -1769,12 +1756,20 @@ export const useGameState = () => {
         setDifficulty,
 
         // 政令与外交
-        decrees,
-        setDecrees,
         nations,
         setNations,
         selectedTarget,
         setSelectedTarget,
+
+        // 官员系统 (新增)
+        officials,
+        setOfficials,
+        officialCandidates,
+        setOfficialCandidates,
+        lastSelectionDay,
+        setLastSelectionDay,
+        officialCapacity,
+        setOfficialCapacity,
 
         // 社会阶层
         classApproval,

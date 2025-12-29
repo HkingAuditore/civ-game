@@ -20,6 +20,13 @@ import {
     createRebellionEndEvent,
 } from '../logic/rebellionSystem';
 import { getOrganizationStage, getPhaseFromStage } from '../logic/organizationSystem';
+import {
+    triggerSelection,
+    hireOfficial,
+    fireOfficial,
+    isSelectionAvailable
+} from '../logic/officials/manager';
+
 
 /**
  * 游戏操作钩子
@@ -40,7 +47,6 @@ export const useGameActions = (gameState, addLog) => {
         population,
         techsUnlocked,
         setTechsUnlocked,
-        setDecrees,
         setClicks,
         army,
         setArmy,
@@ -78,6 +84,14 @@ export const useGameActions = (gameState, addLog) => {
         setBuildingUpgrades,
         autoRecruitEnabled,
         modifiers,
+        // 官员系统状态
+        officials,
+        setOfficials,
+        officialCandidates,
+        setOfficialCandidates,
+        lastSelectionDay,
+        setLastSelectionDay,
+        officialCapacity,
     } = gameState;
 
     const [pendingDiplomaticEvents, setPendingDiplomaticEvents] = useState([]);
@@ -767,30 +781,66 @@ export const useGameActions = (gameState, addLog) => {
         }
     };
 
-    // ========== 政令管理 ==========
+    // ========== 官员管理 ==========
 
     /**
-     * 切换政令状态
-     * @param {string} id - 政令ID
+     * 触发新一轮官员选拔
      */
-    const toggleDecree = (id) => {
-        let blockedEpoch = null;
-        let blockedName = '';
-        setDecrees(prev => prev.map(d => {
-            if (d.id !== id) return d;
-            const requiredEpoch = d.unlockEpoch ?? 0;
-            if (requiredEpoch > epoch) {
-                blockedEpoch = requiredEpoch;
-                blockedName = d.name || '';
-                return d;
-            }
-            return { ...d, active: !d.active };
-        }));
-        if (blockedEpoch !== null && addLog) {
-            const epochName = EPOCHS[blockedEpoch]?.name || `第 ${blockedEpoch + 1} 个时代`;
-            addLog(`需要达到${epochName}才能颁布「${blockedName || '该政令'}」。`);
+    const triggerOfficialSelection = () => {
+        if (!isSelectionAvailable(lastSelectionDay, daysElapsed)) {
+            addLog('选拔仍在冷却中。');
+            return;
+        }
+        const candidates = triggerSelection(epoch);
+        setOfficialCandidates(candidates);
+        setLastSelectionDay(daysElapsed);
+        addLog('已举行新一轮官员选拔，请查看候选人名单。');
+        
+        try {
+            const soundGenerator = generateSound(SOUND_TYPES.UI_CLICK);
+            if (soundGenerator) soundGenerator();
+        } catch (e) {
+            console.warn('Failed to play selection sound:', e);
         }
     };
+
+    /**
+     * 雇佣官员
+     * @param {string} officialId 
+     */
+    const hireNewOfficial = (officialId) => {
+        const result = hireOfficial(officialId, officialCandidates, officials, officialCapacity, daysElapsed);
+        if (!result.success) {
+            addLog(`雇佣失败：${result.error}`);
+            return;
+        }
+        setOfficialCandidates(result.newCandidates);
+        setOfficials(result.newOfficials);
+        const hired = result.newOfficials[result.newOfficials.length - 1];
+        addLog(`雇佣了官员 ${hired.name}。`);
+        
+        try {
+            const soundGenerator = generateSound(SOUND_TYPES.HIRE); // 暂用 BUILD 音效替代，具体待定
+            if (soundGenerator) soundGenerator();
+        } catch (e) {
+            console.warn('Failed to play hire sound:', e);
+        }
+    };
+
+    /**
+     * 解雇官员
+     * @param {string} officialId 
+     */
+    const fireExistingOfficial = (officialId) => {
+        const official = officials.find(o => o.id === officialId);
+        const newOfficials = fireOfficial(officialId, officials);
+        setOfficials(newOfficials);
+        if (official) {
+            addLog(`解雇了官员 ${official.name}。`);
+        }
+    };
+
+    // ========== 政令管理 ========== (已移除，功能整合至官员系统)
 
     // ========== 手动采集 ==========
 
@@ -3547,8 +3597,7 @@ export const useGameActions = (gameState, addLog) => {
         // 科技
         researchTech,
 
-        // 政令
-        toggleDecree,
+        // 政令 (已废弃)
 
         // 采集
         manualGather,
@@ -3598,6 +3647,11 @@ export const useGameActions = (gameState, addLog) => {
         dismissAllBattleNotifications: () => {
             setBattleNotifications([]);
         },
+
+        // 官员系统
+        triggerOfficialSelection,
+        hireNewOfficial,
+        fireExistingOfficial,
 
         // 叛乱系统
         handleRebellionAction,

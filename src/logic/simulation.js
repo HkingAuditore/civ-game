@@ -107,6 +107,7 @@ import {
     applyPolityEffects, // Apply polity effects helper
     calculateTotalMaxPop,
 } from './buildings';
+import { getAggregatedOfficialEffects } from '../logic/officials/manager';
 
 // ============================================================================
 // All helper functions and constants have been migrated to modules:
@@ -190,7 +191,10 @@ export const simulateTick = ({
     rulingCoalition = [], // 执政联盟成员阶层
     previousLegitimacy = 0, // 上一tick的合法性值，用于计算税收修正
     migrationCooldowns = {}, // 阶层迁移冷却状态
+
     difficulty, // 游戏难度设置
+    officials = [], // 官员列表
+    officialsPaid = true, // 是否足额支付薪水
 }) => {
     // console.log('[TICK START]', tick); // Commented for performance
     const res = { ...resources };
@@ -285,6 +289,11 @@ export const simulateTick = ({
 
     // REFACTORED: Use imported function from ./buildings/effects
     const bonuses = initializeBonuses();
+    
+    // 应用官员效果（含薪水不足减益）
+    const activeOfficialEffects = getAggregatedOfficialEffects(officials, officialsPaid);
+    applyEffects(activeOfficialEffects, bonuses);
+
     // Destructure for backward compatibility with existing code
     const {
         buildingBonuses,
@@ -2247,6 +2256,12 @@ export const simulateTick = ({
         const decreeBonus = decreeApprovalModifiers[key] || 0;
         if (decreeBonus) {
             targetApproval += decreeBonus;
+        }
+
+        // Apply official approval modifiers
+        const officialBonus = activeOfficialEffects?.approval?.[key] || 0;
+        if (officialBonus) {
+            targetApproval += officialBonus;
         }
 
         const currentApproval = classApproval[key] || 50;
