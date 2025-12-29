@@ -398,7 +398,8 @@ const checkWarDeclaration = ({ nation, nations, tick, epoch, res, stabilityValue
 
     // Check conditions
     const hasPeaceTreaty = nation.peaceTreatyUntil && tick < nation.peaceTreatyUntil;
-    const isPlayerAlly = relation >= 80;
+    // Fixed: Use formal alliance status instead of relation-based check
+    const isPlayerAlly = nation.alliedWithPlayer === true;
 
     const canDeclareWar = !nation.isAtWar &&
         !hasPeaceTreaty &&

@@ -555,10 +555,10 @@ export const checkAIPeaceRequest = ({
     const lastPeaceRequestDay = Number.isFinite(next.lastPeaceRequestDay)
         ? next.lastPeaceRequestDay
         : -Infinity;
-    
+
     // Check per-nation cooldown
     const canRequestPeace = (tick - lastPeaceRequestDay) >= PEACE_REQUEST_COOLDOWN_DAYS;
-    
+
     // Check global cooldown - prevents multiple nations from requesting peace simultaneously
     const globalCooldown = GLOBAL_PEACE_REQUEST_COOLDOWN_DAYS;
     const globalReady = (tick - lastGlobalPeaceRequest) >= globalCooldown;
@@ -790,7 +790,8 @@ export const checkWarDeclaration = ({
 
     // Check conditions
     const hasPeaceTreaty = next.peaceTreatyUntil && tick < next.peaceTreatyUntil;
-    const isPlayerAlly = relation >= 80;
+    // Fixed: Use formal alliance status instead of relation-based check
+    const isPlayerAlly = next.alliedWithPlayer === true;
 
     const canDeclareWar = !next.isAtWar &&
         !hasPeaceTreaty &&
@@ -1025,14 +1026,14 @@ export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, 
 export const processAIAIWarProgression = (visibleNations, updatedNations, tick, logs) => {
     // Create a set of visible nation IDs for quick lookup
     const visibleNationIds = new Set(visibleNations.map(n => n.id));
-    
+
     visibleNations.forEach(nation => {
         Object.keys(nation.foreignWars || {}).forEach(enemyId => {
             const war = nation.foreignWars[enemyId];
             if (!war?.isAtWar) return;
 
             const enemy = updatedNations.find(n => n.id === enemyId);
-            
+
             // Clean up war state if enemy no longer exists or is no longer visible
             if (!enemy || !visibleNationIds.has(enemyId)) {
                 // End war with destroyed/invisible nation
