@@ -402,6 +402,18 @@ export const OFFICIAL_DRAWBACK_TYPES = {
 // preferredDrawbacks: 偏好的负面效果key列表 (权重翻倍)
 // preferredTargets: 偏好的目标 (建筑/资源/阶层) - 如果效果有targets，优先选择这些
 export const STRATUM_EFFECT_PREFERENCES = {
+    // 自耕农：农业、人口、稳定 (新增)
+    peasant: {
+        preferredEffects: ['building_boost', 'population_growth', 'stability_bonus', 'resource_supply'],
+        preferredDrawbacks: ['research_slowdown', 'military_upkeep_increase'],
+        preferredTargets: ['farm', 'food', 'peasant', 'gather'],
+    },
+    // 工人：工业、建设、效率 (新增)
+    worker: {
+        preferredEffects: ['building_boost', 'category_boost', 'building_cost_reduction', 'resource_supply'],
+        preferredDrawbacks: ['culture_penalty', 'diplomatic_incident'], // culture_penalty 不在列表中，用 diplomatic_incident 或其他替代
+        preferredTargets: ['sawmill', 'brickworks', 'plank', 'brick', 'worker', 'industry'],
+    },
     // 文书：行政、科研、稳定
     scribe: {
         preferredEffects: ['research_speed', 'stability_bonus', 'tax_efficiency', 'income_percent', 'organization_decay'],
@@ -753,6 +765,7 @@ export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence 
 
     // 可作为官员出身的阶层列表
     const eligibleStrata = [
+        'peasant', 'worker', // 新增：底层阶级也能出官员
         'scribe', 'merchant', 'cleric', 'landowner',
         'engineer', 'artisan', 'soldier', 'navigator', 'capitalist'
     ];
