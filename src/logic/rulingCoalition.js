@@ -350,7 +350,7 @@ import { POLITY_DEFINITIONS } from '../config/polityEffects';
  * @returns {Object} { name: 政体名称, description: 描述, icon: 图标, color: 颜色 }
  */
 export function getGovernmentType(coalition, classInfluence, totalInfluence) {
-    if (coalition.length === 0) {
+    if (!Array.isArray(coalition) || coalition.length === 0) {
         return getPolityByName('无执政联盟') || {
             name: '无执政联盟',
             description: '尚未建立执政联盟，政府缺乏社会基础',

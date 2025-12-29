@@ -540,6 +540,7 @@ const updateNationEconomy = ({ nation, tick, epoch, playerPopulationBaseline, pl
  * @private
  */
 const processAIRelations = (nations, tick, logs) => {
+    if (!Array.isArray(nations)) return [];
     return nations.map(nation => {
         // Initialize foreign relations
         if (!nation.foreignRelations) {
@@ -576,6 +577,7 @@ const processAIRelations = (nations, tick, logs) => {
  * @private
  */
 const processMonthlyRelationDecay = (nations) => {
+    if (!Array.isArray(nations)) return [];
     return nations.map(nation => {
         if (nation.isRebelNation) return nation;
 
