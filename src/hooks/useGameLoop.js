@@ -2487,6 +2487,29 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             }
                         }
 
+                        // [FIX] 在循环之前收集所有 AUTO_REPLENISH_LOSSES 日志的损失
+                        // 这样可以避免多条损失日志导致的重复补兵问题
+                        const allAutoReplenishLosses = {};
+                        if (autoRecruitEnabled) {
+                            result.logs.forEach((log) => {
+                                if (typeof log === 'string' && log.includes('AUTO_REPLENISH_LOSSES:')) {
+                                    try {
+                                        const jsonStr = log.replace('AUTO_REPLENISH_LOSSES:', '');
+                                        const losses = JSON.parse(jsonStr);
+                                        Object.entries(losses).forEach(([unitId, count]) => {
+                                            if (count > 0) {
+                                                allAutoReplenishLosses[unitId] = (allAutoReplenishLosses[unitId] || 0) + count;
+                                            }
+                                        });
+                                    } catch (e) {
+                                        debugError('gameLoop', '[AUTO_REPLENISH] Failed to parse losses for aggregation:', e);
+                                    }
+                                }
+                            });
+                        }
+                        // 标记是否已处理过自动补兵（避免在forEach中重复处理）
+                        let autoReplenishProcessed = false;
+
                         result.logs.forEach((log, index) => {
                             debugLog('event', `[EVENT DEBUG] Log ${index}: `, log);
                             debugLog('event', `[EVENT DEBUG] Log ${index} includes RAID_EVENT: `, log.includes('❗RAID_EVENT❗'));
@@ -2908,13 +2931,19 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                 }
                             }
 
-                            // 检测自动补兵损失事件
-                            if (log.includes('AUTO_REPLENISH_LOSSES:') && autoRecruitEnabled) {
+                            // 检测自动补兵损失事件 - 只在第一次遇到时处理所有收集的损失
+                            if (log.includes('AUTO_REPLENISH_LOSSES:') && autoRecruitEnabled && !autoReplenishProcessed) {
+                                autoReplenishProcessed = true; // 标记已处理
                                 try {
-                                    const jsonStr = log.replace('AUTO_REPLENISH_LOSSES:', '');
-                                    const losses = JSON.parse(jsonStr);
+                                    // 使用预先收集的所有损失，而不是单条日志的损失
+                                    const losses = allAutoReplenishLosses;
+                                    if (Object.keys(losses).length === 0) return;
+                                    
                                     const capacity = getMilitaryCapacity(current.buildings || {});
-                                    const totalArmyCount = getTotalArmyCount(current.army || {}, current.militaryQueue || []);
+                                    // [FIX] 使用 result.army（已扣除战斗损失）而不是 current.army（旧状态）
+                                    // 这样可以正确计算可用容量，避免补兵超出上限
+                                    const armyAfterLosses = result.army || current.army || {};
+                                    const totalArmyCount = getTotalArmyCount(armyAfterLosses, current.militaryQueue || []);
                                     let availableSlots = capacity > 0 ? Math.max(0, capacity - totalArmyCount) : 0;
 
                                     // 计算补兵成本

@@ -815,7 +815,10 @@ export const useGameActions = (gameState, addLog) => {
      * @param {string} officialId 
      */
     const hireNewOfficial = (officialId) => {
-        const result = hireOfficial(officialId, officialCandidates, officials, officialCapacity, daysElapsed);
+        // 实际容量限制：取 建筑提供的岗位数 和 面板容量上限 的最小值
+        // 防止在没有建造相应建筑时雇佣官员
+        const effectiveCapacity = Math.min(jobsAvailable?.official || 0, officialCapacity);
+        const result = hireOfficial(officialId, officialCandidates, officials, effectiveCapacity, daysElapsed);
         if (!result.success) {
             addLog(`雇佣失败：${result.error}`);
             return;

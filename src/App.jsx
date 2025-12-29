@@ -1086,7 +1086,7 @@ function GameApp({ gameState }) {
                                                 // 官员系统 props
                                                 officials={gameState.officials}
                                                 candidates={gameState.officialCandidates}
-                                                capacity={gameState.officialCapacity}
+                                                capacity={Math.min(gameState.jobsAvailable?.official || 0, gameState.officialCapacity || 3)}
                                                 lastSelectionDay={gameState.lastSelectionDay}
                                                 currentTick={gameState.daysElapsed}
                                                 onTriggerSelection={actions.triggerOfficialSelection}

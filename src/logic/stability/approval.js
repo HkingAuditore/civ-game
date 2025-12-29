@@ -48,13 +48,25 @@ export const calculateClassApproval = ({
 
         let targetApproval = 70; // Base approval
 
+        // Scale base approval with living standard
+        const livingLevel = livingStandard?.level;
+        if (livingLevel === '奢华') targetApproval = 95;
+        else if (livingLevel === '富裕') targetApproval = 85;
+        else if (livingLevel === '小康') targetApproval = 75;
+
         // Tax Burden Logic
         const headRate = getHeadTaxRate(key);
         const headBase = STRATA[key]?.headTaxBase ?? 0.01;
         const taxPerCapita = Math.max(0, headBase * headRate * effectiveTaxModifier);
         const incomePerCapita = (roleWagePayout[key] || 0) / Math.max(1, count);
 
-        if (incomePerCapita > 0.001 && taxPerCapita > incomePerCapita * 0.5) {
+        // Retrieve wealth per capita from living standard data (it contains accurate snapshot)
+        const wealthPerCapita = livingStandard?.wealthPerCapita || 0;
+
+        const taxBurdenFromIncome = incomePerCapita > 0.001 && taxPerCapita > incomePerCapita * 0.5;
+        const canAffordFromWealth = wealthPerCapita > taxPerCapita * 100;
+
+        if (taxBurdenFromIncome && !canAffordFromWealth) {
             targetApproval = Math.min(targetApproval, 40); // Tax burden cap
         } else if (headRate < 0.6) {
             targetApproval += 5; // Tax relief bonus
@@ -62,13 +74,24 @@ export const calculateClassApproval = ({
 
         // Resource Shortage Logic
         const totalNeeds = satisfactionInfo?.totalTrackedNeeds ?? 0;
-        const unmetNeeds = (classShortages[key] || []).length;
-        if (unmetNeeds > 0 && totalNeeds > 0) {
-            if (unmetNeeds >= totalNeeds) {
+        const shortages = classShortages[key] || [];
+        const basicShortages = shortages.filter(s => s.isBasic);
+        const luxuryShortages = shortages.filter(s => !s.isBasic);
+
+        // 基础需求短缺 - 严重惩罚
+        if (basicShortages.length > 0 && totalNeeds > 0) {
+            const basicNeedsCount = Object.keys(STRATA[key]?.needs || {}).length;
+            if (basicShortages.length >= basicNeedsCount) {
                 targetApproval = Math.min(targetApproval, 0);
             } else {
                 targetApproval = Math.min(targetApproval, 30);
             }
+        }
+
+        // 奢侈需求短缺 - 较轻惩罚
+        if (luxuryShortages.length > 0) {
+            const luxuryPenalty = Math.min(15, luxuryShortages.length * 3);
+            targetApproval -= luxuryPenalty;
         }
 
         // Living standard penalty
@@ -119,7 +142,7 @@ export const calculateClassApproval = ({
         }
 
         // Positive satisfaction bonus
-        if (satisfaction > 1.5) {
+        if (satisfaction >= 0.98) {
             targetApproval = Math.min(100, targetApproval + 10);
         }
 

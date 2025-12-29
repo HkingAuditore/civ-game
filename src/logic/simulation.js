@@ -805,7 +805,7 @@ export const simulateTick = ({
     // 官员人数 = min(建筑提供的岗位, 雇佣的官员数)
     const officialJobs = jobsAvailable.official || 0;
     const hiredOfficialCount = Array.isArray(officials) ? officials.length : 0;
-    const actualOfficialCount = Math.min(officialJobs, hiredOfficialCount);
+    const actualOfficialCount = hiredOfficialCount; // Allow all hired officials to be counted, even if exceeding jobs
     popStructure.official = actualOfficialCount;
     // 官员财富由每位官员独立持有，不计入 wealth.official（清零以避免重复）
     wealth.official = 0;
@@ -2262,8 +2262,79 @@ export const simulateTick = ({
 
     // REFACTORED: Use shared calculateLivingStandards function from needs.js
     // incorporating new Income-Expense Balance Model
+
+    // =====================================================================================
+    // OFFICIALS SIMULATION (RUN EARLY TO AGGREGATE STATS)
+    // =====================================================================================
+    // Move official processing here so their wealth is aggregated into `wealth` BEFORE
+    // calculateLivingStandards runs. This ensures StrataPanel shows correct data.
+
+    let totalOfficialWealth = 0;
+    let totalOfficialExpense = 0;
+    let totalOfficialIncome = 0; // Track income for UI
+
+    const updatedOfficials = (officials || []).map(official => {
+        if (!official) return official;
+
+        // 初始化 wealth（向后兼容：旧存档可能没有 wealth）
+        let currentWealth = typeof official.wealth === 'number' ? official.wealth : 400;
+
+        // 收入：如果足额支付薪水，获得薪水
+        if (officialsPaid && typeof official.salary === 'number') {
+            currentWealth += official.salary;
+            totalOfficialIncome += official.salary;
+        }
+
+        // 支出：按 STRATA.official.needs 计算需求成本
+        // 使用简化计算：基础需求 * 市场价格
+        const officialNeeds = STRATA.official?.needs || { food: 1.2, cloth: 0.2 };
+        let dailyExpense = 0;
+
+        Object.entries(officialNeeds).forEach(([resource, baseAmount]) => {
+            const price = priceMap[resource] || 1;
+            dailyExpense += baseAmount * price;
+        });
+
+        // 基于财富水平的奢侈需求（简化版）
+        const wealthRatio = currentWealth / 400; // 相对于初始财富的比例
+        if (wealthRatio >= 1.0 && STRATA.official?.luxuryNeeds) {
+            // 找到适用的奢侈需求等级
+            const luxuryThresholds = Object.keys(STRATA.official.luxuryNeeds)
+                .map(Number)
+                .filter(t => t <= wealthRatio)
+                .sort((a, b) => b - a);
+
+            luxuryThresholds.forEach(threshold => {
+                const needs = STRATA.official.luxuryNeeds[threshold];
+                if (needs) {
+                    Object.entries(needs).forEach(([resource, amount]) => {
+                        const price = priceMap[resource] || 1;
+                        dailyExpense += amount * price;
+                    });
+                }
+            });
+        }
+
+        // 扣除支出
+        currentWealth = Math.max(0, currentWealth - dailyExpense);
+
+        totalOfficialWealth += currentWealth;
+        totalOfficialExpense += dailyExpense;
+
+        return {
+            ...official,
+            wealth: currentWealth,
+            lastDayExpense: dailyExpense
+        };
+    });
+
+    // Sync Aggregate Stats for UI correctness
+    wealth.official = totalOfficialWealth;
+    roleExpense.official = (roleExpense.official || 0) + totalOfficialExpense;
+
+
     const livingStandardsResult = calculateLivingStandards({
-        popStructure,
+        popStructure: { ...popStructure, official: 0 }, // Exclude official to prevent double count/deduction
         wealth,
         classIncome: roleWagePayout,
         classExpense: roleExpense, // 新增：支出数据
@@ -2273,6 +2344,50 @@ export const simulateTick = ({
         priceMap: getPrice, // 传递价格获取函数
         livingStandardStreaks
     });
+
+    // Manually inject official stats (derived from independent simulation)
+    const officialCount = updatedOfficials.length;
+    if (officialCount > 0) {
+        const avgWealth = totalOfficialWealth / officialCount;
+        let pLevel = '赤贫';
+        let pCap = 30;
+
+        if (avgWealth > 300) { pLevel = '奢华'; pCap = 95; }
+        else if (avgWealth > 100) { pLevel = '富裕'; pCap = 85; }
+        else if (avgWealth > 50) { pLevel = '小康'; pCap = 75; }
+        else if (avgWealth > 20) { pLevel = '温饱'; pCap = 60; }
+        else { pLevel = '贫困'; pCap = 45; }
+
+        const wealthRatio = avgWealth / 400;
+        const styleMap = {
+            '奢华': { icon: 'Crown', color: 'text-purple-400' },
+            '富裕': { icon: 'Gem', color: 'text-blue-400' },
+            '小康': { icon: 'Home', color: 'text-green-400' },
+            '温饱': { icon: 'UtensilsCrossed', color: 'text-yellow-400' },
+            '贫困': { icon: 'AlertTriangle', color: 'text-orange-400' },
+            '赤贫': { icon: 'Skull', color: 'text-red-500' }
+        };
+        const style = styleMap[pLevel] || styleMap['赤贫'];
+
+        livingStandardsResult.classLivingStandard.official = {
+            level: pLevel,
+            satisfaction: 1.0,
+            approvalCap: pCap,
+            needsMet: 1.0,
+            wealthRatio: wealthRatio,
+            icon: style.icon,
+            color: style.color
+        };
+
+        // Update streaks
+        const prevStreak = livingStandardStreaks.official || {};
+        const isSame = prevStreak.level === pLevel;
+        livingStandardsResult.livingStandardStreaks.official = {
+            level: pLevel,
+            streak: isSame ? (prevStreak.streak || 0) + 1 : 1
+        };
+    }
+
     const classLivingStandard = livingStandardsResult.classLivingStandard;
     const updatedLivingStandardStreaks = livingStandardsResult.livingStandardStreaks;
 
@@ -2297,12 +2412,23 @@ export const simulateTick = ({
 
         let targetApproval = 70; // Base approval
 
+        // Scale base approval with living standard
+        const livingLevel = livingStandard?.level;
+        if (livingLevel === '奢华') targetApproval = 95;
+        else if (livingLevel === '富裕') targetApproval = 85;
+        else if (livingLevel === '小康') targetApproval = 75;
+
         // Tax Burden Logic
         const headRate = getHeadTaxRate(key);
         const headBase = STRATA[key]?.headTaxBase ?? 0.01;
         const taxPerCapita = Math.max(0, headBase * headRate * effectiveTaxModifier);
         const incomePerCapita = (roleWagePayout[key] || 0) / Math.max(1, count);
-        if (incomePerCapita > 0.001 && taxPerCapita > incomePerCapita * 0.5) {
+        const wealthPerCapita = (wealth[key] || 0) / Math.max(1, count);
+
+        const taxBurdenFromIncome = incomePerCapita > 0.001 && taxPerCapita > incomePerCapita * 0.5;
+        const canAffordFromWealth = wealthPerCapita > taxPerCapita * 100;
+
+        if (taxBurdenFromIncome && !canAffordFromWealth) {
             targetApproval = Math.min(targetApproval, 40); // Tax burden cap
         } else if (headRate < 0.6) {
             targetApproval += 5; // Tax relief bonus
@@ -2379,7 +2505,7 @@ export const simulateTick = ({
         }
 
         // Positive satisfaction bonus
-        if (satisfaction > 1.5) {
+        if (satisfaction >= 0.98) {
             targetApproval = Math.min(100, targetApproval + 10);
         }
 
@@ -3866,57 +3992,11 @@ export const simulateTick = ({
     };
 
     // === 官员独立财务计算 ===
-    // 每位官员独立计算收入(薪水)和支出(需求消费)
-    const updatedOfficials = (officials || []).map(official => {
-        if (!official) return official;
-
-        // 初始化 wealth（向后兼容：旧存档可能没有 wealth）
-        let currentWealth = typeof official.wealth === 'number' ? official.wealth : 400;
-
-        // 收入：如果足额支付薪水，获得薪水
-        if (officialsPaid && typeof official.salary === 'number') {
-            currentWealth += official.salary;
-        }
-
-        // 支出：按 STRATA.official.needs 计算需求成本
-        // 使用简化计算：基础需求 * 市场价格
-        const officialNeeds = STRATA.official?.needs || { food: 1.2, cloth: 0.2 };
-        let dailyExpense = 0;
-
-        Object.entries(officialNeeds).forEach(([resource, baseAmount]) => {
-            const price = priceMap[resource] || 1;
-            dailyExpense += baseAmount * price;
-        });
-
-        // 基于财富水平的奢侈需求（简化版）
-        const wealthRatio = currentWealth / 400; // 相对于初始财富的比例
-        if (wealthRatio >= 1.0 && STRATA.official?.luxuryNeeds) {
-            // 找到适用的奢侈需求等级
-            const luxuryThresholds = Object.keys(STRATA.official.luxuryNeeds)
-                .map(Number)
-                .filter(t => t <= wealthRatio)
-                .sort((a, b) => b - a);
-
-            luxuryThresholds.forEach(threshold => {
-                const needs = STRATA.official.luxuryNeeds[threshold];
-                if (needs) {
-                    Object.entries(needs).forEach(([resource, amount]) => {
-                        const price = priceMap[resource] || 1;
-                        dailyExpense += amount * price;
-                    });
-                }
-            });
-        }
-
-        // 扣除支出
-        currentWealth = Math.max(0, currentWealth - dailyExpense);
-
-        return {
-            ...official,
-            wealth: currentWealth,
-            lastDayExpense: dailyExpense
-        };
-    });
+    // Official processing moved to early simulation phase (before living standards)
+    // Set official income for UI report (after applyRoleIncomeToWealth to avoid double count in wealth)
+    roleWagePayout.official = totalOfficialIncome || 0;
+    // Explicitly clear official shortages to prevent "ghost" warnings from generic logic
+    if (classShortages) classShortages.official = [];
 
     // console.log('[TICK END]', tick, 'militaryCapacity:', militaryCapacity); // Commented for performance
     return {
