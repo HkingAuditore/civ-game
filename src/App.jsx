@@ -48,6 +48,7 @@ import { DifficultySelectionModal } from './components/modals/DifficultySelectio
 import { SaveSlotModal } from './components/modals/SaveSlotModal';
 import { SaveTransferModal } from './components/modals/SaveTransferModal';
 import { AchievementsModal } from './components/modals/AchievementsModal';
+import OfficialOverstaffModal from './components/modals/OfficialOverstaffModal';
 import { AchievementToast } from './components/common/AchievementToast';
 import { executeStrategicAction, STRATEGIC_ACTIONS } from './logic/strategicActions';
 import { getOrganizationStage, getPhaseFromStage } from './logic/organizationSystem';
@@ -144,6 +145,44 @@ function GameApp({ gameState }) {
     const [showSaveTransferModal, setShowSaveTransferModal] = useState(false); // 新增：控制存档传输弹窗
     const [showAchievementsModal, setShowAchievementsModal] = useState(false);
     const [expandedFestival, setExpandedFestival] = useState(null);
+
+    // 官员超编检测状态
+    const [showOfficialOverstaffModal, setShowOfficialOverstaffModal] = useState(false);
+    const prevCapacityRef = useRef(null);
+
+    // 检测官员超编情况
+    useEffect(() => {
+        const currentCapacity = gameState.officialCapacity || 3;
+        const currentOfficials = gameState.officials || [];
+        const officialCount = currentOfficials.length;
+
+        // 首次加载时初始化
+        if (prevCapacityRef.current === null) {
+            prevCapacityRef.current = currentCapacity;
+            return;
+        }
+
+        // 检测容量是否减少导致超编
+        if (officialCount > currentCapacity && currentCapacity < prevCapacityRef.current) {
+            // 容量减少且官员超编
+            if (!showOfficialOverstaffModal) {
+                setShowOfficialOverstaffModal(true);
+                // 暂停游戏
+                if (!gameState.isPaused) {
+                    gameState.togglePause();
+                }
+            }
+        }
+
+        prevCapacityRef.current = currentCapacity;
+    }, [gameState.officialCapacity, gameState.officials, gameState.isPaused, showOfficialOverstaffModal]);
+
+    // 处理官员超编解雇
+    const handleOfficialOverstaffFire = useCallback((officialId) => {
+        if (actions.fireExistingOfficial) {
+            actions.fireExistingOfficial(officialId);
+        }
+    }, [actions]);
 
     // 事件系统：按游戏内天数定期触发随机事件
     useEffect(() => {
@@ -1601,6 +1640,7 @@ function GameApp({ gameState }) {
                         nations={gameState.nations}
                         epoch={gameState.epoch}
                         techsUnlocked={gameState.techsUnlocked}
+                        confirmationEnabled={gameState.eventConfirmationEnabled}
                     />
                 )}
             </BottomSheet>
@@ -1618,6 +1658,17 @@ function GameApp({ gameState }) {
                 show={isWikiOpen}
                 onClose={() => setIsWikiOpen(false)}
             />
+
+            {/* 官员超编强制解雇弹窗 */}
+            {showOfficialOverstaffModal && (
+                <OfficialOverstaffModal
+                    officials={gameState.officials}
+                    currentCount={gameState.officials?.length || 0}
+                    maxCapacity={gameState.officialCapacity || 3}
+                    onFireOfficial={handleOfficialOverstaffFire}
+                    onClose={() => setShowOfficialOverstaffModal(false)}
+                />
+            )}
 
             {/* 设置弹窗 */}
             {isSettingsOpen && (
@@ -1642,6 +1693,8 @@ function GameApp({ gameState }) {
                             difficulty={gameState.difficulty}
                             onDifficultyChange={gameState.setDifficulty}
                             onClose={() => setIsSettingsOpen(false)}
+                            eventConfirmationEnabled={gameState.eventConfirmationEnabled}
+                            onToggleEventConfirmation={gameState.setEventConfirmationEnabled}
                         />
                     </div>
                 </div>

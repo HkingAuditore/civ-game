@@ -80,14 +80,14 @@ export const OFFICIAL_EFFECT_TYPES = {
         description: (val) => `建筑成本 ${(val * 100).toFixed(0)}%`,
     },
 
-    // 财政收入比例
+    // 税收收入加成
     income_percent: {
         type: 'incomePercent',
         category: 'economy',
         valueRange: [0.04, 0.12],
         weight: 12,
         costMultiplier: 1.5,
-        description: (val) => `财政收入 +${(val * 100).toFixed(0)}%`,
+        description: (val) => `税收收入 +${(val * 100).toFixed(0)}%`,
     },
 
     // 固定被动产出
@@ -525,7 +525,7 @@ const NAME_STYLES = {
     // ========== 斯拉夫/东欧 (粗犷、巨变) ==========
     SLAVIC: {
         first: ['伊凡', '彼得', '亚历山大', '尼古拉', '弗拉基米尔', '鲍里斯', '米哈伊尔', '德米特里', '列夫', '安德烈'],
-        last: ['罗曼诺夫', '留里克', '普希金', '托尔斯泰', '多斯托耶夫斯基', '柴可夫斯基', '朱可夫', '加加林', '列宁', '斯大林'],
+        last: ['罗曼诺夫', '留里克', '普希金', '托尔斯泰', '陀思妥耶夫斯基', '柴可夫斯基', '朱可夫', '加加林', '列宁', '斯大林'],
         suffixes: ['维奇', '耶夫', '斯基'], // 简单的后缀模拟
         format: 'firstLast' // 简化处理，实际可以通过拼接生成 Lastname
     },
@@ -836,23 +836,28 @@ export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence 
     if (drawback) mergeIntoEffects(drawback);
 
     // 5. 计算俸禄
-    // 基础分 ~0.1 - 0.5 左右
-    // 目标俸禄: Epoch 0 ~2-5银, Epoch 6 ~20-50银
-    // 公式: Score * 20 * (1 + Epoch * 0.2)
-    const epochMultiplier = 1 + epoch * 0.2;
-    // 确保最低 1 + epoch
-    const minSalary = 1 + epoch;
-    let salary = Math.round(Math.max(0.1, totalCostScore) * 25 * epochMultiplier);
-    salary = Math.max(minSalary, salary);
+    // 目标范围: 50 ~ 10000 银/日
+    // 基础薪资: 50 + 效果得分 * 500
+    // 时代加成: (1 + epoch * 0.5) - 后期官员更贵
+    // 效果得分范围约 0.1 - 1.5，对应薪资约 100 - 800 基础
+    const epochMultiplier = 1 + epoch * 0.5;
+    const baseSalary = 50 + Math.max(0.1, totalCostScore) * 500;
+    let salary = Math.round(baseSalary * epochMultiplier);
+    // 确保在 50 ~ 10000 范围内
+    salary = Math.max(50, Math.min(10000, salary));
 
     // 生成ID
     const id = `off_${Date.now().toString(36)}_${Math.random().toString(36).substr(2, 5)}`;
 
     // 6. 计算出身阶层影响力加成
-    // 公式: 基础值(5-10%) + 薪水因子(salary/100 * 5%)
-    // 低级官员: ~5-10%, 高级官员: ~10-20%
-    const baseInfluenceBonus = 0.05 + Math.random() * 0.05; // 5-10%
-    const salaryInfluenceBonus = (salary / 100) * 0.05; // 薪水越高加成越多
+    // 公式: 基础值(5-10%) + 薪水因子
+    // 调整：降低薪水因子的权重，避免轻易达到上限
+    // 假设薪水范围 100 - 5000+
+    // 薪水 400 -> 0.008 (0.8%)
+    // 薪水 2000 -> 0.04 (4%)
+    // 薪水 8000 -> 0.16 (16%)
+    const baseInfluenceBonus = 0.03 + Math.random() * 0.05; // 3-8% 基础
+    const salaryInfluenceBonus = (salary / 2500) * 0.05; // 每 2500 薪水 +5%
     const stratumInfluenceBonus = Math.min(0.25, baseInfluenceBonus + salaryInfluenceBonus); // 最高25%
 
     return {

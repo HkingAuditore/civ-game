@@ -89,12 +89,12 @@ const DifficultySectionComponent = ({ currentDifficulty, onDifficultyChange }) =
                         type="button"
                         onClick={() => onDifficultyChange && onDifficultyChange(opt.id)}
                         className={`flex-1 px-3 py-2 rounded-lg border text-xs transition-colors ${currentDifficulty === opt.id
-                                ? opt.id === DIFFICULTY_LEVELS.EASY
-                                    ? 'bg-emerald-700/40 border-emerald-500/50 text-emerald-200'
-                                    : opt.id === DIFFICULTY_LEVELS.HARD
-                                        ? 'bg-red-700/40 border-red-500/50 text-red-200'
-                                        : 'bg-amber-700/40 border-amber-500/50 text-amber-200'
-                                : 'bg-gray-700/30 border-gray-600/50 text-gray-300 hover:bg-gray-700/50'
+                            ? opt.id === DIFFICULTY_LEVELS.EASY
+                                ? 'bg-emerald-700/40 border-emerald-500/50 text-emerald-200'
+                                : opt.id === DIFFICULTY_LEVELS.HARD
+                                    ? 'bg-red-700/40 border-red-500/50 text-red-200'
+                                    : 'bg-amber-700/40 border-amber-500/50 text-amber-200'
+                            : 'bg-gray-700/30 border-gray-600/50 text-gray-300 hover:bg-gray-700/50'
                             }`}
                     >
                         <div className="font-medium">
@@ -108,7 +108,7 @@ const DifficultySectionComponent = ({ currentDifficulty, onDifficultyChange }) =
 
             <div className="text-[11px] text-gray-400 flex items-center gap-2">
                 <span className={`w-2 h-2 rounded-full ${currentDifficulty === DIFFICULTY_LEVELS.EASY ? 'bg-emerald-400' :
-                        currentDifficulty === DIFFICULTY_LEVELS.HARD ? 'bg-red-400' : 'bg-amber-400'
+                    currentDifficulty === DIFFICULTY_LEVELS.HARD ? 'bg-red-400' : 'bg-amber-400'
                     }`} />
                 当前难度：{difficultyOptions.find(o => o.id === currentDifficulty)?.name || '普通'}
             </div>
@@ -173,6 +173,8 @@ export const SettingsPanel = ({
     onTimeSettingsChange,
     difficulty,
     onDifficultyChange,
+    eventConfirmationEnabled,
+    onToggleEventConfirmation,
 }) => {
     const { enabled: soundEnabled, volume, toggleSound, setVolume, playSound, SOUND_TYPES } = useSound();
     const fileInputRef = useRef(null);
@@ -315,6 +317,29 @@ export const SettingsPanel = ({
             <div className="text-[11px] text-gray-400 flex items-center gap-2">
                 <Icon name="Clock" size={12} className="text-gray-500" />
                 <span>上次自动存档：{renderLastAutoSave()}</span>
+            </div>
+
+            {/* 事件选择确认设置 */}
+            <div className="border-t border-gray-700 pt-4 space-y-2">
+                <div className="flex items-center justify-between text-xs text-gray-300">
+                    <span>事件二次确认</span>
+                    <span className={eventConfirmationEnabled ? 'text-emerald-300' : 'text-gray-500'}>
+                        {eventConfirmationEnabled ? '已启用' : '已关闭'}
+                    </span>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        checked={eventConfirmationEnabled}
+                        onChange={(e) => onToggleEventConfirmation && onToggleEventConfirmation(e.target.checked)}
+                    />
+                    <div className="w-10 h-5 bg-gray-700 rounded-full peer peer-checked:bg-emerald-600 transition-colors" />
+                    <div className={`absolute left-1 top-1 w-3 h-3 rounded-full bg-white transition-transform ${eventConfirmationEnabled ? 'translate-x-5' : ''}`} />
+                </label>
+                <p className="text-[11px] text-gray-400 leading-relaxed">
+                    开启后，选择事件选项时需要再次点击确认按钮，防止误触。
+                </p>
             </div>
 
 

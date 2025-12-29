@@ -828,6 +828,18 @@ export const useGameActions = (gameState, addLog) => {
         const hired = result.newOfficials[result.newOfficials.length - 1];
         addLog(`雇佣了官员 ${hired.name}。`);
 
+        // 更新人口结构：从来源阶层移动到官员阶层
+        // 确保数据同步，防止出现"官员数量对不上"的问题
+        setPopStructure(prev => {
+            const source = hired.sourceStratum || 'unemployed';
+            const sourceCount = prev[source] || 0;
+            return {
+                ...prev,
+                [source]: Math.max(0, sourceCount - 1),
+                official: (prev.official || 0) + 1
+            };
+        });
+
         try {
             const soundGenerator = generateSound(SOUND_TYPES.HIRE); // 暂用 BUILD 音效替代，具体待定
             if (soundGenerator) soundGenerator();
@@ -846,6 +858,16 @@ export const useGameActions = (gameState, addLog) => {
         setOfficials(newOfficials);
         if (official) {
             addLog(`解雇了官员 ${official.name}。`);
+            
+            // 更新人口结构：从官员阶层移回来源阶层（或无业）
+            setPopStructure(prev => {
+                const target = official.sourceStratum || 'unemployed';
+                return {
+                    ...prev,
+                    official: Math.max(0, (prev.official || 0) - 1),
+                    [target]: (prev[target] || 0) + 1
+                };
+            });
         }
     };
 

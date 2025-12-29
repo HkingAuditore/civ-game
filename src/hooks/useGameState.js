@@ -409,6 +409,7 @@ const buildMinimalAutoSavePayload = (payload) => ({
     officialCandidates: payload.officialCandidates,
     lastSelectionDay: payload.lastSelectionDay,
     officialCapacity: payload.officialCapacity,
+    eventConfirmationEnabled: payload.eventConfirmationEnabled,
 });
 
 const DEFAULT_EVENT_EFFECT_SETTINGS = {
@@ -601,6 +602,7 @@ export const useGameState = () => {
     const [autoSaveBlocked, setAutoSaveBlocked] = useState(false); // 自动存档因配额被禁用
     const [isSaving, setIsSaving] = useState(false); // UI保存状态指示
     const [difficulty, setDifficulty] = useState(DEFAULT_DIFFICULTY); // 游戏难度
+    const [eventConfirmationEnabled, setEventConfirmationEnabled] = useState(false); // 事件二次确认开关
     const savingIndicatorTimer = useRef(null);
     const autoSaveQuotaNotifiedRef = useRef(false);
 
@@ -1181,6 +1183,7 @@ export const useGameState = () => {
         setActionCooldowns(data.actionCooldowns || {});
         setActionUsage(data.actionUsage || {});
         setPromiseTasks(data.promiseTasks || []);
+        setEventConfirmationEnabled(data.eventConfirmationEnabled || false);
     };
 
     const saveGame = ({ source = 'manual', slotIndex = 0 } = {}) => {
@@ -1922,5 +1925,7 @@ export const useGameState = () => {
         importSaveFromText,
         hasAutoSave,
         resetGame,
+        eventConfirmationEnabled,
+        setEventConfirmationEnabled,
     };
 };

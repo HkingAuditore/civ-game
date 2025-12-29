@@ -84,6 +84,7 @@ export const POLITY_DEFINITIONS = [
             production: 0.1,
             taxIncome: 0.12,
             cultureBonus: 0.08,
+            officialCapacity: 5, // 官僚集权大幅增加官员容量
         }
     },
     {
@@ -161,6 +162,7 @@ export const POLITY_DEFINITIONS = [
             scienceBonus: 0.25,
             industry: 0.12,
             buildingProductionMod: { library: 0.2, university: 0.25 },
+            officialCapacity: 4, // 技术官僚政治增加官员容量
         }
     },
     {
@@ -248,6 +250,7 @@ export const POLITY_DEFINITIONS = [
         effects: {
             stability: -0.05,
             taxIncome: 0.05,
+            officialCapacity: 2, // 独裁政体少量增加官员容量
         }
     },
 
@@ -306,6 +309,7 @@ export const POLITY_DEFINITIONS = [
             industry: 0.15,
             taxIncome: 0.12,
             buildingProductionMod: { market: 0.1 },
+            officialCapacity: 3, // 资产阶级共和国增加官员容量
         }
     },
     {
@@ -410,6 +414,7 @@ export const POLITY_DEFINITIONS = [
             production: 0.08,
             stratumDemandMod: { peasant: -0.05, worker: -0.05 },
             stability: 0.12,
+            officialCapacity: 4, // 全民联合政府增加官员容量
         }
     },
     {
@@ -564,6 +569,7 @@ export const POLITY_DEFINITIONS = [
             scienceBonus: 0.18,
             industry: 0.1,
             buildingProductionMod: { library: 0.15, university: 0.15 },
+            officialCapacity: 3, // 技术精英政府增加官员容量
         }
     },
 
@@ -768,6 +774,11 @@ export const formatPolityEffects = (effects) => {
                  details.push({ text: `${nameStr}消费 ${sign}${percent}%`, positive: val <= 0 });
             });
         }
+    }
+
+    if (effects.officialCapacity !== undefined) {
+        const sign = effects.officialCapacity >= 0 ? '+' : '';
+        details.push({ text: `官员容量 ${sign}${effects.officialCapacity}`, positive: effects.officialCapacity >= 0 });
     }
 
     return details;

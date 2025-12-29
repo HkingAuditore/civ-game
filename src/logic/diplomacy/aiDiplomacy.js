@@ -295,11 +295,11 @@ export const processAIPlayerInteraction = (visibleNations, tick, epoch, logs) =>
 
         // AI gift to player
         const lastGiftDay = nation.lastGiftToPlayerDay || 0;
-        const giftCooldown = 730; // Increased from 365 to 730 days (2 years) to reduce frequency
+        const giftCooldown = 1825; // Increased to 5 years (was 2 years)
         const canGift = (tick - lastGiftDay) >= giftCooldown;
 
-        // Reduced base chance and wealth influence to make gifts less frequent
-        const giftChance = 0.0001 + (playerRelation / 100000) + (wealth / 20000000);
+        // Significantly reduced base chance and wealth influence
+        const giftChance = 0.00002 + (playerRelation / 1000000) + (wealth / 100000000);
         if (canGift && wealth > 1000 && playerRelation >= 70 && aggression < 0.4 && Math.random() < giftChance) {
             const giftAmount = calculateAIGiftAmount(wealth);
             nation.wealth = Math.max(0, nation.wealth - giftAmount);
@@ -313,7 +313,8 @@ export const processAIPlayerInteraction = (visibleNations, tick, epoch, logs) =>
         }
 
         // AI request from player
-        const demandChance = 0.0003 + Math.max(0, (400 - wealth) / 200000);
+        // AI request from player
+        const demandChance = 0.00005 + Math.max(0, (400 - wealth) / 1000000);
         if (epoch >= 1 && wealth < 400 && Math.random() < demandChance) {
             const requestAmount = Math.floor(80 + Math.random() * 120);
             logs.push(`AI_REQUEST_EVENT:${JSON.stringify({
@@ -328,9 +329,9 @@ export const processAIPlayerInteraction = (visibleNations, tick, epoch, logs) =>
         // AI alliance request
         const isAlreadyAllied = nation.alliedWithPlayer === true;
         const lastAllianceRequestDay = nation.lastAllianceRequestDay || 0;
-        const allianceRequestCooldown = 365;
+        const allianceRequestCooldown = 1095; // Increased to 3 years (was 1 year)
         const canRequestAlliance = (tick - lastAllianceRequestDay) >= allianceRequestCooldown;
-        const allianceChance = 0.0002 + (playerRelation - 70) / 30000;
+        const allianceChance = 0.00005 + (playerRelation - 70) / 100000;
         if (canRequestAlliance && !isAlreadyAllied && playerRelation >= 70 && aggression < 0.5 && Math.random() < allianceChance) {
             nation.lastAllianceRequestDay = tick;
             logs.push(`AI_ALLIANCE_REQUEST:${JSON.stringify({

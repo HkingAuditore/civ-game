@@ -714,6 +714,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
         difficulty, // 游戏难度
         officials, // 官员系统
         setOfficials, // 官员状态更新函数
+        officialCapacity, // 官员容量
+        setOfficialCapacity, // 官员容量更新函数
     } = gameState;
 
     // 使用ref保存最新状态，避免闭包问题
@@ -1615,6 +1617,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     // 更新官员状态（含独立财务数据）
                     if (result.officials) {
                         setOfficials(result.officials);
+                    }
+                    // 更新官员容量（基于时代、政体、科技动态计算）
+                    if (typeof result.effectiveOfficialCapacity === 'number' && typeof setOfficialCapacity === 'function') {
+                        setOfficialCapacity(result.effectiveOfficialCapacity);
                     }
                     setLivingStandardStreaks(result.livingStandardStreaks || current.livingStandardStreaks || {});
                     setMigrationCooldowns(result.migrationCooldowns || current.migrationCooldowns || {});

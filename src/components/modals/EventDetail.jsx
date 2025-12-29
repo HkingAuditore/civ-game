@@ -70,6 +70,10 @@ const EventHeroImage = ({ eventId, event, hasImage, onImageLoad, onImageError })
     );
 };
 
+
+
+
+
 /**
  * 事件详情组件 - 史诗风格
  * 显示事件的详细信息和选项
@@ -77,13 +81,13 @@ const EventHeroImage = ({ eventId, event, hasImage, onImageLoad, onImageError })
  * @param {Function} onSelectOption - 选择选项的回调
  * @param {Function} onClose - 关闭回调
  */
-export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoch = 0, techsUnlocked = [] }) => {
+export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoch = 0, techsUnlocked = [], confirmationEnabled = false }) => {
     if (!event) return null;
 
     // 图片加载状态管理
     const [hasImage, setHasImage] = useState(false);
     const [imageError, setImageError] = useState(false);
-    
+
     // 已选中的选项（用于确认前高亮显示）
     const [selectedOption, setSelectedOption] = useState(null);
 
@@ -216,88 +220,73 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
         hoverShadow: 'inset 0 0 0 1px var(--theme-accent), 0 0 14px var(--theme-glow)',
     };
 
-    const getNationSelectorLabel = (selector, excludeList = []) => {
-        // 如果是具体的国家ID（而非选择器关键字），直接显示国家名
-        if (isDirectNationId(selector)) {
-            const nation = visibleNations.find(n => n.id === selector);
-            return nation ? nation.name : selector;
+    const handleOptionClick = (option) => {
+        if (confirmationEnabled) {
+            // 点击选项时只是选中，不立即执行
+            setSelectedOption(option);
+        } else {
+            // 立即执行
+            onSelectOption(event.id, option);
+            onClose();
         }
-
-        const baseLabel = nationSelectorLabels[selector] || `指定国家`;
-        const nationNames = resolveNationNames(selector);
-        let label = baseLabel;
-        if (nationNames) {
-            label = `${baseLabel}${nationNames}`;
-        }
-        if (selector === 'all' && excludeList.length > 0) {
-            const excludes = excludeList.map(item => nationSelectorLabels[item] || item).join('、');
-            label += `（排除：${excludes}）`;
-        }
-        return label;
     };
 
-    const renderNationEffectBadges = (effectObject, type, keyPrefix) => {
-        if (!effectObject) return null;
+    // 渲染国家效果徽章
+    const renderNationEffectBadges = (effectMap, type, keyPrefix) => {
+        if (!effectMap) return null;
+
         const style = diplomaticStyles[type];
         if (!style) return null;
-        const excludeList = Array.isArray(effectObject.exclude) ? effectObject.exclude : [];
-        // 过滤掉内部标记字段（以_开头的）和 exclude 字段
-        const entries = Object.entries(effectObject).filter(([selector]) =>
-            selector !== 'exclude' && !selector.startsWith('_')
-        );
-        if (!entries.length) return null;
-        return entries.map(([selector, change], idx) => {
-            // 确保 change 是有效数字
-            const numericChange = typeof change === 'number' && !isNaN(change) ? change : 0;
-            const label = getNationSelectorLabel(selector, excludeList);
-            const isPositive = numericChange > 0;
-            const wrapperClass = isPositive ? style.positiveClass : style.negativeClass;
+
+        return Object.entries(effectMap).map(([target, value]) => {
+            let targetName = resolveNationNames(target);
+            if (targetName) {
+                targetName = targetName.replace(/^[（(](.+)[）)]$/, '$1');
+            } else {
+                targetName = nationSelectorLabels[target] || target;
+            }
+
             return (
                 <span
-                    key={`${keyPrefix}-${type}-${selector}-${idx}`}
-                    className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${wrapperClass} font-sans`}
+                    key={`${keyPrefix}-${type}-${target}`}
+                    className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${value > 0 ? style.positiveClass : style.negativeClass
+                        } font-sans`}
                 >
                     <Icon name={style.icon} size={10} />
-                    <span className="font-medium">{`${label}${style.labelSuffix || ''}`}</span>
-                    <span className="font-mono font-bold">{style.formatter(numericChange)}</span>
+                    <span className="font-medium">{targetName}{style.labelSuffix}</span>
+                    <span className="font-mono font-bold">{style.formatter(value)}</span>
                 </span>
             );
         });
     };
 
-    const renderTriggerBadge = (selector, type, keyPrefix) => {
-        if (!selector) return null;
+    // 渲染触发效果徽章（宣战/议和）
+    const renderTriggerBadge = (target, type, keyPrefix) => {
+        if (!target) return null;
+
+        let targetName = resolveNationNames(target);
+        if (targetName) {
+            targetName = targetName.replace(/^[（(](.+)[）)]$/, '$1');
+        } else {
+            targetName = nationSelectorLabels[target] || target;
+        }
+
         const isWar = type === 'war';
-        const classes = isWar
-            ? 'bg-red-900/50 text-red-200 border border-red-500/40'
-            : 'bg-emerald-900/50 text-emerald-200 border border-emerald-500/40';
-        const iconName = isWar ? 'Swords' : 'HandHeart';
-        const actionLabel = isWar ? '立即开战' : '签署和平';
-        const label = getNationSelectorLabel(selector);
+        const icon = isWar ? 'Swords' : 'Handshake';
+        const label = isWar ? '宣战' : '议和';
+        const className = isWar
+            ? 'bg-red-900/60 text-red-200 border border-red-500/50'
+            : 'bg-blue-900/60 text-blue-200 border border-blue-500/50';
+
         return (
             <span
-                key={`${keyPrefix}-${type}`}
-                className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${classes} font-sans`}
+                key={`${keyPrefix}-${type}-${target}`}
+                className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${className} font-sans`}
             >
-                <Icon name={iconName} size={10} />
-                <span className="font-medium">{label}</span>
-                <span className="font-mono font-bold">{actionLabel}</span>
+                <Icon name={icon} size={10} />
+                <span className="font-medium">与{targetName}{label}</span>
             </span>
         );
-    };
-
-    const handleOptionClick = (option) => {
-        // 点击选项时只是选中，不立即执行
-        setSelectedOption(option);
-    };
-
-    // 确认执行选项
-    const handleConfirmOption = () => {
-        if (selectedOption) {
-            onSelectOption(event.id, selectedOption);
-            setSelectedOption(null);
-            onClose();
-        }
     };
 
     return (
@@ -352,346 +341,349 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                 {filteredOptions.map((option) => {
                     const isSelected = selectedOption?.id === option.id;
                     return (
-                    <button
-                        key={option.id}
-                        onClick={() => handleOptionClick(option)}
-                        className="w-full text-left rounded-xl p-3 transition-all group font-sans"
-                        style={{
-                            background: isSelected
-                                ? optionThemeStyles.selectedBackground
-                                : optionThemeStyles.baseBackground,
-                            // 使用 box-shadow 实现稳定的边框效果，避免 border 在移动端的渲染问题
-                            boxShadow: isSelected
-                                ? optionThemeStyles.selectedShadow
-                                : optionThemeStyles.baseShadow,
-                        }}
-                        onMouseEnter={(e) => {
-                            if (!isSelected) {
-                                e.currentTarget.style.boxShadow = optionThemeStyles.hoverShadow;
-                                e.currentTarget.style.background = optionThemeStyles.hoverBackground;
-                            }
-                        }}
-                        onMouseLeave={(e) => {
-                            if (!isSelected) {
-                                e.currentTarget.style.boxShadow = optionThemeStyles.baseShadow;
-                                e.currentTarget.style.background = optionThemeStyles.baseBackground;
-                            }
-                        }}
-                    >
-                        <div className="flex items-start justify-between gap-2">
-                            <div className="flex-1 min-w-0">
-                                <h4 className="text-sm font-bold text-ancient-parchment group-hover:text-ancient transition-colors leading-tight font-sans">
-                                    {option.text}
-                                </h4>
-                                {option.description && (
-                                    <p className="text-[11px] text-ancient-stone mt-1 leading-snug font-sans">{option.description}</p>
-                                )}
-
-                                {/* 效果预览 - 显示完整文字标签 */}
-                                <div className="flex flex-wrap gap-1.5 mt-2">
-                                    {/* 资源效果（固定值） - 显示资源名称 */}
-                                    {option.effects?.resources &&
-                                        Object.entries(option.effects.resources || {}).map(([resource, value]) => (
-                                            <span
-                                                key={resource}
-                                                className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${value > 0 ? 'bg-green-900/50 text-green-300 border border-green-500/40' : 'bg-red-900/50 text-red-300 border border-red-500/40'
-                                                    } font-sans`}
-                                            >
-                                                <Icon name={RESOURCES[resource]?.icon || 'Package'} size={10} />
-                                                <span className="font-medium">{getResourceName(resource)}</span>
-                                                <span className="font-mono font-bold">{value > 0 ? '+' : ''}{value}</span>
-                                            </span>
-                                        ))}
-
-                                    {/* 资源效果（百分比） - 显示资源名称和百分比 */}
-                                    {option.effects?.resourcePercent &&
-                                        Object.entries(option.effects.resourcePercent || {}).map(([resource, value]) => (
-                                            <span
-                                                key={`pct-${resource}`}
-                                                className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${value > 0 ? 'bg-green-900/50 text-green-300 border border-green-500/40' : 'bg-red-900/50 text-red-300 border border-red-500/40'
-                                                    } font-sans`}
-                                            >
-                                                <Icon name={RESOURCES[resource]?.icon || 'Package'} size={10} />
-                                                <span className="font-medium">{getResourceName(resource)}</span>
-                                                <span className="font-mono font-bold">{formatPercent(value)}</span>
-                                            </span>
-                                        ))}
-
-                                    {/* 人口效果（固定值） - 显示"人口"标签 */}
-                                    {option.effects?.population && (
-                                        <span
-                                            className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${option.effects.population > 0
-                                                ? 'bg-green-900/50 text-green-300 border border-green-500/40'
-                                                : 'bg-red-900/50 text-red-300 border border-red-500/40'
-                                                } font-sans`}
-                                        >
-                                            <Icon name="Users" size={10} />
-                                            <span className="font-medium">人口</span>
-                                            <span className="font-mono font-bold">{option.effects.population > 0 ? '+' : ''}{option.effects.population}</span>
-                                        </span>
+                        <button
+                            key={option.id}
+                            onClick={() => handleOptionClick(option)}
+                            className="w-full text-left rounded-xl p-3 transition-all group font-sans"
+                            style={{
+                                background: isSelected
+                                    ? optionThemeStyles.selectedBackground
+                                    : optionThemeStyles.baseBackground,
+                                // 使用 box-shadow 实现稳定的边框效果，避免 border 在移动端的渲染问题
+                                boxShadow: isSelected
+                                    ? optionThemeStyles.selectedShadow
+                                    : optionThemeStyles.baseShadow,
+                            }}
+                            onMouseEnter={(e) => {
+                                if (!isSelected) {
+                                    e.currentTarget.style.boxShadow = optionThemeStyles.hoverShadow;
+                                    e.currentTarget.style.background = optionThemeStyles.hoverBackground;
+                                }
+                            }}
+                            onMouseLeave={(e) => {
+                                if (!isSelected) {
+                                    e.currentTarget.style.boxShadow = optionThemeStyles.baseShadow;
+                                    e.currentTarget.style.background = optionThemeStyles.baseBackground;
+                                }
+                            }}
+                        >
+                            <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1 min-w-0">
+                                    <h4 className="text-sm font-bold text-ancient-parchment group-hover:text-ancient transition-colors leading-tight font-sans">
+                                        {option.text}
+                                    </h4>
+                                    {option.description && (
+                                        <p className="text-[11px] text-ancient-stone mt-1 leading-snug font-sans">{option.description}</p>
                                     )}
 
-                                    {/* 人口效果（百分比） - 显示"人口"标签和百分比 */}
-                                    {option.effects?.populationPercent && (
-                                        <span
-                                            className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${option.effects.populationPercent > 0
-                                                ? 'bg-green-900/50 text-green-300 border border-green-500/40'
-                                                : 'bg-red-900/50 text-red-300 border border-red-500/40'
-                                                } font-sans`}
-                                        >
-                                            <Icon name="Users" size={10} />
-                                            <span className="font-medium">人口</span>
-                                            <span className="font-mono font-bold">{formatPercent(option.effects.populationPercent)}</span>
-                                        </span>
-                                    )}
+                                    {/* 效果预览 - 显示完整文字标签 */}
+                                    <div className="flex flex-wrap gap-1.5 mt-2">
+                                        {/* 资源效果（固定值） - 显示资源名称 */}
+                                        {option.effects?.resources &&
+                                            Object.entries(option.effects.resources || {}).map(([resource, value]) => (
+                                                <span
+                                                    key={resource}
+                                                    className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${value > 0 ? 'bg-green-900/50 text-green-300 border border-green-500/40' : 'bg-red-900/50 text-red-300 border border-red-500/40'
+                                                        } font-sans`}
+                                                >
+                                                    <Icon name={RESOURCES[resource]?.icon || 'Package'} size={10} />
+                                                    <span className="font-medium">{getResourceName(resource)}</span>
+                                                    <span className="font-mono font-bold">{value > 0 ? '+' : ''}{value}</span>
+                                                </span>
+                                            ))}
 
-                                    {/* 稳定度效果 */}
-                                    {option.effects?.stability && (
-                                        <span
-                                            className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${option.effects.stability > 0
-                                                ? 'bg-green-900/50 text-green-300 border border-green-500/40'
-                                                : 'bg-red-900/50 text-red-300 border border-red-500/40'
-                                                } font-sans`}
-                                        >
-                                            <Icon name="TrendingUp" size={10} />
-                                            <span className="font-medium">稳定</span>
-                                            <span className="font-mono font-bold">{option.effects.stability > 0 ? '+' : ''}{option.effects.stability}</span>
-                                        </span>
-                                    )}
+                                        {/* 资源效果（百分比） - 显示资源名称和百分比 */}
+                                        {option.effects?.resourcePercent &&
+                                            Object.entries(option.effects.resourcePercent || {}).map(([resource, value]) => (
+                                                <span
+                                                    key={`pct-${resource}`}
+                                                    className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${value > 0 ? 'bg-green-900/50 text-green-300 border border-green-500/40' : 'bg-red-900/50 text-red-300 border border-red-500/40'
+                                                        } font-sans`}
+                                                >
+                                                    <Icon name={RESOURCES[resource]?.icon || 'Package'} size={10} />
+                                                    <span className="font-medium">{getResourceName(resource)}</span>
+                                                    <span className="font-mono font-bold">{formatPercent(value)}</span>
+                                                </span>
+                                            ))}
 
-                                    {/* 阶层支持度效果 - 显示阶层名称 */}
-                                    {option.effects?.approval &&
-                                        Object.entries(option.effects.approval || {}).map(([stratum, value]) => (
+                                        {/* 人口效果（固定值） - 显示"人口"标签 */}
+                                        {option.effects?.population && (
                                             <span
-                                                key={stratum}
-                                                className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${value > 0 ? 'bg-blue-900/50 text-blue-300 border border-blue-500/40' : 'bg-orange-900/50 text-orange-300 border border-orange-500/40'
+                                                className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${option.effects.population > 0
+                                                    ? 'bg-green-900/50 text-green-300 border border-green-500/40'
+                                                    : 'bg-red-900/50 text-red-300 border border-red-500/40'
                                                     } font-sans`}
                                             >
-                                                <Icon name={STRATA[stratum]?.icon || 'User'} size={10} />
-                                                <span className="font-medium">{getStratumName(stratum)}支持</span>
-                                                <span className="font-mono font-bold">{value > 0 ? '+' : ''}{value}</span>
+                                                <Icon name="Users" size={10} />
+                                                <span className="font-medium">人口</span>
+                                                <span className="font-mono font-bold">{option.effects.population > 0 ? '+' : ''}{option.effects.population}</span>
                                             </span>
-                                        ))}
+                                        )}
 
-                                    {/* 经济效果 - 资源需求修正 (时效性) */}
-                                    {(() => {
-                                        const demandMod = option.effects?.resourceDemandMod;
-                                        if (!demandMod) return null;
-                                        return Object.entries(demandMod).map(([resource, value]) => (
+                                        {/* 人口效果（百分比） - 显示"人口"标签和百分比 */}
+                                        {option.effects?.populationPercent && (
                                             <span
-                                                key={`demand-${resource}`}
-                                                className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${value > 0 ? 'bg-purple-900/50 text-purple-300 border border-purple-500/40' : 'bg-cyan-900/50 text-cyan-300 border border-cyan-500/40'
+                                                className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${option.effects.populationPercent > 0
+                                                    ? 'bg-green-900/50 text-green-300 border border-green-500/40'
+                                                    : 'bg-red-900/50 text-red-300 border border-red-500/40'
                                                     } font-sans`}
-                                                title="此效果会随时间衰减"
+                                            >
+                                                <Icon name="Users" size={10} />
+                                                <span className="font-medium">人口</span>
+                                                <span className="font-mono font-bold">{formatPercent(option.effects.populationPercent)}</span>
+                                            </span>
+                                        )}
+
+                                        {/* 稳定度效果 */}
+                                        {option.effects?.stability && (
+                                            <span
+                                                className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${option.effects.stability > 0
+                                                    ? 'bg-green-900/50 text-green-300 border border-green-500/40'
+                                                    : 'bg-red-900/50 text-red-300 border border-red-500/40'
+                                                    } font-sans`}
                                             >
                                                 <Icon name="TrendingUp" size={10} />
-                                                <span className="font-medium">{getResourceName(resource)}需求</span>
-                                                <span className="font-mono font-bold">{formatPercent(value)}</span>
-                                                <Icon name="Clock" size={8} className="opacity-60" />
+                                                <span className="font-medium">稳定</span>
+                                                <span className="font-mono font-bold">{option.effects.stability > 0 ? '+' : ''}{option.effects.stability}</span>
                                             </span>
-                                        ));
-                                    })()}
+                                        )}
 
-                                    {/* 经济效果 - 阶层消费修正 (时效性) */}
-                                    {(() => {
-                                        const stratumDemand = option.effects?.stratumDemandMod;
-                                        if (!stratumDemand) return null;
-                                        return Object.entries(stratumDemand).map(([stratum, value]) => (
-                                            <span
-                                                key={`stratumDemand-${stratum}`}
-                                                className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${value > 0 ? 'bg-purple-900/50 text-purple-300 border border-purple-500/40' : 'bg-cyan-900/50 text-cyan-300 border border-cyan-500/40'
-                                                    } font-sans`}
-                                                title="此效果会随时间衰减"
-                                            >
-                                                <Icon name="ShoppingCart" size={10} />
-                                                <span className="font-medium">{getStratumName(stratum)}消费</span>
-                                                <span className="font-mono font-bold">{formatPercent(value)}</span>
-                                                <Icon name="Clock" size={8} className="opacity-60" />
-                                            </span>
-                                        ));
-                                    })()}
-
-                                    {/* 经济效果 - 建筑产量修正 (时效性) */}
-                                    {(() => {
-                                        const productionMod = option.effects?.buildingProductionMod;
-                                        if (!productionMod) return null;
-                                        return Object.entries(productionMod).map(([target, value]) => {
-                                            // Try to find building name, fallback to category name or raw key
-                                            const building = BUILDINGS.find(b => b.id === target);
-                                            const categoryNames = { gather: '采集类', industry: '工业类', civic: '市政类', all: '所有' };
-                                            const displayName = building?.name || categoryNames[target] || target;
-                                            return (
+                                        {/* 阶层支持度效果 - 显示阶层名称 */}
+                                        {option.effects?.approval &&
+                                            Object.entries(option.effects.approval || {}).map(([stratum, value]) => (
                                                 <span
-                                                    key={`production-${target}`}
-                                                    className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${value > 0 ? 'bg-emerald-900/50 text-emerald-300 border border-emerald-500/40' : 'bg-rose-900/50 text-rose-300 border border-rose-500/40'
+                                                    key={stratum}
+                                                    className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${value > 0 ? 'bg-blue-900/50 text-blue-300 border border-blue-500/40' : 'bg-orange-900/50 text-orange-300 border border-orange-500/40'
+                                                        } font-sans`}
+                                                >
+                                                    <Icon name={STRATA[stratum]?.icon || 'User'} size={10} />
+                                                    <span className="font-medium">{getStratumName(stratum)}支持</span>
+                                                    <span className="font-mono font-bold">{value > 0 ? '+' : ''}{value}</span>
+                                                </span>
+                                            ))}
+
+                                        {/* 经济效果 - 资源需求修正 (时效性) */}
+                                        {(() => {
+                                            const demandMod = option.effects?.resourceDemandMod;
+                                            if (!demandMod) return null;
+                                            return Object.entries(demandMod).map(([resource, value]) => (
+                                                <span
+                                                    key={`demand-${resource}`}
+                                                    className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${value > 0 ? 'bg-purple-900/50 text-purple-300 border border-purple-500/40' : 'bg-cyan-900/50 text-cyan-300 border border-cyan-500/40'
                                                         } font-sans`}
                                                     title="此效果会随时间衰减"
                                                 >
-                                                    <Icon name="Factory" size={10} />
-                                                    <span className="font-medium">{displayName}产量</span>
+                                                    <Icon name="TrendingUp" size={10} />
+                                                    <span className="font-medium">{getResourceName(resource)}需求</span>
                                                     <span className="font-mono font-bold">{formatPercent(value)}</span>
                                                     <Icon name="Clock" size={8} className="opacity-60" />
                                                 </span>
-                                            );
-                                        });
-                                    })()}
+                                            ));
+                                        })()}
 
-                                    {option.effects && renderNationEffectBadges(option.effects.nationRelation, 'relation', `option-${option.id}`)}
-                                    {option.effects && renderNationEffectBadges(option.effects.nationAggression, 'aggression', `option-${option.id}`)}
-                                    {option.effects && renderNationEffectBadges(option.effects.nationWealth, 'wealth', `option-${option.id}`)}
-                                    {option.effects && renderNationEffectBadges(option.effects.nationMarketVolatility, 'volatility', `option-${option.id}`)}
-                                    {option.effects && renderTriggerBadge(option.effects.triggerWar, 'war', `option-${option.id}`)}
-                                    {option.effects && renderTriggerBadge(option.effects.triggerPeace, 'peace', `option-${option.id}`)}
+                                        {/* 经济效果 - 阶层消费修正 (时效性) */}
+                                        {(() => {
+                                            const stratumDemand = option.effects?.stratumDemandMod;
+                                            if (!stratumDemand) return null;
+                                            return Object.entries(stratumDemand).map(([stratum, value]) => (
+                                                <span
+                                                    key={`stratumDemand-${stratum}`}
+                                                    className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${value > 0 ? 'bg-purple-900/50 text-purple-300 border border-purple-500/40' : 'bg-cyan-900/50 text-cyan-300 border border-cyan-500/40'
+                                                        } font-sans`}
+                                                    title="此效果会随时间衰减"
+                                                >
+                                                    <Icon name="ShoppingCart" size={10} />
+                                                    <span className="font-medium">{getStratumName(stratum)}消费</span>
+                                                    <span className="font-mono font-bold">{formatPercent(value)}</span>
+                                                    <Icon name="Clock" size={8} className="opacity-60" />
+                                                </span>
+                                            ));
+                                        })()}
+
+                                        {/* 经济效果 - 建筑产量修正 (时效性) */}
+                                        {(() => {
+                                            const productionMod = option.effects?.buildingProductionMod;
+                                            if (!productionMod) return null;
+                                            return Object.entries(productionMod).map(([target, value]) => {
+                                                // Try to find building name, fallback to category name or raw key
+                                                const building = BUILDINGS.find(b => b.id === target);
+                                                const categoryNames = { gather: '采集类', industry: '工业类', civic: '市政类', all: '所有' };
+                                                const displayName = building?.name || categoryNames[target] || target;
+                                                return (
+                                                    <span
+                                                        key={`production-${target}`}
+                                                        className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${value > 0 ? 'bg-emerald-900/50 text-emerald-300 border border-emerald-500/40' : 'bg-rose-900/50 text-rose-300 border border-rose-500/40'
+                                                            } font-sans`}
+                                                        title="此效果会随时间衰减"
+                                                    >
+                                                        <Icon name="Factory" size={10} />
+                                                        <span className="font-medium">{displayName}产量</span>
+                                                        <span className="font-mono font-bold">{formatPercent(value)}</span>
+                                                        <Icon name="Clock" size={8} className="opacity-60" />
+                                                    </span>
+                                                );
+                                            });
+                                        })()}
+
+                                        {option.effects && renderNationEffectBadges(option.effects.nationRelation, 'relation', `option-${option.id}`)}
+                                        {option.effects && renderNationEffectBadges(option.effects.nationAggression, 'aggression', `option-${option.id}`)}
+                                        {option.effects && renderNationEffectBadges(option.effects.nationWealth, 'wealth', `option-${option.id}`)}
+                                        {option.effects && renderNationEffectBadges(option.effects.nationMarketVolatility, 'volatility', `option-${option.id}`)}
+                                        {option.effects && renderTriggerBadge(option.effects.triggerWar, 'war', `option-${option.id}`)}
+                                        {option.effects && renderTriggerBadge(option.effects.triggerPeace, 'peace', `option-${option.id}`)}
+                                    </div>
+
+                                    {/* 随机效果预览 */}
+                                    {option.randomEffects && option.randomEffects.length > 0 && (
+                                        <div className="mt-2 pt-2 border-t border-ancient-gold/10">
+                                            <div className="flex items-center gap-1 mb-1.5">
+                                                <Icon name="Dices" size={10} className="text-yellow-400" />
+                                                <span className="text-[10px] text-yellow-400 font-medium font-sans">可能的额外效果</span>
+                                            </div>
+                                            {option.randomEffects.map((randomEffect, idx) => (
+                                                <div key={idx} className="mb-1.5 last:mb-0">
+                                                    <span className="text-[9px] text-yellow-300/70 font-medium font-sans">
+                                                        {Math.round(randomEffect.chance * 100)}% 概率：
+                                                    </span>
+                                                    <div className="flex flex-wrap gap-1 mt-0.5">
+                                                        {/* 随机效果 - 资源（固定值） */}
+                                                        {randomEffect.effects.resources &&
+                                                            Object.entries(randomEffect.effects.resources).map(([resource, value]) => (
+                                                                <span
+                                                                    key={`rand-res-${idx}-${resource}`}
+                                                                    className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded ${value > 0 ? 'bg-green-900/30 text-green-400 border border-green-500/30' : 'bg-red-900/30 text-red-400 border border-red-500/30'
+                                                                        } font-sans`}
+                                                                >
+                                                                    <Icon name={RESOURCES[resource]?.icon || 'Package'} size={9} />
+                                                                    <span>{getResourceName(resource)}</span>
+                                                                    <span className="font-mono font-bold">{value > 0 ? '+' : ''}{value}</span>
+                                                                </span>
+                                                            ))}
+                                                        {/* 随机效果 - 资源（百分比） */}
+                                                        {randomEffect.effects.resourcePercent &&
+                                                            Object.entries(randomEffect.effects.resourcePercent).map(([resource, value]) => (
+                                                                <span
+                                                                    key={`rand-res-pct-${idx}-${resource}`}
+                                                                    className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded ${value > 0 ? 'bg-green-900/30 text-green-400 border border-green-500/30' : 'bg-red-900/30 text-red-400 border border-red-500/30'
+                                                                        } font-sans`}
+                                                                >
+                                                                    <Icon name={RESOURCES[resource]?.icon || 'Package'} size={9} />
+                                                                    <span>{getResourceName(resource)}</span>
+                                                                    <span className="font-mono font-bold">{formatPercent(value)}</span>
+                                                                </span>
+                                                            ))}
+                                                        {/* 随机效果 - 人口（固定值） */}
+                                                        {randomEffect.effects.population && (
+                                                            <span
+                                                                className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded ${randomEffect.effects.population > 0
+                                                                    ? 'bg-green-900/30 text-green-400 border border-green-500/30' : 'bg-red-900/30 text-red-400 border border-red-500/30'
+                                                                    } font-sans`}
+                                                            >
+                                                                <Icon name="Users" size={9} />
+                                                                <span>人口</span>
+                                                                <span className="font-mono font-bold">{randomEffect.effects.population > 0 ? '+' : ''}{randomEffect.effects.population}</span>
+                                                            </span>
+                                                        )}
+                                                        {/* 随机效果 - 人口（百分比） */}
+                                                        {randomEffect.effects.populationPercent && (
+                                                            <span
+                                                                className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded ${randomEffect.effects.populationPercent > 0
+                                                                    ? 'bg-green-900/30 text-green-400 border border-green-500/30' : 'bg-red-900/30 text-red-400 border border-red-500/30'
+                                                                    } font-sans`}
+                                                            >
+                                                                <Icon name="Users" size={9} />
+                                                                <span>人口</span>
+                                                                <span className="font-mono font-bold">{formatPercent(randomEffect.effects.populationPercent)}</span>
+                                                            </span>
+                                                        )}
+                                                        {/* 随机效果 - 稳定度 */}
+                                                        {randomEffect.effects.stability && (
+                                                            <span
+                                                                className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded ${randomEffect.effects.stability > 0
+                                                                    ? 'bg-green-900/30 text-green-400 border border-green-500/30' : 'bg-red-900/30 text-red-400 border border-red-500/30'
+                                                                    } font-sans`}
+                                                            >
+                                                                <Icon name="TrendingUp" size={9} />
+                                                                <span>稳定</span>
+                                                                <span className="font-mono font-bold">{randomEffect.effects.stability > 0 ? '+' : ''}{randomEffect.effects.stability}</span>
+                                                            </span>
+                                                        )}
+                                                        {/* 随机效果 - 阶层支持度 */}
+                                                        {randomEffect.effects.approval &&
+                                                            Object.entries(randomEffect.effects.approval).map(([stratum, value]) => (
+                                                                <span
+                                                                    key={`rand-app-${idx}-${stratum}`}
+                                                                    className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded ${value > 0 ? 'bg-blue-900/30 text-blue-400 border border-blue-500/30' : 'bg-orange-900/30 text-orange-400 border border-orange-500/30'
+                                                                        } font-sans`}
+                                                                >
+                                                                    <Icon name={STRATA[stratum]?.icon || 'User'} size={9} />
+                                                                    <span>{getStratumName(stratum)}</span>
+                                                                    <span className="font-mono font-bold">{value > 0 ? '+' : ''}{value}</span>
+                                                                </span>
+                                                            ))}
+                                                        {renderNationEffectBadges(randomEffect.effects.nationRelation, 'relation', `random-${option.id}-${idx}`)}
+                                                        {renderNationEffectBadges(randomEffect.effects.nationAggression, 'aggression', `random-${option.id}-${idx}`)}
+                                                        {renderNationEffectBadges(randomEffect.effects.nationWealth, 'wealth', `random-${option.id}-${idx}`)}
+                                                        {renderNationEffectBadges(randomEffect.effects.nationMarketVolatility, 'volatility', `random-${option.id}-${idx}`)}
+                                                        {renderTriggerBadge(randomEffect.effects.triggerWar, 'war', `random-${option.id}-${idx}`)}
+                                                        {renderTriggerBadge(randomEffect.effects.triggerPeace, 'peace', `random-${option.id}-${idx}`)}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
 
-                                {/* 随机效果预览 */}
-                                {option.randomEffects && option.randomEffects.length > 0 && (
-                                    <div className="mt-2 pt-2 border-t border-ancient-gold/10">
-                                        <div className="flex items-center gap-1 mb-1.5">
-                                            <Icon name="Dices" size={10} className="text-yellow-400" />
-                                            <span className="text-[10px] text-yellow-400 font-medium font-sans">可能的额外效果</span>
-                                        </div>
-                                        {option.randomEffects.map((randomEffect, idx) => (
-                                            <div key={idx} className="mb-1.5 last:mb-0">
-                                                <span className="text-[9px] text-yellow-300/70 font-medium font-sans">
-                                                    {Math.round(randomEffect.chance * 100)}% 概率：
-                                                </span>
-                                                <div className="flex flex-wrap gap-1 mt-0.5">
-                                                    {/* 随机效果 - 资源（固定值） */}
-                                                    {randomEffect.effects.resources &&
-                                                        Object.entries(randomEffect.effects.resources).map(([resource, value]) => (
-                                                            <span
-                                                                key={`rand-res-${idx}-${resource}`}
-                                                                className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded ${value > 0 ? 'bg-green-900/30 text-green-400 border border-green-500/30' : 'bg-red-900/30 text-red-400 border border-red-500/30'
-                                                                    } font-sans`}
-                                                            >
-                                                                <Icon name={RESOURCES[resource]?.icon || 'Package'} size={9} />
-                                                                <span>{getResourceName(resource)}</span>
-                                                                <span className="font-mono font-bold">{value > 0 ? '+' : ''}{value}</span>
-                                                            </span>
-                                                        ))}
-                                                    {/* 随机效果 - 资源（百分比） */}
-                                                    {randomEffect.effects.resourcePercent &&
-                                                        Object.entries(randomEffect.effects.resourcePercent).map(([resource, value]) => (
-                                                            <span
-                                                                key={`rand-res-pct-${idx}-${resource}`}
-                                                                className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded ${value > 0 ? 'bg-green-900/30 text-green-400 border border-green-500/30' : 'bg-red-900/30 text-red-400 border border-red-500/30'
-                                                                    } font-sans`}
-                                                            >
-                                                                <Icon name={RESOURCES[resource]?.icon || 'Package'} size={9} />
-                                                                <span>{getResourceName(resource)}</span>
-                                                                <span className="font-mono font-bold">{formatPercent(value)}</span>
-                                                            </span>
-                                                        ))}
-                                                    {/* 随机效果 - 人口（固定值） */}
-                                                    {randomEffect.effects.population && (
-                                                        <span
-                                                            className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded ${randomEffect.effects.population > 0
-                                                                ? 'bg-green-900/30 text-green-400 border border-green-500/30' : 'bg-red-900/30 text-red-400 border border-red-500/30'
-                                                                } font-sans`}
-                                                        >
-                                                            <Icon name="Users" size={9} />
-                                                            <span>人口</span>
-                                                            <span className="font-mono font-bold">{randomEffect.effects.population > 0 ? '+' : ''}{randomEffect.effects.population}</span>
-                                                        </span>
-                                                    )}
-                                                    {/* 随机效果 - 人口（百分比） */}
-                                                    {randomEffect.effects.populationPercent && (
-                                                        <span
-                                                            className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded ${randomEffect.effects.populationPercent > 0
-                                                                ? 'bg-green-900/30 text-green-400 border border-green-500/30' : 'bg-red-900/30 text-red-400 border border-red-500/30'
-                                                                } font-sans`}
-                                                        >
-                                                            <Icon name="Users" size={9} />
-                                                            <span>人口</span>
-                                                            <span className="font-mono font-bold">{formatPercent(randomEffect.effects.populationPercent)}</span>
-                                                        </span>
-                                                    )}
-                                                    {/* 随机效果 - 稳定度 */}
-                                                    {randomEffect.effects.stability && (
-                                                        <span
-                                                            className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded ${randomEffect.effects.stability > 0
-                                                                ? 'bg-green-900/30 text-green-400 border border-green-500/30' : 'bg-red-900/30 text-red-400 border border-red-500/30'
-                                                                } font-sans`}
-                                                        >
-                                                            <Icon name="TrendingUp" size={9} />
-                                                            <span>稳定</span>
-                                                            <span className="font-mono font-bold">{randomEffect.effects.stability > 0 ? '+' : ''}{randomEffect.effects.stability}</span>
-                                                        </span>
-                                                    )}
-                                                    {/* 随机效果 - 阶层支持度 */}
-                                                    {randomEffect.effects.approval &&
-                                                        Object.entries(randomEffect.effects.approval).map(([stratum, value]) => (
-                                                            <span
-                                                                key={`rand-app-${idx}-${stratum}`}
-                                                                className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded ${value > 0 ? 'bg-blue-900/30 text-blue-400 border border-blue-500/30' : 'bg-orange-900/30 text-orange-400 border border-orange-500/30'
-                                                                    } font-sans`}
-                                                            >
-                                                                <Icon name={STRATA[stratum]?.icon || 'User'} size={9} />
-                                                                <span>{getStratumName(stratum)}</span>
-                                                                <span className="font-mono font-bold">{value > 0 ? '+' : ''}{value}</span>
-                                                            </span>
-                                                        ))}
-                                                    {renderNationEffectBadges(randomEffect.effects.nationRelation, 'relation', `random-${option.id}-${idx}`)}
-                                                    {renderNationEffectBadges(randomEffect.effects.nationAggression, 'aggression', `random-${option.id}-${idx}`)}
-                                                    {renderNationEffectBadges(randomEffect.effects.nationWealth, 'wealth', `random-${option.id}-${idx}`)}
-                                                    {renderNationEffectBadges(randomEffect.effects.nationMarketVolatility, 'volatility', `random-${option.id}-${idx}`)}
-                                                    {renderTriggerBadge(randomEffect.effects.triggerWar, 'war', `random-${option.id}-${idx}`)}
-                                                    {renderTriggerBadge(randomEffect.effects.triggerPeace, 'peace', `random-${option.id}-${idx}`)}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
+                                <Icon
+                                    name={isSelected ? "Check" : "ChevronRight"}
+                                    size={16}
+                                    className="transition-colors flex-shrink-0 mt-0.5"
+                                    style={{ color: isSelected ? 'var(--theme-accent)' : 'var(--theme-text-muted)' }}
+                                />
                             </div>
-
-                            <Icon
-                                name={isSelected ? "Check" : "ChevronRight"}
-                                size={16}
-                                className="transition-colors flex-shrink-0 mt-0.5"
-                                style={{ color: isSelected ? 'var(--theme-accent)' : 'var(--theme-text-muted)' }}
-                            />
-                        </div>
-                    </button>
+                        </button>
                     );
                 })}
             </div>
 
-            {/* 底部确认按钮 */}
-            <div className="pt-2 border-t border-ancient-gold/20">
-                <button
-                    onClick={handleConfirmOption}
-                    disabled={!selectedOption}
-                    className={`w-full px-4 py-3 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 font-sans ${
-                        selectedOption
+            {/* 底部确认按钮 - 仅在开启二次确认时显示 */}
+            {confirmationEnabled && (
+                <div className="pt-2 border-t border-ancient-gold/20">
+                    <button
+                        onClick={handleConfirmOption}
+                        disabled={!selectedOption}
+                        className={`w-full px-4 py-3 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 font-sans ${selectedOption
                             ? 'btn-epoch-primary'
                             : 'bg-gray-700/50 text-gray-500 cursor-not-allowed'
-                    }`}
-                    style={selectedOption ? {
-                        background: 'linear-gradient(135deg, var(--theme-secondary) 0%, var(--theme-primary) 55%, var(--theme-secondary) 100%)',
-                        boxShadow: '0 6px 18px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.18), inset 0 -2px 0 rgba(0, 0, 0, 0.45), 0 0 14px var(--theme-glow)',
-                    } : undefined}
-                >
-                    {selectedOption ? (
-                        <>
-                            <Icon name="Check" size={16} />
-                            确认选择：{selectedOption.text}
-                        </>
-                    ) : (
-                        '请先选择一个选项'
-                    )}
-                </button>
-            </div>
-
-            {/* 提示信息 */}
-            <div className="glass-ancient rounded-xl p-2.5 border border-blue-500/20 font-sans">
-                <div className="flex items-start gap-2">
-                    <Icon name="Info" size={14} className="text-blue-400 flex-shrink-0 mt-0.5" />
-                    <p className="text-blue-300 text-[11px] leading-snug font-sans">
-                        点击选项进行选择，然后点击确认按钮执行。请仔细考虑每个选项的后果。
-                    </p>
+                            }`}
+                        style={selectedOption ? {
+                            background: 'linear-gradient(135deg, var(--theme-secondary) 0%, var(--theme-primary) 55%, var(--theme-secondary) 100%)',
+                            boxShadow: '0 6px 18px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.18), inset 0 -2px 0 rgba(0, 0, 0, 0.45), 0 0 14px var(--theme-glow)',
+                        } : undefined}
+                    >
+                        {selectedOption ? (
+                            <>
+                                <Icon name="Check" size={16} />
+                                确认选择：{selectedOption.text}
+                            </>
+                        ) : (
+                            '请先选择一个选项'
+                        )}
+                    </button>
                 </div>
-            </div>
+            )}
+
+            {/* 提示信息 - 仅在开启二次确认时显示 */}
+            {confirmationEnabled && (
+                <div className="glass-ancient rounded-xl p-2.5 border border-blue-500/20 font-sans">
+                    <div className="flex items-start gap-2">
+                        <Icon name="Info" size={14} className="text-blue-400 flex-shrink-0 mt-0.5" />
+                        <p className="text-blue-300 text-[11px] leading-snug font-sans">
+                            点击选项进行选择，然后点击确认按钮执行。请仔细考虑每个选项的后果。
+                        </p>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

@@ -297,8 +297,20 @@ export const OfficialCard = memo(({
 
             {/* 效果列表 */}
             <div className="flex-grow space-y-1">
+                {/* 显示对出身阶层的影响力加成 */}
+                {official.stratumInfluenceBonus > 0 && (
+                    <div className="flex items-center gap-1 text-xs text-purple-300">
+                        <Icon name={stratumDef?.icon || "Users"} size={12} className="text-purple-400" />
+                        <span>
+                            {stratumDef?.name || stratumKey}影响力 +{(official.stratumInfluenceBonus * 100).toFixed(0)}%
+                        </span>
+                    </div>
+                )}
+
                 {effectItems.length > 0 ? effectItems : (
-                    <div className="text-xs text-gray-500 italic">无显著效果</div>
+                    official.stratumInfluenceBonus <= 0 && (
+                        <div className="text-xs text-gray-500 italic">无显著效果</div>
+                    )
                 )}
             </div>
 

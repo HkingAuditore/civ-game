@@ -91,6 +91,53 @@ export const isSelectionAvailable = (lastDay, currentDay) => {
     return (currentDay - lastDay) >= OFFICIAL_SELECTION_COOLDOWN;
 };
 
+// 时代对官员容量的加成
+const EPOCH_OFFICIAL_BONUS = {
+    0: 0,   // 石器时代：基础容量
+    1: 3,   // 青铜时代：+3
+    2: 6,   // 铁器时代：+6
+    3: 9,   // 古典时代：+9
+    4: 12,  // 中世纪：+12
+    5: 15,  // 文艺复兴：+15
+    6: 18,  // 工业时代：+18
+};
+
+// 科技对官员容量的加成
+const TECH_OFFICIAL_BONUS = {
+    'bureaucracy': 3,           // 官僚制度
+    'civil_service': 3,         // 文官制度
+    'administrative_reform': 4, // 行政改革
+    'centralization': 2,        // 中央集权
+};
+
+/**
+ * 计算有效官员容量
+ * @param {number} epoch - 当前时代
+ * @param {Object} polityEffects - 当前政体效果
+ * @param {Array} techsUnlocked - 已解锁科技列表
+ * @returns {number} 有效官员容量
+ */
+export const calculateOfficialCapacity = (epoch = 0, polityEffects = {}, techsUnlocked = []) => {
+    // 基础容量
+    const baseCapacity = 2;
+    
+    // 时代加成
+    const epochBonus = EPOCH_OFFICIAL_BONUS[epoch] || 0;
+    
+    // 政体加成
+    const polityBonus = polityEffects.officialCapacity || 0;
+    
+    // 科技加成
+    let techBonus = 0;
+    techsUnlocked.forEach(techId => {
+        if (TECH_OFFICIAL_BONUS[techId]) {
+            techBonus += TECH_OFFICIAL_BONUS[techId];
+        }
+    });
+    
+    return Math.max(1, baseCapacity + epochBonus + polityBonus + techBonus);
+};
+
 /**
  * 聚合所有官员的效果
  * @param {Array} officials - 在任官员列表

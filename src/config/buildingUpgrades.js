@@ -355,14 +355,14 @@ export const BUILDING_UPGRADES = {
             name: "深井铁矿",
             cost: { plank: 80, tools: 25, silver: 400 },
             input: { tools: 0.08, wood: 0.2, food: 0.3 }, // modest input cost
-            output: { iron: 0.65 }, // 1.3x
+            output: { iron: 1.65 }, // 1.3x
             jobs: { miner: 5, capitalist: 1 }, // keep same, efficiency upgrade
         },
         {
             name: "大铁矿",
             cost: { brick: 60, tools: 40, silver: 900 },
             input: { tools: 0.15, wood: 0.35, food: 0.45 }, // reasonable input increase
-            output: { iron: 0.9, coal: 0.05 }, // 1.8x + 煤层伴生
+            output: { iron: 2.9, coal: 0.05 }, // 1.8x + 煤层伴生
             jobs: { miner: 6, capitalist: 1 }, // +1 miner only
         },
     ],
@@ -745,20 +745,21 @@ export const BUILDING_UPGRADES = {
     // ========== 工业时代建筑 ==========
 
     // coal_mine: base output 0.65 coal, owner: capitalist, base jobs: miner:6, capitalist:1
+    // 激进升级：大幅提升煤炭产量以满足工业时代需求
     coal_mine: [
         {
             name: "深煤矿",
             cost: { plank: 150, tools: 40, silver: 500 },
-            input: { tools: 0.12, wood: 0.3, food: 0.5 }, // modest input cost
-            output: { coal: 0.85 }, // 1.3x
-            jobs: { miner: 6, capitalist: 1 }, // keep same, efficiency upgrade
+            input: { tools: 0.15, wood: 0.4, food: 0.6 }, // 略微增加投入
+            output: { coal: 2.0 }, // 约3x基础产量
+            jobs: { miner: 7, capitalist: 1 }, // +1 miner
         },
         {
             name: "大煤矿",
             cost: { brick: 100, tools: 60, silver: 1100 },
-            input: { tools: 0.2, wood: 0.5, food: 0.7 }, // reasonable input increase
-            output: { coal: 1.17, iron: 0.05 }, // 1.8x + 煤矿伴生铁
-            jobs: { miner: 7, capitalist: 1 }, // +1 miner only
+            input: { tools: 0.25, wood: 0.6, food: 0.9 }, // 合理增加投入
+            output: { coal: 3.2, iron: 0.1 }, // 约5x基础产量 + 煤矿伴生铁翻倍
+            jobs: { miner: 9, capitalist: 1 }, // +3 miners 大规模采矿
         },
     ],
 

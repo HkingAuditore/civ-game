@@ -107,7 +107,7 @@ import {
     applyPolityEffects, // Apply polity effects helper
     calculateTotalMaxPop,
 } from './buildings';
-import { getAggregatedOfficialEffects, getOfficialInfluenceBonus } from '../logic/officials/manager';
+import { getAggregatedOfficialEffects, getOfficialInfluenceBonus, calculateOfficialCapacity } from '../logic/officials/manager';
 
 // ============================================================================
 // All helper functions and constants have been migrated to modules:
@@ -301,6 +301,8 @@ export const simulateTick = ({
     }
     // 税收效率 → 存储供税收计算使用
     bonuses.taxEfficiencyBonus = activeOfficialEffects.taxEfficiency || 0;
+    // 腐败 → 存储供税收计算使用 (负面效果)
+    bonuses.corruption = activeOfficialEffects.corruption || 0;
     // 人口增长 → 存储供人口计算使用
     bonuses.populationGrowthBonus = activeOfficialEffects.populationGrowth || 0;
     // 军费降低 → 存储供军费计算使用
@@ -371,6 +373,7 @@ export const simulateTick = ({
     // Apply Polity Effects (Government Type Bonuses)
     // 根据当前执政联盟计算政体，并应用政体效果
     // Use previous tick data to avoid circular dependency and TDZ issues
+    let currentPolityEffects = null;
     if (rulingCoalition && rulingCoalition.length > 0) {
         const influenceData = calculateClassInfluence({
             popStructure: previousPopStructure,
@@ -381,8 +384,8 @@ export const simulateTick = ({
             influenceData.classInfluence,
             influenceData.totalInfluence
         );
-        const polityEffects = getPolityEffects(currentPolity.name);
-        applyPolityEffects(polityEffects, bonuses);
+        currentPolityEffects = getPolityEffects(currentPolity.name);
+        applyPolityEffects(currentPolityEffects, bonuses);
     }
 
     // Apply Epoch bonuses
@@ -2283,6 +2286,10 @@ export const simulateTick = ({
         if (officialsPaid && typeof official.salary === 'number') {
             currentWealth += official.salary;
             totalOfficialIncome += official.salary;
+            // 记录俸禄到财务数据
+            if (classFinancialData.official) {
+                classFinancialData.official.income.salary = (classFinancialData.official.income.salary || 0) + official.salary;
+            }
         }
 
         // 支出：按 STRATA.official.needs 计算需求成本
@@ -2528,19 +2535,33 @@ export const simulateTick = ({
             targetApproval += decreeBonus;
         }
 
-        // Apply official approval modifiers
+        // 官员满意度修正
         const officialBonus = activeOfficialEffects?.approval?.[key] || 0;
-        if (officialBonus) {
+        
+        // 正面官员效果加到目标值
+        if (officialBonus > 0) {
             targetApproval += officialBonus;
+        }
+
+        // 计算有效满意度上限（负面官员效果直接降低上限）
+        let effectiveApprovalCap = livingStandardApprovalCap;
+        if (officialBonus < 0) {
+            effectiveApprovalCap = Math.max(0, livingStandardApprovalCap + officialBonus);
         }
 
         const currentApproval = classApproval[key] || 50;
         const adjustmentSpeed = 0.02; // How slowly approval changes per tick
+        
+        // 满意度向目标值移动
         let newApproval = currentApproval + (targetApproval - currentApproval) * adjustmentSpeed;
 
-        // 应用生活水平对满意度的上限限制
-        // 生活水平越低，满意度上限越低
-        newApproval = Math.min(newApproval, livingStandardApprovalCap);
+        // 应用有效满意度上限（包含官员惩罚）
+        newApproval = Math.min(newApproval, effectiveApprovalCap);
+
+        // DEBUG: 检查 miner 阶层的满意度计算
+        if (key === 'miner' && tick % 30 === 0) {
+            console.log(`[DEBUG miner] officialBonus=${officialBonus}, effectiveCap=${effectiveApprovalCap}, newApproval=${newApproval.toFixed(1)}, current=${currentApproval.toFixed(1)}`);
+        }
 
         classApproval[key] = Math.max(0, Math.min(100, newApproval));
     });
@@ -3063,6 +3084,9 @@ export const simulateTick = ({
     // 基础需求（食物/布料）长期未满足导致死亡
     let starvationDeaths = 0;
     Object.keys(STRATA).forEach(key => {
+        // Officials are immune to starvation death (handled by salary/hiring logic)
+        if (key === 'official') return;
+
         const count = popStructure[key] || 0;
         if (count === 0) return;
 
@@ -3758,21 +3782,24 @@ export const simulateTick = ({
         };
     });
 
-    const totalMigratablePop = activeRoleMetrics.reduce((sum, r) => r.pop > 0 ? sum + r.pop : sum, 0);
+    // 过滤掉 'official' 阶层，防止其参与自动转职（官员只能通过任命产生）
+    const migrationRoles = activeRoleMetrics.filter(r => r.role !== 'official');
+
+    const totalMigratablePop = migrationRoles.reduce((sum, r) => r.pop > 0 ? sum + r.pop : sum, 0);
     const averagePotentialIncome = totalMigratablePop > 0
-        ? activeRoleMetrics.reduce((sum, r) => sum + (r.potentialIncome * r.pop), 0) / totalMigratablePop
+        ? migrationRoles.reduce((sum, r) => sum + (r.potentialIncome * r.pop), 0) / totalMigratablePop
         : 0;
 
     // 计算平均人均财富，用于判断富裕阶层的转职阈值
     const averagePerCapWealth = totalMigratablePop > 0
-        ? activeRoleMetrics.reduce((sum, r) => sum + (r.perCap * r.pop), 0) / totalMigratablePop
+        ? migrationRoles.reduce((sum, r) => sum + (r.perCap * r.pop), 0) / totalMigratablePop
         : 0;
 
     // 使用handleJobMigration处理阶层迁移（包含tier阻力系数和冷却机制）
     const migrationResult = handleJobMigration({
         popStructure,
         wealth,
-        roleMetrics: activeRoleMetrics,
+        roleMetrics: migrationRoles,
         hasBuildingVacancyForRole,
         reserveBuildingVacancyForRole,
         logs,
@@ -3942,8 +3969,8 @@ export const simulateTick = ({
     });
     totalWealth = Object.values(classWealthResult).reduce((sum, val) => sum + val, 0);
 
-    // 应用官员税收效率加成
-    const effectiveTaxEfficiency = efficiency * (1 + (bonuses.taxEfficiencyBonus || 0));
+    // 应用官员税收效率加成 (同时减去腐败损失)
+    const effectiveTaxEfficiency = efficiency * (1 + (bonuses.taxEfficiencyBonus || 0) - (bonuses.corruption || 0));
     const collectedHeadTax = taxBreakdown.headTax * effectiveTaxEfficiency;
     const collectedIndustryTax = taxBreakdown.industryTax * effectiveTaxEfficiency;
     const collectedBusinessTax = taxBreakdown.businessTax * effectiveTaxEfficiency;
@@ -4085,11 +4112,14 @@ export const simulateTick = ({
                 buildingCostMod: bonuses.buildingCostMod || 0,
                 militaryUpkeepMod: bonuses.militaryUpkeepMod || 0,
                 taxEfficiencyBonus: bonuses.taxEfficiencyBonus || 0,
+                corruption: bonuses.corruption || 0,
                 populationGrowthBonus: bonuses.populationGrowthBonus || 0,
                 tradeBonusMod: bonuses.tradeBonusMod || 0,
             },
         },
         army, // 确保返回army状态，以便保存战斗损失
         officials: updatedOfficials, // 更新后的官员列表（含财务数据）
+        // 计算有效官员容量（基于时代、政体和科技）
+        effectiveOfficialCapacity: calculateOfficialCapacity(epoch, currentPolityEffects || {}, techsUnlocked),
     };
 };

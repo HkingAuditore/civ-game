@@ -960,6 +960,7 @@ const StratumDetailSheetComponent = ({
                             const wage = (data.wage || 0) / safeDayScale / Math.max(count, 1);
                             const ownerRevenue = (data.ownerRevenue || 0) / safeDayScale / Math.max(count, 1);
                             const subsidy = (data.subsidy || 0) / safeDayScale / Math.max(count, 1);
+                            const salary = (data.salary || 0) / safeDayScale / Math.max(count, 1); // 官员俸禄
 
                             return (
                                 <div className="space-y-1.5">
@@ -967,6 +968,12 @@ const StratumDetailSheetComponent = ({
                                         <div className="flex justify-between items-center text-xs">
                                             <span className="text-gray-300">工资收入</span>
                                             <span className="text-green-400 font-mono">+{wage.toFixed(2)}</span>
+                                        </div>
+                                    )}
+                                    {salary > 0.001 && (
+                                        <div className="flex justify-between items-center text-xs">
+                                            <span className="text-gray-300">官员俸禄</span>
+                                            <span className="text-green-400 font-mono">+{salary.toFixed(2)}</span>
                                         </div>
                                     )}
                                     {ownerRevenue > 0.001 && (
@@ -981,7 +988,7 @@ const StratumDetailSheetComponent = ({
                                             <span className="text-green-400 font-mono">+{subsidy.toFixed(2)}</span>
                                         </div>
                                     )}
-                                    {wage <= 0.001 && ownerRevenue <= 0.001 && subsidy <= 0.001 && (
+                                    {wage <= 0.001 && ownerRevenue <= 0.001 && subsidy <= 0.001 && salary <= 0.001 && (
                                         <div className="text-gray-500 text-xs italic text-center">暂无显著收入</div>
                                     )}
                                 </div>
