@@ -1022,8 +1022,10 @@ export const getMaxUpgradeLevel = (buildingId) => {
 };
 
 // 获取升级成本
+// 获取升级成本
 // existingUpgradeCount: 已经升级到该等级或更高等级的建筑数量（用于成本递增）
-export const getUpgradeCost = (buildingId, targetLevel, existingUpgradeCount = 0) => {
+// growthFactor: 成本增长系数 (默认 1.15)
+export const getUpgradeCost = (buildingId, targetLevel, existingUpgradeCount = 0, growthFactor = 1.15) => {
     const upgrades = BUILDING_UPGRADES[buildingId];
     if (!upgrades || !upgrades[targetLevel - 1]) return null;
 
@@ -1034,8 +1036,8 @@ export const getUpgradeCost = (buildingId, targetLevel, existingUpgradeCount = 0
         return baseCost;
     }
 
-    // 应用成本递增系数（与建造成本递增一致：1.15^n）
-    const multiplier = Math.pow(1.15, existingUpgradeCount);
+    // 应用成本递增系数（与建造成本递增一致：growthFactor^n）
+    const multiplier = Math.pow(growthFactor, existingUpgradeCount);
     const scaledCost = {};
     for (const [resource, amount] of Object.entries(baseCost)) {
         scaledCost[resource] = Math.ceil(amount * multiplier);

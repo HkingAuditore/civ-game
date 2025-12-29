@@ -40,7 +40,7 @@ export const DifficultySelectionModal = ({ isOpen, onConfirm, onCancel }) => {
     const getDifficultyStyle = (difficultyId, isSelected) => {
         const baseStyle = 'rounded-lg border-2 p-3 cursor-pointer transition-all duration-200';
 
-        if (difficultyId === 'easy') {
+        if (difficultyId === 'very_easy' || difficultyId === 'easy') {
             return `${baseStyle} ${isSelected
                 ? 'border-green-400 bg-green-900/40 shadow-lg shadow-green-500/20'
                 : 'border-green-600/30 bg-green-900/20 hover:border-green-500/50'}`;
@@ -48,7 +48,12 @@ export const DifficultySelectionModal = ({ isOpen, onConfirm, onCancel }) => {
             return `${baseStyle} ${isSelected
                 ? 'border-yellow-400 bg-yellow-900/40 shadow-lg shadow-yellow-500/20'
                 : 'border-yellow-600/30 bg-yellow-900/20 hover:border-yellow-500/50'}`;
+        } else if (difficultyId === 'hard') {
+            return `${baseStyle} ${isSelected
+                ? 'border-orange-400 bg-orange-900/40 shadow-lg shadow-orange-500/20'
+                : 'border-orange-600/30 bg-orange-900/20 hover:border-orange-500/50'}`;
         } else {
+            // Very Hard & Extreme
             return `${baseStyle} ${isSelected
                 ? 'border-red-400 bg-red-900/40 shadow-lg shadow-red-500/20'
                 : 'border-red-600/30 bg-red-900/20 hover:border-red-500/50'}`;
@@ -56,14 +61,16 @@ export const DifficultySelectionModal = ({ isOpen, onConfirm, onCancel }) => {
     };
 
     const getTextColor = (difficultyId) => {
-        if (difficultyId === 'easy') return 'text-green-300';
+        if (difficultyId === 'very_easy' || difficultyId === 'easy') return 'text-green-300';
         if (difficultyId === 'normal') return 'text-yellow-300';
+        if (difficultyId === 'hard') return 'text-orange-300';
         return 'text-red-300';
     };
 
     const getIconColor = (difficultyId) => {
-        if (difficultyId === 'easy') return 'text-green-400';
+        if (difficultyId === 'very_easy' || difficultyId === 'easy') return 'text-green-400';
         if (difficultyId === 'normal') return 'text-yellow-400';
+        if (difficultyId === 'hard') return 'text-orange-400';
         return 'text-red-400';
     };
 

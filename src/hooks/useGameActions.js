@@ -3,7 +3,8 @@
 
 import { useState, useEffect } from 'react';
 import { BUILDINGS, EPOCHS, RESOURCES, TECHS, MILITARY_ACTIONS, UNIT_TYPES, EVENTS, getRandomEvent, createWarDeclarationEvent, createGiftEvent, createPeaceRequestEvent, createEnemyPeaceRequestEvent, createPlayerPeaceProposalEvent, createBattleEvent, createAllianceRequestEvent, createAllianceProposalResultEvent, createAllianceBreakEvent, createNationAnnexedEvent, STRATA, BUILDING_UPGRADES, getMaxUpgradeLevel, getUpgradeCost } from '../config';
-import { getUpgradeCountAtOrAboveLevel } from '../utils/buildingUpgradeUtils';
+import { getBuildingCostGrowthFactor } from '../config/difficulty';
+import { getUpgradeCountAtOrAboveLevel, calculateBuildingCost } from '../utils/buildingUpgradeUtils';
 import { simulateBattle, calculateBattlePower, generateNationArmy } from '../config';
 import { calculateForeignPrice, calculateTradeStatus } from '../utils/foreignTrade';
 import { generateSound, SOUND_TYPES } from '../config/sounds';
@@ -212,10 +213,9 @@ export const useGameActions = (gameState, addLog) => {
         const count = buildings[id] || 0;
 
         // 计算成本（随数量递增）
-        const cost = {};
-        for (let k in b.baseCost) {
-            cost[k] = b.baseCost[k] * Math.pow(1.15, count);
-        }
+        const difficultyLevel = gameState.difficulty || 'normal';
+        const growthFactor = getBuildingCostGrowthFactor(difficultyLevel);
+        const cost = calculateBuildingCost(b.baseCost, count, growthFactor);
 
         const hasMaterials = Object.entries(cost).every(([resource, amount]) => (resources[resource] || 0) >= amount);
         if (!hasMaterials) {
@@ -360,9 +360,12 @@ export const useGameActions = (gameState, addLog) => {
         }
 
         // 计算已有的同等级或更高升级数量，用于成本递增
+        // 获取困难系数
+        const difficultyLevel = gameState.difficulty || 'normal';
+        const growthFactor = getBuildingCostGrowthFactor(difficultyLevel);
         const existingUpgradeCount = getUpgradeCountAtOrAboveLevel(fromLevel + 1, count, levelCounts);
 
-        const upgradeCost = getUpgradeCost(buildingId, fromLevel + 1, existingUpgradeCount);
+        const upgradeCost = getUpgradeCost(buildingId, fromLevel + 1, existingUpgradeCount, growthFactor);
         if (!upgradeCost) {
             addLog('无法获取升级费用。');
             return;
@@ -536,9 +539,13 @@ export const useGameActions = (gameState, addLog) => {
         let totalSilverCost = 0;
         const individualCosts = [];
 
+        // 获取困难系数
+        const difficultyLevel = gameState.difficulty || 'normal';
+        const growthFactor = getBuildingCostGrowthFactor(difficultyLevel);
+
         for (let i = 0; i < requestedCount; i++) {
             const currentExistingCount = baseExistingCount + i;
-            const cost = getUpgradeCost(buildingId, fromLevel + 1, currentExistingCount);
+            const cost = getUpgradeCost(buildingId, fromLevel + 1, currentExistingCount, growthFactor);
             if (!cost) break;
 
             individualCosts.push(cost);
@@ -594,7 +601,7 @@ export const useGameActions = (gameState, addLog) => {
         const successCount = canAffordCount;
 
         if (successCount <= 0) {
-            const firstCost = getUpgradeCost(buildingId, fromLevel + 1, baseExistingCount);
+            const firstCost = getUpgradeCost(buildingId, fromLevel + 1, baseExistingCount, growthFactor);
             if (firstCost) {
                 const hasMaterials = Object.entries(firstCost).every(([resource, amount]) => {
                     if (resource === 'silver') return true;

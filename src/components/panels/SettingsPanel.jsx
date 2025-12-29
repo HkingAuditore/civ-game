@@ -70,91 +70,53 @@ const PerformanceModeSection = () => {
  * Difficulty Setting Section
  * Allows player to choose game difficulty
  */
-const DifficultySectionComponent = ({ currentDifficulty, onDifficultyChange }) => {
+/**
+ * Difficulty Setting Section (Read Only)
+ * Allows player to view game difficulty
+ */
+const DifficultySectionComponent = ({ currentDifficulty }) => {
     const difficultyOptions = getDifficultyOptions();
+    const currentConfig = difficultyOptions.find(o => o.id === currentDifficulty) || {};
 
     return (
         <div className="border-t border-gray-700 pt-4 space-y-3">
             <h4 className="text-sm font-bold text-gray-200 flex items-center gap-2">
                 <Icon name="Target" size={16} /> 游戏难度
+                <span className="ml-auto text-[10px] px-2 py-0.5 rounded-full bg-gray-700 text-gray-400 flex items-center gap-1">
+                    <Icon name="Lock" size={10} /> 游戏中不可更改
+                </span>
             </h4>
-            <p className="text-[11px] text-gray-400 leading-relaxed">
-                调整游戏难度会影响内乱和敌国攻击的频率与强度。更改后立即生效。
-            </p>
 
-            <div className="flex gap-2">
-                {difficultyOptions.map(opt => (
-                    <button
-                        key={opt.id}
-                        type="button"
-                        onClick={() => onDifficultyChange && onDifficultyChange(opt.id)}
-                        className={`flex-1 px-3 py-2 rounded-lg border text-xs transition-colors ${currentDifficulty === opt.id
-                            ? opt.id === DIFFICULTY_LEVELS.EASY
-                                ? 'bg-emerald-700/40 border-emerald-500/50 text-emerald-200'
-                                : opt.id === DIFFICULTY_LEVELS.HARD
-                                    ? 'bg-red-700/40 border-red-500/50 text-red-200'
-                                    : 'bg-amber-700/40 border-amber-500/50 text-amber-200'
-                            : 'bg-gray-700/30 border-gray-600/50 text-gray-300 hover:bg-gray-700/50'
-                            }`}
-                    >
-                        <div className="font-medium">
-                            <span className="mr-1">{opt.icon}</span>
-                            {opt.name}
+            <div className={`p-4 rounded-xl border-2 overflow-hidden relative ${currentDifficulty === 'very_easy' || currentDifficulty === 'easy' ? 'bg-emerald-900/20 border-emerald-500/30' :
+                    currentDifficulty === 'normal' ? 'bg-amber-900/20 border-amber-500/30' :
+                        'bg-red-900/20 border-red-500/30'
+                }`}>
+                <div className="flex items-center gap-4 relative z-10">
+                    <div className="text-4xl filter drop-shadow-lg transform hover:scale-110 transition-transform duration-300">
+                        {currentConfig.icon || '⚖️'}
+                    </div>
+                    <div>
+                        <div className={`text-lg font-bold flex items-center gap-2 ${currentDifficulty === 'very_easy' || currentDifficulty === 'easy' ? 'text-emerald-300' :
+                                currentDifficulty === 'normal' ? 'text-amber-300' :
+                                    'text-red-300'
+                            }`}>
+                            {currentConfig.name}
                         </div>
-                        <div className="text-[10px] text-gray-400 mt-0.5">{opt.description}</div>
-                    </button>
-                ))}
+                        <div className="text-xs text-gray-400 mt-1 max-w-[240px] leading-relaxed">
+                            {currentConfig.description}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Background Pattern */}
+                <div className="absolute -right-4 -bottom-4 text-8xl opacity-5 pointer-events-none select-none">
+                    {currentConfig.icon}
+                </div>
             </div>
 
-            <div className="text-[11px] text-gray-400 flex items-center gap-2">
-                <span className={`w-2 h-2 rounded-full ${currentDifficulty === DIFFICULTY_LEVELS.EASY ? 'bg-emerald-400' :
-                    currentDifficulty === DIFFICULTY_LEVELS.HARD ? 'bg-red-400' : 'bg-amber-400'
-                    }`} />
-                当前难度：{difficultyOptions.find(o => o.id === currentDifficulty)?.name || '普通'}
-            </div>
-
-            {/* Difficulty tips */}
-            <div className="mt-2 p-2 bg-gray-800/50 rounded-lg border border-gray-700/50">
-                <p className="text-[10px] text-gray-400 leading-relaxed">
-                    {currentDifficulty === DIFFICULTY_LEVELS.EASY && (
-                        <>
-                            <span className="text-emerald-400 font-medium">🌱 简单模式已启用</span>
-                            <br />
-                            • 组织度增长速度降低50%
-                            <br />
-                            • 敌国攻击概率降低50%
-                            <br />
-                            • AI宣战需要更高时代
-                            <br />
-                            • 适合新手熟悉游戏机制
-                        </>
-                    )}
-                    {currentDifficulty === DIFFICULTY_LEVELS.NORMAL && (
-                        <>
-                            <span className="text-amber-400 font-medium">⚖️ 普通模式</span>
-                            <br />
-                            • 标准游戏体验
-                            <br />
-                            • 平衡的叛乱与战争机制
-                            <br />
-                            • 适合有一定经验的玩家
-                        </>
-                    )}
-                    {currentDifficulty === DIFFICULTY_LEVELS.HARD && (
-                        <>
-                            <span className="text-red-400 font-medium">🔥 困难模式已启用</span>
-                            <br />
-                            • 组织度增长速度提高50%
-                            <br />
-                            • 敌国攻击概率提高50%
-                            <br />
-                            • AI更早可以宣战
-                            <br />
-                            • 适合寻求挑战的老玩家
-                        </>
-                    )}
-                </p>
-            </div>
+            <p className="text-[11px] text-gray-500 text-center">
+                如需更改难度，请回到主菜单开始新游戏
+            </p>
         </div>
     );
 };

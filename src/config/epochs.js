@@ -1,17 +1,17 @@
 // 时代配置文件
 // 定义游戏中的各个时代及其升级要求和加成效果
 
-/**
+/*
  * 时代配置数组
- * 每个时代包含：
- * - id: 时代编号
- * - name: 时代名称
- * - color: 显示颜色（Tailwind类名）
- * - bg: 背景颜色
- * - tileColor: 地图瓦片颜色
- * - req: 升级要求（科研、人口、文化等）
- * - cost: 升级成本（消耗的资源）
- * - bonuses: 时代加成效果
+ * Each era contains:
+ * - id: Era ID
+ * - name: Era Name
+ * - color: Display Color (Tailwind class)
+ * - bg: Background Color
+ * - tileColor: Map Tile Color
+ * - req: Upgrade Requirements
+ * - cost: Upgrade Costs
+ * - bonuses: Era Bonuses
  */
 export const EPOCHS = [
     {
@@ -22,7 +22,10 @@ export const EPOCHS = [
         tileColor: "bg-stone-700",
         req: { science: 0 },
         cost: {},
-        bonuses: { desc: "文明的起源，一切从这里开始。" }
+        bonuses: {
+            desc: "文明的起源，一切从这里开始。",
+            gatherBonus: 0.20 // +20% 采集
+        }
     },
     {
         id: 1,
@@ -33,9 +36,10 @@ export const EPOCHS = [
         req: { science: 600, population: 25 },
         cost: { food: 6000, wood: 3500, stone: 1200, silver: 600, science: 600 },
         bonuses: {
-            desc: "掌握青铜冶炼与畜力生产，采集效率提升。",
-            gatherBonus: 0.15,
-            militaryBonus: 0.1
+            desc: "掌握青铜冶炼与畜力生产，资源获取加速。",
+            gatherBonus: 0.40, // +40%
+            militaryBonus: 0.20, // +20%
+            industryBonus: 0.20 // +20%
         }
     },
     {
@@ -47,10 +51,13 @@ export const EPOCHS = [
         req: { science: 1800, population: 90, culture: 250 },
         cost: { food: 20000, wood: 10000, brick: 3600, silver: 5000, tools: 1200, science: 1800 },
         bonuses: {
-            desc: "城邦理性与文化盛开，基础设施大幅改善。",
-            gatherBonus: 0.2,
-            cultureBonus: 0.15,
-            scienceBonus: 0.1
+            desc: "哲学与艺术的萌芽，文明全方位提升。",
+            gatherBonus: 0.60,
+            militaryBonus: 0.30,
+            cultureBonus: 0.20,
+            scienceBonus: 0.20,
+            industryBonus: 0.30,
+            maxPop: 0.10 // +10% max pop
         }
     },
     {
@@ -62,9 +69,13 @@ export const EPOCHS = [
         req: { science: 4500, population: 170, culture: 600 },
         cost: { food: 100000, wood: 50000, brick: 25000, iron: 12500, papyrus: 5000, silver: 15000, science: 4500 },
         bonuses: {
-            desc: "骑士与庄园秩序成熟，文化发展加速。",
-            gatherBonus: 0.25,
-            cultureBonus: 0.2
+            desc: "封建制度确立，人口与经济快速增长。",
+            gatherBonus: 0.80,
+            militaryBonus: 0.40,
+            cultureBonus: 0.30,
+            scienceBonus: 0.30,
+            industryBonus: 0.40,
+            taxIncome: 0.20 // +20% tax
         }
     },
     {
@@ -76,10 +87,13 @@ export const EPOCHS = [
         req: { science: 8000, population: 320, culture: 1400 },
         cost: { food: 260000, plank: 70000, brick: 60000, iron: 35000, silver: 40000, science: 8000 },
         bonuses: {
-            desc: "远洋航行拓展视野，贸易与军事齐头并进。",
-            gatherBonus: 0.3,
-            scienceBonus: 0.2,
-            militaryBonus: 0.1
+            desc: "大航海开启，贸易与工业蓬勃发展。",
+            gatherBonus: 1.20,
+            militaryBonus: 0.45,
+            cultureBonus: 0.40,
+            scienceBonus: 0.50,
+            industryBonus: 0.60,
+            incomePercent: 0.50 // +50% total income
         }
     },
     {
@@ -91,9 +105,13 @@ export const EPOCHS = [
         req: { science: 12000, population: 450, culture: 2500 },
         cost: { food: 350000, plank: 80000, papyrus: 30000, spice: 20000, silver: 50000, science: 12000 },
         bonuses: {
-            desc: "理性与出版自由蔓延，文化科研全面提升。",
-            cultureBonus: 0.3,
-            scienceBonus: 0.3
+            desc: "理性的光辉照耀，科学与文化大幅提升。",
+            gatherBonus: 1.50,
+            militaryBonus: 0.50,
+            cultureBonus: 0.60,
+            scienceBonus: 0.80,
+            industryBonus: 1.00,
+            stability: 10 // +10 flat stability
         }
     },
     {
@@ -105,10 +123,13 @@ export const EPOCHS = [
         req: { science: 20000, population: 650, culture: 4000 },
         cost: { food: 750000, brick: 180000, iron: 120000, tools: 75000, spice: 30000, silver: 120000, science: 20000 },
         bonuses: {
-            desc: "蒸汽与煤铁带来巨量产能。",
-            gatherBonus: 0.4,
-            industryBonus: 0.5,
-            scienceBonus: 0.3
+            desc: "机械化大生产，工业产能爆炸式增长。",
+            gatherBonus: 2.00,
+            militaryBonus: 0.60,
+            cultureBonus: 0.80,
+            scienceBonus: 1.20,
+            industryBonus: 2.00,
+            maxPop: 0.20
         }
     },
     {
@@ -121,9 +142,12 @@ export const EPOCHS = [
         cost: { food: 2000000, tools: 300000, silver: 250000, spice: 80000, papyrus: 100000, science: 35000 },
         bonuses: {
             desc: "数字革命改变世界，知识和信息成为核心生产力。",
-            scienceBonus: 0.6,
-            cultureBonus: 0.5,
-            knowledgeBonus: 0.4
+            gatherBonus: 3.00,
+            militaryBonus: 0.80,
+            cultureBonus: 1.50,
+            scienceBonus: 3.00,
+            industryBonus: 3.00,
+            incomePercent: 1.00
         }
-    },
+    }
 ];

@@ -10,6 +10,8 @@ import { filterUnlockedResources } from '../../utils/resources';
 import { getPublicAssetUrl } from '../../utils/assetPath';
 import { getBuildingImageUrl } from '../../utils/imageRegistry';
 import { getBuildingEffectiveConfig, BUILDING_UPGRADES, getUpgradeCost } from '../../config/buildingUpgrades';
+import { getBuildingCostGrowthFactor } from '../../config/difficulty';
+import { calculateBuildingCost } from '../../utils/buildingUpgradeUtils';
 
 /**
  * 建筑悬浮提示框 (使用 Portal)
@@ -328,6 +330,7 @@ const BuildTabComponent = ({
     onSell,
     onShowDetails, // 新增：用于打开详情页的回调
     market,
+    difficulty,
 }) => {
     const [hoveredBuilding, setHoveredBuilding] = useState({ building: null, element: null });
     // More reliable hover detection: requires both hover capability AND fine pointer (mouse/trackpad)
@@ -431,11 +434,8 @@ const BuildTabComponent = ({
      */
     const calculateCost = (building) => {
         const count = buildings[building.id] || 0;
-        const cost = {};
-        for (let k in building.baseCost) {
-            cost[k] = Math.ceil(building.baseCost[k] * Math.pow(1.15, count));
-        }
-        return cost;
+        const growthFactor = getBuildingCostGrowthFactor(difficulty);
+        return calculateBuildingCost(building.baseCost, count, growthFactor);
     };
 
     const buildLevelCounts = (count, upgradeLevels) => {

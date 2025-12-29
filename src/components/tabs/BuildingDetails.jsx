@@ -6,7 +6,8 @@ import { getPublicAssetUrl } from '../../utils/assetPath';
 import { getBuildingImageUrl } from '../../utils/imageRegistry';
 import { BuildingUpgradePanel } from './BuildingUpgradePanel';
 import { getBuildingEffectiveConfig } from '../../config/buildingUpgrades';
-import { canBuildingUpgrade } from '../../utils/buildingUpgradeUtils';
+import { canBuildingUpgrade, calculateBuildingCost } from '../../utils/buildingUpgradeUtils';
+import { getBuildingCostGrowthFactor } from '../../config/difficulty';
 
 // 最低工资下限
 const MIN_ROLE_WAGE = 0.1;
@@ -390,11 +391,9 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
 
     const calculateCost = (b) => {
         const currentCount = buildings[b.id] || 0;
-        const cost = {};
-        for (let k in b.baseCost) {
-            cost[k] = Math.ceil(b.baseCost[k] * Math.pow(1.15, currentCount));
-        }
-        return cost;
+        const difficulty = gameState.difficulty;
+        const growthFactor = getBuildingCostGrowthFactor(difficulty);
+        return calculateBuildingCost(b.baseCost, currentCount, growthFactor);
     };
 
     const nextCost = calculateCost(building);
@@ -549,8 +548,8 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
             const displayIncome = Number.isFinite(actualIncomePerCap)
                 ? actualIncomePerCap
                 : Number.isFinite(incomeData?.avgIncome)
-                ? incomeData.avgIncome
-                : getMarketWage(role, market);
+                    ? incomeData.avgIncome
+                    : getMarketWage(role, market);
 
             return {
                 role,
@@ -649,283 +648,283 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
 
             {activeSection === 'overview' && (
                 <>
-            {/* 营业税调整 - 居住性建筑和军事建筑不显示 */}
-            {onUpdateTaxPolicies && (() => {
-                // 判断是否为居住性建筑（无owner且产出maxPop的civic建筑）
-                const isHousingBuilding = building.cat === 'civic' && !building.owner && building.output?.maxPop > 0;
-                // 判断是否为军事建筑
-                const isMilitaryBuilding = building.cat === 'military';
-                // 居住性建筑和军事建筑不收营业税，不显示设置UI
-                if (isHousingBuilding || isMilitaryBuilding) return null;
-                return (
-                    <div className="bg-gray-900/50 p-3 rounded-lg border border-gray-700/80">
-                        <h4 className="text-xs font-semibold text-gray-300 mb-2 flex items-center gap-1.5 font-decorative">
-                            <Icon name="Sliders" size={16} className="text-yellow-400" />
-                            营业税调整
-                        </h4>
-                        <div className="grid grid-cols-2 gap-2 items-center">
-                            <div>
-                                <div className="text-[10px] text-gray-400 mb-0.5 leading-none">税率系数</div>
-                                <div className="flex items-center gap-1">
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            const currentValue = parseFloat(draftMultiplier ?? businessTaxMultiplier);
-                                            const newValue = isNaN(currentValue) ? -1 : -currentValue;
-                                            handleDraftChange(String(newValue));
-                                            // 直接提交
-                                            onUpdateTaxPolicies(prev => ({
-                                                ...prev,
-                                                businessTaxRates: { ...(prev?.businessTaxRates || {}), [building.id]: newValue },
-                                            }));
-                                            setDraftMultiplier(null);
-                                        }}
-                                        className="btn-compact flex-shrink-0 w-6 h-6 bg-gray-700 hover:bg-gray-600 border border-gray-500 rounded text-[10px] font-bold text-gray-300 flex items-center justify-center transition-colors"
-                                        title="切换正负值（税收/补贴）"
-                                    >
-                                        ±
-                                    </button>
-                                    <input
-                                        type="text"
-                                        inputMode="decimal"
-                                        step="0.05"
-                                        value={draftMultiplier ?? businessTaxMultiplier}
-                                        onChange={(e) => handleDraftChange(e.target.value)}
-                                        onBlur={commitDraft}
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter') {
-                                                commitDraft();
-                                                e.target.blur();
-                                            }
-                                        }}
-                                        className="flex-grow min-w-0 bg-gray-800/70 border border-gray-600 text-sm text-gray-200 rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
-                                        placeholder="税率系数"
-                                    />
-                                </div>
-                            </div>
-                            <div>
-                                <div className="text-[10px] text-gray-400 mb-0.5 leading-none">实际税额 (每次产出)</div>
-                                <div className="bg-gray-800/50 rounded px-2 py-1.5 text-center">
-                                    <span className={`text-sm font-bold font-mono ${actualBusinessTax > 0 ? 'text-yellow-300' : actualBusinessTax < 0 ? 'text-green-300' : 'text-gray-400'
-                                        }`}>
-                                        {actualBusinessTax < 0 ? '补贴 ' : ''}{Math.abs(actualBusinessTax).toFixed(3)}
-                                    </span>
-                                    <Icon
-                                        name={actualBusinessTax > 0 ? "TrendingUp" : actualBusinessTax < 0 ? "TrendingDown" : "Coins"}
-                                        size={12}
-                                        className={`inline-block ml-1 ${actualBusinessTax > 0 ? 'text-yellow-400' : actualBusinessTax < 0 ? 'text-green-400' : 'text-gray-500'}`}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                        <p className="text-[10px] text-gray-500 mt-1.5">
-                            实际税额 = 基准税额({businessTaxBase.toFixed(2)}) × 税率系数 × 生产效率。生产加成会增加实际征收的税额。负数系数代表补贴。
-                        </p>
-                    </div>
-                );
-            })()}
-
-            <DetailSection title="当前运行概览" icon="Activity">
-                <div className="grid grid-cols-2 gap-2 mb-3">
-                    <StatCard label="已拥有" icon="Home" value={count} />
-                    <StatCard
-                        label="到岗率"
-                        icon="Users"
-                        value={`${jobFillRate.toFixed(0)}%`}
-                        valueClass={jobFillRate >= 80 ? 'text-emerald-300' : jobFillRate >= 50 ? 'text-yellow-300' : 'text-red-300'}
-                    />
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-                    <div>
-                        <div className="text-[10px] uppercase text-emerald-300 mb-1 tracking-wide flex items-center gap-1">
-                            总产出
-                            {totalOutputs.some(([, , , hasBonus]) => hasBonus) && (
-                                <span className="text-amber-400" title="包含科技/事件加成">★</span>
-                            )}
-                        </div>
-                        {totalOutputs.length > 0 ? (
-                            <div className="flex flex-wrap gap-1.5">
-                                {totalOutputs.map(([resKey, amount, baseAmount, hasBonus]) => (
-                                    <span
-                                        key={`total-out-${resKey}`}
-                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-semibold bg-emerald-900/30 border-emerald-600/40 text-emerald-200"
-                                        title={hasBonus ? `基础: ${formatResourceAmount(baseAmount)} / 实际: ${formatResourceAmount(amount)}` : undefined}
-                                    >
-                                        <span>{RESOURCES[resKey]?.name || resKey}</span>
-                                        <span className="font-mono">
-                                            +{formatResourceAmount(amount)}
-                                            {hasBonus && <span className="text-amber-400 ml-0.5">★</span>}
-                                        </span>
-                                    </span>
-                                ))}
-                            </div>
-                        ) : (
-                            <p className="text-[11px] text-gray-500">暂无产出</p>
-                        )}
-                    </div>
-                    <div>
-                        <div className="text-[10px] uppercase text-rose-300 mb-1 tracking-wide">总投入</div>
-                        {totalInputs.length > 0 ? (
-                            <div className="flex flex-wrap gap-1.5">
-                                {totalInputs.map(([resKey, amount]) => (
-                                    <ResourceSummaryBadge
-                                        key={`total-in-${resKey}`}
-                                        label={RESOURCES[resKey]?.name || resKey}
-                                        amount={amount}
-                                        positive={false}
-                                    />
-                                ))}
-                            </div>
-                        ) : (
-                            <p className="text-[11px] text-gray-500">无需额外投入</p>
-                        )}
-                    </div>
-                </div>
-
-                {/* 生产加成明细 */}
-                {buildingModifiers.hasBonus && (
-                    <div className="mb-3 p-2 rounded-lg bg-amber-900/10 border border-amber-600/30">
-                        <div className="text-[10px] uppercase text-amber-300/80 mb-1.5 tracking-wide flex items-center gap-1">
-                            <Icon name="Zap" size={10} className="text-amber-400" />
-                            生产加成明细
-                        </div>
-                        <div className="flex flex-wrap gap-1.5">
-                            {buildingModifiers.modList.map((mod, idx) => (
-                                <span
-                                    key={idx}
-                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-semibold ${mod.pct >= 0
-                                        ? 'bg-amber-900/30 border-amber-500/40 text-amber-200'
-                                        : 'bg-rose-900/30 border-rose-500/40 text-rose-200'
-                                        }`}
-                                >
-                                    <span>{mod.label}</span>
-                                    <span className={`font-mono ${mod.pct >= 0 ? 'text-amber-300' : 'text-rose-300'}`}>
-                                        {mod.pct >= 0 ? '+' : ''}{(mod.pct * 100).toFixed(0)}%
-                                    </span>
-                                </span>
-                            ))}
-                            {buildingModifiers.modList.length > 0 && (
-                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-semibold ${buildingModifiers.bonusSum >= 0
-                                    ? 'bg-emerald-900/30 border-emerald-500/40 text-emerald-200'
-                                    : 'bg-rose-900/30 border-rose-500/40 text-rose-200'
-                                    }`}>
-                                    <span>累计</span>
-                                    <span className={`font-mono ${buildingModifiers.bonusSum >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
-                                        {buildingModifiers.bonusSum >= 0 ? '+' : ''}{(buildingModifiers.bonusSum * 100).toFixed(0)}%
-                                    </span>
-                                </span>
-                            )}
-                        </div>
-                    </div>
-                )}
-                {jobBreakdown.length > 0 && (
-                    <div className="space-y-3">
-                        <div className="text-[10px] uppercase text-gray-400 tracking-wide">岗位明细</div>
-                        {jobBreakdown.map(({ role, name, required, filled, fillPercent, actualIncome, isOwner }) => (
-                            <div key={role} className="bg-gray-900/40 border border-gray-700/70 rounded-lg px-3 py-2">
-                                <div className="flex items-center justify-between text-xs text-gray-200">
-                                    <span className="flex items-center gap-1">
-                                        {name}
-                                        {isOwner && (
-                                            <span className="text-[9px] text-amber-400 bg-amber-900/40 px-1 py-0.5 rounded">业主</span>
-                                        )}
-                                    </span>
-                                    <span className="font-mono text-gray-300">
-                                        {Math.round(filled)}/{Math.round(required)}
-                                    </span>
-                                </div>
-                                <div className="flex items-center justify-between text-[10px] text-gray-500 mb-1">
-                                    <div>
-                                        <span className="mr-2">总岗位 {Math.round(required)}</span>
-                                        <span>实到 {Math.round(filled)}</span>
-                                    </div>
-                                    <div className="flex items-center gap-1">
-                                        <Icon name="Wallet" size={10} className={isOwner ? 'text-amber-400' : 'text-yellow-400'} />
-                                        <span className={`font-mono font-semibold ${actualIncome < 0 ? 'text-red-400' : isOwner ? 'text-amber-300' : 'text-yellow-300'}`}>
-                                            {actualIncome.toFixed(2)}
-                                        </span>
-                                        <Icon name="Coins" size={10} className="text-yellow-200" />
-                                    </div>
-                                </div>
-                                <div className="w-full bg-gray-700 rounded-full h-2">
-                                    <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${Math.min(100, fillPercent)}%` }} />
-                                </div>
-                            </div>
-                        ))}
-                        <p className="text-[9px] text-gray-600 mt-1">
-                            💡 默认显示本期实际人均收入（全局）；若无数据则按建筑估算：业主=(产出-投入-营业税-雇员工资)/岗位，雇员=市场工资
-                        </p>
-                    </div>
-                )}
-            </DetailSection>
-
-            <DetailSection title="下一座建造成本" icon="ShoppingCart">
-                <p className="text-[11px] text-gray-400 mb-2">
-                    需要先采购/支付下列资源与资金才能建造下一座建筑：
-                </p>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                    {Object.entries(nextCost).map(([res, val]) => {
-                        const hasEnough = (resources[res] || 0) >= val;
+                    {/* 营业税调整 - 居住性建筑和军事建筑不显示 */}
+                    {onUpdateTaxPolicies && (() => {
+                        // 判断是否为居住性建筑（无owner且产出maxPop的civic建筑）
+                        const isHousingBuilding = building.cat === 'civic' && !building.owner && building.output?.maxPop > 0;
+                        // 判断是否为军事建筑
+                        const isMilitaryBuilding = building.cat === 'military';
+                        // 居住性建筑和军事建筑不收营业税，不显示设置UI
+                        if (isHousingBuilding || isMilitaryBuilding) return null;
                         return (
-                            <InfoRow
-                                key={res}
-                                label={RESOURCES[res]?.name || res}
-                                value={`${val}`}
-                                valueClass={hasEnough ? 'text-green-400' : 'text-red-400'}
-                            />
+                            <div className="bg-gray-900/50 p-3 rounded-lg border border-gray-700/80">
+                                <h4 className="text-xs font-semibold text-gray-300 mb-2 flex items-center gap-1.5 font-decorative">
+                                    <Icon name="Sliders" size={16} className="text-yellow-400" />
+                                    营业税调整
+                                </h4>
+                                <div className="grid grid-cols-2 gap-2 items-center">
+                                    <div>
+                                        <div className="text-[10px] text-gray-400 mb-0.5 leading-none">税率系数</div>
+                                        <div className="flex items-center gap-1">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const currentValue = parseFloat(draftMultiplier ?? businessTaxMultiplier);
+                                                    const newValue = isNaN(currentValue) ? -1 : -currentValue;
+                                                    handleDraftChange(String(newValue));
+                                                    // 直接提交
+                                                    onUpdateTaxPolicies(prev => ({
+                                                        ...prev,
+                                                        businessTaxRates: { ...(prev?.businessTaxRates || {}), [building.id]: newValue },
+                                                    }));
+                                                    setDraftMultiplier(null);
+                                                }}
+                                                className="btn-compact flex-shrink-0 w-6 h-6 bg-gray-700 hover:bg-gray-600 border border-gray-500 rounded text-[10px] font-bold text-gray-300 flex items-center justify-center transition-colors"
+                                                title="切换正负值（税收/补贴）"
+                                            >
+                                                ±
+                                            </button>
+                                            <input
+                                                type="text"
+                                                inputMode="decimal"
+                                                step="0.05"
+                                                value={draftMultiplier ?? businessTaxMultiplier}
+                                                onChange={(e) => handleDraftChange(e.target.value)}
+                                                onBlur={commitDraft}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        commitDraft();
+                                                        e.target.blur();
+                                                    }
+                                                }}
+                                                className="flex-grow min-w-0 bg-gray-800/70 border border-gray-600 text-sm text-gray-200 rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
+                                                placeholder="税率系数"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div className="text-[10px] text-gray-400 mb-0.5 leading-none">实际税额 (每次产出)</div>
+                                        <div className="bg-gray-800/50 rounded px-2 py-1.5 text-center">
+                                            <span className={`text-sm font-bold font-mono ${actualBusinessTax > 0 ? 'text-yellow-300' : actualBusinessTax < 0 ? 'text-green-300' : 'text-gray-400'
+                                                }`}>
+                                                {actualBusinessTax < 0 ? '补贴 ' : ''}{Math.abs(actualBusinessTax).toFixed(3)}
+                                            </span>
+                                            <Icon
+                                                name={actualBusinessTax > 0 ? "TrendingUp" : actualBusinessTax < 0 ? "TrendingDown" : "Coins"}
+                                                size={12}
+                                                className={`inline-block ml-1 ${actualBusinessTax > 0 ? 'text-yellow-400' : actualBusinessTax < 0 ? 'text-green-400' : 'text-gray-500'}`}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                                <p className="text-[10px] text-gray-500 mt-1.5">
+                                    实际税额 = 基准税额({businessTaxBase.toFixed(2)}) × 税率系数 × 生产效率。生产加成会增加实际征收的税额。负数系数代表补贴。
+                                </p>
+                            </div>
                         );
-                    })}
-                </div>
-                <div className="pt-2 mt-2 border-t border-gray-700/60">
-                    <div className="flex justify-between items-center py-0.5">
-                        <span className="text-gray-300 flex items-center gap-1.5">
-                            <Icon name="Coins" size={14} className="text-yellow-400" /> 预计市场花费
-                        </span>
-                        <span className={`font-mono font-semibold ${hasSilver ? 'text-green-400' : 'text-red-400'}`}>
-                            {formatSilverCost(nextSilverCost)}
-                        </span>
-                    </div>
-                    {!canAffordNext && (
-                        <p className="text-[10px] text-gray-500 mt-1">
-                            当前库存或银币不足，需先从市场购入缺口资源。
+                    })()}
+
+                    <DetailSection title="当前运行概览" icon="Activity">
+                        <div className="grid grid-cols-2 gap-2 mb-3">
+                            <StatCard label="已拥有" icon="Home" value={count} />
+                            <StatCard
+                                label="到岗率"
+                                icon="Users"
+                                value={`${jobFillRate.toFixed(0)}%`}
+                                valueClass={jobFillRate >= 80 ? 'text-emerald-300' : jobFillRate >= 50 ? 'text-yellow-300' : 'text-red-300'}
+                            />
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                            <div>
+                                <div className="text-[10px] uppercase text-emerald-300 mb-1 tracking-wide flex items-center gap-1">
+                                    总产出
+                                    {totalOutputs.some(([, , , hasBonus]) => hasBonus) && (
+                                        <span className="text-amber-400" title="包含科技/事件加成">★</span>
+                                    )}
+                                </div>
+                                {totalOutputs.length > 0 ? (
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {totalOutputs.map(([resKey, amount, baseAmount, hasBonus]) => (
+                                            <span
+                                                key={`total-out-${resKey}`}
+                                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-semibold bg-emerald-900/30 border-emerald-600/40 text-emerald-200"
+                                                title={hasBonus ? `基础: ${formatResourceAmount(baseAmount)} / 实际: ${formatResourceAmount(amount)}` : undefined}
+                                            >
+                                                <span>{RESOURCES[resKey]?.name || resKey}</span>
+                                                <span className="font-mono">
+                                                    +{formatResourceAmount(amount)}
+                                                    {hasBonus && <span className="text-amber-400 ml-0.5">★</span>}
+                                                </span>
+                                            </span>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <p className="text-[11px] text-gray-500">暂无产出</p>
+                                )}
+                            </div>
+                            <div>
+                                <div className="text-[10px] uppercase text-rose-300 mb-1 tracking-wide">总投入</div>
+                                {totalInputs.length > 0 ? (
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {totalInputs.map(([resKey, amount]) => (
+                                            <ResourceSummaryBadge
+                                                key={`total-in-${resKey}`}
+                                                label={RESOURCES[resKey]?.name || resKey}
+                                                amount={amount}
+                                                positive={false}
+                                            />
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <p className="text-[11px] text-gray-500">无需额外投入</p>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* 生产加成明细 */}
+                        {buildingModifiers.hasBonus && (
+                            <div className="mb-3 p-2 rounded-lg bg-amber-900/10 border border-amber-600/30">
+                                <div className="text-[10px] uppercase text-amber-300/80 mb-1.5 tracking-wide flex items-center gap-1">
+                                    <Icon name="Zap" size={10} className="text-amber-400" />
+                                    生产加成明细
+                                </div>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {buildingModifiers.modList.map((mod, idx) => (
+                                        <span
+                                            key={idx}
+                                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-semibold ${mod.pct >= 0
+                                                ? 'bg-amber-900/30 border-amber-500/40 text-amber-200'
+                                                : 'bg-rose-900/30 border-rose-500/40 text-rose-200'
+                                                }`}
+                                        >
+                                            <span>{mod.label}</span>
+                                            <span className={`font-mono ${mod.pct >= 0 ? 'text-amber-300' : 'text-rose-300'}`}>
+                                                {mod.pct >= 0 ? '+' : ''}{(mod.pct * 100).toFixed(0)}%
+                                            </span>
+                                        </span>
+                                    ))}
+                                    {buildingModifiers.modList.length > 0 && (
+                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-semibold ${buildingModifiers.bonusSum >= 0
+                                            ? 'bg-emerald-900/30 border-emerald-500/40 text-emerald-200'
+                                            : 'bg-rose-900/30 border-rose-500/40 text-rose-200'
+                                            }`}>
+                                            <span>累计</span>
+                                            <span className={`font-mono ${buildingModifiers.bonusSum >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
+                                                {buildingModifiers.bonusSum >= 0 ? '+' : ''}{(buildingModifiers.bonusSum * 100).toFixed(0)}%
+                                            </span>
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                        {jobBreakdown.length > 0 && (
+                            <div className="space-y-3">
+                                <div className="text-[10px] uppercase text-gray-400 tracking-wide">岗位明细</div>
+                                {jobBreakdown.map(({ role, name, required, filled, fillPercent, actualIncome, isOwner }) => (
+                                    <div key={role} className="bg-gray-900/40 border border-gray-700/70 rounded-lg px-3 py-2">
+                                        <div className="flex items-center justify-between text-xs text-gray-200">
+                                            <span className="flex items-center gap-1">
+                                                {name}
+                                                {isOwner && (
+                                                    <span className="text-[9px] text-amber-400 bg-amber-900/40 px-1 py-0.5 rounded">业主</span>
+                                                )}
+                                            </span>
+                                            <span className="font-mono text-gray-300">
+                                                {Math.round(filled)}/{Math.round(required)}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center justify-between text-[10px] text-gray-500 mb-1">
+                                            <div>
+                                                <span className="mr-2">总岗位 {Math.round(required)}</span>
+                                                <span>实到 {Math.round(filled)}</span>
+                                            </div>
+                                            <div className="flex items-center gap-1">
+                                                <Icon name="Wallet" size={10} className={isOwner ? 'text-amber-400' : 'text-yellow-400'} />
+                                                <span className={`font-mono font-semibold ${actualIncome < 0 ? 'text-red-400' : isOwner ? 'text-amber-300' : 'text-yellow-300'}`}>
+                                                    {actualIncome.toFixed(2)}
+                                                </span>
+                                                <Icon name="Coins" size={10} className="text-yellow-200" />
+                                            </div>
+                                        </div>
+                                        <div className="w-full bg-gray-700 rounded-full h-2">
+                                            <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${Math.min(100, fillPercent)}%` }} />
+                                        </div>
+                                    </div>
+                                ))}
+                                <p className="text-[9px] text-gray-600 mt-1">
+                                    💡 默认显示本期实际人均收入（全局）；若无数据则按建筑估算：业主=(产出-投入-营业税-雇员工资)/岗位，雇员=市场工资
+                                </p>
+                            </div>
+                        )}
+                    </DetailSection>
+
+                    <DetailSection title="下一座建造成本" icon="ShoppingCart">
+                        <p className="text-[11px] text-gray-400 mb-2">
+                            需要先采购/支付下列资源与资金才能建造下一座建筑：
                         </p>
-                    )}
-                </div>
-            </DetailSection>
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                            {Object.entries(nextCost).map(([res, val]) => {
+                                const hasEnough = (resources[res] || 0) >= val;
+                                return (
+                                    <InfoRow
+                                        key={res}
+                                        label={RESOURCES[res]?.name || res}
+                                        value={`${val}`}
+                                        valueClass={hasEnough ? 'text-green-400' : 'text-red-400'}
+                                    />
+                                );
+                            })}
+                        </div>
+                        <div className="pt-2 mt-2 border-t border-gray-700/60">
+                            <div className="flex justify-between items-center py-0.5">
+                                <span className="text-gray-300 flex items-center gap-1.5">
+                                    <Icon name="Coins" size={14} className="text-yellow-400" /> 预计市场花费
+                                </span>
+                                <span className={`font-mono font-semibold ${hasSilver ? 'text-green-400' : 'text-red-400'}`}>
+                                    {formatSilverCost(nextSilverCost)}
+                                </span>
+                            </div>
+                            {!canAffordNext && (
+                                <p className="text-[10px] text-gray-500 mt-1">
+                                    当前库存或银币不足，需先从市场购入缺口资源。
+                                </p>
+                            )}
+                        </div>
+                    </DetailSection>
 
-            {/* 操作按钮 */}
-            <div className="grid grid-cols-2 gap-4 pt-2">
-                <button
-                    onClick={() => onBuy && onBuy(building.id)}
-                    disabled={!canAffordNext}
-                    className="w-full px-4 py-3 rounded-lg text-xs sm:text-sm font-bold transition-all bg-green-600 hover:bg-green-500 text-white shadow-lg hover:shadow-green-500/30 disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed disabled:shadow-none flex items-center justify-center gap-2"
-                >
-                    <Icon name="Plus" size={16} />
-                    <div className="flex flex-col items-center sm:flex-row sm:items-center gap-0 sm:gap-1 leading-tight whitespace-nowrap sm:whitespace-normal">
-                        <span className="tracking-wide">建造</span>
-                        <span className="font-mono text-[11px] sm:text-sm opacity-90 flex items-center gap-0.5">
-                            <span className="inline-flex items-center gap-0.5 sm:hidden">
-                                <Icon name="Coins" size={10} className="text-yellow-300" />
-                                {compactSilverCost}
-                            </span>
-                            <span className="hidden sm:inline-flex items-center gap-0.5">
-                                <Icon name="Coins" size={12} className="text-yellow-300" />
-                                ({formatSilverCost(nextSilverCost)})
-                            </span>
-                        </span>
+                    {/* 操作按钮 */}
+                    <div className="grid grid-cols-2 gap-4 pt-2">
+                        <button
+                            onClick={() => onBuy && onBuy(building.id)}
+                            disabled={!canAffordNext}
+                            className="w-full px-4 py-3 rounded-lg text-xs sm:text-sm font-bold transition-all bg-green-600 hover:bg-green-500 text-white shadow-lg hover:shadow-green-500/30 disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed disabled:shadow-none flex items-center justify-center gap-2"
+                        >
+                            <Icon name="Plus" size={16} />
+                            <div className="flex flex-col items-center sm:flex-row sm:items-center gap-0 sm:gap-1 leading-tight whitespace-nowrap sm:whitespace-normal">
+                                <span className="tracking-wide">建造</span>
+                                <span className="font-mono text-[11px] sm:text-sm opacity-90 flex items-center gap-0.5">
+                                    <span className="inline-flex items-center gap-0.5 sm:hidden">
+                                        <Icon name="Coins" size={10} className="text-yellow-300" />
+                                        {compactSilverCost}
+                                    </span>
+                                    <span className="hidden sm:inline-flex items-center gap-0.5">
+                                        <Icon name="Coins" size={12} className="text-yellow-300" />
+                                        ({formatSilverCost(nextSilverCost)})
+                                    </span>
+                                </span>
+                            </div>
+                        </button>
+
+                        {count > 0 && (
+                            <button
+                                onClick={() => onSell && onSell(building.id)}
+                                className="w-full px-4 py-3 bg-red-700 hover:bg-red-600 text-white rounded-lg text-sm font-bold transition-all shadow-lg hover:shadow-red-600/30 flex items-center justify-center gap-2"
+                            >
+                                <Icon name="Minus" size={16} />
+                                <span>拆除</span>
+                            </button>
+                        )}
                     </div>
-                </button>
-
-                {count > 0 && (
-                    <button
-                        onClick={() => onSell && onSell(building.id)}
-                        className="w-full px-4 py-3 bg-red-700 hover:bg-red-600 text-white rounded-lg text-sm font-bold transition-all shadow-lg hover:shadow-red-600/30 flex items-center justify-center gap-2"
-                    >
-                        <Icon name="Minus" size={16} />
-                        <span>拆除</span>
-                    </button>
-                )}
-            </div>
                 </>
             )}
 

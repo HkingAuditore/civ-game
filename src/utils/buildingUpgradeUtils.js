@@ -5,6 +5,22 @@
 import { BUILDING_UPGRADES, getBuildingEffectiveConfig } from '../config/buildingUpgrades';
 
 /**
+ * 计算建筑造价
+ * @param {Object} baseCost - 基础成本对象
+ * @param {number} count - 当前建筑数量
+ * @param {number} growthFactor - 成本增长系数 (默认 1.15)
+ * @returns {Object} 计算后的成本对象
+ */
+export const calculateBuildingCost = (baseCost, count, growthFactor = 1.15) => {
+    const cost = {};
+    const multiplier = Math.pow(growthFactor, count);
+    for (const [key, val] of Object.entries(baseCost || {})) {
+        cost[key] = Math.ceil(val * multiplier); // 使用 ceil 确保整数，避免浮点误差
+    }
+    return cost;
+};
+
+/**
  * 获取建筑在考虑升级后的总体效果
  * 对于有多个实例且各实例等级不同的建筑，计算加权总和
  * 

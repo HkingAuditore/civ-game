@@ -5,9 +5,12 @@
 
 // Difficulty level identifiers
 export const DIFFICULTY_LEVELS = {
+    VERY_EASY: 'very_easy',
     EASY: 'easy',
     NORMAL: 'normal',
     HARD: 'hard',
+    VERY_HARD: 'very_hard',
+    EXTREME: 'extreme',
 };
 
 // Default difficulty
@@ -15,6 +18,28 @@ export const DEFAULT_DIFFICULTY = DIFFICULTY_LEVELS.EASY;
 
 // Difficulty settings configuration
 export const DIFFICULTY_CONFIG = {
+    [DIFFICULTY_LEVELS.VERY_EASY]: {
+        id: DIFFICULTY_LEVELS.VERY_EASY,
+        name: '和平',
+        description: '极其轻松，专注于建设，几乎没有战争威胁',
+        icon: '🕊️',
+        // Organization/Rebellion modifiers
+        organizationGrowthMultiplier: 0.2,     // 20% organization growth rate
+        organizationDecayMultiplier: 2.0,      // 200% decay rate (very fast calming)
+        satisfactionThreshold: 25,             // Very lower threshold
+        buildingCostGrowthFactor: 1.05,        // Very cheap scaling (8%)
+        // AI War modifiers
+        aiWarDeclarationChance: 0.1,           // 10% of normal war declaration chance
+        aiMilitaryActionChance: 0.2,           // 20% of normal military action chance
+        aiMilitaryCooldownBonus: 30,           // Huge extra days added to AI cooldown
+        aiMinWarEpoch: 4,                      // AI can only declare war from Renaissance (epoch 4)
+        // Raid modifiers
+        raidDamageMultiplier: 0.3,             // 30% raid damage
+        raidPopulationLossMultiplier: 0.2,     // 20% population loss from raids
+        // Peace/Stability bonuses
+        stabilityDampeningBonus: 0.25,         // Massive stability dampening effect
+        newGameGracePeriod: 150,               // Long grace period
+    },
     [DIFFICULTY_LEVELS.EASY]: {
         id: DIFFICULTY_LEVELS.EASY,
         name: '简单',
@@ -24,6 +49,7 @@ export const DIFFICULTY_CONFIG = {
         organizationGrowthMultiplier: 0.5,    // 50% organization growth rate
         organizationDecayMultiplier: 1.5,      // 150% decay rate (faster calming)
         satisfactionThreshold: 35,             // Lower threshold before unrest starts (was 45)
+        buildingCostGrowthFactor: 1.10,        // Slightly cheaper scaling (12%)
         // AI War modifiers
         aiWarDeclarationChance: 0.5,           // 50% of normal war declaration chance
         aiMilitaryActionChance: 0.5,           // 50% of normal military action chance
@@ -45,6 +71,7 @@ export const DIFFICULTY_CONFIG = {
         organizationGrowthMultiplier: 1.0,     // 100% organization growth rate
         organizationDecayMultiplier: 1.0,      // 100% decay rate
         satisfactionThreshold: 45,             // Standard threshold
+        buildingCostGrowthFactor: 1.15,        // Standard scaling (15%)
         // AI War modifiers
         aiWarDeclarationChance: 1.0,           // 100% normal war declaration chance
         aiMilitaryActionChance: 1.0,           // 100% normal military action chance
@@ -66,6 +93,7 @@ export const DIFFICULTY_CONFIG = {
         organizationGrowthMultiplier: 1.5,     // 150% organization growth rate
         organizationDecayMultiplier: 0.7,      // 70% decay rate (slower calming)
         satisfactionThreshold: 55,             // Higher threshold - unrest starts earlier
+        buildingCostGrowthFactor: 1.20,        // Steeper scaling (20%)
         // AI War modifiers
         aiWarDeclarationChance: 1.5,           // 150% war declaration chance
         aiMilitaryActionChance: 1.5,           // 150% military action chance
@@ -76,6 +104,50 @@ export const DIFFICULTY_CONFIG = {
         raidPopulationLossMultiplier: 1.3,     // 130% population loss
         // Peace/Stability bonuses
         stabilityDampeningBonus: -0.1,         // Reduced stability effect
+        newGameGracePeriod: 0,                 // No grace period
+    },
+    [DIFFICULTY_LEVELS.VERY_HARD]: {
+        id: DIFFICULTY_LEVELS.VERY_HARD,
+        name: '灾厄',
+        description: '极高难度，内忧外患接踵而至，生存即是胜利',
+        icon: '☠️',
+        // Organization/Rebellion modifiers
+        organizationGrowthMultiplier: 2.0,     // 200% organization growth rate
+        organizationDecayMultiplier: 0.5,      // 50% decay rate
+        satisfactionThreshold: 65,             // Very high threshold
+        buildingCostGrowthFactor: 1.25,        // Very steep scaling (25%)
+        // AI War modifiers
+        aiWarDeclarationChance: 2.0,           // 200% war declaration chance
+        aiMilitaryActionChance: 2.0,           // 200% military action chance
+        aiMilitaryCooldownBonus: -10,          // Very reduced cooldown
+        aiMinWarEpoch: 0,                      // AI can declare war from start
+        // Raid modifiers
+        raidDamageMultiplier: 1.6,             // 160% raid damage
+        raidPopulationLossMultiplier: 1.6,     // 160% population loss
+        // Peace/Stability bonuses
+        stabilityDampeningBonus: -0.2,         // Negative stability effect
+        newGameGracePeriod: 0,                 // No grace period
+    },
+    [DIFFICULTY_LEVELS.EXTREME]: {
+        id: DIFFICULTY_LEVELS.EXTREME,
+        name: '地狱',
+        description: '绝望的深渊，只有最完美的策略才能存活',
+        icon: '👿',
+        // Organization/Rebellion modifiers
+        organizationGrowthMultiplier: 3.0,     // 300% organization growth rate
+        organizationDecayMultiplier: 0.3,      // 30% decay rate
+        satisfactionThreshold: 75,             // Extreme threshold
+        buildingCostGrowthFactor: 1.30,        // Extreme scaling (30%)
+        // AI War modifiers
+        aiWarDeclarationChance: 3.0,           // 300% war declaration chance
+        aiMilitaryActionChance: 3.0,           // 300% military action chance
+        aiMilitaryCooldownBonus: -15,          // Minimal cooldown
+        aiMinWarEpoch: 0,                      // AI can declare war from start
+        // Raid modifiers
+        raidDamageMultiplier: 2.0,             // 200% raid damage
+        raidPopulationLossMultiplier: 2.0,     // 200% population loss
+        // Peace/Stability bonuses
+        stabilityDampeningBonus: -0.3,         // Severe negative stability effect
         newGameGracePeriod: 0,                 // No grace period
     },
 };
@@ -213,6 +285,17 @@ export function isInGracePeriod(currentDay, difficultyLevel) {
     return currentDay < config.newGameGracePeriod;
 }
 
+/**
+ * Get building cost growth factor based on difficulty
+ * @param {string} difficultyLevel - Current difficulty level
+ * @returns {number} Growth factor (e.g. 1.15)
+ */
+export function getBuildingCostGrowthFactor(difficultyLevel) {
+    const config = getDifficultyConfig(difficultyLevel);
+    // Fallback to 1.15 if not defined
+    return config.buildingCostGrowthFactor || 1.15;
+}
+
 export default {
     DIFFICULTY_LEVELS,
     DEFAULT_DIFFICULTY,
@@ -228,5 +311,7 @@ export default {
     applyRaidDamageModifier,
     applyPopulationLossModifier,
     getStabilityDampeningBonus,
+    getStabilityDampeningBonus,
     isInGracePeriod,
+    getBuildingCostGrowthFactor,
 };

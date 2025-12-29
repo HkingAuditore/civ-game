@@ -521,15 +521,21 @@ const MECHANICS_GUIDES = [
             { type: 'h4', text: '2. 时代加成' },
             { type: 'p', text: '每次升级时代都会获得永久性的全局加成：' },
             {
-                type: 'list', items: [
-                    '青铜时代：采集效率+15%，军事力量+10%',
-                    '古典时代：采集效率+20%，军事力量+15%，文化产出+10%',
-                    '封建时代：采集效率+25%，军事力量+20%，文化产出+15%',
-                    '探索时代：采集效率+30%，军事力量+25%，文化产出+20%',
-                    '启蒙时代：采集效率+35%，军事力量+30%，文化产出+25%',
-                    '工业时代：采集效率+40%，军事力量+35%，文化产出+30%',
-                    '信息时代：采集效率+50%，军事力量+40%，文化产出+35%'
-                ]
+                type: 'list', items: EPOCHS.slice(1).map(epoch => {
+                    const b = epoch.bonuses;
+                    const parts = [];
+                    if (b.gatherBonus) parts.push(`采集效率+${(b.gatherBonus * 100).toFixed(0)}%`);
+                    if (b.militaryBonus) parts.push(`军事力量+${(b.militaryBonus * 100).toFixed(0)}%`);
+                    if (b.cultureBonus) parts.push(`文化产出+${(b.cultureBonus * 100).toFixed(0)}%`);
+                    if (b.scienceBonus) parts.push(`科研产出+${(b.scienceBonus * 100).toFixed(0)}%`);
+                    if (b.industryBonus) parts.push(`工业产出+${(b.industryBonus * 100).toFixed(0)}%`);
+                    if (b.tradeBonus || b.incomePercent) parts.push(`经济收入+${((b.tradeBonus || b.incomePercent) * 100).toFixed(0)}%`);
+                    if (b.maxPop) parts.push(`人口上限+${(b.maxPop * 100).toFixed(0)}%`);
+                    if (b.stability) parts.push(`稳定度+${b.stability}`);
+                    if (b.taxIncome) parts.push(`税收收入+${(b.taxIncome * 100).toFixed(0)}%`);
+
+                    return `${epoch.name}：${parts.join('，')}`;
+                })
             },
             { type: 'h4', text: '3. 解锁新机制' },
             { type: 'p', text: '新时代不仅仅解锁建筑，还会解锁核心机制：' },
