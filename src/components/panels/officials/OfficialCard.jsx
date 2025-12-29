@@ -164,8 +164,8 @@ export const OfficialCard = memo(({
                     description = `人口增长 ${isPositive ? '+' : ''}${(value * 100).toFixed(0)}%`;
                     break;
                 case 'researchSpeed':
-                    // 科研速度
-                    description = `科研速度 ${isPositive ? '+' : ''}${(value * 100).toFixed(0)}%`;
+                    // 科研产出加成
+                    description = `科研产出 ${isPositive ? '+' : ''}${(value * 100).toFixed(0)}%`;
                     break;
 
                 // ========== 政治类 ==========
@@ -280,6 +280,15 @@ export const OfficialCard = memo(({
                         <Icon name="Coins" size={12} />
                     </div>
                     <div className="text-[10px] text-gray-500">每日薪俸</div>
+                    {/* 在职官员显示个人财富 */}
+                    {!isCandidate && typeof official.wealth === 'number' && (
+                        <div className="flex items-center justify-end gap-1 text-blue-400 font-mono text-[10px] mt-1">
+                            <span>存款 {official.wealth.toFixed(0)}</span>
+                            {typeof official.lastDayExpense === 'number' && official.lastDayExpense > 0 && (
+                                <span className="text-gray-500">(-{official.lastDayExpense.toFixed(1)}/日)</span>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
 

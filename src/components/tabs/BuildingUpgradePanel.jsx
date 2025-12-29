@@ -136,7 +136,8 @@ const getMarketWage = (role, market = {}) => {
  * 业主收入 = (产出价值 - 投入成本 - 营业税 - 其他雇员工资) / 业主岗位数
  */
 const getRoleIncomesForConfig = (config, building, market, taxPolicies = {}) => {
-    const ownerKey = building?.owner;
+    // 使用升级后的 owner（如果有），否则使用基础建筑的 owner
+    const ownerKey = config?.owner || building?.owner;
     const jobEntries = Object.entries(config.jobs || {}).filter(([, slots]) => Number.isFinite(slots) && slots > 0);
     if (jobEntries.length === 0) return {};
 

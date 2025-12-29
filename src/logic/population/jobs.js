@@ -234,6 +234,7 @@ export const fillVacancies = ({
         const current = popStructure[role] || 0;
         const vacancy = Math.max(0, slots - current);
         if (vacancy <= 0) return null;
+        if (role === 'official') return null; // Officials are managed separately
         return {
             role,
             vacancy,
@@ -286,9 +287,10 @@ export const fillVacancies = ({
                     if (!canProvideCandidate(role, entry.role)) return false;
                     if (role === entry.role) return false; // Don't hire from same role
                     if (role === 'soldier') return false; // Soldier cannot migrate to other jobs
+                    if (role === 'official') return false; // Official is managed separately
                     const pop = popStructure[role] || 0;
                     if (pop <= 0) return false;
-                    
+
                     // CRITICAL FIX: For same-tier roles, only allow hiring from:
                     // 1. unemployed pool (always allowed)
                     // 2. roles that have surplus population (pop > jobsAvailable)
@@ -300,7 +302,7 @@ export const fillVacancies = ({
                         // Only hire from this role if it has MORE people than job slots
                         if (pop <= sourceSlots) return false;
                     }
-                    
+
                     return true;
                 })
                 .sort((a, b) => {
@@ -389,7 +391,8 @@ export const handleJobMigration = ({
     });
 
     // Calculate average potential income
-    const activeRoleMetrics = roleMetrics.filter(r => r.role !== 'soldier');
+    // 官员和士兵不参与普通阶层流动
+    const activeRoleMetrics = roleMetrics.filter(r => r.role !== 'soldier' && r.role !== 'official');
     if (activeRoleMetrics.length === 0) return { popStructure, wealth, migrationCooldowns: updatedCooldowns };
 
     const totalPotentialIncome = activeRoleMetrics.reduce(

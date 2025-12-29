@@ -48,10 +48,13 @@ export const hireOfficial = (officialId, currentCandidates, currentOfficials, ca
     const newCandidates = [...currentCandidates];
     newCandidates.splice(candidateIndex, 1);
 
-    // 添加到在任列表，并记录入职时间
+    // 添加到在任列表，并记录入职时间和初始财富
+    const OFFICIAL_STARTING_WEALTH = 400;
     const newOfficial = {
         ...candidate,
-        hireDate: currentDay
+        hireDate: currentDay,
+        wealth: OFFICIAL_STARTING_WEALTH,  // 官员个人存款
+        lastDayExpense: 0                   // 上日支出（用于显示）
     };
     const newOfficials = [...currentOfficials, newOfficial];
 

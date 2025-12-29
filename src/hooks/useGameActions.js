@@ -223,9 +223,13 @@ export const useGameActions = (gameState, addLog) => {
             return;
         }
 
-        const silverCost = Object.entries(cost).reduce((sum, [resource, amount]) => {
+        // 计算银币成本并应用官员建筑成本修正
+        const buildingCostMod = modifiers?.officialEffects?.buildingCostMod || 0;
+        let silverCost = Object.entries(cost).reduce((sum, [resource, amount]) => {
             return sum + amount * getMarketPrice(resource);
         }, 0);
+        silverCost *= (1 + buildingCostMod); // buildingCostMod 通常为负值（降低成本）
+        silverCost = Math.max(0, silverCost);
 
         if ((resources.silver || 0) < silverCost) {
             addLog('银币不足，无法支付建造费用');

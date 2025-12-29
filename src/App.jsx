@@ -4,6 +4,7 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback, useDeferredValue } from 'react';
 import { GAME_SPEEDS, EPOCHS, RESOURCES, STRATA, calculateArmyFoodNeed, calculateTotalArmyExpense, BUILDINGS, EVENTS, checkAndCreateCoalitionDemandEvent } from './config';
 import { getCalendarInfo } from './utils/calendar';
+import { calculateTotalDailySalary } from './logic/officials/manager';
 import { useGameState, useGameLoop, useGameActions, useSound, useEpicTheme, useViewportHeight, useDevicePerformance, useAchievements } from './hooks';
 import {
     Icon,
@@ -630,7 +631,9 @@ function GameApp({ gameState }) {
         gameState.population || 100,
         wageRatio
     );
-    const silverUpkeepPerDay = armyExpenseData.dailyExpense;
+    // 应用官员军费降低效果（militaryUpkeepMod 通常为负值）
+    const militaryUpkeepMod = gameState.modifiers?.officialEffects?.militaryUpkeepMod || 0;
+    const silverUpkeepPerDay = armyExpenseData.dailyExpense * (1 + militaryUpkeepMod);
     const tradeStats = gameState.tradeStats || { tradeTax: 0 };
     const tradeTax = tradeStats.tradeTax || 0;
     const playerInstallmentExpense = (gameState.playerInstallmentPayment && gameState.playerInstallmentPayment.remainingDays > 0)
@@ -656,7 +659,10 @@ function GameApp({ gameState }) {
         return merged;
     }, [gameState.classIncome, gameState.activeEventEffects?.forcedSubsidy]);
 
-    const netSilverPerDay = taxes.total + tradeTax - silverUpkeepPerDay - playerInstallmentExpense - forcedSubsidyExpense;
+    // 计算官员薪水支出
+    const officialSalaryPerDay = calculateTotalDailySalary(gameState.officials || []);
+
+    const netSilverPerDay = taxes.total + tradeTax - silverUpkeepPerDay - playerInstallmentExpense - forcedSubsidyExpense - officialSalaryPerDay;
     const netSilverClass = netSilverPerDay >= 0 ? 'text-green-300' : 'text-red-300';
     const netChipClasses = netSilverPerDay >= 0
         ? 'text-green-300 bg-green-900/20 hover:bg-green-900/40'
@@ -756,6 +762,7 @@ function GameApp({ gameState }) {
                     tradeStats={tradeStats}
                     armyFoodNeed={armyFoodNeed}
                     silverUpkeepPerDay={silverUpkeepPerDay}
+                    officialSalaryPerDay={officialSalaryPerDay}
                     playerInstallmentPayment={gameState.playerInstallmentPayment}
                     activeEventEffects={gameState.activeEventEffects}
                     onResourceDetailClick={(key) => gameState.setResourceDetailView(key)}

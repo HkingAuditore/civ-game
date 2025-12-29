@@ -376,7 +376,7 @@ const syncArmyWithSoldierPopulation = (armyState = {}, queueState = [], availabl
         let manpowerToRemove = currentArmyPopulation - effectiveAvailableForArmy;
         updatedArmy = { ...safeArmy };
         removedUnits = {};
-        
+
         // [FIX] 如果开启了自动补兵，记录需要重新排队的单位（保留编制意图）
         if (autoRecruitEnabled) {
             unitsToRequeue = {};
@@ -404,16 +404,16 @@ const syncArmyWithSoldierPopulation = (armyState = {}, queueState = [], availabl
             const { unitId, popCost, trainingTime } = entry;
             const removable = Math.min(entry.count, Math.ceil(manpowerToRemove / popCost));
             if (removable <= 0) continue;
-            
+
             updatedArmy[unitId] -= removable;
             manpowerToRemove -= removable * popCost;
-            
+
             if (updatedArmy[unitId] <= 0) {
                 delete updatedArmy[unitId];
             }
-            
+
             removedUnits[unitId] = (removedUnits[unitId] || 0) + removable;
-            
+
             // [FIX] 如果开启了自动补兵，记录单位信息用于重新排队（保留编制意图）
             if (autoRecruitEnabled) {
                 unitsToRequeue[unitId] = {
@@ -713,6 +713,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
         setModifiers, // Modifiers更新函数
         difficulty, // 游戏难度
         officials, // 官员系统
+        setOfficials, // 官员状态更新函数
     } = gameState;
 
     // 使用ref保存最新状态，避免闭包问题
@@ -1271,7 +1272,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 eventStratumDemandModifiers: stratumDemandModifiers,
                 eventBuildingProductionModifiers: buildingProductionModifiers,
                 previousLegitimacy: current.legitimacy ?? 0,
-                
+
                 // 官员系统
                 officials: current.officials || [],
                 officialsPaid: canAffordOfficials,
@@ -1369,14 +1370,14 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     if (amount <= 0) return;
                     adjustedResources[resource] = Math.max(0, (adjustedResources[resource] || 0) - amount);
                 });
-                
+
                 // 扣除官员薪水
                 if (officialDailySalary > 0) {
-                     // 即使这一帧因为钱不够而导致效果减半，也会扣光剩余的钱（或者如果不够就不扣？通常游戏逻辑是尽可能扣，然后产生后果）
-                     // 根据之前设计：Salary Insufficiency Penalty: If the treasury lacks sufficient silver... officials will not be dismissed. Instead, all active official effects will be halved.
-                     // 前面已经根据 canAffordOfficials 传给了 simulateTick。
-                     // 这里我们实际扣款。如果不够，就扣光。
-                     adjustedResources.silver = Math.max(0, (adjustedResources.silver || 0) - officialDailySalary);
+                    // 即使这一帧因为钱不够而导致效果减半，也会扣光剩余的钱（或者如果不够就不扣？通常游戏逻辑是尽可能扣，然后产生后果）
+                    // 根据之前设计：Salary Insufficiency Penalty: If the treasury lacks sufficient silver... officials will not be dismissed. Instead, all active official effects will be halved.
+                    // 前面已经根据 canAffordOfficials 传给了 simulateTick。
+                    // 这里我们实际扣款。如果不够，就扣光。
+                    adjustedResources.silver = Math.max(0, (adjustedResources.silver || 0) - officialDailySalary);
                 }
 
                 // 处理强制补贴效果（每日从国库支付给指定阶层）
@@ -1610,6 +1611,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     setClassLivingStandard(result.classLivingStandard || {});
                     if (result.army) {
                         setArmy(result.army); // 保存战斗损失
+                    }
+                    // 更新官员状态（含独立财务数据）
+                    if (result.officials) {
+                        setOfficials(result.officials);
                     }
                     setLivingStandardStreaks(result.livingStandardStreaks || current.livingStandardStreaks || {});
                     setMigrationCooldowns(result.migrationCooldowns || current.migrationCooldowns || {});

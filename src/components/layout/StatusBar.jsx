@@ -19,6 +19,7 @@ export const StatusBar = ({
     tradeStats = { tradeTax: 0 },
     armyFoodNeed,
     silverUpkeepPerDay = 0, // 新增：从 App.jsx 传入的实际军费
+    officialSalaryPerDay = 0, // 新增：官员薪水
     playerInstallmentPayment = null,
     activeEventEffects = {},
     onResourceDetailClick,
@@ -400,6 +401,12 @@ export const StatusBar = ({
                                                         <span className="text-ancient-stone">军饷维护</span>
                                                         <span className="text-red-300 font-mono">-{silverUpkeepPerDay.toFixed(1)}</span>
                                                     </div>
+                                                    {officialSalaryPerDay > 0 && (
+                                                        <div className="stat-item-compact">
+                                                            <span className="text-ancient-stone">官员薪俸</span>
+                                                            <span className="text-red-300 font-mono">-{officialSalaryPerDay.toFixed(1)}</span>
+                                                        </div>
+                                                    )}
                                                     {taxes.breakdown?.subsidy > 0 && (
                                                         <div className="stat-item-compact">
                                                             <span className="text-ancient-stone">补助支出</span>

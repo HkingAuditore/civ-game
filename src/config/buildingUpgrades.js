@@ -988,6 +988,7 @@ export const getBuildingEffectiveConfig = (building, level = 0) => {
             input: building.input || {},
             output: building.output || {},
             jobs: building.jobs || {},
+            owner: building.owner || null,
         };
     }
 
@@ -998,6 +999,7 @@ export const getBuildingEffectiveConfig = (building, level = 0) => {
             input: building.input || {},
             output: building.output || {},
             jobs: building.jobs || {},
+            owner: building.owner || null,
         };
     }
 
@@ -1007,8 +1009,10 @@ export const getBuildingEffectiveConfig = (building, level = 0) => {
         input: upgrade.input || building.input || {},
         output: upgrade.output || building.output || {},
         jobs: upgrade.jobs || building.jobs || {},
+        owner: upgrade.owner || building.owner || null,
     };
 };
+
 
 // 获取建筑的最大升级等级
 export const getMaxUpgradeLevel = (buildingId) => {

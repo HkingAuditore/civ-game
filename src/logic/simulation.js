@@ -294,6 +294,22 @@ export const simulateTick = ({
     const activeOfficialEffects = getAggregatedOfficialEffects(officials, officialsPaid);
     applyEffects(activeOfficialEffects, bonuses);
 
+    // === 应用官员专属效果到 bonuses ===
+    // 科研速度 → scienceBonus
+    if (activeOfficialEffects.researchSpeed) {
+        bonuses.scienceBonus = (bonuses.scienceBonus || 0) + activeOfficialEffects.researchSpeed;
+    }
+    // 税收效率 → 存储供税收计算使用
+    bonuses.taxEfficiencyBonus = activeOfficialEffects.taxEfficiency || 0;
+    // 人口增长 → 存储供人口计算使用
+    bonuses.populationGrowthBonus = activeOfficialEffects.populationGrowth || 0;
+    // 军费降低 → 存储供军费计算使用
+    bonuses.militaryUpkeepMod = activeOfficialEffects.militaryUpkeep || 0;
+    // 贸易加成 → 存储供贸易计算使用
+    bonuses.tradeBonusMod = activeOfficialEffects.tradeBonus || 0;
+    // 建筑成本 → 存储供建筑购买使用
+    bonuses.buildingCostMod = activeOfficialEffects.buildingCostMod || 0;
+
     // Destructure for backward compatibility with existing code
     const {
         buildingBonuses,
@@ -762,7 +778,10 @@ export const simulateTick = ({
     const defaultWageEstimate = calculateWeightedAverageWage(popStructure, previousWages);
 
     // 处理岗位上限（裁员）：如果职业人数超过岗位数，将多出的人转为失业
+    // 注意：official 阶层不参与自由流动，人数由雇佣的官员数决定
     ROLE_PRIORITY.forEach(role => {
+        if (role === 'official') return; // 官员不参与普通裁员逻辑
+
         const current = popStructure[role] || 0;
         const slots = Math.max(0, jobsAvailable[role] || 0);
         if (current > slots) {
@@ -781,6 +800,15 @@ export const simulateTick = ({
             }
         }
     });
+
+    // === 官员阶层特殊处理 ===
+    // 官员人数 = min(建筑提供的岗位, 雇佣的官员数)
+    const officialJobs = jobsAvailable.official || 0;
+    const hiredOfficialCount = Array.isArray(officials) ? officials.length : 0;
+    const actualOfficialCount = Math.min(officialJobs, hiredOfficialCount);
+    popStructure.official = actualOfficialCount;
+    // 官员财富由每位官员独立持有，不计入 wealth.official（清零以避免重复）
+    wealth.official = 0;
 
     let taxModifier = 1.0;
 
@@ -936,13 +964,6 @@ export const simulateTick = ({
         const count = builds[b.id] || 0;
         if (count === 0) return;
 
-        const ownerKey = b.owner || 'state';
-        if (wealth[ownerKey] === undefined) {
-            wealth[ownerKey] = STRATA[ownerKey]?.startingWealth || 0;
-        }
-
-        let multiplier = 1.0;
-
         // --- 计算升级加成后的基础数值 ---
         // buildingUpgrades[b.id] 格式为 { 等级: 数量 }，例如 { "1": 2, "2": 1 }
         const storedLevelCounts = buildingUpgrades[b.id] || {};
@@ -970,6 +991,33 @@ export const simulateTick = ({
                 levelCounts[lvl] = lvlCount;
             }
         });
+
+        // === 构建 owner 分组映射 ===
+        // 每个 owner 可能拥有不同等级的建筑，记录 { ownerKey: { levels: { lvl: count }, totalCount: N } }
+        const ownerLevelGroups = {};
+        Object.entries(levelCounts).forEach(([lvlStr, lvlCount]) => {
+            if (lvlCount <= 0) return;
+            const lvl = parseInt(lvlStr);
+            const config = getBuildingEffectiveConfig(b, lvl);
+            const ownerKey = config.owner || 'state';
+            if (!ownerLevelGroups[ownerKey]) {
+                ownerLevelGroups[ownerKey] = { levels: {}, totalCount: 0 };
+            }
+            ownerLevelGroups[ownerKey].levels[lvl] = lvlCount;
+            ownerLevelGroups[ownerKey].totalCount += lvlCount;
+        });
+
+        // 初始化所有涉及的 owner 的财富
+        Object.keys(ownerLevelGroups).forEach(ownerKey => {
+            if (wealth[ownerKey] === undefined) {
+                wealth[ownerKey] = STRATA[ownerKey]?.startingWealth || 0;
+            }
+        });
+
+        // 获取主要 owner（用于向后兼容现有逻辑中的部分判断）
+        const primaryOwnerKey = b.owner || 'state';
+
+        let multiplier = 1.0;
 
         if (!hasUpgrades && level0Count === count) {
             // 无升级快速路径
@@ -1077,7 +1125,7 @@ export const simulateTick = ({
                         availableSlots,
                     });
                 }
-                if (role !== ownerKey && roleFilled > 0) {
+                if (!Object.keys(ownerLevelGroups).includes(role) && roleFilled > 0) {
                     const cached = roleExpectedWages[role] ?? getExpectedWage(role);
                     const livingFloor = getLivingCostFloor(role);
                     const adjustedWage = Math.max(cached, livingFloor);
@@ -1204,8 +1252,16 @@ export const simulateTick = ({
             }
         }
         if (totalOperatingCostPerMultiplier > 0) {
-            const ownerCash = wealth[ownerKey] || 0;
-            const affordableMultiplier = ownerCash / totalOperatingCostPerMultiplier;
+            // 检查所有 owner 的财富是否足够支付运营成本
+            let minAffordableMultiplier = Infinity;
+            Object.entries(ownerLevelGroups).forEach(([oKey, group]) => {
+                const ownerProportion = group.totalCount / count;
+                const ownerOperatingCost = totalOperatingCostPerMultiplier * ownerProportion;
+                const ownerCash = wealth[oKey] || 0;
+                const ownerAffordable = ownerOperatingCost > 0 ? ownerCash / ownerOperatingCost : Infinity;
+                minAffordableMultiplier = Math.min(minAffordableMultiplier, ownerAffordable);
+            });
+            const affordableMultiplier = minAffordableMultiplier === Infinity ? targetMultiplier : minAffordableMultiplier;
             actualMultiplier = Math.min(actualMultiplier, Math.max(0, affordableMultiplier));
         }
 
@@ -1215,9 +1271,12 @@ export const simulateTick = ({
 
         const zeroApprovalFactor = 0.3;
         let approvalMultiplier = 1;
-        if (zeroApprovalClasses[ownerKey]) {
-            approvalMultiplier = Math.min(approvalMultiplier, zeroApprovalFactor);
-        }
+        // 检查所有 owner 的满意度
+        Object.keys(ownerLevelGroups).forEach(oKey => {
+            if (zeroApprovalClasses[oKey]) {
+                approvalMultiplier = Math.min(approvalMultiplier, zeroApprovalFactor);
+            }
+        });
         if (Object.keys(effectiveOps.jobs).length > 0) {
             Object.keys(effectiveOps.jobs).forEach(role => {
                 if (zeroApprovalClasses[role]) {
@@ -1232,59 +1291,79 @@ export const simulateTick = ({
 
         // 低效模式下不消耗输入原料（徒手采集）
         if (Object.keys(effectiveOps.input).length > 0 && !isInLowEfficiencyMode) {
+            // === 按等级精确计算每个等级的资源需求 ===
+            // 构建 levelInputNeeds: { lvl: { resKey: amount } }
+            const levelInputNeeds = {};
+            Object.entries(levelCounts).forEach(([lvlStr, lvlCount]) => {
+                if (lvlCount <= 0) return;
+                const lvl = parseInt(lvlStr);
+                const config = getBuildingEffectiveConfig(b, lvl);
+                if (!config.input || Object.keys(config.input).length === 0) return;
+                levelInputNeeds[lvl] = {};
+                Object.entries(config.input).forEach(([resKey, perBuildingAmount]) => {
+                    // 该等级的总需求 = 单建筑需求 × 建筑数量 × 实际效率
+                    levelInputNeeds[lvl][resKey] = perBuildingAmount * lvlCount * actualMultiplier;
+                });
+            });
+
+            // 遍历每个资源，按等级比例分配实际消费量
             for (const [resKey, totalAmount] of Object.entries(effectiveOps.input)) {
-                // Skip input requirement if resource is not unlocked yet
-                if (!isResourceUnlocked(resKey, epoch, techsUnlocked)) {
-                    continue;
-                }
+                if (!isResourceUnlocked(resKey, epoch, techsUnlocked)) continue;
 
                 const amountNeeded = totalAmount * actualMultiplier;
                 if (!amountNeeded || amountNeeded <= 0) continue;
                 const available = res[resKey] || 0;
                 const consumed = Math.min(amountNeeded, available);
+                const consumeRatio = amountNeeded > 0 ? consumed / amountNeeded : 0;
+
                 if (isTradableResource(resKey)) {
-                    // 先不统计需求，等实际消费后再统计
                     const price = getPrice(resKey);
                     const taxRate = getResourceTaxRate(resKey);
-                    const baseCost = consumed * price;
-                    const taxPaid = baseCost * taxRate;
-                    let totalCost = baseCost;
 
-                    if (taxPaid < 0) {
-                        const subsidyAmount = Math.abs(taxPaid);
-                        if ((res.silver || 0) >= subsidyAmount) {
-                            res.silver -= subsidyAmount;
-                            taxBreakdown.subsidy += subsidyAmount;
-                            totalCost -= subsidyAmount;
-                            // Record resource purchase subsidy as income for building owner
-                            roleWagePayout[ownerKey] = (roleWagePayout[ownerKey] || 0) + subsidyAmount;
+                    // === 按等级精确分配成本 ===
+                    Object.entries(levelInputNeeds).forEach(([lvlStr, resNeeds]) => {
+                        const lvl = parseInt(lvlStr);
+                        const levelNeed = resNeeds[resKey] || 0;
+                        if (levelNeed <= 0) return;
+
+                        // 该等级实际消费量 = 需求量 × 消费比例
+                        const levelConsumed = levelNeed * consumeRatio;
+                        if (levelConsumed <= 0) return;
+
+                        const config = getBuildingEffectiveConfig(b, lvl);
+                        const ownerKey = config.owner || 'state';
+
+                        const baseCost = levelConsumed * price;
+                        const taxPaid = baseCost * taxRate;
+                        let totalCost = baseCost;
+
+                        if (taxPaid < 0) {
+                            const subsidyAmount = Math.abs(taxPaid);
+                            if ((res.silver || 0) >= subsidyAmount) {
+                                res.silver -= subsidyAmount;
+                                taxBreakdown.subsidy += subsidyAmount;
+                                totalCost -= subsidyAmount;
+                                roleWagePayout[ownerKey] = (roleWagePayout[ownerKey] || 0) + subsidyAmount;
+                                if (classFinancialData[ownerKey]) {
+                                    classFinancialData[ownerKey].income.subsidy = (classFinancialData[ownerKey].income.subsidy || 0) + subsidyAmount;
+                                }
+                            }
+                        } else if (taxPaid > 0) {
+                            taxBreakdown.industryTax += taxPaid;
+                            totalCost += taxPaid;
                             if (classFinancialData[ownerKey]) {
-                                classFinancialData[ownerKey].income.subsidy = (classFinancialData[ownerKey].income.subsidy || 0) + subsidyAmount;
-                            }
-                        } else {
-                            if (tick % 20 === 0) {
-                                logs.push(`国库空虚，无法为 ${b.name} 支付 ${RESOURCES[resKey]?.name || resKey} 交易补贴！`);
+                                classFinancialData[ownerKey].expense.transactionTax = (classFinancialData[ownerKey].expense.transactionTax || 0) + taxPaid;
                             }
                         }
-                    } else if (taxPaid > 0) {
-                        taxBreakdown.industryTax += taxPaid;
-                        totalCost += taxPaid;
+
+                        wealth[ownerKey] = Math.max(0, (wealth[ownerKey] || 0) - totalCost);
+                        roleExpense[ownerKey] = (roleExpense[ownerKey] || 0) + totalCost;
                         if (classFinancialData[ownerKey]) {
-                            classFinancialData[ownerKey].expense.transactionTax = (classFinancialData[ownerKey].expense.transactionTax || 0) + taxPaid;
+                            classFinancialData[ownerKey].expense.productionCosts = (classFinancialData[ownerKey].expense.productionCosts || 0) + totalCost;
                         }
-                    }
+                    });
 
-                    wealth[ownerKey] = Math.max(0, (wealth[ownerKey] || 0) - totalCost);
-                    roleExpense[ownerKey] = (roleExpense[ownerKey] || 0) + totalCost;
-
-                    // NEW: Track production costs separately
-                    if (classFinancialData[ownerKey]) {
-                        classFinancialData[ownerKey].expense.productionCosts = (classFinancialData[ownerKey].expense.productionCosts || 0) + totalCost;
-                    }
-
-                    // 统计实际消费的需求量，而不是原始需求量
                     demand[resKey] = (demand[resKey] || 0) + consumed;
-                    // NEW: Track demand breakdown
                     if (!demandBreakdown[resKey]) demandBreakdown[resKey] = { buildings: {}, pop: 0 };
                     demandBreakdown[resKey].buildings[b.id] = (demandBreakdown[resKey].buildings[b.id] || 0) + consumed;
                 }
@@ -1338,9 +1417,10 @@ export const simulateTick = ({
 
             // 计算该等级的工资成本（使用基础工资估算）
             let levelWageCost = 0;
+            const levelOwnerKey = config.owner || 'state';
             if (config.jobs) {
                 Object.entries(config.jobs).forEach(([role, slots]) => {
-                    if (role === ownerKey) return;
+                    if (role === levelOwnerKey) return;
                     const wage = roleExpectedWages[role] ?? getExpectedWage(role);
                     levelWageCost += slots * wage;
                 });
@@ -1406,12 +1486,44 @@ export const simulateTick = ({
 
         let wageRatio = 0;
         if (plannedWageBill > 0) {
-            const available = wealth[ownerKey] || 0;
-            const paid = Math.min(available, plannedWageBill);
-            wealth[ownerKey] = available - paid;
-            // 记录owner支付工资的支出
-            roleExpense[ownerKey] = (roleExpense[ownerKey] || 0) + paid;
-            wageRatio = paid / plannedWageBill;
+            // === 按等级精确计算每个 owner 的工资责任 ===
+            // 构建 ownerWageBills: { ownerKey: totalWageBill }
+            const ownerWageBills = {};
+            Object.entries(levelCounts).forEach(([lvlStr, lvlCount]) => {
+                if (lvlCount <= 0) return;
+                const lvl = parseInt(lvlStr);
+                const config = getBuildingEffectiveConfig(b, lvl);
+                const ownerKey = config.owner || 'state';
+                if (!ownerWageBills[ownerKey]) ownerWageBills[ownerKey] = 0;
+
+                // 计算该等级的工资成本
+                if (config.jobs) {
+                    Object.entries(config.jobs).forEach(([role, slots]) => {
+                        // 跳过业主角色
+                        if (role === ownerKey) return;
+                        // 使用上面计算的预期工资
+                        const wage = getExpectedWage(role);
+                        const levelWageCost = slots * lvlCount * wage * utilization * (levelWagePressures[lvl] || 1);
+                        ownerWageBills[ownerKey] += levelWageCost;
+                    });
+                }
+            });
+
+            // 计算总工资账单和每个 owner 的支付能力
+            const totalOwnerBills = Object.values(ownerWageBills).reduce((sum, v) => sum + v, 0);
+            let totalPaid = 0;
+
+            // 按每个 owner 的实际工资责任支付
+            Object.entries(ownerWageBills).forEach(([oKey, ownerBill]) => {
+                if (ownerBill <= 0) return;
+                const available = wealth[oKey] || 0;
+                const paid = Math.min(available, ownerBill);
+                wealth[oKey] = available - paid;
+                roleExpense[oKey] = (roleExpense[oKey] || 0) + paid;
+                totalPaid += paid;
+            });
+
+            wageRatio = totalOwnerBills > 0 ? totalPaid / totalOwnerBills : 0;
         }
 
         preparedWagePlans.forEach(plan => {
@@ -1427,11 +1539,26 @@ export const simulateTick = ({
         });
 
         if (Object.keys(effectiveOps.output).length > 0) {
+            // === 按等级精确计算产出收入分配 ===
+            // 构建 levelOutputAmounts: { lvl: { resKey: amount } }
+            const levelOutputAmounts = {};
+            Object.entries(levelCounts).forEach(([lvlStr, lvlCount]) => {
+                if (lvlCount <= 0) return;
+                const lvl = parseInt(lvlStr);
+                const config = getBuildingEffectiveConfig(b, lvl);
+                if (!config.output || Object.keys(config.output).length === 0) return;
+                levelOutputAmounts[lvl] = {};
+                Object.entries(config.output).forEach(([resKey, perBuildingAmount]) => {
+                    levelOutputAmounts[lvl][resKey] = perBuildingAmount * lvlCount * actualMultiplier;
+                });
+            });
+
             for (const [resKey, totalAmount] of Object.entries(effectiveOps.output)) {
                 let amount = totalAmount * actualMultiplier;
                 if (!amount || amount <= 0) continue;
 
                 // 为可交易资源添加产出浮动（80%-120%）
+                let variationFactor = 1;
                 if (isTradableResource(resKey) && resKey !== 'silver') {
                     const resourceDef = RESOURCES[resKey];
                     const resourceMarketConfig = resourceDef?.marketConfig || {};
@@ -1440,17 +1567,14 @@ export const simulateTick = ({
                         ? resourceMarketConfig.outputVariation
                         : (defaultMarketInfluence.outputVariation || 0.2);
 
-                    // 产出浮动：(1 - variation) 到 (1 + variation)
-                    const variationFactor = 1 + (Math.random() * 2 - 1) * outputVariation;
+                    variationFactor = 1 + (Math.random() * 2 - 1) * outputVariation;
                     amount *= variationFactor;
 
-                    // 应用政令供应修饰符
                     const supplyMod = decreeResourceSupplyMod[resKey] || 0;
                     if (supplyMod !== 0) {
                         amount *= (1 + supplyMod);
                     }
 
-                    // 应用庆典/科技/政令的特殊资源加成
                     if (resKey === 'science' && bonuses.scienceBonus) {
                         amount *= (1 + bonuses.scienceBonus);
                     }
@@ -1459,14 +1583,28 @@ export const simulateTick = ({
                     }
                 }
 
-                // Skip maxPop - it's calculated separately in the building count loop above
-                // and should not be affected by economic factors (actualMultiplier)
                 if (resKey === 'maxPop') continue;
                 if (isTradableResource(resKey)) {
-                    sellProduction(resKey, amount, ownerKey);
-                    rates[resKey] = (rates[resKey] || 0) + amount;
+                    // === 按等级精确分配产出收入 ===
+                    Object.entries(levelOutputAmounts).forEach(([lvlStr, resOutputs]) => {
+                        const lvl = parseInt(lvlStr);
+                        const levelBaseOutput = resOutputs[resKey] || 0;
+                        if (levelBaseOutput <= 0) return;
 
-                    // NEW: Track building supply
+                        // 该等级实际产出 = 基础产出 × 浮动因子 × 各种加成
+                        // 计算该等级占总产出的比例
+                        const baseTotal = totalAmount * actualMultiplier;
+                        const proportion = baseTotal > 0 ? levelBaseOutput / baseTotal : 0;
+                        const levelAmount = amount * proportion;
+
+                        if (levelAmount <= 0) return;
+
+                        const config = getBuildingEffectiveConfig(b, lvl);
+                        const ownerKey = config.owner || 'state';
+                        sellProduction(resKey, levelAmount, ownerKey);
+                    });
+
+                    rates[resKey] = (rates[resKey] || 0) + amount;
                     if (!supplyBreakdown[resKey]) supplyBreakdown[resKey] = { buildings: {}, imports: 0 };
                     supplyBreakdown[resKey].buildings[b.id] = (supplyBreakdown[resKey].buildings[b.id] || 0) + amount;
                 } else {
@@ -1481,38 +1619,41 @@ export const simulateTick = ({
             const totalBusinessTax = businessTaxPerBuilding * count * actualMultiplier;
 
             if (totalBusinessTax > 0) {
-                // 正值：收税
-                const ownerWealth = wealth[ownerKey] || 0;
-                if (ownerWealth >= totalBusinessTax) {
-                    // 业主有足够财产支付营业税
-                    wealth[ownerKey] = ownerWealth - totalBusinessTax;
-                    // 营业税单独统计，不计入生活支出
-                    roleBusinessTaxPaid[ownerKey] = (roleBusinessTaxPaid[ownerKey] || 0) + totalBusinessTax;
-                    roleExpense[ownerKey] = (roleExpense[ownerKey] || 0) + totalBusinessTax;
-                    taxBreakdown.businessTax += totalBusinessTax;
-
-                    if (classFinancialData[ownerKey]) {
-                        // 营业税单独记录
-                        classFinancialData[ownerKey].expense.businessTax = (classFinancialData[ownerKey].expense.businessTax || 0) + totalBusinessTax;
+                // 正值：按 owner 比例收税
+                let actualTaxCollected = 0;
+                Object.entries(ownerLevelGroups).forEach(([oKey, group]) => {
+                    const proportion = group.totalCount / count;
+                    const ownerTax = totalBusinessTax * proportion;
+                    const ownerWealth = wealth[oKey] || 0;
+                    if (ownerWealth >= ownerTax) {
+                        wealth[oKey] = ownerWealth - ownerTax;
+                        roleBusinessTaxPaid[oKey] = (roleBusinessTaxPaid[oKey] || 0) + ownerTax;
+                        roleExpense[oKey] = (roleExpense[oKey] || 0) + ownerTax;
+                        actualTaxCollected += ownerTax;
+                        if (classFinancialData[oKey]) {
+                            classFinancialData[oKey].expense.businessTax = (classFinancialData[oKey].expense.businessTax || 0) + ownerTax;
+                        }
+                    } else if (tick % 30 === 0 && ownerWealth < ownerTax * 0.5) {
+                        logs.push(`⚠️ ${STRATA[oKey]?.name || oKey} 无力支付 ${b.name} 的营业税，政府放弃征收。`);
                     }
-                } else {
-                    // 业主财产不足，放弃收税
-                    if (tick % 30 === 0 && ownerWealth < totalBusinessTax * 0.5) {
-                        logs.push(`⚠️ ${STRATA[ownerKey]?.name || ownerKey} 无力支付 ${b.name} 的营业税，政府放弃征收。`);
-                    }
-                }
+                });
+                taxBreakdown.businessTax += actualTaxCollected;
             } else if (totalBusinessTax < 0) {
-                // 负值：补贴
+                // 负值：按 owner 比例发放补贴
                 const subsidyAmount = Math.abs(totalBusinessTax);
                 const treasury = res.silver || 0;
                 if (treasury >= subsidyAmount) {
                     res.silver = treasury - subsidyAmount;
-                    wealth[ownerKey] = (wealth[ownerKey] || 0) + subsidyAmount;
-                    roleWagePayout[ownerKey] = (roleWagePayout[ownerKey] || 0) + subsidyAmount;
                     taxBreakdown.subsidy += subsidyAmount;
-                    if (classFinancialData[ownerKey]) {
-                        classFinancialData[ownerKey].income.subsidy = (classFinancialData[ownerKey].income.subsidy || 0) + subsidyAmount;
-                    }
+                    Object.entries(ownerLevelGroups).forEach(([oKey, group]) => {
+                        const proportion = group.totalCount / count;
+                        const ownerSubsidy = subsidyAmount * proportion;
+                        wealth[oKey] = (wealth[oKey] || 0) + ownerSubsidy;
+                        roleWagePayout[oKey] = (roleWagePayout[oKey] || 0) + ownerSubsidy;
+                        if (classFinancialData[oKey]) {
+                            classFinancialData[oKey].income.subsidy = (classFinancialData[oKey].income.subsidy || 0) + ownerSubsidy;
+                        }
+                    });
                 } else {
                     if (tick % 30 === 0) {
                         logs.push(`⚠️ 国库空虚，无法为 ${b.name} 支付营业补贴！`);
@@ -1639,7 +1780,8 @@ export const simulateTick = ({
                 const roleSlots = perBuilding * count;
                 if (roleSlots <= 0) return;
                 roleWageStats[role].totalSlots += roleSlots;
-                if (role !== ownerKey) {
+                // 检查是否是任何等级的业主
+                if (!Object.keys(ownerLevelGroups).includes(role)) {
                     // 修复：使用预期工资而非硬编码的 0
                     const expectedWage = getExpectedWage(role);
                     const actualWagePerSlot = expectedWage;
@@ -2763,7 +2905,7 @@ export const simulateTick = ({
             const totalWealthForStratum = classWealthResult[key] || 0;
             const perCapitaWealth = count > 0 ? totalWealthForStratum / count : 0;
             const wealthFactor = Math.max(0.3, Math.min(2, perCapitaWealth / WEALTH_BASELINE));
-            const birthRate = FERTILITY_BASE_RATE * approvalFactor * wealthFactor;
+            const birthRate = FERTILITY_BASE_RATE * approvalFactor * wealthFactor * (1 + (bonuses.populationGrowthBonus || 0));
             if (birthRate <= 0) return;
             let expectedBirths = count * birthRate;
             if (expectedBirths <= 0) return;
@@ -3308,6 +3450,15 @@ export const simulateTick = ({
             const profitText = totalProfit >= 0 ? `盈利${totalProfit.toFixed(1)}` : `亏损${Math.abs(totalProfit).toFixed(1)}`;
             logs.push(`🛒 商人自主贸易: ${parts.join(', ')}，${profitText}银币`);
         }
+
+        // 应用官员贸易加成到商人财富
+        if (bonuses.tradeBonusMod && totalProfit > 0) {
+            const tradeBonus = totalProfit * bonuses.tradeBonusMod;
+            wealth.merchant = (wealth.merchant || 0) + tradeBonus;
+            if (classFinancialData?.merchant) {
+                classFinancialData.merchant.income.ownerRevenue = (classFinancialData.merchant.income.ownerRevenue || 0) + tradeBonus;
+            }
+        }
     }
     // Clean up completedTrades from state (not needed for persistence)
     if ('completedTrades' in updatedMerchantState) {
@@ -3665,10 +3816,12 @@ export const simulateTick = ({
     });
     totalWealth = Object.values(classWealthResult).reduce((sum, val) => sum + val, 0);
 
-    const collectedHeadTax = taxBreakdown.headTax * efficiency;
-    const collectedIndustryTax = taxBreakdown.industryTax * efficiency;
-    const collectedBusinessTax = taxBreakdown.businessTax * efficiency;
-    const collectedTariff = (taxBreakdown.tariff || 0) * efficiency; // 关税收入
+    // 应用官员税收效率加成
+    const effectiveTaxEfficiency = efficiency * (1 + (bonuses.taxEfficiencyBonus || 0));
+    const collectedHeadTax = taxBreakdown.headTax * effectiveTaxEfficiency;
+    const collectedIndustryTax = taxBreakdown.industryTax * effectiveTaxEfficiency;
+    const collectedBusinessTax = taxBreakdown.businessTax * effectiveTaxEfficiency;
+    const collectedTariff = (taxBreakdown.tariff || 0) * effectiveTaxEfficiency; // 关税收入
     const tariffSubsidy = taxBreakdown.tariffSubsidy || 0; // 关税补贴支出
     const totalCollectedTax = collectedHeadTax + collectedIndustryTax + collectedBusinessTax + collectedTariff;
 
@@ -3711,6 +3864,59 @@ export const simulateTick = ({
             },
         },
     };
+
+    // === 官员独立财务计算 ===
+    // 每位官员独立计算收入(薪水)和支出(需求消费)
+    const updatedOfficials = (officials || []).map(official => {
+        if (!official) return official;
+
+        // 初始化 wealth（向后兼容：旧存档可能没有 wealth）
+        let currentWealth = typeof official.wealth === 'number' ? official.wealth : 400;
+
+        // 收入：如果足额支付薪水，获得薪水
+        if (officialsPaid && typeof official.salary === 'number') {
+            currentWealth += official.salary;
+        }
+
+        // 支出：按 STRATA.official.needs 计算需求成本
+        // 使用简化计算：基础需求 * 市场价格
+        const officialNeeds = STRATA.official?.needs || { food: 1.2, cloth: 0.2 };
+        let dailyExpense = 0;
+
+        Object.entries(officialNeeds).forEach(([resource, baseAmount]) => {
+            const price = priceMap[resource] || 1;
+            dailyExpense += baseAmount * price;
+        });
+
+        // 基于财富水平的奢侈需求（简化版）
+        const wealthRatio = currentWealth / 400; // 相对于初始财富的比例
+        if (wealthRatio >= 1.0 && STRATA.official?.luxuryNeeds) {
+            // 找到适用的奢侈需求等级
+            const luxuryThresholds = Object.keys(STRATA.official.luxuryNeeds)
+                .map(Number)
+                .filter(t => t <= wealthRatio)
+                .sort((a, b) => b - a);
+
+            luxuryThresholds.forEach(threshold => {
+                const needs = STRATA.official.luxuryNeeds[threshold];
+                if (needs) {
+                    Object.entries(needs).forEach(([resource, amount]) => {
+                        const price = priceMap[resource] || 1;
+                        dailyExpense += amount * price;
+                    });
+                }
+            });
+        }
+
+        // 扣除支出
+        currentWealth = Math.max(0, currentWealth - dailyExpense);
+
+        return {
+            ...official,
+            wealth: currentWealth,
+            lastDayExpense: dailyExpense
+        };
+    });
 
     // console.log('[TICK END]', tick, 'militaryCapacity:', militaryCapacity); // Commented for performance
     return {
@@ -3794,7 +4000,16 @@ export const simulateTick = ({
                 // 阶层财富增长对需求的影响（财富越高需求越高）
                 stratumWealthMultiplier: stratumWealthMultipliers,
             },
+            // 官员效果修饰符（供外部使用）
+            officialEffects: {
+                buildingCostMod: bonuses.buildingCostMod || 0,
+                militaryUpkeepMod: bonuses.militaryUpkeepMod || 0,
+                taxEfficiencyBonus: bonuses.taxEfficiencyBonus || 0,
+                populationGrowthBonus: bonuses.populationGrowthBonus || 0,
+                tradeBonusMod: bonuses.tradeBonusMod || 0,
+            },
         },
         army, // 确保返回army状态，以便保存战斗损失
+        officials: updatedOfficials, // 更新后的官员列表（含财务数据）
     };
 };
