@@ -30,7 +30,7 @@ export const OfficialsPanel = ({
     return (
         <div className="space-y-6 p-2">
 
-            {/* 1. Overview Section */}
+            {/* 1. 概览区域 */}
             <div className="bg-gray-900/60 rounded-xl p-4 border border-gray-700/50 shadow-sm relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-3 opacity-10 pointer-events-none">
                     <Icon name="Landmark" size={80} className="text-purple-400" />
@@ -40,23 +40,23 @@ export const OfficialsPanel = ({
                     <div>
                         <h3 className="text-lg font-bold text-gray-100 flex items-center gap-2">
                             <Icon name="Users" className="text-purple-400" />
-                            Official Management
+                            官员管理
                         </h3>
                         <p className="text-xs text-gray-400 mt-1 max-w-md">
-                            Appoint officials to manage various aspects of your nation. High-ranking officials provide significant bonuses but require daily salaries.
+                            任命官员来管理你的国家事务。高级官员可提供显著加成，但需要支付每日薪俸。
                         </p>
                     </div>
 
                     <div className="flex items-center gap-4 bg-gray-800/50 p-2 rounded-lg border border-gray-700/30">
                         <div className="text-center px-2">
-                            <div className="text-[10px] text-gray-500 uppercase tracking-wider">Capacity</div>
+                            <div className="text-[10px] text-gray-500 uppercase tracking-wider">编制</div>
                             <div className={`text-xl font-mono font-bold ${isAtCapacity ? 'text-yellow-400' : 'text-gray-200'}`}>
                                 {currentCount} <span className="text-gray-500 text-sm">/ {capacity}</span>
                             </div>
                         </div>
                         <div className="w-px h-8 bg-gray-700/50"></div>
                         <div className="text-center px-2">
-                            <div className="text-[10px] text-gray-500 uppercase tracking-wider">Daily Cost</div>
+                            <div className="text-[10px] text-gray-500 uppercase tracking-wider">每日开支</div>
                             <div className={`text-xl font-mono font-bold flex items-center gap-1 ${canAffordSalaries ? 'text-gray-200' : 'text-red-400'}`}>
                                 {totalDailySalary} <Icon name="Coins" size={14} className="text-yellow-500" />
                             </div>
@@ -65,18 +65,18 @@ export const OfficialsPanel = ({
                 </div>
             </div>
 
-            {/* 2. Selection Area */}
+            {/* 2. 候选人选拔区域 */}
             <div className="flex items-center justify-between bg-gray-800/30 p-3 rounded-lg border border-gray-700/30">
                 <div className="flex items-center gap-3">
                     <div className="bg-purple-900/20 p-2 rounded-lg text-purple-400">
                         <Icon name="Scroll" size={24} />
                     </div>
                     <div>
-                        <h4 className="font-bold text-gray-200 text-sm">Candidate Selection</h4>
+                        <h4 className="font-bold text-gray-200 text-sm">候选人选拔</h4>
                         <p className="text-xs text-gray-500">
                             {selectionReady
-                                ? "New candidates can be summoned."
-                                : `Next selection available in ${daysRemaining} days.`
+                                ? "可以召集新的候选人。"
+                                : `距离下次选拔还需 ${daysRemaining} 天。`
                             }
                         </p>
                     </div>
@@ -92,16 +92,16 @@ export const OfficialsPanel = ({
                     `}
                 >
                     <Icon name="RefreshCw" size={14} className={selectionReady ? '' : 'animate-none'} />
-                    {selectionReady ? 'Summon Candidates' : 'On Cooldown'}
+                    {selectionReady ? '召集候选人' : '冷却中'}
                 </button>
             </div>
 
-            {/* 3. Candidates Grid */}
+            {/* 3. 候选人列表 */}
             {candidates.length > 0 && (
                 <div>
                     <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                         <span className="w-1.5 h-1.5 rounded-full bg-blue-400 display-inline-block"></span>
-                        Available Candidates
+                        待选候选人
                     </h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                         {candidates.map(candidate => (
@@ -118,17 +118,17 @@ export const OfficialsPanel = ({
                 </div>
             )}
 
-            {/* 4. Active Officials Grid */}
+            {/* 4. 在任官员列表 */}
             <div>
                 <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                     <span className="w-1.5 h-1.5 rounded-full bg-green-400 display-inline-block"></span>
-                    Employed Officials
+                    在任官员
                 </h4>
                 {officials.length === 0 ? (
                     <div className="text-center py-10 bg-gray-800/20 rounded-lg border border-dashed border-gray-700 text-gray-500">
                         <Icon name="UserX" size={32} className="mx-auto mb-2 opacity-50" />
-                        <p className="text-sm">No officials currently employed.</p>
-                        <p className="text-xs opacity-70">Hire candidates to gain bonuses.</p>
+                        <p className="text-sm">当前没有在任官员。</p>
+                        <p className="text-xs opacity-70">雇佣候选人以获得加成。</p>
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
@@ -148,9 +148,9 @@ export const OfficialsPanel = ({
                 <div className="mt-4 p-3 bg-red-900/20 border border-red-800/50 rounded-lg flex items-start gap-3">
                     <Icon name="AlertTriangle" className="text-red-400 mt-0.5" />
                     <div>
-                        <div className="text-sm font-bold text-red-300">Treasury Insufficient</div>
+                        <div className="text-sm font-bold text-red-300">国库资金不足</div>
                         <div className="text-xs text-red-400/80">
-                            You cannot afford full salaries. Official effects are reduced by 50% until salaries are paid.
+                            无法支付全额薪俸，官员效果将降低 50%，直到薪俸补齐为止。
                         </div>
                     </div>
                 </div>

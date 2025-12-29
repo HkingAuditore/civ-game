@@ -53,7 +53,7 @@ export const calculateClassApproval = ({
         const headBase = STRATA[key]?.headTaxBase ?? 0.01;
         const taxPerCapita = Math.max(0, headBase * headRate * effectiveTaxModifier);
         const incomePerCapita = (roleWagePayout[key] || 0) / Math.max(1, count);
-        
+
         if (incomePerCapita > 0.001 && taxPerCapita > incomePerCapita * 0.5) {
             targetApproval = Math.min(targetApproval, 40); // Tax burden cap
         } else if (headRate < 0.6) {
@@ -172,6 +172,8 @@ export const calculateClassApproval = ({
  */
 export const calculateDecreeApprovalModifiers = (decrees = []) => {
     const modifiers = {};
+
+    if (!Array.isArray(decrees)) return modifiers;
 
     decrees.forEach(d => {
         if (d.active && d.modifiers?.approval) {

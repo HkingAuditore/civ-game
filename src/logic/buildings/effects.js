@@ -206,6 +206,7 @@ export const applyEffects = (effects, bonuses) => {
  * @param {Object} bonuses - Bonus structures to modify
  */
 export const applyTechEffects = (techsUnlocked, bonuses) => {
+    if (!Array.isArray(techsUnlocked)) return;
     techsUnlocked.forEach(id => {
         const tech = TECH_MAP[id];
         if (!tech || !tech.effects) return;
@@ -219,6 +220,7 @@ export const applyTechEffects = (techsUnlocked, bonuses) => {
  * @param {Object} bonuses - Bonus structures to modify
  */
 export const applyDecreeEffects = (decrees, bonuses) => {
+    if (!Array.isArray(decrees)) return;
     decrees.forEach(decree => {
         if (!decree || !decree.active || !decree.modifiers) return;
 
@@ -239,6 +241,7 @@ export const applyDecreeEffects = (decrees, bonuses) => {
  * @param {Object} bonuses - Bonus structures to modify
  */
 export const applyFestivalEffects = (activeFestivalEffects, bonuses) => {
+    if (!Array.isArray(activeFestivalEffects)) return;
     activeFestivalEffects.forEach(festivalEffect => {
         if (!festivalEffect || !festivalEffect.effects) return;
         applyEffects(festivalEffect.effects, bonuses);

@@ -977,7 +977,6 @@ export const useGameState = () => {
                 activeTab,
                 gameSpeed,
                 isPaused,
-                decrees,
                 nations,
                 officials,
                 officialCandidates,

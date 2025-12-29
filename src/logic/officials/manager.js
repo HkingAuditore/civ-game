@@ -10,13 +10,15 @@ export const OFFICIAL_SELECTION_COOLDOWN = 180;
 /**
  * 触发新一轮选拔
  * @param {number} epoch - 当前时代
+ * @param {Object} popStructure - 当前人口结构 { stratumKey: population }
+ * @param {Object} classInfluence - 当前影响力占比 { stratumKey: influencePercent }
  * @returns {Array} 新生成的候选人列表
  */
-export const triggerSelection = (epoch) => {
+export const triggerSelection = (epoch, popStructure = {}, classInfluence = {}) => {
     const candidates = [];
     // 固定生成5名候选人
     for (let i = 0; i < 5; i++) {
-        candidates.push(generateRandomOfficial(epoch));
+        candidates.push(generateRandomOfficial(epoch, popStructure, classInfluence));
     }
     return candidates;
 };
@@ -41,7 +43,7 @@ export const hireOfficial = (officialId, currentCandidates, currentOfficials, ca
     }
 
     const candidate = currentCandidates[candidateIndex];
-    
+
     // 从候选列表移除
     const newCandidates = [...currentCandidates];
     newCandidates.splice(candidateIndex, 1);
@@ -94,21 +96,48 @@ export const isSelectionAvailable = (lastDay, currentDay) => {
  */
 export const getAggregatedOfficialEffects = (officials, isPaid) => {
     const aggregated = {
+        // 生产类
         buildings: {},
         buildingProductionMod: {},
-        decreeStratumDemandMod: {},
-        decreeResourceDemandMod: {},
+        wartimeProduction: 0,
+
+        // 经济类
+        tradeBonus: 0,
+        taxEfficiency: 0,
+        buildingCostMod: 0,
+        incomePercentBonus: 0,
         passiveGains: {},
         passivePercentGains: {},
-        approval: {}, // { stratum: val }
-        // scalar values
+        corruption: 0,
+
+        // 需求/资源类
+        decreeStratumDemandMod: {},
+        decreeResourceDemandMod: {},
+        resourceSupplyMod: {},
+        resourceWaste: {},
         needsReduction: 0,
+
+        // 人口/发展类
         extraMaxPop: 0,
-        incomePercentBonus: 0,
+        populationGrowth: 0,
+        researchSpeed: 0,
+
+        // 政治类
+        approval: {},
+        coalitionApproval: 0,
+        legitimacyBonus: 0,
+        organizationDecay: 0,
+        factionConflict: 0,
         stability: 0,
+
+        // 军事类
         militaryBonus: 0,
-        scienceBonus: 0,
-        cultureBonus: 0,
+        militaryUpkeep: 0,
+
+        // 外交类
+        diplomaticBonus: 0,
+        diplomaticCooldown: 0,
+        diplomaticIncident: 0,
     };
 
     if (!officials || !Array.isArray(officials)) return aggregated;
@@ -120,26 +149,34 @@ export const getAggregatedOfficialEffects = (officials, isPaid) => {
         const val = eff.value * multiplier;
 
         switch (eff.type) {
+            // 生产类
             case 'buildings':
                 if (eff.target) {
                     aggregated.buildings[eff.target] = (aggregated.buildings[eff.target] || 0) + val;
                 }
                 break;
             case 'buildingProductionMod':
-            case 'categories': // categories also allow modifying production mod
+            case 'categories':
                 if (eff.target) {
                     aggregated.buildingProductionMod[eff.target] = (aggregated.buildingProductionMod[eff.target] || 0) + val;
                 }
                 break;
-            case 'stratumDemandMod':
-                if (eff.target) {
-                    aggregated.decreeStratumDemandMod[eff.target] = (aggregated.decreeStratumDemandMod[eff.target] || 0) + val;
-                }
+            case 'wartimeProduction':
+                aggregated.wartimeProduction += val;
                 break;
-            case 'resourceDemandMod':
-                if (eff.target) {
-                    aggregated.decreeResourceDemandMod[eff.target] = (aggregated.decreeResourceDemandMod[eff.target] || 0) + val;
-                }
+
+            // 经济类
+            case 'tradeBonus':
+                aggregated.tradeBonus += val;
+                break;
+            case 'taxEfficiency':
+                aggregated.taxEfficiency += val;
+                break;
+            case 'buildingCostMod':
+                aggregated.buildingCostMod += val;
+                break;
+            case 'incomePercent':
+                aggregated.incomePercentBonus += val;
                 break;
             case 'passive':
                 if (eff.target) {
@@ -151,42 +188,148 @@ export const getAggregatedOfficialEffects = (officials, isPaid) => {
                     aggregated.passivePercentGains[eff.target] = (aggregated.passivePercentGains[eff.target] || 0) + val;
                 }
                 break;
+            case 'corruption':
+                aggregated.corruption += val;
+                break;
+
+            // 需求/资源类
+            case 'stratumDemandMod':
+                if (eff.target) {
+                    aggregated.decreeStratumDemandMod[eff.target] = (aggregated.decreeStratumDemandMod[eff.target] || 0) + val;
+                }
+                break;
+            case 'resourceDemandMod':
+                if (eff.target) {
+                    aggregated.decreeResourceDemandMod[eff.target] = (aggregated.decreeResourceDemandMod[eff.target] || 0) + val;
+                }
+                break;
+            case 'resourceSupplyMod':
+                if (eff.target) {
+                    aggregated.resourceSupplyMod[eff.target] = (aggregated.resourceSupplyMod[eff.target] || 0) + val;
+                }
+                break;
+            case 'resourceWaste':
+                if (eff.target) {
+                    aggregated.resourceWaste[eff.target] = (aggregated.resourceWaste[eff.target] || 0) + val;
+                }
+                break;
             case 'needsReduction':
                 aggregated.needsReduction += val;
                 break;
+
+            // 人口/发展类
             case 'maxPop':
                 aggregated.extraMaxPop += val;
                 break;
-            case 'incomePercent':
-                aggregated.incomePercentBonus += val;
+            case 'populationGrowth':
+                aggregated.populationGrowth += val;
                 break;
-            case 'stability':
-                aggregated.stability += val;
+            case 'researchSpeed':
+                aggregated.researchSpeed += val;
                 break;
-            case 'militaryBonus':
-                aggregated.militaryBonus += val;
-                break;
-            case 'science': // config might use 'science' or 'scienceBonus', checking officials.js config it uses specific mapping? No, generateEffect generally uses type.
-            // But OFFICIAL_EFFECT_TYPES doesn't list 'science' specifically as top level?
-            // Actually 'passive' can produce science. But if there is a direct 'science' bonus type.
-            // Let's assume standard ones.
-                break;
+
+            // 政治类
             case 'approval':
                 if (eff.target) {
                     aggregated.approval[eff.target] = (aggregated.approval[eff.target] || 0) + val;
                 }
                 break;
+            case 'coalitionApproval':
+                aggregated.coalitionApproval += val;
+                break;
+            case 'legitimacyBonus':
+                aggregated.legitimacyBonus += val;
+                break;
+            case 'organizationDecay':
+                aggregated.organizationDecay += val;
+                break;
+            case 'factionConflict':
+                aggregated.factionConflict += val;
+                break;
+            case 'stability':
+                aggregated.stability += val;
+                break;
+
+            // 军事类
+            case 'militaryBonus':
+                aggregated.militaryBonus += val;
+                break;
+            case 'militaryUpkeep':
+                aggregated.militaryUpkeep += val;
+                break;
+
+            // 外交类
+            case 'diplomaticBonus':
+                aggregated.diplomaticBonus += val;
+                break;
+            case 'diplomaticCooldown':
+                aggregated.diplomaticCooldown += val;
+                break;
+            case 'diplomaticIncident':
+                aggregated.diplomaticIncident += val;
+                break;
+
             default:
                 break;
         }
     };
 
     officials.forEach(official => {
-        // Handle positive effects
-        (official.effects || []).forEach(eff => applySingleEffect(eff));
-        // Handle drawbacks
-        (official.drawbacks || []).forEach(eff => applySingleEffect(eff));
+        // 跳过无效的 official 条目
+        if (!official || typeof official !== 'object') return;
+
+        // Handle effects - effects 是对象格式 {type: value} 或 {type: {target: value}}
+        if (official.effects && typeof official.effects === 'object') {
+            Object.entries(official.effects).forEach(([type, valueOrObj]) => {
+                if (typeof valueOrObj === 'object' && valueOrObj !== null) {
+                    // 嵌套对象：例如 { buildings: { farm: 0.1 } }
+                    Object.entries(valueOrObj).forEach(([target, value]) => {
+                        applySingleEffect({ type, target, value });
+                    });
+                } else {
+                    // 简单数值
+                    applySingleEffect({ type, value: valueOrObj });
+                }
+            });
+        }
+        // Handle drawbacks - 同样的格式
+        if (official.drawbacks && typeof official.drawbacks === 'object') {
+            Object.entries(official.drawbacks).forEach(([type, valueOrObj]) => {
+                if (typeof valueOrObj === 'object' && valueOrObj !== null) {
+                    Object.entries(valueOrObj).forEach(([target, value]) => {
+                        applySingleEffect({ type, target, value });
+                    });
+                } else {
+                    applySingleEffect({ type, value: valueOrObj });
+                }
+            });
+        }
     });
 
     return aggregated;
+};
+
+/**
+ * 计算官员对出身阶层的影响力加成
+ * @param {Array} officials - 在任官员列表
+ * @param {boolean} isPaid - 是否支付了全额薪水（否则加成减半）
+ * @returns {Object} 各阶层的影响力加成 { stratumKey: bonusPercent }
+ */
+export const getOfficialInfluenceBonus = (officials, isPaid = true) => {
+    const bonuses = {};
+
+    if (!officials || !Array.isArray(officials)) return bonuses;
+
+    const multiplier = isPaid ? 1 : 0.5;
+
+    officials.forEach(official => {
+        if (!official || !official.sourceStratum) return;
+
+        const stratum = official.sourceStratum;
+        const bonus = (official.stratumInfluenceBonus || 0) * multiplier;
+
+        bonuses[stratum] = (bonuses[stratum] || 0) + bonus;
+    });
+
+    return bonuses;
 };

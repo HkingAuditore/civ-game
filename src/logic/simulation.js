@@ -107,7 +107,7 @@ import {
     applyPolityEffects, // Apply polity effects helper
     calculateTotalMaxPop,
 } from './buildings';
-import { getAggregatedOfficialEffects } from '../logic/officials/manager';
+import { getAggregatedOfficialEffects, getOfficialInfluenceBonus } from '../logic/officials/manager';
 
 // ============================================================================
 // All helper functions and constants have been migrated to modules:
@@ -289,7 +289,7 @@ export const simulateTick = ({
 
     // REFACTORED: Use imported function from ./buildings/effects
     const bonuses = initializeBonuses();
-    
+
     // 应用官员效果（含薪水不足减益）
     const activeOfficialEffects = getAggregatedOfficialEffects(officials, officialsPaid);
     applyEffects(activeOfficialEffects, bonuses);
@@ -929,7 +929,7 @@ export const simulateTick = ({
         }
     });
 
-    const forcedLabor = decrees.some(d => d.id === 'forced_labor' && d.active);
+    const forcedLabor = Array.isArray(decrees) && decrees.some(d => d.id === 'forced_labor' && d.active);
 
     // console.log('[TICK] Starting production loop...'); // Commented for performance
     BUILDINGS.forEach(b => {
@@ -2087,34 +2087,36 @@ export const simulateTick = ({
 
     let decreeApprovalModifiers = {};
 
-    decrees.forEach(d => {
-        if (d.active) {
-            // 通用阶级满意度修正
-            if (d.modifiers && d.modifiers.approval) {
-                Object.entries(d.modifiers.approval).forEach(([strata, value]) => {
-                    decreeApprovalModifiers[strata] = (decreeApprovalModifiers[strata] || 0) + value;
-                });
-            }
+    if (Array.isArray(decrees)) {
+        decrees.forEach(d => {
+            if (d.active) {
+                // 通用阶级满意度修正
+                if (d.modifiers && d.modifiers.approval) {
+                    Object.entries(d.modifiers.approval).forEach(([strata, value]) => {
+                        decreeApprovalModifiers[strata] = (decreeApprovalModifiers[strata] || 0) + value;
+                    });
+                }
 
-            if (d.id === 'forced_labor') {
-                // 强制劳役的特殊逻辑保留，作为额外惩罚，或者可以在配置中完全替代
-                // 这里保留是为了兼容旧配置，但建议在配置中定义 approval 修正
-                if (popStructure.serf > 0) classApproval.serf = Math.max(0, (classApproval.serf || 50) - 5); // 减弱硬编码惩罚
-            }
-            if (d.id === 'tithe') {
-                if (popStructure.cleric > 0) classApproval.cleric = Math.max(0, (classApproval.cleric || 50) - 2); // 减弱硬编码惩罚
-                const titheDue = (popStructure.cleric || 0) * 2 * effectiveTaxModifier;
-                if (titheDue > 0) {
-                    const available = wealth.cleric || 0;
-                    const paid = Math.min(available, titheDue);
-                    wealth.cleric = Math.max(0, available - paid);
-                    taxBreakdown.headTax += paid;
-                    // 记录什一税支出
-                    roleExpense.cleric = (roleExpense.cleric || 0) + paid;
+                if (d.id === 'forced_labor') {
+                    // 强制劳役的特殊逻辑保留，作为额外惩罚，或者可以在配置中完全替代
+                    // 这里保留是为了兼容旧配置，但建议在配置中定义 approval 修正
+                    if (popStructure.serf > 0) classApproval.serf = Math.max(0, (classApproval.serf || 50) - 5); // 减弱硬编码惩罚
+                }
+                if (d.id === 'tithe') {
+                    if (popStructure.cleric > 0) classApproval.cleric = Math.max(0, (classApproval.cleric || 50) - 2); // 减弱硬编码惩罚
+                    const titheDue = (popStructure.cleric || 0) * 2 * effectiveTaxModifier;
+                    if (titheDue > 0) {
+                        const available = wealth.cleric || 0;
+                        const paid = Math.min(available, titheDue);
+                        wealth.cleric = Math.max(0, available - paid);
+                        taxBreakdown.headTax += paid;
+                        // 记录什一税支出
+                        roleExpense.cleric = (roleExpense.cleric || 0) + paid;
+                    }
                 }
             }
-        }
-    });
+        });
+    }
 
     // REFACTORED: Use shared calculateLivingStandards function from needs.js
     // incorporating new Income-Expense Balance Model
@@ -2331,6 +2333,15 @@ export const simulateTick = ({
         const wealthShare = classWealthResult[key] || 0;
         const wealthFactor = totalWealth > 0 ? wealthShare / totalWealth : 0;
         classInfluence[key] = (def.influenceBase * count) + (wealthFactor * 10);
+    });
+
+    // 应用官员对出身阶层的影响力加成
+    const officialInfluenceBonus = getOfficialInfluenceBonus(officials || [], officialsPaid);
+    Object.entries(officialInfluenceBonus).forEach(([stratum, bonus]) => {
+        if (classInfluence[stratum] !== undefined && bonus > 0) {
+            // 加成是百分比形式，应用到基础影响力上
+            classInfluence[stratum] *= (1 + bonus);
+        }
     });
 
     let totalInfluence = Object.values(classInfluence).reduce((sum, val) => sum + val, 0);

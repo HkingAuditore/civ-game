@@ -92,6 +92,8 @@ export const useGameActions = (gameState, addLog) => {
         lastSelectionDay,
         setLastSelectionDay,
         officialCapacity,
+        // 阶层影响力
+        classInfluence,
     } = gameState;
 
     const [pendingDiplomaticEvents, setPendingDiplomaticEvents] = useState([]);
@@ -791,11 +793,11 @@ export const useGameActions = (gameState, addLog) => {
             addLog('选拔仍在冷却中。');
             return;
         }
-        const candidates = triggerSelection(epoch);
+        const candidates = triggerSelection(epoch, popStructure, classInfluence);
         setOfficialCandidates(candidates);
         setLastSelectionDay(daysElapsed);
         addLog('已举行新一轮官员选拔，请查看候选人名单。');
-        
+
         try {
             const soundGenerator = generateSound(SOUND_TYPES.UI_CLICK);
             if (soundGenerator) soundGenerator();
@@ -818,7 +820,7 @@ export const useGameActions = (gameState, addLog) => {
         setOfficials(result.newOfficials);
         const hired = result.newOfficials[result.newOfficials.length - 1];
         addLog(`雇佣了官员 ${hired.name}。`);
-        
+
         try {
             const soundGenerator = generateSound(SOUND_TYPES.HIRE); // 暂用 BUILD 音效替代，具体待定
             if (soundGenerator) soundGenerator();

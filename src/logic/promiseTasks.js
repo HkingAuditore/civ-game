@@ -477,7 +477,7 @@ function isTargetAchieved(task, context) {
 
     switch (task.type) {
         case PROMISE_TASK_TYPES.DECLARE_WAR: {
-            const targetNation = nations.find(n => n.id === task.targetNation?.id || n.name === task.targetNationName);
+            const targetNation = Array.isArray(nations) && nations.find(n => n.id === task.targetNation?.id || n.name === task.targetNationName);
             return targetNation?.isAtWar === true;
         }
 

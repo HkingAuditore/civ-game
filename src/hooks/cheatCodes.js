@@ -189,7 +189,178 @@ export const initCheatCodes = (gameState, addLog) => {
             console.log('  cheat.setAllHeadTax(rate)            - Set head tax for all classes');
             console.log('  cheat.setResourceTax(res, rate)      - Set trade tax for a resource');
             console.log('  cheat.setAllResourceTax(rate)        - Set trade tax for all tradable res');
+            console.log('');
+            console.log('%cOfficials:', 'color: #ff00ff; font-weight: bold;');
+            console.log('  cheat.refreshOfficials()             - 刷新候选人列表');
+            console.log('  cheat.addOfficialSlot(amount)        - 增加官员编制');
+            console.log('  cheat.resetOfficialCooldown()        - 重置选拔冷却');
+            console.log('  cheat.fireAllOfficials()             - 解雇所有官员');
+            console.log('  cheat.clearCandidates()              - 清空候选人列表');
+            console.log('  cheat.superOfficials()               - 生成5个超级官员');
             console.log('  cheat.help()                - Show this help');
+        },
+
+        // ========== Officials Cheat Commands ==========
+
+        /**
+         * 刷新候选人列表
+         */
+        refreshOfficials: () => {
+            // Import dynamically to avoid circular dependency
+            import('../config/officials').then(({ triggerSelection }) => {
+                if (!gameState.setOfficialCandidates) {
+                    console.log('❌ Officials system is not available');
+                    return;
+                }
+                const epoch = getNumericEpoch(gameState.epoch);
+                const popStructure = gameState.popStructure || {};
+                const classInfluence = {}; // 可以简化
+                const newCandidates = triggerSelection ? triggerSelection(epoch, popStructure, classInfluence) : [];
+                // 直接使用 generateRandomOfficial
+                import('../config/officials').then(({ generateRandomOfficial }) => {
+                    const candidates = [];
+                    for (let i = 0; i < 5; i++) {
+                        candidates.push(generateRandomOfficial(epoch, popStructure, classInfluence));
+                    }
+                    gameState.setOfficialCandidates(candidates);
+                    addLog(`👔 作弊码：刷新了 5 名新候选人`);
+                    console.log('✅ Refreshed 5 new candidates');
+                });
+            });
+        },
+
+        /**
+         * 增加官员编制
+         */
+        addOfficialSlot: (amount = 3) => {
+            if (!gameState.setOfficialCapacity) {
+                console.log('❌ Officials system is not available');
+                return;
+            }
+            gameState.setOfficialCapacity(prev => (prev || 0) + amount);
+            addLog(`👔 作弊码：官员编制增加 ${amount}`);
+            console.log(`✅ Added ${amount} official slots`);
+        },
+
+        /**
+         * 重置选拔冷却
+         */
+        resetOfficialCooldown: () => {
+            if (!gameState.setLastOfficialSelectionDay) {
+                console.log('❌ Officials system is not available');
+                return;
+            }
+            gameState.setLastOfficialSelectionDay(0);
+            addLog(`👔 作弊码：选拔冷却已重置`);
+            console.log('✅ Official selection cooldown reset');
+        },
+
+        /**
+         * 解雇所有官员
+         */
+        fireAllOfficials: () => {
+            if (!gameState.setOfficials) {
+                console.log('❌ Officials system is not available');
+                return;
+            }
+            const count = gameState.officials?.length || 0;
+            gameState.setOfficials([]);
+            addLog(`👔 作弊码：解雇了 ${count} 名官员`);
+            console.log(`✅ Fired all ${count} officials`);
+        },
+
+        /**
+         * 清空候选人列表
+         */
+        clearCandidates: () => {
+            if (!gameState.setOfficialCandidates) {
+                console.log('❌ Officials system is not available');
+                return;
+            }
+            gameState.setOfficialCandidates([]);
+            addLog(`👔 作弊码：清空候选人列表`);
+            console.log('✅ Cleared all candidates');
+        },
+
+        /**
+         * 生成超级官员
+         */
+        superOfficials: () => {
+            if (!gameState.setOfficials) {
+                console.log('❌ Officials system is not available');
+                return;
+            }
+            // 创建强力官员
+            const superOfficialTemplates = [
+                {
+                    name: '诸葛亮',
+                    sourceStratum: 'scribe',
+                    effects: {
+                        researchSpeed: 0.30,
+                        stability: 0.15,
+                        taxEfficiency: 0.20,
+                    },
+                    salary: 50,
+                    stratumInfluenceBonus: 0.25,
+                },
+                {
+                    name: '范蠡',
+                    sourceStratum: 'merchant',
+                    effects: {
+                        tradeBonus: 0.35,
+                        incomePercent: 0.25,
+                        buildingCostMod: -0.20,
+                    },
+                    salary: 45,
+                    stratumInfluenceBonus: 0.20,
+                },
+                {
+                    name: '关羽',
+                    sourceStratum: 'soldier',
+                    effects: {
+                        militaryBonus: 0.30,
+                        wartimeProduction: 0.25,
+                        militaryUpkeep: -0.20,
+                    },
+                    salary: 40,
+                    stratumInfluenceBonus: 0.20,
+                },
+                {
+                    name: '包拯',
+                    sourceStratum: 'cleric',
+                    effects: {
+                        corruption: -0.25,
+                        stability: 0.20,
+                        approval: { peasant: 15, worker: 15 },
+                    },
+                    salary: 35,
+                    stratumInfluenceBonus: 0.15,
+                },
+                {
+                    name: '郑和',
+                    sourceStratum: 'navigator',
+                    effects: {
+                        diplomaticBonus: 2.0,
+                        tradeBonus: 0.20,
+                        diplomaticCooldown: -0.25,
+                    },
+                    salary: 40,
+                    stratumInfluenceBonus: 0.20,
+                },
+            ];
+
+            const newOfficials = superOfficialTemplates.map((template, index) => ({
+                id: `super_off_${Date.now()}_${index}`,
+                ...template,
+                hireDate: gameState.daysElapsed || 0,
+                influence: 2 + (template.salary / 50),
+            }));
+
+            gameState.setOfficials(prev => [...(prev || []), ...newOfficials]);
+            // 确保编制足够
+            gameState.setOfficialCapacity(prev => Math.max((prev || 0), (gameState.officials?.length || 0) + 5));
+            addLog(`👔 作弊码：招募了 5 名超级官员！`);
+            console.log('✅ Created 5 super officials: 诸葛亮, 范蠡, 关羽, 包拯, 郑和');
         },
 
         /**

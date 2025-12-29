@@ -17,6 +17,7 @@ import { isTradableResource } from '../utils/helpers';
  * @returns {Array} Nations with initialized foreignRelations
  */
 export const initializeForeignRelations = (nations) => {
+    if (!Array.isArray(nations)) return [];
     return nations.map(nation => {
         if (!nation.foreignRelations) {
             nation.foreignRelations = {};
@@ -53,7 +54,7 @@ export const initializeForeignRelations = (nations) => {
  */
 export const processMonthlyRelationDecay = (nations, tick) => {
     const isMonthTick = tick % 30 === 0;
-    if (!isMonthTick) return nations;
+    if (!isMonthTick || !Array.isArray(nations)) return nations || [];
 
     return nations.map(nation => {
         if (nation.isRebelNation) return nation;
@@ -80,6 +81,7 @@ export const processMonthlyRelationDecay = (nations, tick) => {
  * @param {Array} logs - Log array (mutable)
  */
 export const processAllyColdEvents = (nations, tick, logs) => {
+    if (!Array.isArray(nations)) return;
     nations.forEach(nation => {
         if (nation.isRebelNation) return;
         if (nation.alliedWithPlayer !== true) return;
