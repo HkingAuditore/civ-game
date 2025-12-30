@@ -414,7 +414,7 @@ export const getOfficialInfluenceBonus = (officials, isPaid = true) => {
  */
 export const getAggregatedStanceEffects = (officials, gameState) => {
     const aggregated = {
-        // 稳定性/合法性
+        // 稳定度/合法性
         stability: 0,
         legitimacyBonus: 0,
 
@@ -627,7 +627,7 @@ export const DISPOSAL_TYPES = {
         stabilityPenalty: 0.05,
         organizationBonus: 25,
         confirmText: '处死此官员？将抄没全部家产，但可能引发严重政治后果。',
-        logTemplate: '处死了 {name} ({prestigeLevel})，抄家获得 {seized} 银。{stratum}阶层好感度 {penalty}，稳定性 {stabilityChange}。',
+        logTemplate: '处死了 {name} ({prestigeLevel})，抄家获得 {seized} 银。{stratum}阶层好感度 {penalty}，稳定度 {stabilityChange}。',
     },
 };
 

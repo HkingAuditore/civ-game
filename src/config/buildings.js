@@ -81,7 +81,7 @@ export const BUILDINGS = [
         epoch: 0,
         cat: 'gather',
         visual: { icon: 'Trees', color: 'bg-emerald-800', text: 'text-emerald-200' },
-        // Tier 1 基础采集建筑：极高稳定性配置
+        // Tier 1 基础采集建筑：极高稳定度配置
         marketConfig: {
             price: { livingCostWeight: 0.1, taxCostWeight: 0.15 },
             wage: { livingCostWeight: 0.05, taxCostWeight: 0.05 }
@@ -100,7 +100,7 @@ export const BUILDINGS = [
         epoch: 0,
         cat: 'gather',
         visual: { icon: 'Pickaxe', color: 'bg-stone-600', text: 'text-stone-200' },
-        // Tier 1 基础采集建筑：极高稳定性配置
+        // Tier 1 基础采集建筑：极高稳定度配置
         marketConfig: {
             price: { livingCostWeight: 0.1, taxCostWeight: 0.15 },
             wage: { livingCostWeight: 0.05, taxCostWeight: 0.05 }
@@ -140,7 +140,7 @@ export const BUILDINGS = [
         cat: 'industry',
         requiresTech: 'papyrus_cultivation',
         visual: { icon: 'ScrollText', color: 'bg-lime-800', text: 'text-lime-200' },
-        // Tier 1 基础生产建筑：高稳定性配置，防止纸张价格波动
+        // Tier 1 基础生产建筑：高稳定度配置，防止纸张价格波动
         marketConfig: {
             price: { livingCostWeight: 0.1, taxCostWeight: 0.15 },
             wage: { livingCostWeight: 0.05, taxCostWeight: 0.05 }
@@ -475,6 +475,25 @@ export const BUILDINGS = [
     },
 
     {
+        id: 'hardwood_camp',
+        name: "硬木林场",
+        desc: "有计划的森林采伐，提供大量木材与优质硬木。",
+        baseCost: { plank: 100, iron: 25, tools: 25 },
+        input: { tools: 0.08 },
+        output: { wood: 4.8 },
+        jobs: { lumberjack: 4, worker: 1 },
+        owner: 'lumberjack',
+        epoch: 3,
+        cat: 'gather',
+        requiresTech: 'forestry_management',
+        visual: { icon: 'Trees', color: 'bg-emerald-900', text: 'text-emerald-200' },
+        marketConfig: {
+            price: { livingCostWeight: 0.15, taxCostWeight: 0.20 },
+            wage: { livingCostWeight: 0.08, taxCostWeight: 0.08 }
+        }
+    },
+
+    {
         id: 'amphitheater',
         name: "剧场",
         desc: "古典时代的文化舞台，激发灵感。",
@@ -501,6 +520,25 @@ export const BUILDINGS = [
         cat: 'civic',
         requiresTech: 'navigator_schooling',
         visual: { icon: 'Navigation', color: 'bg-cyan-900', text: 'text-cyan-200' }
+    },
+
+    {
+        id: 'shaft_mine',
+        name: "竖井矿场",
+        desc: "利用绞盘与更好的通风设施深入地下，同时开采铜铁矿脉。",
+        baseCost: { brick: 150, plank: 100, tools: 50 },
+        input: { tools: 0.12, wood: 0.25 },
+        output: { iron: 1.2, copper: 0.8 },
+        jobs: { miner: 5, engineer: 1 },
+        owner: 'miner',
+        epoch: 4,
+        cat: 'gather',
+        requiresTech: 'advanced_metallurgy',
+        visual: { icon: 'Mountain', color: 'bg-zinc-600', text: 'text-zinc-200' },
+        marketConfig: {
+            price: { livingCostWeight: 0.2, taxCostWeight: 0.25 },
+            wage: { livingCostWeight: 0.1, taxCostWeight: 0.1 }
+        }
     },
 
     // ========== 探索时代新建筑 ==========

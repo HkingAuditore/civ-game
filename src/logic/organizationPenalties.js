@@ -315,7 +315,7 @@ export function calculateAllPenalties(organizationStates) {
         treasuryLoss: 0,         // 每日国库流失率
         militaryPower: 0,        // 军事力量修正
         militaryDisabled: false, // 军事行动禁用
-        stabilityDrain: 0,       // 每日稳定性流失
+        stabilityDrain: 0,       // 每日稳定度流失
         buildingCost: 0,         // 建筑成本增加
         tradeDisruption: 0,      // 贸易干扰
         populationDrain: 0,      // 人口流失率
@@ -401,7 +401,7 @@ export function calculateAllPenalties(organizationStates) {
             result.militaryDisabled = true;
         }
 
-        // 稳定性流失
+        // 稳定度流失
         if (effects.stabilityDrain) {
             result.stabilityDrain += effects.stabilityDrain;
         }

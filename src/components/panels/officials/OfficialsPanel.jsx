@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { OfficialCard } from './OfficialCard';
 import { Icon } from '../../common/UIComponents';
 import { calculateTotalDailySalary, getCabinetStatus } from '../../../logic/officials/manager';
+import { isStanceSatisfied } from '../../../config/politicalStances';
 import { CabinetSynergyDisplay } from './CabinetSynergyDisplay';
 import { PlannedEconomyPanel } from './PlannedEconomyPanel';
 import { FreeMarketPanel } from './FreeMarketPanel';
@@ -34,6 +35,11 @@ export const OfficialsPanel = ({
     onUpdateQuotas,
     onUpdateExpansionSettings,
     onEnactDecree,
+
+    // [NEW] 额外上下文和详细容量
+    jobCapacity = 0,
+    maxCapacity = 3,
+    stanceContext = {},
 }) => {
 
     // 派系面板弹窗状态
@@ -107,9 +113,14 @@ export const OfficialsPanel = ({
 
                     <div className="flex items-center gap-4 bg-gray-800/50 p-2 rounded-lg border border-gray-700/30">
                         <div className="text-center px-2">
-                            <div className="text-[10px] text-gray-500 uppercase tracking-wider">编制</div>
+                            <div className="text-[10px] text-gray-500 uppercase tracking-wider">编制 (生效中)</div>
                             <div className={`text-xl font-mono font-bold ${isAtCapacity ? 'text-yellow-400' : 'text-gray-200'}`}>
                                 {currentCount} <span className="text-gray-500 text-sm">/ {capacity}</span>
+                            </div>
+                            <div className="text-[9px] text-gray-400 flex items-center justify-center gap-2 mt-0.5">
+                                <span title="当前可用职位数">岗位量: {jobCapacity}</span>
+                                <span className="text-gray-600">|</span>
+                                <span title="官僚机构最大承载力">上限: {maxCapacity}</span>
                             </div>
                         </div>
                         <div className="w-px h-8 bg-gray-700/50"></div>
@@ -282,7 +293,9 @@ export const OfficialsPanel = ({
                                 isCandidate={false}
                                 onAction={onFire}
                                 onDispose={onDispose}
+
                                 currentDay={currentTick}
+                                isStanceSatisfied={official.politicalStance ? isStanceSatisfied(official.politicalStance, stanceContext, official.stanceConditionParams) : null}
                             />
                         ))}
                     </div>

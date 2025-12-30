@@ -916,7 +916,7 @@ export const useGameActions = (gameState, addLog) => {
             });
         }
 
-        // 应用稳定性惩罚
+        // 应用稳定度惩罚
         if (result.effects?.stabilityChange && result.effects.stabilityChange !== 0) {
             setStability(prev => Math.max(0, Math.min(1, (prev || 0.5) + result.effects.stabilityChange)));
         }

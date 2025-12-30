@@ -120,16 +120,16 @@ const CONDITION_TYPES = {
         text: (params) => `${STRATA[params.stratum]?.name || params.stratum}日均收入 ≥ ${params.threshold}`,
     },
 
-    // 稳定性
+    // 稳定度
     stability_above: {
         generate: () => ({ threshold: 50 + Math.floor(Math.random() * 40) }), // 50-90%
         check: (params, gs) => (gs.stability || 0.5) * 100 >= params.threshold,
-        text: (params) => `稳定性 ≥ ${params.threshold}%`,
+        text: (params) => `稳定度 ≥ ${params.threshold}%`,
     },
     stability_below: {
         generate: () => ({ threshold: 20 + Math.floor(Math.random() * 40) }), // 20-60%
         check: (params, gs) => (gs.stability || 0.5) * 100 < params.threshold,
-        text: (params) => `稳定性 < ${params.threshold}%`,
+        text: (params) => `稳定度 < ${params.threshold}%`,
     },
 
     // 税率
@@ -218,8 +218,8 @@ const CONDITION_TYPES = {
     resource_price_above: {
         generate: (market) => {
             const resources = ['food', 'wood', 'stone', 'iron', 'cloth', 'tools', 'copper', 'ale', 'coal', 'delicacies', 'furniture', 'fine_clothes', 'spice'];
-            const resourceNames = { 
-                food: '粮食', wood: '木材', stone: '石材', iron: '铁', 
+            const resourceNames = {
+                food: '粮食', wood: '木材', stone: '石材', iron: '铁',
                 cloth: '布匹', tools: '工具', copper: '铜', ale: '美酒', coal: '煤炭',
                 delicacies: '珍馐', furniture: '家具', fine_clothes: '华服', spice: '香料'
             };
@@ -241,8 +241,8 @@ const CONDITION_TYPES = {
     resource_price_below: {
         generate: (market) => {
             const resources = ['food', 'wood', 'stone', 'iron', 'cloth', 'tools', 'copper', 'ale', 'coal', 'delicacies', 'furniture', 'fine_clothes', 'spice'];
-            const resourceNames = { 
-                food: '粮食', wood: '木材', stone: '石材', iron: '铁', 
+            const resourceNames = {
+                food: '粮食', wood: '木材', stone: '石材', iron: '铁',
                 cloth: '布匹', tools: '工具', copper: '铜', ale: '美酒', coal: '煤炭',
                 delicacies: '珍馐', furniture: '家具', fine_clothes: '华服', spice: '香料'
             };
@@ -312,8 +312,8 @@ const CONDITION_TYPES = {
     inflation_above: {
         generate: (market) => {
             const resources = ['food', 'wood', 'stone', 'iron', 'cloth', 'tools', 'copper', 'coal', 'delicacies', 'furniture', 'ale', 'fine_clothes', 'spice'];
-            const resourceNames = { 
-                food: '粮食', wood: '木材', stone: '石材', iron: '铁', 
+            const resourceNames = {
+                food: '粮食', wood: '木材', stone: '石材', iron: '铁',
                 cloth: '布匹', tools: '工具', copper: '铜', coal: '煤炭',
                 delicacies: '珍馐', furniture: '家具', ale: '美酒', fine_clothes: '华服', spice: '香料'
             };
@@ -335,8 +335,8 @@ const CONDITION_TYPES = {
     deflation_below: {
         generate: (market) => {
             const resources = ['food', 'wood', 'stone', 'iron', 'cloth', 'tools', 'copper', 'coal', 'delicacies', 'furniture', 'ale', 'fine_clothes', 'spice'];
-            const resourceNames = { 
-                food: '粮食', wood: '木材', stone: '石材', iron: '铁', 
+            const resourceNames = {
+                food: '粮食', wood: '木材', stone: '石材', iron: '铁',
                 cloth: '布匹', tools: '工具', copper: '铜', coal: '煤炭',
                 delicacies: '珍馐', furniture: '家具', ale: '美酒', fine_clothes: '华服', spice: '香料'
             };
@@ -353,7 +353,8 @@ const CONDITION_TYPES = {
             return price < params.threshold;
         },
         text: (params) => `${params.resourceName}物价 < ${params.threshold}`,
-    },};
+    },
+};
 
 // ========== 政治立场模板 ==========
 // 每种立场定义其可能使用的条件类型和效果
@@ -538,8 +539,8 @@ const STANCE_TEMPLATES = {
         conditionTypes: ['at_peace', 'stratum_approval_above'],
         preferredStrata: ['artisan', 'worker', 'engineer'],
         stratumWeights: { artisan: 2.5, worker: 2.0, engineer: 1.5 },
-        activeEffects: { 
-            industryBonus: 0.06, 
+        activeEffects: {
+            industryBonus: 0.06,
             buildingCostMod: -0.04,
             productionInputCost: { sawmill: -0.08, brickworks: -0.08, metallurgy_workshop: -0.10 }
         },
@@ -607,12 +608,12 @@ const STANCE_TEMPLATES = {
         conditionTypes: ['stratum_approval_above', 'stratum_income_above', 'resource_price_below', 'price_stability'],
         preferredStrata: ['artisan', 'merchant'],
         stratumWeights: { artisan: 3.0, merchant: 2.0 },
-        activeEffects: { 
-            tradeBonus: 0.06, 
+        activeEffects: {
+            tradeBonus: 0.06,
             approval: { artisan: 4, merchant: 4 },
             productionInputCost: { furniture_workshop: -0.10, tailor_workshop: -0.10, loom_house: -0.08 }
         },
-        unsatisfiedPenalty: { 
+        unsatisfiedPenalty: {
             approval: { artisan: -4 },
             productionInputCost: { furniture_workshop: 0.05, tailor_workshop: 0.05 }
         },
@@ -777,13 +778,13 @@ const STANCE_TEMPLATES = {
         conditionTypes: ['coalition_includes', 'stratum_influence_above'],
         preferredStrata: ['worker', 'miner', 'artisan'],
         stratumWeights: { worker: 4.0, miner: 2.0 },
-        activeEffects: { 
-            industryBonus: 0.10, 
+        activeEffects: {
+            industryBonus: 0.10,
             approval: { worker: 8, miner: 6 },
             productionInputCost: { steel_foundry: -0.12, textile_mill: -0.10, building_materials_plant: -0.10 }
         },
-        unsatisfiedPenalty: { 
-            approval: { worker: -6 }, 
+        unsatisfiedPenalty: {
+            approval: { worker: -6 },
             organizationDecay: -0.08,
             productionInputCost: { steel_foundry: 0.08, textile_mill: 0.06 }
         },
@@ -864,10 +865,10 @@ const STANCE_TEMPLATES = {
         conditionTypes: ['epoch_at_least', 'stratum_influence_above'],
         preferredStrata: ['engineer', 'scribe', 'official'],
         stratumWeights: { engineer: 3.0, scribe: 2.0 },
-        activeEffects: { 
-            researchSpeed: 0.12, 
+        activeEffects: {
+            researchSpeed: 0.12,
             industryBonus: 0.06,
-            productionInputCost: { chemical_plant: -0.15, machine_factory: -0.12, steel_foundry: -0.08 }
+            productionInputCost: { printing_house: -0.15, factory: -0.12, steel_foundry: -0.08 }
         },
         unsatisfiedPenalty: {},
     },
@@ -993,6 +994,37 @@ export function assignPoliticalStance(sourceStratum, epoch, market = null) {
     const stance = STANCE_TEMPLATES[selectedId];
     const conditions = [];
 
+    // [Fix] 矛盾检查辅助函数
+    const checkConflict = (newType, newParams) => {
+        return conditions.some(existing => {
+            // 1. 目标一致性检查 (阶层/资源) - 如果目标不同，则不冲突
+            if (newParams.stratum && existing.params?.stratum && newParams.stratum !== existing.params.stratum) return false;
+            // 注意：resource属性可能直接在params里，也可能是params本身（如果是字符串）
+            const resA = newParams.resource || (typeof newParams === 'string' ? newParams : null);
+            const resB = existing.params?.resource || (typeof existing.params === 'string' ? existing.params : null);
+            if (resA && resB && resA !== resB) return false;
+
+            // 2. 检查逻辑矛盾 (Above vs Below)
+            const isAbove = newType.includes('above') || newType.includes('at_least');
+            const isBelow = newType.includes('below') || newType.includes('at_most');
+            const exIsAbove = existing.typeId.includes('above') || existing.typeId.includes('at_least');
+            const exIsBelow = existing.typeId.includes('below') || existing.typeId.includes('at_most');
+
+            // 只有当方向相反时才可能矛盾
+            if ((isAbove && exIsBelow) || (isBelow && exIsAbove)) {
+                // 检查是否针对同一指标 (去掉后缀比较)
+                const rootNew = newType.replace(/_(above|below|at_least|at_most).*/, '');
+                const rootEx = existing.typeId.replace(/_(above|below|at_least|at_most).*/, '');
+                return rootNew === rootEx;
+            }
+
+            // 3. 避免完全重复 (同类型+同参数)
+            if (newType === existing.typeId && JSON.stringify(newParams) === JSON.stringify(existing.params)) return true;
+
+            return false;
+        });
+    };
+
     // 获取立场偏好的阶层列表（用于生成符合立场意识形态的条件）
     const preferredStrata = stance.preferredStrata || [sourceStratum];
     // 从偏好阶层中随机选择一个用于条件
@@ -1052,15 +1084,8 @@ export function assignPoliticalStance(sourceStratum, epoch, market = null) {
             }
             usedStratumKeys.add(key);
 
-            // 避免矛盾条件：同一阶层的 above 和 below 不能同时存在
-            const hasConflict = conditions.some(c => {
-                if (c.params?.stratum !== params.stratum) return false;
-                // 检查is above/below 冲突
-                if (typeId.includes('above') && c.typeId.includes('below')) return true;
-                if (typeId.includes('below') && c.typeId.includes('above')) return true;
-                return false;
-            });
-            if (hasConflict) continue;
+            // [Fix] 使用通用矛盾检查
+            if (checkConflict(typeId, params)) continue;
 
             conditions.push({
                 typeId,
@@ -1082,11 +1107,14 @@ export function assignPoliticalStance(sourceStratum, epoch, market = null) {
             const condDef = CONDITION_TYPES[typeId];
             if (condDef) {
                 const params = condDef.generate(market);
-                conditions.push({
-                    typeId,
-                    params,
-                    text: condDef.text(params)
-                });
+                // [Fix] 检查矛盾
+                if (!checkConflict(typeId, params)) {
+                    conditions.push({
+                        typeId,
+                        params,
+                        text: condDef.text(params)
+                    });
+                }
             }
         }
     }
@@ -1100,11 +1128,14 @@ export function assignPoliticalStance(sourceStratum, epoch, market = null) {
             const condDef = CONDITION_TYPES[typeId];
             if (condDef) {
                 const params = condDef.generate(market);
-                conditions.push({
-                    typeId,
-                    params,
-                    text: condDef.text(params)
-                });
+                // [Fix] 检查矛盾
+                if (!checkConflict(typeId, params)) {
+                    conditions.push({
+                        typeId,
+                        params,
+                        text: condDef.text(params)
+                    });
+                }
             }
         }
     }

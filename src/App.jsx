@@ -1125,9 +1125,14 @@ function GameApp({ gameState }) {
                                                 }}
 
                                                 // 官员系统 props
+                                                // 官员系统 props
                                                 officials={gameState.officials}
                                                 candidates={gameState.officialCandidates}
                                                 capacity={Math.min(gameState.jobsAvailable?.official || 0, gameState.officialCapacity || 3)}
+                                                // [NEW] 传递详细容量信息用于显示
+                                                jobCapacity={gameState.jobsAvailable?.official || 0}
+                                                maxCapacity={gameState.officialCapacity || 3}
+
                                                 lastSelectionDay={gameState.lastSelectionDay}
                                                 currentTick={gameState.daysElapsed}
                                                 onTriggerSelection={actions.triggerOfficialSelection}
@@ -1135,6 +1140,25 @@ function GameApp({ gameState }) {
                                                 onFire={actions.fireExistingOfficial}
                                                 onDispose={actions.disposeExistingOfficial}
                                                 resources={gameState.resources}
+
+                                                // [NEW] 传递政治立场检查所需的上下文
+                                                stanceContext={{
+                                                    classApproval: gameState.classApproval,
+                                                    classInfluence: gameState.classInfluence,
+                                                    classLivingStandard: gameState.classLivingStandard,
+                                                    classIncome: gameState.classWealth, // 近似替代，或需要从 history 获取
+                                                    // classIncome: gameState.classIncome, // useGameLoop 如果导出了这个最好
+                                                    stability: gameState.stability,
+                                                    legitimacy: gameState.legitimacy,
+                                                    rulingCoalition: gameState.rulingCoalition,
+                                                    taxPolicies: gameState.taxPolicies,
+                                                    market: gameState.market,
+                                                    prices: gameState.market?.prices,
+                                                    population: gameState.population,
+                                                    epoch: gameState.epoch,
+                                                    atWar: gameState.atWar || gameState.nations?.some(n => n.isAtWar),
+                                                    totalInfluence: gameState.totalInfluence,
+                                                }}
 
                                                 // 内阁协同系统 props
                                                 classWealth={gameState.classWealth}

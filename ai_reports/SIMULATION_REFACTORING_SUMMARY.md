@@ -44,7 +44,7 @@ src/logic/
 │   └── needs.js           #   330 行 - 需求计算
 │                          # 小计: 937 行
 │
-├── stability/              # 稳定性系统
+├── stability/              # 稳定度系统
 │   ├── index.js           #     7 行 - 模块入口
 │   ├── approval.js        #   181 行 - 好感度计算
 │   └── buffs.js           #   154 行 - Buff/Debuff 系统
@@ -192,7 +192,7 @@ simulation.js (4,403 行) - 协调器
 ├── utils/      (189 行) - 通用工具
 ├── economy/  (1,024 行) - 经济系统
 ├── population/ (937 行) - 人口系统
-├── stability/  (342 行) - 稳定性
+├── stability/  (342 行) - 稳定度
 ├── buildings/  (198 行) - 建筑系统
 └── diplomacy/  (597 行) - 外交系统
 ```

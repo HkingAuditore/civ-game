@@ -164,6 +164,13 @@ export const ReformDecreePanel = ({
         const decree = REFORM_DECREES[decreeId];
         const activeData = activeDecrees[decreeId];
         const isActive = !!activeData;
+        // [DEBUG] 追踪法令剩余天数计算
+        console.log(`[DECREE DEBUG] ${decreeId}:`, {
+            activeData,
+            currentDay,
+            endDay: activeData?.endDay,
+            remainingDays: activeData ? (activeData.endDay - currentDay) : 'N/A',
+        });
         const remainingDays = isActive ? Math.max(0, activeData.endDay - currentDay) : 0;
 
         const cooldownEnd = decreeCooldowns[decreeId] || 0;

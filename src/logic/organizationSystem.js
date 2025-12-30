@@ -472,11 +472,11 @@ export function getOrganizationStage(organization) {
 
 /**
  * 计算组织度每日增长/衰减率
- * 公式: 每日增量 = (基础怒气) × (阶层影响力) × (国家稳定性阻尼)
+ * 公式: 每日增量 = (基础怒气) × (阶层影响力) × (国家稳定度阻尼)
  * 
  * @param {number} approval - 满意度 (0-100)
  * @param {number} influenceShare - 影响力占比 (0-1)
- * @param {number} stability - 稳定性 (0-100)
+ * @param {number} stability - 稳定度 (0-100)
  * @param {string} stratumKey - 阶层键
  * @param {string} difficultyLevel - 游戏难度
  * @returns {number} 每日增长率 (可为负数表示衰减)
@@ -485,7 +485,7 @@ export function calculateOrganizationGrowthRate(approval, influenceShare, stabil
     // 阶层倍增器
     const stratumMultiplier = STRATUM_ORGANIZATION_MULTIPLIER[stratumKey] || 1.0;
 
-    // 稳定性阻尼: stability 100 -> 阻尼80%, stability 0 -> 无阻尼
+    // 稳定度阻尼: stability 100 -> 阻尼80%, stability 0 -> 无阻尼
     const stabilityDampening = 1 - (stability / 100) * 0.8;
 
     // Get satisfaction threshold from difficulty settings
@@ -525,7 +525,7 @@ export function calculateOrganizationGrowthRate(approval, influenceShare, stabil
  * @param {Object} currentState - 当前组织度状态
  * @param {number} approval - 满意度
  * @param {number} influenceShare - 影响力占比
- * @param {number} stability - 稳定性
+ * @param {number} stability - 稳定度
  * @param {string} stratumKey - 阶层键
  * @param {number} currentDay - 当前游戏天数
  * @returns {Object} 更新后的状态
@@ -664,7 +664,7 @@ export function updateStratumOrganization(
  * @param {Object} classApproval - 阶层满意度
  * @param {Object} classInfluence - 阶层影响力
  * @param {number} totalInfluence - 总影响力
- * @param {number} stability - 国家稳定性
+ * @param {number} stability - 国家稳定度
  * @param {number} currentDay - 当前游戏天数
  * @param {Array} promiseTasks - 当前活跃的承诺任务列表
  * @returns {Object} 更新后的组织度状态

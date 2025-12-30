@@ -25,7 +25,7 @@ import { STRATA } from './strata';
  * - industry: 工业产出
  * - taxIncome: 税收收入
  * - scienceBonus, cultureBonus, militaryBonus: 科研/文化/军事修正
- * - stability: 稳定性
+ * - stability: 稳定度
  * - maxPop: 人口上限
  * - resourceDemandMod, stratumDemandMod: 需求修正
  */
@@ -669,7 +669,7 @@ export const getPolityEffects = (polityName) => {
 // 复用之前的 formatPolityEffects 函数
 export const formatPolityEffects = (effects) => {
     if (!effects) return [];
-    
+
     const details = [];
 
     if (effects.categories) {
@@ -692,7 +692,7 @@ export const formatPolityEffects = (effects) => {
                 const bParams = BUILDINGS.find(b => b.id === id);
                 byPercent[val].push(bParams ? bParams.name : id);
             });
-             
+
             Object.entries(byPercent).forEach(([val, names]) => {
                 const percent = (parseFloat(val) * 100).toFixed(0);
                 const sign = val >= 0 ? '+' : '';
@@ -741,7 +741,7 @@ export const formatPolityEffects = (effects) => {
     if (effects.stability !== undefined) {
         const percent = (effects.stability * 100).toFixed(0);
         const sign = effects.stability >= 0 ? '+' : '';
-        details.push({ text: `稳定性 ${sign}${percent}%`, positive: effects.stability >= 0 });
+        details.push({ text: `稳定度 ${sign}${percent}%`, positive: effects.stability >= 0 });
     }
 
     if (effects.maxPop !== undefined) {
@@ -766,12 +766,12 @@ export const formatPolityEffects = (effects) => {
                 if (!byPercent[val]) byPercent[val] = [];
                 byPercent[val].push(STRATA[key]?.name || key);
             });
-            
+
             Object.entries(byPercent).forEach(([val, names]) => {
-                 const percent = (parseFloat(val) * 100).toFixed(0);
-                 const sign = val >= 0 ? '+' : '';
-                 const nameStr = names.join('、');
-                 details.push({ text: `${nameStr}消费 ${sign}${percent}%`, positive: val <= 0 });
+                const percent = (parseFloat(val) * 100).toFixed(0);
+                const sign = val >= 0 ? '+' : '';
+                const nameStr = names.join('、');
+                details.push({ text: `${nameStr}消费 ${sign}${percent}%`, positive: val <= 0 });
             });
         }
     }

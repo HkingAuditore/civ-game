@@ -74,7 +74,7 @@ export const RESOURCES = {
         defaultOwner: 'lumberjack',
         unlockEpoch: 0,
         tags: ['raw_material'],
-        // Tier 1 基础原材料：极高稳定性配置
+        // Tier 1 基础原材料：极高稳定度配置
         marketConfig: {
             supplyDemandWeight: 0.7,        // 供需影响较小（基础资源价格稳定）
             inventoryTargetDays: 2500.0,      // 较高库存目标（建筑材料需要储备）
@@ -93,7 +93,7 @@ export const RESOURCES = {
         defaultOwner: 'miner',
         unlockEpoch: 0,
         tags: ['raw_material'],
-        // Tier 1 基础原材料：极高稳定性配置
+        // Tier 1 基础原材料：极高稳定度配置
         marketConfig: {
             supplyDemandWeight: 0.7,        // 供需影响较小
             inventoryTargetDays: 2500.0,      // 较高库存目标
@@ -112,7 +112,7 @@ export const RESOURCES = {
         defaultOwner: 'worker',
         unlockEpoch: 0,
         tags: ['essential', 'raw_material', 'manufactured'],
-        // 必需品制成品：中等稳定性
+        // 必需品制成品：中等稳定度
         marketConfig: {
             supplyDemandWeight: 0.8,        // 供需影响中等（必需品但有替代性）
             inventoryTargetDays: 3000.0,      // 中等库存目标
@@ -194,7 +194,7 @@ export const RESOURCES = {
         unlockEpoch: 1,
         unlockTech: 'copper_mining',
         tags: ['raw_material'],
-        // 金属原材料：中等稳定性
+        // 金属原材料：中等稳定度
         marketConfig: {
             supplyDemandWeight: 0.9,        // 供需影响较小（原材料）
             inventoryTargetDays: 1000.0,      // 较高库存目标（战略资源）
@@ -322,7 +322,7 @@ export const RESOURCES = {
         unlockEpoch: 2,
         unlockTech: 'ironworking',
         tags: ['raw_material'],
-        // 战略金属：高稳定性
+        // 战略金属：高稳定度
         marketConfig: {
             supplyDemandWeight: 0.8,        // 供需影响较小（战略资源）
             inventoryTargetDays: 2500.0,      // 高库存目标（战略储备）
@@ -388,7 +388,7 @@ export const RESOURCES = {
         unlockEpoch: 6,
         unlockTech: 'coal_gasification',
         tags: ['raw_material'],
-        // 工业燃料：中等稳定性
+        // 工业燃料：中等稳定度
         marketConfig: {
             supplyDemandWeight: 0.9,        // 供需影响较小（工业必需）
             inventoryTargetDays: 2000.0,      // 较高库存目标（能源储备）

@@ -88,8 +88,8 @@ export const OFFICIAL_EFFECT_TYPES = {
         targets: [
             'sawmill', 'brickworks', 'reed_works', 'brewery', 'furniture_workshop',
             'culinary_kitchen', 'loom_house', 'dye_works', 'tailor_workshop',
-            'metallurgy_workshop', 'steel_foundry', 'textile_mill',
-            'building_materials_plant', 'chemical_plant', 'machine_factory'
+            'bronze_foundry', 'iron_tool_workshop', 'steel_foundry', 'wool_workshop',
+            'factory', 'printing_house'
         ],
         valueRange: [-0.15, -0.05], // -5% ~ -15% 原料消耗
         weight: 18, // 提高权重，使效果更容易出现
@@ -254,14 +254,14 @@ export const OFFICIAL_EFFECT_TYPES = {
         description: (val) => `组织度增长 ${(val * 100).toFixed(0)}%`,
     },
 
-    // 稳定性
+    // 稳定度
     stability_bonus: {
         type: 'stability',
         category: 'politics',
         valueRange: [0.02, 0.08],
         weight: 8,
         costMultiplier: 1.2,
-        description: (val) => `稳定性 +${(val * 100).toFixed(0)}%`,
+        description: (val) => `稳定度 +${(val * 100).toFixed(0)}%`,
     },
 
     // ============ 军事类效果 ============
@@ -357,13 +357,13 @@ export const OFFICIAL_DRAWBACK_TYPES = {
         description: (val) => `腐败：税收损失 ${(val * 100).toFixed(0)}%`,
     },
 
-    // 派系冲突 - 联盟内部稳定性降低 (新增)
+    // 派系冲突 - 联盟内部稳定度降低 (新增)
     faction_conflict: {
         type: 'factionConflict',
         category: 'politics',
         valueRange: [0.01, 0.04],
         weight: 10,
-        description: (val) => `派系冲突：稳定性 -${(val * 100).toFixed(0)}%`,
+        description: (val) => `派系冲突：稳定度 -${(val * 100).toFixed(0)}%`,
     },
 
     // 资源浪费 (新增)
@@ -419,8 +419,8 @@ export const OFFICIAL_DRAWBACK_TYPES = {
         targets: [
             'sawmill', 'brickworks', 'reed_works', 'brewery', 'furniture_workshop',
             'culinary_kitchen', 'loom_house', 'dye_works', 'tailor_workshop',
-            'metallurgy_workshop', 'steel_foundry', 'textile_mill',
-            'building_materials_plant', 'chemical_plant', 'machine_factory'
+            'bronze_foundry', 'iron_tool_workshop', 'steel_foundry', 'wool_workshop',
+            'factory', 'printing_house'
         ],
         valueRange: [0.05, 0.15], // +5% ~ +15% 原料消耗
         weight: 10,
@@ -880,13 +880,13 @@ export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence 
 
     // 2. 生成效果 (2-8个正面)
     // 时代越后，更有可能产生多效果官员
-    let minEffects = 2;
-    if (epoch >= 3) minEffects = 3;
-    if (epoch >= 6) minEffects = 4;
+    let minEffects = 1;
+    if (epoch >= 3) minEffects = 2;
+    if (epoch >= 6) minEffects = 3;
 
-    let maxEffects = 4;
-    if (epoch >= 3) maxEffects = 6;
-    if (epoch >= 6) maxEffects = 8;
+    let maxEffects = 3;
+    if (epoch >= 3) maxEffects = 4;
+    if (epoch >= 6) maxEffects = 5;
 
     // 随机生成数量
     let effectCount = Math.floor(minEffects + Math.random() * (maxEffects - minEffects + 1));
@@ -909,21 +909,38 @@ export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence 
     }
 
     // 3. 生成负面效果 (40% 概率，高时代概率略增)
-    let drawback = null;
+    const drawbacks = [];
     let drawbackChance = 0.4 + (epoch * 0.03);
 
-    // 如果正面效果特别多 (5个以上)，负面效果概率显著增加，可能出现"高风险高回报"
-    if (effectCount >= 5) drawbackChance += 0.3;
+    // 如果正面效果特别多 (3个以上)，负面效果概率显著增加，可能出现"高风险高回报"
+    if (effectCount >= 3) drawbackChance += 0.3;
 
+    // 尝试生成第一个负面效果
     if (Math.random() < drawbackChance) {
-        drawback = generateEffect(true, sourceStratum, epoch);
-        // 负面效果减少成本分
+        drawbacks.push(generateEffect(true, sourceStratum, epoch));
+    }
+
+    // [Update] 额外负面效果：每多一个正面效果 (超过3个)，就有一定概率增加一个相关负面效果
+    // 让风险随收益增长，理论上5个正面效果可能伴随3个负面效果
+    if (drawbacks.length > 0 && effectCount > 3) {
+        const extraDrawbackChance = 0.65; // 提高至 65% 概率追加
+        let potentialExtras = effectCount - 3; // 4个正面->1次追加机会, 5个->2次
+
+        for (let i = 0; i < potentialExtras; i++) {
+            if (Math.random() < extraDrawbackChance) {
+                drawbacks.push(generateEffect(true, sourceStratum, epoch));
+            }
+        }
+    }
+
+    // 计算负面效果对成本分的抵消
+    drawbacks.forEach(drawback => {
         let score = Math.abs(drawback.value);
         if (drawback.type === 'approval') score = score / 20;
         else if (drawback.type === 'needsReduction') score = Math.abs(drawback.value); // needsReduction 负值是坏事
 
         totalCostScore -= score * 0.5; // 负面效果抵消部分成本
-    }
+    });
 
     // 4. 构建效果对象 (合并同类)
     const effects = {};
@@ -937,7 +954,7 @@ export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence 
     };
 
     rawEffects.forEach(mergeIntoEffects);
-    if (drawback) mergeIntoEffects(drawback);
+    drawbacks.forEach(mergeIntoEffects);
 
     // 5. 计算俸禄
     // 目标范围: 15 ~ 2500 银/日 (官员效果降低后，薪资也相应降低)

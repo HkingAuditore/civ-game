@@ -2444,8 +2444,9 @@ export const simulateTick = ({
         // Apply population adjustments
         Object.entries(adjustments).forEach(([stratum, change]) => {
             // Apply change (ensure we don't drop below 0)
-            if (popStructure[stratum]) {
-                popStructure[stratum] = Math.max(0, popStructure[stratum] + change);
+            // [FIX] 使用 Math.round 确保人口值始终为整数
+            if (popStructure[stratum] !== undefined) {
+                popStructure[stratum] = Math.max(0, Math.round(popStructure[stratum] + change));
             }
         });
 
@@ -2985,7 +2986,7 @@ export const simulateTick = ({
             const penalty = Math.min(0.2, 0.05 + influenceShare * 0.15);
             extraStabilityPenalty += penalty;
 
-            // 为稳定性惩罚也添加短缺详情
+            // 为稳定度惩罚也添加短缺详情
             const shortageDetails = (classShortages[key] || []).map(shortage => {
                 const resKey = typeof shortage === 'string' ? shortage : shortage.resource;
                 const reason = typeof shortage === 'string' ? 'outOfStock' : shortage.reason;
@@ -4062,7 +4063,7 @@ export const simulateTick = ({
         }
         const stabilityBonus = perCap > 0 ? perCap * 0.002 : 0;
 
-        // 以上一tick的人均净收入为主导，辅以小幅稳定性奖励，避免理论工资误导
+        // 以上一tick的人均净收入为主导，辅以小幅稳定度奖励，避免理论工资误导
         const potentialIncome = incomeSignal + stabilityBonus;
 
         return {

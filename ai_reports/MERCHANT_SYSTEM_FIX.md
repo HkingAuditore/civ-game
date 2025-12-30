@@ -264,7 +264,7 @@ setMerchantState(data.merchantState || { trades: {} });
 - ❌ 财富每tick翻倍
 - ❌ 财富增长失控
 
-### 测试3：长期稳定性
+### 测试3：长期稳定度
 
 **测试步骤**：
 1. 运行游戏100+ ticks

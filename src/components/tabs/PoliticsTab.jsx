@@ -337,6 +337,11 @@ const PoliticsTabComponent = ({
     onUpdateQuotas,
     onUpdateExpansionSettings,
     onEnactDecree,
+
+    // [NEW] 额外上下文
+    jobCapacity = 0,
+    maxCapacity = 3,
+    stanceContext = {},
 }) => {
 
     const [activeTaxTab, setActiveTaxTab] = React.useState('head'); // 'head', 'resource', 'business'
@@ -736,6 +741,8 @@ const PoliticsTabComponent = ({
                         officials={officials}
                         candidates={candidates}
                         capacity={capacity}
+                        jobCapacity={jobCapacity} // [NEW]
+                        maxCapacity={maxCapacity} // [NEW]
                         lastSelectionDay={lastSelectionDay}
                         currentTick={currentTick}
                         resources={resources}
@@ -755,6 +762,7 @@ const PoliticsTabComponent = ({
                         onUpdateQuotas={onUpdateQuotas}
                         onUpdateExpansionSettings={onUpdateExpansionSettings}
                         onEnactDecree={onEnactDecree}
+                        stanceContext={stanceContext} // [NEW]
                     />
                 ) : (
                     <div className="glass-ancient p-6 rounded-xl border border-ancient-gold/30 text-center">

@@ -32,7 +32,7 @@ src/logic/
 ├── stability/
 │   ├── index.js               # Stability 导出
 │   ├── approval.js            # 阶层满意度计算（~170行）
-│   └── buffs.js               # Buff/Debuff 和稳定性（~150行）
+│   └── buffs.js               # Buff/Debuff 和稳定度（~150行）
 │
 ├── buildings/
 │   ├── index.js               # Buildings 导出
@@ -125,9 +125,9 @@ src/logic/
 - `calculateClassApproval()` - 计算阶层满意度
 - `calculateDecreeApprovalModifiers()` - 计算政令满意度修正
 
-**buffs.js** - Buff 和稳定性
+**buffs.js** - Buff 和稳定度
 - `calculateBuffsAndDebuffs()` - 计算 Buff/Debuff
-- `calculateStability()` - 计算稳定性
+- `calculateStability()` - 计算稳定度
 - `calculateClassInfluence()` - 计算阶层影响力
 
 ### 5. Buildings 模块 (`buildings/`)
@@ -216,7 +216,7 @@ import { simulateTick } from './logic/simulation';
      - `FERTILITY_BASE_RATE`, `FERTILITY_BASELINE_RATE`
      - `LOW_POP_THRESHOLD`, `LOW_POP_GUARANTEE`
      - `WEALTH_BASELINE`
-   - 稳定性常量 `STABILITY_INERTIA` 使用导入版本
+   - 稳定度常量 `STABILITY_INERTIA` 使用导入版本
    - 战争常量使用导入版本：
      - `MAX_CONCURRENT_WARS`, `GLOBAL_WAR_COOLDOWN`
 
@@ -351,7 +351,7 @@ import { simulateTick } from './logic/simulation';
   - 使用 `applyTechEffects`, `applyDecreeEffects`, `applyFestivalEffects`
 - **常量统一**: 
   - 人口增长常量迁移到模块并在 simulateTick 中使用
-  - 稳定性常量 `STABILITY_INERTIA` 使用导入版本
+  - 稳定度常量 `STABILITY_INERTIA` 使用导入版本
   - 战争常量 `MAX_CONCURRENT_WARS`, `GLOBAL_WAR_COOLDOWN` 使用导入版本
 - **代码清理**: 注释掉约 200 行已迁移的本地代码
 

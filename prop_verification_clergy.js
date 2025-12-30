@@ -45,7 +45,7 @@ const result1 = updateStratumOrganization(
     currentState,
     20, // 满意度极低
     0.05, // 影响力占比
-    50, // 稳定性
+    50, // 稳定度
     'cleric',
     100, // currentDay
     {

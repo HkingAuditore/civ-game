@@ -479,6 +479,24 @@ export const BUILDING_UPGRADES = {
         },
     ],
 
+    // hardwood_camp: base output 4.8 wood, owner: lumberjack, base jobs: lumberjack:4, worker:1
+    hardwood_camp: [
+        {
+            name: "特用林场",
+            cost: { plank: 80, tools: 30, silver: 450 },
+            input: { tools: 0.1, food: 0.2 },
+            output: { wood: 6.24 }, // 1.3x
+            jobs: { lumberjack: 4, worker: 1 }, // keep same
+        },
+        {
+            name: "皇家御林",
+            cost: { brick: 80, tools: 50, silver: 900 },
+            input: { tools: 0.15, food: 0.35 },
+            output: { wood: 8.64, food: 0.2 }, // 1.8x + 狩猎副产
+            jobs: { lumberjack: 5, worker: 1 }, // +1 lumberjack
+        },
+    ],
+
     // ========== 探索时代建筑 ==========
 
     // dockyard: base output 0.35 spice, owner: merchant, base jobs: navigator:2, worker:2, merchant:1
@@ -532,6 +550,24 @@ export const BUILDING_UPGRADES = {
             input: { spice: 0.35, cloth: 0.06 }, // 需要帆布
             output: { food: 3.6, silver: 0.4 }, // 1.8x + 贸易利润
             jobs: { merchant: 4 }, // +1 merchant only
+        },
+    ],
+
+    // shaft_mine: base output 1.2 iron, 0.8 copper, owner: miner, base jobs: miner:5, engineer:1
+    shaft_mine: [
+        {
+            name: "通风矿井",
+            cost: { brick: 120, tools: 45, silver: 650 },
+            input: { tools: 0.14, wood: 0.3 },
+            output: { iron: 1.56, copper: 1.04 }, // 1.3x
+            jobs: { miner: 5, engineer: 1 }, // keep same
+        },
+        {
+            name: "蒸汽矿井",
+            cost: { brick: 200, steel: 50, tools: 80, silver: 1200 },
+            input: { tools: 0.2, coal: 0.15, wood: 0.4 }, // 引入煤炭
+            output: { iron: 2.16, copper: 1.44, coal: 0.1 }, // 1.8x + 煤炭回收
+            jobs: { miner: 6, engineer: 1 }, // +1 miner
         },
     ],
 

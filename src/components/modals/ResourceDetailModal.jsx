@@ -877,12 +877,12 @@ const ResourceDetailContent = ({
 
             const baseAmount = perBuilding * count;
             baseDemandTotal += baseAmount;
-            
+
             // 获取建筑原料消耗修正（官员效果 + 政治立场效果）
             const inputCostMod = sources.productionInputCost?.[building.id] || 0;
             const inputCostMultiplier = 1 + inputCostMod;
             const safeInputMultiplier = Math.max(0.2, inputCostMultiplier);
-            
+
             // 建筑消耗 = 基础值 × 原料成本修正 × 资源需求乘数
             const actualAmount = baseAmount * safeInputMultiplier * resourceDemandMultiplier;
             actualDemandTotal += actualAmount;
@@ -1100,7 +1100,7 @@ const ResourceDetailContent = ({
                             <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-2">
                                 <p className="text-[8px] lg:text-[9px] uppercase tracking-wide text-blue-200/80 leading-none mb-0.5 lg:mb-1">财政说明</p>
                                 <p className="text-[9px] lg:text-[10px] text-blue-100/80 leading-snug lg:leading-relaxed">
-                                    银币为非交易资源,仅通过税收、事件和政策流动,下面的走势可帮助你判断财政稳定性。
+                                    银币为非交易资源,仅通过税收、事件和政策流动,下面的走势可帮助你判断财政稳定度。
                                 </p>
                             </div>
                             {/* 交易税调整 */}
@@ -1138,7 +1138,7 @@ const ResourceDetailContent = ({
                             <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-2">
                                 <p className="text-[8px] lg:text-[9px] uppercase tracking-wide text-blue-200/80 leading-none mb-0.5 lg:mb-1">财政说明</p>
                                 <p className="text-[9px] lg:text-[10px] text-blue-100/80 leading-snug lg:leading-relaxed">
-                                    银币为非交易资源,仅通过税收、事件和政策流动,下面的走势可帮助你判断财政稳定性。
+                                    银币为非交易资源,仅通过税收、事件和政策流动,下面的走势可帮助你判断财政稳定度。
                                 </p>
                             </div>
                             {/* 走势图 */}

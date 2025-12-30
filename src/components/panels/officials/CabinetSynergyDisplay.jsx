@@ -107,7 +107,7 @@ const SynergyEffects = ({ effects }) => {
     if (effects.stabilityMod !== 0) {
         const isPositive = effects.stabilityMod > 0;
         items.push({
-            label: '稳定性',
+            label: '稳定度',
             value: `${isPositive ? '+' : ''}${Math.round(effects.stabilityMod * 100)}%`,
             positive: isPositive,
         });
@@ -145,8 +145,8 @@ const SynergyEffects = ({ effects }) => {
                 <span
                     key={idx}
                     className={`text-xs px-2 py-0.5 rounded ${item.positive
-                            ? 'bg-green-900/30 text-green-400'
-                            : 'bg-red-900/30 text-red-400'
+                        ? 'bg-green-900/30 text-green-400'
+                        : 'bg-red-900/30 text-red-400'
                         }`}
                 >
                     {item.label} {item.value}

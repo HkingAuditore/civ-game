@@ -307,7 +307,7 @@ export const TECHS = [
     {
         id: 'centralization',
         name: "中央集权",
-        desc: "加强中央政府权威，统一政令。税收收入 +8%，稳定性 +5%，官员容量 +2。",
+        desc: "加强中央政府权威，统一政令。税收收入 +8%，稳定度 +5%，官员容量 +2。",
         cost: { science: 27900 },
         epoch: 6,
         effects: { incomePercent: 0.08 },
@@ -359,6 +359,14 @@ export const TECHS = [
         cost: { science: 4025 },
         epoch: 3,
         effects: { buildings: { stone_workshop: 0.15, quarry: 0.10 } },
+    },
+    {
+        id: 'forestry_management',
+        name: "林业管理",
+        desc: "解锁硬木林场，有计划的森林采伐与维护。硬木林场效率 +15%，伐木场效率 +10%。",
+        cost: { science: 3675 },
+        epoch: 3,
+        effects: { buildings: { hardwood_camp: 0.15, lumber_camp: 0.10 } },
     },
 
     {
@@ -620,7 +628,7 @@ export const TECHS = [
     {
         id: 'advanced_metallurgy',
         name: "先进冶金",
-        desc: "解锁铁器铺和青铜铸坊升级，改良熔炉与合金配方提升工具质量。铁器铺效率 +20%，青铜铸坊效率 +15%。",
+        desc: "解锁竖井矿场，改良熔炉与合金配方提升工具质量。铁器铺效率 +20%，青铜铸坊效率 +15%。",
         cost: { science: 7700 },
         epoch: 4,
         effects: { buildings: { iron_tool_workshop: 0.14, bronze_foundry: 0.10 } },

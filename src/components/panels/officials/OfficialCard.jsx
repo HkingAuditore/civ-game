@@ -17,7 +17,7 @@ const EFFECT_TYPE_NAMES = {
     needsReduction: '需求减少',
     maxPop: '人口上限',
     incomePercent: '财政收入',
-    stability: '稳定性',
+    stability: '稳定度',
     militaryBonus: '军事力量',
     approval: '满意度',
 };
@@ -71,7 +71,7 @@ const formatEffectValue = (type, value, target) => {
 
 // 效果名称映射（政治立场效果专用）
 const EFFECT_NAMES = {
-    stability: '稳定性',
+    stability: '稳定度',
     legitimacyBonus: '合法性',
     militaryBonus: '军队战力',
     tradeBonus: '贸易利润',
@@ -101,6 +101,7 @@ export const OfficialCard = memo(({
     canAfford = true,
     actionDisabled = false,
     currentDay = 0,
+    isStanceSatisfied = null, // 新增：政治主张是否满足 (null=不检查, true=满足, false=不满足)
 }) => {
     const [showDisposalMenu, setShowDisposalMenu] = useState(false);
 
@@ -205,11 +206,11 @@ export const OfficialCard = memo(({
             case 'researchSpeed': description = `科研产出 ${pct(value)}`; break;
             case 'cultureBonus': description = `文化产出 ${pct(value)}`; break;
 
-            // 满意度/稳定性
+            // 满意度/稳定度
             case 'approval': description = `${targetName || '全体'}满意度 ${isPositive ? '+' : ''}${value}`; break;
             case 'coalitionApproval': description = `联盟满意度 ${isPositive ? '+' : ''}${value}`; break;
             case 'legitimacyBonus': description = `合法性 ${pct(value)}`; break;
-            case 'stability': description = `稳定性 ${pct(value)}`; break;
+            case 'stability': description = `稳定度 ${pct(value)}`; break;
 
             // 军事
             case 'militaryBonus': description = `军队战力 ${pct(value)}`; break;
@@ -424,9 +425,25 @@ export const OfficialCard = memo(({
                                     })}
                                 </div>
                             )}
-                            {/* 触发条件 - 使用动态生成的条件文本 */}
-                            <div className="text-[9px] text-gray-400 mb-1">
-                                <span className="text-gray-500">政治主张:</span> {official.stanceConditionText || '无'}
+                            {/* 触发条件 - 使用动态生成的条件文本 + 满足状态指示 */}
+                            {/* 触发条件 - 优化排版：标签与状态在一行，详细文本在下方独立块显示 */}
+                            <div className="mb-1">
+                                <div className="flex items-center justify-between mb-0.5">
+                                    <span className="text-[9px] text-gray-500">政治主张:</span>
+                                    {/* 显示是否满足政治主张 */}
+                                    {isStanceSatisfied !== null && !isCandidate && (
+                                        <span className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] font-bold ${isStanceSatisfied
+                                            ? 'bg-green-900/50 text-green-400 border border-green-700/50'
+                                            : 'bg-red-900/50 text-red-400 border border-red-700/50'
+                                            }`}>
+                                            <Icon name={isStanceSatisfied ? 'Check' : 'X'} size={8} />
+                                            {isStanceSatisfied ? '已满足' : '未满足'}
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="text-[10px] text-gray-300 bg-gray-800/30 p-1.5 rounded border border-gray-700/30 leading-snug break-words">
+                                    {official.stanceConditionText || '无'}
+                                </div>
                             </div>
                             {/* 满足效果 - 使用官员独特的随机化效果 */}
                             {official.stanceActiveEffects && Object.keys(official.stanceActiveEffects).length > 0 && (
