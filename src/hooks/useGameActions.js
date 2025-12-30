@@ -25,7 +25,8 @@ import {
     triggerSelection,
     hireOfficial,
     fireOfficial,
-    isSelectionAvailable
+    isSelectionAvailable,
+    disposeOfficial,
 } from '../logic/officials/manager';
 
 
@@ -865,7 +866,7 @@ export const useGameActions = (gameState, addLog) => {
         setOfficials(newOfficials);
         if (official) {
             addLog(`解雇了官员 ${official.name}。`);
-            
+
             // 更新人口结构：从官员阶层移回来源阶层（或无业）
             setPopStructure(prev => {
                 const target = official.sourceStratum || 'unemployed';
@@ -878,7 +879,74 @@ export const useGameActions = (gameState, addLog) => {
         }
     };
 
-    // ========== 政令管理 ========== (已移除，功能整合至官员系统)
+    /**
+     * 处置官员（流放/处死）
+     * @param {string} officialId - 官员ID
+     * @param {string} disposalType - 处置类型 ('exile' | 'execute')
+     */
+    const disposeExistingOfficial = (officialId, disposalType) => {
+        const result = disposeOfficial(officialId, disposalType, officials, daysElapsed);
+
+        if (!result.success) {
+            addLog(`处置失败：${result.error}`);
+            return;
+        }
+
+        const official = officials.find(o => o.id === officialId);
+
+        // 更新官员列表
+        setOfficials(result.newOfficials);
+
+        // 获取没收的财产
+        if (result.wealthGained > 0) {
+            setResources(prev => ({
+                ...prev,
+                silver: (prev.silver || 0) + result.wealthGained
+            }));
+        }
+
+        // 应用阶层好感度惩罚
+        if (result.effects?.approvalChange) {
+            setClassApproval(prev => {
+                const updated = { ...prev };
+                Object.entries(result.effects.approvalChange).forEach(([stratum, change]) => {
+                    updated[stratum] = Math.max(0, Math.min(100, (updated[stratum] || 50) + change));
+                });
+                return updated;
+            });
+        }
+
+        // 应用稳定性惩罚
+        if (result.effects?.stabilityChange && result.effects.stabilityChange !== 0) {
+            setStability(prev => Math.max(0, Math.min(1, (prev || 0.5) + result.effects.stabilityChange)));
+        }
+
+        // 应用组织度增加
+        if (result.effects?.organizationChange) {
+            setClassOrganization(prev => {
+                const updated = { ...prev };
+                Object.entries(result.effects.organizationChange).forEach(([stratum, change]) => {
+                    updated[stratum] = Math.max(0, (updated[stratum] || 0) + change);
+                });
+                return updated;
+            });
+        }
+
+        // 更新人口结构：从官员阶层移回来源阶层
+        if (official) {
+            setPopStructure(prev => {
+                const target = official.sourceStratum || 'unemployed';
+                return {
+                    ...prev,
+                    official: Math.max(0, (prev.official || 0) - 1),
+                    [target]: (prev[target] || 0) + 1
+                };
+            });
+        }
+
+        // 记录日志
+        addLog(result.logMessage);
+    };
 
     // ========== 手动采集 ==========
 
@@ -3690,6 +3758,7 @@ export const useGameActions = (gameState, addLog) => {
         triggerOfficialSelection,
         hireNewOfficial,
         fireExistingOfficial,
+        disposeExistingOfficial,
 
         // 叛乱系统
         handleRebellionAction,

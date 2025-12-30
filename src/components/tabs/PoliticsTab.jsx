@@ -326,6 +326,7 @@ const PoliticsTabComponent = ({
     onTriggerSelection,
     onHire,
     onFire,
+    onDispose, // 新增：处置官员回调
 }) => {
 
     const [activeTaxTab, setActiveTaxTab] = React.useState('head'); // 'head', 'resource', 'business'
@@ -731,6 +732,7 @@ const PoliticsTabComponent = ({
                         onTriggerSelection={onTriggerSelection}
                         onHire={onHire}
                         onFire={onFire}
+                        onDispose={onDispose}
                     />
                 ) : (
                     <div className="glass-ancient p-6 rounded-xl border border-ancient-gold/30 text-center">
@@ -738,9 +740,6 @@ const PoliticsTabComponent = ({
                         <h3 className="text-lg font-bold text-gray-400 mb-2">官员系统未解锁</h3>
                         <p className="text-gray-500 text-sm">
                             进入<span className="text-orange-400 font-semibold">青铜时代</span>后，方可启用官员制度。
-                        </p>
-                        <p className="text-gray-600 text-xs mt-2">
-                            需要：科研 ≥ 600，人口 ≥ 25
                         </p>
                     </div>
                 )
