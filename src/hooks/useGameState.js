@@ -409,6 +409,10 @@ const buildMinimalAutoSavePayload = (payload) => ({
     officialCandidates: payload.officialCandidates,
     lastSelectionDay: payload.lastSelectionDay,
     officialCapacity: payload.officialCapacity,
+    activeDecrees: payload.activeDecrees,
+    decreeCooldowns: payload.decreeCooldowns,
+    quotaTargets: payload.quotaTargets,
+    expansionSettings: payload.expansionSettings,
     eventConfirmationEnabled: payload.eventConfirmationEnabled,
 });
 
@@ -614,6 +618,12 @@ export const useGameState = () => {
     const [officialCandidates, setOfficialCandidates] = useState([]); // 当前候选人列表
     const [lastSelectionDay, setLastSelectionDay] = useState(-999);   // 上次举办选拔的时间
     const [officialCapacity, setOfficialCapacity] = useState(3);      // 官员容量
+    // ========== 内阁协同系统状态 ==========
+    const [activeDecrees, setActiveDecrees] = useState({});           // 当前生效的临时法令
+    const [decreeCooldowns, setDecreCooldowns] = useState({});       // 法令冷却时间
+    const [quotaTargets, setQuotaTargets] = useState({});             // 计划经济阶层配额目标
+    const [expansionSettings, setExpansionSettings] = useState({});   // 自由市场建筑扩张设置
+
 
     // ========== 社会阶层状态 ==========
     const [classApproval, setClassApproval] = useState({});
@@ -984,6 +994,10 @@ export const useGameState = () => {
                 officialCandidates,
                 lastSelectionDay,
                 officialCapacity,
+                activeDecrees,
+                decreeCooldowns,
+                quotaTargets,
+                expansionSettings,
                 classApproval,
                 classInfluence,
                 classWealth,
@@ -1772,6 +1786,15 @@ export const useGameState = () => {
         setLastSelectionDay,
         officialCapacity,
         setOfficialCapacity,
+        // 内阁协同系统
+        activeDecrees,
+        setActiveDecrees,
+        decreeCooldowns,
+        setDecreCooldowns,
+        quotaTargets,
+        setQuotaTargets,
+        expansionSettings,
+        setExpansionSettings,
 
         // 社会阶层
         classApproval,

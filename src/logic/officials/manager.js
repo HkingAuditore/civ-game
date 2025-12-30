@@ -4,9 +4,16 @@
  */
 import { generateRandomOfficial } from '../../config/officials';
 import { isStanceSatisfied } from '../../config/politicalStances';
+import {
+    calculateCabinetSynergy,
+    getCabinetDominance,
+    getCabinetEffects,
+    getActiveDecreeEffects,
+} from './cabinetSynergy';
 
 // 选拔冷却时间 (半年 = 180天)
 export const OFFICIAL_SELECTION_COOLDOWN = 180;
+
 
 /**
  * 触发新一轮选拔
@@ -704,3 +711,36 @@ export const disposeOfficial = (officialId, disposalType, currentOfficials, curr
     };
 };
 
+// ========== 内阁协同度 API ==========
+
+/**
+ * 获取内阁综合状态（协同度 + 主导派系 + 效果）
+ * @param {Array} officials - 在任官员列表
+ * @param {Object} activeDecrees - 当前生效的临时法令
+ * @param {number} capacity - 官员编制容量
+ * @param {number} epoch - 当前时代
+ * @returns {Object} 内阁状态
+ */
+export const getCabinetStatus = (officials, activeDecrees = {}, capacity = 3, epoch = 0) => {
+    const synergy = calculateCabinetSynergy(officials);
+    const dominance = getCabinetDominance(officials, capacity, epoch);
+    const effects = getCabinetEffects(officials, capacity, epoch);
+    const decreeEffects = getActiveDecreeEffects(activeDecrees);
+
+    return {
+        synergy: synergy.synergy,
+        level: synergy.level,
+        distribution: synergy.distribution,
+        dominance,
+        effects,
+        decreeEffects,
+    };
+};
+
+// 重新导出 cabinetSynergy 中的函数，方便其他模块使用
+export {
+    calculateCabinetSynergy,
+    getCabinetDominance,
+    getCabinetEffects,
+    getActiveDecreeEffects,
+} from './cabinetSynergy';

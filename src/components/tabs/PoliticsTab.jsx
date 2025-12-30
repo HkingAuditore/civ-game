@@ -326,7 +326,17 @@ const PoliticsTabComponent = ({
     onTriggerSelection,
     onHire,
     onFire,
-    onDispose, // 新增：处置官员回调
+    onDispose,
+
+    // Cabinet Synergy Props
+    classWealth = {},
+    activeDecrees = {},
+    decreeCooldowns = {},
+    quotaTargets = {},
+    expansionSettings = {},
+    onUpdateQuotas,
+    onUpdateExpansionSettings,
+    onEnactDecree,
 }) => {
 
     const [activeTaxTab, setActiveTaxTab] = React.useState('head'); // 'head', 'resource', 'business'
@@ -733,6 +743,18 @@ const PoliticsTabComponent = ({
                         onHire={onHire}
                         onFire={onFire}
                         onDispose={onDispose}
+                        // Cabinet Synergy Props
+                        epoch={epoch}
+                        popStructure={popStructure}
+                        classWealth={classWealth}
+                        buildingCounts={buildings}
+                        quotaTargets={quotaTargets}
+                        expansionSettings={expansionSettings}
+                        activeDecrees={activeDecrees}
+                        decreeCooldowns={decreeCooldowns}
+                        onUpdateQuotas={onUpdateQuotas}
+                        onUpdateExpansionSettings={onUpdateExpansionSettings}
+                        onEnactDecree={onEnactDecree}
                     />
                 ) : (
                     <div className="glass-ancient p-6 rounded-xl border border-ancient-gold/30 text-center">
