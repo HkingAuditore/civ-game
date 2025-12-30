@@ -344,27 +344,27 @@ export const OfficialCard = memo(({
             <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${stanceColors.gradient}`} />
 
             {/* 头部: 姓名, 阶层, 薪俸 + 政治光谱标签 */}
-            <div className="flex justify-between items-start mb-2 pt-1">
-                <div className="flex items-center gap-2">
-                    <div className={`p-1.5 rounded bg-gray-900/50 ${stratumColor}`}>
+            <div className="flex justify-between items-start mb-2 pt-1 gap-2">
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <div className={`p-1.5 rounded bg-gray-900/50 ${stratumColor} flex-shrink-0`}>
                         <Icon name={stratumIcon} size={14} />
                     </div>
-                    <div>
-                        <div className="font-bold text-gray-200 text-sm leading-tight flex items-center gap-1.5">
+                    <div className="min-w-0 flex-1">
+                        <div className="font-bold text-gray-200 text-sm leading-tight truncate pr-1">
                             {official.name}
-                            {/* 政治光谱小标签 */}
-                            <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-semibold ${stanceColors.bg} ${stanceColors.text} border ${stanceColors.border}`}>
-                                <Icon name={stanceColors.icon} size={10} />
+                        </div>
+                        <div className={`text-[10px] ${stratumColor} opacity-80 flex items-center flex-wrap gap-1.5 mt-0.5`}>
+                            {/* 政治光谱小标签 (移至第二行以防重叠) */}
+                            <span className={`inline-flex items-center gap-0.5 px-1 py-px rounded text-[8px] font-medium ${stanceColors.bg} ${stanceColors.text} border ${stanceColors.border} flex-shrink-0`}>
+                                <Icon name={stanceColors.icon} size={8} />
                                 {stanceColors.label}
                             </span>
-                        </div>
-                        <div className={`text-[10px] ${stratumColor} opacity-80`}>
-                            {stratumDef?.name || stratumKey} 出身
-                            {prestigeInfo && <span className={`ml-1 ${prestigeInfo.color}`}>· {prestigeInfo.name}</span>}
+                            <span className="truncate">{stratumDef?.name || stratumKey} 出身</span>
+                            {prestigeInfo && <span className={`flex-shrink-0 ${prestigeInfo.color}`}>· {prestigeInfo.name}</span>}
                         </div>
                     </div>
                 </div>
-                <div className="text-right">
+                <div className="text-right flex-shrink-0">
                     <div className="flex items-center justify-end gap-1 text-yellow-500 font-mono text-xs">
                         <span>{salary}</span>
                         <Icon name="Coins" size={12} />

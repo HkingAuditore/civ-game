@@ -107,12 +107,20 @@ import {
     applyPolityEffects, // Apply polity effects helper
     calculateTotalMaxPop,
 } from './buildings';
-import { getAggregatedOfficialEffects, getOfficialInfluenceBonus, calculateOfficialCapacity, getAggregatedStanceEffects } from '../logic/officials/manager';
+import { getAggregatedOfficialEffects, getOfficialInfluenceBonus, getAggregatedStanceEffects } from '../logic/officials/manager';
+import {
+    getCabinetStatus,
+    calculateOfficialCapacity,
+} from './officials/manager';
+import {
+    calculateQuotaEffects,
+    processOwnerExpansions
+} from './officials/cabinetSynergy'; // [FIX] Import directly from source
 
 // ============================================================================
 // All helper functions and constants have been migrated to modules:
 // - initializeWealth -> ./population/growth.js
-// - TECH_MAP -> ./utils/constants.js  
+// - TECH_MAP -> ./utils/constants.js
 // - simulateMerchantTrade -> ./economy/trading.js
 // ============================================================================
 
@@ -194,7 +202,11 @@ export const simulateTick = ({
 
     difficulty, // 游戏难度设置
     officials = [], // 官员列表
+    activeDecrees, // [NEW] Reform decrees
     officialsPaid = true, // 是否足额支付薪水
+    quotaTargets = {}, // [NEW] Quota system targets for Left Dominance
+    expansionSettings = {}, // [NEW] Expansion settings for Right Dominance
+    cabinetStatus = {}, // [NEW] Cabinet status for synergy/dominance
 }) => {
     // console.log('[TICK START]', tick); // Commented for performance
     const res = { ...resources };
@@ -290,6 +302,58 @@ export const simulateTick = ({
     // REFACTORED: Use imported function from ./buildings/effects
     const bonuses = initializeBonuses();
 
+    // 2.1 Calculate Cabinet Effects
+    // [NEW] Calculate cabinet status to get synergy, dominance, and reform decree effects
+    // const capacity = calculateOfficialCapacity(buildings);
+    // const cabinetStatus = getCabinetStatus(officials, activeDecrees, capacity, epoch); // Moved to useGameLoop.js
+
+    // Apply Cabinet Synergy & Dominance Effects
+    if (cabinetStatus.effects) {
+        // Administrative Efficiency -> Tax Efficiency
+        if (cabinetStatus.effects.adminEfficiency) {
+            bonuses.taxEfficiencyBonus = (bonuses.taxEfficiencyBonus || 0) + cabinetStatus.effects.adminEfficiency;
+        }
+
+        // Stability Modifier
+        if (cabinetStatus.effects.stabilityMod) {
+            bonuses.stabilityBonus = (bonuses.stabilityBonus || 0) + cabinetStatus.effects.stabilityMod;
+        }
+
+        // Trade Bonus (from Dominance)
+        if (cabinetStatus.effects.tradeBonusMod) {
+            bonuses.tradeBonusMod = (bonuses.tradeBonusMod || 0) + cabinetStatus.effects.tradeBonusMod;
+        }
+
+        // Diplomatic Relations (from Dominance)
+        if (cabinetStatus.effects.diplomaticRelationsMod) {
+            bonuses.diplomaticBonus = (bonuses.diplomaticBonus || 0) + cabinetStatus.effects.diplomaticRelationsMod;
+        }
+
+        // Approval Bonuses (from Dominance)
+        if (cabinetStatus.effects.approvalBonus) {
+            Object.entries(cabinetStatus.effects.approvalBonus).forEach(([stratum, val]) => {
+                bonuses.stanceApprovalEffects = bonuses.stanceApprovalEffects || {};
+                bonuses.stanceApprovalEffects[stratum] = (bonuses.stanceApprovalEffects[stratum] || 0) + val;
+            });
+        }
+
+        // Organization Growth (from Synergy)
+        if (cabinetStatus.effects.organizationGrowthMod) {
+            // We map this to a new bonus property that can be used where organization is processed
+            bonuses.organizationGrowthMod = (bonuses.organizationGrowthMod || 0) + cabinetStatus.effects.organizationGrowthMod;
+        }
+
+        // Research Speed (Science) if present in effects (e.g. from specific synergy levels if any)
+        if (cabinetStatus.effects.researchSpeed) {
+            bonuses.scienceBonus = (bonuses.scienceBonus || 0) + cabinetStatus.effects.researchSpeed;
+        }
+    }
+
+    // Apply Reform Decree Effects
+    if (cabinetStatus.decreeEffects) {
+        applyEffects(cabinetStatus.decreeEffects, bonuses);
+    }
+
     // 应用官员效果（含薪水不足减益）
     const activeOfficialEffects = getAggregatedOfficialEffects(officials, officialsPaid);
     applyEffects(activeOfficialEffects, bonuses);
@@ -344,10 +408,10 @@ export const simulateTick = ({
         bonuses.legitimacyBonus = (bonuses.legitimacyBonus || 0) + stanceEffects.legitimacyBonus;
     }
     if (stanceEffects.gatherBonus) {
-        categoryBonuses.gather = (categoryBonuses.gather || 0) + stanceEffects.gatherBonus;
+        bonuses.categoryBonuses.gather = (bonuses.categoryBonuses.gather || 0) + stanceEffects.gatherBonus;
     }
     if (stanceEffects.industryBonus) {
-        categoryBonuses.industry = (categoryBonuses.industry || 0) + stanceEffects.industryBonus;
+        bonuses.categoryBonuses.industry = (bonuses.categoryBonuses.industry || 0) + stanceEffects.industryBonus;
     }
     if (stanceEffects.tradeBonus) {
         bonuses.tradeBonusMod = (bonuses.tradeBonusMod || 0) + stanceEffects.tradeBonus;
@@ -568,7 +632,7 @@ export const simulateTick = ({
                     const subsidyAmount = Math.abs(taxAmount);
                     // Already added to netIncome if treasury allowed
                     // Just track it as subsidy component
-                    // Note: we can't tell here if treasury failed without variable access, 
+                    // Note: we can't tell here if treasury failed without variable access,
                     // but `sellProduction` modifies `res.silver` so we assume it worked if logic matched.
                     // Actually logic at 391 checks treasury.
                     if ((res.silver || 0) >= subsidyAmount) { // Re-check condition or rely on code flow?
@@ -2362,9 +2426,80 @@ export const simulateTick = ({
     // REFACTORED: Use shared calculateLivingStandards function from needs.js
     // incorporating new Income-Expense Balance Model
 
-    // =====================================================================================
-    // OFFICIALS SIMULATION (RUN EARLY TO AGGREGATE STATS)
-    // =====================================================================================
+    // ====================================================================================================
+    // 5. Advanced Cabinet Mechanics (Left/Right Dominance Active Effects)
+    // ====================================================================================================
+
+    // --- Left Dominance: Planned Economy (Quota System) ---
+    // User sets target population ratios. We adjust actual population towards targets.
+    if (cabinetStatus.dominance?.faction === 'left' && quotaTargets && Object.keys(quotaTargets).length > 0) {
+        const { adjustments, approvalPenalties, adminCost } = calculateQuotaEffects(popStructure, quotaTargets);
+
+        // Apply admin cost (deduct from silver, simplistic handling here as silver is main thread mostly,
+        // but we can deduct from tax or add to expenses. For now, let's treat it as an expense)
+        // Actually, silver is tracked in main thread. We can return an expense item.
+        // Or simpler: We don't deduct cost here to avoid desync, just apply effects.
+        // Realistically, the cost should be daily. Let's assume the cost is deducted via `politicalExpenses`.
+
+        // Apply population adjustments
+        Object.entries(adjustments).forEach(([stratum, change]) => {
+            // Apply change (ensure we don't drop below 0)
+            if (popStructure[stratum]) {
+                popStructure[stratum] = Math.max(0, popStructure[stratum] + change);
+            }
+        });
+
+        // Apply approval penalties
+        Object.entries(approvalPenalties).forEach(([stratum, penalty]) => {
+            if (classApproval[stratum]) {
+                // calculateQuotaEffects returns 'penalty' as a value like 5 for -5 approval.
+                // Since this runs EVERY TICK, we need to be careful.
+                // The function calculates penalties based on CURRENT difference.
+                // A constant daily penalty of -5 would be huge.
+                // Let's assume the penalty is a momentary hit or a slow drag.
+                // CabinetSynergy says "approvalPenalties[stratum] = Math.floor(diff / 2)".
+                // We should apply a small fraction of this per tick.
+                // Let's apply 10% of the calculated penalty per day as "dissatisfaction pressure".
+                classApproval[stratum] -= penalty * 0.05;
+            }
+        });
+    }
+
+    // --- Right Dominance: Free Market (Owner Expansion) ---
+    // Owners automatically build new buildings using their wealth.
+    let newBuildingsCount = { ...buildings };
+    if (cabinetStatus.dominance?.faction === 'right' && expansionSettings) {
+        // We pass the CONFIG (BUILDINGS), current wealth (newClassWealth), settings, and current counts
+        const { expansions, wealthDeductions } = processOwnerExpansions(
+            BUILDINGS,
+            wealth,
+            expansionSettings,
+            newBuildingsCount
+        );
+
+        // Apply expansions
+        if (expansions.length > 0) {
+            // logs.push(`Free Market: Expanding ${expansions.length} buildings.`);
+            expansions.forEach(exp => {
+                const id = exp.buildingId;
+                newBuildingsCount[id] = (newBuildingsCount[id] || 0) + 1;
+                // logs.push(`- ${exp.owner} built ${id} for ${exp.cost}`);
+            });
+
+            // Apply wealth deductions
+            Object.entries(wealthDeductions).forEach(([stratum, amount]) => {
+                if (wealth[stratum]) {
+                    wealth[stratum] = Math.max(0, wealth[stratum] - amount);
+                }
+            });
+            // Update the main `builds` object for the rest of the tick
+            Object.assign(builds, newBuildingsCount);
+        }
+    }
+
+    // ====================================================================================================
+    // 6. Return Simulation Result
+    // ====================================================================================================
     // Move official processing here so their wealth is aggregated into `wealth` BEFORE
     // calculateLivingStandards runs. This ensures StrataPanel shows correct data.
 
@@ -2881,9 +3016,9 @@ export const simulateTick = ({
     // Track global peace request cooldown - find the most recent peace request across all nations
     // This prevents multiple AI nations from spamming peace requests simultaneously
     let lastGlobalPeaceRequest = -Infinity;
-    (nations || []).forEach(nation => {
-        if (nation.lastPeaceRequestDay && nation.lastPeaceRequestDay > lastGlobalPeaceRequest) {
-            lastGlobalPeaceRequest = nation.lastPeaceRequestDay;
+    (nations || []).forEach(n => {
+        if (n.lastPeaceRequestDay && n.lastPeaceRequestDay > lastGlobalPeaceRequest) {
+            lastGlobalPeaceRequest = n.lastPeaceRequestDay;
         }
     });
 
@@ -4237,11 +4372,13 @@ export const simulateTick = ({
                 corruption: bonuses.corruption || 0,
                 populationGrowthBonus: bonuses.populationGrowthBonus || 0,
                 tradeBonusMod: bonuses.tradeBonusMod || 0,
+                organizationGrowthMod: bonuses.organizationGrowthMod || 0,
             },
         },
         army, // 确保返回army状态，以便保存战斗损失
         officials: updatedOfficials, // 更新后的官员列表（含财务数据）
         // 计算有效官员容量（基于时代、政体和科技）
         effectiveOfficialCapacity: calculateOfficialCapacity(epoch, currentPolityEffects || {}, techsUnlocked),
+        buildings: builds, // [FIX] Return updated building counts (including Free Market expansions)
     };
 };

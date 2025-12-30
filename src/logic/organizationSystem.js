@@ -547,6 +547,7 @@ export function updateStratumOrganization(
         classInfluence = {}, // 各阶层影响力
         totalInfluence = 0, // 总影响力
         difficultyLevel = DEFAULT_DIFFICULTY, // 游戏难度
+        organizationGrowthMod = 0, // [NEW] 组织度增长修正 (from cabinet synergy)
     } = options || {};
     // 初始化默认状态
     const state = {
@@ -602,6 +603,11 @@ export function updateStratumOrganization(
         const currentLegitimacy = calculateLegitimacy(coalitionInfluenceShare);
         const legitimacyMod = getLegitimacyOrganizationModifier(currentLegitimacy, isInCoalition);
         growthRate *= legitimacyMod;
+
+        // Apply global organization growth modifier (from cabinet synergy)
+        if (organizationGrowthMod) {
+            growthRate *= (1 + organizationGrowthMod);
+        }
     } else if (growthRate < 0) {
         // Apply difficulty modifier to decay rate (inverse - higher multiplier = faster decay)
         growthRate = applyOrganizationGrowthModifier(growthRate, difficultyLevel);
@@ -685,6 +691,7 @@ export function updateAllOrganizationStates(
         epoch = 0,
         rulingCoalition = [], // 执政联盟成员
         difficultyLevel = DEFAULT_DIFFICULTY, // 游戏难度
+        organizationGrowthMod = 0, // [NEW] 组织度增长修正
         // 注意：classInfluence 和 totalInfluence 已经是函数参数，不需要在这里解构
     } = options || {};
     const epochValue = Number.isFinite(epoch) ? epoch : 0;
@@ -780,6 +787,7 @@ export function updateAllOrganizationStates(
                 classInfluence, // 传递各阶层影响力
                 totalInfluence, // 传递总影响力
                 difficultyLevel, // 传递游戏难度
+                organizationGrowthMod, // 传递组织度增长修正
             }
         );
     });
