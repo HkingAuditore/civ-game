@@ -1132,6 +1132,7 @@ function GameApp({ gameState }) {
                                                 onTriggerSelection={actions.triggerOfficialSelection}
                                                 onHire={actions.hireNewOfficial}
                                                 onFire={actions.fireExistingOfficial}
+                                                onDispose={actions.disposeExistingOfficial}
                                                 resources={gameState.resources}
                                             />
                                         )}

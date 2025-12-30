@@ -3,6 +3,7 @@
  * 处理选拔、雇佣、解雇及相关计算
  */
 import { generateRandomOfficial } from '../../config/officials';
+import { isStanceSatisfied } from '../../config/politicalStances';
 
 // 选拔冷却时间 (半年 = 180天)
 export const OFFICIAL_SELECTION_COOLDOWN = 180;
@@ -121,13 +122,13 @@ const TECH_OFFICIAL_BONUS = {
 export const calculateOfficialCapacity = (epoch = 0, polityEffects = {}, techsUnlocked = []) => {
     // 基础容量
     const baseCapacity = 2;
-    
+
     // 时代加成
     const epochBonus = EPOCH_OFFICIAL_BONUS[epoch] || 0;
-    
+
     // 政体加成
     const polityBonus = polityEffects.officialCapacity || 0;
-    
+
     // 科技加成
     let techBonus = 0;
     techsUnlocked.forEach(techId => {
@@ -135,7 +136,7 @@ export const calculateOfficialCapacity = (epoch = 0, polityEffects = {}, techsUn
             techBonus += TECH_OFFICIAL_BONUS[techId];
         }
     });
-    
+
     return Math.max(1, baseCapacity + epochBonus + polityBonus + techBonus);
 };
 
@@ -384,3 +385,302 @@ export const getOfficialInfluenceBonus = (officials, isPaid = true) => {
 
     return bonuses;
 };
+
+// ========== 政治立场效果聚合 ==========
+
+/**
+ * 聚合所有官员的政治立场效果
+ * @param {Array} officials - 在任官员列表
+ * @param {Object} gameState - 当前游戏状态（用于检查条件）
+ * @returns {Object} { aggregatedEffects, satisfiedCount, unsatisfiedCount }
+ */
+export const getAggregatedStanceEffects = (officials, gameState) => {
+    const aggregated = {
+        // 稳定性/合法性
+        stability: 0,
+        legitimacyBonus: 0,
+
+        // 生产类
+        gatherBonus: 0,
+        industryBonus: 0,
+        tradeBonus: 0,
+        researchSpeed: 0,
+        cultureBonus: 0,
+
+        // 经济类
+        taxEfficiency: 0,
+        incomePercentBonus: 0,
+        buildingCostMod: 0,
+        needsReduction: 0,
+
+        // 人口
+        populationGrowth: 0,
+
+        // 军事
+        militaryBonus: 0,
+
+        // 组织度
+        organizationDecay: 0,
+
+        // 满意度
+        approval: {}, // { stratum: value }
+
+        // 外交
+        diplomaticBonus: 0,
+    };
+
+    let satisfiedCount = 0;
+    let unsatisfiedCount = 0;
+
+    if (!officials || !Array.isArray(officials)) {
+        return { aggregatedEffects: aggregated, satisfiedCount, unsatisfiedCount };
+    }
+
+    const applyEffects = (effects) => {
+        if (!effects || typeof effects !== 'object') return;
+
+        Object.entries(effects).forEach(([type, valueOrObj]) => {
+            if (typeof valueOrObj === 'object' && valueOrObj !== null) {
+                // 嵌套对象（如 approval: { peasant: 10 }）
+                if (type === 'approval') {
+                    Object.entries(valueOrObj).forEach(([stratum, value]) => {
+                        if (typeof value === 'number') {
+                            aggregated.approval[stratum] = (aggregated.approval[stratum] || 0) + value;
+                        }
+                    });
+                }
+            } else if (typeof valueOrObj === 'number') {
+                // 简单数值
+                if (aggregated.hasOwnProperty(type)) {
+                    aggregated[type] += valueOrObj;
+                }
+            }
+        });
+    };
+
+    officials.forEach(official => {
+        if (!official) return;
+
+        // 检查该官员的政治立场条件是否满足
+        const conditionParams = official.stanceConditionParams;
+        const satisfied = isStanceSatisfied(official.politicalStance, gameState, conditionParams);
+
+        if (satisfied) {
+            satisfiedCount++;
+            // 应用该官员独特的满足效果
+            applyEffects(official.stanceActiveEffects);
+        } else {
+            unsatisfiedCount++;
+            // 应用该官员独特的不满足惩罚
+            applyEffects(official.stanceUnsatisfiedPenalty);
+        }
+    });
+
+    return { aggregatedEffects: aggregated, satisfiedCount, unsatisfiedCount };
+};
+
+// ========== 威望系统 ==========
+
+/**
+ * 效果权重映射 (用于威望计算)
+ */
+const EFFECT_WEIGHTS = {
+    buildings: 15,
+    militaryBonus: 12,
+    tradeBonus: 10,
+    taxEfficiency: 10,
+    researchSpeed: 10,
+    stability: 8,
+    approval: 0.5,
+    industryBonus: 10,
+    gatherBonus: 8,
+    incomePercentBonus: 10,
+    legitimacyBonus: 8,
+    default: 8,
+};
+
+/**
+ * 计算官员威望值
+ * 威望 = 能力分 + 财富分 + 任期分，受阶层出身修正
+ * @param {Object} official - 官员对象
+ * @param {number} currentDay - 当前游戏天数
+ * @returns {number} 威望值 (0-100+)
+ */
+export const calculatePrestige = (official, currentDay = 0) => {
+    if (!official) return 0;
+
+    // 1. 能力分 = Σ|效果数值| × 权重，上限40
+    let abilityScore = 0;
+    if (official.effects) {
+        Object.entries(official.effects).forEach(([type, valueOrObj]) => {
+            const weight = EFFECT_WEIGHTS[type] || EFFECT_WEIGHTS.default;
+            if (typeof valueOrObj === 'object' && valueOrObj !== null) {
+                Object.values(valueOrObj).forEach(v => {
+                    abilityScore += Math.abs(v) * weight;
+                });
+            } else if (typeof valueOrObj === 'number') {
+                abilityScore += Math.abs(valueOrObj) * weight;
+            }
+        });
+    }
+    abilityScore = Math.min(40, abilityScore);
+
+    // 2. 财富分 = log10(wealth + 1) × 5，上限30
+    const wealthScore = Math.min(30, Math.log10((official.wealth || 0) + 1) * 5);
+
+    // 3. 任期分 = min(任职年数, 10) × 2，上限20
+    const daysInOffice = official.hireDate ? (currentDay - official.hireDate) : 0;
+    const yearsInOffice = Math.max(0, daysInOffice / 365);
+    const tenureScore = Math.min(20, yearsInOffice * 2);
+
+    // 4. 阶层修正
+    const stratumModifiers = {
+        landowner: 1.10, knight: 1.10, official: 1.05,
+        merchant: 1.0, capitalist: 1.0, navigator: 1.0,
+        scribe: 1.0, cleric: 1.0, engineer: 1.0, artisan: 1.0,
+        peasant: 0.95, worker: 0.95, serf: 0.90, miner: 0.95,
+        soldier: 1.0,
+    };
+    const stratumMod = stratumModifiers[official.sourceStratum] || 1.0;
+
+    // 最终威望
+    const prestige = (abilityScore + wealthScore + tenureScore) * stratumMod;
+    return Math.round(prestige * 10) / 10;
+};
+
+/**
+ * 获取威望等级
+ * @param {number} prestige - 威望值
+ * @returns {Object} { level, name, color }
+ */
+export const getPrestigeLevel = (prestige) => {
+    if (prestige >= 80) return { level: 'legendary', name: '一代权臣', color: 'text-yellow-400' };
+    if (prestige >= 50) return { level: 'renowned', name: '德高望重', color: 'text-purple-400' };
+    if (prestige >= 25) return { level: 'notable', name: '小有名气', color: 'text-blue-400' };
+    return { level: 'obscure', name: '无名小卒', color: 'text-gray-400' };
+};
+
+// ========== 官员处置系统 ==========
+
+/**
+ * 处置类型定义
+ */
+export const DISPOSAL_TYPES = {
+    fire: {
+        id: 'fire',
+        name: '解雇',
+        icon: 'UserMinus',
+        color: 'text-gray-400',
+        wealthSeized: 0,
+        approvalPenaltyMultiplier: 0,
+        stabilityPenalty: 0,
+        organizationBonus: 0,
+        confirmText: '确定解雇此官员？无法获取其财产。',
+        logTemplate: '解雇了 {name}，其自行离去。',
+    },
+    exile: {
+        id: 'exile',
+        name: '流放',
+        icon: 'LogOut',
+        color: 'text-orange-400',
+        wealthSeized: 0.5,
+        approvalPenaltyMultiplier: 0.5,
+        stabilityPenalty: 0.02,
+        organizationBonus: 10,
+        confirmText: '流放此官员？将没收其一半财产，其出身阶层会产生不满。',
+        logTemplate: '流放了 {name} ({prestigeLevel})，没收财产 {seized} 银。{stratum}阶层好感度 {penalty}。',
+    },
+    execute: {
+        id: 'execute',
+        name: '处死',
+        icon: 'Skull',
+        color: 'text-red-500',
+        wealthSeized: 1.0,
+        approvalPenaltyMultiplier: 1.0,
+        stabilityPenalty: 0.05,
+        organizationBonus: 25,
+        confirmText: '处死此官员？将抄没全部家产，但可能引发严重政治后果。',
+        logTemplate: '处死了 {name} ({prestigeLevel})，抄家获得 {seized} 银。{stratum}阶层好感度 {penalty}，稳定性 {stabilityChange}。',
+    },
+};
+
+/**
+ * 计算处置后果
+ * @param {Object} official - 官员对象
+ * @param {string} disposalType - 处置类型 ('fire' | 'exile' | 'execute')
+ * @param {number} currentDay - 当前游戏天数
+ * @returns {Object} 处置后果详情
+ */
+export const getDisposalConsequences = (official, disposalType, currentDay) => {
+    const type = DISPOSAL_TYPES[disposalType];
+    if (!type || !official) return null;
+
+    const prestige = calculatePrestige(official, currentDay);
+    const { name: prestigeLevel } = getPrestigeLevel(prestige);
+    const stratum = official.sourceStratum;
+
+    // 没收财产
+    const wealthSeized = Math.floor((official.wealth || 0) * type.wealthSeized);
+
+    // 阶层好感惩罚 = 威望 × 乘数，上限 -50
+    const approvalPenalty = Math.min(50, Math.round(prestige * type.approvalPenaltyMultiplier));
+
+    // 组织度增加 = 基础值 × (威望/50)
+    const orgBonus = Math.round(type.organizationBonus * (prestige / 50));
+
+    // 格式化日志消息
+    const logMessage = type.logTemplate
+        .replace('{name}', official.name)
+        .replace('{prestigeLevel}', prestigeLevel)
+        .replace('{seized}', wealthSeized)
+        .replace('{stratum}', stratum)
+        .replace('{penalty}', approvalPenalty > 0 ? `-${approvalPenalty}` : '无变化')
+        .replace('{stabilityChange}', type.stabilityPenalty > 0 ? `-${(type.stabilityPenalty * 100).toFixed(0)}%` : '无');
+
+    return {
+        prestige,
+        prestigeLevel,
+        stratum,
+        wealthSeized,
+        approvalPenalty,
+        stabilityPenalty: type.stabilityPenalty,
+        organizationBonus: orgBonus,
+        logMessage,
+    };
+};
+
+/**
+ * 执行官员处置
+ * @param {string} officialId - 官员ID
+ * @param {string} disposalType - 处置类型
+ * @param {Array} currentOfficials - 当前官员列表
+ * @param {number} currentDay - 当前游戏天数
+ * @returns {Object} { success, newOfficials, wealthGained, effects, logMessage }
+ */
+export const disposeOfficial = (officialId, disposalType, currentOfficials, currentDay) => {
+    const official = currentOfficials.find(o => o.id === officialId);
+    if (!official) {
+        return { success: false, error: '未找到该官员' };
+    }
+
+    const consequences = getDisposalConsequences(official, disposalType, currentDay);
+    if (!consequences) {
+        return { success: false, error: '无效的处置类型' };
+    }
+
+    const newOfficials = currentOfficials.filter(o => o.id !== officialId);
+
+    return {
+        success: true,
+        newOfficials,
+        wealthGained: consequences.wealthSeized,
+        effects: {
+            approvalChange: { [consequences.stratum]: -consequences.approvalPenalty },
+            stabilityChange: -consequences.stabilityPenalty,
+            organizationChange: { [consequences.stratum]: consequences.organizationBonus },
+        },
+        logMessage: consequences.logMessage,
+        consequences,
+    };
+};
+

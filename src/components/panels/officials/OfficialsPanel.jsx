@@ -14,6 +14,7 @@ export const OfficialsPanel = ({
     onTriggerSelection,
     onHire,
     onFire,
+    onDispose, // 新增：处置官员回调 (officialId, disposalType) => void
     selectionCooldown = 180
 }) => {
 
@@ -138,6 +139,8 @@ export const OfficialsPanel = ({
                                 official={official}
                                 isCandidate={false}
                                 onAction={onFire}
+                                onDispose={onDispose}
+                                currentDay={currentTick}
                             />
                         ))}
                     </div>

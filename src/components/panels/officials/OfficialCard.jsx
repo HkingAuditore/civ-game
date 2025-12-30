@@ -1,7 +1,9 @@
 
-import React, { memo } from 'react';
+import React, { memo, useState } from 'react';
 import { Icon } from '../../common/UIComponents';
 import { STRATA, RESOURCES, BUILDINGS } from '../../../config';
+import { POLITICAL_STANCES, POLITICAL_ISSUES } from '../../../config/politicalStances';
+import { calculatePrestige, getPrestigeLevel, DISPOSAL_TYPES } from '../../../logic/officials/manager';
 
 // 效果类型的显示名称映射
 const EFFECT_TYPE_NAMES = {
@@ -22,22 +24,12 @@ const EFFECT_TYPE_NAMES = {
 
 // 获取目标的显示名称
 const getTargetName = (target, type) => {
-    // 建筑 - BUILDINGS 是数组，需要用 find 查找
     const buildingDef = BUILDINGS.find(b => b.id === target);
     if (buildingDef) return buildingDef.name;
-    // 阶层
     if (STRATA[target]) return STRATA[target].name;
-    // 资源
     if (RESOURCES[target]) return RESOURCES[target].name;
-    // 类别
-    const categoryNames = {
-        gather: '采集',
-        industry: '工业',
-        civic: '民用',
-        military: '军事',
-    };
+    const categoryNames = { gather: '采集', industry: '工业', civic: '民用', military: '军事' };
     if (categoryNames[target]) return categoryNames[target];
-    // 特殊
     if (target === 'silver') return '银币';
     if (target === 'food') return '粮食';
     if (target === 'culture') return '文化';
@@ -45,232 +37,287 @@ const getTargetName = (target, type) => {
     return target;
 };
 
+
+// 格式化效果显示
+const formatEffectValue = (type, value, target) => {
+    const targetName = target ? getTargetName(target) : null;
+    const sign = value > 0 ? '+' : '';
+
+    switch (type) {
+        case 'stability':
+        case 'legitimacyBonus':
+        case 'militaryBonus':
+        case 'tradeBonus':
+        case 'taxEfficiency':
+        case 'industryBonus':
+        case 'gatherBonus':
+        case 'incomePercentBonus':
+        case 'researchSpeed':
+        case 'populationGrowth':
+        case 'needsReduction':
+        case 'buildingCostMod':
+        case 'cultureBonus':
+        case 'organizationDecay':
+            return `${type.replace(/([A-Z])/g, ' $1').trim()} ${sign}${(value * 100).toFixed(0)}%`;
+        case 'approval':
+            if (targetName) return `${targetName}满意度 ${sign}${value}`;
+            return `满意度 ${sign}${value}`;
+        case 'diplomaticBonus':
+            return `外交关系 ${sign}${value}/日`;
+        default:
+            return `${type} ${sign}${value}`;
+    }
+};
+
+// 效果名称映射（政治立场效果专用）
+const EFFECT_NAMES = {
+    stability: '稳定性',
+    legitimacyBonus: '合法性',
+    militaryBonus: '军队战力',
+    tradeBonus: '贸易利润',
+    taxEfficiency: '税收效率',
+    industryBonus: '工业产出',
+    gatherBonus: '采集产出',
+    incomePercentBonus: '税收收入',
+    researchSpeed: '科研产出',
+    populationGrowth: '人口增长',
+    needsReduction: '全民消耗', // 正值表示减少消耗
+    buildingCostMod: '建筑成本',
+    cultureBonus: '文化产出',
+    organizationDecay: '组织度增速',
+    approval: '满意度',
+    diplomaticBonus: '外交关系',
+};
+
 /**
- * 单个官员卡片组件
- * 显示已雇佣官员的信息或候选人的雇佣功能。
+ * 单个官员卡片组件 - 左右两栏布局
  */
 export const OfficialCard = memo(({
     official,
     isCandidate = false,
     onAction,
+    onDispose,
     canAfford = true,
-    actionDisabled = false
+    actionDisabled = false,
+    currentDay = 0,
 }) => {
+    const [showDisposalMenu, setShowDisposalMenu] = useState(false);
+
     if (!official) return null;
 
-    // 使用 sourceStratum 或 stratum
     const stratumKey = official.sourceStratum || official.stratum;
     const stratumDef = STRATA[stratumKey];
     const stratumColor = stratumDef?.color || 'text-gray-400';
     const stratumIcon = stratumDef?.icon || 'User';
-
-    // 格式化薪俸显示
     const salary = official.salary || 0;
 
-    // 获取效果描述
+    // 政治立场
+    const stance = POLITICAL_STANCES[official.politicalStance];
+    const stanceSpectrum = stance?.spectrum || 'center';
+    const spectrumColors = {
+        left: { bg: 'bg-red-900/30', border: 'border-red-700/50', text: 'text-red-300' },
+        center: { bg: 'bg-blue-900/30', border: 'border-blue-700/50', text: 'text-blue-300' },
+        right: { bg: 'bg-purple-900/30', border: 'border-purple-700/50', text: 'text-purple-300' },
+    };
+    const stanceColors = spectrumColors[stanceSpectrum] || spectrumColors.center;
+
+    // 威望计算
+    const prestige = !isCandidate ? calculatePrestige(official, currentDay) : 0;
+    const prestigeInfo = !isCandidate ? getPrestigeLevel(prestige) : null;
+
+    // 处置按钮
+    const handleDispose = (type) => {
+        setShowDisposalMenu(false);
+        if (onDispose) onDispose(official.id, type);
+    };
+
+    // 格式化单个效果的描述（完整汉化）
+    const formatEffect = (type, target, value) => {
+        const targetName = target ? getTargetName(target, type) : null;
+        const isPositive = value > 0;
+        const absValue = Math.abs(value);
+        let isGood = isPositive;
+        let description = '';
+        const pct = (v) => `${v > 0 ? '+' : ''}${(v * 100).toFixed(0)}%`;
+        const num = (v) => `${v > 0 ? '+' : ''}${v.toFixed(2)}`;
+
+        switch (type) {
+            // 建筑/类别产出
+            case 'buildings': description = `${targetName}产出 ${pct(value)}`; break;
+            case 'categories': description = `${targetName}类产出 ${pct(value)}`; break;
+
+            // 贸易/税收
+            case 'tradeBonus': description = `贸易利润 ${pct(value)}`; break;
+            case 'taxEfficiency': description = `税收效率 ${pct(value)}`; break;
+            case 'incomePercent': description = `税收收入 ${pct(value)}`; break;
+
+            // 建筑成本
+            case 'buildingCostMod': isGood = value < 0; description = `建筑成本 ${pct(value)}`; break;
+
+            // 被动产出
+            case 'passive': description = `每日${targetName || '产出'} ${num(value)}`; break;
+            case 'passivePercent': 
+                if (target === 'silver') {
+                    description = `银币收入 ${pct(value)}`;
+                } else {
+                    description = `${targetName || '资源'}产出 ${pct(value)}`;
+                }
+                break;
+
+            // 需求/消耗
+            case 'stratumDemandMod': isGood = value < 0; description = `${targetName}消耗 ${pct(value)}`; break;
+            case 'resourceDemandMod': isGood = value < 0; description = `${targetName}需求 ${pct(value)}`; break;
+            case 'resourceSupplyMod': description = `${targetName}供给 ${pct(value)}`; break;
+            case 'needsReduction': isGood = value > 0; description = `全民消耗 ${value > 0 ? '-' : '+'}${(absValue * 100).toFixed(0)}%`; break;
+
+            // 人口
+            case 'maxPop': description = `人口上限 ${pct(value)}`; break;
+            case 'populationGrowth': description = `人口增长 ${pct(value)}`; break;
+
+            // 科研/文化
+            case 'researchSpeed': description = `科研产出 ${pct(value)}`; break;
+            case 'cultureBonus': description = `文化产出 ${pct(value)}`; break;
+
+            // 满意度/稳定性
+            case 'approval': description = `${targetName || '全体'}满意度 ${isPositive ? '+' : ''}${value}`; break;
+            case 'coalitionApproval': description = `联盟满意度 ${isPositive ? '+' : ''}${value}`; break;
+            case 'legitimacyBonus': description = `合法性 ${pct(value)}`; break;
+            case 'stability': description = `稳定性 ${pct(value)}`; break;
+
+            // 军事
+            case 'militaryBonus': description = `军队战力 ${pct(value)}`; break;
+            case 'militaryUpkeep': isGood = value < 0; description = `军事维护 ${pct(value)}`; break;
+            case 'wartimeProduction': description = `战时生产 ${pct(value)}`; break;
+
+            // 组织度
+            case 'organizationDecay': isGood = value < 0; description = `组织度增速 ${pct(value)}`; break;
+
+            // 外交
+            case 'diplomaticBonus': description = `外交关系 ${isPositive ? '+' : ''}${value}/日`; break;
+
+            // 资源浪费
+            case 'resourceWaste': isGood = value < 0; description = `${targetName || '资源'}浪费 ${pct(value)}`; break;
+
+            // 派系冲突
+            case 'factionConflict': isGood = value < 0; description = `派系冲突 ${value > 0 ? '-' : '+'}${(Math.abs(value) * 100).toFixed(0)}%稳定`; break;
+
+            // 腐败
+            case 'corruption': isGood = value < 0; description = `腐败 ${value > 0 ? '-' : '+'}${(Math.abs(value) * 100).toFixed(0)}%税收`; break;
+
+            // 外交事件
+            case 'diplomaticIncident': isGood = value < 0; description = `外交关系衰减 +${value.toFixed(1)}/日`; break;
+
+            // 外交冷却
+            case 'diplomaticCooldown': isGood = value < 0; description = `外交冷却 ${pct(value)}`; break;
+
+            // 其他
+            case 'influenceBonus': description = `影响力 ${pct(value)}`; break;
+            case 'wageModifier': isGood = value < 0; description = `薪俸成本 ${pct(value)}`; break;
+            case 'corruptionMod': isGood = value < 0; description = `腐败程度 ${pct(value)}`; break;
+
+            default:
+                // 尝试智能汉化未知类型
+                const typeNames = {
+                    'production': '生产', 'bonus': '加成', 'penalty': '惩罚',
+                    'mod': '调整', 'rate': '速率', 'cost': '成本',
+                };
+                let cnType = type;
+                Object.entries(typeNames).forEach(([en, cn]) => {
+                    cnType = cnType.replace(new RegExp(en, 'gi'), cn);
+                });
+                description = `${cnType}${targetName ? ` (${targetName})` : ''}: ${typeof value === 'number' && Math.abs(value) < 10 ? value.toFixed(2) : value}`;
+        }
+        return { description, isGood };
+    };
+
+    // 渲染效果列表
     const renderEffects = () => {
         const items = [];
         const effects = official.effects || {};
 
-        // 生成一条人性化的效果描述
-        const formatEffect = (type, target, value) => {
-            const targetName = target ? getTargetName(target, type) : null;
-            const isPositive = value > 0;
-            const absValue = Math.abs(value);
-
-            // 判断这个效果对玩家是好是坏
-            let isGood = isPositive;
-            let description = '';
-
-            switch (type) {
-                // ========== 生产类 ==========
-                case 'buildings':
-                    // 建筑产出加成
-                    description = `${targetName}产出 ${isPositive ? '+' : ''}${(value * 100).toFixed(0)}%`;
-                    break;
-                case 'categories':
-                    // 类别产出加成
-                    description = `${targetName}类建筑产出 ${isPositive ? '+' : ''}${(value * 100).toFixed(0)}%`;
-                    break;
-                case 'wartimeProduction':
-                    // 战时产出加成
-                    description = `战时产出 ${isPositive ? '+' : ''}${(value * 100).toFixed(0)}%`;
-                    break;
-
-                // ========== 经济类 ==========
-                case 'tradeBonus':
-                    // 贸易利润
-                    description = `贸易利润 ${isPositive ? '+' : ''}${(value * 100).toFixed(0)}%`;
-                    break;
-                case 'taxEfficiency':
-                    // 税收效率
-                    description = `税收效率 ${isPositive ? '+' : ''}${(value * 100).toFixed(0)}%`;
-                    break;
-                case 'buildingCostMod':
-                    // 建筑成本：负值是好的（降低成本）
-                    isGood = value < 0;
-                    description = `建筑成本 ${value < 0 ? '' : '+'}${(value * 100).toFixed(0)}%`;
-                    break;
-                case 'incomePercent':
-                    // 财政收入
-                    description = `税收收入 ${isPositive ? '+' : ''}${(value * 100).toFixed(0)}%`;
-                    break;
-                case 'passive':
-                    // 被动产出：每日额外获得资源
-                    description = `每日${targetName} ${isPositive ? '+' : ''}${value.toFixed(1)}`;
-                    break;
-                case 'passivePercent':
-                    // 被动百分比收益
-                    description = `${targetName}总收入 ${isPositive ? '+' : ''}${(value * 100).toFixed(0)}%`;
-                    break;
-                case 'corruption':
-                    // 腐败：税收损失（正值是坏的）
-                    isGood = false;
-                    description = `腐败损失 ${(value * 100).toFixed(0)}%`;
-                    break;
-
-                // ========== 需求/资源类 ==========
-                case 'stratumDemandMod':
-                    // 阶层需求修正：负值是好的（减少消耗）
-                    isGood = value < 0;
-                    description = `${targetName}消耗 ${value < 0 ? '' : '+'}${(value * 100).toFixed(0)}%`;
-                    break;
-                case 'resourceDemandMod':
-                    // 资源需求修正：负值是好的
-                    isGood = value < 0;
-                    description = `${targetName}消耗 ${value < 0 ? '' : '+'}${(value * 100).toFixed(0)}%`;
-                    break;
-                case 'resourceSupplyMod':
-                    // 资源供给加成
-                    description = `${targetName}产量 ${isPositive ? '+' : ''}${(value * 100).toFixed(0)}%`;
-                    break;
-                case 'resourceWaste':
-                    // 资源浪费（正值是坏的）
-                    isGood = value < 0;
-                    description = `${targetName}浪费 ${isPositive ? '+' : ''}${(value * 100).toFixed(0)}%`;
-                    break;
-                case 'needsReduction':
-                    // 需求减少：正值是好的
-                    description = `全民消耗 ${value > 0 ? '-' : '+'}${(absValue * 100).toFixed(0)}%`;
-                    break;
-
-                // ========== 人口/发展类 ==========
-                case 'maxPop':
-                    // 人口上限
-                    description = `人口上限 ${isPositive ? '+' : ''}${(value * 100).toFixed(0)}%`;
-                    break;
-                case 'populationGrowth':
-                    // 人口增长
-                    description = `人口增长 ${isPositive ? '+' : ''}${(value * 100).toFixed(0)}%`;
-                    break;
-                case 'researchSpeed':
-                    // 科研产出加成
-                    description = `科研产出 ${isPositive ? '+' : ''}${(value * 100).toFixed(0)}%`;
-                    break;
-
-                // ========== 政治类 ==========
-                case 'approval':
-                    // 阶层满意度
-                    description = `${targetName}满意度 ${isPositive ? '+' : ''}${value}`;
-                    break;
-                case 'coalitionApproval':
-                    // 联盟阶层满意度
-                    description = `联盟满意度 ${isPositive ? '+' : ''}${value}`;
-                    break;
-                case 'legitimacyBonus':
-                    // 合法性
-                    description = `合法性 ${isPositive ? '+' : ''}${(value * 100).toFixed(0)}%`;
-                    break;
-                case 'organizationDecay':
-                    // 组织度增长：负值是好的（减缓组织度增长）
-                    isGood = value < 0;
-                    description = `组织度增长 ${value < 0 ? '' : '+'}${(value * 100).toFixed(0)}%`;
-                    break;
-                case 'factionConflict':
-                    // 派系冲突（正值是坏的）
-                    isGood = value < 0;
-                    description = `派系冲突 ${isPositive ? '+' : ''}${(value * 100).toFixed(0)}%`;
-                    break;
-                case 'stability':
-                    // 稳定性
-                    description = `稳定性 ${isPositive ? '+' : ''}${(value * 100).toFixed(0)}%`;
-                    break;
-
-                // ========== 军事类 ==========
-                case 'militaryBonus':
-                    // 军事战力
-                    description = `军队战力 ${isPositive ? '+' : ''}${(value * 100).toFixed(0)}%`;
-                    break;
-                case 'militaryUpkeep':
-                    // 军事维护：负值是好的（降低维护）
-                    isGood = value < 0;
-                    description = `军事维护 ${value < 0 ? '' : '+'}${(value * 100).toFixed(0)}%`;
-                    break;
-
-                // ========== 外交类 ==========
-                case 'diplomaticBonus':
-                    // 外交关系每日改善
-                    description = `每日外交关系 ${isPositive ? '+' : ''}${value.toFixed(1)}`;
-                    break;
-                case 'diplomaticCooldown':
-                    // 外交冷却：负值是好的（缩短冷却）
-                    isGood = value < 0;
-                    description = `外交冷却 ${value < 0 ? '' : '+'}${(value * 100).toFixed(0)}%`;
-                    break;
-                case 'diplomaticIncident':
-                    // 外交事故（正值是坏的）
-                    isGood = false;
-                    description = `外交衰减 +${value.toFixed(1)}/日`;
-                    break;
-
-                default:
-                    description = `${type}${target ? ` (${target})` : ''}: ${value}`;
-            }
-
-            return { description, isGood };
-        };
-
         Object.entries(effects).forEach(([type, valueOrObj]) => {
             if (typeof valueOrObj === 'object' && valueOrObj !== null) {
-                // 嵌套对象：例如 { buildings: { farm: 0.1, mine: 0.05 } }
                 Object.entries(valueOrObj).forEach(([target, value]) => {
                     const { description, isGood } = formatEffect(type, target, value);
                     items.push(
-                        <div key={`eff-${type}-${target}`} className={`flex items-center gap-1 text-xs ${isGood ? 'text-green-300' : 'text-red-300'}`}>
-                            <Icon name={isGood ? "Plus" : "Minus"} size={12} className={isGood ? "text-green-500" : "text-red-500"} />
+                        <div key={`eff-${type}-${target}`} className={`flex items-center gap-1 text-[10px] ${isGood ? 'text-green-300' : 'text-red-300'}`}>
+                            <Icon name={isGood ? "Plus" : "Minus"} size={10} className={isGood ? "text-green-500" : "text-red-500"} />
                             <span>{description}</span>
                         </div>
                     );
                 });
             } else {
-                // 简单数值
                 const { description, isGood } = formatEffect(type, null, valueOrObj);
                 items.push(
-                    <div key={`eff-${type}`} className={`flex items-center gap-1 text-xs ${isGood ? 'text-green-300' : 'text-red-300'}`}>
-                        <Icon name={isGood ? "Plus" : "Minus"} size={12} className={isGood ? "text-green-500" : "text-red-500"} />
+                    <div key={`eff-${type}`} className={`flex items-center gap-1 text-[10px] ${isGood ? 'text-green-300' : 'text-red-300'}`}>
+                        <Icon name={isGood ? "Plus" : "Minus"} size={10} className={isGood ? "text-green-500" : "text-red-500"} />
                         <span>{description}</span>
                     </div>
                 );
             }
         });
-
         return items;
+    };
+
+    // 渲染立场效果（汉化版）
+    const renderStanceEffects = (effects, isActive) => {
+        if (!effects || Object.keys(effects).length === 0) return null;
+
+        // 格式化效果值显示
+        const formatStanceValue = (type, value) => {
+            // 某些效果的正负意义需要特殊处理
+            const invertedTypes = ['needsReduction', 'buildingCostMod', 'organizationDecay'];
+            const isInverted = invertedTypes.includes(type);
+            
+            // 判断是否为百分比值（绝对值小于2的认为是百分比）
+            const isPercent = typeof value === 'number' && Math.abs(value) < 2;
+            
+            if (isPercent) {
+                // needsReduction正值表示减少消耗，显示为负号更直观
+                if (type === 'needsReduction') {
+                    return value > 0 ? `-${(value * 100).toFixed(0)}%` : `+${(Math.abs(value) * 100).toFixed(0)}%`;
+                }
+                return `${value > 0 ? '+' : ''}${(value * 100).toFixed(0)}%`;
+            }
+            return `${value > 0 ? '+' : ''}${typeof value === 'number' ? value.toFixed(1) : value}`;
+        };
+
+        return Object.entries(effects).map(([type, valueOrObj]) => {
+            if (typeof valueOrObj === 'object' && valueOrObj !== null) {
+                return Object.entries(valueOrObj).map(([target, value]) => {
+                    const targetName = getTargetName(target);
+                    const displayValue = formatStanceValue(type, value);
+                    return (
+                        <div key={`stance-${type}-${target}`} className={`text-[9px] ${isActive ? 'text-green-300' : 'text-red-300'}`}>
+                            {EFFECT_NAMES[type] || type}: {targetName} {displayValue}
+                        </div>
+                    );
+                });
+            }
+            const displayValue = formatStanceValue(type, valueOrObj);
+            return (
+                <div key={`stance-${type}`} className={`text-[9px] ${isActive ? 'text-green-300' : 'text-red-300'}`}>
+                    {EFFECT_NAMES[type] || type}: {displayValue}
+                </div>
+            );
+        });
     };
 
     const effectItems = renderEffects();
 
     return (
-        <div className="bg-gray-800/60 border border-gray-700/50 rounded-lg p-3 flex flex-col gap-2 hover:border-gray-600 transition-colors">
+        <div className="bg-gray-800/60 border border-gray-700/50 rounded-lg p-3 hover:border-gray-600 transition-colors">
             {/* 头部: 姓名, 阶层, 薪俸 */}
-            <div className="flex justify-between items-start">
+            <div className="flex justify-between items-start mb-2">
                 <div className="flex items-center gap-2">
                     <div className={`p-1.5 rounded bg-gray-900/50 ${stratumColor}`}>
-                        <Icon name={stratumIcon} size={16} />
+                        <Icon name={stratumIcon} size={14} />
                     </div>
                     <div>
                         <div className="font-bold text-gray-200 text-sm leading-tight">{official.name}</div>
                         <div className={`text-[10px] ${stratumColor} opacity-80`}>
-                            {stratumDef?.name || stratumKey || '未知'} 出身
+                            {stratumDef?.name || stratumKey} 出身
+                            {prestigeInfo && <span className={`ml-1 ${prestigeInfo.color}`}>· {prestigeInfo.name}</span>}
                         </div>
                     </div>
                 </div>
@@ -279,43 +326,87 @@ export const OfficialCard = memo(({
                         <span>{salary}</span>
                         <Icon name="Coins" size={12} />
                     </div>
-                    <div className="text-[10px] text-gray-500">每日薪俸</div>
-                    {/* 在职官员显示个人财富 */}
-                    {!isCandidate && typeof official.wealth === 'number' && (
-                        <div className="flex items-center justify-end gap-1 text-blue-400 font-mono text-[10px] mt-1">
-                            <span>存款 {official.wealth.toFixed(0)}</span>
-                            {typeof official.lastDayExpense === 'number' && official.lastDayExpense > 0 && (
-                                <span className="text-gray-500">(-{official.lastDayExpense.toFixed(1)}/日)</span>
-                            )}
-                        </div>
-                    )}
+                    <div className="text-[9px] text-gray-500">每日薪俸</div>
                 </div>
             </div>
 
             {/* 分隔线 */}
-            <div className="h-px bg-gray-700/50 w-full" />
+            <div className="h-px bg-gray-700/50 w-full mb-2" />
 
-            {/* 效果列表 */}
-            <div className="flex-grow space-y-1">
-                {/* 显示对出身阶层的影响力加成 */}
-                {official.stratumInfluenceBonus > 0 && (
-                    <div className="flex items-center gap-1 text-xs text-purple-300">
-                        <Icon name={stratumDef?.icon || "Users"} size={12} className="text-purple-400" />
-                        <span>
-                            {stratumDef?.name || stratumKey}影响力 +{(official.stratumInfluenceBonus * 100).toFixed(0)}%
-                        </span>
+            {/* 左右两栏布局 */}
+            <div className="grid grid-cols-2 gap-2 min-h-[80px]">
+                {/* 左栏: 官员效果 */}
+                <div className="border-r border-gray-700/30 pr-2">
+                    <div className="text-[9px] text-gray-500 uppercase tracking-wider mb-1 flex items-center gap-1">
+                        <Icon name="Zap" size={10} />
+                        官员能力
                     </div>
-                )}
+                    <div className="space-y-0.5">
+                        {official.stratumInfluenceBonus > 0 && (
+                            <div className="flex items-center gap-1 text-[10px] text-purple-300">
+                                <Icon name="Users" size={10} className="text-purple-400" />
+                                <span>{stratumDef?.name}影响力 +{(official.stratumInfluenceBonus * 100).toFixed(0)}%</span>
+                            </div>
+                        )}
+                        {effectItems.length > 0 ? effectItems : (
+                            !official.stratumInfluenceBonus && <div className="text-[10px] text-gray-500 italic">无显著效果</div>
+                        )}
+                    </div>
+                </div>
 
-                {effectItems.length > 0 ? effectItems : (
-                    official.stratumInfluenceBonus <= 0 && (
-                        <div className="text-xs text-gray-500 italic">无显著效果</div>
-                    )
-                )}
+                {/* 右栏: 政治立场 */}
+                <div className="pl-1">
+                    {stance ? (
+                        <>
+                            <div className="text-[9px] text-gray-500 uppercase tracking-wider mb-1 flex items-center gap-1">
+                                <Icon name="Flag" size={10} />
+                                政治立场
+                            </div>
+                            {/* 立场名称 */}
+                            <div className={`flex items-center gap-1 mb-0.5 ${stanceColors.text}`}>
+                                <Icon name={stance.icon || 'Flag'} size={12} />
+                                <span className="text-[11px] font-semibold">{stance.name}</span>
+                            </div>
+                            {/* 政治议题 */}
+                            {stance.issues && stance.issues.length > 0 && (
+                                <div className="text-[9px] text-gray-500 mb-1 flex flex-wrap gap-1">
+                                    {stance.issues.slice(0, 3).map(issueId => {
+                                        const issue = POLITICAL_ISSUES[issueId];
+                                        return issue ? (
+                                            <span key={issueId} className="px-1 py-0.5 bg-gray-700/50 rounded text-gray-400">
+                                                {issue.name}
+                                            </span>
+                                        ) : null;
+                                    })}
+                                </div>
+                            )}
+                            {/* 触发条件 - 使用动态生成的条件文本 */}
+                            <div className="text-[9px] text-gray-400 mb-1">
+                                <span className="text-gray-500">条件:</span> {official.stanceConditionText || '无'}
+                            </div>
+                            {/* 满足效果 - 使用官员独特的随机化效果 */}
+                            {official.stanceActiveEffects && Object.keys(official.stanceActiveEffects).length > 0 && (
+                                <div className="mb-0.5">
+                                    <span className="text-[8px] text-green-500 uppercase">满足时:</span>
+                                    {renderStanceEffects(official.stanceActiveEffects, true)}
+                                </div>
+                            )}
+                            {/* 不满足惩罚 - 使用官员独特的随机化惩罚 */}
+                            {official.stanceUnsatisfiedPenalty && Object.keys(official.stanceUnsatisfiedPenalty).length > 0 && (
+                                <div>
+                                    <span className="text-[8px] text-red-500 uppercase">未满足:</span>
+                                    {renderStanceEffects(official.stanceUnsatisfiedPenalty, false)}
+                                </div>
+                            )}
+                        </>
+                    ) : (
+                        <div className="text-[10px] text-gray-500 italic">无政治立场</div>
+                    )}
+                </div>
             </div>
 
             {/* 操作按钮 */}
-            <div className="mt-2">
+            <div className="mt-2 pt-2 border-t border-gray-700/30">
                 {isCandidate ? (
                     <button
                         onClick={() => onAction(official.id)}
@@ -329,14 +420,43 @@ export const OfficialCard = memo(({
                         雇佣
                     </button>
                 ) : (
-                    <button
-                        onClick={() => onAction(official.id)}
-                        disabled={actionDisabled}
-                        className="w-full py-1 px-2 rounded text-xs font-bold flex items-center justify-center gap-1 transition-colors bg-red-900/30 hover:bg-red-800/50 text-red-400 border border-red-900/50"
-                    >
-                        <Icon name="UserMinus" size={12} />
-                        解雇
-                    </button>
+                    <div className="relative">
+                        <div className="flex gap-1">
+                            <button
+                                onClick={() => onAction(official.id)}
+                                disabled={actionDisabled}
+                                className="flex-1 py-1 px-2 rounded text-xs font-bold flex items-center justify-center gap-1 transition-colors bg-gray-700/50 hover:bg-gray-600/50 text-gray-300 border border-gray-600/50"
+                            >
+                                <Icon name="UserMinus" size={12} />
+                                解雇
+                            </button>
+                            <button
+                                onClick={() => setShowDisposalMenu(!showDisposalMenu)}
+                                className="py-1 px-2 rounded text-xs font-bold flex items-center justify-center transition-colors bg-red-900/30 hover:bg-red-800/50 text-red-400 border border-red-900/50"
+                                title="更多处置选项"
+                            >
+                                <Icon name="ChevronDown" size={12} />
+                            </button>
+                        </div>
+
+                        {showDisposalMenu && (
+                            <div className="absolute bottom-full left-0 right-0 mb-1 bg-gray-900 border border-gray-700 rounded-lg shadow-lg overflow-hidden z-10">
+                                {Object.values(DISPOSAL_TYPES).filter(t => t.id !== 'fire').map(type => (
+                                    <button
+                                        key={type.id}
+                                        onClick={() => handleDispose(type.id)}
+                                        className={`w-full py-2 px-3 text-xs flex items-center gap-2 hover:bg-gray-800 transition-colors ${type.color}`}
+                                    >
+                                        <Icon name={type.icon} size={14} />
+                                        <span className="font-medium">{type.name}</span>
+                                        {type.wealthSeized > 0 && (
+                                            <span className="opacity-70 ml-auto">没收{(type.wealthSeized * 100).toFixed(0)}%财产</span>
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 )}
             </div>
         </div>

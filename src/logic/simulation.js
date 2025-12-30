@@ -107,7 +107,7 @@ import {
     applyPolityEffects, // Apply polity effects helper
     calculateTotalMaxPop,
 } from './buildings';
-import { getAggregatedOfficialEffects, getOfficialInfluenceBonus, calculateOfficialCapacity } from '../logic/officials/manager';
+import { getAggregatedOfficialEffects, getOfficialInfluenceBonus, calculateOfficialCapacity, getAggregatedStanceEffects } from '../logic/officials/manager';
 
 // ============================================================================
 // All helper functions and constants have been migrated to modules:
@@ -311,6 +311,77 @@ export const simulateTick = ({
     bonuses.tradeBonusMod = activeOfficialEffects.tradeBonus || 0;
     // 建筑成本 → 存储供建筑购买使用
     bonuses.buildingCostMod = activeOfficialEffects.buildingCostMod || 0;
+    // 外交加成 → 存储供外交关系计算使用
+    bonuses.diplomaticBonus = activeOfficialEffects.diplomaticBonus || 0;
+
+    // === 应用政治立场效果 ===
+    // 构建简化的游戏状态用于条件检查
+    const stanceCheckState = {
+        classApproval: previousApproval,
+        classInfluence: market?.classInfluence || {},
+        totalInfluence: market?.totalInfluence || 1,
+        classLivingStandard: market?.classLivingStandard || {},
+        classIncome: market?.classIncome || {},
+        stability: currentStability / 100, // 转换为0-1
+        legitimacy: previousLegitimacy,
+        taxPolicies: policies,
+        rulingCoalition,
+        atWar: isPlayerAtWar,
+        population,
+        epoch,
+        buildings: buildings,
+    };
+    const stanceResult = getAggregatedStanceEffects(officials, stanceCheckState);
+    const stanceEffects = stanceResult.aggregatedEffects;
+
+    // 应用立场效果到 bonuses
+    if (stanceEffects.stability) {
+        bonuses.stabilityBonus = (bonuses.stabilityBonus || 0) + stanceEffects.stability;
+    }
+    if (stanceEffects.legitimacyBonus) {
+        bonuses.legitimacyBonus = (bonuses.legitimacyBonus || 0) + stanceEffects.legitimacyBonus;
+    }
+    if (stanceEffects.gatherBonus) {
+        categoryBonuses.gather = (categoryBonuses.gather || 0) + stanceEffects.gatherBonus;
+    }
+    if (stanceEffects.industryBonus) {
+        categoryBonuses.industry = (categoryBonuses.industry || 0) + stanceEffects.industryBonus;
+    }
+    if (stanceEffects.tradeBonus) {
+        bonuses.tradeBonusMod = (bonuses.tradeBonusMod || 0) + stanceEffects.tradeBonus;
+    }
+    if (stanceEffects.researchSpeed) {
+        bonuses.scienceBonus = (bonuses.scienceBonus || 0) + stanceEffects.researchSpeed;
+    }
+    if (stanceEffects.taxEfficiency) {
+        bonuses.taxEfficiencyBonus = (bonuses.taxEfficiencyBonus || 0) + stanceEffects.taxEfficiency;
+    }
+    if (stanceEffects.incomePercentBonus) {
+        bonuses.incomePercentBonus = (bonuses.incomePercentBonus || 0) + stanceEffects.incomePercentBonus;
+    }
+    if (stanceEffects.buildingCostMod) {
+        bonuses.buildingCostMod = (bonuses.buildingCostMod || 0) + stanceEffects.buildingCostMod;
+    }
+    if (stanceEffects.needsReduction) {
+        bonuses.needsReduction = (bonuses.needsReduction || 0) + stanceEffects.needsReduction;
+    }
+    if (stanceEffects.populationGrowth) {
+        bonuses.populationGrowthBonus = (bonuses.populationGrowthBonus || 0) + stanceEffects.populationGrowth;
+    }
+    if (stanceEffects.militaryBonus) {
+        bonuses.militaryBonus = (bonuses.militaryBonus || 0) + stanceEffects.militaryBonus;
+    }
+    if (stanceEffects.organizationDecay) {
+        bonuses.organizationDecay = (bonuses.organizationDecay || 0) + stanceEffects.organizationDecay;
+    }
+    if (stanceEffects.cultureBonus) {
+        bonuses.cultureBonus = (bonuses.cultureBonus || 0) + stanceEffects.cultureBonus;
+    }
+    if (stanceEffects.diplomaticBonus) {
+        bonuses.diplomaticBonus = (bonuses.diplomaticBonus || 0) + stanceEffects.diplomaticBonus;
+    }
+    // 立场满意度效果存储供后续使用
+    bonuses.stanceApprovalEffects = stanceEffects.approval || {};
 
     // Destructure for backward compatibility with existing code
     const {
@@ -2537,7 +2608,7 @@ export const simulateTick = ({
 
         // 官员满意度修正
         const officialBonus = activeOfficialEffects?.approval?.[key] || 0;
-        
+
         // 正面官员效果加到目标值
         if (officialBonus > 0) {
             targetApproval += officialBonus;
@@ -2551,7 +2622,7 @@ export const simulateTick = ({
 
         const currentApproval = classApproval[key] || 50;
         const adjustmentSpeed = 0.02; // How slowly approval changes per tick
-        
+
         // 满意度向目标值移动
         let newApproval = currentApproval + (targetApproval - currentApproval) * adjustmentSpeed;
 
@@ -2933,6 +3004,12 @@ export const simulateTick = ({
 
         // REFACTORED: Using module function for relation decay
         processNationRelationDecay(next);
+
+        // 应用官员和政治立场的外交加成到玩家与AI的关系
+        if (bonuses.diplomaticBonus && !next.isRebelNation && !next.isAtWar) {
+            const dailyBonus = bonuses.diplomaticBonus / 30; // 分摊到每日
+            next.relation = Math.min(100, Math.max(0, (next.relation ?? 50) + dailyBonus));
+        }
 
         // REFACTORED: Using module function for AI alliance breaking check
         checkAIBreakAlliance(next, logs);

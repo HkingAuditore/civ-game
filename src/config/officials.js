@@ -4,6 +4,7 @@
  */
 
 import { STRATA } from './strata';
+import { assignPoliticalStance } from './politicalStances';
 
 // ========== 效果类型定义 ==========
 // 设计原则：每种效果类型都应该能显著影响玩家的游戏风格和决策
@@ -22,7 +23,7 @@ export const OFFICIAL_EFFECT_TYPES = {
             'market', 'trade_port', 'trading_post', 'dockyard',
             'library', 'church', 'barracks', 'training_ground', 'fortress'
         ],
-        valueRange: [0.15, 0.40], // +15% ~ +40% (大幅提升)
+        valueRange: [0.05, 0.18], // +5% ~ +18%
         weight: 25,
         costMultiplier: 1.0,
         description: (val, target) => `${target} 产出 +${(val * 100).toFixed(0)}%`,
@@ -33,7 +34,7 @@ export const OFFICIAL_EFFECT_TYPES = {
         type: 'categories',
         category: 'production',
         targets: ['gather', 'industry', 'civic', 'military'],
-        valueRange: [0.10, 0.35],
+        valueRange: [0.04, 0.15],
         weight: 20,
         costMultiplier: 1.2,
         description: (val, target) => `${target}类建筑产出 +${(val * 100).toFixed(0)}%`,
@@ -43,7 +44,7 @@ export const OFFICIAL_EFFECT_TYPES = {
     wartime_production: {
         type: 'wartimeProduction',
         category: 'production',
-        valueRange: [0.20, 0.50],
+        valueRange: [0.08, 0.22],
         weight: 12,
         costMultiplier: 1.3,
         description: (val) => `战时产出 +${(val * 100).toFixed(0)}%`,
@@ -54,7 +55,7 @@ export const OFFICIAL_EFFECT_TYPES = {
     trade_bonus: {
         type: 'tradeBonus',
         category: 'economy',
-        valueRange: [0.20, 0.50],
+        valueRange: [0.08, 0.22],
         weight: 15,
         costMultiplier: 1.4,
         description: (val) => `贸易利润 +${(val * 100).toFixed(0)}%`,
@@ -64,7 +65,7 @@ export const OFFICIAL_EFFECT_TYPES = {
     tax_efficiency: {
         type: 'taxEfficiency',
         category: 'economy',
-        valueRange: [0.10, 0.30],
+        valueRange: [0.04, 0.14],
         weight: 15,
         costMultiplier: 1.5,
         description: (val) => `税收效率 +${(val * 100).toFixed(0)}%`,
@@ -74,7 +75,7 @@ export const OFFICIAL_EFFECT_TYPES = {
     building_cost_reduction: {
         type: 'buildingCostMod',
         category: 'economy',
-        valueRange: [-0.40, -0.15],
+        valueRange: [-0.18, -0.06],
         weight: 12,
         costMultiplier: 1.2,
         description: (val) => `建筑成本 ${(val * 100).toFixed(0)}%`,
@@ -84,7 +85,7 @@ export const OFFICIAL_EFFECT_TYPES = {
     income_percent: {
         type: 'incomePercent',
         category: 'economy',
-        valueRange: [0.10, 0.25],
+        valueRange: [0.04, 0.12],
         weight: 12,
         costMultiplier: 1.5,
         description: (val) => `税收收入 +${(val * 100).toFixed(0)}%`,
@@ -95,7 +96,7 @@ export const OFFICIAL_EFFECT_TYPES = {
         type: 'passive',
         category: 'economy',
         targets: ['food', 'silver', 'culture', 'science'],
-        valueRange: [5.0, 15.0],
+        valueRange: [1.0, 5.0],
         weight: 10,
         costMultiplier: 1.5,
         description: (val, target) => `每日 ${target} +${val.toFixed(1)}`,
@@ -106,7 +107,7 @@ export const OFFICIAL_EFFECT_TYPES = {
         type: 'passivePercent',
         category: 'economy',
         targets: ['silver', 'food'],
-        valueRange: [0.10, 0.30],
+        valueRange: [0.04, 0.14],
         weight: 12,
         costMultiplier: 1.3,
         description: (val, target) => `${target} 产出 +${(val * 100).toFixed(0)}%`,
@@ -118,7 +119,7 @@ export const OFFICIAL_EFFECT_TYPES = {
         type: 'stratumDemandMod',
         category: 'needs',
         targets: Object.keys(STRATA),
-        valueRange: [-0.40, -0.15],
+        valueRange: [-0.18, -0.06],
         weight: 15,
         costMultiplier: 0.8,
         description: (val, target) => `${target} 需求 ${(val * 100).toFixed(0)}%`,
@@ -133,7 +134,7 @@ export const OFFICIAL_EFFECT_TYPES = {
             'plank', 'brick', 'ale', 'spice', 'coffee', 'papyrus',
             'delicacies', 'fine_clothes', 'furniture', 'culture'
         ],
-        valueRange: [-0.30, -0.10],
+        valueRange: [-0.14, -0.04],
         weight: 12,
         costMultiplier: 0.7,
         description: (val, target) => `${target} 需求 ${(val * 100).toFixed(0)}%`,
@@ -148,7 +149,7 @@ export const OFFICIAL_EFFECT_TYPES = {
             'plank', 'brick', 'ale', 'spice', 'coffee', 'papyrus',
             'delicacies', 'fine_clothes', 'furniture', 'steel'
         ],
-        valueRange: [0.20, 0.50],
+        valueRange: [0.08, 0.22],
         weight: 12,
         costMultiplier: 1.0,
         description: (val, target) => `${target} 供给 +${(val * 100).toFixed(0)}%`,
@@ -158,7 +159,7 @@ export const OFFICIAL_EFFECT_TYPES = {
     needs_reduction: {
         type: 'needsReduction',
         category: 'needs',
-        valueRange: [0.15, 0.35],
+        valueRange: [0.05, 0.15],
         weight: 8,
         costMultiplier: 1.2,
         description: (val) => `全民需求 -${(val * 100).toFixed(0)}%`,
@@ -169,7 +170,7 @@ export const OFFICIAL_EFFECT_TYPES = {
     max_pop: {
         type: 'maxPop',
         category: 'population',
-        valueRange: [0.10, 0.30],
+        valueRange: [0.04, 0.14],
         weight: 10,
         costMultiplier: 1.0,
         description: (val) => `人口上限 +${(val * 100).toFixed(0)}%`,
@@ -179,7 +180,7 @@ export const OFFICIAL_EFFECT_TYPES = {
     population_growth: {
         type: 'populationGrowth',
         category: 'population',
-        valueRange: [0.20, 0.50],
+        valueRange: [0.08, 0.22],
         weight: 10,
         costMultiplier: 1.1,
         description: (val) => `人口增长 +${(val * 100).toFixed(0)}%`,
@@ -189,7 +190,7 @@ export const OFFICIAL_EFFECT_TYPES = {
     research_speed: {
         type: 'researchSpeed',
         category: 'development',
-        valueRange: [0.20, 0.50],
+        valueRange: [0.08, 0.22],
         weight: 12,
         costMultiplier: 1.4,
         description: (val) => `科研产出 +${(val * 100).toFixed(0)}%`,
@@ -201,7 +202,7 @@ export const OFFICIAL_EFFECT_TYPES = {
         type: 'approval',
         category: 'politics',
         targets: Object.keys(STRATA),
-        valueRange: [15, 30],
+        valueRange: [5, 15],
         weight: 15,
         costMultiplier: 0.8,
         description: (val, target) => `${target} 满意度 +${val}`,
@@ -211,7 +212,7 @@ export const OFFICIAL_EFFECT_TYPES = {
     coalition_approval: {
         type: 'coalitionApproval',
         category: 'politics',
-        valueRange: [10, 20],
+        valueRange: [4, 10],
         weight: 10,
         costMultiplier: 1.0,
         description: (val) => `联盟阶层满意度 +${val}`,
@@ -221,7 +222,7 @@ export const OFFICIAL_EFFECT_TYPES = {
     legitimacy_bonus: {
         type: 'legitimacyBonus',
         category: 'politics',
-        valueRange: [0.10, 0.25],
+        valueRange: [0.04, 0.12],
         weight: 10,
         costMultiplier: 1.2,
         description: (val) => `合法性 +${(val * 100).toFixed(0)}%`,
@@ -231,7 +232,7 @@ export const OFFICIAL_EFFECT_TYPES = {
     organization_decay: {
         type: 'organizationDecay',
         category: 'politics',
-        valueRange: [-0.40, -0.15],
+        valueRange: [-0.18, -0.06],
         weight: 8,
         costMultiplier: 1.1,
         description: (val) => `组织度增长 ${(val * 100).toFixed(0)}%`,
@@ -241,7 +242,7 @@ export const OFFICIAL_EFFECT_TYPES = {
     stability_bonus: {
         type: 'stability',
         category: 'politics',
-        valueRange: [0.05, 0.15],
+        valueRange: [0.02, 0.08],
         weight: 8,
         costMultiplier: 1.2,
         description: (val) => `稳定性 +${(val * 100).toFixed(0)}%`,
@@ -252,7 +253,7 @@ export const OFFICIAL_EFFECT_TYPES = {
     military_bonus: {
         type: 'militaryBonus',
         category: 'military',
-        valueRange: [0.15, 0.40],
+        valueRange: [0.06, 0.18],
         weight: 10,
         costMultiplier: 1.0,
         description: (val) => `军事力量 +${(val * 100).toFixed(0)}%`,
@@ -262,7 +263,7 @@ export const OFFICIAL_EFFECT_TYPES = {
     military_upkeep: {
         type: 'militaryUpkeep',
         category: 'military',
-        valueRange: [-0.40, -0.15],
+        valueRange: [-0.18, -0.06],
         weight: 10,
         costMultiplier: 1.1,
         description: (val) => `军事维护 ${(val * 100).toFixed(0)}%`,
@@ -273,7 +274,7 @@ export const OFFICIAL_EFFECT_TYPES = {
     diplomatic_bonus: {
         type: 'diplomaticBonus',
         category: 'diplomacy',
-        valueRange: [2.0, 6.0], // 每日关系改善值大幅提升
+        valueRange: [0.5, 2.0], // 每日关系改善值
         weight: 8,
         costMultiplier: 1.0,
         description: (val) => `每日外交关系 +${val.toFixed(1)}`,
@@ -283,7 +284,7 @@ export const OFFICIAL_EFFECT_TYPES = {
     diplomatic_cooldown: {
         type: 'diplomaticCooldown',
         category: 'diplomacy',
-        valueRange: [-0.40, -0.20],
+        valueRange: [-0.18, -0.08],
         weight: 6,
         costMultiplier: 0.9,
         description: (val) => `外交冷却 ${(val * 100).toFixed(0)}%`,
@@ -297,7 +298,7 @@ export const OFFICIAL_DRAWBACK_TYPES = {
         type: 'categories',
         category: 'production',
         targets: ['gather', 'industry', 'civic', 'military'],
-        valueRange: [-0.12, -0.04],
+        valueRange: [-0.06, -0.02],
         weight: 20,
         description: (val, target) => `${target}类产出 ${(val * 100).toFixed(0)}%`,
     },
@@ -307,7 +308,7 @@ export const OFFICIAL_DRAWBACK_TYPES = {
         type: 'passivePercent',
         category: 'economy',
         targets: ['silver', 'food'],
-        valueRange: [-0.08, -0.03],
+        valueRange: [-0.04, -0.01],
         weight: 20,
         description: (val, target) => `每日 ${target} ${(val * 100).toFixed(0)}%`,
     },
@@ -316,7 +317,7 @@ export const OFFICIAL_DRAWBACK_TYPES = {
     needs_increase: {
         type: 'needsReduction',
         category: 'needs',
-        valueRange: [-0.12, -0.04],
+        valueRange: [-0.06, -0.02],
         weight: 15,
         description: (val) => `全民需求 +${Math.abs(val * 100).toFixed(0)}%`,
     },
@@ -326,7 +327,7 @@ export const OFFICIAL_DRAWBACK_TYPES = {
         type: 'approval',
         category: 'politics',
         targets: ['peasant', 'worker', 'merchant', 'artisan', 'landowner', 'serf', 'miner'],
-        valueRange: [-15, -5],
+        valueRange: [-8, -2],
         weight: 20,
         description: (val, target) => `${target} 满意度 ${val}`,
     },
@@ -335,7 +336,7 @@ export const OFFICIAL_DRAWBACK_TYPES = {
     corruption: {
         type: 'corruption',
         category: 'economy',
-        valueRange: [0.05, 0.15],
+        valueRange: [0.02, 0.08],
         weight: 15,
         description: (val) => `腐败：税收损失 ${(val * 100).toFixed(0)}%`,
     },
@@ -344,7 +345,7 @@ export const OFFICIAL_DRAWBACK_TYPES = {
     faction_conflict: {
         type: 'factionConflict',
         category: 'politics',
-        valueRange: [0.02, 0.08],
+        valueRange: [0.01, 0.04],
         weight: 10,
         description: (val) => `派系冲突：稳定性 -${(val * 100).toFixed(0)}%`,
     },
@@ -354,7 +355,7 @@ export const OFFICIAL_DRAWBACK_TYPES = {
         type: 'resourceWaste',
         category: 'needs',
         targets: ['food', 'wood', 'stone', 'iron'],
-        valueRange: [0.05, 0.12],
+        valueRange: [0.02, 0.06],
         weight: 12,
         description: (val, target) => `${target} 消耗 +${(val * 100).toFixed(0)}%`,
     },
@@ -363,7 +364,7 @@ export const OFFICIAL_DRAWBACK_TYPES = {
     diplomatic_incident: {
         type: 'diplomaticIncident',
         category: 'diplomacy',
-        valueRange: [0.3, 1.0], // 每日额外关系衰减
+        valueRange: [0.1, 0.4], // 每日额外关系衰减
         weight: 8,
         description: (val) => `外交关系衰减 +${val.toFixed(1)}/日`,
     },
@@ -372,7 +373,7 @@ export const OFFICIAL_DRAWBACK_TYPES = {
     building_cost_increase: {
         type: 'buildingCostMod',
         category: 'economy',
-        valueRange: [0.08, 0.20],
+        valueRange: [0.04, 0.10],
         weight: 12,
         description: (val) => `建筑成本 +${(val * 100).toFixed(0)}%`,
     },
@@ -381,7 +382,7 @@ export const OFFICIAL_DRAWBACK_TYPES = {
     military_upkeep_increase: {
         type: 'militaryUpkeep',
         category: 'military',
-        valueRange: [0.08, 0.18],
+        valueRange: [0.04, 0.10],
         weight: 10,
         description: (val) => `军事维护 +${(val * 100).toFixed(0)}%`,
     },
@@ -390,7 +391,7 @@ export const OFFICIAL_DRAWBACK_TYPES = {
     research_slowdown: {
         type: 'researchSpeed',
         category: 'development',
-        valueRange: [-0.15, -0.05],
+        valueRange: [-0.08, -0.02],
         weight: 8,
         description: (val) => `科研速度 ${(val * 100).toFixed(0)}%`,
     },
@@ -739,13 +740,13 @@ const generateEffect = (isDrawback = false, sourceStratum = null, epoch = 1) => 
     // 时代缩放因子：早期时代效果较弱，后期更强
     // epoch 1: 0.4x, epoch 2: 0.55x, epoch 3: 0.7x, epoch 4: 0.85x, epoch 5: 1.0x, epoch 6+: 1.0x
     const epochScaleFactor = Math.min(1.0, 0.25 + epoch * 0.15);
-    
+
     const [min, max] = config.valueRange;
     // 应用时代缩放：早期时代只能获得数值范围的一部分
     const scaledMin = min * epochScaleFactor;
     const scaledMax = max * epochScaleFactor;
     const rawValue = scaledMin + Math.random() * (scaledMax - scaledMin);
-    
+
     let value = rawValue;
     if (config.type === 'approval' || config.type === 'coalitionApproval') {
         value = Math.round(rawValue);
@@ -816,7 +817,7 @@ export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence 
     let maxEffects = 4;
     if (epoch >= 3) maxEffects = 6;
     if (epoch >= 6) maxEffects = 8;
-    
+
     // 随机生成数量
     let effectCount = Math.floor(minEffects + Math.random() * (maxEffects - minEffects + 1));
 
@@ -840,7 +841,7 @@ export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence 
     // 3. 生成负面效果 (40% 概率，高时代概率略增)
     let drawback = null;
     let drawbackChance = 0.4 + (epoch * 0.03);
-    
+
     // 如果正面效果特别多 (5个以上)，负面效果概率显著增加，可能出现"高风险高回报"
     if (effectCount >= 5) drawbackChance += 0.3;
 
@@ -869,15 +870,15 @@ export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence 
     if (drawback) mergeIntoEffects(drawback);
 
     // 5. 计算俸禄
-    // 目标范围: 30 ~ 5000 银/日 (调整范围，早期时代更便宜)
-    // 基础薪资: 30 + 效果得分 * 300 (降低基础系数)
-    // 时代加成: (0.6 + epoch * 0.3) - 青铜时代约0.9x，工业时代约2.4x
-    // 效果得分范围约 0.1 - 1.5，对应薪资约 60 - 500 基础
-    const epochMultiplier = 0.6 + epoch * 0.3;
-    const baseSalary = 30 + Math.max(0.1, totalCostScore) * 300;
+    // 目标范围: 15 ~ 2500 银/日 (官员效果降低后，薪资也相应降低)
+    // 基础薪资: 15 + 效果得分 * 150 (降低基础系数约50%)
+    // 时代加成: (0.5 + epoch * 0.2) - 青铜时代约0.7x，工业时代约1.7x
+    // 效果得分范围约 0.1 - 1.5，对应薪资约 30 - 250 基础
+    const epochMultiplier = 0.5 + epoch * 0.2;
+    const baseSalary = 15 + Math.max(0.1, totalCostScore) * 150;
     let salary = Math.round(baseSalary * epochMultiplier);
-    // 确保在 30 ~ 5000 范围内
-    salary = Math.max(30, Math.min(5000, salary));
+    // 确保在 15 ~ 2500 范围内
+    salary = Math.max(15, Math.min(2500, salary));
 
     // 生成ID
     const id = `off_${Date.now().toString(36)}_${Math.random().toString(36).substr(2, 5)}`;
@@ -885,30 +886,34 @@ export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence 
     // 6. 计算出身阶层影响力加成
     // 公式: 基础值(5-10%) + 薪水因子
     // 调整：降低薪水因子的权重，避免轻易达到上限
-    // 假设薪水范围 100 - 5000+
-    // 薪水 400 -> 0.008 (0.8%)
-    // 薪水 2000 -> 0.04 (4%)
-    // 薪水 8000 -> 0.16 (16%)
+    // 假设薪水范围 50 - 2500+
+    // 薪水 200 -> 0.008 (0.8%)
+    // 薪水 1000 -> 0.04 (4%)
+    // 薪水 2500 -> 0.10 (10%)
     const baseInfluenceBonus = 0.03 + Math.random() * 0.05; // 3-8% 基础
-    const salaryInfluenceBonus = (salary / 2500) * 0.05; // 每 2500 薪水 +5%
+    const salaryInfluenceBonus = (salary / 1250) * 0.05; // 每 1250 薪水 +5%
     const stratumInfluenceBonus = Math.min(0.25, baseInfluenceBonus + salaryInfluenceBonus); // 最高25%
+
+    // 7. 分配政治立场（包含动态生成的条件）
+    const stanceResult = assignPoliticalStance(sourceStratum, epoch);
 
     return {
         id,
         name,
         sourceStratum,
         effects,
-        rawEffects, // 保留原始效果列表用于UI展示 (可选，或者直接解析 effects)
-        // 为了UI展示方便，我们可以只存储 final effects, UI 解析即可
-        // 但 drawback 对 UI 展示也是有用的，分开存？
-        // 咱们简化模型，只存 effects，UI 遍历 effects 渲染。
-        // 为了能在UI上区分"这是个负面效果"，依靠数值正负即可。
-        // 唯独 needsReduction 比较反直觉 (正=好, 负=坏).
-
+        rawEffects,
         salary,
         hireDate: null,
-        influence: 5 + (salary / 20), // 官员个人影响力与身价挂钩 (基础5，每20薪水+1)
-        stratumInfluenceBonus, // 新增：对出身阶层的影响力加成 (百分比)
+        wealth: 0, // 官员个人财富，初始为0
+        influence: 5 + (salary / 10),
+        stratumInfluenceBonus,
+        // 政治立场信息
+        politicalStance: stanceResult.stanceId,
+        stanceConditionParams: stanceResult.conditionParams, // 条件参数数组
+        stanceConditionText: stanceResult.conditionText, // 条件文本显示
+        stanceActiveEffects: stanceResult.activeEffects, // 该官员独特的满足效果
+        stanceUnsatisfiedPenalty: stanceResult.unsatisfiedPenalty, // 该官员独特的不满足惩罚
     };
 };
 
