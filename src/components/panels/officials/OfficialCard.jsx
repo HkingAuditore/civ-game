@@ -382,7 +382,7 @@ export const OfficialCard = memo(({
                             )}
                             {/* 触发条件 - 使用动态生成的条件文本 */}
                             <div className="text-[9px] text-gray-400 mb-1">
-                                <span className="text-gray-500">条件:</span> {official.stanceConditionText || '无'}
+                                <span className="text-gray-500">政治主张:</span> {official.stanceConditionText || '无'}
                             </div>
                             {/* 满足效果 - 使用官员独特的随机化效果 */}
                             {official.stanceActiveEffects && Object.keys(official.stanceActiveEffects).length > 0 && (
