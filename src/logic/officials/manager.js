@@ -722,10 +722,26 @@ export const disposeOfficial = (officialId, disposalType, currentOfficials, curr
  * @returns {Object} 内阁状态
  */
 export const getCabinetStatus = (officials, activeDecrees = {}, capacity = 3, epoch = 0) => {
+    // [DEBUG] 追踪传入参数
+    console.log('[GET_CABINET_STATUS] Called with:', {
+        officialCount: officials?.length || 0,
+        capacity,
+        epoch,
+        minRequired: Math.ceil(capacity * 0.5),
+        meetsCapacityRequirement: (officials?.length || 0) >= Math.ceil(capacity * 0.5),
+    });
+
     const synergy = calculateCabinetSynergy(officials);
     const dominance = getCabinetDominance(officials, capacity, epoch);
     const effects = getCabinetEffects(officials, capacity, epoch);
     const decreeEffects = getActiveDecreeEffects(activeDecrees);
+
+    // [DEBUG] 输出结果
+    console.log('[GET_CABINET_STATUS] Result:', {
+        dominance,
+        synergy: synergy.synergy,
+        level: synergy.level,
+    });
 
     return {
         synergy: synergy.synergy,

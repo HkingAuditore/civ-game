@@ -241,15 +241,36 @@ export const DOMINANCE_MIN_OFFICIAL_RATIO = 0.5; // 官员数量需达到编制�
  * @returns {Object|null} { faction, percentage, effects } 或 null 如果没有主导
  */
 export const getCabinetDominance = (officials, capacity = 3, epoch = 0) => {
-    if (!officials || officials.length === 0) return null;
+    // [DEBUG] 记录详细的判定过程
+    const debugInfo = {
+        officialCount: officials?.length || 0,
+        capacity,
+        epoch,
+        requirement: Math.ceil(capacity * DOMINANCE_MIN_OFFICIAL_RATIO),
+        epochMet: epoch >= DOMINANCE_MIN_EPOCH,
+        capacityMet: false,
+        percentMet: false,
+        result: null,
+    };
+
+    if (!officials || officials.length === 0) {
+        console.log('[DOMINANCE DEBUG] No officials:', debugInfo);
+        return null;
+    }
 
     // 前置条件1: 时代至少为启蒙时代 (epoch >= 5)
     if (epoch < DOMINANCE_MIN_EPOCH) {
+        debugInfo.result = 'Epoch requirement not met';
+        console.log('[DOMINANCE DEBUG] Epoch not met:', debugInfo);
         return null;
     }
 
     // 前置条件2: 官员数量至少达到编制的一半
-    if (officials.length < Math.ceil(capacity * DOMINANCE_MIN_OFFICIAL_RATIO)) {
+    const minRequired = Math.ceil(capacity * DOMINANCE_MIN_OFFICIAL_RATIO);
+    debugInfo.capacityMet = officials.length >= minRequired;
+    if (!debugInfo.capacityMet) {
+        debugInfo.result = `Need ${minRequired} officials (have ${officials.length})`;
+        console.log('[DOMINANCE DEBUG] Capacity not met:', debugInfo);
         return null;
     }
 
@@ -269,7 +290,15 @@ export const getCabinetDominance = (officials, capacity = 3, epoch = 0) => {
 
     // 检查是否达到主导条件
     const threshold = synergy >= 70 ? SYNERGY_DOMINANCE_THRESHOLD : DOMINANCE_THRESHOLD;
+    debugInfo.synergy = synergy;
+    debugInfo.threshold = threshold;
+    debugInfo.maxPercent = maxPercent;
+    debugInfo.dominant = dominant;
+    debugInfo.percentMet = maxPercent >= threshold;
+
     if (maxPercent >= threshold && dominant) {
+        debugInfo.result = 'SUCCESS';
+        console.log('[DOMINANCE DEBUG] Dominance activated:', debugInfo);
         return {
             faction: dominant,
             percentage: Math.round(maxPercent * 100),
@@ -277,6 +306,8 @@ export const getCabinetDominance = (officials, capacity = 3, epoch = 0) => {
         };
     }
 
+    debugInfo.result = 'Percent threshold not met';
+    console.log('[DOMINANCE DEBUG] Percent not met:', debugInfo);
     return null;
 };
 
@@ -674,7 +705,7 @@ export const processOwnerExpansions = (buildings, classWealth, expansionSettings
             });
         }
     }
-    
+
     // [DEBUG] 输出诊断信息
     console.log('[FREE MARKET] processOwnerExpansions:', {
         totalBuildingsChecked: buildings.filter(b => b.owner).length,

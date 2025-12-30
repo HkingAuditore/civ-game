@@ -23,7 +23,7 @@ import {
     createRebelDemandSurrenderEvent,
     REBEL_DEMAND_SURRENDER_TYPE,
 } from '../config/events';
-import { calculateTotalDailySalary, getCabinetStatus } from '../logic/officials/manager';
+import { calculateTotalDailySalary, getCabinetStatus, calculateOfficialCapacity } from '../logic/officials/manager';
 // 新版组织度系统
 import {
     updateAllOrganizationStates,
@@ -776,6 +776,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
         legitimacy, // 当前合法性值
         difficulty, // 游戏难度
         officials,
+        officialCapacity, // [FIX] 添加官员容量，用于 getCabinetStatus 计算
         activeDecrees, // [NEW] Pass activeDecrees to simulation
         quotaTargets, // [NEW] Planned Economy targets
         expansionSettings, // [NEW] Free Market settings
@@ -1235,13 +1236,34 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 jobsAvailable: current.jobsAvailable,
 
                 // 内阁协同与自由市场
-                // [FIX] 正确计算内阁状态，而不是从modifiers获取（modifiers中没有synergy和dominance）
-                cabinetStatus: getCabinetStatus(
-                    current.officials || [],
-                    current.activeDecrees || {},
-                    current.officialCapacity || 3,
-                    current.epoch || 0
-                ),
+                // [FIX] 使用与 UI 相同的容量计算逻辑：
+                // Math.min(jobsAvailable.official, officialCapacity)
+                // 这确保主导判定与 UI 显示一致
+                cabinetStatus: (() => {
+                    // 与 App.jsx Line 1130 保持一致的计算逻辑
+                    const jobCapacity = current.jobsAvailable?.official || 0;
+                    const maxCapacity = current.officialCapacity || officialCapacity || 3;
+                    const effectiveCapacity = Math.min(
+                        jobCapacity > 0 ? jobCapacity : maxCapacity,
+                        maxCapacity
+                    );
+                    const status = getCabinetStatus(
+                        current.officials || [],
+                        current.activeDecrees || {},
+                        effectiveCapacity,
+                        current.epoch || 0
+                    );
+                    // [DEBUG] 主线程检查
+                    console.log('[MAIN THREAD PRE-WORKER] cabinetStatus:', {
+                        hasDominance: !!status?.dominance,
+                        dominanceFaction: status?.dominance?.faction,
+                        capacity: effectiveCapacity,
+                        jobCapacity,
+                        maxCapacity,
+                        officialCount: current.officials?.length,
+                    });
+                    return status;
+                })(),
                 quotaTargets: current.quotaTargets,
                 expansionSettings: current.expansionSettings,
                 taxPolicies: current.taxPolicies || {},
