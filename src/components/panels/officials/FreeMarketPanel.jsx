@@ -123,6 +123,34 @@ export const FreeMarketPanel = ({
                 <span className="text-xs text-gray-500">
                     已允许 {allowedCount} 种建筑
                 </span>
+                <div className="flex gap-2">
+                    <button
+                        onClick={() => {
+                            const newSettings = { ...localSettings };
+                            expandableBuildings.forEach(b => {
+                                newSettings[b.id] = { ...newSettings[b.id], allowed: true };
+                            });
+                            setLocalSettings(newSettings);
+                            setHasChanges(true);
+                        }}
+                        className="px-2 py-0.5 text-[10px] bg-gray-700 hover:bg-gray-600 rounded text-gray-300"
+                    >
+                        全选
+                    </button>
+                    <button
+                        onClick={() => {
+                            const newSettings = { ...localSettings };
+                            expandableBuildings.forEach(b => {
+                                newSettings[b.id] = { ...newSettings[b.id], allowed: false };
+                            });
+                            setLocalSettings(newSettings);
+                            setHasChanges(true);
+                        }}
+                        className="px-2 py-0.5 text-[10px] bg-gray-700 hover:bg-gray-600 rounded text-gray-300"
+                    >
+                        全不选
+                    </button>
+                </div>
             </div>
 
             {/* 说明 */}

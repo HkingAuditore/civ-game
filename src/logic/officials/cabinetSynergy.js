@@ -605,7 +605,12 @@ export const canOwnerExpand = (building, ownerStratum, ownerWealth, expansionSet
     }
 
     // 计算成本（不含数量惩罚）
-    const baseCost = building.cost?.silver || 0;
+    // [FIX] Convert material costs to silver equivalent matching FreeMarketPanel logic
+    const bc = building.baseCost || {};
+    const baseCost = bc.silver ||
+        (bc.plank ? bc.plank * 2 : 0) ||
+        (bc.wood ? bc.wood : 0) ||
+        (bc.stone ? bc.stone * 1.5 : 0) || 100;
 
     if (ownerWealth < baseCost) {
         return { canExpand: false, reason: '业主财富不足', cost: baseCost };
@@ -631,6 +636,9 @@ export const processOwnerExpansions = (buildings, classWealth, expansionSettings
     }
 
     // 每回合最多扩张1个建筑（防止爆发式增长）
+    // [FIX] Randomize selection to prevent first building always monopolizing expansion
+    const candidates = [];
+
     for (const building of buildings) {
         if (!building.owner) continue;
 
@@ -643,14 +651,19 @@ export const processOwnerExpansions = (buildings, classWealth, expansionSettings
         );
 
         if (canExpand) {
-            expansions.push({
+            candidates.push({
                 buildingId: building.id,
                 owner: ownerStratum,
                 cost,
             });
-            wealthDeductions[ownerStratum] = (wealthDeductions[ownerStratum] || 0) + cost;
-            break; // 每回合只扩张一个
         }
+    }
+
+    if (candidates.length > 0) {
+        // Pick one random expansion
+        const selected = candidates[Math.floor(Math.random() * candidates.length)];
+        expansions.push(selected);
+        wealthDeductions[selected.owner] = (wealthDeductions[selected.owner] || 0) + selected.cost;
     }
 
     return { expansions, wealthDeductions };

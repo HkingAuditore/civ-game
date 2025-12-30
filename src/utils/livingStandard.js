@@ -146,8 +146,8 @@ export function calculateWealthMultiplier(incomeRatio, wealthRatio = 1, wealthEl
 
     // 有效收入比率：取收入比率和财富比率的加权平均
     // 如果财富很高，即使收入低也不会过度惩罚消费能力
-    // 权重：收入60%，财富40%（财富高意味着有钱消费，不需要依赖当日收入）
-    const effectiveRatio = Math.max(incomeRatio, wealthRatio * 0.5); // 财富可以补偿一半的收入
+    // 权重：收入占主导，财富30%（降低财富对消费量的直接拉动，避免补贴-消费死循环）
+    const effectiveRatio = Math.max(incomeRatio, wealthRatio * 0.3); // 财富可以补偿30%的收入不足
 
     // 1. 基于有效比率的消费能力
     // 使用更平滑的曲线：对数增长而非平方根
@@ -261,7 +261,8 @@ export function calculateUnlockMultiplier(incomeRatio, wealthRatio = 1, wealthEl
     }
 
     // 高财富比率可以补偿低收入（财富权重更高，因为解锁主要看积累）
-    const effectiveRatio = Math.max(incomeRatio, wealthRatio * 0.7);
+    // 2024-12 Fix: 降低到0.5，避免存了一点钱就立刻解锁昂贵需求
+    const effectiveRatio = Math.max(incomeRatio, wealthRatio * 0.5);
 
     // 1. 基于有效比率的解锁能力
     // 使用更激进的曲线，让高财富能解锁更多需求
@@ -400,9 +401,9 @@ export function calculateLivingStandardScore(incomeAdequacy, satisfactionRate, f
     const wealthScore = absoluteScore + relativeScore;
 
     // 4. 加权混合评分
-    // rawScore（收入+满足率+财务安全）占主导，wealthScore 作为调整因子
-    // 这样即使财富暂时较低，良好的收入和满足率仍能维持较高的生活水平评分
-    return rawScore * 0.2 + wealthScore * 0.8;
+    // 2024-12 Fix: 提高 rawScore (收入/满足率) 权重至 50%，降低 wealthScore 至 50%
+    // 让高收入阶层能更快获得匹配的生活评级，而不需要积累数年财富
+    return rawScore * 0.5 + wealthScore * 0.5;
 }
 
 /**

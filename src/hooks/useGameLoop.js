@@ -614,6 +614,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
         market,
         setMarket,
         buildings,
+        setBuildings,
         population,
         popStructure,
         setPopulation,
@@ -621,6 +622,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
         setBirthAccumulator,
         epoch,
         techsUnlocked,
+        activeDecrees, // [NEW] Active Reform Decrees
+        quotaTargets, // [NEW] Planned Economy Targets
+        expansionSettings, // [NEW] Free Market Settings
         decrees,
         gameSpeed,
         isPaused,
@@ -772,6 +776,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
         legitimacy, // 当前合法性值
         difficulty, // 游戏难度
         officials,
+        activeDecrees, // [NEW] Pass activeDecrees to simulation
+        quotaTargets, // [NEW] Planned Economy targets
+        expansionSettings, // [NEW] Free Market settings
     });
 
     const saveGameRef = useRef(gameState.saveGame);
@@ -1221,6 +1228,14 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 // 工作和经济
                 jobFill: current.jobFill,
                 jobsAvailable: current.jobsAvailable,
+
+                // 内阁协同与自由市场
+                cabinetStatus: {
+                    synergy: current.modifiers?.officialEffects?.synergy || {},
+                    dominance: current.modifiers?.officialEffects?.dominance || {},
+                },
+                quotaTargets: current.quotaTargets,
+                expansionSettings: current.expansionSettings,
                 taxPolicies: current.taxPolicies || {},
                 livingStandardStreaks: current.livingStandardStreaks,
                 migrationCooldowns: current.migrationCooldowns,
@@ -1640,6 +1655,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     if (result.jobsAvailable) {
                         setJobsAvailable(result.jobsAvailable);
                     }
+                    // [NEW] Update buildings count (from Free Market expansion)
+                    if (result.buildings) {
+                        setBuildings(result.buildings);
+                    }
                     // Update building upgrades from owner auto-upgrade
                     if (result.buildingUpgrades) {
                         setBuildingUpgrades(result.buildingUpgrades);
@@ -1683,6 +1702,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         epoch: current.epoch || 0,
                         rulingCoalition: current.rulingCoalition || [], // 执政联盟
                         difficultyLevel: current.difficulty, // 游戏难度
+                        organizationGrowthMod: result.modifiers?.officialEffects?.organizationGrowthMod || 0, // [NEW] 组织度增长修正
                         // 注意：classInfluence/totalInfluence 已是位置参数，无需在此重复
                     }
                 );
