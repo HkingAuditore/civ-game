@@ -632,12 +632,18 @@ export const processOwnerExpansions = (buildings, classWealth, expansionSettings
     const wealthDeductions = {};
 
     if (!buildings || !classWealth || !expansionSettings) {
+        console.log('[FREE MARKET] processOwnerExpansions early return:', {
+            hasBuildings: !!buildings,
+            hasClassWealth: !!classWealth,
+            hasExpansionSettings: !!expansionSettings
+        });
         return { expansions, wealthDeductions };
     }
 
     // 每回合最多扩张1个建筑（防止爆发式增长）
     // [FIX] Randomize selection to prevent first building always monopolizing expansion
     const candidates = [];
+    const rejectionReasons = []; // [DEBUG]
 
     for (const building of buildings) {
         if (!building.owner) continue;
@@ -646,7 +652,7 @@ export const processOwnerExpansions = (buildings, classWealth, expansionSettings
         const ownerWealth = classWealth[ownerStratum] || 0;
         const currentCount = buildingCounts[building.id] || 0;
 
-        const { canExpand, cost } = canOwnerExpand(
+        const { canExpand, reason, cost } = canOwnerExpand(
             building, ownerStratum, ownerWealth, expansionSettings, currentCount
         );
 
@@ -656,8 +662,28 @@ export const processOwnerExpansions = (buildings, classWealth, expansionSettings
                 owner: ownerStratum,
                 cost,
             });
+        } else {
+            // [DEBUG] 记录拒绝原因
+            rejectionReasons.push({
+                buildingId: building.id,
+                owner: ownerStratum,
+                ownerWealth,
+                reason,
+                cost,
+                settingsForBuilding: expansionSettings[building.id]
+            });
         }
     }
+    
+    // [DEBUG] 输出诊断信息
+    console.log('[FREE MARKET] processOwnerExpansions:', {
+        totalBuildingsChecked: buildings.filter(b => b.owner).length,
+        candidatesFound: candidates.length,
+        classWealth,
+        expansionSettingsKeys: Object.keys(expansionSettings),
+        allowedBuildings: Object.entries(expansionSettings).filter(([k, v]) => v?.allowed).map(([k]) => k),
+        firstFewRejections: rejectionReasons.slice(0, 5)
+    });
 
     if (candidates.length > 0) {
         // Pick one random expansion

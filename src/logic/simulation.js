@@ -2468,6 +2468,20 @@ export const simulateTick = ({
     // --- Right Dominance: Free Market (Owner Expansion) ---
     // Owners automatically build new buildings using their wealth.
     let newBuildingsCount = { ...buildings };
+    // [DEBUG] 临时调试信息 - 追踪自由市场机制问题
+    const _freeMarketDebug = {
+        hasCabinetStatus: !!cabinetStatus,
+        cabinetStatusFull: cabinetStatus, // 完整的cabinetStatus对象
+        dominance: cabinetStatus?.dominance,
+        faction: cabinetStatus?.dominance?.faction,
+        hasExpansionSettings: !!expansionSettings,
+        expansionSettingsKeys: expansionSettings ? Object.keys(expansionSettings) : [],
+        conditionMet: cabinetStatus?.dominance?.faction === 'right' && !!expansionSettings,
+        // 额外调试：检查dominance为null的可能原因
+        epochParam: epoch,
+        epochRequirement: 5, // DOMINANCE_MIN_EPOCH
+        epochMet: epoch >= 5,
+    };
     if (cabinetStatus.dominance?.faction === 'right' && expansionSettings) {
         // We pass the CONFIG (BUILDINGS), current wealth (newClassWealth), settings, and current counts
         const { expansions, wealthDeductions } = processOwnerExpansions(
@@ -4380,5 +4394,9 @@ export const simulateTick = ({
         // 计算有效官员容量（基于时代、政体和科技）
         effectiveOfficialCapacity: calculateOfficialCapacity(epoch, currentPolityEffects || {}, techsUnlocked),
         buildings: builds, // [FIX] Return updated building counts (including Free Market expansions)
+        // [DEBUG] 临时调试字段 - 追踪自由市场机制问题
+        _debug: {
+            freeMarket: _freeMarketDebug,
+        },
     };
 };

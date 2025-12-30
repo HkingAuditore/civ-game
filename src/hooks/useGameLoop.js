@@ -23,7 +23,7 @@ import {
     createRebelDemandSurrenderEvent,
     REBEL_DEMAND_SURRENDER_TYPE,
 } from '../config/events';
-import { calculateTotalDailySalary } from '../logic/officials/manager';
+import { calculateTotalDailySalary, getCabinetStatus } from '../logic/officials/manager';
 // 新版组织度系统
 import {
     updateAllOrganizationStates,
@@ -1002,8 +1002,13 @@ export const useGameLoop = (gameState, addLog, actions) => {
             legitimacy, // 当前合法性值
             difficulty, // 游戏难度
             officials,
+            // [FIX] 添加内阁机制所需的状态
+            activeDecrees, // 当前生效的改革法令
+            expansionSettings, // 自由市场扩张设置
+            quotaTargets, // 计划经济目标配额
+            officialCapacity, // 官员容量
         };
-    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, livingStandardStreaks, migrationCooldowns, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability, rulingCoalition, legitimacy, difficulty, officials]);
+    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, livingStandardStreaks, migrationCooldowns, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability, rulingCoalition, legitimacy, difficulty, officials, activeDecrees, expansionSettings, quotaTargets, officialCapacity]);
 
     useEffect(() => {
         if (!autoRecruitEnabled) return;
@@ -1230,10 +1235,13 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 jobsAvailable: current.jobsAvailable,
 
                 // 内阁协同与自由市场
-                cabinetStatus: {
-                    synergy: current.modifiers?.officialEffects?.synergy || {},
-                    dominance: current.modifiers?.officialEffects?.dominance || {},
-                },
+                // [FIX] 正确计算内阁状态，而不是从modifiers获取（modifiers中没有synergy和dominance）
+                cabinetStatus: getCabinetStatus(
+                    current.officials || [],
+                    current.activeDecrees || {},
+                    current.officialCapacity || 3,
+                    current.epoch || 0
+                ),
                 quotaTargets: current.quotaTargets,
                 expansionSettings: current.expansionSettings,
                 taxPolicies: current.taxPolicies || {},
@@ -1658,6 +1666,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     // [NEW] Update buildings count (from Free Market expansion)
                     if (result.buildings) {
                         setBuildings(result.buildings);
+                    }
+                    // [DEBUG] 临时日志 - 追踪自由市场机制问题
+                    if (result._debug) {
+                        console.log('[FREE MARKET DEBUG]', result._debug.freeMarket);
                     }
                     // Update building upgrades from owner auto-upgrade
                     if (result.buildingUpgrades) {
