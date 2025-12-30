@@ -696,8 +696,9 @@ const pickWeightedRandom = (weights) => {
  * 辅助函数：生成单个效果
  * @param {boolean} isDrawback - 是否生成负面效果
  * @param {string} sourceStratum - 官员出身阶层（用于偏好加权）
+ * @param {number} epoch - 当前时代（用于缩放效果数值）
  */
-const generateEffect = (isDrawback = false, sourceStratum = null) => {
+const generateEffect = (isDrawback = false, sourceStratum = null, epoch = 1) => {
     const pool = isDrawback ? OFFICIAL_DRAWBACK_TYPES : OFFICIAL_EFFECT_TYPES;
     const preferences = sourceStratum ? STRATUM_EFFECT_PREFERENCES[sourceStratum] : null;
     const preferredList = preferences
@@ -734,9 +735,17 @@ const generateEffect = (isDrawback = false, sourceStratum = null) => {
         }
     }
 
-    // 3. 确定数值
+    // 3. 确定数值 - 根据时代缩放
+    // 时代缩放因子：早期时代效果较弱，后期更强
+    // epoch 1: 0.4x, epoch 2: 0.55x, epoch 3: 0.7x, epoch 4: 0.85x, epoch 5: 1.0x, epoch 6+: 1.0x
+    const epochScaleFactor = Math.min(1.0, 0.25 + epoch * 0.15);
+    
     const [min, max] = config.valueRange;
-    const rawValue = min + Math.random() * (max - min);
+    // 应用时代缩放：早期时代只能获得数值范围的一部分
+    const scaledMin = min * epochScaleFactor;
+    const scaledMax = max * epochScaleFactor;
+    const rawValue = scaledMin + Math.random() * (scaledMax - scaledMin);
+    
     let value = rawValue;
     if (config.type === 'approval' || config.type === 'coalitionApproval') {
         value = Math.round(rawValue);
@@ -815,7 +824,7 @@ export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence 
     let totalCostScore = 0;
 
     for (let i = 0; i < effectCount; i++) {
-        const eff = generateEffect(false, sourceStratum);
+        const eff = generateEffect(false, sourceStratum, epoch);
         rawEffects.push(eff);
 
         // 估算成本分 (绝对值 * 系数)
@@ -836,7 +845,7 @@ export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence 
     if (effectCount >= 5) drawbackChance += 0.3;
 
     if (Math.random() < drawbackChance) {
-        drawback = generateEffect(true, sourceStratum);
+        drawback = generateEffect(true, sourceStratum, epoch);
         // 负面效果减少成本分
         let score = Math.abs(drawback.value);
         if (drawback.type === 'approval') score = score / 20;
@@ -860,15 +869,15 @@ export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence 
     if (drawback) mergeIntoEffects(drawback);
 
     // 5. 计算俸禄
-    // 目标范围: 50 ~ 10000 银/日
-    // 基础薪资: 50 + 效果得分 * 500
-    // 时代加成: (1 + epoch * 0.5) - 后期官员更贵
-    // 效果得分范围约 0.1 - 1.5，对应薪资约 100 - 800 基础
-    const epochMultiplier = 1 + epoch * 0.5;
-    const baseSalary = 50 + Math.max(0.1, totalCostScore) * 500;
+    // 目标范围: 30 ~ 5000 银/日 (调整范围，早期时代更便宜)
+    // 基础薪资: 30 + 效果得分 * 300 (降低基础系数)
+    // 时代加成: (0.6 + epoch * 0.3) - 青铜时代约0.9x，工业时代约2.4x
+    // 效果得分范围约 0.1 - 1.5，对应薪资约 60 - 500 基础
+    const epochMultiplier = 0.6 + epoch * 0.3;
+    const baseSalary = 30 + Math.max(0.1, totalCostScore) * 300;
     let salary = Math.round(baseSalary * epochMultiplier);
-    // 确保在 50 ~ 10000 范围内
-    salary = Math.max(50, Math.min(10000, salary));
+    // 确保在 30 ~ 5000 范围内
+    salary = Math.max(30, Math.min(5000, salary));
 
     // 生成ID
     const id = `off_${Date.now().toString(36)}_${Math.random().toString(36).substr(2, 5)}`;

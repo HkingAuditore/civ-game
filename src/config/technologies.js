@@ -164,6 +164,14 @@ export const TECHS = [
         epoch: 1,
         effects: { buildings: { loom_house: 0.05 } },
     },
+    {
+        id: 'early_administration',
+        name: "早期行政",
+        desc: "解锁官署，建立初步的税收与民政管理体系。启用官员系统，官员容量 +2。",
+        cost: { science: 880 },
+        epoch: 1,
+        effects: { categories: { civic: 0.05 } },
+    },
 
     // 古典时代
     {

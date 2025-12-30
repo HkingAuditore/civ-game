@@ -132,6 +132,7 @@ export const BUILDINGS = [
         name: "造纸工坊",
         desc: "生产纸张的手工作坊。",
         baseCost: { food: 140, wood: 80 },
+        input: { wood: 0.5 },
         output: { papyrus: 0.60 },
         jobs: { worker: 2 },
         owner: 'worker',
@@ -713,6 +714,20 @@ export const BUILDINGS = [
         requiresTech: 'caravan_trade',
         cat: 'civic',
         visual: { icon: 'Handshake', color: 'bg-yellow-800', text: 'text-yellow-200' }
+    },
+
+    {
+        id: 'magistrate_office',
+        name: "官署",
+        desc: "早期行政机构，管理青铜时代的税收与民政。提供少量官员岗位。",
+        baseCost: { plank: 80, stone: 60 },
+        input: { papyrus: 0.01 },
+        output: {},
+        jobs: { official: 2, scribe: 1 },
+        epoch: 1,
+        cat: 'civic',
+        requiresTech: 'early_administration',
+        visual: { icon: 'Scroll', color: 'bg-slate-700', text: 'text-slate-200' }
     },
 
     {
