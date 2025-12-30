@@ -1093,6 +1093,7 @@ export const useGameState = () => {
         setOfficialCandidates(data.officialCandidates || []);
         setLastSelectionDay(data.lastSelectionDay ?? -999);
         setOfficialCapacity(data.officialCapacity ?? 3);
+        setExpansionSettings(data.expansionSettings || {}); // [FIX] 加载自由市场扩张设置
         setClassApproval(data.classApproval || {});
         setClassInfluence(data.classInfluence || {});
         setClassWealth(data.classWealth || buildInitialWealth());

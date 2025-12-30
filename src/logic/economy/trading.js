@@ -46,6 +46,7 @@ export const simulateMerchantTrade = ({
 
     classFinancialData, // NEW: detailed tracking
     logs,
+    potentialResources,
 }) => {
     const merchantCount = popStructure?.merchant || 0;
     if (merchantCount <= 0) {
@@ -151,7 +152,9 @@ export const simulateMerchantTrade = ({
         return { pendingTrades: updatedPendingTrades, lastTradeTime, lockedCapital: 0, capitalInvestedThisTick: 0, completedTrades };
     }
 
-    const tradableKeys = Object.keys(RESOURCES).filter(key => isTradableResource(key));
+    const tradableKeys = Object.keys(RESOURCES)
+        .filter(key => isTradableResource(key))
+        .filter(key => !potentialResources || potentialResources.has(key)); // [FIX] Filter by producible resources
 
     // Identify tradable resources based on price difference
     const exportableResources = [];
