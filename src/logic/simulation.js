@@ -3818,6 +3818,7 @@ export const simulateTick = ({
         gameSpeed,
         classFinancialData, // Pass detailed financial tracking
         logs,
+        potentialResources, // [FIX] Restrict trade to producible resources
     });
     const merchantLockedCapital = Math.max(0, updatedMerchantState.lockedCapital ?? sumLockedCapital(updatedMerchantState.pendingTrades));
     updatedMerchantState.lockedCapital = merchantLockedCapital;

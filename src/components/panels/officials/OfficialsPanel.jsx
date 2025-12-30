@@ -132,7 +132,7 @@ export const OfficialsPanel = ({
             )}
 
             {/* 3. 主导派系入口按钮 */}
-            {dominantPanel && currentPanelConfig && (
+            {dominantPanel && currentPanelConfig ? (
                 <div className={`bg-gray-900/60 rounded-xl p-4 border ${currentPanelConfig.borderClass} shadow-lg`}>
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
@@ -160,6 +160,52 @@ export const OfficialsPanel = ({
                         </button>
                     </div>
                 </div>
+            ) : (
+                /* 显示潜在的主导派系（如果有派系占比超过阈值但其他条件未满足） */
+                (() => {
+                    const potential = cabinetStatus?.distribution;
+                    if (!potential) return null;
+                    const total = officials.length;
+                    if (total === 0) return null;
+
+                    // 检测是否有派系占比很高但未触发主导
+                    const DOMINANCE_THRESHOLD = 0.4; // 稍微放宽显示阈值
+                    const sorted = Object.entries(potential).sort((a, b) => b[1] - a[1]);
+                    const [topFaction, count] = sorted[0];
+                    const ratio = count / total;
+
+                    if (ratio >= DOMINANCE_THRESHOLD) {
+                        const factionName = topFaction === 'left' ? '计划经济' : (topFaction === 'right' ? '自由市场' : '改良法令');
+                        const factionColor = topFaction === 'left' ? 'red' : (topFaction === 'right' ? 'amber' : 'blue');
+                        const missingCapacity = capacity * 0.5 - total; // 恢复基于 0.5 的阈值提示
+
+                        return (
+                            <div className={`bg-gray-900/40 rounded-xl p-4 border border-gray-700/30 border-dashed`}>
+                                <div className="flex items-center justify-between opacity-75">
+                                    <div className="flex items-center gap-3">
+                                        <div className={`p-2.5 rounded-lg bg-gray-800 text-gray-400`}>
+                                            <Icon name="Lock" size={24} />
+                                        </div>
+                                        <div>
+                                            <h4 className="font-bold text-gray-300 flex items-center gap-2">
+                                                {factionName} (未激活)
+                                                <span className="text-xs px-2 py-0.5 rounded-full bg-gray-800 text-gray-400">
+                                                    {Math.round(ratio * 100)}% 占比
+                                                </span>
+                                            </h4>
+                                            <p className="text-xs text-gray-500 mt-0.5">
+                                                {missingCapacity > 0
+                                                    ? `需要更多官员（还差 ${Math.ceil(missingCapacity)} 人）以触发主导效应`
+                                                    : '内阁协同度或占比不足'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    }
+                    return null;
+                })()
             )}
 
             {/* 4. 候选人选拔区域 */}
