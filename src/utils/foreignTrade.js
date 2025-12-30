@@ -111,9 +111,9 @@ export const calculateTradeStatus = (resourceKey, nation = {}, daysElapsed = 0) 
     // 阈值逻辑根据资源偏差调整：
     // 特产资源 (bias > 1): 更容易有盈余（盈余阈值更低），更难有缺口（缺口阈值更低）
     // 稀缺资源 (bias < 1): 更容易有缺口（缺口阈值更高），更难有盈余（盈余阈值更高）
-    // 这样可以形成明显的贸易差异化
-    const shortageMultiplier = bias > 1 ? 0.5 : (bias < 1 ? 1.2 : 0.9);  // 特产资源难缺货
-    const surplusMultiplier = bias > 1 ? 0.7 : (bias < 1 ? 1.5 : 1.1);   // 特产资源极易盈余
+    // 调整阈值使状态更稳定持久，形成长期贸易渠道
+    const shortageMultiplier = bias > 1 ? 0.3 : (bias < 1 ? 1.5 : 0.8);  // 特产资源极难缺货
+    const surplusMultiplier = bias > 1 ? 0.4 : (bias < 1 ? 2.0 : 1.2);   // 稀缺资源极易缺货
 
     const shortageThreshold = dynamicTarget * shortageMultiplier;
     const surplusThreshold = dynamicTarget * surplusMultiplier;

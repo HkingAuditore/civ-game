@@ -57,16 +57,33 @@ export const updateAINationInventory = ({
             // 后期（epoch 6）目标会是基础的5.5倍
             const baseTargetInventory = Math.round(500 * Math.pow(bias, 1.2));
             const targetInventory = Math.round(baseTargetInventory * epochMultiplier * wealthFactor);
-            
-            // 生产率和消费率也随时代增长
-            const baseProductionRate = 3.0 * gameSpeed * epochMultiplier * wealthFactor;
-            const baseConsumptionRate = 3.0 * gameSpeed * epochMultiplier * wealthFactor * warConsumptionMultiplier;
+
+            // 生产率和消费率也随时代增长（增大基础值让贸易更活跃）
+            const baseProductionRate = 5.0 * gameSpeed * epochMultiplier * wealthFactor;
+            const baseConsumptionRate = 5.0 * gameSpeed * epochMultiplier * wealthFactor * warConsumptionMultiplier;
+
+            // 长周期趋势：每个资源有独立的周期偏移（600-800天）
+            // 这样可以让盈余/缺口状态持续更长时间，形成稳定的贸易渠道
+            const resourceOffset = resourceKey.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
+            const cyclePeriod = 600 + (resourceOffset % 200); // 600-800天的周期
+            const cyclePhase = Math.sin((tick * 2 * Math.PI) / cyclePeriod + resourceOffset * 0.1);
+
+            // 根据bias放大趋势影响：特产资源容易产生大盈余，稀缺资源容易产生大缺口
+            const trendAmplitude = 0.35 + Math.abs(bias - 1) * 0.45;
+            // 特产资源(bias>1)：周期高点时生产暴增，低点时也有较高生产
+            // 稀缺资源(bias<1)：周期高点时消费暴增，低点时也有较高消费
+            const productionTrend = bias > 1
+                ? 1 + Math.max(0, cyclePhase) * trendAmplitude + 0.2  // 特产资源永远有生产优势
+                : 1 - Math.max(0, cyclePhase) * trendAmplitude * 0.4;
+            const consumptionTrend = bias < 1
+                ? 1 + Math.max(0, cyclePhase) * trendAmplitude + 0.15 // 稀缺资源永远有消费压力
+                : 1 - Math.max(0, cyclePhase) * trendAmplitude * 0.25;
+
             // 特产资源：生产多，消费少 -> 容易盈余
             // 稀缺资源：生产少，消费多 -> 容易缺口
-            // 普通资源：平衡
             // 使用更激进的指数让差异更明显
-            const productionRate = baseProductionRate * Math.pow(bias, 1.0);  // bias=1.5时生产4.5，bias=0.5时生产1.5
-            const consumptionRate = baseConsumptionRate * Math.pow(1 / bias, 0.6);  // bias=1.5时消费2.2，bias=0.5时消费4.1
+            const productionRate = baseProductionRate * Math.pow(bias, 1.2) * productionTrend;
+            const consumptionRate = baseConsumptionRate * Math.pow(1 / bias, 0.8) * consumptionTrend;
             const stockRatio = currentStock / targetInventory;
 
             let productionAdjustment = 1.0;

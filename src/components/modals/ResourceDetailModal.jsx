@@ -877,11 +877,24 @@ const ResourceDetailContent = ({
 
             const baseAmount = perBuilding * count;
             baseDemandTotal += baseAmount;
-            // 建筑消耗暂无加成系统，直接使用基础值
-            const actualAmount = baseAmount * resourceDemandMultiplier;
+            
+            // 获取建筑原料消耗修正（官员效果 + 政治立场效果）
+            const inputCostMod = sources.productionInputCost?.[building.id] || 0;
+            const inputCostMultiplier = 1 + inputCostMod;
+            const safeInputMultiplier = Math.max(0.2, inputCostMultiplier);
+            
+            // 建筑消耗 = 基础值 × 原料成本修正 × 资源需求乘数
+            const actualAmount = baseAmount * safeInputMultiplier * resourceDemandMultiplier;
             actualDemandTotal += actualAmount;
 
             const finalAmount = realConsumption ?? 0;
+
+            // 构建修正说明
+            const modList = [];
+            if (inputCostMod !== 0) {
+                const sign = inputCostMod > 0 ? '+' : '';
+                modList.push(`官员/立场 ${sign}${(inputCostMod * 100).toFixed(0)}%`);
+            }
 
             acc.push({
                 id: building.id,
@@ -891,7 +904,8 @@ const ResourceDetailContent = ({
                 theoreticalAmount: actualAmount,
                 isActual: realConsumption !== undefined,
                 formula: perBuilding > 0 ? `${count} 座 ` : '来自建筑升级',
-                hasBonus: finalAmount !== baseAmount,
+                mods: modList,
+                hasBonus: finalAmount !== baseAmount || modList.length > 0,
             });
             return acc;
         }, []);
@@ -1559,15 +1573,17 @@ const ResourceDetailContent = ({
                                                                     <div>
                                                                         <p className="text-xs lg:text-sm font-semibold text-white">{item.name}</p>
                                                                         <p className="text-[10px] lg:text-xs text-gray-500">{item.formula}</p>
+                                                                        {item.mods && item.mods.length > 0 && (
+                                                                            <p className="text-[9px] text-amber-400 mt-0.5">
+                                                                                {item.mods.join(' · ')}
+                                                                            </p>
+                                                                        )}
                                                                     </div>
                                                                     <div className="text-right">
                                                                         <p className="text-sm lg:text-base font-bold text-rose-200">{formatAmount(item.amount)}</p>
-                                                                        {/* {item.isActual && (
-                                                                            <p className="text-[9px] text-rose-400">实际消耗</p>
-                                                                        )} */}
-                                                                        {/* {item.hasBonus && !item.isActual && (
+                                                                        {item.hasBonus && item.baseAmount !== item.amount && (
                                                                             <p className="text-[9px] text-gray-500">基础: {formatAmount(item.baseAmount)}</p>
-                                                                        )} */}
+                                                                        )}
                                                                     </div>
                                                                 </div>
                                                             ))

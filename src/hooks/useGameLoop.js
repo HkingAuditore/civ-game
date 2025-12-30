@@ -1772,12 +1772,38 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                     break;
                                 }
                                 if (stratumInfluence < MIN_REBELLION_INFLUENCE) {
-                                    addLog(`⚠️ ${STRATA[stratumKey]?.name || stratumKey}阶层组织度达到100%，但社会影响力不足（${Math.round(stratumInfluence * 100)}%），无法发动叛乱！`);
+                                    // 影响力不足无法叛乱，但组织度已满，触发人口外流
+                                    // 这避免了"卡死"情况：阶层既不能叛乱也不离开，组织度永远无法下降
+                                    const stratumPop = current.popStructure?.[stratumKey] || 0;
+                                    const exitRate = 0.05; // 5%人口愤怒离开
+                                    const leaving = Math.max(1, Math.floor(stratumPop * exitRate));
+                                    const stratumWealth = current.classWealth?.[stratumKey] || 0;
+                                    const perCapWealth = stratumPop > 0 ? stratumWealth / stratumPop : 0;
+                                    const fleeingCapital = perCapWealth * leaving;
+
+                                    // 扣除离开人口
+                                    setPopStructure(prev => ({
+                                        ...prev,
+                                        [stratumKey]: Math.max(0, (prev[stratumKey] || 0) - leaving),
+                                    }));
+                                    setPopulation(prev => Math.max(0, prev - leaving));
+
+                                    // 扣除带走的财富
+                                    if (fleeingCapital > 0) {
+                                        setClassWealth(prev => ({
+                                            ...prev,
+                                            [stratumKey]: Math.max(0, (prev[stratumKey] || 0) - fleeingCapital),
+                                        }));
+                                    }
+
+                                    addLog(`⚠️ ${STRATA[stratumKey]?.name || stratumKey}阶层组织度达到100%，但社会影响力不足（${Math.round(stratumInfluence * 100)}%），无法发动叛乱！${leaving}人愤怒地离开了国家。`);
+
+                                    // 降低组织度，让系统恢复正常运转
                                     setRebellionStates(prev => ({
                                         ...prev,
                                         [stratumKey]: {
                                             ...prev[stratumKey],
-                                            organization: 99,
+                                            organization: 75, // 降到75%而不是99，避免立即再次触发
                                         }
                                     }));
                                     break;
@@ -2944,7 +2970,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                     // 使用预先收集的所有损失，而不是单条日志的损失
                                     const losses = allAutoReplenishLosses;
                                     if (Object.keys(losses).length === 0) return;
-                                    
+
                                     const capacity = getMilitaryCapacity(current.buildings || {});
                                     // [FIX] 使用 result.army（已扣除战斗损失）而不是 current.army（旧状态）
                                     // 这样可以正确计算可用容量，避免补兵超出上限

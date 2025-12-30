@@ -805,7 +805,7 @@ export const useGameActions = (gameState, addLog) => {
             addLog('选拔仍在冷却中。');
             return;
         }
-        const candidates = triggerSelection(epoch, popStructure, classInfluence);
+        const candidates = triggerSelection(epoch, popStructure, classInfluence, market);
         setOfficialCandidates(candidates);
         setLastSelectionDay(daysElapsed);
         addLog('已举行新一轮官员选拔，请查看候选人名单。');
