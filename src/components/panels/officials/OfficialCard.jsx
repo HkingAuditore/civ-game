@@ -115,12 +115,38 @@ export const OfficialCard = memo(({
     // 政治立场
     const stance = POLITICAL_STANCES[official.politicalStance];
     const stanceSpectrum = stance?.spectrum || 'center';
-    const spectrumColors = {
-        left: { bg: 'bg-red-900/30', border: 'border-red-700/50', text: 'text-red-300' },
-        center: { bg: 'bg-blue-900/30', border: 'border-blue-700/50', text: 'text-blue-300' },
-        right: { bg: 'bg-purple-900/30', border: 'border-purple-700/50', text: 'text-purple-300' },
+
+    // 政治光谱完整配置（颜色、图标、边框、标签）
+    const spectrumConfig = {
+        left: {
+            bg: 'bg-red-900/30',
+            border: 'border-red-500/60',
+            text: 'text-red-300',
+            icon: 'Users',
+            label: '左派',
+            gradient: 'from-red-600/30 to-red-900/10',
+            glow: 'shadow-red-500/20',
+        },
+        center: {
+            bg: 'bg-blue-900/30',
+            border: 'border-blue-500/60',
+            text: 'text-blue-300',
+            icon: 'Scale',
+            label: '中间派',
+            gradient: 'from-blue-600/30 to-blue-900/10',
+            glow: 'shadow-blue-500/20',
+        },
+        right: {
+            bg: 'bg-amber-900/30',
+            border: 'border-amber-500/60',
+            text: 'text-amber-300',
+            icon: 'TrendingUp',
+            label: '右派',
+            gradient: 'from-amber-600/30 to-amber-900/10',
+            glow: 'shadow-amber-500/20',
+        },
     };
-    const stanceColors = spectrumColors[stanceSpectrum] || spectrumColors.center;
+    const stanceColors = spectrumConfig[stanceSpectrum] || spectrumConfig.center;
 
     // 威望计算
     const prestige = !isCandidate ? calculatePrestige(official, currentDay) : 0;
@@ -157,7 +183,7 @@ export const OfficialCard = memo(({
 
             // 被动产出
             case 'passive': description = `每日${targetName || '产出'} ${num(value)}`; break;
-            case 'passivePercent': 
+            case 'passivePercent':
                 if (target === 'silver') {
                     description = `银币收入 ${pct(value)}`;
                 } else {
@@ -212,9 +238,9 @@ export const OfficialCard = memo(({
             case 'diplomaticCooldown': isGood = value < 0; description = `外交冷却 ${pct(value)}`; break;
 
             // 生产成本修正（新增）
-            case 'productionInputCost': 
-                isGood = value < 0; 
-                description = `${targetName || '建筑'}原料消耗 ${pct(value)}`; 
+            case 'productionInputCost':
+                isGood = value < 0;
+                description = `${targetName || '建筑'}原料消耗 ${pct(value)}`;
                 break;
 
             // 其他
@@ -275,10 +301,10 @@ export const OfficialCard = memo(({
             // 某些效果的正负意义需要特殊处理
             const invertedTypes = ['needsReduction', 'buildingCostMod', 'organizationDecay'];
             const isInverted = invertedTypes.includes(type);
-            
+
             // 判断是否为百分比值（绝对值小于2的认为是百分比）
             const isPercent = typeof value === 'number' && Math.abs(value) < 2;
-            
+
             if (isPercent) {
                 // needsReduction正值表示减少消耗，显示为负号更直观
                 if (type === 'needsReduction') {
@@ -313,15 +339,25 @@ export const OfficialCard = memo(({
     const effectItems = renderEffects();
 
     return (
-        <div className="bg-gray-800/60 border border-gray-700/50 rounded-lg p-3 hover:border-gray-600 transition-colors">
-            {/* 头部: 姓名, 阶层, 薪俸 */}
-            <div className="flex justify-between items-start mb-2">
+        <div className={`relative bg-gray-800/60 border ${stanceColors.border} rounded-lg p-3 hover:border-opacity-100 transition-all overflow-hidden shadow-lg ${stanceColors.glow}`}>
+            {/* 顶部政治光谱渐变条 */}
+            <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${stanceColors.gradient}`} />
+
+            {/* 头部: 姓名, 阶层, 薪俸 + 政治光谱标签 */}
+            <div className="flex justify-between items-start mb-2 pt-1">
                 <div className="flex items-center gap-2">
                     <div className={`p-1.5 rounded bg-gray-900/50 ${stratumColor}`}>
                         <Icon name={stratumIcon} size={14} />
                     </div>
                     <div>
-                        <div className="font-bold text-gray-200 text-sm leading-tight">{official.name}</div>
+                        <div className="font-bold text-gray-200 text-sm leading-tight flex items-center gap-1.5">
+                            {official.name}
+                            {/* 政治光谱小标签 */}
+                            <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-semibold ${stanceColors.bg} ${stanceColors.text} border ${stanceColors.border}`}>
+                                <Icon name={stanceColors.icon} size={10} />
+                                {stanceColors.label}
+                            </span>
+                        </div>
                         <div className={`text-[10px] ${stratumColor} opacity-80`}>
                             {stratumDef?.name || stratumKey} 出身
                             {prestigeInfo && <span className={`ml-1 ${prestigeInfo.color}`}>· {prestigeInfo.name}</span>}
@@ -336,6 +372,7 @@ export const OfficialCard = memo(({
                     <div className="text-[9px] text-gray-500">每日薪俸</div>
                 </div>
             </div>
+
 
             {/* 分隔线 */}
             <div className="h-px bg-gray-700/50 w-full mb-2" />

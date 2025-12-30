@@ -1,8 +1,14 @@
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { OfficialCard } from './OfficialCard';
 import { Icon } from '../../common/UIComponents';
-import { calculateTotalDailySalary } from '../../../logic/officials/manager';
+import { calculateTotalDailySalary, getCabinetStatus } from '../../../logic/officials/manager';
+import { CabinetSynergyDisplay } from './CabinetSynergyDisplay';
+import { PlannedEconomyPanel } from './PlannedEconomyPanel';
+import { FreeMarketPanel } from './FreeMarketPanel';
+import { ReformDecreePanel } from './ReformDecreePanel';
+import { DOMINANCE_EFFECTS } from '../../../logic/officials/cabinetSynergy';
 
 export const OfficialsPanel = ({
     officials = [],
@@ -14,9 +20,24 @@ export const OfficialsPanel = ({
     onTriggerSelection,
     onHire,
     onFire,
-    onDispose, // 新增：处置官员回调 (officialId, disposalType) => void
-    selectionCooldown = 180
+    onDispose,
+    selectionCooldown = 180,
+    // 新增：内阁协同系统相关回调和数据
+    epoch = 0, // 当前时代
+    popStructure = {},
+    classWealth = {},
+    buildingCounts = {},
+    quotaTargets = {},
+    expansionSettings = {},
+    activeDecrees = {},
+    decreeCooldowns = {},
+    onUpdateQuotas,
+    onUpdateExpansionSettings,
+    onEnactDecree,
 }) => {
+
+    // 派系面板弹窗状态
+    const [showDominancePanel, setShowDominancePanel] = useState(false);
 
     // Derived state
     const currentCount = officials.length;
@@ -27,6 +48,42 @@ export const OfficialsPanel = ({
 
     const totalDailySalary = useMemo(() => calculateTotalDailySalary(officials), [officials]);
     const canAffordSalaries = (resources?.silver || 0) >= totalDailySalary;
+
+    // 计算内阁状态（传递 capacity 和 epoch 用于主导判定）
+    const cabinetStatus = useMemo(() =>
+        getCabinetStatus(officials, activeDecrees, capacity, epoch),
+        [officials, activeDecrees, capacity, epoch]
+    );
+
+    // 确定显示哪个派系面板
+    const dominantPanel = cabinetStatus?.dominance?.panelType;
+    const dominanceInfo = cabinetStatus?.dominance;
+
+    // 派系面板配置
+    const panelConfig = {
+        plannedEconomy: {
+            icon: 'Users',
+            label: '计划经济',
+            color: 'red',
+            bgClass: 'bg-red-600 hover:bg-red-500',
+            borderClass: 'border-red-500/50',
+        },
+        freeMarket: {
+            icon: 'TrendingUp',
+            label: '自由市场',
+            color: 'amber',
+            bgClass: 'bg-amber-600 hover:bg-amber-500',
+            borderClass: 'border-amber-500/50',
+        },
+        reformDecree: {
+            icon: 'Scale',
+            label: '改良法令',
+            color: 'blue',
+            bgClass: 'bg-blue-600 hover:bg-blue-500',
+            borderClass: 'border-blue-500/50',
+        },
+    };
+    const currentPanelConfig = dominantPanel ? panelConfig[dominantPanel] : null;
 
     return (
         <div className="space-y-6 p-2">
@@ -66,7 +123,46 @@ export const OfficialsPanel = ({
                 </div>
             </div>
 
-            {/* 2. 候选人选拔区域 */}
+            {/* 2. 内阁协同度显示 */}
+            {officials.length > 0 && (
+                <CabinetSynergyDisplay
+                    officials={officials}
+                    cabinetStatus={cabinetStatus}
+                />
+            )}
+
+            {/* 3. 主导派系入口按钮 */}
+            {dominantPanel && currentPanelConfig && (
+                <div className={`bg-gray-900/60 rounded-xl p-4 border ${currentPanelConfig.borderClass} shadow-lg`}>
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className={`p-2.5 rounded-lg ${currentPanelConfig.bgClass} text-white`}>
+                                <Icon name={currentPanelConfig.icon} size={24} />
+                            </div>
+                            <div>
+                                <h4 className="font-bold text-gray-100 flex items-center gap-2">
+                                    {dominanceInfo?.name || '派系主导'}
+                                    <span className={`text-xs px-2 py-0.5 rounded-full bg-${currentPanelConfig.color}-900/50 text-${currentPanelConfig.color}-300`}>
+                                        {dominanceInfo?.percentage}% 占比
+                                    </span>
+                                </h4>
+                                <p className="text-xs text-gray-400 mt-0.5">
+                                    {dominanceInfo?.description || '解锁特殊政策工具'}
+                                </p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => setShowDominancePanel(true)}
+                            className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all text-white shadow-lg hover:scale-105 active:scale-95 ${currentPanelConfig.bgClass}`}
+                        >
+                            <Icon name="Settings" size={14} />
+                            {currentPanelConfig.label}
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* 4. 候选人选拔区域 */}
             <div className="flex items-center justify-between bg-gray-800/30 p-3 rounded-lg border border-gray-700/30">
                 <div className="flex items-center gap-3">
                     <div className="bg-purple-900/20 p-2 rounded-lg text-purple-400">
@@ -97,7 +193,7 @@ export const OfficialsPanel = ({
                 </button>
             </div>
 
-            {/* 3. 候选人列表 */}
+            {/* 5. 候选人列表 */}
             {candidates.length > 0 && (
                 <div>
                     <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
@@ -119,7 +215,7 @@ export const OfficialsPanel = ({
                 </div>
             )}
 
-            {/* 4. 在任官员列表 */}
+            {/* 6. 在任官员列表 */}
             <div>
                 <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                     <span className="w-1.5 h-1.5 rounded-full bg-green-400 display-inline-block"></span>
@@ -157,6 +253,68 @@ export const OfficialsPanel = ({
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* 派系面板弹窗 - 使用 Portal 渲染到 body 顶层 */}
+            {showDominancePanel && dominantPanel && createPortal(
+                <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center">
+                    {/* 背景遮罩 */}
+                    <div
+                        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                        onClick={() => setShowDominancePanel(false)}
+                    />
+
+                    {/* 弹窗内容 */}
+                    <div className="relative w-full max-w-2xl max-h-[85vh] bg-gray-900 rounded-t-2xl sm:rounded-2xl border border-gray-700 shadow-2xl overflow-hidden animate-slide-up">
+                        {/* 弹窗头部 */}
+                        <div className={`flex items-center justify-between p-4 border-b border-gray-700 bg-gradient-to-r from-${currentPanelConfig?.color}-900/30 to-gray-900`}>
+                            <div className="flex items-center gap-3">
+                                <div className={`p-2 rounded-lg ${currentPanelConfig?.bgClass} text-white`}>
+                                    <Icon name={currentPanelConfig?.icon} size={20} />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-gray-100">{currentPanelConfig?.label}</h3>
+                                    <p className="text-xs text-gray-400">{dominanceInfo?.description}</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setShowDominancePanel(false)}
+                                className="p-2 rounded-lg hover:bg-gray-800 text-gray-400 hover:text-gray-200 transition-colors"
+                            >
+                                <Icon name="X" size={20} />
+                            </button>
+                        </div>
+
+                        {/* 弹窗内容区域 */}
+                        <div className="p-4 overflow-y-auto max-h-[70vh]">
+                            {dominantPanel === 'plannedEconomy' && (
+                                <PlannedEconomyPanel
+                                    popStructure={popStructure}
+                                    quotaTargets={quotaTargets}
+                                    onUpdateQuotas={onUpdateQuotas}
+                                />
+                            )}
+                            {dominantPanel === 'freeMarket' && (
+                                <FreeMarketPanel
+                                    buildingCounts={buildingCounts}
+                                    classWealth={classWealth}
+                                    expansionSettings={expansionSettings}
+                                    onUpdateSettings={onUpdateExpansionSettings}
+                                />
+                            )}
+                            {dominantPanel === 'reformDecree' && (
+                                <ReformDecreePanel
+                                    activeDecrees={activeDecrees}
+                                    decreeCooldowns={decreeCooldowns}
+                                    currentDay={currentTick}
+                                    silver={resources?.silver || 0}
+                                    onEnactDecree={onEnactDecree}
+                                />
+                            )}
+                        </div>
+                    </div>
+                </div>,
+                document.body
             )}
 
         </div>

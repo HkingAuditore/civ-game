@@ -5,6 +5,7 @@ import React, { useEffect, useRef, useState, useMemo, useCallback, useDeferredVa
 import { GAME_SPEEDS, EPOCHS, RESOURCES, STRATA, calculateArmyFoodNeed, calculateTotalArmyExpense, BUILDINGS, EVENTS, checkAndCreateCoalitionDemandEvent } from './config';
 import { getCalendarInfo } from './utils/calendar';
 import { calculateTotalDailySalary } from './logic/officials/manager';
+import { enactDecree, REFORM_DECREES } from './logic/officials/cabinetSynergy';
 import { useGameState, useGameLoop, useGameActions, useSound, useEpicTheme, useViewportHeight, useDevicePerformance, useAchievements } from './hooks';
 import {
     Icon,
@@ -1134,6 +1135,39 @@ function GameApp({ gameState }) {
                                                 onFire={actions.fireExistingOfficial}
                                                 onDispose={actions.disposeExistingOfficial}
                                                 resources={gameState.resources}
+
+                                                // 内阁协同系统 props
+                                                classWealth={gameState.classWealth}
+                                                activeDecrees={gameState.activeDecrees}
+                                                decreeCooldowns={gameState.decreeCooldowns}
+                                                quotaTargets={gameState.quotaTargets}
+                                                expansionSettings={gameState.expansionSettings}
+                                                onUpdateQuotas={(newQuotas) => gameState.setQuotaTargets(newQuotas)}
+                                                onUpdateExpansionSettings={(newSettings) => gameState.setExpansionSettings(newSettings)}
+                                                onEnactDecree={(decreeId) => {
+                                                    // 颁布法令逻辑
+                                                    const decree = REFORM_DECREES[decreeId];
+                                                    if (!decree) return;
+
+                                                    const result = enactDecree(
+                                                        decreeId,
+                                                        gameState.activeDecrees,
+                                                        gameState.decreeCooldowns,
+                                                        gameState.daysElapsed
+                                                    );
+
+                                                    if (result.success) {
+                                                        gameState.setActiveDecrees(result.newActiveDecrees);
+                                                        gameState.setDecreCooldowns(result.newCooldowns);
+                                                        if (result.cost > 0) {
+                                                            gameState.setResources(prev => ({
+                                                                ...prev,
+                                                                silver: Math.max(0, (prev.silver || 0) - result.cost)
+                                                            }));
+                                                        }
+                                                        gameState.setLogs(prev => [`颁布法令：${decree.name}`, ...prev].slice(0, 8));
+                                                    }
+                                                }}
                                             />
                                         )}
 
