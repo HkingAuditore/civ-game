@@ -2563,6 +2563,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                         silverLoss: raidData.silverLoss || 0,
                                         popLoss: raidData.popLoss || 0,
                                         isRaid: true,
+                                        attackerArmy: raidData.attackerArmy, // Pass attacker army composition
+                                        defenderArmy: raidData.defenderArmy, // Pass defender army composition
                                     };
 
                                     debugLog('event', '[EVENT DEBUG] Raid battle result created (pre-loop):', battleResult);

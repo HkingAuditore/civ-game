@@ -380,6 +380,8 @@ const buildMinimalAutoSavePayload = (payload) => ({
     autoRecruitEnabled: payload.autoRecruitEnabled,
     targetArmyComposition: payload.targetArmyComposition,
     militaryWageRatio: payload.militaryWageRatio,
+    lastBattleTargetId: payload.lastBattleTargetId,
+    lastBattleDay: payload.lastBattleDay,
     activeFestivalEffects: payload.activeFestivalEffects,
     lastFestivalYear: payload.lastFestivalYear,
     showTutorial: payload.showTutorial,
@@ -664,6 +666,8 @@ export const useGameState = () => {
     const [militaryWageRatio, setMilitaryWageRatio] = useState(1.5);
     const [autoRecruitEnabled, setAutoRecruitEnabled] = useState(false);  // 自动补兵开关
     const [targetArmyComposition, setTargetArmyComposition] = useState({});  // 目标军队编制
+    const [lastBattleTargetId, setLastBattleTargetId] = useState(null); // 上次攻击的目标ID
+    const [lastBattleDay, setLastBattleDay] = useState(-999); // 上次攻击的时间
 
     // ========== 庆典系统状态 ==========
     const [festivalModal, setFestivalModal] = useState(null); // { options: [], year: number }
@@ -1864,6 +1868,10 @@ export const useGameState = () => {
         setAutoRecruitEnabled,
         targetArmyComposition,
         setTargetArmyComposition,
+        lastBattleTargetId,
+        setLastBattleTargetId,
+        lastBattleDay,
+        setLastBattleDay,
 
         // 庆典系统
         festivalModal,

@@ -4,7 +4,7 @@
 import React, { useState, useMemo, useRef, useLayoutEffect, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '../common/UIComponents';
-import { UNIT_TYPES, UNIT_CATEGORIES, BUILDINGS, calculateArmyMaintenance, calculateArmyFoodNeed, calculateBattlePower, calculateArmyPopulation, calculateTotalArmyExpense, calculateUnitExpense, calculateNationBattlePower, RESOURCES, MILITARY_ACTIONS, TECHS, EPOCHS } from '../../config';
+import { UNIT_TYPES, UNIT_CATEGORIES, BUILDINGS, calculateArmyMaintenance, calculateArmyFoodNeed, calculateBattlePower, calculateArmyPopulation, calculateTotalArmyExpense, calculateUnitExpense, calculateNationBattlePower, RESOURCES, MILITARY_ACTIONS, getEnemyUnitsForEpoch, TECHS, EPOCHS } from '../../config';
 import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
 import { filterUnlockedResources } from '../../utils/resources';
 
@@ -1101,6 +1101,43 @@ const MilitaryTabComponent = ({
                                                         {Math.floor(deploymentRatio.min * 100)}-{Math.floor(deploymentRatio.max * 100)}%
                                                     </span>
                                                 </div>
+
+                                                {/* 新增：显示潜在防御部队/可能的敌军构成 */}
+                                                <div>
+                                                    <div className="flex items-center gap-1 mb-1">
+                                                        <span className="text-gray-400">潜在防御部队</span>
+                                                        <span className="text-[10px] text-gray-500 bg-gray-800 px-1.5 rounded border border-gray-700">
+                                                            情报预估
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {getEnemyUnitsForEpoch(enemyEpoch, action.unitScale || 'medium').map(unitId => {
+                                                            const unit = UNIT_TYPES[unitId];
+                                                            if (!unit) return null;
+                                                            // 简单的类型图标映射
+                                                            const typeIconObj = {
+                                                                infantry: 'Sword',
+                                                                archer: 'Crosshair',
+                                                                cavalry: 'Wind',
+                                                                siege: 'Hammer',
+                                                                naval: 'Anchor'
+                                                            };
+                                                            const typeIcon = typeIconObj[unit.category] || 'User';
+
+                                                            return (
+                                                                <div
+                                                                    key={unitId}
+                                                                    className="flex items-center gap-1 bg-gray-800/60 px-1.5 py-0.5 rounded border border-gray-700/50 cursor-help"
+                                                                    title={`${unit.name} (${unit.category === 'cavalry' ? '骑兵' : unit.category === 'archer' ? '远程' : '步兵'})`}
+                                                                >
+                                                                    <Icon name={typeIcon} size={10} className="text-gray-400" />
+                                                                    <span className="text-[10px] text-gray-300">{unit.name}</span>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+
                                                 <div className="flex items-center justify-between">
                                                     <span className="text-gray-400">预估敌方战力</span>
                                                     <span className="text-red-300 font-mono">

@@ -978,14 +978,16 @@ export const simulateBattle = (attackerData, defenderData) => {
         // ratioFactor = 10 时，attackerLossRate ≈ 0.5%
         if (ratioFactor >= 3) {
             // 碾压级优势：使用指数衰减公式
-            // ratioFactor >= 50 时，损失可以低至 0.1%
-            const minLossRate = ratioFactor >= 50 ? 0.001 : 0.005;
-            attackerLossRate = clampRate(0.03 / Math.pow(ratioFactor, 0.8), minLossRate, 0.03);
-            defenderLossRate = clampRate(0.50 + Math.log10(ratioFactor) * 0.35, 0.60, 0.98);
+            // ratioFactor >= 20 时，损失可以低至 0.05% (near zero)
+            const minLossRate = ratioFactor >= 20 ? 0.0005 : (ratioFactor >= 10 ? 0.002 : 0.005);
+            attackerLossRate = clampRate(0.04 / Math.pow(ratioFactor, 1.0), minLossRate, 0.03); 
+            
+            // 劣势方损失计算：允许达到 100% 全军覆没
+            defenderLossRate = clampRate(0.55 + Math.log10(ratioFactor) * 0.35, 0.60, 1.0);
         } else {
             // 普通优势
             attackerLossRate = clampRate((0.06 / ratioFactor) + 0.02, 0.02, 0.35);
-            defenderLossRate = clampRate(0.35 + Math.log10(ratioFactor + 1) * 0.40, 0.35, 0.75);
+            defenderLossRate = clampRate(0.35 + Math.log10(ratioFactor + 1) * 0.40, 0.35, 0.85);
         }
     } else {
         const inverseRatio = Math.max(1, 1 / safeRatio);
@@ -1000,12 +1002,19 @@ export const simulateBattle = (attackerData, defenderData) => {
     const attackerLosses = {};
     const defenderLosses = {};
 
+    // 辅助函数：概率取整 (例如 1.8 -> 80%几率是2, 20%几率是1)
+    const probabilisticRound = (value) => {
+        const integerPart = Math.floor(value);
+        const fractionalPart = value - integerPart;
+        return integerPart + (Math.random() < fractionalPart ? 1 : 0);
+    };
+
     Object.entries(attackerArmy).forEach(([unitId, count]) => {
-        attackerLosses[unitId] = Math.floor(count * attackerLossRate);
+        attackerLosses[unitId] = Math.min(count, probabilisticRound(count * attackerLossRate));
     });
 
     Object.entries(defenderArmy).forEach(([unitId, count]) => {
-        defenderLosses[unitId] = Math.floor(count * defenderLossRate);
+        defenderLosses[unitId] = Math.min(count, probabilisticRound(count * defenderLossRate));
     });
 
     // 计算掠夺资源（按比例计算，考虑敌方财富）

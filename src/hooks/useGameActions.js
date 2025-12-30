@@ -96,6 +96,10 @@ export const useGameActions = (gameState, addLog) => {
         officialCapacity,
         // 阶层影响力
         classInfluence,
+        lastBattleTargetId,
+        setLastBattleTargetId,
+        lastBattleDay,
+        setLastBattleDay,
     } = gameState;
 
     const [pendingDiplomaticEvents, setPendingDiplomaticEvents] = useState([]);
@@ -1180,6 +1184,19 @@ export const useGameActions = (gameState, addLog) => {
             return;
         }
 
+        // 军队行军时间检查
+        // 如果上次攻击的目标不是当前目标，且距离上次攻击不足 5 天，则需要行军
+        if (lastBattleTargetId && lastBattleTargetId !== nationId) {
+            const daysSinceLastBattle = daysElapsed - lastBattleDay;
+            const TRAVEL_DAYS = 5;
+            
+            if (daysSinceLastBattle < TRAVEL_DAYS) {
+                const remainingTravelDays = TRAVEL_DAYS - daysSinceLastBattle;
+                addLog(`⏳ 军队正在向 ${targetNation.name} 进军中，预计还需要 ${remainingTravelDays} 天抵达战场。`);
+                return;
+            }
+        }
+
         // 检查针对该目标的军事行动冷却
         const cooldownKey = `military_${nationId}_${missionId}`;
         const lastActionDay = targetNation.lastMilitaryActionDay?.[missionId] || 0;
@@ -1522,6 +1539,8 @@ export const useGameActions = (gameState, addLog) => {
             score: Number(result.attackerAdvantage || 0),
             losses: result.attackerLosses || {},
             enemyLosses: result.defenderLosses || {},
+            attackerArmy: attackerData.army, // Pass attacker army composition
+            defenderArmy: defenderData.army, // Pass defender army composition
             resourcesGained,
             attackerAllCavalry,
             attackerTotalUnits: totalUnits,
@@ -1530,6 +1549,12 @@ export const useGameActions = (gameState, addLog) => {
         });
 
         addLog(result.victory ? `⚔️ 针对 ${targetNation.name} 的行动取得胜利！` : `💀 对 ${targetNation.name} 的进攻受挫。`);
+
+        // 更新上次战斗目标和时间，用于计算行军时间
+        if (setLastBattleTargetId && setLastBattleDay) {
+            setLastBattleTargetId(nationId);
+            setLastBattleDay(daysElapsed);
+        }
 
         // 播放战斗音效
         try {

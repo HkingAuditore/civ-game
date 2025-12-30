@@ -8,7 +8,7 @@ export { STRATA } from './strata';
 export { BUILDINGS } from './buildings';
 export { TECHS } from './technologies';
 export { COUNTRIES } from './countries';
-export { MILITARY_ACTIONS } from './militaryActions';
+export { MILITARY_ACTIONS, getEnemyUnitsForEpoch } from './militaryActions';
 export { TUTORIAL_STEPS } from './tutorialSteps';
 export { ACHIEVEMENTS } from './achievements';
 

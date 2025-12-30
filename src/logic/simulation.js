@@ -116,6 +116,7 @@ import {
     calculateQuotaEffects,
     processOwnerExpansions
 } from './officials/cabinetSynergy'; // [FIX] Import directly from source
+import { getInventoryTargetDaysMultiplier } from '../config/difficulty';
 
 // ============================================================================
 // All helper functions and constants have been migrated to modules:
@@ -570,27 +571,10 @@ export const simulateTick = ({
             const price = getPrice(resource);
             const grossIncome = price * amount;
             const taxRate = getResourceTaxRate(resource);
-            const taxAmount = grossIncome * taxRate;
+            // 修正：消费税/补贴应在消费端处理（needs.js），不应在生产端结算。
+            // 生产者获得基础市场价值（grossIncome）。
+            // 之前的逻辑（负税率导致生产时发放补贴）已被移除，以符合“消费税”定义。
             let netIncome = grossIncome;
-
-            if (taxAmount > 0) {
-                // 这是一个消费税，不由生产者承担。
-                // netIncome = grossIncome - taxAmount;
-                // taxBreakdown.industryTax += taxAmount;
-            } else if (taxAmount < 0) {
-                // 负税率（补贴）：从国库支付补贴
-                const subsidyAmount = Math.abs(taxAmount);
-                if ((res.silver || 0) >= subsidyAmount) {
-                    res.silver -= subsidyAmount;
-                    netIncome = grossIncome + subsidyAmount;
-                    taxBreakdown.subsidy += subsidyAmount;
-                } else {
-                    // 国库不足，无法支付补贴
-                    if (tick % 30 === 0) {
-                        logs.push(`⚠️ 国库空虚，无法为 ${RESOURCES[resource]?.name || resource} 销售支付补贴！`);
-                    }
-                }
-            }
 
             // 记录owner的净销售收入（在tick结束时统一结算到wealth）
             roleWagePayout[ownerKey] = (roleWagePayout[ownerKey] || 0) + netIncome;
@@ -601,47 +585,7 @@ export const simulateTick = ({
                 classFinancialData[ownerKey].income.ownerRevenue = (classFinancialData[ownerKey].income.ownerRevenue || 0) + netIncome;
 
                 // Track tax/subsidy
-                if (taxAmount > 0) {
-                    // Transaction tax paid by owner (deducted from gross to get net)
-                    // Currently logic: netIncome = grossIncome. Tax is consumed from Buyer?
-                    // Wait, check lines 384-387:
-                    // if (taxAmount > 0) { // Consumer tax, not producer tax... commented out logic? }
-                    // Actually, lines 384-387 are empty/commented out logic for consumer tax.
-                    // But if taxAmount > 0, does the owner pay it?
-                    // Currently in `sellProduction`:
-                    // const taxAmount = grossIncome * taxRate;
-                    // let netIncome = grossIncome;
-                    // if (taxAmount > 0) { ... nothing happens to netIncome ... }
-                    // So for positive tax, it seems the owner receives the full grossIncome?
-                    // And the buyer pays... wait, `sellProduction` just records the production.
-                    // The tax is paid when the buyer BUYS it?
-                    // Let's look at `building processed` loop line 1151:
-                    // const taxPaid = baseCost * taxRate;
-                    // taxBreakdown.industryTax += taxPaid;
-                    // wealth[ownerKey] -= totalCost;
 
-                    // `sellProduction` is called when a building PRODUCES output.
-                    // It puts it into `res`.
-                    // The tax logic inside `sellProduction` seems completely partially implemented or just for subsidies?
-                    // If taxAmount > 0, it does NOTHING to netIncome or taxBreakdown in the current code (lines 384-387 are empty comments).
-                    // So currently output tax (production tax) is effectively 0 unless it's a subsidy?
-                    // Line 389: else if (taxAmount < 0) { ... netIncome += subsidy ... }
-
-                    // So for now, we only track Subsidy here.
-                } else if (taxAmount < 0) {
-                    const subsidyAmount = Math.abs(taxAmount);
-                    // Already added to netIncome if treasury allowed
-                    // Just track it as subsidy component
-                    // Note: we can't tell here if treasury failed without variable access,
-                    // but `sellProduction` modifies `res.silver` so we assume it worked if logic matched.
-                    // Actually logic at 391 checks treasury.
-                    if ((res.silver || 0) >= subsidyAmount) { // Re-check condition or rely on code flow?
-                        // Since we are adding logging, we should probably just rely on `taxBreakdown.subsidy` change?
-                        // But `taxBreakdown` is local.
-                        // Let's assume successful if subsidy > 0.
-                        classFinancialData[ownerKey].income.subsidy = (classFinancialData[ownerKey].income.subsidy || 0) + subsidyAmount;
-                    }
-                }
             }
         }
     };
@@ -1367,9 +1311,9 @@ export const simulateTick = ({
                 producesTradableOutput = true;
                 const perMultiplierAmount = totalAmount;
                 const grossValue = perMultiplierAmount * getPrice(resKey);
-                const taxRate = getResourceTaxRate(resKey);
-                // 计算税后净收入：正税率减少收入，负税率（补贴）增加收入
-                const netValue = grossValue * (1 - taxRate);
+                // 修正：生产者只获得商品的基础市场价值，消费税或补贴发生在消费端
+                // 之前的逻辑错误地认为生产者获得补贴，或承担税收
+                const netValue = grossValue;
                 outputValuePerMultiplier += netValue;
             }
         }
@@ -1562,8 +1506,8 @@ export const simulateTick = ({
                     if (!isTradableResource(resKey)) return;
                     const perBuildingAmount = amount;
                     const grossValue = perBuildingAmount * getPrice(resKey);
-                    const taxRate = getResourceTaxRate(resKey);
-                    levelOutputValue += grossValue * (1 - taxRate);
+                    // 修正：生产者只获得商品的基础市场价值
+                    levelOutputValue += grossValue;
                 });
             }
 
@@ -1680,10 +1624,34 @@ export const simulateTick = ({
             Object.entries(ownerWageBills).forEach(([oKey, ownerBill]) => {
                 if (ownerBill <= 0) return;
                 const available = wealth[oKey] || 0;
-                const paid = Math.min(available, ownerBill);
+                
+                // [FIX] Prioritize owner's own basic needs before paying wages
+                // Calculate estimated basic needs cost (buffer 1.2x for safety)
+                let reservedWealth = 0;
+                const ownerDef = STRATA[oKey];
+                if (ownerDef && ownerDef.needs) {
+                    Object.entries(ownerDef.needs).forEach(([resKey, amount]) => {
+                         const price = getPrice(resKey);
+                         // Basic needs are essential (food, cloth etc.)
+                         reservedWealth += amount * price;
+                    });
+                    // Multiply by 1.2 to account for price fluctuations and ensure safety
+                    reservedWealth *= 1.2; 
+                }
+
+                // If owner has very little wealth, they hoard it for survival
+                const disposableWealth = Math.max(0, available - reservedWealth);
+                
+                const paid = Math.min(disposableWealth, ownerBill);
+                
                 wealth[oKey] = available - paid;
                 roleExpense[oKey] = (roleExpense[oKey] || 0) + paid;
                 totalPaid += paid;
+                
+                // Optional: Log if owner cannot pay full wages due to survival needs
+                // if (paid < ownerBill && tick % 30 === 0 && available > 0) {
+                //      logs.push(`⚠️ ${STRATA[oKey]?.name || oKey} prioritizing survival, withholding wages.`);
+                // }
             });
 
             wageRatio = totalOwnerBills > 0 ? totalPaid / totalOwnerBills : 0;
@@ -2435,32 +2403,46 @@ export const simulateTick = ({
     if (cabinetStatus.dominance?.faction === 'left' && quotaTargets && Object.keys(quotaTargets).length > 0) {
         const { adjustments, approvalPenalties, adminCost } = calculateQuotaEffects(popStructure, quotaTargets);
 
-        // Apply admin cost (deduct from silver, simplistic handling here as silver is main thread mostly,
-        // but we can deduct from tax or add to expenses. For now, let's treat it as an expense)
-        // Actually, silver is tracked in main thread. We can return an expense item.
-        // Or simpler: We don't deduct cost here to avoid desync, just apply effects.
-        // Realistically, the cost should be daily. Let's assume the cost is deducted via `politicalExpenses`.
+        // [FIX] Population Conservation Logic
+        // Calculate total population BEFORE adjustments to ensure conservation
+        const previousTotalPop = Object.values(popStructure).reduce((a, b) => a + b, 0);
+        let newTotalPop = 0;
+        let maxPopStratum = null;
+        let maxPopValue = -1;
 
         // Apply population adjustments
         Object.entries(adjustments).forEach(([stratum, change]) => {
-            // Apply change (ensure we don't drop below 0)
-            // [FIX] 使用 Math.round 确保人口值始终为整数
             if (popStructure[stratum] !== undefined) {
+                // Apply change
                 popStructure[stratum] = Math.max(0, Math.round(popStructure[stratum] + change));
             }
         });
+
+        // Recalculate total after adjustments
+        Object.keys(popStructure).forEach(s => {
+            const val = popStructure[s];
+            newTotalPop += val;
+            if (val > maxPopValue) {
+                maxPopValue = val;
+                maxPopStratum = s;
+            }
+        });
+
+        // Correction for rounding errors (Conservation of Mass)
+        const diff = previousTotalPop - newTotalPop;
+        if (diff !== 0 && maxPopStratum) {
+            popStructure[maxPopStratum] += diff;
+            // Ensure we didn't drop below zero (unlikely unless diff is huge negative)
+            if (popStructure[maxPopStratum] < 0) {
+                 popStructure[maxPopStratum] = 0;
+            }
+        }
 
         // Apply approval penalties
         Object.entries(approvalPenalties).forEach(([stratum, penalty]) => {
             if (classApproval[stratum]) {
                 // calculateQuotaEffects returns 'penalty' as a value like 5 for -5 approval.
-                // Since this runs EVERY TICK, we need to be careful.
-                // The function calculates penalties based on CURRENT difference.
-                // A constant daily penalty of -5 would be huge.
-                // Let's assume the penalty is a momentary hit or a slow drag.
-                // CabinetSynergy says "approvalPenalties[stratum] = Math.floor(diff / 2)".
-                // We should apply a small fraction of this per tick.
-                // Let's apply 10% of the calculated penalty per day as "dissatisfaction pressure".
+                // Apply 5% of the calculated penalty per day as "dissatisfaction pressure".
                 classApproval[stratum] -= penalty * 0.05;
             }
         });
@@ -2876,6 +2858,14 @@ export const simulateTick = ({
             // Calculate per-capita wealth and apply decay rate
             // 根据生活水平档位设置不同的挥霍率，刚进入小康时挥霍很少
             const perCapitaWealth = currentWealth / population;
+            const wealthRatio = WEALTH_BASELINE > 0 ? perCapitaWealth / WEALTH_BASELINE : 0;
+
+            // Safeguard: Only apply decay if they have accumulated some wealth buffer (e.g. > 120% baseline)
+            // This prevents "newly comfortable" strata from immediately losing their savings
+            if (wealthRatio < 1.2 && level !== '奢华') {
+                return;
+            }
+
             let decayRate = WEALTH_DECAY_RATE; // 默认0.5% (奢华)
             if (level === '小康') {
                 decayRate = 0.001; // 0.1% - 刚进入小康，挥霍很少
@@ -2883,15 +2873,31 @@ export const simulateTick = ({
                 decayRate = 0.003; // 0.3% - 开始享受生活
             }
             // '奢华' 保持默认的0.5%
+            
             const perCapitaDecay = perCapitaWealth * decayRate;
-            // Total decay = per-capita decay × population (but use floor to avoid excessive rounding up)
-            const decay = Math.max(1, Math.floor(perCapitaDecay * population));
+            // Removed Math.max(1, floor(...)) to allow fractional decay and prevent subsidy waste
+            // Use toFixed(2) for clean display and deduction
+            const rawDecay = perCapitaDecay * population;
+            let decay = parseFloat(rawDecay.toFixed(2));
 
-            wealth[key] = Math.max(0, currentWealth - decay);
-            // Record decay as expense so UI balances
-            roleExpense[key] = (roleExpense[key] || 0) + decay;
-            if (classFinancialData[key]) {
-                classFinancialData[key].expense.decay = (classFinancialData[key].expense.decay || 0) + decay;
+            // [NEW] Cap decay at 50% of current tick's luxury spending
+            // Represents that lavish spending (waste) cannot exceed a fraction of actual luxury consumption
+            let totalLuxurySpend = 0;
+            if (classFinancialData[key] && classFinancialData[key].expense && classFinancialData[key].expense.luxuryNeeds) {
+                Object.values(classFinancialData[key].expense.luxuryNeeds).forEach(item => {
+                    totalLuxurySpend += (item.cost || 0);
+                });
+            }
+            const maxDecay = parseFloat((totalLuxurySpend * 0.5).toFixed(2));
+            decay = Math.min(decay, maxDecay);
+
+            if (decay > 0) {
+                wealth[key] = Math.max(0, currentWealth - decay);
+                // Record decay as expense so UI balances
+                roleExpense[key] = (roleExpense[key] || 0) + decay;
+                if (classFinancialData[key]) {
+                    classFinancialData[key].expense.decay = (classFinancialData[key].expense.decay || 0) + decay;
+                }
             }
         }
     });
@@ -3491,7 +3497,9 @@ export const simulateTick = ({
     const defaultMarketInfluence = ECONOMIC_INFLUENCE?.market || {};
     const defaultSupplyDemandWeight = Math.max(0, defaultMarketInfluence.supplyDemandWeight ?? 1);
     const defaultVirtualDemandPerPop = Math.max(0, defaultMarketInfluence.virtualDemandPerPop || 0);
-    const defaultInventoryTargetDays = Math.max(0.1, defaultMarketInfluence.inventoryTargetDays ?? 1.5);
+    // 应用难度乘数到库存目标天数（低难度=更多缓冲=更稳定经济，高难度=更少缓冲=更波动经济）
+    const inventoryMultiplier = getInventoryTargetDaysMultiplier(difficulty);
+    const defaultInventoryTargetDays = Math.max(0.1, (defaultMarketInfluence.inventoryTargetDays ?? 1.5) * inventoryMultiplier);
     const defaultInventoryPriceImpact = Math.max(0, defaultMarketInfluence.inventoryPriceImpact ?? 0.25);
 
     // 新的市场价格算法：每个建筑有自己的出售价格，市场价是加权平均
@@ -3508,8 +3516,9 @@ export const simulateTick = ({
         const virtualDemandPerPop = resourceMarketConfig.virtualDemandPerPop !== undefined
             ? Math.max(0, resourceMarketConfig.virtualDemandPerPop)
             : defaultVirtualDemandPerPop;
+        // 资源特定的库存目标天数也应用难度乘数
         const inventoryTargetDays = resourceMarketConfig.inventoryTargetDays !== undefined
-            ? Math.max(0.1, resourceMarketConfig.inventoryTargetDays)
+            ? Math.max(0.1, resourceMarketConfig.inventoryTargetDays * inventoryMultiplier)
             : defaultInventoryTargetDays;
         const inventoryPriceImpact = resourceMarketConfig.inventoryPriceImpact !== undefined
             ? Math.max(0, resourceMarketConfig.inventoryPriceImpact)
@@ -3656,7 +3665,8 @@ export const simulateTick = ({
                     priceMultiplier = 1.0 + (1.0 - inventoryRatio) * 1.0; // 1.0-2.0倍
                 } else if (inventoryRatio > 2.0) {
                     // 库存积压，大幅降价
-                    priceMultiplier = 1.0 - (inventoryRatio - 2.0) * 0.3; // 最低0.1倍
+                    // 修正：从上一档位(1.0-2.0)的结束点(0.7)继续下降，保持连贯性
+                    priceMultiplier = 0.7 - (inventoryRatio - 2.0) * 0.3; // 最低0.1倍
                     priceMultiplier = Math.max(0.1, priceMultiplier);
                 } else if (inventoryRatio > 1.0) {
                     // 库存充足，适度降价
@@ -3714,7 +3724,8 @@ export const simulateTick = ({
                 priceMultiplier = 1.0 + (1.0 - inventoryRatio) * 1.0; // 1.0-2.0倍
             } else if (inventoryRatio > 2.0) {
                 // 库存积压，大幅降价
-                priceMultiplier = 1.0 - (inventoryRatio - 2.0) * 0.3; // 最低0.1倍
+                // 修正：从上一档位(1.0-2.0)的结束点(0.7)继续下降，保持连贯性
+                priceMultiplier = 0.7 - (inventoryRatio - 2.0) * 0.3; // 最低0.1倍
                 priceMultiplier = Math.max(0.1, priceMultiplier);
             } else if (inventoryRatio > 1.0) {
                 // 库存充足，适度降价

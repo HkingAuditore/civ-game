@@ -134,6 +134,51 @@ export const BattleResultModal = ({ result, onClose }) => {
                                         </div>
                                     </div>
                                 )}
+                                {(result.attackerArmy || result.defenderArmy) && (
+                                    <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
+                                        <h3 className="text-[11px] font-bold mb-2 flex items-center gap-1 text-white">
+                                            <Icon name="Users" size={12} className="text-blue-400" />
+                                            参战部队
+                                        </h3>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            {/* 我方部队 */}
+                                            <div className="space-y-1">
+                                                <div className="text-[10px] text-gray-400 border-b border-gray-600 pb-1 mb-1">我方</div>
+                                                {Object.entries(result.attackerArmy || {}).map(([unitId, count]) => {
+                                                    const unit = UNIT_TYPES[unitId];
+                                                    if (!unit || count === 0) return null;
+                                                    return (
+                                                        <div key={unitId} className="flex items-center justify-between">
+                                                            <span className="text-[10px] text-gray-300">{unit.name}</span>
+                                                            <span className="text-[10px] font-mono text-gray-200">{count}</span>
+                                                        </div>
+                                                    );
+                                                })}
+                                                {Object.keys(result.attackerArmy || {}).length === 0 && (
+                                                    <div className="text-[10px] text-gray-500 italic">无数据</div>
+                                                )}
+                                            </div>
+
+                                            {/* 敌方部队 */}
+                                            <div className="space-y-1">
+                                                <div className="text-[10px] text-gray-400 border-b border-gray-600 pb-1 mb-1">敌方</div>
+                                                {Object.entries(result.defenderArmy || {}).map(([unitId, count]) => {
+                                                    const unit = UNIT_TYPES[unitId];
+                                                    if (!unit || count === 0) return null;
+                                                    return (
+                                                        <div key={unitId} className="flex items-center justify-between">
+                                                            <span className="text-[10px] text-gray-300">{unit.name}</span>
+                                                            <span className="text-[10px] font-mono text-red-300">{count}</span>
+                                                        </div>
+                                                    );
+                                                })}
+                                                {Object.keys(result.defenderArmy || {}).length === 0 && (
+                                                    <div className="text-[10px] text-gray-500 italic">无数据</div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
 
                                 {/* 我方损失 */}
                                 {(!result.isRaid || (result.isRaid && Object.keys(result.losses || result.defenderLosses || {}).length > 0)) && (
@@ -280,9 +325,9 @@ export const BattleResultModal = ({ result, onClose }) => {
                             </div>
                         </div>
                     </motion.div>
-                </div>
+                </div >
             )}
-        </AnimatePresence>,
+        </AnimatePresence >,
         document.body
     );
 };

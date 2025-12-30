@@ -177,8 +177,8 @@ export const MILITARY_ACTIONS = [
         difficulty: '中',
         difficultyLevel: 2,
         unitScale: 'medium',
-        baseUnitCount: { min: 12, max: 18 },
-        deploymentRatio: { min: 0.25, max: 0.40 }, // 敌方派遣25%-40%军队
+        baseUnitCount: { min: 24, max: 36 },
+        deploymentRatio: { min: 0.30, max: 0.70 }, // 敌方派遣30%-70%军队
         enemyUnits: [],
         cooldownDays: 8,
         requiresTech: 'bronze_working', // 需要青铜冶炼 - 正规军队需要金属武器
@@ -230,8 +230,8 @@ export const MILITARY_ACTIONS = [
         difficulty: '难',
         difficultyLevel: 3,
         unitScale: 'heavy',
-        baseUnitCount: { min: 15, max: 25 },
-        deploymentRatio: { min: 0.50, max: 0.80 }, // 敌方派遣50%-80%军队
+        baseUnitCount: { min: 30, max: 50 },
+        deploymentRatio: { min: 0.30, max: 0.70 }, // 敌方派遣30%-70%军队
         enemyUnits: [],
         cooldownDays: 12,
         requiresTech: 'fortification', // 需要防御工事科技 - 知道如何建城才知道如何攻城
@@ -286,8 +286,8 @@ export const MILITARY_ACTIONS = [
         difficulty: '中',
         difficultyLevel: 2,
         unitScale: 'medium',
-        baseUnitCount: { min: 8, max: 14 },
-        deploymentRatio: { min: 0.15, max: 0.25 }, // 敌方派遣15%-25%军队
+        baseUnitCount: { min: 16, max: 28 },
+        deploymentRatio: { min: 0.30, max: 0.70 }, // 敌方派遣30%-70%军队
         enemyUnits: [],
         cooldownDays: 6,
         requiresTech: 'sailing', // 需要航海术

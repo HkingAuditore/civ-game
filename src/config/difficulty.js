@@ -39,6 +39,8 @@ export const DIFFICULTY_CONFIG = {
         // Peace/Stability bonuses
         stabilityDampeningBonus: 0.25,         // Massive stability dampening effect
         newGameGracePeriod: 150,               // Long grace period
+        // Economic modifiers
+        inventoryTargetDaysMultiplier: 0.5,    // 50% inventory target (easy to satisfy, stable economy)
     },
     [DIFFICULTY_LEVELS.EASY]: {
         id: DIFFICULTY_LEVELS.EASY,
@@ -61,6 +63,8 @@ export const DIFFICULTY_CONFIG = {
         // Peace/Stability bonuses
         stabilityDampeningBonus: 0.15,         // Extra stability dampening effect
         newGameGracePeriod: 100,               // Days of reduced threats at game start
+        // Economic modifiers
+        inventoryTargetDaysMultiplier: 0.7,    // 70% inventory target (slightly forgiving)
     },
     [DIFFICULTY_LEVELS.NORMAL]: {
         id: DIFFICULTY_LEVELS.NORMAL,
@@ -83,6 +87,8 @@ export const DIFFICULTY_CONFIG = {
         // Peace/Stability bonuses
         stabilityDampeningBonus: 0,            // No bonus
         newGameGracePeriod: 0,                 // No grace period
+        // Economic modifiers
+        inventoryTargetDaysMultiplier: 1.0,    // Standard inventory target
     },
     [DIFFICULTY_LEVELS.HARD]: {
         id: DIFFICULTY_LEVELS.HARD,
@@ -105,6 +111,8 @@ export const DIFFICULTY_CONFIG = {
         // Peace/Stability bonuses
         stabilityDampeningBonus: -0.1,         // Reduced stability effect
         newGameGracePeriod: 0,                 // No grace period
+        // Economic modifiers
+        inventoryTargetDaysMultiplier: 2.0,    // 200% inventory target (harder to maintain stable prices)
     },
     [DIFFICULTY_LEVELS.VERY_HARD]: {
         id: DIFFICULTY_LEVELS.VERY_HARD,
@@ -127,6 +135,8 @@ export const DIFFICULTY_CONFIG = {
         // Peace/Stability bonuses
         stabilityDampeningBonus: -0.2,         // Negative stability effect
         newGameGracePeriod: 0,                 // No grace period
+        // Economic modifiers
+        inventoryTargetDaysMultiplier: 5.0,    // 500% inventory target (requires heavy stockpiling)
     },
     [DIFFICULTY_LEVELS.EXTREME]: {
         id: DIFFICULTY_LEVELS.EXTREME,
@@ -149,6 +159,8 @@ export const DIFFICULTY_CONFIG = {
         // Peace/Stability bonuses
         stabilityDampeningBonus: -0.3,         // Severe negative stability effect
         newGameGracePeriod: 0,                 // No grace period
+        // Economic modifiers
+        inventoryTargetDaysMultiplier: 10.0,   // 1000% inventory target (extreme stockpiling required)
     },
 };
 
@@ -296,6 +308,19 @@ export function getBuildingCostGrowthFactor(difficultyLevel) {
     return config.buildingCostGrowthFactor || 1.15;
 }
 
+/**
+ * Get inventory target days multiplier based on difficulty
+ * Higher values = more stable economy (easier difficulties)
+ * Lower values = more volatile economy (harder difficulties)
+ * @param {string} difficultyLevel - Current difficulty level
+ * @returns {number} Multiplier for inventory target days
+ */
+export function getInventoryTargetDaysMultiplier(difficultyLevel) {
+    const config = getDifficultyConfig(difficultyLevel);
+    // Fallback to 1.0 if not defined
+    return config.inventoryTargetDaysMultiplier || 1.0;
+}
+
 export default {
     DIFFICULTY_LEVELS,
     DEFAULT_DIFFICULTY,
@@ -314,4 +339,5 @@ export default {
     getStabilityDampeningBonus,
     isInGracePeriod,
     getBuildingCostGrowthFactor,
+    getInventoryTargetDaysMultiplier,
 };
