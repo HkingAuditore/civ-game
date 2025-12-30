@@ -2470,18 +2470,51 @@ export const simulateTick = ({
     let newBuildingsCount = { ...buildings };
     // [DEBUG] 临时调试信息 - 追踪自由市场机制问题
     const _freeMarketDebug = {
-        hasCabinetStatus: !!cabinetStatus,
-        cabinetStatusFull: cabinetStatus, // 完整的cabinetStatus对象
-        dominance: cabinetStatus?.dominance,
-        faction: cabinetStatus?.dominance?.faction,
-        hasExpansionSettings: !!expansionSettings,
-        expansionSettingsKeys: expansionSettings ? Object.keys(expansionSettings) : [],
-        conditionMet: cabinetStatus?.dominance?.faction === 'right' && !!expansionSettings,
-        // 额外调试：检查dominance为null的可能原因
+        // 传入的 cabinetStatus
+        cabinetStatusReceived: {
+            hasCabinetStatus: !!cabinetStatus,
+            hasDominance: !!cabinetStatus?.dominance,
+            dominanceFaction: cabinetStatus?.dominance?.faction,
+            synergy: cabinetStatus?.synergy,
+            level: cabinetStatus?.level,
+        },
+        // expansionSettings 检查
+        expansionSettings: {
+            hasSettings: !!expansionSettings,
+            settingsKeys: expansionSettings ? Object.keys(expansionSettings) : [],
+            allowedCount: expansionSettings
+                ? Object.values(expansionSettings).filter(s => s?.allowed).length
+                : 0,
+        },
+        // 最终条件判断
+        conditionCheck: {
+            isDominanceRight: cabinetStatus?.dominance?.faction === 'right',
+            hasExpansionSettings: !!expansionSettings,
+            willProcess: cabinetStatus?.dominance?.faction === 'right' && !!expansionSettings,
+        },
         epochParam: epoch,
-        epochRequirement: 5, // DOMINANCE_MIN_EPOCH
-        epochMet: epoch >= 5,
     };
+
+    // [NEW DEBUG] 详细输出传入的参数
+    console.log('[FREE MARKET SIMULATION DEBUG]', {
+        dominanceCheck: {
+            hasDominance: !!cabinetStatus?.dominance,
+            faction: cabinetStatus?.dominance?.faction,
+            isRightWing: cabinetStatus?.dominance?.faction === 'right',
+        },
+        expansionCheck: {
+            hasSettings: !!expansionSettings,
+            settingsCount: expansionSettings ? Object.keys(expansionSettings).length : 0,
+            allowedBuildings: expansionSettings
+                ? Object.entries(expansionSettings).filter(([k, v]) => v?.allowed).map(([k]) => k)
+                : [],
+        },
+        willCallProcessExpansions:
+            !!cabinetStatus?.dominance &&
+            cabinetStatus.dominance.faction === 'right' &&
+            !!expansionSettings,
+    });
+
     if (cabinetStatus.dominance?.faction === 'right' && expansionSettings) {
         // We pass the CONFIG (BUILDINGS), current wealth (newClassWealth), settings, and current counts
         const { expansions, wealthDeductions } = processOwnerExpansions(
