@@ -13,13 +13,14 @@ export const OFFICIAL_SELECTION_COOLDOWN = 180;
  * @param {number} epoch - 当前时代
  * @param {Object} popStructure - 当前人口结构 { stratumKey: population }
  * @param {Object} classInfluence - 当前影响力占比 { stratumKey: influencePercent }
+ * @param {Object} market - 当前市场数据（包含 prices 等信息）
  * @returns {Array} 新生成的候选人列表
  */
-export const triggerSelection = (epoch, popStructure = {}, classInfluence = {}) => {
+export const triggerSelection = (epoch, popStructure = {}, classInfluence = {}, market = null) => {
     const candidates = [];
     // 固定生成5名候选人
     for (let i = 0; i < 5; i++) {
-        candidates.push(generateRandomOfficial(epoch, popStructure, classInfluence));
+        candidates.push(generateRandomOfficial(epoch, popStructure, classInfluence, market));
     }
     return candidates;
 };
@@ -168,6 +169,9 @@ export const getAggregatedOfficialEffects = (officials, isPaid) => {
         resourceSupplyMod: {},
         resourceWaste: {},
         needsReduction: 0,
+
+        // 生产成本修正（建筑原料消耗修正）
+        productionInputCost: {}, // { buildingId: modifier } 正值=增加消耗, 负值=减少消耗
 
         // 人口/发展类
         extraMaxPop: 0,
@@ -321,6 +325,13 @@ export const getAggregatedOfficialEffects = (officials, isPaid) => {
                 aggregated.diplomaticIncident += val;
                 break;
 
+            // 生产成本修正
+            case 'productionInputCost':
+                if (eff.target) {
+                    aggregated.productionInputCost[eff.target] = (aggregated.productionInputCost[eff.target] || 0) + val;
+                }
+                break;
+
             default:
                 break;
         }
@@ -413,6 +424,9 @@ export const getAggregatedStanceEffects = (officials, gameState) => {
         buildingCostMod: 0,
         needsReduction: 0,
 
+        // 生产成本修正
+        productionInputCost: {}, // { buildingId: modifier }
+
         // 人口
         populationGrowth: 0,
 
@@ -441,11 +455,17 @@ export const getAggregatedStanceEffects = (officials, gameState) => {
 
         Object.entries(effects).forEach(([type, valueOrObj]) => {
             if (typeof valueOrObj === 'object' && valueOrObj !== null) {
-                // 嵌套对象（如 approval: { peasant: 10 }）
+                // 嵌套对象（如 approval: { peasant: 10 } 或 productionInputCost: { sawmill: -0.1 }）
                 if (type === 'approval') {
                     Object.entries(valueOrObj).forEach(([stratum, value]) => {
                         if (typeof value === 'number') {
                             aggregated.approval[stratum] = (aggregated.approval[stratum] || 0) + value;
+                        }
+                    });
+                } else if (type === 'productionInputCost') {
+                    Object.entries(valueOrObj).forEach(([buildingId, value]) => {
+                        if (typeof value === 'number') {
+                            aggregated.productionInputCost[buildingId] = (aggregated.productionInputCost[buildingId] || 0) + value;
                         }
                     });
                 }

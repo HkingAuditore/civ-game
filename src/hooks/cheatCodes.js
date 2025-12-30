@@ -215,12 +215,13 @@ export const initCheatCodes = (gameState, addLog) => {
                 const epoch = getNumericEpoch(gameState.epoch);
                 const popStructure = gameState.popStructure || {};
                 const classInfluence = {}; // 可以简化
-                const newCandidates = triggerSelection ? triggerSelection(epoch, popStructure, classInfluence) : [];
+                const market = gameState.market || null; // 获取市场数据
+                const newCandidates = triggerSelection ? triggerSelection(epoch, popStructure, classInfluence, market) : [];
                 // 直接使用 generateRandomOfficial
                 import('../config/officials').then(({ generateRandomOfficial }) => {
                     const candidates = [];
                     for (let i = 0; i < 5; i++) {
-                        candidates.push(generateRandomOfficial(epoch, popStructure, classInfluence));
+                        candidates.push(generateRandomOfficial(epoch, popStructure, classInfluence, market));
                     }
                     gameState.setOfficialCandidates(candidates);
                     addLog(`👔 作弊码：刷新了 5 名新候选人`);

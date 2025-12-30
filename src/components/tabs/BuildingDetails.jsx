@@ -512,9 +512,15 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
     }).filter(([, amount]) => amount > 0);
 
     // 计算实际投入（优先使用 demandBreakdown 中的数据）
+    // 同时获取原料成本修正信息
+    const sources = market?.modifiers?.sources || {};
+    const inputCostMod = sources.productionInputCost?.[building.id] || 0;
+    const hasInputCostMod = inputCostMod !== 0;
+    
     const totalInputs = Object.entries(effectiveTotalStats.input || {}).map(([resKey, baseAmount]) => {
         const actualAmount = demandBreakdown[resKey]?.buildings?.[building.id] ?? baseAmount;
-        return [resKey, actualAmount, baseAmount];
+        const hasBonus = actualAmount !== baseAmount;
+        return [resKey, actualAmount, baseAmount, hasBonus];
     }).filter(([, amount]) => amount > 0);
     // 计算当前建筑所有级别的加权平均收入（区分业主和雇员）
     const buildingAvgIncomes = useMemo(() => {
@@ -766,17 +772,25 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                 <div className="text-[10px] uppercase text-rose-300 mb-1 tracking-wide">总投入</div>
                                 {totalInputs.length > 0 ? (
                                     <div className="flex flex-wrap gap-1.5">
-                                        {totalInputs.map(([resKey, amount]) => (
+                                        {totalInputs.map(([resKey, amount, baseAmount, hasBonus]) => (
                                             <ResourceSummaryBadge
                                                 key={`total-in-${resKey}`}
                                                 label={RESOURCES[resKey]?.name || resKey}
                                                 amount={amount}
                                                 positive={false}
+                                                tooltip={hasBonus ? `基础: ${baseAmount.toFixed(2)}` : null}
                                             />
                                         ))}
                                     </div>
                                 ) : (
                                     <p className="text-[11px] text-gray-500">无需额外投入</p>
+                                )}
+                                {/* 原料成本修正提示 */}
+                                {hasInputCostMod && totalInputs.length > 0 && (
+                                    <div className="mt-1.5 text-[9px] text-amber-400 flex items-center gap-1">
+                                        <Icon name="Info" size={10} />
+                                        原料成本修正: {inputCostMod > 0 ? '+' : ''}{(inputCostMod * 100).toFixed(0)}% (来自官员/政治立场)
+                                    </div>
                                 )}
                             </div>
                         </div>

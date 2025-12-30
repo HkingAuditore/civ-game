@@ -81,6 +81,22 @@ export const OFFICIAL_EFFECT_TYPES = {
         description: (val) => `建筑成本 ${(val * 100).toFixed(0)}%`,
     },
 
+    // 生产原料成本降低（只影响有input和output的建筑）
+    production_input_cost: {
+        type: 'productionInputCost',
+        category: 'economy',
+        targets: [
+            'sawmill', 'brickworks', 'reed_works', 'brewery', 'furniture_workshop',
+            'culinary_kitchen', 'loom_house', 'dye_works', 'tailor_workshop',
+            'metallurgy_workshop', 'steel_foundry', 'textile_mill',
+            'building_materials_plant', 'chemical_plant', 'machine_factory'
+        ],
+        valueRange: [-0.15, -0.05], // -5% ~ -15% 原料消耗
+        weight: 18, // 提高权重，使效果更容易出现
+        costMultiplier: 1.1,
+        description: (val, target) => `${target}原料消耗 ${(val * 100).toFixed(0)}%`,
+    },
+
     // 税收收入加成
     income_percent: {
         type: 'incomePercent',
@@ -395,6 +411,21 @@ export const OFFICIAL_DRAWBACK_TYPES = {
         weight: 8,
         description: (val) => `科研速度 ${(val * 100).toFixed(0)}%`,
     },
+
+    // 生产原料成本增加（只影响有input和output的建筑）
+    production_input_cost_increase: {
+        type: 'productionInputCost',
+        category: 'economy',
+        targets: [
+            'sawmill', 'brickworks', 'reed_works', 'brewery', 'furniture_workshop',
+            'culinary_kitchen', 'loom_house', 'dye_works', 'tailor_workshop',
+            'metallurgy_workshop', 'steel_foundry', 'textile_mill',
+            'building_materials_plant', 'chemical_plant', 'machine_factory'
+        ],
+        valueRange: [0.05, 0.15], // +5% ~ +15% 原料消耗
+        weight: 10,
+        description: (val, target) => `${target}原料消耗 +${(val * 100).toFixed(0)}%`,
+    },
 };
 
 // ========== 阶层效果偏好映射 ==========
@@ -411,8 +442,8 @@ export const STRATUM_EFFECT_PREFERENCES = {
     },
     // 工人：工业、建设、效率 (新增)
     worker: {
-        preferredEffects: ['building_boost', 'category_boost', 'building_cost_reduction', 'resource_supply'],
-        preferredDrawbacks: ['culture_penalty', 'diplomatic_incident'], // culture_penalty 不在列表中，用 diplomatic_incident 或其他替代
+        preferredEffects: ['building_boost', 'category_boost', 'building_cost_reduction', 'resource_supply', 'production_input_cost'],
+        preferredDrawbacks: ['production_input_cost_increase', 'diplomatic_incident'],
         preferredTargets: ['sawmill', 'brickworks', 'plank', 'brick', 'worker', 'industry'],
     },
     // 文书：行政、科研、稳定
@@ -441,14 +472,14 @@ export const STRATUM_EFFECT_PREFERENCES = {
     },
     // 工程师：工业、建筑、科技
     engineer: {
-        preferredEffects: ['building_boost', 'category_boost', 'building_cost_reduction', 'research_speed'],
-        preferredDrawbacks: ['resource_waste', 'passive_cost'],
+        preferredEffects: ['building_boost', 'category_boost', 'building_cost_reduction', 'research_speed', 'production_input_cost'],
+        preferredDrawbacks: ['resource_waste', 'production_input_cost_increase'],
         preferredTargets: ['factory', 'steel_foundry', 'sawmill', 'brickworks', 'industry'],
     },
     // 工匠：工业产出、资源
     artisan: {
-        preferredEffects: ['building_boost', 'resource_supply', 'category_boost', 'stratum_demand'],
-        preferredDrawbacks: ['resource_waste', 'category_penalty'],
+        preferredEffects: ['building_boost', 'resource_supply', 'category_boost', 'stratum_demand', 'production_input_cost'],
+        preferredDrawbacks: ['resource_waste', 'production_input_cost_increase'],
         preferredTargets: ['loom_house', 'furniture_workshop', 'tailor_workshop', 'brewery', 'tools', 'cloth'],
     },
     // 军人：军事、战时、外交
@@ -767,9 +798,10 @@ const generateEffect = (isDrawback = false, sourceStratum = null, epoch = 1) => 
  * @param {number} epoch - 当前时代
  * @param {Object} popStructure - 当前人口结构 { stratumKey: population }
  * @param {Object} classInfluence - 当前影响力占比 { stratumKey: influencePercent }
+ * @param {Object} market - 当前市场数据（包含 prices 等信息）
  * @returns {Object} 官员对象
  */
-export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence = {}) => {
+export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence = {}, market = null) => {
     // 1. 基本信息
     const name = generateName(epoch);
 
@@ -894,8 +926,8 @@ export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence 
     const salaryInfluenceBonus = (salary / 1250) * 0.05; // 每 1250 薪水 +5%
     const stratumInfluenceBonus = Math.min(0.25, baseInfluenceBonus + salaryInfluenceBonus); // 最高25%
 
-    // 7. 分配政治立场（包含动态生成的条件）
-    const stanceResult = assignPoliticalStance(sourceStratum, epoch);
+    // 7. 分配政治立场（包含动态生成的条件，基于当前市场数据）
+    const stanceResult = assignPoliticalStance(sourceStratum, epoch, market);
 
     return {
         id,

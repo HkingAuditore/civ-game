@@ -313,6 +313,8 @@ export const simulateTick = ({
     bonuses.buildingCostMod = activeOfficialEffects.buildingCostMod || 0;
     // 外交加成 → 存储供外交关系计算使用
     bonuses.diplomaticBonus = activeOfficialEffects.diplomaticBonus || 0;
+    // 生产原料成本修正 → 存储供建筑生产计算使用
+    bonuses.officialProductionInputCost = activeOfficialEffects.productionInputCost || {};
 
     // === 应用政治立场效果 ===
     // 构建简化的游戏状态用于条件检查
@@ -382,6 +384,8 @@ export const simulateTick = ({
     }
     // 立场满意度效果存储供后续使用
     bonuses.stanceApprovalEffects = stanceEffects.approval || {};
+    // 立场生产成本效果存储供后续使用
+    bonuses.stanceProductionInputCost = stanceEffects.productionInputCost || {};
 
     // Destructure for backward compatibility with existing code
     const {
@@ -1229,6 +1233,27 @@ export const simulateTick = ({
         let resourceLimit = 1;
         let inputCostPerMultiplier = 0;
         let isInLowEfficiencyMode = false;
+
+        // === 应用生产成本修正（官员效果 + 政治立场效果） ===
+        // 只对有 input 且有 output 的建筑生效（加工类建筑）
+        const hasInput = Object.keys(effectiveOps.input).length > 0;
+        const hasOutput = Object.keys(effectiveOps.output).some(k => k !== 'maxPop' && k !== 'militaryCapacity');
+        if (hasInput && hasOutput) {
+            // 合并官员效果和政治立场效果
+            const officialInputCostMod = bonuses.officialProductionInputCost?.[b.id] || 0;
+            const stanceInputCostMod = bonuses.stanceProductionInputCost?.[b.id] || 0;
+            const totalInputCostMod = officialInputCostMod + stanceInputCostMod;
+
+            // 应用修正：正值增加消耗，负值减少消耗
+            if (totalInputCostMod !== 0) {
+                const inputModMultiplier = 1 + totalInputCostMod;
+                // 确保修正后的消耗不低于原始的 20%
+                const safeMultiplier = Math.max(0.2, inputModMultiplier);
+                for (const [resKey, amount] of Object.entries(effectiveOps.input)) {
+                    effectiveOps.input[resKey] = amount * safeMultiplier;
+                }
+            }
+        }
 
         if (Object.keys(effectiveOps.input).length > 0) {
             for (const [resKey, totalAmount] of Object.entries(effectiveOps.input)) {
@@ -2666,8 +2691,16 @@ export const simulateTick = ({
             }
 
             // Calculate per-capita wealth and apply decay rate
+            // 根据生活水平档位设置不同的挥霍率，刚进入小康时挥霍很少
             const perCapitaWealth = currentWealth / population;
-            const perCapitaDecay = perCapitaWealth * WEALTH_DECAY_RATE;
+            let decayRate = WEALTH_DECAY_RATE; // 默认0.5% (奢华)
+            if (level === '小康') {
+                decayRate = 0.001; // 0.1% - 刚进入小康，挥霍很少
+            } else if (level === '富裕') {
+                decayRate = 0.003; // 0.3% - 开始享受生活
+            }
+            // '奢华' 保持默认的0.5%
+            const perCapitaDecay = perCapitaWealth * decayRate;
             // Total decay = per-capita decay × population (but use floor to avoid excessive rounding up)
             const decay = Math.max(1, Math.floor(perCapitaDecay * population));
 
@@ -4183,6 +4216,18 @@ export const simulateTick = ({
                 // 阶层财富增长对需求的影响（财富越高需求越高）
                 // 阶层财富增长对需求的影响（财富越高需求越高）
                 stratumWealthMultiplier: stratumWealthMultipliers,
+                // 建筑原料消耗修正（官员效果 + 政治立场效果，累加合并）
+                productionInputCost: (() => {
+                    const merged = {};
+                    const official = bonuses.officialProductionInputCost || {};
+                    const stance = bonuses.stanceProductionInputCost || {};
+                    // 合并所有 key
+                    const allKeys = new Set([...Object.keys(official), ...Object.keys(stance)]);
+                    allKeys.forEach(key => {
+                        merged[key] = (official[key] || 0) + (stance[key] || 0);
+                    });
+                    return merged;
+                })(),
             },
             // 官员效果修饰符（供外部使用）
             officialEffects: {

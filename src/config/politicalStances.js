@@ -216,15 +216,20 @@ const CONDITION_TYPES = {
     // ========== 物价相关条件 ==========
     // 资源物价高于阈值
     resource_price_above: {
-        generate: () => {
-            const resources = ['food', 'wood', 'stone', 'iron', 'cloth', 'tools', 'copper', 'ale'];
+        generate: (market) => {
+            const resources = ['food', 'wood', 'stone', 'iron', 'cloth', 'tools', 'copper', 'ale', 'coal', 'delicacies', 'furniture', 'fine_clothes', 'spice'];
             const resourceNames = { 
                 food: '粮食', wood: '木材', stone: '石材', iron: '铁', 
-                cloth: '布匹', tools: '工具', copper: '铜', ale: '麦酒' 
+                cloth: '布匹', tools: '工具', copper: '铜', ale: '美酒', coal: '煤炭',
+                delicacies: '珍馐', furniture: '家具', fine_clothes: '华服', spice: '香料'
             };
             const resource = resources[Math.floor(Math.random() * resources.length)];
-            const threshold = 1.5 + Math.random() * 2.5; // 1.5-4.0 (物价倍率)
-            return { resource, threshold: Math.round(threshold * 10) / 10, resourceName: resourceNames[resource] || resource };
+            // 基于当前市场价格生成合理阈值
+            const currentPrice = market?.prices?.[resource] || 1;
+            // 要求物价高于当前价格的 1.1-1.5 倍
+            const multiplier = 1.1 + Math.random() * 0.4;
+            const threshold = Math.round(currentPrice * multiplier * 10) / 10;
+            return { resource, threshold, resourceName: resourceNames[resource] || resource };
         },
         check: (params, gs) => {
             const price = gs.prices?.[params.resource] || 1;
@@ -234,15 +239,20 @@ const CONDITION_TYPES = {
     },
     // 资源物价低于阈值
     resource_price_below: {
-        generate: () => {
-            const resources = ['food', 'wood', 'stone', 'iron', 'cloth', 'tools', 'copper', 'ale'];
+        generate: (market) => {
+            const resources = ['food', 'wood', 'stone', 'iron', 'cloth', 'tools', 'copper', 'ale', 'coal', 'delicacies', 'furniture', 'fine_clothes', 'spice'];
             const resourceNames = { 
                 food: '粮食', wood: '木材', stone: '石材', iron: '铁', 
-                cloth: '布匹', tools: '工具', copper: '铜', ale: '麦酒' 
+                cloth: '布匹', tools: '工具', copper: '铜', ale: '美酒', coal: '煤炭',
+                delicacies: '珍馐', furniture: '家具', fine_clothes: '华服', spice: '香料'
             };
             const resource = resources[Math.floor(Math.random() * resources.length)];
-            const threshold = 0.5 + Math.random() * 1.0; // 0.5-1.5 (物价倍率)
-            return { resource, threshold: Math.round(threshold * 10) / 10, resourceName: resourceNames[resource] || resource };
+            // 基于当前市场价格生成合理阈值
+            const currentPrice = market?.prices?.[resource] || 1;
+            // 要求物价低于当前价格的 0.7-0.95 倍
+            const multiplier = 0.7 + Math.random() * 0.25;
+            const threshold = Math.round(currentPrice * multiplier * 10) / 10;
+            return { resource, threshold, resourceName: resourceNames[resource] || resource };
         },
         check: (params, gs) => {
             const price = gs.prices?.[params.resource] || 1;
@@ -268,9 +278,13 @@ const CONDITION_TYPES = {
     },
     // 粮食充足（低价）
     food_affordable: {
-        generate: () => {
-            const threshold = 0.8 + Math.random() * 0.7; // 0.8-1.5
-            return { threshold: Math.round(threshold * 10) / 10 };
+        generate: (market) => {
+            // 基于当前粮价生成合理阈值
+            const currentPrice = market?.prices?.food || 1;
+            // 要求粮价低于当前价格的 0.75-0.95 倍
+            const multiplier = 0.75 + Math.random() * 0.2;
+            const threshold = Math.round(currentPrice * multiplier * 10) / 10;
+            return { threshold };
         },
         check: (params, gs) => {
             const foodPrice = gs.prices?.food || 1;
@@ -280,9 +294,13 @@ const CONDITION_TYPES = {
     },
     // 粮食紧缺（高价）
     food_scarce: {
-        generate: () => {
-            const threshold = 2.0 + Math.random() * 2.0; // 2.0-4.0
-            return { threshold: Math.round(threshold * 10) / 10 };
+        generate: (market) => {
+            // 基于当前粮价生成合理阈值
+            const currentPrice = market?.prices?.food || 1;
+            // 要求粮价高于当前价格的 1.1-1.4 倍
+            const multiplier = 1.1 + Math.random() * 0.3;
+            const threshold = Math.round(currentPrice * multiplier * 10) / 10;
+            return { threshold };
         },
         check: (params, gs) => {
             const foodPrice = gs.prices?.food || 1;
@@ -290,35 +308,52 @@ const CONDITION_TYPES = {
         },
         text: (params) => `粮价 ≥ ${params.threshold}`,
     },
-    // 通货膨胀（整体物价高）
+    // 通胀压力（某种重要资源物价高）
     inflation_above: {
-        generate: () => {
-            const threshold = 1.5 + Math.random() * 1.0; // 1.5-2.5
-            return { threshold: Math.round(threshold * 10) / 10 };
+        generate: (market) => {
+            const resources = ['food', 'wood', 'stone', 'iron', 'cloth', 'tools', 'copper', 'coal', 'delicacies', 'furniture', 'ale', 'fine_clothes', 'spice'];
+            const resourceNames = { 
+                food: '粮食', wood: '木材', stone: '石材', iron: '铁', 
+                cloth: '布匹', tools: '工具', copper: '铜', coal: '煤炭',
+                delicacies: '珍馐', furniture: '家具', ale: '美酒', fine_clothes: '华服', spice: '香料'
+            };
+            const resource = resources[Math.floor(Math.random() * resources.length)];
+            // 基于当前市场价格生成合理阈值
+            const currentPrice = market?.prices?.[resource] || 1;
+            // 要求物价高于当前价格的 1.15-1.5 倍
+            const multiplier = 1.15 + Math.random() * 0.35;
+            const threshold = Math.round(currentPrice * multiplier * 10) / 10;
+            return { resource, threshold, resourceName: resourceNames[resource] || resource };
         },
         check: (params, gs) => {
-            if (!gs.prices || Object.keys(gs.prices).length === 0) return false;
-            const prices = Object.values(gs.prices);
-            const avg = prices.reduce((a, b) => a + b, 0) / prices.length;
-            return avg >= params.threshold;
+            const price = gs.prices?.[params.resource] || 1;
+            return price >= params.threshold;
         },
-        text: (params) => `平均物价 ≥ ${params.threshold}`,
+        text: (params) => `${params.resourceName}物价 ≥ ${params.threshold}`,
     },
-    // 通货紧缩（整体物价低）
+    // 通货紧缩（某种重要资源物价低）
     deflation_below: {
-        generate: () => {
-            const threshold = 0.5 + Math.random() * 0.4; // 0.5-0.9
-            return { threshold: Math.round(threshold * 10) / 10 };
+        generate: (market) => {
+            const resources = ['food', 'wood', 'stone', 'iron', 'cloth', 'tools', 'copper', 'coal', 'delicacies', 'furniture', 'ale', 'fine_clothes', 'spice'];
+            const resourceNames = { 
+                food: '粮食', wood: '木材', stone: '石材', iron: '铁', 
+                cloth: '布匹', tools: '工具', copper: '铜', coal: '煤炭',
+                delicacies: '珍馐', furniture: '家具', ale: '美酒', fine_clothes: '华服', spice: '香料'
+            };
+            const resource = resources[Math.floor(Math.random() * resources.length)];
+            // 基于当前市场价格生成合理阈值
+            const currentPrice = market?.prices?.[resource] || 1;
+            // 要求物价低于当前价格的 0.65-0.9 倍
+            const multiplier = 0.65 + Math.random() * 0.25;
+            const threshold = Math.round(currentPrice * multiplier * 10) / 10;
+            return { resource, threshold, resourceName: resourceNames[resource] || resource };
         },
         check: (params, gs) => {
-            if (!gs.prices || Object.keys(gs.prices).length === 0) return true;
-            const prices = Object.values(gs.prices);
-            const avg = prices.reduce((a, b) => a + b, 0) / prices.length;
-            return avg < params.threshold;
+            const price = gs.prices?.[params.resource] || 1;
+            return price < params.threshold;
         },
-        text: (params) => `平均物价 < ${params.threshold}`,
-    },
-};
+        text: (params) => `${params.resourceName}物价 < ${params.threshold}`,
+    },};
 
 // ========== 政治立场模板 ==========
 // 每种立场定义其可能使用的条件类型和效果
@@ -503,7 +538,11 @@ const STANCE_TEMPLATES = {
         conditionTypes: ['at_peace', 'stratum_approval_above'],
         preferredStrata: ['artisan', 'worker', 'engineer'],
         stratumWeights: { artisan: 2.5, worker: 2.0, engineer: 1.5 },
-        activeEffects: { industryBonus: 0.06, buildingCostMod: -0.04 },
+        activeEffects: { 
+            industryBonus: 0.06, 
+            buildingCostMod: -0.04,
+            productionInputCost: { sawmill: -0.08, brickworks: -0.08, metallurgy_workshop: -0.10 }
+        },
         unsatisfiedPenalty: { approval: { artisan: -2 } },
     },
 
@@ -568,8 +607,15 @@ const STANCE_TEMPLATES = {
         conditionTypes: ['stratum_approval_above', 'stratum_income_above', 'resource_price_below', 'price_stability'],
         preferredStrata: ['artisan', 'merchant'],
         stratumWeights: { artisan: 3.0, merchant: 2.0 },
-        activeEffects: { tradeBonus: 0.06, approval: { artisan: 4, merchant: 4 } },
-        unsatisfiedPenalty: { approval: { artisan: -4 } },
+        activeEffects: { 
+            tradeBonus: 0.06, 
+            approval: { artisan: 4, merchant: 4 },
+            productionInputCost: { furniture_workshop: -0.10, tailor_workshop: -0.10, loom_house: -0.08 }
+        },
+        unsatisfiedPenalty: { 
+            approval: { artisan: -4 },
+            productionInputCost: { furniture_workshop: 0.05, tailor_workshop: 0.05 }
+        },
     },
 
     // ========== 探索时代 (epoch >= 4) ==========
@@ -731,8 +777,16 @@ const STANCE_TEMPLATES = {
         conditionTypes: ['coalition_includes', 'stratum_influence_above'],
         preferredStrata: ['worker', 'miner', 'artisan'],
         stratumWeights: { worker: 4.0, miner: 2.0 },
-        activeEffects: { industryBonus: 0.10, approval: { worker: 8, miner: 6 } },
-        unsatisfiedPenalty: { approval: { worker: -6 }, organizationDecay: -0.08 },
+        activeEffects: { 
+            industryBonus: 0.10, 
+            approval: { worker: 8, miner: 6 },
+            productionInputCost: { steel_foundry: -0.12, textile_mill: -0.10, building_materials_plant: -0.10 }
+        },
+        unsatisfiedPenalty: { 
+            approval: { worker: -6 }, 
+            organizationDecay: -0.08,
+            productionInputCost: { steel_foundry: 0.08, textile_mill: 0.06 }
+        },
     },
 
     social_democracy: {
@@ -810,7 +864,11 @@ const STANCE_TEMPLATES = {
         conditionTypes: ['epoch_at_least', 'stratum_influence_above'],
         preferredStrata: ['engineer', 'scribe', 'official'],
         stratumWeights: { engineer: 3.0, scribe: 2.0 },
-        activeEffects: { researchSpeed: 0.12, industryBonus: 0.06 },
+        activeEffects: { 
+            researchSpeed: 0.12, 
+            industryBonus: 0.06,
+            productionInputCost: { chemical_plant: -0.15, machine_factory: -0.12, steel_foundry: -0.08 }
+        },
         unsatisfiedPenalty: {},
     },
 
@@ -892,9 +950,10 @@ export function getAvailableStances(epoch) {
  * 为官员生成带动态条件的政治立场
  * @param {string} sourceStratum - 官员出身阶层
  * @param {number} epoch - 当前时代
+ * @param {Object} market - 当前市场数据（包含 prices 等信息）
  * @returns {Object} { stanceId, conditionParams, conditionText }
  */
-export function assignPoliticalStance(sourceStratum, epoch) {
+export function assignPoliticalStance(sourceStratum, epoch, market = null) {
     // 获取可用立场（考虑时代上下限）
     const available = Object.entries(STANCE_TEMPLATES).filter(([, stance]) => {
         const minEpoch = stance.unlockEpoch || 0;
@@ -956,10 +1015,10 @@ export function assignPoliticalStance(sourceStratum, epoch) {
             if (preferredStratum && VALID_STRATA.includes(preferredStratum)) {
                 params = { stratum: preferredStratum };
             } else {
-                params = coalitionCondDef.generate();
+                params = coalitionCondDef.generate(market);
             }
         } else {
-            params = coalitionCondDef.generate();
+            params = coalitionCondDef.generate(market);
         }
         conditions.push({
             typeId: coalitionType,
@@ -980,7 +1039,7 @@ export function assignPoliticalStance(sourceStratum, epoch) {
         const typeId = stratumRelatedTypes[Math.floor(Math.random() * stratumRelatedTypes.length)];
         const condDef = CONDITION_TYPES[typeId];
         if (condDef) {
-            let params = condDef.generate();
+            let params = condDef.generate(market);
             // 90%概率使用立场偏好阶层（确保条件与立场意识形态匹配）
             if (Math.random() < 0.9 && preferredStrata.length > 0) {
                 params.stratum = getPreferredStratum();
@@ -1022,7 +1081,7 @@ export function assignPoliticalStance(sourceStratum, epoch) {
         if (!conditions.some(c => c.typeId === typeId)) {
             const condDef = CONDITION_TYPES[typeId];
             if (condDef) {
-                const params = condDef.generate();
+                const params = condDef.generate(market);
                 conditions.push({
                     typeId,
                     params,
@@ -1040,7 +1099,7 @@ export function assignPoliticalStance(sourceStratum, epoch) {
         if (!conditions.some(c => c.typeId === typeId)) {
             const condDef = CONDITION_TYPES[typeId];
             if (condDef) {
-                const params = condDef.generate();
+                const params = condDef.generate(market);
                 conditions.push({
                     typeId,
                     params,

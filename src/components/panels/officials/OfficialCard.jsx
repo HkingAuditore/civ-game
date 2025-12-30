@@ -87,6 +87,7 @@ const EFFECT_NAMES = {
     organizationDecay: '组织度增速',
     approval: '满意度',
     diplomaticBonus: '外交关系',
+    productionInputCost: '原料消耗', // 新增：生产成本修正
 };
 
 /**
@@ -209,6 +210,12 @@ export const OfficialCard = memo(({
 
             // 外交冷却
             case 'diplomaticCooldown': isGood = value < 0; description = `外交冷却 ${pct(value)}`; break;
+
+            // 生产成本修正（新增）
+            case 'productionInputCost': 
+                isGood = value < 0; 
+                description = `${targetName || '建筑'}原料消耗 ${pct(value)}`; 
+                break;
 
             // 其他
             case 'influenceBonus': description = `影响力 ${pct(value)}`; break;
