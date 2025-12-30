@@ -104,6 +104,7 @@ const EPOCH_OFFICIAL_BONUS = {
 
 // 科技对官员容量的加成
 const TECH_OFFICIAL_BONUS = {
+    'early_administration': 2,  // 早期行政
     'bureaucracy': 3,           // 官僚制度
     'civil_service': 3,         // 文官制度
     'administrative_reform': 4, // 行政改革

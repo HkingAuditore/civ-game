@@ -199,6 +199,7 @@ const ResourceTaxCard = ({
                         />
                     </div>
                 </div>
+                <p className="text-[9px] text-gray-500 mt-1">最终税率 = 交易税 + 关税（加法叠加）</p>
             </div>
         </div>
     );
@@ -586,10 +587,11 @@ const PoliticsTabComponent = ({
                 <button
                     className={`w-1/3 py-2 rounded-full border-2 transition-all ${activeSection === 'officials'
                         ? 'bg-purple-900/40 border-ancient-gold/60 text-purple-100 shadow-metal-sm'
-                        : 'border-transparent text-ancient-stone hover:text-ancient-parchment'}`}
+                        : 'border-transparent text-ancient-stone hover:text-ancient-parchment'} ${epoch < 1 ? 'opacity-50' : ''}`}
                     onClick={() => setActiveSection('officials')}
                 >
                     <span className="flex items-center justify-center gap-1.5 font-bold">
+                        {epoch < 1 && <Icon name="Lock" size={12} className="text-gray-500" />}
                         <Icon name="Users" size={14} />
                         官员
                     </span>
@@ -718,17 +720,30 @@ const PoliticsTabComponent = ({
 
             {/* Official Panel (Replaces Decrees) */}
             {activeSection === 'officials' && (
-                <OfficialsPanel
-                    officials={officials}
-                    candidates={candidates}
-                    capacity={capacity}
-                    lastSelectionDay={lastSelectionDay}
-                    currentTick={currentTick}
-                    resources={resources}
-                    onTriggerSelection={onTriggerSelection}
-                    onHire={onHire}
-                    onFire={onFire}
-                />
+                epoch >= 1 ? (
+                    <OfficialsPanel
+                        officials={officials}
+                        candidates={candidates}
+                        capacity={capacity}
+                        lastSelectionDay={lastSelectionDay}
+                        currentTick={currentTick}
+                        resources={resources}
+                        onTriggerSelection={onTriggerSelection}
+                        onHire={onHire}
+                        onFire={onFire}
+                    />
+                ) : (
+                    <div className="glass-ancient p-6 rounded-xl border border-ancient-gold/30 text-center">
+                        <Icon name="Lock" size={48} className="text-gray-500 mx-auto mb-4" />
+                        <h3 className="text-lg font-bold text-gray-400 mb-2">官员系统未解锁</h3>
+                        <p className="text-gray-500 text-sm">
+                            进入<span className="text-orange-400 font-semibold">青铜时代</span>后，方可启用官员制度。
+                        </p>
+                        <p className="text-gray-600 text-xs mt-2">
+                            需要：科研 ≥ 600，人口 ≥ 25
+                        </p>
+                    </div>
+                )
             )}
         </div>
     );

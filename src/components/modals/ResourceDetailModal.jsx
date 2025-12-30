@@ -1230,7 +1230,7 @@ const ResourceDetailContent = ({
                                                 <p className="text-[10px] lg:text-xs text-gray-400">当前状态</p>
                                             </div>
                                         </div>
-                                        <p className="text-[10px] lg:text-xs text-gray-400 mt-1.5 lg:mt-2">对该资源的市场交易额征税。负数代表政府进行补贴。</p>
+                                        <p className="text-[10px] lg:text-xs text-gray-400 mt-1.5 lg:mt-2">对该资源的国内市场交易额征税。负数代表政府进行补贴。</p>
                                         <div className="mt-2 lg:mt-3 space-y-3">
                                             {/* 进口关税 */}
                                             <div>
@@ -1288,7 +1288,7 @@ const ResourceDetailContent = ({
                                                     </div>
                                                 </div>
                                             </div>
-                                            <p className="text-[10px] lg:text-xs text-gray-400">倍率越高，进出口时征收的关税越多。</p>
+                                            <p className="text-[10px] lg:text-xs text-gray-400">关税与交易税独立计算，最终税率 = 交易税率 + 关税倍率（加法叠加，非乘法）。负数为补贴。</p>
                                         </div>
                                     </div>
                                 )}
