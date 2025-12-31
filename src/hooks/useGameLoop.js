@@ -1636,6 +1636,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     setClassIncome(result.classIncome || {});
                     setClassExpense(result.classExpense || {});
                     setClassFinancialData(result.classFinancialData || {});
+                    // DEBUG: Store building debug data for UI display
+                    if (typeof window !== 'undefined') {
+                        window.__buildingDebugData = result.buildingDebugData || {};
+                    }
                     // 历史数据只在节流条件满足时更新
                     if (shouldUpdateHistory) {
                         setClassWealthHistory(wealthHistory);

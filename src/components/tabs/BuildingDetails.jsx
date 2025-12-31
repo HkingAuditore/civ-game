@@ -539,23 +539,26 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
     const jobBreakdown = useMemo(() => {
         const ownerKey = building?.owner;
 
-        // 使用当前建筑的加权平均收入（所有级别的平均）
-        // 业主收入 = (产出 - 投入 - 营业税 - 其他雇员工资) / 业主岗位数
-        // 雇员收入 = market.wages[role]
+        // 显示建筑实际支付的工资：
+        // 业主收入 = 建筑利润（产出 - 投入 - 营业税 - 雇员工资）/ 业主岗位数
+        // 雇员收入 = market.wages[role]（建筑支付的工资）
 
         return Object.entries(effectiveTotalStats.jobs || {}).map(([role, required]) => {
             const filled = Math.min(jobFill?.[building.id]?.[role] ?? 0, required);
             const fillPercent = required > 0 ? (filled / required) * 100 : 0;
             const isOwner = role === ownerKey;
 
-            // 使用当前建筑的加权平均收入
-            const incomeData = buildingAvgIncomes[role];
-            const actualIncomePerCap = getRoleActualIncomePerCap(role);
-            const displayIncome = Number.isFinite(actualIncomePerCap)
-                ? actualIncomePerCap
-                : Number.isFinite(incomeData?.avgIncome)
+            let displayIncome;
+            if (isOwner) {
+                // 业主显示建筑利润（使用建筑平均收入计算）
+                const incomeData = buildingAvgIncomes[role];
+                displayIncome = Number.isFinite(incomeData?.avgIncome)
                     ? incomeData.avgIncome
                     : getMarketWage(role, market);
+            } else {
+                // 雇员显示建筑支付的工资（市场工资）
+                displayIncome = getMarketWage(role, market);
+            }
 
             return {
                 role,
@@ -567,7 +570,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                 isOwner
             };
         }).sort((a, b) => b.required - a.required);
-    }, [effectiveTotalStats, jobFill, building, market, buildingAvgIncomes, getRoleActualIncomePerCap]);
+    }, [effectiveTotalStats, jobFill, building, market, buildingAvgIncomes]);
 
     // 营业税逻辑
     const businessTaxMultiplier = taxPolicies?.businessTaxRates?.[building.id] ?? 1;

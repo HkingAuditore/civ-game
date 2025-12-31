@@ -244,6 +244,24 @@
     <script type="module" src="./src/main.jsx"></script>
 
     <script>
+        // 全局错误收集器
+        var globalErrors = [];
+        window.addEventListener('error', function(e) {
+            globalErrors.push({
+                type: 'error',
+                message: e.message,
+                filename: e.filename,
+                lineno: e.lineno,
+                colno: e.colno
+            });
+        });
+        window.addEventListener('unhandledrejection', function(e) {
+            globalErrors.push({
+                type: 'unhandledrejection',
+                reason: String(e.reason)
+            });
+        });
+
         // Hide loading screen when app is ready
         window.addEventListener('load', () => {
             setTimeout(() => {
@@ -255,7 +273,25 @@
                         // Check if app loaded successfully
                         const root = document.getElementById('root');
                         if (root && root.childElementCount === 0) {
-                            root.innerHTML = '<div style="color: #d4af37; background: #1a1410; padding: 20px; font-family: sans-serif; text-align: center; height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center;"><h1>加载失败</h1><p>应用程序未能正确启动。</p><p style="font-size: 0.8em; opacity: 0.7;">可能原因：资源文件加载失败或路径配置错误。</p><p style="font-size: 0.8em; opacity: 0.7;">请尝试刷新页面或联系管理员。</p></div>';
+                            // 收集设备信息用于调试
+                            var deviceInfo = 'UA: ' + navigator.userAgent;
+                            var errorInfo = globalErrors.length > 0 
+                                ? '错误详情：' + globalErrors.map(function(e) {
+                                    return e.type + ': ' + (e.message || e.reason);
+                                }).join('; ')
+                                : '无捕获的错误';
+                            
+                            root.innerHTML = '<div style="color: #d4af37; background: #1a1410; padding: 20px; font-family: sans-serif; text-align: center; height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center;">' +
+                                '<h1>加载失败</h1>' +
+                                '<p>应用程序未能正确启动。</p>' +
+                                '<p style="font-size: 0.8em; opacity: 0.7;">可能原因：资源文件加载失败或路径配置错误。</p>' +
+                                '<p style="font-size: 0.8em; opacity: 0.7;">请尝试刷新页面或联系管理员。</p>' +
+                                '<details style="margin-top: 20px; text-align: left; max-width: 90%; font-size: 0.7em; opacity: 0.6;">' +
+                                '<summary>调试信息</summary>' +
+                                '<p style="word-break: break-all;">' + deviceInfo + '</p>' +
+                                '<p style="word-break: break-all;">' + errorInfo + '</p>' +
+                                '</details>' +
+                                '</div>';
                         }
                     }, 500);
                 }

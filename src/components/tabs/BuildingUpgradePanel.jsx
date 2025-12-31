@@ -132,7 +132,7 @@ const getMarketWage = (role, market = {}) => {
 
 /**
  * 计算每个角色的真实收入
- * 雇员收入 = market.wages[role]
+ * 雇员收入 = 市场工资 × wagePressure（基于建筑利润空间）
  * 业主收入 = (产出价值 - 投入成本 - 营业税 - 其他雇员工资) / 业主岗位数
  */
 const getRoleIncomesForConfig = (config, building, market, taxPolicies = {}) => {
@@ -159,23 +159,51 @@ const getRoleIncomesForConfig = (config, building, market, taxPolicies = {}) => 
     const businessTaxBase = building.businessTaxBase ?? 0.1;
     const businessTax = businessTaxBase * businessTaxMultiplier;
 
-    // 计算非业主雇员的工资总和
-    let nonOwnerWageCost = 0;
+    // 计算可用于支付工资的利润空间
+    const valueAvailableForLabor = Math.max(0, outputValue - inputValue - businessTax);
+
+    // 计算非业主雇员的基础工资成本（基于市场工资）
+    let nonOwnerWageCostBase = 0;
     jobEntries.forEach(([role, slots]) => {
         if (role === ownerKey) return; // 跳过业主
         const wage = getMarketWage(role, market);
-        nonOwnerWageCost += wage * slots;
+        nonOwnerWageCostBase += wage * slots;
     });
 
-    // 业主每座建筑的利润 = 产出 - 投入 - 营业税 - 其他雇员工资
-    const ownerProfitPerBuilding = outputValue - inputValue - businessTax - nonOwnerWageCost;
+    // 计算工资压力系数（与 simulation.js 逻辑一致）
+    // wagePressure = 基于利润空间和工资需求的比值
+    let wagePressure = 1;
+    if (nonOwnerWageCostBase > 0) {
+        const wageCoverage = valueAvailableForLabor / nonOwnerWageCostBase;
+        if (!Number.isFinite(wageCoverage)) {
+            wagePressure = 1;
+        } else if (wageCoverage >= 1) {
+            // 利润充足，工资可以上浮（最高1.4倍）
+            wagePressure = Math.min(1.4, 1 + (wageCoverage - 1) * 0.35);
+        } else {
+            // 利润不足，工资会下调（最低0.65倍）
+            wagePressure = Math.max(0.65, 1 - (1 - wageCoverage) * 0.5);
+        }
+    }
+
+    // 按调整后的工资重新计算雇员工资总和
+    let actualNonOwnerWageCost = 0;
+    jobEntries.forEach(([role, slots]) => {
+        if (role === ownerKey) return;
+        const wage = getMarketWage(role, market) * wagePressure;
+        actualNonOwnerWageCost += wage * slots;
+    });
+
+    // 业主每座建筑的利润 = 产出 - 投入 - 营业税 - 实际雇员工资
+    const ownerProfitPerBuilding = outputValue - inputValue - businessTax - actualNonOwnerWageCost;
     const ownerSlots = config.jobs?.[ownerKey] || 0;
     const ownerIncomePerSlot = ownerSlots > 0 ? ownerProfitPerBuilding / ownerSlots : 0;
 
     const result = {};
     jobEntries.forEach(([role]) => {
         const isOwner = role === ownerKey;
-        const income = isOwner ? ownerIncomePerSlot : getMarketWage(role, market);
+        // 雇员收入 = 市场工资 × wagePressure
+        const income = isOwner ? ownerIncomePerSlot : getMarketWage(role, market) * wagePressure;
 
         result[role] = {
             income: parseFloat(income.toFixed(2)),
@@ -288,15 +316,6 @@ export const BuildingUpgradePanel = ({
         );
     };
 
-    const getRoleActualIncomePerCap = useCallback((role) => {
-        const popCount = popStructure?.[role] ?? 0;
-        if (!Number.isFinite(popCount) || popCount <= 0) return null;
-        const income = classFinancialData?.[role]?.income || {};
-        const totalIncome = (income.wage || 0) + (income.ownerRevenue || 0) + (income.subsidy || 0);
-        if (!Number.isFinite(totalIncome)) return null;
-        return totalIncome / popCount;
-    }, [popStructure, classFinancialData]);
-
     // 渲染等级配置（升级后的效果）
     const renderLevelConfig = (levelNum) => {
         const config = getBuildingEffectiveConfig(building, levelNum);
@@ -348,10 +367,8 @@ export const BuildingUpgradePanel = ({
                         <div className="space-y-1">
                             {jobEntries.map(([key, val]) => {
                                 const incomeInfo = incomeEstimates[key];
-                                const actualIncomePerCap = getRoleActualIncomePerCap(key);
-                                const income = Number.isFinite(actualIncomePerCap)
-                                    ? actualIncomePerCap
-                                    : incomeInfo?.income ?? getMarketWage(key, market);
+                                // 使用建筑实际支付的工资，而非全局人均收入
+                                const income = incomeInfo?.income ?? getMarketWage(key, market);
                                 const isOwner = incomeInfo?.isOwner ?? false;
                                 return (
                                     <div
