@@ -81,7 +81,9 @@ const StratumDetailSheetComponent = ({
     // Wealth delta includes many other factors (market trades, events, etc.)
     const netIncomePerCapita = incomePerCapita - expensePerCapita;
     const shortages = classShortages[stratumKey] || [];
-    const headTaxMultiplier = taxPolicies?.headTaxRates?.[stratumKey] ?? 1;
+    const rawHeadTaxMultiplier = taxPolicies?.headTaxRates?.[stratumKey] ?? 1;
+    // 安全检查：处理 Infinity、NaN 等异常值
+    const headTaxMultiplier = (Number.isFinite(rawHeadTaxMultiplier) ? rawHeadTaxMultiplier : 1);
     const stratumRebellionState = rebellionStates[stratumKey] || {};
     const currentOrganization = stratumRebellionState.organization ?? 0;
     const derivedDemands =
@@ -673,11 +675,11 @@ const StratumDetailSheetComponent = ({
                                                 <div className="bg-gray-800/40 rounded px-2 py-1 mb-1">
                                                     <div className="flex items-center justify-between">
                                                         <span className="text-[9px] text-gray-400 leading-none">人均需求</span>
-                                                        <span className="text-[10px] font-bold text-white font-mono leading-none">{amount}</span>
+                                                        <span className="text-[10px] font-bold text-white font-mono leading-none">{amount.toFixed(2)}</span>
                                                     </div>
                                                     <div className="flex items-center justify-between mt-0.5">
                                                         <span className="text-[9px] text-gray-400 leading-none">总需求</span>
-                                                        <span className="text-[10px] font-bold text-blue-300 font-mono leading-none">{(amount * count).toFixed(0)}</span>
+                                                        <span className="text-[10px] font-bold text-blue-300 font-mono leading-none">{(amount * count).toFixed(2)}</span>
                                                     </div>
                                                 </div>
 

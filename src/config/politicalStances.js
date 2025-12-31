@@ -96,15 +96,19 @@ const CONDITION_TYPES = {
     stratum_living_standard: {
         generate: () => {
             const stratum = VALID_STRATA[Math.floor(Math.random() * VALID_STRATA.length)];
-            const levels = ['destitute', 'poor', 'modest', 'comfortable', 'prosperous', 'luxurious'];
-            const levelNames = { destitute: '赤贫', poor: '贫困', modest: '温饱', comfortable: '小康', prosperous: '富裕', luxurious: '奢华' };
-            const minLevel = Math.floor(Math.random() * 4); // 0-3
-            return { stratum, minLevel, levelName: levelNames[levels[minLevel]] };
+            // 使用中文等级名称（与 livingStandard.js 中的 LIVING_STANDARD_LEVELS 一致）
+            const levels = ['赤贫', '贫困', '温饱', '小康', '富裕', '奢华'];
+            const minLevel = Math.floor(Math.random() * 4); // 0-3 (赤贫到小康)
+            return { stratum, minLevel, levelName: levels[minLevel] };
         },
         check: (params, gs) => {
-            const levels = ['destitute', 'poor', 'modest', 'comfortable', 'prosperous', 'luxurious'];
-            const current = gs.classLivingStandard?.[params.stratum]?.level || 'modest';
-            return levels.indexOf(current) >= params.minLevel;
+            // 使用中文等级名称进行比较（与实际数据格式匹配）
+            const levels = ['赤贫', '贫困', '温饱', '小康', '富裕', '奢华'];
+            const current = gs.classLivingStandard?.[params.stratum]?.level || '温饱';
+            const currentIndex = levels.indexOf(current);
+            // 如果找不到当前等级，返回 false
+            if (currentIndex === -1) return false;
+            return currentIndex >= params.minLevel;
         },
         text: (params) => `${STRATA[params.stratum]?.name || params.stratum}生活水平 ≥ ${params.levelName}`,
     },
@@ -1060,9 +1064,9 @@ export function assignPoliticalStance(sourceStratum, epoch, market = null) {
     }
 
     // === 添加1-2个与立场相关阶层的条件（基于preferredStrata而非出身阶层） ===
+    // 注意：移除了 stratum_approval_below，因为"希望某阶层满意度低"只适合激进立场（农民起义派、无政府主义等）
     const stratumRelatedTypes = [
-        'stratum_approval_above', 'stratum_approval_below',
-        'stratum_influence_above', 'stratum_living_standard', 'stratum_income_above'
+        'stratum_approval_above', 'stratum_influence_above', 'stratum_living_standard', 'stratum_income_above'
     ];
     const numStratumConds = 1 + Math.floor(Math.random() * 2); // 1-2个
     const usedStratumKeys = new Set(); // 用于去重：typeId + stratum 组合

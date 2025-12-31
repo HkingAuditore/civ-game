@@ -22,6 +22,7 @@ const formatDecreeEffect = (key, value) => {
         cultureBonus: '文化产出',
         maxPop: '人口上限',
         gatherBonus: '采集产出',
+        populationGrowth: '人口增长', // 新增
     };
 
     // 处理 categories 对象

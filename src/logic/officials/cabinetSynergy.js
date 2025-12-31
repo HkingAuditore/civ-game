@@ -133,8 +133,9 @@ export const REFORM_DECREES = {
         cost: 800,
         effects: {
             industry: 0.20, // 工业产出 +20%
+            taxIncome: -0.10, // 税收 -10%（补贴成本）
         },
-        description: '工业产出 +20%',
+        description: '工业产出 +20%，税收 -10%',
     },
     migrationIncentive: {
         id: 'migrationIncentive',
@@ -144,9 +145,9 @@ export const REFORM_DECREES = {
         cooldown: 200,
         cost: 400,
         effects: {
-            maxPop: 15, // 人口上限 +15
+            populationGrowth: 0.15, // 人口增长 +15%
         },
-        description: '人口上限 +15',
+        description: '人口增长 +15%',
     },
     militaryMobilization: {
         id: 'militaryMobilization',

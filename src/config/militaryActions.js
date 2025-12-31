@@ -66,36 +66,37 @@ export const calculateProportionalLoot = (playerResources, enemyNation, lootConf
 
     // 硬性上限配置 - 每种资源每次掠夺的最大值
     // 这些值是绝对上限，无论玩家多强大都不会超过
+    // [BUFFED] 所有硬性上限乘以3，配合冷却增加后的更高收益
     const HARD_CAPS = {
         // 基础资源
-        food: 80000,
-        wood: 50000,
-        stone: 30000,
+        food: 240000,
+        wood: 150000,
+        stone: 90000,
         // 金属
-        copper: 8000,
-        iron: 6000,
-        coal: 5000,
-        steel: 3000,
+        copper: 24000,
+        iron: 18000,
+        coal: 15000,
+        steel: 9000,
         // 加工品
-        cloth: 15000,
-        plank: 12000,
-        brick: 10000,
-        tools: 8000,
-        dye: 4000,
-        papyrus: 6000,
+        cloth: 45000,
+        plank: 36000,
+        brick: 30000,
+        tools: 24000,
+        dye: 12000,
+        papyrus: 18000,
         // 奢侈品
-        ale: 8000,
-        delicacies: 5000,
-        fine_clothes: 4000,
-        furniture: 3000,
+        ale: 24000,
+        delicacies: 15000,
+        fine_clothes: 12000,
+        furniture: 9000,
         // 贸易品
-        spice: 5000,
-        coffee: 4000,
+        spice: 15000,
+        coffee: 12000,
         // 货币 - 银币上限稍高但仍有限制
-        silver: 20000,
+        silver: 60000,
         // 特殊资源
-        science: 3000,
-        culture: 2000,
+        science: 9000,
+        culture: 6000,
     };
 
     Object.entries(lootConfig).forEach(([resource, config]) => {
@@ -136,34 +137,34 @@ export const MILITARY_ACTIONS = [
         baseUnitCount: { min: 6, max: 10 },
         deploymentRatio: { min: 0.05, max: 0.15 }, // 敌方派遣5%-15%军队
         enemyUnits: [],
-        cooldownDays: 5,
+        cooldownDays: 15,  // [BUFFED] 5→15天，配合战利品×3
         // Proportional loot config: enemyPercent = % of enemy wealth, playerPercent = % of player resources
         // 边境掠夺主要获取：基础资源、农产品、轻便货物
-        // [NERFED] 所有数值削弱50%以防止资源溢出
+        // [BUFFED] 所有数值乘以3，配合冷却时间增加
         lootConfig: {
             // 基础资源 - 容易掠夺
-            food: { enemyPercent: 0.018, playerPercent: 0.012, baseMin: 25 },
-            wood: { enemyPercent: 0.012, playerPercent: 0.010, baseMin: 15 },
-            stone: { enemyPercent: 0.008, playerPercent: 0.006, baseMin: 8 },
-            cloth: { enemyPercent: 0.010, playerPercent: 0.008, baseMin: 10 },
+            food: { enemyPercent: 0.054, playerPercent: 0.036, baseMin: 75 },
+            wood: { enemyPercent: 0.036, playerPercent: 0.030, baseMin: 45 },
+            stone: { enemyPercent: 0.024, playerPercent: 0.018, baseMin: 24 },
+            cloth: { enemyPercent: 0.030, playerPercent: 0.024, baseMin: 30 },
             // 货币和贵金属 - 掠夺者的主要目标
-            silver: { enemyPercent: 0.022, playerPercent: 0.015, baseMin: 40 },
-            copper: { enemyPercent: 0.008, playerPercent: 0.005, baseMin: 5 },
+            silver: { enemyPercent: 0.066, playerPercent: 0.045, baseMin: 120 },
+            copper: { enemyPercent: 0.024, playerPercent: 0.015, baseMin: 15 },
             // 加工品 - 少量
-            plank: { enemyPercent: 0.005, playerPercent: 0.004, baseMin: 4 },
-            dye: { enemyPercent: 0.006, playerPercent: 0.004, baseMin: 3 },
+            plank: { enemyPercent: 0.015, playerPercent: 0.012, baseMin: 12 },
+            dye: { enemyPercent: 0.018, playerPercent: 0.012, baseMin: 9 },
             // 食品和饮料
-            ale: { enemyPercent: 0.009, playerPercent: 0.006, baseMin: 5 },
-            delicacies: { enemyPercent: 0.005, playerPercent: 0.003, baseMin: 3 },
+            ale: { enemyPercent: 0.027, playerPercent: 0.018, baseMin: 15 },
+            delicacies: { enemyPercent: 0.015, playerPercent: 0.009, baseMin: 9 },
             // 贸易品 - 如果有的话
-            spice: { enemyPercent: 0.006, playerPercent: 0.004, baseMin: 3 },
-            coffee: { enemyPercent: 0.005, playerPercent: 0.003, baseMin: 2 },
+            spice: { enemyPercent: 0.018, playerPercent: 0.012, baseMin: 9 },
+            coffee: { enemyPercent: 0.015, playerPercent: 0.009, baseMin: 6 },
         },
-        // Legacy loot for backward compatibility (used as fallback)
+        // Legacy loot for backward compatibility (used as fallback) [BUFFED ×3]
         loot: {
-            food: [40, 120],
-            wood: [20, 60],
-            silver: [60, 140],
+            food: [120, 360],
+            wood: [60, 180],
+            silver: [180, 420],
         },
         influence: { win: 5, lose: -4 },
         winScore: 8,
@@ -180,43 +181,44 @@ export const MILITARY_ACTIONS = [
         baseUnitCount: { min: 24, max: 36 },
         deploymentRatio: { min: 0.30, max: 0.70 }, // 敌方派遣30%-70%军队
         enemyUnits: [],
-        cooldownDays: 8,
+        cooldownDays: 24,  // [BUFFED] 8→24天，配合战利品×3
         requiresTech: 'bronze_working', // 需要青铜冶炼 - 正规军队需要金属武器
         // 正面攻势主要获取：军事物资、金属、工业品
-        // [NERFED] 所有数值削弱50%以防止资源溢出
+        // [BUFFED] 所有数值乘以3，配合冷却时间增加
         lootConfig: {
             // 基础资源
-            food: { enemyPercent: 0.022, playerPercent: 0.015, baseMin: 35 },
-            wood: { enemyPercent: 0.015, playerPercent: 0.011, baseMin: 20 },
-            stone: { enemyPercent: 0.012, playerPercent: 0.009, baseMin: 12 },
-            cloth: { enemyPercent: 0.012, playerPercent: 0.009, baseMin: 12 },
+            food: { enemyPercent: 0.066, playerPercent: 0.045, baseMin: 105 },
+            wood: { enemyPercent: 0.045, playerPercent: 0.033, baseMin: 60 },
+            stone: { enemyPercent: 0.036, playerPercent: 0.027, baseMin: 36 },
+            cloth: { enemyPercent: 0.036, playerPercent: 0.027, baseMin: 36 },
             // 金属和军事物资 - 击败敌军后缴获
-            iron: { enemyPercent: 0.018, playerPercent: 0.012, baseMin: 15 },
-            copper: { enemyPercent: 0.014, playerPercent: 0.010, baseMin: 10 },
-            tools: { enemyPercent: 0.012, playerPercent: 0.009, baseMin: 8 },
-            steel: { enemyPercent: 0.010, playerPercent: 0.006, baseMin: 4 },
-            coal: { enemyPercent: 0.011, playerPercent: 0.008, baseMin: 6 },
+            iron: { enemyPercent: 0.054, playerPercent: 0.036, baseMin: 45 },
+            copper: { enemyPercent: 0.042, playerPercent: 0.030, baseMin: 30 },
+            tools: { enemyPercent: 0.036, playerPercent: 0.027, baseMin: 24 },
+            steel: { enemyPercent: 0.030, playerPercent: 0.018, baseMin: 12 },
+            coal: { enemyPercent: 0.033, playerPercent: 0.024, baseMin: 18 },
             // 货币
-            silver: { enemyPercent: 0.032, playerPercent: 0.020, baseMin: 90 },
+            silver: { enemyPercent: 0.096, playerPercent: 0.060, baseMin: 270 },
             // 加工品
-            plank: { enemyPercent: 0.010, playerPercent: 0.008, baseMin: 8 },
-            brick: { enemyPercent: 0.009, playerPercent: 0.006, baseMin: 6 },
-            dye: { enemyPercent: 0.008, playerPercent: 0.005, baseMin: 4 },
+            plank: { enemyPercent: 0.030, playerPercent: 0.024, baseMin: 24 },
+            brick: { enemyPercent: 0.027, playerPercent: 0.018, baseMin: 18 },
+            dye: { enemyPercent: 0.024, playerPercent: 0.015, baseMin: 12 },
             // 奢侈品 - 战场缴获
-            fine_clothes: { enemyPercent: 0.006, playerPercent: 0.004, baseMin: 3 },
-            ale: { enemyPercent: 0.010, playerPercent: 0.008, baseMin: 6 },
-            delicacies: { enemyPercent: 0.008, playerPercent: 0.005, baseMin: 4 },
-            furniture: { enemyPercent: 0.005, playerPercent: 0.003, baseMin: 2 },
+            fine_clothes: { enemyPercent: 0.018, playerPercent: 0.012, baseMin: 9 },
+            ale: { enemyPercent: 0.030, playerPercent: 0.024, baseMin: 18 },
+            delicacies: { enemyPercent: 0.024, playerPercent: 0.015, baseMin: 12 },
+            furniture: { enemyPercent: 0.015, playerPercent: 0.009, baseMin: 6 },
             // 贸易品
-            spice: { enemyPercent: 0.008, playerPercent: 0.005, baseMin: 3 },
-            coffee: { enemyPercent: 0.006, playerPercent: 0.004, baseMin: 3 },
+            spice: { enemyPercent: 0.024, playerPercent: 0.015, baseMin: 9 },
+            coffee: { enemyPercent: 0.018, playerPercent: 0.012, baseMin: 9 },
             // 文化品
-            papyrus: { enemyPercent: 0.006, playerPercent: 0.004, baseMin: 3 },
+            papyrus: { enemyPercent: 0.018, playerPercent: 0.012, baseMin: 9 },
         },
+        // [BUFFED ×3]
         loot: {
-            food: [60, 160],
-            iron: [20, 50],
-            silver: [150, 240],
+            food: [180, 480],
+            iron: [60, 150],
+            silver: [450, 720],
         },
         influence: { win: 10, lose: -6 },
         winScore: 25,
@@ -233,46 +235,47 @@ export const MILITARY_ACTIONS = [
         baseUnitCount: { min: 30, max: 50 },
         deploymentRatio: { min: 0.30, max: 0.70 }, // 敌方派遣30%-70%军队
         enemyUnits: [],
-        cooldownDays: 12,
+        cooldownDays: 36,  // [BUFFED] 12→36天，配合战利品×3
         requiresTech: 'fortification', // 需要防御工事科技 - 知道如何建城才知道如何攻城
         // 围城压制 - 攻陷城市后获取所有类型资源的丰厚战利品
-        // [NERFED] 所有数值削弱50%以防止资源溢出
+        // [BUFFED] 所有数值乘以3，配合冷却时间增加
         lootConfig: {
             // 基础资源 - 城市储备
-            food: { enemyPercent: 0.030, playerPercent: 0.020, baseMin: 50 },
-            wood: { enemyPercent: 0.022, playerPercent: 0.015, baseMin: 30 },
-            stone: { enemyPercent: 0.020, playerPercent: 0.014, baseMin: 25 },
-            cloth: { enemyPercent: 0.019, playerPercent: 0.012, baseMin: 20 },
+            food: { enemyPercent: 0.090, playerPercent: 0.060, baseMin: 150 },
+            wood: { enemyPercent: 0.066, playerPercent: 0.045, baseMin: 90 },
+            stone: { enemyPercent: 0.060, playerPercent: 0.042, baseMin: 75 },
+            cloth: { enemyPercent: 0.057, playerPercent: 0.036, baseMin: 60 },
             // 金属资源 - 城市工业储备
-            iron: { enemyPercent: 0.022, playerPercent: 0.016, baseMin: 22 },
-            copper: { enemyPercent: 0.019, playerPercent: 0.014, baseMin: 18 },
-            coal: { enemyPercent: 0.018, playerPercent: 0.012, baseMin: 15 },
-            steel: { enemyPercent: 0.015, playerPercent: 0.010, baseMin: 10 },
+            iron: { enemyPercent: 0.066, playerPercent: 0.048, baseMin: 66 },
+            copper: { enemyPercent: 0.057, playerPercent: 0.042, baseMin: 54 },
+            coal: { enemyPercent: 0.054, playerPercent: 0.036, baseMin: 45 },
+            steel: { enemyPercent: 0.045, playerPercent: 0.030, baseMin: 30 },
             // 工业品 - 工坊缴获
-            tools: { enemyPercent: 0.018, playerPercent: 0.012, baseMin: 12 },
-            plank: { enemyPercent: 0.016, playerPercent: 0.011, baseMin: 12 },
-            brick: { enemyPercent: 0.015, playerPercent: 0.010, baseMin: 12 },
-            dye: { enemyPercent: 0.012, playerPercent: 0.009, baseMin: 8 },
+            tools: { enemyPercent: 0.054, playerPercent: 0.036, baseMin: 36 },
+            plank: { enemyPercent: 0.048, playerPercent: 0.033, baseMin: 36 },
+            brick: { enemyPercent: 0.045, playerPercent: 0.030, baseMin: 36 },
+            dye: { enemyPercent: 0.036, playerPercent: 0.027, baseMin: 24 },
             // 货币和贵金属 - 城市财库
-            silver: { enemyPercent: 0.045, playerPercent: 0.028, baseMin: 150 },
+            silver: { enemyPercent: 0.135, playerPercent: 0.084, baseMin: 450 },
             // 奢侈品 - 贵族府邸掠夺
-            fine_clothes: { enemyPercent: 0.014, playerPercent: 0.009, baseMin: 8 },
-            furniture: { enemyPercent: 0.012, playerPercent: 0.008, baseMin: 6 },
-            ale: { enemyPercent: 0.015, playerPercent: 0.011, baseMin: 10 },
-            delicacies: { enemyPercent: 0.014, playerPercent: 0.010, baseMin: 9 },
+            fine_clothes: { enemyPercent: 0.042, playerPercent: 0.027, baseMin: 24 },
+            furniture: { enemyPercent: 0.036, playerPercent: 0.024, baseMin: 18 },
+            ale: { enemyPercent: 0.045, playerPercent: 0.033, baseMin: 30 },
+            delicacies: { enemyPercent: 0.042, playerPercent: 0.030, baseMin: 27 },
             // 贸易品 - 商人仓库
-            spice: { enemyPercent: 0.012, playerPercent: 0.009, baseMin: 8 },
-            coffee: { enemyPercent: 0.011, playerPercent: 0.008, baseMin: 6 },
+            spice: { enemyPercent: 0.036, playerPercent: 0.027, baseMin: 24 },
+            coffee: { enemyPercent: 0.033, playerPercent: 0.024, baseMin: 18 },
             // 文化和知识 - 图书馆和档案
-            papyrus: { enemyPercent: 0.012, playerPercent: 0.009, baseMin: 8 },
-            science: { enemyPercent: 0.008, playerPercent: 0.004, baseMin: 5 },
-            culture: { enemyPercent: 0.006, playerPercent: 0.003, baseMin: 4 },
+            papyrus: { enemyPercent: 0.036, playerPercent: 0.027, baseMin: 24 },
+            science: { enemyPercent: 0.024, playerPercent: 0.012, baseMin: 15 },
+            culture: { enemyPercent: 0.018, playerPercent: 0.009, baseMin: 12 },
         },
+        // [BUFFED ×3]
         loot: {
-            food: [80, 180],
-            wood: [40, 100],
-            tools: [10, 25],
-            silver: [200, 320],
+            food: [240, 540],
+            wood: [120, 300],
+            tools: [30, 75],
+            silver: [600, 960],
         },
         influence: { win: 14, lose: -10 },
         winScore: 52,
@@ -289,34 +292,35 @@ export const MILITARY_ACTIONS = [
         baseUnitCount: { min: 16, max: 28 },
         deploymentRatio: { min: 0.30, max: 0.70 }, // 敌方派遣30%-70%军队
         enemyUnits: [],
-        cooldownDays: 6,
+        cooldownDays: 18,  // [BUFFED] 6→18天，配合战利品×3
         requiresTech: 'sailing', // 需要航海术
         // 海上劫掠 - 主要获取贸易品和进口货物
-        // [NERFED] 所有数值削弱50%以防止资源溢出
+        // [BUFFED] 所有数值乘以3，配合冷却时间增加
         lootConfig: {
             // 贸易货物 - 主要目标
-            spice: { enemyPercent: 0.022, playerPercent: 0.018, baseMin: 15 },
-            coffee: { enemyPercent: 0.020, playerPercent: 0.015, baseMin: 12 },
-            dye: { enemyPercent: 0.018, playerPercent: 0.014, baseMin: 11 },
+            spice: { enemyPercent: 0.066, playerPercent: 0.054, baseMin: 45 },
+            coffee: { enemyPercent: 0.060, playerPercent: 0.045, baseMin: 36 },
+            dye: { enemyPercent: 0.054, playerPercent: 0.042, baseMin: 33 },
             // 奢侈品
-            fine_clothes: { enemyPercent: 0.015, playerPercent: 0.011, baseMin: 9 },
-            furniture: { enemyPercent: 0.012, playerPercent: 0.009, baseMin: 6 },
-            ale: { enemyPercent: 0.014, playerPercent: 0.010, baseMin: 8 },
-            delicacies: { enemyPercent: 0.016, playerPercent: 0.012, baseMin: 10 },
+            fine_clothes: { enemyPercent: 0.045, playerPercent: 0.033, baseMin: 27 },
+            furniture: { enemyPercent: 0.036, playerPercent: 0.027, baseMin: 18 },
+            ale: { enemyPercent: 0.042, playerPercent: 0.030, baseMin: 24 },
+            delicacies: { enemyPercent: 0.048, playerPercent: 0.036, baseMin: 30 },
             // 工业原料
-            cloth: { enemyPercent: 0.015, playerPercent: 0.011, baseMin: 12 },
-            copper: { enemyPercent: 0.012, playerPercent: 0.009, baseMin: 9 },
-            iron: { enemyPercent: 0.011, playerPercent: 0.008, baseMin: 8 },
+            cloth: { enemyPercent: 0.045, playerPercent: 0.033, baseMin: 36 },
+            copper: { enemyPercent: 0.036, playerPercent: 0.027, baseMin: 27 },
+            iron: { enemyPercent: 0.033, playerPercent: 0.024, baseMin: 24 },
             // 货币 - 商船财宝
-            silver: { enemyPercent: 0.035, playerPercent: 0.022, baseMin: 100 },
+            silver: { enemyPercent: 0.105, playerPercent: 0.066, baseMin: 300 },
             // 其他货物
-            papyrus: { enemyPercent: 0.010, playerPercent: 0.008, baseMin: 6 },
-            tools: { enemyPercent: 0.009, playerPercent: 0.006, baseMin: 5 },
+            papyrus: { enemyPercent: 0.030, playerPercent: 0.024, baseMin: 18 },
+            tools: { enemyPercent: 0.027, playerPercent: 0.018, baseMin: 15 },
         },
+        // [BUFFED ×3]
         loot: {
-            silver: [150, 280],
-            spice: [20, 50],
-            cloth: [20, 45],
+            silver: [450, 840],
+            spice: [60, 150],
+            cloth: [60, 135],
         },
         influence: { win: 8, lose: -5 },
         winScore: 32,
@@ -333,29 +337,30 @@ export const MILITARY_ACTIONS = [
         baseUnitCount: { min: 12, max: 20 },
         deploymentRatio: { min: 0.35, max: 0.55 }, // 敌方派遣35%-55%军队
         enemyUnits: [],
-        cooldownDays: 10,
+        cooldownDays: 30,  // [BUFFED] 10→30天，配合战利品×3
         requiresTech: 'military_training', // 需要军事训练 - 系统性破坏需要有组织的军队
         // 焦土战术 - 主要破坏敌方资源，自己获取较少但敌方损失大
-        // [NERFED] 所有数值削弱50%以防止资源溢出
+        // [BUFFED] 所有数值乘以3，配合冷却时间增加
         lootConfig: {
             // 抢先掠夺的物资
-            food: { enemyPercent: 0.025, playerPercent: 0.018, baseMin: 40 },
-            wood: { enemyPercent: 0.020, playerPercent: 0.014, baseMin: 25 },
-            stone: { enemyPercent: 0.012, playerPercent: 0.009, baseMin: 15 },
+            food: { enemyPercent: 0.075, playerPercent: 0.054, baseMin: 120 },
+            wood: { enemyPercent: 0.060, playerPercent: 0.042, baseMin: 75 },
+            stone: { enemyPercent: 0.036, playerPercent: 0.027, baseMin: 45 },
             // 农产品
-            cloth: { enemyPercent: 0.015, playerPercent: 0.010, baseMin: 12 },
-            dye: { enemyPercent: 0.010, playerPercent: 0.006, baseMin: 6 },
+            cloth: { enemyPercent: 0.045, playerPercent: 0.030, baseMin: 36 },
+            dye: { enemyPercent: 0.030, playerPercent: 0.018, baseMin: 18 },
             // 货币
-            silver: { enemyPercent: 0.028, playerPercent: 0.018, baseMin: 75 },
+            silver: { enemyPercent: 0.084, playerPercent: 0.054, baseMin: 225 },
             // 破坏后残余物资
-            coal: { enemyPercent: 0.012, playerPercent: 0.009, baseMin: 9 },
-            tools: { enemyPercent: 0.010, playerPercent: 0.006, baseMin: 5 },
-            ale: { enemyPercent: 0.012, playerPercent: 0.009, baseMin: 8 },
+            coal: { enemyPercent: 0.036, playerPercent: 0.027, baseMin: 27 },
+            tools: { enemyPercent: 0.030, playerPercent: 0.018, baseMin: 15 },
+            ale: { enemyPercent: 0.036, playerPercent: 0.027, baseMin: 24 },
         },
+        // [BUFFED ×3]
         loot: {
-            food: [60, 140],
-            wood: [40, 90],
-            silver: [100, 200],
+            food: [180, 420],
+            wood: [120, 270],
+            silver: [300, 600],
         },
         influence: { win: 12, lose: -8 },
         winScore: 48,

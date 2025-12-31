@@ -7,7 +7,7 @@
  * 2x = 2倍速（500ms/tick）
  * 5x = 5倍速（200ms/tick）
  */
-export const GAME_SPEEDS = [1, 2, 5];
+export const GAME_SPEEDS = [0.5, 1, 2, 5];
 
 /**
  * 财富衰减率 (生活损耗/Lifestyle Inflation)
