@@ -23,7 +23,7 @@ export const OFFICIAL_EFFECT_TYPES = {
             'market', 'trade_port', 'trading_post', 'dockyard',
             'library', 'church', 'barracks', 'training_ground', 'fortress'
         ],
-        valueRange: [0.05, 0.18], // +5% ~ +18%
+        valueRange: [0.08, 0.35], // +8% ~ +35% (大幅提升)
         weight: 25,
         costMultiplier: 1.0,
         description: (val, target) => `${target} 产出 +${(val * 100).toFixed(0)}%`,
@@ -34,7 +34,7 @@ export const OFFICIAL_EFFECT_TYPES = {
         type: 'categories',
         category: 'production',
         targets: ['gather', 'industry', 'civic', 'military'],
-        valueRange: [0.04, 0.15],
+        valueRange: [0.06, 0.30], // 大幅提升
         weight: 20,
         costMultiplier: 1.2,
         description: (val, target) => `${target}类建筑产出 +${(val * 100).toFixed(0)}%`,
@@ -44,7 +44,7 @@ export const OFFICIAL_EFFECT_TYPES = {
     wartime_production: {
         type: 'wartimeProduction',
         category: 'production',
-        valueRange: [0.08, 0.22],
+        valueRange: [0.12, 0.40], // 大幅提升
         weight: 12,
         costMultiplier: 1.3,
         description: (val) => `战时产出 +${(val * 100).toFixed(0)}%`,
@@ -55,7 +55,7 @@ export const OFFICIAL_EFFECT_TYPES = {
     trade_bonus: {
         type: 'tradeBonus',
         category: 'economy',
-        valueRange: [0.08, 0.22],
+        valueRange: [0.12, 0.40], // 大幅提升
         weight: 15,
         costMultiplier: 1.4,
         description: (val) => `贸易利润 +${(val * 100).toFixed(0)}%`,
@@ -65,7 +65,7 @@ export const OFFICIAL_EFFECT_TYPES = {
     tax_efficiency: {
         type: 'taxEfficiency',
         category: 'economy',
-        valueRange: [0.04, 0.14],
+        valueRange: [0.06, 0.25], // 大幅提升
         weight: 15,
         costMultiplier: 1.5,
         description: (val) => `税收效率 +${(val * 100).toFixed(0)}%`,
@@ -75,7 +75,7 @@ export const OFFICIAL_EFFECT_TYPES = {
     building_cost_reduction: {
         type: 'buildingCostMod',
         category: 'economy',
-        valueRange: [-0.18, -0.06],
+        valueRange: [-0.35, -0.10], // 大幅提升
         weight: 12,
         costMultiplier: 1.2,
         description: (val) => `建筑成本 ${(val * 100).toFixed(0)}%`,
@@ -91,7 +91,7 @@ export const OFFICIAL_EFFECT_TYPES = {
             'bronze_foundry', 'iron_tool_workshop', 'steel_foundry', 'wool_workshop',
             'factory', 'printing_house'
         ],
-        valueRange: [-0.15, -0.05], // -5% ~ -15% 原料消耗
+        valueRange: [-0.30, -0.08], // -8% ~ -30% 原料消耗 (大幅提升)
         weight: 18, // 提高权重，使效果更容易出现
         costMultiplier: 1.1,
         description: (val, target) => `${target}原料消耗 ${(val * 100).toFixed(0)}%`,
@@ -101,7 +101,7 @@ export const OFFICIAL_EFFECT_TYPES = {
     income_percent: {
         type: 'incomePercent',
         category: 'economy',
-        valueRange: [0.04, 0.12],
+        valueRange: [0.06, 0.22], // 大幅提升
         weight: 12,
         costMultiplier: 1.5,
         description: (val) => `税收收入 +${(val * 100).toFixed(0)}%`,
@@ -112,7 +112,7 @@ export const OFFICIAL_EFFECT_TYPES = {
         type: 'passive',
         category: 'economy',
         targets: ['food', 'silver', 'culture', 'science'],
-        valueRange: [1.0, 5.0],
+        valueRange: [50, 2500], // 大幅提升，配合时代缩放
         weight: 10,
         costMultiplier: 1.5,
         description: (val, target) => `每日 ${target} +${val.toFixed(1)}`,
@@ -123,7 +123,7 @@ export const OFFICIAL_EFFECT_TYPES = {
         type: 'passivePercent',
         category: 'economy',
         targets: ['silver', 'food'],
-        valueRange: [0.04, 0.14],
+        valueRange: [0.06, 0.28], // 大幅提升
         weight: 12,
         costMultiplier: 1.3,
         description: (val, target) => `${target} 产出 +${(val * 100).toFixed(0)}%`,
@@ -135,7 +135,7 @@ export const OFFICIAL_EFFECT_TYPES = {
         type: 'stratumDemandMod',
         category: 'needs',
         targets: Object.keys(STRATA),
-        valueRange: [-0.18, -0.06],
+        valueRange: [-0.35, -0.10], // 大幅提升
         weight: 15,
         costMultiplier: 0.8,
         description: (val, target) => `${target} 需求 ${(val * 100).toFixed(0)}%`,
@@ -150,7 +150,7 @@ export const OFFICIAL_EFFECT_TYPES = {
             'plank', 'brick', 'ale', 'spice', 'coffee', 'papyrus',
             'delicacies', 'fine_clothes', 'furniture', 'culture'
         ],
-        valueRange: [-0.14, -0.04],
+        valueRange: [-0.28, -0.06], // 大幅提升
         weight: 12,
         costMultiplier: 0.7,
         description: (val, target) => `${target} 需求 ${(val * 100).toFixed(0)}%`,
@@ -165,7 +165,7 @@ export const OFFICIAL_EFFECT_TYPES = {
             'plank', 'brick', 'ale', 'spice', 'coffee', 'papyrus',
             'delicacies', 'fine_clothes', 'furniture', 'steel'
         ],
-        valueRange: [0.08, 0.22],
+        valueRange: [0.12, 0.40], // 大幅提升
         weight: 12,
         costMultiplier: 1.0,
         description: (val, target) => `${target} 供给 +${(val * 100).toFixed(0)}%`,
@@ -175,7 +175,7 @@ export const OFFICIAL_EFFECT_TYPES = {
     needs_reduction: {
         type: 'needsReduction',
         category: 'needs',
-        valueRange: [0.05, 0.15],
+        valueRange: [0.08, 0.28], // 大幅提升
         weight: 8,
         costMultiplier: 1.2,
         description: (val) => `全民需求 -${(val * 100).toFixed(0)}%`,
@@ -186,7 +186,7 @@ export const OFFICIAL_EFFECT_TYPES = {
     max_pop: {
         type: 'maxPop',
         category: 'population',
-        valueRange: [0.04, 0.14],
+        valueRange: [0.06, 0.25], // 大幅提升
         weight: 10,
         costMultiplier: 1.0,
         description: (val) => `人口上限 +${(val * 100).toFixed(0)}%`,
@@ -196,7 +196,7 @@ export const OFFICIAL_EFFECT_TYPES = {
     population_growth: {
         type: 'populationGrowth',
         category: 'population',
-        valueRange: [0.08, 0.22],
+        valueRange: [0.12, 0.40], // 大幅提升
         weight: 10,
         costMultiplier: 1.1,
         description: (val) => `人口增长 +${(val * 100).toFixed(0)}%`,
@@ -206,7 +206,7 @@ export const OFFICIAL_EFFECT_TYPES = {
     research_speed: {
         type: 'researchSpeed',
         category: 'development',
-        valueRange: [0.08, 0.22],
+        valueRange: [0.12, 0.40], // 大幅提升
         weight: 12,
         costMultiplier: 1.4,
         description: (val) => `科研产出 +${(val * 100).toFixed(0)}%`,
@@ -218,7 +218,7 @@ export const OFFICIAL_EFFECT_TYPES = {
         type: 'approval',
         category: 'politics',
         targets: Object.keys(STRATA),
-        valueRange: [5, 15],
+        valueRange: [8, 25], // 大幅提升
         weight: 15,
         costMultiplier: 0.8,
         description: (val, target) => `${target} 满意度 +${val}`,
@@ -228,7 +228,7 @@ export const OFFICIAL_EFFECT_TYPES = {
     coalition_approval: {
         type: 'coalitionApproval',
         category: 'politics',
-        valueRange: [4, 10],
+        valueRange: [6, 18], // 大幅提升
         weight: 10,
         costMultiplier: 1.0,
         description: (val) => `联盟阶层满意度 +${val}`,
@@ -238,7 +238,7 @@ export const OFFICIAL_EFFECT_TYPES = {
     legitimacy_bonus: {
         type: 'legitimacyBonus',
         category: 'politics',
-        valueRange: [0.04, 0.12],
+        valueRange: [0.06, 0.22], // 大幅提升
         weight: 10,
         costMultiplier: 1.2,
         description: (val) => `合法性 +${(val * 100).toFixed(0)}%`,
@@ -248,7 +248,7 @@ export const OFFICIAL_EFFECT_TYPES = {
     organization_decay: {
         type: 'organizationDecay',
         category: 'politics',
-        valueRange: [-0.18, -0.06],
+        valueRange: [-0.35, -0.10], // 大幅提升
         weight: 8,
         costMultiplier: 1.1,
         description: (val) => `组织度增长 ${(val * 100).toFixed(0)}%`,
@@ -258,7 +258,7 @@ export const OFFICIAL_EFFECT_TYPES = {
     stability_bonus: {
         type: 'stability',
         category: 'politics',
-        valueRange: [0.02, 0.08],
+        valueRange: [0.04, 0.15], // 大幅提升
         weight: 8,
         costMultiplier: 1.2,
         description: (val) => `稳定度 +${(val * 100).toFixed(0)}%`,
@@ -269,7 +269,7 @@ export const OFFICIAL_EFFECT_TYPES = {
     military_bonus: {
         type: 'militaryBonus',
         category: 'military',
-        valueRange: [0.06, 0.18],
+        valueRange: [0.10, 0.35], // 大幅提升
         weight: 10,
         costMultiplier: 1.0,
         description: (val) => `军事力量 +${(val * 100).toFixed(0)}%`,
@@ -279,7 +279,7 @@ export const OFFICIAL_EFFECT_TYPES = {
     military_upkeep: {
         type: 'militaryUpkeep',
         category: 'military',
-        valueRange: [-0.18, -0.06],
+        valueRange: [-0.35, -0.10], // 大幅提升
         weight: 10,
         costMultiplier: 1.1,
         description: (val) => `军事维护 ${(val * 100).toFixed(0)}%`,
@@ -290,7 +290,7 @@ export const OFFICIAL_EFFECT_TYPES = {
     diplomatic_bonus: {
         type: 'diplomaticBonus',
         category: 'diplomacy',
-        valueRange: [0.5, 2.0], // 每日关系改善值
+        valueRange: [1.0, 4.0], // 每日关系改善值 (大幅提升)
         weight: 8,
         costMultiplier: 1.0,
         description: (val) => `每日外交关系 +${val.toFixed(1)}`,
@@ -300,7 +300,7 @@ export const OFFICIAL_EFFECT_TYPES = {
     diplomatic_cooldown: {
         type: 'diplomaticCooldown',
         category: 'diplomacy',
-        valueRange: [-0.18, -0.08],
+        valueRange: [-0.35, -0.12], // 大幅提升
         weight: 6,
         costMultiplier: 0.9,
         description: (val) => `外交冷却 ${(val * 100).toFixed(0)}%`,

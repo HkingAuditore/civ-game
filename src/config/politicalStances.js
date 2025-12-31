@@ -429,7 +429,7 @@ const STANCE_TEMPLATES = {
         conditionTypes: ['at_war', 'stratum_approval_above'],
         preferredStrata: ['soldier', 'landowner'],
         stratumWeights: { soldier: 3.0 },
-        activeEffects: { militaryBonus: 0.08 },
+        activeEffects: { militaryBonus: 0.15 },
         unsatisfiedPenalty: { approval: { soldier: -4 } },
     },
 
@@ -446,7 +446,7 @@ const STANCE_TEMPLATES = {
         conditionTypes: ['stratum_influence_above', 'coalition_includes', 'legitimacy_above'],
         preferredStrata: ['landowner', 'official', 'merchant'],
         stratumWeights: { landowner: 3.0, official: 1.5 },
-        activeEffects: { militaryBonus: 0.06, taxEfficiency: 0.04 },
+        activeEffects: { militaryBonus: 0.12, taxEfficiency: 0.08 },
         unsatisfiedPenalty: { approval: { landowner: -6 } },
     },
 
@@ -462,7 +462,7 @@ const STANCE_TEMPLATES = {
         conditionTypes: ['coalition_includes', 'stratum_approval_above'],
         preferredStrata: ['cleric'],
         stratumWeights: { cleric: 4.0 },
-        activeEffects: { legitimacyBonus: 0.08, approval: { cleric: 8 } },
+        activeEffects: { legitimacyBonus: 0.15, approval: { cleric: 15 } },
         unsatisfiedPenalty: { approval: { cleric: -8 } },
     },
 
@@ -479,7 +479,7 @@ const STANCE_TEMPLATES = {
         conditionTypes: ['coalition_size_above', 'legitimacy_above', 'stability_above'],
         preferredStrata: ['scribe', 'merchant', 'artisan', 'official'],
         stratumWeights: { scribe: 2.0, merchant: 1.5, artisan: 1.5 },
-        activeEffects: { legitimacyBonus: 0.06, stability: 0.04 },
+        activeEffects: { legitimacyBonus: 0.12, stability: 0.08 },
         unsatisfiedPenalty: { stability: -0.02 },
     },
 
@@ -495,7 +495,7 @@ const STANCE_TEMPLATES = {
         conditionTypes: ['stratum_approval_above', 'stratum_living_standard', 'food_affordable'],
         preferredStrata: ['peasant', 'worker', 'artisan', 'serf'],
         stratumWeights: { peasant: 2.5, worker: 2.5, artisan: 1.5 },
-        activeEffects: { populationGrowth: 0.04, approval: { peasant: 4, worker: 4 } },
+        activeEffects: { populationGrowth: 0.08, approval: { peasant: 8, worker: 8 } },
         unsatisfiedPenalty: { approval: { peasant: -4, worker: -4 } },
     },
 
@@ -511,7 +511,7 @@ const STANCE_TEMPLATES = {
         conditionTypes: ['avg_tax_above', 'stability_above'],
         preferredStrata: ['official', 'soldier', 'scribe'],
         stratumWeights: { official: 2.5, soldier: 1.5 },
-        activeEffects: { taxEfficiency: 0.08, stability: -0.04 },
+        activeEffects: { taxEfficiency: 0.15, stability: -0.06 },
         unsatisfiedPenalty: {},
     },
 
@@ -527,7 +527,7 @@ const STANCE_TEMPLATES = {
         conditionTypes: ['stratum_approval_above', 'stability_above', 'legitimacy_above'],
         preferredStrata: ['scribe', 'cleric', 'official'],
         stratumWeights: { scribe: 3.0, cleric: 1.5, official: 2.0 },
-        activeEffects: { stability: 0.08, researchSpeed: 0.04 },
+        activeEffects: { stability: 0.15, researchSpeed: 0.08 },
         unsatisfiedPenalty: { stability: -0.02 },
     },
 
@@ -544,9 +544,9 @@ const STANCE_TEMPLATES = {
         preferredStrata: ['artisan', 'worker', 'engineer'],
         stratumWeights: { artisan: 2.5, worker: 2.0, engineer: 1.5 },
         activeEffects: {
-            industryBonus: 0.06,
-            buildingCostMod: -0.04,
-            productionInputCost: { sawmill: -0.08, brickworks: -0.08, metallurgy_workshop: -0.10 }
+            industryBonus: 0.12,
+            buildingCostMod: -0.08,
+            productionInputCost: { sawmill: -0.15, brickworks: -0.15, metallurgy_workshop: -0.18 }
         },
         unsatisfiedPenalty: { approval: { artisan: -2 } },
     },
@@ -563,7 +563,7 @@ const STANCE_TEMPLATES = {
         conditionTypes: ['avg_tax_below', 'stability_above'],
         preferredStrata: ['cleric', 'peasant', 'scribe'],
         stratumWeights: { cleric: 2.0, peasant: 1.5, scribe: 1.5 },
-        activeEffects: { needsReduction: 0.06, stability: 0.04 },
+        activeEffects: { needsReduction: 0.12, stability: 0.08 },
         unsatisfiedPenalty: {},
     },
 
@@ -580,7 +580,7 @@ const STANCE_TEMPLATES = {
         conditionTypes: ['stratum_influence_above', 'legitimacy_above'],
         preferredStrata: ['landowner', 'official'],
         stratumWeights: { landowner: 3.0, peasant: 0.5 },
-        activeEffects: { gatherBonus: 0.04, approval: { landowner: 6 } },
+        activeEffects: { gatherBonus: 0.08, approval: { landowner: 12 } },
         unsatisfiedPenalty: { approval: { landowner: -6 } },
     },
 
@@ -596,7 +596,7 @@ const STANCE_TEMPLATES = {
         conditionTypes: ['stratum_approval_below', 'avg_tax_above', 'food_scarce', 'inflation_above'],
         preferredStrata: ['peasant', 'serf', 'worker'],
         stratumWeights: { peasant: 3.0, serf: 3.0, worker: 2.0 },
-        activeEffects: { organizationDecay: -0.12 },
+        activeEffects: { organizationDecay: -0.22 },
         unsatisfiedPenalty: {},
     },
 
@@ -613,9 +613,9 @@ const STANCE_TEMPLATES = {
         preferredStrata: ['artisan', 'merchant'],
         stratumWeights: { artisan: 3.0, merchant: 2.0 },
         activeEffects: {
-            tradeBonus: 0.06,
-            approval: { artisan: 4, merchant: 4 },
-            productionInputCost: { furniture_workshop: -0.10, tailor_workshop: -0.10, loom_house: -0.08 }
+            tradeBonus: 0.12,
+            approval: { artisan: 8, merchant: 8 },
+            productionInputCost: { furniture_workshop: -0.18, tailor_workshop: -0.18, loom_house: -0.15 }
         },
         unsatisfiedPenalty: {
             approval: { artisan: -4 },
@@ -636,7 +636,7 @@ const STANCE_TEMPLATES = {
         conditionTypes: ['stratum_income_above', 'stratum_influence_above', 'resource_price_above', 'inflation_above'],
         preferredStrata: ['merchant', 'capitalist'],
         stratumWeights: { merchant: 3.0, capitalist: 2.0 },
-        activeEffects: { tradeBonus: 0.10, incomePercentBonus: 0.04 },
+        activeEffects: { tradeBonus: 0.18, incomePercentBonus: 0.08 },
         unsatisfiedPenalty: { approval: { merchant: -4 } },
     },
 
@@ -652,7 +652,7 @@ const STANCE_TEMPLATES = {
         conditionTypes: ['coalition_size_below', 'legitimacy_above'],
         preferredStrata: ['official', 'landowner'],
         stratumWeights: { official: 2.0 },
-        activeEffects: { taxEfficiency: 0.08, buildingCostMod: -0.06 },
+        activeEffects: { taxEfficiency: 0.15, buildingCostMod: -0.12 },
         unsatisfiedPenalty: {},
     },
 
@@ -668,7 +668,7 @@ const STANCE_TEMPLATES = {
         conditionTypes: ['stratum_approval_above', 'epoch_at_least'],
         preferredStrata: ['scribe', 'artisan', 'engineer'],
         stratumWeights: { scribe: 3.0, artisan: 2.0 },
-        activeEffects: { researchSpeed: 0.08, cultureBonus: 0.06 },
+        activeEffects: { researchSpeed: 0.15, cultureBonus: 0.12 },
         unsatisfiedPenalty: {},
     },
 
@@ -684,7 +684,7 @@ const STANCE_TEMPLATES = {
         conditionTypes: ['stratum_income_above', 'at_war'],
         preferredStrata: ['merchant', 'soldier', 'navigator'],
         stratumWeights: { merchant: 2.0, soldier: 1.5 },
-        activeEffects: { tradeBonus: 0.08, diplomaticBonus: 0.4 },
+        activeEffects: { tradeBonus: 0.15, diplomaticBonus: 0.8 },
         unsatisfiedPenalty: {},
     },
 
@@ -701,7 +701,7 @@ const STANCE_TEMPLATES = {
         conditionTypes: ['avg_tax_below', 'stratum_approval_above', 'price_stability', 'deflation_below'],
         preferredStrata: ['merchant', 'capitalist', 'artisan'],
         stratumWeights: { merchant: 2.0, capitalist: 2.5, artisan: 1.5 },
-        activeEffects: { incomePercentBonus: 0.06, populationGrowth: 0.04 },
+        activeEffects: { incomePercentBonus: 0.12, populationGrowth: 0.08 },
         unsatisfiedPenalty: { approval: { merchant: -4, capitalist: -4 } },
     },
 
@@ -717,7 +717,7 @@ const STANCE_TEMPLATES = {
         conditionTypes: ['coalition_size_below', 'legitimacy_above', 'stability_above'],
         preferredStrata: ['official', 'scribe', 'engineer'],
         stratumWeights: { official: 2.0, scribe: 2.0, engineer: 1.5 },
-        activeEffects: { researchSpeed: 0.10, buildingCostMod: -0.04 },
+        activeEffects: { researchSpeed: 0.18, buildingCostMod: -0.08 },
         unsatisfiedPenalty: {},
     },
     conservatism: {
@@ -732,7 +732,7 @@ const STANCE_TEMPLATES = {
         conditionTypes: ['stability_above', 'legitimacy_above'],
         preferredStrata: ['landowner', 'cleric', 'official'],
         stratumWeights: { landowner: 2.0, cleric: 2.0 },
-        activeEffects: { stability: 0.06, legitimacyBonus: 0.04 },
+        activeEffects: { stability: 0.12, legitimacyBonus: 0.08 },
         unsatisfiedPenalty: { stability: -0.04 },
     },
 
@@ -749,7 +749,7 @@ const STANCE_TEMPLATES = {
         // 左派立场只关心平民阶层，不关心地主/资本家
         preferredStrata: ['worker', 'artisan', 'peasant', 'scribe'],
         stratumWeights: { scribe: 2.0, worker: 1.5, artisan: 1.5 },
-        activeEffects: { researchSpeed: 0.06, approval: { worker: 4 } },
+        activeEffects: { researchSpeed: 0.12, approval: { worker: 8 } },
         unsatisfiedPenalty: {},
     },
 
@@ -765,7 +765,7 @@ const STANCE_TEMPLATES = {
         conditionTypes: ['stratum_influence_above', 'stratum_approval_above', 'food_affordable', 'resource_price_below'],
         preferredStrata: ['landowner', 'peasant'],
         stratumWeights: { landowner: 2.5, peasant: 2.0 },
-        activeEffects: { gatherBonus: 0.08, approval: { peasant: 4, landowner: 4 } },
+        activeEffects: { gatherBonus: 0.15, approval: { peasant: 8, landowner: 8 } },
         unsatisfiedPenalty: { approval: { landowner: -4 } },
     },
 
@@ -783,9 +783,9 @@ const STANCE_TEMPLATES = {
         preferredStrata: ['worker', 'miner', 'artisan'],
         stratumWeights: { worker: 4.0, miner: 2.0 },
         activeEffects: {
-            industryBonus: 0.10,
-            approval: { worker: 8, miner: 6 },
-            productionInputCost: { steel_foundry: -0.12, textile_mill: -0.10, building_materials_plant: -0.10 }
+            industryBonus: 0.18,
+            approval: { worker: 15, miner: 12 },
+            productionInputCost: { steel_foundry: -0.22, textile_mill: -0.18, building_materials_plant: -0.18 }
         },
         unsatisfiedPenalty: {
             approval: { worker: -6 },
@@ -806,7 +806,7 @@ const STANCE_TEMPLATES = {
         conditionTypes: ['stratum_approval_above', 'stratum_living_standard', 'stability_above', 'food_affordable', 'price_stability'],
         preferredStrata: ['worker', 'scribe', 'artisan', 'peasant'],
         stratumWeights: { worker: 2.0, scribe: 1.5, artisan: 1.5 },
-        activeEffects: { approval: { worker: 6, peasant: 4 }, stability: 0.04 },
+        activeEffects: { approval: { worker: 12, peasant: 8 }, stability: 0.08 },
         unsatisfiedPenalty: { approval: { worker: -4 } },
     },
 
@@ -822,7 +822,7 @@ const STANCE_TEMPLATES = {
         conditionTypes: ['stability_below', 'stratum_approval_below'],
         preferredStrata: ['worker', 'artisan', 'peasant'],
         stratumWeights: { worker: 2.0, artisan: 2.0 },
-        activeEffects: { needsReduction: 0.08 },
+        activeEffects: { needsReduction: 0.15 },
         unsatisfiedPenalty: { stability: -0.06 },
     },
 
@@ -838,7 +838,7 @@ const STANCE_TEMPLATES = {
         conditionTypes: ['at_war', 'stratum_approval_above'],
         preferredStrata: ['soldier', 'official', 'landowner'],
         stratumWeights: { soldier: 2.5, official: 1.5 },
-        activeEffects: { militaryBonus: 0.12, approval: { soldier: 6 } },
+        activeEffects: { militaryBonus: 0.22, approval: { soldier: 12 } },
         unsatisfiedPenalty: {},
     },
     neoliberalism: {
@@ -853,7 +853,7 @@ const STANCE_TEMPLATES = {
         conditionTypes: ['stratum_income_above', 'avg_tax_below', 'resource_price_above', 'inflation_above'],
         preferredStrata: ['capitalist', 'merchant'],
         stratumWeights: { capitalist: 4.0, merchant: 2.0 },
-        activeEffects: { incomePercentBonus: 0.10, tradeBonus: 0.06 },
+        activeEffects: { incomePercentBonus: 0.18, tradeBonus: 0.12 },
         unsatisfiedPenalty: { approval: { capitalist: -6 } },
     },
 
@@ -870,9 +870,9 @@ const STANCE_TEMPLATES = {
         preferredStrata: ['engineer', 'scribe', 'official'],
         stratumWeights: { engineer: 3.0, scribe: 2.0 },
         activeEffects: {
-            researchSpeed: 0.12,
-            industryBonus: 0.06,
-            productionInputCost: { printing_house: -0.15, factory: -0.12, steel_foundry: -0.08 }
+            researchSpeed: 0.22,
+            industryBonus: 0.12,
+            productionInputCost: { printing_house: -0.28, factory: -0.22, steel_foundry: -0.15 }
         },
         unsatisfiedPenalty: {},
     },
@@ -890,7 +890,7 @@ const STANCE_TEMPLATES = {
         conditionTypes: ['coalition_size_above', 'stability_above', 'legitimacy_above'],
         preferredStrata: ['engineer', 'scribe', 'worker'],
         stratumWeights: { engineer: 2.0, scribe: 2.0, worker: 1.5 },
-        activeEffects: { legitimacyBonus: 0.10, stability: 0.06 },
+        activeEffects: { legitimacyBonus: 0.18, stability: 0.12 },
         unsatisfiedPenalty: {},
     },
 
@@ -906,7 +906,7 @@ const STANCE_TEMPLATES = {
         conditionTypes: ['stratum_approval_above', 'stability_above'],
         preferredStrata: ['worker', 'peasant', 'engineer'],
         stratumWeights: { worker: 2.0, peasant: 2.0, engineer: 1.5 },
-        activeEffects: { needsReduction: 0.08, stability: 0.04 },
+        activeEffects: { needsReduction: 0.15, stability: 0.08 },
         unsatisfiedPenalty: {},
     },
 
@@ -922,7 +922,7 @@ const STANCE_TEMPLATES = {
         conditionTypes: ['epoch_at_least', 'stratum_income_above'],
         preferredStrata: ['engineer', 'capitalist'],
         stratumWeights: { engineer: 4.0, capitalist: 2.0 },
-        activeEffects: { researchSpeed: 0.16, populationGrowth: 0.04 },
+        activeEffects: { researchSpeed: 0.28, populationGrowth: 0.08 },
         unsatisfiedPenalty: {},
     },
 };
