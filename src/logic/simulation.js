@@ -219,6 +219,10 @@ export const simulateTick = ({
 
     // NEW: Detailed financial tracking
     const classFinancialData = {};
+
+    // DEBUG: Building production debug data
+    const buildingDebugData = {};
+
     if (Object.keys(STRATA).length > 0) {
         Object.keys(STRATA).forEach(key => {
             classFinancialData[key] = {
@@ -1349,28 +1353,88 @@ export const simulateTick = ({
 
         const totalOperatingCostPerMultiplier = inputCostPerMultiplier + wageCostPerMultiplier;
         let actualMultiplier = targetMultiplier;
+        let debugMarginRatio = null;
+        let debugData = null;
+        
+        // BUG FIX: 实际可支付的工资不能超过 (收入 - 原料成本)
+        // 如果市场工资过高，建筑只会支付它能支付的部分，而不是削减产量
+        // 这避免了工资通胀导致的产量崩溃
+        const actualPayableWageCost = Math.min(estimatedWageCost, valueAvailableForLabor);
+        // 计算实际每单位乘数的工资成本（用于affordableMultiplier计算）
+        const actualWageCostPerMultiplier = targetMultiplier > 0 ? actualPayableWageCost / targetMultiplier : 0;
+        // 实际运营成本 = 原料成本 + 实际可支付工资成本
+        const actualOperatingCostPerMultiplier = inputCostPerMultiplier + actualWageCostPerMultiplier;
+        
         if (producesTradableOutput) {
+            
             // 将营业税计入总成本（只考虑正税，补贴不计入成本）
-            const estimatedCost = estimatedInputCost + estimatedWageCost + Math.max(0, estimatedBusinessTax);
+            const estimatedCost = estimatedInputCost + actualPayableWageCost + Math.max(0, estimatedBusinessTax);
             if (estimatedCost > 0 && estimatedRevenue <= 0) {
                 actualMultiplier = 0;
+                debugMarginRatio = 0;
             } else if (estimatedCost > 0 && estimatedRevenue < estimatedCost * 0.98) {
                 const marginRatio = Math.max(0, Math.min(1, estimatedRevenue / estimatedCost));
+                debugMarginRatio = marginRatio;
                 actualMultiplier = targetMultiplier * marginRatio;
+            } else {
+                debugMarginRatio = estimatedCost > 0 ? estimatedRevenue / estimatedCost : null;
             }
+            // DEBUG: 存储调试数据到局部变量
+            debugData = {
+                baseMultiplier,
+                resourceLimit,
+                targetMultiplier,
+                estimatedRevenue,
+                estimatedInputCost,
+                estimatedWageCost,
+                actualPayableWageCost, // 新增：实际可支付的工资成本
+                actualWageCostPerMultiplier, // 新增：实际每单位工资成本
+                actualOperatingCostPerMultiplier, // 新增：实际运营成本
+                estimatedBusinessTax,
+                estimatedCost,
+                marginRatio: debugMarginRatio,
+                actualMultiplierAfterMargin: actualMultiplier,
+                outputValuePerMultiplier,
+                inputCostPerMultiplier,
+                wageCostPerMultiplier,
+                count,
+                // Additional debug info for wage investigation
+                expectedWageBillBase,
+                baseWageCostPerMultiplier,
+                wagePressure,
+                baseWageCost,
+                wageCoverage,
+                valueAvailableForLabor,
+                wagePlans,
+            };
         }
-        if (totalOperatingCostPerMultiplier > 0) {
+        if (actualOperatingCostPerMultiplier > 0) {
             // 检查所有 owner 的财富是否足够支付运营成本
+            // BUG FIX: 使用实际可支付的运营成本，而不是基于市场工资的成本
             let minAffordableMultiplier = Infinity;
+            const ownerDetails = [];
             Object.entries(ownerLevelGroups).forEach(([oKey, group]) => {
                 const ownerProportion = group.totalCount / count;
-                const ownerOperatingCost = totalOperatingCostPerMultiplier * ownerProportion;
+                const ownerOperatingCost = actualOperatingCostPerMultiplier * ownerProportion;
                 const ownerCash = wealth[oKey] || 0;
                 const ownerAffordable = ownerOperatingCost > 0 ? ownerCash / ownerOperatingCost : Infinity;
                 minAffordableMultiplier = Math.min(minAffordableMultiplier, ownerAffordable);
+                ownerDetails.push({ owner: oKey, proportion: ownerProportion, operatingCost: ownerOperatingCost, cash: ownerCash, affordable: ownerAffordable });
             });
             const affordableMultiplier = minAffordableMultiplier === Infinity ? targetMultiplier : minAffordableMultiplier;
             actualMultiplier = Math.min(actualMultiplier, Math.max(0, affordableMultiplier));
+            // DEBUG: 更新调试数据
+            if (debugData) {
+                debugData.totalOperatingCostPerMultiplier = totalOperatingCostPerMultiplier;
+                debugData.minAffordableMultiplier = minAffordableMultiplier;
+                debugData.affordableMultiplier = affordableMultiplier;
+                debugData.actualMultiplierAfterAffordable = actualMultiplier;
+                debugData.ownerDetails = ownerDetails;
+            }
+        }
+        // 存储调试数据到 buildingDebugData
+        if (debugData) {
+            buildingDebugData[b.id] = debugData;
         }
 
         if (!Number.isFinite(actualMultiplier) || actualMultiplier < 0) {
@@ -1940,23 +2004,14 @@ export const simulateTick = ({
             }
         }
 
+        // NOTE: 工资支付已在 produceBuilding 的 preparedWagePlans.forEach 中处理
+        // 这里只需要统计总岗位数，不能重复支付工资（之前的 BUG）
         if (b.jobs) {
             Object.entries(b.jobs).forEach(([role, perBuilding]) => {
                 const roleSlots = perBuilding * count;
                 if (roleSlots <= 0) return;
-                roleWageStats[role].totalSlots += roleSlots;
-                // 检查是否是任何等级的业主
-                if (!Object.keys(ownerLevelGroups).includes(role)) {
-                    // 修复：使用预期工资而非硬编码的 0
-                    const expectedWage = getExpectedWage(role);
-                    const actualWagePerSlot = expectedWage;
-                    roleWageStats[role].weightedWage += actualWagePerSlot * roleSlots;
-                    const filled = buildingJobFill[b.id]?.[role] || 0;
-                    if (filled > 0 && actualWagePerSlot > 0) {
-                        const payout = actualWagePerSlot * filled;
-                        roleWagePayout[role] += payout;
-                    }
-                }
+                // 只统计岗位数，不再重复支付工资
+                // roleWageStats[role].totalSlots 已在 produceBuilding 中更新
             });
         }
     });
@@ -4455,6 +4510,7 @@ export const simulateTick = ({
         jobsAvailable,
         taxes,
         classFinancialData, // NEW: Return detailed financial data
+        buildingDebugData,  // DEBUG: Building production debug data
         dailyMilitaryExpense: armyExpenseResult, // 新增：每日军费数据（用于战争赔款计算）
         needsShortages: classShortages,
         needsReport,

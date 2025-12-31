@@ -67,7 +67,8 @@ export const BottomNav = ({ activeTab, onTabChange, epoch = 0 }) => {
                 <div
                     className="absolute inset-0 backdrop-blur-lg"
                     style={{
-                        background: `linear-gradient(to top, var(--theme-background, rgb(17, 24, 39)) 0%, color-mix(in srgb, var(--theme-surface, rgb(31, 41, 55)) 95%, transparent) 50%, color-mix(in srgb, var(--theme-surface-alt, rgb(55, 65, 81)) 90%, transparent) 100%)`
+                        // 使用兼容性更好的渐变写法，避免 color-mix 在旧版 WebView 上不支持
+                        background: `linear-gradient(to top, var(--theme-bg, #1a1410) 0%, var(--theme-surface, rgba(34, 24, 14, 0.95)) 50%, var(--theme-surface-alt, rgba(61, 36, 21, 0.9)) 100%)`
                     }}
                 />
                 {/* 顶部金属高光 - 使用时代主题色 */}
@@ -146,7 +147,8 @@ export const BottomNav = ({ activeTab, onTabChange, epoch = 0 }) => {
                 className="relative w-full"
                 style={{
                     height: 'env(safe-area-inset-bottom, 0px)',
-                    background: 'var(--theme-background, rgb(17, 24, 39))'
+                    // 使用正确的 CSS 变量名 --theme-bg，回退到游戏的深棕色主题
+                    backgroundColor: 'var(--theme-bg, #1a1410)'
                 }}
             />
         </nav>
