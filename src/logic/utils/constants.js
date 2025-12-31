@@ -63,6 +63,26 @@ export const UPGRADE_MIGRATION_BONUS = 0.8;
 // After migration from a role, that role enters cooldown before another migration can occur
 export const MIGRATION_COOLDOWN_TICKS = 5;
 
+// ============== Survival Migration Constants ==============
+// When critical resources are in severe shortage, people will be more willing to migrate
+// to produce those resources (survival instinct)
+
+// Critical shortage threshold: supply/demand ratio below this triggers survival migration
+// 当供需比低于此阈值时，触发生存本能转职
+export const CRITICAL_SHORTAGE_THRESHOLD = 0.5;
+
+// Critical resources that trigger survival migration when in shortage
+// 触发生存本能的关键资源（基本生存需求）
+export const CRITICAL_RESOURCES = ['food', 'cloth'];
+
+// Migration bonus when moving to produce critically short resources
+// 转职到生产紧缺资源职业时的门槛降低倍数（0.3 = 原门槛的30%）
+export const SHORTAGE_MIGRATION_BONUS = 0.3;
+
+// Emergency migration ratio - higher migration rate during resource crisis
+// 资源危机时的紧急转职比例（比正常高5倍）
+export const EMERGENCY_MIGRATION_RATIO = JOB_MIGRATION_RATIO * 5;
+
 // Price calculation constants
 export const PRICE_FLOOR = 0.0001;
 export const BASE_WAGE_REFERENCE = 1;
@@ -84,7 +104,7 @@ export const PEACE_REQUEST_COOLDOWN_DAYS = 45;
 // Global peace request cooldown (days)
 // Prevents multiple nations from requesting peace simultaneously
 // When one nation requests peace, others must wait this duration
-export const GLOBAL_PEACE_REQUEST_COOLDOWN_DAYS =  30;
+export const GLOBAL_PEACE_REQUEST_COOLDOWN_DAYS = 30;
 
 // Population growth constants
 // Increased to let prosperous empires experience visibly faster birth growth

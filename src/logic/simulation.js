@@ -231,7 +231,8 @@ export const simulateTick = ({
                     essentialNeeds: {},  // 基础需求消费 { resource: cost }
                     luxuryNeeds: {},     // 奢侈需求消费 { resource: cost }
                     decay: 0,
-                    productionCosts: 0
+                    productionCosts: 0,
+                    wages: 0  // 工资支出（业主支付给工人）
                 }
             };
         });
@@ -1558,6 +1559,12 @@ export const simulateTick = ({
         });
         const avgWagePressure = totalWeight > 0 ? totalWeightedPressure / totalWeight : wagePressure;
 
+
+        // Get building's wage config for max wage multiplier
+        const buildingWageConfig = b.marketConfig?.wage || {};
+        const wageMode = buildingWageConfig.wageMode;
+        const subsistenceMultiplier = buildingWageConfig.subsistenceMultiplier || 1.5;
+
         const preparedWagePlans = wagePlans.map(plan => {
             // 根据角色在各等级的分布，计算加权平均的工资压力因子
             let planWagePressure = avgWagePressure;
@@ -1581,13 +1588,26 @@ export const simulateTick = ({
                 }
             }
 
-            const expectedSlotWage = plan.baseWage * utilization * planWagePressure;
+            let expectedSlotWage = plan.baseWage * utilization * planWagePressure;
+
+            // NEW: Subsistence wage mode - wage is based on living costs, not market wages
+            // This prevents the runaway wage inflation/deflation feedback loop
+            if (wageMode === 'subsistence') {
+                // Get the role's living cost as the wage base
+                const roleLivingCost = wageLivingCosts?.[plan.role] || getLivingCostFloor(plan.role);
+                // Wage = living cost × multiplier (e.g., 1.5 = subsistence + 50% buffer)
+                // This is a FIXED wage based on actual needs, not market dynamics
+                expectedSlotWage = roleLivingCost * subsistenceMultiplier;
+            }
+
             const due = expectedSlotWage * plan.filled;
             plannedWageBill += due;
             return {
                 ...plan,
                 expectedSlotWage,
                 wagePressure: planWagePressure, // 保存用于调试
+                wageMode, // Track for debugging
+                subsistenceMultiplier: wageMode === 'subsistence' ? subsistenceMultiplier : undefined,
             };
         });
 
@@ -1608,8 +1628,17 @@ export const simulateTick = ({
                     Object.entries(config.jobs).forEach(([role, slots]) => {
                         // 跳过业主角色
                         if (role === ownerKey) return;
-                        // 使用上面计算的预期工资
-                        const wage = getExpectedWage(role);
+
+                        let wage;
+                        // NEW: Subsistence wage mode - use fixed living-cost based wages
+                        if (wageMode === 'subsistence') {
+                            const roleLivingCost = wageLivingCosts?.[role] || getLivingCostFloor(role);
+                            wage = roleLivingCost * subsistenceMultiplier;
+                        } else {
+                            // Default: use market-based expected wage
+                            wage = getExpectedWage(role);
+                        }
+
                         const levelWageCost = slots * lvlCount * wage * utilization * (levelWagePressures[lvl] || 1);
                         ownerWageBills[ownerKey] += levelWageCost;
                     });
@@ -1624,30 +1653,35 @@ export const simulateTick = ({
             Object.entries(ownerWageBills).forEach(([oKey, ownerBill]) => {
                 if (ownerBill <= 0) return;
                 const available = wealth[oKey] || 0;
-                
+
                 // [FIX] Prioritize owner's own basic needs before paying wages
                 // Calculate estimated basic needs cost (buffer 1.2x for safety)
                 let reservedWealth = 0;
                 const ownerDef = STRATA[oKey];
                 if (ownerDef && ownerDef.needs) {
                     Object.entries(ownerDef.needs).forEach(([resKey, amount]) => {
-                         const price = getPrice(resKey);
-                         // Basic needs are essential (food, cloth etc.)
-                         reservedWealth += amount * price;
+                        const price = getPrice(resKey);
+                        // Basic needs are essential (food, cloth etc.)
+                        reservedWealth += amount * price;
                     });
                     // Multiply by 1.2 to account for price fluctuations and ensure safety
-                    reservedWealth *= 1.2; 
+                    reservedWealth *= 1.2;
                 }
 
                 // If owner has very little wealth, they hoard it for survival
                 const disposableWealth = Math.max(0, available - reservedWealth);
-                
+
                 const paid = Math.min(disposableWealth, ownerBill);
-                
+
                 wealth[oKey] = available - paid;
                 roleExpense[oKey] = (roleExpense[oKey] || 0) + paid;
                 totalPaid += paid;
-                
+
+                // Track wage expense in financial data
+                if (classFinancialData[oKey]) {
+                    classFinancialData[oKey].expense.wages = (classFinancialData[oKey].expense.wages || 0) + paid;
+                }
+
                 // Optional: Log if owner cannot pay full wages due to survival needs
                 // if (paid < ownerBill && tick % 30 === 0 && available > 0) {
                 //      logs.push(`⚠️ ${STRATA[oKey]?.name || oKey} prioritizing survival, withholding wages.`);
@@ -2434,7 +2468,7 @@ export const simulateTick = ({
             popStructure[maxPopStratum] += diff;
             // Ensure we didn't drop below zero (unlikely unless diff is huge negative)
             if (popStructure[maxPopStratum] < 0) {
-                 popStructure[maxPopStratum] = 0;
+                popStructure[maxPopStratum] = 0;
             }
         }
 
@@ -2873,7 +2907,7 @@ export const simulateTick = ({
                 decayRate = 0.003; // 0.3% - 开始享受生活
             }
             // '奢华' 保持默认的0.5%
-            
+
             const perCapitaDecay = perCapitaWealth * decayRate;
             // Removed Math.max(1, floor(...)) to allow fractional decay and prevent subsidy waste
             // Use toFixed(2) for clean display and deduction
@@ -4100,6 +4134,57 @@ export const simulateTick = ({
         ? migrationRoles.reduce((sum, r) => sum + (r.perCap * r.pop), 0) / totalMigratablePop
         : 0;
 
+    // ============== 计算供需比和角色-资源映射（用于资源短缺紧急转职）==============
+    // Supply/Demand ratio for each resource
+    const supplyDemandRatio = {};
+    Object.keys(RESOURCES).forEach(resKey => {
+        const s = supply[resKey] || 0;
+        const d = demand[resKey] || 0;
+        // Avoid division by zero
+        supplyDemandRatio[resKey] = d > 0 ? s / d : (s > 0 ? 999 : 1);
+    });
+
+    // Build roleProducesResource: which roles produce which resources
+    // Based on building outputs and their owner/worker roles
+    const roleProducesResource = {};
+    BUILDINGS.forEach(building => {
+        const count = builds[building.id] || 0;
+        if (count <= 0) return;
+
+        const config = getBuildingEffectiveConfig(building, 0);
+        const outputs = config.output || {};
+        const jobs = config.jobs || {};
+
+        // Get resources this building produces
+        const producedResources = Object.keys(outputs).filter(r => RESOURCES[r]);
+
+        if (producedResources.length === 0) return;
+
+        // Add these resources to all roles that work at this building
+        Object.keys(jobs).forEach(role => {
+            if (!roleProducesResource[role]) {
+                roleProducesResource[role] = [];
+            }
+            producedResources.forEach(res => {
+                if (!roleProducesResource[role].includes(res)) {
+                    roleProducesResource[role].push(res);
+                }
+            });
+        });
+
+        // Also add to owner role
+        if (building.owner && !roleProducesResource[building.owner]) {
+            roleProducesResource[building.owner] = [];
+        }
+        if (building.owner) {
+            producedResources.forEach(res => {
+                if (!roleProducesResource[building.owner].includes(res)) {
+                    roleProducesResource[building.owner].push(res);
+                }
+            });
+        }
+    });
+
     // 使用handleJobMigration处理阶层迁移（包含tier阻力系数和冷却机制）
     const migrationResult = handleJobMigration({
         popStructure,
@@ -4108,7 +4193,10 @@ export const simulateTick = ({
         hasBuildingVacancyForRole,
         reserveBuildingVacancyForRole,
         logs,
-        migrationCooldowns
+        migrationCooldowns,
+        // New: resource shortage data for survival migration
+        supplyDemandRatio,
+        roleProducesResource
     });
     // 更新迁移后的状态
     Object.assign(popStructure, migrationResult.popStructure);

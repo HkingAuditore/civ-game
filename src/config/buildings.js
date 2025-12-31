@@ -66,7 +66,19 @@ export const BUILDINGS = [
         epoch: 3,
         cat: 'gather',
         requiresTech: 'feudalism',
-        visual: { icon: 'Castle', color: 'bg-amber-800', text: 'text-amber-200' }
+        visual: { icon: 'Castle', color: 'bg-amber-800', text: 'text-amber-200' },
+        // Feudal estate economic config: serfs receive subsistence wages based on living costs
+        marketConfig: {
+            price: { livingCostWeight: 0.1, taxCostWeight: 0.15 },
+            wage: {
+                livingCostWeight: 0.05,
+                taxCostWeight: 0.05,
+                // Feudal wage system: wages are capped at 1.5x living costs (subsistence level)
+                // This replaces market-based wages with cost-of-living based wages
+                wageMode: 'subsistence',      // Use living-cost based wage calculation
+                subsistenceMultiplier: 1.5,   // Wage = living costs × 1.5 (bare subsistence + small buffer)
+            },
+        }
     },
 
     {
@@ -291,10 +303,18 @@ export const BUILDINGS = [
         epoch: 5,
         cat: 'gather',
         requiresTech: 'coffee_agronomy',
-        visual: { icon: 'Coffee', color: 'bg-amber-900', text: 'text-amber-200' }
-    },
-
-    {
+        visual: { icon: 'Coffee', color: 'bg-amber-900', text: 'text-amber-200' },
+        // Colonial plantation economic config: serfs receive subsistence wages
+        marketConfig: {
+            price: { livingCostWeight: 0.15, taxCostWeight: 0.20 },
+            wage: {
+                livingCostWeight: 0.05,
+                taxCostWeight: 0.05,
+                wageMode: 'subsistence',      // Use living-cost based wage calculation
+                subsistenceMultiplier: 1.3,   // Colonial exploitation: even lower wages (1.3x living costs)
+            },
+        }
+    },    {
         id: 'coal_mine',
         name: "煤矿",
         desc: "开采地下煤炭，工业能源基石。",
@@ -445,7 +465,7 @@ export const BUILDINGS = [
         cat: 'industry',
         requiresTech: 'wool_trade',
         visual: { icon: 'Shirt', color: 'bg-indigo-700', text: 'text-indigo-200' },
-        // 纺织工场的差异化经济配置：继承织布坊的稳定价格特性
+        // Wool workshop economic config: serfs receive subsistence wages
         marketConfig: {
             price: {
                 livingCostWeight: 0.12,
@@ -454,6 +474,8 @@ export const BUILDINGS = [
             wage: {
                 livingCostWeight: 0.08,
                 taxCostWeight: 0.08,
+                wageMode: 'subsistence',      // Use living-cost based wage calculation
+                subsistenceMultiplier: 1.8,   // Workshop labor: slightly better (1.8x living costs)
             },
         }
     },

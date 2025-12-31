@@ -1031,6 +1031,14 @@ export const useGameLoop = (gameState, addLog, actions) => {
             return acc;
         }, {});
 
+        // [FIX] 计算已重新排队的单位数量（因人口不足被解散后重新排入队列的单位）
+        // 这些单位会自动重新训练，不需要额外招募
+        const requeuedCounts = (militaryQueue || []).reduce((acc, item) => {
+            if (!item?.unitId || !item.isRequeued) return acc;
+            acc[item.unitId] = (acc[item.unitId] || 0) + 1;
+            return acc;
+        }, {});
+
         const shortages = Object.entries(normalizedTargets).reduce((list, [unitId, target]) => {
             const unit = UNIT_TYPES[unitId];
             if (!unit) return list;
@@ -1038,7 +1046,11 @@ export const useGameLoop = (gameState, addLog, actions) => {
             const currentCount = (army?.[unitId] || 0) + (queueCounts[unitId] || 0);
             const missing = target - currentCount;
             if (missing > 0) {
-                list.push({ unitId, missing });
+                // [FIX] 如果缺口完全由已重新排队的单位填补，则不需要额外招募
+                const alreadyRequeued = requeuedCounts[unitId] || 0;
+                const actualMissing = Math.max(0, missing - alreadyRequeued);
+                if (actualMissing <= 0) return list;
+                list.push({ unitId, missing: actualMissing });
             }
             return list;
         }, []);

@@ -231,6 +231,14 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
         }
     };
 
+    // 处理确认按钮点击（仅在二次确认模式下使用）
+    const handleConfirmOption = () => {
+        if (selectedOption) {
+            onSelectOption(event.id, selectedOption);
+            onClose();
+        }
+    };
+
     // 渲染国家效果徽章
     const renderNationEffectBadges = (effectMap, type, keyPrefix) => {
         if (!effectMap) return null;

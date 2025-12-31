@@ -136,6 +136,7 @@ export const calculateWeightedAverageWage = (popStructure = {}, previousWages = 
  * @param {Object} roleExpense - Expenses by role
  * @param {Object} previousWages - Previous tick's wages
  * @param {number} wageSmoothing - Smoothing factor (0-1)
+ * @param {Object} maxWageCaps - Optional max wage caps by role { role: maxWage }
  * @returns {Object} Updated wages by role
  */
 export const updateWages = (
@@ -144,7 +145,8 @@ export const updateWages = (
     roleWagePayout = {},
     roleExpense = {},
     previousWages = {},
-    wageSmoothing = 0.35
+    wageSmoothing = 0.35,
+    maxWageCaps = {}
 ) => {
     const updatedWages = {};
 
@@ -155,7 +157,23 @@ export const updateWages = (
         if (pop > 0) {
             const income = roleWagePayout[role] || 0;
             const expense = roleExpense[role] || 0;
-            currentSignal = (income - expense) / pop;
+            
+            // Calculate raw signal
+            let rawSignal = (income - expense) / pop;
+            
+            // NEW: Dampen wage signal for roles with extremely high profit margins
+            // This prevents runaway wage inflation for low-expense roles like serfs
+            if (expense > 0 && rawSignal > 0) {
+                const profitRatio = rawSignal / expense;
+                // If profit is more than 10x expenses, dampen the signal
+                if (profitRatio > 10) {
+                    // Logarithmic dampening: reduces extreme signals
+                    const dampingFactor = Math.min(1, 2 / Math.log10(profitRatio + 1));
+                    rawSignal = expense * (1 + profitRatio * dampingFactor);
+                }
+            }
+            
+            currentSignal = rawSignal;
         } else {
             if (data.weightedWage > 0 && data.totalSlots > 0) {
                 currentSignal = data.weightedWage / data.totalSlots;
@@ -167,7 +185,21 @@ export const updateWages = (
         currentSignal = Math.max(0, currentSignal);
 
         const prev = previousWages[role] || 0;
-        const smoothed = prev + (currentSignal - prev) * wageSmoothing;
+        
+        // Apply slower smoothing for rapid wage increases to prevent runaway inflation
+        let effectiveSmoothing = wageSmoothing;
+        if (currentSignal > prev * 1.5) {
+            // If wage signal is 50% higher than previous, use slower adjustment
+            effectiveSmoothing = wageSmoothing * 0.5;
+        }
+        
+        let smoothed = prev + (currentSignal - prev) * effectiveSmoothing;
+
+        // NEW: Apply max wage cap if specified for this role
+        const maxCap = maxWageCaps[role];
+        if (Number.isFinite(maxCap) && maxCap > 0 && smoothed > maxCap) {
+            smoothed = maxCap;
+        }
 
         updatedWages[role] = parseFloat(smoothed.toFixed(2));
     });

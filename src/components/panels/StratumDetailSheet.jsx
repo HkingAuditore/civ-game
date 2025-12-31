@@ -1033,8 +1033,12 @@ const StratumDetailSheetComponent = ({
                             const productionCostsRaw = (data.productionCosts || 0);
                             const productionCosts = productionCostsRaw / safeDayScale / Math.max(count, 1);
 
+                            // 工资支出（业主支付给工人）
+                            const wagesRaw = (data.wages || 0);
+                            const wages = wagesRaw / safeDayScale / Math.max(count, 1);
+
                             // Calculate 'Other' based on total roleExpense vs tracked items
-                            const trackedTotal = headTax + transactionTax + businessTax + tariffs + essentialNeeds + luxuryNeeds + decay + productionCosts;
+                            const trackedTotal = headTax + transactionTax + businessTax + tariffs + essentialNeeds + luxuryNeeds + decay + productionCosts + wages;
                             const other = Math.max(0, expensePerCapita - trackedTotal);
 
                             return (
@@ -1145,6 +1149,12 @@ const StratumDetailSheetComponent = ({
                                         <div className="flex justify-between items-center text-xs">
                                             <span className="text-gray-300">富裕性挥霍</span>
                                             <span className="text-red-400 font-mono">-{decay.toFixed(2)}</span>
+                                        </div>
+                                    )}
+                                    {wages > 0.001 && (
+                                        <div className="flex justify-between items-center text-xs">
+                                            <span className="text-gray-300">工资支出</span>
+                                            <span className="text-red-400 font-mono">-{wages.toFixed(2)}</span>
                                         </div>
                                     )}
                                     {other > 0.01 && (
