@@ -94,8 +94,11 @@ export const BattleResultModal = ({ result, onClose }) => {
                                 )}
                             </div>
 
-                            {/* 内容 - Same as before, just wrapped in the motion div context */}
-                            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                            {/* 内容区域 - 添加移动端触摸滚动支持 */}
+                            <div
+                                className="flex-1 overflow-y-auto p-4 space-y-3"
+                                style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y', overscrollBehavior: 'contain' }}
+                            >
                                 {/* 战斗统计 */}
                                 {(!result.isRaid || (result.isRaid && result.ourPower > 0)) && (
                                     <div className="glass-ancient rounded-xl border border-ancient-gold/20 p-3 shadow-ancient">
@@ -180,16 +183,16 @@ export const BattleResultModal = ({ result, onClose }) => {
                                     </div>
                                 )}
 
-                                {/* 我方损失 */}
-                                {(!result.isRaid || (result.isRaid && Object.keys(result.losses || result.defenderLosses || {}).length > 0)) && (
+                                {/* 我方损失 - 使用 result.losses（对应玩家作为攻击方的损失） */}
+                                {(!result.isRaid || (result.isRaid && Object.keys(result.losses || {}).length > 0)) && (
                                     <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
                                         <h3 className="text-[10px] font-bold mb-1.5 flex items-center gap-1 text-white">
                                             <Icon name="Heart" size={12} className="text-red-400" />
                                             我方损失
                                         </h3>
-                                        {Object.keys(result.losses || result.defenderLosses || result.attackerLosses || {}).length > 0 ? (
+                                        {Object.keys(result.losses || {}).length > 0 ? (
                                             <div className="space-y-1">
-                                                {Object.entries(result.losses || result.defenderLosses || result.attackerLosses || {}).map(([unitId, count]) => {
+                                                {Object.entries(result.losses || {}).map(([unitId, count]) => {
                                                     const unit = UNIT_TYPES[unitId];
                                                     if (!unit || count === 0) return null;
                                                     return (
@@ -215,15 +218,15 @@ export const BattleResultModal = ({ result, onClose }) => {
                                     </div>
                                 )}
 
-                                {/* 敌方损失 */}
-                                {(result.enemyLosses || result.attackerLosses) && Object.keys(result.enemyLosses || result.attackerLosses || {}).length > 0 && (
+                                {/* 敌方损失 - 使用 result.enemyLosses（对应敌人作为防守方的损失） */}
+                                {result.enemyLosses && Object.keys(result.enemyLosses).length > 0 && (
                                     <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
                                         <h3 className="text-[10px] font-bold mb-1.5 flex items-center gap-1 text-white">
                                             <Icon name="Skull" size={12} className="text-gray-400" />
                                             敌方损失
                                         </h3>
                                         <div className="space-y-1">
-                                            {Object.entries(result.enemyLosses || result.attackerLosses || {}).map(([unitId, count]) => {
+                                            {Object.entries(result.enemyLosses).map(([unitId, count]) => {
                                                 const unit = UNIT_TYPES[unitId];
                                                 if (!unit || count === 0) return null;
                                                 return (
