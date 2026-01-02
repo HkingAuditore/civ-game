@@ -932,7 +932,9 @@ const ResourceDetailContent = ({
             const buildingMultiplier = 1 + totalBonusPct;
 
             const theoreticalAmount = baseAmount * buildingMultiplier * resourceSupplyMultiplier;
-            const actualAmount = realProduction ?? 0;
+            // 使用实际产出数据，如果没有或为0则回退到理论产出值（与 BuildingDetails.jsx 保持一致）
+            // 当建筑因为某些原因（如业主财富不足）没有实际产出时，仍显示理论值作为参考
+            const actualAmount = (realProduction !== undefined && realProduction > 0) ? realProduction : theoreticalAmount;
 
             actualSupplyTotal += actualAmount;
             theoreticalSupplyTotal += theoreticalAmount;

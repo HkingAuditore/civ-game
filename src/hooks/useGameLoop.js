@@ -2500,6 +2500,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                         isRaid: true,
                                         attackerArmy: raidData.attackerArmy, // Pass attacker army composition
                                         defenderArmy: raidData.defenderArmy, // Pass defender army composition
+                                        isPlayerAttacker: false,
                                     };
 
                                     debugLog('event', '[EVENT DEBUG] Raid battle result created (pre-loop):', battleResult);

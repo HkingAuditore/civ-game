@@ -1005,6 +1005,7 @@ export const simulateTick = ({
     const needsRequirementMultiplier = 1 - effectiveNeedsReduction;
 
     Object.keys(STRATA).forEach(key => {
+        if (key === 'official') return;
         const count = popStructure[key] || 0;
         if (count === 0) return;
         const def = STRATA[key];
@@ -2115,6 +2116,11 @@ export const simulateTick = ({
     // 收集各阶层的财富乘数（用于UI显示"谁吃到了buff"）
     const stratumWealthMultipliers = {};
     Object.keys(STRATA).forEach(key => {
+        if (key === 'official') {
+            needsReport[key] = { satisfactionRatio: 1, totalTrackedNeeds: 0 };
+            classShortages[key] = [];
+            return;
+        }
         const def = STRATA[key];
         const count = popStructure[key] || 0;
         if (count === 0 || !def.needs) {
@@ -2655,33 +2661,121 @@ export const simulateTick = ({
             }
         }
 
-        // 支出：按 STRATA.official.needs 计算需求成本
-        // 使用简化计算：基础需求 * 市场价格
+        // 支出：官员独立购买商品，更新市场供需与税收
         const officialNeeds = STRATA.official?.needs || { food: 1.2, cloth: 0.2 };
+        const officialLuxuryNeeds = STRATA.official?.luxuryNeeds || {};
         let dailyExpense = 0;
 
+        const consumeOfficialResource = (resource, amountPerCapita, isLuxury = false) => {
+            if (!resource || amountPerCapita <= 0) return;
+            const resourceInfo = RESOURCES[resource];
+            if (resourceInfo?.unlockTech && !techsUnlocked.includes(resourceInfo.unlockTech)) return;
+            if (resourceInfo && typeof resourceInfo.unlockEpoch === 'number' && resourceInfo.unlockEpoch > epoch) return;
+            if (potentialResources && !potentialResources.has(resource)) return;
+
+            let requirement = amountPerCapita * needsRequirementMultiplier;
+            if (requirement <= 0) return;
+
+            const eventResourceMod = eventResourceDemandModifiers[resource] || 0;
+            const decreeResourceMod = decreeResourceDemandMod[resource] || 0;
+            const totalResourceDemandMod = eventResourceMod + decreeResourceMod;
+            if (totalResourceDemandMod !== 0) {
+                requirement *= (1 + totalResourceDemandMod);
+            }
+
+            const eventStratumMod = eventStratumDemandModifiers.official || 0;
+            const decreeStratumMod = decreeStratumDemandMod.official || 0;
+            const totalStratumDemandMod = eventStratumMod + decreeStratumMod;
+            if (totalStratumDemandMod !== 0) {
+                requirement *= (1 + totalStratumDemandMod);
+            }
+
+            const available = res[resource] || 0;
+            if (isTradableResource(resource)) {
+                const price = getPrice(resource);
+                const taxRate = getResourceTaxRate(resource);
+                const priceWithTax = price * (1 + taxRate);
+                const affordable = priceWithTax > 0
+                    ? Math.min(requirement, currentWealth / priceWithTax)
+                    : requirement;
+                const amount = Math.min(requirement, available, affordable);
+                if (amount <= 0) return;
+
+                res[resource] = available - amount;
+                rates[resource] = (rates[resource] || 0) - amount;
+                demand[resource] = (demand[resource] || 0) + amount;
+
+                const baseCost = amount * price;
+                const taxPaid = baseCost * taxRate;
+                let totalCost = baseCost;
+
+                if (taxPaid < 0) {
+                    const subsidyAmount = Math.abs(taxPaid);
+                    if ((res.silver || 0) >= subsidyAmount) {
+                        res.silver -= subsidyAmount;
+                        taxBreakdown.subsidy += subsidyAmount;
+                        totalCost -= subsidyAmount;
+                        totalOfficialIncome += subsidyAmount;
+                        if (classFinancialData.official) {
+                            classFinancialData.official.income.subsidy =
+                                (classFinancialData.official.income.subsidy || 0) + subsidyAmount;
+                        }
+                    } else if (tick % 20 === 0) {
+                        logs.push(`国库空虚，无法为 官员 支付 ${RESOURCES[resource]?.name || resource} 消费补贴！`);
+                    }
+                } else if (taxPaid > 0) {
+                    taxBreakdown.industryTax += taxPaid;
+                    totalCost += taxPaid;
+                }
+
+                currentWealth = Math.max(0, currentWealth - totalCost);
+                dailyExpense += totalCost;
+
+                if (!stratumConsumption.official) stratumConsumption.official = {};
+                stratumConsumption.official[resource] = (stratumConsumption.official[resource] || 0) + amount;
+
+                if (classFinancialData.official) {
+                    const needEntry = { cost: totalCost, quantity: amount, price };
+                    const bucket = isLuxury ? 'luxuryNeeds' : 'essentialNeeds';
+                    classFinancialData.official.expense[bucket] = classFinancialData.official.expense[bucket] || {};
+                    const existing = classFinancialData.official.expense[bucket][resource];
+                    if (existing && typeof existing === 'object') {
+                        existing.cost += totalCost;
+                        existing.quantity += amount;
+                    } else {
+                        classFinancialData.official.expense[bucket][resource] = needEntry;
+                    }
+                    if (taxPaid > 0) {
+                        classFinancialData.official.expense.transactionTax =
+                            (classFinancialData.official.expense.transactionTax || 0) + taxPaid;
+                    }
+                }
+            } else {
+                const amount = Math.min(requirement, available);
+                if (amount > 0) {
+                    res[resource] = available - amount;
+                }
+            }
+        };
+
         Object.entries(officialNeeds).forEach(([resource, baseAmount]) => {
-            const price = priceMap[resource] || 1;
-            dailyExpense += baseAmount * price;
+            consumeOfficialResource(resource, baseAmount, false);
         });
 
-        // 基于财富水平的奢侈需求（简化版）
+        // 基于财富水平的奢侈需求
         const wealthRatio = currentWealth / 400; // 相对于初始财富的比例
-        if (wealthRatio >= 1.0 && STRATA.official?.luxuryNeeds) {
-            // 找到适用的奢侈需求等级
-            const luxuryThresholds = Object.keys(STRATA.official.luxuryNeeds)
+        if (wealthRatio >= 1.0 && officialLuxuryNeeds) {
+            const luxuryThresholds = Object.keys(officialLuxuryNeeds)
                 .map(Number)
                 .filter(t => t <= wealthRatio)
                 .sort((a, b) => b - a);
 
             luxuryThresholds.forEach(threshold => {
-                const needs = STRATA.official.luxuryNeeds[threshold];
-                if (needs) {
-                    Object.entries(needs).forEach(([resource, amount]) => {
-                        const price = priceMap[resource] || 1;
-                        dailyExpense += amount * price;
-                    });
-                }
+                const needs = officialLuxuryNeeds[threshold];
+                if (!needs) return;
+                Object.entries(needs).forEach(([resource, amount]) => {
+                    consumeOfficialResource(resource, amount, true);
+                });
             });
         }
 

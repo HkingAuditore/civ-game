@@ -505,8 +505,10 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
     const buildingModifiers = getBuildingModifiers(building);
 
     // 计算实际产出（优先使用 supplyBreakdown 中的数据，包含加成）
+    // 当建筑因为某些原因（如业主财富不足）没有实际产出时，仍显示理论值作为参考
     const totalOutputs = Object.entries(effectiveTotalStats.output || {}).map(([resKey, baseAmount]) => {
-        const actualAmount = supplyBreakdown[resKey]?.buildings?.[building.id] ?? baseAmount;
+        const rawValue = supplyBreakdown[resKey]?.buildings?.[building.id];
+        const actualAmount = (rawValue !== undefined && rawValue > 0) ? rawValue : baseAmount;
         const hasBonus = actualAmount !== baseAmount && actualAmount > 0;
         return [resKey, actualAmount, baseAmount, hasBonus];
     }).filter(([, amount]) => amount > 0);
@@ -516,7 +518,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
     const sources = market?.modifiers?.sources || {};
     const inputCostMod = sources.productionInputCost?.[building.id] || 0;
     const hasInputCostMod = inputCostMod !== 0;
-    
+
     const totalInputs = Object.entries(effectiveTotalStats.input || {}).map(([resKey, baseAmount]) => {
         const actualAmount = demandBreakdown[resKey]?.buildings?.[building.id] ?? baseAmount;
         const hasBonus = actualAmount !== baseAmount;

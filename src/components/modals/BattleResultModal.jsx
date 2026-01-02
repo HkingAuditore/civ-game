@@ -16,6 +16,9 @@ import { RESOURCES } from '../../config/gameConstants';
  */
 export const BattleResultModal = ({ result, onClose }) => {
     // Removed isAnimatingOut and handleClose logic as AnimatePresence handles it
+    const isPlayerAttacker = result?.isPlayerAttacker !== undefined ? result.isPlayerAttacker : true;
+    const ourArmy = isPlayerAttacker ? result?.attackerArmy : result?.defenderArmy;
+    const enemyArmy = isPlayerAttacker ? result?.defenderArmy : result?.attackerArmy;
 
     return createPortal(
         <AnimatePresence>
@@ -51,7 +54,7 @@ export const BattleResultModal = ({ result, onClose }) => {
                             </svg>
                         </div>
 
-                        <div className="relative z-10 flex flex-col h-full">
+                        <div className="relative z-10 flex flex-col h-full min-h-0">
                             {/* 头部 */}
                             <div
                                 className={`flex-shrink-0 p-4 border-b border-ancient-gold/20 ${result.victory
@@ -96,7 +99,7 @@ export const BattleResultModal = ({ result, onClose }) => {
 
                             {/* 内容区域 - 添加移动端触摸滚动支持 */}
                             <div
-                                className="flex-1 overflow-y-auto p-4 space-y-3"
+                                className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3"
                                 style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y', overscrollBehavior: 'contain' }}
                             >
                                 {/* 战斗统计 */}
@@ -137,7 +140,7 @@ export const BattleResultModal = ({ result, onClose }) => {
                                         </div>
                                     </div>
                                 )}
-                                {(result.attackerArmy || result.defenderArmy) && (
+                                {(ourArmy || enemyArmy) && (
                                     <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
                                         <h3 className="text-[11px] font-bold mb-2 flex items-center gap-1 text-white">
                                             <Icon name="Users" size={12} className="text-blue-400" />
@@ -147,7 +150,7 @@ export const BattleResultModal = ({ result, onClose }) => {
                                             {/* 我方部队 */}
                                             <div className="space-y-1">
                                                 <div className="text-[10px] text-gray-400 border-b border-gray-600 pb-1 mb-1">我方</div>
-                                                {Object.entries(result.attackerArmy || {}).map(([unitId, count]) => {
+                                                {Object.entries(ourArmy || {}).map(([unitId, count]) => {
                                                     const unit = UNIT_TYPES[unitId];
                                                     if (!unit || count === 0) return null;
                                                     return (
@@ -157,7 +160,7 @@ export const BattleResultModal = ({ result, onClose }) => {
                                                         </div>
                                                     );
                                                 })}
-                                                {Object.keys(result.attackerArmy || {}).length === 0 && (
+                                                {Object.keys(ourArmy || {}).length === 0 && (
                                                     <div className="text-[10px] text-gray-500 italic">无数据</div>
                                                 )}
                                             </div>
@@ -165,7 +168,7 @@ export const BattleResultModal = ({ result, onClose }) => {
                                             {/* 敌方部队 */}
                                             <div className="space-y-1">
                                                 <div className="text-[10px] text-gray-400 border-b border-gray-600 pb-1 mb-1">敌方</div>
-                                                {Object.entries(result.defenderArmy || {}).map(([unitId, count]) => {
+                                                {Object.entries(enemyArmy || {}).map(([unitId, count]) => {
                                                     const unit = UNIT_TYPES[unitId];
                                                     if (!unit || count === 0) return null;
                                                     return (
@@ -175,7 +178,7 @@ export const BattleResultModal = ({ result, onClose }) => {
                                                         </div>
                                                     );
                                                 })}
-                                                {Object.keys(result.defenderArmy || {}).length === 0 && (
+                                                {Object.keys(enemyArmy || {}).length === 0 && (
                                                     <div className="text-[10px] text-gray-500 italic">无数据</div>
                                                 )}
                                             </div>

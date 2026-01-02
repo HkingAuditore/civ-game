@@ -1540,6 +1540,7 @@ export const useGameActions = (gameState, addLog) => {
             enemyLosses: result.defenderLosses || {},
             attackerArmy: attackerData.army, // Pass attacker army composition
             defenderArmy: defenderData.army, // Pass defender army composition
+            isPlayerAttacker: true,
             resourcesGained,
             attackerAllCavalry,
             attackerTotalUnits: totalUnits,

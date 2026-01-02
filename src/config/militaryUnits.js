@@ -928,94 +928,394 @@ export const calculateCounterBonus = (attackerArmy, defenderArmy) => {
     return { multiplier: bonusMultiplier, counterCount };
 };
 
-// 完整战斗模拟
-export const simulateBattle = (attackerData, defenderData) => {
-    const { army: attackerArmy, epoch: attackerEpoch, militaryBuffs: attackerBuffs = 0 } = attackerData;
-    const { army: defenderArmy, epoch: defenderEpoch, militaryBuffs: defenderBuffs = 0, wealth: defenderWealth = 1000 } = defenderData;
+const ATTACK_ABILITY_BONUS = {
+    '范围伤害': 0.12,
+    '压制火力': 0.1,
+    '火器': 0.06,
+    '齐射': 0.05,
+    '远程攻击': 0.05,
+    '穿甲': 0.06,
+    '冲锋': 0.06,
+    '机动': 0.04,
+    '快速移动': 0.04,
+    '侦察': 0.03,
+    '攻城': 0.08,
+    '精确打击': 0.08,
+};
 
-    // 计算基础战斗力
-    let attackerPower = calculateBattlePower(attackerArmy, attackerEpoch, attackerBuffs);
-    let defenderPower = calculateBattlePower(defenderArmy, defenderEpoch, defenderBuffs);
+const DEFENSE_ABILITY_BONUS = {
+    '坚守': 0.08,
+    '方阵': 0.08,
+    '盾墙': 0.08,
+};
 
-    // 计算克制加成
-    const attackerCounter = calculateCounterBonus(attackerArmy, defenderArmy);
-    const defenderCounter = calculateCounterBonus(defenderArmy, attackerArmy);
+const sumAbilityBonus = (abilities, bonusMap) => {
+    if (!Array.isArray(abilities)) return 0;
+    return abilities.reduce((sum, ability) => sum + (bonusMap[ability] || 0), 0);
+};
 
-    attackerPower *= attackerCounter.multiplier;
-    defenderPower *= defenderCounter.multiplier;
+const getEnemyCategoryRatios = (enemyCategoryCounts = {}) => {
+    const total = Object.values(enemyCategoryCounts).reduce((sum, count) => sum + (count || 0), 0);
+    if (total <= 0) {
+        return { infantry: 0, cavalry: 0, archer: 0, gunpowder: 0, siege: 0 };
+    }
+    return {
+        infantry: (enemyCategoryCounts.infantry || 0) / total,
+        cavalry: (enemyCategoryCounts.cavalry || 0) / total,
+        archer: (enemyCategoryCounts.archer || 0) / total,
+        gunpowder: (enemyCategoryCounts.gunpowder || 0) / total,
+        siege: (enemyCategoryCounts.siege || 0) / total,
+    };
+};
 
-    // 防御方有地形优势
-    defenderPower *= 1.2;
+const getCategoryCounts = (army = {}) => {
+    const counts = {};
+    Object.entries(army).forEach(([unitId, count]) => {
+        if (count <= 0) return;
+        const unit = UNIT_TYPES[unitId];
+        if (!unit) return;
+        counts[unit.category] = (counts[unit.category] || 0) + count;
+    });
+    return counts;
+};
 
-    // 添加随机因素 (±15%)
-    const attackerRandom = 0.85 + Math.random() * 0.3;
-    const defenderRandom = 0.85 + Math.random() * 0.3;
-
-    attackerPower *= attackerRandom;
-    defenderPower *= defenderRandom;
-
-    // 计算战斗结果
-    const totalPower = attackerPower + defenderPower;
-    const attackerAdvantage = attackerPower / totalPower;
-    const defenderAdvantage = defenderPower / totalPower;
-
-    const victory = attackerAdvantage > 0.5;
-    const decisive = Math.abs(attackerAdvantage - 0.5) > 0.3; // 压倒性胜利
-
-    // 计算损失 - 优化版：碾压级优势时显著降低攻击方损失
-    const clampRate = (value, min, max) => Math.max(min, Math.min(max, value));
-    // 当敌方战力为0时，使用极高的powerRatio（100）来表示绝对碾压
-    const powerRatio = defenderPower > 0 ? attackerPower / defenderPower : 100;
-    const safeRatio = Math.max(0.1, powerRatio);
-    let attackerLossRate;
-    let defenderLossRate;
-
-    if (victory) {
-        const ratioFactor = Math.max(1, safeRatio);
-        // 碾压级优势计算：战力比越高，损失越低
-        // ratioFactor = 2 时，attackerLossRate ≈ 2.5%
-        // ratioFactor = 5 时，attackerLossRate ≈ 1%
-        // ratioFactor = 10 时，attackerLossRate ≈ 0.5%
-        if (ratioFactor >= 3) {
-            // 碾压级优势：使用指数衰减公式
-            // ratioFactor >= 20 时，损失可以低至 0.05% (near zero)
-            const minLossRate = ratioFactor >= 20 ? 0.0005 : (ratioFactor >= 10 ? 0.002 : 0.005);
-            attackerLossRate = clampRate(0.04 / Math.pow(ratioFactor, 1.0), minLossRate, 0.03); 
-            
-            // 劣势方损失计算：允许达到 100% 全军覆没
-            defenderLossRate = clampRate(0.55 + Math.log10(ratioFactor) * 0.35, 0.60, 1.0);
-        } else {
-            // 普通优势
-            attackerLossRate = clampRate((0.06 / ratioFactor) + 0.02, 0.02, 0.35);
-            defenderLossRate = clampRate(0.35 + Math.log10(ratioFactor + 1) * 0.40, 0.35, 0.85);
+const getCounterMultiplier = (unit, enemyCategoryCounts, enemyTotalUnits) => {
+    if (!unit || enemyTotalUnits <= 0) return 1;
+    let multiplier = 1;
+    Object.entries(unit.counters || {}).forEach(([category, bonus]) => {
+        const weight = (enemyCategoryCounts[category] || 0) / enemyTotalUnits;
+        if (weight > 0) {
+            multiplier += (bonus - 1) * weight;
         }
-    } else {
-        const inverseRatio = Math.max(1, 1 / safeRatio);
-        attackerLossRate = clampRate(0.32 + Math.log10(inverseRatio + 1) * 0.55, 0.25, 0.95);
-        defenderLossRate = clampRate((0.12 / inverseRatio) + 0.18, 0.12, 0.6);
+    });
+    return multiplier;
+};
+
+const getCounterPressureByCategory = (enemyArmy = {}) => {
+    const pressure = {
+        infantry: 1,
+        cavalry: 1,
+        archer: 1,
+        gunpowder: 1,
+        siege: 1,
+    };
+    const totalEnemyUnits = Object.values(enemyArmy).reduce((sum, count) => sum + (count || 0), 0);
+    if (totalEnemyUnits <= 0) return pressure;
+
+    Object.entries(enemyArmy).forEach(([unitId, count]) => {
+        if (count <= 0) return;
+        const unit = UNIT_TYPES[unitId];
+        if (!unit || !unit.counters) return;
+        const weight = count / totalEnemyUnits;
+        Object.entries(unit.counters).forEach(([category, bonus]) => {
+            pressure[category] += (bonus - 1) * weight;
+        });
+    });
+
+    return pressure;
+};
+
+const buildCombatProfile = ({
+    army,
+    enemyCategoryCounts,
+    enemyCounterPressure,
+    militaryBuffs = 0,
+    defenseMultiplier = 1,
+}) => {
+    let totalAttack = 0;
+    let totalDefense = 0;
+    let totalUnits = 0;
+    const unitProfiles = {};
+    const enemyTotalUnits = Object.values(enemyCategoryCounts || {}).reduce((sum, count) => sum + (count || 0), 0);
+    const enemyRatios = getEnemyCategoryRatios(enemyCategoryCounts);
+
+    Object.entries(army || {}).forEach(([unitId, count]) => {
+        if (count <= 0) return;
+        const unit = UNIT_TYPES[unitId];
+        if (!unit) return;
+
+        const counterMultiplier = getCounterMultiplier(unit, enemyCategoryCounts || {}, enemyTotalUnits);
+        const attackAbilityBonus = sumAbilityBonus(unit.abilities, ATTACK_ABILITY_BONUS);
+        const defenseAbilityBonus = sumAbilityBonus(unit.abilities, DEFENSE_ABILITY_BONUS);
+        const rangeBonus = Math.min(0.3, (unit.range || 1) * 0.03);
+        const speedBonus = Math.min(0.2, (unit.speed || 1) * 0.02);
+
+        // 能力-规则细化：根据敌方构成对攻击/防御做情境修正
+        let abilityAttackMod = 0;
+        let abilityDefenseMod = 0;
+        let counterPressureMod = 0;
+        const abilities = Array.isArray(unit.abilities) ? unit.abilities : [];
+
+        if (abilities.includes('范围伤害')) {
+            abilityAttackMod += 0.18 * (enemyRatios.infantry + enemyRatios.archer);
+        }
+        if (abilities.includes('压制火力')) {
+            abilityAttackMod += 0.12 * (enemyRatios.infantry + enemyRatios.archer);
+        }
+        if (abilities.includes('火器')) {
+            abilityAttackMod += 0.1 * (enemyRatios.infantry + enemyRatios.cavalry);
+            abilityDefenseMod -= 0.08 * enemyRatios.cavalry;
+        }
+        if (abilities.includes('穿甲')) {
+            abilityAttackMod += 0.08 * (enemyRatios.infantry + enemyRatios.gunpowder + enemyRatios.siege);
+        }
+        if (abilities.includes('冲锋') && (unit.speed || 0) >= 6) {
+            abilityAttackMod += 0.1 * (enemyRatios.gunpowder + enemyRatios.archer);
+        }
+        if (abilities.includes('刺刀冲锋')) {
+            abilityAttackMod += 0.06 * enemyRatios.cavalry;
+        }
+        if (abilities.includes('装填缓慢')) {
+            abilityAttackMod -= 0.12 * enemyRatios.cavalry;
+        }
+        if (abilities.includes('重甲')) {
+            abilityDefenseMod += 0.12;
+            abilityAttackMod -= 0.05;
+        }
+        if (abilities.includes('抗火器')) {
+            counterPressureMod -= 0.15 * enemyRatios.gunpowder;
+            abilityDefenseMod += 0.05 * enemyRatios.gunpowder;
+        }
+        if (abilities.includes('精确射击') || abilities.includes('精确打击')) {
+            abilityAttackMod += 0.08 * (enemyRatios.siege + enemyRatios.infantry);
+        }
+        if (abilities.includes('下马作战')) {
+            abilityDefenseMod += 0.08 * enemyRatios.cavalry;
+        }
+
+        const attackPerUnit = unit.attack
+            * (1 + rangeBonus + speedBonus + attackAbilityBonus + abilityAttackMod)
+            * (1 + militaryBuffs)
+            * counterMultiplier;
+
+        const defensePerUnit = unit.defense
+            * (1 + speedBonus * 0.5 + defenseAbilityBonus + abilityDefenseMod)
+            * defenseMultiplier
+            * (1 + militaryBuffs);
+
+        const counterPressure = Math.max(0.6, (enemyCounterPressure?.[unit.category] || 1) * (1 + counterPressureMod));
+        const adjustedDefensePerUnit = defensePerUnit / counterPressure;
+
+        totalAttack += attackPerUnit * count;
+        totalDefense += defensePerUnit * count;
+        totalUnits += count;
+
+        unitProfiles[unitId] = {
+            count,
+            attackPerUnit,
+            defensePerUnit,
+            adjustedDefensePerUnit,
+            category: unit.category,
+        };
+    });
+
+    return {
+        totalAttack,
+        totalDefense,
+        totalUnits,
+        unitProfiles,
+    };
+};
+
+const getDominantCategory = (unitProfiles = {}) => {
+    const categoryCounts = {};
+    Object.values(unitProfiles).forEach((profile) => {
+        if (!profile) return;
+        categoryCounts[profile.category] = (categoryCounts[profile.category] || 0) + profile.count;
+    });
+    let dominantCategory = null;
+    let maxCount = 0;
+    Object.entries(categoryCounts).forEach(([category, count]) => {
+        if (count > maxCount) {
+            maxCount = count;
+            dominantCategory = category;
+        }
+    });
+    return dominantCategory;
+};
+
+const probabilisticRound = (value) => {
+    const integerPart = Math.floor(value);
+    const fractionalPart = value - integerPart;
+    return integerPart + (Math.random() < fractionalPart ? 1 : 0);
+};
+
+const applyLossCap = (losses, maxTotal) => {
+    if (maxTotal <= 0) return {};
+    const capped = { ...losses };
+    let totalLoss = Object.values(capped).reduce((sum, count) => sum + (count || 0), 0);
+    if (totalLoss <= maxTotal) return capped;
+
+    const scale = maxTotal / totalLoss;
+    Object.keys(capped).forEach((unitId) => {
+        capped[unitId] = probabilisticRound(capped[unitId] * scale);
+    });
+
+    totalLoss = Object.values(capped).reduce((sum, count) => sum + (count || 0), 0);
+    if (totalLoss <= maxTotal) return capped;
+
+    const unitIdsByLoss = Object.keys(capped).sort((a, b) => (capped[b] || 0) - (capped[a] || 0));
+    let index = 0;
+    while (totalLoss > maxTotal && unitIdsByLoss.length > 0) {
+        const unitId = unitIdsByLoss[index % unitIdsByLoss.length];
+        if ((capped[unitId] || 0) > 0) {
+            capped[unitId] -= 1;
+            totalLoss -= 1;
+        }
+        index += 1;
     }
 
-    const lossRandomness = 0.9 + Math.random() * 0.2;
-    attackerLossRate *= lossRandomness;
-    defenderLossRate *= lossRandomness;
+    return capped;
+};
 
-    const attackerLosses = {};
-    const defenderLosses = {};
+const computeLosses = ({
+    sideProfile,
+    enemyProfile,
+    enemyCounterPressure,
+    isWinner,
+    powerRatio,
+    decisive,
+    dominanceRatio,
+    ownPowerScore,
+    enemyPowerScore,
+}) => {
+    if (!sideProfile || sideProfile.totalUnits <= 0 || enemyProfile.totalAttack <= 0) {
+        return {};
+    }
 
-    // 辅助函数：概率取整 (例如 1.8 -> 80%几率是2, 20%几率是1)
-    const probabilisticRound = (value) => {
-        const integerPart = Math.floor(value);
-        const fractionalPart = value - integerPart;
-        return integerPart + (Math.random() < fractionalPart ? 1 : 0);
-    };
+    const relativePower = enemyPowerScore / (enemyPowerScore + ownPowerScore);
+    let damageScale = 0.12 * Math.pow(relativePower, 0.9);
+    if (isWinner) damageScale *= 0.75;
+    if (decisive) damageScale *= isWinner ? 0.6 : 1.1;
+    damageScale *= 0.9 + Math.random() * 0.2;
 
-    Object.entries(attackerArmy).forEach(([unitId, count]) => {
-        attackerLosses[unitId] = Math.min(count, probabilisticRound(count * attackerLossRate));
+    // 劣势方允许更高的伤害预算，支持“全灭”
+    if (!isWinner) {
+        const dominance = Math.max(1, dominanceRatio || 1);
+        damageScale *= 1 + Math.min(0.8, (dominance - 1) * 0.18);
+    }
+
+    const damagePoints = enemyProfile.totalAttack * damageScale;
+    if (damagePoints <= 0) return {};
+
+    let exposureTotal = 0;
+    Object.values(sideProfile.unitProfiles).forEach((profile) => {
+        exposureTotal += profile.count / profile.adjustedDefensePerUnit;
     });
 
-    Object.entries(defenderArmy).forEach(([unitId, count]) => {
-        defenderLosses[unitId] = Math.min(count, probabilisticRound(count * defenderLossRate));
+    if (exposureTotal <= 0) return {};
+
+    const losses = {};
+    Object.entries(sideProfile.unitProfiles).forEach(([unitId, profile]) => {
+        const exposure = profile.count / profile.adjustedDefensePerUnit;
+        const assignedDamage = damagePoints * (exposure / exposureTotal);
+        const expectedLoss = assignedDamage / profile.adjustedDefensePerUnit;
+        losses[unitId] = Math.min(profile.count, probabilisticRound(expectedLoss));
     });
+
+    if (!isWinner) {
+        const dominance = Math.max(1, dominanceRatio || 1);
+        if (dominance >= 3 && (decisive || dominance >= 6)) {
+            const wipeChance = Math.min(0.75, 0.2 + (dominance - 3) * 0.12 + (decisive ? 0.15 : 0));
+            if (Math.random() < wipeChance) {
+                const wiped = {};
+                Object.entries(sideProfile.unitProfiles).forEach(([unitId, profile]) => {
+                    wiped[unitId] = profile.count;
+                });
+                return wiped;
+            }
+        }
+    }
+
+    if (isWinner && powerRatio >= 3 && enemyProfile.totalUnits > 0) {
+        let maxLossTotal;
+        if (powerRatio >= 10) {
+            maxLossTotal = Math.floor(Math.sqrt(enemyProfile.totalUnits) * 0.2);
+        } else if (powerRatio >= 6) {
+            maxLossTotal = Math.floor(Math.sqrt(enemyProfile.totalUnits) * 0.3);
+        } else {
+            maxLossTotal = Math.floor(Math.sqrt(enemyProfile.totalUnits) * 0.4);
+        }
+
+        const dominantCategory = getDominantCategory(sideProfile.unitProfiles);
+        const counterPressure = enemyCounterPressure?.[dominantCategory] || 1;
+        if (counterPressure >= 1.4 && maxLossTotal === 0 && enemyProfile.totalUnits >= 5) {
+            maxLossTotal = 1;
+        }
+
+        return applyLossCap(losses, maxLossTotal);
+    }
+
+    return losses;
+};
+
+// 完整战斗模拟
+export const simulateBattle = (attackerData, defenderData) => {
+    const { army: attackerArmy, militaryBuffs: attackerBuffs = 0 } = attackerData;
+    const { army: defenderArmy, militaryBuffs: defenderBuffs = 0, wealth: defenderWealth = 1000 } = defenderData;
+
+    const attackerCategoryCounts = getCategoryCounts(attackerArmy);
+    const defenderCategoryCounts = getCategoryCounts(defenderArmy);
+    const attackerCounterPressure = getCounterPressureByCategory(attackerArmy);
+    const defenderCounterPressure = getCounterPressureByCategory(defenderArmy);
+
+    const attackerProfile = buildCombatProfile({
+        army: attackerArmy,
+        enemyCategoryCounts: defenderCategoryCounts,
+        enemyCounterPressure: defenderCounterPressure,
+        militaryBuffs: attackerBuffs,
+        defenseMultiplier: 1,
+    });
+
+    const defenderProfile = buildCombatProfile({
+        army: defenderArmy,
+        enemyCategoryCounts: attackerCategoryCounts,
+        enemyCounterPressure: attackerCounterPressure,
+        militaryBuffs: defenderBuffs,
+        defenseMultiplier: 1.2,
+    });
+
+    let attackerPower = attackerProfile.totalAttack * 0.65 + attackerProfile.totalDefense * 0.35;
+    let defenderPower = defenderProfile.totalAttack * 0.65 + defenderProfile.totalDefense * 0.35;
+
+    attackerPower *= 0.9 + Math.random() * 0.2;
+    defenderPower *= 0.9 + Math.random() * 0.2;
+
+    const totalPower = attackerPower + defenderPower;
+    const attackerAdvantage = totalPower > 0 ? attackerPower / totalPower : 0;
+    const defenderAdvantage = totalPower > 0 ? defenderPower / totalPower : 0;
+
+    const victory = attackerAdvantage > 0.5;
+    const decisive = Math.abs(attackerAdvantage - 0.5) > 0.28;
+
+    const powerRatio = defenderPower > 0 ? attackerPower / defenderPower : 100;
+
+    const attackerLosses = computeLosses({
+        sideProfile: attackerProfile,
+        enemyProfile: defenderProfile,
+        enemyCounterPressure: defenderCounterPressure,
+        isWinner: victory,
+        powerRatio,
+        decisive,
+        dominanceRatio: victory ? powerRatio : 1 / powerRatio,
+        ownPowerScore: attackerPower,
+        enemyPowerScore: defenderPower,
+    });
+
+    const defenderLosses = computeLosses({
+        sideProfile: defenderProfile,
+        enemyProfile: attackerProfile,
+        enemyCounterPressure: attackerCounterPressure,
+        isWinner: !victory,
+        powerRatio: powerRatio > 0 ? 1 / powerRatio : 100,
+        decisive,
+        dominanceRatio: victory ? powerRatio : 1 / powerRatio,
+        ownPowerScore: defenderPower,
+        enemyPowerScore: attackerPower,
+    });
+
+    const attackerCounter = calculateCounterBonus(attackerArmy, defenderArmy);
+    const defenderCounter = calculateCounterBonus(defenderArmy, attackerArmy);
 
     // 计算掠夺资源（按比例计算，考虑敌方财富）
     // [FIXED] 添加硬性上限防止后期资源爆炸
