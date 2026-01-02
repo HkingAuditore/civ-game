@@ -41,6 +41,7 @@ export const OfficialsPanel = ({
     jobCapacity = 0,
     maxCapacity = 3,
     stanceContext = {},
+    prices = {},  // [NEW] 市场价格用于自由市场面板
 }) => {
 
     // 派系面板弹窗状态
@@ -371,6 +372,7 @@ export const OfficialsPanel = ({
                                     classWealth={classWealth}
                                     expansionSettings={expansionSettings}
                                     onUpdateSettings={onUpdateExpansionSettings}
+                                    prices={prices}
                                 />
                             )}
                             {dominantPanel === 'reformDecree' && (

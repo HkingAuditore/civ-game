@@ -763,6 +763,7 @@ const PoliticsTabComponent = ({
                         onUpdateExpansionSettings={onUpdateExpansionSettings}
                         onEnactDecree={onEnactDecree}
                         stanceContext={stanceContext} // [NEW]
+                        prices={market?.prices || {}}  // [NEW] 市场价格用于自由市场面板
                     />
                 ) : (
                     <div className="glass-ancient p-6 rounded-xl border border-ancient-gold/30 text-center">
