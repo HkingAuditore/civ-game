@@ -2588,12 +2588,20 @@ export const simulateTick = ({
     });
 
     if (cabinetStatus.dominance?.faction === 'right' && expansionSettings) {
-        // We pass the CONFIG (BUILDINGS), current wealth (newClassWealth), settings, and current counts
+        // 构造 market 对象，包含 prices 和 wages 用于利润计算
+        const marketForExpansion = {
+            prices: priceMap,
+            wages: market?.wages || {}
+        };
+        
+        // We pass BUILDINGS, wealth, settings, counts, market with wages, and tax policies
         const { expansions, wealthDeductions } = processOwnerExpansions(
             BUILDINGS,
             wealth,
             expansionSettings,
-            newBuildingsCount
+            newBuildingsCount,
+            marketForExpansion,
+            taxPolicies  // [NEW] 传递税收政策用于营业税计算
         );
 
         // Apply expansions

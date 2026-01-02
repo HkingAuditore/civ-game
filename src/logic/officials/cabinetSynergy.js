@@ -614,41 +614,112 @@ export const calculateQuotaEffects = (currentDistribution, targetQuotas) => {
 // ========== 自由市场：业主扩张 ==========
 
 /**
+ * 计算建筑的每座利润
+ * 利润 = 产出价值 - 投入成本 - 营业税 - 雇员工资
+ * @param {Object} building - 建筑配置
+ * @param {Object} market - 市场数据 { prices: {...}, wages: {...} }
+ * @param {Object} taxPolicies - 税收政策
+ * @returns {Object} { profit, outputValue, inputValue, wageCost, businessTax }
+ */
+export const calculateBuildingProfit = (building, market = {}, taxPolicies = {}) => {
+    if (!building) return { profit: 0, outputValue: 0, inputValue: 0, wageCost: 0, businessTax: 0 };
+    
+    const prices = market?.prices || {};
+    const wages = market?.wages || {};
+    
+    const getPrice = (key) => {
+        if (!key || key === 'silver') return 1;
+        return prices[key] ?? 1;
+    };
+    
+    // 产出价值
+    const outputValue = Object.entries(building.output || {}).reduce(
+        (sum, [res, val]) => sum + getPrice(res) * val, 0
+    );
+    
+    // 投入成本
+    const inputValue = Object.entries(building.input || {}).reduce(
+        (sum, [res, val]) => sum + getPrice(res) * val, 0
+    );
+    
+    // 营业税
+    const businessTaxMultiplier = taxPolicies?.businessTaxRates?.[building.id] ?? 1;
+    const businessTaxBase = building.businessTaxBase ?? 0.1;
+    const businessTax = businessTaxBase * businessTaxMultiplier;
+    
+    // 雇员工资（不含业主）
+    const ownerKey = building.owner;
+    let wageCost = 0;
+    for (const [role, slotsPerBuilding] of Object.entries(building.jobs || {})) {
+        if (role === ownerKey) continue; // 跳过业主
+        const wage = wages[role] ?? 0.1;
+        wageCost += wage * slotsPerBuilding;
+    }
+    
+    // 每座建筑利润
+    const profit = outputValue - inputValue - businessTax - wageCost;
+    
+    return { 
+        profit, 
+        outputValue, 
+        inputValue, 
+        wageCost, 
+        businessTax 
+    };
+};
+
+/**
  * 检查建筑是否可由业主扩张
  * @param {Object} building - 建筑配置
  * @param {string} ownerStratum - 业主阶层
  * @param {number} ownerWealth - 业主阶层的总财富
  * @param {Object} expansionSettings - 玩家设置 { buildingId: { allowed, maxCount } }
  * @param {number} currentCount - 当前建筑数量
- * @returns {Object} { canExpand, reason, cost }
+ * @param {Object} market - 市场数据 { prices: {...}, wages: {...} }
+ * @param {Object} taxPolicies - 税收政策
+ * @returns {Object} { canExpand, reason, cost, profit, roi }
  */
-export const canOwnerExpand = (building, ownerStratum, ownerWealth, expansionSettings, currentCount) => {
+export const canOwnerExpand = (building, ownerStratum, ownerWealth, expansionSettings, currentCount, market = {}, taxPolicies = {}) => {
     if (!building || !ownerStratum) {
-        return { canExpand: false, reason: '无效建筑', cost: 0 };
+        return { canExpand: false, reason: '无效建筑', cost: 0, profit: 0, roi: 0 };
     }
 
     const settings = expansionSettings?.[building.id];
     if (!settings?.allowed) {
-        return { canExpand: false, reason: '未允许扩张', cost: 0 };
+        return { canExpand: false, reason: '未允许扩张', cost: 0, profit: 0, roi: 0 };
     }
 
     if (settings.maxCount && currentCount >= settings.maxCount) {
-        return { canExpand: false, reason: '已达扩张上限', cost: 0 };
+        return { canExpand: false, reason: '已达扩张上限', cost: 0, profit: 0, roi: 0 };
     }
 
-    // 计算成本（不含数量惩罚）
-    // [FIX] Convert material costs to silver equivalent matching FreeMarketPanel logic
+    // 计算成本（使用实际市场价格）
+    const prices = market?.prices || {};
     const bc = building.baseCost || {};
-    const baseCost = bc.silver ||
-        (bc.plank ? bc.plank * 2 : 0) ||
-        (bc.wood ? bc.wood : 0) ||
-        (bc.stone ? bc.stone * 1.5 : 0) || 100;
+    let baseCost = 0;
+    for (const [resource, amount] of Object.entries(bc)) {
+        const price = prices[resource] ?? 1;
+        baseCost += amount * price;
+    }
+    baseCost = baseCost > 0 ? Math.round(baseCost) : 100;
+
+    // 计算建筑盈利
+    const profitResult = calculateBuildingProfit(building, market, taxPolicies);
+    const profit = profitResult.profit;
+    
+    // 计算 ROI（投资回报率）
+    const roi = baseCost > 0 ? profit / baseCost : 0;
+
+    // 盈利检查：不盈利的建筑不扩张
+    if (profit <= 0) {
+        return { canExpand: false, reason: '建筑不盈利', cost: baseCost, profit, roi };
+    }
 
     if (ownerWealth < baseCost) {
-        return { canExpand: false, reason: '业主财富不足', cost: baseCost };
+        return { canExpand: false, reason: '业主财富不足', cost: baseCost, profit, roi };
     }
 
-    return { canExpand: true, reason: null, cost: baseCost };
+    return { canExpand: true, reason: null, cost: baseCost, profit, roi };
 };
 
 /**
@@ -657,9 +728,11 @@ export const canOwnerExpand = (building, ownerStratum, ownerWealth, expansionSet
  * @param {Object} classWealth - 阶层财富 { stratum: wealth }
  * @param {Object} expansionSettings - 扩张设置
  * @param {Object} buildingCounts - 当前建筑数量 { buildingId: count }
+ * @param {Object} market - 市场数据 { prices: {...}, wages: {...} }
+ * @param {Object} taxPolicies - 税收政策
  * @returns {Object} { expansions, wealthDeductions }
  */
-export const processOwnerExpansions = (buildings, classWealth, expansionSettings, buildingCounts) => {
+export const processOwnerExpansions = (buildings, classWealth, expansionSettings, buildingCounts, market = {}, taxPolicies = {}) => {
     const expansions = [];
     const wealthDeductions = {};
 
@@ -673,7 +746,6 @@ export const processOwnerExpansions = (buildings, classWealth, expansionSettings
     }
 
     // 每回合最多扩张1个建筑（防止爆发式增长）
-    // [FIX] Randomize selection to prevent first building always monopolizing expansion
     const candidates = [];
     const rejectionReasons = []; // [DEBUG]
 
@@ -684,15 +756,22 @@ export const processOwnerExpansions = (buildings, classWealth, expansionSettings
         const ownerWealth = classWealth[ownerStratum] || 0;
         const currentCount = buildingCounts[building.id] || 0;
 
-        const { canExpand, reason, cost } = canOwnerExpand(
-            building, ownerStratum, ownerWealth, expansionSettings, currentCount
+        const { canExpand, reason, cost, profit, roi } = canOwnerExpand(
+            building, ownerStratum, ownerWealth, expansionSettings, currentCount, market, taxPolicies
         );
 
         if (canExpand) {
+            // 计算扩张权重: profit^2 / cost
+            // 同时考虑绝对盈利和 ROI
+            const weight = cost > 0 ? Math.max(0.01, (profit * profit) / cost) : 0.01;
+            
             candidates.push({
                 buildingId: building.id,
                 owner: ownerStratum,
                 cost,
+                profit,
+                roi,
+                weight,
             });
         } else {
             // [DEBUG] 记录拒绝原因
@@ -702,24 +781,43 @@ export const processOwnerExpansions = (buildings, classWealth, expansionSettings
                 ownerWealth,
                 reason,
                 cost,
+                profit,
+                roi,
                 settingsForBuilding: expansionSettings[building.id]
             });
         }
     }
 
-    // [DEBUG] 输出诊断信息
+    // [DEBUG] 输出详细诊断信息
     console.log('[FREE MARKET] processOwnerExpansions:', {
         totalBuildingsChecked: buildings.filter(b => b.owner).length,
         candidatesFound: candidates.length,
-        classWealth,
-        expansionSettingsKeys: Object.keys(expansionSettings),
-        allowedBuildings: Object.entries(expansionSettings).filter(([k, v]) => v?.allowed).map(([k]) => k),
+        candidates: candidates.map(c => ({ id: c.buildingId, profit: c.profit.toFixed(2), roi: (c.roi * 100).toFixed(1) + '%', weight: c.weight.toFixed(2) })),
         firstFewRejections: rejectionReasons.slice(0, 5)
     });
 
     if (candidates.length > 0) {
-        // Pick one random expansion
-        const selected = candidates[Math.floor(Math.random() * candidates.length)];
+        // 加权随机选择：盈利越高的建筑被选中的概率越大
+        const totalWeight = candidates.reduce((sum, c) => sum + c.weight, 0);
+        let randomValue = Math.random() * totalWeight;
+        let selected = candidates[0];
+        
+        for (const candidate of candidates) {
+            randomValue -= candidate.weight;
+            if (randomValue <= 0) {
+                selected = candidate;
+                break;
+            }
+        }
+        
+        console.log('[FREE MARKET] Selected for expansion:', {
+            buildingId: selected.buildingId,
+            profit: selected.profit.toFixed(2),
+            roi: (selected.roi * 100).toFixed(1) + '%',
+            weight: selected.weight.toFixed(2),
+            probability: ((selected.weight / totalWeight) * 100).toFixed(1) + '%'
+        });
+        
         expansions.push(selected);
         wealthDeductions[selected.owner] = (wealthDeductions[selected.owner] || 0) + selected.cost;
     }

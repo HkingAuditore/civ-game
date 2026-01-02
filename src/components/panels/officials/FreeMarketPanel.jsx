@@ -9,20 +9,38 @@ import { STRATA } from '../../../config/strata';
 import { BUILDINGS } from '../../../config/buildings';
 
 /**
- * 获取可扩张的建筑列表（有明确owner且有银币成本的建筑）
+ * 计算建筑成本的银币等价值（使用实际市场价格）
+ * @param {Object} baseCost - 建筑的 baseCost 对象
+ * @param {Object} prices - 当前市场价格 { resource: price }
+ * @returns {number} 银币等价成本
  */
-const getExpandableBuildings = () => {
+const calculateSilverEquivalent = (baseCost, prices = {}) => {
+    if (!baseCost) return 100;
+
+    let totalCost = 0;
+    for (const [resource, amount] of Object.entries(baseCost)) {
+        // 使用市场价格，如果没有则使用默认值 1
+        const price = prices[resource] ?? 1;
+        totalCost += amount * price;
+    }
+
+    return totalCost > 0 ? Math.round(totalCost) : 100;
+};
+
+/**
+ * 获取可扩张的建筑列表（有明确owner且有baseCost的建筑）
+ * @param {Object} prices - 当前市场价格
+ */
+const getExpandableBuildings = (prices = {}) => {
     // BUILDINGS 是数组格式
     return BUILDINGS
-        .filter(b => b.owner && (b.baseCost?.silver || b.baseCost?.plank || b.baseCost?.wood || b.baseCost?.stone))
+        .filter(b => b.owner && b.baseCost && Object.keys(b.baseCost).length > 0)
         .map(b => ({
             id: b.id,
             name: b.name,
             owner: b.owner,
-            baseCost: b.baseCost?.silver ||
-                (b.baseCost?.plank ? b.baseCost.plank * 2 : 0) ||
-                (b.baseCost?.wood ? b.baseCost.wood : 0) ||
-                (b.baseCost?.stone ? b.baseCost.stone * 1.5 : 0) || 100,
+            baseCostRaw: b.baseCost, // 保留原始成本用于显示
+            baseCost: calculateSilverEquivalent(b.baseCost, prices),
             icon: b.visual?.icon || 'Building',
         }));
 };
@@ -90,11 +108,13 @@ export const FreeMarketPanel = ({
     onUpdateSettings,
     recentExpansions = [],
     disabled = false,
+    prices = {},  // [NEW] 接收市场价格
 }) => {
     const [localSettings, setLocalSettings] = useState(expansionSettings);
     const [hasChanges, setHasChanges] = useState(false);
 
-    const expandableBuildings = getExpandableBuildings();
+    // 使用实际市场价格计算建筑成本
+    const expandableBuildings = getExpandableBuildings(prices);
 
     // 处理设置变化
     const handleChange = (buildingId, newSetting) => {
