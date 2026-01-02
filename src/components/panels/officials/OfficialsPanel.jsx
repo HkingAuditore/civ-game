@@ -9,7 +9,8 @@ import { CabinetSynergyDisplay } from './CabinetSynergyDisplay';
 import { PlannedEconomyPanel } from './PlannedEconomyPanel';
 import { FreeMarketPanel } from './FreeMarketPanel';
 import { ReformDecreePanel } from './ReformDecreePanel';
-import { DOMINANCE_EFFECTS } from '../../../logic/officials/cabinetSynergy';
+import { DOMINANCE_EFFECTS, DOMINANCE_MIN_EPOCH } from '../../../logic/officials/cabinetSynergy';
+import { EPOCHS } from '../../../config/epochs';
 
 export const OfficialsPanel = ({
     officials = [],
@@ -64,6 +65,7 @@ export const OfficialsPanel = ({
     // 确定显示哪个派系面板
     const dominantPanel = cabinetStatus?.dominance?.panelType;
     const dominanceInfo = cabinetStatus?.dominance;
+    const dominanceMinEpochName = EPOCHS[DOMINANCE_MIN_EPOCH]?.name || `时代${DOMINANCE_MIN_EPOCH}`;
 
     // 派系面板配置
     const panelConfig = {
@@ -189,6 +191,16 @@ export const OfficialsPanel = ({
                         const factionName = topFaction === 'left' ? '计划经济' : (topFaction === 'right' ? '自由市场' : '改良法令');
                         const factionColor = topFaction === 'left' ? 'red' : (topFaction === 'right' ? 'amber' : 'blue');
                         const missingCapacity = capacity * 0.5 - total; // 恢复基于 0.5 的阈值提示
+                        const isEpochLocked = epoch < DOMINANCE_MIN_EPOCH;
+                        const needMoreOfficials = missingCapacity > 0;
+                        const lockMessageParts = [];
+
+                        if (isEpochLocked) {
+                            lockMessageParts.push(`需达到${dominanceMinEpochName}后解锁主导效应`);
+                        }
+                        if (needMoreOfficials) {
+                            lockMessageParts.push(`还需 ${Math.ceil(missingCapacity)} 名官员`);
+                        }
 
                         return (
                             <div className={`bg-gray-900/40 rounded-xl p-4 border border-gray-700/30 border-dashed`}>
@@ -205,8 +217,8 @@ export const OfficialsPanel = ({
                                                 </span>
                                             </h4>
                                             <p className="text-xs text-gray-500 mt-0.5">
-                                                {missingCapacity > 0
-                                                    ? `需要更多官员（还差 ${Math.ceil(missingCapacity)} 人）以触发主导效应`
+                                                {lockMessageParts.length > 0
+                                                    ? lockMessageParts.join('，')
                                                     : '内阁协同度或占比不足'}
                                             </p>
                                         </div>

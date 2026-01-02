@@ -147,7 +147,8 @@ export const TIER_PROMOTION_WEALTH_RATIO = {
 // 仅对特定阶层放宽晋升门槛（地主/资本家）
 export const ROLE_PROMOTION_WEALTH_RATIO_OVERRIDE = {
     landowner: 0.35,
-    capitalist: 0.35
+    capitalist: 0.35,
+    soldier: 0 // 军人允许从失业者直接补充，不设财富门槛
 };
 
 // Wealth threshold for active tier seeking (multiple of current startingWealth)

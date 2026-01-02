@@ -170,7 +170,7 @@ function GameApp({ gameState }) {
                 setShowOfficialOverstaffModal(true);
                 // 暂停游戏
                 if (!gameState.isPaused) {
-                    gameState.togglePause();
+                    gameState.setIsPaused(true);
                 }
             }
         }
