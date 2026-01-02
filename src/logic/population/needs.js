@@ -32,7 +32,8 @@ export const processNeedsConsumption = ({
     tick,
     logs,
     potentialResources = null,  // 已解锁建筑可产出资源集合（用于门控需求）
-    priceControls = null        // 政府价格管制设置
+    priceControls = null,       // 政府价格管制设置
+    leftFactionDominant = false // 是否左派主导（只有左派主导时价格管制才生效）
 }) => {
     const res = { ...resources };
     const updatedWealth = { ...wealth };
@@ -124,9 +125,10 @@ export const processNeedsConsumption = ({
                 // Tradable resource - requires payment
                 const marketPrice = priceMap[resKey] || getBasePrice(resKey);
                 
-                // 1. 先应用价格管制，获取有效价格
+                // 1. 先应用价格管制，获取有效价格（仅在左派主导时生效）
                 let effectivePrice = marketPrice;
-                if (priceControls?.enabled && priceControls.governmentSellPrices?.[resKey] !== undefined) {
+                const priceControlActive = leftFactionDominant && priceControls?.enabled && priceControls.governmentSellPrices?.[resKey] !== undefined;
+                if (priceControlActive) {
                     effectivePrice = priceControls.governmentSellPrices[resKey];
                 }
                 
@@ -165,8 +167,8 @@ export const processNeedsConsumption = ({
                         actualCost += taxPaid;
                     }
 
-                    // 3. 计算价格管制收支差额
-                    if (priceControls?.enabled && priceControls.governmentSellPrices?.[resKey] !== undefined) {
+                    // 3. 计算价格管制收支差额（仅在左派主导时生效）
+                    if (priceControlActive) {
                         const priceDiff = (effectivePrice - marketPrice) * amount;
                         if (priceDiff > 0) {
                             // 政府出售价 > 市场价：买家额外支付，政府收入

@@ -625,6 +625,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
         activeDecrees, // [NEW] Active Reform Decrees
         quotaTargets, // [NEW] Planned Economy Targets
         expansionSettings, // [NEW] Free Market Settings
+        priceControls, // [NEW] 价格管制设置
         decrees,
         gameSpeed,
         isPaused,
@@ -780,6 +781,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
         activeDecrees, // [NEW] Pass activeDecrees to simulation
         quotaTargets, // [NEW] Planned Economy targets
         expansionSettings, // [NEW] Free Market settings
+        priceControls, // [NEW] 价格管制设置
     });
 
     const saveGameRef = useRef(gameState.saveGame);
@@ -1198,6 +1200,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 })(),
                 quotaTargets: current.quotaTargets,
                 expansionSettings: current.expansionSettings,
+                priceControls: current.priceControls, // [NEW] 价格管制设置
                 taxPolicies: current.taxPolicies || {},
                 livingStandardStreaks: current.livingStandardStreaks,
                 migrationCooldowns: current.migrationCooldowns,
