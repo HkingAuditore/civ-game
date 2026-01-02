@@ -191,7 +191,7 @@ export const ResourcePanel = ({
                                     <button
                                         key={key}
                                         onClick={() => onDetailClick && onDetailClick(key)}
-                                        className="w-full group grid grid-cols-[20px_1fr_auto_auto_auto] items-center gap-x-2 py-0.5 px-1 border-b border-ancient-gold/10 hover:bg-ancient-gold/5 touch-feedback"
+                                        className="w-full group grid grid-cols-[20px_1fr_auto_auto_auto] items-center gap-x-2 py-0.5 px-1 appearance-none bg-transparent border-0 border-b border-ancient-gold/10 hover:bg-ancient-gold/5 touch-feedback"
                                     >
                                         <Icon name={info.icon} size={16} className={`flex-shrink-0 ${info.color || 'text-ancient-parchment'}`} />
 
@@ -240,7 +240,7 @@ export const ResourcePanel = ({
                                     <button
                                         key={key}
                                         onClick={() => onDetailClick && onDetailClick(key)}
-                                        className="w-full relative group grid grid-cols-[20px_1.3fr_1fr] xl:grid-cols-[20px_1.5fr_1fr_1fr_1fr] items-center gap-x-3 text-xs p-1.5 rounded-lg transition-all cursor-pointer overflow-hidden border border-ancient-gold/10 hover:border-ancient-gold/30 hover:bg-ancient-gold/5 hover:shadow-glow-gold touch-feedback"
+                                        className="w-full relative group grid grid-cols-[20px_1.3fr_1fr] xl:grid-cols-[20px_1.5fr_1fr_1fr_1fr] items-center gap-x-3 text-xs p-1.5 rounded-lg transition-all cursor-pointer overflow-hidden appearance-none bg-transparent border border-ancient-gold/10 hover:border-ancient-gold/30 hover:bg-ancient-gold/5 hover:shadow-glow-gold touch-feedback"
                                     >
                                         <div className="absolute inset-0 bg-gradient-to-r from-ancient-gold/0 via-ancient-gold/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
 

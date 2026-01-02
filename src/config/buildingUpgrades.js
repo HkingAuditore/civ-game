@@ -150,7 +150,7 @@ export const BUILDING_UPGRADES = {
     library: [
         {
             name: "学堂",
-            cost: { stone: 150, plank: 40, papyrus: 30, silver: 600 },
+            cost: { stone: 150, plank: 40, papyrus: 30, brick: 40, silver: 600 },
             input: { papyrus: 0.08 },
             output: { science: 1.04 }, // 1.3x
             jobs: { scribe: 3 }, // keep same, efficiency upgrade
@@ -281,14 +281,14 @@ export const BUILDING_UPGRADES = {
     culinary_kitchen: [
         {
             name: "精致厨房",
-            cost: { brick: 40, tools: 15, silver: 350 },
+            cost: { brick: 40, tools: 15, cloth: 8, silver: 350 },
             input: { tools: 0.08, food: 1.2 },
             output: { delicacies: 1.95 }, // 1.3x
             jobs: { artisan: 2, peasant: 1 }, // keep same, efficiency upgrade
         },
         {
             name: "御膳房",
-            cost: { brick: 60, furniture: 15, silver: 800 },
+            cost: { brick: 60, furniture: 15, delicacies: 20, silver: 800 },
             input: { tools: 0.12, food: 1.8, spice: 0.06 }, // 需要香料
             output: { delicacies: 2.7, culture: 0.08 }, // 1.8x + 美食文化
             jobs: { artisan: 2, peasant: 2 }, // +1 peasant only (artisan expensive)
@@ -299,14 +299,14 @@ export const BUILDING_UPGRADES = {
     brewery: [
         {
             name: "大酒坊",
-            cost: { brick: 30, tools: 12, silver: 280 },
+            cost: { brick: 30, tools: 12, cloth: 6, silver: 280 },
             input: { food: 1.0, wood: 0.15, tools: 0.01 },
             output: { ale: 1.56 }, // 1.3x
             jobs: { worker: 2 }, // keep same, efficiency upgrade
         },
         {
             name: "酿酒工坊",
-            cost: { brick: 50, tools: 25, silver: 650 },
+            cost: { brick: 50, tools: 25, dye: 10, ale: 15, silver: 650 },
             input: { food: 1.5, wood: 0.25, tools: 0.02, spice: 0.03 }, // 需要香料调味
             output: { ale: 2.16, culture: 0.05 }, // 1.8x + 酒文化
             jobs: { worker: 3 }, // +1 worker only
@@ -966,14 +966,14 @@ export const BUILDING_UPGRADES = {
     market: [
         {
             name: "大市场",
-            cost: { brick: 300, papyrus: 60, silver: 1000 },
+            cost: { brick: 300, papyrus: 60, cloth: 15, silver: 1000 },
             input: { papyrus: 0.08, coffee: 0.05 },
             output: { food: 2.6, silver: 0.3 }, // 1.3x food, small silver bonus
             jobs: { merchant: 2, scribe: 1 }, // +1 scribe for records
         },
         {
             name: "交易所",
-            cost: { steel: 200, papyrus: 120, silver: 2200 },
+            cost: { steel: 200, papyrus: 120, delicacies: 30, silver: 2200 },
             input: { papyrus: 0.12, coffee: 0.08 },
             output: { food: 3.6, silver: 0.5, culture: 0.15 }, // 1.8x + 商业文化
             jobs: { merchant: 3, scribe: 1 }, // +1 merchant (capitalist too expensive)

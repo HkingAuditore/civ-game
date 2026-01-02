@@ -58,10 +58,26 @@ export const INDUSTRY_CHAINS = {
         workers: ['artisan', 'peasant'],
       },
       {
+        stage: 'processing',
+        name: "酿造加工",
+        buildings: ['brewery', 'monastery_cellar'],
+        input: 'food',
+        output: 'ale',
+        ratio: 1.4,
+        efficiency: 1.0,
+        workers: ['worker', 'cleric'],
+      },
+      {
         stage: 'consumption',
         name: "民众消费",
         consumers: ['all_classes'],
         input: 'food',
+      },
+      {
+        stage: 'consumption',
+        name: "饮品消费",
+        consumers: ['all_classes'],
+        input: 'ale',
       },
       {
         stage: 'consumption',

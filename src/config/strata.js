@@ -168,8 +168,8 @@ export const STRATA = {
             1.0: { tools: 0.06, ale: 0.08, furniture: 0.04 },
             1.8: { copper: 0.015, spice: 0.04 },   // 铜料，香料，家具
             2.5: { coffee: 0.03, fine_clothes: 0.025, brick: 0.03, culture: 0.02 }, // 咖啡，华服，砖块，文化
-            3.5: { delicacies: 0.06, stone: 0.025 }, // 珍馐，石材，衣物，板材
-            4.5: { steel: 0.008 }, // 家具，钢，咖啡，香料
+            3.5: { delicacies: 0.06, stone: 0.025, dye: 0.015 }, // 珍馐，石材，衣物，板材
+            4.5: { steel: 0.008, iron: 0.01 }, // 家具，钢，咖啡，香料
             6.0: {}, // 华服，珍馐，砖块，文化
             8.0: { papyrus: 0.03 }, // 纸张，家具，工具，文化
             10.0: {}, // 钢，香料，麦酒，衣物
@@ -227,10 +227,10 @@ export const STRATA = {
         maxConsumptionMultiplier: 10, // 中层阶级消费上限6倍
         needs: { food: 1.80, cloth: 0.25 },
         luxuryNeeds: {
-            1.0: { delicacies: 0.60, spice: 0.20, furniture: 0.12, plank: 0.08, ale: 0.15, fine_clothes: 0.10, culture: 0.12 },
+            1.0: { delicacies: 0.60, spice: 0.20, furniture: 0.12, plank: 0.08, ale: 0.15, fine_clothes: 0.10, culture: 0.12, dye: 0.02 },
             1.5: { coffee: 0.14 },         // 咖啡，华服，文化
             2.0: { delicacies: 0.35, plank: 0.12, brick: 0.05 }, // 珍馐，香料，板材，砖块
-            3.0: { steel: 0.05, culture: 0.15 }, // 家具，钢，衣物，文化
+            3.0: { steel: 0.05, culture: 0.15, coal: 0.03 }, // 家具，钢，衣物，文化
             5.0: { papyrus: 0.08, copper: 0.06, stone: 0.05 }, // 纸张，铜器，华服，石材
             8.0: {}, // 香料，咖啡，钢，文化
             12.0: {}, // 珍馐，家具，砖块，板材
@@ -329,7 +329,7 @@ export const STRATA = {
         needs: { food: 0.85, cloth: 0.12 },
         luxuryNeeds: {
             1.0: { ale: 0.08 },
-            2.0: { tools: 0.07, copper: 0.025 },          // 麦酒，武器/盔甲，铜器
+            2.0: { tools: 0.07, copper: 0.025, iron: 0.02 },          // 麦酒，武器/盔甲，铜器
             2.5: { furniture: 0.05, spice: 0.05, culture: 0.04 },    // 家具，香料，文化
             3.5: { fine_clothes: 0.07, delicacies: 0.07, steel: 0.025 }, // 华服，珍馐，钢
             5.0: { brick: 0.05 }, // 充足食物，衣物，砖块，文化
@@ -392,7 +392,7 @@ export const STRATA = {
             1.0: { delicacies: 0.50, papyrus: 0.12, coffee: 0.08, furniture: 0.10, stone: 0.04, fine_clothes: 0.10, culture: 0.15 },
             1.3: {},  // 咖啡，华服，文化
             1.8: { delicacies: 0.30, spice: 0.12, plank: 0.08, brick: 0.06 },  // 珍馐，香料，板材，砖块
-            2.5: { steel: 0.04, culture: 0.15 }, // 家具，钢，衣物，文化
+            2.5: { steel: 0.04, culture: 0.15, iron: 0.03, coal: 0.03 }, // 家具，钢，衣物，文化
             4.0: { papyrus: 0.08, copper: 0.04, stone: 0.04 },       // 纸张，铜器，石材
             6.0: { fine_clothes: 0.15 }, // 珍馐，华服，钢，文化
             9.0: {}, // 香料，咖啡，砖块，家具
@@ -454,7 +454,7 @@ export const STRATA = {
             1.0: { delicacies: 0.70, coffee: 0.15, furniture: 0.15, steel: 0.05, culture: 0.20 },
             1.3: { fine_clothes: 0.12, culture: 0.12 },  // 咖啡，华服，文化
             1.8: { delicacies: 0.30, spice: 0.15, brick: 0.08 },  // 珍馐，香料，家具，砖块
-            2.5: { stone: 0.06, plank: 0.10 }, // 石材，板材，钢，文化
+            2.5: { stone: 0.06, plank: 0.10, coal: 0.04, iron: 0.03 }, // 石材，板材，钢，文化
             4.0: { copper: 0.08, papyrus: 0.06 },       // 铜器，纸张，衣物
             6.0: {}, // 珍馐，华服，钢，文化
             10.0: {}, // 香料，咖啡，砖块，家具
@@ -517,7 +517,7 @@ export const STRATA = {
             1.3: { fine_clothes: 0.08, culture: 0.08 },  // 咖啡，华服，文化
             1.8: { delicacies: 0.15, spice: 0.08, tools: 0.06 },  // 珍馐，香料，家具，工具
             2.5: { plank: 0.08, copper: 0.04, stone: 0.04 },       // 板材，铜器，石材，文化
-            4.0: { papyrus: 0.06, brick: 0.06, steel: 0.04 },        // 纸张，衣物，砖块，钢
+            4.0: { papyrus: 0.06, brick: 0.06, steel: 0.04, coal: 0.05, iron: 0.03 },        // 纸张，衣物，砖块，钢
             6.0: {}, // 珍馐，华服，钢，文化
             10.0: {},    // 香料，咖啡，砖块，家具
             15.0: {},    // 铜器，纸张，石材，文化
