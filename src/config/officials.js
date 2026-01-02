@@ -4,6 +4,7 @@
  */
 
 import { STRATA } from './strata';
+import { RESOURCES } from './gameConstants';
 import { assignPoliticalStance } from './politicalStances';
 
 // ========== 效果类型定义 ==========
@@ -837,9 +838,155 @@ const generateEffect = (isDrawback = false, sourceStratum = null, epoch = 1) => 
  * @param {Object} popStructure - 当前人口结构 { stratumKey: population }
  * @param {Object} classInfluence - 当前影响力占比 { stratumKey: influencePercent }
  * @param {Object} market - 当前市场数据（包含 prices 等信息）
+ * @param {Object} rates - 当前资源速率（用于估算规模）
  * @returns {Object} 官员对象
  */
-export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence = {}, market = null) => {
+const PERCENT_EFFECT_TYPES = new Set([
+    'buildings',
+    'categories',
+    'wartimeProduction',
+    'tradeBonus',
+    'taxEfficiency',
+    'buildingCostMod',
+    'productionInputCost',
+    'incomePercent',
+    'passivePercent',
+    'stratumDemandMod',
+    'resourceDemandMod',
+    'resourceSupplyMod',
+    'needsReduction',
+    'maxPop',
+    'populationGrowth',
+    'researchSpeed',
+    'organizationDecay',
+    'stability',
+    'militaryBonus',
+    'militaryUpkeep',
+    'diplomaticBonus',
+    'diplomaticCooldown',
+    'corruption',
+    'factionConflict',
+    'resourceWaste',
+    'diplomaticIncident',
+]);
+
+const APPROVAL_SCORE_DIVISOR = 20;
+const PASSIVE_SCORE_DIVISOR = 30;
+const PERCENT_SCORE_MULTIPLIER = 20;
+const MIN_OFFICIAL_SALARY = 15;
+const MAX_OFFICIAL_SALARY = 4000;
+const RESOURCE_WEIGHT_BASE_PRICE = 5;
+const VALUE_SCALE_BASELINE = 180;
+const GLOBAL_VALUE_SCALE_BASELINE = 320;
+
+const GLOBAL_VALUE_SCALE_TYPES = new Set([
+    'incomePercent',
+    'taxEfficiency',
+    'tradeBonus',
+    'buildingCostMod',
+    'productionInputCost',
+    'categories',
+    'buildings',
+    'wartimeProduction',
+    'passivePercent',
+]);
+
+const EFFECT_TYPE_WEIGHTS = {
+    incomePercent: 1.8,
+    taxEfficiency: 1.6,
+    tradeBonus: 1.4,
+    buildingCostMod: 1.2,
+    productionInputCost: 1.1,
+    buildings: 1.1,
+    categories: 1.05,
+    wartimeProduction: 1.2,
+    passive: 1.0,
+    passivePercent: 1.2,
+    resourceSupplyMod: 1.0,
+    resourceDemandMod: 0.9,
+    stratumDemandMod: 0.9,
+    needsReduction: 0.9,
+    maxPop: 0.8,
+    populationGrowth: 0.9,
+    researchSpeed: 1.1,
+    approval: 0.7,
+    coalitionApproval: 0.8,
+    stability: 1.0,
+    militaryBonus: 1.1,
+    militaryUpkeep: 1.1,
+    diplomaticBonus: 0.9,
+    diplomaticIncident: 0.8,
+    organizationDecay: 0.8,
+    legitimacyBonus: 1.0,
+    corruption: 1.1,
+    factionConflict: 1.1,
+    resourceWaste: 1.0,
+};
+
+const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+const getResourceUnitPrice = (resource, market) => {
+    const def = RESOURCES[resource];
+    if (!def) return 1;
+    const basePrice = def.basePrice || 1;
+    return typeof market?.prices?.[resource] === 'number' ? market.prices[resource] : basePrice;
+};
+
+const getResourceWeight = (resource, market) => {
+    const def = RESOURCES[resource];
+    if (!def) return 1;
+    const marketPrice = getResourceUnitPrice(resource, market);
+    const priceFactor = clamp(marketPrice / RESOURCE_WEIGHT_BASE_PRICE, 0.4, 2.5);
+    let tagFactor = 1;
+    if (def.tags?.includes('currency')) tagFactor *= 2.0;
+    if (def.tags?.includes('essential')) tagFactor *= 0.7;
+    if (def.tags?.includes('luxury')) tagFactor *= 1.3;
+    if (def.tags?.includes('industrial')) tagFactor *= 1.15;
+    if (def.tags?.includes('raw_material')) tagFactor *= 0.9;
+    if (def.tags?.includes('special')) tagFactor *= 1.1;
+    return clamp(priceFactor * tagFactor, 0.4, 3.0);
+};
+
+const getValueScale = (value, baseline) => {
+    if (!value || value <= 0) return 1;
+    const scaled = 0.8 + Math.log10(1 + value / baseline);
+    return clamp(scaled, 0.6, 2.2);
+};
+
+const normalizeEffectScore = (effect, market, rates) => {
+    let score = Math.abs(effect.value);
+    let typeWeight = EFFECT_TYPE_WEIGHTS[effect.type] || 1.0;
+    let resourceWeight = 1;
+    let valueScale = 1;
+    if (effect.target && RESOURCES[effect.target]) {
+        resourceWeight = getResourceWeight(effect.target, market);
+    }
+    if (PERCENT_EFFECT_TYPES.has(effect.type)) {
+        score *= PERCENT_SCORE_MULTIPLIER;
+    }
+    if (effect.type === 'approval') {
+        score = score / APPROVAL_SCORE_DIVISOR; // 10点满意度 ≈ 0.5 效果分
+    } else if (effect.type === 'passive') {
+        score = score / PASSIVE_SCORE_DIVISOR; // 降低被动产出权重，避免薪酬失衡
+    }
+    if (rates) {
+        if (effect.target && RESOURCES[effect.target]) {
+            const unitPrice = getResourceUnitPrice(effect.target, market);
+            const rateValue = Math.abs(rates[effect.target] || 0);
+            valueScale = getValueScale(rateValue * unitPrice, VALUE_SCALE_BASELINE);
+        } else if (effect.type === 'needsReduction') {
+            const unitPrice = getResourceUnitPrice('food', market);
+            const rateValue = Math.abs(rates.food || 0);
+            valueScale = getValueScale(rateValue * unitPrice, VALUE_SCALE_BASELINE);
+        } else if (GLOBAL_VALUE_SCALE_TYPES.has(effect.type)) {
+            const silverRate = Math.abs(rates.silver || 0);
+            valueScale = getValueScale(silverRate, GLOBAL_VALUE_SCALE_BASELINE);
+        }
+    }
+    return score * typeWeight * resourceWeight * valueScale;
+};
+
+export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence = {}, market = null, rates = null) => {
     // 1. 基本信息
     const name = generateName(epoch);
 
@@ -898,14 +1045,8 @@ export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence 
         const eff = generateEffect(false, sourceStratum, epoch);
         rawEffects.push(eff);
 
-        // 估算成本分 (绝对值 * 系数)
-        // approval 5-15 vs percent 0.05-0.25
-        // 需要归一化成本分
-        let score = Math.abs(eff.value);
-        if (eff.type === 'approval') score = score / 20; // 10点满意度 ≈ 0.5 效果分
-        else if (eff.type === 'passive') score = score / 5; // 2点产出 ≈ 0.4 效果分
-
-        totalCostScore += score * eff.costMultiplier;
+        // 估算成本分：将不同效果映射到可比较的成本区间
+        totalCostScore += normalizeEffectScore(eff, market, rates) * eff.costMultiplier;
     }
 
     // 3. 生成负面效果 (40% 概率，高时代概率略增)
@@ -935,10 +1076,7 @@ export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence 
 
     // 计算负面效果对成本分的抵消
     drawbacks.forEach(drawback => {
-        let score = Math.abs(drawback.value);
-        if (drawback.type === 'approval') score = score / 20;
-        else if (drawback.type === 'needsReduction') score = Math.abs(drawback.value); // needsReduction 负值是坏事
-
+        const score = normalizeEffectScore(drawback, market, rates);
         totalCostScore -= score * 0.5; // 负面效果抵消部分成本
     });
 
@@ -957,15 +1095,15 @@ export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence 
     drawbacks.forEach(mergeIntoEffects);
 
     // 5. 计算俸禄
-    // 目标范围: 15 ~ 2500 银/日 (官员效果降低后，薪资也相应降低)
+    // 目标范围: 15 ~ 4000 银/日 (官员效果降低后，薪资也相应降低)
     // 基础薪资: 15 + 效果得分 * 150 (降低基础系数约50%)
     // 时代加成: (0.5 + epoch * 0.2) - 青铜时代约0.7x，工业时代约1.7x
     // 效果得分范围约 0.1 - 1.5，对应薪资约 30 - 250 基础
     const epochMultiplier = 0.5 + epoch * 0.2;
     const baseSalary = 15 + Math.max(0.1, totalCostScore) * 150;
     let salary = Math.round(baseSalary * epochMultiplier);
-    // 确保在 15 ~ 2500 范围内
-    salary = Math.max(15, Math.min(2500, salary));
+    // 确保在 15 ~ 4000 范围内
+    salary = Math.max(MIN_OFFICIAL_SALARY, Math.min(MAX_OFFICIAL_SALARY, salary));
 
     // 生成ID
     const id = `off_${Date.now().toString(36)}_${Math.random().toString(36).substr(2, 5)}`;

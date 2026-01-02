@@ -415,6 +415,7 @@ const buildMinimalAutoSavePayload = (payload) => ({
     decreeCooldowns: payload.decreeCooldowns,
     quotaTargets: payload.quotaTargets,
     expansionSettings: payload.expansionSettings,
+    priceControls: payload.priceControls,  // [NEW] 价格管制状态
     eventConfirmationEnabled: payload.eventConfirmationEnabled,
 });
 
@@ -619,12 +620,18 @@ export const useGameState = () => {
     const [officials, setOfficials] = useState([]);           // 当前雇佣的官员
     const [officialCandidates, setOfficialCandidates] = useState([]); // 当前候选人列表
     const [lastSelectionDay, setLastSelectionDay] = useState(-999);   // 上次举办选拔的时间
-    const [officialCapacity, setOfficialCapacity] = useState(3);      // 官员容量
+    const [officialCapacity, setOfficialCapacity] = useState(2);      // 官员容量
     // ========== 内阁协同系统状态 ==========
     const [activeDecrees, setActiveDecrees] = useState({});           // 当前生效的临时法令
     const [decreeCooldowns, setDecreCooldowns] = useState({});       // 法令冷却时间
     const [quotaTargets, setQuotaTargets] = useState({});             // 计划经济阶层配额目标
     const [expansionSettings, setExpansionSettings] = useState({});   // 自由市场建筑扩张设置
+    // ========== 政府价格管制状态（计划经济） ==========
+    const [priceControls, setPriceControls] = useState({
+        enabled: false,              // 是否启用价格管制
+        governmentBuyPrices: {},     // 政府收购价 { resourceKey: price }
+        governmentSellPrices: {},    // 政府出售价 { resourceKey: price }
+    });
 
 
     // ========== 社会阶层状态 ==========
@@ -1096,7 +1103,7 @@ export const useGameState = () => {
         setOfficials(data.officials || []);
         setOfficialCandidates(data.officialCandidates || []);
         setLastSelectionDay(data.lastSelectionDay ?? -999);
-        setOfficialCapacity(data.officialCapacity ?? 3);
+        setOfficialCapacity(data.officialCapacity ?? 2);
         setExpansionSettings(data.expansionSettings || {}); // [FIX] 加载自由市场扩张设置
         setClassApproval(data.classApproval || {});
         setClassInfluence(data.classInfluence || {});
@@ -1800,6 +1807,8 @@ export const useGameState = () => {
         setQuotaTargets,
         expansionSettings,
         setExpansionSettings,
+        priceControls,
+        setPriceControls,
 
         // 社会阶层
         classApproval,

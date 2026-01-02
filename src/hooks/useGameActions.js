@@ -42,6 +42,7 @@ export const useGameActions = (gameState, addLog) => {
         resources,
         setResources,
         market,
+        rates,
         buildings,
         setBuildings,
         epoch,
@@ -908,7 +909,7 @@ export const useGameActions = (gameState, addLog) => {
             addLog('选拔仍在冷却中。');
             return;
         }
-        const candidates = triggerSelection(epoch, popStructure, classInfluence, market);
+        const candidates = triggerSelection(epoch, popStructure, classInfluence, market, rates);
         setOfficialCandidates(candidates);
         setLastSelectionDay(daysElapsed);
         addLog('已举行新一轮官员选拔，请查看候选人名单。');

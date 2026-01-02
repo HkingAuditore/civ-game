@@ -42,6 +42,10 @@ export const OfficialsPanel = ({
     maxCapacity = 3,
     stanceContext = {},
     prices = {},  // [NEW] 市场价格用于自由市场面板
+
+    // [NEW] 价格管制相关
+    priceControls = { enabled: false, governmentBuyPrices: {}, governmentSellPrices: {} },
+    onUpdatePriceControls,
 }) => {
 
     // 派系面板弹窗状态
@@ -364,6 +368,9 @@ export const OfficialsPanel = ({
                                     popStructure={popStructure}
                                     quotaTargets={quotaTargets}
                                     onUpdateQuotas={onUpdateQuotas}
+                                    priceControls={priceControls}
+                                    onUpdatePriceControls={onUpdatePriceControls}
+                                    marketPrices={prices}
                                 />
                             )}
                             {dominantPanel === 'freeMarket' && (

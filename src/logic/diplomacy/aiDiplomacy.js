@@ -238,6 +238,10 @@ export const processAIPlayerTrade = (visibleNations, tick, resources, market, lo
                 res[resourceKey] = (res[resourceKey] || 0) - quantity;
                 res.silver = (res.silver || 0) + tariff;
                 nation.wealth = Math.max(0, (nation.wealth || 0) - baseValue - tariff);
+                if (!nation.inventory) {
+                    nation.inventory = {};
+                }
+                nation.inventory[resourceKey] = (nation.inventory[resourceKey] || 0) + quantity;
 
                 logs.push(`AI_TRADE_EVENT:${JSON.stringify({
                     nationId: nation.id,
@@ -260,6 +264,10 @@ export const processAIPlayerTrade = (visibleNations, tick, resources, market, lo
                 res[resourceKey] = (res[resourceKey] || 0) + quantity;
                 res.silver = (res.silver || 0) + tariff;
                 nation.wealth = (nation.wealth || 0) + baseValue - tariff;
+                if (!nation.inventory) {
+                    nation.inventory = {};
+                }
+                nation.inventory[resourceKey] = Math.max(0, (nation.inventory[resourceKey] || 0) - quantity);
 
                 logs.push(`AI_TRADE_EVENT:${JSON.stringify({
                     nationId: nation.id,

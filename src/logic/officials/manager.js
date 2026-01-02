@@ -21,13 +21,14 @@ export const OFFICIAL_SELECTION_COOLDOWN = 180;
  * @param {Object} popStructure - 当前人口结构 { stratumKey: population }
  * @param {Object} classInfluence - 当前影响力占比 { stratumKey: influencePercent }
  * @param {Object} market - 当前市场数据（包含 prices 等信息）
+ * @param {Object} rates - 当前资源速率（用于估算规模）
  * @returns {Array} 新生成的候选人列表
  */
-export const triggerSelection = (epoch, popStructure = {}, classInfluence = {}, market = null) => {
+export const triggerSelection = (epoch, popStructure = {}, classInfluence = {}, market = null, rates = null) => {
     const candidates = [];
     // 固定生成5名候选人
     for (let i = 0; i < 5; i++) {
-        candidates.push(generateRandomOfficial(epoch, popStructure, classInfluence, market));
+        candidates.push(generateRandomOfficial(epoch, popStructure, classInfluence, market, rates));
     }
     return candidates;
 };

@@ -216,12 +216,13 @@ export const initCheatCodes = (gameState, addLog) => {
                 const popStructure = gameState.popStructure || {};
                 const classInfluence = {}; // 可以简化
                 const market = gameState.market || null; // 获取市场数据
-                const newCandidates = triggerSelection ? triggerSelection(epoch, popStructure, classInfluence, market) : [];
+                const rates = gameState.rates || null;
+                const newCandidates = triggerSelection ? triggerSelection(epoch, popStructure, classInfluence, market, rates) : [];
                 // 直接使用 generateRandomOfficial
                 import('../config/officials').then(({ generateRandomOfficial }) => {
                     const candidates = [];
                     for (let i = 0; i < 5; i++) {
-                        candidates.push(generateRandomOfficial(epoch, popStructure, classInfluence, market));
+                        candidates.push(generateRandomOfficial(epoch, popStructure, classInfluence, market, rates));
                     }
                     gameState.setOfficialCandidates(candidates);
                     addLog(`👔 作弊码：刷新了 5 名新候选人`);

@@ -7,6 +7,7 @@ import { STRATA, RESOURCES } from '../../config';
 import { isResourceUnlocked } from '../../utils/resources';
 import { isTradableResource, getBasePrice } from '../utils/helpers';
 import { calculateLivingStandardData, calculateWealthMultiplier, calculateLuxuryConsumptionMultiplier, getSimpleLivingStandard } from '../../utils/livingStandard';
+import { applyBuyPriceControl } from '../officials/cabinetSynergy';
 
 /**
  * Process needs consumption for all strata
@@ -30,7 +31,8 @@ export const processNeedsConsumption = ({
     classFinancialData = {}, // 新增：详细财务跟踪
     tick,
     logs,
-    potentialResources = null  // 已解锁建筑可产出资源集合（用于门控需求）
+    potentialResources = null,  // 已解锁建筑可产出资源集合（用于门控需求）
+    priceControls = null        // 政府价格管制设置
 }) => {
     const res = { ...resources };
     const updatedWealth = { ...wealth };
@@ -120,10 +122,17 @@ export const processNeedsConsumption = ({
 
             if (isTradableResource(resKey)) {
                 // Tradable resource - requires payment
-                const price = priceMap[resKey] || getBasePrice(resKey);
-                const totalCost = requirement * price;
+                const marketPrice = priceMap[resKey] || getBasePrice(resKey);
+                
+                // 1. 先应用价格管制，获取有效价格
+                let effectivePrice = marketPrice;
+                if (priceControls?.enabled && priceControls.governmentSellPrices?.[resKey] !== undefined) {
+                    effectivePrice = priceControls.governmentSellPrices[resKey];
+                }
+                
+                const totalCost = requirement * effectivePrice;
                 const affordable = updatedWealth[key] > 0
-                    ? Math.min(requirement, (updatedWealth[key] / price))
+                    ? Math.min(requirement, (updatedWealth[key] / effectivePrice))
                     : 0;
 
                 const amount = Math.min(requirement, available, affordable);
@@ -131,8 +140,9 @@ export const processNeedsConsumption = ({
                 if (amount > 0) {
                     res[resKey] = available - amount;
 
+                    // 2. 基于有效价格计算交易税
                     const taxRate = getResourceTaxRate(resKey);
-                    const baseCost = amount * price;
+                    const baseCost = amount * effectivePrice;
                     const taxPaid = baseCost * taxRate;
                     let actualCost = baseCost;
 
@@ -153,6 +163,23 @@ export const processNeedsConsumption = ({
                     } else if (taxPaid > 0) {
                         taxBreakdown.industryTax += taxPaid;
                         actualCost += taxPaid;
+                    }
+
+                    // 3. 计算价格管制收支差额
+                    if (priceControls?.enabled && priceControls.governmentSellPrices?.[resKey] !== undefined) {
+                        const priceDiff = (effectivePrice - marketPrice) * amount;
+                        if (priceDiff > 0) {
+                            // 政府出售价 > 市场价：买家额外支付，政府收入
+                            taxBreakdown.priceControlIncome = (taxBreakdown.priceControlIncome || 0) + priceDiff;
+                        } else if (priceDiff < 0) {
+                            // 政府出售价 < 市场价：政府补贴买家
+                            const subsidyNeeded = Math.abs(priceDiff);
+                            if ((res.silver || 0) >= subsidyNeeded) {
+                                res.silver -= subsidyNeeded;
+                                taxBreakdown.priceControlExpense = (taxBreakdown.priceControlExpense || 0) + subsidyNeeded;
+                            }
+                            // 如果国库不足，补贴失败但交易仍按有效价格进行
+                        }
                     }
 
                     updatedWealth[key] = Math.max(0, (updatedWealth[key] || 0) - actualCost);

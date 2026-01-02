@@ -77,6 +77,18 @@ export const simulateMerchantTrade = ({
         ? nations.filter(n => n && (n.inventory || n.economyTraits))
         : [];
     const foreignPriceCache = {};
+    const applyForeignInventoryDeltaAll = (resourceKey, delta) => {
+        if (foreignPartners.length === 0 || !Number.isFinite(delta) || delta === 0) return;
+        const perPartner = delta / foreignPartners.length;
+        foreignPartners.forEach(partner => {
+            if (!partner) return;
+            if (!partner.inventory) {
+                partner.inventory = {};
+            }
+            const currentStock = partner.inventory[resourceKey] || 0;
+            partner.inventory[resourceKey] = Math.max(0, currentStock + perPartner);
+        });
+    };
 
     const getForeignPrice = (resourceKey) => {
         if (foreignPriceCache[resourceKey] !== undefined) {
@@ -116,6 +128,8 @@ export const simulateMerchantTrade = ({
                 // Import goods arrived
                 res[trade.resource] = (res[trade.resource] || 0) + trade.amount;
                 supply[trade.resource] = (supply[trade.resource] || 0) + trade.amount;
+            } else if (trade.type === 'export') {
+                applyForeignInventoryDeltaAll(trade.resource, trade.amount);
             }
 
             // Track completed trade for logging
@@ -207,6 +221,7 @@ export const simulateMerchantTrade = ({
                 getLocalPrice,
                 getForeignPrice,
                 roleWagePayout,
+                applyForeignInventoryDeltaAll,
                 classFinancialData,
                 taxPolicies,
                 tick,
@@ -232,6 +247,7 @@ export const simulateMerchantTrade = ({
                 getLocalPrice,
                 getForeignPrice,
                 roleExpense,
+                applyForeignInventoryDeltaAll,
                 classFinancialData,
                 taxPolicies,
                 tick,
@@ -276,6 +292,7 @@ const executeExportTrade = ({
     getForeignPrice,
     getResourceTaxRate,
     roleWagePayout,
+    applyForeignInventoryDeltaAll,
     classFinancialData,
     taxPolicies, // Added for detailed financial tracking
     tick,
@@ -432,6 +449,7 @@ const executeImportTrade = ({
     getForeignPrice,
     getResourceTaxRate,
     roleExpense,
+    applyForeignInventoryDeltaAll,
     classFinancialData,
     taxPolicies,
     tick,
@@ -485,6 +503,7 @@ const executeImportTrade = ({
         if ((wealth.merchant || 0) >= totalCost) {
             wealth.merchant -= totalCost;
             roleExpense.merchant = (roleExpense.merchant || 0) + totalCost;
+            applyForeignInventoryDeltaAll(resourceKey, -totalAmount);
 
             // Separate tariff from base transaction tax for taxBreakdown
             const baseRate = taxPolicies?.resourceTaxRates?.[resourceKey] || 0;

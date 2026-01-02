@@ -18,6 +18,8 @@ export const initializeTaxBreakdown = () => ({
     subsidy: 0,
     policyIncome: 0,
     policyExpense: 0,
+    priceControlIncome: 0,   // 价格管制收入（买家溢价 + 卖家超额利润税）
+    priceControlExpense: 0,  // 价格管制支出（买家补贴 + 卖家保底补贴）
 });
 
 /**
@@ -90,10 +92,15 @@ export const collectHeadTax = ({
 
         const headRate = getHeadTaxRate(key, headTaxRates);
         const headBase = def?.headTaxBase ?? 0.01;
-        const due = count * headBase * headRate * effectiveTaxModifier;
+        const plannedPerCapitaTax = headBase * headRate * effectiveTaxModifier;
+        const available = Math.max(0, updatedWealth[key] || 0);
+        const maxPerCapitaTax = available / Math.max(1, count);
+        const effectivePerCapitaTax = plannedPerCapitaTax >= 0
+            ? Math.min(plannedPerCapitaTax, maxPerCapitaTax)
+            : plannedPerCapitaTax;
+        const due = count * effectivePerCapitaTax;
 
         if (due !== 0) {
-            const available = updatedWealth[key] || 0;
             if (due > 0) {
                 // Positive tax - collect from stratum
                 const paid = Math.min(available, due);
@@ -134,11 +141,14 @@ export const calculateFinalTaxes = (
     efficiency,
     warIndemnityIncome = 0
 ) => {
-    const collectedHeadTax = taxBreakdown.headTax * efficiency;
-    const collectedIndustryTax = taxBreakdown.industryTax * efficiency;
-    const collectedBusinessTax = taxBreakdown.businessTax * efficiency;
-    const collectedTariff = (taxBreakdown.tariff || 0) * efficiency;
+    const clampedEfficiency = Math.max(0, Math.min(1, efficiency));
+    const collectedHeadTax = taxBreakdown.headTax * clampedEfficiency;
+    const collectedIndustryTax = taxBreakdown.industryTax * clampedEfficiency;
+    const collectedBusinessTax = taxBreakdown.businessTax * clampedEfficiency;
+    const collectedTariff = (taxBreakdown.tariff || 0) * clampedEfficiency;
     const tariffSubsidy = taxBreakdown.tariffSubsidy || 0; // 关税补贴支出
+    const priceControlIncome = taxBreakdown.priceControlIncome || 0;   // 价格管制收入
+    const priceControlExpense = taxBreakdown.priceControlExpense || 0; // 价格管制支出
     const totalCollectedTax = collectedHeadTax + collectedIndustryTax + collectedBusinessTax + collectedTariff;
 
     const netTax = totalCollectedTax
@@ -146,11 +156,13 @@ export const calculateFinalTaxes = (
         - tariffSubsidy // 扣除关税补贴支出
         + warIndemnityIncome
         + taxBreakdown.policyIncome
-        - taxBreakdown.policyExpense;
+        - taxBreakdown.policyExpense
+        + priceControlIncome    // 加上价格管制收入
+        - priceControlExpense;  // 减去价格管制支出
 
     return {
         total: netTax,
-        efficiency,
+        efficiency: clampedEfficiency,
         breakdown: {
             headTax: collectedHeadTax,
             industryTax: collectedIndustryTax,
@@ -161,6 +173,8 @@ export const calculateFinalTaxes = (
             warIndemnity: warIndemnityIncome,
             policyIncome: taxBreakdown.policyIncome,
             policyExpense: taxBreakdown.policyExpense,
+            priceControlIncome,   // 价格管制收入
+            priceControlExpense,  // 价格管制支出
         },
     };
 };

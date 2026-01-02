@@ -824,3 +824,164 @@ export const processOwnerExpansions = (buildings, classWealth, expansionSettings
 
     return { expansions, wealthDeductions };
 };
+
+// ========== 政府价格管制系统 ==========
+
+/**
+ * 计算单次购买交易的政府价格管制效果
+ * 当买家购买资源时：
+ * - 若市场价 < 政府出售价：买家额外支付差价给政府
+ * - 若市场价 > 政府出售价：政府补贴差价给买家
+ * 
+ * @param {string} resourceKey - 资源键
+ * @param {number} amount - 交易数量
+ * @param {number} marketPrice - 市场价格
+ * @param {Object} priceControls - 价格管制设置
+ * @returns {Object} { adjustment: number, isIncome: boolean, effectivePrice: number }
+ */
+export const calculateBuyPriceControl = (resourceKey, amount, marketPrice, priceControls) => {
+    if (!priceControls?.enabled) {
+        return { adjustment: 0, isIncome: false, effectivePrice: marketPrice };
+    }
+
+    const govSellPrice = priceControls.governmentSellPrices?.[resourceKey];
+    if (govSellPrice === undefined || govSellPrice === null) {
+        return { adjustment: 0, isIncome: false, effectivePrice: marketPrice };
+    }
+
+    // 买家实际支付的价格是政府出售价
+    const effectivePrice = govSellPrice;
+    const priceDiff = (govSellPrice - marketPrice) * amount;
+
+    if (priceDiff > 0) {
+        // 政府出售价 > 市场价：买家额外支付，政府收入
+        return { adjustment: priceDiff, isIncome: true, effectivePrice };
+    } else if (priceDiff < 0) {
+        // 政府出售价 < 市场价：政府补贴买家，政府支出
+        return { adjustment: Math.abs(priceDiff), isIncome: false, effectivePrice };
+    }
+
+    return { adjustment: 0, isIncome: false, effectivePrice: marketPrice };
+};
+
+/**
+ * 计算单次出售交易的政府价格管制效果
+ * 当卖家出售资源时：
+ * - 若市场价 < 政府收购价：政府支付差价给卖家（保底收购）
+ * - 若市场价 > 政府收购价：卖家上缴差价给政府（超额利润税）
+ * 
+ * @param {string} resourceKey - 资源键
+ * @param {number} amount - 交易数量
+ * @param {number} marketPrice - 市场价格
+ * @param {Object} priceControls - 价格管制设置
+ * @returns {Object} { adjustment: number, isIncome: boolean, effectivePrice: number }
+ */
+export const calculateSellPriceControl = (resourceKey, amount, marketPrice, priceControls) => {
+    if (!priceControls?.enabled) {
+        return { adjustment: 0, isIncome: false, effectivePrice: marketPrice };
+    }
+
+    const govBuyPrice = priceControls.governmentBuyPrices?.[resourceKey];
+    if (govBuyPrice === undefined || govBuyPrice === null) {
+        return { adjustment: 0, isIncome: false, effectivePrice: marketPrice };
+    }
+
+    // 卖家实际获得的价格是政府收购价
+    const effectivePrice = govBuyPrice;
+    const priceDiff = (marketPrice - govBuyPrice) * amount;
+
+    if (priceDiff > 0) {
+        // 市场价 > 政府收购价：卖家上缴超额利润，政府收入
+        return { adjustment: priceDiff, isIncome: true, effectivePrice };
+    } else if (priceDiff < 0) {
+        // 市场价 < 政府收购价：政府补贴卖家，政府支出
+        return { adjustment: Math.abs(priceDiff), isIncome: false, effectivePrice };
+    }
+
+    return { adjustment: 0, isIncome: false, effectivePrice: marketPrice };
+};
+
+/**
+ * 应用购买时的价格管制效果
+ * 修改实际支付成本，并更新税务分解
+ * 
+ * @param {Object} params - 参数对象
+ * @param {string} params.resourceKey - 资源键
+ * @param {number} params.amount - 交易数量
+ * @param {number} params.marketPrice - 市场价格
+ * @param {Object} params.priceControls - 价格管制设置
+ * @param {Object} params.taxBreakdown - 税务分解对象（会被修改）
+ * @param {Object} params.resources - 资源对象（用于政府支出时扣除银币）
+ * @returns {Object} { effectivePrice: number, success: boolean }
+ */
+export const applyBuyPriceControl = ({
+    resourceKey,
+    amount,
+    marketPrice,
+    priceControls,
+    taxBreakdown,
+    resources
+}) => {
+    const result = calculateBuyPriceControl(resourceKey, amount, marketPrice, priceControls);
+
+    if (result.adjustment > 0) {
+        if (result.isIncome) {
+            // 政府收入
+            taxBreakdown.priceControlIncome = (taxBreakdown.priceControlIncome || 0) + result.adjustment;
+        } else {
+            // 政府支出：检查国库是否充足
+            const treasury = resources.silver || 0;
+            if (treasury >= result.adjustment) {
+                resources.silver = treasury - result.adjustment;
+                taxBreakdown.priceControlExpense = (taxBreakdown.priceControlExpense || 0) + result.adjustment;
+            } else {
+                // 国库不足，使用市场价
+                return { effectivePrice: marketPrice, success: false };
+            }
+        }
+    }
+
+    return { effectivePrice: result.effectivePrice, success: true };
+};
+
+/**
+ * 应用出售时的价格管制效果
+ * 
+ * @param {Object} params - 参数对象
+ * @param {string} params.resourceKey - 资源键
+ * @param {number} params.amount - 交易数量
+ * @param {number} params.marketPrice - 市场价格
+ * @param {Object} params.priceControls - 价格管制设置
+ * @param {Object} params.taxBreakdown - 税务分解对象（会被修改）
+ * @param {Object} params.resources - 资源对象（用于政府支出时扣除银币）
+ * @returns {Object} { effectivePrice: number, success: boolean }
+ */
+export const applySellPriceControl = ({
+    resourceKey,
+    amount,
+    marketPrice,
+    priceControls,
+    taxBreakdown,
+    resources
+}) => {
+    const result = calculateSellPriceControl(resourceKey, amount, marketPrice, priceControls);
+
+    if (result.adjustment > 0) {
+        if (result.isIncome) {
+            // 政府收入（超额利润税）
+            taxBreakdown.priceControlIncome = (taxBreakdown.priceControlIncome || 0) + result.adjustment;
+        } else {
+            // 政府支出（保底收购补贴）
+            const treasury = resources.silver || 0;
+            if (treasury >= result.adjustment) {
+                resources.silver = treasury - result.adjustment;
+                taxBreakdown.priceControlExpense = (taxBreakdown.priceControlExpense || 0) + result.adjustment;
+            } else {
+                // 国库不足，使用市场价
+                return { effectivePrice: marketPrice, success: false };
+            }
+        }
+    }
+
+    return { effectivePrice: result.effectivePrice, success: true };
+};

@@ -1013,9 +1013,14 @@ export const simulateTick = ({
         }
         const headRate = getHeadTaxRate(key);
         const headBase = STRATA[key]?.headTaxBase ?? 0.01;
-        const due = count * headBase * headRate * effectiveTaxModifier;
+        const plannedPerCapitaTax = headBase * headRate * effectiveTaxModifier;
+        const available = Math.max(0, wealth[key] || 0);
+        const maxPerCapitaTax = available / Math.max(1, count);
+        const effectivePerCapitaTax = plannedPerCapitaTax >= 0
+            ? Math.min(plannedPerCapitaTax, maxPerCapitaTax)
+            : plannedPerCapitaTax;
+        const due = count * effectivePerCapitaTax;
         if (due !== 0) {
-            const available = wealth[key] || 0;
             if (due > 0) {
                 const paid = Math.min(available, due);
                 wealth[key] = available - paid;
@@ -2680,6 +2685,35 @@ export const simulateTick = ({
             });
         }
 
+        // 人头税：官员拥有独立财富，因此在此单独结算
+        const headRate = getHeadTaxRate('official');
+        const headBase = STRATA.official?.headTaxBase ?? 0.01;
+        const plannedPerCapitaTax = headBase * headRate * effectiveTaxModifier;
+        if (plannedPerCapitaTax !== 0) {
+            if (plannedPerCapitaTax > 0) {
+                const taxPaid = Math.min(currentWealth, plannedPerCapitaTax);
+                currentWealth = Math.max(0, currentWealth - taxPaid);
+                taxBreakdown.headTax += taxPaid;
+                roleHeadTaxPaid.official = (roleHeadTaxPaid.official || 0) + taxPaid;
+                roleExpense.official = (roleExpense.official || 0) + taxPaid;
+                if (classFinancialData.official) {
+                    classFinancialData.official.expense.headTax = (classFinancialData.official.expense.headTax || 0) + taxPaid;
+                }
+            } else {
+                const subsidyNeeded = Math.abs(plannedPerCapitaTax);
+                const treasury = res.silver || 0;
+                if (treasury >= subsidyNeeded) {
+                    res.silver = treasury - subsidyNeeded;
+                    currentWealth += subsidyNeeded;
+                    taxBreakdown.subsidy += subsidyNeeded;
+                    totalOfficialIncome += subsidyNeeded;
+                    if (classFinancialData.official) {
+                        classFinancialData.official.income.subsidy = (classFinancialData.official.income.subsidy || 0) + subsidyNeeded;
+                    }
+                }
+            }
+        }
+
         // 扣除支出
         currentWealth = Math.max(0, currentWealth - dailyExpense);
 
@@ -2786,7 +2820,7 @@ export const simulateTick = ({
         // Tax Burden Logic
         const headRate = getHeadTaxRate(key);
         const headBase = STRATA[key]?.headTaxBase ?? 0.01;
-        const taxPerCapita = Math.max(0, headBase * headRate * effectiveTaxModifier);
+        const taxPerCapita = Math.max(0, (roleHeadTaxPaid[key] || 0) / Math.max(1, count));
         const incomePerCapita = (roleWagePayout[key] || 0) / Math.max(1, count);
         const wealthPerCapita = (wealth[key] || 0) / Math.max(1, count);
 
@@ -2798,6 +2832,14 @@ export const simulateTick = ({
         } else if (headRate < 0.6) {
             targetApproval += 5; // Tax relief bonus
         }
+
+        // 税收冲击：当人头税在单日内吞噬大量财富/收入时，立即产生强烈反感
+        const headTaxPaidPerCapita = (roleHeadTaxPaid[key] || 0) / Math.max(1, count);
+        const taxShockBase = Math.max(0.1, wealthPerCapita + incomePerCapita);
+        const taxShockRatio = headTaxPaidPerCapita / taxShockBase;
+        const taxShockPenalty = headRate > 1 && headTaxPaidPerCapita > 0
+            ? Math.min(25, taxShockRatio * 25)
+            : 0;
 
         // Resource Shortage Logic - 区分基础需求和奢侈需求短缺
         const shortages = classShortages[key] || [];
@@ -2907,8 +2949,13 @@ export const simulateTick = ({
             effectiveApprovalCap = Math.max(0, livingStandardApprovalCap + officialBonus);
         }
 
-        const currentApproval = classApproval[key] || 50;
+        let currentApproval = classApproval[key] || 50;
         const adjustmentSpeed = 0.02; // How slowly approval changes per tick
+
+        if (taxShockPenalty > 0) {
+            currentApproval = Math.max(0, currentApproval - taxShockPenalty);
+            targetApproval = Math.min(targetApproval, 35);
+        }
 
         // 满意度向目标值移动
         let newApproval = currentApproval + (targetApproval - currentApproval) * adjustmentSpeed;
@@ -3369,6 +3416,7 @@ export const simulateTick = ({
             epoch,
             playerPopulationBaseline,
             playerWealthBaseline,
+            tick,
         });
 
         return next;
@@ -4426,7 +4474,8 @@ export const simulateTick = ({
     totalWealth = Object.values(classWealthResult).reduce((sum, val) => sum + val, 0);
 
     // 应用官员税收效率加成 (同时减去腐败损失)
-    const effectiveTaxEfficiency = efficiency * (1 + (bonuses.taxEfficiencyBonus || 0) - (bonuses.corruption || 0));
+    const rawTaxEfficiency = efficiency * (1 + (bonuses.taxEfficiencyBonus || 0) - (bonuses.corruption || 0));
+    const effectiveTaxEfficiency = Math.max(0, Math.min(1, rawTaxEfficiency));
     const collectedHeadTax = taxBreakdown.headTax * effectiveTaxEfficiency;
     const collectedIndustryTax = taxBreakdown.industryTax * effectiveTaxEfficiency;
     const collectedBusinessTax = taxBreakdown.businessTax * effectiveTaxEfficiency;

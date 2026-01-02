@@ -6,6 +6,7 @@
 
 import { RESOURCES } from '../../config';
 import { clamp } from '../utils';
+import { calculateTradeStatus } from '../../utils/foreignTrade';
 import { isTradableResource } from '../utils/helpers';
 
 /**
@@ -168,10 +169,14 @@ export const processAIIndependentGrowth = ({
 
     const ticksSinceLastGrowth = tick - (next.economyTraits.lastGrowthTick || 0);
     if (ticksSinceLastGrowth >= 100) {
-        const growthChance = 0.3 * developmentRate;
+        const popScale = Math.max(1, (ownBasePopulation || 10) / 200);
+        const growthDampening = clamp(1 / (1 + popScale * 0.6), 0.2, 1);
+        const growthChance = 0.3 * developmentRate * growthDampening;
         if (Math.random() < growthChance && !next.isAtWar) {
-            next.economyTraits.ownBasePopulation = Math.round(ownBasePopulation * (1.03 + Math.random() * 0.05));
-            next.economyTraits.ownBaseWealth = Math.round(ownBaseWealth * (1.04 + Math.random() * 0.08));
+            const popGrowthRate = (1.03 + Math.random() * 0.05) * growthDampening;
+            const wealthGrowthRate = (1.04 + Math.random() * 0.08) * Math.max(0.4, growthDampening);
+            next.economyTraits.ownBasePopulation = Math.round(ownBasePopulation * popGrowthRate);
+            next.economyTraits.ownBaseWealth = Math.round(ownBaseWealth * wealthGrowthRate);
         }
         next.economyTraits.lastGrowthTick = tick;
     }
@@ -190,6 +195,7 @@ export const updateAIDevelopment = ({
     epoch,
     playerPopulationBaseline,
     playerWealthBaseline,
+    tick,
 }) => {
     const next = nation;
     const powerProfile = next.foreignPower || {};
@@ -233,7 +239,24 @@ export const updateAIDevelopment = ({
     );
 
     // Final target values
-    const desiredPopulation = Math.max(3, blendedTargetPopulation * templatePopulationBoost);
+    const foodStatus = calculateTradeStatus('food', next, tick);
+    const foodPressure = foodStatus.isShortage
+        ? clamp(1 - (foodStatus.shortageAmount / Math.max(1, foodStatus.target)), 0.5, 1)
+        : 1;
+    const foodSurplusBoost = foodStatus.isSurplus
+        ? clamp(1 + (foodStatus.surplusAmount / Math.max(1, foodStatus.target)) * 0.08, 1, 1.15)
+        : 1;
+    const foodFactor = clamp(foodPressure * foodSurplusBoost, 0.5, 1.15);
+    const desiredPopulationRaw = Math.max(3, blendedTargetPopulation * templatePopulationBoost * foodFactor);
+    const populationSoftCap = Math.max(
+        200,
+        playerPopulationBaseline * 1.5,
+        (next.economyTraits?.ownBasePopulation || 16) * 25
+    );
+    const populationOverage = Math.max(0, desiredPopulationRaw - populationSoftCap);
+    const desiredPopulation = populationOverage > 0
+        ? populationSoftCap + (populationOverage / (1 + (populationOverage / populationSoftCap)))
+        : desiredPopulationRaw;
     const desiredWealth = Math.max(100, blendedTargetWealth * templateWealthBoost);
 
     next.economyTraits = {
@@ -245,13 +268,23 @@ export const updateAIDevelopment = ({
     // Apply drift towards target
     const currentPopulation = next.population ?? desiredPopulation;
     const driftMultiplier = clamp(1 + volatility * 0.6 + eraMomentum * 0.08, 1, 1.8);
-    const populationDriftRate = (next.isAtWar ? 0.032 : 0.12) * driftMultiplier;
-    const populationNoise = (Math.random() - 0.5) * volatility * desiredPopulation * 0.04;
+    const populationDampening = clamp(
+        1 / (1 + Math.pow(currentPopulation / Math.max(1, populationSoftCap), 1.3)),
+        0.25,
+        1
+    );
+    const populationDriftRate = (next.isAtWar ? 0.032 : 0.12) * driftMultiplier * populationDampening;
+    const populationNoise = (Math.random() - 0.5) * volatility * desiredPopulation * 0.04 * populationDampening;
     let adjustedPopulation = currentPopulation + (desiredPopulation - currentPopulation) * populationDriftRate + populationNoise;
     if (next.isAtWar) {
         adjustedPopulation -= currentPopulation * 0.012;
     }
     next.population = Math.max(3, Math.round(adjustedPopulation));
+    if (foodStatus.isShortage) {
+        const shortagePressure = clamp(foodStatus.shortageAmount / Math.max(1, foodStatus.target), 0, 1);
+        const currentStrength = next.militaryStrength ?? 1.0;
+        next.militaryStrength = Math.max(0.6, currentStrength - shortagePressure * 0.01);
+    }
 
     const currentWealth = next.wealth ?? desiredWealth;
     const wealthDriftRate = (next.isAtWar ? 0.03 : 0.11) * driftMultiplier;

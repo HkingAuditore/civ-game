@@ -153,7 +153,7 @@ function GameApp({ gameState }) {
 
     // 检测官员超编情况
     useEffect(() => {
-        const currentCapacity = gameState.officialCapacity || 3;
+        const currentCapacity = gameState.officialCapacity ?? 2;
         const currentOfficials = gameState.officials || [];
         const officialCount = currentOfficials.length;
 
@@ -1128,10 +1128,10 @@ function GameApp({ gameState }) {
                                                 // 官员系统 props
                                                 officials={gameState.officials}
                                                 candidates={gameState.officialCandidates}
-                                                capacity={Math.min(gameState.jobsAvailable?.official || 0, gameState.officialCapacity || 3)}
+                                                capacity={Math.min(gameState.jobsAvailable?.official || 0, gameState.officialCapacity ?? 2)}
                                                 // [NEW] 传递详细容量信息用于显示
                                                 jobCapacity={gameState.jobsAvailable?.official || 0}
-                                                maxCapacity={gameState.officialCapacity || 3}
+                                                maxCapacity={gameState.officialCapacity ?? 2}
 
                                                 lastSelectionDay={gameState.lastSelectionDay}
                                                 currentTick={gameState.daysElapsed}
@@ -1168,6 +1168,9 @@ function GameApp({ gameState }) {
                                                 expansionSettings={gameState.expansionSettings}
                                                 onUpdateQuotas={(newQuotas) => gameState.setQuotaTargets(newQuotas)}
                                                 onUpdateExpansionSettings={(newSettings) => gameState.setExpansionSettings(newSettings)}
+                                                // [NEW] 价格管制 props
+                                                priceControls={gameState.priceControls}
+                                                onUpdatePriceControls={(newControls) => gameState.setPriceControls(newControls)}
                                                 onEnactDecree={(decreeId) => {
                                                     // 颁布法令逻辑
                                                     const decree = REFORM_DECREES[decreeId];
@@ -1724,7 +1727,7 @@ function GameApp({ gameState }) {
                 <OfficialOverstaffModal
                     officials={gameState.officials}
                     currentCount={gameState.officials?.length || 0}
-                    maxCapacity={gameState.officialCapacity || 3}
+                    maxCapacity={gameState.officialCapacity ?? 2}
                     onFireOfficial={handleOfficialOverstaffFire}
                     onClose={() => setShowOfficialOverstaffModal(false)}
                 />

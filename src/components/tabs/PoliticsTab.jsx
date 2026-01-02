@@ -342,6 +342,10 @@ const PoliticsTabComponent = ({
     jobCapacity = 0,
     maxCapacity = 3,
     stanceContext = {},
+
+    // [NEW] 价格管制相关
+    priceControls = { enabled: false, governmentBuyPrices: {}, governmentSellPrices: {} },
+    onUpdatePriceControls,
 }) => {
 
     const [activeTaxTab, setActiveTaxTab] = React.useState('head'); // 'head', 'resource', 'business'
@@ -764,6 +768,9 @@ const PoliticsTabComponent = ({
                         onEnactDecree={onEnactDecree}
                         stanceContext={stanceContext} // [NEW]
                         prices={market?.prices || {}}  // [NEW] 市场价格用于自由市场面板
+                        // [NEW] 价格管制相关
+                        priceControls={priceControls}
+                        onUpdatePriceControls={onUpdatePriceControls}
                     />
                 ) : (
                     <div className="glass-ancient p-6 rounded-xl border border-ancient-gold/30 text-center">

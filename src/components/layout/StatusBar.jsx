@@ -387,6 +387,12 @@ export const StatusBar = ({
                                                             <span className="text-green-300 font-mono">+{policyIncome.toFixed(1)}</span>
                                                         </div>
                                                     )}
+                                                    {(taxes.breakdown?.priceControlIncome || 0) > 0 && (
+                                                        <div className="stat-item-compact">
+                                                            <span className="text-ancient-stone">价格管制收入</span>
+                                                            <span className="text-green-300 font-mono">+{taxes.breakdown.priceControlIncome.toFixed(1)}</span>
+                                                        </div>
+                                                    )}
                                                     {(taxes.breakdown?.warIndemnity || 0) > 0 && (
                                                         <div className="stat-item-compact">
                                                             <span className="text-ancient-stone">战争赔款收入</span>
@@ -417,6 +423,12 @@ export const StatusBar = ({
                                                         <div className="stat-item-compact">
                                                             <span className="text-ancient-stone">关税补贴</span>
                                                             <span className="text-red-300 font-mono">-{taxes.breakdown.tariffSubsidy.toFixed(1)}</span>
+                                                        </div>
+                                                    )}
+                                                    {(taxes.breakdown?.priceControlExpense || 0) > 0 && (
+                                                        <div className="stat-item-compact">
+                                                            <span className="text-ancient-stone">价格管制支出</span>
+                                                            <span className="text-red-300 font-mono">-{taxes.breakdown.priceControlExpense.toFixed(1)}</span>
                                                         </div>
                                                     )}
                                                     {policyExpense > 0 && (

@@ -1174,7 +1174,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     // 与 App.jsx Line 1130 保持一致的计算逻辑
                     // 使用 hook 作用域中的 jobsAvailable（而非 current.jobsAvailable）
                     const jobCapacity = jobsAvailable?.official || 0;
-                    const maxCapacity = current.officialCapacity || officialCapacity || 3;
+                    const maxCapacity = current.officialCapacity ?? officialCapacity ?? 2;
                     const effectiveCapacity = Math.min(
                         jobCapacity > 0 ? jobCapacity : maxCapacity,
                         maxCapacity
