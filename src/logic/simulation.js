@@ -208,6 +208,7 @@ export const simulateTick = ({
     quotaTargets = {}, // [NEW] Quota system targets for Left Dominance
     expansionSettings = {}, // [NEW] Expansion settings for Right Dominance
     cabinetStatus = {}, // [NEW] Cabinet status for synergy/dominance
+    priceControls = null, // [NEW] 政府价格管制设置
 }) => {
     // console.log('[TICK START]', tick); // Commented for performance
     const res = { ...resources };
@@ -2283,8 +2284,14 @@ export const simulateTick = ({
             let satisfied = 0;
 
             if (isTradableResource(resKey)) {
-                const price = getPrice(resKey);
-                const priceWithTax = price * (1 + getResourceTaxRate(resKey));
+                const marketPrice = getPrice(resKey);
+                
+                // [NEW] 价格管制检查：只有左派主导且启用时才生效
+                const leftFactionDominant = cabinetStatus?.dominance?.panelType === 'plannedEconomy';
+                const priceControlActive = leftFactionDominant && priceControls?.enabled && priceControls.governmentSellPrices?.[resKey] !== undefined && priceControls.governmentSellPrices[resKey] !== null;
+                const effectivePrice = priceControlActive ? priceControls.governmentSellPrices[resKey] : marketPrice;
+                
+                const priceWithTax = effectivePrice * (1 + getResourceTaxRate(resKey));
                 const affordable = priceWithTax > 0 ? Math.min(requirement, (wealth[key] || 0) / priceWithTax) : requirement;
                 const amount = Math.min(requirement, available, affordable);
                 // 先不统计需求，等实际消费后再统计
@@ -2292,7 +2299,7 @@ export const simulateTick = ({
                     res[resKey] = available - amount;
                     rates[resKey] = (rates[resKey] || 0) - amount;
                     const taxRate = getResourceTaxRate(resKey);
-                    const baseCost = amount * price;
+                    const baseCost = amount * effectivePrice;
                     const taxPaid = baseCost * taxRate;
                     let totalCost = baseCost;
 
@@ -2314,6 +2321,22 @@ export const simulateTick = ({
                         totalCost += taxPaid;
                     }
 
+                    // [NEW] 价格管制收支跟踪
+                    if (priceControlActive) {
+                        const priceDiff = (effectivePrice - marketPrice) * amount;
+                        if (priceDiff > 0) {
+                            // 政府出售价 > 市场价：买家额外支付，政府收入
+                            taxBreakdown.priceControlIncome = (taxBreakdown.priceControlIncome || 0) + priceDiff;
+                        } else if (priceDiff < 0) {
+                            // 政府出售价 < 市场价：政府补贴买家
+                            const subsidyNeeded = Math.abs(priceDiff);
+                            if ((res.silver || 0) >= subsidyNeeded) {
+                                res.silver -= subsidyNeeded;
+                                taxBreakdown.priceControlExpense = (taxBreakdown.priceControlExpense || 0) + subsidyNeeded;
+                            }
+                        }
+                    }
+
                     wealth[key] = Math.max(0, (wealth[key] || 0) - totalCost);
                     roleExpense[key] = (roleExpense[key] || 0) + totalCost;
                     satisfied = amount;
@@ -2331,7 +2354,7 @@ export const simulateTick = ({
                         const needEntry = {
                             cost: totalCost,
                             quantity: amount,
-                            price: price
+                            price: effectivePrice
                         };
 
                         if (def.needs && def.needs.hasOwnProperty(resKey)) {
