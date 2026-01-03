@@ -100,6 +100,7 @@ export const BottomNav = ({ activeTab, onTabChange, epoch = 0 }) => {
                                 aria-selected={isActive}
                                 onClick={() => onTabChange(tab.id)}
                                 className={`
+                  appearance-none bg-transparent
                   relative flex flex-col items-center justify-center flex-1
                   transition-all duration-200 ease-out
                   ${isActive ? 'scale-105' : 'active:scale-95'}

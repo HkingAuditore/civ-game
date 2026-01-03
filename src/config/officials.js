@@ -1164,13 +1164,22 @@ export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence 
     drawbacks.forEach(mergeIntoEffects);
 
     // 5. 计算俸禄
-    // 目标范围: 15 ~ 4000 银/日 (官员效果降低后，薪资也相应降低)
-    // 基础薪资: 15 + 效果得分 * 150 (降低基础系数约50%)
-    // 时代加成: (0.5 + epoch * 0.2) - 青铜时代约0.7x，工业时代约1.7x
-    // 效果得分范围约 0.1 - 1.5，对应薪资约 30 - 250 基础
-    const epochMultiplier = 0.5 + epoch * 0.2;
-    const baseSalary = 15 + Math.max(0.1, totalCostScore) * 150;
+    // 目标范围: 15 ~ 4000 银/日
+    // 修复：对 totalCostScore 应用时代缩放，避免青铜时代高薪问题
+    // 时代缩放因子：epoch 1: 0.3x, epoch 2: 0.45x, epoch 3: 0.6x, epoch 4: 0.75x, epoch 5: 0.9x, epoch 6+: 1.0x
+    const epochScoreMultiplier = Math.min(1.0, 0.15 + epoch * 0.15);
+    const scaledCostScore = Math.max(0.1, totalCostScore) * epochScoreMultiplier;
+    
+    // 基础薪资：降低系数，让早期官员薪资合理
+    // epoch 1 (青铜): 基础15 + 得分*60*0.3 ≈ 15-50
+    // epoch 3 (铁器): 基础15 + 得分*60*0.6 ≈ 30-150
+    // epoch 6 (工业): 基础15 + 得分*60*1.0 ≈ 50-400
+    const baseSalary = 15 + scaledCostScore * 60;
+    
+    // 时代加成：让后期官员薪资有更大上限
+    const epochMultiplier = 0.6 + epoch * 0.15; // epoch 1: 0.75x, epoch 6: 1.5x
     let salary = Math.round(baseSalary * epochMultiplier);
+    
     // 确保在 15 ~ 4000 范围内
     salary = Math.max(MIN_OFFICIAL_SALARY, Math.min(MAX_OFFICIAL_SALARY, salary));
 

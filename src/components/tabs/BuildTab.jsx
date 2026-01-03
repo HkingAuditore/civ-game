@@ -629,9 +629,9 @@ const BuildTabComponent = ({
                         <button
                             key={filter.key}
                             onClick={() => setActiveCategory(filter.key)}
-                            className={`min-w-[64px] px-4 py-2 rounded-full border-2 text-xs font-semibold transition-all ${isActive
+                            className={`appearance-none min-w-[64px] px-4 py-2 rounded-full border-2 text-xs font-semibold transition-all ${isActive
                                 ? 'bg-ancient-gold/20 border-ancient-gold/70 text-ancient-parchment shadow-gold-metal'
-                                : 'border-transparent text-ancient-stone hover:text-ancient-parchment'
+                                : 'bg-transparent border-transparent text-ancient-stone hover:text-ancient-parchment'
                                 }`}
                             aria-pressed={isActive}
                         >
