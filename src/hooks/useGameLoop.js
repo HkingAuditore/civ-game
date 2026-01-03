@@ -24,6 +24,7 @@ import {
     REBEL_DEMAND_SURRENDER_TYPE,
 } from '../config/events';
 import { calculateTotalDailySalary, getCabinetStatus, calculateOfficialCapacity } from '../logic/officials/manager';
+import { processDecreeExpiry, REFORM_DECREES } from '../logic/officials/cabinetSynergy';
 // 新版组织度系统
 import {
     updateAllOrganizationStates,
@@ -623,6 +624,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
         epoch,
         techsUnlocked,
         activeDecrees, // [NEW] Active Reform Decrees
+        setActiveDecrees, // [NEW] Setter for active decrees
         quotaTargets, // [NEW] Planned Economy Targets
         expansionSettings, // [NEW] Free Market Settings
         priceControls, // [NEW] 价格管制设置
@@ -1110,6 +1112,28 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     setActiveFestivalEffects(remainingEffects);
                     // Update local reference so current tick uses correct effects
                     current.activeFestivalEffects = remainingEffects;
+                }
+            }
+
+            // [NEW] 处理法令过期
+            const currentActiveDecrees = current.activeDecrees || {};
+            if (Object.keys(currentActiveDecrees).length > 0) {
+                const currentDay = current.daysElapsed || 0;
+                const { updatedDecrees, expiredDecrees } = processDecreeExpiry(currentActiveDecrees, currentDay);
+                
+                if (expiredDecrees.length > 0) {
+                    // 更新法令状态
+                    setActiveDecrees(updatedDecrees);
+                    // 更新本地引用以确保当前tick使用正确的法令状态
+                    current.activeDecrees = updatedDecrees;
+                    stateRef.current.activeDecrees = updatedDecrees;
+                    
+                    // 记录过期法令日志
+                    expiredDecrees.forEach(decreeId => {
+                        const decree = REFORM_DECREES[decreeId];
+                        const decreeName = decree?.name || decreeId;
+                        addLog(`法令「${decreeName}」已到期结束。`);
+                    });
                 }
             }
 

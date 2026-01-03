@@ -641,6 +641,7 @@ export const BUILDINGS = [
         owner: 'worker',
         epoch: 0,
         cat: 'industry',
+        requiresTech: 'pottery',
         visual: { icon: 'Factory', color: 'bg-red-900', text: 'text-red-300' }
     },
     {
