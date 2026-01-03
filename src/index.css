@@ -67,6 +67,24 @@
         position: relative;
     }
 
+    /* 
+     * 安卓 WebView 兼容性修复：
+     * 确保按钮默认背景为透明，避免在某些安卓设备上显示白色背景
+     */
+    button {
+        background-color: transparent;
+    }
+
+    /* 
+     * 确保所有使用 Tailwind 渐变背景类的元素有正确的初始背景色
+     * 防止在不支持 CSS 变量的旧版 WebView 上显示白色
+     */
+    [class*="bg-gradient-"],
+    [class*="from-"],
+    [class*="to-"] {
+        background-color: transparent;
+    }
+
     /* Ancient paper texture overlay */
     body::before {
         content: '';

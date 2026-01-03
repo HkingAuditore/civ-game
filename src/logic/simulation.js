@@ -2950,12 +2950,17 @@ export const simulateTick = ({
             targetApproval += 5; // Tax relief bonus
         }
 
-        // 税收冲击：当人头税在单日内吞噬大量财富/收入时，立即产生强烈反感
+        // 税收冲击：当人头税占存款比例过高时，产生反感
+        // 改为基于税收占存款的百分比来判断，而非简单的税率系数
         const headTaxPaidPerCapita = (roleHeadTaxPaid[key] || 0) / Math.max(1, count);
-        const taxShockBase = Math.max(0.1, wealthPerCapita + incomePerCapita);
-        const taxShockRatio = headTaxPaidPerCapita / taxShockBase;
-        const taxShockPenalty = headRate > 1 && headTaxPaidPerCapita > 0
-            ? Math.min(25, taxShockRatio * 25)
+        // 税收占存款的比例（每天税收 / 人均存款）
+        const taxToWealthRatio = wealthPerCapita > 0.01 ? headTaxPaidPerCapita / wealthPerCapita : 0;
+        // 当税收超过存款的5%时开始产生冲击，超过20%时达到最大惩罚
+        // 5%以下无惩罚，5%-20%线性增长，20%以上最大惩罚25
+        const taxShockThreshold = 0.05; // 5%阈值
+        const taxShockMaxRatio = 0.20;  // 20%达到最大惩罚
+        const taxShockPenalty = taxToWealthRatio > taxShockThreshold && headTaxPaidPerCapita > 0
+            ? Math.min(25, ((taxToWealthRatio - taxShockThreshold) / (taxShockMaxRatio - taxShockThreshold)) * 25)
             : 0;
 
         // Resource Shortage Logic - 区分基础需求和奢侈需求短缺

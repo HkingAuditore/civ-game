@@ -139,7 +139,7 @@ export const GameControls = ({
                         onPauseToggle();
                     }}
                     className={cn(
-                        'h-full px-1.5 sm:px-2 transition-all flex items-center justify-center gap-1 text-[9px] sm:text-[10px] font-bold touch-feedback',
+                        'appearance-none bg-transparent h-full px-1.5 sm:px-2 transition-all flex items-center justify-center gap-1 text-[9px] sm:text-[10px] font-bold touch-feedback',
                         isPaused
                             ? 'bg-green-500/10 border-r border-green-500/30 text-green-300 hover:bg-green-500/20'
                             : 'bg-orange-500/10 border-r border-orange-500/30 text-orange-300 hover:bg-orange-500/20'
@@ -155,7 +155,7 @@ export const GameControls = ({
                     {/* 窄屏幕：单个循环切换按钮 */}
                     <button
                         className={cn(
-                            'sm:hidden h-full px-2 text-[9px] font-bold transition-all flex items-center justify-center touch-feedback',
+                            'appearance-none bg-transparent sm:hidden h-full px-2 text-[9px] font-bold transition-all flex items-center justify-center touch-feedback',
                             isPaused
                                 ? 'text-ancient-stone/40 cursor-not-allowed'
                                 : 'bg-gradient-to-b from-ancient-gold/25 to-ancient-bronze/15 text-ancient-gold hover:bg-ancient-gold/10'
@@ -184,7 +184,7 @@ export const GameControls = ({
                             }}
                             disabled={isPaused}
                             className={cn(
-                                'hidden sm:flex h-full px-2 text-[10px] font-bold transition-all items-center justify-center touch-feedback',
+                                'appearance-none bg-transparent hidden sm:flex h-full px-2 text-[10px] font-bold transition-all items-center justify-center touch-feedback',
                                 idx > 0 && 'border-l border-ancient-gold/10',
                                 isPaused
                                     ? 'text-ancient-stone/40 cursor-not-allowed'
@@ -208,7 +208,7 @@ export const GameControls = ({
                 <button
                     ref={gameMenuButtonRef}
                     onClick={handleGameMenuToggle}
-                    className="h-full px-2 glass-ancient border border-ancient-gold/20 rounded-md sm:rounded-lg transition-all flex items-center justify-center text-ancient-parchment shadow-ancient hover:border-ancient-gold/40 hover:shadow-glow-gold touch-feedback"
+                    className="appearance-none bg-transparent h-full px-2 glass-ancient border border-ancient-gold/20 rounded-md sm:rounded-lg transition-all flex items-center justify-center text-ancient-parchment shadow-ancient hover:border-ancient-gold/40 hover:shadow-glow-gold touch-feedback"
                     title="存档菜单"
                 >
                     <Icon name="Menu" size={12} className="sm:w-3.5 sm:h-3.5 text-ancient-gold" />
@@ -233,7 +233,7 @@ export const GameControls = ({
                                 >
                                     <button
                                         onClick={() => { onSave(); setIsGameMenuOpen(false); }}
-                                        className="w-full flex items-center px-3 py-2 text-[10px] font-semibold text-green-300 hover:bg-ancient-gold/10 transition-colors rounded touch-feedback"
+                                        className="appearance-none bg-transparent w-full flex items-center px-3 py-2 text-[10px] font-semibold text-green-300 hover:bg-ancient-gold/10 transition-colors rounded touch-feedback"
                                     >
                                         <Icon name="Save" size={12} />
                                         <span className="ml-2">保存进度</span>
@@ -241,7 +241,7 @@ export const GameControls = ({
 
                                     <button
                                         onClick={() => { onLoad(); setIsGameMenuOpen(false); }}
-                                        className="w-full flex items-center px-3 py-2 text-[10px] font-semibold text-purple-300 hover:bg-ancient-gold/10 transition-colors rounded touch-feedback"
+                                        className="appearance-none bg-transparent w-full flex items-center px-3 py-2 text-[10px] font-semibold text-purple-300 hover:bg-ancient-gold/10 transition-colors rounded touch-feedback"
                                     >
                                         <Icon name="Upload" size={12} />
                                         <span className="ml-2">读取存档</span>
@@ -254,7 +254,7 @@ export const GameControls = ({
                                         }}
                                         disabled={!onSaveTransfer}
                                         className={cn(
-                                            'w-full flex items-center px-3 py-2 text-[10px] font-semibold transition-colors rounded touch-feedback',
+                                            'appearance-none bg-transparent w-full flex items-center px-3 py-2 text-[10px] font-semibold transition-colors rounded touch-feedback',
                                             onSaveTransfer ? 'text-cyan-200 hover:bg-ancient-gold/10' : 'text-ancient-stone/40 cursor-not-allowed'
                                         )}
                                     >
@@ -269,7 +269,7 @@ export const GameControls = ({
                                         }}
                                         disabled={!onAchievements}
                                         className={cn(
-                                            'w-full flex items-center px-3 py-2 text-[10px] font-semibold transition-colors rounded touch-feedback',
+                                            'appearance-none bg-transparent w-full flex items-center px-3 py-2 text-[10px] font-semibold transition-colors rounded touch-feedback',
                                             onAchievements ? 'text-amber-200 hover:bg-ancient-gold/10' : 'text-ancient-stone/40 cursor-not-allowed'
                                         )}
                                     >
@@ -279,7 +279,7 @@ export const GameControls = ({
 
                                     <button
                                         onClick={() => { onSettings(); setIsGameMenuOpen(false); }}
-                                        className="w-full flex items-center px-3 py-2 text-[10px] font-semibold text-ancient-parchment hover:bg-ancient-gold/10 transition-colors rounded touch-feedback"
+                                        className="appearance-none bg-transparent w-full flex items-center px-3 py-2 text-[10px] font-semibold text-ancient-parchment hover:bg-ancient-gold/10 transition-colors rounded touch-feedback"
                                     >
                                         <Icon name="Settings" size={12} />
                                         <span className="ml-2">设置</span>
@@ -292,7 +292,7 @@ export const GameControls = ({
                                             onReset();
                                             setIsGameMenuOpen(false);
                                         }}
-                                        className="w-full flex items-center px-3 py-2 text-[10px] font-semibold text-red-300 hover:bg-red-500/10 transition-colors rounded touch-feedback"
+                                        className="appearance-none bg-transparent w-full flex items-center px-3 py-2 text-[10px] font-semibold text-red-300 hover:bg-red-500/10 transition-colors rounded touch-feedback"
                                     >
                                         <Icon name="RefreshCw" size={12} />
                                         <span className="ml-2">另开新档</span>
@@ -309,7 +309,7 @@ export const GameControls = ({
                 <button
                     ref={helpMenuButtonRef}
                     onClick={handleHelpMenuToggle}
-                    className="h-full px-2 glass-ancient border border-blue-500/30 rounded-md sm:rounded-lg transition-all flex items-center justify-center text-blue-300 shadow-ancient hover:border-blue-500/50 hover:bg-blue-500/10 touch-feedback"
+                    className="appearance-none bg-transparent h-full px-2 glass-ancient border border-blue-500/30 rounded-md sm:rounded-lg transition-all flex items-center justify-center text-blue-300 shadow-ancient hover:border-blue-500/50 hover:bg-blue-500/10 touch-feedback"
                     title="帮助与指南"
                 >
                     <Icon name="HelpCircle" size={12} className="sm:w-3.5 sm:h-3.5" />
@@ -335,14 +335,14 @@ export const GameControls = ({
                                 >
                                     <button
                                         onClick={() => { onTutorial(); setIsHelpMenuOpen(false); }}
-                                        className="w-full flex items-center px-3 py-2 text-[10px] font-semibold text-ancient-parchment hover:bg-ancient-gold/10 transition-colors rounded touch-feedback"
+                                        className="appearance-none bg-transparent w-full flex items-center px-3 py-2 text-[10px] font-semibold text-ancient-parchment hover:bg-ancient-gold/10 transition-colors rounded touch-feedback"
                                     >
                                         <Icon name="BookOpen" size={10} />
                                         <span className="ml-2">新手教程</span>
                                     </button>
                                     <button
                                         onClick={() => { onWiki(); setIsHelpMenuOpen(false); }}
-                                        className="w-full flex items-center px-3 py-2 text-[10px] font-semibold text-ancient-parchment hover:bg-ancient-gold/10 transition-colors rounded touch-feedback"
+                                        className="appearance-none bg-transparent w-full flex items-center px-3 py-2 text-[10px] font-semibold text-ancient-parchment hover:bg-ancient-gold/10 transition-colors rounded touch-feedback"
                                     >
                                         <Icon name="Book" size={10} />
                                         <span className="ml-2">文明百科</span>
@@ -357,7 +357,7 @@ export const GameControls = ({
                                             });
                                             setIsHelpMenuOpen(false);
                                         }}
-                                        className="w-full flex items-center px-3 py-2 text-[10px] font-semibold text-sky-300 hover:bg-ancient-gold/10 transition-colors rounded touch-feedback"
+                                        className="appearance-none bg-transparent w-full flex items-center px-3 py-2 text-[10px] font-semibold text-sky-300 hover:bg-ancient-gold/10 transition-colors rounded touch-feedback"
                                     >
                                         <Icon name="Users" size={10} />
                                         <span className="ml-2">QQ群：546526159</span>
