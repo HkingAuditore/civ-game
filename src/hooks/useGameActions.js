@@ -1589,11 +1589,15 @@ export const useGameActions = (gameState, addLog) => {
 
         // 检查外交动作冷却时间
         const cooldownDays = DIPLOMATIC_COOLDOWNS[action];
-        if (cooldownDays && cooldownDays > 0) {
+        const cooldownModifier = modifiers?.officialEffects?.diplomaticCooldown || 0;
+        const adjustedCooldownDays = cooldownDays && cooldownDays > 0
+            ? Math.max(1, Math.round(cooldownDays * (1 + cooldownModifier)))
+            : cooldownDays;
+        if (adjustedCooldownDays && adjustedCooldownDays > 0) {
             const lastActionDay = targetNation.lastDiplomaticActionDay?.[action] || 0;
             const daysSinceLastAction = daysElapsed - lastActionDay;
-            if (lastActionDay > 0 && daysSinceLastAction < cooldownDays) {
-                const remainingDays = cooldownDays - daysSinceLastAction;
+            if (lastActionDay > 0 && daysSinceLastAction < adjustedCooldownDays) {
+                const remainingDays = adjustedCooldownDays - daysSinceLastAction;
                 const actionNames = {
                     gift: '送礼',
                     demand: '索要',
