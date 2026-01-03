@@ -325,6 +325,95 @@ export function createActiveRebellionEvent(stratumKey, rebellionState, hasMilita
 }
 
 /**
+ * 创建官僚政变事件
+ */
+export function createOfficialCoupEvent(official, hasMilitary, isMilitaryRebelling, rebelNation, callback) {
+    const options = [];
+
+    if (hasMilitary && !isMilitaryRebelling) {
+        options.push({
+            id: 'suppress',
+            text: '立即镇压',
+            description: `出动忠诚军队粉碎官僚政变：成功可重创叛军并压低组织度，失败则军队折损、局势更糟`,
+            effects: {
+                stability: -6,
+                approval: { official: -15 },
+            },
+            callback: () => callback('suppress', 'official'),
+        });
+    }
+
+    options.push({
+        id: 'accept_war',
+        text: '应战',
+        description: `承认叛军为敌对政权，转为通过全面内战解决政变危机`,
+        effects: {
+            stability: -4,
+        },
+        callback: () => callback('accept_war', 'official', rebelNation),
+    });
+
+    return {
+        id: `bureaucratic_coup_${official?.id || 'official'}_${Date.now()}`,
+        name: `${official?.name || '官僚集团'}发动政变！`,
+        icon: 'Skull',
+        image: null,
+        description: `官僚体系发生剧烈动荡！${official?.name || '一名官员'}携带其资产叛逃，宣布成立"${rebelNation.name}"，并带走其控制的产业与人员。\n\n叛军实力：约${rebelNation.population}人\n叛军财富：${rebelNation.wealth}银币`,
+        isRebellionEvent: true,
+        rebellionPhase: REBELLION_PHASE.ACTIVE,
+        rebellionStratum: 'official',
+        options,
+    };
+}
+
+/**
+ * 创建官僚政变政府国家对象
+ */
+export function createOfficialCoupNation(official, assets = {}, rebelPopulation = 0) {
+    const rebelId = `bureaucratic_coup_${official?.id || 'official'}_${Date.now()}`;
+    const baseWealth = Math.floor((official?.wealth || 0) + (assets.propertyValue || 0));
+    const wealth = Math.max(REBELLION_CONFIG.REBEL_NATION_BASE_WEALTH, baseWealth);
+    const population = Math.max(10, Math.floor(rebelPopulation || 0));
+    const militaryStrength = Math.min(1.6, 0.6 + Math.log10(wealth + 1) * 0.15);
+
+    return {
+        id: rebelId,
+        name: `${official?.name || '官僚'}政变政府`,
+        desc: `由官僚体系分裂而成的叛乱政府`,
+        color: '#7a1111',
+        icon: 'Flame',
+        wealth,
+        population,
+        aggression: REBELLION_CONFIG.REBEL_NATION_BASE_AGGRESSION,
+        relation: 0,
+        isAtWar: true,
+        warScore: 0,
+        militaryStrength,
+        isRebelNation: true,
+        rebellionStratum: 'official',
+        visible: true,
+        economyTraits: {
+            resourceBias: {},
+            baseWealth: wealth,
+            basePopulation: population,
+        },
+        foreignPower: {
+            baseRating: 0.5,
+            volatility: 0.5,
+            appearEpoch: 0,
+            populationFactor: 1,
+            wealthFactor: 1,
+        },
+        inventory: {},
+        budget: Math.floor(wealth * 0.3),
+        enemyLosses: 0,
+        warDuration: 0,
+        warStartDay: 0,
+        foreignWars: {},
+    };
+}
+
+/**
  * 创建调查结果事件
  */
 export function createInvestigationResultEvent(stratumKey, success, discoveredInfo, callback) {
@@ -622,6 +711,8 @@ export default {
     createBrewingEvent,
     createPlottingEvent,
     createActiveRebellionEvent,
+    createOfficialCoupEvent,
+    createOfficialCoupNation,
     createInvestigationResultEvent,
     createArrestResultEvent,
     createSuppressionResultEvent,

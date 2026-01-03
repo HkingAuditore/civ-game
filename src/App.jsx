@@ -1140,6 +1140,7 @@ function GameApp({ gameState }) {
                                                 onHire={actions.hireNewOfficial}
                                                 onFire={actions.fireExistingOfficial}
                                                 onDispose={actions.disposeExistingOfficial}
+                                                onUpdateOfficialSalary={actions.updateOfficialSalary}
                                                 resources={gameState.resources}
 
                                                 // [NEW] 传递政治立场检查所需的上下文

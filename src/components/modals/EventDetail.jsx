@@ -246,26 +246,28 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
         const style = diplomaticStyles[type];
         if (!style) return null;
 
-        return Object.entries(effectMap).map(([target, value]) => {
-            let targetName = resolveNationNames(target);
-            if (targetName) {
-                targetName = targetName.replace(/^[（(](.+)[）)]$/, '$1');
-            } else {
-                targetName = nationSelectorLabels[target] || target;
-            }
+        return Object.entries(effectMap)
+            .filter(([target]) => !target.startsWith('_'))
+            .map(([target, value]) => {
+                let targetName = resolveNationNames(target);
+                if (targetName) {
+                    targetName = targetName.replace(/^[（(](.+)[）)]$/, '$1');
+                } else {
+                    targetName = nationSelectorLabels[target] || target;
+                }
 
-            return (
-                <span
-                    key={`${keyPrefix}-${type}-${target}`}
-                    className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${value > 0 ? style.positiveClass : style.negativeClass
-                        } font-sans`}
-                >
-                    <Icon name={style.icon} size={10} />
-                    <span className="font-medium">{targetName}{style.labelSuffix}</span>
-                    <span className="font-mono font-bold">{style.formatter(value)}</span>
-                </span>
-            );
-        });
+                return (
+                    <span
+                        key={`${keyPrefix}-${type}-${target}`}
+                        className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md ${value > 0 ? style.positiveClass : style.negativeClass
+                            } font-sans`}
+                    >
+                        <Icon name={style.icon} size={10} />
+                        <span className="font-medium">{targetName}{style.labelSuffix}</span>
+                        <span className="font-mono font-bold">{style.formatter(value)}</span>
+                    </span>
+                );
+            });
     };
 
     // 渲染触发效果徽章（宣战/议和）

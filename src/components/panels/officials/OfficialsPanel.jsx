@@ -1,5 +1,5 @@
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { OfficialCard } from './OfficialCard';
 import { Icon } from '../../common/UIComponents';
@@ -11,6 +11,7 @@ import { FreeMarketPanel } from './FreeMarketPanel';
 import { ReformDecreePanel } from './ReformDecreePanel';
 import { DOMINANCE_EFFECTS, DOMINANCE_MIN_EPOCH } from '../../../logic/officials/cabinetSynergy';
 import { EPOCHS } from '../../../config/epochs';
+import { OfficialDetailModal } from '../../modals/OfficialDetailModal';
 
 export const OfficialsPanel = ({
     officials = [],
@@ -36,6 +37,7 @@ export const OfficialsPanel = ({
     onUpdateQuotas,
     onUpdateExpansionSettings,
     onEnactDecree,
+    onUpdateOfficialSalary,
 
     // [NEW] 额外上下文和详细容量
     jobCapacity = 0,
@@ -52,6 +54,14 @@ export const OfficialsPanel = ({
 
     // 派系面板弹窗状态
     const [showDominancePanel, setShowDominancePanel] = useState(false);
+    const [selectedOfficial, setSelectedOfficial] = useState(null);
+    useEffect(() => {
+        if (!selectedOfficial?.id) return;
+        const latest = officials.find(official => official.id === selectedOfficial.id);
+        if (latest && latest !== selectedOfficial) {
+            setSelectedOfficial(latest);
+        }
+    }, [officials, selectedOfficial]);
 
     // Derived state
     const currentCount = officials.length;
@@ -312,6 +322,7 @@ export const OfficialsPanel = ({
                                 isCandidate={false}
                                 onAction={onFire}
                                 onDispose={onDispose}
+                                onViewDetail={setSelectedOfficial}
 
                                 currentDay={currentTick}
                                 isStanceSatisfied={official.politicalStance ? isStanceSatisfied(official.politicalStance, stanceContext, official.stanceConditionParams) : null}
@@ -400,6 +411,13 @@ export const OfficialsPanel = ({
                 </div>,
                 document.body
             )}
+
+            <OfficialDetailModal
+                isOpen={!!selectedOfficial}
+                onClose={() => setSelectedOfficial(null)}
+                official={selectedOfficial}
+                onUpdateSalary={onUpdateOfficialSalary}
+            />
 
         </div>
     );

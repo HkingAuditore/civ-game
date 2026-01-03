@@ -290,7 +290,9 @@ export const getCabinetDominance = (officials, capacity = 3, epoch = 0) => {
     });
 
     // 检查是否达到主导条件
-    const threshold = synergy >= 70 ? SYNERGY_DOMINANCE_THRESHOLD : DOMINANCE_THRESHOLD;
+    // const threshold = synergy >= 70 ? SYNERGY_DOMINANCE_THRESHOLD : DOMINANCE_THRESHOLD;
+    // REVISED: User request strict 60% lock
+    const threshold = DOMINANCE_THRESHOLD;
     debugInfo.synergy = synergy;
     debugInfo.threshold = threshold;
     debugInfo.maxPercent = maxPercent;

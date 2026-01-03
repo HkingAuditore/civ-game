@@ -428,6 +428,7 @@ const buildMinimalAutoSavePayload = (payload) => ({
     quotaTargets: payload.quotaTargets,
     expansionSettings: payload.expansionSettings,
     priceControls: payload.priceControls,  // [NEW] 价格管制状态
+    taxShock: payload.taxShock,  // [NEW] 累积税收冲击状态
     eventConfirmationEnabled: payload.eventConfirmationEnabled,
 });
 
@@ -668,6 +669,7 @@ export const useGameState = () => {
     const [classLivingStandard, setClassLivingStandard] = useState({}); // 各阶层生活水平数据
     const [livingStandardStreaks, setLivingStandardStreaks] = useState(buildInitialLivingStandardStreaks());
     const [migrationCooldowns, setMigrationCooldowns] = useState({}); // 阶层迁移冷却状态 { roleKey: ticksRemaining }
+    const [taxShock, setTaxShock] = useState({}); // [NEW] 各阶层累积税收冲击值 { roleKey: number }
     const [populationDetailView, setPopulationDetailView] = useState(false);
     const [history, setHistory] = useState(buildInitialHistory());
     const [eventEffectSettings, setEventEffectSettings] = useState(DEFAULT_EVENT_EFFECT_SETTINGS);
@@ -1117,6 +1119,15 @@ export const useGameState = () => {
         setLastSelectionDay(data.lastSelectionDay ?? -999);
         setOfficialCapacity(data.officialCapacity ?? 2);
         setExpansionSettings(sanitizeExpansionSettings(data.expansionSettings)); // [FIX] 加载自由市场扩张设置
+        setActiveDecrees(data.activeDecrees || {});
+        setDecreCooldowns(data.decreeCooldowns || {});
+        setQuotaTargets(data.quotaTargets || {});
+        setPriceControls(data.priceControls || {
+            enabled: false,
+            governmentBuyPrices: {},
+            governmentSellPrices: {},
+        });
+        setTaxShock(data.taxShock || {});
         setClassApproval(data.classApproval || {});
         setClassInfluence(data.classInfluence || {});
         setClassWealth(data.classWealth || buildInitialWealth());
@@ -1865,6 +1876,8 @@ export const useGameState = () => {
         setLivingStandardStreaks,
         migrationCooldowns,
         setMigrationCooldowns,
+        taxShock,
+        setTaxShock,
         populationDetailView,
         setPopulationDetailView,
         history,
