@@ -363,7 +363,16 @@ export const simulateTick = ({
 
     // 应用官员效果（含薪水不足减益）
     const activeOfficialEffects = getAggregatedOfficialEffects(officials, officialsPaid);
-    applyEffects(activeOfficialEffects, bonuses);
+    const officialEffectsForBonuses = {
+        ...activeOfficialEffects,
+        passive: activeOfficialEffects.passiveGains,
+        passivePercent: activeOfficialEffects.passivePercentGains,
+        resourceDemandMod: activeOfficialEffects.decreeResourceDemandMod,
+        stratumDemandMod: activeOfficialEffects.decreeStratumDemandMod,
+        maxPop: activeOfficialEffects.extraMaxPop,
+        incomePercent: activeOfficialEffects.incomePercentBonus,
+    };
+    applyEffects(officialEffectsForBonuses, bonuses);
 
     // === 应用官员专属效果到 bonuses ===
     // 科研速度 → scienceBonus
@@ -374,6 +383,10 @@ export const simulateTick = ({
     bonuses.taxEfficiencyBonus = activeOfficialEffects.taxEfficiency || 0;
     // 腐败 → 存储供税收计算使用 (负面效果)
     bonuses.corruption = activeOfficialEffects.corruption || 0;
+    // 收入百分比 → 存储供财政计算使用
+    if (activeOfficialEffects.incomePercentBonus) {
+        bonuses.incomePercentBonus = (bonuses.incomePercentBonus || 0) + activeOfficialEffects.incomePercentBonus;
+    }
     // 人口增长 → 存储供人口计算使用
     bonuses.populationGrowthBonus = activeOfficialEffects.populationGrowth || 0;
     // 军费降低 → 存储供军费计算使用
@@ -382,6 +395,22 @@ export const simulateTick = ({
     bonuses.tradeBonusMod = activeOfficialEffects.tradeBonus || 0;
     // 建筑成本 → 存储供建筑购买使用
     bonuses.buildingCostMod = activeOfficialEffects.buildingCostMod || 0;
+    // 战时生产加成 → 存储供生产计算使用
+    bonuses.wartimeProduction = activeOfficialEffects.wartimeProduction || 0;
+    // 资源浪费 → 存储供需求/生产消耗使用
+    bonuses.resourceWaste = activeOfficialEffects.resourceWaste || {};
+    // 联盟满意度 → 存储供满意度计算使用
+    bonuses.coalitionApproval = activeOfficialEffects.coalitionApproval || 0;
+    // 合法性加成 → 存储供合法性修正使用
+    bonuses.legitimacyBonus = activeOfficialEffects.legitimacyBonus || 0;
+    // 组织度增长修正（负值降低增长）
+    bonuses.organizationGrowthMod = (bonuses.organizationGrowthMod || 0) + (activeOfficialEffects.organizationDecay || 0);
+    // 派系冲突 → 稳定度惩罚
+    bonuses.factionConflict = (bonuses.factionConflict || 0) + (activeOfficialEffects.factionConflict || 0);
+    // 外交冷却修正
+    bonuses.diplomaticCooldown = activeOfficialEffects.diplomaticCooldown || 0;
+    // 外交关系衰减
+    bonuses.diplomaticIncident = activeOfficialEffects.diplomaticIncident || 0;
     // 外交加成 → 存储供外交关系计算使用
     bonuses.diplomaticBonus = activeOfficialEffects.diplomaticBonus || 0;
     // 生产原料成本修正 → 存储供建筑生产计算使用
@@ -445,7 +474,7 @@ export const simulateTick = ({
         bonuses.militaryBonus = (bonuses.militaryBonus || 0) + stanceEffects.militaryBonus;
     }
     if (stanceEffects.organizationDecay) {
-        bonuses.organizationDecay = (bonuses.organizationDecay || 0) + stanceEffects.organizationDecay;
+        bonuses.organizationGrowthMod = (bonuses.organizationGrowthMod || 0) + stanceEffects.organizationDecay;
     }
     if (stanceEffects.cultureBonus) {
         bonuses.cultureBonus = (bonuses.cultureBonus || 0) + stanceEffects.cultureBonus;
@@ -1172,6 +1201,11 @@ export const simulateTick = ({
             bonusSum += industryBonusSum;
         }
 
+        // 2.5 战时产出加成（仅在战争中生效）
+        if (isPlayerAtWar && bonuses.wartimeProduction) {
+            bonusSum += bonuses.wartimeProduction;
+        }
+
         // 3. 类别加成（categoryBonuses 现在直接存储加成百分比，如 0.25 = +25%）
         const categoryBonus = categoryBonuses[b.cat];
         if (categoryBonus && categoryBonus !== 0) {
@@ -1271,6 +1305,16 @@ export const simulateTick = ({
                 const safeMultiplier = Math.max(0.2, inputModMultiplier);
                 for (const [resKey, amount] of Object.entries(effectiveOps.input)) {
                     effectiveOps.input[resKey] = amount * safeMultiplier;
+                }
+            }
+
+            // 资源浪费：对投入资源增加额外消耗
+            if (bonuses.resourceWaste) {
+                for (const [resKey, amount] of Object.entries(effectiveOps.input)) {
+                    const wasteMod = bonuses.resourceWaste?.[resKey] || 0;
+                    if (!wasteMod) continue;
+                    const wasteMultiplier = Math.max(0, 1 + wasteMod);
+                    effectiveOps.input[resKey] = amount * wasteMultiplier;
                 }
             }
         }
@@ -2212,6 +2256,11 @@ export const simulateTick = ({
             let requirement = perCapita * count * needsRequirementMultiplier;
             if (requirement <= 0) continue;
 
+            const wasteMod = bonuses.resourceWaste?.[resKey] || 0;
+            if (wasteMod !== 0) {
+                requirement *= (1 + wasteMod);
+            }
+
             // Apply economic modifiers (events + decrees)
             // 1. Resource-specific demand modifier (e.g., cloth demand +20%)
             const eventResourceMod = eventResourceDemandModifiers[resKey] || 0;
@@ -2699,6 +2748,11 @@ export const simulateTick = ({
             let requirement = amountPerCapita * needsRequirementMultiplier;
             if (requirement <= 0) return;
 
+            const wasteMod = bonuses.resourceWaste?.[resource] || 0;
+            if (wasteMod !== 0) {
+                requirement *= (1 + wasteMod);
+            }
+
             const eventResourceMod = eventResourceDemandModifiers[resource] || 0;
             const decreeResourceMod = decreeResourceDemandMod[resource] || 0;
             const totalResourceDemandMod = eventResourceMod + decreeResourceMod;
@@ -2939,6 +2993,10 @@ export const simulateTick = ({
         if (livingLevel === '奢华') targetApproval = 95;
         else if (livingLevel === '富裕') targetApproval = 85;
         else if (livingLevel === '小康') targetApproval = 75;
+
+        if (isCoalition && bonuses.coalitionApproval) {
+            targetApproval += bonuses.coalitionApproval;
+        }
 
         // Tax Burden Logic
         const headRate = getHeadTaxRate(key);
@@ -3203,6 +3261,9 @@ export const simulateTick = ({
     // 执政联盟合法性精确计算（影响力已计算完成）
     const coalitionInfluenceShare = calculateCoalitionInfluenceShare(rulingCoalition, classInfluence, totalInfluence);
     coalitionLegitimacy = calculateLegitimacy(coalitionInfluenceShare);
+    if (bonuses.legitimacyBonus) {
+        coalitionLegitimacy = Math.max(0, Math.min(100, coalitionLegitimacy * (1 + bonuses.legitimacyBonus)));
+    }
     legitimacyTaxModifier = getLegitimacyTaxModifier(coalitionLegitimacy);
     const legitimacyApprovalModifier = getLegitimacyApprovalModifier(coalitionLegitimacy);
 
@@ -3217,6 +3278,9 @@ export const simulateTick = ({
 
     let exodusPopulationLoss = 0;
     let extraStabilityPenalty = 0;
+    if (bonuses.factionConflict) {
+        extraStabilityPenalty += bonuses.factionConflict;
+    }
     // 修正人口外流（Exodus）：愤怒人口离开时带走财富（资本外逃）
     Object.keys(STRATA).forEach(key => {
         const count = popStructure[key] || 0;
@@ -3498,6 +3562,11 @@ export const simulateTick = ({
 
         // REFACTORED: Using module function for relation decay
         processNationRelationDecay(next);
+
+        if (bonuses.diplomaticIncident && !next.isRebelNation && !next.isAtWar) {
+            const dailyPenalty = bonuses.diplomaticIncident / 30;
+            next.relation = Math.min(100, Math.max(0, (next.relation ?? 50) - dailyPenalty));
+        }
 
         // 应用官员和政治立场的外交加成到玩家与AI的关系
         if (bonuses.diplomaticBonus && !next.isRebelNation && !next.isAtWar) {
@@ -4762,6 +4831,13 @@ export const simulateTick = ({
                 populationGrowthBonus: bonuses.populationGrowthBonus || 0,
                 tradeBonusMod: bonuses.tradeBonusMod || 0,
                 organizationGrowthMod: bonuses.organizationGrowthMod || 0,
+                wartimeProduction: bonuses.wartimeProduction || 0,
+                resourceWaste: bonuses.resourceWaste || {},
+                coalitionApproval: bonuses.coalitionApproval || 0,
+                legitimacyBonus: bonuses.legitimacyBonus || 0,
+                factionConflict: bonuses.factionConflict || 0,
+                diplomaticCooldown: bonuses.diplomaticCooldown || 0,
+                diplomaticIncident: bonuses.diplomaticIncident || 0,
             },
         },
         army, // 确保返回army状态，以便保存战斗损失
