@@ -16,6 +16,7 @@ export const migrateOfficialForInvestment = (official, currentDay = 0) => {
     return {
         ...official,
         financialSatisfaction: official.financialSatisfaction || 'satisfied',
+        baseSalary: Number.isFinite(official.baseSalary) ? official.baseSalary : (official.salary || 0),
         investmentProfile: hasInvestmentProfile
             ? official.investmentProfile
             : generateInvestmentProfile(sourceStratum, politicalStance, currentDay),

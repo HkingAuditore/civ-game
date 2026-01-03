@@ -1060,6 +1060,18 @@ export const useGameActions = (gameState, addLog) => {
         addLog(result.logMessage);
     };
 
+    /**
+     * 调整官员薪俸
+     * @param {string} officialId - 官员ID
+     * @param {number} nextSalary - 新薪俸
+     */
+    const updateOfficialSalary = (officialId, nextSalary) => {
+        if (!officialId || !Number.isFinite(nextSalary)) return;
+        setOfficials(prev => prev.map(official => (
+            official.id === officialId ? { ...official, salary: Math.floor(nextSalary) } : official
+        )));
+    };
+
     // ========== 手动采集 ==========
 
     /**
@@ -3797,6 +3809,7 @@ export const useGameActions = (gameState, addLog) => {
         hireNewOfficial,
         fireExistingOfficial,
         disposeExistingOfficial,
+        updateOfficialSalary,
 
         // 叛乱系统
         handleRebellionAction,

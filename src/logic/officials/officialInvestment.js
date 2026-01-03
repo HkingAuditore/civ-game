@@ -72,14 +72,15 @@ export const generateInvestmentProfile = (sourceStratum, politicalStance, curren
     };
 };
 
-export const calculateFinancialStatus = (official, dailyExpense) => {
+export const calculateFinancialStatus = (official, dailyExpense, incomeOverride = null) => {
     const expense = Math.max(1, dailyExpense || 0);
     const thresholds = {
         desperate: expense * 10,
         struggling: expense * 30,
         uncomfortable: expense * 60,
     };
-    const incomeRatio = (official.salary || 0) / expense;
+    const income = Number.isFinite(incomeOverride) ? incomeOverride : (official.salary || 0);
+    const incomeRatio = income / expense;
 
     if ((official.wealth || 0) < thresholds.desperate) {
         return 'desperate';
@@ -166,10 +167,12 @@ export const processOfficialInvestment = (
     if (official.wealth < MIN_WEALTH_TO_INVEST) return null;
 
     const factionMod = cabinetStatus?.dominance?.faction === 'left' ? 0.5 : 1.0;
-    const investChance = profile.riskTolerance * factionMod;
+    const wealthRatio = Math.max(1, (official.wealth || 0) / 400);
+    const wealthDrive = Math.min(2.2, 1 + Math.log10(wealthRatio) * 0.6);
+    const investChance = profile.riskTolerance * factionMod * wealthDrive;
     if (Math.random() > investChance) return null;
 
-    const budget = official.wealth * MAX_INVEST_RATIO * profile.riskTolerance;
+    const budget = official.wealth * MAX_INVEST_RATIO * profile.riskTolerance * wealthDrive;
     if (budget <= 0) return null;
 
     const growthFactor = getBuildingCostGrowthFactor(difficultyLevel) || 1.15;

@@ -7,6 +7,7 @@ import { simulateBattle, UNIT_TYPES } from '../config/militaryUnits';
 import { getEnemyUnitsForEpoch } from '../config/militaryActions';
 import { calculateLivingStandardData, getSimpleLivingStandard, calculateWealthMultiplier, calculateLuxuryConsumptionMultiplier, calculateUnlockMultiplier } from '../utils/livingStandard';
 import { calculateLivingStandards } from './population/needs';
+import { applyBuyPriceControl, applySellPriceControl } from './officials/cabinetSynergy';
 import { calculateAIGiftAmount, calculateAIPeaceTribute, calculateAISurrenderDemand } from '../utils/diplomaticUtils';
 import { debugLog } from '../utils/debugFlags';
 import {
@@ -126,6 +127,7 @@ import {
     calculateOfficialPropertyProfit,
     processOfficialBuildingUpgrade,
     processOfficialInvestment,
+    FINANCIAL_STATUS,
 } from './officials/officialInvestment';
 import { migrateOfficialForInvestment } from './officials/migration';
 
@@ -220,6 +222,7 @@ export const simulateTick = ({
     expansionSettings = {}, // [NEW] Expansion settings for Right Dominance
     cabinetStatus = {}, // [NEW] Cabinet status for synergy/dominance
     priceControls = null, // [NEW] 政府价格管制设置
+    previousTaxShock = {}, // [NEW] 上一tick各阶层的累积税收冲击值，用于防止"快速抬税后降税"的漏洞
 }) => {
     // console.log('[TICK START]', tick); // Commented for performance
     const res = { ...resources };
@@ -614,12 +617,33 @@ export const simulateTick = ({
         res[resource] = (res[resource] || 0) + amount;
         if (isTradableResource(resource)) {
             supply[resource] = (supply[resource] || 0) + amount;
-            const price = getPrice(resource);
-            const grossIncome = price * amount;
-            const taxRate = getResourceTaxRate(resource);
-            // 修正：消费税/补贴应在消费端处理（needs.js），不应在生产端结算。
-            // 生产者获得基础市场价值（grossIncome）。
-            // 之前的逻辑（负税率导致生产时发放补贴）已被移除，以符合“消费税”定义。
+            const marketPrice = getPrice(resource);
+            
+            // [NEW] 价格管制检查（出售侧）：政府保底收购或收超额利润税
+            // 只有左派主导且启用时才生效
+            const leftFactionDominant = cabinetStatus?.dominance?.panelType === 'plannedEconomy';
+            const priceControlActive = leftFactionDominant && priceControls?.enabled && priceControls.governmentBuyPrices?.[resource] !== undefined;
+            
+            let effectivePrice = marketPrice;
+            if (priceControlActive) {
+                const pcResult = applySellPriceControl({
+                    resourceKey: resource,
+                    amount,
+                    marketPrice,
+                    priceControls,
+                    taxBreakdown,
+                    resources: res
+                });
+                if (pcResult.success) {
+                    effectivePrice = pcResult.effectivePrice;
+                }
+            }
+
+            const grossIncome = effectivePrice * amount;
+            // Note: Tax is handled on consumption side generally for 'Resource Tax', 
+            // but we might want to consider if 'Sales Tax' applies. 
+            // Current login assumes getResourceTaxRate is consumption tax.
+            
             let netIncome = grossIncome;
 
             // 记录owner的净销售收入（在tick结束时统一结算到wealth）
@@ -629,9 +653,6 @@ export const simulateTick = ({
             if (classFinancialData[ownerKey]) {
                 // Track net income as owner revenue (profit from sales)
                 classFinancialData[ownerKey].income.ownerRevenue = (classFinancialData[ownerKey].income.ownerRevenue || 0) + netIncome;
-
-                // Track tax/subsidy
-
             }
         }
     };
@@ -2353,17 +2374,42 @@ export const simulateTick = ({
                 // [NEW] 价格管制检查：只有左派主导且启用时才生效
                 const leftFactionDominant = cabinetStatus?.dominance?.panelType === 'plannedEconomy';
                 const priceControlActive = leftFactionDominant && priceControls?.enabled && priceControls.governmentSellPrices?.[resKey] !== undefined && priceControls.governmentSellPrices[resKey] !== null;
-                const effectivePrice = priceControlActive ? priceControls.governmentSellPrices[resKey] : marketPrice;
                 
-                const priceWithTax = effectivePrice * (1 + getResourceTaxRate(resKey));
+                // Determine tentative effective price for affordability check
+                // Note: If treasury runs out during application, we revert to market price, 
+                // but we calculate consumption based on the hope of government price.
+                let tentativePrice = marketPrice;
+                if (priceControlActive) {
+                     tentativePrice = priceControls.governmentSellPrices[resKey];
+                }
+
+                const priceWithTax = tentativePrice * (1 + getResourceTaxRate(resKey));
                 const affordable = priceWithTax > 0 ? Math.min(requirement, (wealth[key] || 0) / priceWithTax) : requirement;
                 const amount = Math.min(requirement, available, affordable);
+                
                 // 先不统计需求，等实际消费后再统计
                 if (amount > 0) {
                     res[resKey] = available - amount;
                     rates[resKey] = (rates[resKey] || 0) - amount;
+
+                    // [NEW] Apply Price Control (Financial Transaction)
+                    let finalEffectivePrice = marketPrice;
+                    if (priceControlActive) {
+                        const pcResult = applyBuyPriceControl({
+                            resourceKey: resKey,
+                            amount,
+                            marketPrice,
+                            priceControls,
+                            taxBreakdown,
+                            resources: res
+                        });
+                        // If success (treasury sufficient for subsidy), use gov price
+                        // If fail (treasury empty), it returns marketPrice
+                        finalEffectivePrice = pcResult.effectivePrice; 
+                    }
+
                     const taxRate = getResourceTaxRate(resKey);
-                    const baseCost = amount * effectivePrice;
+                    const baseCost = amount * finalEffectivePrice;
                     const taxPaid = baseCost * taxRate;
                     let totalCost = baseCost;
 
@@ -2383,22 +2429,6 @@ export const simulateTick = ({
                     } else if (taxPaid > 0) {
                         taxBreakdown.industryTax += taxPaid;
                         totalCost += taxPaid;
-                    }
-
-                    // [NEW] 价格管制收支跟踪
-                    if (priceControlActive) {
-                        const priceDiff = (effectivePrice - marketPrice) * amount;
-                        if (priceDiff > 0) {
-                            // 政府出售价 > 市场价：买家额外支付，政府收入
-                            taxBreakdown.priceControlIncome = (taxBreakdown.priceControlIncome || 0) + priceDiff;
-                        } else if (priceDiff < 0) {
-                            // 政府出售价 < 市场价：政府补贴买家
-                            const subsidyNeeded = Math.abs(priceDiff);
-                            if ((res.silver || 0) >= subsidyNeeded) {
-                                res.silver -= subsidyNeeded;
-                                taxBreakdown.priceControlExpense = (taxBreakdown.priceControlExpense || 0) + subsidyNeeded;
-                            }
-                        }
                     }
 
                     wealth[key] = Math.max(0, (wealth[key] || 0) - totalCost);
@@ -2759,6 +2789,9 @@ export const simulateTick = ({
         const officialNeeds = STRATA.official?.needs || { food: 1.2, cloth: 0.2 };
         const officialLuxuryNeeds = STRATA.official?.luxuryNeeds || {};
         let dailyExpense = 0;
+        let luxuryExpense = 0;
+        let essentialExpense = 0;
+        const expenseBreakdown = {};
 
         const consumeOfficialResource = (resource, amountPerCapita, isLuxury = false) => {
             if (!resource || amountPerCapita <= 0) return;
@@ -2829,6 +2862,22 @@ export const simulateTick = ({
 
                 currentWealth = Math.max(0, currentWealth - totalCost);
                 dailyExpense += totalCost;
+                if (isLuxury) {
+                    luxuryExpense += totalCost;
+                } else {
+                    essentialExpense += totalCost;
+                }
+                if (!expenseBreakdown[resource]) {
+                    expenseBreakdown[resource] = { amount: 0, cost: 0, tax: 0, luxuryCost: 0, essentialCost: 0 };
+                }
+                expenseBreakdown[resource].amount += amount;
+                expenseBreakdown[resource].cost += totalCost;
+                expenseBreakdown[resource].tax += taxPaid;
+                if (isLuxury) {
+                    expenseBreakdown[resource].luxuryCost += totalCost;
+                } else {
+                    expenseBreakdown[resource].essentialCost += totalCost;
+                }
 
                 if (!stratumConsumption.official) stratumConsumption.official = {};
                 stratumConsumption.official[resource] = (stratumConsumption.official[resource] || 0) + amount;
@@ -2853,6 +2902,10 @@ export const simulateTick = ({
                 const amount = Math.min(requirement, available);
                 if (amount > 0) {
                     res[resource] = available - amount;
+                    if (!expenseBreakdown[resource]) {
+                        expenseBreakdown[resource] = { amount: 0, cost: 0, tax: 0, luxuryCost: 0, essentialCost: 0 };
+                    }
+                    expenseBreakdown[resource].amount += amount;
                 }
             }
         };
@@ -2864,10 +2917,10 @@ export const simulateTick = ({
         // 基于财富水平的奢侈需求
         const wealthRatio = currentWealth / 400; // 相对于初始财富的比例
         if (wealthRatio >= 1.0 && officialLuxuryNeeds) {
-            const consumptionMultiplier = Math.min(
-                6.0,
-                1.0 + Math.log10(Math.max(1, currentWealth / 400)) * 0.8
-            );
+            const wealthBase = Math.max(1, currentWealth / 400);
+            const consumptionMultiplier = 1.0 + Math.log10(wealthBase) * 1.6;
+            const salaryBase = Math.max(1, (normalizedOfficial.salary || 0) / 400);
+            const salaryMultiplier = 1.0 + Math.log10(salaryBase) * 1.2;
             const luxuryThresholds = Object.keys(officialLuxuryNeeds)
                 .map(Number)
                 .filter(t => t <= wealthRatio)
@@ -2877,7 +2930,7 @@ export const simulateTick = ({
                 const needs = officialLuxuryNeeds[threshold];
                 if (!needs) return;
                 Object.entries(needs).forEach(([resource, amount]) => {
-                    consumeOfficialResource(resource, amount * consumptionMultiplier, true);
+                    consumeOfficialResource(resource, amount * consumptionMultiplier * salaryMultiplier, true);
                 });
             });
         }
@@ -2942,10 +2995,30 @@ export const simulateTick = ({
         }
 
         // 计算财务满意度
+        const totalIncomeForSatisfaction = (normalizedOfficial.salary || 0) + totalPropertyIncome;
         const financialSatisfaction = calculateFinancialStatus(
             { ...normalizedOfficial, wealth: currentWealth },
-            dailyExpense
+            dailyExpense,
+            totalIncomeForSatisfaction
         );
+        const baseSalary = Number.isFinite(normalizedOfficial.baseSalary)
+            ? normalizedOfficial.baseSalary
+            : (normalizedOfficial.salary || 0);
+        const salaryRatio = baseSalary > 0 ? (normalizedOfficial.salary || 0) / baseSalary : 1;
+        let salarySatisfaction = 'satisfied';
+        if (salaryRatio < 0.4) {
+            salarySatisfaction = 'desperate';
+        } else if (salaryRatio < 0.7) {
+            salarySatisfaction = 'struggling';
+        } else if (salaryRatio < 0.95) {
+            salarySatisfaction = 'uncomfortable';
+        }
+        const satisfactionOrder = ['satisfied', 'uncomfortable', 'struggling', 'desperate'];
+        const finalSatisfactionIndex = Math.max(
+            satisfactionOrder.indexOf(financialSatisfaction),
+            satisfactionOrder.indexOf(salarySatisfaction)
+        );
+        const combinedSatisfaction = satisfactionOrder[finalSatisfactionIndex] || financialSatisfaction;
 
         // 产业投资决策
         const investmentDecision = processOfficialInvestment(
@@ -3013,10 +3086,13 @@ export const simulateTick = ({
             ...normalizedOfficial,
             wealth: currentWealth,
             lastDayExpense: dailyExpense,
-            financialSatisfaction,
+            financialSatisfaction: combinedSatisfaction,
             ownedProperties,
             investmentProfile,
             lastDayPropertyIncome: totalPropertyIncome,
+            lastDayExpenseBreakdown: expenseBreakdown,
+            lastDayLuxuryExpense: luxuryExpense,
+            lastDayEssentialExpense: essentialExpense,
         };
     });
 
@@ -3089,6 +3165,9 @@ export const simulateTick = ({
     const classLivingStandard = livingStandardsResult.classLivingStandard;
     const updatedLivingStandardStreaks = livingStandardsResult.livingStandardStreaks;
 
+    // [NEW] 累积税收冲击值：用于防止"快速抬税后降税"的漏洞
+    // 当税率降低后，累积冲击会缓慢衰减，而非立即消失
+    const updatedTaxShock = {};
 
     Object.keys(STRATA).forEach(key => {
         const count = popStructure[key] || 0;
@@ -3145,9 +3224,30 @@ export const simulateTick = ({
         // 5%以下无惩罚，5%-20%线性增长，20%以上最大惩罚25
         const taxShockThreshold = 0.05; // 5%阈值
         const taxShockMaxRatio = 0.20;  // 20%达到最大惩罚
-        const taxShockPenalty = taxToWealthRatio > taxShockThreshold && headTaxPaidPerCapita > 0
+        const instantTaxShock = taxToWealthRatio > taxShockThreshold && headTaxPaidPerCapita > 0
             ? Math.min(25, ((taxToWealthRatio - taxShockThreshold) / (taxShockMaxRatio - taxShockThreshold)) * 25)
             : 0;
+
+        // [NEW] 累积税收冲击机制：防止"快速抬税后降税"的漏洞
+        // 原理：民众对被剥削的记忆不会因税率降低而立即消失
+        // - 当前冲击会累加到历史累积值
+        // - 历史累积值每tick衰减一定比例（模拟愤怒逐渐平息）
+        // - 最终惩罚取当前冲击和累积冲击的较大值
+        const prevAccumulatedShock = previousTaxShock[key] || 0;
+        const taxShockDecayRate = 0.03; // 每tick衰减3%（约需23天衰减50%）
+        const taxShockAccumulationRate = 0.5; // 当前冲击的50%会累加到历史值
+
+        // 累积公式：旧累积 * (1 - 衰减率) + 新冲击 * 累积率
+        const newAccumulatedShock = Math.max(0,
+            prevAccumulatedShock * (1 - taxShockDecayRate) + instantTaxShock * taxShockAccumulationRate
+        );
+        updatedTaxShock[key] = newAccumulatedShock;
+
+        // 最终惩罚：取即时冲击和累积冲击的较大值
+        // 这确保了：
+        // 1. 高税期间：即时冲击占主导
+        // 2. 降税后：累积冲击继续生效，逐渐衰减
+        const taxShockPenalty = Math.max(instantTaxShock, newAccumulatedShock);
 
         // Resource Shortage Logic - 区分基础需求和奢侈需求短缺
         const shortages = classShortages[key] || [];
@@ -3369,8 +3469,14 @@ export const simulateTick = ({
         classInfluence[key] = (def.influenceBase * count) + (wealthFactor * 10);
     });
 
+    const baseTotalInfluence = Object.values(classInfluence).reduce((sum, val) => sum + val, 0);
+
     // 应用官员对出身阶层的影响力加成
-    const officialInfluenceBonus = getOfficialInfluenceBonus(officials || [], officialsPaid);
+    const officialInfluenceBonus = getOfficialInfluenceBonus(officials || [], officialsPaid, {
+        classInfluence,
+        totalInfluence: baseTotalInfluence,
+        polityEffects: currentPolityEffects,
+    });
     Object.entries(officialInfluenceBonus).forEach(([stratum, bonus]) => {
         if (classInfluence[stratum] !== undefined && bonus > 0) {
             // 加成是百分比形式，应用到基础影响力上
@@ -4642,6 +4748,19 @@ export const simulateTick = ({
     });
     totalWealth = Object.values(classWealthResult).reduce((sum, val) => sum + val, 0);
 
+    // [FIX] 同步更新 classLivingStandard 中的 wealthPerCapita
+    // 因为 calculateLivingStandards 在 wealth 完全更新前调用，导致 wealthPerCapita 可能滞后
+    Object.keys(STRATA).forEach(key => {
+        if (classLivingStandard[key]) {
+            const count = popStructure[key] || 0;
+            const wealthValue = classWealthResult[key] || 0;
+            const startingWealth = STRATA[key]?.startingWealth || 100;
+            const newWealthPerCapita = count > 0 ? wealthValue / count : 0;
+            classLivingStandard[key].wealthPerCapita = newWealthPerCapita;
+            classLivingStandard[key].wealthRatio = startingWealth > 0 ? newWealthPerCapita / startingWealth : 0;
+        }
+    });
+
     const updatedMerchantWealth = Math.max(0, wealth.merchant || 0);
     const merchantWealthDelta = updatedMerchantWealth - previousMerchantWealth;
     if (merchantWealthDelta !== 0) {
@@ -4826,6 +4945,37 @@ export const simulateTick = ({
     const collectedIndustryTax = taxBreakdown.industryTax * effectiveTaxEfficiency;
     const collectedBusinessTax = taxBreakdown.businessTax * effectiveTaxEfficiency;
     const collectedTariff = (taxBreakdown.tariff || 0) * effectiveTaxEfficiency; // 关税收入
+    const taxBaseForCorruption = taxBreakdown.headTax + taxBreakdown.industryTax + taxBreakdown.businessTax + (taxBreakdown.tariff || 0);
+    const efficiencyNoCorruption = Math.max(0, Math.min(1, efficiency * (1 + (bonuses.taxEfficiencyBonus || 0))));
+    const corruptionLoss = Math.max(0, taxBaseForCorruption * (efficiencyNoCorruption - effectiveTaxEfficiency));
+    if (corruptionLoss > 0 && updatedOfficials.length > 0) {
+        const paidMultiplier = officialsPaid ? 1 : 0.5;
+        const weights = updatedOfficials.map(official => {
+            const base = (official.effects?.corruption || 0) + (official.drawbacks?.corruption || 0);
+            const financialPenalty = FINANCIAL_STATUS[official.financialSatisfaction]?.corruption || 0;
+            return Math.max(0, (base + financialPenalty) * paidMultiplier);
+        });
+        const totalWeight = weights.reduce((sum, val) => sum + val, 0);
+        const fallbackShare = corruptionLoss / updatedOfficials.length;
+        let distributed = 0;
+        updatedOfficials.forEach((official, index) => {
+            const share = totalWeight > 0 ? corruptionLoss * (weights[index] / totalWeight) : fallbackShare;
+            if (share <= 0) return;
+            official.wealth = Math.max(0, (official.wealth || 0) + share);
+            distributed += share;
+        });
+        if (distributed > 0) {
+            totalOfficialWealth += distributed;
+            wealth.official = totalOfficialWealth;
+            classWealthResult.official = Math.max(0, wealth.official);
+            totalWealth = Object.values(classWealthResult).reduce((sum, val) => sum + val, 0);
+            totalOfficialIncome += distributed;
+            if (classFinancialData.official) {
+                classFinancialData.official.income.corruption =
+                    (classFinancialData.official.income.corruption || 0) + distributed;
+            }
+        }
+    }
     const tariffSubsidy = taxBreakdown.tariffSubsidy || 0; // 关税补贴支出
     const totalCollectedTax = collectedHeadTax + collectedIndustryTax + collectedBusinessTax + collectedTariff;
 
@@ -4841,12 +4991,21 @@ export const simulateTick = ({
     taxBreakdown.policyIncome = decreeSilverIncome;
     taxBreakdown.policyExpense = decreeSilverExpense;
 
+    const priceControlIncome = taxBreakdown.priceControlIncome || 0;
+    const priceControlExpense = taxBreakdown.priceControlExpense || 0;
+
+    // Price control income is added to silver here (expense was deducted in real-time)
+    res.silver = (res.silver || 0) + priceControlIncome;
+    rates.silver = (rates.silver || 0) + priceControlIncome;
+
     const netTax = totalCollectedTax
         - taxBreakdown.subsidy
         - tariffSubsidy // 关税补贴支出
         + warIndemnityIncome
         + decreeSilverIncome
-        - decreeSilverExpense;
+        - decreeSilverExpense
+        + priceControlIncome
+        - priceControlExpense;
     const taxes = {
         total: netTax,
         efficiency,
@@ -4860,6 +5019,8 @@ export const simulateTick = ({
             warIndemnity: warIndemnityIncome,
             policyIncome: decreeSilverIncome,
             policyExpense: decreeSilverExpense,
+            priceControlIncome: priceControlIncome,
+            priceControlExpense: priceControlExpense,
             // DEBUG: 调试关税策略
             _debug_tariffPolicies: {
                 hasExport: !!policies.exportTariffMultipliers,
@@ -4922,6 +5083,7 @@ export const simulateTick = ({
         merchantState: updatedMerchantState,
         buildingUpgrades: updatedBuildingUpgrades, // Owner auto-upgrade results
         migrationCooldowns: updatedMigrationCooldowns, // 阶层迁移冷却状态
+        taxShock: updatedTaxShock, // [NEW] 各阶层累积税收冲击值
         // 加成修饰符数据，供UI显示"谁吃到了buff"
         modifiers: {
             // 需求修饰符

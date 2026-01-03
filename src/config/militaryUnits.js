@@ -277,7 +277,7 @@ export const UNIT_TYPES = {
         range: 1,
 
         recruitCost: { food: 700, iron: 300, silver: 400 },
-        maintenanceCost: { food: 4.5, silver: 3.5, iron: 0.6 },
+        maintenanceCost: { food: 4.5, silver: 3.5, iron: 0.6, cloth: 0.2 },
         trainingTime: 8,
 
         populationCost: 1,
@@ -330,8 +330,8 @@ export const UNIT_TYPES = {
         speed: 6,
         range: 1,
 
-        recruitCost: { food: 1250, iron: 500, silver: 800 },
-        maintenanceCost: { food: 9, silver: 6.5, iron: 1 },
+        recruitCost: { food: 1250, iron: 500, copper: 150, silver: 800 },
+        maintenanceCost: { food: 9, silver: 6.5, iron: 0.8, copper: 0.3 },
         trainingTime: 10,
 
         populationCost: 1,
@@ -357,8 +357,8 @@ export const UNIT_TYPES = {
         speed: 1,
         range: 6,
 
-        recruitCost: { food: 1000, wood: 1250, iron: 400, silver: 750 },
-        maintenanceCost: { food: 7.5, silver: 6, wood: 4, iron: 0.75, stone: 1.5 },
+        recruitCost: { food: 1000, wood: 1000, plank: 400, iron: 400, silver: 750 },
+        maintenanceCost: { food: 7.5, silver: 6, plank: 1.5, iron: 0.6, stone: 1.2 },
         trainingTime: 12,
 
         populationCost: 3,
@@ -412,8 +412,8 @@ export const UNIT_TYPES = {
         speed: 2,
         range: 4,
 
-        recruitCost: { food: 700, iron: 300, tools: 150, silver: 500 },
-        maintenanceCost: { food: 4.5, silver: 4, iron: 0.4, tools: 0.75 },
+        recruitCost: { food: 700, iron: 300, tools: 200, copper: 80, silver: 500 },
+        maintenanceCost: { food: 4.5, silver: 4, iron: 0.35, tools: 0.9, copper: 0.15 },
         trainingTime: 9,
 
         populationCost: 1,
@@ -466,8 +466,8 @@ export const UNIT_TYPES = {
         speed: 1,
         range: 6,
 
-        recruitCost: { food: 1250, iron: 750, tools: 300, silver: 1000 },
-        maintenanceCost: { food: 9, silver: 7.5, iron: 1.5, tools: 1.25 },
+        recruitCost: { food: 1250, iron: 600, copper: 250, tools: 350, silver: 1000 },
+        maintenanceCost: { food: 9, silver: 7.5, iron: 1.2, copper: 0.4, tools: 1.5 },
         trainingTime: 14,
 
         populationCost: 3,
@@ -494,8 +494,8 @@ export const UNIT_TYPES = {
         speed: 3,
         range: 3,
 
-        recruitCost: { food: 900, iron: 350, tools: 200, silver: 550 },
-        maintenanceCost: { food: 5.5, silver: 5, iron: 0.5, tools: 0.9 },
+        recruitCost: { food: 900, iron: 350, tools: 250, silver: 550 },
+        maintenanceCost: { food: 5.5, silver: 5, iron: 0.45, tools: 1.0, cloth: 0.15 },
         trainingTime: 9,
 
         populationCost: 1,
@@ -521,8 +521,8 @@ export const UNIT_TYPES = {
         speed: 3,
         range: 5,
 
-        recruitCost: { food: 1000, iron: 400, tools: 250, silver: 650 },
-        maintenanceCost: { food: 6, silver: 5.5, iron: 0.6, tools: 1.1 },
+        recruitCost: { food: 1000, iron: 400, tools: 300, silver: 650 },
+        maintenanceCost: { food: 6, silver: 5.5, iron: 0.5, tools: 1.3 },
         trainingTime: 10,
 
         populationCost: 1,
@@ -575,8 +575,8 @@ export const UNIT_TYPES = {
         speed: 2,
         range: 7,
 
-        recruitCost: { food: 1500, iron: 900, tools: 400, silver: 1250 },
-        maintenanceCost: { food: 10, silver: 9, iron: 1.75, tools: 1.75 },
+        recruitCost: { food: 1500, iron: 700, copper: 300, tools: 450, silver: 1250 },
+        maintenanceCost: { food: 10, silver: 9, iron: 1.4, copper: 0.5, tools: 2.0 },
         trainingTime: 15,
 
         populationCost: 3,
@@ -603,8 +603,8 @@ export const UNIT_TYPES = {
         speed: 3,
         range: 4,
 
-        recruitCost: { food: 1250, iron: 500, tools: 300, silver: 800 },
-        maintenanceCost: { food: 7, silver: 6.5, iron: 0.75, tools: 1.4 },
+        recruitCost: { food: 1250, steel: 150, tools: 200, silver: 800 },
+        maintenanceCost: { food: 7, silver: 6.5, steel: 0.3, coal: 0.15 },
         trainingTime: 10,
 
         populationCost: 1,
@@ -630,8 +630,8 @@ export const UNIT_TYPES = {
         speed: 2,
         range: 5,
 
-        recruitCost: { food: 1500, iron: 750, tools: 500, silver: 1250 },
-        maintenanceCost: { food: 8, silver: 9, iron: 1.25, tools: 2.25 },
+        recruitCost: { food: 1500, steel: 300, tools: 350, coal: 200, silver: 1250 },
+        maintenanceCost: { food: 8, silver: 9, steel: 0.6, coal: 0.8 },
         trainingTime: 12,
 
         populationCost: 2,
@@ -657,8 +657,8 @@ export const UNIT_TYPES = {
         speed: 8,
         range: 1,
 
-        recruitCost: { food: 1600, iron: 500, tools: 250, silver: 1000 },
-        maintenanceCost: { food: 11, silver: 8, iron: 0.6, tools: 1.1 },
+        recruitCost: { food: 1600, steel: 120, tools: 180, silver: 1000 },
+        maintenanceCost: { food: 11, silver: 8, steel: 0.25, iron: 0.4 },
         trainingTime: 11,
 
         populationCost: 1,
@@ -684,8 +684,8 @@ export const UNIT_TYPES = {
         speed: 1,
         range: 8,
 
-        recruitCost: { food: 2000, iron: 1250, tools: 600, silver: 1750 },
-        maintenanceCost: { food: 12.5, silver: 11, iron: 2.5, tools: 2.75 },
+        recruitCost: { food: 2000, steel: 500, coal: 400, tools: 300, silver: 1750 },
+        maintenanceCost: { food: 10, silver: 11, steel: 1.2, coal: 1.5 },
         trainingTime: 18,
 
         populationCost: 4,
@@ -1521,7 +1521,8 @@ const DEFAULT_RESOURCE_PRICES = {
     copper: 2,
     iron: 3,
     tools: 5,
-    coal: 2
+    coal: 2,
+    steel: 8
 };
 
 /**

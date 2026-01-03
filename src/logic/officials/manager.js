@@ -68,6 +68,7 @@ export const hireOfficial = (officialId, currentCandidates, currentOfficials, ca
         wealth: OFFICIAL_STARTING_WEALTH,  // 官员个人存款
         lastDayExpense: 0,                  // 上日支出（用于显示）
         financialSatisfaction: 'satisfied',
+        baseSalary: candidate.salary,
         investmentProfile: generateInvestmentProfile(candidate.sourceStratum, candidate.politicalStance, currentDay),
         ownedProperties: [],
         lastDayPropertyIncome: 0,
@@ -116,6 +117,7 @@ const EPOCH_OFFICIAL_BONUS = {
     4: 12,  // 中世纪：+12
     5: 15,  // 文艺复兴：+15
     6: 18,  // 工业时代：+18
+    7: 21,  // 信息时代：+21
 };
 
 // 科技对官员容量的加成
@@ -351,6 +353,8 @@ export const getAggregatedOfficialEffects = (officials, isPaid) => {
         }
     };
 
+
+
     officials.forEach(official => {
         // 跳过无效的 official 条目
         if (!official || typeof official !== 'object') return;
@@ -398,18 +402,36 @@ export const getAggregatedOfficialEffects = (officials, isPaid) => {
  * @param {boolean} isPaid - 是否支付了全额薪水（否则加成减半）
  * @returns {Object} 各阶层的影响力加成 { stratumKey: bonusPercent }
  */
-export const getOfficialInfluenceBonus = (officials, isPaid = true) => {
+export const getOfficialInfluenceBonus = (officials, isPaid = true, context = {}) => {
     const bonuses = {};
+    const classInfluence = context.classInfluence || {};
+    const totalInfluence = context.totalInfluence || 0;
+    const polityEffects = context.polityEffects || {};
 
     if (!officials || !Array.isArray(officials)) return bonuses;
 
     const multiplier = isPaid ? 1 : 0.5;
+    const polityCapacity = Math.max(0, polityEffects.officialCapacity || 0);
+    const polityMultiplier = 1 + Math.min(0.8, polityCapacity * 0.06);
 
     officials.forEach(official => {
         if (!official || !official.sourceStratum) return;
 
         const stratum = official.sourceStratum;
-        const bonus = (official.stratumInfluenceBonus || 0) * multiplier;
+        const wealth = Math.max(0, official.wealth || 0);
+        const ownedProperties = Array.isArray(official.ownedProperties) ? official.ownedProperties : [];
+        const propertyCount = ownedProperties.length;
+        const propertyValue = ownedProperties.reduce((sum, prop) => sum + (prop.purchaseCost || 0), 0);
+        const wealthBonus = Math.log10(wealth + 1) * 0.08;
+        const propertyScaleBonus = Math.sqrt(propertyCount) * 0.06;
+        const propertyValueBonus = Math.log10(propertyValue + 1) * 0.05;
+        const baseBonus = (official.stratumInfluenceBonus || 0) + wealthBonus + propertyScaleBonus + propertyValueBonus;
+
+        const stratumInfluence = classInfluence[stratum] || 0;
+        const factionShare = totalInfluence > 0 ? stratumInfluence / totalInfluence : 0;
+        const factionMultiplier = 1 + Math.min(1.2, factionShare * 1.8);
+
+        const bonus = Math.min(3, baseBonus * factionMultiplier * polityMultiplier) * multiplier;
 
         bonuses[stratum] = (bonuses[stratum] || 0) + bonus;
     });

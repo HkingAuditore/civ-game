@@ -114,6 +114,7 @@ export const OfficialCard = memo(({
     actionDisabled = false,
     currentDay = 0,
     isStanceSatisfied = null, // 新增：政治主张是否满足 (null=不检查, true=满足, false=不满足)
+    onViewDetail,
 }) => {
     const [showDisposalMenu, setShowDisposalMenu] = useState(false);
 
@@ -369,7 +370,12 @@ export const OfficialCard = memo(({
     const effectItems = renderEffects();
 
     return (
-        <div className={`relative bg-gray-800/60 border ${stanceColors.border} rounded-lg p-3 hover:border-opacity-100 transition-all overflow-hidden shadow-lg ${stanceColors.glow}`}>
+        <div
+            className={`relative bg-gray-800/60 border ${stanceColors.border} rounded-lg p-3 transition-all overflow-hidden shadow-lg ${stanceColors.glow} ${onViewDetail ? 'cursor-pointer hover:border-opacity-100 hover:shadow-emerald-500/10 hover:-translate-y-0.5 hover:ring-1 hover:ring-emerald-400/30' : ''}`}
+            onClick={() => {
+                if (!isCandidate && onViewDetail) onViewDetail(official);
+            }}
+        >
             {/* 顶部政治光谱渐变条 */}
             <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${stanceColors.gradient}`} />
 
@@ -380,8 +386,11 @@ export const OfficialCard = memo(({
                         <Icon name={stratumIcon} size={14} />
                     </div>
                     <div className="min-w-0 flex-1">
-                        <div className="font-bold text-gray-200 text-sm leading-tight truncate pr-1">
+                        <div className="flex items-center gap-1">
+                            <div className="font-bold text-gray-200 text-sm leading-tight truncate pr-1">
                             {official.name}
+                            </div>
+
                         </div>
                         <div className={`text-[10px] ${stratumColor} opacity-80 flex items-center flex-wrap gap-1.5 mt-0.5`}>
                             {/* 政治光谱小标签 (移至第二行以防重叠) */}
@@ -538,6 +547,13 @@ export const OfficialCard = memo(({
                 </div>
             )}
 
+            {!isCandidate && onViewDetail && (
+                <div className="mt-2 text-[9px] text-gray-500 flex items-center gap-1">
+                    <Icon name="Hand" size={10} />
+                    点击卡片查看资产与开销
+                </div>
+            )}
+
             {/* 操作按钮 */}
             <div className="mt-2 pt-2 border-t border-gray-700/30">
                 {isCandidate ? (
@@ -556,7 +572,10 @@ export const OfficialCard = memo(({
                     <div className="relative">
                         <div className="flex gap-1">
                             <button
-                                onClick={() => onAction(official.id)}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onAction(official.id);
+                                }}
                                 disabled={actionDisabled}
                                 className="flex-1 py-1 px-2 rounded text-xs font-bold flex items-center justify-center gap-1 transition-colors bg-gray-700/50 hover:bg-gray-600/50 text-gray-300 border border-gray-600/50"
                             >
@@ -564,7 +583,10 @@ export const OfficialCard = memo(({
                                 解雇
                             </button>
                             <button
-                                onClick={() => setShowDisposalMenu(!showDisposalMenu)}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShowDisposalMenu(!showDisposalMenu);
+                                }}
                                 className="py-1 px-2 rounded text-xs font-bold flex items-center justify-center transition-colors bg-red-900/30 hover:bg-red-800/50 text-red-400 border border-red-900/50"
                                 title="更多处置选项"
                             >
@@ -577,7 +599,10 @@ export const OfficialCard = memo(({
                                 {Object.values(DISPOSAL_TYPES).filter(t => t.id !== 'fire').map(type => (
                                     <button
                                         key={type.id}
-                                        onClick={() => handleDispose(type.id)}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDispose(type.id);
+                                        }}
                                         className={`w-full py-2 px-3 text-xs flex items-center gap-2 hover:bg-gray-800 transition-colors ${type.color}`}
                                     >
                                         <Icon name={type.icon} size={14} />

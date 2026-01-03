@@ -7,6 +7,7 @@ import { simulateTick } from '../logic/simulation';
 // Web Worker for offloading simulation to background thread
 import SimulationWorker from '../workers/simulation.worker.js?worker';
 import { BUILDINGS, calculateArmyMaintenance, calculateArmyPopulation, UNIT_TYPES, STRATA, RESOURCES } from '../config';
+import { getBuildingEffectiveConfig } from '../config/buildingUpgrades';
 import { getRandomFestivalEffects } from '../config/festivalEffects';
 import { initCheatCodes } from './cheatCodes';
 import { getCalendarInfo } from '../utils/calendar';
@@ -51,6 +52,8 @@ import {
     createBrewingEvent,
     createPlottingEvent,
     createActiveRebellionEvent,
+    createOfficialCoupEvent,
+    createOfficialCoupNation,
     createRebelNation,
     createRebellionEndEvent,
 } from '../logic/rebellionSystem';
@@ -666,6 +669,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
         setLivingStandardStreaks,
         migrationCooldowns,
         setMigrationCooldowns,
+        taxShock,
+        setTaxShock,
         activeBuffs,
         activeDebuffs,
         army,
@@ -966,6 +971,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
             classWealth,
             livingStandardStreaks,
             migrationCooldowns,
+            taxShock,
             army,
             militaryQueue,
             jobFill,
@@ -1007,7 +1013,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
             quotaTargets, // 计划经济目标配额
             officialCapacity, // 官员容量
         };
-    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, livingStandardStreaks, migrationCooldowns, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability, rulingCoalition, legitimacy, difficulty, officials, activeDecrees, expansionSettings, quotaTargets, officialCapacity]);
+    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, livingStandardStreaks, migrationCooldowns, taxShock, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability, rulingCoalition, legitimacy, difficulty, officials, activeDecrees, expansionSettings, quotaTargets, officialCapacity]);
 
     // 监听国家列表变化，自动清理无效的贸易路线（修复暂停状态下无法清理的问题）
     useEffect(() => {
@@ -1228,6 +1234,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 taxPolicies: current.taxPolicies || {},
                 livingStandardStreaks: current.livingStandardStreaks,
                 migrationCooldowns: current.migrationCooldowns,
+                previousTaxShock: current.taxShock, // [NEW] 累积税收冲击历史
 
                 // 贸易
                 merchantState: current.merchantState,
@@ -1435,12 +1442,136 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 }
 
                 // 创建阶层财富对象，合并补贴转账
-                const adjustedClassWealth = { ...result.classWealth };
+                let adjustedClassWealth = { ...result.classWealth };
                 // 将补贴增量添加到阶层财富
                 Object.entries(subsidyWealthDelta).forEach(([key, delta]) => {
                     adjustedClassWealth[key] = (adjustedClassWealth[key] || 0) + delta;
                 });
-                const adjustedTotalWealth = Object.values(adjustedClassWealth).reduce((sum, val) => sum + val, 0);
+                let adjustedTotalWealth = Object.values(adjustedClassWealth).reduce((sum, val) => sum + val, 0);
+
+                // ========== 官僚政变检测（低影响力但高财富官员） ==========
+                let coupOutcome = null;
+                const officialsList = result.officials || [];
+                if (officialsList.length > 0 && current.actions?.triggerDiplomaticEvent) {
+                    const influenceShare = (stratumKey) => {
+                        const influence = result.classInfluence?.[stratumKey] || 0;
+                        return (result.totalInfluence || 0) > 0 ? influence / result.totalInfluence : 0;
+                    };
+                    const candidates = officialsList
+                        .filter(official => official && official.ownedProperties?.length)
+                        .map(official => {
+                            const propertyValue = official.ownedProperties.reduce((sum, prop) => sum + (prop.purchaseCost || 0), 0);
+                            const wealthScore = (official.wealth || 0) + propertyValue;
+                            return {
+                                official,
+                                propertyValue,
+                                propertyCount: official.ownedProperties.length,
+                                wealthScore,
+                                influenceShare: influenceShare(official.sourceStratum || 'official'),
+                            };
+                        })
+                        .filter(candidate => candidate.influenceShare < MIN_REBELLION_INFLUENCE && candidate.wealthScore >= 15000);
+
+                    if (candidates.length > 0) {
+                        candidates.sort((a, b) => b.wealthScore - a.wealthScore);
+                        const target = candidates[0];
+                        const triggerChance = Math.min(0.2, Math.log10(target.wealthScore / 10000) * 0.06);
+
+                        if (Math.random() < triggerChance) {
+                            const newOfficials = officialsList.filter(o => o.id !== target.official.id);
+                            const newBuildings = { ...(result.buildings || {}) };
+                            const newBuildingUpgrades = { ...(result.buildingUpgrades || {}) };
+                            const newPopStructure = { ...(result.popStructure || {}) };
+                            let populationLoss = 1;
+
+                            (target.official.ownedProperties || []).forEach(prop => {
+                                const buildingId = prop.buildingId;
+                                const level = prop.level || 0;
+                                const building = BUILDINGS.find(b => b.id === buildingId);
+                                if (building) {
+                                    const config = getBuildingEffectiveConfig(building, level);
+                                    Object.entries(config.jobs || {}).forEach(([role, slots]) => {
+                                        if (!slots) return;
+                                        const loss = Math.min(newPopStructure[role] || 0, slots);
+                                        if (loss > 0) {
+                                            newPopStructure[role] = Math.max(0, (newPopStructure[role] || 0) - loss);
+                                            populationLoss += loss;
+                                        }
+                                    });
+                                }
+
+                                if (newBuildings[buildingId]) {
+                                    newBuildings[buildingId] = Math.max(0, newBuildings[buildingId] - 1);
+                                    if (newBuildings[buildingId] === 0) {
+                                        delete newBuildings[buildingId];
+                                    }
+                                }
+
+                                if (newBuildingUpgrades[buildingId] && level > 0) {
+                                    newBuildingUpgrades[buildingId][level] = Math.max(0, (newBuildingUpgrades[buildingId][level] || 0) - 1);
+                                    if (newBuildingUpgrades[buildingId][level] <= 0) {
+                                        delete newBuildingUpgrades[buildingId][level];
+                                    }
+                                    if (Object.keys(newBuildingUpgrades[buildingId]).length === 0) {
+                                        delete newBuildingUpgrades[buildingId];
+                                    }
+                                }
+                            });
+
+                            newPopStructure.official = Math.max(0, (newPopStructure.official || 0) - 1);
+
+                            const newPopulation = Math.max(0, (result.population || 0) - populationLoss);
+
+                            adjustedClassWealth = {
+                                ...adjustedClassWealth,
+                                official: Math.max(0, (adjustedClassWealth.official || 0) - (target.official.wealth || 0)),
+                            };
+                            adjustedTotalWealth = Object.values(adjustedClassWealth).reduce((sum, val) => sum + val, 0);
+
+                            const rebelNation = createOfficialCoupNation(
+                                target.official,
+                                { propertyValue: target.propertyValue },
+                                populationLoss
+                            );
+                            rebelNation.warStartDay = current.daysElapsed || 0;
+
+                            const coupCallback = (action, stratum, extraData) => {
+                                if (current.actions?.handleRebellionAction) {
+                                    current.actions.handleRebellionAction(action, stratum, extraData);
+                                }
+                            };
+
+                            const hasMilitary = hasAvailableMilitary(current.army, current.popStructure, 'official');
+                            const militaryIsRebelling = isMilitaryRebelling(current.rebellionStates || {});
+                            const coupEvent = createOfficialCoupEvent(
+                                target.official,
+                                hasMilitary,
+                                militaryIsRebelling,
+                                rebelNation,
+                                coupCallback
+                            );
+
+                            coupOutcome = {
+                                officials: newOfficials,
+                                buildings: newBuildings,
+                                buildingUpgrades: newBuildingUpgrades,
+                                popStructure: newPopStructure,
+                                population: newPopulation,
+                                nations: [...(current.nations || []), rebelNation],
+                                event: coupEvent,
+                            };
+
+                            addLog(`⚠️ 官僚政变：${target.official.name}携资产叛逃，成立了${rebelNation.name}！`);
+                        }
+                    }
+                }
+
+                const nextPopStructure = coupOutcome?.popStructure || result.popStructure;
+                const nextOfficials = coupOutcome?.officials || result.officials;
+                const nextBuildings = coupOutcome?.buildings || result.buildings;
+                const nextBuildingUpgrades = coupOutcome?.buildingUpgrades || result.buildingUpgrades;
+                const nextNations = coupOutcome?.nations || result.nations;
+                const nextPopulation = coupOutcome?.population ?? result.population;
 
                 // --- 市场数据历史记录更新 ---
                 const previousPriceHistory = current.market?.priceHistory || {};
@@ -1540,7 +1671,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             ...safeHistory,
                             treasury: appendValue(safeHistory.treasury, result.resources?.silver || 0),
                             tax: appendValue(safeHistory.tax, result.taxes?.total || 0),
-                            population: appendValue(safeHistory.population, result.population || 0),
+                            population: appendValue(safeHistory.population, nextPopulation || 0),
                         };
 
                         const previousClassHistory = safeHistory.class || {};
@@ -1548,7 +1679,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         Object.keys(STRATA).forEach(key => {
                             const entry = previousClassHistory[key] || { pop: [], income: [], expense: [] };
                             classHistory[key] = {
-                                pop: appendValue(entry.pop, result.popStructure?.[key] || 0),
+                                pop: appendValue(entry.pop, nextPopStructure?.[key] || 0),
                                 income: appendValue(entry.income, result.classIncome?.[key] || 0),
                                 expense: appendValue(entry.expense, result.classExpense?.[key] || 0),
                             };
@@ -1562,7 +1693,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 // 将所有 setState 调用包装在 unstable_batchedUpdates 中
                 // 这可以将 30+ 次渲染合并为 1 次，大幅提升低端设备性能
                 unstable_batchedUpdates(() => {
-                    setPopStructure(result.popStructure);
+                    setPopStructure(nextPopStructure);
                     setMaxPop(result.maxPop);
                     setRates(result.rates || {});
                     setClassApproval(result.classApproval);
@@ -1623,8 +1754,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         setArmy(result.army); // 保存战斗损失
                     }
                     // 更新官员状态（含独立财务数据）
-                    if (result.officials) {
-                        setOfficials(result.officials);
+                    if (nextOfficials) {
+                        setOfficials(nextOfficials);
                     }
                     // 更新官员容量（基于时代、政体、科技动态计算）
                     if (typeof result.effectiveOfficialCapacity === 'number' && typeof setOfficialCapacity === 'function') {
@@ -1632,6 +1763,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     }
                     setLivingStandardStreaks(result.livingStandardStreaks || current.livingStandardStreaks || {});
                     setMigrationCooldowns(result.migrationCooldowns || current.migrationCooldowns || {});
+                    setTaxShock(result.taxShock || current.taxShock || {}); // [NEW] 更新累积税收冲击
                     setMerchantState(prev => {
                         const nextState = result.merchantState || current.merchantState || { pendingTrades: [], lastTradeTime: 0 };
                         if (prev === nextState) {
@@ -1639,8 +1771,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         }
                         return nextState;
                     });
-                    if (result.nations) {
-                        setNations(result.nations);
+                    if (nextNations) {
+                        setNations(nextNations);
                     }
                     if (result.jobFill) {
                         setJobFill(result.jobFill);
@@ -1649,16 +1781,26 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         setJobsAvailable(result.jobsAvailable);
                     }
                     // [NEW] Update buildings count (from Free Market expansion)
-                    if (result.buildings) {
-                        setBuildings(result.buildings);
+                    if (nextBuildings) {
+                        setBuildings(nextBuildings);
                     }
                     // [DEBUG] 临时日志 - 追踪自由市场机制问题
                     if (result._debug) {
                         console.log('[FREE MARKET DEBUG]', result._debug.freeMarket);
                     }
                     // Update building upgrades from owner auto-upgrade
-                    if (result.buildingUpgrades) {
-                        setBuildingUpgrades(result.buildingUpgrades);
+                    if (nextBuildingUpgrades) {
+                        setBuildingUpgrades(nextBuildingUpgrades);
+                    }
+                    if (coupOutcome?.event) {
+                        setRebellionStates(prev => ({
+                            ...prev,
+                            official: {
+                                ...(prev?.official || {}),
+                                organization: 50,
+                                stage: ORGANIZATION_STAGE.MOBILIZING,
+                            },
+                        }));
                     }
                     // 更新事件效果状态（处理衰减和过期）
                     // 注意：nextEffects 由 processTimedEventEffects 计算得出，需要写回状态
@@ -1676,6 +1818,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     setDaysElapsed(prev => prev + 1);
                 });
 
+                if (coupOutcome?.event && current.actions?.triggerDiplomaticEvent) {
+                    current.actions.triggerDiplomaticEvent(coupOutcome.event);
+                }
+
                 // ========== 组织度系统更新 ==========
                 // 使用新的组织度机制替代旧的RNG叛乱系统
                 const currentOrganizationStates = current.rebellionStates || {};
@@ -1691,7 +1837,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     {
                         classIncome: result.classIncome || {},
                         classExpense: result.classExpense || current.classExpense || {},
-                        popStructure: result.popStructure || current.popStructure || {},
+                        popStructure: nextPopStructure || current.popStructure || {},
                         taxPolicies: current.taxPolicies || {},
                         market: result.market || current.market || {},
                         classLivingStandard: result.classLivingStandard || {},
@@ -2373,8 +2519,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 });
 
                 // 更新人口（如果有变化）
-                if (result.population !== current.population) {
-                    setPopulation(result.population);
+                if (nextPopulation !== current.population) {
+                    setPopulation(nextPopulation);
                 }
                 if (typeof result.birthAccumulator === 'number') {
                     setBirthAccumulator(result.birthAccumulator);

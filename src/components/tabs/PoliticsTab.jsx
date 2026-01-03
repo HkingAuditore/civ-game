@@ -327,6 +327,7 @@ const PoliticsTabComponent = ({
     onHire,
     onFire,
     onDispose,
+    onUpdateOfficialSalary,
 
     // Cabinet Synergy Props
     classWealth = {},
@@ -754,6 +755,7 @@ const PoliticsTabComponent = ({
                         onHire={onHire}
                         onFire={onFire}
                         onDispose={onDispose}
+                        onUpdateOfficialSalary={onUpdateOfficialSalary}
                         // Cabinet Synergy Props
                         epoch={epoch}
                         popStructure={popStructure}
