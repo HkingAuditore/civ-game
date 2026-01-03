@@ -5,10 +5,13 @@
 import React, { memo } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '../common/UIComponents';
-import { STRATA, RESOURCES, EPOCHS, BUILDINGS } from '../../config';
+import { STRATA, RESOURCES, EPOCHS, BUILDINGS, TAX_LIMITS } from '../../config';
 import { isResourceUnlocked } from '../../utils/resources';
 import { CoalitionPanel } from '../panels/CoalitionPanel';
 import { OfficialsPanel } from '../panels/officials/OfficialsPanel';
+
+// Helper to clamp values
+const clamp = (val, min, max) => Math.min(Math.max(val, min), max);
 
 // 定义阶层分组，用于UI显示
 const STRATA_GROUPS = {
@@ -389,7 +392,12 @@ const PoliticsTabComponent = ({
         if (headDrafts[key] === undefined) return;
         const parsed = parseFloat(headDrafts[key]);
         const numeric = Number.isNaN(parsed) ? 1 : parsed;
-        onUpdateTaxPolicies(prev => ({ ...prev, headTaxRates: { ...(prev?.headTaxRates), [key]: numeric } }));
+
+        // Enforce Limit
+        const limit = TAX_LIMITS?.MAX_HEAD_TAX || 10000;
+        const clamped = clamp(numeric, -limit, limit);
+
+        onUpdateTaxPolicies(prev => ({ ...prev, headTaxRates: { ...(prev?.headTaxRates), [key]: clamped } }));
         setHeadDrafts(prev => { const next = { ...prev }; delete next[key]; return next; });
     };
 
@@ -398,7 +406,12 @@ const PoliticsTabComponent = ({
         if (resourceDrafts[key] === undefined) return;
         const parsed = parseFloat(resourceDrafts[key]);
         const rateValue = (Number.isNaN(parsed) ? 0 : parsed) / 100;
-        onUpdateTaxPolicies(prev => ({ ...prev, resourceTaxRates: { ...(prev?.resourceTaxRates), [key]: rateValue } }));
+
+        // Enforce Limit (rateValue is decimals, limit is percentage rate like 5.0 for 500%)
+        const limit = TAX_LIMITS?.MAX_RESOURCE_TAX || 5.0;
+        const clamped = clamp(rateValue, -limit, limit);
+
+        onUpdateTaxPolicies(prev => ({ ...prev, resourceTaxRates: { ...(prev?.resourceTaxRates), [key]: clamped } }));
         setResourceDrafts(prev => { const next = { ...prev }; delete next[key]; return next; });
     };
 
@@ -425,7 +438,12 @@ const PoliticsTabComponent = ({
         if (businessDrafts[key] === undefined) return;
         const parsed = parseFloat(businessDrafts[key]);
         const numeric = Number.isNaN(parsed) ? 1 : parsed;
-        onUpdateTaxPolicies(prev => ({ ...prev, businessTaxRates: { ...(prev?.businessTaxRates), [key]: numeric } }));
+
+        // Enforce Limit
+        const limit = TAX_LIMITS?.MAX_BUSINESS_TAX || 10000;
+        const clamped = clamp(numeric, -limit, limit);
+
+        onUpdateTaxPolicies(prev => ({ ...prev, businessTaxRates: { ...(prev?.businessTaxRates), [key]: clamped } }));
         setBusinessDrafts(prev => { const next = { ...prev }; delete next[key]; return next; });
     };
 

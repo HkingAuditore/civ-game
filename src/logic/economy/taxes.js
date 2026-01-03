@@ -3,7 +3,7 @@
  * Handles tax collection, tax breakdown, and tax efficiency calculations
  */
 
-import { STRATA } from '../../config';
+import { STRATA, TAX_LIMITS } from '../../config';
 
 /**
  * Initialize tax breakdown structure
@@ -29,11 +29,13 @@ export const initializeTaxBreakdown = () => ({
  * @returns {number} Head tax rate
  */
 export const getHeadTaxRate = (key, headTaxRates = {}) => {
-    const rate = headTaxRates[key];
-    if (typeof rate === 'number') {
-        return rate;
+    let rate = headTaxRates[key];
+    if (typeof rate !== 'number') {
+        rate = 1;
     }
-    return 1;
+    // Limit check
+    const limit = TAX_LIMITS?.MAX_HEAD_TAX || 10000;
+    return Math.max(-limit, Math.min(limit, rate));
 };
 
 /**
@@ -43,9 +45,12 @@ export const getHeadTaxRate = (key, headTaxRates = {}) => {
  * @returns {number} Resource tax rate (can be negative for subsidies)
  */
 export const getResourceTaxRate = (resource, resourceTaxRates = {}) => {
-    const rate = resourceTaxRates[resource];
-    if (typeof rate === 'number') return rate;
-    return 0;
+    let rate = resourceTaxRates[resource];
+    if (typeof rate !== 'number') rate = 0;
+    
+    // Limit check
+    const limit = TAX_LIMITS?.MAX_RESOURCE_TAX || 5.0;
+    return Math.max(-limit, Math.min(limit, rate));
 };
 
 /**
@@ -55,16 +60,13 @@ export const getResourceTaxRate = (resource, resourceTaxRates = {}) => {
  * @returns {number} Business tax rate (can be negative for subsidies)
  */
 export const getBusinessTaxRate = (buildingId, businessTaxRates = {}) => {
-    const rate = businessTaxRates[buildingId];
-    if (typeof rate === 'number') return rate;
-    return 1; // 默认税率系数为1，与UI显示一致
-};
+    let rate = businessTaxRates[buildingId];
+    if (typeof rate !== 'number') rate = 1;
 
-/**
- * Collect head tax from all strata
- * @param {Object} params - Collection parameters
- * @returns {Object} Updated wealth and tax breakdown
- */
+    // Limit check
+    const limit = TAX_LIMITS?.MAX_BUSINESS_TAX || 10000;
+    return Math.max(-limit, Math.min(limit, rate));
+};
 export const collectHeadTax = ({
     popStructure,
     wealth,

@@ -2448,7 +2448,7 @@ export const simulateTick = ({
                         const needEntry = {
                             cost: totalCost,
                             quantity: amount,
-                            price: effectivePrice
+                            price: finalEffectivePrice
                         };
 
                         if (def.needs && def.needs.hasOwnProperty(resKey)) {
@@ -3974,13 +3974,23 @@ export const simulateTick = ({
             const recentHistory = needsHistory.slice(-5);
             const avgSatisfaction = recentHistory.reduce((a, b) => a + b, 0) / recentHistory.length;
 
-            // 如果缺乏食物或布料，且最近5个tick平均满足率低于60%
-            if ((lackingFood || lackingCloth) && avgSatisfaction < 0.6) {
+            // NEW: Tiered Starvation System
+            // Tier 1: Malnutrition (<85% satisfaction) -> Low death rate (0.5% - 2%)
+            // Tier 2: Severe Starvation (<50% satisfaction) -> High death rate (2% - 10%)
+            if ((lackingFood || lackingCloth) && avgSatisfaction < 0.85) {
                 const className = def.name || key;
+                let deathRate = 0;
 
-                // 死亡率取决于满足率：满足率越低，死亡率越高
-                // 满足率60%时死亡率0%，满足率0%时死亡率最高5%
-                const deathRate = Math.max(0, (0.6 - avgSatisfaction) / 0.6 * 0.05);
+                if (avgSatisfaction < 0.5) {
+                    // Severe Starvation: Scale from 2% at 50% sat to 10% at 0% sat
+                    // Formula: 0.02 + (percentage_missing_from_50 / 50) * 0.08
+                    deathRate = 0.02 + ((0.5 - avgSatisfaction) / 0.5 * 0.08);
+                } else {
+                    // Malnutrition: Scale from 0.5% at 85% sat to 2% at 50% sat
+                    // Range is 0.35 (0.85 - 0.50)
+                    deathRate = 0.005 + ((0.85 - avgSatisfaction) / 0.35 * 0.015);
+                }
+
                 const deaths = Math.max(1, Math.floor(count * deathRate));
 
                 if (deaths > 0) {
