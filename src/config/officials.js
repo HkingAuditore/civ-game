@@ -960,36 +960,55 @@ const GLOBAL_VALUE_SCALE_TYPES = new Set([
     'passivePercent',
 ]);
 
+// 效果类型权重：调整为更均衡的数值，避免某些效果估值过高
 const EFFECT_TYPE_WEIGHTS = {
-    incomePercent: 1.8,
-    taxEfficiency: 1.6,
-    tradeBonus: 1.4,
-    buildingCostMod: 1.2,
-    productionInputCost: 1.1,
-    buildings: 1.1,
-    categories: 1.05,
-    wartimeProduction: 1.2,
-    passive: 1.0,
-    passivePercent: 1.2,
-    resourceSupplyMod: 1.0,
-    resourceDemandMod: 0.9,
-    stratumDemandMod: 0.9,
-    needsReduction: 0.9,
-    maxPop: 0.8,
-    populationGrowth: 0.9,
-    researchSpeed: 1.1,
-    approval: 0.7,
-    coalitionApproval: 0.8,
-    stability: 1.0,
-    militaryBonus: 1.1,
-    militaryUpkeep: 1.1,
-    diplomaticBonus: 0.9,
-    diplomaticIncident: 0.8,
-    organizationDecay: 0.8,
+    // 经济类：高价值但不要太极端
+    incomePercent: 1.4,      // 降低：税收收入
+    taxEfficiency: 1.3,      // 降低：税收效率
+    tradeBonus: 1.2,         // 降低：贸易利润
+    
+    // 生产类：提升权重，这些效果很实用
+    buildingCostMod: 1.1,
+    productionInputCost: 1.3, // 提升：原料消耗降低非常有用
+    buildings: 1.2,           // 提升：单建筑加成
+    categories: 1.4,          // 提升：类别加成影响多个建筑
+    wartimeProduction: 1.0,   // 降低：战时生产有条件性
+    
+    // 被动类
+    passive: 0.8,             // 降低：固定被动产出
+    passivePercent: 1.1,
+    
+    // 需求/供给类
+    resourceSupplyMod: 1.1,   // 提升
+    resourceDemandMod: 1.0,   // 提升
+    stratumDemandMod: 1.0,    // 提升
+    needsReduction: 1.2,      // 提升：全民需求降低很强
+    
+    // 人口/发展类
+    maxPop: 0.9,
+    populationGrowth: 1.0,
+    researchSpeed: 1.2,
+    
+    // 政治类
+    approval: 0.8,            // 满意度
+    coalitionApproval: 0.9,
+    stability: 1.1,
     legitimacyBonus: 1.0,
-    corruption: 1.1,
-    factionConflict: 1.1,
-    resourceWaste: 1.0,
+    organizationDecay: 0.9,
+    
+    // 军事类
+    militaryBonus: 1.0,
+    militaryUpkeep: 1.0,
+    
+    // 外交类
+    diplomaticBonus: 0.8,
+    diplomaticIncident: 0.7,
+    diplomaticCooldown: 0.8,
+    
+    // 负面效果类
+    corruption: 1.0,
+    factionConflict: 0.9,
+    resourceWaste: 0.9,
 };
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -1016,10 +1035,12 @@ const getResourceWeight = (resource, market) => {
     return clamp(priceFactor * tagFactor, 0.4, 3.0);
 };
 
+// 修复：大幅降低 valueScale 的影响范围，避免经济好的时候薪资飙升
 const getValueScale = (value, baseline) => {
     if (!value || value <= 0) return 1;
-    const scaled = 0.8 + Math.log10(1 + value / baseline);
-    return clamp(scaled, 0.6, 2.2);
+    // 降低缩放幅度：从 0.6-2.2 改为 0.85-1.4
+    const scaled = 0.9 + Math.log10(1 + value / baseline) * 0.5;
+    return clamp(scaled, 0.85, 1.4);
 };
 
 const normalizeEffectScore = (effect, market, rates) => {
@@ -1027,31 +1048,46 @@ const normalizeEffectScore = (effect, market, rates) => {
     let typeWeight = EFFECT_TYPE_WEIGHTS[effect.type] || 1.0;
     let resourceWeight = 1;
     let valueScale = 1;
+    
+    // 资源权重：降低影响幅度
     if (effect.target && RESOURCES[effect.target]) {
-        resourceWeight = getResourceWeight(effect.target, market);
+        // 限制资源权重范围，避免某些资源导致估值过高
+        resourceWeight = Math.min(1.5, getResourceWeight(effect.target, market));
     }
+    
+    // 百分比效果：降低乘数
     if (PERCENT_EFFECT_TYPES.has(effect.type)) {
-        score *= PERCENT_SCORE_MULTIPLIER;
+        score *= PERCENT_SCORE_MULTIPLIER * 0.6; // 降低40%
     }
+    
+    // 满意度：进一步降低权重
     if (effect.type === 'approval') {
-        score = score / APPROVAL_SCORE_DIVISOR; // 10点满意度 ≈ 0.5 效果分
+        score = score / (APPROVAL_SCORE_DIVISOR * 1.5); // 10点满意度 ≈ 0.33 效果分
     } else if (effect.type === 'passive') {
-        score = score / PASSIVE_SCORE_DIVISOR; // 降低被动产出权重，避免薪酬失衡
+        score = score / (PASSIVE_SCORE_DIVISOR * 1.5); // 进一步降低被动产出权重
     }
+    
+    // 针对单个建筑的效果：降低权重（因为只影响一种建筑）
+    if (effect.type === 'buildings' || effect.type === 'productionInputCost') {
+        typeWeight *= 0.7; // 单建筑效果打7折
+    }
+    
+    // 条件性效果降低权重
+    if (effect.type === 'wartimeProduction') {
+        typeWeight *= 0.6; // 战时生产需要战争才生效
+    }
+    
+    // valueScale：只对全局性效果应用，且影响更小
     if (rates) {
-        if (effect.target && RESOURCES[effect.target]) {
-            const unitPrice = getResourceUnitPrice(effect.target, market);
-            const rateValue = Math.abs(rates[effect.target] || 0);
-            valueScale = getValueScale(rateValue * unitPrice, VALUE_SCALE_BASELINE);
-        } else if (effect.type === 'needsReduction') {
-            const unitPrice = getResourceUnitPrice('food', market);
-            const rateValue = Math.abs(rates.food || 0);
-            valueScale = getValueScale(rateValue * unitPrice, VALUE_SCALE_BASELINE);
-        } else if (GLOBAL_VALUE_SCALE_TYPES.has(effect.type)) {
+        // 只对真正的全局经济效果应用 valueScale
+        if (effect.type === 'incomePercent' || effect.type === 'taxEfficiency' || 
+            effect.type === 'tradeBonus' || effect.type === 'categories') {
             const silverRate = Math.abs(rates.silver || 0);
             valueScale = getValueScale(silverRate, GLOBAL_VALUE_SCALE_BASELINE);
         }
+        // 其他效果不再应用 valueScale，避免估值波动过大
     }
+    
     return score * typeWeight * resourceWeight * valueScale;
 };
 
@@ -1165,20 +1201,33 @@ export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence 
 
     // 5. 计算俸禄
     // 目标范围: 15 ~ 4000 银/日
-    // 修复：对 totalCostScore 应用时代缩放，避免青铜时代高薪问题
-    // 时代缩放因子：epoch 1: 0.3x, epoch 2: 0.45x, epoch 3: 0.6x, epoch 4: 0.75x, epoch 5: 0.9x, epoch 6+: 1.0x
-    const epochScoreMultiplier = Math.min(1.0, 0.15 + epoch * 0.15);
-    const scaledCostScore = Math.max(0.1, totalCostScore) * epochScoreMultiplier;
+    // 设计目标：
+    // - 青铜时代 (epoch 1): 20-150 银/日
+    // - 铁器时代 (epoch 3): 50-400 银/日
+    // - 工业时代 (epoch 6): 150-1500 银/日
     
-    // 基础薪资：降低系数，让早期官员薪资合理
-    // epoch 1 (青铜): 基础15 + 得分*60*0.3 ≈ 15-50
-    // epoch 3 (铁器): 基础15 + 得分*60*0.6 ≈ 30-150
-    // epoch 6 (工业): 基础15 + 得分*60*1.0 ≈ 50-400
-    const baseSalary = 15 + scaledCostScore * 60;
+    // 时代缩放因子：对评分和基础薪资都应用
+    // epoch 1: 0.25x, epoch 2: 0.4x, epoch 3: 0.55x, epoch 4: 0.7x, epoch 5: 0.85x, epoch 6+: 1.0x
+    const epochScoreMultiplier = Math.min(1.0, 0.1 + epoch * 0.15);
+    
+    // 对 totalCostScore 应用时代缩放并限制上限
+    // 避免某些效果组合导致评分爆炸
+    const clampedCostScore = Math.min(15, Math.max(0.5, totalCostScore)); // 限制在 0.5-15 之间
+    const scaledCostScore = clampedCostScore * epochScoreMultiplier;
+    
+    // 基础薪资：使用更平缓的系数
+    // scaledCostScore 范围约 0.125-15，对应基础薪资 20-320
+    const baseSalary = 20 + scaledCostScore * 20;
     
     // 时代加成：让后期官员薪资有更大上限
-    const epochMultiplier = 0.6 + epoch * 0.15; // epoch 1: 0.75x, epoch 6: 1.5x
-    let salary = Math.round(baseSalary * epochMultiplier);
+    // epoch 1: 0.8x, epoch 3: 1.1x, epoch 6: 1.55x
+    const epochMultiplier = 0.65 + epoch * 0.15;
+    
+    // 效果数量加成：多效果官员适当加价，但不要太极端
+    // 1个效果: 1.0x, 3个效果: 1.2x, 5个效果: 1.4x
+    const effectCountMultiplier = 1.0 + (effectCount - 1) * 0.1;
+    
+    let salary = Math.round(baseSalary * epochMultiplier * effectCountMultiplier);
     
     // 确保在 15 ~ 4000 范围内
     salary = Math.max(MIN_OFFICIAL_SALARY, Math.min(MAX_OFFICIAL_SALARY, salary));
