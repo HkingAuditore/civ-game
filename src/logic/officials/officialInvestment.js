@@ -158,7 +158,9 @@ export const processOfficialInvestment = (
     taxPolicies,
     cabinetStatus,
     buildingCounts,
-    difficultyLevel
+    difficultyLevel,
+    epoch = 0,
+    techsUnlocked = []
 ) => {
     if (!official?.investmentProfile) return null;
 
@@ -178,7 +180,17 @@ export const processOfficialInvestment = (
     const growthFactor = getBuildingCostGrowthFactor(difficultyLevel) || 1.15;
 
     const candidates = BUILDINGS
-        .filter(b => b.owner && b.baseCost)
+        .filter(b => {
+            // 必须有所有者和基础成本
+            if (!b.owner || !b.baseCost) return false;
+            // 检查时代解锁
+            const epochUnlocked = (b.epoch ?? 0) <= epoch;
+            if (!epochUnlocked) return false;
+            // 检查科技解锁
+            const techUnlocked = !b.requiresTech || techsUnlocked.includes(b.requiresTech);
+            if (!techUnlocked) return false;
+            return true;
+        })
         .map(b => {
             const currentCount = buildingCounts?.[b.id] || 0;
             const scaledCost = calculateBuildingCost(b.baseCost, currentCount, growthFactor);

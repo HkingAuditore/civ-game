@@ -3028,7 +3028,9 @@ export const simulateTick = ({
             taxPolicies,
             cabinetStatus,
             builds,
-            difficulty
+            difficulty,
+            epoch,
+            techsUnlocked
         );
 
         const ownedProperties = Array.isArray(normalizedOfficial.ownedProperties)
@@ -3360,9 +3362,18 @@ export const simulateTick = ({
         let currentApproval = classApproval[key] || 50;
         const adjustmentSpeed = 0.02; // How slowly approval changes per tick
 
-        if (taxShockPenalty > 0) {
+        // 税收冲击惩罚：只有当冲击值显著时才应用
+        // 修复：之前只要 taxShockPenalty > 0 就硬性限制到35%，导致轻微历史冲击也会永久锁死满意度
+        if (taxShockPenalty > 1) {
+            // 冲击值直接扣减当前满意度
             currentApproval = Math.max(0, currentApproval - taxShockPenalty);
-            targetApproval = Math.min(targetApproval, 35);
+            
+            // 只有当冲击显著（>5）时才限制满意度上限
+            // 上限根据冲击程度动态计算：冲击5→上限60，冲击15→上限40，冲击25→上限25
+            if (taxShockPenalty > 5) {
+                const shockCap = Math.max(25, 70 - taxShockPenalty * 2);
+                targetApproval = Math.min(targetApproval, shockCap);
+            }
         }
 
         // 满意度向目标值移动
@@ -3373,7 +3384,7 @@ export const simulateTick = ({
 
         // DEBUG: 检查 miner 阶层的满意度计算
         if (key === 'miner' && tick % 30 === 0) {
-            console.log(`[DEBUG miner] officialBonus=${officialBonus}, effectiveCap=${effectiveApprovalCap}, newApproval=${newApproval.toFixed(1)}, current=${currentApproval.toFixed(1)}`);
+            console.log(`[DEBUG miner] taxShock=${taxShockPenalty.toFixed(2)}, targetApproval=${targetApproval.toFixed(1)}, effectiveCap=${effectiveApprovalCap}, newApproval=${newApproval.toFixed(1)}, current=${currentApproval.toFixed(1)}`);
         }
 
         classApproval[key] = Math.max(0, Math.min(100, newApproval));
