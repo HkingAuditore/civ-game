@@ -371,6 +371,16 @@ export const OfficialCard = memo(({
                         <Icon name="Coins" size={12} />
                     </div>
                     <div className="text-[9px] text-gray-500">每日薪俸</div>
+                    {/* 官员个人存款 */}
+                    {typeof official.wealth === 'number' && (
+                        <div className="mt-1 pt-1 border-t border-gray-700/30">
+                            <div className="flex items-center justify-end gap-1 text-emerald-400 font-mono text-xs">
+                                <span>{official.wealth.toFixed(0)}</span>
+                                <Icon name="Wallet" size={12} />
+                            </div>
+                            <div className="text-[9px] text-gray-500">个人存款</div>
+                        </div>
+                    )}
                 </div>
             </div>
 
