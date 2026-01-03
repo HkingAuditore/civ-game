@@ -1214,6 +1214,7 @@ function GameApp({ gameState }) {
                                                 jobsAvailable={gameState.jobsAvailable}
                                                 popStructure={gameState.popStructure}
                                                 taxPolicies={gameState.taxPolicies}
+                                                diplomaticCooldownMod={gameState.modifiers?.officialEffects?.diplomaticCooldown || 0}
                                             />
                                         )}
 

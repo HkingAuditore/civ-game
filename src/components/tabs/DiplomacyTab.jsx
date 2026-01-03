@@ -245,6 +245,7 @@ const DiplomacyTabComponent = ({
     jobsAvailable = {},
     popStructure = {},
     taxPolicies = {},
+    diplomaticCooldownMod = 0,
 }) => {
     const [selectedNationId, setSelectedNationId] = useState(null);
     const [tradeAmount, setTradeAmount] = useState(10);
@@ -270,7 +271,10 @@ const DiplomacyTabComponent = ({
     const getDiplomaticCooldown = (nation, action) => {
         if (!nation || !DIPLOMATIC_COOLDOWNS[action]) return { isOnCooldown: false, remainingDays: 0 };
         const lastActionDay = nation.lastDiplomaticActionDay?.[action] || 0;
-        const cooldownDays = DIPLOMATIC_COOLDOWNS[action];
+        const baseCooldown = DIPLOMATIC_COOLDOWNS[action];
+        const cooldownDays = baseCooldown
+            ? Math.max(1, Math.round(baseCooldown * (1 + diplomaticCooldownMod)))
+            : baseCooldown;
         const daysSinceLastAction = daysElapsed - lastActionDay;
         if (lastActionDay > 0 && daysSinceLastAction < cooldownDays) {
             return { isOnCooldown: true, remainingDays: cooldownDays - daysSinceLastAction };
