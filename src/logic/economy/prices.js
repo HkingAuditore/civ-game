@@ -8,6 +8,7 @@ import { PRICE_FLOOR, BASE_WAGE_REFERENCE } from '../utils/constants';
 import { getBasePrice, isTradableResource } from '../utils/helpers';
 import { buildLivingCostMap } from './wages';
 import { getBuildingEffectiveConfig } from '../../config/buildingUpgrades';
+import { getOutputBuildingsForResource } from './resourceBuildingIndex';
 
 /**
  * Calculate resource cost based on production chain
@@ -154,13 +155,13 @@ export const updateMarketPrices = ({
         const inventoryStock = resources[resource] || 0;
         const inventoryDays = dailyDemand > 0 ? inventoryStock / dailyDemand : inventoryTargetDays;
 
-        // Collect building prices
+        // Collect building prices - using indexed lookup for O(1) access
         const buildingPrices = [];
         let totalOutput = 0;
 
-        BUILDINGS.forEach(building => {
-            const outputAmount = building.output?.[resource];
-            if (!outputAmount || outputAmount <= 0) return;
+        // [PERF] Use pre-built index instead of iterating all buildings
+        const outputBuildings = getOutputBuildingsForResource(resource);
+        outputBuildings.forEach(({ building, outputAmount }) => {
 
             const buildingCount = builds[building.id] || 0;
             if (buildingCount <= 0) return;

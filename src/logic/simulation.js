@@ -53,6 +53,10 @@ import {
     scaleEffectValues,
     computePriceMultiplier,
     calculateMinProfitMargin,
+    // [PERF] Performance utilities
+    shouldRunThisTick,
+    getBuildingLevelDistribution,
+    RATE_LIMIT_CONFIG,
 } from './utils';
 
 import {
@@ -965,6 +969,7 @@ export const simulateTick = ({
     const classWealthResult = {};
     const logs = [];
     const buildingJobFill = {};
+    const buildingStaffingRatios = {};
 
     Object.entries(passiveGains).forEach(([resKey, amountPerDay]) => {
         if (!amountPerDay) return;
@@ -1272,6 +1277,9 @@ export const simulateTick = ({
                 }
             }
             if (totalSlots > 0) staffingRatio = filledSlots / totalSlots;
+            if (totalSlots > 0) {
+                buildingStaffingRatios[b.id] = staffingRatio;
+            }
             if (totalSlots > 0 && filledSlots <= 0) {
                 return;
             }
@@ -2684,7 +2692,8 @@ export const simulateTick = ({
             expansionSettings,
             newBuildingsCount,
             marketForExpansion,
-            taxPolicies  // [NEW] 传递税收政策用于营业税计算
+            taxPolicies,  // [NEW] 传递税收政策用于营业税计算
+            buildingStaffingRatios
         );
 
         // Apply expansions

@@ -612,6 +612,7 @@ export const calculateQuotaEffects = (currentDistribution, targetQuotas) => {
 };
 
 // ========== 自由市场：业主扩张 ==========
+const MIN_EXPANSION_STAFFING_RATIO = 1.0;
 
 /**
  * 计算建筑的每座利润
@@ -673,13 +674,14 @@ export const calculateBuildingProfit = (building, market = {}, taxPolicies = {})
  * @param {Object} building - 建筑配置
  * @param {string} ownerStratum - 业主阶层
  * @param {number} ownerWealth - 业主阶层的总财富
- * @param {Object} expansionSettings - 玩家设置 { buildingId: { allowed, maxCount } }
+ * @param {Object} expansionSettings - 玩家设置 { buildingId: { allowed } }
  * @param {number} currentCount - 当前建筑数量
  * @param {Object} market - 市场数据 { prices: {...}, wages: {...} }
  * @param {Object} taxPolicies - 税收政策
+ * @param {Object} staffingRatios - 建筑岗位填充率 { buildingId: ratio }
  * @returns {Object} { canExpand, reason, cost, profit, roi }
  */
-export const canOwnerExpand = (building, ownerStratum, ownerWealth, expansionSettings, currentCount, market = {}, taxPolicies = {}) => {
+export const canOwnerExpand = (building, ownerStratum, ownerWealth, expansionSettings, currentCount, market = {}, taxPolicies = {}, staffingRatios = {}) => {
     if (!building || !ownerStratum) {
         return { canExpand: false, reason: '无效建筑', cost: 0, profit: 0, roi: 0 };
     }
@@ -708,6 +710,13 @@ export const canOwnerExpand = (building, ownerStratum, ownerWealth, expansionSet
     // 计算 ROI（投资回报率）
     const roi = baseCost > 0 ? profit / baseCost : 0;
 
+    // 岗位未满时不允许扩建
+    const staffingRatioRaw = staffingRatios?.[building.id];
+    const staffingRatio = Number.isFinite(staffingRatioRaw) ? staffingRatioRaw : 1;
+    if (staffingRatio < MIN_EXPANSION_STAFFING_RATIO) {
+        return { canExpand: false, reason: '岗位未满', cost: baseCost, profit, roi };
+    }
+
     // 盈利检查：不盈利的建筑不扩张
     if (profit <= 0) {
         return { canExpand: false, reason: '建筑不盈利', cost: baseCost, profit, roi };
@@ -728,9 +737,10 @@ export const canOwnerExpand = (building, ownerStratum, ownerWealth, expansionSet
  * @param {Object} buildingCounts - 当前建筑数量 { buildingId: count }
  * @param {Object} market - 市场数据 { prices: {...}, wages: {...} }
  * @param {Object} taxPolicies - 税收政策
+ * @param {Object} staffingRatios - 建筑岗位填充率 { buildingId: ratio }
  * @returns {Object} { expansions, wealthDeductions }
  */
-export const processOwnerExpansions = (buildings, classWealth, expansionSettings, buildingCounts, market = {}, taxPolicies = {}) => {
+export const processOwnerExpansions = (buildings, classWealth, expansionSettings, buildingCounts, market = {}, taxPolicies = {}, staffingRatios = {}) => {
     const expansions = [];
     const wealthDeductions = {};
 
@@ -756,7 +766,7 @@ export const processOwnerExpansions = (buildings, classWealth, expansionSettings
         const currentCount = buildingCounts[building.id] || 0;
 
         const { canExpand, reason, cost, profit, roi } = canOwnerExpand(
-            building, ownerStratum, ownerWealth, expansionSettings, currentCount, market, taxPolicies
+            building, ownerStratum, ownerWealth, expansionSettings, currentCount, market, taxPolicies, staffingRatios
         );
 
         if (canExpand) {
@@ -788,6 +798,7 @@ export const processOwnerExpansions = (buildings, classWealth, expansionSettings
                 cost,
                 profit,
                 roi,
+                staffingRatio: staffingRatios?.[building.id],
                 settingsForBuilding: expansionSettings[building.id]
             });
         }

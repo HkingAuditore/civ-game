@@ -1,7 +1,8 @@
 // 日志面板组件
-// 显示游戏事件日志
+// 显示游戏事件日志 - 使用虚拟滚动优化性能
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef, useCallback } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { Icon } from '../common/UIComponents';
 import { RESOURCES } from '../../config';
 
@@ -18,7 +19,6 @@ const transformLog = (log) => {
         try {
             const jsonStr = log.replace('❗RAID_EVENT❗', '');
             const raidData = JSON.parse(jsonStr);
-            // 获取行动名称，默认为"突袭"
             const actionName = raidData.actionName || '突袭';
             if (raidData.victory) {
                 return `⚔️ 成功击退了 ${raidData.nationName} 的${actionName}！`;
@@ -41,13 +41,10 @@ const transformLog = (log) => {
         try {
             const jsonStr = log.replace('AI_TRADE_EVENT:', '');
             const tradeData = JSON.parse(jsonStr);
-            // Format: AI_TRADE_EVENT:{"nationId":"...","nationName":"...","resource":"...","amount":...,"price":...,"type":"buy"|"sell","totalValue":...}
             const action = tradeData.type === 'buy' ? '购买' : '出售';
             const preposition = tradeData.type === 'buy' ? '从市场' : '向市场';
-            // Use RESOURCES config to get localized name, fallback to capitalized key
             const resourceConfig = RESOURCES[tradeData.resource];
             const resourceName = resourceConfig ? resourceConfig.name : (tradeData.resource.charAt(0).toUpperCase() + tradeData.resource.slice(1));
-
             return `⚖️ 贸易报告：${tradeData.nationName} ${preposition}${action}了 ${tradeData.amount} ${resourceName}（总价 ${Math.round(tradeData.totalValue)} 银币）。`;
         } catch (e) {
             return `⚖️ 发生了一笔大宗国际贸易。`;
@@ -59,7 +56,6 @@ const transformLog = (log) => {
         try {
             const jsonStr = log.replace('AI_DEMAND_SURRENDER:', '');
             const data = JSON.parse(jsonStr);
-            // Format: {"nationId":"...","nationName":"...","warScore":...,"demandType":"...","demandAmount":...}
             let demandText = '';
             switch (data.demandType) {
                 case 'tribute': demandText = `支付 ${data.demandAmount} 银币赔款`; break;
@@ -78,7 +74,6 @@ const transformLog = (log) => {
         try {
             const jsonStr = log.replace('AI_BREAK_ALLIANCE:', '');
             const data = JSON.parse(jsonStr);
-            // Format: {"nationId":"...","nationName":"...","reason":"..."}
             const reasonText = data.reason === 'relation_low' ? '关系恶化' : '长期遭受冷落';
             return `💔 同盟破裂：${data.nationName} 因为${reasonText}，单方面宣布解除与你的同盟关系。`;
         } catch (e) {
@@ -86,7 +81,7 @@ const transformLog = (log) => {
         }
     }
 
-    // Transform AI_MERCY_PEACE_OFFER logs (AI offers unconditional peace when player is desperate)
+    // Transform AI_MERCY_PEACE_OFFER logs
     if (log.includes('AI_MERCY_PEACE_OFFER:')) {
         try {
             const jsonStr = log.replace('AI_MERCY_PEACE_OFFER:', '');
@@ -97,9 +92,7 @@ const transformLog = (log) => {
         }
     }
 
-    // Transform WAR_DECLARATION_EVENT logs (Existing logic, kept for context but checking if update needed)
-    // The original code had this, we just keep it or ensure we didn't overwrite it if it was in the range.
-    // The previous tool call view showed it was there.
+    // Transform WAR_DECLARATION_EVENT logs
     if (log.includes('WAR_DECLARATION_EVENT:')) {
         try {
             const jsonStr = log.replace('WAR_DECLARATION_EVENT:', '');
@@ -114,50 +107,112 @@ const transformLog = (log) => {
     return log;
 };
 
+// 单个日志项组件 - 使用 React.memo 避免不必要的重渲染
+const LogItem = React.memo(({ log, index }) => (
+    <div className="text-xs text-ancient-parchment glass-ancient border border-ancient-gold/10 rounded-lg px-2 py-1.5 mb-1.5 hover:border-ancient-gold/30 transition-all">
+        <span className="text-ancient-gold/60 font-mono text-[10px] mr-2">#{index + 1}</span>
+        {log}
+    </div>
+));
+LogItem.displayName = 'LogItem';
+
 /**
  * 日志面板组件
- * 显示游戏事件日志
  * @param {Array} logs - 日志数组
  * @param {boolean} hideContainer - 是否隐藏外层容器和标题
  */
 export const LogPanel = ({ logs, hideContainer = false }) => {
-    const MAX_DISPLAY_LOGS = 200;
+    const MAX_LOGS = 500;
+    const parentRef = useRef(null);
+
     const { displayLogs, totalCount } = useMemo(() => {
         const safeLogs = Array.isArray(logs) ? logs : [];
         const total = safeLogs.length;
-        const sliced = total > MAX_DISPLAY_LOGS
-            ? safeLogs.slice(total - MAX_DISPLAY_LOGS)
-            : safeLogs;
+        const sliced = total > MAX_LOGS ? safeLogs.slice(total - MAX_LOGS) : safeLogs;
         return {
             displayLogs: sliced.map(transformLog),
             totalCount: total
         };
     }, [logs]);
 
-    // 内容部分 - 如果hideContainer为true，不添加滚动限制（由外部容器控制）
-    const content = (
-        <div className={hideContainer ? "space-y-1.5" : "space-y-1.5 max-h-48 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-ancient-gold/40"}>
-            {displayLogs.length === 0 ? (
-                <p className="text-xs text-ancient-stone opacity-70 italic text-center py-4">
-                    暂无事件
-                </p>
-            ) : (
-                displayLogs.map((log, idx) => (
+    // 使用动态高度测量的虚拟化
+    const virtualizer = useVirtualizer({
+        count: displayLogs.length,
+        getScrollElement: () => parentRef.current,
+        // 估算每行高度：基础高度 + 根据文字长度估算的额外行数
+        estimateSize: useCallback((index) => {
+            const log = displayLogs[index] || '';
+            // 估算：每40个字符大约一行，每行约20px，加上padding和margin
+            const charCount = typeof log === 'string' ? log.length : 30;
+            const estimatedLines = Math.max(1, Math.ceil(charCount / 40));
+            return 24 + (estimatedLines * 16); // 基础24px + 每行16px
+        }, [displayLogs]),
+        overscan: 10, // 增加预渲染数量以平滑滚动
+    });
+
+    // 空状态
+    if (displayLogs.length === 0) {
+        const emptyContent = (
+            <p className="text-xs text-ancient-stone opacity-70 italic text-center py-4">
+                暂无事件
+            </p>
+        );
+
+        if (hideContainer) return emptyContent;
+
+        return (
+            <div className="glass-epic p-3 rounded-2xl border border-ancient-gold/20 shadow-epic relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-br from-ancient-ink/60 via-ancient-stone/30 to-ancient-ink/60 opacity-60" />
+                <div className="relative z-10">
+                    <h3 className="text-sm font-bold text-ancient flex items-center gap-2 mb-2">
+                        <Icon name="ScrollText" size={16} className="text-ancient-gold" />
+                        事件日志
+                    </h3>
+                    {emptyContent}
+                </div>
+            </div>
+        );
+    }
+
+    // 虚拟化列表内容
+    const virtualContent = (
+        <div
+            ref={parentRef}
+            className="overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-ancient-gold/40"
+            style={{
+                height: hideContainer ? 300 : 192,
+                overflowY: 'auto',
+            }}
+        >
+            <div
+                style={{
+                    height: `${virtualizer.getTotalSize()}px`,
+                    width: '100%',
+                    position: 'relative',
+                }}
+            >
+                {virtualizer.getVirtualItems().map((virtualRow) => (
                     <div
-                        key={idx}
-                        className="text-xs text-ancient-parchment glass-ancient border border-ancient-gold/10 rounded-lg px-2 py-1.5 hover:border-ancient-gold/30 transition-all animate-fade-in"
+                        key={virtualRow.key}
+                        data-index={virtualRow.index}
+                        ref={virtualizer.measureElement}
+                        style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            transform: `translateY(${virtualRow.start}px)`,
+                        }}
                     >
-                        <span className="text-ancient-gold/60 font-mono text-[10px] mr-2">#{idx + 1}</span>
-                        {log}
+                        <LogItem log={displayLogs[virtualRow.index]} index={virtualRow.index} />
                     </div>
-                ))
-            )}
+                ))}
+            </div>
         </div>
     );
 
-    // 如果隐藏容器，直接返回内容
     if (hideContainer) {
-        return content;
+        return <div className="space-y-1.5">{virtualContent}</div>;
     }
 
     return (
@@ -181,27 +236,11 @@ export const LogPanel = ({ logs, hideContainer = false }) => {
                         事件日志
                     </h3>
                     <span className="text-[11px] text-ancient-stone opacity-80">
-                        共 {totalCount} 条
+                        共 {totalCount} 条{totalCount > MAX_LOGS && ` (显示最近 ${MAX_LOGS} 条)`}
                     </span>
                 </div>
 
-                <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-ancient-gold/40">
-                    {displayLogs.length === 0 ? (
-                        <p className="text-xs text-ancient-stone opacity-70 italic text-center py-4">
-                            暂无事件
-                        </p>
-                    ) : (
-                        displayLogs.map((log, idx) => (
-                            <div
-                                key={idx}
-                                className="text-xs text-ancient-parchment glass-ancient border border-ancient-gold/10 rounded-lg px-2 py-1.5 hover:border-ancient-gold/30 transition-all animate-fade-in"
-                            >
-                                <span className="text-ancient-gold/60 font-mono text-[10px] mr-2">#{idx + 1}</span>
-                                {log}
-                            </div>
-                        ))
-                    )}
-                </div>
+                {virtualContent}
             </div>
         </div>
     );

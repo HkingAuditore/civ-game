@@ -139,15 +139,14 @@ official.ownedProperties = [
 
 1. **理论利润** = `calculateBuildingProfit()` 计算的利润
 2. **工作效率** = 该类型建筑的平均工作填充率
-3. **运营成本** = 官员个人承担的原料/维护成本
-4. **实际利润** = (理论利润 × 工作效率) - 运营成本
+3. **实际利润** = 理论利润 × 工作效率  
+   说明：`calculateBuildingProfit()` 已包含投入成本、工资与税费，避免重复扣减。
 
 ```javascript
 // 实际利润计算公式
 const theoreticalProfit = calculateBuildingProfit(building, market, taxPolicies).profit;
 const workingRatio = getBuildingWorkingRatio(buildingId, jobFill, buildingCounts);
-const operatingCost = calculateOfficialBuildingOperatingCost(building, market);
-const actualProfit = (theoreticalProfit * workingRatio) - operatingCost;
+const actualProfit = theoreticalProfit * workingRatio;
 ```
 
 ### 3.6 产业处置规则
@@ -410,10 +409,13 @@ export const generateInvestmentProfile = (sourceStratum, politicalStance, curren
 ```javascript
 import { BUILDINGS } from '../../config/buildings';
 import { calculateBuildingProfit } from './cabinetSynergy';
+import { calculateBuildingCost } from '../../utils/buildingUpgradeUtils';
+import { getBuildingCostGrowthFactor } from '../../config/difficulty';
 
 const INVESTMENT_COOLDOWN = 90;
 const MIN_WEALTH_TO_INVEST = 500;
 const MAX_INVEST_RATIO = 0.4;
+// 注意：市场数据结构沿用现有系统：market.prices / market.wages
 
 /**
  * 生成产业唯一实例ID
@@ -423,19 +425,10 @@ const generateInstanceId = (buildingId, officialId) => {
 };
 
 /**
- * 计算官员产业的运营成本
- * 官员自己承担建筑的运营成本，不从阶层财富池扣除
+ * 说明：
+ * 利润计算统一使用 calculateBuildingProfit()，避免重复扣减投入成本。
+ * 若未来需要额外维护费，可单独新增 maintenanceCost（独立字段）。
  */
-export const calculateOfficialBuildingOperatingCost = (building, market) => {
-    if (!building.input) return 0;
-    
-    let totalCost = 0;
-    Object.entries(building.input).forEach(([resource, amount]) => {
-        const price = market[resource]?.price || 1;
-        totalCost += amount * price;
-    });
-    return totalCost;
-};
 
 /**
  * 获取建筑的工作效率（基于岗位填充率）
@@ -470,11 +463,8 @@ export const calculateOfficialPropertyProfit = (prop, market, taxPolicies, jobFi
     // 2. 工作效率
     const workingRatio = getBuildingWorkingRatio(prop.buildingId, jobFill, buildingCounts);
     
-    // 3. 运营成本（官员自己承担）
-    const operatingCost = calculateOfficialBuildingOperatingCost(building, market);
-    
-    // 4. 实际利润 = (理论利润 × 工作效率) - 运营成本
-    const actualProfit = (theoreticalProfit * workingRatio) - operatingCost;
+    // 3. 实际利润 = 理论利润 × 工作效率
+    const actualProfit = theoreticalProfit * workingRatio;
     
     return actualProfit;
 };
@@ -489,7 +479,9 @@ export const processOfficialInvestment = (
     currentDay, 
     market, 
     taxPolicies, 
-    cabinetStatus
+    cabinetStatus,
+    buildingCounts,
+    difficultyLevel
 ) => {
     if (!official?.investmentProfile) return null;
     
@@ -511,7 +503,9 @@ export const processOfficialInvestment = (
     const candidates = BUILDINGS
         .filter(b => b.owner) // 只要有 owner 属性即可购买
         .map(b => {
-            const cost = calculateBuildingCost(b, market);
+            const currentCount = buildingCounts?.[b.id] || 0;
+            const growthFactor = getBuildingCostGrowthFactor(difficultyLevel) || 1.15;
+            const cost = calculateBuildingCost(b.baseCost, currentCount, growthFactor);
             const profit = calculateBuildingProfit(b, market, taxPolicies).profit;
             // 偏好类别给予额外权重
             const preferenceWeight = profile.preferredCategories.includes(b.cat) ? 2.0 : 1.0;

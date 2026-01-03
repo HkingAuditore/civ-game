@@ -16,6 +16,7 @@
         "@capacitor/filesystem": "^8.0.0",
         "@capacitor/share": "^8.0.0",
         "@capacitor/status-bar": "^8.0.0",
+        "@tanstack/react-virtual": "^3.13.14",
         "framer-motion": "^12.23.26",
         "lucide-react": "^0.554.0",
         "react": "^19.2.0",
