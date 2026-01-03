@@ -2888,11 +2888,17 @@ export const simulateTick = ({
         livingStandardsResult.classLivingStandard.official = {
             level: pLevel,
             satisfaction: 1.0,
+            satisfactionRate: 1.0,
             approvalCap: pCap,
             needsMet: 1.0,
             wealthRatio: wealthRatio,
+            wealthPerCapita: avgWealth, // 修复：添加人均财富字段
+            wealthMultiplier: Math.min(6, 1 + Math.log(Math.max(1, avgWealth / 100)) * 0.5), // 基于收入的消费能力
             icon: style.icon,
-            color: style.color
+            color: style.color,
+            bgColor: style.color.replace('text-', 'bg-').replace('-400', '-900/20'),
+            borderColor: style.color.replace('text-', 'border-').replace('-400', '-500/30'),
+            score: avgWealth > 300 ? 90 : avgWealth > 100 ? 75 : avgWealth > 50 ? 60 : avgWealth > 20 ? 45 : 25,
         };
 
         // Update streaks
