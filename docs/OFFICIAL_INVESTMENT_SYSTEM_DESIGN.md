@@ -1,6 +1,6 @@
 # 官员个人投资与产业系统 - 完整设计文档
 
-> **版本**: 1.0  
+> **版本**: 1.1  
 > **日期**: 2026-01-03  
 > **状态**: 待实施
 
@@ -29,15 +29,16 @@
 |-----|------|
 | **个性化物资需求** | 根据收入和存款动态调整消费档位 |
 | **产业投资** | 官员用个人存款购置建筑成为业主 |
-| **独立利润核算** | 官员持有的建筑利润归其个人 |
+| **独立利润核算** | 官员持有的建筑利润归其个人，运营成本由官员个人承担 |
 | **建筑升级** | 官员会升级自己持有的建筑 |
-| **资产转移** | 官员被处置时产业转给出身阶层 |
+| **资产转移** | 官员被处置时产业转给**建筑原始业主阶层** |
 
 ### 1.2 关键约束
 
 1. 官员产业**计入**建筑面板的建筑总量
-2. 官员产业收益**独立核算**，不与阶层产业混合
-3. 官员被解雇/流放/处死时，产业**转给出身阶层**
+2. 官员产业收益**独立核算**，运营成本由官员个人承担，不与阶层产业混合
+3. 官员**可以购买任何有 owner 属性的建筑**，不受出身阶层限制（这是官员的特权）
+4. 官员被解雇/流放/处死时，产业**转给建筑定义的原始业主阶层**（`building.owner`）
 
 ---
 
@@ -83,11 +84,17 @@
 
 ### 3.1 产权存储方案
 
-**选择方案 A：官员属性**
+**选择方案 A：官员属性（含唯一实例 ID）**
 
 ```javascript
 official.ownedProperties = [
-    { buildingId: 'farm', purchaseDay: 120, purchaseCost: 200, level: 1 },
+    { 
+        buildingId: 'farm', 
+        instanceId: 'farm_off_123_1704278400000', // 唯一实例ID: 建筑ID_官员ID_时间戳
+        purchaseDay: 120, 
+        purchaseCost: 200, 
+        level: 1 
+    },
 ];
 ```
 
@@ -95,6 +102,7 @@ official.ownedProperties = [
 - 实现简单，改动少
 - 官员删除时数据自动跟随
 - 存档自动处理
+- **唯一实例 ID 便于追踪升级等级和产业转移**
 
 **弃选方案 B**：全局注册表（复杂度高，暂不需要）
 
@@ -104,21 +112,58 @@ official.ownedProperties = [
 |-----|------|
 | 官员购置建筑 | `buildingCounts[id]++` |
 | 官员升级建筑 | 更新 `buildingUpgrades[id][level]` |
-| 官员被处置 | 产业转给出身阶层，计数不变 |
+| 官员被处置 | 产业转给**建筑原始业主阶层**，计数不变 |
 
 ### 3.3 投资偏好来源
 
-官员投资偏好由两个因素决定：
+官员投资偏好由三个因素决定：
 
-1. **出身阶层** → 决定偏好的建筑类别
+1. **出身阶层** → 决定偏好的建筑类别（影响投资选择的权重）
 2. **政治光谱** → 修正偏好（左派避免工业，右派偏好工业）
+3. **内阁派系主导** → 影响投资热情（左派主导时投资意愿降低）
+
+**注意**：投资偏好仅影响**投资概率权重**，官员可以购买任何有 `owner` 属性的建筑。
 
 ### 3.4 冷却机制
 
 | 行为 | 冷却时间 |
-|-----|---------|
+|-----|---------| 
 | 购置新建筑 | 90 天 |
 | 升级现有建筑 | 60 天 |
+
+**入职初始化**：新官员的 `lastInvestmentDay` 和 `lastUpgradeDay` 设置为 `currentDay - 冷却期 / 2`，给予一定缓冲。
+
+### 3.5 产业收益计算（实际利润）
+
+官员产业收益**独立核算**，考虑以下因素：
+
+1. **理论利润** = `calculateBuildingProfit()` 计算的利润
+2. **工作效率** = 该类型建筑的平均工作填充率
+3. **运营成本** = 官员个人承担的原料/维护成本
+4. **实际利润** = (理论利润 × 工作效率) - 运营成本
+
+```javascript
+// 实际利润计算公式
+const theoreticalProfit = calculateBuildingProfit(building, market, taxPolicies).profit;
+const workingRatio = getBuildingWorkingRatio(buildingId, jobFill, buildingCounts);
+const operatingCost = calculateOfficialBuildingOperatingCost(building, market);
+const actualProfit = (theoreticalProfit * workingRatio) - operatingCost;
+```
+
+### 3.6 产业处置规则
+
+**统一规则**：无论官员被解雇、流放还是处死，其产业均**转给建筑定义的原始业主阶层**。
+
+| 处置类型 | 财产没收 | 产业去向 |
+|---------|---------|---------|
+| 解雇 | 0% | 转给 `building.owner` |
+| 流放 | 50% | 转给 `building.owner` |
+| 处死 | 100% | 转给 `building.owner` |
+
+**原因**：
+- 保持阶层业主扩张系统的一致性
+- 避免产生"非法"业主（如矿工持有工厂）
+- 目前没有国有建筑的设计
 
 ---
 
@@ -144,22 +189,34 @@ const newOfficial = {
         preferredCategories: ['gather', 'industry'],
         riskTolerance: 0.5,           // 0.3-1.0
         investmentThreshold: 0.3,     // 存款比例阈值
-        lastInvestmentDay: 0,
-        lastUpgradeDay: 0,
+        lastInvestmentDay: currentDay - INVESTMENT_COOLDOWN / 2, // 入职缓冲
+        lastUpgradeDay: currentDay - UPGRADE_COOLDOWN / 2,       // 入职缓冲
     },
     
     // 产业持有
     ownedProperties: [],
-    // 元素格式: { buildingId, purchaseDay, purchaseCost, level }
+    // 元素格式: { buildingId, instanceId, purchaseDay, purchaseCost, level }
     
     // 产业收益记录
     lastDayPropertyIncome: 0,
 };
 ```
 
-### 4.2 财务状态定义
+### 4.2 财务状态定义（动态阈值）
 
 ```javascript
+// 动态阈值基于官员每日消费成本计算
+const calculateFinancialThresholds = (official, market) => {
+    // 计算官员每日基本消费成本（基于当前市场价）
+    const dailyConsumptionCost = calculateOfficialDailyConsumption(official, market);
+    
+    return {
+        desperateThreshold: dailyConsumptionCost * 10,      // 10天消费
+        strugglingThreshold: dailyConsumptionCost * 30,     // 1个月消费
+        uncomfortableThreshold: dailyConsumptionCost * 60,  // 2个月消费
+    };
+};
+
 const FINANCIAL_STATUS = {
     satisfied: { 
         effectMult: 1.0, 
@@ -169,19 +226,16 @@ const FINANCIAL_STATUS = {
     uncomfortable: { 
         effectMult: 0.9, 
         corruption: 0.01,
-        threshold: { wealthRatio: 0.5 },
         description: '生活拮据'
     },
     struggling: { 
         effectMult: 0.7, 
         corruption: 0.03,
-        threshold: { incomeRatio: 0.8 },
         description: '入不敷出'
     },
     desperate: { 
         effectMult: 0.3, 
         corruption: 0.10,
-        threshold: { wealth: 50 },
         description: '濒临破产'
     },
 };
@@ -190,7 +244,7 @@ const FINANCIAL_STATUS = {
 ### 4.3 投资偏好生成
 
 ```javascript
-// 阶层 → 偏好类别
+// 阶层 → 偏好类别（影响权重，不限制购买）
 const STRATUM_INVESTMENT_PREFS = {
     landowner:  { cats: ['gather'], risk: 0.4 },
     merchant:   { cats: ['civic', 'industry'], risk: 0.7 },
@@ -209,6 +263,42 @@ const STRATUM_INVESTMENT_PREFS = {
 // 右派: 添加 'industry'
 ```
 
+### 4.4 存档迁移函数
+
+```javascript
+// 在 simulation.js 或单独的 migration.js 中
+export const migrateOfficialForInvestment = (official, currentDay) => {
+    // 如果已有新字段，直接返回
+    if (official.investmentProfile && official.ownedProperties !== undefined) {
+        return official;
+    }
+    
+    return {
+        ...official,
+        // 财务状态（默认满意）
+        financialSatisfaction: official.financialSatisfaction || 'satisfied',
+        
+        // 投资偏好（基于出身阶层和政治主张生成）
+        investmentProfile: official.investmentProfile || generateInvestmentProfile(
+            official.sourceStratum,
+            official.politicalStance,
+            currentDay
+        ),
+        
+        // 产业持有（默认空数组）
+        ownedProperties: official.ownedProperties || [],
+        
+        // 产业收益记录
+        lastDayPropertyIncome: official.lastDayPropertyIncome || 0,
+    };
+};
+
+// 在存档加载时调用
+export const migrateAllOfficialsForInvestment = (officials, currentDay) => {
+    return officials.map(official => migrateOfficialForInvestment(official, currentDay));
+};
+```
+
 ---
 
 ## 5. 实现阶段
@@ -217,21 +307,21 @@ const STRATUM_INVESTMENT_PREFS = {
 
 **目标**：让官员财务状态影响其效果和腐败风险
 
-#### 修改 1.1：财务状态判定
+#### 修改 1.1：财务状态判定（动态阈值）
 
 **文件**: `simulation.js` (官员每日结算后)
 
 ```javascript
-// 财务满意度判定
+// 财务满意度判定（使用动态阈值）
 officials.forEach(official => {
-    const wealthRatio = official.wealth / 400;
+    const thresholds = calculateFinancialThresholds(official, market);
     const incomeRatio = official.salary / (official.lastDayExpense || 1);
     
-    if (official.wealth < 50) {
+    if (official.wealth < thresholds.desperateThreshold) {
         official.financialSatisfaction = 'desperate';
     } else if (incomeRatio < 0.8) {
         official.financialSatisfaction = 'struggling';
-    } else if (wealthRatio < 0.5) {
+    } else if (official.wealth < thresholds.uncomfortableThreshold) {
         official.financialSatisfaction = 'uncomfortable';
     } else {
         official.financialSatisfaction = 'satisfied';
@@ -278,12 +368,15 @@ Object.entries(needs).forEach(([resource, baseAmount]) => {
 });
 ```
 
-#### 修改 2.2：投资偏好生成
+#### 修改 2.2：投资偏好生成（含入职缓冲）
 
 **文件**: `officials.js`
 
 ```javascript
-export const generateInvestmentProfile = (sourceStratum, politicalStance) => {
+const INVESTMENT_COOLDOWN = 90;
+const UPGRADE_COOLDOWN = 60;
+
+export const generateInvestmentProfile = (sourceStratum, politicalStance, currentDay) => {
     const base = STRATUM_INVESTMENT_PREFS[sourceStratum] || { cats: ['gather'], risk: 0.5 };
     const stanceSpectrum = POLITICAL_STANCES[politicalStance]?.spectrum;
     
@@ -299,8 +392,9 @@ export const generateInvestmentProfile = (sourceStratum, politicalStance) => {
         preferredCategories: cats,
         riskTolerance: base.risk * (0.8 + Math.random() * 0.4),
         investmentThreshold: 0.2 + Math.random() * 0.3,
-        lastInvestmentDay: 0,
-        lastUpgradeDay: 0,
+        // 入职时给予冷却期一半的缓冲
+        lastInvestmentDay: currentDay - Math.floor(INVESTMENT_COOLDOWN / 2),
+        lastUpgradeDay: currentDay - Math.floor(UPGRADE_COOLDOWN / 2),
     };
 };
 ```
@@ -321,54 +415,161 @@ const INVESTMENT_COOLDOWN = 90;
 const MIN_WEALTH_TO_INVEST = 500;
 const MAX_INVEST_RATIO = 0.4;
 
-export const processOfficialInvestment = (official, currentDay, market, taxPolicies) => {
+/**
+ * 生成产业唯一实例ID
+ */
+const generateInstanceId = (buildingId, officialId) => {
+    return `${buildingId}_off_${officialId}_${Date.now()}`;
+};
+
+/**
+ * 计算官员产业的运营成本
+ * 官员自己承担建筑的运营成本，不从阶层财富池扣除
+ */
+export const calculateOfficialBuildingOperatingCost = (building, market) => {
+    if (!building.input) return 0;
+    
+    let totalCost = 0;
+    Object.entries(building.input).forEach(([resource, amount]) => {
+        const price = market[resource]?.price || 1;
+        totalCost += amount * price;
+    });
+    return totalCost;
+};
+
+/**
+ * 获取建筑的工作效率（基于岗位填充率）
+ */
+export const getBuildingWorkingRatio = (buildingId, jobFill, buildingCounts) => {
+    const building = BUILDINGS.find(b => b.id === buildingId);
+    if (!building?.jobs) return 1.0;
+    
+    let totalJobs = 0;
+    let filledJobs = 0;
+    
+    Object.entries(building.jobs).forEach(([jobType, jobCount]) => {
+        const totalForType = (buildingCounts[buildingId] || 1) * jobCount;
+        const fillRate = jobFill[jobType] || 0;
+        totalJobs += totalForType;
+        filledJobs += totalForType * Math.min(1, fillRate);
+    });
+    
+    return totalJobs > 0 ? filledJobs / totalJobs : 1.0;
+};
+
+/**
+ * 计算官员产业的实际利润
+ */
+export const calculateOfficialPropertyProfit = (prop, market, taxPolicies, jobFill, buildingCounts) => {
+    const building = BUILDINGS.find(b => b.id === prop.buildingId);
+    if (!building) return 0;
+    
+    // 1. 理论利润
+    const theoreticalProfit = calculateBuildingProfit(building, market, taxPolicies).profit;
+    
+    // 2. 工作效率
+    const workingRatio = getBuildingWorkingRatio(prop.buildingId, jobFill, buildingCounts);
+    
+    // 3. 运营成本（官员自己承担）
+    const operatingCost = calculateOfficialBuildingOperatingCost(building, market);
+    
+    // 4. 实际利润 = (理论利润 × 工作效率) - 运营成本
+    const actualProfit = (theoreticalProfit * workingRatio) - operatingCost;
+    
+    return actualProfit;
+};
+
+/**
+ * 处理官员投资决策
+ * 官员可以购买任何有 owner 属性的建筑（这是官员的特权）
+ * 投资偏好仅影响选择权重
+ */
+export const processOfficialInvestment = (
+    official, 
+    currentDay, 
+    market, 
+    taxPolicies, 
+    cabinetStatus
+) => {
     if (!official?.investmentProfile) return null;
     
     const profile = official.investmentProfile;
     if (currentDay - profile.lastInvestmentDay < INVESTMENT_COOLDOWN) return null;
     if (official.wealth < MIN_WEALTH_TO_INVEST) return null;
     
+    // 派系影响投资热情：左派主导时投资意愿降低
+    const factionMod = cabinetStatus?.dominance?.faction === 'left' ? 0.5 : 1.0;
+    const investChance = profile.riskTolerance * factionMod;
+    
+    // 随机决定是否投资
+    if (Math.random() > investChance) return null;
+    
     const budget = official.wealth * MAX_INVEST_RATIO * profile.riskTolerance;
     
     // 筛选可投资且盈利的建筑
+    // 官员可以购买任何有 owner 属性的建筑（不受出身阶层限制）
     const candidates = BUILDINGS
-        .filter(b => b.owner && profile.preferredCategories.includes(b.cat))
-        .map(b => ({
-            building: b,
-            cost: calculateBuildingCost(b, market),
-            profit: calculateBuildingProfit(b, market, taxPolicies).profit,
-        }))
+        .filter(b => b.owner) // 只要有 owner 属性即可购买
+        .map(b => {
+            const cost = calculateBuildingCost(b, market);
+            const profit = calculateBuildingProfit(b, market, taxPolicies).profit;
+            // 偏好类别给予额外权重
+            const preferenceWeight = profile.preferredCategories.includes(b.cat) ? 2.0 : 1.0;
+            return {
+                building: b,
+                cost,
+                profit,
+                weight: profit * preferenceWeight,
+            };
+        })
         .filter(c => c.cost <= budget && c.profit > 0)
-        .sort((a, b) => b.profit - a.profit);
+        .sort((a, b) => b.weight - a.weight);
     
     if (candidates.length === 0) return null;
     
     // 加权随机选择
-    const totalWeight = candidates.reduce((sum, c) => sum + c.profit, 0);
+    const totalWeight = candidates.reduce((sum, c) => sum + c.weight, 0);
     let pick = Math.random() * totalWeight;
     for (const c of candidates) {
-        pick -= c.profit;
-        if (pick <= 0) return { buildingId: c.building.id, cost: c.cost, profit: c.profit };
+        pick -= c.weight;
+        if (pick <= 0) {
+            return { 
+                buildingId: c.building.id, 
+                instanceId: generateInstanceId(c.building.id, official.id),
+                cost: c.cost, 
+                profit: c.profit 
+            };
+        }
     }
     return null;
 };
 ```
 
-#### 修改：产业收益结算
+#### 修改：产业收益结算（实际利润）
 
 **文件**: `simulation.js`
 
 ```javascript
-// 官员产业收益
+// 官员产业收益（计算实际利润）
 officials.forEach(official => {
     if (!official.ownedProperties?.length) return;
     
     let totalPropertyIncome = 0;
     official.ownedProperties.forEach(prop => {
-        const building = BUILDINGS.find(b => b.id === prop.buildingId);
-        if (!building) return;
-        const profit = calculateBuildingProfit(building, market, taxPolicies).profit;
-        if (profit > 0) totalPropertyIncome += profit;
+        const actualProfit = calculateOfficialPropertyProfit(
+            prop, 
+            market, 
+            taxPolicies, 
+            jobFill, 
+            buildingCounts
+        );
+        // 只计入正收益，亏损时不从其他来源补贴
+        if (actualProfit > 0) {
+            totalPropertyIncome += actualProfit;
+        } else {
+            // 亏损从官员存款扣除
+            official.wealth += actualProfit; // actualProfit 为负数
+        }
     });
     
     official.wealth += totalPropertyIncome;
@@ -380,20 +581,37 @@ officials.forEach(official => {
 
 ### Phase 4：处置与基础 UI
 
-**目标**：处置官员时转移产业；官员卡片显示产业
+**目标**：处置官员时转移产业给建筑原始业主；官员卡片显示产业
 
 #### 修改：处置产业转移
 
 **文件**: `manager.js` 的 `disposeOfficial()`
 
 ```javascript
+// 产业转移给建筑原始业主阶层
 const propertyTransfer = {
-    stratum: official.sourceStratum,
-    buildings: official.ownedProperties || [],
+    transfers: (official.ownedProperties || []).map(prop => {
+        const building = BUILDINGS.find(b => b.id === prop.buildingId);
+        return {
+            buildingId: prop.buildingId,
+            instanceId: prop.instanceId,
+            level: prop.level || 1,
+            // 转给建筑定义的原始业主阶层
+            targetStratum: building?.owner || official.sourceStratum,
+            value: prop.purchaseCost || 0,
+        };
+    }),
     totalValue: (official.ownedProperties || []).reduce(
         (sum, p) => sum + (p.purchaseCost || 0), 0
     ),
 };
+
+// 将产业计入目标阶层的资产
+propertyTransfer.transfers.forEach(transfer => {
+    // 更新阶层拥有的建筑数据
+    // 注意：buildingCounts 不变，因为建筑本身没有消失
+    // 只是更新所有权追踪（如果有的话）
+});
 
 return { ...existingReturn, propertyTransfer };
 ```
@@ -403,7 +621,7 @@ return { ...existingReturn, propertyTransfer };
 **文件**: `OfficialCard.jsx`
 
 显示内容：
-- 持有产业列表
+- 持有产业列表（含实例 ID 用于调试）
 - 日收益
 - 财务状态警告（濒临破产/入不敷出/生活拮据）
 
@@ -428,6 +646,8 @@ officials.forEach(official => {
         officialPropertyStats[prop.buildingId].owners.push({
             id: official.id,
             name: official.name,
+            instanceId: prop.instanceId,
+            level: prop.level || 1,
         });
     });
 });
@@ -456,10 +676,20 @@ officials.forEach(official => {
 ```javascript
 const UPGRADE_COOLDOWN = 60;
 
-export const processOfficialBuildingUpgrade = (official, currentDay, market, taxPolicies) => {
+export const processOfficialBuildingUpgrade = (
+    official, 
+    currentDay, 
+    market, 
+    taxPolicies,
+    cabinetStatus
+) => {
     if (!official.ownedProperties?.length) return null;
     if (currentDay - (official.investmentProfile?.lastUpgradeDay || 0) < UPGRADE_COOLDOWN) return null;
     if (official.wealth < 200) return null;
+    
+    // 派系影响升级热情
+    const factionMod = cabinetStatus?.dominance?.faction === 'left' ? 0.7 : 1.0;
+    if (Math.random() > official.investmentProfile.riskTolerance * factionMod) return null;
     
     const candidates = [];
     official.ownedProperties.forEach((prop, index) => {
@@ -476,7 +706,13 @@ export const processOfficialBuildingUpgrade = (official, currentDay, market, tax
         const profitGain = calculateProfitGain(prop, market, taxPolicies);
         if (profitGain <= 0) return;
         
-        candidates.push({ propertyIndex: index, cost, profitGain, roi: profitGain / cost });
+        candidates.push({ 
+            propertyIndex: index, 
+            instanceId: prop.instanceId,
+            cost, 
+            profitGain, 
+            roi: profitGain / cost 
+        });
     });
     
     if (!candidates.length) return null;
@@ -513,22 +749,35 @@ export const processOfficialBuildingUpgrade = (official, currentDay, market, tax
 |-----|------|-------|-----|
 | `officials.js` | MODIFY | 2 | `generateInvestmentProfile()` |
 | `manager.js` | MODIFY | 1,4 | 财务惩罚、处置转移 |
-| `simulation.js` | MODIFY | 1,2,3,5,6 | 核心逻辑 |
-| `officialInvestment.js` | **NEW** | 3,6 | 投资+升级决策 |
+| `simulation.js` | MODIFY | 1,2,3,5,6 | 核心逻辑、存档迁移 |
+| `officialInvestment.js` | **NEW** | 3,6 | 投资+升级决策+实际利润计算 |
 | `OfficialCard.jsx` | MODIFY | 4 | 产业+财务 UI |
 | `BuildingDetails.jsx` | MODIFY | 5 | 业主分解显示 |
+| `migration.js` | **NEW** | ALL | 存档迁移函数 |
 
 ---
 
 ## 8. 风险与缓解
 
 | 风险 | 缓解措施 |
-|-----|---------|
+|-----|---------| 
 | 官员财富爆炸 | 90 天投资冷却 + 动态消费倍率 |
-| 产业利润过高 | 产业收益计入官员阶层总收入，受税收影响 |
+| 产业利润过高 | 产业收益独立核算，运营成本由官员个人承担 |
 | 破产官员效果 | 财务满意度 debuff + 腐败风险 |
 | 升级过快 | 60 天冷却 + 成本限制 50% 存款 |
-| 存档兼容性 | 读取时检查 `ownedProperties` 默认值 |
+| 存档兼容性 | 存档迁移函数 `migrateOfficialForInvestment()` |
+| 产业归属混乱 | 唯一实例 ID 追踪每个产业 |
+| 派系失衡 | 左派主导时降低投资热情 |
+| 阶层业主不一致 | 产业转移给建筑原始业主阶层 |
+
+---
+
+## 9. 设计变更记录
+
+| 版本 | 日期 | 变更内容 |
+|-----|------|---------|
+| 1.0 | 2026-01-03 | 初版设计 |
+| 1.1 | 2026-01-03 | 1. 官员可购买任何有 owner 属性的建筑<br>2. 添加存档迁移函数<br>3. 财务阈值改为动态计算<br>4. 入职冷却期缓冲<br>5. 实际利润计算（含运营成本和工作效率）<br>6. 产业统一转给建筑原始业主<br>7. 产业唯一实例 ID<br>8. 派系影响投资热情 |
 
 ---
 
