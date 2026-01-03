@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import { BUILDINGS, EPOCHS, RESOURCES, TECHS, MILITARY_ACTIONS, UNIT_TYPES, EVENTS, getRandomEvent, createWarDeclarationEvent, createGiftEvent, createPeaceRequestEvent, createEnemyPeaceRequestEvent, createPlayerPeaceProposalEvent, createBattleEvent, createAllianceRequestEvent, createAllianceProposalResultEvent, createAllianceBreakEvent, createNationAnnexedEvent, STRATA, BUILDING_UPGRADES, getMaxUpgradeLevel, getUpgradeCost } from '../config';
 import { getBuildingCostGrowthFactor } from '../config/difficulty';
-import { getUpgradeCountAtOrAboveLevel, calculateBuildingCost } from '../utils/buildingUpgradeUtils';
+import { getUpgradeCountAtOrAboveLevel, calculateBuildingCost, applyBuildingCostModifier } from '../utils/buildingUpgradeUtils';
 import { simulateBattle, calculateBattlePower, generateNationArmy } from '../config';
 import { calculateForeignPrice, calculateTradeStatus } from '../utils/foreignTrade';
 import { generateSound, SOUND_TYPES } from '../config/sounds';
@@ -321,19 +321,19 @@ export const useGameActions = (gameState, addLog) => {
         const difficultyLevel = gameState.difficulty || 'normal';
         const growthFactor = getBuildingCostGrowthFactor(difficultyLevel);
         const cost = calculateBuildingCost(b.baseCost, count, growthFactor);
+        const buildingCostMod = modifiers?.officialEffects?.buildingCostMod || 0;
+        const adjustedCost = applyBuildingCostModifier(cost, buildingCostMod);
 
-        const hasMaterials = Object.entries(cost).every(([resource, amount]) => (resources[resource] || 0) >= amount);
+        const hasMaterials = Object.entries(adjustedCost).every(([resource, amount]) => (resources[resource] || 0) >= amount);
         if (!hasMaterials) {
             addLog(`资源不足，无法建造 ${b.name}`);
             return;
         }
 
         // 计算银币成本并应用官员建筑成本修正
-        const buildingCostMod = modifiers?.officialEffects?.buildingCostMod || 0;
-        let silverCost = Object.entries(cost).reduce((sum, [resource, amount]) => {
+        let silverCost = Object.entries(adjustedCost).reduce((sum, [resource, amount]) => {
             return sum + amount * getMarketPrice(resource);
         }, 0);
-        silverCost *= (1 + buildingCostMod); // buildingCostMod 通常为负值（降低成本）
         silverCost = Math.max(0, silverCost);
 
         if ((resources.silver || 0) < silverCost) {
@@ -342,7 +342,7 @@ export const useGameActions = (gameState, addLog) => {
         }
 
         const newRes = { ...resources };
-        Object.entries(cost).forEach(([resource, amount]) => {
+        Object.entries(adjustedCost).forEach(([resource, amount]) => {
             newRes[resource] = Math.max(0, (newRes[resource] || 0) - amount);
         });
         newRes.silver = Math.max(0, (newRes.silver || 0) - silverCost);

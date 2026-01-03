@@ -11,7 +11,7 @@ import { getPublicAssetUrl } from '../../utils/assetPath';
 import { getBuildingImageUrl } from '../../utils/imageRegistry';
 import { getBuildingEffectiveConfig, BUILDING_UPGRADES, getUpgradeCost } from '../../config/buildingUpgrades';
 import { getBuildingCostGrowthFactor } from '../../config/difficulty';
-import { calculateBuildingCost } from '../../utils/buildingUpgradeUtils';
+import { calculateBuildingCost, applyBuildingCostModifier } from '../../utils/buildingUpgradeUtils';
 
 /**
  * 建筑悬浮提示框 (使用 Portal)
@@ -331,6 +331,7 @@ const BuildTabComponent = ({
     onShowDetails, // 新增：用于打开详情页的回调
     market,
     difficulty,
+    buildingCostMod = 0,
 }) => {
     const [hoveredBuilding, setHoveredBuilding] = useState({ building: null, element: null });
     // More reliable hover detection: requires both hover capability AND fine pointer (mouse/trackpad)
@@ -435,7 +436,8 @@ const BuildTabComponent = ({
     const calculateCost = (building) => {
         const count = buildings[building.id] || 0;
         const growthFactor = getBuildingCostGrowthFactor(difficulty);
-        return calculateBuildingCost(building.baseCost, count, growthFactor);
+        const baseCost = calculateBuildingCost(building.baseCost, count, growthFactor);
+        return applyBuildingCostModifier(baseCost, buildingCostMod);
     };
 
     const buildLevelCounts = (count, upgradeLevels) => {
@@ -598,7 +600,7 @@ const BuildTabComponent = ({
             };
         });
         return data;
-    }, [buildingStatsById, epoch, techsUnlocked, market, jobFill, resources]);
+    }, [buildingStatsById, epoch, techsUnlocked, market, jobFill, resources, buildingCostMod]);
 
     // 按类别分组建筑
     const categories = {
