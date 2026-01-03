@@ -21,6 +21,22 @@ export const calculateBuildingCost = (baseCost, count, growthFactor = 1.15) => {
 };
 
 /**
+ * 应用建筑成本修正
+ * @param {Object} cost - 原始成本对象
+ * @param {number} modifier - 成本修正（负值为降低）
+ * @returns {Object} 调整后的成本对象
+ */
+export const applyBuildingCostModifier = (cost = {}, modifier = 0) => {
+    if (!modifier) return { ...cost };
+    const multiplier = Math.max(0, 1 + modifier);
+    const adjusted = {};
+    Object.entries(cost || {}).forEach(([key, amount]) => {
+        adjusted[key] = Math.max(0, amount * multiplier);
+    });
+    return adjusted;
+};
+
+/**
  * 获取建筑在考虑升级后的总体效果
  * 对于有多个实例且各实例等级不同的建筑，计算加权总和
  * 

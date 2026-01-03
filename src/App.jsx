@@ -1044,6 +1044,7 @@ function GameApp({ gameState }) {
                                                 market={deferredMarket}
                                                 onShowDetails={handleShowBuildingDetails} // 补上缺失的 onShowDetails 属性
                                                 difficulty={gameState.difficulty}
+                                                buildingCostMod={gameState.modifiers?.officialEffects?.buildingCostMod || 0}
                                             />
                                         )}
 

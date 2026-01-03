@@ -6,7 +6,7 @@ import { getPublicAssetUrl } from '../../utils/assetPath';
 import { getBuildingImageUrl } from '../../utils/imageRegistry';
 import { BuildingUpgradePanel } from './BuildingUpgradePanel';
 import { getBuildingEffectiveConfig } from '../../config/buildingUpgrades';
-import { canBuildingUpgrade, calculateBuildingCost } from '../../utils/buildingUpgradeUtils';
+import { canBuildingUpgrade, calculateBuildingCost, applyBuildingCostModifier } from '../../utils/buildingUpgradeUtils';
 import { getBuildingCostGrowthFactor } from '../../config/difficulty';
 
 // 最低工资下限
@@ -443,7 +443,9 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
         const currentCount = buildings[b.id] || 0;
         const difficulty = gameState.difficulty;
         const growthFactor = getBuildingCostGrowthFactor(difficulty);
-        return calculateBuildingCost(b.baseCost, currentCount, growthFactor);
+        const baseCost = calculateBuildingCost(b.baseCost, currentCount, growthFactor);
+        const buildingCostMod = gameState.modifiers?.officialEffects?.buildingCostMod || 0;
+        return applyBuildingCostModifier(baseCost, buildingCostMod);
     };
 
     const nextCost = calculateCost(building);
