@@ -121,6 +121,13 @@ import {
     processOwnerExpansions
 } from './officials/cabinetSynergy'; // [FIX] Import directly from source
 import { getInventoryTargetDaysMultiplier } from '../config/difficulty';
+import {
+    calculateFinancialStatus,
+    calculateOfficialPropertyProfit,
+    processOfficialBuildingUpgrade,
+    processOfficialInvestment,
+} from './officials/officialInvestment';
+import { migrateOfficialForInvestment } from './officials/migration';
 
 // ============================================================================
 // All helper functions and constants have been migrated to modules:
@@ -2725,20 +2732,26 @@ export const simulateTick = ({
     let totalOfficialWealth = 0;
     let totalOfficialExpense = 0;
     let totalOfficialIncome = 0; // Track income for UI
+    const pendingOfficialUpgrades = [];
+    const officialMarketSnapshot = {
+        prices: priceMap,
+        wages: market?.wages || {},
+    };
 
     const updatedOfficials = (officials || []).map(official => {
         if (!official) return official;
+        const normalizedOfficial = migrateOfficialForInvestment(official, tick);
 
         // 初始化 wealth（向后兼容：旧存档可能没有 wealth）
-        let currentWealth = typeof official.wealth === 'number' ? official.wealth : 400;
+        let currentWealth = typeof normalizedOfficial.wealth === 'number' ? normalizedOfficial.wealth : 400;
 
         // 收入：如果足额支付薪水，获得薪水
-        if (officialsPaid && typeof official.salary === 'number') {
-            currentWealth += official.salary;
-            totalOfficialIncome += official.salary;
+        if (officialsPaid && typeof normalizedOfficial.salary === 'number') {
+            currentWealth += normalizedOfficial.salary;
+            totalOfficialIncome += normalizedOfficial.salary;
             // 记录俸禄到财务数据
             if (classFinancialData.official) {
-                classFinancialData.official.income.salary = (classFinancialData.official.income.salary || 0) + official.salary;
+                classFinancialData.official.income.salary = (classFinancialData.official.income.salary || 0) + normalizedOfficial.salary;
             }
         }
 
@@ -2851,6 +2864,10 @@ export const simulateTick = ({
         // 基于财富水平的奢侈需求
         const wealthRatio = currentWealth / 400; // 相对于初始财富的比例
         if (wealthRatio >= 1.0 && officialLuxuryNeeds) {
+            const consumptionMultiplier = Math.min(
+                6.0,
+                1.0 + Math.log10(Math.max(1, currentWealth / 400)) * 0.8
+            );
             const luxuryThresholds = Object.keys(officialLuxuryNeeds)
                 .map(Number)
                 .filter(t => t <= wealthRatio)
@@ -2860,7 +2877,7 @@ export const simulateTick = ({
                 const needs = officialLuxuryNeeds[threshold];
                 if (!needs) return;
                 Object.entries(needs).forEach(([resource, amount]) => {
-                    consumeOfficialResource(resource, amount, true);
+                    consumeOfficialResource(resource, amount * consumptionMultiplier, true);
                 });
             });
         }
@@ -2897,13 +2914,109 @@ export const simulateTick = ({
         // 扣除支出
         currentWealth = Math.max(0, currentWealth - dailyExpense);
 
+        // 官员产业收益结算（独立核算）
+        let totalPropertyIncome = 0;
+        if (normalizedOfficial.ownedProperties?.length) {
+            normalizedOfficial.ownedProperties.forEach(prop => {
+                const actualProfit = calculateOfficialPropertyProfit(
+                    prop,
+                    officialMarketSnapshot,
+                    taxPolicies,
+                    buildingStaffingRatios,
+                    builds
+                );
+                if (actualProfit > 0) {
+                    totalPropertyIncome += actualProfit;
+                } else if (actualProfit < 0) {
+                    currentWealth = Math.max(0, currentWealth + actualProfit);
+                }
+            });
+        }
+        if (totalPropertyIncome > 0) {
+            currentWealth += totalPropertyIncome;
+            totalOfficialIncome += totalPropertyIncome;
+            if (classFinancialData.official) {
+                classFinancialData.official.income.ownerRevenue =
+                    (classFinancialData.official.income.ownerRevenue || 0) + totalPropertyIncome;
+            }
+        }
+
+        // 计算财务满意度
+        const financialSatisfaction = calculateFinancialStatus(
+            { ...normalizedOfficial, wealth: currentWealth },
+            dailyExpense
+        );
+
+        // 产业投资决策
+        const investmentDecision = processOfficialInvestment(
+            { ...normalizedOfficial, wealth: currentWealth },
+            tick,
+            officialMarketSnapshot,
+            taxPolicies,
+            cabinetStatus,
+            builds,
+            difficulty
+        );
+
+        const ownedProperties = Array.isArray(normalizedOfficial.ownedProperties)
+            ? [...normalizedOfficial.ownedProperties]
+            : [];
+        const investmentProfile = { ...normalizedOfficial.investmentProfile };
+
+        if (investmentDecision && currentWealth >= investmentDecision.cost) {
+            currentWealth = Math.max(0, currentWealth - investmentDecision.cost);
+            const instanceId = `${investmentDecision.buildingId}_off_${normalizedOfficial.id}_${tick}_${Math.floor(Math.random() * 1000)}`;
+            ownedProperties.push({
+                buildingId: investmentDecision.buildingId,
+                instanceId,
+                purchaseDay: tick,
+                purchaseCost: investmentDecision.cost,
+                level: 0,
+            });
+            investmentProfile.lastInvestmentDay = tick;
+            builds[investmentDecision.buildingId] = (builds[investmentDecision.buildingId] || 0) + 1;
+            logs.push(`🧾 官员${normalizedOfficial.name}投资了 ${investmentDecision.buildingId}（花费 ${Math.ceil(investmentDecision.cost)} 银）`);
+        }
+
+        // 产业升级决策
+        const upgradeDecision = processOfficialBuildingUpgrade(
+            { ...normalizedOfficial, wealth: currentWealth, ownedProperties, investmentProfile },
+            tick,
+            officialMarketSnapshot,
+            taxPolicies,
+            cabinetStatus,
+            builds,
+            buildingUpgrades,
+            difficulty
+        );
+
+        if (upgradeDecision && currentWealth >= upgradeDecision.cost) {
+            currentWealth = Math.max(0, currentWealth - upgradeDecision.cost);
+            const targetProp = ownedProperties[upgradeDecision.propertyIndex];
+            if (targetProp) {
+                targetProp.level = upgradeDecision.toLevel;
+                investmentProfile.lastUpgradeDay = tick;
+                pendingOfficialUpgrades.push({
+                    buildingId: upgradeDecision.buildingId,
+                    fromLevel: upgradeDecision.fromLevel,
+                    toLevel: upgradeDecision.toLevel,
+                    officialName: normalizedOfficial.name,
+                    cost: upgradeDecision.cost,
+                });
+            }
+        }
+
         totalOfficialWealth += currentWealth;
         totalOfficialExpense += dailyExpense;
 
         return {
-            ...official,
+            ...normalizedOfficial,
             wealth: currentWealth,
-            lastDayExpense: dailyExpense
+            lastDayExpense: dailyExpense,
+            financialSatisfaction,
+            ownedProperties,
+            investmentProfile,
+            lastDayPropertyIncome: totalPropertyIncome,
         };
     });
 
@@ -4672,6 +4785,33 @@ export const simulateTick = ({
             break;
         }
     });
+
+    // ========== 官员产业升级落地 ==========
+    if (pendingOfficialUpgrades.length > 0) {
+        pendingOfficialUpgrades.forEach(upgrade => {
+            const { buildingId, fromLevel, toLevel, officialName, cost } = upgrade;
+            if (!updatedBuildingUpgrades[buildingId]) {
+                updatedBuildingUpgrades[buildingId] = {};
+            }
+
+            if (fromLevel > 0) {
+                updatedBuildingUpgrades[buildingId][fromLevel] =
+                    Math.max(0, (updatedBuildingUpgrades[buildingId][fromLevel] || 0) - 1);
+                if (updatedBuildingUpgrades[buildingId][fromLevel] <= 0) {
+                    delete updatedBuildingUpgrades[buildingId][fromLevel];
+                }
+            }
+
+            updatedBuildingUpgrades[buildingId][toLevel] =
+                (updatedBuildingUpgrades[buildingId][toLevel] || 0) + 1;
+
+            if (Object.keys(updatedBuildingUpgrades[buildingId]).length === 0) {
+                delete updatedBuildingUpgrades[buildingId];
+            }
+
+            logs.push(`🏗️ 官员${officialName}升级了 ${buildingId}（花费 ${Math.ceil(cost)} 银）`);
+        });
+    }
 
     // Update classWealthResult after owner upgrades
     Object.keys(STRATA).forEach(key => {

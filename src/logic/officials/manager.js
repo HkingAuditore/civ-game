@@ -3,7 +3,9 @@
  * 处理选拔、雇佣、解雇及相关计算
  */
 import { generateRandomOfficial } from '../../config/officials';
+import { BUILDINGS } from '../../config/buildings';
 import { isStanceSatisfied } from '../../config/politicalStances';
+import { FINANCIAL_STATUS, generateInvestmentProfile } from './officialInvestment';
 import {
     calculateCabinetSynergy,
     getCabinetDominance,
@@ -64,7 +66,11 @@ export const hireOfficial = (officialId, currentCandidates, currentOfficials, ca
         ...candidate,
         hireDate: currentDay,
         wealth: OFFICIAL_STARTING_WEALTH,  // 官员个人存款
-        lastDayExpense: 0                   // 上日支出（用于显示）
+        lastDayExpense: 0,                  // 上日支出（用于显示）
+        financialSatisfaction: 'satisfied',
+        investmentProfile: generateInvestmentProfile(candidate.sourceStratum, candidate.politicalStance, currentDay),
+        ownedProperties: [],
+        lastDayPropertyIncome: 0,
     };
     const newOfficials = [...currentOfficials, newOfficial];
 
@@ -208,9 +214,9 @@ export const getAggregatedOfficialEffects = (officials, isPaid) => {
 
     const multiplier = isPaid ? 1 : 0.5;
 
-    const applySingleEffect = (eff) => {
+    const applySingleEffect = (eff, effectMultiplier = multiplier) => {
         if (!eff || !eff.type || typeof eff.value !== 'number') return;
-        const val = eff.value * multiplier;
+        const val = eff.value * effectMultiplier;
 
         switch (eff.type) {
             // 生产类
@@ -348,6 +354,12 @@ export const getAggregatedOfficialEffects = (officials, isPaid) => {
     officials.forEach(official => {
         // 跳过无效的 official 条目
         if (!official || typeof official !== 'object') return;
+        const financialPenalty = FINANCIAL_STATUS[official.financialSatisfaction] || FINANCIAL_STATUS.satisfied;
+        const effectiveMultiplier = multiplier * (financialPenalty.effectMult || 1);
+
+        if (financialPenalty.corruption) {
+            aggregated.corruption += financialPenalty.corruption * multiplier;
+        }
 
         // Handle effects - effects 是对象格式 {type: value} 或 {type: {target: value}}
         if (official.effects && typeof official.effects === 'object') {
@@ -355,11 +367,11 @@ export const getAggregatedOfficialEffects = (officials, isPaid) => {
                 if (typeof valueOrObj === 'object' && valueOrObj !== null) {
                     // 嵌套对象：例如 { buildings: { farm: 0.1 } }
                     Object.entries(valueOrObj).forEach(([target, value]) => {
-                        applySingleEffect({ type, target, value });
+                        applySingleEffect({ type, target, value }, effectiveMultiplier);
                     });
                 } else {
                     // 简单数值
-                    applySingleEffect({ type, value: valueOrObj });
+                    applySingleEffect({ type, value: valueOrObj }, effectiveMultiplier);
                 }
             });
         }
@@ -368,10 +380,10 @@ export const getAggregatedOfficialEffects = (officials, isPaid) => {
             Object.entries(official.drawbacks).forEach(([type, valueOrObj]) => {
                 if (typeof valueOrObj === 'object' && valueOrObj !== null) {
                     Object.entries(valueOrObj).forEach(([target, value]) => {
-                        applySingleEffect({ type, target, value });
+                        applySingleEffect({ type, target, value }, effectiveMultiplier);
                     });
                 } else {
-                    applySingleEffect({ type, value: valueOrObj });
+                    applySingleEffect({ type, value: valueOrObj }, effectiveMultiplier);
                 }
             });
         }
@@ -697,6 +709,17 @@ export const disposeOfficial = (officialId, disposalType, currentOfficials, curr
     }
 
     const newOfficials = currentOfficials.filter(o => o.id !== officialId);
+    const propertyTransfers = (official.ownedProperties || []).map(prop => {
+        const building = BUILDINGS.find(b => b.id === prop.buildingId);
+        return {
+            buildingId: prop.buildingId,
+            instanceId: prop.instanceId,
+            level: prop.level || 0,
+            targetStratum: building?.owner || official.sourceStratum,
+            value: prop.purchaseCost || 0,
+        };
+    });
+    const propertyTransferTotal = propertyTransfers.reduce((sum, item) => sum + (item.value || 0), 0);
 
     return {
         success: true,
@@ -708,6 +731,10 @@ export const disposeOfficial = (officialId, disposalType, currentOfficials, curr
             organizationChange: { [consequences.stratum]: consequences.organizationBonus },
         },
         logMessage: consequences.logMessage,
+        propertyTransfer: {
+            transfers: propertyTransfers,
+            totalValue: propertyTransferTotal,
+        },
         consequences,
     };
 };

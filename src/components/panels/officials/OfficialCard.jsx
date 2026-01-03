@@ -22,6 +22,18 @@ const EFFECT_TYPE_NAMES = {
     approval: '满意度',
 };
 
+const FINANCIAL_STATUS_LABELS = {
+    uncomfortable: '生活拮据',
+    struggling: '入不敷出',
+    desperate: '濒临破产',
+};
+
+const FINANCIAL_STATUS_STYLES = {
+    uncomfortable: 'text-amber-300 bg-amber-900/40 border-amber-600/50',
+    struggling: 'text-orange-300 bg-orange-900/40 border-orange-600/50',
+    desperate: 'text-red-300 bg-red-900/40 border-red-600/50',
+};
+
 // 获取目标的显示名称
 const getTargetName = (target, type) => {
     const buildingDef = BUILDINGS.find(b => b.id === target);
@@ -152,6 +164,23 @@ export const OfficialCard = memo(({
     // 威望计算
     const prestige = !isCandidate ? calculatePrestige(official, currentDay) : 0;
     const prestigeInfo = !isCandidate ? getPrestigeLevel(prestige) : null;
+    const financialStatus = official.financialSatisfaction;
+    const financialLabel = financialStatus ? FINANCIAL_STATUS_LABELS[financialStatus] : null;
+    const financialStyle = financialStatus ? FINANCIAL_STATUS_STYLES[financialStatus] : null;
+    const ownedProperties = Array.isArray(official.ownedProperties) ? official.ownedProperties : [];
+    const propertyCount = ownedProperties.length;
+    const propertyIncome = typeof official.lastDayPropertyIncome === 'number' ? official.lastDayPropertyIncome : 0;
+    const propertyBreakdown = ownedProperties.reduce((acc, prop) => {
+        if (!prop?.buildingId) return acc;
+        acc[prop.buildingId] = (acc[prop.buildingId] || 0) + 1;
+        return acc;
+    }, {});
+    const propertyEntries = Object.entries(propertyBreakdown)
+        .map(([buildingId, count]) => {
+            const buildingName = BUILDINGS.find(b => b.id === buildingId)?.name || buildingId;
+            return { buildingId, buildingName, count };
+        })
+        .sort((a, b) => b.count - a.count);
 
     // 处置按钮
     const handleDispose = (type) => {
@@ -381,6 +410,11 @@ export const OfficialCard = memo(({
                             <div className="text-[9px] text-gray-500">个人存款</div>
                         </div>
                     )}
+                    {financialLabel && (
+                        <div className={`mt-1 px-1.5 py-0.5 rounded border text-[9px] font-semibold ${financialStyle}`}>
+                            ⚠️ {financialLabel}
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -475,6 +509,34 @@ export const OfficialCard = memo(({
                     )}
                 </div>
             </div>
+
+            {propertyCount > 0 && (
+                <div className="mt-2 pt-2 border-t border-gray-700/30">
+                    <div className="flex items-center gap-1 text-[9px] text-gray-500 uppercase tracking-wider mb-1">
+                        <Icon name="Building" size={10} />
+                        产业持有
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] text-gray-300">
+                        <span>持有数量: {propertyCount}</span>
+                        <span className={`font-mono ${propertyIncome >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                            日收益 {propertyIncome >= 0 ? '+' : ''}{propertyIncome.toFixed(1)}
+                        </span>
+                    </div>
+                    <div className="mt-1 flex flex-wrap gap-1.5">
+                        {propertyEntries.slice(0, 4).map(entry => (
+                            <span
+                                key={`property-${entry.buildingId}`}
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-800/60 border border-gray-700/60 text-[9px] text-gray-300"
+                            >
+                                {entry.buildingName} × {entry.count}
+                            </span>
+                        ))}
+                        {propertyEntries.length > 4 && (
+                            <span className="text-[9px] text-gray-500">等 {propertyEntries.length} 类</span>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {/* 操作按钮 */}
             <div className="mt-2 pt-2 border-t border-gray-700/30">

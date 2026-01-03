@@ -312,9 +312,21 @@ const formatCompactCost = (value) => {
 export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade, onDowngrade, onBatchUpgrade, onBatchDowngrade, taxPolicies, onUpdateTaxPolicies, scrollToUpgrade }) => {
     if (!building || !gameState) return null;
 
-    const { resources, epoch, market, buildings, buildingUpgrades, jobFill, popStructure, classFinancialData } = gameState;
+    const { resources, epoch, market, buildings, buildingUpgrades, jobFill, popStructure, classFinancialData, officials } = gameState;
     const count = buildings[building.id] || 0;
     const upgradeLevels = buildingUpgrades?.[building.id] || {};
+    const officialOwnership = useMemo(() => {
+        const summary = { count: 0, owners: {} };
+        (officials || []).forEach(official => {
+            (official.ownedProperties || []).forEach(prop => {
+                if (prop.buildingId !== building.id) return;
+                summary.count += 1;
+                const ownerName = official.name || official.id || '未知官员';
+                summary.owners[ownerName] = (summary.owners[ownerName] || 0) + 1;
+            });
+        });
+        return summary;
+    }, [officials, building.id]);
 
     // 计算升级后的聚合效果（总值）和平均值
     const { effectiveTotalStats, averageBuilding } = useMemo(() => {
@@ -922,6 +934,40 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                             </div>
                         )}
                     </DetailSection>
+
+                    {building.owner && count > 0 && (
+                        <DetailSection title="业主构成" icon="Users">
+                            <div className="flex items-center justify-between">
+                                <span>原始业主</span>
+                                <span className="font-mono text-yellow-300">
+                                    {Math.max(0, count - officialOwnership.count)}
+                                </span>
+                            </div>
+                            {officialOwnership.count > 0 ? (
+                                <div className="mt-1">
+                                    <div className="flex items-center justify-between text-emerald-300">
+                                        <span>官员私产</span>
+                                        <span className="font-mono">{officialOwnership.count}</span>
+                                    </div>
+                                    <div className="mt-1 flex flex-wrap gap-1.5">
+                                        {Object.entries(officialOwnership.owners).slice(0, 4).map(([name, ownedCount]) => (
+                                            <span
+                                                key={`official-owner-${name}`}
+                                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-900/30 border border-emerald-700/40 text-[10px] text-emerald-200"
+                                            >
+                                                {name} × {ownedCount}
+                                            </span>
+                                        ))}
+                                        {Object.keys(officialOwnership.owners).length > 4 && (
+                                            <span className="text-[10px] text-gray-500">等 {Object.keys(officialOwnership.owners).length} 位</span>
+                                        )}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="text-[10px] text-gray-500 mt-1">暂无官员私产</div>
+                            )}
+                        </DetailSection>
+                    )}
 
                     <DetailSection title="下一座建造成本" icon="ShoppingCart">
                         <p className="text-[11px] text-gray-400 mb-2">

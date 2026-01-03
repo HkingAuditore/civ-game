@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { COUNTRIES, RESOURCES, STRATA } from '../config';
 import { isOldUpgradeFormat, migrateUpgradesToNewFormat } from '../utils/buildingUpgradeUtils';
+import { migrateAllOfficialsForInvestment } from '../logic/officials/migration';
 import { DEFAULT_DIFFICULTY, getDifficultyConfig } from '../config/difficulty';
 import { getScenarioById } from '../config/scenarios';
 import { Share } from '@capacitor/share';
@@ -1111,7 +1112,7 @@ export const useGameState = () => {
         setGameSpeed(data.gameSpeed ?? 1);
         setIsPaused(data.isPaused ?? false);
         setNations(data.nations || buildInitialNations());
-        setOfficials(data.officials || []);
+        setOfficials(migrateAllOfficialsForInvestment(data.officials || [], data.daysElapsed || 0));
         setOfficialCandidates(data.officialCandidates || []);
         setLastSelectionDay(data.lastSelectionDay ?? -999);
         setOfficialCapacity(data.officialCapacity ?? 2);

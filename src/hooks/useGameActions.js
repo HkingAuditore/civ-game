@@ -970,6 +970,9 @@ export const useGameActions = (gameState, addLog) => {
         setOfficials(newOfficials);
         if (official) {
             addLog(`解雇了官员 ${official.name}。`);
+            if (official.ownedProperties?.length) {
+                addLog(`官员产业已转交给原始业主阶层（${official.ownedProperties.length} 处）`);
+            }
 
             // 更新人口结构：从官员阶层移回来源阶层（或无业）
             setPopStructure(prev => {
@@ -1046,6 +1049,11 @@ export const useGameActions = (gameState, addLog) => {
                     [target]: (prev[target] || 0) + 1
                 };
             });
+        }
+
+        if (result.propertyTransfer?.transfers?.length) {
+            const transferCount = result.propertyTransfer.transfers.length;
+            addLog(`官员产业已转交给原始业主阶层（${transferCount} 处）`);
         }
 
         // 记录日志
