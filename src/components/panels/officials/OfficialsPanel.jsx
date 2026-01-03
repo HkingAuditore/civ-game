@@ -42,6 +42,8 @@ export const OfficialsPanel = ({
     maxCapacity = 3,
     stanceContext = {},
     prices = {},  // [NEW] 市场价格用于自由市场面板
+    market = {}, // [NEW] 完整市场数据（含 wages）
+    taxPolicies = {}, // [NEW] 税收政策用于盈利计算
 
     // [NEW] 价格管制相关
     priceControls = { enabled: false, governmentBuyPrices: {}, governmentSellPrices: {} },
@@ -380,6 +382,8 @@ export const OfficialsPanel = ({
                                     expansionSettings={expansionSettings}
                                     onUpdateSettings={onUpdateExpansionSettings}
                                     prices={prices}
+                                    market={market}
+                                    taxPolicies={taxPolicies}
                                 />
                             )}
                             {dominantPanel === 'reformDecree' && (

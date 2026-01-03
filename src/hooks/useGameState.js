@@ -197,6 +197,17 @@ const buildInitialWealth = () => {
     return wealth;
 };
 
+const sanitizeExpansionSettings = (settings = {}) => {
+    if (!settings || typeof settings !== 'object') return {};
+    const cleaned = {};
+    Object.entries(settings).forEach(([buildingId, config]) => {
+        if (!config || typeof config !== 'object') return;
+        const { maxCount, ...rest } = config;
+        cleaned[buildingId] = { ...rest };
+    });
+    return cleaned;
+};
+
 const buildInitialWealthHistory = () => {
     const history = {};
     Object.keys(STRATA).forEach(key => {
@@ -1008,7 +1019,7 @@ export const useGameState = () => {
                 activeDecrees,
                 decreeCooldowns,
                 quotaTargets,
-                expansionSettings,
+                expansionSettings: sanitizeExpansionSettings(expansionSettings),
                 classApproval,
                 classInfluence,
                 classWealth,
@@ -1104,7 +1115,7 @@ export const useGameState = () => {
         setOfficialCandidates(data.officialCandidates || []);
         setLastSelectionDay(data.lastSelectionDay ?? -999);
         setOfficialCapacity(data.officialCapacity ?? 2);
-        setExpansionSettings(data.expansionSettings || {}); // [FIX] 加载自由市场扩张设置
+        setExpansionSettings(sanitizeExpansionSettings(data.expansionSettings)); // [FIX] 加载自由市场扩张设置
         setClassApproval(data.classApproval || {});
         setClassInfluence(data.classInfluence || {});
         setClassWealth(data.classWealth || buildInitialWealth());

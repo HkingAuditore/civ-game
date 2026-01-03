@@ -768,6 +768,8 @@ const PoliticsTabComponent = ({
                         onEnactDecree={onEnactDecree}
                         stanceContext={stanceContext} // [NEW]
                         prices={market?.prices || {}}  // [NEW] 市场价格用于自由市场面板
+                        market={market} // [NEW] 传递完整市场数据（含 wages）
+                        taxPolicies={taxPolicies} // [NEW] 传递税收政策用于盈利计算
                         // [NEW] 价格管制相关
                         priceControls={priceControls}
                         onUpdatePriceControls={onUpdatePriceControls}

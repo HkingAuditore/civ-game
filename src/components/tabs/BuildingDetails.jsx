@@ -40,6 +40,12 @@ const getMarketWage = (role, market = {}) => {
  * @param {Object} taxPolicies - 税收政策
  * @returns {Object} 各角色的加权平均收入 {role: { avgIncome, isOwner }}
  */
+/**
+ * 计算建筑当前所有级别的加权平均收入
+ * 【修改】雇员收入现在基于建筑实际利润按比例分配，而非全局市场工资
+ * 业主收入 = (产出价值 - 投入成本 - 营业税 - 雇员工资) / 业主岗位数
+ * 雇员收入 = 建筑净利润按生活成本权重分配后的实际工资
+ */
 const calculateBuildingAverageIncomes = (building, count, upgradeLevels = {}, market = {}, taxPolicies = {}) => {
     if (!building || count <= 0) return {};
 
@@ -49,8 +55,19 @@ const calculateBuildingAverageIncomes = (building, count, upgradeLevels = {}, ma
         return market?.prices?.[key] ?? (RESOURCES[key]?.basePrice || 0);
     };
 
+    // 获取角色的生活成本（作为工资分配权重）
+    const getRoleLivingCost = (role) => {
+        const def = STRATA[role];
+        if (!def || !def.needs) return 1;
+        let cost = 0;
+        Object.entries(def.needs).forEach(([resKey, amount]) => {
+            const price = getResourcePrice(resKey);
+            cost += amount * price;
+        });
+        return Math.max(0.1, cost); // 最低0.1，防止除以0
+    };
+
     // 统计各等级建筑数量
-    // upgradeLevels 格式为 { 等级: 数量 }
     let upgradedCount = 0;
     Object.entries(upgradeLevels).forEach(([lvlStr, lvlCount]) => {
         const lvl = parseInt(lvlStr);
@@ -87,26 +104,59 @@ const calculateBuildingAverageIncomes = (building, count, upgradeLevels = {}, ma
         const businessTaxBase = building.businessTaxBase ?? 0.1;
         const businessTax = businessTaxBase * businessTaxMultiplier;
 
-        // 计算非业主雇员的工资总和
-        let nonOwnerWageCost = 0;
+        // 建筑净利润 = 产出 - 投入 - 营业税
+        const buildingNetProfit = outputValue - inputValue - businessTax;
+
+        // 计算所有非业主雇员的总生活成本权重（用于按比例分配工资）
+        let totalNonOwnerWeight = 0;
+        const nonOwnerRoles = [];
         for (const [role, slotsPerBuilding] of Object.entries(jobs)) {
             if (!Number.isFinite(slotsPerBuilding) || slotsPerBuilding <= 0) continue;
-            if (role === ownerKey) continue; // 跳过业主
-            const wage = getMarketWage(role, market);
-            nonOwnerWageCost += wage * slotsPerBuilding;
+            if (role === ownerKey) continue;
+            const livingCost = getRoleLivingCost(role);
+            totalNonOwnerWeight += livingCost * slotsPerBuilding;
+            nonOwnerRoles.push({ role, slots: slotsPerBuilding, livingCost });
         }
 
-        // 业主每座建筑的利润 = 产出 - 投入 - 营业税 - 其他雇员工资
-        const ownerProfitPerBuilding = outputValue - inputValue - businessTax - nonOwnerWageCost;
+        // 计算业主岗位数
         const ownerSlots = jobs[ownerKey] || 0;
-        const ownerIncomePerSlot = ownerSlots > 0 ? ownerProfitPerBuilding / ownerSlots : 0;
 
+        // 分配逻辑：
+        // 1. 如果净利润 > 0：雇员按生活成本权重分配工资（最高不超过净利润的80%），业主获得剩余
+        // 2. 如果净利润 <= 0：雇员工资趋近于0，业主承担亏损
+
+        let nonOwnerWagePool = 0;
+        if (buildingNetProfit > 0 && totalNonOwnerWeight > 0) {
+            // 雇员工资池 = 净利润的70%（留30%给业主作为利润）
+            // 但确保业主至少有一定收入
+            const maxWagePoolRatio = ownerSlots > 0 ? 0.7 : 0.95; // 如果没有业主，几乎全部给雇员
+            nonOwnerWagePool = buildingNetProfit * maxWagePoolRatio;
+        }
+
+        // 计算每个角色的实际工资
         for (const [role, slotsPerBuilding] of Object.entries(jobs)) {
             if (!Number.isFinite(slotsPerBuilding) || slotsPerBuilding <= 0) continue;
 
             const totalSlotsAtLevel = slotsPerBuilding * lvlCount;
             const isOwner = role === ownerKey;
-            const incomePerSlot = isOwner ? ownerIncomePerSlot : getMarketWage(role, market);
+
+            let incomePerSlot;
+            if (isOwner) {
+                // 业主收入 = (净利润 - 雇员工资池) / 业主岗位数
+                const ownerTotalProfit = buildingNetProfit - nonOwnerWagePool;
+                incomePerSlot = ownerSlots > 0 ? ownerTotalProfit / ownerSlots : 0;
+            } else {
+                // 雇员收入 = 按生活成本权重从工资池中分配
+                if (nonOwnerWagePool > 0 && totalNonOwnerWeight > 0) {
+                    const livingCost = getRoleLivingCost(role);
+                    const roleWeight = livingCost * slotsPerBuilding;
+                    const roleShareFromPool = (roleWeight / totalNonOwnerWeight) * nonOwnerWagePool;
+                    incomePerSlot = roleShareFromPool / slotsPerBuilding;
+                } else {
+                    // 没有利润可分配，工资为最低值
+                    incomePerSlot = MIN_ROLE_WAGE;
+                }
+            }
 
             if (!roleStats[role]) {
                 roleStats[role] = { totalSlots: 0, totalIncome: 0, isOwner };
@@ -541,26 +591,20 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
     const jobBreakdown = useMemo(() => {
         const ownerKey = building?.owner;
 
-        // 显示建筑实际支付的工资：
-        // 业主收入 = 建筑利润（产出 - 投入 - 营业税 - 雇员工资）/ 业主岗位数
-        // 雇员收入 = market.wages[role]（建筑支付的工资）
+        // 【已修改】显示建筑实际分配的工资：
+        // 业主收入 = (产出 - 投入 - 营业税 - 雇员工资池) / 业主岗位数
+        // 雇员收入 = 建筑净利润按生活成本权重分配
 
         return Object.entries(effectiveTotalStats.jobs || {}).map(([role, required]) => {
             const filled = Math.min(jobFill?.[building.id]?.[role] ?? 0, required);
             const fillPercent = required > 0 ? (filled / required) * 100 : 0;
             const isOwner = role === ownerKey;
 
-            let displayIncome;
-            if (isOwner) {
-                // 业主显示建筑利润（使用建筑平均收入计算）
-                const incomeData = buildingAvgIncomes[role];
-                displayIncome = Number.isFinite(incomeData?.avgIncome)
-                    ? incomeData.avgIncome
-                    : getMarketWage(role, market);
-            } else {
-                // 雇员显示建筑支付的工资（市场工资）
-                displayIncome = getMarketWage(role, market);
-            }
+            // 统一从 buildingAvgIncomes 获取收入（业主和雇员都使用建筑利润分配结果）
+            const incomeData = buildingAvgIncomes[role];
+            let displayIncome = Number.isFinite(incomeData?.avgIncome)
+                ? incomeData.avgIncome
+                : getMarketWage(role, market); // fallback to market wage
 
             return {
                 role,

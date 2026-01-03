@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import { Icon } from '../../common/UIComponents';
 import { STRATA } from '../../../config/strata';
 import { BUILDINGS } from '../../../config/buildings';
+import { calculateBuildingProfit } from '../../../logic/officials/cabinetSynergy';
 
 /**
  * 计算建筑成本的银币等价值（使用实际市场价格）
@@ -36,11 +37,9 @@ const getExpandableBuildings = (prices = {}) => {
     return BUILDINGS
         .filter(b => b.owner && b.baseCost && Object.keys(b.baseCost).length > 0)
         .map(b => ({
-            id: b.id,
-            name: b.name,
-            owner: b.owner,
+            ...b,
             baseCostRaw: b.baseCost, // 保留原始成本用于显示
-            baseCost: calculateSilverEquivalent(b.baseCost, prices),
+            baseCostSilver: calculateSilverEquivalent(b.baseCost, prices),
             icon: b.visual?.icon || 'Building',
         }));
 };
@@ -52,13 +51,14 @@ const BuildingExpansionRow = ({
     building,
     currentCount = 0,
     ownerWealth = 0,
+    profit = 0,
     setting = { allowed: false },
     onChange,
     disabled,
 }) => {
     const ownerDef = STRATA[building.owner];
-    // 判断业主是否盈利（财富为正）
-    const isProfitable = ownerWealth > 0;
+    // 判断建筑是否盈利
+    const isProfitable = profit > 0;
 
     return (
         <div className="flex items-center justify-between py-2 border-b border-gray-700/30 last:border-0">
@@ -73,9 +73,14 @@ const BuildingExpansionRow = ({
                 </div>
             </div>
 
-            {/* 业主盈利 */}
+            {/* 建筑盈利 */}
             <div className={`text-xs w-16 text-center ${isProfitable ? 'text-green-400' : 'text-red-400'}`}>
                 {isProfitable ? '盈利' : '亏损'}
+            </div>
+
+            {/* 利润 */}
+            <div className={`text-xs w-16 text-center ${isProfitable ? 'text-green-300' : 'text-red-300'}`}>
+                {profit.toFixed(2)}
             </div>
 
             {/* 数量 */}
@@ -109,12 +114,18 @@ export const FreeMarketPanel = ({
     recentExpansions = [],
     disabled = false,
     prices = {},  // [NEW] 接收市场价格
+    market = {},  // [NEW] 接收完整市场数据（含 wages）
+    taxPolicies = {}, // [NEW] 税收政策
 }) => {
     const [localSettings, setLocalSettings] = useState(expansionSettings);
     const [hasChanges, setHasChanges] = useState(false);
 
     // 使用实际市场价格计算建筑成本
     const expandableBuildings = getExpandableBuildings(prices);
+    const marketForProfit = {
+        prices,
+        wages: market?.wages || {}
+    };
 
     // 处理设置变化
     const handleChange = (buildingId, newSetting) => {
@@ -175,22 +186,35 @@ export const FreeMarketPanel = ({
 
             {/* 说明 */}
             <p className="text-xs text-gray-500 mb-3">
-                允许业主使用自有财富建造建筑，不消耗国库，不受数量成本惩罚。每回合最多扩张1座。
+                允许业主使用自有财富建造建筑，不消耗国库，不受数量成本惩罚。
             </p>
 
             {/* 建筑列表 */}
             <div className="space-y-0 max-h-64 overflow-y-auto">
-                {expandableBuildings.map(building => (
-                    <BuildingExpansionRow
-                        key={building.id}
-                        building={building}
-                        currentCount={buildingCounts[building.id] || 0}
-                        ownerWealth={classWealth[building.owner] || 0}
-                        setting={localSettings[building.id] || { allowed: false, maxCount: 3 }}
-                        onChange={handleChange}
-                        disabled={disabled}
-                    />
-                ))}
+                <div className="flex items-center justify-between py-1 border-b border-gray-700/50 text-[10px] text-gray-500 sticky top-0 bg-gray-800/80 backdrop-blur-sm z-10">
+                    <div className="flex items-center gap-2 flex-1">
+                        <span className="pl-6">建筑</span>
+                    </div>
+                    <div className="w-16 text-center">盈亏</div>
+                    <div className="w-16 text-center">利润/天</div>
+                    <div className="w-12 text-center">数量</div>
+                    <div className="w-14 text-center">扩建</div>
+                </div>
+                {expandableBuildings.map(building => {
+                    const profitResult = calculateBuildingProfit(building, marketForProfit, taxPolicies);
+                    return (
+                        <BuildingExpansionRow
+                            key={building.id}
+                            building={building}
+                            currentCount={buildingCounts[building.id] || 0}
+                            ownerWealth={classWealth[building.owner] || 0}
+                        profit={profitResult.profit}
+                        setting={localSettings[building.id] || { allowed: false }}
+                            onChange={handleChange}
+                            disabled={disabled}
+                        />
+                    );
+                })}
             </div>
 
             {/* 最近扩张记录 */}

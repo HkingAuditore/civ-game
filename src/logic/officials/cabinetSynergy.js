@@ -689,9 +689,7 @@ export const canOwnerExpand = (building, ownerStratum, ownerWealth, expansionSet
         return { canExpand: false, reason: '未允许扩张', cost: 0, profit: 0, roi: 0 };
     }
 
-    if (settings.maxCount && currentCount >= settings.maxCount) {
-        return { canExpand: false, reason: '已达扩张上限', cost: 0, profit: 0, roi: 0 };
-    }
+    // 取消扩张上限限制：不再基于 maxCount 阻止扩张
 
     // 计算成本（使用实际市场价格）
     const prices = market?.prices || {};
@@ -745,8 +743,9 @@ export const processOwnerExpansions = (buildings, classWealth, expansionSettings
         return { expansions, wealthDeductions };
     }
 
-    // 每回合最多扩张1个建筑（防止爆发式增长）
+    // 每回合允许每个业主扩张1个建筑（避免被高利润建筑长期垄断）
     const candidates = [];
+    const candidatesByOwner = {};
     const rejectionReasons = []; // [DEBUG]
 
     for (const building of buildings) {
@@ -765,14 +764,20 @@ export const processOwnerExpansions = (buildings, classWealth, expansionSettings
             // 同时考虑绝对盈利和 ROI
             const weight = cost > 0 ? Math.max(0.01, (profit * profit) / cost) : 0.01;
             
-            candidates.push({
+            const candidate = {
                 buildingId: building.id,
                 owner: ownerStratum,
                 cost,
                 profit,
                 roi,
                 weight,
-            });
+            };
+
+            candidates.push(candidate);
+            if (!candidatesByOwner[ownerStratum]) {
+                candidatesByOwner[ownerStratum] = [];
+            }
+            candidatesByOwner[ownerStratum].push(candidate);
         } else {
             // [DEBUG] 记录拒绝原因
             rejectionReasons.push({
@@ -797,29 +802,78 @@ export const processOwnerExpansions = (buildings, classWealth, expansionSettings
     });
 
     if (candidates.length > 0) {
-        // 加权随机选择：盈利越高的建筑被选中的概率越大
-        const totalWeight = candidates.reduce((sum, c) => sum + c.weight, 0);
-        let randomValue = Math.random() * totalWeight;
-        let selected = candidates[0];
-        
-        for (const candidate of candidates) {
-            randomValue -= candidate.weight;
-            if (randomValue <= 0) {
-                selected = candidate;
-                break;
+        const selectedForOwners = [];
+
+        Object.entries(candidatesByOwner).forEach(([owner, ownerCandidates]) => {
+            if (!ownerCandidates.length) return;
+
+            const ownerBuildingTotal = buildings
+                .filter(b => b.owner === owner)
+                .reduce((sum, b) => sum + (buildingCounts[b.id] || 0), 0);
+
+            // 按 ROI 与利润轮换分组：偶数轮用 ROI，奇数轮用利润
+            const metric = ownerBuildingTotal % 2 === 0 ? 'roi' : 'profit';
+            const sorted = [...ownerCandidates].sort((a, b) => b[metric] - a[metric]);
+            const tierSize = Math.ceil(sorted.length / 3);
+            const tiers = [
+                sorted.slice(0, tierSize),
+                sorted.slice(tierSize, tierSize * 2),
+                sorted.slice(tierSize * 2),
+            ];
+
+            // 三档轮换：高 / 中 / 低
+            const startTier = ownerBuildingTotal % 3;
+            let pickedTier = null;
+            for (let offset = 0; offset < tiers.length; offset += 1) {
+                const tierIndex = (startTier + offset) % tiers.length;
+                if (tiers[tierIndex].length > 0) {
+                    pickedTier = tiers[tierIndex];
+                    break;
+                }
             }
-        }
-        
-        console.log('[FREE MARKET] Selected for expansion:', {
-            buildingId: selected.buildingId,
-            profit: selected.profit.toFixed(2),
-            roi: (selected.roi * 100).toFixed(1) + '%',
-            weight: selected.weight.toFixed(2),
-            probability: ((selected.weight / totalWeight) * 100).toFixed(1) + '%'
+
+            if (!pickedTier || pickedTier.length === 0) return;
+
+            const totalWeight = pickedTier.reduce((sum, c) => sum + c.weight, 0);
+            let randomValue = Math.random() * totalWeight;
+            let selected = pickedTier[0];
+
+            for (const candidate of pickedTier) {
+                randomValue -= candidate.weight;
+                if (randomValue <= 0) {
+                    selected = candidate;
+                    break;
+                }
+            }
+
+            selectedForOwners.push({
+                ...selected,
+                _debug: {
+                    ownerBuildingTotal,
+                    metric,
+                    tierIndex: tiers.indexOf(pickedTier),
+                    probability: totalWeight > 0 ? (selected.weight / totalWeight) * 100 : 0,
+                },
+            });
         });
-        
-        expansions.push(selected);
-        wealthDeductions[selected.owner] = (wealthDeductions[selected.owner] || 0) + selected.cost;
+
+        if (selectedForOwners.length > 0) {
+            console.log('[FREE MARKET] Selected for expansion:', selectedForOwners.map(selected => ({
+                buildingId: selected.buildingId,
+                owner: selected.owner,
+                profit: selected.profit.toFixed(2),
+                roi: (selected.roi * 100).toFixed(1) + '%',
+                weight: selected.weight.toFixed(2),
+                metric: selected._debug.metric,
+                tierIndex: selected._debug.tierIndex,
+                probability: selected._debug.probability.toFixed(1) + '%',
+            })));
+
+            selectedForOwners.forEach(selected => {
+                expansions.push(selected);
+                wealthDeductions[selected.owner] = (wealthDeductions[selected.owner] || 0) + selected.cost;
+            });
+        }
     }
 
     return { expansions, wealthDeductions };
