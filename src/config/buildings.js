@@ -641,7 +641,6 @@ export const BUILDINGS = [
         owner: 'worker',
         epoch: 0,
         cat: 'industry',
-        requiresTech: 'pottery',
         visual: { icon: 'Factory', color: 'bg-red-900', text: 'text-red-300' }
     },
     {
@@ -752,7 +751,7 @@ export const BUILDINGS = [
         id: 'library',
         name: "图书馆",
         desc: "编目典籍，持续产出科研。",
-        baseCost: { wood: 200, stone: 60, brick: 50 },
+        baseCost: { wood: 200, stone: 100 },
         output: { science: 0.80 },
         jobs: { scribe: 3 },
         owner: 'scribe',
