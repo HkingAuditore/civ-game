@@ -168,6 +168,23 @@ export const OfficialCard = memo(({
     const financialStatus = official.financialSatisfaction;
     const financialLabel = financialStatus ? FINANCIAL_STATUS_LABELS[financialStatus] : null;
     const financialStyle = financialStatus ? FINANCIAL_STATUS_STYLES[financialStatus] : null;
+
+    // 忠诚度相关
+    const loyalty = official.loyalty ?? 75; // 默认兼容旧存档
+    const lowLoyaltyDays = official.lowLoyaltyDays ?? 0;
+    const loyaltyColor = loyalty >= 75 ? 'bg-green-500'
+        : loyalty >= 50 ? 'bg-yellow-500'
+            : loyalty >= 25 ? 'bg-orange-500'
+                : 'bg-red-500';
+    const loyaltyBorderColor = loyalty >= 75 ? 'border-green-600/50'
+        : loyalty >= 50 ? 'border-yellow-600/50'
+            : loyalty >= 25 ? 'border-orange-600/50'
+                : 'border-red-600/50';
+    const loyaltyTextColor = loyalty >= 75 ? 'text-green-400'
+        : loyalty >= 50 ? 'text-yellow-400'
+            : loyalty >= 25 ? 'text-orange-400'
+                : 'text-red-400';
+
     const ownedProperties = Array.isArray(official.ownedProperties) ? official.ownedProperties : [];
     const propertyCount = ownedProperties.length;
     const propertyIncome = typeof official.lastDayPropertyIncome === 'number' ? official.lastDayPropertyIncome : 0;
@@ -388,7 +405,7 @@ export const OfficialCard = memo(({
                     <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1">
                             <div className="font-bold text-gray-200 text-sm leading-tight truncate pr-1">
-                            {official.name}
+                                {official.name}
                             </div>
 
                         </div>
@@ -422,6 +439,26 @@ export const OfficialCard = memo(({
                     {financialLabel && (
                         <div className={`mt-1 px-1.5 py-0.5 rounded border text-[9px] font-semibold ${financialStyle}`}>
                             ⚠️ {financialLabel}
+                        </div>
+                    )}
+                    {/* 忠诚度显示 - 仅在任官员显示 */}
+                    {!isCandidate && (
+                        <div className="mt-1.5">
+                            <div className="flex items-center justify-end gap-1 mb-0.5">
+                                <Icon name="Heart" size={10} className={loyaltyTextColor} />
+                                <span className={`text-[9px] font-mono ${loyaltyTextColor}`}>{Math.round(loyalty)}</span>
+                            </div>
+                            <div className={`h-1.5 w-12 bg-gray-700 rounded-full overflow-hidden border ${loyaltyBorderColor}`}>
+                                <div
+                                    className={`h-full ${loyaltyColor} transition-all duration-300`}
+                                    style={{ width: `${loyalty}%` }}
+                                />
+                            </div>
+                            {lowLoyaltyDays > 0 && loyalty < 25 && (
+                                <div className="text-[8px] text-red-400 mt-0.5">
+                                    ⚠️ 不忠 {lowLoyaltyDays}天
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>

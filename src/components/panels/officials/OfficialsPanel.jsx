@@ -417,6 +417,8 @@ export const OfficialsPanel = ({
                 onClose={() => setSelectedOfficial(null)}
                 official={selectedOfficial}
                 onUpdateSalary={onUpdateOfficialSalary}
+                currentDay={currentTick}
+                isStanceSatisfied={selectedOfficial?.politicalStance ? isStanceSatisfied(selectedOfficial.politicalStance, stanceContext, selectedOfficial.stanceConditionParams) : null}
             />
 
         </div>

@@ -429,6 +429,45 @@ export const OFFICIAL_DRAWBACK_TYPES = {
     },
 };
 
+// ========== 忠诚度系统配置 ==========
+export const LOYALTY_CONFIG = {
+    // 初始忠诚度范围
+    INITIAL_MIN: 50,
+    INITIAL_MAX: 100,
+    MAX: 100,
+    MIN: 0,
+
+    // 政变触发条件
+    COUP_THRESHOLD: 25,         // 忠诚度阈值
+    COUP_DURATION_DAYS: 180,    // 需持续天数
+
+    // 每日忠诚度变化率
+    DAILY_CHANGES: {
+        stanceSatisfied: 0.40,      // 政治诉求满足（大幅提升，约30天+12）
+        stanceUnsatisfied: -0.30,   // 政治诉求不满足
+        financialSatisfied: 0.30,   // 财务满意
+        financialUncomfortable: -0.10, // 财务不适（降低惩罚）
+        financialStruggling: -0.20, // 财务困难
+        financialDesperate: -0.25,  // 财务绝望
+        stabilityHigh: 0.20,        // 稳定度 > 70%
+        stabilityLow: -0.10,        // 稳定度 < 30%
+        salaryPaid: 0.15,           // 薪资按时发放
+        salaryUnpaid: -0.30,        // 薪资未发放
+    },
+
+    // 处置时的惩罚
+    DISPOSAL_PENALTY: {
+        fire: { loyalty: -30, coupChance: 0.15 },
+        exile: { loyalty: -50, coupChance: 0.35 },
+        execute: { loyalty: -80, coupChance: 0.60 },
+    },
+
+    // 政变资格门槛（满足任一即可）
+    COUP_WEALTH_THRESHOLD: 30000,     // 财富分数
+    COUP_PROPERTY_THRESHOLD: 3,       // 产业数量
+    COUP_INFLUENCE_THRESHOLD: 0.15,   // 出身阶层影响力占比
+};
+
 // ========== 阶层效果偏好映射 ==========
 // 定义每个阶层出身的官员更倾向于生成哪些效果类型
 // preferredEffects: 偏好的正面效果key列表 (权重翻倍)
@@ -566,7 +605,7 @@ const NAME_STYLES = {
         last: ['霍亨索伦', '哈布斯堡', '维特尔斯巴赫', '哈耶克', '俾斯麦', '克劳塞维茨', '梅特涅', '瓦格纳', '施特劳斯', '海涅', '歌德', '席勒',
             '老毛奇', '罗恩', '兴登堡', '鲁登道夫', '施瓦本', '萨克森', '图恩', '塔克西斯', '李希滕斯坦',
             '爱因斯坦', '普朗克', '海森堡', '康德', '黑格尔', '尼采', '巴赫', '贝多芬', '弗洛伊德', '阿登纳', '默克尔',
-            '施莱尔马赫', '洪堡', '莱布尼茨', '奥伊勒', '诺伊曼', '哈贝尔', '玻尔', '施密特','马克思','恩格斯', '布伦纳'],
+            '施莱尔马赫', '洪堡', '莱布尼茨', '奥伊勒', '诺伊曼', '哈贝尔', '玻尔', '施密特', '马克思', '恩格斯', '布伦纳'],
         particles: ['冯', '冯·德'], // 贵族前缀
         particleChance: 0.4, // 40% 概率出现前缀
         format: 'particleLastFirst'
@@ -966,45 +1005,45 @@ const EFFECT_TYPE_WEIGHTS = {
     incomePercent: 1.4,      // 降低：税收收入
     taxEfficiency: 1.3,      // 降低：税收效率
     tradeBonus: 1.2,         // 降低：贸易利润
-    
+
     // 生产类：提升权重，这些效果很实用
     buildingCostMod: 1.1,
     productionInputCost: 1.3, // 提升：原料消耗降低非常有用
     buildings: 1.2,           // 提升：单建筑加成
     categories: 1.4,          // 提升：类别加成影响多个建筑
     wartimeProduction: 1.0,   // 降低：战时生产有条件性
-    
+
     // 被动类
     passive: 0.8,             // 降低：固定被动产出
     passivePercent: 1.1,
-    
+
     // 需求/供给类
     resourceSupplyMod: 1.1,   // 提升
     resourceDemandMod: 1.0,   // 提升
     stratumDemandMod: 1.0,    // 提升
     needsReduction: 1.2,      // 提升：全民需求降低很强
-    
+
     // 人口/发展类
     maxPop: 0.9,
     populationGrowth: 1.0,
     researchSpeed: 1.2,
-    
+
     // 政治类
     approval: 0.8,            // 满意度
     coalitionApproval: 0.9,
     stability: 1.1,
     legitimacyBonus: 1.0,
     organizationDecay: 0.9,
-    
+
     // 军事类
     militaryBonus: 1.0,
     militaryUpkeep: 1.0,
-    
+
     // 外交类
     diplomaticBonus: 0.8,
     diplomaticIncident: 0.7,
     diplomaticCooldown: 0.8,
-    
+
     // 负面效果类
     corruption: 1.0,
     factionConflict: 0.9,
@@ -1048,46 +1087,46 @@ const normalizeEffectScore = (effect, market, rates) => {
     let typeWeight = EFFECT_TYPE_WEIGHTS[effect.type] || 1.0;
     let resourceWeight = 1;
     let valueScale = 1;
-    
+
     // 资源权重：降低影响幅度
     if (effect.target && RESOURCES[effect.target]) {
         // 限制资源权重范围，避免某些资源导致估值过高
         resourceWeight = Math.min(1.5, getResourceWeight(effect.target, market));
     }
-    
+
     // 百分比效果：降低乘数
     if (PERCENT_EFFECT_TYPES.has(effect.type)) {
         score *= PERCENT_SCORE_MULTIPLIER * 0.6; // 降低40%
     }
-    
+
     // 满意度：进一步降低权重
     if (effect.type === 'approval') {
         score = score / (APPROVAL_SCORE_DIVISOR * 1.5); // 10点满意度 ≈ 0.33 效果分
     } else if (effect.type === 'passive') {
         score = score / (PASSIVE_SCORE_DIVISOR * 1.5); // 进一步降低被动产出权重
     }
-    
+
     // 针对单个建筑的效果：降低权重（因为只影响一种建筑）
     if (effect.type === 'buildings' || effect.type === 'productionInputCost') {
         typeWeight *= 0.7; // 单建筑效果打7折
     }
-    
+
     // 条件性效果降低权重
     if (effect.type === 'wartimeProduction') {
         typeWeight *= 0.6; // 战时生产需要战争才生效
     }
-    
+
     // valueScale：只对全局性效果应用，且影响更小
     if (rates) {
         // 只对真正的全局经济效果应用 valueScale
-        if (effect.type === 'incomePercent' || effect.type === 'taxEfficiency' || 
+        if (effect.type === 'incomePercent' || effect.type === 'taxEfficiency' ||
             effect.type === 'tradeBonus' || effect.type === 'categories') {
             const silverRate = Math.abs(rates.silver || 0);
             valueScale = getValueScale(silverRate, GLOBAL_VALUE_SCALE_BASELINE);
         }
         // 其他效果不再应用 valueScale，避免估值波动过大
     }
-    
+
     return score * typeWeight * resourceWeight * valueScale;
 };
 
@@ -1205,30 +1244,30 @@ export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence 
     // - 青铜时代 (epoch 1): 20-150 银/日
     // - 铁器时代 (epoch 3): 50-400 银/日
     // - 工业时代 (epoch 6): 150-1500 银/日
-    
+
     // 时代缩放因子：对评分和基础薪资都应用
     // epoch 1: 0.25x, epoch 2: 0.4x, epoch 3: 0.55x, epoch 4: 0.7x, epoch 5: 0.85x, epoch 6+: 1.0x
     const epochScoreMultiplier = Math.min(1.0, 0.1 + epoch * 0.15);
-    
+
     // 对 totalCostScore 应用时代缩放并限制上限
     // 避免某些效果组合导致评分爆炸
     const clampedCostScore = Math.min(15, Math.max(0.5, totalCostScore)); // 限制在 0.5-15 之间
     const scaledCostScore = clampedCostScore * epochScoreMultiplier;
-    
+
     // 基础薪资：使用更平缓的系数
     // scaledCostScore 范围约 0.125-15，对应基础薪资 20-320
     const baseSalary = 20 + scaledCostScore * 20;
-    
+
     // 时代加成：让后期官员薪资有更大上限
     // epoch 1: 0.8x, epoch 3: 1.1x, epoch 6: 1.55x
     const epochMultiplier = 0.65 + epoch * 0.15;
-    
+
     // 效果数量加成：多效果官员适当加价，但不要太极端
     // 1个效果: 1.0x, 3个效果: 1.2x, 5个效果: 1.4x
     const effectCountMultiplier = 1.0 + (effectCount - 1) * 0.1;
-    
+
     let salary = Math.round(baseSalary * epochMultiplier * effectCountMultiplier);
-    
+
     // 确保在 15 ~ 4000 范围内
     salary = Math.max(MIN_OFFICIAL_SALARY, Math.min(MAX_OFFICIAL_SALARY, salary));
 

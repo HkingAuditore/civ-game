@@ -22,16 +22,29 @@ export const calculateBuildingCost = (baseCost, count, growthFactor = 1.15) => {
 
 /**
  * 应用建筑成本修正
- * @param {Object} cost - 原始成本对象
+ * @param {Object} cost - 原始成本对象（含数量惩罚后的总成本）
  * @param {number} modifier - 成本修正（负值为降低）
+ * @param {Object|null} baseCost - 可选的基础成本对象。若提供，则修正只应用于超出基础成本的部分（数量惩罚）
  * @returns {Object} 调整后的成本对象
  */
-export const applyBuildingCostModifier = (cost = {}, modifier = 0) => {
+export const applyBuildingCostModifier = (cost = {}, modifier = 0, baseCost = null) => {
     if (!modifier) return { ...cost };
-    const multiplier = Math.max(0, 1 + modifier);
+
     const adjusted = {};
-    Object.entries(cost || {}).forEach(([key, amount]) => {
-        adjusted[key] = Math.max(0, amount * multiplier);
+    Object.entries(cost || {}).forEach(([key, totalAmount]) => {
+        // 如果提供了基础成本，只减免超出基础成本的部分（数量惩罚）
+        if (baseCost && typeof baseCost[key] === 'number') {
+            const baseAmount = baseCost[key];
+            const penalty = Math.max(0, totalAmount - baseAmount);
+            // 对数量惩罚部分应用减免，确保不低于0
+            const adjustedPenalty = Math.max(0, penalty * (1 + modifier));
+            // 最终成本 = 基础成本 + 调整后的惩罚
+            adjusted[key] = baseAmount + adjustedPenalty;
+        } else {
+            // 兼容旧逻辑：没有基础成本时，直接应用但最低保留20%
+            const multiplier = Math.max(0.2, 1 + modifier);
+            adjusted[key] = totalAmount * multiplier;
+        }
     });
     return adjusted;
 };

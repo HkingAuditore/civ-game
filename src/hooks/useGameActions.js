@@ -322,7 +322,8 @@ export const useGameActions = (gameState, addLog) => {
         const growthFactor = getBuildingCostGrowthFactor(difficultyLevel);
         const cost = calculateBuildingCost(b.baseCost, count, growthFactor);
         const buildingCostMod = modifiers?.officialEffects?.buildingCostMod || 0;
-        const adjustedCost = applyBuildingCostModifier(cost, buildingCostMod);
+        // 传入基础成本，确保减免只作用于数量惩罚部分
+        const adjustedCost = applyBuildingCostModifier(cost, buildingCostMod, b.baseCost);
 
         const hasMaterials = Object.entries(adjustedCost).every(([resource, amount]) => (resources[resource] || 0) >= amount);
         if (!hasMaterials) {
@@ -384,35 +385,78 @@ export const useGameActions = (gameState, addLog) => {
 
             // 0级建筑数量 = 总数 - 有升级记录的数量
             const level0Count = currentCount - upgradedCount;
+            let targetLevel = -1;
 
             if (level0Count > 0) {
-                // 有0级建筑，优先拆除0级，不需要修改 buildingUpgrades
-                // 因为0级不记录在 levelCounts 中
-                return;
-            }
-
-            // 没有0级建筑，需要拆除最低等级的升级建筑
-            if (Object.keys(levelCounts).length > 0) {
+                // 有0级建筑，优先拆除0级
+                targetLevel = 0;
+            } else if (Object.keys(levelCounts).length > 0) {
+                // 没有0级建筑，需要拆除最低等级的升级建筑
                 const levels = Object.keys(levelCounts)
                     .map(k => parseInt(k))
                     .filter(l => Number.isFinite(l) && levelCounts[l] > 0)
                     .sort((a, b) => a - b);
 
                 if (levels.length > 0) {
-                    const lowestLevel = levels[0];
+                    targetLevel = levels[0];
                     setBuildingUpgrades(prev => {
                         const newUpgrades = { ...prev };
-                        const newLevelCounts = { ...prev[id] };
-                        newLevelCounts[lowestLevel] = (newLevelCounts[lowestLevel] || 0) - 1;
-                        if (newLevelCounts[lowestLevel] <= 0) {
-                            delete newLevelCounts[lowestLevel];
+                        const buildingUpgrade = { ...(newUpgrades[id] || {}) };
+                        buildingUpgrade[targetLevel] = (buildingUpgrade[targetLevel] || 0) - 1;
+                        if (buildingUpgrade[targetLevel] <= 0) {
+                            delete buildingUpgrade[targetLevel];
                         }
-                        if (Object.keys(newLevelCounts).length === 0) {
-                            delete newUpgrades[id];
-                        } else {
-                            newUpgrades[id] = newLevelCounts;
-                        }
+                        newUpgrades[id] = buildingUpgrade;
                         return newUpgrades;
+                    });
+                }
+            }
+
+            // 处理官员私产移除逻辑
+            if (targetLevel !== -1 && officials && officials.length > 0) {
+                // 计算该等级建筑拆除后的国家剩余数量
+                // 注意：currentCount 是拆除前的总数，所以0级数量用拆除前计算再-1
+                // 非0级数量直接从 levelCounts 取再-1
+                let remainingGlobalCount = 0;
+                if (targetLevel === 0) {
+                    remainingGlobalCount = Math.max(0, level0Count - 1);
+                } else {
+                    remainingGlobalCount = Math.max(0, (levelCounts[targetLevel] || 0) - 1);
+                }
+
+                // 统计所有官员持有的该等级建筑总数
+                let totalOwnedByOfficials = 0;
+                const holders = [];
+
+                officials.forEach((off, idx) => {
+                    const count = (off.ownedProperties || []).filter(p => p.buildingId === id && (p.level || 0) === targetLevel).length;
+                    if (count > 0) {
+                        totalOwnedByOfficials += count;
+                        holders.push({ index: idx, count, official: off });
+                    }
+                });
+
+                // 如果官员持有总数 > 国家剩余总数，说明刚才拆的是官员的或者需要强制移除一个
+                if (totalOwnedByOfficials > remainingGlobalCount) {
+                    // 随机选择一个持有者进行移除
+                    const victimEntry = holders[Math.floor(Math.random() * holders.length)];
+
+                    setOfficials(prev => {
+                        const newOfficials = [...prev];
+                        const victim = { ...newOfficials[victimEntry.index] };
+                        const props = [...(victim.ownedProperties || [])];
+
+                        // 移除一个匹配的产业
+                        const removeIdx = props.findIndex(p => p.buildingId === id && (p.level || 0) === targetLevel);
+                        if (removeIdx !== -1) {
+                            props.splice(removeIdx, 1);
+                            victim.ownedProperties = props;
+                            newOfficials[victimEntry.index] = victim;
+
+                            addLog(`${victim.name} 失去了一处 ${BUILDINGS.find(b => b.id === id).name}${targetLevel > 0 ? ` (等级 ${targetLevel})` : ''}，因为建筑被拆除`);
+                        }
+
+                        return newOfficials;
                     });
                 }
             }
@@ -1309,7 +1353,7 @@ export const useGameActions = (gameState, addLog) => {
         if (lastBattleTargetId && lastBattleTargetId !== nationId) {
             const daysSinceLastBattle = daysElapsed - lastBattleDay;
             const TRAVEL_DAYS = 5;
-            
+
             if (daysSinceLastBattle < TRAVEL_DAYS) {
                 const remainingTravelDays = TRAVEL_DAYS - daysSinceLastBattle;
                 addLog(`⏳ 军队正在向 ${targetNation.name} 进军中，预计还需要 ${remainingTravelDays} 天抵达战场。`);

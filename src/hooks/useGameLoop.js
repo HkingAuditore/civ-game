@@ -57,6 +57,7 @@ import {
     createRebelNation,
     createRebellionEndEvent,
 } from '../logic/rebellionSystem';
+import { LOYALTY_CONFIG } from '../config/officials';
 
 const calculateRebelPopulation = (stratumPop = 0) => {
     if (!Number.isFinite(stratumPop) || stratumPop <= 0) return 0;
@@ -1126,14 +1127,14 @@ export const useGameLoop = (gameState, addLog, actions) => {
             if (Object.keys(currentActiveDecrees).length > 0) {
                 const currentDay = current.daysElapsed || 0;
                 const { updatedDecrees, expiredDecrees } = processDecreeExpiry(currentActiveDecrees, currentDay);
-                
+
                 if (expiredDecrees.length > 0) {
                     // 更新法令状态
                     setActiveDecrees(updatedDecrees);
                     // 更新本地引用以确保当前tick使用正确的法令状态
                     current.activeDecrees = updatedDecrees;
                     stateRef.current.activeDecrees = updatedDecrees;
-                    
+
                     // 记录过期法令日志
                     expiredDecrees.forEach(decreeId => {
                         const decree = REFORM_DECREES[decreeId];
@@ -1449,7 +1450,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 });
                 let adjustedTotalWealth = Object.values(adjustedClassWealth).reduce((sum, val) => sum + val, 0);
 
-                // ========== 官僚政变检测（低影响力但高财富官员） ==========
+                // ========== 官僚政变检测（基于忠诚度系统） ==========
                 let coupOutcome = null;
                 const officialsList = result.officials || [];
                 if (officialsList.length > 0 && current.actions?.triggerDiplomaticEvent) {
@@ -1457,25 +1458,51 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         const influence = result.classInfluence?.[stratumKey] || 0;
                         return (result.totalInfluence || 0) > 0 ? influence / result.totalInfluence : 0;
                     };
+
+                    // 新的政变检测条件：基于忠诚度系统
+                    const { COUP_THRESHOLD, COUP_DURATION_DAYS, COUP_WEALTH_THRESHOLD,
+                        COUP_PROPERTY_THRESHOLD, COUP_INFLUENCE_THRESHOLD } = LOYALTY_CONFIG;
+
                     const candidates = officialsList
                         .filter(official => official && official.ownedProperties?.length)
                         .map(official => {
                             const propertyValue = official.ownedProperties.reduce((sum, prop) => sum + (prop.purchaseCost || 0), 0);
                             const wealthScore = (official.wealth || 0) + propertyValue;
+                            const propertyCount = (official.ownedProperties || []).length;
+                            const stratumInfluence = influenceShare(official.sourceStratum || 'official');
                             return {
                                 official,
                                 propertyValue,
-                                propertyCount: official.ownedProperties.length,
+                                propertyCount,
                                 wealthScore,
-                                influenceShare: influenceShare(official.sourceStratum || 'official'),
+                                influenceShare: stratumInfluence,
                             };
                         })
-                        .filter(candidate => candidate.influenceShare < MIN_REBELLION_INFLUENCE && candidate.wealthScore >= 15000);
+                        .filter(candidate => {
+                            const official = candidate.official;
+                            const loyalty = official.loyalty ?? 75; // 默认兼容旧存档
+                            const lowLoyaltyDays = official.lowLoyaltyDays ?? 0;
+
+                            // 条件1：忠诚度低于阈值且持续足够天数
+                            if (loyalty >= COUP_THRESHOLD || lowLoyaltyDays < COUP_DURATION_DAYS) {
+                                return false;
+                            }
+
+                            // 条件2：有足够资本发动政变（满足任一）
+                            const hasWealth = candidate.wealthScore >= COUP_WEALTH_THRESHOLD;
+                            const hasProperties = candidate.propertyCount >= COUP_PROPERTY_THRESHOLD;
+                            const hasInfluence = candidate.influenceShare >= COUP_INFLUENCE_THRESHOLD;
+
+                            return hasWealth || hasProperties || hasInfluence;
+                        });
 
                     if (candidates.length > 0) {
                         candidates.sort((a, b) => b.wealthScore - a.wealthScore);
                         const target = candidates[0];
-                        const triggerChance = Math.min(0.2, Math.log10(target.wealthScore / 10000) * 0.06);
+                        // 降低基础概率，根据忠诚度调整
+                        const loyalty = target.official.loyalty ?? 75;
+                        const loyaltyFactor = Math.max(0.5, (25 - loyalty) / 25); // 忠诚度越低概率越高
+                        const triggerChance = Math.min(0.15, 0.02 * loyaltyFactor);
 
                         if (Math.random() < triggerChance) {
                             const newOfficials = officialsList.filter(o => o.id !== target.official.id);

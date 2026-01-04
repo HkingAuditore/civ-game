@@ -129,6 +129,8 @@ import {
     processOfficialInvestment,
     FINANCIAL_STATUS,
 } from './officials/officialInvestment';
+import { LOYALTY_CONFIG } from '../config/officials';
+import { isStanceSatisfied } from '../config/politicalStances';
 import { migrateOfficialForInvestment } from './officials/migration';
 
 // ============================================================================
@@ -618,12 +620,12 @@ export const simulateTick = ({
         if (isTradableResource(resource)) {
             supply[resource] = (supply[resource] || 0) + amount;
             const marketPrice = getPrice(resource);
-            
+
             // [NEW] 价格管制检查（出售侧）：政府保底收购或收超额利润税
             // 只有左派主导且启用时才生效
             const leftFactionDominant = cabinetStatus?.dominance?.panelType === 'plannedEconomy';
             const priceControlActive = leftFactionDominant && priceControls?.enabled && priceControls.governmentBuyPrices?.[resource] !== undefined;
-            
+
             let effectivePrice = marketPrice;
             if (priceControlActive) {
                 const pcResult = applySellPriceControl({
@@ -643,7 +645,7 @@ export const simulateTick = ({
             // Note: Tax is handled on consumption side generally for 'Resource Tax', 
             // but we might want to consider if 'Sales Tax' applies. 
             // Current login assumes getResourceTaxRate is consumption tax.
-            
+
             let netIncome = grossIncome;
 
             // 记录owner的净销售收入（在tick结束时统一结算到wealth）
@@ -1442,7 +1444,7 @@ export const simulateTick = ({
         let actualMultiplier = targetMultiplier;
         let debugMarginRatio = null;
         let debugData = null;
-        
+
         // BUG FIX: 实际可支付的工资不能超过 (收入 - 原料成本)
         // 如果市场工资过高，建筑只会支付它能支付的部分，而不是削减产量
         // 这避免了工资通胀导致的产量崩溃
@@ -1451,9 +1453,9 @@ export const simulateTick = ({
         const actualWageCostPerMultiplier = targetMultiplier > 0 ? actualPayableWageCost / targetMultiplier : 0;
         // 实际运营成本 = 原料成本 + 实际可支付工资成本
         const actualOperatingCostPerMultiplier = inputCostPerMultiplier + actualWageCostPerMultiplier;
-        
+
         if (producesTradableOutput) {
-            
+
             // 将营业税计入总成本（只考虑正税，补贴不计入成本）
             const estimatedCost = estimatedInputCost + actualPayableWageCost + Math.max(0, estimatedBusinessTax);
             if (estimatedCost > 0 && estimatedRevenue <= 0) {
@@ -2370,23 +2372,23 @@ export const simulateTick = ({
 
             if (isTradableResource(resKey)) {
                 const marketPrice = getPrice(resKey);
-                
+
                 // [NEW] 价格管制检查：只有左派主导且启用时才生效
                 const leftFactionDominant = cabinetStatus?.dominance?.panelType === 'plannedEconomy';
                 const priceControlActive = leftFactionDominant && priceControls?.enabled && priceControls.governmentSellPrices?.[resKey] !== undefined && priceControls.governmentSellPrices[resKey] !== null;
-                
+
                 // Determine tentative effective price for affordability check
                 // Note: If treasury runs out during application, we revert to market price, 
                 // but we calculate consumption based on the hope of government price.
                 let tentativePrice = marketPrice;
                 if (priceControlActive) {
-                     tentativePrice = priceControls.governmentSellPrices[resKey];
+                    tentativePrice = priceControls.governmentSellPrices[resKey];
                 }
 
                 const priceWithTax = tentativePrice * (1 + getResourceTaxRate(resKey));
                 const affordable = priceWithTax > 0 ? Math.min(requirement, (wealth[key] || 0) / priceWithTax) : requirement;
                 const amount = Math.min(requirement, available, affordable);
-                
+
                 // 先不统计需求，等实际消费后再统计
                 if (amount > 0) {
                     res[resKey] = available - amount;
@@ -2405,7 +2407,7 @@ export const simulateTick = ({
                         });
                         // If success (treasury sufficient for subsidy), use gov price
                         // If fail (treasury empty), it returns marketPrice
-                        finalEffectivePrice = pcResult.effectivePrice; 
+                        finalEffectivePrice = pcResult.effectivePrice;
                     }
 
                     const taxRate = getResourceTaxRate(resKey);
@@ -2721,7 +2723,7 @@ export const simulateTick = ({
             prices: priceMap,
             wages: market?.wages || {}
         };
-        
+
         // We pass BUILDINGS, wealth, settings, counts, market with wages, and tax policies
         const { expansions, wealthDeductions } = processOwnerExpansions(
             BUILDINGS,
@@ -3014,11 +3016,19 @@ export const simulateTick = ({
             salarySatisfaction = 'uncomfortable';
         }
         const satisfactionOrder = ['satisfied', 'uncomfortable', 'struggling', 'desperate'];
-        const finalSatisfactionIndex = Math.max(
-            satisfactionOrder.indexOf(financialSatisfaction),
-            satisfactionOrder.indexOf(salarySatisfaction)
-        );
-        const combinedSatisfaction = satisfactionOrder[finalSatisfactionIndex] || financialSatisfaction;
+        // 如果财务状况良好(satisfied，即财富充足)，直接使用财务满意度，忽略薪资满意度
+        // 避免有钱人仅因薪资比例低就被判定为不满意
+        let combinedSatisfaction;
+        if (financialSatisfaction === 'satisfied') {
+            combinedSatisfaction = 'satisfied';
+        } else {
+            // 财务状况不佳时，取两者中更差的
+            const finalSatisfactionIndex = Math.max(
+                satisfactionOrder.indexOf(financialSatisfaction),
+                satisfactionOrder.indexOf(salarySatisfaction)
+            );
+            combinedSatisfaction = satisfactionOrder[finalSatisfactionIndex] || financialSatisfaction;
+        }
 
         // 产业投资决策
         const investmentDecision = processOfficialInvestment(
@@ -3084,6 +3094,63 @@ export const simulateTick = ({
         totalOfficialWealth += currentWealth;
         totalOfficialExpense += dailyExpense;
 
+        // ========== 忠诚度更新 ==========
+        let newLoyalty = normalizedOfficial.loyalty ?? 75; // 默认值兼容旧存档
+        let newLowLoyaltyDays = normalizedOfficial.lowLoyaltyDays ?? 0;
+
+        // 政治诉求满足程度
+        const stanceData = normalizedOfficial.politicalStance || {};
+        // 计算总影响力（从classInfluence对象累加）
+        const computedTotalInfluence = Object.values(classInfluence || {}).reduce((sum, v) => sum + (v || 0), 0);
+        const stanceGameState = {
+            classApproval: classApproval,
+            classInfluence: classInfluence,
+            totalInfluence: computedTotalInfluence,
+            stability: (currentStability ?? 50) / 100,
+            rulingCoalition: rulingCoalition,
+            legitimacy: previousLegitimacy ?? 0,
+            taxPolicies: taxPolicies,
+            prices: priceMap,
+            epoch: epoch,
+            population: previousPopStructure ? Object.values(previousPopStructure).reduce((s, v) => s + (v || 0), 0) : 0,
+            atWar: (nations || []).some(n => n.isAtWar),
+        };
+        const isStanceMet = isStanceSatisfied(
+            stanceData.stanceId,
+            stanceGameState,
+            stanceData.conditionParams || []
+        );
+
+        // 应用忠诚度变化
+        const { DAILY_CHANGES, COUP_THRESHOLD, MAX, MIN } = LOYALTY_CONFIG;
+
+        // 政治诉求
+        newLoyalty += isStanceMet ? DAILY_CHANGES.stanceSatisfied : DAILY_CHANGES.stanceUnsatisfied;
+
+        // 财务状况
+        if (combinedSatisfaction === 'satisfied') newLoyalty += DAILY_CHANGES.financialSatisfied;
+        else if (combinedSatisfaction === 'uncomfortable') newLoyalty += DAILY_CHANGES.financialUncomfortable;
+        else if (combinedSatisfaction === 'struggling') newLoyalty += DAILY_CHANGES.financialStruggling;
+        else if (combinedSatisfaction === 'desperate') newLoyalty += DAILY_CHANGES.financialDesperate;
+
+        // 国家稳定度
+        const stabilityValue = (currentStability ?? 50) / 100; // currentStability是0-100，转为0-1
+        if (stabilityValue > 0.7) newLoyalty += DAILY_CHANGES.stabilityHigh;
+        else if (stabilityValue < 0.3) newLoyalty += DAILY_CHANGES.stabilityLow;
+
+        // 薪资发放
+        newLoyalty += officialsPaid ? DAILY_CHANGES.salaryPaid : DAILY_CHANGES.salaryUnpaid;
+
+        // 限制范围
+        newLoyalty = Math.max(MIN, Math.min(MAX, newLoyalty));
+
+        // 追踪低忠诚度持续天数
+        if (newLoyalty < COUP_THRESHOLD) {
+            newLowLoyaltyDays += 1;
+        } else {
+            newLowLoyaltyDays = 0;
+        }
+
         return {
             ...normalizedOfficial,
             wealth: currentWealth,
@@ -3095,6 +3162,10 @@ export const simulateTick = ({
             lastDayExpenseBreakdown: expenseBreakdown,
             lastDayLuxuryExpense: luxuryExpense,
             lastDayEssentialExpense: essentialExpense,
+            // 忠诚度系统
+            loyalty: newLoyalty,
+            lowLoyaltyDays: newLowLoyaltyDays,
+            isStanceSatisfied: isStanceMet,
         };
     });
 
@@ -3367,7 +3438,7 @@ export const simulateTick = ({
         if (taxShockPenalty > 1) {
             // 冲击值直接扣减当前满意度
             currentApproval = Math.max(0, currentApproval - taxShockPenalty);
-            
+
             // 只有当冲击显著（>5）时才限制满意度上限
             // 上限根据冲击程度动态计算：冲击5→上限60，冲击15→上限40，冲击25→上限25
             if (taxShockPenalty > 5) {

@@ -436,8 +436,9 @@ const BuildTabComponent = ({
     const calculateCost = (building) => {
         const count = buildings[building.id] || 0;
         const growthFactor = getBuildingCostGrowthFactor(difficulty);
-        const baseCost = calculateBuildingCost(building.baseCost, count, growthFactor);
-        return applyBuildingCostModifier(baseCost, buildingCostMod);
+        const totalCost = calculateBuildingCost(building.baseCost, count, growthFactor);
+        // 传入基础成本，确保减免只作用于数量惩罚部分
+        return applyBuildingCostModifier(totalCost, buildingCostMod, building.baseCost);
     };
 
     const buildLevelCounts = (count, upgradeLevels) => {

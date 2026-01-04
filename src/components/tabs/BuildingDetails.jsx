@@ -455,9 +455,10 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
         const currentCount = buildings[b.id] || 0;
         const difficulty = gameState.difficulty;
         const growthFactor = getBuildingCostGrowthFactor(difficulty);
-        const baseCost = calculateBuildingCost(b.baseCost, currentCount, growthFactor);
+        const totalCost = calculateBuildingCost(b.baseCost, currentCount, growthFactor);
         const buildingCostMod = gameState.modifiers?.officialEffects?.buildingCostMod || 0;
-        return applyBuildingCostModifier(baseCost, buildingCostMod);
+        // 传入基础成本，确保减免只作用于数量惩罚部分
+        return applyBuildingCostModifier(totalCost, buildingCostMod, b.baseCost);
     };
 
     const nextCost = calculateCost(building);

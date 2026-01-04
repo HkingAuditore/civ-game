@@ -2,7 +2,7 @@
  * 官员系统核心逻辑
  * 处理选拔、雇佣、解雇及相关计算
  */
-import { generateRandomOfficial } from '../../config/officials';
+import { generateRandomOfficial, LOYALTY_CONFIG } from '../../config/officials';
 import { BUILDINGS } from '../../config/buildings';
 import { isStanceSatisfied } from '../../config/politicalStances';
 import { FINANCIAL_STATUS, generateInvestmentProfile } from './officialInvestment';
@@ -62,6 +62,15 @@ export const hireOfficial = (officialId, currentCandidates, currentOfficials, ca
 
     // 添加到在任列表，并记录入职时间和初始财富
     const OFFICIAL_STARTING_WEALTH = 400;
+
+    // 计算初始忠诚度：基础随机值 + 薪水加成 + 低影响力加成
+    const baseLoyalty = LOYALTY_CONFIG.INITIAL_MIN +
+        Math.random() * (LOYALTY_CONFIG.INITIAL_MAX - LOYALTY_CONFIG.INITIAL_MIN);
+    // 薪水越高越忠诚（最多+10）
+    const salaryBonus = Math.min(10, (candidate.salary || 0) / 5);
+    // 注：阶层影响力加成需在实际游戏状态中计算，这里先用基础值
+    const initialLoyalty = Math.min(LOYALTY_CONFIG.MAX, Math.round(baseLoyalty + salaryBonus));
+
     const newOfficial = {
         ...candidate,
         hireDate: currentDay,
@@ -72,6 +81,9 @@ export const hireOfficial = (officialId, currentCandidates, currentOfficials, ca
         investmentProfile: generateInvestmentProfile(candidate.sourceStratum, candidate.politicalStance, currentDay),
         ownedProperties: [],
         lastDayPropertyIncome: 0,
+        // 忠诚度系统
+        loyalty: initialLoyalty,
+        lowLoyaltyDays: 0,
     };
     const newOfficials = [...currentOfficials, newOfficial];
 
@@ -743,6 +755,36 @@ export const disposeOfficial = (officialId, disposalType, currentOfficials, curr
     });
     const propertyTransferTotal = propertyTransfers.reduce((sum, item) => sum + (item.value || 0), 0);
 
+    // ========== 处置时政变判定 ==========
+    const disposalPenalty = LOYALTY_CONFIG.DISPOSAL_PENALTY[disposalType];
+    let coupTriggered = false;
+    let finalLoyalty = official.loyalty ?? 75; // 默认兼容旧存档
+
+    if (disposalPenalty) {
+        // 应用忠诚度惩罚
+        finalLoyalty = Math.max(0, finalLoyalty + disposalPenalty.loyalty);
+
+        // 计算政变概率
+        let coupChance = disposalPenalty.coupChance;
+
+        // 忠诚度≤0时概率翻倍
+        if (finalLoyalty <= 0) coupChance *= 2;
+
+        // 检查是否有资本发动政变
+        const propertyValue = (official.ownedProperties || [])
+            .reduce((sum, p) => sum + (p.purchaseCost || 0), 0);
+        const wealthScore = (official.wealth || 0) + propertyValue;
+        const propertyCount = (official.ownedProperties || []).length;
+
+        // 必须有一定资本才能发动政变
+        const hasCapital = wealthScore >= LOYALTY_CONFIG.COUP_WEALTH_THRESHOLD * 0.5 ||
+            propertyCount >= LOYALTY_CONFIG.COUP_PROPERTY_THRESHOLD - 1;
+
+        if (hasCapital && Math.random() < coupChance) {
+            coupTriggered = true;
+        }
+    }
+
     return {
         success: true,
         newOfficials,
@@ -758,6 +800,13 @@ export const disposeOfficial = (officialId, disposalType, currentOfficials, curr
             totalValue: propertyTransferTotal,
         },
         consequences,
+        // 政变相关
+        coupTriggered,
+        coupData: coupTriggered ? {
+            official,
+            finalLoyalty,
+            wealthScore: (official.wealth || 0) + propertyTransferTotal,
+        } : null,
     };
 };
 
