@@ -909,9 +909,8 @@ export const useGameState = () => {
             const startNewGame = localStorage.getItem('start_new_game');
             if (startNewGame === 'true') {
                 localStorage.removeItem('start_new_game');
-                // 检查新游戏难度设置
-                const newGameDifficulty = localStorage.getItem('new_game_difficulty');
                 if (newGameDifficulty) {
+                    console.log(`[DEBUG] Initializing New Game with Difficulty: ${newGameDifficulty}`);
                     setDifficulty(newGameDifficulty);
                     localStorage.removeItem('new_game_difficulty');
                 }

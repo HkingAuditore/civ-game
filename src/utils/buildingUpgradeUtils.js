@@ -9,12 +9,13 @@ import { BUILDING_UPGRADES, getBuildingEffectiveConfig } from '../config/buildin
  * @param {Object} baseCost - 基础成本对象
  * @param {number} count - 当前建筑数量
  * @param {number} growthFactor - 成本增长系数 (默认 1.15)
+ * @param {number} baseMultiplier - 基础成本修正系数 (默认 1.0)
  * @returns {Object} 计算后的成本对象
  */
-export const calculateBuildingCost = (baseCost, count, growthFactor = 1.15) => {
+export const calculateBuildingCost = (baseCost, count, growthFactor = 1.15, baseMultiplier = 1.0) => {
     const cost = {};
     
-    // 成本计算模型：Base * (1 + Rate * Count^k)
+    // 成本计算模型：Base * BaseMultiplier * (1 + Rate * Count^k)
     // 保持与升级成本一致的“斜率递减”曲线
     // growthFactor 如 1.15，则 Rate = 0.15
     const slopeExponent = 0.9;
@@ -23,7 +24,9 @@ export const calculateBuildingCost = (baseCost, count, growthFactor = 1.15) => {
     const multiplier = 1 + rate * Math.pow(count, slopeExponent);
 
     for (const [key, val] of Object.entries(baseCost || {})) {
-        cost[key] = Math.ceil(val * multiplier); // 使用 ceil 确保整数，避免浮点误差
+        // Apply baseMultiplier to the base cost before the growth multiplier
+        // Using ceil to ensure integer costs
+        cost[key] = Math.ceil(val * baseMultiplier * multiplier);
     }
     return cost;
 };

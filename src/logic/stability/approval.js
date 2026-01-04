@@ -4,6 +4,7 @@
  */
 
 import { STRATA } from '../../config';
+import { getTaxToleranceMultiplier } from '../../config/difficulty';
 
 /**
  * Calculate class approval for all strata
@@ -24,10 +25,12 @@ export const calculateClassApproval = ({
     roleWagePayout,
     eventApprovalModifiers = {},
     decreeApprovalModifiers = {},
-    effectiveTaxModifier = 1
+    effectiveTaxModifier = 1,
+    difficulty = 'normal'
 }) => {
     const classApproval = {};
     const headTaxRates = taxPolicies?.headTaxRates || {};
+    const taxTolerance = getTaxToleranceMultiplier(difficulty);
 
     const getHeadTaxRate = (key) => {
         const rate = headTaxRates[key];
@@ -63,8 +66,8 @@ export const calculateClassApproval = ({
         // Retrieve wealth per capita from living standard data (it contains accurate snapshot)
         const wealthPerCapita = livingStandard?.wealthPerCapita || 0;
 
-        const taxBurdenFromIncome = incomePerCapita > 0.001 && taxPerCapita > incomePerCapita * 0.5;
-        const canAffordFromWealth = wealthPerCapita > taxPerCapita * 100;
+        const taxBurdenFromIncome = incomePerCapita > 0.001 && taxPerCapita > incomePerCapita * (0.5 * taxTolerance);
+        const canAffordFromWealth = wealthPerCapita > taxPerCapita * (100 * taxTolerance);
 
         if (taxBurdenFromIncome && !canAffordFromWealth) {
             targetApproval = Math.min(targetApproval, 40); // Tax burden cap
@@ -187,6 +190,11 @@ export const calculateClassApproval = ({
 
     return classApproval;
 };
+    
+// Import at top of file (will handle with separate tool call to avoid whole file context switch or just use dynamic import if needed, but better to structure well)
+// Actually I need to add the import first.
+// I will modify the function signature to accept difficulty and use the helper.
+
 
 /**
  * Calculate decree approval modifiers

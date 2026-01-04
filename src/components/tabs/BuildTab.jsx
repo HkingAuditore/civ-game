@@ -10,7 +10,7 @@ import { filterUnlockedResources } from '../../utils/resources';
 import { getPublicAssetUrl } from '../../utils/assetPath';
 import { getBuildingImageUrl } from '../../utils/imageRegistry';
 import { getBuildingEffectiveConfig, BUILDING_UPGRADES, getUpgradeCost } from '../../config/buildingUpgrades';
-import { getBuildingCostGrowthFactor } from '../../config/difficulty';
+import { getBuildingCostGrowthFactor, getBuildingCostBaseMultiplier } from '../../config/difficulty';
 import { calculateBuildingCost, applyBuildingCostModifier } from '../../utils/buildingUpgradeUtils';
 import { formatNumberShortCN } from '../../utils/numberFormat';
 
@@ -460,7 +460,8 @@ const BuildTabComponent = ({
     const calculateCost = (building) => {
         const count = buildings[building.id] || 0;
         const growthFactor = getBuildingCostGrowthFactor(difficulty);
-        const totalCost = calculateBuildingCost(building.baseCost, count, growthFactor);
+        const baseMultiplier = getBuildingCostBaseMultiplier(difficulty);
+        const totalCost = calculateBuildingCost(building.baseCost, count, growthFactor, baseMultiplier);
         // 传入基础成本，确保减免只作用于数量惩罚部分
         return applyBuildingCostModifier(totalCost, buildingCostMod, building.baseCost);
     };
@@ -489,11 +490,12 @@ const BuildTabComponent = ({
         const stats = {};
         // 获取当前难度的增长系数
         const growthFactor = getBuildingCostGrowthFactor(difficulty);
+        const baseMultiplier = getBuildingCostBaseMultiplier(difficulty);
 
         BUILDINGS.forEach((building) => {
             const count = buildings[building.id] || 0;
             const upgradeLevels = buildingUpgrades[building.id] || {};
-            const cost = calculateCost(building);
+            const cost = calculateCost(building); // Use the unified calculateCost to ensure consistency
 
             let averageBuilding = building;
             let levelCounts = null;

@@ -8,6 +8,7 @@ import { TECHS, EPOCHS, BUILDINGS } from '../../config';
 import { RESOURCES } from '../../config';
 import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
 import { getEpochTheme } from '../../config/epicTheme';
+import { getTechCostMultiplier } from '../../config/difficulty';
 
 const EPOCH_BONUS_LABELS = {
     gatherBonus: { label: '采集产出', type: 'percent' },
@@ -89,7 +90,7 @@ const applyAlpha = (color, alpha = 1) => {
 /**
  * 科技悬浮提示框 (使用 Portal)
  */
-const TechTooltip = ({ tech, status, resources, market, anchorElement }) => {
+const TechTooltip = ({ tech, status, resources, market, anchorElement, difficulty }) => {
     if (!tech || !anchorElement) return null;
 
     const [position, setPosition] = useState({ top: 0, left: 0 });
@@ -119,7 +120,13 @@ const TechTooltip = ({ tech, status, resources, market, anchorElement }) => {
         }
     }, [anchorElement, tech]);
 
-    const silverCost = calculateSilverCost(tech.cost, market);
+    const multiplier = getTechCostMultiplier(difficulty);
+    const adjustedCost = {};
+    Object.entries(tech.cost).forEach(([res, val]) => {
+        adjustedCost[res] = Math.ceil(val * multiplier);
+    });
+
+    const silverCost = calculateSilverCost(adjustedCost, market);
 
     return createPortal(
         <div
@@ -140,7 +147,7 @@ const TechTooltip = ({ tech, status, resources, market, anchorElement }) => {
             {status !== 'unlocked' && (
                 <div className="bg-gray-900/50 rounded px-2 py-1.5">
                     <div className="text-[10px] text-gray-400 mb-1">研究成本</div>
-                    {Object.entries(tech.cost).map(([resource, cost]) => (
+                    {Object.entries(adjustedCost).map(([resource, cost]) => (
                         <div key={resource} className="flex justify-between text-xs">
                             <span className="text-gray-300">{RESOURCES[resource]?.name || resource}</span>
                             <span className={(resources[resource] || 0) >= cost ? 'text-green-400' : 'text-red-400'}>{Math.round(cost)} ({Math.round(resources[resource] || 0)})</span>
@@ -178,6 +185,7 @@ const TechTabComponent = ({
     canUpgradeEpoch,
     market,
     onShowTechDetails, // 新增：显示科技详情回调
+    difficulty,
 }) => {
     const [hoveredTech, setHoveredTech] = useState({ tech: null, element: null });
     // Check for both hover capability AND fine pointer (mouse/trackpad) to correctly exclude touch devices
@@ -200,15 +208,22 @@ const TechTabComponent = ({
         if (tech.epoch > epoch) return false;
 
         // 资源不足
+        const multiplier = getTechCostMultiplier(difficulty);
         for (let resource in tech.cost) {
-            if ((resources[resource] || 0) < tech.cost[resource]) return false;
+            const cost = Math.ceil(tech.cost[resource] * multiplier);
+            if ((resources[resource] || 0) < cost) return false;
         }
 
-        const silverCost = calculateSilverCost(tech.cost, market);
+        const adjustedCost = {};
+        Object.entries(tech.cost).forEach(([res, val]) => {
+            adjustedCost[res] = Math.ceil(val * multiplier);
+        });
+
+        const silverCost = calculateSilverCost(adjustedCost, market);
         if ((resources.silver || 0) < silverCost) return false;
 
         return true;
-    }, [techsUnlocked, epoch, resources, market]);
+    }, [techsUnlocked, epoch, resources, market, difficulty]);
 
     /**
      * 获取科技状态
@@ -558,7 +573,12 @@ const TechTabComponent = ({
                                             <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-2">
                                                 {visibleTechs.map((tech) => {
                                                     const status = getTechStatus(tech);
-                                                    const silverCost = calculateSilverCost(tech.cost, market);
+                                                    const multiplier = getTechCostMultiplier(difficulty);
+                                                    const adjustedCost = {};
+                                                    Object.entries(tech.cost).forEach(([res, val]) => {
+                                                        adjustedCost[res] = Math.ceil(val * multiplier);
+                                                    });
+                                                    const silverCost = calculateSilverCost(adjustedCost, market);
                                                     const affordable = canResearch(tech);
 
                                                     return (
@@ -578,7 +598,7 @@ const TechTabComponent = ({
                                                             {status !== 'unlocked' && (
                                                                 <span className="text-[9px] text-cyan-300 font-mono mb-0.5 inline-flex items-center gap-1">
                                                                     <Icon name={RESOURCES.science?.icon || 'Flask'} size={10} className="text-cyan-300" />
-                                                                    {tech.cost?.science ?? 0}
+                                                                    {adjustedCost?.science ?? 0}
                                                                 </span>
                                                             )}
                                                             {status === 'unlocked' ? (
@@ -621,6 +641,7 @@ const TechTabComponent = ({
                 status={hoveredTech.tech ? getTechStatus(hoveredTech.tech) : null}
                 resources={resources}
                 market={market}
+                difficulty={difficulty}
             />
         </div>
     );

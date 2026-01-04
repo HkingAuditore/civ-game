@@ -5,7 +5,7 @@ import { calculateSilverCost } from '../../utils/economy';
 import { formatNumberShortCN } from '../../utils/numberFormat';
 import { BUILDING_UPGRADES, getUpgradeCost, getMaxUpgradeLevel, getBuildingEffectiveConfig } from '../../config/buildingUpgrades';
 import { getBuildingLevelDistribution, canBuildingUpgrade, getUpgradeCountAtOrAboveLevel } from '../../utils/buildingUpgradeUtils';
-import { getBuildingCostGrowthFactor } from '../../config/difficulty';
+import { getBuildingCostGrowthFactor, getBuildingUpgradeCostMultiplier } from '../../config/difficulty';
 
 // 长按阈值（毫秒）
 const LONG_PRESS_THRESHOLD = 600;
@@ -240,6 +240,7 @@ export const BuildingUpgradePanel = ({
     // Get dynamic growth factor
     const difficulty = gameState?.difficulty || 'normal';
     const growthFactor = getBuildingCostGrowthFactor(difficulty);
+    const upgradeMultiplier = getBuildingUpgradeCostMultiplier(difficulty);
 
     if (!canBuildingUpgrade(buildingId) || count <= 0) {
         return null;
@@ -257,7 +258,13 @@ export const BuildingUpgradePanel = ({
         // 计算已有的同等级或更高升级数量，用于成本递增
         // existingUpgradeCount passes fromLevel + 1. Correct.
         const existingUpgradeCount = getUpgradeCountAtOrAboveLevel(fromLevel + 1, count, upgradeLevels);
-        const cost = getUpgradeCost(buildingId, fromLevel + 1, existingUpgradeCount, growthFactor);
+        const baseCost = getUpgradeCost(buildingId, fromLevel + 1, existingUpgradeCount, growthFactor);
+        const cost = {};
+        if (baseCost) {
+            Object.entries(baseCost).forEach(([res, val]) => {
+                cost[res] = Math.ceil(val * upgradeMultiplier);
+            });
+        }
         if (!cost) return false;
 
         const hasMaterials = Object.entries(cost).every(([resource, amount]) => {
@@ -522,7 +529,13 @@ export const BuildingUpgradePanel = ({
                     const canDowngradeThis = levelNum > 0 && levelCount > 0;
                     // 计算已有的同等级或更高升级数量，用于成本递增显示
                     const existingUpgradeCount = getUpgradeCountAtOrAboveLevel(levelNum + 1, count, upgradeLevels);
-                    const upgradeCost = levelNum < maxLevel ? getUpgradeCost(buildingId, levelNum + 1, existingUpgradeCount, growthFactor) : null;
+                    const baseUpgradeCost = levelNum < maxLevel ? getUpgradeCost(buildingId, levelNum + 1, existingUpgradeCount, growthFactor) : null;
+                    const upgradeCost = {};
+                    if (baseUpgradeCost) {
+                        Object.entries(baseUpgradeCost).forEach(([res, val]) => {
+                            upgradeCost[res] = Math.ceil(val * upgradeMultiplier);
+                        });
+                    }
                     const isActive = levelCount > 0;
 
                     return (

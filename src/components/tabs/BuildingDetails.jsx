@@ -7,7 +7,7 @@ import { getBuildingImageUrl } from '../../utils/imageRegistry';
 import { BuildingUpgradePanel } from './BuildingUpgradePanel';
 import { getBuildingEffectiveConfig } from '../../config/buildingUpgrades';
 import { canBuildingUpgrade, calculateBuildingCost, applyBuildingCostModifier } from '../../utils/buildingUpgradeUtils';
-import { getBuildingCostGrowthFactor } from '../../config/difficulty';
+import { getBuildingCostGrowthFactor, getBuildingCostBaseMultiplier } from '../../config/difficulty';
 import { formatNumberShortCN } from '../../utils/numberFormat';
 // 最低工资下限
 const MIN_ROLE_WAGE = 0.1;
@@ -449,7 +449,8 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
         const currentCount = buildings[b.id] || 0;
         const difficulty = gameState.difficulty;
         const growthFactor = getBuildingCostGrowthFactor(difficulty);
-        const totalCost = calculateBuildingCost(b.baseCost, currentCount, growthFactor);
+        const baseMultiplier = getBuildingCostBaseMultiplier(difficulty);
+        const totalCost = calculateBuildingCost(b.baseCost, currentCount, growthFactor, baseMultiplier);
         const buildingCostMod = gameState.modifiers?.officialEffects?.buildingCostMod || 0;
         // 传入基础成本，确保减免只作用于数量惩罚部分
         return applyBuildingCostModifier(totalCost, buildingCostMod, b.baseCost);

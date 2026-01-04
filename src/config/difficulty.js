@@ -41,6 +41,14 @@ export const DIFFICULTY_CONFIG = {
         newGameGracePeriod: 150,               // Long grace period
         // Economic modifiers
         inventoryTargetDaysMultiplier: 0.5,    // 50% inventory target (easy to satisfy, stable economy)
+        // [NEW] Configurable Parameters
+        taxToleranceMultiplier: 2.0,           // 200% tax tolerance (citizens tolerate higher taxes)
+        resourceConsumptionMultiplier: 0.9,    // 80% consumption
+        buildingCostBaseMultiplier: 1.0,       // 80% building cost
+        techCostMultiplier: 1.0,               // 80% tech cost
+        populationGrowthMultiplier: 1.5,       // 150% growth rate
+        buildingUpgradeCostMultiplier: 1.0,    // 80% upgrade cost
+        armyMaintenanceMultiplier: 0.5,        // 50% army maintenance
     },
     [DIFFICULTY_LEVELS.EASY]: {
         id: DIFFICULTY_LEVELS.EASY,
@@ -65,6 +73,14 @@ export const DIFFICULTY_CONFIG = {
         newGameGracePeriod: 100,               // Days of reduced threats at game start
         // Economic modifiers
         inventoryTargetDaysMultiplier: 0.7,    // 70% inventory target (slightly forgiving)
+        // [NEW] Configurable Parameters
+        taxToleranceMultiplier: 1.5,           // 150% tax tolerance
+        resourceConsumptionMultiplier: 1.0,    // 90% consumption
+        buildingCostBaseMultiplier: 1.2,       // 90% building cost
+        techCostMultiplier: 1.2,               // 90% tech cost
+        populationGrowthMultiplier: 1.2,       // 120% growth rate
+        buildingUpgradeCostMultiplier: 1.2,    // 90% upgrade cost
+        armyMaintenanceMultiplier: 0.75,       // 75% army maintenance
     },
     [DIFFICULTY_LEVELS.NORMAL]: {
         id: DIFFICULTY_LEVELS.NORMAL,
@@ -89,6 +105,14 @@ export const DIFFICULTY_CONFIG = {
         newGameGracePeriod: 0,                 // No grace period
         // Economic modifiers
         inventoryTargetDaysMultiplier: 1.0,    // Standard inventory target
+        // [NEW] Configurable Parameters
+        taxToleranceMultiplier: 1.0,           // Standard tax tolerance
+        resourceConsumptionMultiplier: 1.0,    // Standard consumption
+        buildingCostBaseMultiplier: 1.5,       // Standard building cost
+        techCostMultiplier: 1.5,               // Standard tech cost
+        populationGrowthMultiplier: 1.0,       // Standard growth rate
+        buildingUpgradeCostMultiplier: 1.5,    // Standard upgrade cost
+        armyMaintenanceMultiplier: 1.0,        // Standard army maintenance
     },
     [DIFFICULTY_LEVELS.HARD]: {
         id: DIFFICULTY_LEVELS.HARD,
@@ -113,6 +137,14 @@ export const DIFFICULTY_CONFIG = {
         newGameGracePeriod: 0,                 // No grace period
         // Economic modifiers
         inventoryTargetDaysMultiplier: 2.0,    // 200% inventory target (harder to maintain stable prices)
+        // [NEW] Configurable Parameters
+        taxToleranceMultiplier: 0.8,           // 80% tax tolerance (citizens hate taxes more)
+        resourceConsumptionMultiplier: 2.0,    // 110% consumption
+        buildingCostBaseMultiplier: 2.0,       // 200% building cost
+        techCostMultiplier: 2.0,               // 110% tech cost
+        populationGrowthMultiplier: 0.9,       // 90% growth rate
+        buildingUpgradeCostMultiplier: 2.0,    // 200% upgrade cost
+        armyMaintenanceMultiplier: 1.5,       // 125% army maintenance
     },
     [DIFFICULTY_LEVELS.VERY_HARD]: {
         id: DIFFICULTY_LEVELS.VERY_HARD,
@@ -137,6 +169,14 @@ export const DIFFICULTY_CONFIG = {
         newGameGracePeriod: 0,                 // No grace period
         // Economic modifiers
         inventoryTargetDaysMultiplier: 5.0,    // 500% inventory target (requires heavy stockpiling)
+        // [NEW] Configurable Parameters
+        taxToleranceMultiplier: 0.6,           // 60% tax tolerance
+        resourceConsumptionMultiplier: 3.0,   // 125% consumption
+        buildingCostBaseMultiplier: 3.0,      // 300% building cost
+        techCostMultiplier: 4.0,              // 125% tech cost
+        populationGrowthMultiplier: 0.8,       // 80% growth rate
+        buildingUpgradeCostMultiplier: 3.0,   // 125% upgrade cost
+        armyMaintenanceMultiplier: 2.0,        // 150% army maintenance
     },
     [DIFFICULTY_LEVELS.EXTREME]: {
         id: DIFFICULTY_LEVELS.EXTREME,
@@ -161,6 +201,14 @@ export const DIFFICULTY_CONFIG = {
         newGameGracePeriod: 0,                 // No grace period
         // Economic modifiers
         inventoryTargetDaysMultiplier: 10.0,   // 1000% inventory target (extreme stockpiling required)
+        // [NEW] Configurable Parameters
+        taxToleranceMultiplier: 0.4,           // 40% tax tolerance
+        resourceConsumptionMultiplier: 1.5,    // 150% consumption
+        buildingCostBaseMultiplier: 4.0,       // 400% building cost
+        techCostMultiplier: 1.5,               // 150% tech cost
+        populationGrowthMultiplier: 0.6,       // 60% growth rate
+        buildingUpgradeCostMultiplier: 4.0,    // 150% upgrade cost
+        armyMaintenanceMultiplier: 2.0,        // 200% army maintenance
     },
 };
 
@@ -340,4 +388,90 @@ export default {
     isInGracePeriod,
     getBuildingCostGrowthFactor,
     getInventoryTargetDaysMultiplier,
+    // [NEW] Helper functions
+    getTaxToleranceMultiplier,
+    getResourceConsumptionMultiplier,
+    getBuildingCostBaseMultiplier,
+    getTechCostMultiplier,
+    getPopulationGrowthMultiplier,
+    getBuildingUpgradeCostMultiplier,
+    getArmyMaintenanceMultiplier,
 };
+
+/**
+ * Get tax tolerance multiplier
+ * Higher values = more tolerance (easy)
+ * Lower values = less tolerance (hard)
+ * @param {string} difficultyLevel
+ * @returns {number} Multiplier (default 1.0)
+ */
+export function getTaxToleranceMultiplier(difficultyLevel) {
+    const config = getDifficultyConfig(difficultyLevel);
+    return config.taxToleranceMultiplier || 1.0;
+}
+
+/**
+ * Get resource consumption multiplier
+ * Higher values = more consumption (hard)
+ * @param {string} difficultyLevel
+ * @returns {number} Multiplier (default 1.0)
+ */
+export function getResourceConsumptionMultiplier(difficultyLevel) {
+    const config = getDifficultyConfig(difficultyLevel);
+    return config.resourceConsumptionMultiplier || 1.0;
+}
+
+/**
+ * Get building cost base multiplier
+ * Higher values = more expensive base cost (hard)
+ * @param {string} difficultyLevel
+ * @returns {number} Multiplier (default 1.0)
+ */
+export function getBuildingCostBaseMultiplier(difficultyLevel) {
+    const config = getDifficultyConfig(difficultyLevel);
+    return config.buildingCostBaseMultiplier || 1.0;
+}
+
+/**
+ * Get tech cost multiplier
+ * Higher values = more expensive tech (hard)
+ * @param {string} difficultyLevel
+ * @returns {number} Multiplier (default 1.0)
+ */
+export function getTechCostMultiplier(difficultyLevel) {
+    const config = getDifficultyConfig(difficultyLevel);
+    return config.techCostMultiplier || 1.0;
+}
+
+/**
+ * Get population growth multiplier
+ * Higher values = faster growth (easy)
+ * @param {string} difficultyLevel
+ * @returns {number} Multiplier (default 1.0)
+ */
+export function getPopulationGrowthMultiplier(difficultyLevel) {
+    const config = getDifficultyConfig(difficultyLevel);
+    return config.populationGrowthMultiplier || 1.0;
+}
+
+/**
+ * Get building upgrade cost multiplier
+ * Higher values = more expensive upgrades (hard)
+ * @param {string} difficultyLevel
+ * @returns {number} Multiplier (default 1.0)
+ */
+export function getBuildingUpgradeCostMultiplier(difficultyLevel) {
+    const config = getDifficultyConfig(difficultyLevel);
+    return config.buildingUpgradeCostMultiplier || 1.0;
+}
+
+/**
+ * Get army maintenance multiplier
+ * Higher values = more expensive armies (hard)
+ * @param {string} difficultyLevel
+ * @returns {number} Multiplier (default 1.0)
+ */
+export function getArmyMaintenanceMultiplier(difficultyLevel) {
+    const config = getDifficultyConfig(difficultyLevel);
+    return config.armyMaintenanceMultiplier || 1.0;
+}

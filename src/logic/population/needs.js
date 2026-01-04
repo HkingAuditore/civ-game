@@ -8,12 +8,14 @@ import { isResourceUnlocked } from '../../utils/resources';
 import { isTradableResource, getBasePrice } from '../utils/helpers';
 import { calculateLivingStandardData, calculateWealthMultiplier, calculateLuxuryConsumptionMultiplier, getSimpleLivingStandard } from '../../utils/livingStandard';
 import { applyBuyPriceControl } from '../officials/cabinetSynergy';
+import { getResourceConsumptionMultiplier } from '../../config/difficulty';
 
 /**
  * Process needs consumption for all strata
  * @param {Object} params - Consumption parameters
  * @returns {Object} Consumption results
  */
+
 export const processNeedsConsumption = ({
     popStructure,
     wealth,
@@ -33,13 +35,17 @@ export const processNeedsConsumption = ({
     logs,
     potentialResources = null,  // 已解锁建筑可产出资源集合（用于门控需求）
     priceControls = null,       // 政府价格管制设置
-    leftFactionDominant = false // 是否左派主导（只有左派主导时价格管制才生效）
+    leftFactionDominant = false, // 是否左派主导（只有左派主导时价格管制才生效）
+    difficulty = 'normal'
 }) => {
     const res = { ...resources };
     const updatedWealth = { ...wealth };
     const updatedDemand = { ...demand };
     const needsReport = {};
     const classShortages = {};
+
+    // Get difficulty multiplier (default 1.0)
+    const difficultyMultiplier = getResourceConsumptionMultiplier(difficulty);
 
     const getResourceTaxRate = (resource) => resourceTaxRates[resource] || 0;
 
@@ -116,7 +122,8 @@ export const processNeedsConsumption = ({
             // 检查是否有已解锁建筑能产出该资源（无已解锁建筑则无需求）
             if (potentialResources && !potentialResources.has(resKey)) return;
 
-            const perCapita = base * needsRequirementMultiplier;
+            // Apply difficulty multiplier to per capita needs
+            const perCapita = base * needsRequirementMultiplier * difficultyMultiplier;
             const requirement = perCapita * count;
             const available = res[resKey] || 0;
             let satisfied = 0;

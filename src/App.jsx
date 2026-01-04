@@ -1093,6 +1093,7 @@ function GameApp({ gameState }) {
                                                 canUpgradeEpoch={actions.canUpgradeEpoch}
                                                 market={gameState.market}
                                                 onShowTechDetails={handleShowTechDetails}
+                                                difficulty={gameState.difficulty}
                                             />
                                         )}
 
@@ -1774,7 +1775,7 @@ function GameApp({ gameState }) {
                                     showTradeRouteLogs: enabled,
                                 },
                             }))}
-                            />
+                        />
                     </div>
                 </div>
             )}

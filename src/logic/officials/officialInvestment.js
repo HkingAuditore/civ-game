@@ -168,6 +168,29 @@ const calculateUpgradeProfitGain = (building, fromLevel, toLevel, market, taxPol
     return nextProfit - currentProfit;
 };
 
+// 政治立场对应的投资概率乘数（基础概率）
+// 左派倾向于反对私有资本积累，右派倾向于支持
+const STANCE_INVESTMENT_PROBABILITY = {
+    // Left (Anti-Capitalist)
+    marxism: 0.0,             // 马克思主义：坚决反对私有制
+    primitive_communism: 0.05,
+    peasant_revolt: 0.1,
+    utopian_socialism: 0.2,
+    social_democracy: 0.4,
+
+    // Center / Unspecified (Default fallback)
+    // defined in fallback logic as 0.5
+
+    // Right (Pro-Capitalist)
+    legalism: 0.6,
+    conservatism: 0.7,
+    absolutism: 0.7,
+    aristocratic_oligarchy: 0.8,
+    feudalism: 0.8,
+    mercantilism: 0.9,
+    classical_liberalism: 1.0,
+};
+
 export const processOfficialInvestment = (
     official,
     currentDay,
@@ -180,6 +203,19 @@ export const processOfficialInvestment = (
     techsUnlocked = []
 ) => {
     if (!official?.investmentProfile) return null;
+
+    // 1. [NEW] 政治立场概率检查
+    // 根据官员的政治立场决定是否开启本次投资检查
+    // 默认为 0.5 (50% 概率)，极左派可能为 0 (永不投资)
+    const stance = official.politicalStance;
+    const stanceProb = STANCE_INVESTMENT_PROBABILITY[stance] !== undefined
+        ? STANCE_INVESTMENT_PROBABILITY[stance]
+        : 0.5;
+
+    // 如果概率为0（如马克思主义），直接返回
+    if (stanceProb <= 0) return null;
+    // 随机检定：如果未通过，本次不投资
+    if (Math.random() > stanceProb) return null;
 
     const profile = official.investmentProfile;
     if (currentDay - profile.lastInvestmentDay < INVESTMENT_COOLDOWN) return null;

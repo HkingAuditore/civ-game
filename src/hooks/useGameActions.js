@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { BUILDINGS, EPOCHS, RESOURCES, TECHS, MILITARY_ACTIONS, UNIT_TYPES, EVENTS, getRandomEvent, createWarDeclarationEvent, createGiftEvent, createPeaceRequestEvent, createEnemyPeaceRequestEvent, createPlayerPeaceProposalEvent, createBattleEvent, createAllianceRequestEvent, createAllianceProposalResultEvent, createAllianceBreakEvent, createNationAnnexedEvent, STRATA, BUILDING_UPGRADES, getMaxUpgradeLevel, getUpgradeCost } from '../config';
-import { getBuildingCostGrowthFactor } from '../config/difficulty';
+import { getBuildingCostGrowthFactor, getBuildingCostBaseMultiplier, getTechCostMultiplier, getBuildingUpgradeCostMultiplier } from '../config/difficulty';
 import { debugLog } from '../utils/debugFlags';
 import { getUpgradeCountAtOrAboveLevel, calculateBuildingCost, applyBuildingCostModifier } from '../utils/buildingUpgradeUtils';
 import { simulateBattle, calculateBattlePower, generateNationArmy } from '../config';
@@ -280,13 +280,18 @@ export const useGameActions = (gameState, addLog) => {
         if (nextEpoch.req.culture && resources.culture < nextEpoch.req.culture) return false;
 
         // 检查升级成本
+        const difficulty = gameState.difficulty || 'normal';
+        const techCostMultiplier = getTechCostMultiplier(difficulty);
+
         for (let k in nextEpoch.cost) {
-            if ((resources[k] || 0) < nextEpoch.cost[k]) return false;
+            const cost = Math.ceil(nextEpoch.cost[k] * techCostMultiplier);
+            if ((resources[k] || 0) < cost) return false;
         }
 
         // 检查银币成本
         const silverCost = Object.entries(nextEpoch.cost).reduce((sum, [resource, amount]) => {
-            return sum + amount * getMarketPrice(resource);
+            const cost = Math.ceil(amount * techCostMultiplier);
+            return sum + cost * getMarketPrice(resource);
         }, 0);
         if ((resources.silver || 0) < silverCost) return false;
 
@@ -301,15 +306,20 @@ export const useGameActions = (gameState, addLog) => {
 
         const nextEpoch = EPOCHS[epoch + 1];
         const newRes = { ...resources };
+        
+        const difficulty = gameState.difficulty || 'normal';
+        const techCostMultiplier = getTechCostMultiplier(difficulty);
 
         // 计算银币成本
         const silverCost = Object.entries(nextEpoch.cost).reduce((sum, [resource, amount]) => {
-            return sum + amount * getMarketPrice(resource);
+            const cost = Math.ceil(amount * techCostMultiplier);
+            return sum + cost * getMarketPrice(resource);
         }, 0);
 
         // 扣除成本和银币
         for (let k in nextEpoch.cost) {
-            newRes[k] -= nextEpoch.cost[k];
+            const cost = Math.ceil(nextEpoch.cost[k] * techCostMultiplier);
+            newRes[k] -= cost;
         }
         newRes.silver = Math.max(0, (newRes.silver || 0) - silverCost);
 
@@ -339,7 +349,9 @@ export const useGameActions = (gameState, addLog) => {
         // 计算成本（随数量递增）
         const difficultyLevel = gameState.difficulty || 'normal';
         const growthFactor = getBuildingCostGrowthFactor(difficultyLevel);
-        const cost = calculateBuildingCost(b.baseCost, count, growthFactor);
+        const baseMultiplier = getBuildingCostBaseMultiplier(difficultyLevel);
+        console.log(`[DEBUG] buyBuilding: diff=${difficultyLevel}, baseMult=${baseMultiplier}, growth=${growthFactor}`);
+        const cost = calculateBuildingCost(b.baseCost, count, growthFactor, baseMultiplier);
         const buildingCostMod = modifiers?.officialEffects?.buildingCostMod || 0;
         // 传入基础成本，确保减免只作用于数量惩罚部分
         const adjustedCost = applyBuildingCostModifier(cost, buildingCostMod, b.baseCost);
@@ -532,8 +544,16 @@ export const useGameActions = (gameState, addLog) => {
         const difficultyLevel = gameState.difficulty || 'normal';
         const growthFactor = getBuildingCostGrowthFactor(difficultyLevel);
         const existingUpgradeCount = getUpgradeCountAtOrAboveLevel(fromLevel + 1, count, levelCounts);
-
-        const upgradeCost = getUpgradeCost(buildingId, fromLevel + 1, existingUpgradeCount, growthFactor);
+        
+        const upgradeMultiplier = getBuildingUpgradeCostMultiplier(difficultyLevel);
+        const baseUpgradeCost = getUpgradeCost(buildingId, fromLevel + 1, existingUpgradeCount, growthFactor);
+        
+        const upgradeCost = {};
+        if (baseUpgradeCost) {
+            Object.entries(baseUpgradeCost).forEach(([res, val]) => {
+                upgradeCost[res] = Math.ceil(val * upgradeMultiplier);
+            });
+        }
         if (!upgradeCost) {
             addLog('无法获取升级费用。');
             return;
@@ -710,11 +730,17 @@ export const useGameActions = (gameState, addLog) => {
         // 获取困难系数
         const difficultyLevel = gameState.difficulty || 'normal';
         const growthFactor = getBuildingCostGrowthFactor(difficultyLevel);
+        const upgradeMultiplier = getBuildingUpgradeCostMultiplier(difficultyLevel);
 
         for (let i = 0; i < requestedCount; i++) {
             const currentExistingCount = baseExistingCount + i;
-            const cost = getUpgradeCost(buildingId, fromLevel + 1, currentExistingCount, growthFactor);
-            if (!cost) break;
+            const baseCost = getUpgradeCost(buildingId, fromLevel + 1, currentExistingCount, growthFactor);
+            if (!baseCost) break;
+
+            const cost = {};
+            Object.entries(baseCost).forEach(([res, val]) => {
+                cost[res] = Math.ceil(val * upgradeMultiplier);
+            });
 
             individualCosts.push(cost);
 
@@ -769,8 +795,15 @@ export const useGameActions = (gameState, addLog) => {
         const successCount = canAffordCount;
 
         if (successCount <= 0) {
-            const firstCost = getUpgradeCost(buildingId, fromLevel + 1, baseExistingCount, growthFactor);
-            if (firstCost) {
+            const firstBaseCost = getUpgradeCost(buildingId, fromLevel + 1, baseExistingCount, growthFactor);
+            const firstCost = {};
+            if (firstBaseCost) {
+                 Object.entries(firstBaseCost).forEach(([res, val]) => {
+                    firstCost[res] = Math.ceil(val * upgradeMultiplier);
+                });
+            }
+
+            if (firstCost && Object.keys(firstCost).length > 0) {
                 const hasMaterials = Object.entries(firstCost).every(([resource, amount]) => {
                     if (resource === 'silver') return true;
                     return (resources[resource] || 0) >= amount;
@@ -918,9 +951,13 @@ export const useGameActions = (gameState, addLog) => {
         }
 
         // 检查资源
+        const difficulty = gameState.difficulty || 'normal';
+        const techCostMultiplier = getTechCostMultiplier(difficulty);
+
         let canAfford = true;
         for (let resource in tech.cost) {
-            if ((resources[resource] || 0) < tech.cost[resource]) {
+            const cost = Math.ceil(tech.cost[resource] * techCostMultiplier);
+            if ((resources[resource] || 0) < cost) {
                 canAfford = false;
                 break;
             }
@@ -933,7 +970,8 @@ export const useGameActions = (gameState, addLog) => {
 
         // 计算银币成本
         const silverCost = Object.entries(tech.cost).reduce((sum, [resource, amount]) => {
-            return sum + amount * getMarketPrice(resource);
+            const cost = Math.ceil(amount * techCostMultiplier);
+            return sum + cost * getMarketPrice(resource);
         }, 0);
 
         // 检查银币是否足够
@@ -945,7 +983,8 @@ export const useGameActions = (gameState, addLog) => {
         // 扣除资源和银币
         const newRes = { ...resources };
         for (let resource in tech.cost) {
-            newRes[resource] -= tech.cost[resource];
+            const cost = Math.ceil(tech.cost[resource] * techCostMultiplier);
+            newRes[resource] -= cost;
         }
         newRes.silver = Math.max(0, (newRes.silver || 0) - silverCost);
 

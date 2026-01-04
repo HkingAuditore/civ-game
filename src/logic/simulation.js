@@ -121,7 +121,11 @@ import {
     calculateQuotaEffects,
     processOwnerExpansions
 } from './officials/cabinetSynergy'; // [FIX] Import directly from source
-import { getInventoryTargetDaysMultiplier } from '../config/difficulty';
+import {
+    getInventoryTargetDaysMultiplier,
+    getPopulationGrowthMultiplier,
+    getArmyMaintenanceMultiplier
+} from '../config/difficulty';
 import {
     calculateFinancialStatus,
     calculateOfficialPropertyProfit,
@@ -2190,7 +2194,12 @@ export const simulateTick = ({
 
     // === 新军费计算系统 ===
     // 1. 获取军队资源维护需求
+    const armyMaintenanceMultiplier = getArmyMaintenanceMultiplier(difficulty);
     const baseArmyMaintenance = calculateArmyMaintenance(army);
+    // Apply difficulty multiplier
+    Object.keys(baseArmyMaintenance).forEach(key => {
+        baseArmyMaintenance[key] = Math.ceil((baseArmyMaintenance[key] || 0) * armyMaintenanceMultiplier);
+    });
 
     // Apply wartime multiplier: 3x army maintenance during war
     const armyMaintenance = {};
@@ -4120,11 +4129,13 @@ export const simulateTick = ({
     let birthAccumulator = Math.max(0, previousBirthAccumulator || 0);
     let remainingCapacity = Math.max(0, totalMaxPop - nextPopulation);
     if (remainingCapacity > 0) {
-        const baselineContribution = Math.max(0, population || 0) * FERTILITY_BASELINE_RATE;
+        const popGrowthMultiplier = getPopulationGrowthMultiplier(difficulty);
+        if (Math.random() < 0.01) console.log(`[DEBUG] PopGrowth: diff=${difficulty}, mult=${popGrowthMultiplier}`);
+        const baselineContribution = Math.max(0, population || 0) * FERTILITY_BASELINE_RATE * popGrowthMultiplier;
         birthAccumulator += baselineContribution;
         if (population < LOW_POP_THRESHOLD) {
             const missingRatio = Math.max(0, (LOW_POP_THRESHOLD - population) / LOW_POP_THRESHOLD);
-            birthAccumulator += LOW_POP_GUARANTEE * missingRatio;
+            birthAccumulator += LOW_POP_GUARANTEE * missingRatio * popGrowthMultiplier;
         }
         const baselineBirths = Math.min(remainingCapacity, Math.floor(birthAccumulator));
         if (baselineBirths > 0) {
