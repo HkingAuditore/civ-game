@@ -224,6 +224,7 @@ export const BuildingUpgradePanel = ({
     taxPolicies = {},
     popStructure = {},
     classFinancialData = {},
+    buildingFinancialData = {},
     onUpgrade,
     onDowngrade,
     onBatchUpgrade,

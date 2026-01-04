@@ -14,7 +14,9 @@ const MIN_ROLE_WAGE = 0.1;
 
 /**
  * 获取角色的市场工资（直接从 market.wages 获取）
- * 这是 simulation.js 计算后的真实平均工资
+ * 这是 simulation.js 计算后的“全局平均工资”（跨所有建筑汇总后的均值）。
+ * 如果要展示某一栋建筑的“真实支付工资/真实经营收支”，请使用 simulation 输出的
+ * `gameState.buildingFinancialData[buildingId]`。
  */
 const getMarketWage = (role, market = {}) => {
     const wageFromMarket = market?.wages?.[role];
@@ -589,7 +591,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
         const hasBonus = actualAmount !== baseAmount;
         return [resKey, actualAmount, baseAmount, hasBonus];
     }).filter(([, amount]) => amount > 0);
-    // 计算当前建筑所有级别的加权平均收入（区分业主和雇员）
+    // Fallback income model (projection) when we don't have real per-building tick stats
     const buildingAvgIncomes = useMemo(() => {
         return calculateBuildingAverageIncomes(building, count, upgradeLevels, market, taxPolicies);
     }, [building, count, upgradeLevels, market, taxPolicies]);
@@ -605,21 +607,37 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
 
     const jobBreakdown = useMemo(() => {
         const ownerKey = building?.owner;
-
-        // 【已修改】显示建筑实际分配的工资：
-        // 业主收入 = (产出 - 投入 - 营业税 - 雇员工资池) / 业主岗位数
-        // 雇员收入 = 建筑净利润按生活成本权重分配
+        const finance = gameState?.buildingFinancialData?.[building.id];
 
         return Object.entries(effectiveTotalStats.jobs || {}).map(([role, required]) => {
             const filled = Math.min(jobFill?.[building.id]?.[role] ?? 0, required);
             const fillPercent = required > 0 ? (filled / required) * 100 : 0;
             const isOwner = role === ownerKey;
 
-            // 统一从 buildingAvgIncomes 获取收入（业主和雇员都使用建筑利润分配结果）
-            const incomeData = buildingAvgIncomes[role];
-            let displayIncome = Number.isFinite(incomeData?.avgIncome)
-                ? incomeData.avgIncome
-                : getMarketWage(role, market); // fallback to market wage
+            let displayIncome = null;
+
+            if (finance) {
+                if (isOwner) {
+                    const ownerSlots = (effectiveTotalStats.jobs?.[ownerKey] || 0) || 1;
+                    const profitPerBuilding =
+                        (finance.ownerRevenue || 0)
+                        - (finance.productionCosts || 0)
+                        - (finance.businessTaxPaid || 0)
+                        - Object.values(finance.wagesByRole || {}).reduce((s, v) => s + (v || 0), 0);
+                    displayIncome = profitPerBuilding / ownerSlots;
+                } else {
+                    const paid = finance.paidWagePerWorkerByRole?.[role];
+                    if (Number.isFinite(paid)) displayIncome = paid;
+                }
+            }
+
+            // Fallback to projection / market wage
+            if (!Number.isFinite(displayIncome)) {
+                const incomeData = buildingAvgIncomes[role];
+                displayIncome = Number.isFinite(incomeData?.avgIncome)
+                    ? incomeData.avgIncome
+                    : getMarketWage(role, market);
+            }
 
             return {
                 role,
@@ -631,7 +649,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                 isOwner
             };
         }).sort((a, b) => b.required - a.required);
-    }, [effectiveTotalStats, jobFill, building, market, buildingAvgIncomes]);
+    }, [effectiveTotalStats, jobFill, building, market, buildingAvgIncomes, gameState]);
 
     // 营业税逻辑
     const businessTaxMultiplier = taxPolicies?.businessTaxRates?.[building.id] ?? 1;
@@ -1054,6 +1072,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                 taxPolicies={taxPolicies}
                                 popStructure={popStructure}
                                 classFinancialData={classFinancialData}
+                                buildingFinancialData={gameState?.buildingFinancialData}
                                 onUpgrade={(fromLevel) => onUpgrade?.(building.id, fromLevel)}
                                 onDowngrade={(fromLevel) => onDowngrade?.(building.id, fromLevel)}
                                 onBatchUpgrade={(fromLevel, upgradeCount) => onBatchUpgrade?.(building.id, fromLevel, upgradeCount)}

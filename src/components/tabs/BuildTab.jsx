@@ -330,6 +330,7 @@ const BuildTabComponent = ({
     onSell,
     onShowDetails, // 新增：用于打开详情页的回调
     market,
+    buildingFinancialData = {},
     difficulty,
     buildingCostMod = 0,
 }) => {
@@ -374,43 +375,68 @@ const BuildTabComponent = ({
     const getActualOwnerPerCapitaIncome = (building, count) => {
         if (count === 0) return 0;
 
-        // 1. 计算建筑的有效工作比例
+        // Prefer real simulation stats when available
+        const finance = buildingFinancialData?.[building.id];
+        if (finance) {
+            const ownerSlots = building.jobs?.[building.owner] || 1;
+            const profitPerBuilding =
+                (finance.ownerRevenue || 0)
+                - (finance.productionCosts || 0)
+                - (finance.businessTaxPaid || 0)
+                - Object.values(finance.wagesByRole || {}).reduce((s, v) => s + (v || 0), 0);
+            return profitPerBuilding / ownerSlots;
+        }
+
+        // Fallback: heuristic estimate using working ratio + market wages
         const totalRequired = Object.values(building.jobs || {}).reduce((sum, per) => sum + per * count, 0);
         const totalAssigned = Object.values(jobFill?.[building.id] || {}).reduce((sum, num) => sum + num, 0);
         const workingRatio = totalRequired > 0 ? Math.min(1, totalAssigned / totalRequired) : 1;
 
-        // 2. 计算实际产出和投入价值
         const actualOutputValue = Object.entries(building.output || {}).reduce((sum, [res, val]) => sum + getResourcePrice(res) * val * workingRatio, 0);
         const actualInputValue = Object.entries(building.input || {}).reduce((sum, [res, val]) => sum + getResourcePrice(res) * val * workingRatio, 0);
 
-        // 3. 计算实际薪资成本（只给已分配的工人发薪水）
         const actualWageCost = Object.entries(jobFill?.[building.id] || {}).reduce((sum, [job, assignedCount]) => {
             const wage = market?.wages?.[job] ?? 0;
-            return sum + wage * (assignedCount / count); // 平均到每个建筑
+            return sum + wage * (assignedCount / count);
         }, 0);
 
         const actualProfitPerBuilding = actualOutputValue - actualInputValue - actualWageCost;
-        const ownerWage = (building.owner && market?.wages?.[building.owner]) ? (market.wages[building.owner] * (building.jobs[building.owner] || 0)) : 0;
         const ownerWorkers = building.jobs?.[building.owner] || 1;
-        return (actualProfitPerBuilding + ownerWage) / ownerWorkers;
+        return actualProfitPerBuilding / ownerWorkers;
     };
 
     const getJobIncomePerBuilding = (building, ownerIncome) => {
+        const finance = buildingFinancialData?.[building.id];
+
         const jobEntries = Object.keys(building.jobs || {}).map(job => {
-            const wage = market?.wages?.[job] ?? 0;
+            const realPerCapita = finance?.paidWagePerWorkerByRole?.[job];
+            const wage = Number.isFinite(realPerCapita)
+                ? realPerCapita
+                : (market?.wages?.[job] ?? 0);
             return {
                 job,
                 perCapitaIncome: wage,
             };
         });
-        if (building.owner && jobEntries.every(entry => entry.perCapitaIncome === 0)) {
+
+        // Owner: if we have finance stats, use realized owner income per slot.
+        if (building.owner) {
             const ownerRole = jobEntries.find(entry => entry.job === building.owner);
             if (ownerRole) {
-                // 修复：将总利润除以该岗位的工人数量，得到人均收入
-                const workerCount = building.jobs[building.owner] || 1;
-                ownerRole.perCapitaIncome = ownerIncome / workerCount;
+                const ownerSlots = building.jobs?.[building.owner] || 1;
+                if (finance) {
+                    const profitPerBuilding =
+                        (finance.ownerRevenue || 0)
+                        - (finance.productionCosts || 0)
+                        - (finance.businessTaxPaid || 0)
+                        - Object.values(finance.wagesByRole || {}).reduce((s, v) => s + (v || 0), 0);
+                    ownerRole.perCapitaIncome = profitPerBuilding / ownerSlots;
+                } else if (jobEntries.every(entry => entry.perCapitaIncome === 0)) {
+                    ownerRole.perCapitaIncome = ownerIncome / ownerSlots;
+                }
             }
         }
+
         return jobEntries;
     };
 

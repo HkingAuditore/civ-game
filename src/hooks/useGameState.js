@@ -655,6 +655,7 @@ export const useGameState = () => {
     const [classIncome, setClassIncome] = useState({});
     const [classExpense, setClassExpense] = useState({});
     const [classFinancialData, setClassFinancialData] = useState({}); // Detailed financial breakdown
+    const [buildingFinancialData, setBuildingFinancialData] = useState({}); // Per-building realized financial stats
     const [classWealthHistory, setClassWealthHistory] = useState(buildInitialWealthHistory());
     const [classNeedsHistory, setClassNeedsHistory] = useState(buildInitialNeedsHistory());
     const [totalInfluence, setTotalInfluence] = useState(0);
@@ -1030,6 +1031,7 @@ export const useGameState = () => {
                 classIncome,
                 classExpense,
                 classFinancialData,
+                buildingFinancialData,
                 classWealthHistory,
                 classNeedsHistory,
                 totalInfluence,
