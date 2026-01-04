@@ -8,6 +8,50 @@ import { POLITICAL_STANCES } from '../../config/politicalStances';
 // Legacy decree pool (curated) for the Centrist cabinet.
 import { DECREES as LEGACY_DECREES, CENTRIST_CABINET_DECREES } from '../../config/decrees_deprecated';
 
+// [NEW] Convert legacy (permanent) decrees into timed/costed decrees.
+// This allows us to reuse the existing reform-decree pipeline (duration + cooldown + silver cost).
+const DEFAULT_LEGACY_DECREE_DURATION = 30;
+const DEFAULT_LEGACY_DECREE_COOLDOWN = 45;
+
+const mapLegacyDecreeToTimed = (legacy) => {
+    if (!legacy) return null;
+
+    // legacy: { id, name, desc, modifiers, ... }
+    return {
+        id: legacy.id,
+        name: legacy.name,
+        icon: legacy.icon || 'Scroll',
+        description: legacy.desc || '',
+        // The reform-decree UI expects `effects`.
+        // We store legacy modifiers into effects directly; downstream aggregation reads `data.effects`.
+        effects: legacy.modifiers || {},
+        // Cost scaling: prefer explicit legacy cost if present; otherwise fall back to a moderate default.
+        cost: Number.isFinite(legacy.cost) ? legacy.cost : 120,
+        duration: Number.isFinite(legacy.duration) ? legacy.duration : DEFAULT_LEGACY_DECREE_DURATION,
+        cooldown: Number.isFinite(legacy.cooldown) ? legacy.cooldown : DEFAULT_LEGACY_DECREE_COOLDOWN,
+        // Optional: legacy tags can be used by UI for grouping/search.
+        tags: legacy.tags || [],
+        category: legacy.category || 'legacy',
+        // Keep reference for detail sheet if needed.
+        _legacy: true,
+    };
+};
+
+export const TIMED_LEGACY_DECREES = (Array.isArray(LEGACY_DECREES) ? LEGACY_DECREES : [])
+    .map(mapLegacyDecreeToTimed)
+    .filter(Boolean)
+    .reduce((acc, d) => {
+        acc[d.id] = d;
+        return acc;
+    }, {});
+
+// NOTE: `REFORM_DECREES` is declared later in this file.
+// Use a getter to avoid TDZ errors ("Cannot access 'REFORM_DECREES' before initialization").
+export const getAllTimedDecrees = () => ({
+    ...REFORM_DECREES,
+    ...TIMED_LEGACY_DECREES,
+});
+
 /**
  * Build the Centrist cabinet decree list from the legacy decree config.
  * Returns full decree objects with `active` flags so they can be fed into the existing decree pipeline.
@@ -426,8 +470,8 @@ export const getCabinetEffects = (officials, capacity = 3, epoch = 0) => {
  * @returns {Object} { available, reason }
  */
 export const isDecreeAvailable = (decreeId, activeDecrees, decreeCooldowns, currentDay, silver) => {
-    const decree = REFORM_DECREES[decreeId];
-    if (!decree) return { available: false, reason: '无效的法令' };
+    const decree = getAllTimedDecrees()[decreeId];
+    if (!decree) return { available: false, reason: '未知法令' };
 
     // 检查是否正在生效
     if (activeDecrees && activeDecrees[decreeId]) {
@@ -461,8 +505,8 @@ export const isDecreeAvailable = (decreeId, activeDecrees, decreeCooldowns, curr
  * @returns {Object} { success, newActiveDecrees, newCooldowns, cost }
  */
 export const enactDecree = (decreeId, activeDecrees, decreeCooldowns, currentDay) => {
-    const decree = REFORM_DECREES[decreeId];
-    if (!decree) return { success: false, error: '无效的法令' };
+    const decree = getAllTimedDecrees()[decreeId];
+    if (!decree) return { success: false, cost: 0 };
 
     const newActiveDecrees = { ...activeDecrees };
     const newCooldowns = { ...decreeCooldowns };
@@ -530,16 +574,19 @@ export const getActiveDecreeEffects = (activeDecrees) => {
     if (!activeDecrees) return aggregated;
 
     Object.values(activeDecrees).forEach(data => {
-        const effects = data.effects;
-        if (!effects) return;
-
-        Object.entries(effects).forEach(([key, value]) => {
-            if (key === 'approval' && typeof value === 'object') {
-                Object.entries(value).forEach(([stratum, val]) => {
-                    aggregated.approval[stratum] = (aggregated.approval[stratum] || 0) + val;
+        // data.effects is the decree effects object
+        if (!data?.effects) return;
+        Object.entries(data.effects).forEach(([key, value]) => {
+            if (typeof value === 'number') {
+                aggregated[key] = (aggregated[key] || 0) + value;
+            } else if (typeof value === 'object' && value !== null) {
+                // Merge nested objects (e.g. categories)
+                aggregated[key] = aggregated[key] || {};
+                Object.entries(value).forEach(([subKey, subVal]) => {
+                    if (typeof subVal === 'number') {
+                        aggregated[key][subKey] = (aggregated[key][subKey] || 0) + subVal;
+                    }
                 });
-            } else if (aggregated.hasOwnProperty(key)) {
-                aggregated[key] += value;
             }
         });
     });

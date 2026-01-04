@@ -674,7 +674,16 @@ export const useGameState = () => {
     const [populationDetailView, setPopulationDetailView] = useState(false);
     const [history, setHistory] = useState(buildInitialHistory());
     const [eventEffectSettings, setEventEffectSettings] = useState(DEFAULT_EVENT_EFFECT_SETTINGS);
-    const [activeEventEffects, setActiveEventEffects] = useState(buildInitialEventEffects());
+    const [activeEventEffects, setActiveEventEffects] = useState(buildInitialEventEffects());       
+
+    // ========== 财政（实际口径） ==========
+    // Stores realized per-tick treasury changes and actual payments (not "planned" amounts).
+    const [fiscalActual, setFiscalActual] = useState({
+        silverDelta: 0,
+        officialSalaryPaid: 0,
+        forcedSubsidyPaid: 0,
+        forcedSubsidyUnpaid: 0,
+    });
 
     // ========== 时间状态 ==========
     const [daysElapsed, setDaysElapsed] = useState(0);
@@ -1898,6 +1907,10 @@ export const useGameState = () => {
         setEventEffectSettings,
         activeEventEffects,
         setActiveEventEffects,
+
+        // 财政（实际口径）
+        fiscalActual,
+        setFiscalActual,
 
         // 军事系统
         army,

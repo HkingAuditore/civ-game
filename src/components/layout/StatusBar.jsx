@@ -20,7 +20,7 @@ export const StatusBar = ({
     tradeStats = { tradeTax: 0 },
     armyFoodNeed,
     silverUpkeepPerDay = 0, // 新增：从 App.jsx 传入的实际军费
-    officialSalaryPerDay = 0, // 新增：官员薪水
+    officialSalaryPerDay = 0, // 新增：官员薪水（planned/nominal)
     playerInstallmentPayment = null,
     activeEventEffects = {},
     onResourceDetailClick,
@@ -97,7 +97,14 @@ export const StatusBar = ({
     const tradeTax = tariffFromBreakdown + tariffFromTradeStats;
     const policyIncome = taxes.breakdown?.policyIncome || 0;
     const policyExpense = taxes.breakdown?.policyExpense || 0;
-    const netSilverClass = netSilverPerDay >= 0 ? 'text-green-300' : 'text-red-300';
+
+    // Use realized numbers to keep UI consistent with actual treasury changes
+    const actualNetSilver = Number(gameState?.fiscalActual?.silverDelta ?? netSilverPerDay ?? 0);
+    const actualOfficialSalaryPaid = Number(gameState?.fiscalActual?.officialSalaryPaid ?? 0);
+    const actualForcedSubsidyPaid = Number(gameState?.fiscalActual?.forcedSubsidyPaid ?? 0);
+    const actualForcedSubsidyUnpaid = Number(gameState?.fiscalActual?.forcedSubsidyUnpaid ?? 0);
+
+    const netSilverClass = actualNetSilver >= 0 ? 'text-green-300' : 'text-red-300';
     const tradeTaxClass = tradeTax >= 0 ? 'text-emerald-300' : 'text-red-300';
 
     // 获取当前时代信息
@@ -331,10 +338,10 @@ export const StatusBar = ({
                                     </span>
                                 </div>
                                 {/* 净收入指示 */}
-                                <div className={`flex items-center gap-0.5 text-[9px] px-1 py-0.5 rounded ${netSilverPerDay >= 0 ? 'bg-green-900/30' : 'bg-red-900/30'}`}>
-                                    <Icon name={netSilverPerDay >= 0 ? 'TrendingUp' : 'TrendingDown'} size={9} className={netSilverClass} />
+                                <div className={`flex items-center gap-0.5 text-[9px] px-1 py-0.5 rounded ${actualNetSilver >= 0 ? 'bg-green-900/30' : 'bg-red-900/30'}`}>
+                                    <Icon name={actualNetSilver >= 0 ? 'TrendingUp' : 'TrendingDown'} size={9} className={netSilverClass} />
                                     <span className={`font-mono ${netSilverClass}`}>
-                                        {netSilverPerDay >= 0 ? '+' : ''}{formatNumberShortCN(Math.abs(netSilverPerDay || 0), { decimals: 1 })}
+                                        {actualNetSilver >= 0 ? '+' : ''}{formatNumberShortCN(Math.abs(actualNetSilver || 0), { decimals: 1 })}
                                     </span>
                                 </div>
                             </button>
@@ -364,7 +371,7 @@ export const StatusBar = ({
                                                 <div className="flex items-center justify-between text-[11px] text-ancient-parchment mb-2">
                                                     <span className="font-bold flex items-center gap-1.5">
                                                         <Icon name="BarChart" size={12} className="text-ancient-gold" />
-                                                        财政收支 (每日)
+                                                        财政收支 (本日·实际)
                                                     </span>
                                                     <button onClick={() => setShowTaxDetail(false)}>
                                                         <Icon name="X" size={14} className="text-ancient-stone hover:text-white" />
@@ -417,7 +424,7 @@ export const StatusBar = ({
                                                     {officialSalaryPerDay > 0 && (
                                                         <div className="stat-item-compact">
                                                             <span className="text-ancient-stone">官员薪俸</span>
-                                                            <span className="text-red-300 font-mono">-{formatNumberShortCN(officialSalaryPerDay, { decimals: 1 })}</span>
+                                                            <span className="text-red-300 font-mono">-{formatNumberShortCN((actualOfficialSalaryPaid > 0 ? actualOfficialSalaryPaid : officialSalaryPerDay), { decimals: 1 })}</span>
                                                         </div>
                                                     )}
                                                     {taxes.breakdown?.subsidy > 0 && (
@@ -452,19 +459,18 @@ export const StatusBar = ({
                                                     )}
 
                                                     {activeEventEffects?.forcedSubsidy?.length > 0 && (
-                                                        <div className="text-xs text-amber-400 mb-1">
-                                                            强制补贴 ({activeEventEffects.forcedSubsidy.length}项):
-                                                        </div>
+                                                        <>
+                                                            <div className="stat-item-compact">
+                                                                <span className="text-ancient-stone">强制补贴</span>
+                                                                <span className="text-red-300 font-mono">-{formatNumberShortCN(Math.abs(actualForcedSubsidyPaid || 0), { decimals: 1 })}</span>
+                                                            </div>
+                                                            {actualForcedSubsidyUnpaid > 0 && (
+                                                                <div className="text-[10px] text-amber-400/90 leading-tight">
+                                                                    欠付 {formatNumberShortCN(actualForcedSubsidyUnpaid, { decimals: 1 })}（国库不足）
+                                                                </div>
+                                                            )}
+                                                        </>
                                                     )}
-                                                    {Array.isArray(activeEventEffects?.forcedSubsidy) && activeEventEffects.forcedSubsidy.map((subsidy, index) => (
-                                                        <div key={subsidy.id || index} className="stat-item-compact">
-                                                            <span className="text-ancient-stone flex items-center gap-1">
-                                                                <span>{subsidy.name || '强制补贴'}</span>
-                                                                <span className="text-[8px] text-amber-400">({subsidy.remainingDays}天)</span>
-                                                            </span>
-                                                            <span className="text-red-300 font-mono">-{formatNumberShortCN(Math.abs(subsidy.dailyAmount || 0), { decimals: 1 })}</span>
-                                                        </div>
-                                                    ))}
 
                                                     <div className="epic-divider" />
 
@@ -472,7 +478,7 @@ export const StatusBar = ({
                                                     <div className="stat-item-compact bg-ancient-gold/10">
                                                         <span className="font-bold text-ancient-parchment">净收益</span>
                                                         <span className={`font-bold font-mono ${netSilverClass}`}>
-                                                            {netSilverPerDay >= 0 ? '+' : ''}{formatNumberShortCN(Math.abs(netSilverPerDay || 0), { decimals: 1 })}
+                                                            {actualNetSilver >= 0 ? '+' : ''}{formatNumberShortCN(Math.abs(actualNetSilver || 0), { decimals: 1 })}
                                                         </span>
                                                     </div>
                                                 </div>

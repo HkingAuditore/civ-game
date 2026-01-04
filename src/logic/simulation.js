@@ -554,7 +554,17 @@ export const simulateTick = ({
     applyTechEffects(techsUnlocked, bonuses);
 
     // Apply decree effects using module function
-    applyDecreeEffects(decrees, bonuses);
+    // IMPORTANT: decrees are now sourced from `activeDecrees` (timed system).
+    // We convert `{ decreeId: { effects } }` into the legacy structure expected by applyDecreeEffects.
+    const decreesFromActive = activeDecrees
+        ? Object.entries(activeDecrees).map(([id, data]) => ({
+            id,
+            active: true,
+            modifiers: data?.effects || data?.modifiers
+        }))
+        : [];
+
+    applyDecreeEffects(decreesFromActive, bonuses);
 
     // Apply festival effects using module function
     applyFestivalEffects(activeFestivalEffects, bonuses);
@@ -1143,7 +1153,7 @@ export const simulateTick = ({
         }
     });
 
-    const forcedLabor = Array.isArray(decrees) && decrees.some(d => d.id === 'forced_labor' && d.active);
+    const forcedLabor = !!(activeDecrees && activeDecrees.forced_labor);
 
     // console.log('[TICK] Starting production loop...'); // Commented for performance
     BUILDINGS.forEach(b => {
@@ -2650,37 +2660,33 @@ export const simulateTick = ({
         // logs.push('劳动力因需求未满足而效率下降。');
     }
 
-    let decreeApprovalModifiers = {};
+    // Decree approval modifiers now come from `activeDecrees` (timed system)
+    const decreesFromActiveForApproval = activeDecrees
+        ? Object.entries(activeDecrees).map(([id, data]) => ({
+            id,
+            active: true,
+            modifiers: data?.effects || data?.modifiers
+        }))
+        : [];
 
-    if (Array.isArray(decrees)) {
-        decrees.forEach(d => {
-            if (d.active) {
-                // 通用阶级满意度修正
-                if (d.modifiers && d.modifiers.approval) {
-                    Object.entries(d.modifiers.approval).forEach(([strata, value]) => {
-                        decreeApprovalModifiers[strata] = (decreeApprovalModifiers[strata] || 0) + value;
-                    });
-                }
+    let decreeApprovalModifiers = calculateDecreeApprovalModifiers(decreesFromActiveForApproval);
 
-                if (d.id === 'forced_labor') {
-                    // 强制劳役的特殊逻辑保留，作为额外惩罚，或者可以在配置中完全替代
-                    // 这里保留是为了兼容旧配置，但建议在配置中定义 approval 修正
-                    if (popStructure.serf > 0) classApproval.serf = Math.max(0, (classApproval.serf || 50) - 5); // 减弱硬编码惩罚
-                }
-                if (d.id === 'tithe') {
-                    if (popStructure.cleric > 0) classApproval.cleric = Math.max(0, (classApproval.cleric || 50) - 2); // 减弱硬编码惩罚
-                    const titheDue = (popStructure.cleric || 0) * 2 * effectiveTaxModifier;
-                    if (titheDue > 0) {
-                        const available = wealth.cleric || 0;
-                        const paid = Math.min(available, titheDue);
-                        wealth.cleric = Math.max(0, available - paid);
-                        taxBreakdown.headTax += paid;
-                        // 记录什一税支出
-                        roleExpense.cleric = (roleExpense.cleric || 0) + paid;
-                    }
-                }
-            }
-        });
+    // Keep a few legacy special-cases, but key off `activeDecrees`
+    if (activeDecrees?.forced_labor) {
+        if (popStructure.serf > 0) classApproval.serf = Math.max(0, (classApproval.serf || 50) - 5);
+    }
+
+    if (activeDecrees?.tithe) {
+        if (popStructure.cleric > 0) classApproval.cleric = Math.max(0, (classApproval.cleric || 50) - 2);
+        const titheDue = (popStructure.cleric || 0) * 2 * effectiveTaxModifier;
+        if (titheDue > 0) {
+            const available = wealth.cleric || 0;
+            const paid = Math.min(available, titheDue);
+            wealth.cleric = Math.max(0, available - paid);
+            taxBreakdown.headTax += paid;
+            // 记录什一税支出
+            roleExpense.cleric = (roleExpense.cleric || 0) + paid;
+        }
     }
 
     // REFACTORED: Use shared calculateLivingStandards function from needs.js
@@ -4939,7 +4945,10 @@ export const simulateTick = ({
 
     // [FIX] 同步更新 classLivingStandard 中的 wealthPerCapita
     // 因为 calculateLivingStandards 在 wealth 完全更新前调用，导致 wealthPerCapita 可能滞后
+    // 注意：跳过官员阶层，因为官员财富使用独立管理机制（在第 3306-3320 行已正确设置）
     Object.keys(STRATA).forEach(key => {
+        // 跳过官员阶层，官员的 wealthPerCapita 在官员模拟循环后已正确设置
+        if (key === 'official') return;
         if (classLivingStandard[key]) {
             const count = popStructure[key] || 0;
             const wealthValue = classWealthResult[key] || 0;

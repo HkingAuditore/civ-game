@@ -242,29 +242,6 @@ export const DecreeDetailSheet = ({
             : '点击"颁布"按钮即可激活该政策。激活后政策效果将立即生效。'
           }
         </p>      </div>
-
-      {/* 操作按钮 */}
-      <div className="pt-2">
-        <button
-          onClick={() => {
-            if (onToggle) {
-              onToggle(decree.id);
-              onClose();
-            }
-          }}
-          disabled={!onToggle}
-          className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-bold text-sm transition-all ${
-            onToggle
-              ? isActive
-                ? 'bg-red-600 hover:bg-red-500 text-white shadow-lg hover:shadow-xl active:scale-95'
-                : 'bg-green-600 hover:bg-green-500 text-white shadow-lg hover:shadow-xl active:scale-95'
-              : 'bg-gray-600 text-gray-400 cursor-not-allowed'
-          }`}
-        >
-          <Icon name={isActive ? "XCircle" : "CheckCircle"} size={18} />
-          <span>{isActive ? '废除政策' : '颁布政策'}</span>
-        </button>
-      </div>
     </div>
   );
 };

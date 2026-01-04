@@ -25,7 +25,7 @@ import {
     REBEL_DEMAND_SURRENDER_TYPE,
 } from '../config/events';
 import { calculateTotalDailySalary, getCabinetStatus, calculateOfficialCapacity } from '../logic/officials/manager';
-import { processDecreeExpiry, REFORM_DECREES } from '../logic/officials/cabinetSynergy';
+import { processDecreeExpiry, getAllTimedDecrees } from '../logic/officials/cabinetSynergy';
 // 新版组织度系统
 import {
     updateAllOrganizationStates,
@@ -730,6 +730,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
         setOfficials, // 官员状态更新函数
         officialCapacity, // 官员容量
         setOfficialCapacity, // 官员容量更新函数
+        setFiscalActual, // [NEW] realized fiscal numbers per tick
     } = gameState;
 
     // 使用ref保存最新状态，避免闭包问题
@@ -1139,7 +1140,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
                     // 记录过期法令日志
                     expiredDecrees.forEach(decreeId => {
-                        const decree = REFORM_DECREES[decreeId];
+                        const decree = getAllTimedDecrees()[decreeId];
                         const decreeName = decree?.name || decreeId;
                         addLog(`法令「${decreeName}」已到期结束。`);
                     });
@@ -1387,13 +1388,20 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     adjustedResources[resource] = Math.max(0, (adjustedResources[resource] || 0) - amount);
                 });
 
-                // 扣除官员薪水
+                // --- Realized fiscal tracking (must match treasury changes) ---
+                // Baseline must be the simulated treasury for this tick (result.resources.silver),
+                // not the previous state's treasury, otherwise UI can show 0 even when we paid salary.
+                const treasuryBeforeDeductions = Number(result.resources?.silver || 0);
+                let officialSalaryPaid = 0;
+                let forcedSubsidyPaid = 0;
+                let forcedSubsidyUnpaid = 0;
+
+                // 扣除官员薪水（实付：最多扣到0）
                 if (officialDailySalary > 0) {
-                    // 即使这一帧因为钱不够而导致效果减半，也会扣光剩余的钱（或者如果不够就不扣？通常游戏逻辑是尽可能扣，然后产生后果）
-                    // 根据之前设计：Salary Insufficiency Penalty: If the treasury lacks sufficient silver... officials will not be dismissed. Instead, all active official effects will be halved.
-                    // 前面已经根据 canAffordOfficials 传给了 simulateTick。
-                    // 这里我们实际扣款。如果不够，就扣光。
-                    adjustedResources.silver = Math.max(0, (adjustedResources.silver || 0) - officialDailySalary);
+                    const before = Number(adjustedResources.silver || 0);
+                    const pay = Math.min(officialDailySalary, before);
+                    adjustedResources.silver = before - pay;
+                    officialSalaryPaid = pay;
                 }
 
                 // 处理强制补贴效果（每日从国库支付给指定阶层）
@@ -1409,10 +1417,13 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             const dailyAmount = subsidy.dailyAmount || 0;
                             const stratumKey = subsidy.stratumKey;
 
-                            // 从国库扣除
-                            const treasuryBefore = adjustedResources.silver || 0;
+                            // 从国库扣除（实付：受国库余额约束）
+                            const treasuryBefore = Number(adjustedResources.silver || 0);
                             const actualPayment = Math.min(dailyAmount, treasuryBefore);
                             adjustedResources.silver = treasuryBefore - actualPayment;
+
+                            forcedSubsidyPaid += actualPayment;
+                            forcedSubsidyUnpaid += Math.max(0, dailyAmount - actualPayment);
 
                             // 记录阶层财富增加量
                             if (stratumKey && actualPayment > 0) {
@@ -1421,6 +1432,17 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         }
                     });
                     // forcedSubsidy 的天数递减和过期清理在下面统一处理
+                }
+
+                // Save realized fiscal data for UI
+                if (typeof setFiscalActual === 'function') {
+                    const treasuryAfterDeductions = Number(adjustedResources.silver || 0);
+                    setFiscalActual({
+                        silverDelta: treasuryAfterDeductions - treasuryBeforeDeductions,
+                        officialSalaryPaid,
+                        forcedSubsidyPaid,
+                        forcedSubsidyUnpaid,
+                    });
                 }
 
                 setResources(adjustedResources);
@@ -3532,7 +3554,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                             relation: Math.max(0, (n.relation || 50) - 5)
                                                         };
                                                     }));
-                                                    addLog(`💔 你拒绝援助盟友 ${ally.name}，${ally.name} 解除与你的联盟！你获得了“背叛者”的声誉。`);
+                                                    addLog(`💔 你拒绝援助盟友 ${ally.name}，${ally.name} 解除与你的联盟！你获得了"背叛者"的声誉。`);
                                                 }
                                             }
                                         );

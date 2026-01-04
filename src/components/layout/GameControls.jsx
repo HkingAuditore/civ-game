@@ -98,7 +98,6 @@ export const GameControls = ({
                 !gameMenuContentRef.current?.contains(target)
             ) {
                 setIsGameMenuOpen(false);
-                setIsLoadMenuOpen(false);
             }
             if (
                 isHelpMenuOpen &&
@@ -115,8 +114,6 @@ export const GameControls = ({
     const handleGameMenuToggle = () => {
         if (!isGameMenuOpen) {
             updateGameMenuPosition();
-        } else {
-            setIsLoadMenuOpen(false);
         }
         setIsGameMenuOpen((prev) => !prev);
     };

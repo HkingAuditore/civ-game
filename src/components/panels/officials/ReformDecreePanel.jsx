@@ -5,8 +5,10 @@
 
 import React from 'react';
 import { Icon } from '../../common/UIComponents';
-import { REFORM_DECREES, isDecreeAvailable } from '../../../logic/officials/cabinetSynergy';
+import { getAllTimedDecrees, isDecreeAvailable } from '../../../logic/officials/cabinetSynergy';
 import { STRATA } from '../../../config/strata';
+import { BUILDINGS } from '../../../config/buildings';
+import { RESOURCES } from '../../../config/gameConstants';
 
 /**
  * 格式化效果显示
@@ -23,30 +25,133 @@ const formatDecreeEffect = (key, value) => {
         maxPop: '人口上限',
         gatherBonus: '采集产出',
         populationGrowth: '人口增长', // 新增
+        incomePercent: '财政收入',
+        buildCostReduction: '建筑成本',
+        needsReduction: '居民需求',
     };
+
+    const buildingNameById = React.useMemo(() => {
+        const map = Object.create(null);
+        (BUILDINGS || []).forEach(b => {
+            if (b?.id) map[b.id] = b.name || b.id;
+        });
+        return map;
+    }, []);
+
+    const resourceNameById = React.useMemo(() => {
+        const map = Object.create(null);
+        Object.entries(RESOURCES || {}).forEach(([id, cfg]) => {
+            map[id] = cfg?.name || id;
+        });
+        return map;
+    }, []);
+
+    const stratumNameById = React.useMemo(() => {
+        const map = Object.create(null);
+        Object.entries(STRATA || {}).forEach(([id, cfg]) => {
+            map[id] = cfg?.name || id;
+        });
+        return map;
+    }, []);
+
+    // Small helpers
+    const percent = (n) => `${n > 0 ? '+' : ''}${Math.round(n * 100)}%`;
+    const signed = (n) => `${n > 0 ? '+' : ''}${n}`;
 
     // 处理 categories 对象
     if (key === 'categories') {
         const catLabels = { gather: '采集', industry: '工业', civic: '民用', military: '军事' };
         return Object.entries(value).map(([cat, val]) => {
             const catName = catLabels[cat] || cat;
-            return `${catName}产出 ${val > 0 ? '+' : ''}${Math.round(val * 100)}%`;
+            return `${catName}产出 ${percent(val)}`;
+        }).join(', ');
+    }
+
+    // 处理 buildings 对象（按建筑类型的产出修正）
+    if (key === 'buildings') {
+        return Object.entries(value).map(([b, val]) => {
+            const buildingName = buildingNameById[b] || b;
+            return `${buildingName}产出 ${percent(val)}`;
+        }).join(', ');
+    }
+
+    // buildings_negative：与 buildings 类似，但明确为“负面修正”（用于描述里单独列出来）
+    if (key === 'buildings_negative') {
+        return Object.entries(value).map(([b, val]) => {
+            const buildingName = buildingNameById[b] || b;
+            return `${buildingName}产出 ${percent(val)}`;
+        }).join(', ');
+    }
+
+    // 处理 passive 对象（直接增加资源/点数）
+    if (key === 'passive') {
+        return Object.entries(value).map(([res, val]) => {
+            const name = resourceNameById[res] || res;
+            if (typeof val === 'number') return `${name} ${signed(val)}`;
+            return `${name} ${String(val)}`;
+        }).join(', ');
+    }
+
+    // 处理 passivePercent 对象（资源百分比修正：silver/food 等）
+    if (key === 'passivePercent') {
+        return Object.entries(value).map(([res, val]) => {
+            const name = resourceNameById[res] || res;
+            return `${name}产出 ${percent(val)}`;
+        }).join(', ');
+    }
+
+    // 处理 resourceSupplyMod / resourceDemandMod
+    if (key === 'resourceSupplyMod' || key === 'resourceDemandMod') {
+        const prefix = key === 'resourceSupplyMod' ? '供应' : '需求';
+        return Object.entries(value).map(([res, val]) => {
+            const name = resourceNameById[res] || res;
+            return `${name}${prefix} ${percent(val)}`;
+        }).join(', ');
+    }
+
+    // 处理 stratumDemandMod（阶层消费/需求）
+    if (key === 'stratumDemandMod') {
+        return Object.entries(value).map(([s, val]) => {
+            const name = stratumNameById[s] || s;
+            return `${name}消费 ${percent(val)}`;
+        }).join(', ');
+    }
+
+    // 处理 approval（阶层好感）
+    if (key === 'approval') {
+        return Object.entries(value).map(([s, val]) => {
+            const name = stratumNameById[s] || s;
+            return `${name}好感 ${signed(val)}`;
         }).join(', ');
     }
 
     const label = effectLabels[key] || key;
     if (typeof value === 'number') {
-        // 人口上限等绝对值
+        // 人口上限是百分比（例如 0.08 => +8%）
         if (key === 'maxPop') {
-            return `${label} ${value > 0 ? '+' : ''}${value}`;
+            return `${label} ${percent(value)}`;
+        }
+        // 建筑成本：用 %
+        if (key === 'buildCostReduction') {
+            return `${label} ${percent(-value)}`; // reduction=0.1 => -10%
+        }
+        // 居民需求：needsReduction=0.15 => -15%
+        if (key === 'needsReduction') {
+            return `${label} ${percent(-value)}`;
         }
         // 百分比值
         if (Math.abs(value) < 1) {
-            return `${label} ${value > 0 ? '+' : ''}${Math.round(value * 100)}%`;
+            return `${label} ${percent(value)}`;
         }
-        return `${label} ${value > 0 ? '+' : ''}${value}`;
+        return `${label} ${signed(value)}`;
     }
-    return `${label}: ${value}`;
+
+    // Fallback to avoid [object Object]
+    if (typeof value === 'object' && value !== null) {
+        return `${label}`;
+    }
+
+    return `${label}: ${String(value)}`;
 };
 
 /**
@@ -140,7 +245,7 @@ const DecreeCard = ({
                     title={reason || ''}
                 >
                     <Icon name="Scroll" size={12} />
-                    {canEnact ? '颁布法令' : reason}
+                    {canEnact ? '启动政令' : (reason || '不可用')}
                 </button>
             )}
         </div>
@@ -156,26 +261,52 @@ export const ReformDecreePanel = ({
     currentDay = 0,
     silver = 0,
     onEnactDecree,
-    // [NEW] Legacy (permanent) centrist decrees
-    centristDecrees = [],
-    onToggleCentristDecree,
-    onShowDecreeDetails,
     disabled = false,
 }) => {
-    const decrees = Object.values(REFORM_DECREES);
+    const [tab, setTab] = React.useState('all');
+    const decrees = Object.values(getAllTimedDecrees());
+
+    const TAB_DEFS = [
+        { id: 'all', label: '全部' },
+        { id: 'military', label: '军事' },
+        { id: 'economy', label: '经济' },
+        { id: 'social', label: '社会' },
+        { id: 'culture', label: '文化' },
+        { id: 'other', label: '其他' },
+    ];
+
+    const normalizeLegacyCategory = (cat) => {
+        // Legacy decrees use these: economy/military/social/culture
+        // Reform decrees may not have category: we map by id for now.
+        if (!cat) return null;
+        const c = String(cat).toLowerCase();
+        if (c === 'military' || c === 'economy' || c === 'social' || c === 'culture') return c;
+        return null;
+    };
+
+    const getDecreeCategory = (d) => {
+        const legacyCat = normalizeLegacyCategory(d.category);
+        if (legacyCat) return legacyCat;
+
+        // Map reform decrees to sensible tabs
+        const id = d.id;
+        if (id === 'militaryMobilization') return 'military';
+        if (id === 'emergencyGrain' || id === 'tradeCharter' || id === 'industrialSubsidy' || id === 'taxHoliday') return 'economy';
+        if (id === 'migrationIncentive') return 'social';
+
+        return 'other';
+    };
+
+    const visibleDecrees = React.useMemo(() => {
+        if (tab === 'all') return decrees;
+        return decrees.filter(d => getDecreeCategory(d) === tab);
+    }, [decrees, tab]);
 
     // 计算每个法令的状态
     const getDecreeStatus = (decreeId) => {
-        const decree = REFORM_DECREES[decreeId];
+        const decree = getAllTimedDecrees()[decreeId];
         const activeData = activeDecrees[decreeId];
         const isActive = !!activeData;
-        // [DEBUG] 追踪法令剩余天数计算
-        console.log(`[DECREE DEBUG] ${decreeId}:`, {
-            activeData,
-            currentDay,
-            endDay: activeData?.endDay,
-            remainingDays: activeData ? (activeData.endDay - currentDay) : 'N/A',
-        });
         const remainingDays = isActive ? Math.max(0, activeData.endDay - currentDay) : 0;
 
         const cooldownEnd = decreeCooldowns[decreeId] || 0;
@@ -197,84 +328,91 @@ export const ReformDecreePanel = ({
     // 当前生效的法令数量
     const activeCount = Object.keys(activeDecrees).length;
 
+    const sections = React.useMemo(() => {
+        // Two big sections only: reform vs legacy, within the currently selected tab.
+        const buckets = {
+            reform: { title: '内阁专项（改良法令）', items: [] },
+            legacy: { title: '传统政令（临时制）', items: [] },
+        };
+
+        visibleDecrees.forEach(d => {
+            if (d._legacy) buckets.legacy.items.push(d);
+            else buckets.reform.items.push(d);
+        });
+
+        // Stable ordering by name
+        Object.values(buckets).forEach(b => b.items.sort((a, b2) => (a.name || '').localeCompare(b2.name || '')));
+        return buckets;
+    }, [visibleDecrees]);
+
     return (
         <div className="bg-gray-800/50 rounded-lg p-4 border border-blue-900/30">
             {/* 标题 */}
             <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                     <Icon name="Scroll" size={18} className="text-blue-400" />
-                    <span className="text-sm font-bold text-blue-300">改良法令 - 临时政策</span>
+                    <span className="text-sm font-bold text-blue-300">政令（临时制）</span>
                 </div>
                 {activeCount > 0 && (
                     <span className="text-xs text-blue-400">
-                        {activeCount} 项法令生效中
+                        {activeCount} 项政令生效中
                     </span>
                 )}
             </div>
 
             {/* 说明 */}
             <p className="text-xs text-gray-500 mb-3">
-                颁布临时法令以获得显著加成。法令结束后需要较长时间冷却才能再次使用。
+                政令需要启动成本；生效到期后进入冷却。
             </p>
 
-            {/* [NEW] Centrist legacy decrees (small, permanent pool) */}
-            {Array.isArray(centristDecrees) && centristDecrees.length > 0 && (
-                <div className="mb-4 p-3 rounded-lg border border-blue-900/20 bg-gray-900/30">
-                    <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                            <Icon name="Landmark" size={16} className="text-blue-300" />
-                            <span className="text-xs font-bold text-blue-200">内阁政令（常设）</span>
-                        </div>
-                        <span className="text-[10px] text-gray-500">中间派内阁仅能使用少量温和政令</span>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                        {centristDecrees.map(d => (
-                            <div key={d.id} className={`p-2 rounded border ${d.active ? 'border-blue-700/40 bg-blue-900/10' : 'border-gray-700/40 bg-gray-800/20'}`}>
-                                <div className="flex items-center justify-between gap-2">
-                                    <button
-                                        type="button"
-                                        className="text-left flex-1"
-                                        onClick={() => onShowDecreeDetails && onShowDecreeDetails(d)}
-                                    >
-                                        <div className={`text-xs font-bold ${d.active ? 'text-blue-200' : 'text-gray-200'}`}>{d.name}</div>
-                                        <div className="text-[10px] text-gray-500 line-clamp-2">{d.desc}</div>
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        disabled={disabled || !onToggleCentristDecree}
-                                        onClick={() => onToggleCentristDecree && onToggleCentristDecree(d.id)}
-                                        className={`px-2 py-1 rounded text-[10px] font-bold ${d.active ? 'bg-blue-700 text-white hover:bg-blue-600' : 'bg-gray-700 text-gray-200 hover:bg-gray-600'} ${disabled ? 'opacity-60 cursor-not-allowed' : ''}`}
-                                    >
-                                        {d.active ? '取消' : '启用'}
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
-
-            {/* 法令列表 */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                {decrees.map(decree => {
-                    const status = getDecreeStatus(decree.id);
-                    return (
-                        <DecreeCard
-                            key={decree.id}
-                            decree={decree}
-                            isActive={status.isActive}
-                            remainingDays={status.remainingDays}
-                            cooldownRemaining={status.cooldownRemaining}
-                            canEnact={status.canEnact}
-                            reason={status.reason}
-                            onEnact={onEnactDecree}
-                            disabled={disabled}
-                        />
-                    );
-                })}
+            {/* 分类 Tab */}
+            <div className="flex flex-wrap gap-2 mb-4">
+                {TAB_DEFS.map(t => (
+                    <button
+                        key={t.id}
+                        onClick={() => setTab(t.id)}
+                        className={
+                            `px-2.5 py-1 rounded text-xs font-bold border transition-all ` +
+                            (tab === t.id
+                                ? 'bg-blue-700/40 border-blue-500/60 text-blue-200'
+                                : 'bg-gray-900/40 border-gray-700/60 text-gray-300 hover:border-gray-500')
+                        }
+                    >
+                        {t.label}
+                    </button>
+                ))}
             </div>
+
+            {/* 分区列表 */}
+            {Object.entries(sections).map(([key, section]) => {
+                if (!section.items || section.items.length === 0) return null;
+                return (
+                    <div key={key} className="mb-5">
+                        <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-bold text-gray-300">{section.title}</span>
+                            <span className="text-[10px] text-gray-500">{section.items.length} 项</span>
+                        </div>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                            {section.items.map(decree => {
+                                const status = getDecreeStatus(decree.id);
+                                return (
+                                    <DecreeCard
+                                        key={decree.id}
+                                        decree={decree}
+                                        isActive={status.isActive}
+                                        remainingDays={status.remainingDays}
+                                        cooldownRemaining={status.cooldownRemaining}
+                                        canEnact={status.canEnact}
+                                        reason={status.reason}
+                                        onEnact={onEnactDecree}
+                                        disabled={disabled}
+                                    />
+                                );
+                            })}
+                        </div>
+                    </div>
+                );
+            })}
         </div>
     );
 };

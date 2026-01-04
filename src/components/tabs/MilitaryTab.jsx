@@ -864,7 +864,14 @@ const MilitaryTabComponent = ({
                                 </button>
                             </div>
 
-                            <div className="space-y-2 max-h-[360px] overflow-y-auto pr-2 custom-scrollbar">
+                            <div
+                                className="space-y-2 max-h-[360px] overflow-y-auto pr-2 custom-scrollbar"
+                                onWheel={(e) => {
+                                    // Prevent accidental triggering of button clicks/hover behaviors while scrolling
+                                    // (some browsers may synthesize click on wheel or during momentum scrolling)
+                                    e.stopPropagation();
+                                }}
+                            >
                                 {militaryQueue.map((item, idx) => {
                                     const unit = UNIT_TYPES[item.unitId];
                                     const isWaiting = item.status === 'waiting';
