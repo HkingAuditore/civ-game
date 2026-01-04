@@ -5,6 +5,7 @@ import { BUILDINGS, RESOURCES, STRATA } from '../../config';
 import { POLITICAL_STANCES, POLITICAL_ISSUES } from '../../config/politicalStances';
 import { calculatePrestige, getPrestigeLevel } from '../../logic/officials/manager';
 import { LOYALTY_CONFIG } from '../../config/officials';
+import { formatNumberShortCN } from '../../utils/numberFormat';
 
 const formatCost = (value) => {
     if (!Number.isFinite(value)) return '0';
@@ -79,7 +80,7 @@ const SPECTRUM_CONFIG = {
     right: { bg: 'bg-amber-900/40', border: 'border-amber-500/60', text: 'text-amber-300', label: '右派', icon: 'TrendingUp' },
 };
 
-export const OfficialDetailModal = ({ isOpen, onClose, official, onUpdateSalary, currentDay = 0, isStanceSatisfied = null }) => {
+export const OfficialDetailModal = ({ isOpen, onClose, official, onUpdateSalary, currentDay = 0, isStanceSatisfied = null, stability = 50, officialsPaid = true }) => {
     const [salaryDraft, setSalaryDraft] = useState('');
     const [isEditingSalary, setIsEditingSalary] = useState(false);
     const lastOfficialIdRef = useRef(null);
@@ -196,8 +197,23 @@ export const OfficialDetailModal = ({ isOpen, onClose, official, onUpdateSalary,
         else if (fs === 'struggling') reasons.push({ text: '入不敷出', value: DAILY_CHANGES.financialStruggling, positive: false });
         else if (fs === 'desperate') reasons.push({ text: '濒临破产', value: DAILY_CHANGES.financialDesperate, positive: false });
 
+        // 国家稳定度
+        const stabilityValue = (stability ?? 50) / 100;
+        if (stabilityValue > 0.7) {
+            reasons.push({ text: '国家稳定', value: DAILY_CHANGES.stabilityHigh, positive: true });
+        } else if (stabilityValue < 0.3) {
+            reasons.push({ text: '国家动荡', value: DAILY_CHANGES.stabilityLow, positive: false });
+        }
+
+        // 薪资发放
+        if (officialsPaid) {
+            reasons.push({ text: '薪资按时发放', value: DAILY_CHANGES.salaryPaid, positive: true });
+        } else {
+            reasons.push({ text: '薪资未发放', value: DAILY_CHANGES.salaryUnpaid, positive: false });
+        }
+
         return reasons;
-    }, [official, isStanceSatisfied]);
+    }, [official, isStanceSatisfied, stability, officialsPaid]);
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={`${official?.name || '官员'} · 详细信息`} size="xl">
@@ -234,7 +250,7 @@ export const OfficialDetailModal = ({ isOpen, onClose, official, onUpdateSalary,
                             个人存款
                         </div>
                         <div className="mt-1 text-lg font-mono font-bold text-amber-300">
-                            {wealth.toLocaleString()}
+                            {formatNumberShortCN(wealth, { decimals: 1 })}
                         </div>
                     </div>
                     {/* 日收益 */}
@@ -291,6 +307,13 @@ export const OfficialDetailModal = ({ isOpen, onClose, official, onUpdateSalary,
                                 </div>
                             ))}
                         </div>
+                        {/* 净变化汇总 */}
+                        <div className="mt-2 pt-2 border-t border-gray-700/50 flex items-center gap-2">
+                            <span className="text-[10px] text-gray-400">每日净变化:</span>
+                            <span className={`font-mono text-xs ${loyaltyReasons.reduce((sum, r) => sum + r.value, 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                {loyaltyReasons.reduce((sum, r) => sum + r.value, 0) > 0 ? '+' : ''}{loyaltyReasons.reduce((sum, r) => sum + r.value, 0).toFixed(2)}/日
+                            </span>
+                        </div>
                     </div>
                 )}
 
@@ -311,7 +334,15 @@ export const OfficialDetailModal = ({ isOpen, onClose, official, onUpdateSalary,
                                 ) : null;
                             })}
                         </div>
-                        {stance.condition?.description && (
+                        {/* 触发条件 - 使用官员的 stanceConditionText */}
+                        {official?.stanceConditionText && (
+                            <div className="text-[11px] text-gray-300 mb-2 p-2 rounded bg-gray-800/50 border border-gray-700/50">
+                                <span className="font-semibold text-amber-400">触发条件：</span>
+                                <span className="ml-1">{official.stanceConditionText}</span>
+                            </div>
+                        )}
+                        {/* 备选：使用 stance.condition?.description */}
+                        {!official?.stanceConditionText && stance.condition?.description && (
                             <div className="text-[11px] text-gray-400 mb-2">
                                 <span className="font-semibold">政治主张：</span> {stance.condition.description}
                             </div>
@@ -341,7 +372,17 @@ export const OfficialDetailModal = ({ isOpen, onClose, official, onUpdateSalary,
                                             });
                                         }
                                         const isPercent = Math.abs(val) < 2 && !['approval', 'diplomaticBonus'].includes(key);
-                                        const displayVal = isPercent ? `${val > 0 ? '+' : ''}${(val * 100).toFixed(0)}%` : `${val > 0 ? '+' : ''}${val}`;
+                                        // needsReduction 正值表示减少消耗，显示为负号更直观
+                                        let displayVal;
+                                        if (key === 'needsReduction') {
+                                            displayVal = val > 0
+                                                ? `-${(val * 100).toFixed(0)}%`
+                                                : `+${(Math.abs(val) * 100).toFixed(0)}%`;
+                                        } else {
+                                            displayVal = isPercent
+                                                ? `${val > 0 ? '+' : ''}${(val * 100).toFixed(0)}%`
+                                                : `${val > 0 ? '+' : ''}${val}`;
+                                        }
                                         return (
                                             <span key={key} className="px-1.5 py-0.5 rounded text-[10px] bg-green-900/40 text-green-300 border border-green-700/40">
                                                 {effectName} {displayVal}
@@ -371,7 +412,17 @@ export const OfficialDetailModal = ({ isOpen, onClose, official, onUpdateSalary,
                                             });
                                         }
                                         const isPercent = Math.abs(val) < 2 && !['approval', 'diplomaticBonus'].includes(key);
-                                        const displayVal = isPercent ? `${val > 0 ? '+' : ''}${(val * 100).toFixed(0)}%` : `${val > 0 ? '+' : ''}${val}`;
+                                        // needsReduction 正值表示减少消耗，显示为负号更直观
+                                        let displayVal;
+                                        if (key === 'needsReduction') {
+                                            displayVal = val > 0
+                                                ? `-${(val * 100).toFixed(0)}%`
+                                                : `+${(Math.abs(val) * 100).toFixed(0)}%`;
+                                        } else {
+                                            displayVal = isPercent
+                                                ? `${val > 0 ? '+' : ''}${(val * 100).toFixed(0)}%`
+                                                : `${val > 0 ? '+' : ''}${val}`;
+                                        }
                                         return (
                                             <span key={key} className="px-1.5 py-0.5 rounded text-[10px] bg-red-900/40 text-red-300 border border-red-700/40">
                                                 {effectName} {displayVal}

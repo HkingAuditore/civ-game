@@ -1095,3 +1095,13 @@ drawbacks: ['工业产出 -10%', '银币产出 -5%', '资本家好感 -20'],
     active: false,
   },
 ];
+
+// A small, curated subset of legacy decrees for the Centrist-dominant cabinet.
+// The centrist cabinet should have access to some decrees, but not too many.
+export const CENTRIST_CABINET_DECREES = [
+  'state_granary',         // Market-stabilizing, moderate welfare
+  'magna_carta',           // Rule of law, moderate civic reform
+  'habeas_corpus',         // Legal protection, stability-friendly
+  'public_education_act',  // Human capital investment
+  'royal_academy',         // Knowledge institution building
+];

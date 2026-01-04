@@ -4,6 +4,7 @@ import { RESOURCES, STRATA, BUILDINGS } from '../../config';
 import { getPublicAssetUrl } from '../../utils/assetPath';
 import { getEventImageUrl } from '../../utils/imageRegistry';
 import { filterEventOptions } from '../../utils/eventEffectFilter';
+import { formatNumberShortCN } from '../../utils/numberFormat';
 
 /**
  * 事件沉浸式英雄图片组件
@@ -171,6 +172,12 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
         return `${percent > 0 ? '+' : ''}${percent}%`;
     };
 
+    const formatSignedShortNumber = (value, { decimals = 1 } = {}) => {
+        if (typeof value !== 'number' || Number.isNaN(value)) return String(value ?? 0);
+        const sign = value > 0 ? '+' : '';
+        return `${sign}${formatNumberShortCN(Math.abs(value), { decimals })}`;
+    };
+
     const nationSelectorLabels = {
         random: '随机国家',
         all: '所有国家',
@@ -186,7 +193,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
             labelSuffix: '关系',
             positiveClass: 'bg-sky-900/50 text-sky-300 border border-sky-500/40',
             negativeClass: 'bg-rose-900/50 text-rose-300 border border-rose-500/40',
-            formatter: (value) => `${value > 0 ? '+' : ''}${value}`,
+            formatter: (value) => formatSignedShortNumber(value, { decimals: 1 }),
         },
         aggression: {
             icon: 'Flame',
@@ -200,7 +207,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
             labelSuffix: '财富',
             positiveClass: 'bg-amber-900/50 text-amber-200 border border-amber-500/40',
             negativeClass: 'bg-slate-900/50 text-slate-200 border border-slate-500/40',
-            formatter: (value) => `${value > 0 ? '+' : ''}${value}`,
+            formatter: (value) => formatSignedShortNumber(value, { decimals: 1 }),
         },
         volatility: {
             icon: 'Activity',
@@ -398,7 +405,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                                                 >
                                                     <Icon name={RESOURCES[resource]?.icon || 'Package'} size={10} />
                                                     <span className="font-medium">{getResourceName(resource)}</span>
-                                                    <span className="font-mono font-bold">{value > 0 ? '+' : ''}{value}</span>
+                                                    <span className="font-mono font-bold">{formatSignedShortNumber(value, { decimals: 1 })}</span>
                                                 </span>
                                             ))}
 
@@ -426,7 +433,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                                             >
                                                 <Icon name="Users" size={10} />
                                                 <span className="font-medium">人口</span>
-                                                <span className="font-mono font-bold">{option.effects.population > 0 ? '+' : ''}{option.effects.population}</span>
+                                                <span className="font-mono font-bold">{formatSignedShortNumber(option.effects.population, { decimals: 1 })}</span>
                                             </span>
                                         )}
 
@@ -454,7 +461,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                                             >
                                                 <Icon name="TrendingUp" size={10} />
                                                 <span className="font-medium">稳定</span>
-                                                <span className="font-mono font-bold">{option.effects.stability > 0 ? '+' : ''}{option.effects.stability}</span>
+                                                <span className="font-mono font-bold">{formatSignedShortNumber(option.effects.stability, { decimals: 1 })}</span>
                                             </span>
                                         )}
 
@@ -468,7 +475,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                                                 >
                                                     <Icon name={STRATA[stratum]?.icon || 'User'} size={10} />
                                                     <span className="font-medium">{getStratumName(stratum)}支持</span>
-                                                    <span className="font-mono font-bold">{value > 0 ? '+' : ''}{value}</span>
+                                                    <span className="font-mono font-bold">{formatSignedShortNumber(value, { decimals: 1 })}</span>
                                                 </span>
                                             ))}
 
@@ -566,7 +573,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                                                                 >
                                                                     <Icon name={RESOURCES[resource]?.icon || 'Package'} size={9} />
                                                                     <span>{getResourceName(resource)}</span>
-                                                                    <span className="font-mono font-bold">{value > 0 ? '+' : ''}{value}</span>
+                                                                    <span className="font-mono font-bold">{formatSignedShortNumber(value, { decimals: 1 })}</span>
                                                                 </span>
                                                             ))}
                                                         {/* 随机效果 - 资源（百分比） */}
@@ -591,7 +598,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                                                             >
                                                                 <Icon name="Users" size={9} />
                                                                 <span>人口</span>
-                                                                <span className="font-mono font-bold">{randomEffect.effects.population > 0 ? '+' : ''}{randomEffect.effects.population}</span>
+                                                                <span className="font-mono font-bold">{formatSignedShortNumber(randomEffect.effects.population, { decimals: 1 })}</span>
                                                             </span>
                                                         )}
                                                         {/* 随机效果 - 人口（百分比） */}
@@ -615,7 +622,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                                                             >
                                                                 <Icon name="TrendingUp" size={9} />
                                                                 <span>稳定</span>
-                                                                <span className="font-mono font-bold">{randomEffect.effects.stability > 0 ? '+' : ''}{randomEffect.effects.stability}</span>
+                                                                <span className="font-mono font-bold">{formatSignedShortNumber(randomEffect.effects.stability, { decimals: 1 })}</span>
                                                             </span>
                                                         )}
                                                         {/* 随机效果 - 阶层支持度 */}
@@ -628,7 +635,7 @@ export const EventDetail = ({ event, onSelectOption, onClose, nations = [], epoc
                                                                 >
                                                                     <Icon name={STRATA[stratum]?.icon || 'User'} size={9} />
                                                                     <span>{getStratumName(stratum)}</span>
-                                                                    <span className="font-mono font-bold">{value > 0 ? '+' : ''}{value}</span>
+                                                                    <span className="font-mono font-bold">{formatSignedShortNumber(value, { decimals: 1 })}</span>
                                                                 </span>
                                                             ))}
                                                         {renderNationEffectBadges(randomEffect.effects.nationRelation, 'relation', `random-${option.id}-${idx}`)}

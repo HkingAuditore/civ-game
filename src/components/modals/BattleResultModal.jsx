@@ -7,6 +7,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Icon } from '../common/UIComponents';
 import { UNIT_TYPES } from '../../config/militaryUnits';
 import { RESOURCES } from '../../config/gameConstants';
+import { formatNumberShortCN } from '../../utils/numberFormat';
 
 /**
  * 战斗结果模态框组件
@@ -113,13 +114,13 @@ export const BattleResultModal = ({ result, onClose }) => {
                                             <div className="bg-ancient-ink/50 border border-ancient-gold/10 rounded-lg p-2">
                                                 <p className="text-[10px] text-ancient-stone mb-1 leading-none">我方战力</p>
                                                 <p className="text-base font-bold text-ancient font-mono leading-none">
-                                                    {result.ourPower?.toFixed(0) || 0}
+                                                    {formatNumberShortCN(result.ourPower || 0, { decimals: 1 })}
                                                 </p>
                                             </div>
                                             <div className="bg-ancient-ink/50 border border-ancient-gold/10 rounded-lg p-2">
                                                 <p className="text-[10px] text-ancient-stone mb-1 leading-none">敌方战力</p>
                                                 <p className="text-base font-bold text-red-400 font-mono leading-none">
-                                                    {result.enemyPower?.toFixed(0) || 0}
+                                                    {formatNumberShortCN(result.enemyPower || 0, { decimals: 1 })}
                                                 </p>
                                             </div>
                                             <div className="bg-ancient-ink/50 border border-ancient-gold/10 rounded-lg p-2">
@@ -156,7 +157,7 @@ export const BattleResultModal = ({ result, onClose }) => {
                                                     return (
                                                         <div key={unitId} className="flex items-center justify-between">
                                                             <span className="text-[10px] text-gray-300">{unit.name}</span>
-                                                            <span className="text-[10px] font-mono text-gray-200">{count}</span>
+                                                            <span className="text-[10px] font-mono text-gray-200">{formatNumberShortCN(count, { decimals: 1 })}</span>
                                                         </div>
                                                     );
                                                 })}
@@ -174,7 +175,7 @@ export const BattleResultModal = ({ result, onClose }) => {
                                                     return (
                                                         <div key={unitId} className="flex items-center justify-between">
                                                             <span className="text-[10px] text-gray-300">{unit.name}</span>
-                                                            <span className="text-[10px] font-mono text-red-300">{count}</span>
+                                                            <span className="text-[10px] font-mono text-red-300">{formatNumberShortCN(count, { decimals: 1 })}</span>
                                                         </div>
                                                     );
                                                 })}
@@ -207,7 +208,7 @@ export const BattleResultModal = ({ result, onClose }) => {
                                                                 <Icon name="User" size={12} className="text-red-400" />
                                                                 <span className="text-[10px] text-white leading-none">{unit.name}</span>
                                                             </div>
-                                                            <span className="text-[10px] font-bold text-red-400 font-mono leading-none">-{count}</span>
+                                                            <span className="text-[10px] font-bold text-red-400 font-mono leading-none">-{formatNumberShortCN(count, { decimals: 1 })}</span>
                                                         </div>
                                                     );
                                                 })}
@@ -241,7 +242,7 @@ export const BattleResultModal = ({ result, onClose }) => {
                                                             <Icon name="User" size={12} className="text-gray-400" />
                                                             <span className="text-[10px] text-white leading-none">{unit?.name || unitId}</span>
                                                         </div>
-                                                        <span className="text-[10px] font-bold text-gray-400 font-mono leading-none">-{count}</span>
+                                                        <span className="text-[10px] font-bold text-gray-400 font-mono leading-none">-{formatNumberShortCN(count, { decimals: 1 })}</span>
                                                     </div>
                                                 );
                                             })}
@@ -260,13 +261,13 @@ export const BattleResultModal = ({ result, onClose }) => {
                                             {result.foodLoss > 0 && (
                                                 <div className="flex items-center justify-between bg-red-900/20 border border-red-600/30 p-1.5 rounded">
                                                     <span className="text-[10px] text-gray-300 leading-none">粮食</span>
-                                                    <span className="text-[10px] font-bold text-red-400 font-mono leading-none">-{result.foodLoss}</span>
+                                                    <span className="text-[10px] font-bold text-red-400 font-mono leading-none">-{formatNumberShortCN(result.foodLoss || 0, { decimals: 1 })}</span>
                                                 </div>
                                             )}
                                             {result.silverLoss > 0 && (
                                                 <div className="flex items-center justify-between bg-red-900/20 border border-red-600/30 p-1.5 rounded">
                                                     <span className="text-[10px] text-gray-300 leading-none">银币</span>
-                                                    <span className="text-[10px] font-bold text-red-400 font-mono leading-none">-{result.silverLoss}</span>
+                                                    <span className="text-[10px] font-bold text-red-400 font-mono leading-none">-{formatNumberShortCN(result.silverLoss || 0, { decimals: 1 })}</span>
                                                 </div>
                                             )}
                                         </div>
@@ -283,7 +284,7 @@ export const BattleResultModal = ({ result, onClose }) => {
                                         <div className="bg-red-900/20 border border-red-600/30 p-1.5 rounded">
                                             <div className="flex items-center justify-between">
                                                 <span className="text-[10px] text-gray-300 leading-none">总人口</span>
-                                                <span className="text-[10px] font-bold text-red-400 font-mono leading-none">-{result.popLoss}</span>
+                                                <span className="text-[10px] font-bold text-red-400 font-mono leading-none">-{formatNumberShortCN(result.popLoss || 0, { decimals: 1 })}</span>
                                             </div>
                                         </div>
                                     </div>
@@ -303,7 +304,7 @@ export const BattleResultModal = ({ result, onClose }) => {
                                                     className="flex items-center justify-between bg-yellow-900/20 border border-yellow-600/30 p-1.5 rounded"
                                                 >
                                                     <span className="text-[10px] text-gray-300 leading-none">{RESOURCES[resource]?.name || resource}</span>
-                                                    <span className="text-[10px] font-bold text-yellow-400 font-mono leading-none">+{amount}</span>
+                                                    <span className="text-[10px] font-bold text-yellow-400 font-mono leading-none">+{formatNumberShortCN(amount, { decimals: 1 })}</span>
                                                 </div>
                                             ))}
                                         </div>

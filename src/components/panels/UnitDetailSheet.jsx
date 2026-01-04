@@ -4,6 +4,7 @@ import { RESOURCES } from '../../config';
 import { UNIT_CATEGORIES } from '../../config/militaryUnits';
 import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
 import { EPOCHS } from '../../config/epochs';
+import { formatNumberShortCN } from '../../utils/numberFormat';
 
 /**
  * 军事单位详情底部面板组件
@@ -238,7 +239,7 @@ export const UnitDetailSheet = ({
                     <span className="text-xs text-gray-300">{resourceInfo?.name || resource}</span>
                   </div>
                   <span className={`text-xs font-bold font-mono ${hasEnough ? 'text-green-400' : 'text-red-400'}`}>
-                    {cost}
+                    {formatNumberShortCN(cost, { decimals: 1 })}
                   </span>
                 </div>
               </div>
@@ -285,11 +286,11 @@ export const UnitDetailSheet = ({
                     </span>
                     <span className="flex items-center gap-1.5">
                       <span className={`text-[10px] font-mono ${isAffordable ? 'text-gray-300' : 'text-red-400'}`}>
-                        -{cost.toFixed(1)}/日
+                        -{formatNumberShortCN(cost, { decimals: 1 })}/日
                       </span>
                       {resource !== 'silver' && (
                         <span className="text-yellow-400/70 text-[9px] font-mono">
-                          ≈{silverValue.toFixed(1)}<Icon name="Coins" size={8} className="inline ml-0.5" />
+                          ≈{formatNumberShortCN(silverValue, { decimals: 1 })}<Icon name="Coins" size={8} className="inline ml-0.5" />
                         </span>
                       )}
                       {resource === 'silver' && (
@@ -311,7 +312,7 @@ export const UnitDetailSheet = ({
                       资源折算
                     </span>
                     <span className="text-xs font-bold text-yellow-300 font-mono">
-                      ≈{totalDailyCost.toFixed(1)}<Icon name="Coins" size={10} className="inline ml-0.5" />/日
+                      ≈{formatNumberShortCN(totalDailyCost, { decimals: 1 })}<Icon name="Coins" size={10} className="inline ml-0.5" />/日
                     </span>
                   </div>
                 </>
@@ -339,7 +340,7 @@ export const UnitDetailSheet = ({
             <Icon name="Users" size={14} className="text-blue-400" />
             <span className="text-xs text-gray-300">当前拥有</span>
           </div>
-          <span className="text-sm font-bold text-white font-mono">{currentCount} 个单位</span>
+          <span className="text-sm font-bold text-white font-mono">{formatNumberShortCN(currentCount, { decimals: 1 })} 个单位</span>
         </div>
         {unit.populationCost && unit.populationCost > 1 && (
           <div className="flex items-center justify-between mt-1 pt-1 border-t border-gray-700">

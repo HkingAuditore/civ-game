@@ -248,7 +248,7 @@ const TradeRoutesModal = ({
                     </span>
                     {opp.possibleVolume > 0.1 && (
                         <div className="text-[9px] text-gray-500">
-                            {opp.possibleVolume.toFixed(1)}/天
+                            {formatCompactNumber(opp.possibleVolume)}/天
                         </div>
                     )}
                 </div>

@@ -9,12 +9,11 @@ import { SimpleLineChart } from '../common/SimpleLineChart';
 import { RESOURCES, STRATA, BUILDINGS, UNIT_TYPES, INDUSTRY_CHAINS } from '../../config';
 import { calculateLuxuryConsumptionMultiplier, calculateUnlockMultiplier, getSimpleLivingStandard } from '../../utils/livingStandard';
 import { isResourceUnlocked } from '../../utils/resources';
+import { formatNumberShortCN } from '../../utils/numberFormat';
 
 const formatAmount = (value) => {
     if (!Number.isFinite(value) || value === 0) return '0';
-    if (Math.abs(value) >= 10) return value.toFixed(1);
-    if (Math.abs(value) >= 1) return value.toFixed(2);
-    return value.toFixed(3);
+    return formatNumberShortCN(value, { decimals: 1 });
 };
 
 const ensureArray = (value) => {
@@ -1070,7 +1069,7 @@ const ResourceDetailContent = ({
                         <div className="flex-1 min-w-0">
                             <h2 className="text-sm lg:text-base font-bold text-white leading-tight font-decorative">{resourceDef.name}</h2>
                             <p className="text-[9px] lg:text-[10px] text-gray-400 leading-tight truncate">
-                                库存 {inventory.toFixed(1)} {isSilver ? '· 财政资源' : `· 价格 ${marketPrice.toFixed(2)}`}
+                                库存 {formatAmount(inventory)} {isSilver ? '· 财政资源' : `· 价格 ${marketPrice.toFixed(2)}`}
                             </p>
                         </div>
                         <button onClick={handleClose} className="p-1.5 lg:p-2 rounded-full hover:bg-gray-700 flex-shrink-0">
@@ -1086,9 +1085,9 @@ const ResourceDetailContent = ({
                             <div className="grid gap-1.5 lg:gap-2 grid-cols-2">
                                 <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-2 lg:p-2.5">
                                     <p className="text-[8px] lg:text-[9px] uppercase tracking-wide text-yellow-300/80 leading-none">国库银币</p>
-                                    <p className="mt-1 text-base lg:text-lg font-bold text-yellow-200 font-mono leading-none">{latestTreasury.toFixed(0)}</p>
+<p className="mt-1 text-base lg:text-lg font-bold text-yellow-200 font-mono leading-none">{formatAmount(latestTreasury)}</p>
                                     <p className="mt-0.5 lg:mt-1 text-[8px] lg:text-[9px] text-yellow-200/80 leading-none">
-                                        储备 {(resources[resourceKey] || 0).toFixed(0)}
+                                        储备 {formatAmount(resources[resourceKey] || 0)}
                                     </p>
                                 </div>
                                 <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-2 lg:p-2.5">
@@ -1149,8 +1148,8 @@ const ResourceDetailContent = ({
                                     <div className="mb-1.5 lg:mb-2 flex items-center justify-between">
                                         <div>
                                             <p className="text-[8px] lg:text-[9px] uppercase tracking-wide text-gray-500 leading-none">国库资金走势</p>
-                                            <p className="text-xs lg:text-sm font-semibold text-white leading-tight mt-0.5">
-                                                当前 {(resources[resourceKey] || 0).toFixed(0)} 银币
+<p className="text-xs lg:text-sm font-semibold text-white leading-tight mt-0.5">
+                                                当前 {formatAmount(resources[resourceKey] || 0)} 银币
                                             </p>
                                         </div>
                                         <Icon name="Coins" size={14} className="text-yellow-200" />
@@ -1313,7 +1312,7 @@ const ResourceDetailContent = ({
                                         <div className="grid grid-cols-2 gap-2 lg:gap-4">
                                             <div className="rounded-xl lg:rounded-2xl border border-gray-800 bg-gray-950/60 p-2.5 lg:p-4">
                                                 <p className="text-[10px] lg:text-xs uppercase tracking-wide text-gray-500">库存概览</p>
-                                                <p className="mt-1 lg:mt-2 text-2xl lg:text-3xl font-bold text-white">{inventory.toFixed(1)}</p>
+                                                <p className="mt-1 lg:mt-2 text-2xl lg:text-3xl font-bold text-white">{formatAmount(inventory)}</p>
                                                 <p className="mt-1 lg:mt-2 text-xs lg:text-sm text-gray-400">
                                                     日净变化 {formatAmount((latestSupply - latestDemand) || 0)}
                                                 </p>

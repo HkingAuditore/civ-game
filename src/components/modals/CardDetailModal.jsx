@@ -4,6 +4,7 @@
 import React from 'react';
 import { Icon } from '../common/UIComponents';
 import { RESOURCES, STRATA } from '../../config';
+import { formatNumberShortCN } from '../../utils/numberFormat';
 
 /**
  * 通用卡片详情Modal
@@ -128,7 +129,7 @@ export const CardDetailModal = ({ show, onClose, title, description, icon, secti
                           </div>
                           {data.income !== undefined && (
                             <span className={`text-xs font-mono ${data.income >= 0 ? 'text-blue-400' : 'text-red-400'}`}>
-                              {data.income >= 0 ? '+' : ''}{data.income.toFixed(2)}银/日
+                              {data.income >= 0 ? '+' : ''}{formatNumberShortCN(Math.abs(data.income), { decimals: 2 })}银/日
                             </span>
                           )}
                         </div>

@@ -1,6 +1,8 @@
 import React, { useMemo, useRef, useCallback, useState, useEffect } from 'react';
 import { Icon } from '../common/UIComponents';
 import { RESOURCES, STRATA } from '../../config';
+import { calculateSilverCost } from '../../utils/economy';
+import { formatNumberShortCN } from '../../utils/numberFormat';
 import { BUILDING_UPGRADES, getUpgradeCost, getMaxUpgradeLevel, getBuildingEffectiveConfig } from '../../config/buildingUpgrades';
 import { getBuildingLevelDistribution, canBuildingUpgrade, getUpgradeCountAtOrAboveLevel } from '../../utils/buildingUpgradeUtils';
 
@@ -272,10 +274,7 @@ export const BuildingUpgradePanel = ({
     };
 
     const formatAmount = (value) => {
-        if (value >= 1000) return (value / 1000).toFixed(1) + 'k';
-        if (value >= 100) return Math.floor(value).toString();
-        if (value >= 10) return value.toFixed(1);
-        return value.toFixed(2);
+        return formatNumberShortCN(value, { decimals: 1 });
     };
 
     // 渲染等级指示器（星星图标）

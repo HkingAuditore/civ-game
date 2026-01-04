@@ -20,6 +20,7 @@ import {
     getGovernmentType,
 } from '../../logic/rulingCoalition';
 import { getPolityEffects, formatPolityEffects } from '../../config/polityEffects';
+import { formatNumberShortCN } from '../../utils/numberFormat';
 
 // 阶层分组，用于UI显示
 const STRATA_GROUPS = {
@@ -193,7 +194,7 @@ export const CoalitionPanel = ({
                 </div>
                 <div className="flex justify-between text-[10px] text-gray-500">
                     <span>影响力 {influenceShare}%</span>
-                    <span>{population.toLocaleString()}人</span>
+                    <span>{formatNumberShortCN(population, { decimals: 1 })}人</span>
                 </div>
             </button>
         );
@@ -258,13 +259,13 @@ export const CoalitionPanel = ({
                             <Icon name="Edit" size={12} />
                             改组政府
                             <span className={`ml-1 ${canAffordChange ? 'text-amber-200' : 'text-gray-400'}`}>
-                                ({changeCost.toLocaleString()} 银币)
+                                ({formatNumberShortCN(changeCost, { decimals: 1 })} 银币)
                             </span>
                         </button>
                     </div>
                     {!canAffordChange && (
                         <div className="mt-1 text-[10px] text-red-400">
-                            银币不足！需要至少 {changeCost.toLocaleString()} 银币
+                            银币不足！需要至少 {formatNumberShortCN(changeCost, { decimals: 1 })} 银币
                         </div>
                     )}
                 </div>
@@ -273,7 +274,7 @@ export const CoalitionPanel = ({
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                         <div className="text-xs text-amber-300">
                             <Icon name="AlertCircle" size={12} className="inline mr-1" />
-                            选择联盟成员，确认后花费 <span className="font-bold">{changeCost.toLocaleString()}</span> 银币
+                            选择联盟成员，确认后花费 <span className="font-bold">{formatNumberShortCN(changeCost, { decimals: 1 })}</span> 银币
                         </div>
                         <div className="flex gap-2 flex-shrink-0">
                             <button

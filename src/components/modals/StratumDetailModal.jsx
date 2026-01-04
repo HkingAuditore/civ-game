@@ -8,6 +8,7 @@ import { STRATA } from '../../config';
 import { RESOURCES } from '../../config/gameConstants';
 import { formatEffectDetails } from '../../utils/effectFormatter';
 import { isResourceUnlocked } from '../../utils/resources';
+import { formatNumberShortCN } from '../../utils/numberFormat';
 
 /**
  * 阶层详情模态框组件
@@ -93,7 +94,7 @@ const AllStrataSummary = ({
                     <td className="p-2 text-sm text-white flex items-center gap-2">
                       <Icon name={stratum.icon} size={16} /> {stratum.name}
                     </td>
-                    <td className="p-2 text-sm text-gray-300">{count}</td>
+                    <td className="p-2 text-sm text-gray-300">{formatNumberShortCN(count, { decimals: 1 })}</td>
                     <td className="p-2 text-sm">
                       <span className={
                         approval >= 70 ? 'text-green-400' :
@@ -306,7 +307,7 @@ export const StratumDetailModal = ({
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <div className="bg-gray-700/50 p-3 rounded">
                     <p className="text-xs text-gray-400 mb-1">人口数量</p>
-                    <p className="text-lg font-bold text-white">{population}</p>
+                    <p className="text-lg font-bold text-white">{formatNumberShortCN(population, { decimals: 1 })}</p>
                     <p className="text-xs text-blue-400 mt-1">{popPercent.toFixed(1)}%</p>
                   </div>
                   <div className="bg-gray-700/50 p-3 rounded">
@@ -326,7 +327,7 @@ export const StratumDetailModal = ({
                   </div>
                   <div className="bg-gray-700/50 p-3 rounded">
                     <p className="text-xs text-gray-400 mb-1">财富</p>
-                    <p className="text-lg font-bold text-yellow-400">{wealth.toFixed(0)}</p>
+                    <p className="text-lg font-bold text-yellow-400">{formatNumberShortCN(wealth, { decimals: 1 })}</p>
                     <p className="text-xs text-yellow-400 mt-1">{wealthPercent.toFixed(1)}%</p>
                   </div>
                 </div>
@@ -494,6 +495,7 @@ export const StratumDetailModal = ({
                     return visibleNeeds.length > 0 ? (
                       visibleNeeds.map(([resource, amount]) => {
                         const resourceName = RESOURCES[resource]?.name || resource;
+                        const totalNeed = amount * population;
                         return (
                           <div
                             key={resource}
@@ -506,7 +508,7 @@ export const StratumDetailModal = ({
                             <div className="text-right">
                               <p className="text-sm font-bold text-white">{amount}/人/天</p>
                               <p className="text-xs text-gray-400">
-                                总需求: {(amount * population).toFixed(1)}/天
+                                总需求: {formatNumberShortCN(totalNeed, { decimals: 1 })}/天
                               </p>
                             </div>
                           </div>

@@ -2,6 +2,7 @@
 // These events are generated dynamically based on game state
 
 import { calculatePeacePayment, calculateInstallmentPlan, calculateAllyMaintenanceCost, INSTALLMENT_CONFIG } from '../../utils/diplomaticUtils';
+import { formatNumberShortCN } from '../../utils/numberFormat';
 import { STRATA } from '../strata';
 
 export const REBEL_DEMAND_SURRENDER_TYPE = {
@@ -54,12 +55,12 @@ export function createRebelDemandSurrenderEvent(nation, eventData, callback) {
 
     // 补贴和改革的描述 - 如果是联盟，说明按比例分配
     const subsidyDesc = isCoalition
-        ? `接受向${coalitionNames}支付为期一年的强制补贴（按比例分配）。每日支付 ${subsidyDailyAmount.toLocaleString()} 银币，共 ${subsidyTotalAmount.toLocaleString()} 银币。`
-        : `接受向${stratumName}支付为期一年的强制补贴。每日支付 ${subsidyDailyAmount.toLocaleString()} 银币，共 ${subsidyTotalAmount.toLocaleString()} 银币。`;
+        ? `接受向${coalitionNames}支付为期一年的强制补贴（按比例分配）。每日支付 ${formatNumberShortCN(subsidyDailyAmount, { decimals: 1 })} 银币，共 ${formatNumberShortCN(subsidyTotalAmount, { decimals: 1 })} 银币。`
+        : `接受向${stratumName}支付为期一年的强制补贴。每日支付 ${formatNumberShortCN(subsidyDailyAmount, { decimals: 1 })} 银币，共 ${formatNumberShortCN(subsidyTotalAmount, { decimals: 1 })} 银币。`;
 
     const reformDesc = isCoalition
-        ? `一次性支付 ${reformAmount.toLocaleString()} 银币进行改革（按比例分配给${coalitionNames}）。`
-        : `一次性支付 ${reformAmount.toLocaleString()} 银币进行改革，这笔钱将直接转入${stratumName}的财富。`;
+        ? `一次性支付 ${formatNumberShortCN(reformAmount, { decimals: 1 })} 银币进行改革（按比例分配给${coalitionNames}）。`
+        : `一次性支付 ${formatNumberShortCN(reformAmount, { decimals: 1 })} 银币进行改革，这笔钱将直接转入${stratumName}的财富。`;
 
     const options = [
         {
@@ -138,7 +139,7 @@ const getPeaceWealthBaseline = (nation = {}) => {
     );
 };
 
-const formatNumber = (value) => (typeof value === 'number' ? value.toLocaleString() : value);
+const formatNumber = (value) => (typeof value === 'number' ? formatNumberShortCN(value, { decimals: 1 }) : value);
 
 /**
  * 创建外交事件 - 敌国宣战
@@ -852,8 +853,8 @@ export function createNationAnnexedEvent(nation, populationGained, maxPopGained,
         description = `经过艰苦的战争,${nation.name}终于臣服于你的统治!他们的领土、人民和资源现在都归你所有。
 
 🎉 吞并成果:
-• 获得人口:${populationGained.toLocaleString()}人
-• 获得人口上限:+${maxPopGained.toLocaleString()}
+• 获得人口:${formatNumberShortCN(populationGained, { decimals: 1 })}人
+• 获得人口上限:+${formatNumberShortCN(maxPopGained, { decimals: 1 })}
 
 ${nation.name}的旗帜已经降下,取而代之的是你的王旗。这是一次伟大的征服!`;
     } else {
@@ -861,10 +862,10 @@ ${nation.name}的旗帜已经降下,取而代之的是你的王旗。这是一�
         title = `💀 ${nation.name}已经灭亡`;
         description = `${nation.name}在连年战争中损失惨重,人口凋零,国力衰竭。最终,这个曾经的国家彻底消亡了。
 
-残存的人民(${populationGained.toLocaleString()}人)逃入你的领土,成为你的臣民。
+残存的人民(${formatNumberShortCN(populationGained, { decimals: 1 })}人)逃入你的领土,成为你的臣民。
 
-• 获得人口:${populationGained.toLocaleString()}人
-• 获得人口上限:+${maxPopGained.toLocaleString()}
+• 获得人口:${formatNumberShortCN(populationGained, { decimals: 1 })}人
+• 获得人口上限:+${formatNumberShortCN(maxPopGained, { decimals: 1 })}
 
 历史将记住这个国家,但它的辉煌已成过去。`;
     }

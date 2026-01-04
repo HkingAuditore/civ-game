@@ -12,6 +12,7 @@ import { getBuildingImageUrl } from '../../utils/imageRegistry';
 import { getBuildingEffectiveConfig, BUILDING_UPGRADES, getUpgradeCost } from '../../config/buildingUpgrades';
 import { getBuildingCostGrowthFactor } from '../../config/difficulty';
 import { calculateBuildingCost, applyBuildingCostModifier } from '../../utils/buildingUpgradeUtils';
+import { formatNumberShortCN } from '../../utils/numberFormat';
 
 /**
  * 建筑悬浮提示框 (使用 Portal)
@@ -160,10 +161,7 @@ const BuildingTooltip = ({ building, count, epoch, techsUnlocked, jobFill, ancho
             */
 // 更紧凑的价格格式化函数
 const formatCompactCost = (value) => {
-    if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M';
-    if (value >= 10000) return (value / 1000).toFixed(0) + 'k';
-    if (value >= 1000) return (value / 1000).toFixed(1) + 'k';
-    return Math.floor(value).toString();
+    return formatNumberShortCN(value, { decimals: 1 });
 };
 
 const CompactBuildingCard = ({
@@ -682,7 +680,7 @@ const BuildTabComponent = ({
                             {catInfo.name}
                             <span className="inline-flex items-center gap-1 text-[11px] font-normal text-gray-400">
                                 <Icon name="Users" size={12} className="text-gray-400" />
-                                {Math.round(categoryWorkers).toLocaleString()}
+                                {formatNumberShortCN(Math.round(categoryWorkers), { decimals: 1 })}
                             </span>
                         </h3>
 

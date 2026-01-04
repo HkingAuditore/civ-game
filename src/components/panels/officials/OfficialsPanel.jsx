@@ -1,4 +1,3 @@
-
 import React, { useMemo, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { OfficialCard } from './OfficialCard';
@@ -9,9 +8,10 @@ import { CabinetSynergyDisplay } from './CabinetSynergyDisplay';
 import { PlannedEconomyPanel } from './PlannedEconomyPanel';
 import { FreeMarketPanel } from './FreeMarketPanel';
 import { ReformDecreePanel } from './ReformDecreePanel';
-import { DOMINANCE_EFFECTS, DOMINANCE_MIN_EPOCH } from '../../../logic/officials/cabinetSynergy';
+import { DOMINANCE_EFFECTS, DOMINANCE_MIN_EPOCH, getCentristCabinetDecrees } from '../../../logic/officials/cabinetSynergy';
 import { EPOCHS } from '../../../config/epochs';
 import { OfficialDetailModal } from '../../modals/OfficialDetailModal';
+import { formatNumberShortCN } from '../../../utils/numberFormat';
 
 export const OfficialsPanel = ({
     officials = [],
@@ -34,6 +34,9 @@ export const OfficialsPanel = ({
     expansionSettings = {},
     activeDecrees = {},
     decreeCooldowns = {},
+    decrees = [],
+    onToggleDecree,
+    onShowDecreeDetails,
     onUpdateQuotas,
     onUpdateExpansionSettings,
     onEnactDecree,
@@ -50,7 +53,13 @@ export const OfficialsPanel = ({
     // [NEW] 价格管制相关
     priceControls = { enabled: false, governmentBuyPrices: {}, governmentSellPrices: {} },
     onUpdatePriceControls,
+
+    // [NEW] 忠诚度系统相关
+    stability = 50,        // 当前国家稳定度 (0-100)
+    officialsPaid = true,  // 是否支付了全额薪水
 }) => {
+
+    const centristDecrees = useMemo(() => getCentristCabinetDecrees(decrees), [decrees]);
 
     // 派系面板弹窗状态
     const [showDominancePanel, setShowDominancePanel] = useState(false);
@@ -146,7 +155,7 @@ export const OfficialsPanel = ({
                         <div className="text-center px-2">
                             <div className="text-[10px] text-gray-500 uppercase tracking-wider">每日开支</div>
                             <div className={`text-xl font-mono font-bold flex items-center gap-1 ${canAffordSalaries ? 'text-gray-200' : 'text-red-400'}`}>
-                                {totalDailySalary} <Icon name="Coins" size={14} className="text-yellow-500" />
+                                {formatNumberShortCN(totalDailySalary, { decimals: 1 })} <Icon name="Coins" size={14} className="text-yellow-500" />
                             </div>
                         </div>
                     </div>
@@ -404,6 +413,9 @@ export const OfficialsPanel = ({
                                     currentDay={currentTick}
                                     silver={resources?.silver || 0}
                                     onEnactDecree={onEnactDecree}
+                                    centristDecrees={centristDecrees}
+                                    onToggleCentristDecree={onToggleDecree}
+                                    onShowDecreeDetails={onShowDecreeDetails}
                                 />
                             )}
                         </div>
@@ -419,6 +431,8 @@ export const OfficialsPanel = ({
                 onUpdateSalary={onUpdateOfficialSalary}
                 currentDay={currentTick}
                 isStanceSatisfied={selectedOfficial?.politicalStance ? isStanceSatisfied(selectedOfficial.politicalStance, stanceContext, selectedOfficial.stanceConditionParams) : null}
+                stability={stability}
+                officialsPaid={officialsPaid}
             />
 
         </div>

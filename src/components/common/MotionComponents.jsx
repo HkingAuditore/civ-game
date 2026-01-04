@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence, useSpring, useTransform } from 'framer-motion';
 
 // Standard transition settings
@@ -101,9 +101,38 @@ export const StaggerItem = ({ children, className = "" }) => {
 /**
  * Animate numbers counting up/down smoothly using a spring
  */
-export const RollingNumber = ({ value, format = (v) => Math.floor(v), className = "" }) => {
+export const RollingNumber = ({
+    value,
+    format = (v) => Math.floor(v),
+    className = "",
+    fixedWidth = false,
+}) => {
     // Use a spring to smooth out value changes
     const spring = useSpring(value, { stiffness: 40, damping: 20 });
+
+    // Track previous value so we can reserve max width across the transition
+    const prevValueRef = useRef(value);
+    const measureRef = useRef(null);
+    const [reservedWidth, setReservedWidth] = useState(null);
+
+    const prevValue = prevValueRef.current;
+
+    const sampleText = useMemo(() => {
+        if (!fixedWidth) return null;
+        // Reserve width for both ends (prev -> next). This prevents reflow while animating.
+        const a = String(format(prevValue));
+        const b = String(format(value));
+        return a.length >= b.length ? a : b;
+    }, [fixedWidth, format, prevValue, value]);
+
+    useLayoutEffect(() => {
+        if (!fixedWidth) return;
+        if (!measureRef.current) return;
+        const rect = measureRef.current.getBoundingClientRect();
+        // Avoid noisy updates
+        const nextWidth = Math.ceil(rect.width);
+        setReservedWidth((w) => (w === nextWidth ? w : nextWidth));
+    }, [fixedWidth, sampleText]);
 
     // Transform the spring value to a formatted string
     const display = useTransform(spring, (current) => format(current));
@@ -111,12 +140,26 @@ export const RollingNumber = ({ value, format = (v) => Math.floor(v), className 
     // Update spring target when value changes
     useEffect(() => {
         spring.set(value);
+        prevValueRef.current = value;
     }, [value, spring]);
 
     return (
-        <motion.span className={`inline-block ${className}`}>
-            {display}
-        </motion.span>
+        <>
+            {fixedWidth && (
+                <span
+                    ref={measureRef}
+                    className={`absolute -z-10 opacity-0 pointer-events-none whitespace-pre ${className}`}
+                >
+                    {sampleText}
+                </span>
+            )}
+            <motion.span
+                className={`inline-block ${className}`}
+                style={fixedWidth && reservedWidth ? { width: reservedWidth } : undefined}
+            >
+                {display}
+            </motion.span>
+        </>
     );
 };
 

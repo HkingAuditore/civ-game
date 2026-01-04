@@ -8,7 +8,7 @@ import { BuildingUpgradePanel } from './BuildingUpgradePanel';
 import { getBuildingEffectiveConfig } from '../../config/buildingUpgrades';
 import { canBuildingUpgrade, calculateBuildingCost, applyBuildingCostModifier } from '../../utils/buildingUpgradeUtils';
 import { getBuildingCostGrowthFactor } from '../../config/difficulty';
-
+import { formatNumberShortCN } from '../../utils/numberFormat';
 // 最低工资下限
 const MIN_ROLE_WAGE = 0.1;
 
@@ -268,12 +268,7 @@ const InfoRow = ({ label, value, valueClass = 'text-white' }) => (
 );
 
 const formatResourceAmount = (value) => {
-    const abs = Math.abs(value);
-    if (abs >= 1000000) return (abs / 1000000).toFixed(1) + 'M';
-    if (abs >= 1000) return (abs / 1000).toFixed(1) + 'k';
-    if (abs >= 10) return abs.toFixed(1);
-    if (abs === Math.floor(abs)) return abs.toString();
-    return abs.toFixed(2);
+    return formatNumberShortCN(Math.abs(value), { decimals: 1 });
 };
 
 const ResourceSummaryBadge = ({ label, amount, positive }) => (
@@ -305,10 +300,7 @@ const StatCard = ({ label, icon, value, valueClass = 'text-white' }) => (
  * @param {Object} gameState - 完整的游戏状态
  */
 const formatCompactCost = (value) => {
-    if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M';
-    if (value >= 10000) return (value / 1000).toFixed(0) + 'k';
-    if (value >= 1000) return (value / 1000).toFixed(1) + 'k';
-    return Math.floor(value).toString();
+    return formatNumberShortCN(value, { decimals: 1 });
 };
 
 export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade, onDowngrade, onBatchUpgrade, onBatchDowngrade, taxPolicies, onUpdateTaxPolicies, scrollToUpgrade }) => {
