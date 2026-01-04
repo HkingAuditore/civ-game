@@ -74,23 +74,40 @@ export const generateInvestmentProfile = (sourceStratum, politicalStance, curren
 
 export const calculateFinancialStatus = (official, dailyExpense, incomeOverride = null) => {
     const expense = Math.max(1, dailyExpense || 0);
+    const wealth = official.wealth || 0;
+
+    // 阈值定义
     const thresholds = {
-        desperate: expense * 10,
-        struggling: expense * 30,
-        uncomfortable: expense * 60,
+        desperate: expense * 10,      // 10天支出以下 = 濒临破产
+        struggling: expense * 30,     // 30天支出以下 = 入不敷出
+        uncomfortable: expense * 60,  // 60天支出以下 = 生活拮据
+        wealthy: expense * 120,       // 120天支出以上 = 富裕（新增）
     };
+
     const income = Number.isFinite(incomeOverride) ? incomeOverride : (official.salary || 0);
     const incomeRatio = income / expense;
 
-    if ((official.wealth || 0) < thresholds.desperate) {
+    // 1. 财富极低 = 濒临破产（优先级最高）
+    if (wealth < thresholds.desperate) {
         return 'desperate';
     }
-    if (incomeRatio < 0.8) {
+
+    // 2. 财富充足（>120天支出）= 满意（即使收入比暂时低也无所谓）
+    if (wealth >= thresholds.wealthy) {
+        return 'satisfied';
+    }
+
+    // 3. 财富中等但收入严重不足（收入<支出的80%且财富<30天支出）= 入不敷出
+    if (incomeRatio < 0.8 && wealth < thresholds.struggling) {
         return 'struggling';
     }
-    if ((official.wealth || 0) < thresholds.uncomfortable) {
+
+    // 4. 财富处于拮据区间 = 生活拮据
+    if (wealth < thresholds.uncomfortable) {
         return 'uncomfortable';
     }
+
+    // 5. 其他情况 = 满意
     return 'satisfied';
 };
 
@@ -189,6 +206,11 @@ export const processOfficialInvestment = (
             // 检查科技解锁
             const techUnlocked = !b.requiresTech || techsUnlocked.includes(b.requiresTech);
             if (!techUnlocked) return false;
+
+            // 限制：只能投资玩家已经建造过的建筑
+            const currentCount = buildingCounts?.[b.id] || 0;
+            if (currentCount <= 0) return false;
+
             return true;
         })
         .map(b => {
