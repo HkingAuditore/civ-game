@@ -1042,6 +1042,7 @@ function GameApp({ gameState }) {
                                                 onBuy={actions.buyBuilding}
                                                 onSell={actions.sellBuilding}
                                                 market={deferredMarket}
+                                                buildingFinancialData={gameState.buildingFinancialData}
                                                 onShowDetails={handleShowBuildingDetails} // 补上缺失的 onShowDetails 属性
                                                 difficulty={gameState.difficulty}
                                                 buildingCostMod={gameState.modifiers?.officialEffects?.buildingCostMod || 0}

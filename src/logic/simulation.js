@@ -237,6 +237,18 @@ export const simulateTick = ({
     // NEW: Detailed financial tracking
     const classFinancialData = {};
 
+    // NEW: Per-building realized financial stats for UI (single tick snapshot)
+    // buildingFinancialData[buildingId] = {
+    //   wagesByRole: { [role]: totalPaid },
+    //   paidWagePerWorkerByRole: { [role]: avgPaidPerFilledWorker },
+    //   filledByRole: { [role]: filledWorkers },
+    //   wagePaidRatioByOwner: { [ownerKey]: paid/bill },
+    //   ownerRevenue: totalOwnerRevenue,
+    //   productionCosts: totalInputCosts,
+    //   businessTaxPaid: totalBusinessTaxPaid,
+    // }
+    const buildingFinancialData = {};
+
     // DEBUG: Building production debug data
     const buildingDebugData = {};
 
@@ -605,6 +617,9 @@ export const simulateTick = ({
         return priceMap[resource];
     };
 
+    // When producing a building, we set this so sellProduction can attribute revenue to that building.
+    let currentBuildingId = null;
+
     const sellProduction = (resource, amount, ownerKey) => {
         // 特殊处理银币产出：直接作为所有者收入，不进入国库，不交税
         if (resource === 'silver' && amount > 0) {
@@ -612,6 +627,10 @@ export const simulateTick = ({
             if (classFinancialData[ownerKey]) {
                 // Silver production is direct revenue
                 classFinancialData[ownerKey].income.ownerRevenue = (classFinancialData[ownerKey].income.ownerRevenue || 0) + amount;
+            }
+            // Per-building realized owner revenue (if building context exists)
+            if (currentBuildingId && buildingFinancialData[currentBuildingId]) {
+                buildingFinancialData[currentBuildingId].ownerRevenue += amount;
             }
             return;
         }
@@ -650,6 +669,11 @@ export const simulateTick = ({
 
             // 记录owner的净销售收入（在tick结束时统一结算到wealth）
             roleWagePayout[ownerKey] = (roleWagePayout[ownerKey] || 0) + netIncome;
+
+            // Per-building realized owner revenue (if building context exists)
+            if (currentBuildingId && buildingFinancialData[currentBuildingId]) {
+                buildingFinancialData[currentBuildingId].ownerRevenue += netIncome;
+            }
 
             // NEW: Detailed tracking
             if (classFinancialData[ownerKey]) {
@@ -1262,6 +1286,19 @@ export const simulateTick = ({
         // 应用加成：基础乘数 × (1 + 总加成)
         multiplier *= (1 + bonusSum);
 
+        // Init per-building realized financial stats container
+        if (!buildingFinancialData[b.id]) {
+            buildingFinancialData[b.id] = {
+                wagesByRole: {},
+                paidWagePerWorkerByRole: {},
+                filledByRole: {},
+                wagePaidRatioByOwner: {},
+                ownerRevenue: 0,
+                productionCosts: 0,
+                businessTaxPaid: 0,
+            };
+        }
+
         let staffingRatio = 1.0;
         let totalSlots = 0;
         let filledSlots = 0;
@@ -1284,6 +1321,11 @@ export const simulateTick = ({
                 const roleFilled = roleRequired * fillRate;
                 filledSlots += roleFilled;
                 buildingJobFill[b.id][role] = roleFilled;
+
+                // Track filled workers for per-building wage averaging
+                buildingFinancialData[b.id].filledByRole[role] =
+                    (buildingFinancialData[b.id].filledByRole[role] || 0) + roleFilled;
+
                 const vacancySlots = Math.max(0, roleRequired - roleFilled);
                 if (vacancySlots > 1e-3) {
                     const availableSlots = vacancySlots >= 1 ? Math.floor(vacancySlots) : 1;
@@ -1622,6 +1664,10 @@ export const simulateTick = ({
 
                         wealth[ownerKey] = Math.max(0, (wealth[ownerKey] || 0) - totalCost);
                         roleExpense[ownerKey] = (roleExpense[ownerKey] || 0) + totalCost;
+
+                        // Per-building realized production input costs
+                        buildingFinancialData[b.id].productionCosts += totalCost;
+
                         if (classFinancialData[ownerKey]) {
                             classFinancialData[ownerKey].expense.productionCosts = (classFinancialData[ownerKey].expense.productionCosts || 0) + totalCost;
                         }
@@ -1777,6 +1823,9 @@ export const simulateTick = ({
         // building-level payout displays and create runaway wage bills.
         const ownerPaidRatio = {}; // { ownerKey: paid / bill }
 
+        // Keep a copy for UI debug/inspection
+        buildingFinancialData[b.id].wagePaidRatioByOwner = ownerPaidRatio;
+
         if (plannedWageBill > 0) {
             // === 按等级精确计算每个 owner 的工资责任 ===
             // 构建 ownerWageBills: { ownerKey: totalWageBill }
@@ -1854,10 +1903,23 @@ export const simulateTick = ({
 
             if (plan.filled > 0 && actualSlotWage > 0) {
                 const payout = actualSlotWage * plan.filled;
+
+                // Per-building wage totals (for UI)
+                buildingFinancialData[b.id].wagesByRole[plan.role] =
+                    (buildingFinancialData[b.id].wagesByRole[plan.role] || 0) + payout;
+
                 roleWagePayout[plan.role] = (roleWagePayout[plan.role] || 0) + payout;
                 if (classFinancialData[plan.role]) {
                     classFinancialData[plan.role].income.wage = (classFinancialData[plan.role].income.wage || 0) + payout;
                 }
+            }
+        });
+
+        // Compute avg paid wage per filled worker for UI
+        Object.entries(buildingFinancialData[b.id].wagesByRole).forEach(([role, totalPaid]) => {
+            const filled = buildingFinancialData[b.id].filledByRole[role] || 0;
+            if (filled > 0) {
+                buildingFinancialData[b.id].paidWagePerWorkerByRole[role] = totalPaid / filled;
             }
         });
 
@@ -1924,7 +1986,9 @@ export const simulateTick = ({
 
                         const config = getBuildingEffectiveConfig(b, lvl);
                         const ownerKey = config.owner || 'state';
+                        currentBuildingId = b.id;
                         sellProduction(resKey, levelAmount, ownerKey);
+                        currentBuildingId = null;
                     });
 
                     rates[resKey] = (rates[resKey] || 0) + amount;
@@ -1952,6 +2016,10 @@ export const simulateTick = ({
                         wealth[oKey] = ownerWealth - ownerTax;
                         roleBusinessTaxPaid[oKey] = (roleBusinessTaxPaid[oKey] || 0) + ownerTax;
                         roleExpense[oKey] = (roleExpense[oKey] || 0) + ownerTax;
+
+                        // Per-building: accumulate business tax paid (only positive tax)
+                        buildingFinancialData[b.id].businessTaxPaid += ownerTax;
+
                         actualTaxCollected += ownerTax;
                         if (classFinancialData[oKey]) {
                             classFinancialData[oKey].expense.businessTax = (classFinancialData[oKey].expense.businessTax || 0) + ownerTax;
@@ -5175,6 +5243,7 @@ export const simulateTick = ({
         jobsAvailable,
         taxes,
         classFinancialData, // NEW: Return detailed financial data
+        buildingFinancialData, // NEW: Per-building realized financial stats for UI
         buildingDebugData,  // DEBUG: Building production debug data
         dailyMilitaryExpense: armyExpenseResult, // 新增：每日军费数据（用于战争赔款计算）
         needsShortages: classShortages,

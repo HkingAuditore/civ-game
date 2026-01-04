@@ -1739,7 +1739,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     setClassWealthDelta(wealthDelta);
                     setClassIncome(result.classIncome || {});
                     setClassExpense(result.classExpense || {});
-                    setClassFinancialData(result.classFinancialData || {});
+    setClassFinancialData(result.classFinancialData || {});
+    setBuildingFinancialData(result.buildingFinancialData || {});
                     // DEBUG: Store building debug data for UI display
                     if (typeof window !== 'undefined') {
                         window.__buildingDebugData = result.buildingDebugData || {};
