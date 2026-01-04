@@ -2692,8 +2692,12 @@ export const simulateTick = ({
 
     // --- Left Dominance: Planned Economy (Quota System) ---
     // User sets target population ratios. We adjust actual population towards targets.
-    if (cabinetStatus.dominance?.faction === 'left' && quotaTargets && Object.keys(quotaTargets).length > 0) {
-        const { adjustments, approvalPenalties, adminCost } = calculateQuotaEffects(popStructure, quotaTargets);
+    const quotaControls = quotaTargets && typeof quotaTargets === 'object' && Object.prototype.hasOwnProperty.call(quotaTargets, 'targets')
+        ? quotaTargets
+        : { enabled: true, targets: quotaTargets || {} };
+
+    if (cabinetStatus.dominance?.faction === 'left' && quotaControls?.enabled && quotaControls.targets && Object.keys(quotaControls.targets).length > 0) {
+        const { adjustments, approvalPenalties, adminCost } = calculateQuotaEffects(popStructure, quotaControls.targets);
 
         // [FIX] Population Conservation Logic
         // Calculate total population BEFORE adjustments to ensure conservation

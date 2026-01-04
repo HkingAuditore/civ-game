@@ -125,26 +125,45 @@ export const processNeedsConsumption = ({
                 // Tradable resource - requires payment
                 const marketPrice = priceMap[resKey] || getBasePrice(resKey);
                 
-                // 1. 先应用价格管制，获取有效价格（仅在左派主导时生效）
-                let effectivePrice = marketPrice;
-                const priceControlActive = leftFactionDominant && priceControls?.enabled && priceControls.governmentSellPrices?.[resKey] !== undefined;
+                // 1) Price control: same approach as simulation.js
+                const priceControlActive = leftFactionDominant
+                    && priceControls?.enabled
+                    && priceControls.governmentSellPrices?.[resKey] !== undefined
+                    && priceControls.governmentSellPrices[resKey] !== null;
+
+                // Use tentative government price for affordability check (may later fall back to market)
+                let tentativePrice = marketPrice;
                 if (priceControlActive) {
-                    effectivePrice = priceControls.governmentSellPrices[resKey];
+                    tentativePrice = priceControls.governmentSellPrices[resKey];
                 }
-                
-                const totalCost = requirement * effectivePrice;
-                const affordable = updatedWealth[key] > 0
-                    ? Math.min(requirement, (updatedWealth[key] / effectivePrice))
-                    : 0;
+
+                const priceWithTax = tentativePrice * (1 + getResourceTaxRate(resKey));
+                const affordable = priceWithTax > 0
+                    ? Math.min(requirement, (updatedWealth[key] || 0) / priceWithTax)
+                    : requirement;
 
                 const amount = Math.min(requirement, available, affordable);
 
                 if (amount > 0) {
                     res[resKey] = available - amount;
 
-                    // 2. 基于有效价格计算交易税
+                    // Apply price control financial transaction (treasury fallback handled inside)
+                    let finalEffectivePrice = marketPrice;
+                    if (priceControlActive) {
+                        const pcResult = applyBuyPriceControl({
+                            resourceKey: resKey,
+                            amount,
+                            marketPrice,
+                            priceControls,
+                            taxBreakdown,
+                            resources: res,
+                        });
+                        finalEffectivePrice = pcResult.effectivePrice;
+                    }
+
+                    // 2) Transaction tax is based on finalEffectivePrice
                     const taxRate = getResourceTaxRate(resKey);
-                    const baseCost = amount * effectivePrice;
+                    const baseCost = amount * finalEffectivePrice;
                     const taxPaid = baseCost * taxRate;
                     let actualCost = baseCost;
 
@@ -167,37 +186,41 @@ export const processNeedsConsumption = ({
                         actualCost += taxPaid;
                     }
 
-                    // 3. 计算价格管制收支差额（仅在左派主导时生效）
-                    if (priceControlActive) {
-                        const priceDiff = (effectivePrice - marketPrice) * amount;
-                        if (priceDiff > 0) {
-                            // 政府出售价 > 市场价：买家额外支付，政府收入
-                            taxBreakdown.priceControlIncome = (taxBreakdown.priceControlIncome || 0) + priceDiff;
-                        } else if (priceDiff < 0) {
-                            // 政府出售价 < 市场价：政府补贴买家
-                            const subsidyNeeded = Math.abs(priceDiff);
-                            if ((res.silver || 0) >= subsidyNeeded) {
-                                res.silver -= subsidyNeeded;
-                                taxBreakdown.priceControlExpense = (taxBreakdown.priceControlExpense || 0) + subsidyNeeded;
-                            }
-                            // 如果国库不足，补贴失败但交易仍按有效价格进行
-                        }
-                    }
-
                     updatedWealth[key] = Math.max(0, (updatedWealth[key] || 0) - actualCost);
                     roleExpense[key] = (roleExpense[key] || 0) + actualCost;
                     satisfied = amount;
 
-                    // 分类记录消费支出到详细财务数据
+                    // 3) Detailed finance: store {cost, quantity, price} so UI can show unit price changes
                     if (classFinancialData[key]) {
+                        const needEntry = {
+                            cost: actualCost,
+                            quantity: amount,
+                            price: finalEffectivePrice,
+                        };
+
                         if (baseNeeds.hasOwnProperty(resKey)) {
-                            // 必需品消费
-                            classFinancialData[key].expense.essentialNeeds[resKey] =
-                                (classFinancialData[key].expense.essentialNeeds[resKey] || 0) + actualCost;
+                            classFinancialData[key].expense.essentialNeeds = classFinancialData[key].expense.essentialNeeds || {};
+                            const existing = classFinancialData[key].expense.essentialNeeds[resKey];
+                            if (existing && typeof existing === 'object') {
+                                existing.cost += actualCost;
+                                existing.quantity += amount;
+                            } else {
+                                classFinancialData[key].expense.essentialNeeds[resKey] = needEntry;
+                            }
                         } else {
-                            // 奢侈品消费
-                            classFinancialData[key].expense.luxuryNeeds[resKey] =
-                                (classFinancialData[key].expense.luxuryNeeds[resKey] || 0) + actualCost;
+                            classFinancialData[key].expense.luxuryNeeds = classFinancialData[key].expense.luxuryNeeds || {};
+                            const existing = classFinancialData[key].expense.luxuryNeeds[resKey];
+                            if (existing && typeof existing === 'object') {
+                                existing.cost += actualCost;
+                                existing.quantity += amount;
+                            } else {
+                                classFinancialData[key].expense.luxuryNeeds[resKey] = needEntry;
+                            }
+                        }
+
+                        // Track transaction tax component for needs
+                        if (taxPaid > 0) {
+                            classFinancialData[key].expense.transactionTax = (classFinancialData[key].expense.transactionTax || 0) + taxPaid;
                         }
                     }
 

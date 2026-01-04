@@ -153,7 +153,14 @@ export const PlannedEconomyPanel = ({
     onUpdatePriceControls,
     marketPrices = {},
 }) => {
-    const [localTargets, setLocalTargets] = useState(quotaTargets);
+    const isQuotaObject = quotaTargets && typeof quotaTargets === 'object' && Object.prototype.hasOwnProperty.call(quotaTargets, 'targets');
+    const quotaEnabledProp = isQuotaObject ? !!quotaTargets.enabled : true;
+    const quotaTargetsOnly = isQuotaObject ? (quotaTargets.targets || {}) : (quotaTargets || {});
+
+    const [localQuotaControls, setLocalQuotaControls] = useState({
+        enabled: quotaEnabledProp,
+        targets: quotaTargetsOnly,
+    });
     const [hasQuotaChanges, setHasQuotaChanges] = useState(false);
 
     // 价格管制本地状态
@@ -162,6 +169,16 @@ export const PlannedEconomyPanel = ({
 
     // 当前展开的面板
     const [expandedSection, setExpandedSection] = useState('quota'); // 'quota' | 'price'
+
+    // 同步外部 quotaTargets 变化
+    useEffect(() => {
+        const nextIsObj = quotaTargets && typeof quotaTargets === 'object' && Object.prototype.hasOwnProperty.call(quotaTargets, 'targets');
+        setLocalQuotaControls({
+            enabled: nextIsObj ? !!quotaTargets.enabled : true,
+            targets: nextIsObj ? (quotaTargets.targets || {}) : (quotaTargets || {}),
+        });
+        setHasQuotaChanges(false);
+    }, [quotaTargets]);
 
     // 同步外部 priceControls 变化
     useEffect(() => {
@@ -186,19 +203,35 @@ export const PlannedEconomyPanel = ({
     }, [popStructure, totalPop]);
 
     // 配额处理
+    const handleQuotaToggle = () => {
+        setLocalQuotaControls(prev => ({
+            ...prev,
+            enabled: !prev.enabled,
+        }));
+        setHasQuotaChanges(true);
+    };
+
     const handleQuotaChange = (stratum, value) => {
-        const newTargets = { ...localTargets, [stratum]: value };
-        setLocalTargets(newTargets);
+        setLocalQuotaControls(prev => ({
+            ...prev,
+            targets: { ...prev.targets, [stratum]: value },
+        }));
         setHasQuotaChanges(true);
     };
 
     const handleApplyQuotas = () => {
-        onUpdateQuotas(localTargets);
+        onUpdateQuotas({
+            enabled: !!localQuotaControls.enabled,
+            targets: localQuotaControls.targets,
+        });
         setHasQuotaChanges(false);
     };
 
     const handleResetQuotas = () => {
-        setLocalTargets({});
+        setLocalQuotaControls(prev => ({
+            ...prev,
+            targets: {},
+        }));
         setHasQuotaChanges(true);
     };
 
@@ -242,7 +275,7 @@ export const PlannedEconomyPanel = ({
     };
 
     // 计算总目标比例
-    const totalTarget = Object.values(localTargets).reduce((a, b) => a + b, 0);
+    const totalTarget = Object.values(localQuotaControls.targets || {}).reduce((a, b) => a + b, 0);
     const isQuotaValid = totalTarget <= 100;
 
     // 统计已设置的价格数量
@@ -261,6 +294,11 @@ export const PlannedEconomyPanel = ({
                     <div className="flex items-center gap-2">
                         <Icon name="BarChart3" size={18} className="text-red-400" />
                         <span className="text-sm font-bold text-red-300">阶层配额</span>
+                        {localQuotaControls.enabled && (
+                            <span className="text-[10px] px-1.5 py-0.5 bg-red-600/30 text-red-300 rounded">
+                                已启用
+                            </span>
+                        )}
                     </div>
                     <div className="flex items-center gap-2">
                         {adminCost > 0 && (
@@ -279,20 +317,34 @@ export const PlannedEconomyPanel = ({
                 {/* 展开内容 */}
                 {expandedSection === 'quota' && (
                     <div className="px-3 pb-3 border-t border-gray-700/50">
+                        {/* 启用开关 */}
+                        <div className="flex items-center justify-between py-2">
+                            <span className="text-xs text-gray-400">启用人口配额</span>
+                            <button
+                                onClick={handleQuotaToggle}
+                                disabled={disabled}
+                                className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${localQuotaControls.enabled ? 'bg-red-600' : 'bg-gray-600'
+                                    } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                            >
+                                <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all duration-200 ${localQuotaControls.enabled ? 'left-6' : 'left-1'
+                                    }`} />
+                            </button>
+                        </div>
+
                         <p className="text-xs text-gray-500 my-2">
                             设置目标人口比例，社会流动将加速向目标调整。
                         </p>
 
                         {/* 配额列表 */}
                         <div className="space-y-1 mb-3 max-h-48 overflow-y-auto">
-                            {ADJUSTABLE_STRATA.filter(s => currentDistribution[s] > 0 || localTargets[s]).map(stratum => (
+                            {ADJUSTABLE_STRATA.filter(s => currentDistribution[s] > 0 || localQuotaControls.targets?.[s]).map(stratum => (
                                 <QuotaSlider
                                     key={stratum}
                                     stratum={stratum}
                                     currentPercent={currentDistribution[stratum]}
-                                    targetPercent={localTargets[stratum] ?? currentDistribution[stratum]}
+                                    targetPercent={localQuotaControls.targets?.[stratum] ?? currentDistribution[stratum]}
                                     onChange={handleQuotaChange}
-                                    disabled={disabled}
+                                    disabled={disabled || !localQuotaControls.enabled}
                                 />
                             ))}
                         </div>
@@ -429,4 +481,3 @@ export const PlannedEconomyPanel = ({
 };
 
 export default PlannedEconomyPanel;
-

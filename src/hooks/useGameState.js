@@ -1024,6 +1024,7 @@ export const useGameState = () => {
                 decreeCooldowns,
                 quotaTargets,
                 expansionSettings: sanitizeExpansionSettings(expansionSettings),
+                priceControls, // [NEW] planned economy price control settings
                 classApproval,
                 classInfluence,
                 classWealth,
@@ -1123,7 +1124,14 @@ export const useGameState = () => {
         setExpansionSettings(sanitizeExpansionSettings(data.expansionSettings)); // [FIX] 加载自由市场扩张设置
         setActiveDecrees(data.activeDecrees || {});
         setDecreCooldowns(data.decreeCooldowns || {});
-        setQuotaTargets(data.quotaTargets || {});
+        // Planned economy quota controls: keep backward compatibility with older saves
+        const loadedQuotaTargets = data.quotaTargets;
+        const normalizedQuotaTargets = loadedQuotaTargets
+            && typeof loadedQuotaTargets === 'object'
+            && Object.prototype.hasOwnProperty.call(loadedQuotaTargets, 'targets')
+            ? loadedQuotaTargets
+            : { enabled: true, targets: loadedQuotaTargets || {} };
+        setQuotaTargets(normalizedQuotaTargets);
         setPriceControls(data.priceControls || {
             enabled: false,
             governmentBuyPrices: {},
@@ -1850,6 +1858,8 @@ export const useGameState = () => {
         setClassExpense,
         classFinancialData,
         setClassFinancialData,
+        buildingFinancialData,
+        setBuildingFinancialData,
         classWealthHistory,
         setClassWealthHistory,
         classNeedsHistory,
