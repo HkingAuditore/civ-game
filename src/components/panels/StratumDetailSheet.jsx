@@ -3,6 +3,7 @@ import { Icon } from '../common/UIComponents';
 import { STRATA, RESOURCES } from '../../config';
 import { formatEffectDetails } from '../../utils/effectFormatter';
 import { isResourceUnlocked } from '../../utils/resources';
+import { formatNumberShortCN } from '../../utils/numberFormat';
 import { calculateLivingStandardData, calculateWealthMultiplier, calculateUnlockMultiplier, calculateLuxuryConsumptionMultiplier, LIVING_STANDARD_LEVELS } from '../../utils/livingStandard';
 import {
     getOrganizationStage,
@@ -362,13 +363,13 @@ const StratumDetailSheetComponent = ({
                             <div className="text-sm font-bold text-purple-300 font-mono leading-none">{influence.toFixed(0)}</div>
                         </div>
 
-                        {/* 财富总额 */}
+                        {/* 财富 total */}
                         <div className="bg-gray-700/50 rounded p-1.5 border border-gray-600">
                             <div className="flex items-center gap-1 mb-0.5">
                                 <Icon name="Coins" size={12} className="text-yellow-400" />
                                 <span className="text-[9px] text-gray-400 leading-none">财富</span>
                             </div>
-                            <div className="text-sm font-bold text-yellow-300 font-mono leading-none">{wealthValue.toFixed(0)}</div>
+                            <div className="text-sm font-bold text-yellow-300 font-mono leading-none">{formatNumberShortCN(wealthValue, { decimals: 1 })}</div>
                         </div>
                     </div>
 
@@ -394,7 +395,7 @@ const StratumDetailSheetComponent = ({
                             <div className="flex-1 grid grid-cols-3 gap-1.5">
                                 <div className="bg-gray-800/40 rounded px-2 py-1">
                                     <div className="text-[9px] text-gray-400 leading-none mb-0.5">人均财富</div>
-                                    <div className="text-xs font-bold text-yellow-300 font-mono">{wealthPerCapita.toFixed(1)}</div>
+                                    <div className="text-xs font-bold text-yellow-300 font-mono">{formatNumberShortCN(wealthPerCapita, { decimals: 1 })}</div>
                                     <div className="text-[8px] text-gray-500 leading-none">
                                         {wealthRatio >= 1 ? '↑' : '↓'} 基准{wealthRatio >= 1 ? '+' : ''}{((wealthRatio - 1) * 100).toFixed(0)}%
                                     </div>

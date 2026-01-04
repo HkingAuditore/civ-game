@@ -193,6 +193,7 @@ export const StratumDetailModal = ({
   const approval = classApproval[stratumKey] || 50;
   const influence = classInfluence[stratumKey] || 0;
   const wealth = classWealth[stratumKey] || 0;
+  const wealthPerCapita = wealth / Math.max(1, population);
 
   // 计算百分比
   const totalPop = Object.values(popStructure).reduce((sum, count) => sum + count, 0);
@@ -304,7 +305,7 @@ export const StratumDetailModal = ({
                   <Icon name="BarChart" size={16} className="text-blue-400" />
                   基础统计
                 </h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                   <div className="bg-gray-700/50 p-3 rounded">
                     <p className="text-xs text-gray-400 mb-1">人口数量</p>
                     <p className="text-lg font-bold text-white">{formatNumberShortCN(population, { decimals: 1 })}</p>
@@ -329,6 +330,11 @@ export const StratumDetailModal = ({
                     <p className="text-xs text-gray-400 mb-1">财富</p>
                     <p className="text-lg font-bold text-yellow-400">{formatNumberShortCN(wealth, { decimals: 1 })}</p>
                     <p className="text-xs text-yellow-400 mt-1">{wealthPercent.toFixed(1)}%</p>
+                  </div>
+                  <div className="bg-gray-700/50 p-3 rounded">
+                    <p className="text-xs text-gray-400 mb-1">人均财富</p>
+                    <p className="text-lg font-bold text-yellow-300">{formatNumberShortCN(wealthPerCapita, { decimals: 1 })}</p>
+                    <p className="text-xs text-gray-500 mt-1">银币/人</p>
                   </div>
                 </div>
               </div>
