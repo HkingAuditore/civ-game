@@ -98,13 +98,16 @@ export const StatusBar = ({
     const policyIncome = taxes.breakdown?.policyIncome || 0;
     const policyExpense = taxes.breakdown?.policyExpense || 0;
 
-    // Use realized numbers to keep UI consistent with actual treasury changes
-    const actualNetSilver = Number(gameState?.fiscalActual?.silverDelta ?? netSilverPerDay ?? 0);
-    const actualOfficialSalaryPaid = Number(gameState?.fiscalActual?.officialSalaryPaid ?? 0);
+    // Net silver shown in the status bar should match the fiscal breakdown the player sees.
+    // Use the legacy netSilverPerDay (computed from taxes breakdown + upkeep) for display.
+    const displayNetSilver = Number(netSilverPerDay ?? 0);
+
+    // Keep realized values for showing actual payouts (they are useful when treasury is insufficient).
+    const actualOfficialSalaryPaid = Number(gameState?.fiscalActual?.officialSalaryPaid ?? officialSalaryPerDay ?? 0);
     const actualForcedSubsidyPaid = Number(gameState?.fiscalActual?.forcedSubsidyPaid ?? 0);
     const actualForcedSubsidyUnpaid = Number(gameState?.fiscalActual?.forcedSubsidyUnpaid ?? 0);
 
-    const netSilverClass = actualNetSilver >= 0 ? 'text-green-300' : 'text-red-300';
+    const netSilverClass = displayNetSilver >= 0 ? 'text-green-300' : 'text-red-300';
     const tradeTaxClass = tradeTax >= 0 ? 'text-emerald-300' : 'text-red-300';
 
     // 获取当前时代信息
@@ -338,10 +341,10 @@ export const StatusBar = ({
                                     </span>
                                 </div>
                                 {/* 净收入指示 */}
-                                <div className={`flex items-center gap-0.5 text-[9px] px-1 py-0.5 rounded ${actualNetSilver >= 0 ? 'bg-green-900/30' : 'bg-red-900/30'}`}>
-                                    <Icon name={actualNetSilver >= 0 ? 'TrendingUp' : 'TrendingDown'} size={9} className={netSilverClass} />
+                                <div className={`flex items-center gap-0.5 text-[9px] px-1 py-0.5 rounded ${displayNetSilver >= 0 ? 'bg-green-900/30' : 'bg-red-900/30'}`}>
+                                    <Icon name={displayNetSilver >= 0 ? 'TrendingUp' : 'TrendingDown'} size={9} className={netSilverClass} />
                                     <span className={`font-mono ${netSilverClass}`}>
-                                        {actualNetSilver >= 0 ? '+' : ''}{formatNumberShortCN(Math.abs(actualNetSilver || 0), { decimals: 1 })}
+                                        {displayNetSilver >= 0 ? '+' : ''}{formatNumberShortCN(Math.abs(displayNetSilver || 0), { decimals: 1 })}
                                     </span>
                                 </div>
                             </button>
@@ -424,12 +427,17 @@ export const StatusBar = ({
                                                     {officialSalaryPerDay > 0 && (
                                                         <div className="stat-item-compact">
                                                             <span className="text-ancient-stone">官员薪俸</span>
-                                                            <span className="text-red-300 font-mono">-{formatNumberShortCN((actualOfficialSalaryPaid > 0 ? actualOfficialSalaryPaid : officialSalaryPerDay), { decimals: 1 })}</span>
+                                                            <span className="text-red-300 font-mono">-{formatNumberShortCN(actualOfficialSalaryPaid, { decimals: 1 })}</span>
+                                                        </div>
+                                                    )}
+                                                    {officialSalaryPerDay > 0 && actualOfficialSalaryPaid !== officialSalaryPerDay && (
+                                                        <div className="text-[10px] text-amber-400/90 leading-tight">
+                                                            应付 {formatNumberShortCN(officialSalaryPerDay, { decimals: 1 })}（国库不足）
                                                         </div>
                                                     )}
                                                     {taxes.breakdown?.subsidy > 0 && (
                                                         <div className="stat-item-compact">
-                                                            <span className="text-ancient-stone">补助支出</span>
+                                                            <span className="text-ancient-stone">税收补贴</span>
                                                             <span className="text-red-300 font-mono">-{formatNumberShortCN(taxes.breakdown.subsidy, { decimals: 1 })}</span>
                                                         </div>
                                                     )}
@@ -478,7 +486,7 @@ export const StatusBar = ({
                                                     <div className="stat-item-compact bg-ancient-gold/10">
                                                         <span className="font-bold text-ancient-parchment">净收益</span>
                                                         <span className={`font-bold font-mono ${netSilverClass}`}>
-                                                            {actualNetSilver >= 0 ? '+' : ''}{formatNumberShortCN(Math.abs(actualNetSilver || 0), { decimals: 1 })}
+                                                            {displayNetSilver >= 0 ? '+' : ''}{formatNumberShortCN(Math.abs(displayNetSilver || 0), { decimals: 1 })}
                                                         </span>
                                                     </div>
                                                 </div>

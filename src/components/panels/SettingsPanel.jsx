@@ -137,7 +137,10 @@ export const SettingsPanel = ({
     onDifficultyChange,
     eventConfirmationEnabled,
     onToggleEventConfirmation,
+    showMerchantTradeLogs,
+    onToggleMerchantTradeLogs,
 }) => {
+    const merchantTradeLogToggleAvailable = typeof onToggleMerchantTradeLogs === 'function';
     const { enabled: soundEnabled, volume, toggleSound, setVolume, playSound, SOUND_TYPES } = useSound();
     const fileInputRef = useRef(null);
     const [isExporting, setIsExporting] = useState(false);
@@ -303,6 +306,33 @@ export const SettingsPanel = ({
                     开启后，选择事件选项时需要再次点击确认按钮，防止误触。
                 </p>
             </div>
+
+            {merchantTradeLogToggleAvailable && (
+                <>
+                    {/* 商人交易日志显示 */}
+                    <div className="border-t border-gray-700 pt-4 space-y-2">
+                        <div className="flex items-center justify-between text-xs text-gray-300">
+                            <span>显示商人交易日志</span>
+                            <span className={(showMerchantTradeLogs ?? true) ? 'text-emerald-300' : 'text-gray-500'}>
+                                {(showMerchantTradeLogs ?? true) ? '已启用' : '已关闭'}
+                            </span>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                            <input
+                                type="checkbox"
+                                className="sr-only peer"
+                                checked={showMerchantTradeLogs ?? true}
+                                onChange={(e) => onToggleMerchantTradeLogs && onToggleMerchantTradeLogs(e.target.checked)}
+                            />
+                            <div className="w-10 h-5 bg-gray-700 rounded-full peer peer-checked:bg-emerald-600 transition-colors" />
+                            <div className={`absolute left-1 top-1 w-3 h-3 rounded-full bg-white transition-transform ${(showMerchantTradeLogs ?? true) ? 'translate-x-5' : ''}`} />
+                        </label>
+                        <p className="text-[11px] text-gray-400 leading-relaxed">
+                            关闭后，事件日志将不再显示商人自动交易明细与贸易路线交易明细。
+                        </p>
+                    </div>
+                </>
+            )}
 
 
 

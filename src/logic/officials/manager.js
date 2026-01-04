@@ -649,7 +649,7 @@ export const DISPOSAL_TYPES = {
         approvalPenaltyMultiplier: 0,
         stabilityPenalty: 0,
         organizationBonus: 0,
-        confirmText: '确定解雇此官员？无法获取其财产。',
+        confirmText: '确定解雇此官员？无法获取其财产，其名下产业将全部倒闭。',
         logTemplate: '解雇了 {name}，其自行离去。',
     },
     exile: {
@@ -661,7 +661,7 @@ export const DISPOSAL_TYPES = {
         approvalPenaltyMultiplier: 0.5,
         stabilityPenalty: 0.02,
         organizationBonus: 10,
-        confirmText: '流放此官员？将没收其一半财产，其出身阶层会产生不满。',
+        confirmText: '流放此官员？将没收其一半财产，其名下产业将全部倒闭，其出身阶层会产生不满。',
         logTemplate: '流放了 {name} ({prestigeLevel})，没收财产 {seized} 银。{stratum}阶层好感度 {penalty}。',
     },
     execute: {
@@ -673,7 +673,7 @@ export const DISPOSAL_TYPES = {
         approvalPenaltyMultiplier: 1.0,
         stabilityPenalty: 0.05,
         organizationBonus: 25,
-        confirmText: '处死此官员？将抄没全部家产，但可能引发严重政治后果。',
+        confirmText: '处死此官员？将抄没全部家产，其名下产业将转交给原始业主阶层，但可能引发严重政治后果。',
         logTemplate: '处死了 {name} ({prestigeLevel})，抄家获得 {seized} 银。{stratum}阶层好感度 {penalty}，稳定度 {stabilityChange}。',
     },
 };
@@ -743,16 +743,25 @@ export const disposeOfficial = (officialId, disposalType, currentOfficials, curr
     }
 
     const newOfficials = currentOfficials.filter(o => o.id !== officialId);
-    const propertyTransfers = (official.ownedProperties || []).map(prop => {
-        const building = BUILDINGS.find(b => b.id === prop.buildingId);
-        return {
-            buildingId: prop.buildingId,
-            instanceId: prop.instanceId,
-            level: prop.level || 0,
-            targetStratum: building?.owner || official.sourceStratum,
-            value: prop.purchaseCost || 0,
-        };
-    });
+
+    const ownedProperties = Array.isArray(official.ownedProperties) ? official.ownedProperties : [];
+
+    // 处死：产业转交给原始业主阶层；解雇/流放：产业倒闭（消失）
+    const propertyOutcome = disposalType === 'execute' ? 'transfer' : 'collapse';
+
+    const propertyTransfers = propertyOutcome === 'transfer'
+        ? ownedProperties.map(prop => {
+            const building = BUILDINGS.find(b => b.id === prop.buildingId);
+            return {
+                buildingId: prop.buildingId,
+                instanceId: prop.instanceId,
+                level: prop.level || 0,
+                targetStratum: building?.owner || official.sourceStratum,
+                value: prop.purchaseCost || 0,
+            };
+        })
+        : [];
+
     const propertyTransferTotal = propertyTransfers.reduce((sum, item) => sum + (item.value || 0), 0);
 
     // ========== 处置时政变判定 ==========
@@ -771,10 +780,10 @@ export const disposeOfficial = (officialId, disposalType, currentOfficials, curr
         if (finalLoyalty <= 0) coupChance *= 2;
 
         // 检查是否有资本发动政变
-        const propertyValue = (official.ownedProperties || [])
+        const propertyValue = ownedProperties
             .reduce((sum, p) => sum + (p.purchaseCost || 0), 0);
         const wealthScore = (official.wealth || 0) + propertyValue;
-        const propertyCount = (official.ownedProperties || []).length;
+        const propertyCount = ownedProperties.length;
 
         // 必须有一定资本才能发动政变
         const hasCapital = wealthScore >= LOYALTY_CONFIG.COUP_WEALTH_THRESHOLD * 0.5 ||
@@ -795,10 +804,12 @@ export const disposeOfficial = (officialId, disposalType, currentOfficials, curr
             organizationChange: { [consequences.stratum]: consequences.organizationBonus },
         },
         logMessage: consequences.logMessage,
-        propertyTransfer: {
+        propertyOutcome,
+        propertyCount: ownedProperties.length,
+        propertyTransfer: propertyOutcome === 'transfer' ? {
             transfers: propertyTransfers,
             totalValue: propertyTransferTotal,
-        },
+        } : null,
         consequences,
         // 政变相关
         coupTriggered,

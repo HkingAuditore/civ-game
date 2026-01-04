@@ -439,6 +439,12 @@ const DEFAULT_EVENT_EFFECT_SETTINGS = {
     resourceDemand: { duration: 60, decayRate: 0.02 },      // Resource demand modifier
     stratumDemand: { duration: 60, decayRate: 0.02 },       // Stratum consumption modifier
     buildingProduction: { duration: 45, decayRate: 0.025 }, // Building production modifier
+
+    // UI / Log visibility settings
+    logVisibility: {
+        showMerchantTradeLogs: true,
+        showTradeRouteLogs: true,
+    },
 };
 
 const buildInitialEventEffects = () => ({
@@ -1095,6 +1101,7 @@ export const useGameState = () => {
                 isAutoSaveEnabled,
                 lastAutoSaveTime: nextLastAuto,
                 difficulty,
+                eventConfirmationEnabled,
                 updatedAt: timestamp,
                 saveSource: source,
             },
@@ -1233,7 +1240,14 @@ export const useGameState = () => {
         setIsAutoSaveEnabled(data.isAutoSaveEnabled ?? true);
         setLastAutoSaveTime(data.lastAutoSaveTime || Date.now());
         setDifficulty(data.difficulty || DEFAULT_DIFFICULTY);
-        setEventEffectSettings(data.eventEffectSettings || DEFAULT_EVENT_EFFECT_SETTINGS);
+    setEventEffectSettings({
+        ...DEFAULT_EVENT_EFFECT_SETTINGS,
+        ...(data.eventEffectSettings || {}),
+        logVisibility: {
+            ...DEFAULT_EVENT_EFFECT_SETTINGS.logVisibility,
+            ...((data.eventEffectSettings || {}).logVisibility || {}),
+        },
+    });
         const loadedEffects = data.activeEventEffects || {};
         setActiveEventEffects({
             approval: Array.isArray(loadedEffects.approval) ? loadedEffects.approval : [],

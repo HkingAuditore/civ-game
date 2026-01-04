@@ -1765,7 +1765,16 @@ function GameApp({ gameState }) {
                             onClose={() => setIsSettingsOpen(false)}
                             eventConfirmationEnabled={gameState.eventConfirmationEnabled}
                             onToggleEventConfirmation={gameState.setEventConfirmationEnabled}
-                        />
+                            showMerchantTradeLogs={gameState.eventEffectSettings?.logVisibility?.showMerchantTradeLogs ?? true}
+                            onToggleMerchantTradeLogs={(enabled) => gameState.setEventEffectSettings(prev => ({
+                                ...(prev || {}),
+                                logVisibility: {
+                                    ...((prev || {}).logVisibility || {}),
+                                    showMerchantTradeLogs: enabled,
+                                    showTradeRouteLogs: enabled,
+                                },
+                            }))}
+                            />
                     </div>
                 </div>
             )}

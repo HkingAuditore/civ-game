@@ -630,6 +630,10 @@ export const OfficialCard = memo(({
                             </button>
                         </div>
 
+                        <div className="mt-1 text-[9px] text-gray-500 leading-snug">
+                            注：解雇/流放会导致其名下产业全部倒闭；处死会将产业转交给原始业主阶层。
+                        </div>
+
                         {showDisposalMenu && (
                             <div className="absolute bottom-full left-0 right-0 mb-1 bg-gray-900 border border-gray-700 rounded-lg shadow-lg overflow-hidden z-10">
                                 {Object.values(DISPOSAL_TYPES).filter(t => t.id !== 'fire').map(type => (

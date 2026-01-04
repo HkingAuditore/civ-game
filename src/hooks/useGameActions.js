@@ -1015,7 +1015,7 @@ export const useGameActions = (gameState, addLog) => {
         if (official) {
             addLog(`解雇了官员 ${official.name}。`);
             if (official.ownedProperties?.length) {
-                addLog(`官员产业已转交给原始业主阶层（${official.ownedProperties.length} 处）`);
+                addLog(`官员产业已全部倒闭（${official.ownedProperties.length} 处）`);
             }
 
             // 更新人口结构：从官员阶层移回来源阶层（或无业）
@@ -1095,9 +1095,11 @@ export const useGameActions = (gameState, addLog) => {
             });
         }
 
-        if (result.propertyTransfer?.transfers?.length) {
+        if (result.propertyOutcome === 'transfer' && result.propertyTransfer?.transfers?.length) {
             const transferCount = result.propertyTransfer.transfers.length;
             addLog(`官员产业已转交给原始业主阶层（${transferCount} 处）`);
+        } else if (result.propertyOutcome === 'collapse' && result.propertyCount > 0) {
+            addLog(`官员产业已全部倒闭（${result.propertyCount} 处）`);
         }
 
         // 记录日志
@@ -1762,7 +1764,11 @@ export const useGameActions = (gameState, addLog) => {
                         : n
                 ));
 
-                addLog(`向 ${targetNation.name} 出口 ${amount}${RESOURCES[resourceKey].name}，收入 ${payout.toFixed(1)} 银币（单价差 ${profitPerUnit >= 0 ? '+' : ''}${profitPerUnit.toFixed(2)}）。`);
+                const logVisibility = eventEffectSettings?.logVisibility || {};
+                const shouldLogTradeRoutes = logVisibility.showTradeRouteLogs ?? true;
+                if (shouldLogTradeRoutes) {
+                    addLog(`向 ${targetNation.name} 出口 ${amount}${RESOURCES[resourceKey].name}，收入 ${payout.toFixed(1)} 银币（单价差 ${profitPerUnit >= 0 ? '+' : ''}${profitPerUnit.toFixed(2)}）。`);
+                }
                 break;
             }
 
@@ -1823,7 +1829,11 @@ export const useGameActions = (gameState, addLog) => {
                         : n
                 ));
 
-                addLog(`从 ${targetNation.name} 进口 ${amount}${RESOURCES[resourceKey].name}，支出 ${cost.toFixed(1)} 银币（单价差 ${profitPerUnit >= 0 ? '+' : ''}${profitPerUnit.toFixed(2)}）。`);
+                const logVisibility = eventEffectSettings?.logVisibility || {};
+                const shouldLogTradeRoutes = logVisibility.showTradeRouteLogs ?? true;
+                if (shouldLogTradeRoutes) {
+                    addLog(`从 ${targetNation.name} 进口 ${amount}${RESOURCES[resourceKey].name}，支出 ${cost.toFixed(1)} 银币（单价差 ${profitPerUnit >= 0 ? '+' : ''}${profitPerUnit.toFixed(2)}）。`);
+                }
                 break;
             }
 

@@ -256,7 +256,21 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
     }
 
     // 添加日志
-    tradeLog.forEach(log => addLog(log));
+    const logVisibility = current?.eventEffectSettings?.logVisibility || {};
+    const shouldLogMerchantTrades = logVisibility.showMerchantTradeLogs ?? true;
+    const shouldLogTradeRoutes = logVisibility.showTradeRouteLogs ?? true;
+
+    // Merchant autonomous trade details
+    if (shouldLogMerchantTrades) {
+        tradeLog.forEach(log => addLog(log));
+    }
+
+    // Trade route summary logs (if any in future)
+    if (!shouldLogTradeRoutes) {
+        // currently trade routes only output detailed logs above;
+        // keep this block to ensure future trade-route logs can be gated centrally.
+    }
+
     return { tradeTax: totalTradeTax };
 };
 
@@ -1388,10 +1402,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     adjustedResources[resource] = Math.max(0, (adjustedResources[resource] || 0) - amount);
                 });
 
-                // --- Realized fiscal tracking (must match treasury changes) ---
-                // Baseline must be the simulated treasury for this tick (result.resources.silver),
-                // not the previous state's treasury, otherwise UI can show 0 even when we paid salary.
-                const treasuryBeforeDeductions = Number(result.resources?.silver || 0);
+                // --- Realized fiscal tracking (must match visible treasury changes) ---
+                // We must baseline against the treasury BEFORE this tick starts (current.resources.silver).
+                // Otherwise we would only measure extra deductions done in this hook, not the full tick delta.
+                const treasuryAtTickStart = Number(current.resources?.silver || 0);
                 let officialSalaryPaid = 0;
                 let forcedSubsidyPaid = 0;
                 let forcedSubsidyUnpaid = 0;
@@ -1438,7 +1452,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 if (typeof setFiscalActual === 'function') {
                     const treasuryAfterDeductions = Number(adjustedResources.silver || 0);
                     setFiscalActual({
-                        silverDelta: treasuryAfterDeductions - treasuryBeforeDeductions,
+                        // True treasury delta for the whole tick (what the player sees on the silver number)
+                        silverDelta: treasuryAfterDeductions - treasuryAtTickStart,
                         officialSalaryPaid,
                         forcedSubsidyPaid,
                         forcedSubsidyUnpaid,
@@ -2635,6 +2650,13 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         if (log.includes('AI_REQUEST_EVENT:')) {
                             return '🗣️ 收到一份来自外国的外交请求';
                         }
+
+                        // Merchant autonomous trade summary logs (from simulation)
+                        // Gate behind showMerchantTradeLogs
+                        if (log.startsWith('🛒 商人自主贸易')) {
+                            return shouldLogMerchantTrades ? log : null;
+                        }
+
                         // 过滤掉 AI_TRADE_EVENT 的原始 JSON，后续会通过 addLog 添加格式化日志
                         if (log.includes('AI_TRADE_EVENT:')) {
                             return null;
@@ -3329,24 +3351,27 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                     }
 
                                     // 生成详细的贸易日志（玩家政府只收关税）
-                                    if (eventData.tradeType === 'export') {
-                                        // 玩家出口：资源减少，只收关税
-                                        if (eventData.tariff > 0) {
-                                            addLog(`📦 ${eventData.nationName} 从你的市场购买了 ${eventData.quantity} ${resourceName}，你收取 ${eventData.tariff} 关税。`);
+                                    // 这些属于“贸易路线/市场贸易”类日志，受 showTradeRouteLogs 控制
+                                    if (shouldLogTradeRoutes) {
+                                        if (eventData.tradeType === 'export') {
+                                            // 玩家出口：资源减少，只收关税
+                                            if (eventData.tariff > 0) {
+                                                addLog(`📦 ${eventData.nationName} 从你的市场购买了 ${eventData.quantity} ${resourceName}，你收取 ${eventData.tariff} 关税。`);
+                                            } else {
+                                                addLog(`📦 ${eventData.nationName} 从你的市场购买了 ${eventData.quantity} ${resourceName}（开放市场，无关税）。`);
+                                            }
+                                        } else if (eventData.tradeType === 'import') {
+                                            // 玩家进口：资源增加，只收关税
+                                            if (eventData.tariff > 0) {
+                                                addLog(`📦 ${eventData.nationName} 向你的市场出售了 ${eventData.quantity} ${resourceName}，你收取 ${eventData.tariff} 关税。`);
+                                            } else {
+                                                addLog(`📦 ${eventData.nationName} 向你的市场出售了 ${eventData.quantity} ${resourceName}（开放市场，无关税）。`);
+                                            }
                                         } else {
-                                            addLog(`📦 ${eventData.nationName} 从你的市场购买了 ${eventData.quantity} ${resourceName}（开放市场，无关税）。`);
-                                        }
-                                    } else if (eventData.tradeType === 'import') {
-                                        // 玩家进口：资源增加，只收关税
-                                        if (eventData.tariff > 0) {
-                                            addLog(`📦 ${eventData.nationName} 向你的市场出售了 ${eventData.quantity} ${resourceName}，你收取 ${eventData.tariff} 关税。`);
-                                        } else {
-                                            addLog(`📦 ${eventData.nationName} 向你的市场出售了 ${eventData.quantity} ${resourceName}（开放市场，无关税）。`);
-                                        }
-                                    } else {
-                                        // 旧版兼容
-                                        if (eventData.tariff > 0) {
-                                            addLog(`📦 ${eventData.nationName} 与你进行了贸易，你收取 ${eventData.tariff} 关税。`);
+                                            // 旧版兼容
+                                            if (eventData.tariff > 0) {
+                                                addLog(`📦 ${eventData.nationName} 与你进行了贸易，你收取 ${eventData.tariff} 关税。`);
+                                            }
                                         }
                                     }
                                 } catch (e) {
