@@ -1268,6 +1268,8 @@ export const simulateTick = ({
         const roleExpectedWages = {};
         let expectedWageBillBase = 0;
         const wagePlans = [];
+        // Each wage plan may include ownerKey so we can apply per-owner distribution ratios
+        // when actually paying wages.
         if (Object.keys(effectiveOps.jobs).length > 0) {
             buildingJobFill[b.id] = buildingJobFill[b.id] || {};
             for (let role in effectiveOps.jobs) {
@@ -1300,6 +1302,7 @@ export const simulateTick = ({
                     expectedWageBillBase += roleFilled * adjustedWage;
                     wagePlans.push({
                         role,
+                        ownerKey: b.owner || 'state',
                         roleSlots: roleRequired,
                         filled: roleFilled,
                         baseWage: adjustedWage,
@@ -1719,6 +1722,10 @@ export const simulateTick = ({
         const subsistenceMultiplier = buildingWageConfig.subsistenceMultiplier || 1.5;
 
         const preparedWagePlans = wagePlans.map(plan => {
+            // ownerKey is required for per-building wage distribution payment.
+            // Prefer plan.ownerKey if already provided; fallback to building's default owner.
+            const planOwnerKey = plan.ownerKey || b.owner || 'state';
+
             // 根据角色在各等级的分布，计算加权平均的工资压力因子
             let planWagePressure = avgWagePressure;
 
@@ -1757,6 +1764,7 @@ export const simulateTick = ({
             plannedWageBill += due;
             return {
                 ...plan,
+                ownerKey: planOwnerKey,
                 expectedSlotWage,
                 wagePressure: planWagePressure, // 保存用于调试
                 wageMode, // Track for debugging
@@ -1764,7 +1772,11 @@ export const simulateTick = ({
             };
         });
 
-        let wageRatio = 0;
+        // Wage payment must follow EACH building's actual wage distribution level.
+        // Previously we computed a global wageRatio pooled by owners which could desync from
+        // building-level payout displays and create runaway wage bills.
+        const ownerPaidRatio = {}; // { ownerKey: paid / bill }
+
         if (plannedWageBill > 0) {
             // === 按等级精确计算每个 owner 的工资责任 ===
             // 构建 ownerWageBills: { ownerKey: totalWageBill }
@@ -1783,7 +1795,7 @@ export const simulateTick = ({
                         if (role === ownerKey) return;
 
                         let wage;
-                        // NEW: Subsistence wage mode - use fixed living-cost based wages
+                        // Subsistence wage mode - use fixed living-cost based wages
                         if (wageMode === 'subsistence') {
                             const roleLivingCost = wageLivingCosts?.[role] || getLivingCostFloor(role);
                             wage = roleLivingCost * subsistenceMultiplier;
@@ -1798,55 +1810,48 @@ export const simulateTick = ({
                 }
             });
 
-            // 计算总工资账单和每个 owner 的支付能力
-            const totalOwnerBills = Object.values(ownerWageBills).reduce((sum, v) => sum + v, 0);
-            let totalPaid = 0;
-
-            // 按每个 owner 的实际工资责任支付
+            // 按每个 owner 的实际工资责任支付（并记录每个 owner 的支付比例）
             Object.entries(ownerWageBills).forEach(([oKey, ownerBill]) => {
-                if (ownerBill <= 0) return;
+                if (ownerBill <= 0) {
+                    ownerPaidRatio[oKey] = 0;
+                    return;
+                }
                 const available = wealth[oKey] || 0;
 
-                // [FIX] Prioritize owner's own basic needs before paying wages
-                // Calculate estimated basic needs cost (buffer 1.2x for safety)
+                // Prioritize owner's own basic needs before paying wages
                 let reservedWealth = 0;
                 const ownerDef = STRATA[oKey];
                 if (ownerDef && ownerDef.needs) {
                     Object.entries(ownerDef.needs).forEach(([resKey, amount]) => {
                         const price = getPrice(resKey);
-                        // Basic needs are essential (food, cloth etc.)
                         reservedWealth += amount * price;
                     });
-                    // Multiply by 1.2 to account for price fluctuations and ensure safety
                     reservedWealth *= 1.2;
                 }
 
-                // If owner has very little wealth, they hoard it for survival
                 const disposableWealth = Math.max(0, available - reservedWealth);
-
                 const paid = Math.min(disposableWealth, ownerBill);
 
                 wealth[oKey] = available - paid;
                 roleExpense[oKey] = (roleExpense[oKey] || 0) + paid;
-                totalPaid += paid;
 
-                // Track wage expense in financial data
                 if (classFinancialData[oKey]) {
                     classFinancialData[oKey].expense.wages = (classFinancialData[oKey].expense.wages || 0) + paid;
                 }
 
-                // Optional: Log if owner cannot pay full wages due to survival needs
-                // if (paid < ownerBill && tick % 30 === 0 && available > 0) {
-                //      logs.push(`⚠️ ${STRATA[oKey]?.name || oKey} prioritizing survival, withholding wages.`);
-                // }
+                ownerPaidRatio[oKey] = ownerBill > 0 ? paid / ownerBill : 0;
             });
-
-            wageRatio = totalOwnerBills > 0 ? totalPaid / totalOwnerBills : 0;
         }
 
+        // Pay wages following building-level "distribution" (owner-paid-ratio).
+        // Also update wage stats by the ACTUAL average wage paid for this role.
         preparedWagePlans.forEach(plan => {
-            const actualSlotWage = plan.expectedSlotWage * wageRatio;
+            const ratio = ownerPaidRatio[plan.ownerKey] ?? 0;
+            const actualSlotWage = plan.expectedSlotWage * ratio;
+
+            // Stats: use actualSlotWage (NOT theoretical expected wage)
             roleWageStats[plan.role].weightedWage += actualSlotWage * plan.roleSlots;
+
             if (plan.filled > 0 && actualSlotWage > 0) {
                 const payout = actualSlotWage * plan.filled;
                 roleWagePayout[plan.role] = (roleWagePayout[plan.role] || 0) + payout;
@@ -4651,11 +4656,12 @@ export const simulateTick = ({
                 }
 
                 // 计算雇员工资支出（除业主外的其他岗位）
+                // 使用“实际发出的平均工资”（market.wages / updatedWages），而不是理论预期工资
                 let wageCost = 0;
                 Object.entries(jobs).forEach(([jobRole, slots]) => {
                     if (jobRole === role || !slots || slots <= 0) return;
-                    const wage = getExpectedWage(jobRole);
-                    wageCost += wage * slots;
+                    const avgPaidWage = updatedWages?.[jobRole] ?? market?.wages?.[jobRole] ?? getExpectedWage(jobRole);
+                    wageCost += avgPaidWage * slots;
                 });
 
                 // 计算税费成本（人头税 + 营业税）
@@ -4674,12 +4680,14 @@ export const simulateTick = ({
 
             } else {
                 // ===== 雇员工资预估 =====
-                const expectedWage = getExpectedWage(role);
+                // Use the actual average wage that this role is currently being paid,
+                // otherwise vacancy signals can be wildly optimistic/pessimistic.
+                const avgPaidWage = updatedWages?.[role] ?? market?.wages?.[role] ?? getExpectedWage(role);
 
                 // 计算税后工资
                 const headBase = STRATA[role]?.headTaxBase ?? 0.01;
                 const taxCost = headBase * getHeadTaxRate(role) * effectiveTaxModifier;
-                const netWage = expectedWage - taxCost;
+                const netWage = avgPaidWage - taxCost;
 
                 employeeWage += netWage * roleSlots * count;
                 employeeSlots += roleSlots * count;
@@ -4689,8 +4697,9 @@ export const simulateTick = ({
         // 计算加权平均收入
         const totalSlots = ownerSlots + employeeSlots;
         if (totalSlots <= 0) {
-            // 没有建筑提供这个岗位，使用默认预期工资
-            return getExpectedWage(role) * VACANT_BONUS;
+            // 没有建筑提供这个岗位：也使用“岗位发出工资的平均数”作为信号
+            const avgPaidWage = updatedWages?.[role] ?? market?.wages?.[role] ?? getExpectedWage(role);
+            return avgPaidWage * VACANT_BONUS;
         }
 
         const totalIncome = ownerIncome + employeeWage;

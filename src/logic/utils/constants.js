@@ -40,6 +40,10 @@ export const JOB_MIGRATION_LOW_POP_GUARANTEE = 0.2;
 // Limit how fast vacancies can be filled per tick to reduce oscillation
 export const VACANCY_FILL_RATIO_PER_TICK = 0.25;
 
+// Very small chance for random promotion ("won lottery")
+// Allows poor populations to occasionally jump tiers
+export const LUCKY_PROMOTION_CHANCE = 0.0001; // 0.01% chance
+
 // ============== Migration Tier Resistance Constants ==============
 // These control how difficult it is to migrate between different tiers
 // Higher value = more resistance = needs larger income difference to trigger

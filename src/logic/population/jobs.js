@@ -25,7 +25,9 @@ import {
     CRITICAL_SHORTAGE_THRESHOLD,
     CRITICAL_RESOURCES,
     SHORTAGE_MIGRATION_BONUS,
-    EMERGENCY_MIGRATION_RATIO
+    EMERGENCY_MIGRATION_RATIO,
+    // Lucky promotion
+    LUCKY_PROMOTION_CHANCE
 } from '../utils/constants';
 
 /**
@@ -226,9 +228,9 @@ export const fillVacancies = ({
 
         // For Tier 2+ jobs:
         // - Can be filled by same tier (re-employment after layoff)
-        // - Can be filled by tier-1 with sufficient wealth
-        if (sourceTier === targetTier) return true;
-        if (sourceTier === targetTier - 1) return true;
+        // - Can be filled by ANY lower tier with sufficient wealth (Direct Promotion)
+        // - Can be filled by lower tier via Lucky Lottery (Lucky Promotion)
+        if (sourceTier <= targetTier) return true;
 
         return false;
     };
@@ -330,19 +332,35 @@ export const fillVacancies = ({
 
                 // Check wealth requirement (except for same-tier re-employment)
                 const sourceTier = STRATUM_TIERS[sourceRole] ?? 0;
-                if (sourceTier < entry.tier && perCapWealth < entry.wealthRequired) {
-                    continue; // Not wealthy enough
-                }
+                let isLuckyUpdate = false;
+                let wealthShortage = 0;
+                let eligibleCount = 0;
 
-                // Calculate how many can be promoted
-                let eligibleCount;
-                if (sourceTier === entry.tier || entry.wealthRequired <= 0) {
-                    // Same tier or no requirement: all eligible
-                    eligibleCount = sourcePop;
+                if (sourceTier < entry.tier && perCapWealth < entry.wealthRequired) {
+                    // Not wealthy enough - try "Lucky Promotion" lottery
+                    // Chance is small (e.g. 0.01%)
+                    const expectedLucky = sourcePop * LUCKY_PROMOTION_CHANCE;
+                    // Probabilistic rounding
+                    const luckyCount = Math.floor(expectedLucky) + (Math.random() < (expectedLucky % 1) ? 1 : 0);
+
+                    if (luckyCount > 0) {
+                        eligibleCount = luckyCount;
+                        isLuckyUpdate = true;
+                        wealthShortage = entry.wealthRequired - perCapWealth;
+                    } else {
+                        continue; // Not wealthy enough and didn't win lottery
+                    }
                 } else {
-                    // Lower tier: need to meet wealth requirement
-                    // All are equally wealthy (average), so either all qualify or none
-                    eligibleCount = perCapWealth >= entry.wealthRequired ? sourcePop : 0;
+                    // Standard Logic:
+                    // Check how many can be promoted
+                    if (sourceTier === entry.tier || entry.wealthRequired <= 0) {
+                        // Same tier or no requirement: all eligible
+                        eligibleCount = sourcePop;
+                    } else {
+                        // Lower tier: need to meet wealth requirement
+                        // All are equally wealthy (average), so either all qualify or none
+                        eligibleCount = perCapWealth >= entry.wealthRequired ? sourcePop : 0;
+                    }
                 }
 
                 const hiring = Math.min(remainingVacancy, eligibleCount);
@@ -352,10 +370,19 @@ export const fillVacancies = ({
                 popStructure[entry.role] = (popStructure[entry.role] || 0) + hiring;
                 popStructure[sourceRole] = Math.max(0, sourcePop - hiring);
 
-                if (perCapWealth > 0) {
+                if (perCapWealth > 0 || isLuckyUpdate) {
                     const transfer = perCapWealth * hiring;
                     wealth[sourceRole] = Math.max(0, sourceWealth - transfer);
-                    wealth[entry.role] = (wealth[entry.role] || 0) + transfer;
+
+                    // If lucky, inject extra wealth to meet requirements (system bonus)
+                    const extraWealth = isLuckyUpdate ? (wealthShortage * hiring) : 0;
+
+                    wealth[entry.role] = (wealth[entry.role] || 0) + transfer + extraWealth;
+
+                    if (isLuckyUpdate && extraWealth > 0) {
+                        // Optional: Log large luck events? (Might spam if frequent, but chance is low)
+                        // console.log(`Creating ${hiring} lucky ${entry.role} from ${sourceRole} with subsidy ${extraWealth}`);
+                    }
                 }
 
                 remainingVacancy -= hiring;
