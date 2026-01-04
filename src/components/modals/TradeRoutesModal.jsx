@@ -3,6 +3,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { Icon } from '../common/UIComponents';
 import { RESOURCES } from '../../config';
 import { calculateForeignPrice, calculateTradeStatus } from '../../utils/foreignTrade';
+import { formatNumberShortCN } from '../../utils/numberFormat';
 
 const TradeRoutesModal = ({
     tradeRoutes,
@@ -23,6 +24,10 @@ const TradeRoutesModal = ({
     const getNationName = (id) => {
         const nation = nations.find(n => n.id === id);
         return nation ? nation.name : 'Unknown Nation';
+    };
+
+    const formatCompactNumber = (value) => {
+        return formatNumberShortCN(value, { decimals: 1 });
     };
 
     // Get all tradable resources for current epoch

@@ -419,35 +419,41 @@ export const OfficialCard = memo(({
                         </div>
                     </div>
                 </div>
-                <div className="text-right flex-shrink-0">
-                    <div className="flex items-center justify-end gap-1 text-yellow-500 font-mono text-xs">
-                        <span>{salary}</span>
-                        <Icon name="Coins" size={12} />
-                    </div>
-                    <div className="text-[9px] text-gray-500">每日薪俸</div>
-                    {/* 官员个人存款 */}
-                    {typeof official.wealth === 'number' && (
-                        <div className="mt-1 pt-1 border-t border-gray-700/30">
-                            <div className="flex items-center justify-end gap-1 text-emerald-400 font-mono text-xs">
-                                <span>{formatNumberShortCN(official.wealth, { decimals: 1 })}</span>
-                                <Icon name="Wallet" size={12} />
+                <div className="text-right flex-shrink-0 flex flex-col items-end gap-1">
+                    {/* 财务信息整合区 */}
+                    <div className="bg-gray-900/40 px-2 py-1 rounded border border-gray-700/50">
+                        <div className="flex items-center justify-end gap-2 text-xs font-mono">
+                            {/* 存款 */}
+                            {typeof official.wealth === 'number' && (
+                                <div className="flex items-center gap-1" title="个人存款">
+                                    <span className="text-emerald-400 font-bold">{formatNumberShortCN(official.wealth, { decimals: 1 })}</span>
+                                    <Icon name="Wallet" size={12} className="text-emerald-500/70" />
+                                </div>
+                            )}
+                            <span className="text-gray-600">|</span>
+                            {/* 薪俸 */}
+                            <div className="flex items-center gap-1" title="每日薪俸">
+                                <span className="text-yellow-500">{salary}</span>
+                                <Icon name="Coins" size={12} className="text-yellow-500/70" />
                             </div>
-                            <div className="text-[9px] text-gray-500">个人存款</div>
                         </div>
-                    )}
+                    </div>
+
+                    {/* 财务状态标签 */}
                     {financialLabel && (
-                        <div className={`mt-1 px-1.5 py-0.5 rounded border text-[9px] font-semibold ${financialStyle}`}>
-                            ⚠️ {financialLabel}
+                        <div className={`px-1.5 py-0.5 rounded border text-[9px] font-semibold ${financialStyle}`}>
+                            {financialLabel}
                         </div>
                     )}
+
                     {/* 忠诚度显示 - 仅在任官员显示 */}
                     {!isCandidate && (
-                        <div className="mt-1.5">
-                            <div className="flex items-center justify-end gap-1 mb-0.5">
-                                <Icon name="Heart" size={10} className={loyaltyTextColor} />
+                        <div className="mt-1 w-full flex flex-col items-end">
+                            <div className="flex items-center gap-1 mb-0.5">
                                 <span className={`text-[9px] font-mono ${loyaltyTextColor}`}>{Math.round(loyalty)}</span>
+                                <Icon name="Heart" size={10} className={loyaltyTextColor} />
                             </div>
-                            <div className={`h-1.5 w-12 bg-gray-700 rounded-full overflow-hidden border ${loyaltyBorderColor}`}>
+                            <div className={`h-1 w-16 bg-gray-700 rounded-full overflow-hidden border ${loyaltyBorderColor}`}>
                                 <div
                                     className={`h-full ${loyaltyColor} transition-all duration-300`}
                                     style={{ width: `${loyalty}%` }}

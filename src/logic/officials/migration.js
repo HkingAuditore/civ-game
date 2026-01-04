@@ -13,8 +13,11 @@ export const migrateOfficialForInvestment = (official, currentDay = 0) => {
     const needsLoyaltyMigration = official.loyalty === undefined || official.loyalty === null
         || (official.loyalty === 0 && (official.lowLoyaltyDays ?? 0) > 100);
 
-    // 如果所有字段都已存在且不需要忠诚度迁移，直接返回
-    if (hasInvestmentProfile && hasOwnedProperties && !needsLoyaltyMigration) {
+    // 检测是否需要薪资迁移 - 旧存档可能没有 salary 字段
+    const hasSalary = Number.isFinite(official.salary);
+
+    // 如果所有字段都已存在且不需要忠诚度迁移和薪资迁移，直接返回
+    if (hasInvestmentProfile && hasOwnedProperties && !needsLoyaltyMigration && hasSalary) {
         return official;
     }
 
@@ -30,6 +33,11 @@ export const migrateOfficialForInvestment = (official, currentDay = 0) => {
     return {
         ...official,
         financialSatisfaction: official.financialSatisfaction || 'satisfied',
+        // [BUG FIX] 确保 salary 字段存在 - 旧存档可能没有这个字段
+        // 优先使用 official.salary，其次用 baseSalary，最后用 0 作为兜底
+        salary: Number.isFinite(official.salary) 
+            ? official.salary 
+            : (Number.isFinite(official.baseSalary) ? official.baseSalary : 0),
         baseSalary: Number.isFinite(official.baseSalary) ? official.baseSalary : (official.salary || 0),
         investmentProfile: hasInvestmentProfile
             ? official.investmentProfile

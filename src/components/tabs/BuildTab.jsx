@@ -487,6 +487,8 @@ const BuildTabComponent = ({
 
     const buildingStatsById = useMemo(() => {
         const stats = {};
+        // 获取当前难度的增长系数
+        const growthFactor = getBuildingCostGrowthFactor(difficulty);
 
         BUILDINGS.forEach((building) => {
             const count = buildings[building.id] || 0;
@@ -548,7 +550,8 @@ const BuildTabComponent = ({
                         }
                     });
 
-                    const upgradeCost = getUpgradeCost(building.id, targetLevel, existingCountAtTarget);
+                    // 传递 growthFactor 确保升级成本与难度设置一致
+                    const upgradeCost = getUpgradeCost(building.id, targetLevel, existingCountAtTarget, growthFactor);
                     if (upgradeCost) {
                         upgradeOptions.push(upgradeCost);
                     }
@@ -564,7 +567,7 @@ const BuildTabComponent = ({
         });
 
         return stats;
-    }, [buildings, buildingUpgrades]);
+    }, [buildings, buildingUpgrades, difficulty]);
 
     const availableBuildingsByCategory = useMemo(() => {
         const grouped = {};

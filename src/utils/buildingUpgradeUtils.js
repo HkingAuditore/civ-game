@@ -13,7 +13,15 @@ import { BUILDING_UPGRADES, getBuildingEffectiveConfig } from '../config/buildin
  */
 export const calculateBuildingCost = (baseCost, count, growthFactor = 1.15) => {
     const cost = {};
-    const multiplier = Math.pow(growthFactor, count);
+    
+    // 成本计算模型：Base * (1 + Rate * Count^k)
+    // 保持与升级成本一致的“斜率递减”曲线
+    // growthFactor 如 1.15，则 Rate = 0.15
+    const slopeExponent = 0.9;
+    const rate = Math.max(0, growthFactor - 1);
+    
+    const multiplier = 1 + rate * Math.pow(count, slopeExponent);
+
     for (const [key, val] of Object.entries(baseCost || {})) {
         cost[key] = Math.ceil(val * multiplier); // 使用 ceil 确保整数，避免浮点误差
     }

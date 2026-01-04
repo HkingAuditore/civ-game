@@ -2859,15 +2859,21 @@ export const simulateTick = ({
 
         // 初始化 wealth（向后兼容：旧存档可能没有 wealth）
         let currentWealth = typeof normalizedOfficial.wealth === 'number' ? normalizedOfficial.wealth : 400;
+        
+        // [DEBUG] 追踪官员财富变化
+        const debugInitialWealth = currentWealth;
 
         // 收入：如果足额支付薪水，获得薪水
         if (officialsPaid && typeof normalizedOfficial.salary === 'number') {
             currentWealth += normalizedOfficial.salary;
             totalOfficialIncome += normalizedOfficial.salary;
+            console.log(`[OFFICIAL DEBUG] ${normalizedOfficial.name}: Salary paid! +${normalizedOfficial.salary}, wealth: ${debugInitialWealth} -> ${currentWealth}`);
             // 记录俸禄到财务数据
             if (classFinancialData.official) {
                 classFinancialData.official.income.salary = (classFinancialData.official.income.salary || 0) + normalizedOfficial.salary;
             }
+        } else {
+            console.log(`[OFFICIAL DEBUG] ${normalizedOfficial.name}: NO SALARY! officialsPaid=${officialsPaid}, salary=${normalizedOfficial.salary}, wealth=${currentWealth}`);
         }
 
         // 支出：官员独立购买商品，更新市场供需与税收
@@ -3020,13 +3026,18 @@ export const simulateTick = ({
             });
         }
 
+        // [DEBUG] 追踪财富变化 - 商品消费后（人头税之前）
+        const debugAfterGoodsConsumption = currentWealth;
+
         // 人头税：官员拥有独立财富，因此在此单独结算
         const headRate = getHeadTaxRate('official');
         const headBase = STRATA.official?.headTaxBase ?? 0.01;
         const plannedPerCapitaTax = headBase * headRate * effectiveTaxModifier;
+        let debugHeadTaxPaid = 0;
         if (plannedPerCapitaTax !== 0) {
             if (plannedPerCapitaTax > 0) {
                 const taxPaid = Math.min(currentWealth, plannedPerCapitaTax);
+                debugHeadTaxPaid = taxPaid;
                 currentWealth = Math.max(0, currentWealth - taxPaid);
                 taxBreakdown.headTax += taxPaid;
                 roleHeadTaxPaid.official = (roleHeadTaxPaid.official || 0) + taxPaid;
@@ -3049,8 +3060,13 @@ export const simulateTick = ({
             }
         }
 
-        // 扣除支出
-        currentWealth = Math.max(0, currentWealth - dailyExpense);
+        // [BUG FIX] 移除重复扣支出的代码
+        // dailyExpense 已在 consumeOfficialResource 中实时从 currentWealth 扣除（第2948行）
+        // 这里不应该再扣一次，否则会导致官员财富被双重扣减，存款无法积累
+
+        // [DEBUG] 追踪财富变化 - 人头税后
+        const debugAfterConsumption = currentWealth;
+        const debugPlannedHeadTax = plannedPerCapitaTax;
 
         // 官员产业收益结算（独立核算）
         let totalPropertyIncome = 0;
@@ -3078,6 +3094,9 @@ export const simulateTick = ({
                     (classFinancialData.official.income.ownerRevenue || 0) + totalPropertyIncome;
             }
         }
+
+        // [DEBUG] 追踪财富变化 - 产业收益后
+        const debugAfterProperty = currentWealth;
 
         // 计算财务满意度
         const totalIncomeForSatisfaction = (normalizedOfficial.salary || 0) + totalPropertyIncome;
@@ -3174,6 +3193,11 @@ export const simulateTick = ({
             }
         }
 
+        // [DEBUG] 追踪财富变化 - 投资/升级后
+        const debugAfterInvestment = currentWealth;
+        const debugInvestmentCost = investmentDecision?.cost || 0;
+        const debugUpgradeCost = upgradeDecision?.cost || 0;
+
         totalOfficialWealth += currentWealth;
         totalOfficialExpense += dailyExpense;
 
@@ -3265,6 +3289,24 @@ export const simulateTick = ({
             loyalty: newLoyalty,
             lowLoyaltyDays: newLowLoyaltyDays,
             isStanceSatisfied: isStanceMet,
+            // [DEBUG] 调试字段
+            _debug: {
+                initialWealth: debugInitialWealth,
+                salaryPaid: officialsPaid,
+                salaryAmount: normalizedOfficial.salary || 0,
+                wealthAfterSalary: debugInitialWealth + (officialsPaid ? (normalizedOfficial.salary || 0) : 0),
+                dailyExpense: dailyExpense,
+                wealthAfterGoods: debugAfterGoodsConsumption,
+                headTaxPlanned: debugPlannedHeadTax,
+                headTaxPaid: debugHeadTaxPaid,
+                wealthAfterTax: debugAfterConsumption,
+                propertyIncome: totalPropertyIncome,
+                wealthAfterProperty: debugAfterProperty,
+                investmentCost: debugInvestmentCost,
+                upgradeCost: debugUpgradeCost,
+                wealthAfterInvestment: debugAfterInvestment,
+                wealthFinal: currentWealth,
+            },
         };
     });
 

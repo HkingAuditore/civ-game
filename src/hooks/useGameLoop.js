@@ -2599,6 +2599,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     const processedRaidNations = new Set();
 
                     // Filter and transform technical logs to human-readable format
+                    const logVisibility = current?.eventEffectSettings?.logVisibility || {};
+                    const shouldLogMerchantTrades = logVisibility.showMerchantTradeLogs ?? true;
                     const processedLogs = result.logs.map(log => {
                         if (typeof log !== 'string') return log;
 

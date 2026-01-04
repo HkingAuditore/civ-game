@@ -1060,6 +1060,9 @@ export const getMaxUpgradeLevel = (buildingId) => {
 // 获取升级成本
 // existingUpgradeCount: 已经升级到该等级或更高等级的建筑数量（用于成本递增）
 // growthFactor: 成本增长系数 (默认 1.15)
+// 获取升级成本
+// existingUpgradeCount: 已经升级到该等级或更高等级的建筑数量（用于成本递增）
+// growthFactor: 成本增长系数 (默认 1.15, 即 15% 基础增长率)
 export const getUpgradeCost = (buildingId, targetLevel, existingUpgradeCount = 0, growthFactor = 1.15) => {
     const upgrades = BUILDING_UPGRADES[buildingId];
     if (!upgrades || !upgrades[targetLevel - 1]) return null;
@@ -1071,8 +1074,22 @@ export const getUpgradeCost = (buildingId, targetLevel, existingUpgradeCount = 0
         return baseCost;
     }
 
-    // 应用成本递增系数（与建造成本递增一致：growthFactor^n）
-    const multiplier = Math.pow(growthFactor, existingUpgradeCount);
+    // 成本计算模型：Base * (1 + Rate * Count^k)
+    // growthFactor 如 1.15，则 Rate = 0.15
+    // k < 1 (如 0.9) 确保斜率逐渐降低 (concave down slope)
+    // 这种模型下，价格随数量增加而增加，但增加的幅度逐渐减缓
+    
+    // 使用 0.9 的指数，保持一定的增长压力但避免后期爆炸
+    const slopeExponent = 0.9;
+    const rate = Math.max(0, growthFactor - 1);
+    
+    // Multiplier = 1 + Rate * (Count ^ k)
+    // 例: Count=10, Rate=0.15
+    // Linear (k=1): 1 + 1.5 = 2.5x
+    // Decaying (k=0.9): 1 + 0.15 * 7.94 = 2.19x
+    // Exponential (1.15^10) = 4.04x
+    const multiplier = 1 + rate * Math.pow(existingUpgradeCount, slopeExponent);
+
     const scaledCost = {};
     for (const [resource, amount] of Object.entries(baseCost)) {
         scaledCost[resource] = Math.ceil(amount * multiplier);
