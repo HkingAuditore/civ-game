@@ -2764,11 +2764,22 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         // [FIX] 在循环之前收集所有 AUTO_REPLENISH_LOSSES 日志的损失
                         // 这样可以避免多条损失日志导致的重复补兵问题
                         const allAutoReplenishLosses = {};
+                        
+                        // DEBUG: Check if we are receiving any replenish logs
+                        const hasReplenishLog = result.logs.some(l => typeof l === 'string' && l.includes('AUTO_REPLENISH_LOSSES:'));
+                        if (hasReplenishLog) {
+                             // Using addLog to make it visible in UI as requested
+                             addLog(`🛠️ [DEBUG] Worker sent replenishment signal! AutoRecruit: ${autoRecruitEnabled}`);
+                        }
+
                         if (autoRecruitEnabled) {
                             result.logs.forEach((log) => {
                                 if (typeof log === 'string' && log.includes('AUTO_REPLENISH_LOSSES:')) {
                                     try {
                                         const jsonStr = log.replace('AUTO_REPLENISH_LOSSES:', '');
+                                        // Show specifically what was received
+                                        addLog(`🛠️ [DEBUG] Processing losses: ${jsonStr}`);
+                                        
                                         const losses = JSON.parse(jsonStr);
                                         Object.entries(losses).forEach(([unitId, count]) => {
                                             if (count > 0) {
@@ -2776,7 +2787,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                             }
                                         });
                                     } catch (e) {
-                                        debugError('gameLoop', '[AUTO_REPLENISH] Failed to parse losses for aggregation:', e);
+                                        console.error(e);
+                                        addLog(`🛠️ [DEBUG] Failed to parse losses: ${e.message}`);
                                     }
                                 }
                             });
@@ -2785,14 +2797,16 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             .sort(([a], [b]) => a.localeCompare(b))
                             .map(([unitId, count]) => `${unitId}:${count}`)
                             .join('|');
-                        const currentAutoDay = Number.isFinite(current.daysElapsed) ? current.daysElapsed : 0;
+                        
+                        // [FIX] Removed strict day check to allow multiple replenishments
+                        // Just ensure we have losses to process
                         const shouldProcessAutoReplenish = autoRecruitEnabled
-                            && Object.keys(allAutoReplenishLosses).length > 0
-                            && !(autoReplenishTickRef.current.day === currentAutoDay
-                                && autoReplenishTickRef.current.key === autoReplenishKey);
+                            && Object.keys(allAutoReplenishLosses).length > 0;
+
                         if (shouldProcessAutoReplenish) {
-                            autoReplenishTickRef.current = { day: currentAutoDay, key: autoReplenishKey };
+                             debugLog('gameLoop', `[AUTO_REPLENISH] Triggering for losses: ${autoReplenishKey}`);
                         }
+
                         if (shouldProcessAutoReplenish && currentActions?.handleAutoReplenishLosses) {
                             currentActions.handleAutoReplenishLosses(allAutoReplenishLosses, { source: 'ai_battle' });
                         }

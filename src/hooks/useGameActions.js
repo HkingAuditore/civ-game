@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react';
 import { BUILDINGS, EPOCHS, RESOURCES, TECHS, MILITARY_ACTIONS, UNIT_TYPES, EVENTS, getRandomEvent, createWarDeclarationEvent, createGiftEvent, createPeaceRequestEvent, createEnemyPeaceRequestEvent, createPlayerPeaceProposalEvent, createBattleEvent, createAllianceRequestEvent, createAllianceProposalResultEvent, createAllianceBreakEvent, createNationAnnexedEvent, STRATA, BUILDING_UPGRADES, getMaxUpgradeLevel, getUpgradeCost } from '../config';
 import { getBuildingCostGrowthFactor } from '../config/difficulty';
+import { debugLog } from '../utils/debugFlags';
 import { getUpgradeCountAtOrAboveLevel, calculateBuildingCost, applyBuildingCostModifier } from '../utils/buildingUpgradeUtils';
 import { simulateBattle, calculateBattlePower, generateNationArmy } from '../config';
 import { calculateForeignPrice, calculateTradeStatus } from '../utils/foreignTrade';
@@ -136,9 +137,21 @@ export const useGameActions = (gameState, addLog) => {
         const capacity = getMilitaryCapacity();
         const queueSnapshot = Array.isArray(militaryQueue) ? militaryQueue : [];
         const totalArmyCount = getTotalArmyCount(army, queueSnapshot);
-        let availableSlots = capacity > 0 ? Math.max(0, capacity - totalArmyCount) : 0;
+
+        // [FIX] Stale State Correction
+        // handleAutoReplenishLosses is often called in the same tick as the battle result (before setArmy updates state).
+        // Therefore, 'totalArmyCount' reflects the PRE-BATTLE army size (which might be full).
+        // We must subtract the 'losses' we are about to replenish to understand the TRUE available capacity.
+        const totalLossesCount = Object.values(losses).reduce((sum, c) => sum + (c || 0), 0);
+        const projectedArmyCount = Math.max(0, totalArmyCount - totalLossesCount);
+        
+        // Calculate slots based on projected army size
+        let availableSlots = capacity > 0 ? Math.max(0, capacity - projectedArmyCount) : 0;
+
+        debugLog('gameLoop', `[AUTO_REPLENISH] Capacity Check: Cap ${capacity}, CurrentArmy ${totalArmyCount}, Losses ${totalLossesCount} -> Projected ${projectedArmyCount}, Slots ${availableSlots}`);
 
         if (capacity > 0 && availableSlots <= 0) {
+            debugLog('gameLoop', `[AUTO_REPLENISH] Failed: Capacity full (Cap: ${capacity}, ProjectedArmy: ${projectedArmyCount})`);
             addLog('⚠️ 军事容量不足，自动补兵已暂停。');
             return;
         }
@@ -155,7 +168,10 @@ export const useGameActions = (gameState, addLog) => {
         });
 
         const replenishTotal = Object.values(replenishCounts).reduce((sum, count) => sum + count, 0);
-        if (replenishTotal <= 0) return;
+        if (replenishTotal <= 0) {
+             debugLog('gameLoop', `[AUTO_REPLENISH] Failed: No valid units to replenish (Losses: ${JSON.stringify(losses)})`);
+             return;
+        }
 
         let canAfford = true;
         const totalResourceCost = {};
@@ -182,6 +198,7 @@ export const useGameActions = (gameState, addLog) => {
         }
 
         if (!canAfford) {
+            debugLog('gameLoop', `[AUTO_REPLENISH] Failed: Cannot afford (Cost: ${totalSilverCost}, Silver: ${resources.silver})`);
             addLog(`❌ 资金或资源不足，已取消本次自动补兵（需 ${Math.ceil(totalSilverCost)} 银币）。`);
             return;
         }
@@ -212,6 +229,7 @@ export const useGameActions = (gameState, addLog) => {
         });
 
         if (replenishItems.length > 0) {
+            debugLog('gameLoop', `[AUTO_REPLENISH] Success: Adding ${replenishItems.length} items to queue`);
             setMilitaryQueue(prev => [...prev, ...replenishItems]);
             const summary = Object.entries(replenishCounts)
                 .filter(([_, count]) => count > 0)
@@ -223,6 +241,7 @@ export const useGameActions = (gameState, addLog) => {
         if (capacity > 0) {
             const totalLosses = Object.values(losses).reduce((sum, count) => sum + (count || 0), 0);
             if (replenishTotal < totalLosses) {
+                debugLog('gameLoop', `[AUTO_REPLENISH] Partial success: Capacity limited`);
                 addLog('⚠️ 军事容量不足，部分损失未能补充。');
             }
         }
