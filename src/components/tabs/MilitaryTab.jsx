@@ -7,6 +7,7 @@ import { Icon } from '../common/UIComponents';
 import { UNIT_TYPES, UNIT_CATEGORIES, BUILDINGS, calculateArmyMaintenance, calculateArmyFoodNeed, calculateBattlePower, calculateArmyPopulation, calculateTotalArmyExpense, calculateUnitExpense, calculateNationBattlePower, RESOURCES, MILITARY_ACTIONS, getEnemyUnitsForEpoch, TECHS, EPOCHS } from '../../config';
 import { calculateSilverCost, formatSilverCost } from '../../utils/economy';
 import { filterUnlockedResources } from '../../utils/resources';
+import { formatNumberShortCN } from '../../utils/numberFormat';
 
 const WAR_SCORE_GUIDE = [
     {
@@ -131,7 +132,7 @@ const UnitTooltip = ({ unit, resources, market, militaryWageRatio, epoch, anchor
                         {Object.entries(unit.maintenanceCost || {}).map(([res, cost]) => (
                             cost > 0 && (
                                 <span key={res} className="text-[10px] px-1.5 py-0.5 bg-gray-800 rounded text-gray-300">
-                                    {RESOURCES[res]?.name || res}: -{cost.toFixed(1)}
+                                    {RESOURCES[res]?.name || res}: -{formatNumberShortCN(cost, { decimals: 1 })}
                                 </span>
                             )
                         ))}
@@ -139,7 +140,7 @@ const UnitTooltip = ({ unit, resources, market, militaryWageRatio, epoch, anchor
                     <div className="flex items-center gap-1 mt-1">
                         <Icon name="Coins" size={12} className="text-yellow-400" />
                         <span className="text-gray-300">预估军费:</span>
-                        <span className="text-yellow-300">{calculateUnitExpense(unit, market?.prices || {}, epoch, militaryWageRatio).toFixed(2)} 银币/日</span>
+                        <span className="text-yellow-300">{formatNumberShortCN(calculateUnitExpense(unit, market?.prices || {}, epoch, militaryWageRatio), { decimals: 2 })} 银币/日</span>
                     </div>
                 </div>
             </div>
@@ -198,7 +199,7 @@ const UnitTooltip = ({ unit, resources, market, militaryWageRatio, epoch, anchor
                 {Object.entries(unit.recruitCost).map(([resource, cost]) => (
                     <div key={resource} className="flex justify-between text-xs">
                         <span className="text-gray-300">{RESOURCES[resource]?.name || resource}</span>
-                        <span className={(resources[resource] || 0) >= cost ? 'text-green-400' : 'text-red-400'}>{cost}</span>
+                        <span className={(resources[resource] || 0) >= cost ? 'text-green-400' : 'text-red-400'}>{formatNumberShortCN(cost, { decimals: 1 })}</span>
                     </div>
                 ))}
                 <div className="flex justify-between text-xs pt-1 border-t border-gray-700 mt-1">
@@ -470,9 +471,9 @@ const MilitaryTabComponent = ({
         }
 
         const silverCost = calculateSilverCost(unit.recruitCost, market);
-        if ((resources.silver || 0) < silverCost) {
-            return `银币不足：需要 ${silverCost.toFixed(1)} 银币`;
-        }
+      if ((resources.silver || 0) < silverCost) {
+        return `银币不足：需要 ${formatNumberShortCN(silverCost, { decimals: 1 })} 银币`;
+      }
 
         // 检查军事容量
         if (totalArmyCount + 1 > militaryCapacity) {
@@ -587,11 +588,11 @@ const MilitaryTabComponent = ({
                                                     </span>
                                                     <span className="flex items-center gap-2">
                                                         <span className={isAffordable ? 'text-green-400' : 'text-red-400'}>
-                                                            -{cost.toFixed(1)}/日
+                                                            -{formatNumberShortCN(cost, { decimals: 1 })}/日
                                                         </span>
                                                         {resource !== 'silver' && (
                                                             <span className="text-yellow-400/70 text-[10px]">
-                                                                ≈{silverValue.toFixed(1)}<Icon name="Coins" size={8} className="inline ml-0.5" />
+                                                                ≈{formatNumberShortCN(silverValue, { decimals: 1 })}<Icon name="Coins" size={8} className="inline ml-0.5" />
                                                             </span>
                                                         )}
                                                     </span>
@@ -602,7 +603,7 @@ const MilitaryTabComponent = ({
                                     <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-700/50 text-xs">
                                         <span className="text-gray-400">资源折算</span>
                                         <span className="text-yellow-300 flex items-center gap-0.5">
-                                            ≈{totalDailyCost.toFixed(1)}<Icon name="Coins" size={10} />/日
+                                            ≈{formatNumberShortCN(totalDailyCost, { decimals: 1 })}<Icon name="Coins" size={10} />/日
                                         </span>
                                     </div>
                                 </div>
@@ -1031,7 +1032,7 @@ const MilitaryTabComponent = ({
                                     }
 
                                     // 格式化战力显示
-                                    const formatPower = (p) => p >= 10000 ? `${(p / 1000).toFixed(1)}K` : p.toFixed(0);
+                                    const formatPower = (p) => formatNumberShortCN(p, { decimals: 1 });
                                     // Check if required tech is unlocked
                                     const hasRequiredTech = !action.requiresTech || techsUnlocked.includes(action.requiresTech);
                                     const requiredTechName = action.requiresTech

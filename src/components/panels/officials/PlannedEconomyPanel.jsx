@@ -7,6 +7,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Icon } from '../../common/UIComponents';
 import { STRATA } from '../../../config/strata';
 import { RESOURCES } from '../../../config/gameConstants';
+import { formatNumberShortCN } from '../../../utils/numberFormat';
 
 // 可调整的阶层（排除骑士和官员）
 const ADJUSTABLE_STRATA = [
@@ -303,7 +304,7 @@ export const PlannedEconomyPanel = ({
                     <div className="flex items-center gap-2">
                         {adminCost > 0 && (
                             <span className="text-xs text-amber-400">
-                                每日成本: {adminCost}银
+                                每日成本: {formatNumberShortCN(adminCost, { decimals: 1 })}银
                             </span>
                         )}
                         <Icon

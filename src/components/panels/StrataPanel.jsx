@@ -6,6 +6,7 @@ import { Icon } from '../common/UIComponents';
 import { STRATA, RESOURCES } from '../../config';
 import { formatEffectDetails } from '../../utils/effectFormatter';
 import { getSimpleLivingStandard } from '../../utils/livingStandard';
+import { formatNumberShortCN } from '../../utils/numberFormat';
 import {
     getOrganizationStage,
     getStageName,
@@ -249,7 +250,7 @@ const StrataPanelComponent = ({
                                         <div className="flex items-center gap-1 mb-0.5">
                                             <Icon name={strata.info.icon} size={12} className="text-ancient-gold flex-shrink-0" />
                                             <span className="text-[10px] font-bold text-ancient-parchment truncate leading-none">{strata.info.name}</span>
-                                            <span className="text-[8px] text-ancient-stone font-mono">{strata.count}</span>
+                                            <span className="text-[8px] text-ancient-stone font-mono">{formatNumberShortCN(strata.count, { decimals: 1 })}</span>
                                             <div className="flex-1" />
                                             <span className={`text-[9px] font-bold font-mono ${strata.approval >= 70 ? 'text-green-400' : strata.approval >= 40 ? 'text-yellow-400' : 'text-red-400'}`}>
                                                 {strata.approval.toFixed(0)}%
@@ -278,12 +279,12 @@ const StrataPanelComponent = ({
                                         {/* 人均财富和净收入 + 短缺资源 */}
                                         <div className="flex items-center justify-between text-[8px]">
                                             <div className="flex items-center gap-1">
-                                                <span className="text-ancient-parchment font-mono flex items-center gap-0.5" title={`总财富: ${strata.wealthValue.toFixed(0)}`}>
+                                                <span className="text-ancient-parchment font-mono flex items-center gap-0.5" title={`总财富: ${formatNumberShortCN(strata.wealthValue, { decimals: 1 })}`}>
                                                     <Icon name="Coins" size={8} className="text-ancient-gold" />
-                                                    {(strata.wealthValue / Math.max(strata.count, 1)).toFixed(0)}
+                                                    {formatNumberShortCN(strata.wealthValue / Math.max(strata.count, 1), { decimals: 1 })}
                                                 </span>
                                                 <span className={`font-mono font-bold ${strata.netIncomePerCapita >= 0 ? 'text-green-300' : 'text-red-300'}`}>
-                                                    {strata.netIncomePerCapita > 0 ? '+' : ''}{strata.netIncomePerCapita.toFixed(1)}
+                                                    {strata.netIncomePerCapita > 0 ? '+' : ''}{formatNumberShortCN(Math.abs(strata.netIncomePerCapita), { decimals: 1 })}
                                                 </span>
                                             </div>
                                             {/* 短缺资源图标 - 最多显示3个 */}
@@ -355,7 +356,7 @@ const StrataPanelComponent = ({
                                         <div className="flex items-center gap-1">
                                             <Icon name={info.icon} size={10} className="text-ancient-gold" />
                                             <span className="text-[11px] font-semibold text-ancient-parchment">{info.name}</span>
-                                            <span className="text-[9px] text-ancient-stone">{count}人</span>
+                                            <span className="text-[9px] text-ancient-stone">{formatNumberShortCN(count, { decimals: 1 })}人</span>
                                             <Icon
                                                 name={livingStandardIcon}
                                                 size={10}
@@ -454,9 +455,9 @@ const StrataPanelComponent = ({
                                             <span className="text-ancient-stone">影响</span>
                                             <span className="text-purple-400 font-semibold font-mono">{influenceShare.toFixed(1)}%</span>
                                         </div>
-                                        <div className="flex items-center gap-0.5" title={`人均财富 (总: ${wealthValue.toFixed(0)})`}>
+                                        <div className="flex items-center gap-0.5" title={`人均财富 (总: ${formatNumberShortCN(wealthValue, { decimals: 1 })})`}>
                                             <Icon name="Coins" size={8} className="text-ancient-gold" />
-                                            <span className="text-ancient-parchment font-mono">{(wealthValue / Math.max(count, 1)).toFixed(0)}</span>
+                                            <span className="text-ancient-parchment font-mono">{formatNumberShortCN(wealthValue / Math.max(count, 1), { decimals: 1 })}</span>
                                         </div>
                                     </div>
 

@@ -9,6 +9,7 @@ import { STRATA, RESOURCES, EPOCHS, BUILDINGS, TAX_LIMITS } from '../../config';
 import { isResourceUnlocked } from '../../utils/resources';
 import { CoalitionPanel } from '../panels/CoalitionPanel';
 import { OfficialsPanel } from '../panels/officials/OfficialsPanel';
+import { formatNumberShortCN } from '../../utils/numberFormat';
 
 // Helper to clamp values
 const clamp = (val, min, max) => Math.min(Math.max(val, min), max);
@@ -350,6 +351,15 @@ const PoliticsTabComponent = ({
     // [NEW] 价格管制相关
     priceControls = { enabled: false, governmentBuyPrices: {}, governmentSellPrices: {} },
     onUpdatePriceControls,
+
+    // [NEW] 忠诚度系统 UI 相关
+    stability = 50,        // 当前国家稳定度 (0-100)
+    officialsPaid = true,  // 是否支付了全额薪水
+
+    // [NEW] 政令相关
+    decrees = [],
+    onToggleDecree,
+    onShowDecreeDetails,
 }) => {
 
     const [activeTaxTab, setActiveTaxTab] = React.useState('head'); // 'head', 'resource', 'business'
@@ -537,7 +547,7 @@ const PoliticsTabComponent = ({
                 <div className="flex items-center gap-1">
                     <Icon name={stratumInfo.icon || 'User'} size={14} className="text-gray-400" />
                     <span className="font-semibold text-gray-300 flex-grow">{stratumInfo.name || key}</span>
-                    <span className="text-gray-500 text-[10px] font-mono">{population.toLocaleString()} 人</span>
+                    <span className="text-gray-500 text-[10px] font-mono">{formatNumberShortCN(population, { decimals: 1 })} 人</span>
                 </div>
                 <div className="flex items-center justify-center gap-0.5">
                     {isSubsidy ? (
@@ -793,6 +803,13 @@ const PoliticsTabComponent = ({
                         // [NEW] 价格管制相关
                         priceControls={priceControls}
                         onUpdatePriceControls={onUpdatePriceControls}
+                        // [NEW] 忠诚度系统 UI 相关
+                        stability={stability}
+                        officialsPaid={officialsPaid}
+                        // [NEW] 政令相关
+                        decrees={decrees}
+                        onToggleDecree={onToggleDecree}
+                        onShowDecreeDetails={onShowDecreeDetails}
                     />
                 ) : (
                     <div className="glass-ancient p-6 rounded-xl border border-ancient-gold/30 text-center">

@@ -3176,12 +3176,28 @@ export const simulateTick = ({
         let newLowLoyaltyDays = normalizedOfficial.lowLoyaltyDays ?? 0;
 
         // 政治诉求满足程度
-        const stanceData = normalizedOfficial.politicalStance || {};
+        // 注意：politicalStance 可能是字符串（stanceId）或对象，需要兼容两种情况
+        const stanceId = typeof normalizedOfficial.politicalStance === 'string'
+            ? normalizedOfficial.politicalStance
+            : normalizedOfficial.politicalStance?.stanceId;
+        // conditionParams 存储在单独字段 stanceConditionParams 中
+        const conditionParams = normalizedOfficial.stanceConditionParams || [];
+
         // 计算总影响力（从classInfluence对象累加）
         const computedTotalInfluence = Object.values(classInfluence || {}).reduce((sum, v) => sum + (v || 0), 0);
+
+        // [FIX] 构建 classIncome 时，由于 roleWagePayout.official 在循环结束后才设置，
+        // 这里需要为官员阶层使用当前官员的薪资作为预估收入
+        const estimatedClassIncome = {
+            ...roleWagePayout,
+            // 官员收入使用当前官员的薪资（如果有支付的话）加上产业收入预估
+            official: officialsPaid ? (normalizedOfficial.salary || 0) + (normalizedOfficial.lastDayPropertyIncome || 0) : 0
+        };
+
         const stanceGameState = {
             classApproval: classApproval,
             classInfluence: classInfluence,
+            classIncome: estimatedClassIncome,  // [FIX] 使用包含官员收入预估的数据
             totalInfluence: computedTotalInfluence,
             stability: (currentStability ?? 50) / 100,
             rulingCoalition: rulingCoalition,
@@ -3193,9 +3209,9 @@ export const simulateTick = ({
             atWar: (nations || []).some(n => n.isAtWar),
         };
         const isStanceMet = isStanceSatisfied(
-            stanceData.stanceId,
+            stanceId,
             stanceGameState,
-            stanceData.conditionParams || []
+            conditionParams
         );
 
         // 应用忠诚度变化

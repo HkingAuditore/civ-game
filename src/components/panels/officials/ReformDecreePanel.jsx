@@ -156,6 +156,10 @@ export const ReformDecreePanel = ({
     currentDay = 0,
     silver = 0,
     onEnactDecree,
+    // [NEW] Legacy (permanent) centrist decrees
+    centristDecrees = [],
+    onToggleCentristDecree,
+    onShowDecreeDetails,
     disabled = false,
 }) => {
     const decrees = Object.values(REFORM_DECREES);
@@ -212,6 +216,45 @@ export const ReformDecreePanel = ({
             <p className="text-xs text-gray-500 mb-3">
                 颁布临时法令以获得显著加成。法令结束后需要较长时间冷却才能再次使用。
             </p>
+
+            {/* [NEW] Centrist legacy decrees (small, permanent pool) */}
+            {Array.isArray(centristDecrees) && centristDecrees.length > 0 && (
+                <div className="mb-4 p-3 rounded-lg border border-blue-900/20 bg-gray-900/30">
+                    <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                            <Icon name="Landmark" size={16} className="text-blue-300" />
+                            <span className="text-xs font-bold text-blue-200">内阁政令（常设）</span>
+                        </div>
+                        <span className="text-[10px] text-gray-500">中间派内阁仅能使用少量温和政令</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        {centristDecrees.map(d => (
+                            <div key={d.id} className={`p-2 rounded border ${d.active ? 'border-blue-700/40 bg-blue-900/10' : 'border-gray-700/40 bg-gray-800/20'}`}>
+                                <div className="flex items-center justify-between gap-2">
+                                    <button
+                                        type="button"
+                                        className="text-left flex-1"
+                                        onClick={() => onShowDecreeDetails && onShowDecreeDetails(d)}
+                                    >
+                                        <div className={`text-xs font-bold ${d.active ? 'text-blue-200' : 'text-gray-200'}`}>{d.name}</div>
+                                        <div className="text-[10px] text-gray-500 line-clamp-2">{d.desc}</div>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        disabled={disabled || !onToggleCentristDecree}
+                                        onClick={() => onToggleCentristDecree && onToggleCentristDecree(d.id)}
+                                        className={`px-2 py-1 rounded text-[10px] font-bold ${d.active ? 'bg-blue-700 text-white hover:bg-blue-600' : 'bg-gray-700 text-gray-200 hover:bg-gray-600'} ${disabled ? 'opacity-60 cursor-not-allowed' : ''}`}
+                                    >
+                                        {d.active ? '取消' : '启用'}
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* 法令列表 */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">

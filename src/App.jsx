@@ -1198,6 +1198,9 @@ function GameApp({ gameState }) {
                                                         gameState.setLogs(prev => [`颁布法令：${decree.name}`, ...prev].slice(0, 8));
                                                     }
                                                 }}
+                                                // [NEW] 忠诚度系统 UI 相关
+                                                stability={gameState.stability}
+                                                officialsPaid={(gameState.resources?.silver || 0) >= officialSalaryPerDay}
                                             />
                                         )}
 

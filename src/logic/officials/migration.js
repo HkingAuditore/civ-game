@@ -1,4 +1,5 @@
 import { generateInvestmentProfile } from './officialInvestment';
+import { LOYALTY_CONFIG } from '../../config/officials';
 
 export const migrateOfficialForInvestment = (official, currentDay = 0) => {
     if (!official || typeof official !== 'object') return official;
@@ -6,12 +7,25 @@ export const migrateOfficialForInvestment = (official, currentDay = 0) => {
     const hasInvestmentProfile = !!official.investmentProfile;
     const hasOwnedProperties = Array.isArray(official.ownedProperties);
 
-    if (hasInvestmentProfile && hasOwnedProperties) {
+    // 检测是否需要忠诚度迁移
+    // 如果 loyalty 字段不存在或为 undefined，设置为默认值 75
+    // 如果 loyalty 为 0 且 lowLoyaltyDays > 100，说明是旧系统导致的异常低忠诚度，尝试修复
+    const needsLoyaltyMigration = official.loyalty === undefined || official.loyalty === null
+        || (official.loyalty === 0 && (official.lowLoyaltyDays ?? 0) > 100);
+
+    // 如果所有字段都已存在且不需要忠诚度迁移，直接返回
+    if (hasInvestmentProfile && hasOwnedProperties && !needsLoyaltyMigration) {
         return official;
     }
 
     const sourceStratum = official.sourceStratum || official.stratum || 'peasant';
     const politicalStance = official.politicalStance;
+
+    // 计算忠诚度初始值
+    const defaultLoyalty = LOYALTY_CONFIG?.INITIAL_MIN ?? 50;
+    const loyaltyValue = needsLoyaltyMigration
+        ? defaultLoyalty  // 迁移时使用较低的初始值（50），给玩家一些时间提升
+        : official.loyalty;
 
     return {
         ...official,
@@ -24,6 +38,9 @@ export const migrateOfficialForInvestment = (official, currentDay = 0) => {
         lastDayPropertyIncome: typeof official.lastDayPropertyIncome === 'number'
             ? official.lastDayPropertyIncome
             : 0,
+        // 忠诚度系统字段迁移
+        loyalty: loyaltyValue,
+        lowLoyaltyDays: needsLoyaltyMigration ? 0 : (official.lowLoyaltyDays ?? 0),
     };
 };
 

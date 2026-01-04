@@ -4,6 +4,7 @@
 import React, { useState, useMemo } from 'react';
 import { Icon } from '../common/UIComponents';
 import { RESOURCES } from '../../config';
+import { formatNumberShortCN } from '../../utils/numberFormat';
 
 /**
  * 资源面板组件 - 史诗风格重构
@@ -26,11 +27,7 @@ export const ResourcePanel = ({
     const [viewMode, setViewMode] = useState('list'); // 'grid' | 'list' - 默认列表视图更紧凑
 
     const formatCompactNumber = (value) => {
-        const num = Math.floor(value);
-        if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-        if (num >= 10000) return (num / 1000).toFixed(0) + 'k';
-        if (num >= 1000) return (num / 1000).toFixed(1) + 'k';
-        return num.toString();
+        return formatNumberShortCN(value, { decimals: 1 });
     };
 
     const getPrice = (key) => {
@@ -120,7 +117,7 @@ export const ResourcePanel = ({
                   bg-gradient-to-br from-ancient-ink/60 via-transparent to-ancient-ink/40
                   border border-ancient-gold/15 hover:border-ancient-gold/40
                   hover:shadow-glow-gold overflow-hidden"
-                                title={`${info.name}: ${amount.toFixed(0)} | 价格: ${price.toFixed(2)} | 变化: ${rate > 0 ? '+' : ''}${rate.toFixed(1)}/日`}
+                                title={`${info.name}: ${formatCompactNumber(amount)} | 价格: ${price.toFixed(2)} | 变化: ${rate > 0 ? '+' : ''}${rate.toFixed(1)}/日`}
                             >
                                 {/* 背景装饰 */}
                                 <div className="absolute inset-0 bg-gradient-to-r from-ancient-gold/0 via-ancient-gold/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />

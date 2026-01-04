@@ -5,6 +5,33 @@
 
 import { POLITICAL_STANCES } from '../../config/politicalStances';
 
+// Legacy decree pool (curated) for the Centrist cabinet.
+import { DECREES as LEGACY_DECREES, CENTRIST_CABINET_DECREES } from '../../config/decrees_deprecated';
+
+/**
+ * Build the Centrist cabinet decree list from the legacy decree config.
+ * Returns full decree objects with `active` flags so they can be fed into the existing decree pipeline.
+ */
+export const getCentristCabinetDecrees = (currentDecrees = []) => {
+    const currentMap = new Map((currentDecrees || []).map(d => [d.id, d]));
+
+    const legacyMap = new Map((LEGACY_DECREES || []).map(d => [d.id, d]));
+
+    return (CENTRIST_CABINET_DECREES || [])
+        .map(id => {
+            const base = legacyMap.get(id);
+            if (!base) return null;
+
+            const existing = currentMap.get(id);
+            // Preserve runtime `active` when possible, but fall back to false.
+            return {
+                ...base,
+                active: typeof existing?.active === 'boolean' ? existing.active : (base.active || false),
+            };
+        })
+        .filter(Boolean);
+};
+
 // ========== 常量定义 ==========
 
 // 主导触发阈值

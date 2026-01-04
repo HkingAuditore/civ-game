@@ -11,6 +11,7 @@ import { RESOURCES } from '../../config';
 import { calculateNationBattlePower } from '../../config/militaryUnits';
 import { calculateForeignPrice, calculateTradeStatus } from '../../utils/foreignTrade';
 import { calculateDynamicGiftCost, calculateProvokeCost } from '../../utils/diplomaticUtils';
+import { formatNumberShortCN } from '../../utils/numberFormat';
 
 const relationInfo = (relation = 0, isAllied = false) => {
     // 如果是正式盟友，显示盟友标签
@@ -50,9 +51,7 @@ const getRouteCountWithNation = (routes = [], nationId) => {
 
 const formatStatValue = (value, unit = '') => {
     if (!Number.isFinite(value)) return `未知${unit}`;
-    if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M${unit}`;
-    if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K${unit}`;
-    return `${Math.max(0, Math.floor(value))}${unit}`;
+    return `${formatNumberShortCN(value, { decimals: 1 })}${unit}`;
 };
 
 const getEstimatedMilitaryStrength = (nation, epoch, daysElapsed) => {
@@ -69,7 +68,7 @@ const getEstimatedMilitaryStrength = (nation, epoch, daysElapsed) => {
     }
     const stableRandom = ((Math.abs(seedHash) % 1000) / 1000) - 0.5;
     const estimatedPower = Math.floor(realPower * (1 + stableRandom * errorRange * 0.5));
-    const formatPower = (p) => (p >= 10000 ? `${(p / 1000).toFixed(1)}K` : p.toFixed(0));
+    const formatPower = (p) => formatNumberShortCN(p, { decimals: 1 });
     const label = relation >= 60
         ? `约 ${formatPower(estimatedPower)}`
         : relation >= 40

@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Icon } from '../common/UIComponents';
 import { STRATA } from '../../config';
 import { SimpleLineChart } from '../common/SimpleLineChart';
+import { formatNumberShortCN } from '../../utils/numberFormat';
 
 export const PopulationDetailModal = ({
     isOpen,
@@ -66,7 +67,7 @@ export const PopulationDetailModal = ({
                                 <div className="flex-1 min-w-0">
                                     <h2 className="text-base font-bold text-white leading-tight font-decorative">人口详情</h2>
                                     <p className="text-[10px] text-gray-400 leading-tight">
-                                        当前人口 {population} / {maxPop}
+                                        当前人口 {formatNumberShortCN(population, { decimals: 1 })} / {formatNumberShortCN(maxPop, { decimals: 1 })}
                                     </p>
                                 </div>
                                 <button onClick={handleClose} className="p-2 rounded-full hover:bg-gray-700 flex-shrink-0">
@@ -83,7 +84,7 @@ export const PopulationDetailModal = ({
                                     <div>
                                         <p className="text-[9px] uppercase tracking-wide text-gray-500 leading-none">总人口变化趋势</p>
                                         <p className="text-sm font-semibold text-white leading-tight mt-0.5">
-                                            当前 {population} 人 · 上限 {maxPop}
+                                            当前 {formatNumberShortCN(population, { decimals: 1 })} 人 · 上限 {formatNumberShortCN(maxPop, { decimals: 1 })}
                                         </p>
                                     </div>
                                     <Icon name="Activity" size={16} className="text-blue-300" />
@@ -110,7 +111,7 @@ export const PopulationDetailModal = ({
                                                         <span className="leading-none">{item.name}</span>
                                                     </div>
                                                     <div className="text-[9px] text-gray-400 font-mono leading-none">
-                                                        {item.count} 人 · {item.percent.toFixed(1)}%
+                                                        {formatNumberShortCN(item.count, { decimals: 1 })} 人 · {item.percent.toFixed(1)}%
                                                     </div>
                                                 </div>
                                                 <div className="mt-1 h-1.5 rounded-full bg-gray-800">
