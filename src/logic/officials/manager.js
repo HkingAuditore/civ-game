@@ -409,6 +409,91 @@ export const getAggregatedOfficialEffects = (officials, isPaid) => {
 };
 
 /**
+ * 计算单个官员的“绝对影响力”（用于把官员数量少的问题，通过质量/资历放大）
+ * 设计目标：
+ * - 影响力主要由：出身阶层、个人财富、产业规模、在位时间 决定
+ * - 输出是一个“绝对值”，后续会换算成对出身阶层的百分比加成
+ */
+export const calculateOfficialAbsoluteInfluence = (official, context = {}) => {
+    if (!official) return 0;
+
+    const currentDay = context.currentDay ?? 0;
+    const polityEffects = context.polityEffects || {};
+
+    const sourceStratum = official.sourceStratum;
+
+    const wealth = Math.max(0, official.wealth || 0);
+    const ownedProperties = Array.isArray(official.ownedProperties) ? official.ownedProperties : [];
+
+    // 产业规模：数量与等级共同反映“势力网络”
+    const propertyCount = ownedProperties.length;
+    const propertyLevelSum = ownedProperties.reduce((sum, p) => sum + Math.max(0, p?.level || 0), 0);
+    const propertyValue = ownedProperties.reduce((sum, prop) => sum + Math.max(0, prop?.purchaseCost || 0), 0);
+
+    // 任期：采用对数增长（前期提升明显，后期边际递减），避免无限膨胀
+    const daysInOffice = official.hireDate != null ? Math.max(0, currentDay - official.hireDate) : 0;
+    const tenureYears = daysInOffice / 365;
+    const tenureFactor = 1 + Math.min(2.5, Math.log2(tenureYears + 1) * 0.9); // 最多 ~3.5x
+
+    // 出身阶层基座：
+    // 1) 先给一个“阶层固有基座”（让贵族/资本出身天然更有盘根错节的影响力）
+    // 2) 再与“该阶层当前影响力”挂钩：阶层越强，培养/供养出的官员天然更能撬动权力
+    const stratumBase = {
+        // 上层与新兴精英
+        capitalist: 260,
+        landowner: 240,
+        knight: 220,
+        official: 200,
+        engineer: 180,
+        merchant: 170,
+
+        // 中层
+        scribe: 140,
+        cleric: 140,
+        artisan: 120,
+        navigator: 120,
+
+        // 底层（仍然可能通过财富/产业/任期爬升）
+        soldier: 110,
+        worker: 90,
+        miner: 85,
+        lumberjack: 80,
+        peasant: 75,
+        serf: 65,
+        unemployed: 60,
+    };
+    const staticBase = stratumBase[sourceStratum] ?? 100;
+
+    // classInfluence 在 simulation 中的定义是“绝对影响力值”（不是占比），量级通常在几十~几百+
+    // 用对数把它压到一个温和区间，避免阶层影响力巨大时把官员绝对值推爆
+    const classInfluence = context.classInfluence || {};
+    const currentStratumInfluence = Math.max(0, classInfluence[sourceStratum] || 0);
+    const dynamicBase = Math.log10(currentStratumInfluence + 1) * 70; // 通常 0~(随影响力增长)
+
+    const base = staticBase + dynamicBase;
+
+    // 财富/产业采用对数，保证数量级增长但不至于爆炸
+    const wealthScore = Math.log10(wealth + 1) * 60;               // 0~(随财富增长)
+    const propertyCountScore = Math.sqrt(propertyCount) * 55;      // 产业数量带来的“关系网”
+    const propertyLevelScore = Math.sqrt(propertyLevelSum) * 45;   // 升级越高越像大庄园/大工厂
+    const propertyValueScore = Math.log10(propertyValue + 1) * 40; // 总资产规模
+
+    // 政体官僚容量：容量越高，官僚体系越成熟，单官员可以撬动更大权力
+    const officialCapacity = Math.max(0, polityEffects.officialCapacity || 0);
+    const bureaucracyFactor = 1 + Math.min(1.2, officialCapacity * 0.05); // 最多2.2x
+
+    // 官员个体天赋（旧字段兼容）：stratumInfluenceBonus 本来是百分比，这里当作“额外权威”折算
+    const legacyBonus = Math.max(0, official.stratumInfluenceBonus || 0);
+    const legacyScore = legacyBonus * 120; // 0~30(若0.25)，用于保持原有差异
+
+    const absolute = (base + wealthScore + propertyCountScore + propertyLevelScore + propertyValueScore + legacyScore)
+        * tenureFactor
+        * bureaucracyFactor;
+
+    return Math.max(0, absolute);
+};
+
+/**
  * 计算官员对出身阶层的影响力加成
  * @param {Array} officials - 在任官员列表
  * @param {boolean} isPaid - 是否支付了全额薪水（否则加成减半）
@@ -418,33 +503,42 @@ export const getOfficialInfluenceBonus = (officials, isPaid = true, context = {}
     const bonuses = {};
     const classInfluence = context.classInfluence || {};
     const totalInfluence = context.totalInfluence || 0;
-    const polityEffects = context.polityEffects || {};
 
     if (!officials || !Array.isArray(officials)) return bonuses;
 
-    const multiplier = isPaid ? 1 : 0.5;
-    const polityCapacity = Math.max(0, polityEffects.officialCapacity || 0);
-    const polityMultiplier = 1 + Math.min(0.8, polityCapacity * 0.06);
+    // 工资不足：影响力减半（维持原设计）
+    const payMultiplier = isPaid ? 1 : 0.5;
+
+    // 将“绝对影响力”换算成“对出身阶层的百分比加成”
+    // 设计目标：
+    // - 官员数量少时也能产生足够大的政治撬动
+    // - 但不会无限膨胀：受该阶层自身基础影响力约束（越强的阶层，需要更大绝对权力才能撬动同等百分比）
+    // - 单官员加成设上限，避免极端财富导致一人把阶层放大到离谱
+    const MAX_SINGLE_OFFICIAL_BONUS = 2.5; // 单人最多 +250%
 
     officials.forEach(official => {
         if (!official || !official.sourceStratum) return;
 
         const stratum = official.sourceStratum;
-        const wealth = Math.max(0, official.wealth || 0);
-        const ownedProperties = Array.isArray(official.ownedProperties) ? official.ownedProperties : [];
-        const propertyCount = ownedProperties.length;
-        const propertyValue = ownedProperties.reduce((sum, prop) => sum + (prop.purchaseCost || 0), 0);
-        const wealthBonus = Math.log10(wealth + 1) * 0.08;
-        const propertyScaleBonus = Math.sqrt(propertyCount) * 0.06;
-        const propertyValueBonus = Math.log10(propertyValue + 1) * 0.05;
-        const baseBonus = (official.stratumInfluenceBonus || 0) + wealthBonus + propertyScaleBonus + propertyValueBonus;
+        const baseStratumInfluence = Math.max(1, classInfluence[stratum] || 0);
 
-        const stratumInfluence = classInfluence[stratum] || 0;
-        const factionShare = totalInfluence > 0 ? stratumInfluence / totalInfluence : 0;
-        const factionMultiplier = 1 + Math.min(1.2, factionShare * 1.8);
+        const absoluteInfluence = calculateOfficialAbsoluteInfluence(official, context);
 
-        const bonus = Math.min(3, baseBonus * factionMultiplier * polityMultiplier) * multiplier;
+        // 核心换算：绝对值 / 阶层基础影响力
+        // 例如：阶层基础100，官员绝对值150 => +150%
+        // 同时乘一个缩放系数，让数值落在“后期足够大”的区间
+        const SCALE = 0.55;
+        let bonus = (absoluteInfluence / baseStratumInfluence) * SCALE;
 
+        // 温和的“派系份额”修正：越大派系越容易把官员编入体系（上限 +60%）
+        const factionShare = totalInfluence > 0 ? (baseStratumInfluence / totalInfluence) : 0;
+        const factionMultiplier = 1 + Math.min(0.6, factionShare * 1.2);
+        bonus *= factionMultiplier;
+
+        // 上限 + 付薪惩罚
+        bonus = Math.min(MAX_SINGLE_OFFICIAL_BONUS, bonus) * payMultiplier;
+
+        if (bonus <= 0) return;
         bonuses[stratum] = (bonuses[stratum] || 0) + bonus;
     });
 

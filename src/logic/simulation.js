@@ -3740,6 +3740,7 @@ export const simulateTick = ({
         classInfluence,
         totalInfluence: baseTotalInfluence,
         polityEffects: currentPolityEffects,
+        currentDay: tick,
     });
     Object.entries(officialInfluenceBonus).forEach(([stratum, bonus]) => {
         if (classInfluence[stratum] !== undefined && bonus > 0) {
