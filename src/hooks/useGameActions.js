@@ -174,6 +174,14 @@ export const useGameActions = (gameState, addLog) => {
         if (!losses || Object.keys(losses).length === 0) return;
 
         const capacity = getMilitaryCapacity();
+        
+        // [FIX] 如果容量为0，直接返回，防止无限招兵
+        if (capacity <= 0) {
+            debugLog('gameLoop', `[AUTO_REPLENISH] Failed: No military capacity (capacity=0)`);
+            addLog('⚠️ 无军事容量，自动补兵已禁用。请建造兵营。');
+            return;
+        }
+
         const queueSnapshot = Array.isArray(militaryQueue) ? militaryQueue : [];
         const totalArmyCount = getTotalArmyCount(army, queueSnapshot);
 
@@ -185,11 +193,11 @@ export const useGameActions = (gameState, addLog) => {
         const projectedArmyCount = Math.max(0, totalArmyCount - totalLossesCount);
         
         // Calculate slots based on projected army size
-        let availableSlots = capacity > 0 ? Math.max(0, capacity - projectedArmyCount) : 0;
+        let availableSlots = Math.max(0, capacity - projectedArmyCount);
 
         debugLog('gameLoop', `[AUTO_REPLENISH] Capacity Check: Cap ${capacity}, CurrentArmy ${totalArmyCount}, Losses ${totalLossesCount} -> Projected ${projectedArmyCount}, Slots ${availableSlots}`);
 
-        if (capacity > 0 && availableSlots <= 0) {
+        if (availableSlots <= 0) {
             debugLog('gameLoop', `[AUTO_REPLENISH] Failed: Capacity full (Cap: ${capacity}, ProjectedArmy: ${projectedArmyCount})`);
             addLog('⚠️ 军事容量不足，自动补兵已暂停。');
             return;
@@ -438,7 +446,11 @@ export const useGameActions = (gameState, addLog) => {
     const sellBuilding = (id) => {
         const currentCount = buildings[id] || 0;
         if (currentCount > 0) {
-            setBuildings(prev => ({ ...prev, [id]: prev[id] - 1 }));
+            setBuildings(prev => {
+                const currentVal = prev[id] || 0;
+                if (currentVal <= 0) return prev; // 额外保护：防止减少到负数
+                return { ...prev, [id]: currentVal - 1 };
+            });
             addLog(`拆除了 ${BUILDINGS.find(b => b.id === id).name}`);
 
             // 新格式：优先移除最低等级的建筑
@@ -1284,7 +1296,16 @@ export const useGameActions = (gameState, addLog) => {
 
         const capacity = getMilitaryCapacity();
         const totalArmyCount = getTotalArmyCount();
-        if (capacity > 0 && totalArmyCount + 1 > capacity) {
+        
+        // [FIX] 增强容量检查：如果容量为0，或者已满，都禁止招募
+        if (capacity <= 0) {
+            if (!silent && !auto) {
+                addLog('⚠️ 无军事容量，无法招募。请先建造兵营。');
+            }
+            return false;
+        }
+        
+        if (totalArmyCount + 1 > capacity) {
             if (!silent && !auto) {
                 addLog(`军事容量不足（${totalArmyCount}/${capacity}），需要建造更多兵营。`);
             }
