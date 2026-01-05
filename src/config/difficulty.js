@@ -121,30 +121,30 @@ export const DIFFICULTY_CONFIG = {
         icon: '🔥',
         // Organization/Rebellion modifiers
         organizationGrowthMultiplier: 1.5,     // 150% organization growth rate
-        organizationDecayMultiplier: 0.7,      // 70% decay rate (slower calming)
-        satisfactionThreshold: 55,             // Higher threshold - unrest starts earlier
-        buildingCostGrowthFactor: 1.20,        // Steeper scaling (20%)
+        organizationDecayMultiplier: 0.5,      // 50% decay rate (slower calming)
+        satisfactionThreshold: 60,             // Higher threshold - unrest starts earlier
+        buildingCostGrowthFactor: 1.25,        // Steeper scaling (25%)
         // AI War modifiers
-        aiWarDeclarationChance: 1.5,           // 150% war declaration chance
+        aiWarDeclarationChance: 2.0,           // 200% war declaration chance
         aiMilitaryActionChance: 1.5,           // 150% military action chance
         aiMilitaryCooldownBonus: -5,           // Reduced cooldown (more frequent attacks)
         aiMinWarEpoch: 1,                      // AI can declare war from Bronze Age (epoch 1)
         // Raid modifiers
-        raidDamageMultiplier: 1.3,             // 130% raid damage
-        raidPopulationLossMultiplier: 1.3,     // 130% population loss
+        raidDamageMultiplier: 1.5,             // 150% raid damage
+        raidPopulationLossMultiplier: 1.5,     // 150% population loss
         // Peace/Stability bonuses
         stabilityDampeningBonus: -0.1,         // Reduced stability effect
         newGameGracePeriod: 0,                 // No grace period
         // Economic modifiers
-        inventoryTargetDaysMultiplier: 2.0,    // 200% inventory target (harder to maintain stable prices)
+        inventoryTargetDaysMultiplier: 3.0,    // 300% inventory target (harder to maintain stable prices)
         // [NEW] Configurable Parameters
-        taxToleranceMultiplier: 0.8,           // 80% tax tolerance (citizens hate taxes more)
-        resourceConsumptionMultiplier: 2.0,    // 110% consumption
-        buildingCostBaseMultiplier: 2.0,       // 200% building cost
-        techCostMultiplier: 2.0,               // 110% tech cost
-        populationGrowthMultiplier: 0.9,       // 90% growth rate
-        buildingUpgradeCostMultiplier: 2.0,    // 200% upgrade cost
-        armyMaintenanceMultiplier: 1.5,       // 125% army maintenance
+        taxToleranceMultiplier: 0.7,           // 70% tax tolerance (citizens hate taxes more)
+        resourceConsumptionMultiplier: 3.0,    // 300% consumption
+        buildingCostBaseMultiplier: 3.0,       // 300% building cost
+        techCostMultiplier: 3.0,               // 300% tech cost
+        populationGrowthMultiplier: 0.8,       // 80% growth rate
+        buildingUpgradeCostMultiplier: 3.0,    // 300% upgrade cost
+        armyMaintenanceMultiplier: 1.5,       // 150% army maintenance
     },
     [DIFFICULTY_LEVELS.VERY_HARD]: {
         id: DIFFICULTY_LEVELS.VERY_HARD,
@@ -153,30 +153,30 @@ export const DIFFICULTY_CONFIG = {
         icon: '☠️',
         // Organization/Rebellion modifiers
         organizationGrowthMultiplier: 2.0,     // 200% organization growth rate
-        organizationDecayMultiplier: 0.5,      // 50% decay rate
-        satisfactionThreshold: 65,             // Very high threshold
-        buildingCostGrowthFactor: 1.25,        // Very steep scaling (25%)
+        organizationDecayMultiplier: 0.2,      // 20% decay rate
+        satisfactionThreshold: 75,             // Very high threshold
+        buildingCostGrowthFactor: 1.30,        // Very steep scaling (30%)
         // AI War modifiers
-        aiWarDeclarationChance: 2.0,           // 200% war declaration chance
-        aiMilitaryActionChance: 2.0,           // 200% military action chance
+        aiWarDeclarationChance: 3.5,           // 350% war declaration chance
+        aiMilitaryActionChance: 2.5,           // 250% military action chance
         aiMilitaryCooldownBonus: -10,          // Very reduced cooldown
         aiMinWarEpoch: 0,                      // AI can declare war from start
         // Raid modifiers
-        raidDamageMultiplier: 1.6,             // 160% raid damage
-        raidPopulationLossMultiplier: 1.6,     // 160% population loss
+        raidDamageMultiplier: 2.5,             // 250% raid damage
+        raidPopulationLossMultiplier: 2.5,     // 250% population loss
         // Peace/Stability bonuses
         stabilityDampeningBonus: -0.2,         // Negative stability effect
         newGameGracePeriod: 0,                 // No grace period
         // Economic modifiers
-        inventoryTargetDaysMultiplier: 5.0,    // 500% inventory target (requires heavy stockpiling)
+        inventoryTargetDaysMultiplier: 8.0,    // 800% inventory target (requires heavy stockpiling)
         // [NEW] Configurable Parameters
-        taxToleranceMultiplier: 0.6,           // 60% tax tolerance
-        resourceConsumptionMultiplier: 3.0,   // 125% consumption
-        buildingCostBaseMultiplier: 3.0,      // 300% building cost
-        techCostMultiplier: 4.0,              // 125% tech cost
-        populationGrowthMultiplier: 0.8,       // 80% growth rate
-        buildingUpgradeCostMultiplier: 3.0,   // 125% upgrade cost
-        armyMaintenanceMultiplier: 2.0,        // 150% army maintenance
+        taxToleranceMultiplier: 0.4,           // 40% tax tolerance
+        resourceConsumptionMultiplier: 5.0,   // 500% consumption
+        buildingCostBaseMultiplier: 5.0,      // 500% building cost
+        techCostMultiplier: 6.0,              // 600% tech cost
+        populationGrowthMultiplier: 0.5,       // 50% growth rate
+        buildingUpgradeCostMultiplier: 5.0,   // 500% upgrade cost
+        armyMaintenanceMultiplier: 2.0,        // 200% army maintenance
     },
     [DIFFICULTY_LEVELS.EXTREME]: {
         id: DIFFICULTY_LEVELS.EXTREME,
@@ -185,30 +185,30 @@ export const DIFFICULTY_CONFIG = {
         icon: '👿',
         // Organization/Rebellion modifiers
         organizationGrowthMultiplier: 3.0,     // 300% organization growth rate
-        organizationDecayMultiplier: 0.3,      // 30% decay rate
-        satisfactionThreshold: 75,             // Extreme threshold
-        buildingCostGrowthFactor: 1.30,        // Extreme scaling (30%)
+        organizationDecayMultiplier: 0.05,     // 5% decay rate
+        satisfactionThreshold: 80,             // Extreme threshold
+        buildingCostGrowthFactor: 1.40,        // Extreme scaling (40%)
         // AI War modifiers
-        aiWarDeclarationChance: 3.0,           // 300% war declaration chance
-        aiMilitaryActionChance: 3.0,           // 300% military action chance
-        aiMilitaryCooldownBonus: -15,          // Minimal cooldown
+        aiWarDeclarationChance: 5.0,           // 500% war declaration chance
+        aiMilitaryActionChance: 5.0,           // 500% military action chance
+        aiMilitaryCooldownBonus: -20,          // Very fast cooldown
         aiMinWarEpoch: 0,                      // AI can declare war from start
         // Raid modifiers
-        raidDamageMultiplier: 2.0,             // 200% raid damage
-        raidPopulationLossMultiplier: 2.0,     // 200% population loss
+        raidDamageMultiplier: 5.0,             // 500% raid damage
+        raidPopulationLossMultiplier: 5.0,     // 500% population loss
         // Peace/Stability bonuses
-        stabilityDampeningBonus: -0.3,         // Severe negative stability effect
+        stabilityDampeningBonus: -0.5,         // Severe negative stability effect
         newGameGracePeriod: 0,                 // No grace period
         // Economic modifiers
-        inventoryTargetDaysMultiplier: 10.0,   // 1000% inventory target (extreme stockpiling required)
+        inventoryTargetDaysMultiplier: 20.0,   // 2000% inventory target (extreme stockpiling required)
         // [NEW] Configurable Parameters
-        taxToleranceMultiplier: 0.4,           // 40% tax tolerance
-        resourceConsumptionMultiplier: 1.5,    // 150% consumption
-        buildingCostBaseMultiplier: 4.0,       // 400% building cost
-        techCostMultiplier: 1.5,               // 150% tech cost
-        populationGrowthMultiplier: 0.6,       // 60% growth rate
-        buildingUpgradeCostMultiplier: 4.0,    // 150% upgrade cost
-        armyMaintenanceMultiplier: 2.0,        // 200% army maintenance
+        taxToleranceMultiplier: 0.2,           // 20% tax tolerance
+        resourceConsumptionMultiplier: 8.0,    // 800% consumption
+        buildingCostBaseMultiplier: 10.0,      // 1000% building cost
+        techCostMultiplier: 10.0,              // 1000% tech cost
+        populationGrowthMultiplier: 0.2,       // 20% growth rate
+        buildingUpgradeCostMultiplier: 10.0,   // 1000% upgrade cost
+        armyMaintenanceMultiplier: 3.0,        // 300% army maintenance
     },
 };
 

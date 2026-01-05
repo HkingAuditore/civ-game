@@ -784,8 +784,8 @@ const DiplomacyTabComponent = ({
                                     })()}
                                 </div>
 
-                                {/* Treaty Center MVP */}
-                                <div className="mt-2 bg-gray-900/30 p-2 rounded border border-gray-700/60">
+                                {/* Treaty Center MVP - HIDDEN */}
+                                {false && <div className="mt-2 bg-gray-900/30 p-2 rounded border border-gray-700/60">
                                     <div className="flex items-center justify-between mb-1">
                                         <div className="text-[10px] text-gray-300 flex items-center gap-1 font-decorative">
                                             <Icon name="FileText" size={10} className="text-amber-300" />
@@ -862,7 +862,7 @@ const DiplomacyTabComponent = ({
                                             </div>
                                         </div>
                                     )}
-                                </div>
+                                </div>}
 
                                 <div className="mt-1 text-[10px] text-gray-400 flex items-center justify-between font-epic">
                                     <span className="flex items-center gap-1">
@@ -1417,8 +1417,8 @@ const DiplomacyTabComponent = ({
                                                 })()}
                                             </div>
 
-                                            {/* Treaty Center MVP (Mobile) */}
-                                            <div className="mt-3 p-3 bg-gray-900/30 rounded-lg border border-ancient-gold/20 shadow-metal-sm">
+                                            {/* Treaty Center MVP (Mobile) - HIDDEN */}
+                                            {false && <div className="mt-3 p-3 bg-gray-900/30 rounded-lg border border-ancient-gold/20 shadow-metal-sm">
                                                 <div className="flex items-center justify-between mb-2">
                                                     <div className="text-sm font-bold text-ancient-parchment font-decorative flex items-center gap-2">
                                                         <Icon name="FileText" size={14} className="text-amber-300" />
@@ -1492,7 +1492,7 @@ const DiplomacyTabComponent = ({
                                                         </div>
                                                     </div>
                                                 )}
-                                            </div>
+                                            </div>}
 
                                             <div className="mt-2 text-center text-[10px] text-gray-400 font-epic">
                                                 礼物成本: {calculateDynamicGiftCost(resources.silver || 0, selectedNation?.wealth || 0)} | 挑拨成本: {calculateProvokeCost(resources.silver || 0, selectedNation?.wealth || 0)}

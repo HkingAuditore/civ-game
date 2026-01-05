@@ -261,6 +261,7 @@ const MilitaryTabComponent = ({
     const [longPressState, setLongPressState] = useState({ unitId: null, progress: 0 });
     const longPressRef = useRef({ timer: null, raf: null, start: 0, unitId: null, triggered: false });
     const [activeSection, setActiveSection] = useState('soldiers');
+    const [recruitCount, setRecruitCount] = useState(1); // 批量招募数量：1, 5, 10
     // More reliable hover detection: requires both hover capability AND fine pointer (mouse/trackpad)
     // This prevents tooltips from showing on touch devices that falsely report hover support
     const canHover = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
@@ -422,7 +423,7 @@ const MilitaryTabComponent = ({
      * @param {Object} unit - 单位对象
      * @returns {boolean}
      */
-    const canRecruit = (unit) => {
+    const canRecruit = (unit, count = 1) => {
         // 检查时代
         if (unit.epoch > epoch) return false;
 
@@ -431,16 +432,16 @@ const MilitaryTabComponent = ({
         const obsoleteThreshold = unit.obsoleteAfterEpochs || 2;
         if (epochDiff > obsoleteThreshold) return false;
 
-        // 检查资源
+        // 检查资源 (乘以数量)
         for (let resource in unit.recruitCost) {
-            if ((resources[resource] || 0) < unit.recruitCost[resource]) return false;
+            if ((resources[resource] || 0) < unit.recruitCost[resource] * count) return false;
         }
 
-        const silverCost = calculateSilverCost(unit.recruitCost, market);
+        const silverCost = calculateSilverCost(unit.recruitCost, market) * count;
         if ((resources.silver || 0) < silverCost) return false;
 
         // 检查军事容量
-        if (totalArmyCount + 1 > militaryCapacity) return false;
+        if (totalArmyCount + count > militaryCapacity) return false;
 
         return true;
     };
@@ -450,7 +451,7 @@ const MilitaryTabComponent = ({
      * @param {Object} unit - 单位对象
      * @returns {string} 不能招募的原因，如果可以招募则返回空字符串
      */
-    const getRecruitDisabledReason = (unit) => {
+    const getRecruitDisabledReason = (unit, count = 1) => {
         // 检查时代
         if (unit.epoch > epoch) {
             return `需要升级到 ${EPOCHS[unit.epoch].name}`;
@@ -465,19 +466,19 @@ const MilitaryTabComponent = ({
 
         // 检查资源
         for (let resource in unit.recruitCost) {
-            if ((resources[resource] || 0) < unit.recruitCost[resource]) {
+            if ((resources[resource] || 0) < unit.recruitCost[resource] * count) {
                 return `资源不足：缺少 ${RESOURCES[resource]?.name || resource}`;
             }
         }
 
-        const silverCost = calculateSilverCost(unit.recruitCost, market);
-      if ((resources.silver || 0) < silverCost) {
-        return `银币不足：需要 ${formatNumberShortCN(silverCost, { decimals: 1 })} 银币`;
-      }
+        const silverCost = calculateSilverCost(unit.recruitCost, market) * count;
+        if ((resources.silver || 0) < silverCost) {
+            return `银币不足：需要 ${formatNumberShortCN(silverCost, { decimals: 1 })} 银币`;
+        }
 
         // 检查军事容量
-        if (totalArmyCount + 1 > militaryCapacity) {
-            return `军事容量不足（${totalArmyCount}/${militaryCapacity}），需要建造更多兵营`;
+        if (totalArmyCount + count > militaryCapacity) {
+            return `军事容量不足（${totalArmyCount}+${count}/${militaryCapacity}），需要建造更多兵营`;
         }
 
         return '';
@@ -733,6 +734,39 @@ const MilitaryTabComponent = ({
                             招募单位
                         </h3>
 
+                        {/* Quantity Selector */}
+                        <div className="flex bg-gray-800 rounded-lg p-1 gap-1 mb-3 w-fit">
+                            {[1, 5, 10].map(n => (
+                                <button
+                                    key={n}
+                                    onClick={() => setRecruitCount(n)}
+                                    className={`px-3 py-1 rounded text-xs font-bold transition-all ${recruitCount === n
+                                        ? 'bg-blue-600 text-white shadow'
+                                        : 'text-gray-400 hover:bg-gray-700 hover:text-gray-200'
+                                        }`}
+                                >
+                                    x{n}
+                                </button>
+                            ))}
+                            {/* Max button logic for recruitment is tricky due to capacity/resources. 
+                                    Let's keep it simple for now or implement if needed. 
+                                    Given capacity constraints, Max is very useful. */}
+                            <button
+                                onClick={() => {
+                                    const remainingCap = Math.max(0, militaryCapacity - totalArmyCount);
+                                    const safeMax = Math.min(50, remainingCap > 0 ? remainingCap : 1);
+                                    setRecruitCount(safeMax);
+                                }}
+                                className={`px-3 py-1 rounded text-xs font-bold transition-all ${recruitCount > 10
+                                    ? 'bg-blue-600 text-white shadow'
+                                    : 'text-gray-400 hover:bg-gray-700 hover:text-gray-200'
+                                    }`}
+                                title="设置数量为剩余容量 (Max 50)"
+                            >
+                                x{Math.min(50, Math.max(0, militaryCapacity - totalArmyCount) > 0 ? Math.max(0, militaryCapacity - totalArmyCount) : 1)}
+                            </button>
+                        </div>
+
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-2">
                             {Object.entries(UNIT_TYPES)
                                 .filter(([id, unit]) => {
@@ -748,8 +782,8 @@ const MilitaryTabComponent = ({
                                     return epochDiff <= obsoleteThreshold;
                                 })
                                 .map(([unitId, unit]) => {
-                                    const silverCost = calculateSilverCost(unit.recruitCost, market);
-                                    const affordable = canRecruit(unit);
+                                    const silverCost = calculateSilverCost(unit.recruitCost, market) * recruitCount;
+                                    const affordable = canRecruit(unit, recruitCount);
 
                                     // Get category info for color
                                     const categoryInfo = UNIT_CATEGORIES[unit.category] || {};
@@ -787,9 +821,9 @@ const MilitaryTabComponent = ({
                                             {/* 操作按钮 - 紧凑版 */}
                                             <div className="flex gap-1">
                                                 <button
-                                                    onClick={(e) => { e.stopPropagation(); onRecruit(unitId); }}
+                                                    onClick={(e) => { e.stopPropagation(); onRecruit(unitId, { count: recruitCount }); }}
                                                     disabled={!affordable}
-                                                    title={!affordable ? getRecruitDisabledReason(unit) : '点击招募'}
+                                                    title={!affordable ? getRecruitDisabledReason(unit, recruitCount) : `点击招募 ${recruitCount} 个`}
                                                     className={`flex-1 px-2 py-1 rounded text-[10px] font-semibold transition-all active:scale-95 ${affordable
                                                         ? 'bg-green-600 hover:bg-green-500 text-white active:brightness-110'
                                                         : 'bg-gray-600 text-gray-400 cursor-not-allowed'
@@ -797,6 +831,7 @@ const MilitaryTabComponent = ({
                                                 >
                                                     <div className="flex items-center justify-center gap-1">
                                                         <Icon name="Plus" size={10} />
+                                                        {recruitCount > 1 && <span>x{recruitCount} </span>}
                                                         <span className={(resources.silver || 0) < silverCost ? 'text-red-300' : ''}>
                                                             {formatSilverCost(silverCost)}
                                                         </span>

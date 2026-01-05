@@ -348,46 +348,48 @@ export const processAIPlayerInteraction = (visibleNations, tick, epoch, logs) =>
             })}`);
         }
 
-        // Treaty 2.0 MVP: AI treaty proposal (open market / non-aggression / academic exchange)
-        const lastTreatyProposalDay = nation.lastTreatyProposalDay || 0;
-        const treatyProposalCooldown = 730; // 2 years
-        const canProposeTreaty = (tick - lastTreatyProposalDay) >= treatyProposalCooldown;
+        // Treaty 2.0 MVP: AI treaty proposal (open market / non-aggression / academic exchange) - DISABLED
+        if (false) {
+            const lastTreatyProposalDay = nation.lastTreatyProposalDay || 0;
+            const treatyProposalCooldown = 730; // 2 years
+            const canProposeTreaty = (tick - lastTreatyProposalDay) >= treatyProposalCooldown;
 
-        // Simple evaluation: prefer treaties at higher relation, avoid for very aggressive nations
-        if (canProposeTreaty && playerRelation >= 55 && aggression < 0.7) {
-            // Pick treaty type
-            const canOfferOpenMarket = playerRelation >= 60;
-            const canOfferNonAggression = playerRelation >= 55;
-            const canOfferAcademic = epoch >= 1 && playerRelation >= 65;
+            // Simple evaluation: prefer treaties at higher relation, avoid for very aggressive nations
+            if (canProposeTreaty && playerRelation >= 55 && aggression < 0.7) {
+                // Pick treaty type
+                const canOfferOpenMarket = playerRelation >= 60;
+                const canOfferNonAggression = playerRelation >= 55;
+                const canOfferAcademic = epoch >= 1 && playerRelation >= 65;
 
-            const candidates = [];
-            if (canOfferNonAggression) candidates.push('non_aggression');
-            if (canOfferOpenMarket) candidates.push('open_market');
-            if (canOfferAcademic) candidates.push('academic_exchange');
+                const candidates = [];
+                if (canOfferNonAggression) candidates.push('non_aggression');
+                if (canOfferOpenMarket) candidates.push('open_market');
+                if (canOfferAcademic) candidates.push('academic_exchange');
 
-            if (candidates.length > 0) {
-                const type = candidates[Math.floor(Math.random() * candidates.length)];
+                if (candidates.length > 0) {
+                    const type = candidates[Math.floor(Math.random() * candidates.length)];
 
-                const baseChance = 0.00006 + (playerRelation - 55) / 90000;
-                const wealthFactor = Math.min(0.00003, wealth / 120000000);
-                const treatyChance = baseChance + wealthFactor;
+                    const baseChance = 0.00006 + (playerRelation - 55) / 90000;
+                    const wealthFactor = Math.min(0.00003, wealth / 120000000);
+                    const treatyChance = baseChance + wealthFactor;
 
-                if (Math.random() < treatyChance) {
-                    nation.lastTreatyProposalDay = tick;
+                    if (Math.random() < treatyChance) {
+                        nation.lastTreatyProposalDay = tick;
 
-                    // Duration scaling
-                    const durationDays = type === 'open_market' ? 365 * 2 : 365;
-                    const maintenancePerDay = type === 'open_market' ? 0 : 0;
+                        // Duration scaling
+                        const durationDays = type === 'open_market' ? 365 * 2 : 365;
+                        const maintenancePerDay = type === 'open_market' ? 0 : 0;
 
-                    logs.push(`AI_TREATY_PROPOSAL:${JSON.stringify({
-                        nationId: nation.id,
-                        nationName: nation.name,
-                        treaty: {
-                            type,
-                            durationDays,
-                            maintenancePerDay,
-                        }
-                    })}`);
+                        logs.push(`AI_TREATY_PROPOSAL:${JSON.stringify({
+                            nationId: nation.id,
+                            nationName: nation.name,
+                            treaty: {
+                                type,
+                                durationDays,
+                                maintenancePerDay,
+                            }
+                        })}`);
+                    }
                 }
             }
         }

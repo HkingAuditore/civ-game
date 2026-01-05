@@ -512,7 +512,7 @@ export const getOfficialInfluencePoints = (officials, isPaid = true, context = {
     // - 官员数量少时也能在后期显著“抬升”其出身阶层影响力
     // - 直接返回“绝对影响力点数”，由 simulation 采用加法叠加
     // - 单官员加点上限，避免极端财富导致离谱
-    const MAX_SINGLE_OFFICIAL_POINTS = 250000; // 单人最多 +25万（可按体验再调）
+    const MAX_SINGLE_OFFICIAL_POINTS = 20000; // 单人最多 +2万（原25万，大幅下调）
 
     officials.forEach(official => {
         if (!official || !official.sourceStratum) return;
@@ -526,16 +526,25 @@ export const getOfficialInfluencePoints = (officials, isPaid = true, context = {
         const factionMultiplier = 1 + Math.min(0.35, factionShare * 0.7); // 上限+35%
 
         // 缩放：把 absoluteInfluence 映射到“可见的后期加点”区间
-        // 说明：absoluteInfluence 本身仍然来自财富/产业/任期等维度（对数/平方根），
-        //      这里再乘一个系数，让其在百万级阶层影响力背景下仍然有存在感。
-        const SCALE = 900;
+        // absoluteInfluence 基于 log(财富)，通常在 500-1500 之间
+        // SCALE = 10 -> 单人贡献约 5000 - 15000 点影响力
+        // 相当于 1 个官员 = 1万 - 3万 平民的影响力
+        const SCALE = 10;
         let points = absoluteInfluence * SCALE * factionMultiplier;
 
         // 上限 + 付薪惩罚
         points = Math.min(MAX_SINGLE_OFFICIAL_POINTS, points) * payMultiplier;
 
         if (points <= 0) return;
+        
+        // 1. 加给出身阶层（娘家）
         pointsMap[stratum] = (pointsMap[stratum] || 0) + points;
+
+        // 2. [NEW] 同时也加给官员阶层（代表官僚集团整体力量）
+        // 如果出身本身就是 official，则不重复加（上面已经加过了）
+        if (stratum !== 'official') {
+            pointsMap['official'] = (pointsMap['official'] || 0) + points * 0.25;
+        }
     });
 
     return pointsMap;
