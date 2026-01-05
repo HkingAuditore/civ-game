@@ -3079,7 +3079,7 @@ export const useGameActions = (gameState, addLog) => {
             // - normal: regular trade (requires shortage/surplus)
             // - force_sell: allow exporting even if partner has no shortage ("倾销")
             // - force_buy: allow importing even if partner has no surplus ("强买")
-            const mode = actionPayload?.mode || 'normal';
+            const mode = payload?.mode || 'normal';
 
             const exists = tradeRoutes.routes.some(
                 route => route.nationId === nationId && route.resource === resourceKey && route.type === type && (route.mode || 'normal') === mode
