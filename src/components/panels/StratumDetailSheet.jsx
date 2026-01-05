@@ -536,13 +536,13 @@ const StratumDetailSheetComponent = ({
                             <div>
                                 <div className="text-[9px] text-gray-400 mb-0.5 leading-none">收入</div>
                                 <div className="text-sm font-bold text-green-400 font-mono leading-none">
-                                    +{incomePerCapita.toFixed(2)}
+                                    +{Math.abs(incomePerCapita).toFixed(2)}
                                 </div>
                             </div>
                             <div>
                                 <div className="text-[9px] text-gray-400 mb-0.5 leading-none">支出</div>
                                 <div className="text-sm font-bold text-red-400 font-mono leading-none">
-                                    -{expensePerCapita.toFixed(2)}
+                                    -{Math.abs(expensePerCapita).toFixed(2)}
                                 </div>
                             </div>
                             <div>
@@ -924,33 +924,76 @@ const StratumDetailSheetComponent = ({
             {/* 财务Tab内容 */}
             {activeTab === 'finance' && (
                 <div className="space-y-2">
-                    {/* 总收支概览 */}
-                    <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
-                        <h3 className="text-[10px] font-bold text-white mb-1.5 flex items-center gap-1">
-                            <Icon name="TrendingUp" size={12} className="text-green-400" />
-                            每日人均收支总览
-                        </h3>
-                        <div className="grid grid-cols-3 gap-2">
-                            <div>
-                                <div className="text-[9px] text-gray-400 mb-0.5 leading-none">总收入</div>
-                                <div className="text-sm font-bold text-green-400 font-mono leading-none">
-                                    +{incomePerCapita.toFixed(2)}
+                    {/* 总收支概览 - 使用classFinancialData计算以确保与明细一致 */}
+                    {(() => {
+                        const finData = classFinancialData[stratumKey] || {};
+                        const incomeData = finData.income || {};
+                        const expenseData = finData.expense || {};
+
+                        // 计算收入总计
+                        const wage = (incomeData.wage || 0) / safeDayScale / Math.max(count, 1);
+                        const ownerRevenue = (incomeData.ownerRevenue || 0) / safeDayScale / Math.max(count, 1);
+                        const subsidy = (incomeData.subsidy || 0) / safeDayScale / Math.max(count, 1);
+                        const salary = (incomeData.salary || 0) / safeDayScale / Math.max(count, 1);
+                        const totalIncomeCalc = wage + ownerRevenue + subsidy + salary;
+
+                        // 计算支出总计
+                        const headTax = (expenseData.headTax || 0) / safeDayScale / Math.max(count, 1);
+                        const transactionTax = (expenseData.transactionTax || 0) / safeDayScale / Math.max(count, 1);
+                        const businessTax = (expenseData.businessTax || 0) / safeDayScale / Math.max(count, 1);
+                        const tariffs = (expenseData.tariffs || 0) / safeDayScale / Math.max(count, 1);
+                        const productionCosts = (expenseData.productionCosts || 0) / safeDayScale / Math.max(count, 1);
+                        const wagesExpense = (expenseData.wages || 0) / safeDayScale / Math.max(count, 1);
+                        const decay = (expenseData.decay || 0) / safeDayScale / Math.max(count, 1);
+
+                        const essentialNeedsRaw = typeof expenseData.essentialNeeds === 'object'
+                            ? Object.values(expenseData.essentialNeeds).reduce((sum, entry) => {
+                                const cost = typeof entry === 'object' ? entry.cost : entry;
+                                return sum + (cost || 0);
+                            }, 0)
+                            : 0;
+                        const essentialNeeds = essentialNeedsRaw / safeDayScale / Math.max(count, 1);
+
+                        const luxuryNeedsRaw = typeof expenseData.luxuryNeeds === 'object'
+                            ? Object.values(expenseData.luxuryNeeds).reduce((sum, entry) => {
+                                const cost = typeof entry === 'object' ? entry.cost : entry;
+                                return sum + (cost || 0);
+                            }, 0)
+                            : 0;
+                        const luxuryNeeds = luxuryNeedsRaw / safeDayScale / Math.max(count, 1);
+
+                        const totalExpenseCalc = headTax + transactionTax + businessTax + tariffs + productionCosts + wagesExpense + decay + essentialNeeds + luxuryNeeds;
+                        const netIncome = totalIncomeCalc - totalExpenseCalc;
+
+                        return (
+                            <div className="bg-gray-700/50 rounded p-2 border border-gray-600">
+                                <h3 className="text-[10px] font-bold text-white mb-1.5 flex items-center gap-1">
+                                    <Icon name="TrendingUp" size={12} className="text-green-400" />
+                                    每日人均收支总览
+                                </h3>
+                                <div className="grid grid-cols-3 gap-2">
+                                    <div>
+                                        <div className="text-[9px] text-gray-400 mb-0.5 leading-none">总收入</div>
+                                        <div className="text-sm font-bold text-green-400 font-mono leading-none">
+                                            +{totalIncomeCalc.toFixed(2)}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div className="text-[9px] text-gray-400 mb-0.5 leading-none">总支出</div>
+                                        <div className="text-sm font-bold text-red-400 font-mono leading-none">
+                                            -{totalExpenseCalc.toFixed(2)}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div className="text-[9px] text-gray-400 mb-0.5 leading-none">净收益</div>
+                                        <div className={`text-sm font-bold font-mono leading-none ${netIncome >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                            {netIncome >= 0 ? '+' : ''}{netIncome.toFixed(2)}
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                            <div>
-                                <div className="text-[9px] text-gray-400 mb-0.5 leading-none">总支出</div>
-                                <div className="text-sm font-bold text-red-400 font-mono leading-none">
-                                    -{expensePerCapita.toFixed(2)}
-                                </div>
-                            </div>
-                            <div>
-                                <div className="text-[9px] text-gray-400 mb-0.5 leading-none">净收益</div>
-                                <div className={`text-sm font-bold font-mono leading-none ${netIncomePerCapita >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                    {netIncomePerCapita >= 0 ? '+' : ''}{netIncomePerCapita.toFixed(2)}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                        );
+                    })()}
 
                     {/* 收入明细 */}
                     <div className="bg-gray-700/50 rounded p-2 border border-gray-600">

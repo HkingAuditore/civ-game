@@ -680,7 +680,7 @@ export const useGameState = () => {
     const [populationDetailView, setPopulationDetailView] = useState(false);
     const [history, setHistory] = useState(buildInitialHistory());
     const [eventEffectSettings, setEventEffectSettings] = useState(DEFAULT_EVENT_EFFECT_SETTINGS);
-    const [activeEventEffects, setActiveEventEffects] = useState(buildInitialEventEffects());       
+    const [activeEventEffects, setActiveEventEffects] = useState(buildInitialEventEffects());
 
     // ========== 财政（实际口径） ==========
     // Stores realized per-tick treasury changes and actual payments (not "planned" amounts).
@@ -909,6 +909,7 @@ export const useGameState = () => {
             const startNewGame = localStorage.getItem('start_new_game');
             if (startNewGame === 'true') {
                 localStorage.removeItem('start_new_game');
+                const newGameDifficulty = localStorage.getItem('new_game_difficulty');
                 if (newGameDifficulty) {
                     console.log(`[DEBUG] Initializing New Game with Difficulty: ${newGameDifficulty}`);
                     setDifficulty(newGameDifficulty);
@@ -1239,14 +1240,14 @@ export const useGameState = () => {
         setIsAutoSaveEnabled(data.isAutoSaveEnabled ?? true);
         setLastAutoSaveTime(data.lastAutoSaveTime || Date.now());
         setDifficulty(data.difficulty || DEFAULT_DIFFICULTY);
-    setEventEffectSettings({
-        ...DEFAULT_EVENT_EFFECT_SETTINGS,
-        ...(data.eventEffectSettings || {}),
-        logVisibility: {
-            ...DEFAULT_EVENT_EFFECT_SETTINGS.logVisibility,
-            ...((data.eventEffectSettings || {}).logVisibility || {}),
-        },
-    });
+        setEventEffectSettings({
+            ...DEFAULT_EVENT_EFFECT_SETTINGS,
+            ...(data.eventEffectSettings || {}),
+            logVisibility: {
+                ...DEFAULT_EVENT_EFFECT_SETTINGS.logVisibility,
+                ...((data.eventEffectSettings || {}).logVisibility || {}),
+            },
+        });
         const loadedEffects = data.activeEventEffects || {};
         setActiveEventEffects({
             approval: Array.isArray(loadedEffects.approval) ? loadedEffects.approval : [],

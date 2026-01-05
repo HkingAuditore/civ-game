@@ -320,7 +320,17 @@ const TechTabComponent = ({
     const safeEpochIndex = typeof epoch === 'number' && epoch >= 0 && epoch < EPOCHS.length ? epoch : 0;
     const currentEpoch = EPOCHS[safeEpochIndex];
     const nextEpochInfo = safeEpochIndex < EPOCHS.length - 1 ? EPOCHS[safeEpochIndex + 1] : null;
-    const nextEpochSilverCost = nextEpochInfo ? calculateSilverCost(nextEpochInfo.cost, market) : 0;
+    // 应用难度系数到时代升级成本
+    const epochCostMultiplier = getTechCostMultiplier(difficulty);
+    const adjustedEpochCost = useMemo(() => {
+        if (!nextEpochInfo) return {};
+        const adjusted = {};
+        Object.entries(nextEpochInfo.cost).forEach(([res, val]) => {
+            adjusted[res] = Math.ceil(val * epochCostMultiplier);
+        });
+        return adjusted;
+    }, [nextEpochInfo, epochCostMultiplier]);
+    const nextEpochSilverCost = nextEpochInfo ? calculateSilverCost(adjustedEpochCost, market) : 0;
     const hasNextEpochSilver = nextEpochInfo ? (resources.silver || 0) >= nextEpochSilverCost : true;
     const upgradeThemeIndex = Math.min(safeEpochIndex + 1, EPOCHS.length - 1);
     const upgradeCardTheme = getEpochTheme(upgradeThemeIndex);
@@ -454,7 +464,7 @@ const TechTabComponent = ({
                         <div className="mb-2">
                             <p className="text-xs text-gray-400 mb-1">升级成本：</p>
                             <div className="flex flex-wrap gap-2">
-                                {Object.entries(nextEpochInfo.cost).map(([resource, cost]) => (
+                                {Object.entries(adjustedEpochCost).map(([resource, cost]) => (
                                     <span
                                         key={resource}
                                         className={`text-xs px-2 py-1 rounded ${(resources[resource] || 0) >= cost
