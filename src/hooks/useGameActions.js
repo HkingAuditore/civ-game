@@ -388,29 +388,42 @@ export const useGameActions = (gameState, addLog) => {
     /**
      * 购买建筑
      * @param {string} id - 建筑ID
+     * @param {number} count - 购买数量 (默认为 1)
      */
-    const buyBuilding = (id) => {
+    const buyBuilding = (id, count = 1) => {
         const b = BUILDINGS.find(x => x.id === id);
-        const count = buildings[id] || 0;
+        if (!b) return;
+
+        const finalCount = Math.max(1, Math.floor(count));
+        const currentCount = buildings[id] || 0;
 
         // 计算成本（随数量递增）
         const difficultyLevel = gameState.difficulty || 'normal';
         const growthFactor = getBuildingCostGrowthFactor(difficultyLevel);
         const baseMultiplier = getBuildingCostBaseMultiplier(difficultyLevel);
-        console.log(`[DEBUG] buyBuilding: diff=${difficultyLevel}, baseMult=${baseMultiplier}, growth=${growthFactor}`);
-        const cost = calculateBuildingCost(b.baseCost, count, growthFactor, baseMultiplier);
         const buildingCostMod = modifiers?.officialEffects?.buildingCostMod || 0;
-        // 传入基础成本，确保减免只作用于数量惩罚部分
-        const adjustedCost = applyBuildingCostModifier(cost, buildingCostMod, b.baseCost);
 
-        const hasMaterials = Object.entries(adjustedCost).every(([resource, amount]) => (resources[resource] || 0) >= amount);
+        let totalCost = {};
+
+        // 累加每个建筑的成本
+        for (let i = 0; i < finalCount; i++) {
+            const thisBuildCount = currentCount + i;
+            const rawCost = calculateBuildingCost(b.baseCost, thisBuildCount, growthFactor, baseMultiplier);
+            const adjustedCost = applyBuildingCostModifier(rawCost, buildingCostMod, b.baseCost);
+            
+            Object.entries(adjustedCost).forEach(([res, amount]) => {
+                totalCost[res] = (totalCost[res] || 0) + amount;
+            });
+        }
+
+        const hasMaterials = Object.entries(totalCost).every(([resource, amount]) => (resources[resource] || 0) >= amount);
         if (!hasMaterials) {
-            addLog(`资源不足，无法建造 ${b.name}`);
+            addLog(`资源不足，无法建造 ${finalCount} 个 ${b.name}`);
             return;
         }
 
         // 计算银币成本并应用官员建筑成本修正
-        let silverCost = Object.entries(adjustedCost).reduce((sum, [resource, amount]) => {
+        let silverCost = Object.entries(totalCost).reduce((sum, [resource, amount]) => {
             return sum + amount * getMarketPrice(resource);
         }, 0);
         silverCost = Math.max(0, silverCost);
@@ -421,14 +434,14 @@ export const useGameActions = (gameState, addLog) => {
         }
 
         const newRes = { ...resources };
-        Object.entries(adjustedCost).forEach(([resource, amount]) => {
+        Object.entries(totalCost).forEach(([resource, amount]) => {
             newRes[resource] = Math.max(0, (newRes[resource] || 0) - amount);
         });
         newRes.silver = Math.max(0, (newRes.silver || 0) - silverCost);
 
         setResources(newRes);
-        setBuildings(prev => ({ ...prev, [id]: (prev[id] || 0) + 1 }));
-        addLog(`建造了 ${b.name}`);
+        setBuildings(prev => ({ ...prev, [id]: (prev[id] || 0) + finalCount }));
+        addLog(`建造了 ${finalCount} 个 ${b.name}`);
 
         // 播放建造音效
         try {
@@ -1257,7 +1270,8 @@ export const useGameActions = (gameState, addLog) => {
     const recruitUnit = (unitId, options = {}) => {
         const unit = UNIT_TYPES[unitId];
         if (!unit) return false;
-        const { silent = false, auto = false } = options;
+        const { silent = false, auto = false, count = 1 } = options;
+        const recruitCount = Math.max(1, Math.floor(count));
 
         // 检查时代
         if (unit.epoch > epoch) {
@@ -1267,10 +1281,16 @@ export const useGameActions = (gameState, addLog) => {
             return false;
         }
 
+        // 计算总消耗
+        const totalUnitCost = {};
+        for (let resource in unit.recruitCost) {
+            totalUnitCost[resource] = (unit.recruitCost[resource] || 0) * recruitCount;
+        }
+
         // 检查资源
         let canAfford = true;
-        for (let resource in unit.recruitCost) {
-            if ((resources[resource] || 0) < unit.recruitCost[resource]) {
+        for (let resource in totalUnitCost) {
+            if ((resources[resource] || 0) < totalUnitCost[resource]) {
                 canAfford = false;
                 break;
             }
@@ -1278,12 +1298,12 @@ export const useGameActions = (gameState, addLog) => {
 
         if (!canAfford) {
             if (!silent) {
-                addLog(`资源不足，无法训练 ${unit.name}`);
+                addLog(`资源不足，无法训练 ${recruitCount} 个 ${unit.name}`);
             }
             return false;
         }
 
-        const silverCost = Object.entries(unit.recruitCost).reduce((sum, [resource, amount]) => {
+        const silverCost = Object.entries(totalUnitCost).reduce((sum, [resource, amount]) => {
             return sum + amount * getMarketPrice(resource);
         }, 0);
 
@@ -1295,9 +1315,9 @@ export const useGameActions = (gameState, addLog) => {
         }
 
         const capacity = getMilitaryCapacity();
-        const totalArmyCount = getTotalArmyCount();
+        const totalArmyCount = getTotalArmyCount(); // 包含当前军队和训练队列中的总数
         
-        // [FIX] 增强容量检查：如果容量为0，或者已满，都禁止招募
+        // [FIX] 增强容量检查
         if (capacity <= 0) {
             if (!silent && !auto) {
                 addLog('⚠️ 无军事容量，无法招募。请先建造兵营。');
@@ -1305,31 +1325,33 @@ export const useGameActions = (gameState, addLog) => {
             return false;
         }
         
-        if (totalArmyCount + 1 > capacity) {
+        if (totalArmyCount + recruitCount > capacity) {
             if (!silent && !auto) {
-                addLog(`军事容量不足（${totalArmyCount}/${capacity}），需要建造更多兵营。`);
+                addLog(`军事容量不足（${totalArmyCount}/${capacity}），还需要 ${recruitCount} 个空位。`);
             }
             return false;
         }
 
         // 扣除资源
         const newRes = { ...resources };
-        for (let resource in unit.recruitCost) {
-            newRes[resource] -= unit.recruitCost[resource];
+        for (let resource in totalUnitCost) {
+            newRes[resource] -= totalUnitCost[resource];
         }
         newRes.silver = Math.max(0, (newRes.silver || 0) - silverCost);
         setResources(newRes);
 
-        // 加入训练队列，状态为等待人员
-        setMilitaryQueue(prev => [...prev, {
+        // 加入训练队列
+        const newQueueItems = Array(recruitCount).fill(null).map(() => ({
             unitId,
-            status: 'waiting', // 等待人员填补岗位
-            remainingTime: unit.trainingTime, // 保存训练时长，等开始训练时使用
+            status: 'waiting', 
+            remainingTime: unit.trainingTime,
             totalTime: unit.trainingTime
-        }]);
+        }));
+
+        setMilitaryQueue(prev => [...prev, ...newQueueItems]);
 
         if (!silent) {
-            addLog(`开始招募 ${unit.name}，等待人员填补岗位...`);
+            addLog(`开始招募 ${recruitCount} 个 ${unit.name}，等待人员填补岗位...`);
         }
         return true;
     };

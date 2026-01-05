@@ -445,24 +445,92 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
         return totalIncomePerBuilding / ownerWorkersPerBuilding;
     };
 
-    const calculateCost = (b) => {
-        const currentCount = buildings[b.id] || 0;
+    // 批量购买状态
+    const [buyCount, setBuyCount] = useState(1);
+
+    // 计算批量成本
+    const calculateBulkCost = (count) => {
+        const currentCount = buildings[building.id] || 0;
         const difficulty = gameState.difficulty;
         const growthFactor = getBuildingCostGrowthFactor(difficulty);
         const baseMultiplier = getBuildingCostBaseMultiplier(difficulty);
-        const totalCost = calculateBuildingCost(b.baseCost, currentCount, growthFactor, baseMultiplier);
         const buildingCostMod = gameState.modifiers?.officialEffects?.buildingCostMod || 0;
-        // 传入基础成本，确保减免只作用于数量惩罚部分
-        return applyBuildingCostModifier(totalCost, buildingCostMod, b.baseCost);
+
+        let totalCost = {};
+        for (let i = 0; i < count; i++) {
+            const thisBuildCount = currentCount + i;
+            const rawCost = calculateBuildingCost(building.baseCost, thisBuildCount, growthFactor, baseMultiplier);
+            const adjustedCost = applyBuildingCostModifier(rawCost, buildingCostMod, building.baseCost);
+            Object.entries(adjustedCost).forEach(([res, val]) => {
+                totalCost[res] = (totalCost[res] || 0) + val;
+            });
+        }
+        return totalCost;
     };
 
-    const nextCost = calculateCost(building);
+    // 动态计算当前buyCount下的成本
+    const nextCost = calculateBulkCost(buyCount);
     const nextSilverCost = calculateSilverCost(nextCost, market);
     const hasMaterials = Object.entries(nextCost).every(([res, val]) => (resources[res] || 0) >= val);
     const hasSilver = (resources.silver || 0) >= nextSilverCost;
     const canAffordNext = hasMaterials && hasSilver;
 
     const compactSilverCost = formatCompactCost(nextSilverCost);
+
+    // 计算最大可买数量 (限制为100以防卡顿)
+    const calculateMaxBuy = () => {
+        const MAX_SEARCH = 100;
+        const currentCount = buildings[building.id] || 0;
+        const difficulty = gameState.difficulty;
+        const growthFactor = getBuildingCostGrowthFactor(difficulty);
+        const baseMultiplier = getBuildingCostBaseMultiplier(difficulty);
+        const buildingCostMod = gameState.modifiers?.officialEffects?.buildingCostMod || 0;
+
+        // 简单模拟
+        let maxCount = 0;
+        let currentTotalCost = {};
+        let currentTotalSilver = 0;
+        const availSilver = resources.silver || 0;
+
+        for (let i = 0; i < MAX_SEARCH; i++) {
+            // 预计算这一个的成本
+            const thisBuildCount = currentCount + i;
+            const rawCost = calculateBuildingCost(building.baseCost, thisBuildCount, growthFactor, baseMultiplier);
+            const adjustedCost = applyBuildingCostModifier(rawCost, buildingCostMod, building.baseCost);
+
+            // 检查加上这一个是否超支
+            let nextTotalCost = { ...currentTotalCost };
+            let nextTotalSilver = currentTotalSilver; // accum silver for resources + direct silver
+
+            // Update totals
+            let possible = true;
+            Object.entries(adjustedCost).forEach(([res, val]) => {
+                const newResTotal = (nextTotalCost[res] || 0) + val;
+                if ((resources[res] || 0) < newResTotal) {
+                    possible = false;
+                }
+                nextTotalCost[res] = newResTotal;
+            });
+
+            if (!possible) break; // 资源不足
+
+            // Check silver
+            let silverForThis = 0;
+            Object.entries(adjustedCost).forEach(([res, val]) => {
+                if (res === 'silver') silverForThis += val;
+                else silverForThis += val * getResourcePrice(res);
+            });
+
+            nextTotalSilver += silverForThis;
+            if (availSilver < nextTotalSilver) break; // 银币不足
+
+            // Success
+            currentTotalCost = nextTotalCost;
+            currentTotalSilver = nextTotalSilver;
+            maxCount++;
+        }
+        return maxCount || 1;
+    };
 
     const totalJobSlots = Object.values(effectiveTotalStats.jobs || {}).reduce((sum, val) => sum + val, 0);
     const totalJobsFilled = Object.entries(effectiveTotalStats.jobs || {}).reduce((sum, [role, required]) => {
@@ -597,6 +665,32 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
         if (!Number.isFinite(totalIncome)) return null;
         return totalIncome / popCount;
     }, [popStructure, classFinancialData]);
+
+    const handleMaxBuy = () => {
+        setBuyCount(calculateMaxBuy());
+    };
+
+    // ... (rest of the component)
+
+    // In render:
+    /* Replace the "Next Construction Cost" section and Buttons with: */
+
+    // (We need to return the JSX slightly further down where the render happens)
+    // Actually, I am replacing the logic block first, but I need to inject the JSX too.
+    // The previous block I am replacing included logic and `const nextCost = calculateCost(building);`
+    // I need to make sure I don't break the component structure.
+
+    // The replace block I selected (lines 448-600) covers `calculateCost` logic up to `getRoleActualIncomePerCap`.
+    // It DOES NOT cover the JSX rendering.
+    // So I need to verify if I covered all necessary logic variables that are used in JSX.
+    // Logic variables used: `totalOutputs`, `totalInputs`, `buildingModifiers`. All present in my replacement.
+
+    // But I still need to insert the JSX for the quantity selector.
+    // The JSX is further down (lines 984+).
+    // So I need ANOTHER replace call for the JSX part.
+
+    // This replace call handles the Logic update.
+
 
     const jobBreakdown = useMemo(() => {
         const ownerKey = building?.owner;
@@ -981,10 +1075,45 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                         </DetailSection>
                     )}
 
-                    <DetailSection title="下一座建造成本" icon="ShoppingCart">
-                        <p className="text-[11px] text-gray-400 mb-2">
-                            需要先采购/支付下列资源与资金才能建造下一座建筑：
-                        </p>
+                    <DetailSection title="建造成本" icon="ShoppingCart">
+                        <div className="flex items-center justify-between mb-2">
+                            <p className="text-[11px] text-gray-400">
+                                需要先采购/支付下列资源与资金才能建造：
+                            </p>
+                        </div>
+
+                        {/* Quantity Selector */}
+                        <div className="flex bg-gray-800 rounded-lg p-1 gap-1 mb-3">
+                            {[1, 5, 10].map(n => (
+                                <button
+                                    key={n}
+                                    onClick={() => setBuyCount(n)}
+                                    className={`flex-1 py-1 rounded text-xs font-bold transition-all ${buyCount === n
+                                        ? 'bg-blue-600 text-white shadow'
+                                        : 'text-gray-400 hover:bg-gray-700 hover:text-gray-200'
+                                        }`}
+                                >
+                                    x{n}
+                                </button>
+                            ))}
+                            <button
+                                onClick={() => setBuyCount(calculateMaxBuy())}
+                                className={`flex-1 py-1 rounded text-xs font-bold transition-all ${buyCount === calculateMaxBuy()
+                                    ? 'bg-blue-600 text-white shadow'
+                                    : 'text-gray-400 hover:bg-gray-700 hover:text-gray-200'
+                                    }`}
+                                title="购买最大可负担数量 (上限100)"
+                            >
+                                x{calculateMaxBuy()}
+                            </button>
+                        </div>
+
+                        {(buyCount > 1) && (
+                            <div className="text-[10px] text-blue-300 mb-2 text-center">
+                                正在计划建造 {buyCount} 座 {building.name}
+                            </div>
+                        )}
+
                         <div className="grid grid-cols-2 gap-x-4 gap-y-1">
                             {Object.entries(nextCost).map(([res, val]) => {
                                 const hasEnough = (resources[res] || 0) >= val;
@@ -1018,13 +1147,13 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                     {/* 操作按钮 */}
                     <div className="grid grid-cols-2 gap-4 pt-2">
                         <button
-                            onClick={() => onBuy && onBuy(building.id)}
+                            onClick={() => onBuy && onBuy(building.id, buyCount)}
                             disabled={!canAffordNext}
                             className="w-full px-4 py-3 rounded-lg text-xs sm:text-sm font-bold transition-all bg-green-600 hover:bg-green-500 text-white shadow-lg hover:shadow-green-500/30 disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed disabled:shadow-none flex items-center justify-center gap-2"
                         >
                             <Icon name="Plus" size={16} />
                             <div className="flex flex-col items-center sm:flex-row sm:items-center gap-0 sm:gap-1 leading-tight whitespace-nowrap sm:whitespace-normal">
-                                <span className="tracking-wide">建造</span>
+                                <span className="tracking-wide">建造 {buyCount > 1 ? `x${buyCount}` : ''}</span>
                                 <span className="font-mono text-[11px] sm:text-sm opacity-90 flex items-center gap-0.5">
                                     <span className="inline-flex items-center gap-0.5 sm:hidden">
                                         <Icon name="Coins" size={10} className="text-yellow-300" />
