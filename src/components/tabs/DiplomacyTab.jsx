@@ -330,8 +330,12 @@ const DiplomacyTabComponent = ({
     // 获取商人岗位信息
     const merchantJobLimit = jobsAvailable?.merchant || 0;
     const merchantCount = popStructure?.merchant || 0;
-    const currentRouteCount = tradeRoutes.routes.length;
-    const activeRouteCount = Math.min(currentRouteCount, merchantCount);
+    // 派驻商人统计（新系统）
+    const assignedMerchants = useMemo(() => {
+        const assignments = merchantState?.merchantAssignments || {};
+        return Object.values(assignments).reduce((sum, v) => sum + Math.max(0, Math.floor(Number(v) || 0)), 0);
+    }, [merchantState?.merchantAssignments]);
+    const remainingMerchants = Math.max(0, merchantCount - assignedMerchants);
 
     // 检查是否已存在贸易路线
     const hasTradeRoute = (nationId, resourceKey, type) => {
@@ -421,11 +425,12 @@ const DiplomacyTabComponent = ({
                     <span className="text-gray-400 font-body">战争:</span>
                     <span className="text-red-300 font-semibold ml-1 font-epic">{totalWars}</span>
                 </div>
-                <div className="bg-blue-900/20 px-2 py-1 rounded border border-blue-600/20 flex items-center gap-2">
-                    <span className="text-gray-400 font-body">贸易路线:</span>
-                    <span className={`font-semibold ml-1 font-epic ${activeRouteCount < currentRouteCount ? 'text-yellow-300' : 'text-blue-300'
-                        }`}>{activeRouteCount}/{currentRouteCount}</span>
-                    <span className="text-gray-500 text-[10px] ml-1 font-body">(上限:{merchantJobLimit})</span>
+                <div className="bg-amber-900/20 px-2 py-1 rounded border border-amber-600/20 flex items-center gap-2">
+                    <span className="text-gray-400 font-body">派驻商人:</span>
+                    <span className={`font-semibold ml-1 font-epic ${assignedMerchants > 0 ? 'text-amber-300' : 'text-gray-500'}`}>
+                        {assignedMerchants}/{merchantCount}
+                    </span>
+                    <span className="text-gray-500 text-[10px] ml-1 font-body">(剩余:{remainingMerchants})</span>
                     <button
                         onClick={() => setShowTradeRoutesModal(true)}
                         className="ml-auto flex items-center gap-1 px-2 py-0.5 bg-amber-600 hover:bg-amber-500 text-white text-[10px] rounded shadow-sm border border-amber-400/50 transition-all active:scale-95"
@@ -435,9 +440,9 @@ const DiplomacyTabComponent = ({
                         <span className="font-bold">派驻</span>
                     </button>
                 </div>
-                <div className="bg-amber-900/20 px-2 py-1 rounded border border-amber-600/20">
-                    <span className="text-gray-400 font-body">商人在岗:</span>
-                    <span className="text-amber-300 font-semibold ml-1 font-epic">{merchantCount}/{merchantJobLimit}</span>
+                <div className="bg-blue-900/20 px-2 py-1 rounded border border-blue-600/20">
+                    <span className="text-gray-400 font-body">商人总数:</span>
+                    <span className="text-blue-300 font-semibold ml-1 font-epic">{merchantCount}/{merchantJobLimit}</span>
                 </div>
             </div>
 
@@ -445,14 +450,14 @@ const DiplomacyTabComponent = ({
             <div className="md:hidden flex items-center justify-between gap-2 bg-gray-800/60 px-3 py-2 rounded-lg border border-gray-700 text-xs">
                 <div className="flex items-center gap-3">
                     <div className="flex items-center gap-1">
-                        <span className="text-gray-400">贸易路线:</span>
-                        <span className={`font-semibold ${activeRouteCount < currentRouteCount ? 'text-yellow-300' : 'text-blue-300'}`}>
-                            {activeRouteCount}/{currentRouteCount}
+                        <span className="text-gray-400">派驻:</span>
+                        <span className={`font-semibold ${assignedMerchants > 0 ? 'text-amber-300' : 'text-gray-500'}`}>
+                            {assignedMerchants}/{merchantCount}
                         </span>
                     </div>
                     <div className="flex items-center gap-1">
-                        <span className="text-gray-400">商人:</span>
-                        <span className="text-amber-300 font-semibold">{merchantCount}/{merchantJobLimit}</span>
+                        <span className="text-gray-400">剩余:</span>
+                        <span className="text-green-300 font-semibold">{remainingMerchants}</span>
                     </div>
                 </div>
 
@@ -994,7 +999,7 @@ const DiplomacyTabComponent = ({
                                                         <span>本地: <span className="text-white font-mono font-epic">{local.toFixed(1)}</span></span>
                                                         <span>外国: <span className={`font-mono font-epic ${diff > 0 ? 'text-green-300' : 'text-red-300'}`}>{foreign.toFixed(1)}</span></span>
                                                     </div>
-                                                    
+
                                                 </div>
                                             </div>
                                         );
@@ -1181,6 +1186,7 @@ const DiplomacyTabComponent = ({
                     merchantCount={merchantCount}
                     merchantAssignments={merchantState?.merchantAssignments || {}}
                     merchantTradePreferences={merchantState?.merchantTradePreferences || { import: {}, export: {} }}
+                    pendingTrades={merchantState?.pendingTrades || []}
                     onUpdateMerchantAssignments={(next) => {
                         if (typeof onMerchantStateChange === 'function') {
                             onMerchantStateChange({

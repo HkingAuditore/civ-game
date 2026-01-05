@@ -76,7 +76,7 @@ const getTargetDisplayName = (target) => {
 // 政治光谱配置
 const SPECTRUM_CONFIG = {
     left: { bg: 'bg-red-900/40', border: 'border-red-500/60', text: 'text-red-300', label: '左派', icon: 'Users' },
-    center: { bg: 'bg-blue-900/40', border: 'border-blue-500/60', text: 'text-blue-300', label: '中间派', icon: 'Scale' },
+    center: { bg: 'bg-blue-900/40', border: 'border-blue-500/60', text: 'text-blue-300', label: '建制派', icon: 'Scale' },
     right: { bg: 'bg-amber-900/40', border: 'border-amber-500/60', text: 'text-amber-300', label: '右派', icon: 'TrendingUp' },
 };
 

@@ -19,7 +19,7 @@ export const DEFAULT_TRADE_CONFIG = {
     minWealthForTrade: 10,
     tradeDuration: 3,
     tradeCooldown: 0,
-    enableDebugLog: false,
+    enableDebugLog: true, // TEMP: debug trade issue
 
     // Trade 2.0 knobs
     enableMerchantAssignments: true,
@@ -263,8 +263,9 @@ export const simulateMerchantTrade = ({
         return baseTaxRate + tariffRate;
     };
 
-    // Get merchant trade configuration
-    const tradeConfig = STRATA.merchant?.tradeConfig || DEFAULT_TRADE_CONFIG;
+
+    // Get merchant trade configuration - MERGE default with STRATA overrides
+    const tradeConfig = { ...DEFAULT_TRADE_CONFIG, ...(STRATA.merchant?.tradeConfig || {}) };
 
     // Process pending trades (point-to-point: apply on completion)
     const updatedPendingTrades = [];
@@ -356,6 +357,16 @@ export const simulateMerchantTrade = ({
     const simCount = merchantCount > 100 ? 100 : merchantCount;
     const globalBatchMultiplier = merchantCount > 100 ? merchantCount / 100 : 1;
 
+    // DEBUG: 调试贸易循环入口
+    console.log('[TRADE DEBUG] simulateMerchantTrade entry:', {
+        merchantCount,
+        simCount,
+        hasAssignments,
+        partnerListLength: partnerList.length,
+        partnerList: partnerList.map(p => `${p.nationId}:${p.count}`).join(', '),
+        merchantWealth: wealth?.merchant || 0,
+    });
+
     // Distribute simulated batches across assigned partners proportionally.
     const totalAssigned = partnerList.reduce((sum, p) => sum + p.count, 0) || 1;
 
@@ -387,8 +398,42 @@ export const simulateMerchantTrade = ({
             if (surplus > 0.01) localSurplusList.push({ resourceKey, score: surplus });
         });
 
-        const shortageTop = pickTopN(localShortageList, tradeConfig.maxResourcesScoredPerPartner);
-        const surplusTop = pickTopN(localSurplusList, tradeConfig.maxResourcesScoredPerPartner);
+        let shortageTop = pickTopN(localShortageList, tradeConfig.maxResourcesScoredPerPartner);
+        let surplusTop = pickTopN(localSurplusList, tradeConfig.maxResourcesScoredPerPartner);
+
+        // Fallback: if supply/demand signals are missing (common in older saves / edge cases),
+        // the shortage/surplus lists can become empty and block all trading.
+        // In that case, fall back to scanning a capped set of tradable resources using price advantage only.
+        if (shortageTop.length === 0 && surplusTop.length === 0) {
+            const fallbackScans = Math.max(6, tradeConfig.maxResourcesScoredPerPartner);
+            const fallbackRanked = [];
+
+            tradableKeys.forEach(resourceKey => {
+                const localPrice = getLocalPrice(resourceKey);
+                if (localPrice == null) return;
+                const foreignPrice = getForeignUnitPrice({ resourceKey, partner, tick });
+                if (foreignPrice == null) return;
+
+                // Rank by absolute relative price spread so we at least consider the best arbitrage opportunities.
+                const importSpread = (localPrice - foreignPrice) / Math.max(0.0001, localPrice);
+                const exportSpread = (foreignPrice - localPrice) / Math.max(0.0001, localPrice);
+                const bestSpread = Math.max(importSpread, exportSpread);
+                if (bestSpread <= 0) return;
+
+                fallbackRanked.push({ resourceKey, score: bestSpread });
+            });
+
+            const fallbackTop = pickTopN(fallbackRanked, fallbackScans);
+            shortageTop = fallbackTop;
+            surplusTop = fallbackTop;
+
+            if (tradeConfig.enableDebugLog) {
+                debugLog('trade', `[Merchant Debug] ⚠️ Trade 2.0 fallback prefilter active (no shortage/surplus signals).`, {
+                    partnerId: partner?.id,
+                    fallbackCandidates: fallbackTop.length,
+                });
+            }
+        }
 
         shortageTop.forEach(({ resourceKey }) => {
             const c = scoreImportCandidate({
@@ -418,14 +463,23 @@ export const simulateMerchantTrade = ({
             if (c) candidates.push(c);
         });
 
-        if (candidates.length === 0) continue;
+        if (candidates.length === 0) {
+            console.log('[TRADE DEBUG] No candidates for partner:', partner?.id || partner?.name);
+            continue;
+        }
         candidates.sort((a, b) => b.score - a.score);
+
+        console.log('[TRADE DEBUG] Partner', partner?.name || partner?.id, 'candidates:', candidates.length,
+            'top3:', candidates.slice(0, 3).map(c => `${c.type}:${c.resourceKey}:${c.score?.toFixed(2)}`).join(', '));
 
         const maxNewTradesForPartner = Math.min(12, partnerBatch.batches);
 
         for (let i = 0; i < maxNewTradesForPartner; i++) {
             const currentTotalWealth = wealth.merchant || 0;
-            if (currentTotalWealth <= tradeConfig.minWealthForTrade) break;
+            if (currentTotalWealth <= tradeConfig.minWealthForTrade) {
+                console.log('[TRADE DEBUG] Wealth too low:', currentTotalWealth, '< min:', tradeConfig.minWealthForTrade);
+                break;
+            }
 
             // Pick best remaining candidate; allow repeated same candidate but re-check feasibility.
             const candidate = candidates[i % candidates.length];
@@ -460,6 +514,12 @@ export const simulateMerchantTrade = ({
                     capitalInvestedThisTick += result.outlay;
                     updatedPendingTrades.push(result.trade);
                     lastTradeTime = tick;
+                    // 添加新交易发起日志
+                    const resName = RESOURCES[candidate.resourceKey]?.name || candidate.resourceKey;
+                    const partnerName = partner?.name || partner?.id || '未知国家';
+                    if (logs && result.trade.amount >= 0.5) {
+                        logs.push(`📦 商人发起贸易: 向${partnerName}出口 ${resName} x${result.trade.amount.toFixed(1)}`);
+                    }
                 }
             } else {
                 const result = executeImportTradeV2({
@@ -486,6 +546,12 @@ export const simulateMerchantTrade = ({
                     capitalInvestedThisTick += result.cost;
                     updatedPendingTrades.push(result.trade);
                     lastTradeTime = tick;
+                    // 添加新交易发起日志
+                    const resName = RESOURCES[candidate.resourceKey]?.name || candidate.resourceKey;
+                    const partnerName = partner?.name || partner?.id || '未知国家';
+                    if (logs && result.trade.amount >= 0.5) {
+                        logs.push(`📦 商人发起贸易: 从${partnerName}进口 ${resName} x${result.trade.amount.toFixed(1)}`);
+                    }
                 }
             }
         }

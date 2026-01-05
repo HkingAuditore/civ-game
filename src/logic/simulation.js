@@ -561,7 +561,7 @@ export const simulateTick = ({
     applyTechEffects(techsUnlocked, bonuses);
 
     // Apply decree effects using module function
-    // IMPORTANT: decrees are now sourced from `activeDecrees` (timed system).
+    // Timed reform decrees are sourced from `activeDecrees`.
     // We convert `{ decreeId: { effects } }` into the legacy structure expected by applyDecreeEffects.
     const decreesFromActive = activeDecrees
         ? Object.entries(activeDecrees).map(([id, data]) => ({
@@ -571,7 +571,10 @@ export const simulateTick = ({
         }))
         : [];
 
-    applyDecreeEffects(decreesFromActive, bonuses);
+    // Permanent legacy policy decrees are sourced from `decrees` (array of {id, active, modifiers}).
+    const permanentDecrees = Array.isArray(decrees) ? decrees.filter(d => d && d.active) : [];
+
+    applyDecreeEffects([...decreesFromActive, ...permanentDecrees], bonuses);
 
     // Apply festival effects using module function
     applyFestivalEffects(activeFestivalEffects, bonuses);
@@ -4770,8 +4773,9 @@ export const simulateTick = ({
     // Generate merchant trade summary log (aggregate completed trades for this tick)
     const completedTrades = updatedMerchantState.completedTrades || [];
     if (completedTrades.length > 0) {
-        // Aggregate by type and resource
+        // Aggregate by type, resource and partner
         const tradeSummary = { export: {}, import: {} };
+        const partnerSummary = {}; // { partnerId: { name, exports: [], imports: [] } }
         let totalProfit = 0;
         completedTrades.forEach(trade => {
             const key = trade.resource;
@@ -4781,25 +4785,41 @@ export const simulateTick = ({
             tradeSummary[trade.type][key].amount += trade.amount;
             tradeSummary[trade.type][key].profit += trade.profit;
             totalProfit += trade.profit;
+
+            // 按伙伴国家分组
+            const partnerId = trade.partnerId || 'unknown';
+            if (!partnerSummary[partnerId]) {
+                const partnerNation = updatedNations.find(n => n?.id === partnerId);
+                partnerSummary[partnerId] = {
+                    name: partnerNation?.name || partnerId,
+                    exports: [],
+                    imports: []
+                };
+            }
+            const resName = RESOURCES[key]?.name || key;
+            if (trade.type === 'export') {
+                partnerSummary[partnerId].exports.push(`${resName}x${trade.amount.toFixed(1)}`);
+            } else {
+                partnerSummary[partnerId].imports.push(`${resName}x${trade.amount.toFixed(1)}`);
+            }
         });
 
-        // Generate summary log message
-        const parts = [];
-        Object.keys(tradeSummary.export).forEach(resKey => {
-            const data = tradeSummary.export[resKey];
-            const resName = RESOURCES[resKey]?.name || resKey;
-            parts.push(`出口${resName}${data.amount.toFixed(1)}`);
-        });
-        Object.keys(tradeSummary.import).forEach(resKey => {
-            const data = tradeSummary.import[resKey];
-            const resName = RESOURCES[resKey]?.name || resKey;
-            parts.push(`进口${resName}${data.amount.toFixed(1)}`);
+        // Generate enhanced summary log message with partner info
+        const partnerParts = [];
+        Object.values(partnerSummary).forEach(p => {
+            const items = [];
+            if (p.exports.length > 0) items.push(`出口${p.exports.join(',')}`);
+            if (p.imports.length > 0) items.push(`进口${p.imports.join(',')}`);
+            if (items.length > 0) {
+                partnerParts.push(`${p.name}(${items.join(', ')})`);
+            }
         });
 
-        if (parts.length > 0) {
+        if (partnerParts.length > 0) {
             const profitText = totalProfit >= 0 ? `盈利${totalProfit.toFixed(1)}` : `亏损${Math.abs(totalProfit).toFixed(1)}`;
-            logs.push(`🛒 商人自主贸易: ${parts.join(', ')}，${profitText}银币`);
+            logs.push(`🛒 商人贸易完成: ${partnerParts.join('; ')}，${profitText}银币`);
         }
+
 
         // 应用官员贸易加成到商人财富
         if (bonuses.tradeBonusMod && totalProfit > 0) {

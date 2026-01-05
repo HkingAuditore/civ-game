@@ -652,6 +652,9 @@ export const useGameState = () => {
     const [lastSelectionDay, setLastSelectionDay] = useState(-999);   // 上次举办选拔的时间
     const [officialCapacity, setOfficialCapacity] = useState(2);      // 官员容量
     // ========== 内阁协同系统状态 ==========
+    // Permanent policy decrees (legacy) - stored as array of { id, active, modifiers, ... }
+    const [decrees, setDecrees] = useState([]);
+
     const [activeDecrees, setActiveDecrees] = useState({});           // 当前生效的临时法令
     const [decreeCooldowns, setDecreCooldowns] = useState({});       // 法令冷却时间
     const [quotaTargets, setQuotaTargets] = useState({});             // 计划经济阶层配额目标
@@ -1046,6 +1049,7 @@ export const useGameState = () => {
                 officialCandidates,
                 lastSelectionDay,
                 officialCapacity,
+                decrees,
                 activeDecrees,
                 decreeCooldowns,
                 quotaTargets,
@@ -1166,6 +1170,7 @@ export const useGameState = () => {
         setLastSelectionDay(data.lastSelectionDay ?? -999);
         setOfficialCapacity(data.officialCapacity ?? 2);
         setExpansionSettings(sanitizeExpansionSettings(data.expansionSettings)); // [FIX] 加载自由市场扩张设置
+        setDecrees(Array.isArray(data.decrees) ? data.decrees : []);
         setActiveDecrees(data.activeDecrees || {});
         setDecreCooldowns(data.decreeCooldowns || {});
         // Planned economy quota controls: keep backward compatibility with older saves
@@ -1890,10 +1895,14 @@ export const useGameState = () => {
         officialCapacity,
         setOfficialCapacity,
         // 内阁协同系统
+        decrees,
+        setDecrees,
         activeDecrees,
         setActiveDecrees,
         decreeCooldowns,
         setDecreCooldowns,
+        // Alias with correct spelling for callers
+        setDecreeCooldowns: setDecreCooldowns,
         quotaTargets,
         setQuotaTargets,
         expansionSettings,

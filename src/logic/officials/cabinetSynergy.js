@@ -8,48 +8,63 @@ import { POLITICAL_STANCES } from '../../config/politicalStances';
 // Legacy decree pool (curated) for the Centrist cabinet.
 import { DECREES as LEGACY_DECREES, CENTRIST_CABINET_DECREES } from '../../config/decrees_deprecated';
 
-// [NEW] Convert legacy (permanent) decrees into timed/costed decrees.
-// This allows us to reuse the existing reform-decree pipeline (duration + cooldown + silver cost).
-const DEFAULT_LEGACY_DECREE_DURATION = 30;
-const DEFAULT_LEGACY_DECREE_COOLDOWN = 45;
+// Legacy decrees are now treated as long-term policies that occupy limited policy slots.
+// They are NOT part of the timed reform-decree pool.
+const DEFAULT_LEGACY_POLICY_SLOT_COST = 1;
 
-const mapLegacyDecreeToTimed = (legacy) => {
-    if (!legacy) return null;
-
-    // legacy: { id, name, desc, modifiers, ... }
-    return {
-        id: legacy.id,
-        name: legacy.name,
-        icon: legacy.icon || 'Scroll',
-        description: legacy.desc || '',
-        // The reform-decree UI expects `effects`.
-        // We store legacy modifiers into effects directly; downstream aggregation reads `data.effects`.
-        effects: legacy.modifiers || {},
-        // Cost scaling: prefer explicit legacy cost if present; otherwise fall back to a moderate default.
-        cost: Number.isFinite(legacy.cost) ? legacy.cost : 120,
-        duration: Number.isFinite(legacy.duration) ? legacy.duration : DEFAULT_LEGACY_DECREE_DURATION,
-        cooldown: Number.isFinite(legacy.cooldown) ? legacy.cooldown : DEFAULT_LEGACY_DECREE_COOLDOWN,
-        // Optional: legacy tags can be used by UI for grouping/search.
-        tags: legacy.tags || [],
-        category: legacy.category || 'legacy',
-        // Keep reference for detail sheet if needed.
-        _legacy: true,
-    };
-};
-
-export const TIMED_LEGACY_DECREES = (Array.isArray(LEGACY_DECREES) ? LEGACY_DECREES : [])
-    .map(mapLegacyDecreeToTimed)
+export const getLegacyPolicyDecrees = () => (Array.isArray(LEGACY_DECREES) ? LEGACY_DECREES : [])
     .filter(Boolean)
-    .reduce((acc, d) => {
-        acc[d.id] = d;
+    .reduce((acc, legacy) => {
+        acc[legacy.id] = {
+            ...legacy,
+            // Normalize for shared display/effects pipeline
+            description: legacy.desc || legacy.description || '',
+            effects: legacy.modifiers || legacy.effects || {},
+            slotCost: Number.isFinite(legacy.slotCost) ? legacy.slotCost : DEFAULT_LEGACY_POLICY_SLOT_COST,
+            _legacy: true,
+        };
         return acc;
     }, {});
+
+// [NEW] Policy slot progression
+// Policy slots are meant to feel like "administrative attention" allocated to long-term policies.
+// They scale with staffed officials, polity, and era.
+export const calculatePolicySlots = ({
+    officials = [],
+    officialCapacity = 0,
+    epoch = 0,
+    polityEffects = {},
+} = {}) => {
+    const staffed = Array.isArray(officials) ? officials.length : 0;
+    const cap = Number.isFinite(officialCapacity) ? officialCapacity : 0;
+
+    // Base: early game should still allow a couple of policies.
+    const baseSlots = 2;
+
+    // Staffing: reward actual staffed officials, not just theoretical cap.
+    // 2 officials -> +1 slot, 4 -> +2, 6 -> +3 ...
+    const staffedBonus = Math.floor(staffed / 2);
+
+    // Capacity: a little extra if your bureaucracy is large, even if not fully staffed.
+    const capacityBonus = Math.floor(Math.max(0, cap - 2) / 3);
+
+    // Era: steady progression across epochs.
+    // epoch 0-1: +0, 2-3: +1, 4-5: +2, 6-7: +3 ...
+    const epochBonus = Math.floor(Math.max(0, epoch) / 2) - (epoch >= 2 ? 0 : 0);
+
+    // Polity can add explicit slots via polityEffects.policySlots.
+    const polityBonus = Number.isFinite(polityEffects?.policySlots) ? polityEffects.policySlots : 0;
+
+    const raw = baseSlots + staffedBonus + capacityBonus + epochBonus + polityBonus;
+
+    // Clamp: always >= 1, and keep UI reasonable.
+    return Math.max(1, Math.min(24, raw));
+};
 
 // NOTE: `REFORM_DECREES` is declared later in this file.
 // Use a getter to avoid TDZ errors ("Cannot access 'REFORM_DECREES' before initialization").
 export const getAllTimedDecrees = () => ({
     ...REFORM_DECREES,
-    ...TIMED_LEGACY_DECREES,
 });
 
 /**
@@ -59,11 +74,11 @@ export const getAllTimedDecrees = () => ({
 export const getCentristCabinetDecrees = (currentDecrees = []) => {
     const currentMap = new Map((currentDecrees || []).map(d => [d.id, d]));
 
-    const legacyMap = new Map((LEGACY_DECREES || []).map(d => [d.id, d]));
+    const legacyById = getLegacyPolicyDecrees();
 
     return (CENTRIST_CABINET_DECREES || [])
         .map(id => {
-            const base = legacyMap.get(id);
+            const base = legacyById[id];
             if (!base) return null;
 
             const existing = currentMap.get(id);
@@ -144,7 +159,7 @@ export const DOMINANCE_EFFECTS = {
     },
     center: {
         id: 'center',
-        name: '中间派主导',
+        name: '建制派主导',
         icon: 'Scale',
         color: 'text-blue-400',
         panelType: 'reformDecree',
@@ -619,7 +634,7 @@ export const processIdeologicalDrift = (cabinetEffects, classInfluence) => {
 
     // 左派主导：下层阶层影响力上升
     // 右派主导：上层阶层影响力上升
-    // 中间派主导：温和变化
+    // 建制派主导：温和变化
     const DRIFT_RATE = 0.005; // 每日0.5%
 
     if (dominance.faction === 'left') {
@@ -700,30 +715,30 @@ const MIN_EXPANSION_STAFFING_RATIO = 1.0;
  */
 export const calculateBuildingProfit = (building, market = {}, taxPolicies = {}) => {
     if (!building) return { profit: 0, outputValue: 0, inputValue: 0, wageCost: 0, businessTax: 0 };
-    
+
     const prices = market?.prices || {};
     const wages = market?.wages || {};
-    
+
     const getPrice = (key) => {
         if (!key || key === 'silver') return 1;
         return prices[key] ?? 1;
     };
-    
+
     // 产出价值
     const outputValue = Object.entries(building.output || {}).reduce(
         (sum, [res, val]) => sum + getPrice(res) * val, 0
     );
-    
+
     // 投入成本
     const inputValue = Object.entries(building.input || {}).reduce(
         (sum, [res, val]) => sum + getPrice(res) * val, 0
     );
-    
+
     // 营业税
     const businessTaxMultiplier = taxPolicies?.businessTaxRates?.[building.id] ?? 1;
     const businessTaxBase = building.businessTaxBase ?? 0.1;
     const businessTax = businessTaxBase * businessTaxMultiplier;
-    
+
     // 雇员工资（不含业主）
     const ownerKey = building.owner;
     let wageCost = 0;
@@ -732,16 +747,16 @@ export const calculateBuildingProfit = (building, market = {}, taxPolicies = {})
         const wage = wages[role] ?? 0.1;
         wageCost += wage * slotsPerBuilding;
     }
-    
+
     // 每座建筑利润
     const profit = outputValue - inputValue - businessTax - wageCost;
-    
-    return { 
-        profit, 
-        outputValue, 
-        inputValue, 
-        wageCost, 
-        businessTax 
+
+    return {
+        profit,
+        outputValue,
+        inputValue,
+        wageCost,
+        businessTax
     };
 };
 
@@ -782,7 +797,7 @@ export const canOwnerExpand = (building, ownerStratum, ownerWealth, expansionSet
     // 计算建筑盈利
     const profitResult = calculateBuildingProfit(building, market, taxPolicies);
     const profit = profitResult.profit;
-    
+
     // 计算 ROI（投资回报率）
     const roi = baseCost > 0 ? profit / baseCost : 0;
 
@@ -849,7 +864,7 @@ export const processOwnerExpansions = (buildings, classWealth, expansionSettings
             // 计算扩张权重: profit^2 / cost
             // 同时考虑绝对盈利和 ROI
             const weight = cost > 0 ? Math.max(0.01, (profit * profit) / cost) : 0.01;
-            
+
             const candidate = {
                 buildingId: building.id,
                 owner: ownerStratum,

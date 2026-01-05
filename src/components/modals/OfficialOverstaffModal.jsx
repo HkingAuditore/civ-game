@@ -6,7 +6,7 @@ import { POLITICAL_STANCES } from '../../config/politicalStances';
 
 const STANCE_SPECTRUM_LABELS = {
     left: '左派',
-    center: '中间派',
+    center: '建制派',
     right: '右派',
 };
 
@@ -208,7 +208,7 @@ const OfficialOverstaffModal = ({
                         const stratumInfo = STRATA[official.sourceStratum];
                         const stanceInfo = official.politicalStance ? POLITICAL_STANCES[official.politicalStance] : null;
                         const spectrum = stanceInfo?.spectrum || 'center';
-                        const spectrumLabel = STANCE_SPECTRUM_LABELS[spectrum] || '中间派';
+                        const spectrumLabel = STANCE_SPECTRUM_LABELS[spectrum] || '建制派';
                         const spectrumStyle = STANCE_SPECTRUM_STYLES[spectrum] || STANCE_SPECTRUM_STYLES.center;
                         const effectEntries = flattenEffects(official.effects);
                         const shownEffects = effectEntries.slice(0, 3);
@@ -255,7 +255,7 @@ const OfficialOverstaffModal = ({
                                                         className={`px-2 py-0.5 text-[11px] border rounded-full ${effect.value >= 0
                                                             ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
                                                             : 'bg-red-500/15 text-red-300 border-red-500/30'
-                                                        }`}
+                                                            }`}
                                                     >
                                                         {formatEffect(effect)}
                                                     </span>

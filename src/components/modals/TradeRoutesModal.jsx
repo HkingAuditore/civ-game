@@ -16,6 +16,7 @@ const TradeRoutesModal = ({
     merchantCount = 0,
     merchantAssignments = {},
     merchantTradePreferences = { import: {}, export: {} },
+    pendingTrades = [],
     onUpdateMerchantAssignments,
     onUpdateMerchantTradePreferences,
     onClose,
@@ -330,6 +331,7 @@ const TradeRoutesModal = ({
 
     const tabs = [
         { id: 'assignments', label: '派驻商人', shortLabel: '派驻', count: assignedTotal, icon: 'Users' },
+        { id: 'activeTrades', label: '进行中贸易', shortLabel: '进行中', count: pendingTrades.length, icon: 'Loader' },
         { id: 'priceCompare', label: '物价对比', shortLabel: '物价', count: tradableResources.length, icon: 'BarChart2' },
     ];
 
@@ -752,6 +754,163 @@ const TradeRoutesModal = ({
                                     .slice()
                                     .sort((a, b) => (b.relation || 0) - (a.relation || 0))
                                     .map(renderAssignmentRow)
+                            )}
+                        </div>
+                    )}
+
+                    {activeTab === 'activeTrades' && (
+                        <div className="space-y-2">
+                            <div className="p-3 rounded-lg bg-amber-900/20 border border-amber-500/20 text-xs text-gray-300">
+                                <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2">
+                                        <Icon name="Loader" size={14} className="text-amber-300 animate-spin" />
+                                        <span className="font-semibold text-amber-100">进行中贸易</span>
+                                    </div>
+                                    <div className="font-mono text-[11px]">
+                                        共 <span className="text-amber-300">{pendingTrades.length}</span> 笔交易运输中
+                                    </div>
+                                </div>
+                                <div className="mt-1 text-[10px] text-gray-400">
+                                    商人发起贸易后需要一定时间完成运输，完成后才会结算收益。
+                                </div>
+                            </div>
+
+                            {pendingTrades.length === 0 ? (
+                                <div className="space-y-3">
+                                    <div className="text-center py-6 text-gray-500">
+                                        <Icon name="PackageOpen" size={40} className="mx-auto mb-3 opacity-20" />
+                                        <p className="text-sm">当前没有进行中的贸易</p>
+                                        <p className="text-xs text-gray-600 mt-1">派驻商人到其他国家后，他们会自动发起贸易</p>
+                                    </div>
+
+                                    {/* 调试信息面板 */}
+                                    <div className="p-3 rounded-lg bg-red-900/20 border border-red-500/30 text-xs">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <Icon name="Bug" size={14} className="text-red-400" />
+                                            <span className="font-semibold text-red-300">诊断信息</span>
+                                        </div>
+                                        <div className="space-y-1.5 font-mono text-[10px]">
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-400">商人总数:</span>
+                                                <span className={merchantCount > 0 ? 'text-green-300' : 'text-red-300'}>
+                                                    {merchantCount}
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-400">已派驻:</span>
+                                                <span className={assignedTotal > 0 ? 'text-green-300' : 'text-red-300'}>
+                                                    {assignedTotal}
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-400">派驻详情:</span>
+                                                <span className="text-gray-300 text-right max-w-[200px] truncate">
+                                                    {Object.entries(merchantAssignments || {})
+                                                        .filter(([, v]) => v > 0)
+                                                        .map(([nationId, count]) => {
+                                                            const nation = nations.find(n => n?.id === nationId);
+                                                            return `${nation?.name || nationId}:${count}`;
+                                                        })
+                                                        .join(', ') || '无'}
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-400">可贸易国家:</span>
+                                                <span className="text-gray-300">
+                                                    {nations.filter(n => !n.isAtWar && (n.relation || 0) >= 20).length}
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-400">pendingTrades数组长度:</span>
+                                                <span className={pendingTrades.length > 0 ? 'text-green-300' : 'text-yellow-300'}>
+                                                    {pendingTrades.length}
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-400">pendingTrades内容:</span>
+                                                <span className="text-gray-300 text-right max-w-[200px] truncate">
+                                                    {JSON.stringify(pendingTrades).slice(0, 50) || '[]'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="mt-2 pt-2 border-t border-red-500/20 text-[10px] text-gray-400">
+                                            <p>可能原因分析:</p>
+                                            <ul className="list-disc list-inside mt-1 space-y-0.5">
+                                                {merchantCount <= 0 && <li className="text-red-300">商人数量为0</li>}
+                                                {assignedTotal <= 0 && <li className="text-red-300">没有派驻商人到任何国家</li>}
+                                                {assignedTotal > 0 && merchantCount > 0 && (
+                                                    <li className="text-yellow-300">可能是价差不足或市场条件不满足</li>
+                                                )}
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="space-y-2">
+                                    {/* Header */}
+                                    <div className="grid grid-cols-12 gap-1 sm:gap-2 px-1 sm:px-2 py-2 bg-white/5 text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-wider border border-white/5 rounded-lg">
+                                        <div className="col-span-2">类型</div>
+                                        <div className="col-span-3">商品</div>
+                                        <div className="col-span-2 text-right">数量</div>
+                                        <div className="col-span-3">贸易伙伴</div>
+                                        <div className="col-span-2 text-right">剩余</div>
+                                    </div>
+
+                                    {/* Trades list */}
+                                    {pendingTrades.map((trade, idx) => {
+                                        const resourceDef = RESOURCES[trade.resource];
+                                        const resourceName = resourceDef?.name || trade.resource;
+                                        const resourceIcon = resourceDef?.icon || 'Box';
+                                        const resourceColor = resourceDef?.color || 'text-gray-400';
+                                        const partnerNation = nations.find(n => n?.id === trade.partnerId);
+                                        const partnerName = partnerNation?.name || trade.partnerId || '未知';
+                                        const isExport = trade.type === 'export';
+
+                                        return (
+                                            <div
+                                                key={`${trade.partnerId}-${trade.resource}-${trade.type}-${idx}`}
+                                                className={`grid grid-cols-12 gap-1 sm:gap-2 items-center p-2 sm:p-3 rounded-lg border transition-colors text-xs sm:text-sm ${isExport
+                                                    ? 'bg-green-900/20 border-green-500/20 hover:bg-green-900/30'
+                                                    : 'bg-blue-900/20 border-blue-500/20 hover:bg-blue-900/30'
+                                                    }`}
+                                            >
+                                                {/* Type */}
+                                                <div className="col-span-2">
+                                                    <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${isExport
+                                                        ? 'bg-green-500/20 text-green-300'
+                                                        : 'bg-blue-500/20 text-blue-300'
+                                                        }`}>
+                                                        {isExport ? '出口' : '进口'}
+                                                    </span>
+                                                </div>
+
+                                                {/* Resource */}
+                                                <div className="col-span-3 flex items-center gap-1.5">
+                                                    <Icon name={resourceIcon} size={14} className={resourceColor} />
+                                                    <span className="text-gray-200 truncate">{resourceName}</span>
+                                                </div>
+
+                                                {/* Amount */}
+                                                <div className="col-span-2 text-right font-mono text-gray-300">
+                                                    {trade.amount?.toFixed(1) || '0'}
+                                                </div>
+
+                                                {/* Partner */}
+                                                <div className="col-span-3 flex items-center gap-1.5">
+                                                    <Icon name="Flag" size={12} className={partnerNation?.color || 'text-gray-400'} />
+                                                    <span className="text-gray-200 truncate" title={partnerName}>{partnerName}</span>
+                                                </div>
+
+                                                {/* Remaining days */}
+                                                <div className="col-span-2 text-right">
+                                                    <span className="px-2 py-0.5 rounded bg-gray-700/50 text-amber-300 font-mono text-[10px]">
+                                                        {trade.daysRemaining || 0}天
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
                             )}
                         </div>
                     )}

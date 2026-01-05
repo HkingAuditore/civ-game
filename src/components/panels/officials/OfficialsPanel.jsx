@@ -8,7 +8,7 @@ import { CabinetSynergyDisplay } from './CabinetSynergyDisplay';
 import { PlannedEconomyPanel } from './PlannedEconomyPanel';
 import { FreeMarketPanel } from './FreeMarketPanel';
 import { ReformDecreePanel } from './ReformDecreePanel';
-import { DOMINANCE_EFFECTS, DOMINANCE_MIN_EPOCH, getCentristCabinetDecrees } from '../../../logic/officials/cabinetSynergy';
+import { DOMINANCE_EFFECTS, DOMINANCE_MIN_EPOCH, calculatePolicySlots, getCentristCabinetDecrees } from '../../../logic/officials/cabinetSynergy';
 import { EPOCHS } from '../../../config/epochs';
 import { OfficialDetailModal } from '../../modals/OfficialDetailModal';
 import { formatNumberShortCN } from '../../../utils/numberFormat';
@@ -413,9 +413,15 @@ export const OfficialsPanel = ({
                                     currentDay={currentTick}
                                     silver={resources?.silver || 0}
                                     onEnactDecree={onEnactDecree}
-                                    centristDecrees={centristDecrees}
-                                    onToggleCentristDecree={onToggleDecree}
-                                    onShowDecreeDetails={onShowDecreeDetails}
+
+                                    decrees={decrees}
+                                    policySlots={calculatePolicySlots({
+                                        officials,
+                                        officialCapacity: maxCapacity,
+                                        epoch,
+                                        polityEffects: stanceContext?.polityEffects || {},
+                                    })}
+                                    onTogglePolicyDecree={onToggleDecree}
                                 />
                             )}
                         </div>

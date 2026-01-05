@@ -5,7 +5,7 @@ import React, { useEffect, useRef, useState, useMemo, useCallback, useDeferredVa
 import { GAME_SPEEDS, EPOCHS, RESOURCES, STRATA, calculateArmyFoodNeed, calculateTotalArmyExpense, BUILDINGS, EVENTS, checkAndCreateCoalitionDemandEvent } from './config';
 import { getCalendarInfo } from './utils/calendar';
 import { calculateTotalDailySalary } from './logic/officials/manager';
-import { enactDecree, REFORM_DECREES } from './logic/officials/cabinetSynergy';
+import { enactDecree, getAllTimedDecrees } from './logic/officials/cabinetSynergy';
 import { useGameState, useGameLoop, useGameActions, useSound, useEpicTheme, useViewportHeight, useDevicePerformance, useAchievements } from './hooks';
 import {
     Icon,
@@ -1162,6 +1162,7 @@ function GameApp({ gameState }) {
                                                     epoch: gameState.epoch,
                                                     atWar: gameState.atWar || gameState.nations?.some(n => n.isAtWar),
                                                     totalInfluence: gameState.totalInfluence,
+                                                    polityEffects: gameState.polityEffects,
                                                 }}
 
                                                 // 内阁协同系统 props
@@ -1177,7 +1178,7 @@ function GameApp({ gameState }) {
                                                 onUpdatePriceControls={(newControls) => gameState.setPriceControls(newControls)}
                                                 onEnactDecree={(decreeId) => {
                                                     // 颁布法令逻辑
-                                                    const decree = REFORM_DECREES[decreeId];
+                                                    const decree = getAllTimedDecrees()[decreeId];
                                                     if (!decree) return;
 
                                                     const result = enactDecree(
@@ -1189,7 +1190,7 @@ function GameApp({ gameState }) {
 
                                                     if (result.success) {
                                                         gameState.setActiveDecrees(result.newActiveDecrees);
-                                                        gameState.setDecreCooldowns(result.newCooldowns);
+                                                        gameState.setDecreeCooldowns(result.newCooldowns);
                                                         if (result.cost > 0) {
                                                             gameState.setResources(prev => ({
                                                                 ...prev,
@@ -1202,6 +1203,10 @@ function GameApp({ gameState }) {
                                                 // [NEW] 忠诚度系统 UI 相关
                                                 stability={gameState.stability}
                                                 officialsPaid={(gameState.resources?.silver || 0) >= officialSalaryPerDay}
+
+                                                // [NEW] Permanent policy decrees (legacy)
+                                                decrees={gameState.decrees}
+                                                onToggleDecree={actions.toggleDecree}
                                             />
                                         )}
 
