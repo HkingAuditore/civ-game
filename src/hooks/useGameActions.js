@@ -2,7 +2,7 @@
 // 包含所有游戏操作函数，如建造建筑、研究科技、升级时代等
 
 import { useState, useEffect } from 'react';
-import { BUILDINGS, EPOCHS, RESOURCES, TECHS, MILITARY_ACTIONS, UNIT_TYPES, EVENTS, getRandomEvent, createWarDeclarationEvent, createGiftEvent, createPeaceRequestEvent, createEnemyPeaceRequestEvent, createPlayerPeaceProposalEvent, createBattleEvent, createAllianceRequestEvent, createAllianceProposalResultEvent, createAllianceBreakEvent, createNationAnnexedEvent, STRATA, BUILDING_UPGRADES, getMaxUpgradeLevel, getUpgradeCost } from '../config';
+import { BUILDINGS, EPOCHS, RESOURCES, TECHS, MILITARY_ACTIONS, UNIT_TYPES, EVENTS, getRandomEvent, createWarDeclarationEvent, createGiftEvent, createPeaceRequestEvent, createEnemyPeaceRequestEvent, createPlayerPeaceProposalEvent, createBattleEvent, createAllianceRequestEvent, createAllianceProposalResultEvent, createAllianceBreakEvent, createTreatyProposalResultEvent, createNationAnnexedEvent, STRATA, BUILDING_UPGRADES, getMaxUpgradeLevel, getUpgradeCost } from '../config';
 import { getBuildingCostGrowthFactor, getBuildingCostBaseMultiplier, getTechCostMultiplier, getBuildingUpgradeCostMultiplier } from '../config/difficulty';
 import { debugLog } from '../utils/debugFlags';
 import { getUpgradeCountAtOrAboveLevel, calculateBuildingCost, applyBuildingCostModifier } from '../utils/buildingUpgradeUtils';
@@ -2227,6 +2227,132 @@ export const useGameActions = (gameState, addLog) => {
                 break;
             }
 
+            case 'propose_treaty': {
+                const treaty = payload || {};
+                const type = treaty.type;
+                const durationDays = Math.max(1, Math.floor(Number(treaty.durationDays) || 365));
+                const maintenancePerDay = Math.max(0, Math.floor(Number(treaty.maintenancePerDay) || 0));
+
+                if (!type) {
+                    addLog('条约提案失败：缺少条约类型。');
+                    return;
+                }
+                if (targetNation.isAtWar) {
+                    addLog(`无法提出条约：${targetNation.name} 正与你交战。`);
+                    return;
+                }
+
+                // Cooldown (MVP)
+                const COOLDOWN_DAYS = 120;
+                const lastActionDay = targetNation.lastDiplomaticActionDay?.propose_treaty || 0;
+                const daysSince = daysElapsed - lastActionDay;
+                if (lastActionDay > 0 && daysSince < COOLDOWN_DAYS) {
+                    addLog(`⏳ 对 ${targetNation.name} 的条约提案尚在冷却中，还需 ${COOLDOWN_DAYS - daysSince} 天。`);
+                    return;
+                }
+
+                // Prevent spamming the same treaty while active
+                const isPeaceActive = targetNation.peaceTreatyUntil && daysElapsed < targetNation.peaceTreatyUntil;
+                const isOpenMarketActive = targetNation.openMarketUntil && daysElapsed < targetNation.openMarketUntil;
+                if (type === 'non_aggression' && isPeaceActive) {
+                    addLog(`与 ${targetNation.name} 的互不侵犯/和平协议仍在生效中，无法重复提出。`);
+                    return;
+                }
+                if (type === 'open_market' && isOpenMarketActive) {
+                    addLog(`与 ${targetNation.name} 的开放市场协议仍在生效中，无法重复提出。`);
+                    return;
+                }
+
+                // Simple acceptance scoring (MVP)
+                const relation = targetNation.relation || 0;
+                const aggression = targetNation.aggression ?? 0.3;
+
+                // Base by type
+                const baseChanceByType = {
+                    non_aggression: 0.35,
+                    open_market: 0.30,
+                    academic_exchange: 0.25,
+                    defensive_pact: 0.18,
+                };
+                const base = baseChanceByType[type] ?? 0.25;
+
+                // Relation boosts, aggression reduces
+                const relationBoost = Math.max(0, (relation - 40) / 100); // 40=>0, 100=>0.6
+                const aggressionPenalty = aggression * 0.25;
+
+                // Maintenance reduces acceptance
+                const maintenancePenalty = Math.min(0.25, maintenancePerDay / 500000);
+
+                let acceptChance = base + relationBoost - aggressionPenalty - maintenancePenalty;
+
+                // Type gating
+                if (type === 'open_market' && relation < 55) acceptChance *= 0.4;
+                if (type === 'academic_exchange' && relation < 65) acceptChance *= 0.2;
+                if (type === 'defensive_pact' && relation < 70) acceptChance *= 0.2;
+
+                acceptChance = Math.max(0.02, Math.min(0.92, acceptChance));
+
+                const accepted = Math.random() < acceptChance;
+
+                setNations(prev => prev.map(n => {
+                    if (n.id !== nationId) return n;
+
+                    if (!accepted) {
+                        return {
+                            ...n,
+                            relation: Math.max(0, (n.relation || 0) - 4),
+                            lastDiplomaticActionDay: {
+                                ...(n.lastDiplomaticActionDay || {}),
+                                propose_treaty: daysElapsed,
+                            },
+                        };
+                    }
+
+                    const nextTreaties = Array.isArray(n.treaties) ? [...n.treaties] : [];
+                    nextTreaties.push({
+                        id: `treaty_${n.id}_${Date.now()}`,
+                        type,
+                        startDay: daysElapsed,
+                        endDay: daysElapsed + durationDays,
+                        maintenancePerDay,
+                        direction: 'player_to_ai',
+                    });
+
+                    const updates = {
+                        treaties: nextTreaties,
+                        relation: Math.min(100, (n.relation || 0) + 6),
+                        lastDiplomaticActionDay: {
+                            ...(n.lastDiplomaticActionDay || {}),
+                            propose_treaty: daysElapsed,
+                        },
+                    };
+
+                    // Minimal effects (still asymmetric in data model: stored on AI nation; it affects your interaction with them)
+                    if (type === 'open_market') {
+                        updates.openMarketUntil = Math.max(n.openMarketUntil || 0, daysElapsed + durationDays);
+                    }
+                    if (type === 'non_aggression') {
+                        updates.peaceTreatyUntil = Math.max(n.peaceTreatyUntil || 0, daysElapsed + durationDays);
+                    }
+                    if (type === 'defensive_pact') {
+                        updates.alliedWithPlayer = true;
+                    }
+
+                    return { ...n, ...updates };
+                }));
+
+                const resultEvent = createTreatyProposalResultEvent(targetNation, { type, durationDays, maintenancePerDay }, accepted, () => { });
+                triggerDiplomaticEvent(resultEvent);
+
+                if (accepted) {
+                    addLog(`📜 ${targetNation.name} 同意了你的条约提案（${type}）。`);
+                } else {
+                    addLog(`📜 ${targetNation.name} 拒绝了你的条约提案。`);
+                }
+
+                break;
+            }
+
             default:
                 break;
         }
@@ -2783,16 +2909,58 @@ export const useGameActions = (gameState, addLog) => {
             return;
         }
 
-        if (action === 'create') {
-            // 检查贸易路线数量是否超过商人岗位上限（只有当有商人岗位时才检查）
-            const merchantJobLimit = jobsAvailable?.merchant || 0;
-            const currentRouteCount = tradeRoutes.routes.length;
-            if (merchantJobLimit > 0 && currentRouteCount >= merchantJobLimit) {
-                addLog(`贸易路线数量已达上限（${merchantJobLimit}），需要更多商人岗位。请建造更多贸易站。`);
-                return;
+        // Trade 2.0: legacy “route” buttons are now a compatibility layer.
+        // Creating/canceling a route primarily adjusts merchant assignments to the target nation.
+        const merchantJobLimit = jobsAvailable?.merchant || 0;
+
+        const adjustAssignment = (delta) => {
+            // If merchant jobs are not unlocked yet, keep legacy behavior only.
+            if (merchantJobLimit <= 0) return false;
+
+            // Block assignment if at war.
+            if (targetNation.isAtWar) {
+                addLog(`与 ${targetNation.name} 处于战争状态，无法派驻商人。`);
+                return true;
             }
 
-            // 检查是否处于战争
+            gameState.setMerchantState(prev => {
+                const base = prev && typeof prev === 'object' ? prev : { pendingTrades: [], lastTradeTime: 0, merchantAssignments: {} };
+                const assignments = (base.merchantAssignments && typeof base.merchantAssignments === 'object') ? { ...base.merchantAssignments } : {};
+                const current = Math.max(0, Math.floor(Number(assignments[nationId]) || 0));
+                const assignedTotal = Object.values(assignments).reduce((sum, v) => sum + Math.max(0, Math.floor(Number(v) || 0)), 0);
+                const remaining = Math.max(0, merchantJobLimit - assignedTotal);
+
+                if (delta > 0 && remaining <= 0) {
+                    addLog(`可用商人不足（${assignedTotal}/${merchantJobLimit}）。请建造更多贸易站或减少其他国家派驻。`);
+                    return base;
+                }
+
+                const nextVal = Math.max(0, current + delta);
+                if (nextVal <= 0) delete assignments[nationId];
+                else assignments[nationId] = nextVal;
+
+                return {
+                    ...base,
+                    merchantAssignments: assignments,
+                };
+            });
+
+            const dirText = delta > 0 ? '增加' : '减少';
+            addLog(`📌 Trade 2.0：已${dirText}对 ${targetNation.name} 的商人派驻（通过“贸易路线”兼容操作）。`);
+            return true;
+        };
+
+        // Keep legacy route list for analysis UI/backward compatibility (optional).
+        // But if merchants are available, route buttons become assignment controls.
+        if (action === 'create') {
+            if (adjustAssignment(+1)) return;
+
+            // Legacy behavior (no merchants unlocked): create a route record.
+            const currentRouteCount = tradeRoutes.routes.length;
+            if (currentRouteCount >= 1) {
+                addLog('尚未解锁商人岗位时，贸易路线仅用于展示，建议优先解锁贸易站。');
+            }
+
             if (targetNation.isAtWar) {
                 addLog(`与 ${targetNation.name} 处于战争状态，无法创建贸易路线。`);
                 return;
@@ -2820,13 +2988,11 @@ export const useGameActions = (gameState, addLog) => {
                 }
 
                 if (currentRoutesWithNation >= maxRoutesWithNation) {
-                    const relationLabels = { 0: '敌对', 1: '冷淡', 2: '中立', 3: '友好', 4: '盟友' };
-                    addLog(`与 ${targetNation.name} 的贸易路线已达关系上限（${currentRoutesWithNation}/${maxRoutesWithNation}条，关系${relationLabels[maxRoutesWithNation]}）。提升关系可增加贸易路线数量。`);
+                    addLog(`与 ${targetNation.name} 的贸易路线已达关系上限（${currentRoutesWithNation}/${maxRoutesWithNation}条）。提升关系可增加贸易路线数量。`);
                     return;
                 }
             }
 
-            // 检查是否已存在相同的贸易路线
             const exists = tradeRoutes.routes.some(
                 route => route.nationId === nationId && route.resource === resourceKey && route.type === type
             );
@@ -2835,23 +3001,19 @@ export const useGameActions = (gameState, addLog) => {
                 return;
             }
 
-            // 检查贸易条件
             const tradeStatus = calculateTradeStatus(resourceKey, targetNation, daysElapsed);
             if (type === 'export') {
-                // 出口：对方需要有缺口
                 if (!tradeStatus.isShortage || tradeStatus.shortageAmount <= 0) {
                     addLog(`${targetNation.name} 对 ${resourceDef.name} 没有缺口，无法创建出口路线。`);
                     return;
                 }
             } else if (type === 'import') {
-                // 进口：对方需要有盈余
                 if (!tradeStatus.isSurplus || tradeStatus.surplusAmount <= 0) {
                     addLog(`${targetNation.name} 对 ${resourceDef.name} 没有盈余，无法创建进口路线。`);
                     return;
                 }
             }
 
-            // 创建贸易路线
             setTradeRoutes(prev => ({
                 ...prev,
                 routes: [
@@ -2866,10 +3028,11 @@ export const useGameActions = (gameState, addLog) => {
             }));
 
             const typeText = type === 'export' ? '出口' : '进口';
-            addLog(`✅ 已创建 ${resourceDef.name} 的${typeText}贸易路线至 ${targetNation.name}。`);
+            addLog(`✅ 已创建 ${resourceDef.name} 的${typeText}贸易路线至 ${targetNation.name}（Legacy）。`);
 
         } else if (action === 'cancel') {
-            // 取消贸易路线
+            if (adjustAssignment(-1)) return;
+
             const routeExists = tradeRoutes.routes.some(
                 route => route.nationId === nationId && route.resource === resourceKey && route.type === type
             );
@@ -2886,7 +3049,7 @@ export const useGameActions = (gameState, addLog) => {
             }));
 
             const typeText = type === 'export' ? '出口' : '进口';
-            addLog(`❌ 已取消 ${resourceDef.name} 的${typeText}贸易路线至 ${targetNation.name}。`);
+            addLog(`❌ 已取消 ${resourceDef.name} 的${typeText}贸易路线至 ${targetNation.name}（Legacy）。`);
         }
     };
 

@@ -250,6 +250,14 @@ const buildInitialMerchantState = () => ({
     pendingTrades: [],
     lastTradeTime: 0,
     lockedCapital: 0,
+
+    // Trade 2.0: player-assigned merchants by nation id
+    // Example: { 'rome': 10, 'egypt': 5 }
+    merchantAssignments: {},
+
+    // Trade 2.0: per-resource preference multipliers (1 = neutral)
+    // Shape: { import: { food: 1.2 }, export: { iron: 1.5 } }
+    merchantTradePreferences: { import: {}, export: {} },
 });
 
 const AUTO_SAVE_LIMITS = {
@@ -559,6 +567,9 @@ const buildInitialNations = () => {
         return {
             ...nation,
             relation: 50,
+            treaties: Array.isArray(nation.treaties) ? nation.treaties : [],
+            openMarketUntil: nation.openMarketUntil ?? null,
+            peaceTreatyUntil: nation.peaceTreatyUntil ?? null,
             warScore: nation.warScore ?? 0,
             isAtWar: nation.isAtWar ?? false,
             wealth,
@@ -1114,8 +1125,20 @@ export const useGameState = () => {
             throw new Error('存档数据无效');
         }
         setResources(data.resources || INITIAL_RESOURCES);
-        setPopulation(data.population ?? 5);
-        setPopStructure(data.popStructure || {});
+
+        // [FIX] 存档人口同步修复：防止population和popStructure不一致导致的恶性扣减循环
+        // 如果存档中的population与popStructure总和不一致，以popStructure为准
+        let loadedPopulation = data.population ?? 5;
+        const loadedPopStructure = data.popStructure || {};
+        const popStructureTotal = Object.values(loadedPopStructure).reduce((sum, val) => sum + (val || 0), 0);
+
+        if (popStructureTotal > 0 && Math.abs(loadedPopulation - popStructureTotal) > 0.5) {
+            console.log(`[Save Migration] Population mismatch detected! population=${loadedPopulation}, popStructure sum=${popStructureTotal}. Fixing...`);
+            loadedPopulation = popStructureTotal; // 以popStructure总和为准
+        }
+
+        setPopulation(loadedPopulation);
+        setPopStructure(loadedPopStructure);
         setMaxPop(data.maxPop ?? 10);
         setMaxPopBonus(data.maxPopBonus || 0);
         setBirthAccumulator(data.birthAccumulator || 0);
@@ -1132,7 +1155,12 @@ export const useGameState = () => {
         setActiveTab(data.activeTab || 'build');
         setGameSpeed(data.gameSpeed ?? 1);
         setIsPaused(data.isPaused ?? false);
-        setNations(data.nations || buildInitialNations());
+        setNations((data.nations || buildInitialNations()).map(n => ({
+            ...n,
+            treaties: Array.isArray(n.treaties) ? n.treaties : [],
+            openMarketUntil: Object.prototype.hasOwnProperty.call(n, 'openMarketUntil') ? n.openMarketUntil : null,
+            peaceTreatyUntil: Object.prototype.hasOwnProperty.call(n, 'peaceTreatyUntil') ? n.peaceTreatyUntil : null,
+        })));
         setOfficials(migrateAllOfficialsForInvestment(data.officials || [], data.daysElapsed || 0));
         setOfficialCandidates(data.officialCandidates || []);
         setLastSelectionDay(data.lastSelectionDay ?? -999);
@@ -1233,7 +1261,14 @@ export const useGameState = () => {
             AUTO_SAVE_LIMITS.marketHistory,
         );
         setMarket(loadedMarket);
-        setMerchantState(data.merchantState || buildInitialMerchantState());
+        const loadedMerchantStateRaw = data.merchantState || buildInitialMerchantState();
+        setMerchantState({
+            ...buildInitialMerchantState(),
+            ...(loadedMerchantStateRaw || {}),
+            merchantAssignments: (loadedMerchantStateRaw && typeof loadedMerchantStateRaw === 'object' && loadedMerchantStateRaw.merchantAssignments && typeof loadedMerchantStateRaw.merchantAssignments === 'object')
+                ? loadedMerchantStateRaw.merchantAssignments
+                : (loadedMerchantStateRaw?.assignments && typeof loadedMerchantStateRaw.assignments === 'object' ? loadedMerchantStateRaw.assignments : {}),
+        });
         setTradeRoutes(data.tradeRoutes || buildInitialTradeRoutes());
         setTradeStats(data.tradeStats || { tradeTax: 0 });
         setAutoSaveInterval(data.autoSaveInterval ?? 60);

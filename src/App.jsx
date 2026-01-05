@@ -1216,6 +1216,8 @@ function GameApp({ gameState }) {
                                                 onDiplomaticAction={actions.handleDiplomaticAction}
                                                 tradeRoutes={gameState.tradeRoutes}
                                                 onTradeRouteAction={actions.handleTradeRouteAction}
+                                                merchantState={gameState.merchantState}
+                                                onMerchantStateChange={gameState.setMerchantState}
                                                 playerInstallmentPayment={gameState.playerInstallmentPayment}
                                                 jobsAvailable={gameState.jobsAvailable}
                                                 popStructure={gameState.popStructure}

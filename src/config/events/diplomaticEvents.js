@@ -751,6 +751,114 @@ export function createAllianceRequestEvent(nation, callback) {
     };
 }
 
+const TREATY_TYPE_LABELS = {
+    academic_exchange: '学术交流',
+    open_market: '开放市场',
+    non_aggression: '互不侵犯',
+    defensive_pact: '共同防御',
+};
+
+/**
+ * Treaty 2.0: 创建外交事件 - AI提出条约
+ * @param {Object} nation - 提案国家
+ * @param {Object} treaty - 条约提案（最小字段：type, durationDays, maintenancePerDay）
+ * @param {Function} callback - 回调 (accepted: boolean) => void
+ */
+export function createTreatyProposalEvent(nation, treaty, callback) {
+    const typeLabel = TREATY_TYPE_LABELS[treaty?.type] || (treaty?.type || '条约');
+    const durationDays = Math.max(1, Math.floor(Number(treaty?.durationDays) || 365));
+    const maintenancePerDay = Math.max(0, Math.floor(Number(treaty?.maintenancePerDay) || 0));
+
+    const descriptionLines = [
+        `${nation.name}派遣使节前来,提出签署《${typeLabel}条约》的请求。`,
+        '',
+        '条约主要条款:',
+        `• 类型: ${typeLabel}`,
+        `• 期限: ${durationDays}天`,
+        maintenancePerDay > 0 ? `• 维护费: 每日${maintenancePerDay}银币` : '• 维护费: 无',
+        '',
+        '你可以选择接受或拒绝。拒绝可能影响两国关系。',
+    ];
+
+    return {
+        id: `treaty_proposal_${nation.id}_${Date.now()}`,
+        name: `${nation.name}提出条约：${typeLabel}`,
+        icon: treaty?.type === 'academic_exchange' ? 'BookOpen'
+            : treaty?.type === 'open_market' ? 'Store'
+                : treaty?.type === 'non_aggression' ? 'Shield'
+                    : 'Users',
+        image: null,
+        description: descriptionLines.join('\n'),
+        isDiplomaticEvent: true,
+        options: [
+            {
+                id: 'accept',
+                text: '签署条约',
+                description: '接受提案并立刻生效',
+                effects: {},
+                callback: () => callback(true),
+            },
+            {
+                id: 'reject',
+                text: '拒绝',
+                description: '拒绝提案,关系会下降',
+                effects: {},
+                callback: () => callback(false),
+            },
+        ],
+    };
+}
+
+/**
+ * Treaty 2.0: 创建外交事件 - 玩家提出条约的结果
+ * @param {Object} nation - 目标国家
+ * @param {Object} treaty - 条约提案
+ * @param {boolean} accepted - 是否接受
+ * @param {Function} callback - 确认回调
+ */
+export function createTreatyProposalResultEvent(nation, treaty, accepted, callback) {
+    const typeLabel = TREATY_TYPE_LABELS[treaty?.type] || (treaty?.type || '条约');
+
+    if (accepted) {
+        return {
+            id: `treaty_accepted_${nation.id}_${Date.now()}`,
+            name: `${nation.name}同意签署：${typeLabel}`,
+            icon: 'FileCheck',
+            image: null,
+            description: `${nation.name}同意了你的条约提案。\n\n《${typeLabel}条约》已生效。`,
+            isDiplomaticEvent: true,
+            options: [
+                {
+                    id: 'acknowledge',
+                    text: '确认',
+                    description: '条约生效',
+                    effects: {},
+                    callback: callback,
+                },
+            ],
+        };
+    }
+
+    return {
+        id: `treaty_rejected_${nation.id}_${Date.now()}`,
+        name: `${nation.name}拒绝条约：${typeLabel}`,
+        icon: 'FileX',
+        image: null,
+        description: `${nation.name}拒绝了你的条约提案。你可以继续改善关系,或更换条约条款再尝试。`,
+        isDiplomaticEvent: true,
+        options: [
+            {
+                id: 'acknowledge',
+                text: '了解',
+                description: '确认',
+                effects: {},
+                callback: callback,
+            },
+        ],
+    };
+}
+
+
 /**
  * 创建外交事件 - 玩家请求结盟的结果
  * @param {Object} nation - 目标国家

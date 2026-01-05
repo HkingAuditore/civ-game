@@ -2237,12 +2237,12 @@ export const simulateTick = ({
         // so we apply the BUY-side price control (government sell price to the buyer).
         const marketPrice = getPrice(resource);
         let effectivePrice = marketPrice;
-        if (cabinetEffects?.priceControls?.enabled) {
+        if (priceControls?.enabled) {
             const pcResult = applyBuyPriceControl({
                 resourceKey: resource,
                 amount: needed,
                 marketPrice,
-                priceControls: cabinetEffects.priceControls,
+                priceControls,
                 taxBreakdown,
                 resources: res,
             });
@@ -3792,6 +3792,10 @@ export const simulateTick = ({
                 if (fleeingCapital > 0) {
                     wealth[key] = Math.max(0, currentWealth - fleeingCapital);
                 }
+
+                // [FIX] 同步更新popStructure，确保人口真正从该阶层移除
+                // 这样房屋/岗位才能空出来被新人填补
+                popStructure[key] = Math.max(0, count - leaving);
             }
             exodusPopulationLoss += leaving;
 
@@ -4209,6 +4213,17 @@ export const simulateTick = ({
         res.food = 0;
         if (Math.random() > 0.9 && nextPopulation > 2) {
             nextPopulation = nextPopulation - 1;
+            // [FIX] 同步从popStructure中扣减，优先从失业者扣
+            if ((popStructure.unemployed || 0) > 0) {
+                popStructure.unemployed = popStructure.unemployed - 1;
+            } else {
+                // 如果没有失业者，随机从一个有人的阶层扣
+                const rolesWithPop = ROLE_PRIORITY.filter(r => (popStructure[r] || 0) > 0);
+                if (rolesWithPop.length > 0) {
+                    const randomRole = rolesWithPop[Math.floor(Math.random() * rolesWithPop.length)];
+                    popStructure[randomRole] = Math.max(0, (popStructure[randomRole] || 0) - 1);
+                }
+            }
             logs.push("饥荒导致人口减少！");
         }
     }
@@ -4267,10 +4282,41 @@ export const simulateTick = ({
         }
     });
 
-    const totalForcedLoss = raidPopulationLoss + exodusPopulationLoss + starvationDeaths;
-    if (totalForcedLoss > 0) {
-        nextPopulation = Math.max(0, nextPopulation - totalForcedLoss);
+    // [FIX] 计算nextPopulation时，直接使用popStructure的总和
+    // 因为exodus和starvation已经在popStructure中正确扣减了
+    // 只有raidPopulationLoss需要单独处理（如果有的话）
+    const popStructureTotal = ROLE_PRIORITY.reduce((sum, role) => sum + (popStructure[role] || 0), 0)
+        + (popStructure.unemployed || 0);
+
+    // raidPopulationLoss 如果存在，且未在popStructure中扣减，则单独处理
+    if (raidPopulationLoss > 0) {
+        // 从失业者中优先扣减raid损失
+        let raidReduction = raidPopulationLoss;
+        if ((popStructure.unemployed || 0) >= raidReduction) {
+            popStructure.unemployed = popStructure.unemployed - raidReduction;
+        } else {
+            const fromUnemployed = popStructure.unemployed || 0;
+            popStructure.unemployed = 0;
+            raidReduction -= fromUnemployed;
+            // 剩余的按比例从各阶层扣减
+            const totalPop = ROLE_PRIORITY.reduce((sum, role) => sum + (popStructure[role] || 0), 0);
+            if (totalPop > 0 && raidReduction > 0) {
+                ROLE_PRIORITY.forEach(role => {
+                    if (raidReduction <= 0) return;
+                    const current = popStructure[role] || 0;
+                    if (current <= 0) return;
+                    const proportion = current / totalPop;
+                    const remove = Math.min(current, Math.max(1, Math.floor(proportion * raidReduction)));
+                    popStructure[role] = current - remove;
+                    raidReduction -= remove;
+                });
+            }
+        }
     }
+
+    // 最终人口 = popStructure的总和
+    nextPopulation = ROLE_PRIORITY.reduce((sum, role) => sum + (popStructure[role] || 0), 0)
+        + (popStructure.unemployed || 0);
     nextPopulation = Math.max(0, Math.floor(nextPopulation));
 
     Object.keys(res).forEach(k => {
@@ -4707,6 +4753,12 @@ export const simulateTick = ({
         classFinancialData, // Pass detailed financial tracking
         logs,
         potentialResources, // [FIX] Restrict trade to producible resources
+
+        // Trade 2.0: player merchant assignments (backward compatible)
+        merchantAssignments: merchantState.merchantAssignments || merchantState.assignments || null,
+
+        // Trade 2.0: per-resource preference multipliers (1 = neutral)
+        merchantTradePreferences: merchantState.merchantTradePreferences || null,
     });
     const merchantLockedCapital = Math.max(0, updatedMerchantState.lockedCapital ?? sumLockedCapital(updatedMerchantState.pendingTrades));
     updatedMerchantState.lockedCapital = merchantLockedCapital;

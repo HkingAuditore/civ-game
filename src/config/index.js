@@ -35,6 +35,8 @@ export {
     createAllianceRequestEvent,
     createAllianceProposalResultEvent,
     createAllianceBreakEvent,
+    createTreatyProposalEvent,
+    createTreatyProposalResultEvent,
     createNationAnnexedEvent,
     BASE_EVENTS,
     EPOCH_EVENTS,
