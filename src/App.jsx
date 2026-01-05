@@ -13,6 +13,7 @@ import {
 } from './components/common/UIComponents';
 import { BattleNotification } from './components/common/BattleNotification';
 import { EpicCard, DiamondDivider, AncientPattern } from './components/common/EpicDecorations';
+import { MusicPlayer } from './components/common/MusicPlayer';
 import { AnimatePresence, motion } from 'framer-motion';
 import { StatusBar } from './components/layout/StatusBar';
 import { EraBackground } from './components/layout/EraBackground';
@@ -784,6 +785,7 @@ function GameApp({ gameState }) {
         <div className="min-h-screen font-epic text-theme-text transition-all duration-1000 relative">
             {/* Dynamic Era Background */}
             <EraBackground epoch={gameState.epoch} opacity={0.08} />
+            {/* <MusicPlayer /> */}
             {/* 浮动文本 */}
             {gameState.clicks.map(c => (
                 <FloatingText
