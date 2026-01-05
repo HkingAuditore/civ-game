@@ -22,6 +22,7 @@ import {
     createRebellionEndEvent,
 } from '../logic/rebellionSystem';
 import { getOrganizationStage, getPhaseFromStage } from '../logic/organizationSystem';
+import { getLegacyPolicyDecrees } from '../logic/officials/cabinetSynergy';
 import {
     triggerSelection,
     hireOfficial,
@@ -88,6 +89,9 @@ export const useGameActions = (gameState, addLog) => {
         setBuildingUpgrades,
         autoRecruitEnabled,
         modifiers,
+        // Cabinet policy decrees (permanent)
+        decrees,
+        setDecrees,
         // 官员系统状态
         officials,
         setOfficials,
@@ -103,6 +107,41 @@ export const useGameActions = (gameState, addLog) => {
         lastBattleDay,
         setLastBattleDay,
     } = gameState;
+
+    const toggleDecree = (decreeId) => {
+        if (!decreeId || typeof setDecrees !== 'function') return;
+
+        // Pull the latest definition so effects are guaranteed to exist in state.
+        // (simulation expects { id, active, modifiers })
+        const def = getLegacyPolicyDecrees?.()?.[decreeId];
+        const nextModifiers = def?.modifiers || def?.effects;
+
+        setDecrees((prev) => {
+            const list = Array.isArray(prev) ? prev : [];
+            const idx = list.findIndex(d => d && d.id === decreeId);
+
+            // If decree not present, add it as active by default
+            if (idx === -1) {
+                return [...list, {
+                    id: decreeId,
+                    active: true,
+                    modifiers: nextModifiers
+                }];
+            }
+
+            return list.map((d, i) => {
+                if (i !== idx) return d;
+                const currentlyActive = !!d?.active;
+                return {
+                    ...(d || {}),
+                    id: decreeId,
+                    active: !currentlyActive,
+                    // Always refresh modifiers from definition in case config changed
+                    modifiers: nextModifiers ?? d?.modifiers
+                };
+            });
+        });
+    };
 
     const [pendingDiplomaticEvents, setPendingDiplomaticEvents] = useState([]);
 
@@ -4027,7 +4066,8 @@ export const useGameActions = (gameState, addLog) => {
         // 科技
         researchTech,
 
-        // 政令 (已废弃)
+        // 政令
+        toggleDecree,
 
         // 采集
         manualGather,

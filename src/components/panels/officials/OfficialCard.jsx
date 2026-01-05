@@ -145,7 +145,7 @@ export const OfficialCard = memo(({
             border: 'border-blue-500/60',
             text: 'text-blue-300',
             icon: 'Scale',
-            label: '中间派',
+            label: '建制派',
             gradient: 'from-blue-600/30 to-blue-900/10',
             glow: 'shadow-blue-500/20',
         },
