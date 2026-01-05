@@ -891,8 +891,8 @@ export const simulateTick = ({
     let diff = 0;
 
     if (!hasPreviousPopStructure) {
-        // 首次运行：按优先级初始填充（已注释，防止强制重新分配）
-
+        // 首次运行：按岗位需求进行一次性初始分配
+        // 这能确保例如军队/训练队列产生的 `soldier` 岗位在开局就能拿到人
         let remainingPop = population;
         ROLE_PRIORITY.forEach(role => {
             const slots = Math.max(0, jobsAvailable[role] || 0);
@@ -901,13 +901,6 @@ export const simulateTick = ({
             remainingPop -= filled;
         });
         popStructure.unemployed = Math.max(0, remainingPop);
-
-
-        // 改为直接设置默认人口结构
-        ROLE_PRIORITY.forEach(role => {
-            popStructure[role] = 0;
-        });
-        popStructure.unemployed = population;
     } else {
         // 继承上一帧状态
         ROLE_PRIORITY.forEach(role => {
@@ -2238,9 +2231,24 @@ export const simulateTick = ({
             demand[resource] = (demand[resource] || 0) + needed;
         }
 
-        // 按市场价计算银币成本
-        const price = getPrice(resource);
-        totalResourceCost += needed * price;
+        // Use price controls (planned economy) for maintenance resource pricing as well.
+        // This prevents the player from paying market-price upkeep while also enforcing guided prices elsewhere.
+        // NOTE: For upkeep we treat it as a "government purchase" (the army consumes goods),
+        // so we apply the BUY-side price control (government sell price to the buyer).
+        const marketPrice = getPrice(resource);
+        let effectivePrice = marketPrice;
+        if (cabinetEffects?.priceControls?.enabled) {
+            const pcResult = applyBuyPriceControl({
+                resourceKey: resource,
+                amount: needed,
+                marketPrice,
+                priceControls: cabinetEffects.priceControls,
+                taxBreakdown,
+                resources: res,
+            });
+            effectivePrice = pcResult.effectivePrice;
+        }
+        totalResourceCost += needed * effectivePrice;
 
         // 如果资源不足，记录日志
         if (consumed < needed && tick % 30 === 0) {
