@@ -115,7 +115,7 @@ import {
     applyPolityEffects, // Apply polity effects helper
     calculateTotalMaxPop,
 } from './buildings';
-import { getAggregatedOfficialEffects, getOfficialInfluenceBonus, getAggregatedStanceEffects } from '../logic/officials/manager';
+import { getAggregatedOfficialEffects, getOfficialInfluencePoints, getAggregatedStanceEffects } from '../logic/officials/manager';
 import {
     getCabinetStatus,
     calculateOfficialCapacity,
@@ -3735,17 +3735,16 @@ export const simulateTick = ({
 
     const baseTotalInfluence = Object.values(classInfluence).reduce((sum, val) => sum + val, 0);
 
-    // 应用官员对出身阶层的影响力加成
-    const officialInfluenceBonus = getOfficialInfluenceBonus(officials || [], officialsPaid, {
+    // 应用官员对出身阶层的影响力加成（方案A：直接增加“绝对影响力点数”，避免后期被阶层基数稀释）
+    const officialInfluencePoints = getOfficialInfluencePoints(officials || [], officialsPaid, {
         classInfluence,
         totalInfluence: baseTotalInfluence,
         polityEffects: currentPolityEffects,
         currentDay: tick,
     });
-    Object.entries(officialInfluenceBonus).forEach(([stratum, bonus]) => {
-        if (classInfluence[stratum] !== undefined && bonus > 0) {
-            // 加成是百分比形式，应用到基础影响力上
-            classInfluence[stratum] *= (1 + bonus);
+    Object.entries(officialInfluencePoints).forEach(([stratum, points]) => {
+        if (classInfluence[stratum] !== undefined && points > 0) {
+            classInfluence[stratum] += points;
         }
     });
 

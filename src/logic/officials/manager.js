@@ -494,10 +494,56 @@ export const calculateOfficialAbsoluteInfluence = (official, context = {}) => {
 };
 
 /**
- * 计算官员对出身阶层的影响力加成
+ * 计算官员对出身阶层的影响力加成（方案A：绝对值加点）
  * @param {Array} officials - 在任官员列表
- * @param {boolean} isPaid - 是否支付了全额薪水（否则加成减半）
- * @returns {Object} 各阶层的影响力加成 { stratumKey: bonusPercent }
+ * @param {boolean} isPaid - 是否支付了全额薪水（否则效果减半）
+ * @returns {Object} 各阶层的影响力加点 { stratumKey: influencePoints }
+ */
+export const getOfficialInfluencePoints = (officials, isPaid = true, context = {}) => {
+    const pointsMap = {};
+    const classInfluence = context.classInfluence || {};
+    const totalInfluence = context.totalInfluence || 0;
+
+    if (!officials || !Array.isArray(officials)) return pointsMap;
+
+    const payMultiplier = isPaid ? 1 : 0.5;
+
+    // 设计目标：
+    // - 官员数量少时也能在后期显著“抬升”其出身阶层影响力
+    // - 直接返回“绝对影响力点数”，由 simulation 采用加法叠加
+    // - 单官员加点上限，避免极端财富导致离谱
+    const MAX_SINGLE_OFFICIAL_POINTS = 250000; // 单人最多 +25万（可按体验再调）
+
+    officials.forEach(official => {
+        if (!official || !official.sourceStratum) return;
+
+        const stratum = official.sourceStratum;
+        const absoluteInfluence = calculateOfficialAbsoluteInfluence(official, context);
+
+        // 轻微“派系份额”修正：大派系官僚体系更容易把官员力量制度化
+        const baseStratumInfluence = Math.max(0, classInfluence[stratum] || 0);
+        const factionShare = totalInfluence > 0 ? (baseStratumInfluence / totalInfluence) : 0;
+        const factionMultiplier = 1 + Math.min(0.35, factionShare * 0.7); // 上限+35%
+
+        // 缩放：把 absoluteInfluence 映射到“可见的后期加点”区间
+        // 说明：absoluteInfluence 本身仍然来自财富/产业/任期等维度（对数/平方根），
+        //      这里再乘一个系数，让其在百万级阶层影响力背景下仍然有存在感。
+        const SCALE = 900;
+        let points = absoluteInfluence * SCALE * factionMultiplier;
+
+        // 上限 + 付薪惩罚
+        points = Math.min(MAX_SINGLE_OFFICIAL_POINTS, points) * payMultiplier;
+
+        if (points <= 0) return;
+        pointsMap[stratum] = (pointsMap[stratum] || 0) + points;
+    });
+
+    return pointsMap;
+};
+
+/**
+ * 旧接口：返回“百分比加成”。
+ * 为了兼容可能的UI/旧逻辑保留，但 simulation 已切换到方案A。
  */
 export const getOfficialInfluenceBonus = (officials, isPaid = true, context = {}) => {
     const bonuses = {};
@@ -506,14 +552,8 @@ export const getOfficialInfluenceBonus = (officials, isPaid = true, context = {}
 
     if (!officials || !Array.isArray(officials)) return bonuses;
 
-    // 工资不足：影响力减半（维持原设计）
     const payMultiplier = isPaid ? 1 : 0.5;
 
-    // 将“绝对影响力”换算成“对出身阶层的百分比加成”
-    // 设计目标：
-    // - 官员数量少时也能产生足够大的政治撬动
-    // - 但不会无限膨胀：受该阶层自身基础影响力约束（越强的阶层，需要更大绝对权力才能撬动同等百分比）
-    // - 单官员加成设上限，避免极端财富导致一人把阶层放大到离谱
     const MAX_SINGLE_OFFICIAL_BONUS = 2.5; // 单人最多 +250%
 
     officials.forEach(official => {
@@ -524,18 +564,13 @@ export const getOfficialInfluenceBonus = (officials, isPaid = true, context = {}
 
         const absoluteInfluence = calculateOfficialAbsoluteInfluence(official, context);
 
-        // 核心换算：绝对值 / 阶层基础影响力
-        // 例如：阶层基础100，官员绝对值150 => +150%
-        // 同时乘一个缩放系数，让数值落在“后期足够大”的区间
         const SCALE = 0.55;
         let bonus = (absoluteInfluence / baseStratumInfluence) * SCALE;
 
-        // 温和的“派系份额”修正：越大派系越容易把官员编入体系（上限 +60%）
         const factionShare = totalInfluence > 0 ? (baseStratumInfluence / totalInfluence) : 0;
         const factionMultiplier = 1 + Math.min(0.6, factionShare * 1.2);
         bonus *= factionMultiplier;
 
-        // 上限 + 付薪惩罚
         bonus = Math.min(MAX_SINGLE_OFFICIAL_BONUS, bonus) * payMultiplier;
 
         if (bonus <= 0) return;
