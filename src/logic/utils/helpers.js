@@ -21,6 +21,24 @@ export const clamp = (value, min, max) => {
 };
 
 /**
+ * Maximum safe wealth value (1 trillion = 1兆)
+ * Values above this can cause calculation overflow and UI issues
+ */
+export const MAX_SAFE_WEALTH = 1e12;
+
+/**
+ * Ensure a wealth value is within safe bounds
+ * Handles NaN, Infinity, and extreme values
+ * @param {number} value - Wealth value to sanitize
+ * @param {number} defaultValue - Default value if invalid (default: 0)
+ * @returns {number} Safe wealth value between 0 and MAX_SAFE_WEALTH
+ */
+export const safeWealth = (value, defaultValue = 0) => {
+    if (!Number.isFinite(value)) return defaultValue;
+    return Math.max(0, Math.min(value, MAX_SAFE_WEALTH));
+};
+
+/**
  * Check if a resource is tradable
  * @param {string} key - Resource key
  * @returns {boolean} Whether the resource is tradable

@@ -27,8 +27,11 @@ import {
     SHORTAGE_MIGRATION_BONUS,
     EMERGENCY_MIGRATION_RATIO,
     // Lucky promotion
-    LUCKY_PROMOTION_CHANCE
+    LUCKY_PROMOTION_CHANCE,
 } from '../utils/constants';
+
+// [FIX] Import safeWealth for wealth overflow protection
+import { safeWealth } from '../utils/helpers';
 
 /**
  * Initialize job availability tracking
@@ -282,7 +285,8 @@ export const fillVacancies = ({
             if (perCapWealth > 0) {
                 const transfer = perCapWealth * hiring;
                 wealth.unemployed = Math.max(0, unemployedWealth - transfer);
-                wealth[entry.role] = (wealth[entry.role] || 0) + transfer;
+                // [FIX] Apply safe wealth limit
+                wealth[entry.role] = safeWealth((wealth[entry.role] || 0) + transfer);
             }
         } else {
             // For Tier 2/3 jobs: hire from eligible lower tiers with wealth requirement
@@ -377,7 +381,8 @@ export const fillVacancies = ({
                     // If lucky, inject extra wealth to meet requirements (system bonus)
                     const extraWealth = isLuckyUpdate ? (wealthShortage * hiring) : 0;
 
-                    wealth[entry.role] = (wealth[entry.role] || 0) + transfer + extraWealth;
+                    // [FIX] Apply safe wealth limit
+                    wealth[entry.role] = safeWealth((wealth[entry.role] || 0) + transfer + extraWealth);
 
                     if (isLuckyUpdate && extraWealth > 0) {
                         // Optional: Log large luck events? (Might spam if frequent, but chance is low)
@@ -535,7 +540,8 @@ export const handleJobMigration = ({
 
                         if (migratingWealth > 0) {
                             wealth[emergencySource.role] = Math.max(0, sourceWealth - migratingWealth);
-                            wealth[emergencyTarget.role] = (wealth[emergencyTarget.role] || 0) + migratingWealth;
+                            // [FIX] Apply safe wealth limit
+                            wealth[emergencyTarget.role] = safeWealth((wealth[emergencyTarget.role] || 0) + migratingWealth);
                         }
 
                         // Transfer population
@@ -693,7 +699,8 @@ export const handleJobMigration = ({
 
             if (migratingWealth > 0) {
                 wealth[sourceCandidate.role] = Math.max(0, sourceWealth - migratingWealth);
-                wealth[targetCandidate.role] = (wealth[targetCandidate.role] || 0) + migratingWealth;
+                // [FIX] Apply safe wealth limit
+                wealth[targetCandidate.role] = safeWealth((wealth[targetCandidate.role] || 0) + migratingWealth);
             }
 
             // Transfer population

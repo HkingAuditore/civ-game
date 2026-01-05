@@ -54,6 +54,9 @@ import {
     scaleEffectValues,
     computePriceMultiplier,
     calculateMinProfitMargin,
+    // [FIX] Safe wealth handling to prevent overflow
+    safeWealth,
+    MAX_SAFE_WEALTH,
     // [PERF] Performance utilities
     shouldRunThisTick,
     getBuildingLevelDistribution,
@@ -750,7 +753,8 @@ export const simulateTick = ({
             const alreadyApplied = directIncomeApplied[role] || 0;
             const netPayout = payout - alreadyApplied;
             if (netPayout > 0) {
-                wealth[role] = (wealth[role] || 0) + netPayout;
+                // [FIX] Apply safe wealth limit to prevent overflow
+                wealth[role] = safeWealth((wealth[role] || 0) + netPayout);
             }
             directIncomeApplied[role] = payout;
         });
@@ -1140,7 +1144,8 @@ export const simulateTick = ({
                 const treasury = res.silver || 0;
                 if (treasury >= subsidyNeeded) {
                     res.silver = treasury - subsidyNeeded;
-                    wealth[key] = available + subsidyNeeded;
+                    // [FIX] Apply safe wealth limit to prevent overflow
+                    wealth[key] = safeWealth(available + subsidyNeeded);
                     taxBreakdown.subsidy += subsidyNeeded;
                     // 记录政府补助收入
                     roleWagePayout[key] = (roleWagePayout[key] || 0) + subsidyNeeded;
@@ -2053,7 +2058,8 @@ export const simulateTick = ({
                     Object.entries(ownerLevelGroups).forEach(([oKey, group]) => {
                         const proportion = group.totalCount / count;
                         const ownerSubsidy = subsidyAmount * proportion;
-                        wealth[oKey] = (wealth[oKey] || 0) + ownerSubsidy;
+                        // [FIX] Apply safe wealth limit to prevent overflow
+                        wealth[oKey] = safeWealth((wealth[oKey] || 0) + ownerSubsidy);
                         roleWagePayout[oKey] = (roleWagePayout[oKey] || 0) + ownerSubsidy;
                         if (classFinancialData[oKey]) {
                             classFinancialData[oKey].income.subsidy = (classFinancialData[oKey].income.subsidy || 0) + ownerSubsidy;
@@ -2867,8 +2873,15 @@ export const simulateTick = ({
         const normalizedOfficial = migrateOfficialForInvestment(official, tick);
 
         // 初始化 wealth（向后兼容：旧存档可能没有 wealth）
-        let currentWealth = typeof normalizedOfficial.wealth === 'number' ? normalizedOfficial.wealth : 400;
-        
+        // [FIX] 添加安全检查：财富上限1兆（1e12），防止极大数值导致系统崩溃
+        const MAX_WEALTH = 1e12; // 最大财富：1兆
+        let rawWealth = typeof normalizedOfficial.wealth === 'number' ? normalizedOfficial.wealth : 400;
+        // 检查是否为有效数值，无效则重置为400
+        if (!Number.isFinite(rawWealth) || rawWealth < 0) {
+            rawWealth = 400;
+        }
+        let currentWealth = Math.min(rawWealth, MAX_WEALTH);
+
         // [DEBUG] 追踪官员财富变化
         const debugInitialWealth = currentWealth;
 
@@ -3015,12 +3028,17 @@ export const simulateTick = ({
         });
 
         // 基于财富水平的奢侈需求
-        const wealthRatio = currentWealth / 400; // 相对于初始财富的比例
+        // [FIX] 限制wealthRatio上限防止数值溢出（极大财富值会导致后续计算爆炸）
+        const rawWealthRatio = currentWealth / 400; // 相对于初始财富的比例
+        const wealthRatio = Math.min(rawWealthRatio, 1e9); // 上限10亿倍
         if (wealthRatio >= 1.0 && officialLuxuryNeeds) {
-            const wealthBase = Math.max(1, currentWealth / 400);
-            const consumptionMultiplier = 1.0 + Math.log10(wealthBase) * 1.6;
-            const salaryBase = Math.max(1, (normalizedOfficial.salary || 0) / 400);
-            const salaryMultiplier = 1.0 + Math.log10(salaryBase) * 1.2;
+            const wealthBase = Math.max(1, Math.min(currentWealth / 400, 1e9));
+            // [FIX] 限制消费乘数上限为100倍，防止极大财富导致的消费爆炸
+            const rawConsumptionMultiplier = 1.0 + Math.log10(wealthBase) * 1.6;
+            const consumptionMultiplier = Math.min(100.0, Number.isFinite(rawConsumptionMultiplier) ? rawConsumptionMultiplier : 1.0);
+            const salaryBase = Math.max(1, Math.min((normalizedOfficial.salary || 0) / 400, 1e9));
+            const rawSalaryMultiplier = 1.0 + Math.log10(salaryBase) * 1.2;
+            const salaryMultiplier = Math.min(8.0, Number.isFinite(rawSalaryMultiplier) ? rawSalaryMultiplier : 1.0);
             const luxuryThresholds = Object.keys(officialLuxuryNeeds)
                 .map(Number)
                 .filter(t => t <= wealthRatio)
@@ -3285,7 +3303,8 @@ export const simulateTick = ({
 
         return {
             ...normalizedOfficial,
-            wealth: currentWealth,
+            // [FIX] 确保返回的财富值在安全范围内
+            wealth: Math.min(MAX_WEALTH, Number.isFinite(currentWealth) ? Math.max(0, currentWealth) : 400),
             lastDayExpense: dailyExpense,
             financialSatisfaction: combinedSatisfaction,
             ownedProperties,
@@ -3686,8 +3705,10 @@ export const simulateTick = ({
         }
     });
 
+    // [FIX] Apply safe wealth limit to ALL strata wealth values before returning
+    // This is the final safety net to prevent any overflow that might have slipped through
     Object.keys(STRATA).forEach(key => {
-        classWealthResult[key] = Math.max(0, wealth[key] || 0);
+        classWealthResult[key] = safeWealth(wealth[key] || 0);
     });
 
     let totalWealth = Object.values(classWealthResult).reduce((sum, val) => sum + val, 0);

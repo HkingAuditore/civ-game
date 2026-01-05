@@ -1,7 +1,7 @@
 // 建设标签页组件
 // 显示可建造的建筑列表
 
-import React, { useState, useEffect, useRef, useMemo, memo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, memo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '../common/UIComponents';
 import { BUILDINGS, RESOURCES, STRATA } from '../../config';
@@ -13,6 +13,7 @@ import { getBuildingEffectiveConfig, BUILDING_UPGRADES, getUpgradeCost } from '.
 import { getBuildingCostGrowthFactor, getBuildingCostBaseMultiplier } from '../../config/difficulty';
 import { calculateBuildingCost, applyBuildingCostModifier } from '../../utils/buildingUpgradeUtils';
 import { formatNumberShortCN } from '../../utils/numberFormat';
+import { BUILDING_CHAINS, BUILDING_TO_CHAIN } from '../../config/buildingChains';
 
 /**
  * 建筑悬浮提示框 (使用 Portal)
@@ -632,6 +633,182 @@ const BuildTabComponent = ({
         return data;
     }, [buildingStatsById, epoch, techsUnlocked, market, jobFill, resources, buildingCostMod]);
 
+    // 建筑链展开状态
+    const [expandedChains, setExpandedChains] = useState(new Set());
+    const chainPopupRef = useRef(null);
+
+    const toggleChainExpand = useCallback((chainId, event) => {
+        event?.stopPropagation();
+        setExpandedChains(prev => {
+            const next = new Set(prev);
+            if (next.has(chainId)) {
+                next.delete(chainId);
+            } else {
+                // 关闭其他展开的链
+                next.clear();
+                next.add(chainId);
+            }
+            return next;
+        });
+    }, []);
+
+    // 点击外部关闭展开的链
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (expandedChains.size > 0 && chainPopupRef.current && !chainPopupRef.current.contains(e.target)) {
+                setExpandedChains(new Set());
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [expandedChains.size]);
+
+    // 按链分组建筑
+    const groupedBuildingsByCategory = useMemo(() => {
+        const result = {};
+
+        Object.entries(availableBuildingsByCategory).forEach(([catKey, categoryBuildings]) => {
+            const chainGroups = {};  // chainId -> buildings[]
+            const standalone = [];   // 不属于任何链的建筑
+
+            categoryBuildings.forEach(building => {
+                const chainId = BUILDING_TO_CHAIN[building.id];
+                if (chainId) {
+                    if (!chainGroups[chainId]) chainGroups[chainId] = [];
+                    chainGroups[chainId].push(building);
+                } else {
+                    standalone.push(building);
+                }
+            });
+
+            // 按时代排序每个链内的建筑
+            Object.values(chainGroups).forEach(chainBuildings => {
+                chainBuildings.sort((a, b) => a.epoch - b.epoch);
+            });
+
+            result[catKey] = { chainGroups, standalone };
+        });
+
+        return result;
+    }, [availableBuildingsByCategory]);
+
+    // 渲染单个建筑卡片的辅助函数
+    const renderBuildingCard = useCallback((building, isInChainPopup = false) => {
+        const cardData = cardDataById[building.id];
+        if (!cardData) return null;
+
+        const {
+            building: averageBuilding,
+            count,
+            cost,
+            canUpgradeAny,
+            silverCost,
+            affordable,
+            actualIncome,
+        } = cardData;
+
+        return (
+            <MemoCompactBuildingCard
+                key={building.id}
+                building={averageBuilding}
+                count={count}
+                affordable={affordable}
+                silverCost={silverCost}
+                ownerIncome={actualIncome}
+                cost={cost}
+                onBuy={onBuy}
+                onSell={onSell}
+                onMouseEnter={(e) => handleMouseEnter(e, averageBuilding, cost, resources)}
+                onMouseLeave={() => canHover && setHoveredBuilding({ building: null, element: null })}
+                epoch={epoch}
+                techsUnlocked={techsUnlocked}
+                jobFill={jobFill}
+                resources={resources}
+                onShowDetails={onShowDetails}
+                hasUpgrades={canUpgradeAny}
+            />
+        );
+    }, [cardDataById, onBuy, onSell, handleMouseEnter, canHover, epoch, techsUnlocked, jobFill, resources, onShowDetails]);
+
+    // 渲染链内容：顶级建筑(带角标) + (展开时)其他建筑
+    // 返回数组，直接插入到网格中
+    const renderChainElements = useCallback((chainId, chainBuildings) => {
+        if (chainBuildings.length === 0) return [];
+
+        const chain = BUILDING_CHAINS[chainId];
+        const topBuilding = chainBuildings[chainBuildings.length - 1]; // 最高级（最后解锁）
+        const isExpanded = expandedChains.has(chainId);
+        const otherBuildings = chainBuildings.slice(0, -1); // 除顶级外的其他建筑
+        const hasOthers = otherBuildings.length > 0;
+
+        const elements = [];
+
+        // 获取顶级建筑的卡片数据
+        const topCardData = cardDataById[topBuilding.id];
+        if (!topCardData) return elements;
+
+        const {
+            building: averageBuilding,
+            count,
+            cost,
+            canUpgradeAny,
+            silverCost,
+            affordable,
+            actualIncome,
+        } = topCardData;
+
+        // 1. 顶级建筑卡片（带链角标）
+        elements.push(
+            <div key={topBuilding.id} className="relative">
+                <MemoCompactBuildingCard
+                    building={averageBuilding}
+                    count={count}
+                    affordable={affordable}
+                    silverCost={silverCost}
+                    ownerIncome={actualIncome}
+                    cost={cost}
+                    onBuy={onBuy}
+                    onSell={onSell}
+                    onMouseEnter={(e) => handleMouseEnter(e, averageBuilding, cost, resources)}
+                    onMouseLeave={() => canHover && setHoveredBuilding({ building: null, element: null })}
+                    epoch={epoch}
+                    techsUnlocked={techsUnlocked}
+                    jobFill={jobFill}
+                    resources={resources}
+                    onShowDetails={onShowDetails}
+                    hasUpgrades={canUpgradeAny}
+                />
+
+                {/* 链展开角标 - 右侧偏上 */}
+                {hasOthers && (
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            toggleChainExpand(chainId);
+                        }}
+                        className={`absolute top-[7%] -right-2 z-30 flex items-center gap-0.5 px-1.5 py-1 rounded-full text-[9px] font-bold transition-all border shadow-md ${isExpanded
+                            ? 'bg-ancient-gold text-gray-900 border-ancient-gold'
+                            : 'bg-gray-800 text-ancient-gold border-ancient-gold/50 hover:bg-gray-700'
+                            }`}
+                        title={isExpanded ? `收起 ${chain.name}` : `展开 ${chain.name} (+${otherBuildings.length})`}
+                    >
+                        <Icon name={isExpanded ? 'ChevronLeft' : 'ChevronRight'} size={12} />
+                        <span>{otherBuildings.length}</span>
+                    </button>
+                )}
+            </div>
+        );
+
+        // 2. 展开时，插入其他建筑（按时代从低到高）
+        if (isExpanded && hasOthers) {
+            otherBuildings.forEach(b => {
+                elements.push(renderBuildingCard(b));
+            });
+        }
+
+        return elements;
+    }, [expandedChains, cardDataById, buildings, toggleChainExpand, renderBuildingCard, onBuy, onSell, handleMouseEnter, canHover, epoch, techsUnlocked, jobFill, resources, onShowDetails]);
+
     // 按类别分组建筑
     const categories = {
         gather: { name: '采集与农业', icon: 'Wheat', color: 'text-yellow-400' },
@@ -689,44 +866,38 @@ const BuildTabComponent = ({
                             </span>
                         </h3>
 
-                        {/* 建筑列表 - 更紧凑布局 */}
+                        {/* 建筑列表 - 使用链分组 */}
                         <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-9 2xl:grid-cols-11 gap-1">
-                            {categoryBuildings.map(building => {
-                                const cardData = cardDataById[building.id];
-                                if (!cardData) return null;
-                                const {
-                                    building: averageBuilding,
-                                    count,
-                                    cost,
-                                    canUpgradeAny,
-                                    silverCost,
-                                    affordable,
-                                    actualIncome,
-                                } = cardData;
+                            {(() => {
+                                const grouped = groupedBuildingsByCategory[catKey];
+                                if (!grouped) return null;
 
-                                return (
-                                    <MemoCompactBuildingCard
-                                        key={building.id}
-                                        building={averageBuilding}
-                                        count={count}
-                                        affordable={affordable}
-                                        silverCost={silverCost}
-                                        ownerIncome={actualIncome} // 传递实际收入
-                                        cost={cost}
-                                        onBuy={onBuy}
-                                        onSell={onSell}
-                                        onMouseEnter={(e) => handleMouseEnter(e, averageBuilding, cost, resources)}
-                                        onMouseLeave={() => canHover && setHoveredBuilding({ building: null, element: null })}
-                                        // 传递额外 props 给悬浮窗
-                                        epoch={epoch}
-                                        techsUnlocked={techsUnlocked}
-                                        jobFill={jobFill}
-                                        resources={resources}
-                                        onShowDetails={onShowDetails}
-                                        hasUpgrades={canUpgradeAny}
-                                    />
-                                );
-                            })}
+                                const { chainGroups, standalone } = grouped;
+                                const renderedChainIds = new Set();
+
+                                // 收集所有要渲染的元素
+                                const elements = [];
+
+                                // 遍历分类中的建筑，按原顺序渲染（链或独立）
+                                categoryBuildings.forEach(building => {
+                                    const chainId = BUILDING_TO_CHAIN[building.id];
+
+                                    if (chainId && chainGroups[chainId]) {
+                                        // 属于某个链
+                                        if (!renderedChainIds.has(chainId)) {
+                                            // 第一次遇到该链，渲染所有链元素（数组）
+                                            renderedChainIds.add(chainId);
+                                            elements.push(...renderChainElements(chainId, chainGroups[chainId]));
+                                        }
+                                        // 后续遇到同链建筑时跳过（已在链元素中处理）
+                                    } else {
+                                        // 独立建筑
+                                        elements.push(renderBuildingCard(building));
+                                    }
+                                });
+
+                                return elements;
+                            })()}
                         </div>
                     </div>
                 );
