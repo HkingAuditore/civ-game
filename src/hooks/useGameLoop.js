@@ -18,6 +18,7 @@ import {
     createGiftEvent,
     createAIRequestEvent,
     createAllianceRequestEvent,
+    createTreatyProposalEvent,
     createAllyColdEvent,
     createAIDemandSurrenderEvent,
     createAllyAttackedEvent,
@@ -1832,10 +1833,20 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     setMigrationCooldowns(result.migrationCooldowns || current.migrationCooldowns || {});
                     setTaxShock(result.taxShock || current.taxShock || {}); // [NEW] 更新累积税收冲击
                     setMerchantState(prev => {
-                        const nextState = result.merchantState || current.merchantState || { pendingTrades: [], lastTradeTime: 0 };
-                        if (prev === nextState) {
-                            return prev;
-                        }
+                        const base = prev || current.merchantState || { pendingTrades: [], lastTradeTime: 0, merchantAssignments: {} };
+                        const incoming = result.merchantState || current.merchantState || {};
+
+                        // Keep backward-compatible merge so Trade 2.0 assignment UI persists across ticks.
+                        const nextState = {
+                            ...base,
+                            ...incoming,
+                            merchantAssignments:
+                                (incoming && typeof incoming === 'object' && incoming.merchantAssignments && typeof incoming.merchantAssignments === 'object')
+                                    ? incoming.merchantAssignments
+                                    : base.merchantAssignments || {},
+                        };
+
+                        if (prev === nextState) return prev;
                         return nextState;
                     });
                     if (nextNations) {
@@ -3311,6 +3322,65 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                     }
                                 } catch (e) {
                                     debugError('event', '[EVENT DEBUG] Failed to parse AI alliance request event:', e);
+                                }
+                            }
+
+                            // Treaty 2.0 MVP: 检测 AI 条约提案事件
+                            if (log.includes('AI_TREATY_PROPOSAL:')) {
+                                try {
+                                    const jsonStr = log.replace('AI_TREATY_PROPOSAL:', '');
+                                    const eventData = JSON.parse(jsonStr);
+                                    const nation = result.nations?.find(n => n.id === eventData.nationId);
+                                    const treaty = eventData.treaty || null;
+
+                                    if (nation && treaty && currentActions && currentActions.triggerDiplomaticEvent) {
+                                        const event = createTreatyProposalEvent(nation, treaty, (accepted) => {
+                                            if (accepted) {
+                                                setNations(prev => prev.map(n => {
+                                                    if (n.id !== nation.id) return n;
+
+                                                    const nextTreaties = Array.isArray(n.treaties) ? [...n.treaties] : [];
+                                                    nextTreaties.push({
+                                                        id: `treaty_${n.id}_${Date.now()}`,
+                                                        type: treaty.type,
+                                                        startDay: daysElapsed,
+                                                        endDay: daysElapsed + Math.max(1, Math.floor(Number(treaty.durationDays) || 365)),
+                                                        maintenancePerDay: Math.max(0, Math.floor(Number(treaty.maintenancePerDay) || 0)),
+                                                        direction: 'ai_to_player',
+                                                    });
+
+                                                    const durationDays = Math.max(1, Math.floor(Number(treaty.durationDays) || 365));
+                                                    const updates = { treaties: nextTreaties, relation: Math.min(100, (n.relation || 0) + 8) };
+
+                                                    // Minimal effects reuse existing fields for immediate gameplay impact
+                                                    if (treaty.type === 'open_market') {
+                                                        updates.openMarketUntil = Math.max(n.openMarketUntil || 0, daysElapsed + durationDays);
+                                                    }
+                                                    if (treaty.type === 'non_aggression') {
+                                                        updates.peaceTreatyUntil = Math.max(n.peaceTreatyUntil || 0, daysElapsed + durationDays);
+                                                    }
+                                                    if (treaty.type === 'defensive_pact') {
+                                                        updates.alliedWithPlayer = true;
+                                                    }
+
+                                                    return { ...n, ...updates };
+                                                }));
+                                                addLog(`📜 你与 ${nation.name} 签署了条约（${treaty.type}）。`);
+                                            } else {
+                                                setNations(prev => prev.map(n =>
+                                                    n.id === nation.id
+                                                        ? { ...n, relation: Math.max(0, (n.relation || 0) - 8) }
+                                                        : n
+                                                ));
+                                                addLog(`📜 你拒绝了 ${nation.name} 的条约提案，关系下降。`);
+                                            }
+                                        });
+
+                                        currentActions.triggerDiplomaticEvent(event);
+                                        debugLog('event', '[EVENT DEBUG] AI Treaty Proposal event triggered:', nation.name, treaty?.type);
+                                    }
+                                } catch (e) {
+                                    debugError('event', '[EVENT DEBUG] Failed to parse AI treaty proposal event:', e);
                                 }
                             }
 

@@ -13,12 +13,56 @@ const TradeRoutesModal = ({
     taxPolicies,
     daysElapsed,
     epoch = 0,
+    merchantCount = 0,
+    merchantAssignments = {},
+    merchantTradePreferences = { import: {}, export: {} },
+    onUpdateMerchantAssignments,
+    onUpdateMerchantTradePreferences,
     onClose,
     onCancelRoute,
     onCreateRoute // New: allow creating routes from this modal
 }) => {
-    // Tab state: 'active', 'bestExport', 'bestImport'
-    const [activeTab, setActiveTab] = useState('active');
+    // Tab state: 'assignments', 'priceCompare'
+    const [activeTab, setActiveTab] = useState('assignments');
+    // 价格对比分栏的资源筛选状态
+    const [selectedResource, setSelectedResource] = useState(null);
+
+    const assignedTotal = useMemo(() => {
+        if (!merchantAssignments || typeof merchantAssignments !== 'object') return 0;
+        return Object.values(merchantAssignments).reduce((sum, v) => sum + Math.max(0, Math.floor(Number(v) || 0)), 0);
+    }, [merchantAssignments]);
+
+    const remainingMerchants = Math.max(0, (merchantCount || 0) - assignedTotal);
+
+    const setAssignment = (nationId, nextValue) => {
+        if (!onUpdateMerchantAssignments) return;
+
+        const nation = nations.find(n => n.id === nationId);
+        const relation = nation?.relation || 0;
+        const isAllied = nation?.alliedWithPlayer === true;
+        const isOpenMarket = Boolean(nation?.openMarketUntil && daysElapsed < nation.openMarketUntil);
+
+        const getMaxTradeRoutesForRelation = (rel = 0, allied = false) => {
+            if (allied) return 4;
+            if (rel >= 80) return 4;
+            if (rel >= 60) return 3;
+            if (rel >= 40) return 2;
+            if (rel >= 20) return 1;
+            return 0;
+        };
+
+        const cap = isOpenMarket ? 999 : getMaxTradeRoutesForRelation(relation, isAllied);
+        const safe = Math.max(0, Math.min(cap, Math.floor(Number(nextValue) || 0)));
+
+        const next = {
+            ...(merchantAssignments && typeof merchantAssignments === 'object' ? merchantAssignments : {}),
+            [nationId]: safe,
+        };
+        if (safe <= 0) {
+            delete next[nationId];
+        }
+        onUpdateMerchantAssignments(next);
+    };
 
     // Helper to get nation name by ID
     const getNationName = (id) => {
@@ -193,11 +237,177 @@ const TradeRoutesModal = ({
     const exportCount = bestExportOpportunities.length;
     const importCount = bestImportOpportunities.length;
 
+    // 为价格对比生成各国物价数据（按所选资源）
+    const priceComparisonData = useMemo(() => {
+        if (!selectedResource) return [];
+        const localPrice = market?.prices?.[selectedResource] ?? (RESOURCES[selectedResource]?.basePrice || 1);
+
+        return visibleNations.map(nation => {
+            const foreignPrice = calculateForeignPrice(selectedResource, nation, daysElapsed);
+            const priceDiff = foreignPrice - localPrice;
+            const priceDiffPercent = localPrice > 0 ? (priceDiff / localPrice) * 100 : 0;
+            const tradeStatus = calculateTradeStatus(selectedResource, nation, daysElapsed);
+
+            return {
+                nationId: nation.id,
+                nationName: nation.name,
+                nationColor: nation.color,
+                relation: nation.relation || 0,
+                isAllied: nation.alliedWithPlayer === true,
+                localPrice,
+                foreignPrice,
+                priceDiff,
+                priceDiffPercent,
+                surplus: tradeStatus.surplusAmount || 0,
+                shortage: tradeStatus.shortageAmount || 0,
+                // 建议类型：外价高 -> 适合出口，外价低 -> 适合进口
+                recommendation: priceDiff > localPrice * 0.1 ? 'export' :
+                    priceDiff < -localPrice * 0.1 ? 'import' : 'neutral'
+            };
+        }).sort((a, b) => b.priceDiff - a.priceDiff); // 按价差降序排列
+    }, [selectedResource, visibleNations, market, daysElapsed]);
+
+    // New: Price scanner tab state (resource filtering)
+    const [resourceSearch, setResourceSearch] = useState('');
+
+    const filteredTradableResources = useMemo(() => {
+        const q = (resourceSearch || '').trim().toLowerCase();
+        if (!q) return tradableResources;
+        return tradableResources.filter(([key, def]) => {
+            const name = (def?.name || key).toLowerCase();
+            return key.toLowerCase().includes(q) || name.includes(q);
+        });
+    }, [tradableResources, resourceSearch]);
+
+    const selectedResourceDef = useMemo(() => {
+        if (!selectedResource) return null;
+        return RESOURCES[selectedResource] || null;
+    }, [selectedResource]);
+
+    const localSelectedPrice = useMemo(() => {
+        if (!selectedResource) return null;
+        return market?.prices?.[selectedResource] ?? (RESOURCES[selectedResource]?.basePrice || 1);
+    }, [selectedResource, market]);
+
+    const [priceSortField, setPriceSortField] = useState('diff'); // 'foreignPrice' | 'diff' | 'diffPct'
+    const [priceSortDir, setPriceSortDir] = useState('desc'); // 'asc' | 'desc'
+
+    const priceScannerRows = useMemo(() => {
+        if (!selectedResource) return [];
+        const localPrice = localSelectedPrice ?? 1;
+
+        const rows = visibleNations.map(nation => {
+            const foreignPrice = calculateForeignPrice(selectedResource, nation, daysElapsed);
+            const diff = foreignPrice - localPrice;
+            const diffPct = localPrice > 0 ? (diff / localPrice) * 100 : 0;
+            return {
+                nationId: nation.id,
+                nationName: nation.name,
+                nationColor: nation.color,
+                relation: nation.relation || 0,
+                isAllied: nation.alliedWithPlayer === true,
+                localPrice,
+                foreignPrice,
+                diff,
+                diffPct,
+            };
+        });
+
+        const dir = priceSortDir === 'asc' ? 1 : -1;
+        const getValue = (row) => {
+            if (priceSortField === 'foreignPrice') return row.foreignPrice;
+            if (priceSortField === 'diffPct') return row.diffPct;
+            return row.diff; // default
+        };
+
+        return rows.slice().sort((a, b) => {
+            const av = getValue(a);
+            const bv = getValue(b);
+            if (av === bv) return 0;
+            return av > bv ? dir : -dir;
+        });
+    }, [selectedResource, visibleNations, daysElapsed, localSelectedPrice, priceSortField, priceSortDir]);
+
     const tabs = [
-        { id: 'active', label: '已建立路线', shortLabel: '路线', count: activeRoutes.length, icon: 'List' },
-        { id: 'bestExport', label: '出口机会', shortLabel: '出口', count: exportCount, icon: 'ArrowUpRight' },
-        { id: 'bestImport', label: '进口机会', shortLabel: '进口', count: importCount, icon: 'ArrowDownLeft' },
+        { id: 'assignments', label: '派驻商人', shortLabel: '派驻', count: assignedTotal, icon: 'Users' },
+        { id: 'priceCompare', label: '物价对比', shortLabel: '物价', count: tradableResources.length, icon: 'BarChart2' },
     ];
+
+    const getMaxTradeRoutesForRelation = (relation = 0, isAllied = false) => {
+        if (isAllied) return 4;
+        if (relation >= 80) return 4; // Intimate
+        if (relation >= 60) return 3; // Friendly
+        if (relation >= 40) return 2; // Neutral
+        if (relation >= 20) return 1; // Cold
+        return 0; // Hostile: no trade
+    };
+
+    const isOpenMarketActiveWithNation = (nation) => {
+        return Boolean(nation?.openMarketUntil && daysElapsed < nation.openMarketUntil);
+    };
+
+    const renderAssignmentRow = (nation) => {
+        const valueRaw = merchantAssignments?.[nation.id] ?? 0;
+        const value = Math.max(0, Math.floor(Number(valueRaw) || 0));
+
+        const maxWithNation = isOpenMarketActiveWithNation(nation)
+            ? 999
+            : getMaxTradeRoutesForRelation(nation.relation || 0, nation.alliedWithPlayer === true);
+
+        const disabledInc = remainingMerchants <= 0 || nation.isAtWar || value >= maxWithNation;
+        const disabledDec = value <= 0;
+
+        return (
+            <div
+                key={nation.id}
+                className="grid grid-cols-12 gap-2 items-center p-3 rounded-lg bg-gray-800/40 border border-white/5 hover:bg-gray-800/60 hover:border-white/10 transition-colors text-sm"
+            >
+                <div className="col-span-5 flex items-center gap-2 min-w-0">
+                    <Icon name="Flag" size={14} className={nation.color || 'text-gray-300'} />
+                    <div className="min-w-0">
+                        <div className="font-medium text-gray-200 truncate" title={nation.name}>{nation.name}</div>
+                        <div className="text-[10px] text-gray-500">关系 {Math.round(nation.relation || 0)}{nation.alliedWithPlayer ? ' · 盟友' : ''}</div>
+                    </div>
+                </div>
+
+                <div className="col-span-3 text-right text-xs text-gray-400">
+                    <div>战争: <span className={nation.isAtWar ? 'text-red-400' : 'text-green-400'}>{nation.isAtWar ? '是' : '否'}</span></div>
+                    {nation.isAtWar && <div className="text-[10px] text-red-400">交战国不可贸易</div>}
+                    {!nation.isAtWar && maxWithNation === 0 && <div className="text-[10px] text-red-400">关系敌对不可派驻</div>}
+                    {!nation.isAtWar && maxWithNation > 0 && maxWithNation < 999 && <div className="text-[10px] text-gray-500">上限 {maxWithNation}</div>}
+                    {!nation.isAtWar && maxWithNation >= 999 && <div className="text-[10px] text-green-400">开放市场：无限制</div>}
+                </div>
+
+                <div className="col-span-4 flex items-center justify-end gap-2">
+                    <button
+                        className="w-8 h-8 rounded bg-gray-700 hover:bg-gray-600 text-white border border-white/10 disabled:opacity-40 disabled:cursor-not-allowed"
+                        onClick={() => setAssignment(nation.id, value - 1)}
+                        disabled={disabledDec}
+                        title="减少 1"
+                    >
+                        <Icon name="Minus" size={14} />
+                    </button>
+
+                    <input
+                        className="w-16 h-8 rounded bg-gray-900/60 border border-white/10 text-gray-100 text-center font-mono"
+                        value={value}
+                        onChange={(e) => setAssignment(nation.id, e.target.value)}
+                        inputMode="numeric"
+                        disabled={nation.isAtWar || maxWithNation === 0}
+                    />
+
+                    <button
+                        className="w-8 h-8 rounded bg-amber-600/70 hover:bg-amber-600 text-white border border-amber-400/30 disabled:opacity-40 disabled:cursor-not-allowed"
+                        onClick={() => setAssignment(nation.id, value + 1)}
+                        disabled={disabledInc}
+                        title={nation.isAtWar ? '战争中不可派驻' : (maxWithNation === 0 ? '关系敌对不可派驻' : (value >= maxWithNation ? '已达该国派驻上限' : (remainingMerchants <= 0 ? '没有可用商人' : '增加 1')))}
+                    >
+                        <Icon name="Plus" size={14} />
+                    </button>
+                </div>
+            </div>
+        );
+    };
 
     const renderOpportunityRow = (opp, index, showRank = false) => {
         const isExport = opp.type === 'export';
@@ -371,61 +581,330 @@ const TradeRoutesModal = ({
                     ))}
                 </div>
 
-                {/* Table Header */}
-                <div className={`grid ${activeTab !== 'active' ? 'grid-cols-12' : 'grid-cols-12'} gap-1 sm:gap-2 px-3 sm:px-6 py-2 bg-white/5 text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-wider border-b border-white/5 flex-shrink-0`}>
-                    {activeTab !== 'active' && <div className="col-span-1 text-center">#</div>}
-                    <div className={`${activeTab !== 'active' ? 'col-span-2' : 'col-span-3'}`}>国家</div>
-                    <div className="col-span-2">商品</div>
-                    <div className="col-span-3 text-right">价格差</div>
-                    <div className="col-span-2 text-center">状态</div>
-                    <div className="col-span-2 text-center">操作</div>
-                </div>
-
                 {/* Scrollable List */}
-                <div className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-1 sm:space-y-2 custom-scrollbar">
-                    {activeTab === 'active' && (
-                        activeRoutes.length === 0 ? (
-                            <div className="text-center py-8 sm:py-12 text-gray-500">
-                                <Icon name="Route" size={40} className="mx-auto mb-3 opacity-20" />
-                                <p className="text-sm">暂无活跃的贸易路线</p>
-                                <p className="text-xs mt-1">切换到"出口机会"或"进口机会"发现商机</p>
+                <div className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-2 sm:space-y-3 custom-scrollbar">
+                    {activeTab === 'assignments' && (
+                        <div className="space-y-2">
+                            <div className="p-3 rounded-lg bg-amber-900/20 border border-amber-500/20 text-xs text-gray-300">
+                                <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2">
+                                        <Icon name="Users" size={14} className="text-amber-300" />
+                                        <span className="font-semibold text-amber-100">商人派驻</span>
+                                    </div>
+                                    <div className="font-mono text-[11px]">
+                                        总商人: <span className="text-amber-300">{merchantCount}</span>
+                                        <span className="text-gray-500"> / </span>
+                                        已派驻: <span className="text-blue-300">{assignedTotal}</span>
+                                        <span className="text-gray-500"> / </span>
+                                        剩余: <span className={remainingMerchants > 0 ? 'text-green-400' : 'text-red-400'}>{remainingMerchants}</span>
+                                    </div>
+                                </div>
+                                <div className="mt-1 text-[10px] text-gray-400">
+                                    派驻到某国的商人越多，每回合越倾向在该国寻找最赚钱且最能修复供需缺口的交易。交战国自动无法贸易。
+                                </div>
                             </div>
-                        ) : (
-                            activeRoutes.map((route, index) => renderActiveRouteRow(route, index))
-                        )
+
+                            {/* Preference Controls (scalable + multi-select) */}
+                            <div className="p-3 rounded-lg bg-gray-800/30 border border-white/5">
+                                <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2">
+                                        <Icon name="Target" size={14} className="text-amber-300" />
+                                        <span className="font-semibold text-gray-100">贸易偏好</span>
+                                    </div>
+                                    <div className="text-[10px] text-gray-500">多选 · 影响商人选品权重</div>
+                                </div>
+
+                                <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    {/* Import prefs */}
+                                    <div className="rounded-lg border border-white/5 bg-gray-900/30 p-2">
+                                        <div className="flex items-center justify-between">
+                                            <div className="text-xs font-semibold text-blue-200 flex items-center gap-1">
+                                                <Icon name="ArrowDown" size={12} className="text-blue-300" />
+                                                进口优先
+                                            </div>
+                                            <button
+                                                className="text-[10px] px-2 py-1 rounded bg-gray-700/50 hover:bg-gray-700 text-gray-200"
+                                                onClick={() => {
+                                                    if (!onUpdateMerchantTradePreferences) return;
+                                                    onUpdateMerchantTradePreferences({
+                                                        ...(merchantTradePreferences || { import: {}, export: {} }),
+                                                        import: {},
+                                                    });
+                                                }}
+                                                title="清空进口偏好"
+                                            >
+                                                清空
+                                            </button>
+                                        </div>
+
+                                        <div className="mt-2 flex flex-wrap gap-1.5 max-h-28 overflow-y-auto custom-scrollbar">
+                                            {tradableResources.map(([resourceKey, def]) => {
+                                                const current = merchantTradePreferences?.import?.[resourceKey] ?? 1;
+                                                const isSelected = (current ?? 1) > 1.05;
+                                                const bias = isSelected ? current : 1.6;
+                                                return (
+                                                    <button
+                                                        key={`imp-${resourceKey}`}
+                                                        className={`px-2 py-1 rounded border text-[10px] transition-colors ${isSelected
+                                                            ? 'bg-blue-500/15 border-blue-400/30 text-blue-200'
+                                                            : 'bg-gray-800/30 border-white/5 text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'
+                                                            }`}
+                                                        onClick={() => {
+                                                            if (!onUpdateMerchantTradePreferences) return;
+                                                            const base = merchantTradePreferences && typeof merchantTradePreferences === 'object'
+                                                                ? merchantTradePreferences
+                                                                : { import: {}, export: {} };
+                                                            const nextImport = { ...(base.import || {}) };
+                                                            if (isSelected) delete nextImport[resourceKey];
+                                                            else nextImport[resourceKey] = bias;
+                                                            onUpdateMerchantTradePreferences({
+                                                                ...base,
+                                                                import: nextImport,
+                                                            });
+                                                        }}
+                                                        title={isSelected ? `已偏好 x${Number(current).toFixed(1)}（点击取消）` : `点击设置为偏好 x${bias.toFixed(1)}`}
+                                                    >
+                                                        {def?.name || resourceKey}
+                                                        {isSelected && <span className="ml-1 text-blue-300 font-mono">x{Number(current).toFixed(1)}</span>}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+
+                                    {/* Export prefs */}
+                                    <div className="rounded-lg border border-white/5 bg-gray-900/30 p-2">
+                                        <div className="flex items-center justify-between">
+                                            <div className="text-xs font-semibold text-green-200 flex items-center gap-1">
+                                                <Icon name="ArrowUp" size={12} className="text-green-300" />
+                                                出口优先
+                                            </div>
+                                            <button
+                                                className="text-[10px] px-2 py-1 rounded bg-gray-700/50 hover:bg-gray-700 text-gray-200"
+                                                onClick={() => {
+                                                    if (!onUpdateMerchantTradePreferences) return;
+                                                    onUpdateMerchantTradePreferences({
+                                                        ...(merchantTradePreferences || { import: {}, export: {} }),
+                                                        export: {},
+                                                    });
+                                                }}
+                                                title="清空出口偏好"
+                                            >
+                                                清空
+                                            </button>
+                                        </div>
+
+                                        <div className="mt-2 flex flex-wrap gap-1.5 max-h-28 overflow-y-auto custom-scrollbar">
+                                            {tradableResources.map(([resourceKey, def]) => {
+                                                const current = merchantTradePreferences?.export?.[resourceKey] ?? 1;
+                                                const isSelected = (current ?? 1) > 1.05;
+                                                const bias = isSelected ? current : 1.6;
+                                                return (
+                                                    <button
+                                                        key={`exp-${resourceKey}`}
+                                                        className={`px-2 py-1 rounded border text-[10px] transition-colors ${isSelected
+                                                            ? 'bg-green-500/15 border-green-400/30 text-green-200'
+                                                            : 'bg-gray-800/30 border-white/5 text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'
+                                                            }`}
+                                                        onClick={() => {
+                                                            if (!onUpdateMerchantTradePreferences) return;
+                                                            const base = merchantTradePreferences && typeof merchantTradePreferences === 'object'
+                                                                ? merchantTradePreferences
+                                                                : { import: {}, export: {} };
+                                                            const nextExport = { ...(base.export || {}) };
+                                                            if (isSelected) delete nextExport[resourceKey];
+                                                            else nextExport[resourceKey] = bias;
+                                                            onUpdateMerchantTradePreferences({
+                                                                ...base,
+                                                                export: nextExport,
+                                                            });
+                                                        }}
+                                                        title={isSelected ? `已偏好 x${Number(current).toFixed(1)}（点击取消）` : `点击设置为偏好 x${bias.toFixed(1)}`}
+                                                    >
+                                                        {def?.name || resourceKey}
+                                                        {isSelected && <span className="ml-1 text-green-300 font-mono">x{Number(current).toFixed(1)}</span>}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="mt-2 text-[10px] text-gray-500">
+                                    提示：偏好会把该资源的候选分数乘以倍率（范围 0.1～5）。可以同时偏好多个商品。
+                                </div>
+                            </div>
+
+                            {/* Assignments list header */}
+                            <div className="grid grid-cols-12 gap-1 sm:gap-2 px-1 sm:px-2 py-2 bg-white/5 text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-wider border border-white/5 rounded-lg">
+                                <div className="col-span-5">国家</div>
+                                <div className="col-span-3 text-right">限制</div>
+                                <div className="col-span-4 text-right">派驻商人</div>
+                            </div>
+
+                            {visibleNations.length === 0 ? (
+                                <div className="text-center py-10 text-gray-500">
+                                    <Icon name="Flag" size={40} className="mx-auto mb-3 opacity-20" />
+                                    <p className="text-sm">暂无可接触国家</p>
+                                </div>
+                            ) : (
+                                visibleNations
+                                    .slice()
+                                    .sort((a, b) => (b.relation || 0) - (a.relation || 0))
+                                    .map(renderAssignmentRow)
+                            )}
+                        </div>
                     )}
 
-                    {activeTab === 'bestExport' && (
-                        bestExportOpportunities.length === 0 ? (
-                            <div className="text-center py-8 sm:py-12 text-gray-500">
-                                <Icon name="ArrowUpRight" size={40} className="mx-auto mb-3 opacity-20" />
-                                <p className="text-sm">暂无优质出口机会</p>
-                                <p className="text-xs mt-1">当外国价格高于本地时会出现出口机会</p>
-                            </div>
-                        ) : (
-                            bestExportOpportunities.map((opp, index) => renderOpportunityRow(opp, index, true))
-                        )
-                    )}
+                    {activeTab === 'priceCompare' && (
+                        <div className="space-y-2">
+                            <div className="p-3 rounded-lg bg-gray-800/30 border border-white/5 text-xs text-gray-300">
+                                <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2">
+                                        <Icon name="BarChart2" size={14} className="text-blue-300" />
+                                        <span className="font-semibold text-gray-100">物价对比</span>
+                                    </div>
+                                    <div className="text-[10px] text-gray-500">筛选资源 → 查看各国相对本地价差</div>
+                                </div>
 
-                    {activeTab === 'bestImport' && (
-                        bestImportOpportunities.length === 0 ? (
-                            <div className="text-center py-8 sm:py-12 text-gray-500">
-                                <Icon name="ArrowDownLeft" size={40} className="mx-auto mb-3 opacity-20" />
-                                <p className="text-sm">暂无优质进口机会</p>
-                                <p className="text-xs mt-1">当外国价格低于本地时会出现进口机会</p>
+                                <div className="mt-2 flex items-center gap-2">
+                                    <div className="relative flex-1">
+                                        <div className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500">
+                                            <Icon name="Search" size={14} />
+                                        </div>
+                                        <input
+                                            className="w-full pl-8 pr-2 py-2 rounded bg-gray-900/60 border border-white/10 text-gray-100 text-xs"
+                                            value={resourceSearch}
+                                            onChange={(e) => setResourceSearch(e.target.value)}
+                                            placeholder="搜索资源..."
+                                        />
+                                    </div>
+                                    <button
+                                        className="px-2 py-2 rounded bg-gray-700/40 hover:bg-gray-700 text-gray-200 text-xs"
+                                        onClick={() => {
+                                            setResourceSearch('');
+                                            setSelectedResource(null);
+                                        }}
+                                        title="清空筛选"
+                                    >
+                                        清空
+                                    </button>
+                                </div>
+
+                                <div className="mt-2 flex flex-wrap gap-1.5 max-h-28 overflow-y-auto custom-scrollbar">
+                                    {filteredTradableResources.map(([resourceKey, def]) => {
+                                        const isSelected = selectedResource === resourceKey;
+                                        return (
+                                            <button
+                                                key={`res-${resourceKey}`}
+                                                className={`px-2 py-1 rounded border text-[10px] transition-colors ${isSelected
+                                                    ? 'bg-amber-500/15 border-amber-400/30 text-amber-200'
+                                                    : 'bg-gray-800/30 border-white/5 text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'
+                                                    }`}
+                                                onClick={() => setSelectedResource(isSelected ? null : resourceKey)}
+                                                title={def?.name || resourceKey}
+                                            >
+                                                {def?.name || resourceKey}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+
+                                {selectedResource && (
+                                    <div className="mt-2 text-[10px] text-gray-400">
+                                        当前资源：<span className="text-amber-200 font-semibold">{selectedResourceDef?.name || selectedResource}</span>
+                                        <span className="text-gray-600"> · </span>
+                                        本地价：<span className="text-white font-mono">{Number(localSelectedPrice ?? 0).toFixed(1)}</span>
+                                        <span className="text-gray-600"> · </span>
+                                        <span className="text-green-300">绿色=外价更高（适合出口）</span>
+                                        <span className="text-gray-600"> / </span>
+                                        <span className="text-blue-300">蓝色=外价更低（适合进口）</span>
+                                    </div>
+                                )}
                             </div>
-                        ) : (
-                            bestImportOpportunities.map((opp, index) => renderOpportunityRow(opp, index, true))
-                        )
+
+                            {!selectedResource ? (
+                                <div className="text-center py-10 text-gray-500">
+                                    <Icon name="Filter" size={40} className="mx-auto mb-3 opacity-20" />
+                                    <p className="text-sm">先选择一个资源</p>
+                                </div>
+                            ) : priceScannerRows.length === 0 ? (
+                                <div className="text-center py-10 text-gray-500">
+                                    <Icon name="BarChart2" size={40} className="mx-auto mb-3 opacity-20" />
+                                    <p className="text-sm">暂无可对比国家</p>
+                                </div>
+                            ) : (
+                                <div className="rounded-lg border border-white/5 overflow-hidden">
+                                    <div className="grid grid-cols-12 gap-2 px-2 py-2 bg-white/5 text-[10px] font-bold text-gray-400 uppercase tracking-wider select-none">
+                                        <div className="col-span-4">国家</div>
+
+                                        <button
+                                            type="button"
+                                            className="col-span-3 text-right hover:text-gray-200"
+                                            onClick={() => {
+                                                setPriceSortField('foreignPrice');
+                                                setPriceSortDir((prev) => (priceSortField === 'foreignPrice' ? (prev === 'desc' ? 'asc' : 'desc') : 'desc'));
+                                            }}
+                                            title="按外价排序"
+                                        >
+                                            外价{priceSortField === 'foreignPrice' ? (priceSortDir === 'desc' ? ' ↓' : ' ↑') : ''}
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            className="col-span-3 text-right hover:text-gray-200"
+                                            onClick={() => {
+                                                setPriceSortField('diff');
+                                                setPriceSortDir((prev) => (priceSortField === 'diff' ? (prev === 'desc' ? 'asc' : 'desc') : 'desc'));
+                                            }}
+                                            title="按相对本地价差排序"
+                                        >
+                                            相对本地{priceSortField === 'diff' ? (priceSortDir === 'desc' ? ' ↓' : ' ↑') : ''}
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            className="col-span-2 text-right hover:text-gray-200"
+                                            onClick={() => {
+                                                setPriceSortField('diffPct');
+                                                setPriceSortDir((prev) => (priceSortField === 'diffPct' ? (prev === 'desc' ? 'asc' : 'desc') : 'desc'));
+                                            }}
+                                            title="按百分比排序"
+                                        >
+                                            %{priceSortField === 'diffPct' ? (priceSortDir === 'desc' ? ' ↓' : ' ↑') : ''}
+                                        </button>
+                                    </div>
+                                    <div className="divide-y divide-white/5">
+                                        {priceScannerRows.map((row) => {
+                                            const diffClass = row.diff > 0
+                                                ? 'text-green-300'
+                                                : row.diff < 0
+                                                    ? 'text-blue-300'
+                                                    : 'text-gray-300';
+                                            const sign = row.diff > 0 ? '+' : '';
+                                            return (
+                                                <div key={row.nationId} className="grid grid-cols-12 gap-2 px-2 py-2 text-[11px] hover:bg-white/5">
+                                                    <div className="col-span-4 flex items-center gap-2 min-w-0">
+                                                        <Icon name="Flag" size={12} className={row.nationColor || 'text-gray-300'} />
+                                                        <span className="truncate text-gray-200" title={row.nationName}>{row.nationName}</span>
+                                                    </div>
+                                                    <div className="col-span-3 text-right font-mono text-gray-200">{row.foreignPrice.toFixed(1)}</div>
+                                                    <div className={`col-span-3 text-right font-mono ${diffClass}`}>{sign}{row.diff.toFixed(1)}</div>
+                                                    <div className={`col-span-2 text-right font-mono ${diffClass}`}>{sign}{row.diffPct.toFixed(0)}%</div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     )}
                 </div>
 
                 {/* Footer */}
                 <div className="p-2 sm:p-4 border-t border-white/5 bg-gray-900/50 flex justify-between items-center text-[10px] sm:text-xs text-gray-500 flex-shrink-0">
                     <div className="flex gap-2 sm:gap-4">
-                        <span>已建立: <span className="text-amber-300">{activeRoutes.length}</span></span>
-                        <span className="hidden sm:inline">出口机会: <span className="text-green-400">{exportCount}</span></span>
-                        <span className="hidden sm:inline">进口机会: <span className="text-blue-400">{importCount}</span></span>
+                        <span>已派驻: <span className="text-blue-300">{assignedTotal}</span></span>
                     </div>
                     <button
                         onClick={onClose}

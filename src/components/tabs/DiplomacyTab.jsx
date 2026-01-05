@@ -240,6 +240,8 @@ const DiplomacyTabComponent = ({
     onDiplomaticAction,
     tradeRoutes = { routes: [] },
     onTradeRouteAction,
+    merchantState = { merchantAssignments: {} },
+    onMerchantStateChange,
     playerInstallmentPayment = null,
     jobsAvailable = {},
     popStructure = {},
@@ -264,6 +266,7 @@ const DiplomacyTabComponent = ({
         demand: 60,         // 索要：60天冷却
         provoke: 90,        // 挑拨：90天冷却
         propose_alliance: 60, // 请求结盟：60天冷却
+        propose_treaty: 120,  // 条约提案：120天冷却（MVP）
     };
 
     // 计算外交动作冷却状态
@@ -426,9 +429,10 @@ const DiplomacyTabComponent = ({
                     <button
                         onClick={() => setShowTradeRoutesModal(true)}
                         className="ml-auto flex items-center gap-1 px-2 py-0.5 bg-amber-600 hover:bg-amber-500 text-white text-[10px] rounded shadow-sm border border-amber-400/50 transition-all active:scale-95"
+                        title="派驻商人"
                     >
-                        <Icon name="Settings" size={10} />
-                        <span className="font-bold">管理</span>
+                        <Icon name="Users" size={10} />
+                        <span className="font-bold">派驻</span>
                     </button>
                 </div>
                 <div className="bg-amber-900/20 px-2 py-1 rounded border border-amber-600/20">
@@ -451,12 +455,13 @@ const DiplomacyTabComponent = ({
                         <span className="text-amber-300 font-semibold">{merchantCount}/{merchantJobLimit}</span>
                     </div>
                 </div>
+
                 <button
                     onClick={() => setShowTradeRoutesModal(true)}
                     className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-xs rounded shadow-sm border border-amber-400/50 transition-all active:scale-95"
                 >
-                    <Icon name="Settings" size={14} />
-                    <span className="font-bold">贸易路线管理</span>
+                    <Icon name="Users" size={14} />
+                    <span className="font-bold">派驻商人</span>
                 </button>
             </div>
 
@@ -774,6 +779,86 @@ const DiplomacyTabComponent = ({
                                     })()}
                                 </div>
 
+                                {/* Treaty Center MVP */}
+                                <div className="mt-2 bg-gray-900/30 p-2 rounded border border-gray-700/60">
+                                    <div className="flex items-center justify-between mb-1">
+                                        <div className="text-[10px] text-gray-300 flex items-center gap-1 font-decorative">
+                                            <Icon name="FileText" size={10} className="text-amber-300" />
+                                            条约中心
+                                        </div>
+                                        <div className="text-[9px] text-gray-500 font-body">玩家可主动提出条约</div>
+                                    </div>
+
+                                    <div className="flex gap-1.5 text-[10px]">
+                                        {(() => {
+                                            const treatyCooldown = getDiplomaticCooldown(selectedNation, 'propose_treaty');
+                                            const isPeaceActive = selectedNation?.peaceTreatyUntil && daysElapsed < selectedNation.peaceTreatyUntil;
+                                            const isOpenMarketActive = selectedNation?.openMarketUntil && daysElapsed < selectedNation.openMarketUntil;
+
+                                            const blocked = selectedNation?.isAtWar || treatyCooldown.isOnCooldown || isPeaceActive;
+
+                                            let titleText = '提出互不侵犯条约（1年）';
+                                            if (selectedNation?.isAtWar) titleText = '交战期间无法签署互不侵犯';
+                                            else if (treatyCooldown.isOnCooldown) titleText = `冷却中（还需${treatyCooldown.remainingDays}天）`;
+                                            else if (isPeaceActive) titleText = '互不侵犯/和平协议已生效中，无法重复提出';
+
+                                            return (
+                                                <button
+                                                    className={`flex-1 px-2 py-1 rounded text-white flex items-center justify-center gap-1 font-semibold font-body ${blocked ? 'bg-gray-600 cursor-not-allowed' : 'bg-green-700 hover:bg-green-600'}`}
+                                                    onClick={() => handleSimpleAction(selectedNation.id, 'propose_treaty', { type: 'non_aggression', durationDays: 365 })}
+                                                    disabled={blocked}
+                                                    title={titleText}
+                                                >
+                                                    <Icon name="Shield" size={12} />
+                                                    {treatyCooldown.isOnCooldown ? `互不侵(${treatyCooldown.remainingDays}天)` : '互不侵犯'}
+                                                </button>
+                                            );
+                                        })()}
+
+                                        {(() => {
+                                            const treatyCooldown = getDiplomaticCooldown(selectedNation, 'propose_treaty');
+                                            const isOpenMarketActive = selectedNation?.openMarketUntil && daysElapsed < selectedNation.openMarketUntil;
+
+                                            const blocked = selectedNation?.isAtWar || treatyCooldown.isOnCooldown || isOpenMarketActive;
+
+                                            let titleText = '提出开放市场条约（2年）';
+                                            if (selectedNation?.isAtWar) titleText = '交战期间无法签署开放市场';
+                                            else if (treatyCooldown.isOnCooldown) titleText = `冷却中（还需${treatyCooldown.remainingDays}天）`;
+                                            else if (isOpenMarketActive) titleText = '开放市场协议已生效中，无法重复提出';
+
+                                            return (
+                                                <button
+                                                    className={`flex-1 px-2 py-1 rounded text-white flex items-center justify-center gap-1 font-semibold font-body ${blocked ? 'bg-gray-600 cursor-not-allowed' : 'bg-blue-700 hover:bg-blue-600'}`}
+                                                    onClick={() => handleSimpleAction(selectedNation.id, 'propose_treaty', { type: 'open_market', durationDays: 730 })}
+                                                    disabled={blocked}
+                                                    title={titleText}
+                                                >
+                                                    <Icon name="Store" size={12} />
+                                                    {treatyCooldown.isOnCooldown ? `市场(${treatyCooldown.remainingDays}天)` : '开放市场'}
+                                                </button>
+                                            );
+                                        })()}
+                                    </div>
+
+                                    {Array.isArray(selectedNation?.treaties) && selectedNation.treaties.length > 0 && (
+                                        <div className="mt-2 text-[10px] text-gray-300 font-body">
+                                            <div className="text-[9px] text-gray-500 mb-1 font-decorative">当前条约</div>
+                                            <div className="space-y-1">
+                                                {selectedNation.treaties.slice(-3).reverse().map((t) => (
+                                                    <div key={t.id || `${t.type}-${t.endDay}`} className="flex items-center justify-between bg-gray-800/40 border border-gray-700/60 rounded px-2 py-1">
+                                                        <span className="text-gray-200">
+                                                            {t.type === 'open_market' ? '开放市场' : t.type === 'non_aggression' ? '互不侵犯' : t.type}
+                                                        </span>
+                                                        <span className="text-gray-400 font-epic">
+                                                            {Number.isFinite(t.endDay) ? `剩${Math.max(0, t.endDay - daysElapsed)}天` : '生效中'}
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
                                 <div className="mt-1 text-[10px] text-gray-400 flex items-center justify-between font-epic">
                                     <span className="flex items-center gap-1">
                                         <Icon name="Coins" size={10} className="text-amber-300" />
@@ -857,187 +942,64 @@ const DiplomacyTabComponent = ({
                             </div>
 
                             <div className="bg-gray-800/60 p-2 rounded-lg border border-gray-700">
-                                {/* Calculate relation-based trade route limits for selected nation */}
-                                {(() => {
-                                    const nationRelation = selectedNation?.relation || 0;
-                                    const isAllyWithNation = selectedNation?.alliedWithPlayer === true;
-                                    // Check if open market is active (defeated nation must allow unlimited trade)
-                                    const isOpenMarketActive = selectedNation?.openMarketUntil && daysElapsed < selectedNation.openMarketUntil;
-                                    const openMarketRemainingDays = isOpenMarketActive ? selectedNation.openMarketUntil - daysElapsed : 0;
-                                    // If open market is active, no relation limit; otherwise use normal calculation with alliance bonus
-                                    const maxRoutesWithNation = isOpenMarketActive ? 999 : getMaxTradeRoutesForRelation(nationRelation, isAllyWithNation);
-                                    const currentRoutesWithNation = getRouteCountWithNation(tradeRoutes.routes, selectedNation?.id);
-                                    const canCreateMore = currentRoutesWithNation < maxRoutesWithNation && currentRouteCount < merchantJobLimit;
+                                <div className="flex items-center justify-between mb-2">
+                                    <h3 className="text-xs font-bold text-white flex items-center gap-1 font-decorative">
+                                        <Icon name="BarChart2" size={12} className="text-blue-300" />
+                                        国外市场
+                                    </h3>
+                                    <button
+                                        onClick={() => setShowTradeRoutesModal(true)}
+                                        className="px-3 py-1 rounded bg-amber-600/80 hover:bg-amber-500 text-white text-xs font-body"
+                                    >
+                                        派驻商人
+                                    </button>
+                                </div>
 
-                                    return (
-                                        <React.Fragment>
-                                            <div className="flex items-center justify-between mb-2">
-                                                <h3 className="text-xs font-bold text-white flex items-center gap-1 font-decorative">
-                                                    <Icon name="Route" size={12} className="text-blue-300" />
-                                                    贸易路线管理
-                                                </h3>
-                                                <div className="text-[10px] text-gray-400 font-body">
-                                                    <div className="font-body">创建贸易路线以自动进出口资源</div>
-                                                    <div className="mt-0.5 font-epic">
-                                                        <span className={activeRouteCount < currentRouteCount ? 'text-yellow-400' : 'text-blue-400'}>
-                                                            有效路线: {activeRouteCount}/{currentRouteCount}
-                                                        </span>
-                                                        <span className="text-gray-500 mx-1">|</span>
-                                                        <span className={currentRouteCount >= merchantJobLimit ? 'text-red-400' : 'text-green-400'}>
-                                                            商人上限: {merchantJobLimit}
-                                                        </span>
-                                                        <span className="text-gray-500 mx-1">|</span>
-                                                        <span className="text-amber-400">商人在岗: {merchantCount}/{merchantJobLimit}</span>
-                                                    </div>
-                                                </div>                      </div>
+                                <div className="space-y-1">
+                                    {tradableResources.map(([key, res]) => {
+                                        if (!selectedNation) return null;
 
-                                            {/* Relation-based trade route limit info */}
-                                            <div className={`mb-2 p-2 rounded border ${isOpenMarketActive ? 'bg-green-900/30 border-green-600/30' : 'bg-indigo-900/30 border-indigo-600/30'}`}>
-                                                <div className="flex items-center justify-between text-[10px]">
-                                                    <span className={`flex items-center gap-1 font-body ${isOpenMarketActive ? 'text-green-300' : 'text-indigo-300'}`}>
-                                                        <Icon name={isOpenMarketActive ? 'Store' : 'Heart'} size={10} />
-                                                        与 {selectedNation?.name} 的贸易路线
-                                                    </span>
-                                                    <span className={`font-epic ${isOpenMarketActive ? 'text-green-300' : (currentRoutesWithNation >= maxRoutesWithNation ? 'text-red-300' : 'text-green-300')}`}>
-                                                        {isOpenMarketActive ? `${currentRoutesWithNation}/无限制` : `${currentRoutesWithNation}/${maxRoutesWithNation}`}
-                                                    </span>
-                                                </div>
-                                                {isOpenMarketActive ? (
-                                                    <div className="text-[9px] text-green-400 mt-1 font-body">
-                                                        🏪 开放市场协议生效中！剩余 {Math.ceil(openMarketRemainingDays / 365)} 年 {openMarketRemainingDays % 365} 天
-                                                        <span className="text-green-300 ml-1">(贸易路线不受关系限制)</span>
+                                        const local = getLocalPrice(key);
+                                        const foreign = calculateForeignPrice(key, selectedNation, daysElapsed);
+                                        const diff = foreign - local;
+                                        const tradeStatus = calculateTradeStatus(key, selectedNation, daysElapsed) || {};
+
+                                        const rawShortage = Math.floor(tradeStatus.shortageAmount || 0);
+                                        const rawSurplus = Math.floor(tradeStatus.surplusAmount || 0);
+                                        const shortageCapacity = rawShortage > 9999 ? '9999+' : rawShortage;
+                                        const surplusCapacity = rawSurplus > 9999 ? '9999+' : rawSurplus;
+
+                                        const isUnlocked = (res.unlockEpoch ?? 0) <= epoch;
+                                        if (!isUnlocked) return null;
+
+                                        return (
+                                            <div key={key} className="bg-gray-900/40 rounded p-1.5 border border-gray-700/50">
+                                                <div className="flex items-center justify-between mb-1">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <Icon name={res.icon || 'Box'} size={12} className={res.color || 'text-gray-400'} />
+                                                        <span className="text-xs font-semibold text-white font-body">{res.name}</span>
                                                     </div>
-                                                ) : (
-                                                    <div className="text-[9px] text-gray-400 mt-1 font-body">
-                                                        {isAllyWithNation ? (
-                                                            <span className="text-green-400">🤝 正式盟友 → 最多 {maxRoutesWithNation} 条路线</span>
-                                                        ) : (
-                                                            <>
-                                                                关系值 {Math.round(nationRelation)} → 最多 {maxRoutesWithNation} 条路线
-                                                                {maxRoutesWithNation === 0 && <span className="text-red-400 ml-1">(敌对无法贸易)</span>}
-                                                                {maxRoutesWithNation === 1 && <span className="text-yellow-400 ml-1">(冷淡)</span>}
-                                                                {maxRoutesWithNation === 2 && <span className="text-gray-300 ml-1">(中立)</span>}
-                                                                {maxRoutesWithNation === 3 && <span className="text-blue-400 ml-1">(友好)</span>}
-                                                                {maxRoutesWithNation === 4 && <span className="text-emerald-400 ml-1">(亲密)</span>}
-                                                            </>
+                                                    <div className="flex items-center gap-1 text-[10px] font-epic">
+                                                        {tradeStatus.isShortage && (
+                                                            <span className="text-red-400 font-mono">缺{shortageCapacity}</span>
+                                                        )}
+                                                        {tradeStatus.isSurplus && (
+                                                            <span className="text-green-400 font-mono">余{surplusCapacity}</span>
                                                         )}
                                                     </div>
-                                                )}
+                                                </div>
+
+                                                <div className="flex items-center justify-between text-[10px]">
+                                                    <div className="flex gap-2 text-gray-400 font-body">
+                                                        <span>本地: <span className="text-white font-mono font-epic">{local.toFixed(1)}</span></span>
+                                                        <span>外国: <span className={`font-mono font-epic ${diff > 0 ? 'text-green-300' : 'text-red-300'}`}>{foreign.toFixed(1)}</span></span>
+                                                    </div>
+                                                    
+                                                </div>
                                             </div>
-
-                                            {/* 警告提示 */}
-                                            {activeRouteCount < currentRouteCount && (
-                                                <div className="mb-2 p-2 bg-yellow-900/30 border border-yellow-600/30 rounded text-[10px] text-yellow-300 font-body">
-                                                    <Icon name="AlertTriangle" size={12} className="inline mr-1" />
-                                                    当前有 {currentRouteCount - activeRouteCount} 条贸易路线未激活。需要更多商人在岗才能激活所有路线。
-                                                </div>
-                                            )}
-                                            {currentRouteCount >= merchantJobLimit && (
-                                                <div className="mb-2 p-2 bg-red-900/30 border border-red-600/30 rounded text-[10px] text-red-300 font-body">
-                                                    <Icon name="AlertCircle" size={12} className="inline mr-1" />
-                                                    贸易路线数量已达上限。建造更多贸易站以增加商人岗位上限。
-                                                </div>
-                                            )}
-                                            {currentRoutesWithNation >= maxRoutesWithNation && maxRoutesWithNation > 0 && (
-                                                <div className="mb-2 p-2 bg-purple-900/30 border border-purple-600/30 rounded text-[10px] text-purple-300 font-body">
-                                                    <Icon name="UserX" size={12} className="inline mr-1" />
-                                                    与 {selectedNation?.name} 的贸易路线已达关系上限（{maxRoutesWithNation}条）。提升关系可增加贸易路线数量。
-                                                </div>
-                                            )}
-                                            {maxRoutesWithNation === 0 && (
-                                                <div className="mb-2 p-2 bg-red-900/30 border border-red-600/30 rounded text-[10px] text-red-300 font-body">
-                                                    <Icon name="Ban" size={12} className="inline mr-1" />
-                                                    与 {selectedNation?.name} 关系敌对，无法建立贸易路线。请改善关系至少达到20。
-                                                </div>
-                                            )}
-
-                                            <div className="space-y-1">
-                                                {tradableResources.map(([key, res]) => {
-                                                    if (!selectedNation) return null;
-                                                    const local = getLocalPrice(key);
-                                                    const foreign = calculateForeignPrice(key, selectedNation, daysElapsed);
-                                                    const diff = foreign - local;
-                                                    const tradeStatus = calculateTradeStatus(key, selectedNation, daysElapsed) || {};
-                                                    // 限制显示的缺口/盈余数值，避免显示过大的数字
-                                                    const rawShortage = Math.floor(tradeStatus.shortageAmount || 0);
-                                                    const rawSurplus = Math.floor(tradeStatus.surplusAmount || 0);
-                                                    const shortageCapacity = rawShortage > 9999 ? '9999+' : rawShortage;
-                                                    const surplusCapacity = rawSurplus > 9999 ? '9999+' : rawSurplus;
-
-                                                    // 检查是否已解锁该资源
-                                                    const isUnlocked = (res.unlockEpoch ?? 0) <= epoch;
-                                                    if (!isUnlocked) return null;
-
-                                                    // 检查是否处于战争
-                                                    const isAtWar = selectedNation?.isAtWar || false;
-
-                                                    // 检查是否已有贸易路线
-                                                    const hasExportRoute = hasTradeRoute(selectedNation.id, key, 'export');
-                                                    const hasImportRoute = hasTradeRoute(selectedNation.id, key, 'import');
-
-                                                    // Check relation-based trade route limit
-                                                    const canCreateNewRoute = !canCreateMore && !hasExportRoute && !hasImportRoute;
-                                                    const relationBlocked = currentRoutesWithNation >= maxRoutesWithNation;
-
-                                                    return (
-                                                        <div key={key} className="bg-gray-900/40 rounded p-1.5 border border-gray-700/50">
-                                                            <div className="flex items-center justify-between mb-1">
-                                                                <div className="flex items-center gap-1.5">
-                                                                    <Icon name={res.icon || 'Box'} size={12} className={res.color || 'text-gray-400'} />
-                                                                    <span className="text-xs font-semibold text-white font-body">{res.name}</span>
-                                                                </div>
-                                                                <div className="flex items-center gap-1 text-[10px] font-epic">
-                                                                    {tradeStatus.isShortage && (
-                                                                        <span className="text-red-400 font-mono">缺{shortageCapacity}</span>
-                                                                    )}
-                                                                    {tradeStatus.isSurplus && (
-                                                                        <span className="text-green-400 font-mono">余{surplusCapacity}</span>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                            <div className="flex items-center justify-between text-[10px]">
-                                                                <div className="flex gap-2 text-gray-400 font-body">
-                                                                    <span>本地: <span className="text-white font-mono font-epic">{local.toFixed(1)}</span></span>
-                                                                    <span>外国: <span className={`font-mono font-epic ${diff > 0 ? 'text-green-300' : 'text-red-300'}`}>{foreign.toFixed(1)}</span></span>
-                                                                </div>
-                                                                <div className="flex gap-1">
-                                                                    <button
-                                                                        className={`px-1.5 py-0.5 rounded text-white flex items-center gap-0.5 font-body ${hasExportRoute
-                                                                            ? 'bg-red-600 hover:bg-red-500'
-                                                                            : (isAtWar || (relationBlocked && !hasExportRoute))
-                                                                                ? 'bg-gray-600 cursor-not-allowed'
-                                                                                : 'bg-teal-600 hover:bg-teal-500'
-                                                                            }`}
-                                                                        onClick={() => handleTradeRoute(key, 'export')}
-                                                                        disabled={(isAtWar && !hasExportRoute) || (relationBlocked && !hasExportRoute)}
-                                                                        title={isAtWar && !hasExportRoute ? '战争期间无法创建新贸易路线' : (relationBlocked && !hasExportRoute ? '关系限制：已达该国贸易路线上限' : '')}
-                                                                    >
-                                                                        <Icon name={hasExportRoute ? 'X' : 'ArrowUpRight'} size={10} />
-                                                                        {hasExportRoute ? '取消' : '出口'}
-                                                                    </button>
-                                                                    <button
-                                                                        className={`px-1.5 py-0.5 rounded text-white flex items-center gap-0.5 font-body ${hasImportRoute
-                                                                            ? 'bg-red-600 hover:bg-red-500'
-                                                                            : (isAtWar || (relationBlocked && !hasImportRoute))
-                                                                                ? 'bg-gray-600 cursor-not-allowed'
-                                                                                : 'bg-purple-600 hover:bg-purple-500'
-                                                                            }`}
-                                                                        onClick={() => handleTradeRoute(key, 'import')}
-                                                                        disabled={(isAtWar && !hasImportRoute) || (relationBlocked && !hasImportRoute)}
-                                                                        title={isAtWar && !hasImportRoute ? '战争期间无法创建新贸易路线' : (relationBlocked && !hasImportRoute ? '关系限制：已达该国贸易路线上限' : '')}
-                                                                    >
-                                                                        <Icon name={hasImportRoute ? 'X' : 'ArrowDownLeft'} size={10} />
-                                                                        {hasImportRoute ? '取消' : '进口'}
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        </React.Fragment>
-                                    );
-                                })()}
+                                        );
+                                    })}
+                                </div>
                             </div>
 
                             {selectedNation.peaceTreatyUntil && daysElapsed < selectedNation.peaceTreatyUntil && (
@@ -1216,17 +1178,26 @@ const DiplomacyTabComponent = ({
                     taxPolicies={taxPolicies}
                     daysElapsed={daysElapsed}
                     epoch={epoch}
+                    merchantCount={merchantCount}
+                    merchantAssignments={merchantState?.merchantAssignments || {}}
+                    merchantTradePreferences={merchantState?.merchantTradePreferences || { import: {}, export: {} }}
+                    onUpdateMerchantAssignments={(next) => {
+                        if (typeof onMerchantStateChange === 'function') {
+                            onMerchantStateChange({
+                                ...(merchantState || {}),
+                                merchantAssignments: next || {},
+                            });
+                        }
+                    }}
+                    onUpdateMerchantTradePreferences={(next) => {
+                        if (typeof onMerchantStateChange === 'function') {
+                            onMerchantStateChange({
+                                ...(merchantState || {}),
+                                merchantTradePreferences: next || { import: {}, export: {} },
+                            });
+                        }
+                    }}
                     onClose={() => setShowTradeRoutesModal(false)}
-                    onCancelRoute={(nationId, resource, type) => {
-                        if (onTradeRouteAction) {
-                            onTradeRouteAction(nationId, 'cancel', { resource, type });
-                        }
-                    }}
-                    onCreateRoute={(nationId, resource, type) => {
-                        if (onTradeRouteAction) {
-                            onTradeRouteAction(nationId, 'create', { resource, type });
-                        }
-                    }}
                 />
             )}
 
@@ -1439,6 +1410,84 @@ const DiplomacyTabComponent = ({
                                                     );
                                                 })()}
                                             </div>
+
+                                            {/* Treaty Center MVP (Mobile) */}
+                                            <div className="mt-3 p-3 bg-gray-900/30 rounded-lg border border-ancient-gold/20 shadow-metal-sm">
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <div className="text-sm font-bold text-ancient-parchment font-decorative flex items-center gap-2">
+                                                        <Icon name="FileText" size={14} className="text-amber-300" />
+                                                        条约中心
+                                                    </div>
+                                                    <div className="text-[10px] text-gray-500 font-body">玩家可主动提出条约</div>
+                                                </div>
+
+                                                <div className="grid grid-cols-2 gap-2 text-sm">
+                                                    {(() => {
+                                                        const treatyCooldown = getDiplomaticCooldown(selectedNation, 'propose_treaty');
+                                                        const isPeaceActive = selectedNation?.peaceTreatyUntil && daysElapsed < selectedNation.peaceTreatyUntil;
+                                                        const blocked = selectedNation?.isAtWar || treatyCooldown.isOnCooldown || isPeaceActive;
+
+                                                        let titleText = '提出互不侵犯条约（1年）';
+                                                        if (selectedNation?.isAtWar) titleText = '交战期间无法签署互不侵犯';
+                                                        else if (treatyCooldown.isOnCooldown) titleText = `冷却中（还需${treatyCooldown.remainingDays}天）`;
+                                                        else if (isPeaceActive) titleText = '互不侵犯/和平协议已生效中，无法重复提出';
+
+                                                        return (
+                                                            <button
+                                                                className={`p-3 rounded-lg text-white flex flex-col items-center justify-center gap-1 font-semibold border border-white/10 shadow-metal-sm ${blocked ? 'bg-gray-600/80 cursor-not-allowed' : 'bg-green-700 hover:bg-green-600'}`}
+                                                                onClick={() => handleSimpleAction(selectedNation.id, 'propose_treaty', { type: 'non_aggression', durationDays: 365 })}
+                                                                disabled={blocked}
+                                                                title={titleText}
+                                                            >
+                                                                <Icon name="Shield" size={14} />
+                                                                <span>{treatyCooldown.isOnCooldown ? `互不侵(${treatyCooldown.remainingDays}天)` : '互不侵犯'}</span>
+                                                            </button>
+                                                        );
+                                                    })()}
+
+                                                    {(() => {
+                                                        const treatyCooldown = getDiplomaticCooldown(selectedNation, 'propose_treaty');
+                                                        const isOpenMarketActive = selectedNation?.openMarketUntil && daysElapsed < selectedNation.openMarketUntil;
+                                                        const blocked = selectedNation?.isAtWar || treatyCooldown.isOnCooldown || isOpenMarketActive;
+
+                                                        let titleText = '提出开放市场条约（2年）';
+                                                        if (selectedNation?.isAtWar) titleText = '交战期间无法签署开放市场';
+                                                        else if (treatyCooldown.isOnCooldown) titleText = `冷却中（还需${treatyCooldown.remainingDays}天）`;
+                                                        else if (isOpenMarketActive) titleText = '开放市场协议已生效中，无法重复提出';
+
+                                                        return (
+                                                            <button
+                                                                className={`p-3 rounded-lg text-white flex flex-col items-center justify-center gap-1 font-semibold border border-white/10 shadow-metal-sm ${blocked ? 'bg-gray-600/80 cursor-not-allowed' : 'bg-blue-700 hover:bg-blue-600'}`}
+                                                                onClick={() => handleSimpleAction(selectedNation.id, 'propose_treaty', { type: 'open_market', durationDays: 730 })}
+                                                                disabled={blocked}
+                                                                title={titleText}
+                                                            >
+                                                                <Icon name="Store" size={14} />
+                                                                <span>{treatyCooldown.isOnCooldown ? `市场(${treatyCooldown.remainingDays}天)` : '开放市场'}</span>
+                                                            </button>
+                                                        );
+                                                    })()}
+                                                </div>
+
+                                                {Array.isArray(selectedNation?.treaties) && selectedNation.treaties.length > 0 && (
+                                                    <div className="mt-3 text-xs text-gray-300 font-body">
+                                                        <div className="text-[10px] text-gray-500 mb-1 font-decorative">当前条约</div>
+                                                        <div className="space-y-1">
+                                                            {selectedNation.treaties.slice(-3).reverse().map((t) => (
+                                                                <div key={t.id || `${t.type}-${t.endDay}`} className="flex items-center justify-between bg-gray-800/40 border border-gray-700/60 rounded px-2 py-1">
+                                                                    <span className="text-gray-200">
+                                                                        {t.type === 'open_market' ? '开放市场' : t.type === 'non_aggression' ? '互不侵犯' : t.type}
+                                                                    </span>
+                                                                    <span className="text-gray-400 font-epic">
+                                                                        {Number.isFinite(t.endDay) ? `剩${Math.max(0, t.endDay - daysElapsed)}天` : '生效中'}
+                                                                    </span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+
                                             <div className="mt-2 text-center text-[10px] text-gray-400 font-epic">
                                                 礼物成本: {calculateDynamicGiftCost(resources.silver || 0, selectedNation?.wealth || 0)} | 挑拨成本: {calculateProvokeCost(resources.silver || 0, selectedNation?.wealth || 0)}
                                             </div>
@@ -1511,108 +1560,64 @@ const DiplomacyTabComponent = ({
 
                                 {sheetSection === 'trade' && (
                                     <div className="space-y-3">
-                                        {(() => {
-                                            const nationRelation = selectedNation?.relation || 0;
-                                            const isAllyWithNation = selectedNation?.alliedWithPlayer === true;
-                                            const isOpenMarketActive = selectedNation?.openMarketUntil && daysElapsed < selectedNation.openMarketUntil;
-                                            const openMarketRemainingDays = isOpenMarketActive ? selectedNation.openMarketUntil - daysElapsed : 0;
-                                            const maxRoutesWithNation = isOpenMarketActive ? 999 : getMaxTradeRoutesForRelation(nationRelation, isAllyWithNation);
-                                            const currentRoutesWithNation = getRouteCountWithNation(tradeRoutes.routes, selectedNation?.id);
+                                        <div className="bg-gray-800/60 p-2 rounded-lg border border-gray-700">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <h3 className="text-xs font-bold text-white flex items-center gap-1 font-decorative">
+                                                    <Icon name="BarChart2" size={12} className="text-blue-300" />
+                                                    国外市场
+                                                </h3>
+                                                <button
+                                                    onClick={() => setShowTradeRoutesModal(true)}
+                                                    className="px-3 py-1 rounded bg-amber-600/80 hover:bg-amber-500 text-white text-xs font-body"
+                                                >
+                                                    派驻商人
+                                                </button>
+                                            </div>
 
-                                            return (
-                                                <div className={`p-2.5 rounded-lg border shadow-metal-sm ${isOpenMarketActive ? 'bg-green-900/30 border-green-600/40' : 'bg-indigo-900/30 border-indigo-600/40'}`}>
-                                                    <div className="flex items-center justify-between text-xs">
-                                                        <span className={`flex items-center gap-1.5 font-bold ${isOpenMarketActive ? 'text-green-200' : 'text-indigo-200'}`}>
-                                                            <Icon name={isOpenMarketActive ? 'Store' : 'Heart'} size={14} />
-                                                            与 {selectedNation?.name} 的贸易路线
-                                                        </span>
-                                                        <span className={`font-epic font-bold text-lg ${isOpenMarketActive ? 'text-green-300' : (currentRoutesWithNation >= maxRoutesWithNation ? 'text-red-300' : 'text-green-300')}`}>
-                                                            {isOpenMarketActive ? '∞' : `${currentRoutesWithNation}/${maxRoutesWithNation}`}
-                                                        </span>
-                                                    </div>
-                                                    {isOpenMarketActive ? (
-                                                        <div className="text-xs text-green-300 mt-1">
-                                                            开放市场协议生效中 (剩 {Math.ceil(openMarketRemainingDays / 365)}年)
-                                                        </div>
-                                                    ) : (
-                                                        <div className="text-xs text-indigo-300 mt-1">
-                                                            {isAllyWithNation ? `正式盟友可建立 ${maxRoutesWithNation} 条路线` : `关系 ${Math.round(nationRelation)} 可建立 ${maxRoutesWithNation} 条`}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            );
-                                        })()}
+                                            <div className="space-y-1">
+                                                {tradableResources.map(([key, res]) => {
+                                                    if (!selectedNation) return null;
 
-                                        <div className="space-y-2">
-                                            {tradableResources.map(([key, res]) => {
-                                                if (!selectedNation) return null;
-                                                const local = getLocalPrice(key);
-                                                const foreign = calculateForeignPrice(key, selectedNation, daysElapsed);
-                                                const diff = foreign - local;
-                                                const tradeStatus = calculateTradeStatus(key, selectedNation, daysElapsed) || {};
-                                                const isAtWar = selectedNation?.isAtWar || false;
-                                                const hasExportRoute = hasTradeRoute(selectedNation.id, key, 'export');
-                                                const hasImportRoute = hasTradeRoute(selectedNation.id, key, 'import');
-                                                const nationRelation = selectedNation?.relation || 0;
-                                                const isAllyWithNation = selectedNation?.alliedWithPlayer === true;
-                                                const maxRoutesWithNation = getMaxTradeRoutesForRelation(nationRelation, isAllyWithNation);
-                                                const currentRoutesWithNation = getRouteCountWithNation(tradeRoutes.routes, selectedNation?.id);
-                                                const relationBlocked = currentRoutesWithNation >= maxRoutesWithNation;
-                                                const shortageCapacity = Math.floor(tradeStatus.shortageAmount || 0);
-                                                const surplusCapacity = Math.floor(tradeStatus.surplusAmount || 0);
+                                                    const local = getLocalPrice(key);
+                                                    const foreign = calculateForeignPrice(key, selectedNation, daysElapsed);
+                                                    const diff = foreign - local;
+                                                    const tradeStatus = calculateTradeStatus(key, selectedNation, daysElapsed) || {};
 
-                                                return (
-                                                    <div key={key} className="glass-ancient rounded-lg p-2 border border-ancient-gold/20 shadow-metal-sm">
-                                                        <div className="flex items-center justify-between mb-1.5">
-                                                            <div className="flex items-center gap-2">
-                                                                <Icon name={res.icon || 'Box'} size={14} className={res.color || 'text-gray-400'} />
-                                                                <span className="text-sm font-semibold text-white">{res.name}</span>
+                                                    const rawShortage = Math.floor(tradeStatus.shortageAmount || 0);
+                                                    const rawSurplus = Math.floor(tradeStatus.surplusAmount || 0);
+                                                    const shortageCapacity = rawShortage > 9999 ? '9999+' : rawShortage;
+                                                    const surplusCapacity = rawSurplus > 9999 ? '9999+' : rawSurplus;
+
+                                                    const isUnlocked = (res.unlockEpoch ?? 0) <= epoch;
+                                                    if (!isUnlocked) return null;
+
+                                                    return (
+                                                        <div key={key} className="bg-gray-900/40 rounded p-1.5 border border-gray-700/50">
+                                                            <div className="flex items-center justify-between mb-1">
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <Icon name={res.icon || 'Box'} size={12} className={res.color || 'text-gray-400'} />
+                                                                    <span className="text-xs font-semibold text-white font-body">{res.name}</span>
+                                                                </div>
+                                                                <div className="flex items-center gap-1 text-[10px] font-epic">
+                                                                    {tradeStatus.isShortage && (
+                                                                        <span className="text-red-400 font-mono">缺{shortageCapacity}</span>
+                                                                    )}
+                                                                    {tradeStatus.isSurplus && (
+                                                                        <span className="text-green-400 font-mono">余{surplusCapacity}</span>
+                                                                    )}
+                                                                </div>
                                                             </div>
-                                                            <div className="flex items-center gap-2 text-xs font-epic">
-                                                                {tradeStatus.isShortage && (
-                                                                    <span className="px-2 py-0.5 rounded-full bg-red-900/40 text-red-200 border border-red-600/40">
-                                                                        缺货 {shortageCapacity}
-                                                                    </span>
-                                                                )}
-                                                                {tradeStatus.isSurplus && (
-                                                                    <span className="px-2 py-0.5 rounded-full bg-green-900/40 text-green-200 border border-green-600/40">
-                                                                        盈余 {surplusCapacity}
-                                                                    </span>
-                                                                )}
-                                                                {!tradeStatus.isShortage && !tradeStatus.isSurplus && (
-                                                                    <span className="px-2 py-0.5 rounded-full bg-gray-800/60 text-gray-300 border border-gray-700">
-                                                                        平衡 0
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                        <div className="flex items-center justify-between text-xs">
-                                                            <div className="flex gap-3 text-gray-400">
-                                                                <span>本地: <span className="text-white font-mono font-epic">{local.toFixed(1)}</span></span>
-                                                                <span>外国: <span className={`font-mono font-epic ${diff > 0 ? 'text-green-300' : 'text-red-300'}`}>{foreign.toFixed(1)}</span></span>
-                                                            </div>
-                                                            <div className="flex gap-1.5">
-                                                                <button
-                                                                    className={`px-2 py-1 rounded text-white text-xs flex items-center gap-1 font-semibold border border-white/10 shadow-metal-sm ${hasExportRoute ? 'bg-red-600/80 hover:bg-red-500' : (isAtWar || (relationBlocked && !hasExportRoute)) ? 'bg-gray-600/80 cursor-not-allowed' : 'bg-teal-600 hover:bg-teal-500'}`}
-                                                                    onClick={() => handleTradeRoute(key, 'export')}
-                                                                    disabled={(isAtWar && !hasExportRoute) || (relationBlocked && !hasExportRoute)}
-                                                                >
-                                                                    <Icon name={hasExportRoute ? 'X' : 'ArrowUpRight'} size={12} />
-                                                                    {hasExportRoute ? '取消' : '出口'}
-                                                                </button>
-                                                                <button
-                                                                    className={`px-2 py-1 rounded text-white text-xs flex items-center gap-1 font-semibold border border-white/10 shadow-metal-sm ${hasImportRoute ? 'bg-red-600/80 hover:bg-red-500' : (isAtWar || (relationBlocked && !hasImportRoute)) ? 'bg-gray-600/80 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-500'}`}
-                                                                    onClick={() => handleTradeRoute(key, 'import')}
-                                                                    disabled={(isAtWar && !hasImportRoute) || (relationBlocked && !hasImportRoute)}
-                                                                >
-                                                                    <Icon name={hasImportRoute ? 'X' : 'ArrowDownLeft'} size={12} />
-                                                                    {hasImportRoute ? '取消' : '进口'}
-                                                                </button>
+
+                                                            <div className="flex items-center justify-between text-[10px]">
+                                                                <div className="flex gap-2 text-gray-400 font-body">
+                                                                    <span>本地: <span className="text-white font-mono font-epic">{local.toFixed(1)}</span></span>
+                                                                    <span>外国: <span className={`font-mono font-epic ${diff > 0 ? 'text-green-300' : 'text-red-300'}`}>{foreign.toFixed(1)}</span></span>
+                                                                </div>
                                                             </div>
                                                         </div>
-                                                    </div>
-                                                );
-                                            })}
+                                                    );
+                                                })}
+                                            </div>
                                         </div>
                                     </div>
                                 )}
