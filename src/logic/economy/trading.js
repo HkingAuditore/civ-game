@@ -19,7 +19,7 @@ export const DEFAULT_TRADE_CONFIG = {
     minWealthForTrade: 10,
     tradeDuration: 3,
     tradeCooldown: 0,
-    enableDebugLog: true, // TEMP: debug trade issue
+    enableDebugLog: false,
 
     // Trade 2.0 knobs
     enableMerchantAssignments: true,
@@ -357,16 +357,6 @@ export const simulateMerchantTrade = ({
     const simCount = merchantCount > 100 ? 100 : merchantCount;
     const globalBatchMultiplier = merchantCount > 100 ? merchantCount / 100 : 1;
 
-    // DEBUG: 调试贸易循环入口
-    console.log('[TRADE DEBUG] simulateMerchantTrade entry:', {
-        merchantCount,
-        simCount,
-        hasAssignments,
-        partnerListLength: partnerList.length,
-        partnerList: partnerList.map(p => `${p.nationId}:${p.count}`).join(', '),
-        merchantWealth: wealth?.merchant || 0,
-    });
-
     // Distribute simulated batches across assigned partners proportionally.
     const totalAssigned = partnerList.reduce((sum, p) => sum + p.count, 0) || 1;
 
@@ -463,23 +453,14 @@ export const simulateMerchantTrade = ({
             if (c) candidates.push(c);
         });
 
-        if (candidates.length === 0) {
-            console.log('[TRADE DEBUG] No candidates for partner:', partner?.id || partner?.name);
-            continue;
-        }
+        if (candidates.length === 0) continue;
         candidates.sort((a, b) => b.score - a.score);
-
-        console.log('[TRADE DEBUG] Partner', partner?.name || partner?.id, 'candidates:', candidates.length,
-            'top3:', candidates.slice(0, 3).map(c => `${c.type}:${c.resourceKey}:${c.score?.toFixed(2)}`).join(', '));
 
         const maxNewTradesForPartner = Math.min(12, partnerBatch.batches);
 
         for (let i = 0; i < maxNewTradesForPartner; i++) {
             const currentTotalWealth = wealth.merchant || 0;
-            if (currentTotalWealth <= tradeConfig.minWealthForTrade) {
-                console.log('[TRADE DEBUG] Wealth too low:', currentTotalWealth, '< min:', tradeConfig.minWealthForTrade);
-                break;
-            }
+            if (currentTotalWealth <= tradeConfig.minWealthForTrade) break;
 
             // Pick best remaining candidate; allow repeated same candidate but re-check feasibility.
             const candidate = candidates[i % candidates.length];
