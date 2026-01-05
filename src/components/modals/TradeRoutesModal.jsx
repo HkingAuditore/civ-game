@@ -789,50 +789,6 @@ const TradeRoutesModal = ({
                                             <Icon name="Bug" size={14} className="text-red-400" />
                                             <span className="font-semibold text-red-300">诊断信息</span>
                                         </div>
-                                        <div className="space-y-1.5 font-mono text-[10px]">
-                                            <div className="flex justify-between">
-                                                <span className="text-gray-400">商人总数:</span>
-                                                <span className={merchantCount > 0 ? 'text-green-300' : 'text-red-300'}>
-                                                    {merchantCount}
-                                                </span>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <span className="text-gray-400">已派驻:</span>
-                                                <span className={assignedTotal > 0 ? 'text-green-300' : 'text-red-300'}>
-                                                    {assignedTotal}
-                                                </span>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <span className="text-gray-400">派驻详情:</span>
-                                                <span className="text-gray-300 text-right max-w-[200px] truncate">
-                                                    {Object.entries(merchantAssignments || {})
-                                                        .filter(([, v]) => v > 0)
-                                                        .map(([nationId, count]) => {
-                                                            const nation = nations.find(n => n?.id === nationId);
-                                                            return `${nation?.name || nationId}:${count}`;
-                                                        })
-                                                        .join(', ') || '无'}
-                                                </span>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <span className="text-gray-400">可贸易国家:</span>
-                                                <span className="text-gray-300">
-                                                    {nations.filter(n => !n.isAtWar && (n.relation || 0) >= 20).length}
-                                                </span>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <span className="text-gray-400">pendingTrades数组长度:</span>
-                                                <span className={pendingTrades.length > 0 ? 'text-green-300' : 'text-yellow-300'}>
-                                                    {pendingTrades.length}
-                                                </span>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <span className="text-gray-400">pendingTrades内容:</span>
-                                                <span className="text-gray-300 text-right max-w-[200px] truncate">
-                                                    {JSON.stringify(pendingTrades).slice(0, 50) || '[]'}
-                                                </span>
-                                            </div>
-                                        </div>
                                         <div className="mt-2 pt-2 border-t border-red-500/20 text-[10px] text-gray-400">
                                             <p>可能原因分析:</p>
                                             <ul className="list-disc list-inside mt-1 space-y-0.5">
