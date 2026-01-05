@@ -656,16 +656,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "大纺织厂",
             cost: { brick: 120, tools: 40, silver: 600 },
-            input: { food: 0.8, dye: 0.3333, tools: 0.0267 },
-            output: { cloth: 8.6667, fine_clothes: 1.04 },
-            jobs: { worker: 8, artisan: 2, capitalist: 1 },
+            input: { food: 2.6, dye: 0.975, tools: 0.04 },
+            output: { cloth: 16.25, fine_clothes: 1.95 },
+            jobs: { worker: 15, artisan: 4, capitalist: 1 },
         },
         {
             name: "纺织工场",
             cost: { brick: 200, tools: 60, silver: 1300 },
-            input: { food: 1.2, dye: 0.5333, tools: 0.04, coffee: 0.0533 },
-            output: { cloth: 15.0, fine_clothes: 1.8 },
-            jobs: { worker: 9, artisan: 2, capitalist: 1 },
+            input: { food: 4.5, dye: 1.6875, tools: 0.0692, coffee: 0.0533 },
+            output: { cloth: 28.125, fine_clothes: 3.375 },
+            jobs: { worker: 16, artisan: 4, capitalist: 1 },
         },
     ],
 
@@ -674,16 +674,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "大木材厂",
             cost: { brick: 100, tools: 35, silver: 500 },
-            input: { wood: 2.88, tools: 0.024 },
-            output: { plank: 12.48 },
-            jobs: { worker: 6, artisan: 1, capitalist: 1 },
+            input: { wood: 8.3572, tools: 0.024 },
+            output: { plank: 22.2858 },
+            jobs: { worker: 10, artisan: 1, capitalist: 1 },
         },
         {
             name: "木业公司",
             cost: { brick: 180, tools: 50, silver: 1100 },
-            input: { wood: 4.32, tools: 0.048 },
-            output: { plank: 21.6, furniture: 0.144 },
-            jobs: { worker: 7, artisan: 1, capitalist: 1 },
+            input: { wood: 14.4644, tools: 0.048 },
+            output: { plank: 38.5715, furniture: 0.144 },
+            jobs: { worker: 11, artisan: 1, capitalist: 1 },
         },
     ],
 
@@ -692,16 +692,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "大建材厂",
             cost: { brick: 120, tools: 35, silver: 550 },
-            input: { stone: 1.8667, wood: 0.5833, coal: 0.14 },
-            output: { brick: 8.3417 },
-            jobs: { worker: 7, engineer: 1, capitalist: 1 },
+            input: { stone: 5.85, wood: 1.755, coal: 0.585 },
+            output: { brick: 16.0875 },
+            jobs: { worker: 14, engineer: 1, capitalist: 1 },
         },
         {
             name: "建材公司",
             cost: { brick: 200, tools: 50, silver: 1200 },
-            input: { stone: 2.8, wood: 0.875, coal: 0.21 },
-            output: { brick: 14.4375 },
-            jobs: { worker: 8, engineer: 1, capitalist: 1 },
+            input: { stone: 10.125, wood: 3.0375, coal: 1.0125 },
+            output: { brick: 27.84375 },
+            jobs: { worker: 15, engineer: 1, capitalist: 1 },
         },
     ],
 
@@ -710,16 +710,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "大蒸馏厂",
             cost: { brick: 150, copper: 50, silver: 600 },
-            input: { food: 1.92, coal: 0.144 },
-            output: { ale: 5.46, silver: 1.248 },
-            jobs: { worker: 6, artisan: 2, capitalist: 1 },
+            input: { food: 5.85, coal: 0.585 },
+            output: { ale: 10.2375, silver: 2.34 },
+            jobs: { worker: 12, artisan: 2, capitalist: 1 },
         },
         {
             name: "酒业公司",
             cost: { brick: 250, copper: 80, silver: 1300 },
-            input: { food: 3.0, coal: 0.216 },
-            output: { ale: 9.45, silver: 2.16, culture: 0.12 },
-            jobs: { worker: 7, artisan: 2, capitalist: 1 },
+            input: { food: 10.125, coal: 1.0125 },
+            output: { ale: 17.71875, silver: 4.05, culture: 0.12 },
+            jobs: { worker: 13, artisan: 2, capitalist: 1 },
         },
     ],
 
@@ -728,16 +728,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "大造纸厂",
             cost: { brick: 120, tools: 35, silver: 500 },
-            input: { wood: 1.44, coal: 0.12 },
-            output: { papyrus: 3.9 },
-            jobs: { worker: 6, engineer: 1, capitalist: 1 },
+            input: { wood: 3.9, coal: 0.39 },
+            output: { papyrus: 6.5 },
+            jobs: { worker: 10, engineer: 1, capitalist: 1 },
         },
         {
             name: "造纸公司",
             cost: { brick: 200, tools: 50, silver: 1100 },
-            input: { wood: 2.16, coal: 0.18 },
-            output: { papyrus: 6.75, tools: 0.06 },
-            jobs: { worker: 7, engineer: 1, capitalist: 1 },
+            input: { wood: 6.75, coal: 0.675 },
+            output: { papyrus: 11.25, tools: 0.06 },
+            jobs: { worker: 11, engineer: 1, capitalist: 1 },
         },
     ],
 
@@ -822,16 +822,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "大工厂",
             cost: { brick: 300, steel: 120, silver: 850 },
-            input: { steel: 0.15, coal: 0.15 },
-            output: { tools: 1.56 }, // 1.3x
-            jobs: { worker: 10, engineer: 2, capitalist: 1 }, // keep same
+            input: { steel: 0.52, coal: 0.52 },
+            output: { tools: 3.12 }, // 1.3x of base 2.40
+            jobs: { worker: 20, engineer: 4, capitalist: 1 },
         },
         {
             name: "制造中心",
             cost: { steel: 200, tools: 80, silver: 1900 },
-            input: { steel: 0.25, coal: 0.25 },
-            output: { tools: 2.7, steel: 0.02, science: 0.05 }, // 2.25x + 废钢回收&工艺改良
-            jobs: { worker: 11, engineer: 2, capitalist: 1 }, // +1 worker only
+            input: { steel: 0.90, coal: 0.90 },
+            output: { tools: 5.4, steel: 0.02, science: 0.05 }, // 2.25x + 废钢回收&工艺改良
+            jobs: { worker: 21, engineer: 4, capitalist: 1 },
         },
     ],
 
@@ -840,16 +840,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "大工业矿场",
             cost: { steel: 150, tools: 60, silver: 850 },
-            input: { tools: 0.18, coal: 0.35, wood: 0.4, food: 0.8 },
-            output: { iron: 2.21, copper: 0.72 }, // 1.3x
-            jobs: { miner: 10, engineer: 2, capitalist: 1 }, // keep same
+            input: { tools: 0.33995, coal: 0.68, wood: 0.4, food: 0.8 },
+            output: { iron: 3.85, copper: 1.245 }, // 1.3x
+            jobs: { miner: 17, engineer: 2, capitalist: 1 },
         },
         {
             name: "矿业公司",
             cost: { steel: 250, tools: 100, silver: 1900 },
-            input: { tools: 0.28, coal: 0.5, wood: 0.6, food: 1.0 },
-            output: { iron: 3.825, copper: 1.2375 }, // 2.25x
-            jobs: { miner: 11, engineer: 2, capitalist: 1 }, // +1 miner only
+            input: { tools: 0.588375, coal: 1.125, wood: 0.6, food: 1.0 },
+            output: { iron: 6.663075, copper: 2.153925 }, // 2.25x
+            jobs: { miner: 18, engineer: 2, capitalist: 1 },
         },
     ],
 
@@ -858,16 +858,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "大机械农场",
             cost: { steel: 100, tools: 50, silver: 750 },
-            input: { tools: 0.15, coal: 0.25, iron: 0.06 },
-            output: { food: 28.6 }, // 1.3x
-            jobs: { peasant: 4, worker: 4, engineer: 1, capitalist: 1 }, // keep same, efficiency upgrade
+            input: { tools: 0.2275, coal: 0.455, iron: 0.06 },
+            output: { food: 50.05 }, // 1.3x
+            jobs: { peasant: 8, worker: 8, engineer: 1, capitalist: 1 },
         },
         {
             name: "工业农场",
             cost: { steel: 170, tools: 80, silver: 1700 },
-            input: { tools: 0.25, coal: 0.4, iron: 0.1, dye: 0.03 }, // reasonable input increase
-            output: { food: 49.5, cloth: 0.2 }, // 2.25x + small cloth bonus
-            jobs: { peasant: 5, worker: 4, engineer: 1, capitalist: 1 }, // +1 peasant only
+            input: { tools: 0.39375, coal: 0.7875, iron: 0.1, dye: 0.03 },
+            output: { food: 86.625, cloth: 0.2 },
+            jobs: { peasant: 9, worker: 8, engineer: 1, capitalist: 1 },
         },
     ],
 
@@ -876,16 +876,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "大伐木公司",
             cost: { steel: 60, tools: 40, silver: 650 },
-            input: { tools: 0.12, coal: 0.18, food: 0.4 },
-            output: { wood: 15.6 }, // 1.3x
-            jobs: { lumberjack: 6, worker: 4, engineer: 1, capitalist: 1 }, // keep same, efficiency upgrade
+            input: { tools: 0.1563, coal: 0.325, food: 0.4 },
+            output: { wood: 26.0 }, // 1.3x
+            jobs: { lumberjack: 11, worker: 7, engineer: 1, capitalist: 1 },
         },
         {
             name: "林业公司",
             cost: { steel: 120, tools: 60, silver: 1500 },
-            input: { tools: 0.2, coal: 0.28, food: 0.55 },
-            output: { wood: 27.0 }, // 2.25x
-            jobs: { lumberjack: 7, worker: 4, engineer: 1, capitalist: 1 }, // +1 lumberjack only
+            input: { tools: 0.270825, coal: 0.5625, food: 0.55 },
+            output: { wood: 45.0 }, // 2.25x
+            jobs: { lumberjack: 12, worker: 7, engineer: 1, capitalist: 1 },
         },
     ],
 
@@ -894,16 +894,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "大预制厂",
             cost: { steel: 150, tools: 60, silver: 850 },
-            input: { brick: 1.2, steel: 0.1, stone: 0.5, coal: 0.2 },
-            output: { brick: 14.3 }, // 1.3x
-            jobs: { worker: 10, engineer: 2, capitalist: 1 }, // keep same, efficiency upgrade
+            input: { brick: 3.9, steel: 0.52, stone: 2.6, coal: 1.04 },
+            output: { brick: 28.6 }, // 1.3x of base 22.00
+            jobs: { worker: 20, engineer: 4, capitalist: 1 },
         },
         {
             name: "建筑材料公司",
             cost: { steel: 250, tools: 100, silver: 1900 },
-            input: { brick: 1.8, steel: 0.15, stone: 0.8, coal: 0.3 },
-            output: { brick: 24.75 }, // 2.25x
-            jobs: { worker: 11, engineer: 2, capitalist: 1 }, // +1 worker only
+            input: { brick: 6.75, steel: 0.90, stone: 4.5, coal: 1.80 },
+            output: { brick: 49.5 }, // 2.25x of base 22.00
+            jobs: { worker: 21, engineer: 4, capitalist: 1 },
         },
     ],
 
@@ -912,16 +912,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "大罐头厂",
             cost: { steel: 60, tools: 40, silver: 650 },
-            input: { food: 2.0, iron: 0.25, coal: 0.15 },
-            output: { delicacies: 4.55 }, // 1.3x
-            jobs: { worker: 9, artisan: 2, engineer: 1, capitalist: 1 }, // +1 worker only
+            input: { food: 7.3125, iron: 0.8775, coal: 0.73125 },
+            output: { delicacies: 10.2375 }, // 1.3x of base 7.875
+            jobs: { worker: 17, artisan: 4, engineer: 1, capitalist: 1 },
         },
         {
             name: "食品公司",
             cost: { steel: 120, tools: 60, silver: 1500 },
-            input: { food: 3.0, iron: 0.35, coal: 0.2 },
-            output: { delicacies: 7.875, ale: 0.3 }, // 2.25x + 饮料生产
-            jobs: { worker: 10, artisan: 3, engineer: 1, capitalist: 1 }, // reasonable scaling
+            input: { food: 12.65625, iron: 1.51875, coal: 1.265625 },
+            output: { delicacies: 17.71875, ale: 0.3 }, // 2.25x + 饮料生产
+            jobs: { worker: 18, artisan: 5, engineer: 1, capitalist: 1 },
         },
     ],
 
@@ -930,16 +930,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "大服装厂",
             cost: { steel: 100, tools: 60, silver: 850 },
-            input: { cloth: 2.0, dye: 0.4, coal: 0.2 },
-            output: { fine_clothes: 3.64, culture: 0.39 }, // 1.3x
-            jobs: { worker: 12, artisan: 3, engineer: 1, capitalist: 1 }, // keep same
+            input: { cloth: 4.875, dye: 0.975, coal: 0.585 },
+            output: { fine_clothes: 5.46, culture: 0.585 }, // 1.3x of base 4.20/0.45
+            jobs: { worker: 18, artisan: 4, engineer: 1, capitalist: 1 },
         },
         {
             name: "服装公司",
             cost: { steel: 170, tools: 100, silver: 1900 },
-            input: { cloth: 3.0, dye: 0.6, coal: 0.25 },
-            output: { fine_clothes: 6.3, culture: 0.675, cloth: 0.5 }, // 2.25x + 边角布料回收
-            jobs: { worker: 14, artisan: 3, engineer: 1, capitalist: 1 }, // +2 workers only
+            input: { cloth: 8.4375, dye: 1.6875, coal: 1.0125 },
+            output: { fine_clothes: 9.45, culture: 1.0125, cloth: 0.5 }, // 2.25x + 边角布料回收
+            jobs: { worker: 20, artisan: 4, engineer: 1, capitalist: 1 },
         },
     ],
 
@@ -948,16 +948,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "大家具厂",
             cost: { steel: 80, tools: 50, silver: 750 },
-            input: { plank: 2.0, cloth: 0.6, coal: 0.12 },
-            output: { furniture: 4.55, culture: 0.26 }, // 1.3x
-            jobs: { worker: 8, artisan: 2, engineer: 1, capitalist: 1 }, // keep same
+            input: { plank: 7.3125, cloth: 2.34, coal: 0.73125 },
+            output: { furniture: 10.2375, culture: 0.585 }, // 1.3x of base 7.875/0.45
+            jobs: { worker: 17, artisan: 4, engineer: 1, capitalist: 1 },
         },
         {
             name: "家具公司",
             cost: { steel: 150, tools: 80, silver: 1700 },
-            input: { plank: 3.0, cloth: 0.9, coal: 0.2 },
-            output: { furniture: 7.875, culture: 0.45, plank: 0.4 }, // 2.25x + 木材下脚料
-            jobs: { worker: 9, artisan: 2, engineer: 1, capitalist: 1 }, // +1 worker only
+            input: { plank: 12.65625, cloth: 4.05, coal: 1.265625 },
+            output: { furniture: 17.71875, culture: 1.0125, plank: 0.4 }, // 2.25x + 木材下脚料
+            jobs: { worker: 18, artisan: 4, engineer: 1, capitalist: 1 },
         },
     ],
 
