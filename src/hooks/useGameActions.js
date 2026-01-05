@@ -3075,8 +3075,14 @@ export const useGameActions = (gameState, addLog) => {
                 }
             }
 
+            // New: route mode
+            // - normal: regular trade (requires shortage/surplus)
+            // - force_sell: allow exporting even if partner has no shortage ("倾销")
+            // - force_buy: allow importing even if partner has no surplus ("强买")
+            const mode = actionPayload?.mode || 'normal';
+
             const exists = tradeRoutes.routes.some(
-                route => route.nationId === nationId && route.resource === resourceKey && route.type === type
+                route => route.nationId === nationId && route.resource === resourceKey && route.type === type && (route.mode || 'normal') === mode
             );
             if (exists) {
                 addLog(`已存在该贸易路线。`);
@@ -3085,14 +3091,18 @@ export const useGameActions = (gameState, addLog) => {
 
             const tradeStatus = calculateTradeStatus(resourceKey, targetNation, daysElapsed);
             if (type === 'export') {
-                if (!tradeStatus.isShortage || tradeStatus.shortageAmount <= 0) {
-                    addLog(`${targetNation.name} 对 ${resourceDef.name} 没有缺口，无法创建出口路线。`);
-                    return;
+                if (mode !== 'force_sell') {
+                    if (!tradeStatus.isShortage || tradeStatus.shortageAmount <= 0) {
+                        addLog(`${targetNation.name} 对 ${resourceDef.name} 没有缺口，无法创建出口路线。`);
+                        return;
+                    }
                 }
             } else if (type === 'import') {
-                if (!tradeStatus.isSurplus || tradeStatus.surplusAmount <= 0) {
-                    addLog(`${targetNation.name} 对 ${resourceDef.name} 没有盈余，无法创建进口路线。`);
-                    return;
+                if (mode !== 'force_buy') {
+                    if (!tradeStatus.isSurplus || tradeStatus.surplusAmount <= 0) {
+                        addLog(`${targetNation.name} 对 ${resourceDef.name} 没有盈余，无法创建进口路线。`);
+                        return;
+                    }
                 }
             }
 
@@ -3104,6 +3114,7 @@ export const useGameActions = (gameState, addLog) => {
                         nationId,
                         resource: resourceKey,
                         type,
+                        mode,
                         createdAt: daysElapsed,
                     }
                 ]

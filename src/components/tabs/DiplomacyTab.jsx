@@ -1203,6 +1203,26 @@ const DiplomacyTabComponent = ({
                             });
                         }
                     }}
+                    onCreateRoute={(nationId, resourceKey, type, payload) => {
+                        // Legacy trade-route create (when merchants not unlocked) + new mode payload
+                        if (typeof onDiplomaticAction === 'function') {
+                            onDiplomaticAction(nationId, 'trade_route', {
+                                action: 'create',
+                                resourceKey,
+                                type,
+                                ...(payload && typeof payload === 'object' ? payload : {}),
+                            });
+                        }
+                    }}
+                    onCancelRoute={(nationId, resourceKey, type) => {
+                        if (typeof onDiplomaticAction === 'function') {
+                            onDiplomaticAction(nationId, 'trade_route', {
+                                action: 'cancel',
+                                resourceKey,
+                                type,
+                            });
+                        }
+                    }}
                     onClose={() => setShowTradeRoutesModal(false)}
                 />
             )}

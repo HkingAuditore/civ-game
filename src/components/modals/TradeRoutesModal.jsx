@@ -25,6 +25,12 @@ const TradeRoutesModal = ({
 }) => {
     // Tab state: 'assignments', 'priceCompare'
     const [activeTab, setActiveTab] = useState('assignments');
+
+    // New: trade route mode selector (controls create buttons)
+    // normal: regular trade
+    // force_sell: 倾销（强卖）
+    // force_buy: 强买
+    const [selectedRouteMode, setSelectedRouteMode] = useState('normal');
     // 价格对比分栏的资源筛选状态
     const [selectedResource, setSelectedResource] = useState(null);
 
@@ -96,10 +102,14 @@ const TradeRoutesModal = ({
     }, [nations, epoch]);
 
     // Check if a trade route exists
-    const hasTradeRoute = (nationId, resourceKey, type) => {
+    const hasTradeRoute = (nationId, resourceKey, type, mode = 'normal') => {
         if (!tradeRoutes?.routes) return false;
-        return tradeRoutes.routes.some(
-            route => route.nationId === nationId && route.resource === resourceKey && route.type === type
+        const wantMode = mode || 'normal';
+        return tradeRoutes.routes.some(route =>
+            route.nationId === nationId &&
+            route.resource === resourceKey &&
+            route.type === type &&
+            (route.mode || 'normal') === wantMode
         );
     };
 
@@ -118,7 +128,7 @@ const TradeRoutesModal = ({
         const effectiveTaxRate = taxRate * (1 + tariffMultiplier);
 
         const resourceName = RESOURCES[resourceKey]?.name || resourceKey;
-        const isActive = hasTradeRoute(nation.id, resourceKey, type);
+        const isActive = hasTradeRoute(nation.id, resourceKey, type, selectedRouteMode);
 
         if (type === 'export') {
             // Export: We sell to them. Need foreign shortage.
@@ -229,7 +239,10 @@ const TradeRoutesModal = ({
             if (!nation) return { ...route, economics: null };
             return {
                 ...route,
-                opportunity: calculateTradeOpportunity(nation, route.resource, route.type)
+                opportunity: {
+                    ...calculateTradeOpportunity(nation, route.resource, route.type),
+                    mode: route?.mode || 'normal',
+                }
             };
         });
     }, [tradeRoutes.routes, nations, market, resources, taxPolicies, daysElapsed]);
@@ -438,8 +451,19 @@ const TradeRoutesModal = ({
                 </div>
 
                 {/* Resource */}
-                <div className="col-span-2 flex items-center gap-1">
+                <div className="col-span-2 flex items-center gap-1 min-w-0">
                     <span className="text-gray-300 truncate">{opp.resourceName}</span>
+                    {opp.mode && opp.mode !== 'normal' && (
+                        <span
+                            className={`px-1.5 py-0.5 rounded text-[9px] border ${opp.mode === 'force_sell'
+                                ? 'bg-red-500/10 text-red-300 border-red-500/20'
+                                : 'bg-purple-500/10 text-purple-300 border-purple-500/20'
+                                }`}
+                            title={opp.mode === 'force_sell' ? '倾销（强卖）' : '强买'}
+                        >
+                            {opp.mode === 'force_sell' ? '倾销' : '强买'}
+                        </span>
+                    )}
                 </div>
 
                 {/* Price Info */}
@@ -482,7 +506,7 @@ const TradeRoutesModal = ({
                         </button>
                     ) : onCreateRoute ? (
                         <button
-                            onClick={() => onCreateRoute(opp.nationId, opp.resource, opp.type)}
+                            onClick={() => onCreateRoute(opp.nationId, opp.resource, opp.type, { mode: selectedRouteMode })}
                             className={`p-1 sm:p-1.5 rounded ${isExport
                                 ? 'bg-green-500/10 hover:bg-green-500/20 text-green-400 border border-green-500/20'
                                 : 'bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20'
@@ -904,6 +928,49 @@ const TradeRoutesModal = ({
                                     >
                                         清空
                                     </button>
+                                </div>
+
+                                {/* New: route mode selector */}
+                                <div className="mt-2 flex items-center gap-2">
+                                    <div className="text-[10px] text-gray-500">创建路线模式：</div>
+                                    <div className="inline-flex rounded-lg overflow-hidden border border-white/10">
+                                        <button
+                                            type="button"
+                                            onClick={() => setSelectedRouteMode('normal')}
+                                            className={`px-2 py-1 text-[10px] transition-colors ${selectedRouteMode === 'normal'
+                                                ? 'bg-amber-500/20 text-amber-200'
+                                                : 'bg-gray-800/40 text-gray-400 hover:text-gray-200'
+                                                }`}
+                                            title="正常贸易：遵循对方盈余/缺口"
+                                        >
+                                            正常
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setSelectedRouteMode('force_sell')}
+                                            className={`px-2 py-1 text-[10px] transition-colors ${selectedRouteMode === 'force_sell'
+                                                ? 'bg-red-500/20 text-red-200'
+                                                : 'bg-gray-800/40 text-gray-400 hover:text-gray-200'
+                                                }`}
+                                            title="倾销：允许强卖（出口无视对方缺口），会折价且损失关系"
+                                        >
+                                            倾销
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setSelectedRouteMode('force_buy')}
+                                            className={`px-2 py-1 text-[10px] transition-colors ${selectedRouteMode === 'force_buy'
+                                                ? 'bg-purple-500/20 text-purple-200'
+                                                : 'bg-gray-800/40 text-gray-400 hover:text-gray-200'
+                                                }`}
+                                            title="强买：允许强买（进口无视对方盈余），会溢价且损失关系"
+                                        >
+                                            强买
+                                        </button>
+                                    </div>
+                                    <div className="text-[10px] text-gray-600 hidden sm:block">
+                                        倾销/强买：关系下降，且价格会被折价/溢价
+                                    </div>
                                 </div>
 
                                 <div className="mt-2 flex flex-wrap gap-1.5 max-h-28 overflow-y-auto custom-scrollbar">

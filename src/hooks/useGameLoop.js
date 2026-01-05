@@ -114,11 +114,23 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
         const localPrice = market?.prices?.[resource] ?? (RESOURCES[resource]?.basePrice || 1);
         const foreignPrice = calculateForeignPrice(resource, nation, daysElapsed);
 
+        // New: trade route mode
+        // - normal: must satisfy surplus/shortage like old rules
+        // - force_sell: allow exporting even if the partner has no shortage ("dumping")
+        // - force_buy: allow importing even if the partner has no surplus ("coercive purchase")
+        const mode = route?.mode || 'normal';
+        const isForceSell = mode === 'force_sell';
+        const isForceBuy = mode === 'force_buy';
+
         if (type === 'export') {
             // 出口：商人在国内以国内价购买，在国外以国外价卖出
             // 玩家只赚取商人在国内购买时的交易税
-            if (!tradeStatus.isShortage || tradeStatus.shortageAmount <= 0) {
-                return; // 对方没有缺口，暂停贸易但保留路线
+
+            // Normal export requires partner shortage; force_sell ignores it.
+            if (!isForceSell) {
+                if (!tradeStatus.isShortage || tradeStatus.shortageAmount <= 0) {
+                    return; // 对方没有缺口，暂停贸易但保留路线
+                }
             }
 
             // 计算我方盈余
@@ -130,8 +142,12 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
                 return; // 我方没有盈余，暂停贸易但保留路线
             }
 
-            // 计算本次出口量：取我方盈余和对方缺口的较小值，再乘以速度
-            const exportAmount = Math.min(mySurplus, tradeStatus.shortageAmount) * TRADE_SPEED;
+            // 计算本次出口量：
+            // - normal: min(盈余, 对方缺口)
+            // - force_sell: 允许倾销，只看我方盈余（但仍受 TRADE_SPEED 限制）
+            const shortageCap = Math.max(0, tradeStatus.shortageAmount || 0);
+            const exportCap = isForceSell ? mySurplus : Math.min(mySurplus, shortageCap);
+            const exportAmount = exportCap * TRADE_SPEED;
 
             if (exportAmount < MIN_TRADE_AMOUNT) {
                 return;
@@ -146,7 +162,10 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
             const tradeTax = domesticPurchaseCost * effectiveTaxRate; // 玩家获得的交易税
 
             // 商人在国外销售
-            const foreignSaleRevenue = foreignPrice * exportAmount;  // 商人在国外的销售收入
+            // force_sell：倾销折价，避免无脑刷钱，同时制造外交代价
+            const dumpingDiscount = 0.6;
+            const effectiveForeignPrice = isForceSell ? foreignPrice * dumpingDiscount : foreignPrice;
+            const foreignSaleRevenue = effectiveForeignPrice * exportAmount;  // 商人在国外的销售收入
             const merchantProfit = foreignSaleRevenue - domesticPurchaseCost - tradeTax; // 商人获得的利润（含关税成本）
 
             if (merchantProfit <= 0) {
@@ -162,6 +181,7 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
             totalTradeTax += tradeTax;
 
             // 更新外国：支付给商人，获得资源
+            // force_sell：关系下降（被倾销），并且对方预算扣款更小（视为“低价抢购”）
             setNations(prev => prev.map(n =>
                 n.id === nationId
                     ? {
@@ -171,31 +191,39 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
                             ...n.inventory,
                             [resource]: ((n.inventory || {})[resource] || 0) + exportAmount,
                         },
-                        relation: Math.min(100, (n.relation || 0) + 0.2), // 贸易改善关系 (Base 0.05 -> 0.2)
+                        relation: Math.min(100, Math.max(-100, (n.relation || 0) + (isForceSell ? -0.6 : 0.2))),
                     }
                     : n
             ));
 
-            //   if (exportAmount >= 1) {
-            //     tradeLog.push(`🚢 出口 ${ exportAmount.toFixed(1) } ${ RESOURCES[resource]?.name || resource } 至 ${ nation.name }：商人国内购 ${ domesticPurchaseCost.toFixed(1) } 银币（税 ${ tradeTax.toFixed(1) }），国外售 ${ foreignSaleRevenue.toFixed(1) } 银币，商人赚 ${ merchantProfit.toFixed(1) } 银币。`);
-            //   }
-
         } else if (type === 'import') {
             // 进口：商人在国外以国外价购买，在国内以国内价卖出
             // 玩家只赚取商人在国内销售时的交易税
-            if (!tradeStatus.isSurplus || tradeStatus.surplusAmount <= 0) {
-                return; // 对方没有盈余，暂停贸易但保留路线
+
+            // Normal import requires partner surplus; force_buy ignores it.
+            if (!isForceBuy) {
+                if (!tradeStatus.isSurplus || tradeStatus.surplusAmount <= 0) {
+                    return; // 对方没有盈余，暂停贸易但保留路线
+                }
             }
 
-            // 计算本次进口量：对方盈余的一定比例
-            const importAmount = tradeStatus.surplusAmount * TRADE_SPEED;
+            // 计算本次进口量：
+            // - normal: 对方盈余的一定比例
+            // - force_buy: 允许强买，按固定“目标供给”抽取一部分（同时对关系造成伤害）
+            const normalImportCap = Math.max(0, tradeStatus.surplusAmount || 0);
+            const forcedBaseline = Math.max(10, tradeStatus.target || 0); // 给旧存档/无target时兜底
+            const importCap = isForceBuy ? forcedBaseline : normalImportCap;
+            const importAmount = importCap * TRADE_SPEED;
 
             if (importAmount < MIN_TRADE_AMOUNT) {
                 return;
             }
 
             // 商人在国外购买资源
-            const foreignPurchaseCost = foreignPrice * importAmount;  // 商人在国外的购买成本
+            // force_buy：强买溢价（你硬要买，对方抬价），避免无脑套利
+            const forcedPremium = 1.3;
+            const effectiveForeignPrice = isForceBuy ? foreignPrice * forcedPremium : foreignPrice;
+            const foreignPurchaseCost = effectiveForeignPrice * importAmount;  // 商人在国外的购买成本
 
             // 商人在国内销售
             const domesticSaleRevenue = localPrice * importAmount;  // 商人在国内的销售收入
@@ -210,9 +238,6 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
                 return;
             }
 
-            // 商人需要有足够资金从国外购买（这里简化处理，假设商人总有足够资金）
-            // 实际上商人的资金来自于之前的交易利润，这里不做详细模拟
-
             // 更新玩家资源：增加进口的资源，获得交易税
             setResources(prev => ({
                 ...prev,
@@ -222,6 +247,7 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
             totalTradeTax += tradeTax;
 
             // 更新外国：收到商人支付，失去资源
+            // force_buy：关系下降（被强买），库存允许被压到0
             setNations(prev => prev.map(n =>
                 n.id === nationId
                     ? {
@@ -231,12 +257,12 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
                             ...n.inventory,
                             [resource]: Math.max(0, ((n.inventory || {})[resource] || 0) - importAmount),
                         },
-                        relation: Math.min(100, (n.relation || 0) + 0.2), // 贸易改善关系 (Base 0.05 -> 0.2)
+                        relation: Math.min(100, Math.max(-100, (n.relation || 0) + (isForceBuy ? -0.6 : 0.2))),
                     }
                     : n
             ));
 
-            if (importAmount >= 1) {
+            if (importAmount >= 1 && !isForceBuy) {
                 tradeLog.push(`🚢 进口 ${importAmount.toFixed(1)} ${RESOURCES[resource]?.name || resource} 从 ${nation.name}：商人国外购 ${foreignPurchaseCost.toFixed(1)} 银币，国内售 ${domesticSaleRevenue.toFixed(1)} 银币（税 ${tradeTax.toFixed(1)}），商人赚 ${merchantProfit.toFixed(1)} 银币。`);
             }
         }
