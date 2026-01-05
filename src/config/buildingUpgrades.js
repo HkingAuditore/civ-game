@@ -24,15 +24,15 @@ export const BUILDING_UPGRADES = {
             name: "灌溉田",
             cost: { wood: 50, stone: 20, tools: 5, silver: 300 },
             input: { tools: 0.04, wood: 0.06 }, // modest tool and wood cost
-            output: { food: 4.16 }, // 1.3x
-            jobs: { peasant: 2 }, // keep same, efficiency upgrade
+            output: { food: 6.24 }, // 1.3x of base 4.8
+            jobs: { peasant: 3 }, // keep same, efficiency upgrade
         },
         {
             name: "精耕田",
             cost: { plank: 80, brick: 40, tools: 15, silver: 800 },
             input: { tools: 0.08, wood: 0.1 }, // reasonable input increase
-            output: { food: 7.2 }, // 2.25x
-            jobs: { peasant: 3 }, // +1 peasant only
+            output: { food: 10.8 }, // 2.25x of base 4.8
+            jobs: { peasant: 4 }, // +1 peasant only
         },
     ],
 
@@ -42,15 +42,15 @@ export const BUILDING_UPGRADES = {
             name: "大伐木场",
             cost: { wood: 80, stone: 30, tools: 10, silver: 250 },
             input: { tools: 0.05, food: 0.15 }, // modest input cost
-            output: { wood: 3.33 }, // 1.3x
-            jobs: { lumberjack: 2 }, // keep same, efficiency upgrade
+            output: { wood: 4.992 }, // 1.3x of base 3.84
+            jobs: { lumberjack: 3 }, // keep same, efficiency upgrade
         },
         {
             name: "林场",
             cost: { plank: 60, brick: 30, tools: 20, silver: 600 },
             input: { tools: 0.1 }, // tools only, food removed
-            output: { wood: 5.76, food: 0.15 }, // 2.25x + 林场野味
-            jobs: { lumberjack: 3 }, // +1 lumberjack only
+            output: { wood: 8.64, food: 0.15 }, // 2.25x of base 3.84 + 林场野味
+            jobs: { lumberjack: 4 }, // +1 lumberjack only
         },
     ],
 
@@ -60,15 +60,15 @@ export const BUILDING_UPGRADES = {
             name: "深坑采石场",
             cost: { wood: 80, stone: 50, tools: 15, silver: 300 },
             input: { tools: 0.06, wood: 0.15, food: 0.15 }, // modest input cost
-            output: { stone: 2.6 }, // 1.3x
-            jobs: { miner: 2 }, // keep same, efficiency upgrade
+            output: { stone: 3.9 }, // 1.3x of base 3.0
+            jobs: { miner: 3 }, // keep same, efficiency upgrade
         },
         {
             name: "大采石场",
             cost: { plank: 80, stone: 100, tools: 30, silver: 700 },
             input: { tools: 0.12, wood: 0.25, food: 0.25 }, // reasonable input increase
-            output: { stone: 4.5, copper: 0.02 }, // 2.25x + 伴生矿
-            jobs: { miner: 3 }, // +1 miner only
+            output: { stone: 6.75, copper: 0.02 }, // 2.25x of base 3.0 + 伴生矿
+            jobs: { miner: 4 }, // +1 miner only
         },
     ],
 
@@ -79,14 +79,14 @@ export const BUILDING_UPGRADES = {
             cost: { wood: 80, stone: 40, tools: 10, silver: 250 },
             input: { tools: 0.02 },
             output: { cloth: 2.5 }, // 1.3x
-            jobs: { worker: 2 }, // keep same, efficiency upgrade
+            jobs: { worker: 3 }, // keep same, efficiency upgrade
         },
         {
             name: "大织布坊",
             cost: { plank: 60, brick: 40, tools: 20, silver: 600 },
             input: { tools: 0.04, dye: 0.03 }, // 新增染料需求
             output: { cloth: 4.32, culture: 0.05 }, // 2.25x + 织艺文化
-            jobs: { worker: 3 }, // +1 worker only
+            jobs: { worker: 4 }, // +1 worker only
         },
     ],
 
@@ -97,14 +97,14 @@ export const BUILDING_UPGRADES = {
             cost: { stone: 80, wood: 40, tools: 15, silver: 300 },
             input: { stone: 1.0, wood: 0.35, tools: 0.02 },
             output: { brick: 3.12 }, // 1.3x
-            jobs: { worker: 2 }, // keep same, efficiency upgrade
+            jobs: { worker: 3 }, // keep same, efficiency upgrade
         },
         {
             name: "大砖窑",
             cost: { stone: 120, brick: 80, tools: 30, silver: 700 },
             input: { stone: 1.5, wood: 0.5, tools: 0.04 },
             output: { brick: 5.4, tools: 0.02 }, // 2.25x + 模具生产
-            jobs: { worker: 3 }, // +1 worker only
+            jobs: { worker: 4 }, // +1 worker only
         },
     ],
 
@@ -114,16 +114,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "工匠铺",
             cost: { stone: 50, wood: 50, silver: 200 },
-            input: { wood: 1.1, stone: 0.9 },
-            output: { tools: 0.65 }, // 1.3x
-            jobs: { artisan: 2 }, // keep same, efficiency upgrade
+            input: { wood: 1.65, stone: 1.35 },
+            output: { tools: 0.975 },
+            jobs: { artisan: 3 },
         },
         {
             name: "大工匠铺",
             cost: { brick: 40, plank: 40, silver: 500 },
-            input: { wood: 1.5, stone: 1.2 },
-            output: { tools: 0.9 }, // 1.8x
-            jobs: { artisan: 2 }, // keep same, efficiency upgrade
+            input: { wood: 2.25, stone: 1.8 },
+            output: { tools: 1.35 },
+            jobs: { artisan: 3 },
         },
     ],
 
@@ -133,15 +133,15 @@ export const BUILDING_UPGRADES = {
             name: "商铺",
             cost: { wood: 100, stone: 40, silver: 400 },
             input: { tools: 0.01 },
-            output: { food: 2.6, silver: 1.04 }, // 1.3x
-            jobs: { merchant: 1 }, // keep same, efficiency upgrade
+            output: { food: 5.2, silver: 2.08 }, // 1.3x of base 4 / 1.6
+            jobs: { merchant: 2 }, // keep same, efficiency upgrade
         },
         {
             name: "商会",
             cost: { plank: 80, brick: 60, silver: 900 },
             input: { tools: 0.02, papyrus: 0.01 },
-            output: { food: 4.5, silver: 1.8, spice: 0.02 }, // 2.25x + 异域贸易
-            jobs: { merchant: 2 }, // +1 merchant only
+            output: { food: 9.0, silver: 3.6, spice: 0.02 }, // 2.25x of base 4 / 1.6 + 异域贸易
+            jobs: { merchant: 3 }, // +1 merchant only
         },
     ],
 
@@ -152,15 +152,15 @@ export const BUILDING_UPGRADES = {
             name: "学堂",
             cost: { stone: 150, plank: 40, papyrus: 30, brick: 40, silver: 600 },
             input: { papyrus: 0.08 },
-            output: { science: 1.04 }, // 1.3x
-            jobs: { scribe: 3 }, // keep same, efficiency upgrade
+            output: { science: 1.3867 }, // 1.3x of base 1.0667
+            jobs: { scribe: 4 }, // keep same, efficiency upgrade
         },
         {
             name: "书院",
             cost: { brick: 120, plank: 60, papyrus: 80, silver: 1400 },
             input: { papyrus: 0.15 },
-            output: { science: 1.8, culture: 0.12 }, // 2.25x + 文教传承
-            jobs: { scribe: 4 }, // +1 scribe only (officials are expensive)
+            output: { science: 2.4, culture: 0.12 }, // 2.25x of base 1.0667 + 文教传承
+            jobs: { scribe: 5 }, // +1 scribe only (officials are expensive)
         },
     ],
 
@@ -172,15 +172,15 @@ export const BUILDING_UPGRADES = {
             name: "深铜矿",
             cost: { wood: 120, tools: 20, silver: 350 },
             input: { tools: 0.05, wood: 0.2, food: 0.2 }, // modest input cost
-            output: { copper: 0.65 }, // 1.3x
-            jobs: { miner: 3 }, // keep same, efficiency upgrade
+            output: { copper: 0.8667 }, // 1.3x of base 0.6667
+            jobs: { miner: 4 }, // keep same, efficiency upgrade
         },
         {
             name: "大铜矿",
             cost: { plank: 80, tools: 40, silver: 800 },
             input: { tools: 0.1, wood: 0.35, food: 0.35 }, // reasonable input increase
-            output: { copper: 1.125, stone: 0.15 }, // 2.25x + 废石利用
-            jobs: { miner: 4 }, // +1 miner only
+            output: { copper: 1.5, stone: 0.15 }, // 2.25x of base 0.6667 + 废石利用
+            jobs: { miner: 5 }, // +1 miner only
         },
     ],
 
@@ -190,15 +190,15 @@ export const BUILDING_UPGRADES = {
             name: "大染坊",
             cost: { wood: 60, stone: 25, tools: 10, silver: 250 },
             input: { food: 0.6, tools: 0.02 },
-            output: { dye: 0.78 }, // 1.3x
-            jobs: { worker: 2 }, // keep same, efficiency upgrade
+            output: { dye: 1.17 }, // 1.3x of base 0.9
+            jobs: { worker: 3 }, // keep same, efficiency upgrade
         },
         {
             name: "染色工坊",
             cost: { plank: 50, brick: 30, tools: 20, silver: 600 },
             input: { food: 0.9, tools: 0.04, cloth: 0.05 }, // 需要布料样本
-            output: { dye: 1.35, culture: 0.05 }, // 2.25x + 染艺文化
-            jobs: { worker: 3 }, // +1 worker only
+            output: { dye: 2.025, culture: 0.05 }, // 2.25x of base 0.9 + 染艺文化
+            jobs: { worker: 4 }, // +1 worker only
         },
     ],
 
@@ -208,15 +208,15 @@ export const BUILDING_UPGRADES = {
             name: "水力锯木坊",
             cost: { wood: 120, stone: 40, tools: 15, silver: 350 },
             input: { wood: 1.4, tools: 0.03 },
-            output: { plank: 3.38 }, // 1.3x
-            jobs: { worker: 3 }, // keep same, efficiency upgrade
+            output: { plank: 4.511 }, // 1.3x of base 3.47
+            jobs: { worker: 4 }, // keep same, efficiency upgrade
         },
         {
             name: "大锯木坊",
             cost: { plank: 80, brick: 50, tools: 30, silver: 800 },
             input: { wood: 2.0, tools: 0.06, cloth: 0.05 }, // 需要布料（家具软垫）
-            output: { plank: 5.85, furniture: 0.05 }, // 2.25x + 边角料家具
-            jobs: { worker: 4 }, // +1 worker only
+            output: { plank: 7.8075, furniture: 0.05 }, // 2.25x of base 3.47 + 边角料家具
+            jobs: { worker: 5 }, // +1 worker only
         },
     ],
 
@@ -226,16 +226,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "改良铸坊",
             cost: { stone: 60, copper: 25, silver: 300 },
-            input: { copper: 0.5, wood: 0.3, tools: 0.01 },
-            output: { tools: 1.3 }, // 1.3x
-            jobs: { worker: 2, artisan: 1 }, // keep same, efficiency upgrade
+            input: { copper: 0.75, wood: 0.45, tools: 0.015 },
+            output: { tools: 1.95 },
+            jobs: { worker: 3, artisan: 1 },
         },
         {
             name: "大铸坊",
             cost: { brick: 50, copper: 40, silver: 700 },
-            input: { copper: 0.7, wood: 0.45, tools: 0.02 },
-            output: { tools: 1.8 }, // 1.8x
-            jobs: { worker: 2, artisan: 1 }, // keep same, efficiency upgrade
+            input: { copper: 1.05, wood: 0.675, tools: 0.03 },
+            output: { tools: 2.7 },
+            jobs: { worker: 3, artisan: 1 },
         },
     ],
 
@@ -246,7 +246,7 @@ export const BUILDING_UPGRADES = {
             cost: { stone: 120, brick: 40, silver: 400 },
             input: { fine_clothes: 0.06 }, // 降低消耗
             output: { culture: 1.56, silver: 0.8 }, // 1.3x + 门票收入
-            jobs: { cleric: 1 }, // 减少岗位，提升人均效率
+            jobs: { cleric: 2 }, // 减少岗位，提升人均效率
         },
         {
             name: "宏伟剧场",
@@ -265,15 +265,15 @@ export const BUILDING_UPGRADES = {
             name: "改良造纸坊",
             cost: { wood: 60, tools: 10, silver: 220 },
             input: { tools: 0.01 },
-            output: { papyrus: 0.78 }, // 1.3x
-            jobs: { worker: 2 }, // keep same, efficiency upgrade
+            output: { papyrus: 1.17 }, // 1.3x of base 0.90
+            jobs: { worker: 3 }, // keep same, efficiency upgrade
         },
         {
             name: "大造纸坊",
             cost: { plank: 50, tools: 20, silver: 500 },
             input: { tools: 0.02 },
-            output: { papyrus: 1.35, science: 0.05 }, // 2.25x + 研墨副产
-            jobs: { worker: 3 }, // +1 worker only
+            output: { papyrus: 2.025, science: 0.05 }, // 2.25x of base 0.90 + 研墨副产
+            jobs: { worker: 4 }, // +1 worker only
         },
     ],
 
@@ -283,15 +283,15 @@ export const BUILDING_UPGRADES = {
             name: "精致厨房",
             cost: { brick: 40, tools: 15, cloth: 8, silver: 350 },
             input: { tools: 0.08, food: 1.2 },
-            output: { delicacies: 1.95 }, // 1.3x
-            jobs: { artisan: 2, peasant: 1 }, // keep same, efficiency upgrade
+            output: { delicacies: 2.6 }, // 1.3x of base 2.00
+            jobs: { artisan: 3, peasant: 1 }, // keep same, efficiency upgrade
         },
         {
             name: "御膳房",
             cost: { brick: 60, furniture: 15, delicacies: 20, silver: 800 },
             input: { tools: 0.12, food: 1.8, spice: 0.06 }, // 需要香料
-            output: { delicacies: 3.375, culture: 0.08 }, // 2.25x + 美食文化
-            jobs: { artisan: 2, peasant: 2 }, // +1 peasant only (artisan expensive)
+            output: { delicacies: 4.5, culture: 0.08 }, // 2.25x of base 2.00 + 美食文化
+            jobs: { artisan: 3, peasant: 2 }, // +1 peasant only (artisan expensive)
         },
     ],
 
@@ -301,15 +301,15 @@ export const BUILDING_UPGRADES = {
             name: "大酒坊",
             cost: { brick: 30, tools: 12, cloth: 6, silver: 280 },
             input: { food: 1.0, wood: 0.15, tools: 0.01 },
-            output: { ale: 1.56 }, // 1.3x
-            jobs: { worker: 2 }, // keep same, efficiency upgrade
+            output: { ale: 2.34 }, // 1.3x of base 1.80
+            jobs: { worker: 3 }, // keep same, efficiency upgrade
         },
         {
             name: "酿酒工坊",
             cost: { brick: 50, tools: 25, dye: 10, ale: 15, silver: 650 },
             input: { food: 1.5, wood: 0.25, tools: 0.02, spice: 0.03 }, // 需要香料调味
-            output: { ale: 2.7, culture: 0.05 }, // 2.25x + 酒文化
-            jobs: { worker: 3 }, // +1 worker only
+            output: { ale: 4.05, culture: 0.05 }, // 2.25x of base 1.80 + 酒文化
+            jobs: { worker: 4 }, // +1 worker only
         },
     ],
 
@@ -319,15 +319,15 @@ export const BUILDING_UPGRADES = {
             name: "精工家具坊",
             cost: { plank: 80, tools: 20, silver: 400 },
             input: { tools: 0.08, plank: 1.0, cloth: 0.25 },
-            output: { furniture: 1.56 }, // 1.3x
-            jobs: { artisan: 3 }, // keep same, efficiency upgrade
+            output: { furniture: 2.08 }, // 1.3x of base 1.60
+            jobs: { artisan: 4 }, // keep same, efficiency upgrade
         },
         {
             name: "大家具坊",
             cost: { plank: 120, furniture: 15, silver: 900 },
             input: { tools: 0.12, plank: 1.5, cloth: 0.35 },
-            output: { furniture: 2.7 }, // 2.25x
-            jobs: { artisan: 4 }, // +1 artisan only (no worker needed)
+            output: { furniture: 3.6 }, // 2.25x of base 1.60
+            jobs: { artisan: 5 }, // +1 artisan only (no worker needed)
         },
     ],
 
@@ -338,14 +338,14 @@ export const BUILDING_UPGRADES = {
             cost: { plank: 50, tools: 15, silver: 350 },
             input: { tools: 0.035, cloth: 0.85, dye: 0.17 },
             output: { fine_clothes: 1.04, culture: 0.13 }, // 1.3x
-            jobs: { artisan: 2 }, // keep same, efficiency upgrade
+            jobs: { artisan: 3 }, // keep same, efficiency upgrade
         },
         {
             name: "御用成衣坊",
             cost: { brick: 40, fine_clothes: 10, silver: 800 },
             input: { tools: 0.05, cloth: 1.3, dye: 0.25 },
             output: { fine_clothes: 1.8, culture: 0.225 }, // 2.25x
-            jobs: { artisan: 3 }, // +1 artisan only
+            jobs: { artisan: 4 }, // +1 artisan only
         },
     ],
 
@@ -356,14 +356,14 @@ export const BUILDING_UPGRADES = {
             cost: { plank: 80, tools: 25, silver: 400 },
             input: { tools: 0.08, wood: 0.2, food: 0.3 }, // modest input cost
             output: { iron: 1.65 }, // 1.3x
-            jobs: { miner: 5, capitalist: 1 }, // keep same, efficiency upgrade
+            jobs: { miner: 7, capitalist: 1 }, // keep same, efficiency upgrade
         },
         {
             name: "大铁矿",
             cost: { brick: 60, tools: 40, silver: 900 },
             input: { tools: 0.15, wood: 0.35, food: 0.45 }, // reasonable input increase
             output: { iron: 2.86, coal: 0.05 }, // 2.25x + 煤层伴生
-            jobs: { miner: 6, capitalist: 1 }, // +1 miner only
+            jobs: { miner: 9, capitalist: 1 }, // +2 miners only
         },
     ],
 
@@ -373,16 +373,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "精铁工坊",
             cost: { brick: 60, iron: 30, silver: 400 },
-            input: { wood: 0.4, iron: 0.65, tools: 0.01 },
-            output: { tools: 1.95 }, // 1.3x
-            jobs: { worker: 2, artisan: 1 }, // keep same, efficiency upgrade
+            input: { wood: 0.6, iron: 0.975, tools: 0.015 },
+            output: { tools: 2.925 },
+            jobs: { worker: 3, artisan: 1 },
         },
         {
             name: "大铁匠铺",
             cost: { brick: 100, iron: 50, silver: 900 },
-            input: { wood: 0.6, iron: 1.0, tools: 0.02 },
-            output: { tools: 2.7 }, // 1.8x
-            jobs: { worker: 2, artisan: 1 }, // keep same, efficiency upgrade
+            input: { wood: 0.9, iron: 1.5, tools: 0.03 },
+            output: { tools: 4.05 },
+            jobs: { worker: 3, artisan: 1 },
         },
     ],
 
@@ -393,14 +393,14 @@ export const BUILDING_UPGRADES = {
             cost: { plank: 60, tools: 20, silver: 400 },
             input: { tools: 0.1, wood: 0.15 }, // modest input cost
             output: { food: 23.4 }, // 1.3x
-            jobs: { serf: 6, landowner: 1 }, // keep same, efficiency upgrade
+            jobs: { serf: 8, landowner: 1 }, // keep same, efficiency upgrade
         },
         {
             name: "领主庄园",
             cost: { brick: 50, furniture: 15, silver: 900 },
             input: { tools: 0.18, wood: 0.25, cloth: 0.05 }, // reasonable input increase
             output: { food: 40.5, cloth: 0.1, ale: 0.03 }, // 2.25x + small bonus products
-            jobs: { serf: 7, landowner: 1 }, // +1 serf only
+            jobs: { serf: 9, landowner: 1 }, // +1 serf only
         },
     ],
 
@@ -411,14 +411,14 @@ export const BUILDING_UPGRADES = {
             cost: { brick: 80, furniture: 25, silver: 500 },
             input: { furniture: 0.05, fine_clothes: 0.04 }, // 降低消耗
             output: { culture: 1.04, silver: 1.2 }, // 1.3x + 奉献收入
-            jobs: { cleric: 2 }, // 减少岗位
+            jobs: { cleric: 3 }, // 减少岗位
         },
         {
             name: "主教座堂",
             cost: { brick: 150, furniture: 40, silver: 1200 },
             input: { furniture: 0.06, fine_clothes: 0.05, papyrus: 0.02 }, // 降低消耗
             output: { culture: 1.44, silver: 2.0, science: 0.15 }, // 1.8x + 高额奉献 + 神学
-            jobs: { cleric: 3 }, // 减少岗位
+            jobs: { cleric: 4 }, // 减少岗位
         },
     ],
 
@@ -432,7 +432,7 @@ export const BUILDING_UPGRADES = {
             cost: { stone: 80, tools: 20, silver: 400 },
             input: { food: 2.0, wood: 0.35 },
             output: { ale: 2.6, culture: 0.33 }, // 1.3x
-            jobs: { cleric: 1, worker: 2 }, // keep same
+            jobs: { cleric: 1, worker: 3 }, // keep same
         },
         {
             name: "酿酒修道院",
@@ -450,14 +450,14 @@ export const BUILDING_UPGRADES = {
             cost: { plank: 80, tools: 20, silver: 380 },
             input: { food: 0.7, tools: 0.04 },
             output: { cloth: 4.16, fine_clothes: 0.26 }, // 1.3x
-            jobs: { serf: 3, worker: 2 }, // keep same
+            jobs: { serf: 4, worker: 3 }, // keep same
         },
         {
             name: "领主纺织工场",
             cost: { brick: 60, tools: 35, silver: 850 },
             input: { food: 1.0, tools: 0.06, dye: 0.05 }, // 需要染料
             output: { cloth: 7.2, fine_clothes: 0.45, culture: 0.05 }, // 2.25x + 织艺文化
-            jobs: { serf: 4, worker: 2 }, // +1 serf
+            jobs: { serf: 5, worker: 3 }, // +1 serf
         },
     ],
 
@@ -468,14 +468,14 @@ export const BUILDING_UPGRADES = {
             cost: { plank: 60, iron: 25, silver: 350 },
             input: { tools: 0.08, food: 0.15 },
             output: { stone: 4.55 }, // 1.3x
-            jobs: { miner: 3, worker: 1 }, // keep same
+            jobs: { miner: 4, worker: 1 }, // keep same
         },
         {
             name: "皇家采石场",
             cost: { brick: 80, iron: 40, silver: 800 },
             input: { tools: 0.12, food: 0.25 },
             output: { stone: 7.875, brick: 0.15 }, // 2.25x + 砖石加工
-            jobs: { miner: 4, worker: 1 }, // +1 miner
+            jobs: { miner: 5, worker: 1 }, // +1 miner
         },
     ],
 
@@ -486,14 +486,14 @@ export const BUILDING_UPGRADES = {
             cost: { plank: 80, tools: 30, silver: 450 },
             input: { tools: 0.1, food: 0.2 },
             output: { wood: 6.24 }, // 1.3x
-            jobs: { lumberjack: 4, worker: 1 }, // keep same
+            jobs: { lumberjack: 5, worker: 1 }, // keep same
         },
         {
             name: "皇家御林",
             cost: { brick: 80, tools: 50, silver: 900 },
             input: { tools: 0.15, food: 0.35 },
             output: { wood: 10.8, food: 0.2 }, // 2.25x + 狩猎副产
-            jobs: { lumberjack: 5, worker: 1 }, // +1 lumberjack
+            jobs: { lumberjack: 6, worker: 1 }, // +1 lumberjack
         },
     ],
 
@@ -524,14 +524,14 @@ export const BUILDING_UPGRADES = {
             cost: { plank: 80, papyrus: 40, silver: 400 },
             input: { papyrus: 0.05 },
             output: { science: 0.78, culture: 0.26 }, // 1.3x
-            jobs: { navigator: 2, scribe: 1, official: 1 }, // keep same, efficiency upgrade
+            jobs: { navigator: 3, scribe: 1, official: 1 }, // keep same, efficiency upgrade
         },
         {
             name: "皇家航海学院",
             cost: { brick: 60, papyrus: 80, silver: 900 },
             input: { papyrus: 0.08, coffee: 0.03 }, // 需要咖啡提神
             output: { science: 1.35, culture: 0.45 }, // 2.25x
-            jobs: { navigator: 3, scribe: 1, official: 1 }, // +1 navigator only
+            jobs: { navigator: 4, scribe: 1, official: 1 }, // +1 navigator only
         },
     ],
 
@@ -542,14 +542,14 @@ export const BUILDING_UPGRADES = {
             cost: { plank: 150, spice: 30, silver: 600 },
             input: { spice: 0.25 },
             output: { food: 2.6, silver: 0.15 }, // 1.3x
-            jobs: { merchant: 3 }, // keep same, efficiency upgrade
+            jobs: { merchant: 4 }, // keep same, efficiency upgrade
         },
         {
             name: "贸易枢纽",
             cost: { brick: 120, spice: 60, silver: 1300 },
             input: { spice: 0.35, cloth: 0.06 }, // 需要帆布
             output: { food: 4.5, silver: 0.4 }, // 2.25x + 贸易利润
-            jobs: { merchant: 4 }, // +1 merchant only
+            jobs: { merchant: 5 }, // +1 merchant only
         },
     ],
 
@@ -560,14 +560,14 @@ export const BUILDING_UPGRADES = {
             cost: { brick: 120, tools: 45, silver: 650 },
             input: { tools: 0.14, wood: 0.3 },
             output: { iron: 1.56, copper: 1.04 }, // 1.3x
-            jobs: { miner: 5, engineer: 1 }, // keep same
+            jobs: { miner: 6, engineer: 1 }, // keep same
         },
         {
             name: "蒸汽矿井",
             cost: { brick: 200, steel: 50, tools: 80, silver: 1200 },
             input: { tools: 0.2, coal: 0.15, wood: 0.4 }, // 引入煤炭
             output: { iron: 2.7, copper: 1.8, coal: 0.1 }, // 2.25x + 煤炭回收
-            jobs: { miner: 6, engineer: 1 }, // +1 miner
+            jobs: { miner: 7, engineer: 1 }, // +1 miner
         },
     ],
 
@@ -581,14 +581,14 @@ export const BUILDING_UPGRADES = {
             cost: { brick: 80, tools: 25, silver: 480 },
             input: { food: 0.9, cloth: 0.5, spice: 0.06 },
             output: { dye: 1.56, fine_clothes: 0.39 }, // 1.3x
-            jobs: { artisan: 2, worker: 2 }, // keep same
+            jobs: { artisan: 3, worker: 2 }, // keep same
         },
         {
             name: "皇家印染工坊",
             cost: { brick: 140, tools: 45, silver: 1050 },
             input: { food: 1.2, cloth: 0.7, spice: 0.08, iron: 0.02 }, // 需要金属染缸
             output: { dye: 2.7, fine_clothes: 0.675, culture: 0.08 }, // 2.25x + 织染艺术
-            jobs: { artisan: 3, worker: 2 }, // +1 artisan
+            jobs: { artisan: 4, worker: 2 }, // +1 artisan
         },
     ],
 
@@ -600,14 +600,14 @@ export const BUILDING_UPGRADES = {
             cost: { wood: 300, spice: 40, silver: 800 },
             input: { tools: 0.03 },
             output: { coffee: 0.52 }, // 1.3x
-            jobs: { serf: 4, merchant: 1 }, // keep same, efficiency upgrade
+            jobs: { serf: 6, merchant: 1 }, // keep same, efficiency upgrade
         },
         {
             name: "种植园庄园",
             cost: { plank: 200, tools: 60, silver: 1800 },
             input: { tools: 0.06 },
             output: { coffee: 0.9, spice: 0.02, food: 0.5 }, // 2.25x + 混种&粮食副产
-            jobs: { serf: 5, merchant: 1 }, // +1 serf only
+            jobs: { serf: 8, merchant: 1 }, // +1 serf only
         },
     ],
 
@@ -626,7 +626,7 @@ export const BUILDING_UPGRADES = {
             cost: { brick: 60, furniture: 25, silver: 900 },
             input: { coffee: 0.3, delicacies: 0.1 }, // 降低消耗
             output: { culture: 1.8, science: 1.8, silver: 1.2 }, // 1.8x + 高端消费
-            jobs: { merchant: 1, scribe: 2 }, // 适度增加
+            jobs: { merchant: 1, scribe: 3 }, // 适度增加
         },
     ],
 
@@ -638,16 +638,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "大印刷所",
             cost: { brick: 120, papyrus: 40, silver: 500 },
-            input: { papyrus: 0.32, coffee: 0.06 },
-            output: { science: 1.56 }, // 1.3x
-            jobs: { artisan: 2, scribe: 2, capitalist: 1 }, // keep same
+            input: { papyrus: 0.48, coffee: 0.09 },
+            output: { science: 2.34 },
+            jobs: { artisan: 3, scribe: 2, capitalist: 1 },
         },
         {
             name: "出版社",
             cost: { brick: 200, papyrus: 80, silver: 1100 },
-            input: { papyrus: 0.5, coffee: 0.1 },
-            output: { science: 2.16, culture: 0.3 }, // 1.8x + 文学出版
-            jobs: { artisan: 2, scribe: 2, capitalist: 1 }, // keep same, efficiency upgrade
+            input: { papyrus: 0.75, coffee: 0.15 },
+            output: { science: 3.24, culture: 0.45 },
+            jobs: { artisan: 3, scribe: 2, capitalist: 1 },
         },
     ],
 
@@ -656,16 +656,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "大纺织厂",
             cost: { brick: 120, tools: 40, silver: 600 },
-            input: { food: 0.6, dye: 0.25, tools: 0.02 },
-            output: { cloth: 6.5, fine_clothes: 0.78 }, // 1.3x
-            jobs: { worker: 6, artisan: 2, capitalist: 1 }, // keep same
+            input: { food: 0.8, dye: 0.3333, tools: 0.0267 },
+            output: { cloth: 8.6667, fine_clothes: 1.04 },
+            jobs: { worker: 8, artisan: 2, capitalist: 1 },
         },
         {
             name: "纺织工场",
             cost: { brick: 200, tools: 60, silver: 1300 },
-            input: { food: 0.9, dye: 0.4, tools: 0.03, coffee: 0.04 }, // 工人提神咖啡
-            output: { cloth: 11.25, fine_clothes: 1.35 }, // 2.25x
-            jobs: { worker: 7, artisan: 2, capitalist: 1 }, // +1 worker only
+            input: { food: 1.2, dye: 0.5333, tools: 0.04, coffee: 0.0533 },
+            output: { cloth: 15.0, fine_clothes: 1.8 },
+            jobs: { worker: 9, artisan: 2, capitalist: 1 },
         },
     ],
 
@@ -674,16 +674,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "大木材厂",
             cost: { brick: 100, tools: 35, silver: 500 },
-            input: { wood: 2.4, tools: 0.02 },
-            output: { plank: 10.4 }, // 1.3x
-            jobs: { worker: 5, artisan: 1, capitalist: 1 }, // keep same
+            input: { wood: 2.88, tools: 0.024 },
+            output: { plank: 12.48 },
+            jobs: { worker: 6, artisan: 1, capitalist: 1 },
         },
         {
             name: "木业公司",
             cost: { brick: 180, tools: 50, silver: 1100 },
-            input: { wood: 3.6, tools: 0.04 },
-            output: { plank: 18.0, furniture: 0.12 }, // 2.25x + 木制品副产
-            jobs: { worker: 6, artisan: 1, capitalist: 1 }, // +1 worker only
+            input: { wood: 4.32, tools: 0.048 },
+            output: { plank: 21.6, furniture: 0.144 },
+            jobs: { worker: 7, artisan: 1, capitalist: 1 },
         },
     ],
 
@@ -692,16 +692,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "大建材厂",
             cost: { brick: 120, tools: 35, silver: 550 },
-            input: { stone: 1.6, wood: 0.5, coal: 0.12 },
-            output: { brick: 7.15 }, // 1.3x
-            jobs: { worker: 6, engineer: 1, capitalist: 1 }, // keep same
+            input: { stone: 1.8667, wood: 0.5833, coal: 0.14 },
+            output: { brick: 8.3417 },
+            jobs: { worker: 7, engineer: 1, capitalist: 1 },
         },
         {
             name: "建材公司",
             cost: { brick: 200, tools: 50, silver: 1200 },
-            input: { stone: 2.4, wood: 0.75, coal: 0.18 },
-            output: { brick: 12.375 }, // 2.25x
-            jobs: { worker: 7, engineer: 1, capitalist: 1 }, // +1 worker only
+            input: { stone: 2.8, wood: 0.875, coal: 0.21 },
+            output: { brick: 14.4375 },
+            jobs: { worker: 8, engineer: 1, capitalist: 1 },
         },
     ],
 
@@ -710,16 +710,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "大蒸馏厂",
             cost: { brick: 150, copper: 50, silver: 600 },
-            input: { food: 1.6, coal: 0.12 },
-            output: { ale: 4.55, silver: 1.04 }, // 1.3x
-            jobs: { worker: 5, artisan: 2, capitalist: 1 }, // keep same
+            input: { food: 1.92, coal: 0.144 },
+            output: { ale: 5.46, silver: 1.248 },
+            jobs: { worker: 6, artisan: 2, capitalist: 1 },
         },
         {
             name: "酒业公司",
             cost: { brick: 250, copper: 80, silver: 1300 },
-            input: { food: 2.5, coal: 0.18 },
-            output: { ale: 7.875, silver: 1.8, culture: 0.1 }, // 2.25x + 品牌价值
-            jobs: { worker: 6, artisan: 2, capitalist: 1 }, // +1 worker only
+            input: { food: 3.0, coal: 0.216 },
+            output: { ale: 9.45, silver: 2.16, culture: 0.12 },
+            jobs: { worker: 7, artisan: 2, capitalist: 1 },
         },
     ],
 
@@ -728,16 +728,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "大造纸厂",
             cost: { brick: 120, tools: 35, silver: 500 },
-            input: { wood: 1.2, coal: 0.1 },
-            output: { papyrus: 3.25 }, // 1.3x
-            jobs: { worker: 5, engineer: 1, capitalist: 1 }, // keep same
+            input: { wood: 1.44, coal: 0.12 },
+            output: { papyrus: 3.9 },
+            jobs: { worker: 6, engineer: 1, capitalist: 1 },
         },
         {
             name: "造纸公司",
             cost: { brick: 200, tools: 50, silver: 1100 },
-            input: { wood: 1.8, coal: 0.15 },
-            output: { papyrus: 5.625, tools: 0.05 }, // 2.25x + 纸模工具
-            jobs: { worker: 6, engineer: 1, capitalist: 1 }, // +1 worker only
+            input: { wood: 2.16, coal: 0.18 },
+            output: { papyrus: 6.75, tools: 0.06 },
+            jobs: { worker: 7, engineer: 1, capitalist: 1 },
         },
     ],
 
@@ -747,16 +747,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "著名学府",
             cost: { brick: 250, papyrus: 60, silver: 750 },
-            input: { papyrus: 0.25, coffee: 0.15, delicacies: 0.1 },
-            output: { science: 3.9, culture: 1.04 }, // 1.3x
-            jobs: { scribe: 4, engineer: 2, official: 2 }, // keep same, efficiency upgrade
+            input: { papyrus: 0.3125, coffee: 0.1875, delicacies: 0.125 },
+            output: { science: 4.875, culture: 1.3 },
+            jobs: { scribe: 5, engineer: 2, official: 2 },
         },
         {
             name: "皇家学院",
             cost: { brick: 400, papyrus: 120, silver: 1700 },
-            input: { papyrus: 0.35, coffee: 0.2, delicacies: 0.12 },
-            output: { science: 6.75, culture: 1.8 }, // 2.25x
-            jobs: { scribe: 5, engineer: 2, official: 2 }, // +1 scribe only
+            input: { papyrus: 0.4375, coffee: 0.25, delicacies: 0.15 },
+            output: { science: 8.4375, culture: 2.25 },
+            jobs: { scribe: 6, engineer: 2, official: 2 },
         },
     ],
 
@@ -765,17 +765,18 @@ export const BUILDING_UPGRADES = {
         {
             name: "大歌剧院",
             cost: { brick: 250, furniture: 50, silver: 700 },
-            input: { fine_clothes: 0.2, delicacies: 0.12 },
-            output: { culture: 4.55, silver: 1.3 }, // 1.3x
-            jobs: { cleric: 4, artisan: 2, merchant: 1 }, // keep same
+            input: { fine_clothes: 0.25, delicacies: 0.15 },
+            output: { culture: 5.6875, silver: 1.625 },
+            jobs: { cleric: 5, artisan: 2, merchant: 1 },
         },
         {
             name: "皇家歌剧院",
             cost: { brick: 400, furniture: 80, silver: 1500 },
-            input: { fine_clothes: 0.3, delicacies: 0.18, coffee: 0.08 }, // 中场休息咖啡
-            output: { culture: 7.875, silver: 2.25, science: 0.15 }, // 2.25x + 戴剧艺术研究
-            jobs: { cleric: 5, artisan: 2, merchant: 1 }, // +1 cleric only
-        },    ],
+            input: { fine_clothes: 0.375, delicacies: 0.225, coffee: 0.1 },
+            output: { culture: 9.8438, silver: 2.8125, science: 0.1875 },
+            jobs: { cleric: 6, artisan: 2, merchant: 1 },
+        },
+    ],
 
     // ========== 工业时代建筑 ==========
 
@@ -787,7 +788,7 @@ export const BUILDING_UPGRADES = {
             cost: { plank: 150, tools: 40, silver: 500 },
             input: { tools: 0.15, wood: 0.4, food: 0.6 }, // 略微增加投入
             output: { coal: 2.0 }, // 约3x基础产量
-            jobs: { miner: 7, capitalist: 1 }, // +1 miner
+            jobs: { miner: 10, capitalist: 1 }, // +1 miner
         },
         {
             name: "大煤矿",
@@ -966,16 +967,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "大市场",
             cost: { brick: 300, papyrus: 60, cloth: 15, silver: 1000 },
-            input: { papyrus: 0.08, coffee: 0.05 },
-            output: { food: 2.6, silver: 0.3 }, // 1.3x food, small silver bonus
-            jobs: { merchant: 2, scribe: 1 }, // +1 scribe for records
+            input: { papyrus: 0.12, coffee: 0.075 },
+            output: { food: 3.9, silver: 0.45 },
+            jobs: { merchant: 4, scribe: 1 },
         },
         {
             name: "交易所",
             cost: { steel: 200, papyrus: 120, delicacies: 30, silver: 2200 },
-            input: { papyrus: 0.12, coffee: 0.08 },
-            output: { food: 4.5, silver: 0.5, culture: 0.15 }, // 2.25x + 商业文化
-            jobs: { merchant: 3, scribe: 1 }, // +1 merchant (capitalist too expensive)
+            input: { papyrus: 0.18, coffee: 0.12 },
+            output: { food: 6.75, silver: 0.75, culture: 0.225 },
+            jobs: { merchant: 5, scribe: 1 },
         },
     ],
 
@@ -984,16 +985,16 @@ export const BUILDING_UPGRADES = {
         {
             name: "大铁路站",
             cost: { steel: 120, coal: 80, silver: 850 },
-            input: { coal: 0.3, ale: 0.08, delicacies: 0.04 },
-            output: { silver: 1.95, maxPop: 18 }, // 1.3x
-            jobs: { engineer: 2, merchant: 2, capitalist: 1 }, // keep same
+            input: { coal: 0.375, ale: 0.1, delicacies: 0.05 },
+            output: { silver: 2.4375, maxPop: 14 },
+            jobs: { engineer: 4, merchant: 2, capitalist: 1 },
         },
         {
             name: "铁路枢纽",
             cost: { steel: 220, coal: 150, silver: 1900 },
-            input: { coal: 0.45, ale: 0.12, delicacies: 0.06 },
-            output: { silver: 2.7, maxPop: 25, food: 0.5, culture: 0.1 }, // 1.8x + 站台商业&交通文化
-            jobs: { engineer: 2, merchant: 2, capitalist: 1 }, // keep same, efficiency upgrade
+            input: { coal: 0.5625, ale: 0.15, delicacies: 0.075 },
+            output: { silver: 3.375, maxPop: 18, food: 0.625, culture: 0.125 },
+            jobs: { engineer: 3, merchant: 2, capitalist: 1 },
         },
     ],
 
