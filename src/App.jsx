@@ -964,6 +964,7 @@ function GameApp({ gameState }) {
                                 classExpense={deferredClassExpense}
                                 classLivingStandard={deferredClassLivingStandard}
                                 rebellionStates={deferredRebellionStates}
+                                officials={gameState.officials}
                                 dayScale={1}
                                 onDetailClick={handleStratumDetailClick}
                             />
@@ -1251,6 +1252,7 @@ function GameApp({ gameState }) {
                                                 classExpense={deferredClassExpense}
                                                 classLivingStandard={deferredClassLivingStandard}
                                                 rebellionStates={deferredRebellionStates}
+                                                officials={gameState.officials}
                                                 onStratumDetailClick={handleStratumDetailClick}
                                                 // 市场相关
                                                 resources={deferredResources}
@@ -1476,6 +1478,7 @@ function GameApp({ gameState }) {
                     classExpense={deferredClassExpense}
                     classLivingStandard={deferredClassLivingStandard}
                     rebellionStates={deferredRebellionStates}
+                    officials={gameState.officials}
                     dayScale={1}
                     onDetailClick={handleStratumDetailClick}
                     hideTitle={true}
@@ -1654,6 +1657,7 @@ function GameApp({ gameState }) {
                     techsUnlocked={gameState.techsUnlocked}
                     history={gameState.history}
                     stability={gameState.stability}
+                    officials={gameState.officials}
                     onClose={() => gameState.setStratumDetailView(null)}
                 />
             )}

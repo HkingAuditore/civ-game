@@ -50,6 +50,17 @@ export const DIFFICULTY_CONFIG = {
         buildingUpgradeCostMultiplier: 1.0,    // 80% upgrade cost
         armyMaintenanceMultiplier: 0.5,        // 50% army maintenance
         maxConsumptionMultiplierBonus: -1,     // -1 to max consumption multiplier (easier economy)
+
+        // Diplomacy/Relations modifiers
+        // goodChangeMultiplier: relation improvements become easier on lower difficulties
+        // badChangeMultiplier: relation deterioration becomes easier on higher difficulties
+        goodRelationChangeMultiplier: 1.25,
+        badRelationChangeMultiplier: 0.75,
+        // Base daily drift back to 50
+        relationDailyDriftRate: 0.015,
+        // Base monthly drift back to 50 (ally/non-ally)
+        relationMonthlyDriftRateAlly: 0.04,
+        relationMonthlyDriftRateNonAlly: 0.12,
     },
     [DIFFICULTY_LEVELS.EASY]: {
         id: DIFFICULTY_LEVELS.EASY,
@@ -83,6 +94,13 @@ export const DIFFICULTY_CONFIG = {
         buildingUpgradeCostMultiplier: 1.2,    // 90% upgrade cost
         armyMaintenanceMultiplier: 0.75,       // 75% army maintenance
         maxConsumptionMultiplierBonus: 0,      // No change to max consumption multiplier
+
+        // Diplomacy/Relations modifiers
+        goodRelationChangeMultiplier: 1.1,
+        badRelationChangeMultiplier: 0.9,
+        relationDailyDriftRate: 0.018,
+        relationMonthlyDriftRateAlly: 0.045,
+        relationMonthlyDriftRateNonAlly: 0.16,
     },
     [DIFFICULTY_LEVELS.NORMAL]: {
         id: DIFFICULTY_LEVELS.NORMAL,
@@ -116,6 +134,13 @@ export const DIFFICULTY_CONFIG = {
         buildingUpgradeCostMultiplier: 1.5,    // Standard upgrade cost
         armyMaintenanceMultiplier: 1.0,        // Standard army maintenance
         maxConsumptionMultiplierBonus: 0,      // No change to max consumption multiplier
+
+        // Diplomacy/Relations modifiers
+        goodRelationChangeMultiplier: 1.0,
+        badRelationChangeMultiplier: 1.0,
+        relationDailyDriftRate: 0.02,
+        relationMonthlyDriftRateAlly: 0.05,
+        relationMonthlyDriftRateNonAlly: 0.2,
     },
     [DIFFICULTY_LEVELS.HARD]: {
         id: DIFFICULTY_LEVELS.HARD,
@@ -149,6 +174,14 @@ export const DIFFICULTY_CONFIG = {
         buildingUpgradeCostMultiplier: 3.0,    // 300% upgrade cost
         armyMaintenanceMultiplier: 1.5,       // 150% army maintenance
         maxConsumptionMultiplierBonus: 2,      // +2 to max consumption multiplier (more consumption)
+
+        // Diplomacy/Relations modifiers
+        // On hard: improving relations is harder, worsening is easier
+        goodRelationChangeMultiplier: 0.75,
+        badRelationChangeMultiplier: 1.25,
+        relationDailyDriftRate: 0.03,
+        relationMonthlyDriftRateAlly: 0.08,
+        relationMonthlyDriftRateNonAlly: 0.35,
     },
     [DIFFICULTY_LEVELS.VERY_HARD]: {
         id: DIFFICULTY_LEVELS.VERY_HARD,
@@ -182,6 +215,13 @@ export const DIFFICULTY_CONFIG = {
         buildingUpgradeCostMultiplier: 5.0,   // 500% upgrade cost
         armyMaintenanceMultiplier: 2.0,        // 200% army maintenance
         maxConsumptionMultiplierBonus: 4,      // +4 to max consumption multiplier (much more consumption)
+
+        // Diplomacy/Relations modifiers
+        goodRelationChangeMultiplier: 0.6,
+        badRelationChangeMultiplier: 1.6,
+        relationDailyDriftRate: 0.04,
+        relationMonthlyDriftRateAlly: 0.1,
+        relationMonthlyDriftRateNonAlly: 0.5,
     },
     [DIFFICULTY_LEVELS.EXTREME]: {
         id: DIFFICULTY_LEVELS.EXTREME,
@@ -215,6 +255,13 @@ export const DIFFICULTY_CONFIG = {
         buildingUpgradeCostMultiplier: 10.0,   // 1000% upgrade cost
         armyMaintenanceMultiplier: 3.0,        // 300% army maintenance
         maxConsumptionMultiplierBonus: 8,      // +8 to max consumption multiplier (extreme consumption)
+
+        // Diplomacy/Relations modifiers
+        goodRelationChangeMultiplier: 0.45,
+        badRelationChangeMultiplier: 2.0,
+        relationDailyDriftRate: 0.05,
+        relationMonthlyDriftRateAlly: 0.12,
+        relationMonthlyDriftRateNonAlly: 0.7,
     },
 };
 
@@ -375,6 +422,41 @@ export function getInventoryTargetDaysMultiplier(difficultyLevel) {
     return config.inventoryTargetDaysMultiplier || 1.0;
 }
 
+/**
+ * Get relation change multipliers based on difficulty
+ * @param {string} difficultyLevel
+ * @returns {{good: number, bad: number}}
+ */
+export function getRelationChangeMultipliers(difficultyLevel) {
+    const config = getDifficultyConfig(difficultyLevel);
+    return {
+        good: config.goodRelationChangeMultiplier ?? 1.0,
+        bad: config.badRelationChangeMultiplier ?? 1.0,
+    };
+}
+
+/**
+ * Get base daily drift rate of relations toward 50
+ * @param {string} difficultyLevel
+ * @returns {number}
+ */
+export function getRelationDailyDriftRate(difficultyLevel) {
+    const config = getDifficultyConfig(difficultyLevel);
+    return config.relationDailyDriftRate ?? 0.02;
+}
+
+/**
+ * Get base monthly drift rate of relations toward 50
+ * @param {string} difficultyLevel
+ * @param {boolean} isAlly
+ * @returns {number}
+ */
+export function getRelationMonthlyDriftRate(difficultyLevel, isAlly) {
+    const config = getDifficultyConfig(difficultyLevel);
+    if (isAlly) return config.relationMonthlyDriftRateAlly ?? 0.05;
+    return config.relationMonthlyDriftRateNonAlly ?? 0.2;
+}
+
 export default {
     DIFFICULTY_LEVELS,
     DEFAULT_DIFFICULTY,
@@ -393,6 +475,9 @@ export default {
     isInGracePeriod,
     getBuildingCostGrowthFactor,
     getInventoryTargetDaysMultiplier,
+    getRelationChangeMultipliers,
+    getRelationDailyDriftRate,
+    getRelationMonthlyDriftRate,
     // [NEW] Helper functions
     getTaxToleranceMultiplier,
     getResourceConsumptionMultiplier,

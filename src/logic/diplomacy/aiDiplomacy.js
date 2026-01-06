@@ -10,6 +10,10 @@ import {
 } from '../../utils/diplomaticUtils';
 import { clamp } from '../utils';
 import { isTradableResource } from '../utils/helpers';
+import {
+    getRelationChangeMultipliers,
+    getRelationDailyDriftRate,
+} from '../../config/difficulty';
 
 /**
  * Initialize foreign relations between AI nations
@@ -465,14 +469,19 @@ export const checkAIBreakAlliance = (nation, logs) => {
  * Process relation decay for a single nation (daily)
  * @param {Object} nation - AI nation object (mutable)
  */
-export const processNationRelationDecay = (nation) => {
+export const processNationRelationDecay = (nation, difficultyLevel = 'normal') => {
     const relation = nation.relation ?? 50;
     let relationChange = 0;
 
+    const multipliers = getRelationChangeMultipliers(difficultyLevel);
+    const baseDrift = getRelationDailyDriftRate(difficultyLevel);
+
     if (relation > 50) {
-        relationChange = -0.02;
+        // relation worsening (toward 50)
+        relationChange = -baseDrift * multipliers.bad;
     } else if (relation < 50) {
-        relationChange = 0.02;
+        // relation improving (toward 50)
+        relationChange = baseDrift * multipliers.good;
     }
 
     nation.relation = Math.max(0, Math.min(100, relation + relationChange));
@@ -481,8 +490,8 @@ export const processNationRelationDecay = (nation) => {
     if (nation.foreignRelations) {
         Object.keys(nation.foreignRelations).forEach(otherId => {
             let r = nation.foreignRelations[otherId] ?? 50;
-            if (r > 50) r -= 0.02;
-            else if (r < 50) r += 0.02;
+            if (r > 50) r -= baseDrift * multipliers.bad;
+            else if (r < 50) r += baseDrift * multipliers.good;
             nation.foreignRelations[otherId] = Math.max(0, Math.min(100, r));
         });
     }

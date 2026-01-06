@@ -31,8 +31,13 @@ const AllStrataSummary = ({
   activeBuffs,
   activeDebuffs,
   stability,
+  officials = [],
   onClose
 }) => {
+  const avgOfficialLoyalty = officials.length > 0
+    ? officials.reduce((sum, o) => sum + (o?.loyalty || 0), 0) / officials.length
+    : 0;
+
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[100] p-4">
       <div className="glass-epic rounded-xl border-2 border-ancient-gold/30 max-w-4xl w-full max-h-[90vh] flex flex-col shadow-metal-xl">
@@ -72,7 +77,7 @@ const AllStrataSummary = ({
               <tr className="border-b border-gray-600">
                 <th className="p-2 text-sm font-semibold text-gray-300">阶层</th>
                 <th className="p-2 text-sm font-semibold text-gray-300">人口</th>
-                <th className="p-2 text-sm font-semibold text-gray-300">好感度</th>
+                <th className="p-2 text-sm font-semibold text-gray-300">好感度/忠诚</th>
                 <th className="p-2 text-sm font-semibold text-gray-300">影响力</th>
                 <th className="p-2 text-sm font-semibold text-gray-300">当前效果</th>
               </tr>
@@ -96,11 +101,19 @@ const AllStrataSummary = ({
                     </td>
                     <td className="p-2 text-sm text-gray-300">{formatNumberShortCN(count, { decimals: 1 })}</td>
                     <td className="p-2 text-sm">
-                      <span className={
-                        approval >= 70 ? 'text-green-400' :
-                        approval >= 40 ? 'text-yellow-400' :
-                        'text-red-400'
-                      }>{approval.toFixed(0)}%</span>
+                      {key === 'official' ? (
+                        <span className={
+                          avgOfficialLoyalty >= 70 ? 'text-green-400' :
+                          avgOfficialLoyalty >= 40 ? 'text-yellow-400' :
+                          'text-red-400'
+                        }>{avgOfficialLoyalty.toFixed(0)}%</span>
+                      ) : (
+                        <span className={
+                          approval >= 70 ? 'text-green-400' :
+                          approval >= 40 ? 'text-yellow-400' :
+                          'text-red-400'
+                        }>{approval.toFixed(0)}%</span>
+                      )}
                     </td>
                     <td className="p-2 text-sm text-purple-400">{influence.toFixed(1)}</td>
                     <td className="p-2 text-xs space-y-1">
@@ -167,19 +180,21 @@ export const StratumDetailModal = ({
   techsUnlocked = [],
   history = {},
   stability = 50,
+  officials = [],
   onClose,
 }) => {
   const [activeTab, setActiveTab] = useState('overview');
 
   if (!stratumKey || stratumKey === 'all') {
     return (
-      <AllStrataSummary 
+    <AllStrataSummary 
         popStructure={popStructure}
         classApproval={classApproval}
         classInfluence={classInfluence}
         activeBuffs={activeBuffs}
         activeDebuffs={activeDebuffs}
         stability={stability}
+        officials={officials}
         onClose={onClose}
       />
     );
@@ -194,6 +209,10 @@ export const StratumDetailModal = ({
   const influence = classInfluence[stratumKey] || 0;
   const wealth = classWealth[stratumKey] || 0;
   const wealthPerCapita = wealth / Math.max(1, population);
+
+  const avgOfficialLoyalty = officials.length > 0
+    ? officials.reduce((sum, o) => sum + (o?.loyalty || 0), 0) / officials.length
+    : 0;
 
   // 计算百分比
   const totalPop = Object.values(popStructure).reduce((sum, count) => sum + count, 0);
@@ -312,13 +331,13 @@ export const StratumDetailModal = ({
                     <p className="text-xs text-blue-400 mt-1">{popPercent.toFixed(1)}%</p>
                   </div>
                   <div className="bg-gray-700/50 p-3 rounded">
-                    <p className="text-xs text-gray-400 mb-1">好感度</p>
+                    <p className="text-xs text-gray-400 mb-1">{stratumKey === 'official' ? '忠诚度(平均)' : '好感度'}</p>
                     <p className={`text-lg font-bold ${
-                      approval >= 70 ? 'text-green-400' :
-                      approval >= 40 ? 'text-yellow-400' :
+                      (stratumKey === 'official' ? avgOfficialLoyalty : approval) >= 70 ? 'text-green-400' :
+                      (stratumKey === 'official' ? avgOfficialLoyalty : approval) >= 40 ? 'text-yellow-400' :
                       'text-red-400'
                     }`}>
-                      {approval.toFixed(0)}%
+                      {(stratumKey === 'official' ? avgOfficialLoyalty : approval).toFixed(0)}%
                     </p>
                   </div>
                   <div className="bg-gray-700/50 p-3 rounded">

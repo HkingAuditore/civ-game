@@ -51,6 +51,7 @@ const StrataPanelComponent = ({
     classExpense = {},
     classLivingStandard = {}, // 新增：从simulation传来的生活水平数据
     rebellionStates = {}, // 新增：组织度状态
+    officials = [],
     onDetailClick,
     dayScale = 1,
     hideTitle = false,  // 是否隐藏标题
@@ -70,11 +71,17 @@ const StrataPanelComponent = ({
         return Object.values(classInfluence || {}).reduce((sum, val) => sum + (val || 0), 0);
     }, [classInfluence]);
 
+    const avgOfficialLoyalty = useMemo(() => {
+        if (!Array.isArray(officials) || officials.length === 0) return 0;
+        return officials.reduce((sum, o) => sum + (o?.loyalty || 0), 0) / officials.length;
+    }, [officials]);
+
     const strataData = useMemo(() => {
         return Object.entries(STRATA)
             .map(([key, info]) => {
                 const count = popStructure[key] || 0;
                 const approval = classApproval[key] || 50;
+                const displayApproval = key === 'official' ? avgOfficialLoyalty : approval;
                 const influence = classInfluence[key] || 0;
                 const influenceShare = totalInfluence > 0 ? (influence / totalInfluence) * 100 : 0;
                 const wealthValue = classWealth[key] ?? 0;
@@ -120,6 +127,7 @@ const StrataPanelComponent = ({
                     info,
                     count,
                     approval,
+                    displayApproval,
                     influence,
                     influenceShare,
                     wealthValue,
@@ -154,6 +162,7 @@ const StrataPanelComponent = ({
         rebellionStates, // 新增依赖
         safeDayScale,
         totalInfluence, // 新增依赖
+        avgOfficialLoyalty,
     ]);
     // 裸模式使用简化容器样式
     const containerClass = bareMode
@@ -235,7 +244,7 @@ const StrataPanelComponent = ({
                                 };
                             };
 
-                            const cardStyle = getApprovalBgStyle(strata.approval);
+                            const cardStyle = getApprovalBgStyle(strata.displayApproval);
 
                             return (
                                 <div
@@ -252,8 +261,8 @@ const StrataPanelComponent = ({
                                             <span className="text-[10px] font-bold text-ancient-parchment truncate leading-none">{strata.info.name}</span>
                                             <span className="text-[8px] text-ancient-stone font-mono">{formatNumberShortCN(strata.count, { decimals: 1 })}</span>
                                             <div className="flex-1" />
-                                            <span className={`text-[9px] font-bold font-mono ${strata.approval >= 70 ? 'text-green-400' : strata.approval >= 40 ? 'text-yellow-400' : 'text-red-400'}`}>
-                                                {strata.approval.toFixed(0)}%
+                                            <span className={`text-[9px] font-bold font-mono ${strata.displayApproval >= 70 ? 'text-green-400' : strata.displayApproval >= 40 ? 'text-yellow-400' : 'text-red-400'}`}>
+                                                {strata.displayApproval.toFixed(0)}%
                                             </span>
                                         </div>
 
@@ -328,6 +337,7 @@ const StrataPanelComponent = ({
                                 info,
                                 count,
                                 approval,
+                                displayApproval,
                                 influence,
                                 influenceShare,
                                 wealthValue,
@@ -374,8 +384,8 @@ const StrataPanelComponent = ({
                                             )}
                                         </div>
                                         <div className="flex items-center gap-1">
-                                            <span className={`text-[9px] font-semibold font-mono ${getApprovalColor(approval)}`}>
-                                                {approval.toFixed(0)}%
+                                            <span className={`text-[9px] font-semibold font-mono ${getApprovalColor(displayApproval)}`}>
+                                                {displayApproval.toFixed(0)}%
                                             </span>
                                         </div>
                                     </div>
@@ -410,9 +420,9 @@ const StrataPanelComponent = ({
                                     <div className="mb-0.5">
                                         <div className="w-full bg-ancient-ink/50 rounded-full h-0.5 border border-ancient-gold/10">
                                             <div
-                                                className={`h-0.5 rounded-full transition-all ${approval >= 70 ? 'bg-green-500' : approval >= 40 ? 'bg-yellow-500' : 'bg-red-500'
+                                                className={`h-0.5 rounded-full transition-all ${displayApproval >= 70 ? 'bg-green-500' : displayApproval >= 40 ? 'bg-yellow-500' : 'bg-red-500'
                                                     }`}
-                                                style={{ width: `${approval}%` }}
+                                                style={{ width: `${displayApproval}%` }}
                                             />
                                         </div>
                                     </div>
