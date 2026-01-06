@@ -689,6 +689,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
         setTaxes,
         setClassApproval,
         classApproval,
+        setApprovalBreakdown, // [NEW] 用于保存 simulation 返回的满意度分解数据
         setClassInfluence,
         setClassWealth,
         setClassWealthDelta,
@@ -1794,6 +1795,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     setMaxPop(result.maxPop);
                     setRates(result.rates || {});
                     setClassApproval(result.classApproval);
+                    setApprovalBreakdown(result.approvalBreakdown || {}); // [NEW] 保存满意度分解数据供 UI 分析使用
                     const adjustedInfluence = { ...(result.classInfluence || {}) };
                     Object.entries(classInfluenceShift || {}).forEach(([key, delta]) => {
                         if (!delta) return;
@@ -3723,11 +3725,26 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             const replenishCounts = {};
 
                             // 计算每种单位可补充的数量
+                            // IMPORTANT: units already queued for auto-replenish (waiting/training) should count as "already replenishing"
+                            // otherwise we'd enqueue the same losses again on every tick until training finishes.
+                            const queuedAutoReplenishCounts = {};
+                            for (let i = 0; i < baseQueue.length; i++) {
+                                const q = baseQueue[i];
+                                if (!q?.isAutoReplenish) continue;
+                                if (!q?.unitId) continue;
+                                queuedAutoReplenishCounts[q.unitId] = (queuedAutoReplenishCounts[q.unitId] || 0) + 1;
+                            }
+
                             Object.entries(allAutoReplenishLosses).forEach(([unitId, lossCount]) => {
                                 if (lossCount <= 0 || slotsRemaining <= 0) return;
                                 const unit = UNIT_TYPES[unitId];
                                 if (!unit || unit.epoch > current.epoch) return;
-                                const fillCount = Math.min(lossCount, slotsRemaining);
+
+                                const alreadyQueued = queuedAutoReplenishCounts[unitId] || 0;
+                                const remainingLossToCover = Math.max(0, lossCount - alreadyQueued);
+                                if (remainingLossToCover <= 0) return;
+
+                                const fillCount = Math.min(remainingLossToCover, slotsRemaining);
                                 if (fillCount > 0) {
                                     replenishCounts[unitId] = fillCount;
                                     slotsRemaining -= fillCount;
@@ -3931,13 +3948,13 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     }
 
                     // 返回未完成的训练（排除已完成且加入军队的），保留因容量问题未能加入的
-                    const completedIds = new Set(canComplete.map((_, i) => i));
-                    let completedIndex = 0;
+                    // IMPORTANT: We must remove the exact items we just added to the army.
+                    // Using indexes here is error-prone because `canComplete` is a slice of `completed`.
+                    const canCompleteSet = new Set(canComplete);
                     return updated.filter(item => {
                         if (item.status === 'training' && item.remainingTime <= 0) {
-                            const isCompleted = completedIds.has(completedIndex);
-                            completedIndex++;
-                            return !isCompleted; // 只移除成功加入军队的
+                            // Remove only those completed items that were successfully applied to the army
+                            return !canCompleteSet.has(item);
                         }
                         return true;
                     });

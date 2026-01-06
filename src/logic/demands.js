@@ -159,10 +159,10 @@ export const DEMAND_CONFIG = {
 };
 
 /**
- * 分析阶层不满来源
+ * 分析阶层好感度变化因素
  * @param {string} stratumKey - 阶层键
  * @param {Object} context - 游戏上下文
- * @returns {Object} 不满来源分析结果
+ * @returns {Object} 好感度变化分析结果
  */
 export function analyzeDissatisfactionSources(stratumKey, context) {
     const sources = [];
@@ -182,15 +182,30 @@ export function analyzeDissatisfactionSources(stratumKey, context) {
     const influenceShare = totalInfluence > 0 ? influence / totalInfluence : 0;
 
     // 获取收入和人口数据
-    const income = context.classIncome?.[stratumKey] || 0;
+    // NOTE: classIncome/classExpense are stored as totals; UI converts them to per-day per-capita using dayScale.
+    // Keep the dissatisfaction analysis consistent with the UI, otherwise tax burden can be underestimated.
+    const safeDayScale = Math.max(context.dayScale ?? 1, 0.0001);
+    const incomeTotalPerDay = (context.classIncome?.[stratumKey] || 0) / safeDayScale;
     const count = context.popStructure?.[stratumKey] || 1;
-    const incomePerCapita = income / Math.max(count, 1);
+    const incomePerCapita = incomeTotalPerDay / Math.max(count, 1);
 
     // ========== 正确计算税负 ==========
-    // 1. 人头税（数值）= 基础人头税 × 人头税倍率
+    // 1. 人头税（数值）= 基础人头税 × 人头税倍率 × 税收效率修正（与 economy/taxes.js 保持一致）
+    // 注意：实际征收还会受到“该阶层财富不足”的上限影响（无法从负资产里继续征税）
     const headTaxBase = stratum?.headTaxBase ?? 0;
     const headTaxMultiplier = context.taxPolicies?.headTaxRates?.[stratumKey] ?? 1;
-    const headTaxPerCapita = headTaxBase * headTaxMultiplier;
+    const effectiveTaxModifier = context.effectiveTaxModifier ?? 1;
+
+    const plannedHeadTaxPerCapita = headTaxBase * headTaxMultiplier * effectiveTaxModifier;
+
+    const wealthTotal = context.classWealth?.[stratumKey] ?? Infinity;
+    const maxPerCapitaTax = Number.isFinite(wealthTotal)
+        ? Math.max(0, wealthTotal) / Math.max(1, count)
+        : Infinity;
+
+    const headTaxPerCapita = plannedHeadTaxPerCapita >= 0
+        ? Math.min(plannedHeadTaxPerCapita, maxPerCapitaTax)
+        : plannedHeadTaxPerCapita;
 
     // 2. 交易税（估算）= 消费资源 × 资源价格 × 交易税率
     let tradeTaxPerCapita = 0;
@@ -220,7 +235,7 @@ export function analyzeDissatisfactionSources(stratumKey, context) {
 
     if (isTaxBurdenHigh) {
         const contribution = Math.min(2, taxBurdenRatio * 3);
-        const detailText = `税负占收入 ${Math.round(taxBurdenRatio * 100)}%（人头税: ${headTaxPerCapita.toFixed(1)}，交易税: ${tradeTaxPerCapita.toFixed(1)}）`;
+        const detailText = `税负占收入 ${Math.round(taxBurdenRatio * 100)}%（人头税: ${headTaxPerCapita.toFixed(1)}，交易税: ${tradeTaxPerCapita.toFixed(1)}；计划人头税: ${plannedHeadTaxPerCapita.toFixed(1)}；可承受上限: ${maxPerCapitaTax.toFixed(1)}）`;
         sources.push({
             type: 'tax',
             icon: 'Percent',
@@ -230,6 +245,11 @@ export function analyzeDissatisfactionSources(stratumKey, context) {
             severity: taxBurdenRatio > 0.75 ? 'danger' : 'warning',
         });
     }
+
+    // [REMOVED] 剥削性税率的独立检测已删除
+    // 原因：与 simulation.js 的税收冲击计算逻辑不同步（simulation 使用 taxToWealthRatio 比例）
+    // 改为在 approvalBreakdown 处理部分使用 simulation 已计算的 taxShockPenalty
+
 
     // ========== 区分基础需求和奢侈需求短缺 ==========
     // 获取该阶层的基础需求列表
@@ -316,6 +336,65 @@ export function analyzeDissatisfactionSources(stratumKey, context) {
         });
     }
 
+    // 税收冲击（来自 simulation.js 的累积冲击机制）
+    // 即使当前税率已降低，累积冲击也会在一段时间内持续压低满意度
+    const taxShockPenalty = context.taxShock?.[stratumKey] || 0;
+    if (taxShockPenalty > 1) {
+        const contribution = Math.min(2, taxShockPenalty / 8); // 约 16 点冲击≈满贡献
+        sources.push({
+            type: 'taxShock',
+            icon: 'Zap',
+            label: '税收冲击（记仇）',
+            detail: `近期税负冲击：-${taxShockPenalty.toFixed(1)} 满意度（会逐渐衰减）`,
+            contribution,
+            severity: taxShockPenalty > 10 ? 'danger' : 'warning',
+        });
+    }
+
+    // 临时事件效果（来自 useGameLoop -> processTimedEventEffects -> approvalModifiers）
+    // 这部分是“短期波动”，不属于结构性短缺/税负/生活水平
+    const eventBonus = context.eventApprovalModifiers?.[stratumKey] || 0;
+    if (eventBonus) {
+        const contribution = Math.min(1.5, Math.abs(eventBonus) / 10);
+        sources.push({
+            type: 'event',
+            icon: eventBonus < 0 ? 'AlertTriangle' : 'Sparkles',
+            label: eventBonus < 0 ? '临时事件惩罚' : '临时事件加成',
+            detail: `${eventBonus > 0 ? '+' : ''}${eventBonus.toFixed(1)}（随时间变化/结束）`,
+            contribution,
+            severity: eventBonus < -10 ? 'danger' : (eventBonus < 0 ? 'warning' : 'info'),
+        });
+    }
+
+    // 政令/改革效果（立刻作用于最终值，不走惯性）
+    const decreeBonus = context.decreeApprovalModifiers?.[stratumKey] || 0;
+    if (decreeBonus) {
+        const contribution = Math.min(1.5, Math.abs(decreeBonus) / 10);
+        sources.push({
+            type: 'decree',
+            icon: decreeBonus < 0 ? 'ScrollText' : 'Scroll',
+            label: decreeBonus < 0 ? '政令惩罚' : '政令加成',
+            detail: `${decreeBonus > 0 ? '+' : ''}${decreeBonus.toFixed(1)}（持续生效）`,
+            contribution,
+            severity: decreeBonus < -10 ? 'danger' : (decreeBonus < 0 ? 'warning' : 'info'),
+        });
+    }
+
+    // 合法性全局惩罚：当合法性不足时，simulation.js 会对所有阶层额外扣一段
+    // 注意：这里展示的是“当前合法性导致的估算惩罚”，方便解释“全体一起掉好感”
+    const legitimacyApprovalModifier = context.legitimacyApprovalModifier || 0;
+    if (legitimacyApprovalModifier < 0) {
+        const contribution = Math.min(1.2, Math.abs(legitimacyApprovalModifier) / 15);
+        sources.push({
+            type: 'legitimacy',
+            icon: 'Gavel',
+            label: '政府合法性不足',
+            detail: `${legitimacyApprovalModifier.toFixed(1)}（全阶层惩罚）`,
+            contribution,
+            severity: legitimacyApprovalModifier < -10 ? 'danger' : 'warning',
+        });
+    }
+
     // 高影响力但低满意度（政治诉求）
     // 调试：打印关键参数
     debugLog('demands', `[Demands] ${stratumKey}: influenceShare=${influenceShare.toFixed(3)}, approval=${approval}, totalInfluence=${totalInfluence}, influence=${influence}`);
@@ -331,6 +410,241 @@ export function analyzeDissatisfactionSources(stratumKey, context) {
         });
     }
 
+    // ====== Approval breakdown (from simulation) ======
+    // If simulation provides a per-stratum breakdown, use it to surface the *real* drivers.
+    // This solves the "approval is low but Top3 is empty" issue by avoiding UI-side guessing.
+    const approvalBill = context.approvalBreakdown?.[stratumKey];
+    if (approvalBill) {
+        // [NEW] 生活水平基础惩罚（温饱以下的阶层会受此影响）
+        // livingStandardBase = targetApproval - 70，反映生活水平对目标满意度的影响
+        // 基础值70是"温饱"水平，奢华=95，富裕=85，小康=75
+        // 所以如果是温饱或以下，livingStandardBase 可能是0或负数
+        if ((approvalBill.livingStandardBase || 0) < 0) {
+            const val = approvalBill.livingStandardBase;
+            sources.push({
+                type: 'livingStandardBase',
+                icon: 'Home',
+                label: '生活水平不佳',
+                detail: `生活水平使目标满意度${val.toFixed(1)}（温饱=0, 小康=+5, 富裕=+15, 奢华=+25）`,
+                contribution: Math.min(1.8, Math.abs(val) / 12),
+                severity: val < -10 ? 'danger' : 'warning',
+            });
+        }
+
+        // [NEW] 满意度上限过低（由生活水平+官员负面效果决定）
+        const effectiveCap = approvalBill.effectiveApprovalCap;
+        if (effectiveCap != null && effectiveCap < 70 && approval < effectiveCap) {
+            sources.push({
+                type: 'lowApprovalCap',
+                icon: 'TrendingDown',
+                label: '满意度上限限制',
+                detail: `满意度被限制在 ${Number(effectiveCap).toFixed(0)}%（由生活水平+官员惩罚决定）`,
+                contribution: Math.min(2.0, (70 - effectiveCap) / 20),
+                severity: effectiveCap < 50 ? 'danger' : 'warning',
+            });
+        }
+
+        // [NEW] 目标满意度与当前满意度的差距分析
+        const targetFinal = approvalBill.targetApprovalFinal;
+        if (targetFinal != null && approval < 50) {
+            const gap = targetFinal - approval;
+            if (gap > 5) {
+                // 目标高于当前，正在恢复中（这是好消息，但说明需要时间）
+                sources.push({
+                    type: 'recoveringToTarget',
+                    icon: 'ArrowUp',
+                    label: '正在恢复中',
+                    detail: `目标满意度 ${targetFinal.toFixed(0)}%，当前 ${approval.toFixed(0)}%（以2%/tick速度恢复）`,
+                    contribution: 0.2,
+                    severity: 'info',
+                });
+            } else if (gap < -5) {
+                // 目标低于当前，正在下降中
+                sources.push({
+                    type: 'decliningToTarget',
+                    icon: 'ArrowDown',
+                    label: '满意度下降中',
+                    detail: `目标满意度仅 ${targetFinal.toFixed(0)}%，当前 ${approval.toFixed(0)}%（将持续下降）`,
+                    contribution: Math.min(1.5, Math.abs(gap) / 15),
+                    severity: 'warning',
+                });
+            } else if (targetFinal < 40) {
+                // 目标本身就很低
+                sources.push({
+                    type: 'lowTargetApproval',
+                    icon: 'Target',
+                    label: '目标满意度过低',
+                    detail: `计算出的目标满意度仅 ${targetFinal.toFixed(0)}%（需改善生活水平或减少惩罚）`,
+                    contribution: Math.min(1.8, (40 - targetFinal) / 15),
+                    severity: targetFinal < 25 ? 'danger' : 'warning',
+                });
+            }
+        }
+
+        // Wealth trend
+        if (Math.abs(approvalBill.wealthTrendBonus || 0) >= 0.5) {
+            const val = approvalBill.wealthTrendBonus;
+            sources.push({
+                type: 'wealthTrend',
+                icon: val < 0 ? 'TrendingDown' : 'TrendingUp',
+                label: val < 0 ? '财富趋势恶化' : '财富趋势改善',
+                detail: `${val > 0 ? '+' : ''}${val.toFixed(1)}（基于最近财富变化趋势）`,
+                contribution: Math.min(1.4, Math.abs(val) / 10),
+                severity: val < -8 ? 'danger' : (val < 0 ? 'warning' : 'info'),
+            });
+        }
+
+
+        // Sustained needs bonus (this is usually positive; show it so player understands why target isn't even lower)
+        if ((approvalBill.sustainedNeedsBonus || 0) >= 0.5) {
+            const val = approvalBill.sustainedNeedsBonus;
+            sources.push({
+                type: 'sustainedNeeds',
+                icon: 'CheckCircle',
+                label: '连续满足奖励',
+                detail: `+${val.toFixed(1)}（需求长期稳定满足）`,
+                contribution: Math.min(0.6, val / 20),
+                severity: 'info',
+            });
+        }
+
+        // Poverty penalty (negative)
+        if (Math.abs(approvalBill.povertyPenalty || 0) >= 0.5) {
+            const val = approvalBill.povertyPenalty;
+            sources.push({
+                type: 'poverty',
+                icon: 'Skull',
+                label: '长期贫困惩罚',
+                detail: `${val.toFixed(1)}（赤贫/贫困持续时间越久惩罚越大）`,
+                contribution: Math.min(1.2, Math.abs(val) / 10),
+                severity: val <= -15 ? 'danger' : 'warning',
+            });
+        }
+
+        // Tax shock (already exists above but approvalBill is the exact applied number to currentApproval)
+        if (Math.abs(approvalBill.taxShockPenalty || 0) >= 0.5) {
+            const val = approvalBill.taxShockPenalty;
+            sources.push({
+                type: 'taxShockApplied',
+                icon: 'Zap',
+                label: '税收冲击（当前扣减）',
+                detail: `${val.toFixed(1)}（直接作用于当前满意度）`,
+                contribution: Math.min(1.6, Math.abs(val) / 10),
+                severity: val <= -10 ? 'danger' : 'warning',
+            });
+        }
+
+        // [NEW] Unemployed penalty
+        if (Math.abs(approvalBill.unemployedPenalty || 0) >= 0.5) {
+            const val = approvalBill.unemployedPenalty;
+            sources.push({
+                type: 'unemployedPenalty',
+                icon: 'UserX',
+                label: '失业惩罚',
+                detail: `${val.toFixed(1)}（失业人口占比过高导致的惩罚）`,
+                contribution: Math.min(1.5, Math.abs(val) / 10),
+                severity: val <= -10 ? 'danger' : 'warning',
+            });
+        }
+
+        // [NEW] Luxury shortage penalty
+        if (Math.abs(approvalBill.luxuryShortagePenalty || 0) >= 0.5) {
+            const val = approvalBill.luxuryShortagePenalty;
+            sources.push({
+                type: 'luxuryShortage',
+                icon: 'Sparkles',
+                label: '奢侈品短缺惩罚',
+                detail: `${val.toFixed(1)}（奢侈需求无法满足）`,
+                contribution: Math.min(1.0, Math.abs(val) / 10),
+                severity: val <= -10 ? 'warning' : 'info',
+            });
+        }
+
+        // [NEW] 非法政府惩罚（合法性不足）
+        // [FIX] 只有当 context.legitimacyApprovalModifier < 0 时才显示，避免显示过时的惩罚信息
+        // （因为 approvalBill.legitimacyPenalty 可能是基于 previousLegitimacy 计算的旧值）
+        const currentLegitimacyPenalty = context.legitimacyApprovalModifier ?? 0;
+        if (currentLegitimacyPenalty < -0.5) {
+            sources.push({
+                type: 'legitimacyPenalty',
+                icon: 'ShieldOff',
+                label: '非法政府惩罚',
+                detail: `${currentLegitimacyPenalty.toFixed(1)}（执政联盟影响力不足40%，政府被视为非法）`,
+                contribution: Math.min(1.5, Math.abs(currentLegitimacyPenalty) / 10),
+                severity: 'danger',
+            });
+        }
+
+        // [NEW] ShockCap - extremely high tax caused an approval cap
+        if (approvalBill.shockCapApplied != null) {
+            sources.push({
+                type: 'shockCap',
+                icon: 'Zap',
+                label: '税收冲击上限',
+                detail: `满意度被限制在 ${Number(approvalBill.shockCapApplied).toFixed(0)}%（因高税收冲击）`,
+                contribution: 1.5,
+                severity: 'danger',
+            });
+        }
+
+        // Cap applied (living standard / official negative effects)
+        if (approvalBill.capApplied != null) {
+            sources.push({
+                type: 'approvalCap',
+                icon: 'MinusCircle',
+                label: '满意度上限压制',
+                detail: `上限 ${Number(approvalBill.capApplied).toFixed(0)}%（生活水平/官员惩罚导致）`,
+                contribution: 1.0,
+                severity: 'warning',
+            });
+        }
+
+        // [REMOVED] lowTargetApproval 检测已移至上方的目标满意度差距分析部分（第448行）
+
+        // Inertia delta explains "why it keeps sliding" even after problem fixed
+        if (Math.abs(approvalBill.inertiaDelta || 0) >= 0.2) {
+            const val = approvalBill.inertiaDelta;
+            sources.push({
+                type: 'inertia',
+                icon: 'Clock',
+                label: '惯性调整（缓慢变化）',
+                detail: `${val > 0 ? '+' : ''}${val.toFixed(2)}/tick（向目标值缓慢收敛）`,
+                contribution: Math.min(0.5, Math.abs(val) * 2),
+                severity: 'info',
+            });
+        }
+    }
+
+    // 检查是否只有正面因素（info severity）但好感度仍然很低
+    const negativeSources = sources.filter(s => s.severity !== 'info');
+    const hasOnlyPositiveSources = sources.length > 0 && negativeSources.length === 0;
+    
+    // 如果满意度低但目标高且只有正面因素，说明是"历史遗留问题正在修复"
+    const targetApproval = approvalBill?.targetApprovalFinal;
+    if (hasOnlyPositiveSources && approval < 50 && targetApproval != null && targetApproval > approval + 10) {
+        sources.push({
+            type: 'recovering_from_history',
+            icon: 'RefreshCw',
+            label: '历史遗留问题修复中',
+            detail: `好感度 ${approval.toFixed(0)}% 正在向目标 ${targetApproval.toFixed(0)}% 恢复。之前的负面因素已消除，但惯性恢复需要时间。`,
+            contribution: 0.3,
+            severity: 'info',
+        });
+    }
+    
+    // 如果满意度极低但没有识别到具体来源，给一个兜底解释
+    // 这通常意味着：满意度被其它系统压低（例如长期惯性、隐藏惩罚、未纳入本分析的机制）
+    // 或者数值处在阈值边缘但仍造成了长期低满意度。
+    if (negativeSources.length === 0 && approval < 25 && (targetApproval == null || targetApproval <= approval + 10)) {
+        sources.push({
+            type: 'unknown_low_approval',
+            icon: 'HelpCircle',
+            label: '满意度过低（来源未被分类）',
+            detail: '当前系统未在"短缺/税负/生活水平/事件/政令/合法性/税收冲击"中识别到直接原因。满意度可能来自长期惯性、财富趋势、失业惩罚、或其它事件链的间接影响。',
+            contribution: Math.min(2, (25 - approval) / 10),
+            severity: approval < 10 ? 'danger' : 'warning',
+        });
+    }
     // 按贡献度排序
     sources.sort((a, b) => b.contribution - a.contribution);
 

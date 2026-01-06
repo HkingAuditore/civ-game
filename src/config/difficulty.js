@@ -170,6 +170,7 @@ export const DIFFICULTY_CONFIG = {
         resourceConsumptionMultiplier: 3.0,    // 300% consumption
         buildingCostBaseMultiplier: 3.0,       // 300% building cost
         techCostMultiplier: 3.0,               // 300% tech cost
+        startingSilverMultiplier: 4.0,         // [NEW] starting treasury boost to offset high early building costs
         populationGrowthMultiplier: 0.8,       // 80% growth rate
         buildingUpgradeCostMultiplier: 3.0,    // 300% upgrade cost
         armyMaintenanceMultiplier: 1.5,       // 150% army maintenance
@@ -211,6 +212,7 @@ export const DIFFICULTY_CONFIG = {
         resourceConsumptionMultiplier: 5.0,   // 500% consumption
         buildingCostBaseMultiplier: 5.0,      // 500% building cost
         techCostMultiplier: 6.0,              // 600% tech cost
+        startingSilverMultiplier: 6.0,        // [NEW] starting treasury boost to offset high early building costs
         populationGrowthMultiplier: 0.5,       // 50% growth rate
         buildingUpgradeCostMultiplier: 5.0,   // 500% upgrade cost
         armyMaintenanceMultiplier: 2.0,        // 200% army maintenance
@@ -251,6 +253,7 @@ export const DIFFICULTY_CONFIG = {
         resourceConsumptionMultiplier: 8.0,    // 800% consumption
         buildingCostBaseMultiplier: 10.0,      // 1000% building cost
         techCostMultiplier: 10.0,              // 1000% tech cost
+        startingSilverMultiplier: 10.0,        // [NEW] starting treasury boost to offset extreme early building costs
         populationGrowthMultiplier: 0.2,       // 20% growth rate
         buildingUpgradeCostMultiplier: 10.0,   // 1000% upgrade cost
         armyMaintenanceMultiplier: 3.0,        // 300% army maintenance
@@ -487,7 +490,19 @@ export default {
     getBuildingUpgradeCostMultiplier,
     getArmyMaintenanceMultiplier,
     getMaxConsumptionMultiplierBonus,
+    getStartingSilverMultiplier,
 };
+
+/**
+ * Get starting silver multiplier
+ * Higher values = more starting silver (used to keep early game playable on hard)
+ * @param {string} difficultyLevel
+ * @returns {number} Multiplier (default 1.0)
+ */
+export function getStartingSilverMultiplier(difficultyLevel) {
+    const config = getDifficultyConfig(difficultyLevel);
+    return config.startingSilverMultiplier || 1.0;
+}
 
 /**
  * Get tax tolerance multiplier
