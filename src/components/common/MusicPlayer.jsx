@@ -411,8 +411,8 @@ export const MusicPlayer = () => {
                             <Icon name="Music" size={14} className="text-ancient-gold" />
                             <span className="text-xs font-bold text-ancient-parchment">
                                 {mode === 'gitee'
-                                    ? '自建曲库 (Gitee)'
-                                    : (isRadio ? "宫廷电台 (官方)" : "宫廷乐师 (Random)")}
+                                    ? '哈耶克之声'
+                                    : (isRadio ? "哈耶克之声" : "哈耶克之声")}
                             </span>
                         </div>
                         <div className="flex items-center gap-1">
