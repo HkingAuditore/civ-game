@@ -89,12 +89,14 @@ const TradeRoutesModal = ({
         const isOpenMarket = Boolean(nation?.openMarketUntil && daysElapsed < nation.openMarketUntil);
 
         const getMaxTradeRoutesForRelation = (rel = 0, allied = false) => {
-            if (allied) return 4;
-            if (rel >= 80) return 4;
-            if (rel >= 60) return 3;
-            if (rel >= 40) return 2;
-            if (rel >= 20) return 1;
-            return 0;
+            const baseCap = allied ? 4 :
+                (rel >= 80 ? 4 :
+                    (rel >= 60 ? 3 :
+                        (rel >= 40 ? 2 :
+                            (rel >= 20 ? 1 : 0))));
+            const scaledBonus = Math.max(0, Math.floor((merchantCount || 0) / 100));
+            const hardCap = 30;
+            return Math.min(hardCap, baseCap + scaledBonus);
         };
 
         const cap = isOpenMarket ? 999 : getMaxTradeRoutesForRelation(relation, isAllied);
@@ -417,12 +419,20 @@ const TradeRoutesModal = ({
     ];
 
     const getMaxTradeRoutesForRelation = (relation = 0, isAllied = false) => {
-        if (isAllied) return 4;
-        if (relation >= 80) return 4; // Intimate
-        if (relation >= 60) return 3; // Friendly
-        if (relation >= 40) return 2; // Neutral
-        if (relation >= 20) return 1; // Cold
-        return 0; // Hostile: no trade
+        // Relation is the *gate* for whether trade is allowed at all.
+        // Cap should scale into late-game when merchant population grows.
+        const baseCap = isAllied ? 4 :
+            (relation >= 80 ? 4 :
+                (relation >= 60 ? 3 :
+                    (relation >= 40 ? 2 :
+                        (relation >= 20 ? 1 : 0))));
+
+        // Scale cap slowly with total merchant count (global).
+        // Example: 0-99 merchants => +0, 100-199 => +1, ...
+        // Keep a conservative hard cap to avoid UI/exploit runaway.
+        const scaledBonus = Math.max(0, Math.floor((merchantCount || 0) / 100));
+        const hardCap = 30;
+        return Math.min(hardCap, baseCap + scaledBonus);
     };
 
     const isOpenMarketActiveWithNation = (nation) => {
@@ -480,45 +490,47 @@ const TradeRoutesModal = ({
                     </button>
                 </div>
 
-                {/* 3. Status Info (Cols 8-9) */}
-                <div className="col-span-2 text-right text-xs text-gray-400">
-                    {/* Simplified status display */}
-                    {nation.isAtWar ? (
-                        <span className="text-red-400 text-[10px]">交战中</span>
-                    ) : (
-                        <span className={maxWithNation >= 999 ? 'text-green-400 text-[10px]' : 'text-gray-500 text-[10px]'}>
-                            {maxWithNation >= 999 ? '开放市场' : `上限 ${maxWithNation}`}
-                        </span>
-                    )}
-                </div>
+                {/* 3+4. Limit + Assignment Controls */}
+                <div className="col-span-5 flex flex-col sm:flex-row sm:items-center sm:justify-end gap-1 sm:gap-2">
+                    {/* Limit */}
+                    <div className="sm:w-24 text-right text-xs text-gray-400 flex-shrink-0">
+                        {nation.isAtWar ? (
+                            <span className="text-red-400 text-[10px]">交战中</span>
+                        ) : (
+                            <span className={maxWithNation >= 999 ? 'text-green-400 text-[10px]' : 'text-gray-500 text-[10px]'}>
+                                {maxWithNation >= 999 ? '开放市场' : `上限 ${maxWithNation}`}
+                            </span>
+                        )}
+                    </div>
 
-                {/* 4. Assignment Controls (Cols 10-12) */}
-                <div className="col-span-3 flex items-center justify-end gap-2">
-                    <button
-                        className="w-8 h-8 rounded bg-gray-700 hover:bg-gray-600 text-white border border-white/10 disabled:opacity-40 disabled:cursor-not-allowed"
-                        onClick={() => setAssignment(nation.id, value - 1)}
-                        disabled={disabledDec}
-                        title="减少 1"
-                    >
-                        <Icon name="Minus" size={14} />
-                    </button>
+                    {/* Controls */}
+                    <div className="flex items-center justify-end gap-2">
+                        <button
+                            className="w-8 h-8 rounded bg-gray-700 hover:bg-gray-600 text-white border border-white/10 disabled:opacity-40 disabled:cursor-not-allowed"
+                            onClick={() => setAssignment(nation.id, value - 1)}
+                            disabled={disabledDec}
+                            title="减少 1"
+                        >
+                            <Icon name="Minus" size={14} />
+                        </button>
 
-                    <input
-                        className="w-16 h-8 rounded bg-gray-900/60 border border-white/10 text-gray-100 text-center font-mono"
-                        value={value}
-                        onChange={(e) => setAssignment(nation.id, e.target.value)}
-                        inputMode="numeric"
-                        disabled={nation.isAtWar || maxWithNation === 0}
-                    />
+                        <input
+                            className="w-16 h-8 rounded bg-gray-900/60 border border-white/10 text-gray-100 text-center font-mono"
+                            value={value}
+                            onChange={(e) => setAssignment(nation.id, e.target.value)}
+                            inputMode="numeric"
+                            disabled={nation.isAtWar || maxWithNation === 0}
+                        />
 
-                    <button
-                        className="w-8 h-8 rounded bg-amber-600/70 hover:bg-amber-600 text-white border border-amber-400/30 disabled:opacity-40 disabled:cursor-not-allowed"
-                        onClick={() => setAssignment(nation.id, value + 1)}
-                        disabled={disabledInc}
-                        title={nation.isAtWar ? '战争中不可派驻' : (maxWithNation === 0 ? '关系敌对不可派驻' : (value >= maxWithNation ? '已达该国派驻上限' : (remainingMerchants <= 0 ? '没有可用商人' : '增加 1')))}
-                    >
-                        <Icon name="Plus" size={14} />
-                    </button>
+                        <button
+                            className="w-8 h-8 rounded bg-amber-600/70 hover:bg-amber-600 text-white border border-amber-400/30 disabled:opacity-40 disabled:cursor-not-allowed"
+                            onClick={() => setAssignment(nation.id, value + 1)}
+                            disabled={disabledInc}
+                            title={nation.isAtWar ? '战争中不可派驻' : (maxWithNation === 0 ? '关系敌对不可派驻' : (value >= maxWithNation ? '已达该国派驻上限' : (remainingMerchants <= 0 ? '没有可用商人' : '增加 1')))}
+                        >
+                            <Icon name="Plus" size={14} />
+                        </button>
+                    </div>
                 </div>
             </div>
         );
@@ -727,6 +739,11 @@ const TradeRoutesModal = ({
                                 <div className="mt-1 text-[10px] text-gray-400">
                                     派驻到某国的商人越多，每回合越倾向在该国寻找最赚钱且最能修复供需缺口的交易。交战国自动无法贸易。
                                 </div>
+                                {assignedTotal <= 0 && merchantCount > 0 && (
+                                    <div className="mt-1 text-[10px] text-amber-200/90">
+                                        未派驻将使用自由贸易，无法针对特定国家做偏好优化。
+                                    </div>
+                                )}
                                 {/* Explainer: dumping/force-buy pricing modifiers are applied in trade settlement */}
                                 <div className="mt-2 text-[10px] text-gray-400 space-y-0.5">
                                     <div>
@@ -875,10 +892,11 @@ const TradeRoutesModal = ({
                             </div>
 
                             {/* Assignments list header */}
-                            <div className="grid grid-cols-12 gap-1 sm:gap-2 px-1 sm:px-2 py-2 bg-white/5 text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-wider border border-white/5 rounded-lg">
-                                <div className="col-span-5">国家</div>
-                                <div className="col-span-3 text-right">限制</div>
-                                <div className="col-span-4 text-right">派驻商人</div>
+                            <div className="grid grid-cols-12 gap-2 items-center px-3 py-2 bg-white/5 text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-wider border border-white/5 rounded-lg">
+                                <div className="col-span-4">国家</div>
+                                <div className="col-span-3 text-center">政策</div>
+                                <div className="col-span-2 text-right">限制</div>
+                                <div className="col-span-3 text-right">派驻商人</div>
                             </div>
 
                             {visibleNations.length === 0 ? (

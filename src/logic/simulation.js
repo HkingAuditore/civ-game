@@ -128,7 +128,8 @@ import {
     getInventoryTargetDaysMultiplier,
     getPopulationGrowthMultiplier,
     getArmyMaintenanceMultiplier,
-    getMaxConsumptionMultiplierBonus
+    getMaxConsumptionMultiplierBonus,
+    getRelationChangeMultipliers
 } from '../config/difficulty';
 import {
     calculateFinancialStatus,
@@ -4084,16 +4085,20 @@ export const simulateTick = ({
         const relation = next.relation ?? 50;
 
         // REFACTORED: Using module function for relation decay
-        processNationRelationDecay(next);
+        processNationRelationDecay(next, difficulty);
+
+        const relationMultipliers = getRelationChangeMultipliers(difficulty);
 
         if (bonuses.diplomaticIncident && !next.isRebelNation && !next.isAtWar) {
-            const dailyPenalty = bonuses.diplomaticIncident / 30;
+            // On hard: worsening is easier
+            const dailyPenalty = (bonuses.diplomaticIncident / 30) * relationMultipliers.bad;
             next.relation = Math.min(100, Math.max(0, (next.relation ?? 50) - dailyPenalty));
         }
 
         // 应用官员和政治立场的外交加成到玩家与AI的关系
         if (bonuses.diplomaticBonus && !next.isRebelNation && !next.isAtWar) {
-            const dailyBonus = bonuses.diplomaticBonus / 30; // 分摊到每日
+            // On hard: improving is harder
+            const dailyBonus = (bonuses.diplomaticBonus / 30) * relationMultipliers.good;
             next.relation = Math.min(100, Math.max(0, (next.relation ?? 50) + dailyBonus));
         }
 
@@ -4150,7 +4155,7 @@ export const simulateTick = ({
     // REFACTORED: Using module function for monthly relation decay
     const isMonthTick = tick % 30 === 0;
     if (isMonthTick) {
-        updatedNations = processMonthlyRelationDecay(updatedNations, tick);
+        updatedNations = processMonthlyRelationDecay(updatedNations, difficulty);
     }
 
     // Filter visible nations for diplomacy processing

@@ -213,9 +213,9 @@ const CompactBuildingCard = ({
                 <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center mb-0.5 icon-metal-container">
                     <VisualIcon name={building.visual.icon} size={14} className={`${building.visual.text} icon-metal`} />
                 </div>
-                <div className="flex items-baseline gap-0.5">
-                    <h4 className="text-[12px] font-bold text-ancient-parchment leading-tight truncate max-w-[60px]">{building.name}</h4>
-                    {count > 0 && <p className="text-[8px] font-bold text-ancient-gold">×{count}</p>}
+                <div className="flex flex-col items-center">
+                    <h4 className="text-[12px] font-bold text-ancient-parchment leading-tight truncate max-w-[70px]">{building.name}</h4>
+                    {count > 0 && <p className="text-[10px] font-bold text-ancient-gold">×{formatNumberShortCN(count, { decimals: 0 })}</p>}
                 </div>
             </div>
 
@@ -235,7 +235,7 @@ const CompactBuildingCard = ({
                                         <div className="flex-1 bg-gray-700 rounded-full h-1">
                                             <div className="h-1 rounded-full bg-green-500" style={{ width: `${fillPercent}%` }}></div>
                                         </div>
-                                        <span className="font-mono text-[8px] text-gray-300 whitespace-nowrap">{Math.round(assigned)}/{Math.round(required)}</span>
+                                        <span className="font-mono text-[8px] text-gray-300 whitespace-nowrap">{formatNumberShortCN(assigned, { decimals: 0 })}/{formatNumberShortCN(required, { decimals: 0 })}</span>
                                     </div>
                                 );
                             })}
@@ -262,7 +262,7 @@ const CompactBuildingCard = ({
                                         return (
                                             <div key={res} className="flex items-center gap-0.5 text-green-300" title={`${RESOURCES[res]?.name} - 单个产出: ${val} / 实际总产出: ${actualTotalOutput.toFixed(1)}`}>
                                                 <Icon name={RESOURCES[res]?.icon || 'Box'} size={8} />
-                                                <span className="font-mono text-[9px]">+{actualTotalOutput.toFixed(0)}</span>
+                                                <span className="font-mono text-[9px]">+{formatNumberShortCN(actualTotalOutput, { decimals: 0 })}</span>
                                             </div>
                                         );
                                     })}

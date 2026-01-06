@@ -17,6 +17,7 @@ import {
     MAX_CONCURRENT_WARS,
     GLOBAL_WAR_COOLDOWN
 } from '../utils';
+import { getRelationMonthlyDriftRate } from '../../config/difficulty';
 
 /**
  * Update all AI nations for one tick
@@ -576,15 +577,14 @@ const processAIRelations = (nations, tick, logs) => {
  * Process monthly relation decay for all nations
  * @private
  */
-const processMonthlyRelationDecay = (nations) => {
+const processMonthlyRelationDecay = (nations, difficultyLevel = 'normal') => {
     if (!Array.isArray(nations)) return [];
     return nations.map(nation => {
         if (nation.isRebelNation) return nation;
 
         const currentRelation = nation.relation ?? 50;
         const isAlly = nation.alliedWithPlayer === true;
-        // 减缓月度衰减：盟友0.05，非盟友0.2（原来分别是0.1和0.5）
-        const decayRate = isAlly ? 0.05 : 0.2;
+        const decayRate = getRelationMonthlyDriftRate(difficultyLevel, isAlly);
 
         let newRelation = currentRelation;
         if (currentRelation > 50) {

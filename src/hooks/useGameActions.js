@@ -3055,11 +3055,16 @@ export const useGameActions = (gameState, addLog) => {
             if (!isOpenMarketActive) {
                 const nationRelation = targetNation.relation || 0;
                 const getMaxTradeRoutesForRelation = (relation) => {
-                    if (relation >= 80) return 4; // Allied
-                    if (relation >= 60) return 3; // Friendly
-                    if (relation >= 40) return 2; // Neutral
-                    if (relation >= 20) return 1; // Cold
-                    return 0; // Hostile - no trade
+                    // Relation is the gate; cap scales with merchant population to support late game.
+                    const baseCap = (relation >= 80) ? 4 :
+                        (relation >= 60 ? 3 :
+                            (relation >= 40 ? 2 :
+                                (relation >= 20 ? 1 : 0)));
+
+                    const totalMerchants = gameState?.popStructure?.merchant || 0;
+                    const scaledBonus = Math.max(0, Math.floor(totalMerchants / 100));
+                    const hardCap = 30;
+                    return Math.min(hardCap, baseCap + scaledBonus);
                 };
                 const maxRoutesWithNation = getMaxTradeRoutesForRelation(nationRelation);
                 const currentRoutesWithNation = tradeRoutes.routes.filter(r => r.nationId === nationId).length;

@@ -3834,21 +3834,27 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         }
                     }
 
-                    // 计算有多少岗位可以用于新训练
-                    // 只计算已有军队和正在训练的，waiting状态的就是等待转为training的
-                    const waitingCount = baseQueue.filter(item => item.status === 'waiting').length;
-                    const trainingCount = baseQueue.filter(item => item.status === 'training').length;
+                    // 计算有多少岗位可以用于新训练（避免多次 filter 带来的 O(n) 扫描）
+                    // 只计算已有军队和正在训练的，waiting 状态的就是等待转为 training 的
+                    let waitingCount = 0;
+                    let trainingCount = 0;
+                    for (let i = 0; i < baseQueue.length; i++) {
+                        const s = baseQueue[i]?.status;
+                        if (s === 'waiting') waitingCount++;
+                        else if (s === 'training') trainingCount++;
+                    }
+
                     const occupiedJobs = currentArmyCount + trainingCount;
                     const availableJobsForNewTraining = Math.max(0, currentSoldierPop - occupiedJobs);
 
-                    // console.log('[TRAINING QUEUE] currentSoldierPop:', currentSoldierPop, 'currentArmyCount:', currentArmyCount, 'waitingCount:', waitingCount, 'trainingCount:', trainingCount, 'occupiedJobs:', occupiedJobs, 'availableJobsForNewTraining:', availableJobsForNewTraining); // Commented for performance
-
                     // 将等待中的项转为训练中（如果有可用岗位）
+                    // [PERF] 大队列时逐条写日志会严重卡顿，这里做节流：只写摘要日志
                     let jobsToFill = availableJobsForNewTraining;
+                    let startedThisTick = 0;
                     const updated = baseQueue.map(item => {
                         if (item.status === 'waiting' && jobsToFill > 0) {
                             jobsToFill--;
-                            addLog(`✓ ${UNIT_TYPES[item.unitId].name} 开始训练，需要 ${item.totalTime} 秒`);
+                            startedThisTick++;
                             return {
                                 ...item,
                                 status: 'training',
@@ -3865,8 +3871,16 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         return item;
                     });
 
-                    // 找出已完成的训练
-                    const completed = updated.filter(item => item.status === 'training' && item.remainingTime <= 0);
+                    if (startedThisTick > 0) {
+                        addLog(`✓ ${startedThisTick} 个单位开始训练`);
+                    }
+
+                    // 找出已完成的训练（避免再次 filter 扫描）
+                    const completed = [];
+                    for (let i = 0; i < updated.length; i++) {
+                        const it = updated[i];
+                        if (it?.status === 'training' && it.remainingTime <= 0) completed.push(it);
+                    }
 
                     // [FIX] 计算可以加入军队的数量（不超过容量上限）
                     const currentTotalArmy = Object.values(result.army || armyStateForQueue || {}).reduce((sum, c) => sum + c, 0);
@@ -3895,10 +3909,21 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             return newArmy;
                         });
 
-                        // 添加完成日志
-                        canComplete.forEach(item => {
-                            addLog(`✓ ${UNIT_TYPES[item.unitId].name} 训练完成！`);
-                        });
+                        // [PERF] 大量单位同时毕业时逐条日志会卡顿：改为摘要 + 少量样例
+                        {
+                            const total = canComplete.length;
+                            if (total <= 10) {
+                                canComplete.forEach(item => {
+                                    addLog(`✓ ${UNIT_TYPES[item.unitId].name} 训练完成！`);
+                                });
+                            } else {
+                                const preview = canComplete
+                                    .slice(0, 3)
+                                    .map(item => UNIT_TYPES[item.unitId]?.name || item.unitId)
+                                    .join('、');
+                                addLog(`✓ ${total} 个单位训练完成（例如：${preview}...）`);
+                            }
+                        }
                     }
 
                     if (mustWait.length > 0) {

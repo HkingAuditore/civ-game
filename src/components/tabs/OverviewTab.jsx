@@ -29,6 +29,7 @@ export const OverviewTab = ({
     classExpense = {},
     classLivingStandard = {},
     rebellionStates = {},
+    officials = [],
     onStratumDetailClick,
     // 市场相关
     resources = {},
@@ -76,6 +77,7 @@ export const OverviewTab = ({
                         classExpense={classExpense}
                         classLivingStandard={classLivingStandard}
                         rebellionStates={rebellionStates}
+                        officials={officials}
                         dayScale={1}
                         onDetailClick={onStratumDetailClick}
                         hideTitle={true}

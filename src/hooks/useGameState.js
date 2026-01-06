@@ -813,8 +813,15 @@ export const useGameState = () => {
             setResources({ ...INITIAL_RESOURCES, ...overrides.resources });
         }
 
+        // Default starting buildings: 1 farm + 1 lumber camp + 1 loom house
+        // This gives the player a basic food/wood/cloth supply at game start.
+        const defaultStartingBuildings = { farm: 1, lumber_camp: 1, loom_house: 1 };
+
         if (overrides.buildings) {
-            setBuildings(overrides.buildings);
+            // Merge to ensure defaults exist unless explicitly overridden
+            setBuildings({ ...defaultStartingBuildings, ...overrides.buildings });
+        } else {
+            setBuildings(defaultStartingBuildings);
         }
 
         if (overrides.buildingUpgrades) {
