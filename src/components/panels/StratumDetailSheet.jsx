@@ -935,7 +935,8 @@ const StratumDetailSheetComponent = ({
                         const ownerRevenue = (incomeData.ownerRevenue || 0) / safeDayScale / Math.max(count, 1);
                         const subsidy = (incomeData.subsidy || 0) / safeDayScale / Math.max(count, 1);
                         const salary = (incomeData.salary || 0) / safeDayScale / Math.max(count, 1);
-                        const totalIncomeCalc = wage + ownerRevenue + subsidy + salary;
+                        const militaryPay = (incomeData.militaryPay || 0) / safeDayScale / Math.max(count, 1); // [FIX] 添加军饷
+                        const totalIncomeCalc = wage + ownerRevenue + subsidy + salary + militaryPay;
 
                         // 计算支出总计
                         const headTax = (expenseData.headTax || 0) / safeDayScale / Math.max(count, 1);
@@ -1007,6 +1008,7 @@ const StratumDetailSheetComponent = ({
                             const ownerRevenue = (data.ownerRevenue || 0) / safeDayScale / Math.max(count, 1);
                             const subsidy = (data.subsidy || 0) / safeDayScale / Math.max(count, 1);
                             const salary = (data.salary || 0) / safeDayScale / Math.max(count, 1); // 官员俸禄
+                            const militaryPay = (data.militaryPay || 0) / safeDayScale / Math.max(count, 1); // [FIX] 军饷
 
                             return (
                                 <div className="space-y-1.5">
@@ -1014,6 +1016,12 @@ const StratumDetailSheetComponent = ({
                                         <div className="flex justify-between items-center text-xs">
                                             <span className="text-gray-300">工资收入</span>
                                             <span className="text-green-400 font-mono">+{wage.toFixed(2)}</span>
+                                        </div>
+                                    )}
+                                    {militaryPay > 0.001 && (
+                                        <div className="flex justify-between items-center text-xs">
+                                            <span className="text-gray-300">军饷</span>
+                                            <span className="text-green-400 font-mono">+{militaryPay.toFixed(2)}</span>
                                         </div>
                                     )}
                                     {salary > 0.001 && (
@@ -1034,7 +1042,7 @@ const StratumDetailSheetComponent = ({
                                             <span className="text-green-400 font-mono">+{subsidy.toFixed(2)}</span>
                                         </div>
                                     )}
-                                    {wage <= 0.001 && ownerRevenue <= 0.001 && subsidy <= 0.001 && salary <= 0.001 && (
+                                    {wage <= 0.001 && ownerRevenue <= 0.001 && subsidy <= 0.001 && salary <= 0.001 && militaryPay <= 0.001 && (
                                         <div className="text-gray-500 text-xs italic text-center">暂无显著收入</div>
                                     )}
                                 </div>

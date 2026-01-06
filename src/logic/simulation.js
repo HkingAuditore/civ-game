@@ -2285,6 +2285,10 @@ export const simulateTick = ({
             res.silver = available - totalArmyCost;
             rates.silver = (rates.silver || 0) - totalArmyCost;
             roleWagePayout.soldier = (roleWagePayout.soldier || 0) + totalArmyCost;
+            // [FIX] 同步到 classFinancialData 以保持概览和财务面板数据一致
+            if (classFinancialData.soldier) {
+                classFinancialData.soldier.income.militaryPay = (classFinancialData.soldier.income.militaryPay || 0) + totalArmyCost;
+            }
         } else if (totalArmyCost > 0) {
             // 部分支付
             const partialPay = available * 0.9; // 留10%底
@@ -2292,6 +2296,10 @@ export const simulateTick = ({
                 res.silver = available - partialPay;
                 rates.silver = (rates.silver || 0) - partialPay;
                 roleWagePayout.soldier = (roleWagePayout.soldier || 0) + partialPay;
+                // [FIX] 同步到 classFinancialData 以保持概览和财务面板数据一致
+                if (classFinancialData.soldier) {
+                    classFinancialData.soldier.income.militaryPay = (classFinancialData.soldier.income.militaryPay || 0) + partialPay;
+                }
             }
             logs.push(`⚠️ 军饷不足！应付${totalArmyCost.toFixed(0)}银币，仅能支付${partialPay.toFixed(0)}银币，军心不稳。`);
         }
@@ -2532,6 +2540,10 @@ export const simulateTick = ({
                             totalCost -= subsidyAmount;
                             // Record consumption subsidy as income
                             roleWagePayout[key] = (roleWagePayout[key] || 0) + subsidyAmount;
+                            // [FIX] 同步到 classFinancialData 以保持概览和财务面板数据一致
+                            if (classFinancialData[key]) {
+                                classFinancialData[key].income.subsidy = (classFinancialData[key].income.subsidy || 0) + subsidyAmount;
+                            }
                         } else {
                             if (tick % 20 === 0) {
                                 logs.push(`国库空虚，无法为 ${STRATA[key]?.name || key} 支付 ${RESOURCES[resKey]?.name || resKey} 消费补贴！`);
