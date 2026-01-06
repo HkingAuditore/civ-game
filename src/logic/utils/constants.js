@@ -50,7 +50,7 @@ export const LUCKY_PROMOTION_CHANCE = 0.0001; // 0.01% chance
 
 // Same-tier (horizontal) migration resistance - limits frequent swapping between same-tier roles
 // e.g., peasant ↔ lumberjack, worker ↔ artisan
-export const SAME_TIER_MIGRATION_RESISTANCE = 2.5;
+export const SAME_TIER_MIGRATION_RESISTANCE = 1.5;
 
 // Downward migration resistance - makes it harder to move to lower-tier roles
 // Only applies to voluntary migration (not layoffs)

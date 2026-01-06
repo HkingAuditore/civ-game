@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { COUNTRIES, RESOURCES, STRATA } from '../config';
 import { isOldUpgradeFormat, migrateUpgradesToNewFormat } from '../utils/buildingUpgradeUtils';
 import { migrateAllOfficialsForInvestment } from '../logic/officials/migration';
-import { DEFAULT_DIFFICULTY, getDifficultyConfig, getStartingSilverMultiplier } from '../config/difficulty';
+import { DEFAULT_DIFFICULTY, getDifficultyConfig, getStartingSilverMultiplier, getInitialBuildings } from '../config/difficulty';
 import { getScenarioById } from '../config/scenarios';
 import { Share } from '@capacitor/share';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
@@ -943,6 +943,10 @@ export const useGameState = () => {
                 if (newGameScenario) {
                     applyScenarioConfig(newGameScenario);
                     localStorage.removeItem('new_game_scenario');
+                } else {
+                    // Standard Game: Apply difficulty-based initial buildings
+                    const initialBuildings = getInitialBuildings(difficultyForNewGame);
+                    setBuildings(initialBuildings);
                 }
 
                 // Difficulty-based starting treasury boost
@@ -1020,6 +1024,10 @@ export const useGameState = () => {
                 if (newGameScenario) {
                     applyScenarioConfig(newGameScenario);
                     localStorage.removeItem('new_game_scenario');
+                } else {
+                    // Standard Game: Apply difficulty-based initial buildings
+                    const initialBuildings = getInitialBuildings(difficultyForNewGame);
+                    setBuildings(initialBuildings);
                 }
 
                 // Difficulty-based starting treasury boost

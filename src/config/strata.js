@@ -122,7 +122,7 @@ export const STRATA = {
         desc: "工业时代的基石，推动生产力发展。",
         wealthWeight: 2,
         influenceBase: 1,
-        startingWealth: 150,
+        startingWealth: 80,
         defaultResource: 'plank',
         wealthElasticity: 0.7, // 工人阶级：消费增长中等
         maxConsumptionMultiplier: 3, // 底层阶级消费上限3倍（防止补贴导致消费爆炸）

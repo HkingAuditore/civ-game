@@ -468,10 +468,33 @@ export const handleJobMigration = ({
     // Helper: Check if a role produces critically short resources
     const roleProducesShortResource = (role) => rolesProducingShortResources.has(role);
 
+    // Identify "vulnerable" resources - those not yet critical but low enough that we shouldn't steal workers from them
+    // This prevents ping-pong effects (e.g. stealing Peasants to fix Cloth, causing Food shortage, then stealing Workers to fix Food)
+    const EARLY_WARNING_THRESHOLD = 0.8;
+    const vulnerableResources = CRITICAL_RESOURCES.filter(res => {
+        const ratio = supplyDemandRatio[res];
+        return ratio !== undefined && ratio < EARLY_WARNING_THRESHOLD;
+    });
+
+    const rolesProducingVulnerableResources = new Set();
+    if (vulnerableResources.length > 0) {
+        Object.entries(roleProducesResource).forEach(([role, resources]) => {
+            if (resources && Array.isArray(resources)) {
+                const producesVulnerable = resources.some(r => vulnerableResources.includes(r));
+                if (producesVulnerable) {
+                    rolesProducingVulnerableResources.add(role);
+                }
+            }
+        });
+    }
+
+    const roleProducesVulnerableResource = (role) => rolesProducingVulnerableResources.has(role);
+
     // ============== EMERGENCY MIGRATION (Survival Instinct) ==============
     // When resources are critically short, attempt emergency migration FIRST
     // This allows migration even when normal conditions aren't met
-    if (hasResourceCrisis) {
+    // [MOD] Temporarily disabled as requested by user to prevent ping-pong effect
+    if (false && hasResourceCrisis) {
         // Find the best emergency source: any role with population that's NOT producing short resources
         // Priority: unemployed > non-essential roles > roles with surplus
         const emergencySource = activeRoleMetrics
@@ -479,6 +502,11 @@ export const handleJobMigration = ({
                 if (r.pop <= 0 || r.role === 'soldier') return false;
                 // Don't migrate FROM roles that produce short resources (we need them!)
                 if (roleProducesShortResource(r.role)) return false;
+                
+                // [FIX] Also don't migrate from roles producing "vulnerable" resources (safety buffer)
+                // Unless the target crisis is MUCH worse? For simplicity, just protect them.
+                if (roleProducesVulnerableResource(r.role)) return false;
+                
                 // Skip roles on cooldown
                 if (updatedCooldowns[r.role] && updatedCooldowns[r.role] > 0) return false;
                 return true;
@@ -567,6 +595,11 @@ export const handleJobMigration = ({
     }
 
     // ============== NORMAL MIGRATION LOGIC (Enhanced with shortage awareness) ==============
+    // Calculate max potential income among roles with vacancies (Pull factor)
+    const maxPotentialIncome = activeRoleMetrics
+        .filter(r => hasBuildingVacancyForRole(r.role))
+        .reduce((max, r) => Math.max(max, r.potentialIncome), 0);
+
     // Find source candidate (struggling role) - exclude roles on cooldown
     const sourceCandidate = activeRoleMetrics
         .filter(r => {
@@ -576,11 +609,19 @@ export const handleJobMigration = ({
 
             const percentageThreshold = r.perCap * 0.05;
             const adjustedDeltaThreshold = -Math.max(0.5, Math.min(50, percentageThreshold));
+            
+            // Criteria for seeking new job:
+            // 1. "Push": Income is below 70% of population average
+            // 2. "Push": Income is declining significantly
+            // 3. "Pull": [NEW] Income is below 60% of the BEST available opportunity (e.g. profitable factories)
             return r.potentialIncome < averagePotentialIncome * 0.7 ||
-                r.perCapDelta < adjustedDeltaThreshold;
+                r.perCapDelta < adjustedDeltaThreshold ||
+                (maxPotentialIncome > 0 && r.potentialIncome < maxPotentialIncome * 0.6);
         })
         .reduce((lowest, current) => {
             if (!lowest) return current;
+            // Prioritize the one with the biggest gap to the max potential
+            // (or originally: lowest potential income)
             if (current.potentialIncome < lowest.potentialIncome) return current;
             if (current.potentialIncome === lowest.potentialIncome &&
                 current.perCapDelta < lowest.perCapDelta) return current;

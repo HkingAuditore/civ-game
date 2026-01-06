@@ -61,6 +61,14 @@ export const DIFFICULTY_CONFIG = {
         // Base monthly drift back to 50 (ally/non-ally)
         relationMonthlyDriftRateAlly: 0.04,
         relationMonthlyDriftRateNonAlly: 0.12,
+        // [NEW] Initial Buildings
+        initialBuildings: {
+            farm: 3,
+            lumber_camp: 3,
+            quarry: 2,
+            loom_house: 2,
+            market: 1
+        },
     },
     [DIFFICULTY_LEVELS.EASY]: {
         id: DIFFICULTY_LEVELS.EASY,
@@ -101,6 +109,13 @@ export const DIFFICULTY_CONFIG = {
         relationDailyDriftRate: 0.018,
         relationMonthlyDriftRateAlly: 0.045,
         relationMonthlyDriftRateNonAlly: 0.16,
+        // [NEW] Initial Buildings
+        initialBuildings: {
+            farm: 2,
+            lumber_camp: 2,
+            quarry: 1,
+            loom_house: 1
+        },
     },
     [DIFFICULTY_LEVELS.NORMAL]: {
         id: DIFFICULTY_LEVELS.NORMAL,
@@ -141,6 +156,12 @@ export const DIFFICULTY_CONFIG = {
         relationDailyDriftRate: 0.02,
         relationMonthlyDriftRateAlly: 0.05,
         relationMonthlyDriftRateNonAlly: 0.2,
+        // [NEW] Initial Buildings
+        initialBuildings: {
+            farm: 1,
+            lumber_camp: 1,
+            loom_house: 1
+        },
     },
     [DIFFICULTY_LEVELS.HARD]: {
         id: DIFFICULTY_LEVELS.HARD,
@@ -183,6 +204,11 @@ export const DIFFICULTY_CONFIG = {
         relationDailyDriftRate: 0.03,
         relationMonthlyDriftRateAlly: 0.08,
         relationMonthlyDriftRateNonAlly: 0.35,
+        // [NEW] Initial Buildings
+        initialBuildings: {
+            farm: 1,
+            lumber_camp: 1
+        },
     },
     [DIFFICULTY_LEVELS.VERY_HARD]: {
         id: DIFFICULTY_LEVELS.VERY_HARD,
@@ -224,6 +250,10 @@ export const DIFFICULTY_CONFIG = {
         relationDailyDriftRate: 0.04,
         relationMonthlyDriftRateAlly: 0.1,
         relationMonthlyDriftRateNonAlly: 0.5,
+        // [NEW] Initial Buildings
+        initialBuildings: {
+            farm: 1
+        },
     },
     [DIFFICULTY_LEVELS.EXTREME]: {
         id: DIFFICULTY_LEVELS.EXTREME,
@@ -265,6 +295,8 @@ export const DIFFICULTY_CONFIG = {
         relationDailyDriftRate: 0.05,
         relationMonthlyDriftRateAlly: 0.12,
         relationMonthlyDriftRateNonAlly: 0.7,
+        // [NEW] Initial Buildings
+        initialBuildings: {loom_house: 1},
     },
 };
 
@@ -481,6 +513,7 @@ export default {
     getRelationChangeMultipliers,
     getRelationDailyDriftRate,
     getRelationMonthlyDriftRate,
+    getInitialBuildings,
     // [NEW] Helper functions
     getTaxToleranceMultiplier,
     getResourceConsumptionMultiplier,
@@ -492,6 +525,17 @@ export default {
     getMaxConsumptionMultiplierBonus,
     getStartingSilverMultiplier,
 };
+
+/**
+ * Get initial buildings for the difficulty level
+ * @param {string} difficultyLevel - Current difficulty level
+ * @returns {Object} Initial buildings object
+ */
+export function getInitialBuildings(difficultyLevel) {
+    const config = getDifficultyConfig(difficultyLevel);
+    return config.initialBuildings || {};
+}
+
 
 /**
  * Get starting silver multiplier

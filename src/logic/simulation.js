@@ -1017,12 +1017,112 @@ export const simulateTick = ({
     // bonuses.taxBonus 是来自 effects.taxIncome 的累加值（如庆典效果、政令效果等）
     const effectiveTaxModifier = Math.max(0, taxModifier * legitimacyTaxModifier * (1 + (bonuses.taxBonus || 0)));
 
+    // [FIX] 提前定义空岗位收入预估函数，用于 fillVacancies 时的智能工资判断
+    // 逻辑与 simulation 尾部的 estimateVacantRoleIncome 类似，但只能使用上一 tick 的数据 (market.wages)
+    const estimatePotentialIncomeForVacancy = (role) => {
+        const VACANT_BONUS = 1.2;
+        let ownerIncome = 0;
+        let ownerSlots = 0;
+        let employeeWage = 0;
+        let employeeSlots = 0;
+
+        BUILDINGS.forEach(building => {
+            const count = builds[building.id] || 0;
+            if (count <= 0) return;
+
+            const config = getBuildingEffectiveConfig(building, 0);
+            const jobs = config.jobs || {};
+            const roleSlots = jobs[role] || 0;
+            if (roleSlots <= 0) return;
+
+            const isOwner = building.owner === role;
+
+            if (isOwner) {
+                // 业主预估：产出 - 成本 - 雇员工资 - 税
+                let outputValue = 0;
+                if (config.output) {
+                    Object.entries(config.output).forEach(([resource, amount]) => {
+                         // 跳过特殊资源
+                        if (!RESOURCES[resource]) return; 
+                        const price = priceMap[resource] || getBasePrice(resource);
+                        outputValue += amount * price;
+                    });
+                }
+                let inputCost = 0;
+                if (config.input) {
+                    Object.entries(config.input).forEach(([resource, amount]) => {
+                        const price = priceMap[resource] || getBasePrice(resource);
+                        inputCost += amount * price;
+                    });
+                }
+                let wageCost = 0;
+                Object.entries(jobs).forEach(([jobRole, slots]) => {
+                    if (jobRole === role || !slots || slots <= 0) return;
+                    // 使用上一 tick 的工资作为参考
+                    const avgPaidWage = market?.wages?.[jobRole] ?? getExpectedWage(jobRole);
+                    wageCost += avgPaidWage * slots;
+                });
+                
+                const headBase = STRATA[role]?.headTaxBase ?? 0.01;
+                const headTaxCost = headBase * getHeadTaxRate(role) * effectiveTaxModifier;
+                const businessTaxBase = building.businessTaxBase ?? 0.1;
+                const businessTaxRate = policies?.businessTaxRates?.[building.id] ?? 1;
+                const businessTaxCost = businessTaxBase * businessTaxRate;
+
+                const netProfit = outputValue - inputCost - wageCost - headTaxCost - businessTaxCost;
+                const profitPerOwner = roleSlots > 0 ? netProfit / roleSlots : 0;
+
+                ownerIncome += profitPerOwner * roleSlots * count;
+                ownerSlots += roleSlots * count;
+            } else {
+                // 雇员预估：使用上一 tick 市场工资，如果为 0 则尝试从 building 属性推断
+                // 注意：这里是一个关键点，如果没有历史工资，我们应该相信 building 的 wagePressure 吗？
+                // simulation 尾部的逻辑是直接取 market.wages，但这里正是因为 market.wages 低才导致没人来
+                // 既然是雇员，主要看"期望工资" + "空缺加成"
+                // 但如果该岗位是高利润行业的工人，应该能给得起高工资。
+                // 简单起见，我们对雇员也应用 VACANT_BONUS 到 getExpectedWage 上
+                const avgPaidWage = market?.wages?.[role] ?? getExpectedWage(role);
+                
+                // 计算税后（虽然这里只算工资部分，统一后面处理）
+                employeeWage += avgPaidWage * roleSlots * count;
+                employeeSlots += roleSlots * count;
+            }
+        });
+
+        const totalSlots = ownerSlots + employeeSlots;
+        if (totalSlots <= 0) return getExpectedWage(role);
+
+        // 如果是纯雇员岗位且历史工资极低，尝试根据行业利润反推？
+        // 目前暂不搞太复杂，先仅对"有产出但没工资"的情况做兜底
+        // 但对于 worker 这种纯雇员，如果 market.wages 是 0，这里算出来还是 0
+        // 需要一个机制让"空的高利润工厂"广播高工资
+        // 在 building production loop 中我们有 wagePressure，但这里还是 start of tick
+        
+        // 改进：如果是雇员，且计算出的 employeeWage 很低，但所在的工厂很赚钱...
+        // 这太复杂了。目前先复用原有逻辑，依赖 VACANT_BONUS 提升吸引力
+        const totalIncome = ownerIncome + employeeWage;
+        const averageIncome = totalIncome / totalSlots;
+        return Math.max(getExpectedWage(role), averageIncome * VACANT_BONUS);
+    };
+
+    // [FIX] 智能工资获取器
+    const getSmartExpectedWage = (role) => {
+        const currentPop = popStructure[role] || 0;
+        // 如果没人干这个活，或者人很少，就使用"画饼"模式（预估潜力）来吸引人
+        if (currentPop <= 5) {
+            const potential = estimatePotentialIncomeForVacancy(role);
+            const standard = getExpectedWage(role);
+            return Math.max(potential, standard);
+        }
+        return getExpectedWage(role);
+    };
+
     // 自动填补（招工）：使用 job.js 中的 fillVacancies 函数，支持阶层流动
     const filledResult = fillVacancies({
         popStructure,
         jobsAvailable,
         wealth,
-        getExpectedWage,
+        getExpectedWage: getSmartExpectedWage, // [FIX] 使用智能工资预估
         getHeadTaxRate,
         effectiveTaxModifier
     });
@@ -1373,10 +1473,15 @@ export const simulateTick = ({
             if (totalSlots > 0) {
                 buildingStaffingRatios[b.id] = staffingRatio;
             }
-            if (totalSlots > 0 && filledSlots <= 0) {
-                return;
-            }
+            // [FIX] REMOVED early return for empty buildings
+            // We need to proceed to calculate POTENTIAL wage offers to attract workers
+            // if (totalSlots > 0 && filledSlots <= 0) {
+            //    return;
+            // }
         }
+
+        // Capture multiplier BEFORE staffing application for potential calculation
+        const potentialMultiplierBeforeStaffing = multiplier;
 
         multiplier *= staffingRatio;
 
@@ -1385,6 +1490,9 @@ export const simulateTick = ({
         }
 
         const baseMultiplier = multiplier;
+        // simBaseMultiplier: What production WOULD be if fully staffed (for stats/estimation)
+        const simBaseMultiplier = baseMultiplier > 0 ? baseMultiplier : potentialMultiplierBeforeStaffing;
+
         let resourceLimit = 1;
         let inputCostPerMultiplier = 0;
         let isInLowEfficiencyMode = false;
@@ -1428,7 +1536,8 @@ export const simulateTick = ({
                 }
 
                 const perMultiplierAmount = totalAmount;
-                const requiredAtBase = perMultiplierAmount * baseMultiplier;
+                // Use simBaseMultiplier to check if we COULD produce if staffed
+                const requiredAtBase = perMultiplierAmount * simBaseMultiplier;
                 if (requiredAtBase <= 0) continue;
                 const available = res[resKey] || 0;
                 if (available <= 0) {
@@ -1446,9 +1555,13 @@ export const simulateTick = ({
 
         // 防死锁机制：采集类建筑在缺少输入原料时进入低效模式
         let targetMultiplier = baseMultiplier * Math.max(0, Math.min(1, resourceLimit));
+        // Potential target multiplier (if staffed)
+        let simTargetMultiplier = simBaseMultiplier * Math.max(0, Math.min(1, resourceLimit));
+        
         if (b.cat === 'gather' && resourceLimit === 0 && Object.keys(effectiveOps.input).length > 0) {
             // 进入低效模式：20%效率，不消耗原料
             targetMultiplier = baseMultiplier * 0.2;
+            simTargetMultiplier = simBaseMultiplier * 0.2;
             isInLowEfficiencyMode = true;
             inputCostPerMultiplier = 0; // 低效模式下不消耗原料，因此成本为0
 
@@ -1475,21 +1588,22 @@ export const simulateTick = ({
             }
         }
 
-        const baseWageCostPerMultiplier = baseMultiplier > 0 ? expectedWageBillBase / baseMultiplier : expectedWageBillBase;
-        const estimatedRevenue = outputValuePerMultiplier * targetMultiplier;
-        const estimatedInputCost = inputCostPerMultiplier * targetMultiplier;
-        const baseWageCost = baseWageCostPerMultiplier * targetMultiplier;
+        const baseWageCostPerMultiplier = simBaseMultiplier > 0 ? expectedWageBillBase / simBaseMultiplier : expectedWageBillBase;
+        // All estimates use SIMULATED/POTENTIAL multiplier to generate correct wage pressure signals
+        const estimatedRevenue = outputValuePerMultiplier * simTargetMultiplier;
+        const estimatedInputCost = inputCostPerMultiplier * simTargetMultiplier;
+        const baseWageCost = baseWageCostPerMultiplier * simTargetMultiplier;
         const valueAvailableForLabor = Math.max(0, estimatedRevenue - estimatedInputCost);
         const wageCoverage = baseWageCost > 0 ? valueAvailableForLabor / baseWageCost : 1;
         const wagePressure = (() => {
             if (!Number.isFinite(wageCoverage)) return 1;
             if (wageCoverage >= 1) {
-                return Math.min(1.4, 1 + (wageCoverage - 1) * 0.35);
+                return Math.min(3.0, 1 + (wageCoverage - 1) * 0.5);
             }
             return Math.max(0.65, 1 - (1 - wageCoverage) * 0.5);
         })();
         const wageCostPerMultiplier = baseWageCostPerMultiplier * wagePressure;
-        const estimatedWageCost = wageCostPerMultiplier * targetMultiplier;
+        const estimatedWageCost = wageCostPerMultiplier * simTargetMultiplier;
 
         // 预估营业税成本
         // 军事类建筑不收营业税
@@ -1501,10 +1615,15 @@ export const simulateTick = ({
         const businessTaxBase = b.businessTaxBase ?? 0.1;
         const businessTaxMultiplier = (isHousingBuilding || isMilitaryBuilding) ? 0 : getBusinessTaxRate(b.id);
         const businessTaxPerBuilding = businessTaxBase * businessTaxMultiplier;
-        const estimatedBusinessTax = businessTaxPerBuilding * count * targetMultiplier;
+        // Use simTargetMultiplier for estimate
+        const estimatedBusinessTax = businessTaxPerBuilding * count * simTargetMultiplier;
 
         const totalOperatingCostPerMultiplier = inputCostPerMultiplier + wageCostPerMultiplier;
+        // Actual multiplier tracks real production (0 if empty)
         let actualMultiplier = targetMultiplier;
+        // Sim multiplier tracks potential production (full capacity)
+        let simActualMultiplier = simTargetMultiplier;
+        
         let debugMarginRatio = null;
         let debugData = null;
 
@@ -1528,6 +1647,7 @@ export const simulateTick = ({
                 const marginRatio = Math.max(0, Math.min(1, estimatedRevenue / estimatedCost));
                 debugMarginRatio = marginRatio;
                 actualMultiplier = targetMultiplier * marginRatio;
+                simActualMultiplier = simTargetMultiplier * marginRatio;
             } else {
                 debugMarginRatio = estimatedCost > 0 ? estimatedRevenue / estimatedCost : null;
             }
@@ -1574,7 +1694,10 @@ export const simulateTick = ({
                 ownerDetails.push({ owner: oKey, proportion: ownerProportion, operatingCost: ownerOperatingCost, cash: ownerCash, affordable: ownerAffordable });
             });
             const affordableMultiplier = minAffordableMultiplier === Infinity ? targetMultiplier : minAffordableMultiplier;
+            const simAffordableMultiplier = minAffordableMultiplier === Infinity ? simTargetMultiplier : minAffordableMultiplier;
+
             actualMultiplier = Math.min(actualMultiplier, Math.max(0, affordableMultiplier));
+            simActualMultiplier = Math.min(simActualMultiplier, Math.max(0, simAffordableMultiplier));
             // DEBUG: 更新调试数据
             if (debugData) {
                 debugData.totalOperatingCostPerMultiplier = totalOperatingCostPerMultiplier;
@@ -1609,8 +1732,12 @@ export const simulateTick = ({
             });
         }
         actualMultiplier *= approvalMultiplier;
+        simActualMultiplier *= approvalMultiplier;
 
         const utilization = baseMultiplier > 0 ? Math.min(1, actualMultiplier / baseMultiplier) : 0;
+        // Sim utilization is what drives the wage OFFER signal
+        const simUtilization = simBaseMultiplier > 0 ? Math.min(1, simActualMultiplier / simBaseMultiplier) : 0;
+
         let plannedWageBill = 0;
 
         // 低效模式下不消耗输入原料（徒手采集）
@@ -1761,7 +1888,7 @@ export const simulateTick = ({
             if (!Number.isFinite(coverage)) {
                 levelWagePressure = 1;
             } else if (coverage >= 1) {
-                levelWagePressure = Math.min(1.4, 1 + (coverage - 1) * 0.35);
+                levelWagePressure = Math.min(3.0, 1 + (coverage - 1) * 0.5);
             } else {
                 levelWagePressure = Math.max(0.65, 1 - (1 - coverage) * 0.5);
             }
@@ -1916,8 +2043,10 @@ export const simulateTick = ({
             const ratio = ownerPaidRatio[plan.ownerKey] ?? 0;
             const actualSlotWage = plan.expectedSlotWage * ratio;
 
-            // Stats: use actualSlotWage (NOT theoretical expected wage)
-            roleWageStats[plan.role].weightedWage += actualSlotWage * plan.roleSlots;
+            // Stats: use SIMULATED utilization to ensure empty buildings broadcast their wage ability
+            // If utilizing actualSlotWage, it would be 0 for empty buildings
+            const statSlotWage = plan.baseWage * simUtilization * plan.wagePressure;
+            roleWageStats[plan.role].weightedWage += statSlotWage * plan.roleSlots;
 
             if (plan.filled > 0 && actualSlotWage > 0) {
                 const payout = actualSlotWage * plan.filled;
