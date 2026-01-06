@@ -140,7 +140,7 @@ export function getLivingStandardByScore(score) {
  * @param {number} maxMultiplier - 消费倍数上限（底层3, 中层6, 上层10）
  * @returns {number} 财富乘数
  */
-export function calculateWealthMultiplier(incomeRatio, wealthRatio = 1, wealthElasticity = 1.0, maxMultiplier = 6.0) {
+export function calculateWealthMultiplier(incomeRatio, wealthRatio = 1, wealthElasticity = 1.0, maxMultiplier = 6.0, greedy = false) {
     // 2024-12更新：高财富比率可以补偿低收入
     // 解决自给自足型阶层（如自耕农）的问题：他们收入很低但财富积累很高
 
@@ -160,7 +160,13 @@ export function calculateWealthMultiplier(incomeRatio, wealthRatio = 1, wealthEl
     } else {
         // 新曲线：使用自然对数，增长更平缓
         // effectiveRatio=2 → ~1.35, =4 → ~1.69, =8 → ~2.04
-        baseMultiplier = 1 + Math.log(effectiveRatio) * 0.5;
+        if (greedy) {
+            // 贪婪模式：线性增长，无对数抑制
+            // 财富越多，消费越接近线性增长
+            baseMultiplier = 1 + (effectiveRatio - 1) * 0.8;
+        } else {
+            baseMultiplier = 1 + Math.log(effectiveRatio) * 0.5;
+        }
     }
 
     // 2. 使用弹性系数调节增长速度（主要影响超过基准后的增长）
@@ -187,8 +193,15 @@ export function calculateWealthMultiplier(incomeRatio, wealthRatio = 1, wealthEl
         wealthFactor = 1.0;
     } else {
         // 富裕：略微增加消费意愿（最多+15%）
-        const extraFactor = Math.min(0.15, (wealthRatio - 2) * 0.025 * wealthElasticity);
-        wealthFactor = 1.0 + extraFactor;
+        if (greedy) {
+            // 贪婪模式：无上限，且额外激进
+            // e.g. 10倍财富 -> 50% extra factor
+            const extraFactor = (wealthRatio - 2) * 0.05 * wealthElasticity;
+            wealthFactor = 1.0 + extraFactor;
+        } else {
+            const extraFactor = Math.min(0.15, (wealthRatio - 2) * 0.025 * wealthElasticity);
+            wealthFactor = 1.0 + extraFactor;
+        }
     }
 
     // 4. 最终消费能力 = 收入能力 × 财富意愿
@@ -446,6 +459,7 @@ export function calculateLivingStandardData({
     isNewStratum = false,
     maxConsumptionMultiplier = 6,
     wealthElasticity = 1.0,
+    greedy = false,
 }) {
     if (count <= 0) {
         return null;
@@ -509,7 +523,7 @@ export function calculateLivingStandardData({
     const incomeRatio = essentialCostPerCapita > 0
         ? incomePerCapita / essentialCostPerCapita
         : (incomePerCapita > 0 ? 10 : 0);
-    const wealthMultiplier = calculateWealthMultiplier(incomeRatio, realWealthRatio, wealthElasticity, maxConsumptionMultiplier);
+    const wealthMultiplier = calculateWealthMultiplier(incomeRatio, realWealthRatio, wealthElasticity, maxConsumptionMultiplier, greedy);
 
     // 奢侈需求解锁比例
     const luxuryUnlockRatio = totalLuxuryTiers > 0 ? unlockedLuxuryTiers / totalLuxuryTiers : 0;

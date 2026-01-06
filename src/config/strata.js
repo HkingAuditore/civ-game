@@ -386,8 +386,9 @@ export const STRATA = {
         influenceBase: 4,
         startingWealth: 400,
         defaultResource: 'science',
-        wealthElasticity: 1.2, // 官员：消费增长快
-        maxConsumptionMultiplier: 10, // 上层阶级消费上限10倍
+        wealthElasticity: 2.5, // 官员：贪婪消费，极高弹性
+        maxConsumptionMultiplier: 50, // 极高消费上限
+        greedy: true, // 启用贪婪消费逻辑
         needs: { food: 1.20, cloth: 0.20 },
         luxuryNeeds: {
             1.0: { delicacies: 0.50, papyrus: 0.12, coffee: 0.08, furniture: 0.10, stone: 0.04, fine_clothes: 0.10, culture: 0.25 },

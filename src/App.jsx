@@ -785,7 +785,7 @@ function GameApp({ gameState }) {
         <div className="min-h-screen font-epic text-theme-text transition-all duration-1000 relative">
             {/* Dynamic Era Background */}
             <EraBackground epoch={gameState.epoch} opacity={0.08} />
-            {/* <MusicPlayer /> */}
+            <MusicPlayer />
             {/* 浮动文本 */}
             {gameState.clicks.map(c => (
                 <FloatingText
@@ -1391,6 +1391,7 @@ function GameApp({ gameState }) {
                         nations={gameState.nations}
                         epoch={gameState.epoch}
                         techsUnlocked={gameState.techsUnlocked}
+                        officials={gameState.officials} // Pass officials data for average loyalty calculation
                         onClose={closeSheet}
                     />
                 )}

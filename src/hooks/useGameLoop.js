@@ -1806,8 +1806,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     setClassWealthDelta(wealthDelta);
                     setClassIncome(result.classIncome || {});
                     setClassExpense(result.classExpense || {});
-    setClassFinancialData(result.classFinancialData || {});
-    setBuildingFinancialData(result.buildingFinancialData || {});
+                    setClassFinancialData(result.classFinancialData || {});
+                    setBuildingFinancialData(result.buildingFinancialData || {});
                     // DEBUG: Store building debug data for UI display
                     if (typeof window !== 'undefined') {
                         window.__buildingDebugData = result.buildingDebugData || {};
@@ -2693,7 +2693,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
                         // Merchant autonomous trade summary logs (from simulation)
                         // Gate behind showMerchantTradeLogs
-                        if (log.startsWith('🛒 商人自主贸易')) {
+                        if (log.startsWith('🛒 商人贸易完成')) {
                             return shouldLogMerchantTrades ? log : null;
                         }
 
@@ -3662,15 +3662,15 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     }
                 }
                 // 处理训练队列
-                
+
                 // [FIX] Moved Auto Replenish Logic here to share scope with setMilitaryQueue
                 const autoRecruitEnabled = current.autoRecruitEnabled || false;
                 const allAutoReplenishLosses = {};
-                
+
                 // DEBUG: Check if we are receiving any replenish logs
                 const hasReplenishLog = result.logs.some(l => typeof l === 'string' && l.includes('AUTO_REPLENISH_LOSSES:'));
                 if (hasReplenishLog) {
-                        addLog(`🛠️ [DEBUG] Worker sent replenishment signal! AutoRecruit: ${autoRecruitEnabled}`);
+                    addLog(`🛠️ [DEBUG] Worker sent replenishment signal! AutoRecruit: ${autoRecruitEnabled}`);
                 }
 
                 if (autoRecruitEnabled) {
@@ -3694,11 +3694,11 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     .sort(([a], [b]) => a.localeCompare(b))
                     .map(([unitId, count]) => `${unitId}:${count}`)
                     .join('|');
-                
+
                 const shouldProcessAutoReplenish = autoRecruitEnabled && Object.keys(allAutoReplenishLosses).length > 0;
 
                 if (shouldProcessAutoReplenish) {
-                        debugLog('gameLoop', `[AUTO_REPLENISH] Triggering for losses: ${autoReplenishKey}`);
+                    debugLog('gameLoop', `[AUTO_REPLENISH] Triggering for losses: ${autoReplenishKey}`);
                 }
 
                 // [FIX] 将自动补兵逻辑移入此回调，确保使用最新的队列状态
@@ -3713,12 +3713,12 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     if (shouldProcessAutoReplenish && autoRecruitEnabled && militaryCapacity > 0) {
                         // 计算可用槽位 = 容量 - 当前军队 - 当前队列
                         const availableSlotsForReplenish = Math.max(0, militaryCapacity - currentArmyCount - baseQueue.length);
-                        
+
                         if (availableSlotsForReplenish > 0) {
                             let slotsRemaining = availableSlotsForReplenish;
                             const replenishItems = [];
                             const replenishCounts = {};
-                            
+
                             // 计算每种单位可补充的数量
                             Object.entries(allAutoReplenishLosses).forEach(([unitId, lossCount]) => {
                                 if (lossCount <= 0 || slotsRemaining <= 0) return;
@@ -3730,13 +3730,13 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                     slotsRemaining -= fillCount;
                                 }
                             });
-                            
+
                             // 检查资源是否足够
                             const getMarketPrice = (resource) => {
                                 const base = RESOURCES[resource]?.basePrice || 1;
                                 return result.market?.prices?.[resource] ?? current.market?.prices?.[resource] ?? base;
                             };
-                            
+
                             let totalSilverCost = 0;
                             const totalResourceCost = {};
                             Object.entries(replenishCounts).forEach(([unitId, count]) => {
@@ -3751,7 +3751,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                 }, 0);
                                 totalSilverCost += unitSilverCost * count;
                             });
-                            
+
                             // 检查是否能支付
                             const currentResources = result.resources || current.resources || {};
                             let canAfford = (currentResources.silver || 0) >= totalSilverCost;
@@ -3760,7 +3760,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                     if ((currentResources[res] || 0) < amount) canAfford = false;
                                 });
                             }
-                            
+
                             if (canAfford && Object.keys(replenishCounts).length > 0) {
                                 // 扣除资源
                                 setResources(prevRes => {
@@ -3771,7 +3771,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                     });
                                     return next;
                                 });
-                                
+
                                 // 添加到队列
                                 Object.entries(replenishCounts).forEach(([unitId, count]) => {
                                     const unit = UNIT_TYPES[unitId];
@@ -3787,7 +3787,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                         });
                                     }
                                 });
-                                
+
                                 if (replenishItems.length > 0) {
                                     baseQueue = [...baseQueue, ...replenishItems];
                                     const summary = Object.entries(replenishCounts)
@@ -3864,17 +3864,17 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
                     // 找出已完成的训练
                     const completed = updated.filter(item => item.status === 'training' && item.remainingTime <= 0);
-                    
+
                     // [FIX] 计算可以加入军队的数量（不超过容量上限）
                     const currentTotalArmy = Object.values(result.army || armyStateForQueue || {}).reduce((sum, c) => sum + c, 0);
-                    const slotsAvailableForCompletion = militaryCapacity > 0 
-                        ? Math.max(0, militaryCapacity - currentTotalArmy) 
+                    const slotsAvailableForCompletion = militaryCapacity > 0
+                        ? Math.max(0, militaryCapacity - currentTotalArmy)
                         : completed.length; // 如果没有容量限制，允许所有完成的单位加入
-                    
+
                     // 只取能加入的部分
                     const canComplete = completed.slice(0, slotsAvailableForCompletion);
                     const mustWait = completed.slice(slotsAvailableForCompletion);
-                    
+
                     if (canComplete.length > 0) {
                         // 将完成的单位加入军队
                         setArmy(prevArmy => {
@@ -3882,7 +3882,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             // [FIX] 再次检查容量，防止竞态条件
                             const prevTotal = Object.values(newArmy).reduce((sum, c) => sum + c, 0);
                             let addedCount = 0;
-                            
+
                             canComplete.forEach(item => {
                                 if (militaryCapacity <= 0 || prevTotal + addedCount < militaryCapacity) {
                                     newArmy[item.unitId] = (newArmy[item.unitId] || 0) + 1;
@@ -3897,7 +3897,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             addLog(`✓ ${UNIT_TYPES[item.unitId].name} 训练完成！`);
                         });
                     }
-                    
+
                     if (mustWait.length > 0) {
                         addLog(`⚠️ 军事容量已满，${mustWait.length} 个单位将在队列中等待。`);
                     }

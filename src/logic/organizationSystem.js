@@ -588,6 +588,15 @@ export function updateStratumOrganization(
         growthRate = 0;
     }
 
+    // 官员阶层完全禁用叛乱组织度系统
+    if (stratumKey === 'official') {
+        state.organization = 0;
+        state.stage = ORGANIZATION_STAGE.PEACEFUL;
+        state.phase = 'none';
+        state.growthRate = 0;
+        return state;
+    }
+
     // 提前判断是否为联盟成员
     const isInCoalition = isCoalitionMember(stratumKey, rulingCoalition);
 

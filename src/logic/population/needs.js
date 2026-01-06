@@ -418,6 +418,7 @@ export const calculateLivingStandards = ({
             isNewStratum,
             maxConsumptionMultiplier,
             wealthElasticity,
+            greedy: def.greedy, // Pass greedy flag from stratum config
         });
 
         // Update streak
