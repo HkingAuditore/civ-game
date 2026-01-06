@@ -448,6 +448,13 @@ export function createPlayerPeaceProposalEvent(
             callback: () => callback('demand_population', populationDemand),
         });
         options.push({
+            id: 'demand_open_market',
+            text: '强制开放市场',
+            description: `要求${nation.name}在${OPEN_MARKET_DURATION_YEARS}年内开放市场,允许我方商队自由进出。`,
+            effects: {},
+            callback: () => callback('demand_open_market', OPEN_MARKET_DURATION_DAYS),
+        });
+        options.push({
             id: 'peace_only',
             text: '只接受停战',
             description: '不再提出额外条件,立即停战。',
