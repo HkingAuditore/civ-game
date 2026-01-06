@@ -54,6 +54,7 @@ const StratumDetailSheetComponent = ({
     totalInfluence = 0, // 新增：总影响力
     activeDemands = {}, // 新增：活跃诉求
     nations = [],
+    officials = [], // 新增：官员列表
     onClose,
 }) => {
     const safeDayScale = Math.max(dayScale, 0.0001);
@@ -298,23 +299,25 @@ const StratumDetailSheetComponent = ({
                         概览
                     </span>
                 </button>
-                <button
-                    onClick={() => setActiveTab('organization')}
-                    className={`w-1/3 py-2 rounded-full border-2 transition-all ${activeTab === 'organization'
-                        ? 'bg-orange-900/40 border-ancient-gold/60 text-orange-100 shadow-metal-sm'
-                        : 'border-transparent text-ancient-stone hover:text-ancient-parchment'
-                        }`}
-                >
-                    <span className="flex items-center justify-center gap-1.5 font-bold">
-                        <Icon name="AlertTriangle" size={12} />
-                        组织度
-                        {(() => {
-                            const org = rebellionStates[stratumKey]?.organization ?? 0;
-                            if (org > 30) return <span className={`ml-1 px-1 py-0.5 rounded text-[9px] ${org >= 70 ? 'bg-red-600' : 'bg-orange-600'}`}>{org.toFixed(0)}%</span>;
-                            return null;
-                        })()}
-                    </span>
-                </button>
+                {(stratumKey !== 'official') && (
+                    <button
+                        onClick={() => setActiveTab('organization')}
+                        className={`w-1/3 py-2 rounded-full border-2 transition-all ${activeTab === 'organization'
+                            ? 'bg-orange-900/40 border-ancient-gold/60 text-orange-100 shadow-metal-sm'
+                            : 'border-transparent text-ancient-stone hover:text-ancient-parchment'
+                            }`}
+                    >
+                        <span className="flex items-center justify-center gap-1.5 font-bold">
+                            <Icon name="AlertTriangle" size={12} />
+                            组织度
+                            {(() => {
+                                const org = rebellionStates[stratumKey]?.organization ?? 0;
+                                if (org > 30) return <span className={`ml-1 px-1 py-0.5 rounded text-[9px] ${org >= 70 ? 'bg-red-600' : 'bg-orange-600'}`}>{org.toFixed(0)}%</span>;
+                                return null;
+                            })()}
+                        </span>
+                    </button>
+                )}
                 <button
                     onClick={() => setActiveTab('finance')}
                     className={`w-1/3 py-2 rounded-full border-2 transition-all ${activeTab === 'finance'
@@ -343,16 +346,37 @@ const StratumDetailSheetComponent = ({
                             <div className="text-sm font-bold text-white font-mono leading-none">{count}</div>
                         </div>
 
-                        {/* 好感度 */}
-                        <div className="bg-gray-700/50 rounded p-1.5 border border-gray-600">
-                            <div className="flex items-center gap-1 mb-0.5">
-                                <Icon name="Heart" size={12} className="text-pink-400" />
-                                <span className="text-[9px] text-gray-400 leading-none">好感</span>
+                        {/* 好感度 / 官员忠诚度 (特殊处理) */}
+                        {stratumKey === 'official' ? (
+                            <div className="bg-gray-700/50 rounded p-1.5 border border-gray-600">
+                                <div className="flex items-center gap-1 mb-0.5">
+                                    <Icon name="Shield" size={12} className="text-blue-400" />
+                                    <span className="text-[9px] text-gray-400 leading-none">忠诚</span>
+                                </div>
+                                {(() => {
+                                    const employedOfficials = officials || [];
+                                    const avgLoyalty = employedOfficials.length > 0
+                                        ? employedOfficials.reduce((sum, o) => sum + (o.loyalty || 0), 0) / employedOfficials.length
+                                        : 0;
+                                    const supportColor = avgLoyalty >= 80 ? 'text-green-400' : avgLoyalty >= 60 ? 'text-blue-400' : avgLoyalty >= 40 ? 'text-yellow-400' : 'text-red-400';
+                                    return (
+                                        <div className={`text-sm font-bold font-mono leading-none ${supportColor}`}>
+                                            {avgLoyalty.toFixed(0)}%
+                                        </div>
+                                    );
+                                })()}
                             </div>
-                            <div className={`text-sm font-bold font-mono leading-none ${getApprovalColor(approval)}`}>
-                                {approval.toFixed(0)}%
+                        ) : (
+                            <div className="bg-gray-700/50 rounded p-1.5 border border-gray-600">
+                                <div className="flex items-center gap-1 mb-0.5">
+                                    <Icon name="Heart" size={12} className="text-pink-400" />
+                                    <span className="text-[9px] text-gray-400 leading-none">好感</span>
+                                </div>
+                                <div className={`text-sm font-bold font-mono leading-none ${getApprovalColor(approval)}`}>
+                                    {approval.toFixed(0)}%
+                                </div>
                             </div>
-                        </div>
+                        )}
 
                         {/* 影响力 */}
                         <div className="bg-gray-700/50 rounded p-1.5 border border-gray-600">
@@ -747,64 +771,97 @@ const StratumDetailSheetComponent = ({
             {/* 组织度Tab内容 */}
             {activeTab === 'organization' && (
                 <div className="space-y-2">
-                    {(() => {
-                        const orgState = rebellionStates[stratumKey] || {};
-                        const organization = orgState.organization ?? 0;
-                        const growthRate = orgState.growthRate ?? 0;
-                        const orgStage = getOrganizationStage(organization);
-                        const orgStageName = getStageName(orgStage);
-                        const orgStageIcon = getStageIcon(orgStage);
-                        const daysToUprising = predictDaysToUprising(organization, growthRate);
+                    {/* 特殊处理：官员阶层显示忠诚度 */}
+                    {stratumKey === 'official' ? (
+                        (() => {
+                            const employedOfficials = officials || [];
+                            const avgLoyalty = employedOfficials.length > 0
+                                ? employedOfficials.reduce((sum, o) => sum + (o.loyalty || 0), 0) / employedOfficials.length
+                                : 0;
+                            const supportText = avgLoyalty >= 80 ? '极高' : avgLoyalty >= 60 ? '高' : avgLoyalty >= 40 ? '一般' : '低';
+                            const supportColor = avgLoyalty >= 80 ? 'text-green-400' : avgLoyalty >= 60 ? 'text-blue-400' : avgLoyalty >= 40 ? 'text-yellow-400' : 'text-red-400';
 
-                        return (
-                            <>
-                                {/* 组织度状态卡片 */}
+                            return (
                                 <div className="bg-gray-700/50 rounded p-3 border border-gray-600">
                                     <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-2">
-                                        <Icon name="AlertTriangle" size={16} className="text-orange-400" />
-                                        组织度状态
+                                        <Icon name="Shield" size={16} className="text-blue-400" />
+                                        官员支持度 (平均忠诚)
                                     </h3>
-
-                                    {/* 组织度进度条 */}
-                                    <div className="mb-3">
-                                        <div className="flex items-center justify-between mb-2">
-                                            <div className="flex items-center gap-2">
-                                                <Icon
-                                                    name={orgStageIcon}
-                                                    size={18}
-                                                    className={organization >= 70 ? 'text-red-500 animate-pulse' : organization >= 30 ? 'text-orange-400' : 'text-yellow-400'}
-                                                />
-                                                <span className={`text-sm font-bold ${organization >= 70 ? 'text-red-400' : organization >= 30 ? 'text-orange-400' : 'text-yellow-400'}`}>
-                                                    {orgStageName}
-                                                </span>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-lg font-mono font-bold text-white">{organization.toFixed(0)}%</span>
-                                                {growthRate !== 0 && (
-                                                    <span className={`text-xs font-mono ${growthRate > 0 ? 'text-red-300' : 'text-green-300'}`}>
-                                                        ({growthRate > 0 ? '+' : ''}{growthRate.toFixed(2)}/天)
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                        <div className="w-full bg-gray-800/50 rounded-full h-3 border border-gray-600 overflow-hidden">
-                                            <div
-                                                className={`h-3 rounded-full transition-all ${organization >= 90 ? 'bg-red-500 animate-pulse' :
-                                                    organization >= 70 ? 'bg-orange-500' :
-                                                        organization >= 30 ? 'bg-yellow-500' : 'bg-gray-500'
-                                                    }`}
-                                                style={{ width: `${organization}%` }}
-                                            />
-                                        </div>
-                                        {daysToUprising !== null && daysToUprising < 200 && (
-                                            <div className="text-sm text-red-400 mt-2 animate-pulse font-bold">
-                                                ⚠️ 预计 {daysToUprising} 天后爆发叛乱
-                                            </div>
-                                        )}
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className={`text-lg font-bold ${supportColor}`}>{supportText}</span>
+                                        <span className="text-2xl font-mono font-bold text-white">{avgLoyalty.toFixed(1)}</span>
                                     </div>
+                                    <div className="w-full bg-gray-800/50 rounded-full h-3 border border-gray-600 overflow-hidden">
+                                        <div
+                                            className={`h-3 rounded-full transition-all ${avgLoyalty >= 80 ? 'bg-green-500' : avgLoyalty >= 60 ? 'bg-blue-500' : avgLoyalty >= 40 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                                            style={{ width: `${avgLoyalty}%` }}
+                                        />
+                                    </div>
+                                    <p className="text-xs text-gray-400 mt-2">
+                                        官员的支持度取决于他们的平均忠诚度。忠诚的官员能提高行政效率，减少腐败。
+                                    </p>
+                                </div>
+                            );
+                        })()
+                    ) : (
+                        (() => {
+                            const orgState = rebellionStates[stratumKey] || {};
+                            const organization = orgState.organization ?? 0;
+                            const growthRate = orgState.growthRate ?? 0;
+                            const orgStage = getOrganizationStage(organization);
+                            const orgStageName = getStageName(orgStage);
+                            const orgStageIcon = getStageIcon(orgStage);
+                            const daysToUprising = predictDaysToUprising(organization, growthRate);
 
-                                    {/* 阶段说明 */}
-                                    {/* <div className="bg-gray-800/50 rounded p-2 text-xs text-gray-300">
+                            return (
+                                <>
+                                    {/* 组织度状态卡片 */}
+                                    <div className="bg-gray-700/50 rounded p-3 border border-gray-600">
+                                        <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-2">
+                                            <Icon name="AlertTriangle" size={16} className="text-orange-400" />
+                                            组织度状态
+                                        </h3>
+
+                                        {/* 组织度进度条 */}
+                                        <div className="mb-3">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <div className="flex items-center gap-2">
+                                                    <Icon
+                                                        name={orgStageIcon}
+                                                        size={18}
+                                                        className={organization >= 70 ? 'text-red-500 animate-pulse' : organization >= 30 ? 'text-orange-400' : 'text-yellow-400'}
+                                                    />
+                                                    <span className={`text-sm font-bold ${organization >= 70 ? 'text-red-400' : organization >= 30 ? 'text-orange-400' : 'text-yellow-400'}`}>
+                                                        {orgStageName}
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-lg font-mono font-bold text-white">{organization.toFixed(0)}%</span>
+                                                    {growthRate !== 0 && (
+                                                        <span className={`text-xs font-mono ${growthRate > 0 ? 'text-red-300' : 'text-green-300'}`}>
+                                                            ({growthRate > 0 ? '+' : ''}{growthRate.toFixed(2)}/天)
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="w-full bg-gray-800/50 rounded-full h-3 border border-gray-600 overflow-hidden">
+                                                <div
+                                                    className={`h-3 rounded-full transition-all ${organization >= 90 ? 'bg-red-500 animate-pulse' :
+                                                        organization >= 70 ? 'bg-orange-500' :
+                                                            organization >= 30 ? 'bg-yellow-500' : 'bg-gray-500'
+                                                        }`}
+                                                    style={{ width: `${organization}%` }}
+                                                />
+                                            </div>
+                                            {daysToUprising !== null && daysToUprising < 200 && (
+                                                <div className="text-sm text-red-400 mt-2 animate-pulse font-bold">
+                                                    ⚠️ 预计 {daysToUprising} 天后爆发叛乱
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* 阶段说明 */}
+                                        {/* <div className="bg-gray-800/50 rounded p-2 text-xs text-gray-300">
                                         <div className="grid grid-cols-2 gap-2">
                                             <div><span className="text-yellow-400">0-29%</span>: 平静</div>
                                             <div><span className="text-yellow-400">30-49%</span>: 不满</div>
@@ -813,112 +870,112 @@ const StratumDetailSheetComponent = ({
                                             <div className="col-span-2"><span className="text-red-500">90-100%</span>: 起义爆发！</div>
                                         </div>
                                     </div> */}
-                                </div>
-
-                                {/* 不满来源分析 */}
-                                {(() => {
-                                    const dissatisfactionContext = {
-                                        classShortages,
-                                        classApproval,
-                                        classInfluence,
-                                        totalInfluence,
-                                        classLivingStandard,
-                                        taxPolicies,
-                                        classIncome,
-                                        classExpense,
-                                        popStructure,
-                                    };
-                                    const analysis = analyzeDissatisfactionSources(stratumKey, dissatisfactionContext);
-                                    return analysis.hasIssues ? (
-                                        <div className="bg-gray-700/50 rounded p-3 border border-gray-600">
-                                            <DissatisfactionAnalysis
-                                                sources={analysis.sources}
-                                                totalContribution={analysis.totalContribution}
-                                            />
-                                        </div>
-                                    ) : null;
-                                })()}
-
-                                {/* 当前诉求 */}
-                                {(currentOrganization >= 50 || derivedDemands.length > 0) && (
-                                    <div className="bg-gray-700/50 rounded p-3 border border-gray-600">
-                                        <DemandsList
-                                            demands={derivedDemands}
-                                            currentDay={daysElapsed}
-                                        />
-                                        {derivedDemands.length === 0 && (
-                                            <div className="flex items-center gap-2 text-xs text-gray-400">
-                                                <Icon name="Scroll" size={14} className="text-purple-400" />
-                                                <span>当前没有具体诉求</span>
-                                            </div>
-                                        )}
                                     </div>
-                                )}
 
-                                {/* 策略行动区 */}
-                                <div className="bg-gray-700/50 rounded p-3 border border-gray-600 space-y-3">
-                                    <div>
-                                        <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
-                                            <Icon name="Zap" size={16} className="text-blue-400" />
-                                            策略行动
-                                        </h3>
-                                        <div className="space-y-1.5">
-                                            {availableActions.map(action => (
-                                                <StrategicActionButton
-                                                    key={action.id}
-                                                    action={action}
-                                                    stratumKey={stratumKey}
-                                                    stratumName={stratum.name}
-                                                    popCount={count}
-                                                    disabled={!onStrategicAction || !action.available}
-                                                    unavailableReason={action.unavailableReason}
-                                                    onExecute={onStrategicAction}
-                                                    actionUsage={actionUsage}
+                                    {/* 不满来源分析 */}
+                                    {(() => {
+                                        const dissatisfactionContext = {
+                                            classShortages,
+                                            classApproval,
+                                            classInfluence,
+                                            totalInfluence,
+                                            classLivingStandard,
+                                            taxPolicies,
+                                            classIncome,
+                                            classExpense,
+                                            popStructure,
+                                        };
+                                        const analysis = analyzeDissatisfactionSources(stratumKey, dissatisfactionContext);
+                                        return analysis.hasIssues ? (
+                                            <div className="bg-gray-700/50 rounded p-3 border border-gray-600">
+                                                <DissatisfactionAnalysis
+                                                    sources={analysis.sources}
+                                                    totalContribution={analysis.totalContribution}
                                                 />
-                                            ))}
+                                            </div>
+                                        ) : null;
+                                    })()}
+
+                                    {/* 当前诉求 */}
+                                    {(currentOrganization >= 50 || derivedDemands.length > 0) && (
+                                        <div className="bg-gray-700/50 rounded p-3 border border-gray-600">
+                                            <DemandsList
+                                                demands={derivedDemands}
+                                                currentDay={daysElapsed}
+                                            />
+                                            {derivedDemands.length === 0 && (
+                                                <div className="flex items-center gap-2 text-xs text-gray-400">
+                                                    <Icon name="Scroll" size={14} className="text-purple-400" />
+                                                    <span>当前没有具体诉求</span>
+                                                </div>
+                                            )}
                                         </div>
-                                        {availableActions.length === 0 && (
-                                            <div className="text-xs text-gray-400 text-center mt-2">暂无可用的策略行动</div>
-                                        )}
-                                        {!onStrategicAction && (
-                                            <div className="text-xs text-gray-500 mt-2 text-center bg-gray-800/30 rounded p-2">
-                                                策略行动功能开发中...
+                                    )}
+
+                                    {/* 策略行动区 */}
+                                    <div className="bg-gray-700/50 rounded p-3 border border-gray-600 space-y-3">
+                                        <div>
+                                            <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                                                <Icon name="Zap" size={16} className="text-blue-400" />
+                                                策略行动
+                                            </h3>
+                                            <div className="space-y-1.5">
+                                                {availableActions.map(action => (
+                                                    <StrategicActionButton
+                                                        key={action.id}
+                                                        action={action}
+                                                        stratumKey={stratumKey}
+                                                        stratumName={stratum.name}
+                                                        popCount={count}
+                                                        disabled={!onStrategicAction || !action.available}
+                                                        unavailableReason={action.unavailableReason}
+                                                        onExecute={onStrategicAction}
+                                                        actionUsage={actionUsage}
+                                                    />
+                                                ))}
                                             </div>
-                                        )}
-                                    </div>
-                                    <div className="pt-2 border-t border-gray-600/60">
-                                        <h4 className="text-[11px] font-bold text-white mb-1 flex items-center gap-1">
-                                            <Icon name="FileText" size={12} className="text-amber-300" />
-                                            承诺任务
-                                        </h4>
-                                        {stratumPromiseTasks.length > 0 ? (
-                                            <div className="space-y-1">
-                                                {stratumPromiseTasks.map(task => {
-                                                    const remaining = getPromiseTaskRemainingDays(task, daysElapsed || 0);
-                                                    return (
-                                                        <div key={task.id} className="bg-gray-800/60 border border-gray-600 rounded p-2">
-                                                            <div className="flex items-center justify-between text-[10px] text-gray-300">
-                                                                <span className="font-semibold text-white">{task.description}</span>
-                                                                <span className={`font-mono ${remaining <= 5 ? 'text-red-300' : 'text-green-300'}`}>
-                                                                    剩余 {remaining} 天
-                                                                </span>
+                                            {availableActions.length === 0 && (
+                                                <div className="text-xs text-gray-400 text-center mt-2">暂无可用的策略行动</div>
+                                            )}
+                                            {!onStrategicAction && (
+                                                <div className="text-xs text-gray-500 mt-2 text-center bg-gray-800/30 rounded p-2">
+                                                    策略行动功能开发中...
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="pt-2 border-t border-gray-600/60">
+                                            <h4 className="text-[11px] font-bold text-white mb-1 flex items-center gap-1">
+                                                <Icon name="FileText" size={12} className="text-amber-300" />
+                                                承诺任务
+                                            </h4>
+                                            {stratumPromiseTasks.length > 0 ? (
+                                                <div className="space-y-1">
+                                                    {stratumPromiseTasks.map(task => {
+                                                        const remaining = getPromiseTaskRemainingDays(task, daysElapsed || 0);
+                                                        return (
+                                                            <div key={task.id} className="bg-gray-800/60 border border-gray-600 rounded p-2">
+                                                                <div className="flex items-center justify-between text-[10px] text-gray-300">
+                                                                    <span className="font-semibold text-white">{task.description}</span>
+                                                                    <span className={`font-mono ${remaining <= 5 ? 'text-red-300' : 'text-green-300'}`}>
+                                                                        剩余 {remaining} 天
+                                                                    </span>
+                                                                </div>
+                                                                <div className="text-[9px] text-gray-400 mt-0.5">
+                                                                    失败惩罚: 组织度 +{task.failurePenalty?.organization || 0}%
+                                                                    {task.failurePenalty?.forcedUprising ? '（直接爆发）' : ''}
+                                                                </div>
                                                             </div>
-                                                            <div className="text-[9px] text-gray-400 mt-0.5">
-                                                                失败惩罚: 组织度 +{task.failurePenalty?.organization || 0}%
-                                                                {task.failurePenalty?.forcedUprising ? '（直接爆发）' : ''}
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        ) : (
-                                            <div className="text-[11px] text-gray-400">暂无该阶层的承诺。</div>
-                                        )}
+                                                        );
+                                                    })}
+                                                </div>
+                                            ) : (
+                                                <div className="text-[11px] text-gray-400">暂无该阶层的承诺。</div>
+                                            )}
+                                        </div>
                                     </div>
-                                </div>
-                            </>
-                        );
-                    })()}
+                                </>
+                            );
+                        })())}
                 </div>
             )}
             {/* 财务Tab内容 */}

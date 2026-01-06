@@ -41,6 +41,31 @@ if "%OUT_SUBDIR%"=="" set "OUT_SUBDIR=music"
 
 set "OUT_DIR=%REPO_DIR%\%OUT_SUBDIR%"
 
+set "OUT_EXT=m4a"
+
+echo.
+echo ====== 压缩强度设置 ======
+echo 1^) 128k 立体声（默认，音质较好）
+echo 2^) 96k  立体声（更省流量，推荐）
+echo 3^) 80k  立体声（更狠压缩）
+echo 4^) 64k  单声道（最狠，适合纯BGM/对音质要求不高）
+echo.
+set "PRESET=1"
+set /p PRESET=请选择压缩强度(1-4，默认1)：
+if "%PRESET%"=="" set "PRESET=1"
+
+set "BITRATE=128k"
+set "CHANNELS=2"
+if "%PRESET%"=="2" set "BITRATE=96k"
+if "%PRESET%"=="3" set "BITRATE=80k"
+if "%PRESET%"=="4" (
+  set "BITRATE=64k"
+  set "CHANNELS=1"
+)
+
+echo.
+echo [INFO] 压缩目标: AAC(.m4a) %BITRATE%  声道: %CHANNELS%
+
 echo.
 echo [INFO] 源目录: "%SRC_DIR%"
 echo [INFO] 本地仓库: "%REPO_DIR%"
@@ -74,7 +99,7 @@ if errorlevel 1 (
   exit /b 1
 )
 
-echo [INFO] 开始转码/压缩 (mp3 128k)...
+echo [INFO] 开始转码/压缩 (AAC .m4a %BITRATE%)...
 echo.
 
 set /a COUNT=0
@@ -82,10 +107,10 @@ for %%F in ("%SRC_DIR%\*.mp3" "%SRC_DIR%\*.wav" "%SRC_DIR%\*.flac" "%SRC_DIR%\*.
   if exist "%%~fF" (
     set /a COUNT+=1
     set "BASENAME=%%~nF"
-    set "OUTFILE=%OUT_DIR%\!BASENAME!.mp3"
+    set "OUTFILE=%OUT_DIR%\!BASENAME!.%OUT_EXT%"
 
     echo [!COUNT!] %%~nxF  ^>  !OUTFILE!
-    ffmpeg -y -hide_banner -loglevel error -i "%%~fF" -vn -ac 2 -ar 44100 -b:a 128k "!OUTFILE!"
+    ffmpeg -y -hide_banner -loglevel error -i "%%~fF" -vn -ac %CHANNELS% -ar 44100 -c:a aac -b:a %BITRATE% -movflags +faststart -af "aresample=44100:resampler=soxr:precision=28" "!OUTFILE!"
     if errorlevel 1 (
       echo [ERROR] 转码失败: "%%~fF"
       exit /b 1
@@ -112,7 +137,7 @@ set "TRACKS_FILE=%REPO_DIR%\tracks.json"
 ) > "%TRACKS_FILE%"
 
 set /a IDX=0
-for %%M in ("%OUT_DIR%\*.mp3") do (
+for %%M in ("%OUT_DIR%\*.%OUT_EXT%") do (
   if exist "%%~fM" (
     set /a IDX+=1
     set "NAME=%%~nM"

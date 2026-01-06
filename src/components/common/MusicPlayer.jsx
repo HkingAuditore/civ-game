@@ -21,6 +21,15 @@ export const MusicPlayer = () => {
     const [inputUrl, setInputUrl] = useState('');
     const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
 
+    const DEFAULT_GITEE_TRACKS_URL = 'https://cdn.jsdelivr.net/gh/hkingauditore/civ-game-music@master/tracks.json';
+    const [giteeTracksUrl, setGiteeTracksUrl] = useState(DEFAULT_GITEE_TRACKS_URL);
+    const [giteeTracks, setGiteeTracks] = useState([]);
+    const [currentGiteeIndex, setCurrentGiteeIndex] = useState(-1);
+    const [isGiteePlaying, setIsGiteePlaying] = useState(false);
+    const [giteeError, setGiteeError] = useState('');
+
+    const [mode, setMode] = useState('netease'); // 'netease' | 'gitee'
+
     useEffect(() => {
         const handleResize = () => setIsMobile(window.innerWidth < 768);
         window.addEventListener('resize', handleResize);
@@ -77,6 +86,178 @@ export const MusicPlayer = () => {
             console.error("Invalid URL", e);
         }
         return null;
+    };
+
+    useEffect(() => {
+        if (mode !== 'gitee') return;
+
+        const audio = new Audio();
+        audio.preload = 'auto';
+
+        const handleEnded = () => {
+            playNextGitee(true);
+        };
+        const handlePlay = () => setIsGiteePlaying(true);
+        const handlePause = () => setIsGiteePlaying(false);
+        const handleError = () => {
+            setGiteeError('音频加载失败，已自动切到下一首');
+            playNextGitee(true);
+        };
+
+        audio.addEventListener('ended', handleEnded);
+        audio.addEventListener('play', handlePlay);
+        audio.addEventListener('pause', handlePause);
+        audio.addEventListener('error', handleError);
+
+        window.__giteeAudio = audio;
+
+        return () => {
+            audio.removeEventListener('ended', handleEnded);
+            audio.removeEventListener('play', handlePlay);
+            audio.removeEventListener('pause', handlePause);
+            audio.removeEventListener('error', handleError);
+            audio.pause();
+            delete window.__giteeAudio;
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [mode]);
+
+    // NOTE: Gitee raw links usually do NOT allow CORS, so direct fetch() from browser will fail.
+    // Using a public proxy is a workaround. Default proxy here is AllOrigins (returns JSON with CORS enabled).
+    // You can clear it to try direct fetch, or replace it with your own proxy.
+    const DEFAULT_CORS_PROXY = 'https://api.allorigins.win/raw?url=';
+    const [corsProxy, setCorsProxy] = useState(DEFAULT_CORS_PROXY);
+
+    const extractJsonArrayFromText = (text) => {
+        if (typeof text !== 'string') return null;
+        const idx = text.indexOf('[');
+        if (idx === -1) return null;
+        const candidate = text.slice(idx).trim();
+        try {
+            return JSON.parse(candidate);
+        } catch {
+            return null;
+        }
+    };
+
+    const loadGiteeTracks = async (url) => {
+        setGiteeError('');
+        try {
+            const isJsDelivr = /jsdelivr\.net\//i.test(url);
+
+            const requestUrl = isJsDelivr
+                ? url
+                : (corsProxy
+                    ? (corsProxy.includes('raw?url=')
+                        ? `${corsProxy}${encodeURIComponent(url)}`
+                        : `${corsProxy}${url}`)
+                    : url);
+            const res = await fetch(requestUrl, { cache: 'no-store' });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+            let data;
+            const ct = res.headers.get('content-type') || '';
+            if (ct.includes('application/json')) {
+                data = await res.json();
+            } else {
+                const text = await res.text();
+                data = extractJsonArrayFromText(text);
+            }
+
+            if (!data) {
+                throw new Error('无法解析 tracks.json（可能被代理包了一层文本）');
+            }
+            if (!Array.isArray(data) || data.length === 0) {
+                throw new Error('tracks.json 为空或格式不正确');
+            }
+            const normalized = data
+                .map((t) => {
+                    const rawUrl = t?.url;
+                    const safeUrl = typeof rawUrl === 'string' ? encodeURI(rawUrl) : rawUrl;
+                    return {
+                        name: t?.name ?? t?.title ?? 'Unknown',
+                        url: safeUrl,
+                    };
+                })
+                .filter((t) => typeof t.url === 'string' && t.url.length > 0);
+
+            if (normalized.length === 0) {
+                throw new Error('tracks.json 中没有可用的 url');
+            }
+
+            setGiteeTracks(normalized);
+            setCurrentGiteeIndex(-1);
+            return normalized;
+        } catch (e) {
+            console.warn('Failed to load gitee tracks:', e);
+            setGiteeTracks([]);
+            setCurrentGiteeIndex(-1);
+            setGiteeError('加载 tracks.json 失败：常见原因是跨域(CORS)或代理返回异常。默认已使用 AllOrigins 代理；若仍失败，换一个代理或把 tracks.json 放到支持 CORS 的托管（对象存储/静态站点）。');
+            return null;
+        }
+    };
+
+    const playGiteeIndex = async (index) => {
+        if (mode !== 'gitee') return;
+        const audio = window.__giteeAudio;
+        if (!audio) return;
+        if (!giteeTracks || giteeTracks.length === 0) return;
+
+        const safeIndex = ((index % giteeTracks.length) + giteeTracks.length) % giteeTracks.length;
+        const track = giteeTracks[safeIndex];
+
+        try {
+            setGiteeError('');
+            audio.src = track.url;
+            audio.currentTime = 0;
+            setCurrentGiteeIndex(safeIndex);
+            await audio.play();
+        } catch (e) {
+            console.warn('Failed to play gitee audio:', e);
+            setGiteeError('播放失败（可能是浏览器/安卓限制自动播放），请点播放按钮');
+        }
+    };
+
+    const playNextGitee = async (random = false) => {
+        if (!giteeTracks || giteeTracks.length === 0) return;
+
+        if (currentGiteeIndex === -1) {
+            const next = Math.floor(Math.random() * giteeTracks.length);
+            await playGiteeIndex(next);
+            return;
+        }
+
+        const next = random
+            ? Math.floor(Math.random() * giteeTracks.length)
+            : (currentGiteeIndex + 1) % giteeTracks.length;
+        await playGiteeIndex(next);
+    };
+
+    const playPrevGitee = async () => {
+        if (!giteeTracks || giteeTracks.length === 0) return;
+        const prev = currentGiteeIndex === -1
+            ? Math.floor(Math.random() * giteeTracks.length)
+            : (currentGiteeIndex - 1 + giteeTracks.length) % giteeTracks.length;
+        await playGiteeIndex(prev);
+    };
+
+    const toggleGiteePlayPause = async () => {
+        const audio = window.__giteeAudio;
+        if (!audio) return;
+
+        if (audio.paused) {
+            if (currentGiteeIndex === -1) {
+                await playNextGitee(true);
+            } else {
+                try {
+                    await audio.play();
+                } catch (e) {
+                    setGiteeError('播放失败：请在移动端点击一次播放按钮');
+                }
+            }
+        } else {
+            audio.pause();
+        }
     };
 
     const handleApply = () => {
@@ -161,7 +342,9 @@ export const MusicPlayer = () => {
                         <div className="flex items-center gap-2">
                             <Icon name="Music" size={14} className="text-ancient-gold" />
                             <span className="text-xs font-bold text-ancient-parchment">
-                                {isRadio ? "宫廷电台 (官方)" : "宫廷乐师 (Random)"}
+                                {mode === 'gitee'
+                                    ? '自建曲库 (Gitee)'
+                                    : (isRadio ? "宫廷电台 (官方)" : "宫廷乐师 (Random)")}
                             </span>
                         </div>
                         <div className="flex items-center gap-1">
@@ -174,9 +357,49 @@ export const MusicPlayer = () => {
                         </div>
                     </div>
 
-                    {/* Content Area: Iframe vs Meting */}
+                    {/* Content Area: Iframe vs Meting vs Gitee */}
                     <div className="bg-black/50 p-0 relative min-h-[90px]">
-                        {isRadio ? (
+                        {mode === 'gitee' ? (
+                            <div className="p-3 space-y-2">
+                                <div className="flex items-center justify-between gap-2">
+                                    <div className="text-xs text-ancient-parchment/90 truncate">
+                                        {currentGiteeIndex >= 0 && giteeTracks[currentGiteeIndex]
+                                            ? giteeTracks[currentGiteeIndex].name
+                                            : '未开始播放'}
+                                    </div>
+                                    <div className="text-[10px] text-gray-500 font-mono shrink-0">
+                                        {giteeTracks.length > 0 ? `${giteeTracks.length} tracks` : '0 tracks'}
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={playPrevGitee}
+                                        className="px-2 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-xs text-white/80 transition-colors"
+                                    >
+                                        上一首
+                                    </button>
+                                    <button
+                                        onClick={toggleGiteePlayPause}
+                                        className="px-2 py-1 bg-ancient-gold/20 hover:bg-ancient-gold/30 border border-ancient-gold/30 rounded text-xs text-ancient-gold transition-colors"
+                                    >
+                                        {isGiteePlaying ? '暂停' : '播放'}
+                                    </button>
+                                    <button
+                                        onClick={() => playNextGitee(true)}
+                                        className="px-2 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-xs text-white/80 transition-colors"
+                                    >
+                                        随机下一首
+                                    </button>
+                                </div>
+
+                                {giteeError && (
+                                    <div className="text-[10px] text-red-300/90">
+                                        {giteeError}
+                                    </div>
+                                )}
+                            </div>
+                        ) : isRadio ? (
                             <iframe
                                 frameBorder="no"
                                 border="0"
@@ -210,28 +433,93 @@ export const MusicPlayer = () => {
 
                     {/* Input Area */}
                     <div className="p-3 space-y-2 border-t border-white/10">
-                        <div className="flex gap-2">
-                            <input
-                                type="text"
-                                placeholder="输入链接 (电台/歌单)"
-                                value={inputUrl}
-                                onChange={(e) => setInputUrl(e.target.value)}
-                                onKeyDown={handleKeyDown}
-                                className="flex-1 bg-black/40 border border-white/10 rounded px-2 py-1 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-ancient-gold/50"
-                            />
-                            <button
-                                onClick={handleApply}
-                                className="px-2 py-1 bg-ancient-gold/20 hover:bg-ancient-gold/30 border border-ancient-gold/30 rounded text-xs text-ancient-gold transition-colors"
-                            >
-                                加载
-                            </button>
+                        <div className="flex items-center justify-between">
+                            <div className="flex gap-1 text-[10px]">
+                                <button
+                                    onClick={() => setMode('netease')}
+                                    className={`px-2 py-1 rounded border transition-colors ${mode === 'netease'
+                                            ? 'bg-ancient-gold/20 border-ancient-gold/40 text-ancient-gold'
+                                            : 'bg-black/40 border-white/10 text-gray-400 hover:text-white'
+                                        }`}
+                                >
+                                    网易云
+                                </button>
+                                <button
+                                    onClick={() => setMode('gitee')}
+                                    className={`px-2 py-1 rounded border transition-colors ${mode === 'gitee'
+                                            ? 'bg-ancient-gold/20 border-ancient-gold/40 text-ancient-gold'
+                                            : 'bg-black/40 border-white/10 text-gray-400 hover:text-white'
+                                        }`}
+                                >
+                                    Gitee
+                                </button>
+                            </div>
                         </div>
-                        <div className="flex justify-between items-center text-[10px] text-gray-500 px-1">
-                            <span>
-                                {isRadio ? "注: 电台仅支持官方播放器" : "APlayer 已启用 (支持随机)"}
-                            </span>
-                            <span className="font-mono opacity-50">ID: {musicId}</span>
-                        </div>
+
+                        {mode === 'gitee' ? (
+                            <div className="space-y-2">
+                                <div className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        placeholder="tracks.json 的 raw 链接"
+                                        value={giteeTracksUrl}
+                                        onChange={(e) => setGiteeTracksUrl(e.target.value)}
+                                        className="flex-1 bg-black/40 border border-white/10 rounded px-2 py-1 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-ancient-gold/50"
+                                    />
+                                </div>
+
+                                <div className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        placeholder="CORS 代理（默认: https://api.allorigins.win/raw?url= ，可留空直连）"
+                                        value={corsProxy}
+                                        onChange={(e) => setCorsProxy(e.target.value)}
+                                        className="flex-1 bg-black/40 border border-white/10 rounded px-2 py-1 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-ancient-gold/50"
+                                    />
+                                    <button
+                                        onClick={async () => {
+                                            const tracks = await loadGiteeTracks(giteeTracksUrl);
+                                            if (tracks && tracks.length > 0) {
+                                                await playNextGitee(true);
+                                            }
+                                        }}
+                                        className="px-2 py-1 bg-ancient-gold/20 hover:bg-ancient-gold/30 border border-ancient-gold/30 rounded text-xs text-ancient-gold transition-colors"
+                                    >
+                                        加载
+                                    </button>
+                                </div>
+                                <div className="flex justify-between items-center text-[10px] text-gray-500 px-1">
+                                    <span>
+                                        注: 请使用 `raw/master/tracks.json`，不要用 `tree/blob` 链接
+                                    </span>
+                                </div>
+                            </div>
+                        ) : (
+                            <>
+                                <div className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        placeholder="输入链接 (电台/歌单)"
+                                        value={inputUrl}
+                                        onChange={(e) => setInputUrl(e.target.value)}
+                                        onKeyDown={handleKeyDown}
+                                        className="flex-1 bg-black/40 border border-white/10 rounded px-2 py-1 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-ancient-gold/50"
+                                    />
+                                    <button
+                                        onClick={handleApply}
+                                        className="px-2 py-1 bg-ancient-gold/20 hover:bg-ancient-gold/30 border border-ancient-gold/30 rounded text-xs text-ancient-gold transition-colors"
+                                    >
+                                        加载
+                                    </button>
+                                </div>
+                                <div className="flex justify-between items-center text-[10px] text-gray-500 px-1">
+                                    <span>
+                                        {isRadio ? "注: 电台仅支持官方播放器" : "APlayer 已启用 (支持随机)"}
+                                    </span>
+                                    <span className="font-mono opacity-50">ID: {musicId}</span>
+                                </div>
+                            </>
+                        )}
                     </div>
                 </motion.div>
             </div>
