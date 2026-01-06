@@ -727,6 +727,18 @@ const TradeRoutesModal = ({
                                 <div className="mt-1 text-[10px] text-gray-400">
                                     派驻到某国的商人越多，每回合越倾向在该国寻找最赚钱且最能修复供需缺口的交易。交战国自动无法贸易。
                                 </div>
+                                {/* Explainer: dumping/force-buy pricing modifiers are applied in trade settlement */}
+                                <div className="mt-2 text-[10px] text-gray-400 space-y-0.5">
+                                    <div>
+                                        <span className="text-red-300 font-semibold">倾销</span>：出口时允许无视对方需求；结算时对外售价按<span className="font-mono">外价×0.6</span>（折价），通常会造成外交关系下降。
+                                    </div>
+                                    <div>
+                                        <span className="text-purple-300 font-semibold">强买</span>：进口时允许无视对方供给；结算时对外进价按<span className="font-mono">外价×1.3</span>（溢价/加价），通常会造成外交关系下降。
+                                    </div>
+                                    <div className="text-green-300">
+                                        若双方签订了<span className="font-semibold">开放市场</span>，则倾销/强买不会产生外交惩罚。
+                                    </div>
+                                </div>
                             </div>
 
 

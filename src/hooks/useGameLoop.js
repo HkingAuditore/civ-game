@@ -122,6 +122,9 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
         const isForceSell = mode === 'force_sell';
         const isForceBuy = mode === 'force_buy';
 
+        // If open market treaty is active, coercive trade does not cause diplomatic debuff.
+        const isOpenMarketActive = Boolean(nation?.openMarketUntil && daysElapsed < nation.openMarketUntil);
+
         if (type === 'export') {
             // 出口：商人在国内以国内价购买，在国外以国外价卖出
             // 玩家只赚取商人在国内购买时的交易税
@@ -191,7 +194,7 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
                             ...n.inventory,
                             [resource]: ((n.inventory || {})[resource] || 0) + exportAmount,
                         },
-                        relation: Math.min(100, Math.max(-100, (n.relation || 0) + (isForceSell ? -0.6 : 0.2))),
+                        relation: Math.min(100, Math.max(-100, (n.relation || 0) + (isForceSell ? (isOpenMarketActive ? 0.2 : -0.6) : 0.2))),
                     }
                     : n
             ));
@@ -257,7 +260,7 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
                             ...n.inventory,
                             [resource]: Math.max(0, ((n.inventory || {})[resource] || 0) - importAmount),
                         },
-                        relation: Math.min(100, Math.max(-100, (n.relation || 0) + (isForceBuy ? -0.6 : 0.2))),
+                        relation: Math.min(100, Math.max(-100, (n.relation || 0) + (isForceBuy ? (isOpenMarketActive ? 0.2 : -0.6) : 0.2))),
                     }
                     : n
             ));

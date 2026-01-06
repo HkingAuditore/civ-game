@@ -39,8 +39,29 @@ export const MusicPlayer = () => {
     });
     const [giteeMuted, setGiteeMuted] = useState(() => localStorage.getItem('music:giteeMuted') === '1');
 
+    // Auto-Scaling State
+    const [scale, setScale] = useState(1);
+
     useEffect(() => {
-        const handleResize = () => setIsMobile(window.innerWidth < 768);
+        const handleResize = () => {
+            const width = window.innerWidth;
+            setIsMobile(width < 768);
+
+            // Auto-scaling logic based on screen width
+            if (width < 768) {
+                setScale(1); // Mobile
+            } else if (width < 1024) {
+                setScale(0.8); // Tablet / Narrow Screen
+            } else if (width < 1366) {
+                setScale(0.9); // Small Laptop
+            } else {
+                setScale(1); // Desktop
+            }
+        };
+
+        // Initial check
+        handleResize();
+
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }, []);
@@ -337,10 +358,10 @@ export const MusicPlayer = () => {
 
     return (
         <div className={`fixed z-[100] transition-all duration-300 pointer-events-none ${isMobile
-                ? 'bottom-20 left-4'
-                : 'bottom-8 right-8'
+            ? 'bottom-20 left-4'
+            : 'bottom-8 left-8'
             }`}>
-            <div className={`pointer-events-auto relative flex flex-col ${isMobile ? 'items-start' : 'items-end'}`}>
+            <div className={`pointer-events-auto relative flex flex-col ${isMobile ? 'items-start' : 'items-start'}`}>
                 {/* Minimized Button / Toggle */}
                 {!isOpen && (
                     <motion.button
@@ -361,14 +382,14 @@ export const MusicPlayer = () => {
                 <motion.div
                     animate={isOpen ? {
                         opacity: 1,
-                        scale: 1,
+                        scale: scale, // Use state scale
                         y: 0,
                         pointerEvents: 'auto',
                         height: 'auto',
                         width: isMobile ? 320 : 350
                     } : {
                         opacity: 0,
-                        scale: 0.9,
+                        scale: 0.9 * scale, // Scale down from current scale
                         y: 20,
                         pointerEvents: 'none',
                         height: 0,
@@ -376,8 +397,13 @@ export const MusicPlayer = () => {
                         overflow: 'hidden'
                     }}
                     transition={{ type: "spring", bounce: 0.3, duration: 0.4 }}
-                    className={`bg-black/90 backdrop-blur-md border border-ancient-gold/30 rounded-xl shadow-2xl overflow-hidden absolute bottom-0 ${isMobile ? 'left-0 origin-bottom-left' : 'right-0 origin-bottom-right'}`}
-                    style={{ visibility: 'visible' }} // Keeping it visible for audio persistence
+                    className={`bg-black/90 backdrop-blur-md border border-ancient-gold/30 rounded-xl shadow-2xl overflow-hidden absolute bottom-0 ${isMobile ? 'left-0 origin-bottom-left' : 'left-0 origin-bottom-left'}`}
+                    style={{
+                        visibility: 'visible',
+                        transformOrigin: isMobile ? 'bottom left' : 'bottom left',
+                        transform: isOpen ? `scale(${scale})` : 'scale(0.9)', // Combine with existing scale animation logic if possible, or just apply it.
+                        // However, Framer Motion handles 'scale' in animate prop. We should probably adjust that prop instead.
+                    }} // Keeping it visible for audio persistence
                 >
                     {/* Header */}
                     <div className="flex items-center justify-between px-3 py-2 bg-gradient-to-r from-ancient-gold/20 to-transparent border-b border-ancient-gold/10">
@@ -400,6 +426,9 @@ export const MusicPlayer = () => {
                     </div>
 
                     {/* Content Area: Iframe vs Meting vs Gitee */}
+                    {/* Wrap content in a div that handles the scaling logic visually if needed, though transform on parent is usually better.
+                        However, transform on the parent affects the header too, which is what we want (whole panel scales).
+                    */}
                     <div className="bg-black/50 p-0 relative min-h-[90px]">
                         {mode === 'gitee' ? (
                             <div className="p-3 space-y-3">
@@ -517,8 +546,8 @@ export const MusicPlayer = () => {
                                 <button
                                     onClick={() => setMode('netease')}
                                     className={`px-2 py-1 rounded border transition-colors ${mode === 'netease'
-                                            ? 'bg-ancient-gold/20 border-ancient-gold/40 text-ancient-gold'
-                                            : 'bg-black/40 border-white/10 text-gray-400 hover:text-white'
+                                        ? 'bg-ancient-gold/20 border-ancient-gold/40 text-ancient-gold'
+                                        : 'bg-black/40 border-white/10 text-gray-400 hover:text-white'
                                         }`}
                                 >
                                     网易云
@@ -526,8 +555,8 @@ export const MusicPlayer = () => {
                                 <button
                                     onClick={() => setMode('gitee')}
                                     className={`px-2 py-1 rounded border transition-colors ${mode === 'gitee'
-                                            ? 'bg-ancient-gold/20 border-ancient-gold/40 text-ancient-gold'
-                                            : 'bg-black/40 border-white/10 text-gray-400 hover:text-white'
+                                        ? 'bg-ancient-gold/20 border-ancient-gold/40 text-ancient-gold'
+                                        : 'bg-black/40 border-white/10 text-gray-400 hover:text-white'
                                         }`}
                                 >
                                     Gitee
@@ -592,6 +621,6 @@ export const MusicPlayer = () => {
                     </div>
                 </motion.div>
             </div>
-        </div>
+        </div >
     );
 };
