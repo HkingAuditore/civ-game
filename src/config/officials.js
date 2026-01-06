@@ -5,7 +5,7 @@
 
 import { STRATA } from './strata';
 import { RESOURCES } from './gameConstants';
-import { assignPoliticalStance } from './politicalStances';
+import { assignPoliticalStance, getStanceInfo } from './politicalStances';
 
 // ========== 效果类型定义 ==========
 // 设计原则：每种效果类型都应该能显著影响玩家的游戏风格和决策
@@ -1328,8 +1328,51 @@ export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence 
     const salaryInfluenceBonus = (salary / 1250) * 0.05; // 每 1250 薪水 +5%
     const stratumInfluenceBonus = Math.min(0.25, baseInfluenceBonus + salaryInfluenceBonus); // 最高25%
 
-    // 7. 分配政治立场（包含动态生成的条件，基于当前市场数据）
+    // 7. 分配政治立场（优先分配，以便影响贪婪度）
+    // 包含动态生成的条件，基于当前市场数据
     const stanceResult = assignPoliticalStance(sourceStratum, epoch, market);
+
+    // 8. 计算贪婪度 (Greed)
+    // 基础范围 0.8 - 1.2
+    let greed = 0.8 + Math.random() * 0.4;
+
+    // 阶层修正
+    const highGreedStrata = ['merchant', 'capitalist', 'landowner'];
+    const mediumGreedStrata = ['official', 'noble', 'knight'];
+    if (highGreedStrata.includes(sourceStratum)) {
+        greed += 0.2 + Math.random() * 0.2; // +0.2~0.4
+    } else if (mediumGreedStrata.includes(sourceStratum)) {
+        greed += 0.1;
+    }
+
+    // 政治立场修正：左派更清廉
+    // 越左越清廉 (spectrum: left -> 减少贪婪)
+    const stanceInfo = getStanceInfo(stanceResult.stanceId);
+    if (stanceInfo) {
+        if (stanceInfo.spectrum === 'left') {
+            greed -= 0.25; // 左派显著降低贪婪
+
+            // 极左派系额外降低
+            const radicalLeft = ['primitive_communism', 'marxism', 'anarchism', 'eco_socialism'];
+            if (radicalLeft.includes(stanceInfo.id)) {
+                greed -= 0.2; // 极左几乎都是清教徒式的
+            }
+        }
+        // 右派稍微增加一点贪婪（更有利于资本/等级积累）
+        else if (stanceInfo.spectrum === 'right') {
+            greed += 0.1;
+        }
+    }
+
+    // 效果修正 (腐败特性)
+    if (effects && effects.corruption && effects.corruption > 0) {
+        greed += 0.3 + (effects.corruption * 5); // 腐败值越高越贪婪
+    }
+
+    // 确保贪婪度在合理范围 (0.5 - 3.0)
+    // 允许低贪婪达到更低值 (0.3) 以体现极左的无私
+    greed = Math.max(0.3, Math.min(3.0, greed));
+    greed = Math.round(greed * 100) / 100;
 
     return {
         id,
@@ -1340,6 +1383,7 @@ export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence 
         salary,
         hireDate: null,
         wealth: 0, // 官员个人财富，初始为0
+        greed, // 个人贪婪度
         influence: 5 + (salary / 10),
         stratumInfluenceBonus,
         // 政治立场信息

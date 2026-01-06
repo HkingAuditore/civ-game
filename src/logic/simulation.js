@@ -2439,6 +2439,13 @@ export const simulateTick = ({
                 requirement *= WAR_MILITARY_MULTIPLIER;
             }
 
+            // 新增：计算官员平均贪婪度（仅在计算官员阶层需求时生效）
+            let officialGreedModifier = 1.0;
+            if (key === 'official' && officials && officials.length > 0) {
+                const totalGreed = officials.reduce((sum, off) => sum + (off.greed || 1.0), 0);
+                officialGreedModifier = totalGreed / officials.length;
+            }
+
             // 应用需求弹性调整
             if (isTradableResource(resKey)) {
                 const resourceMarketConfig = resourceInfo?.marketConfig || {};
@@ -2460,7 +2467,13 @@ export const simulateTick = ({
                 // 2024-12更新：使用统一的calculateWealthMultiplier函数
                 // 该函数现在支持高财富比率补偿低收入
                 // incomeRatio在这里使用wealthRatio近似（因为高财富意味着历史上收入高）
-                const wealthElasticity = def.wealthElasticity || 1.0;
+                let wealthElasticity = def.wealthElasticity || 1.0;
+
+                // 应用官员贪婪度修正：贪婪度直接放大财富弹性，意味着越有钱越想通过消费展示
+                if (key === 'official') {
+                    wealthElasticity *= officialGreedModifier;
+                }
+
                 const maxMultiplier = Math.max(1, (def.maxConsumptionMultiplier || 6) + getMaxConsumptionMultiplierBonus(difficulty));
                 const wealthMultiplier = calculateWealthMultiplier(wealthRatio, wealthRatio, wealthElasticity, maxMultiplier);
                 // 记录财富乘数（取最后一次计算的值，用于UI显示）

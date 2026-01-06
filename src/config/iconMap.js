@@ -107,6 +107,9 @@ import {
   Music,
   Tractor,
   GitBranch,
+  Shuffle,
+  Volume2,
+  VolumeX,
   // 事件系统需要的图标
   CloudRain,
   Globe2,
@@ -308,6 +311,9 @@ export const iconMap = {
   Music,
   Tractor,
   GitBranch,
+  Shuffle,
+  Volume2,
+  VolumeX,
   Horse: Navigation, // Fallback - use Navigation for cavalry
   Crosshair, // For crossbowman
   

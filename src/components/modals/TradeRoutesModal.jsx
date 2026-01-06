@@ -30,24 +30,40 @@ const TradeRoutesModal = ({
     // normal: regular trade
     // force_sell: 倾销（强卖）
     // force_buy: 强买
-    const [selectedNationForMode, setSelectedNationForMode] = useState(null);
 
     const getNationRouteMode = (nationId) => {
         const base = merchantTradePreferences && typeof merchantTradePreferences === 'object'
             ? merchantTradePreferences
             : { import: {}, export: {} };
         const map = (base.coercionByNation && typeof base.coercionByNation === 'object') ? base.coercionByNation : {};
-        return map[nationId] || 'normal';
+        // Default to object with flags
+        const stored = map[nationId];
+        if (!stored) return { dumping: false, forceBuy: false };
+        // Backward compatibility if it was a string
+        if (typeof stored === 'string') {
+            return {
+                dumping: stored === 'force_sell',
+                forceBuy: stored === 'force_buy'
+            };
+        }
+        return stored;
     };
 
-    const setNationRouteMode = (nationId, mode) => {
+    const toggleNationRouteMode = (nationId, type) => {
         if (!onUpdateMerchantTradePreferences) return;
         const base = merchantTradePreferences && typeof merchantTradePreferences === 'object'
             ? merchantTradePreferences
             : { import: {}, export: {} };
+
+        const currentQ = getNationRouteMode(nationId);
+        const nextQ = { ...currentQ };
+
+        if (type === 'dumping') nextQ.dumping = !nextQ.dumping;
+        if (type === 'forceBuy') nextQ.forceBuy = !nextQ.forceBuy;
+
         const nextMap = {
             ...((base.coercionByNation && typeof base.coercionByNation === 'object') ? base.coercionByNation : {}),
-            [nationId]: mode || 'normal',
+            [nationId]: nextQ,
         };
         onUpdateMerchantTradePreferences({
             ...base,
@@ -125,19 +141,44 @@ const TradeRoutesModal = ({
     }, [nations, epoch]);
 
     // Check if a trade route exists
-    const hasTradeRoute = (nationId, resourceKey, type, mode = 'normal') => {
+    // Check if a trade route exists
+    const hasTradeRoute = (nationId, resourceKey, type, mode = null) => {
         if (!tradeRoutes?.routes) return false;
-        const wantMode = mode || 'normal';
-        return tradeRoutes.routes.some(route =>
+
+        const activeRoute = tradeRoutes.routes.find(route =>
             route.nationId === nationId &&
             route.resource === resourceKey &&
-            route.type === type &&
-            (route.mode || 'normal') === wantMode
+            route.type === type
         );
+
+        if (!activeRoute) return false;
+
+        // If we want to check strict mode match:
+        if (mode) {
+            // UI passes mode as flags: { dumping, forceBuy }
+            // Engine stores route.mode as string: 'normal' | 'force_sell' | 'force_buy'
+            const expected = resolveRouteModeStringForNation(nationId, type);
+            const actual = (activeRoute.mode || 'normal');
+            const actualStr = (typeof actual === 'string') ? actual : (
+                actual?.dumping ? 'force_sell' : actual?.forceBuy ? 'force_buy' : 'normal'
+            );
+            return actualStr === expected;
+        }
+
+        return true;
     };
 
     const getRouteModeForNation = (nationId) => {
         return getNationRouteMode(nationId);
+    };
+
+    // Engine expects route.mode to be a string: 'normal' | 'force_sell' | 'force_buy'
+    // UI stores per-nation toggles as { dumping: boolean, forceBuy: boolean }
+    const resolveRouteModeStringForNation = (nationId, tradeType) => {
+        const flags = getNationRouteMode(nationId);
+        if (tradeType === 'export' && flags?.dumping) return 'force_sell';
+        if (tradeType === 'import' && flags?.forceBuy) return 'force_buy';
+        return 'normal';
     };
 
     // Calculate estimated profit/cost for a potential trade opportunity
@@ -155,7 +196,7 @@ const TradeRoutesModal = ({
         const effectiveTaxRate = taxRate * (1 + tariffMultiplier);
 
         const resourceName = RESOURCES[resourceKey]?.name || resourceKey;
-                                    const isActive = hasTradeRoute(nation.id, resourceKey, type, getRouteModeForNation(nation.id));
+        const isActive = hasTradeRoute(nation.id, resourceKey, type, getRouteModeForNation(nation.id));
 
         if (type === 'export') {
             // Export: We sell to them. Need foreign shortage.
@@ -399,12 +440,15 @@ const TradeRoutesModal = ({
         const disabledInc = remainingMerchants <= 0 || nation.isAtWar || value >= maxWithNation;
         const disabledDec = value <= 0;
 
+        const mode = getNationRouteMode(nation.id);
+
         return (
             <div
                 key={nation.id}
                 className="grid grid-cols-12 gap-2 items-center p-3 rounded-lg bg-gray-800/40 border border-white/5 hover:bg-gray-800/60 hover:border-white/10 transition-colors text-sm"
             >
-                <div className="col-span-5 flex items-center gap-2 min-w-0">
+                {/* 1. Nation Info (Cols 1-4) - reduced */}
+                <div className="col-span-4 flex items-center gap-2 min-w-0">
                     <Icon name="Flag" size={14} className={nation.color || 'text-gray-300'} />
                     <div className="min-w-0">
                         <div className="font-medium text-gray-200 truncate" title={nation.name}>{nation.name}</div>
@@ -412,15 +456,44 @@ const TradeRoutesModal = ({
                     </div>
                 </div>
 
-                <div className="col-span-3 text-right text-xs text-gray-400">
-                    <div>战争: <span className={nation.isAtWar ? 'text-red-400' : 'text-green-400'}>{nation.isAtWar ? '是' : '否'}</span></div>
-                    {nation.isAtWar && <div className="text-[10px] text-red-400">交战国不可贸易</div>}
-                    {!nation.isAtWar && maxWithNation === 0 && <div className="text-[10px] text-red-400">关系敌对不可派驻</div>}
-                    {!nation.isAtWar && maxWithNation > 0 && maxWithNation < 999 && <div className="text-[10px] text-gray-500">上限 {maxWithNation}</div>}
-                    {!nation.isAtWar && maxWithNation >= 999 && <div className="text-[10px] text-green-400">开放市场：无限制</div>}
+                {/* 2. Trade Policy Toggles (Cols 5-7) - New */}
+                <div className="col-span-3 flex items-center justify-center gap-1">
+                    <button
+                        onClick={() => toggleNationRouteMode(nation.id, 'dumping')}
+                        className={`px-1.5 py-0.5 rounded text-[10px] border transition-colors ${mode.dumping
+                            ? 'bg-red-500/20 text-red-300 border-red-500/30'
+                            : 'bg-gray-700/30 text-gray-500 border-transparent hover:bg-gray-700/50'
+                            }`}
+                        title={mode.dumping ? "倾销已开启：出口时无视对方需求，可能损害关系" : "点击开启倾销"}
+                    >
+                        倾销
+                    </button>
+                    <button
+                        onClick={() => toggleNationRouteMode(nation.id, 'forceBuy')}
+                        className={`px-1.5 py-0.5 rounded text-[10px] border transition-colors ${mode.forceBuy
+                            ? 'bg-purple-500/20 text-purple-300 border-purple-500/30'
+                            : 'bg-gray-700/30 text-gray-500 border-transparent hover:bg-gray-700/50'
+                            }`}
+                        title={mode.forceBuy ? "强买已开启：进口时无视对方保留库存" : "点击开启强买"}
+                    >
+                        强买
+                    </button>
                 </div>
 
-                <div className="col-span-4 flex items-center justify-end gap-2">
+                {/* 3. Status Info (Cols 8-9) */}
+                <div className="col-span-2 text-right text-xs text-gray-400">
+                    {/* Simplified status display */}
+                    {nation.isAtWar ? (
+                        <span className="text-red-400 text-[10px]">交战中</span>
+                    ) : (
+                        <span className={maxWithNation >= 999 ? 'text-green-400 text-[10px]' : 'text-gray-500 text-[10px]'}>
+                            {maxWithNation >= 999 ? '开放市场' : `上限 ${maxWithNation}`}
+                        </span>
+                    )}
+                </div>
+
+                {/* 4. Assignment Controls (Cols 10-12) */}
+                <div className="col-span-3 flex items-center justify-end gap-2">
                     <button
                         className="w-8 h-8 rounded bg-gray-700 hover:bg-gray-600 text-white border border-white/10 disabled:opacity-40 disabled:cursor-not-allowed"
                         onClick={() => setAssignment(nation.id, value - 1)}
@@ -480,17 +553,9 @@ const TradeRoutesModal = ({
                 {/* Resource */}
                 <div className="col-span-2 flex items-center gap-1 min-w-0">
                     <span className="text-gray-300 truncate">{opp.resourceName}</span>
-                    {opp.mode && opp.mode !== 'normal' && (
-                        <span
-                            className={`px-1.5 py-0.5 rounded text-[9px] border ${opp.mode === 'force_sell'
-                                ? 'bg-red-500/10 text-red-300 border-red-500/20'
-                                : 'bg-purple-500/10 text-purple-300 border-purple-500/20'
-                                }`}
-                            title={opp.mode === 'force_sell' ? '倾销（强卖）' : '强买'}
-                        >
-                            {opp.mode === 'force_sell' ? '倾销' : '强买'}
-                        </span>
-                    )}
+                    {/* Show Mode Badge if active */}
+                    {(opp.mode?.dumping && isExport) && <span className="text-[9px] text-red-400 border border-red-500/30 px-1 rounded">倾</span>}
+                    {(opp.mode?.forceBuy && !isExport) && <span className="text-[9px] text-purple-400 border border-purple-500/30 px-1 rounded">强</span>}
                 </div>
 
                 {/* Price Info */}
@@ -533,7 +598,14 @@ const TradeRoutesModal = ({
                         </button>
                     ) : onCreateRoute ? (
                         <button
-                                            onClick={() => onCreateRoute(opp.nationId, opp.resource, opp.type, { mode: getRouteModeForNation(opp.nationId) })}
+                            onClick={() => onCreateRoute(
+                                opp.nationId,
+                                opp.resource,
+                                opp.type,
+                                {
+                                    mode: resolveRouteModeStringForNation(opp.nationId, opp.type),
+                                }
+                            )}
                             className={`p-1 sm:p-1.5 rounded ${isExport
                                 ? 'bg-green-500/10 hover:bg-green-500/20 text-green-400 border border-green-500/20'
                                 : 'bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20'
@@ -652,78 +724,12 @@ const TradeRoutesModal = ({
                                         剩余: <span className={remainingMerchants > 0 ? 'text-green-400' : 'text-red-400'}>{remainingMerchants}</span>
                                     </div>
                                 </div>
-                            <div className="mt-1 text-[10px] text-gray-400">
+                                <div className="mt-1 text-[10px] text-gray-400">
                                     派驻到某国的商人越多，每回合越倾向在该国寻找最赚钱且最能修复供需缺口的交易。交战国自动无法贸易。
                                 </div>
-
-                                {/* New: route mode selector (per nation) */}
-                                <div className="mt-2 flex items-center justify-between gap-2">
-                                    <div className="text-[10px] text-gray-500">贸易手段（按国家）：</div>
-
-                                    <select
-                                        className="text-[10px] px-2 py-1 rounded bg-gray-800/40 border border-white/10 text-gray-200"
-                                        value={selectedNationForMode ?? ''}
-                                        onChange={(e) => setSelectedNationForMode(e.target.value ? Number(e.target.value) : null)}
-                                        title="选择要设置贸易手段的国家"
-                                    >
-                                        <option value="">选择国家…</option>
-                                        {visibleNations.map(n => (
-                                            <option key={`mode-n-${n.id}`} value={n.id}>{n.name}</option>
-                                        ))}
-                                    </select>
-
-                                    <div className="inline-flex rounded-lg overflow-hidden border border-white/10">
-                                        {(() => {
-                                            const nid = selectedNationForMode;
-                                            const disabled = !nid;
-                                            const mode = nid ? getNationRouteMode(nid) : 'normal';
-                                            return (
-                                                <>
-                                                    <button
-                                                        type="button"
-                                                        disabled={disabled}
-                                                        onClick={() => nid && setNationRouteMode(nid, 'normal')}
-                                                        className={`px-2 py-1 text-[10px] transition-colors ${disabled ? 'opacity-40 cursor-not-allowed' : ''} ${mode === 'normal'
-                                                            ? 'bg-amber-500/20 text-amber-200'
-                                                            : 'bg-gray-800/40 text-gray-400 hover:text-gray-200'
-                                                            }`}
-                                                        title={disabled ? '先选择国家' : '正常贸易：遵循对方盈余/缺口'}
-                                                    >
-                                                        正常
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        disabled={disabled}
-                                                        onClick={() => nid && setNationRouteMode(nid, 'force_sell')}
-                                                        className={`px-2 py-1 text-[10px] transition-colors ${disabled ? 'opacity-40 cursor-not-allowed' : ''} ${mode === 'force_sell'
-                                                            ? 'bg-red-500/20 text-red-200'
-                                                            : 'bg-gray-800/40 text-gray-400 hover:text-gray-200'
-                                                            }`}
-                                                        title={disabled ? '先选择国家' : '倾销：允许强卖（出口无视对方缺口），会折价且损失关系'}
-                                                    >
-                                                        倾销
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        disabled={disabled}
-                                                        onClick={() => nid && setNationRouteMode(nid, 'force_buy')}
-                                                        className={`px-2 py-1 text-[10px] transition-colors ${disabled ? 'opacity-40 cursor-not-allowed' : ''} ${mode === 'force_buy'
-                                                            ? 'bg-purple-500/20 text-purple-200'
-                                                            : 'bg-gray-800/40 text-gray-400 hover:text-gray-200'
-                                                            }`}
-                                                        title={disabled ? '先选择国家' : '强买：允许强买（进口无视对方盈余），会溢价且损失关系'}
-                                                    >
-                                                        强买
-                                                    </button>
-                                                </>
-                                            );
-                                        })()}
-                                    </div>
-                                </div>
-                                <div className="mt-1 text-[10px] text-gray-600">
-                                    这是“对该国贸易手段”的策略开关（会影响该国相关的路线创建/兼容按钮；下一步可接入商人自动贸易选择逻辑）。
-                                </div>
                             </div>
+
+
 
                             {/* Preference Controls (scalable + multi-select) */}
                             <div className="p-3 rounded-lg bg-gray-800/30 border border-white/5">
