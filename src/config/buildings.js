@@ -519,7 +519,7 @@ export const BUILDINGS = [
         id: 'amphitheater',
         name: "剧场",
         desc: "古典时代的文化舞台，激发灵感。",
-        baseCost: { stone: 200, brick: 80, culture: 20, dye: 10 },
+        baseCost: { stone: 200, brick: 80, dye: 10 },
         input: { fine_clothes: 0.225, brick: 0.045 },
         output: { culture: 1.80 },
         jobs: { cleric: 3 },
