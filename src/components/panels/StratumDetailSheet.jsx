@@ -28,6 +28,7 @@ const StratumDetailSheetComponent = ({
     popStructure,
     population = 0,
     classApproval,
+    approvalBreakdown = {},
     classInfluence,
     classWealth,
     classWealthDelta = {},
@@ -47,6 +48,7 @@ const StratumDetailSheetComponent = ({
     onUpdateTaxPolicies,
     onStrategicAction, // 新增：策略行动回调
     resources = {}, // 新增：资源用于检查行动可用性
+    market = null, // { prices: { [resourceKey]: number } }
     militaryPower = 0,
     promiseTasks = [],
     epoch = 0,
@@ -55,6 +57,14 @@ const StratumDetailSheetComponent = ({
     activeDemands = {}, // 新增：活跃诉求
     nations = [],
     officials = [], // 新增：官员列表
+
+    // Optional: extra approval drivers from simulation (to explain 'mysterious' drops)
+    legitimacyTaxModifier = 1,
+    taxShock = {},
+    eventApprovalModifiers = {},
+    decreeApprovalModifiers = {},
+    legitimacyApprovalModifier = 0,
+
     onClose,
 }) => {
     const safeDayScale = Math.max(dayScale, 0.0001);
@@ -872,7 +882,43 @@ const StratumDetailSheetComponent = ({
                                     </div> */}
                                     </div>
 
-                                    {/* 不满来源分析 */}
+                                    {/* 为什么好感度会下降（解释卡片） */}
+                                    <div className="bg-gray-800/40 rounded p-3 border border-gray-600">
+                                        <h3 className="text-[11px] font-bold text-white mb-2 flex items-center gap-2">
+                                            <Icon name="HelpCircle" size={14} className="text-amber-300" />
+                                            为什么好感度会下降？
+                                        </h3>
+                                        <div className="text-[11px] text-gray-300 space-y-1.5 leading-relaxed">
+                                            <div>
+                                                <span className="text-gray-200 font-semibold">核心逻辑：</span>
+                                                好感度不是“永久值”，它会持续受到经济与政策的影响。
+                                            </div>
+                                            <ul className="space-y-1">
+                                                <li className="flex gap-2">
+                                                    <span className="text-red-300">-</span>
+                                                    <span><span className="text-gray-200 font-semibold">基础物资短缺</span>：买不到/买不起（常见是粮食、衣物等）会持续拉低好感度，并推动组织度上升。</span>
+                                                </li>
+                                                <li className="flex gap-2">
+                                                    <span className="text-red-300">-</span>
+                                                    <span><span className="text-gray-200 font-semibold">税负过高</span>：人头税或关键物资税过重时，他们会更不满，组织抗税。</span>
+                                                </li>
+                                                <li className="flex gap-2">
+                                                    <span className="text-red-300">-</span>
+                                                    <span><span className="text-gray-200 font-semibold">收入不足 / 生活水平恶化</span>：即使“工资看起来很高”，但如果物价更高或供给不足，好感度仍会下降。</span>
+                                                </li>
+                                                <li className="flex gap-2">
+                                                    <span className="text-red-300">-</span>
+                                                    <span><span className="text-gray-200 font-semibold">临时事件/政令效果消退</span>：事件加成有持续时间，结束后会回落，看起来像“突然下降”。</span>
+                                                </li>
+                                            </ul>
+                                            <div className="text-[10px] text-gray-400 pt-1 border-t border-gray-700/70">
+                                                下面的<span className="text-gray-200 font-semibold">"好感度变化分析"</span>会把正负因素按贡献度拆出来，帮助你了解影响好感度的各项因素。
+                                            </div>                                        </div>
+                                    </div>
+
+                                    
+
+                                    {/* 好感度变化分析（完整） */}
                                     {(() => {
                                         const dissatisfactionContext = {
                                             classShortages,
@@ -883,17 +929,32 @@ const StratumDetailSheetComponent = ({
                                             taxPolicies,
                                             classIncome,
                                             classExpense,
+                                            classWealth,
+                                            approvalBreakdown,
+
+                                            // Match simulation semantics (legitimacy affects effective head tax)
+                                            effectiveTaxModifier: legitimacyTaxModifier ?? 1,
                                             popStructure,
+                                            dayScale,
+                                            market: market || { prices: {} },
+
+                                            // Extra approval drivers (so UI can explain 'mysterious' drops)
+                                            taxShock: taxShock || {},
+                                            eventApprovalModifiers: eventApprovalModifiers || {},
+                                            decreeApprovalModifiers: decreeApprovalModifiers || {},
+                                            legitimacyApprovalModifier: legitimacyApprovalModifier || 0,
                                         };
                                         const analysis = analyzeDissatisfactionSources(stratumKey, dissatisfactionContext);
-                                        return analysis.hasIssues ? (
+                                        return (
                                             <div className="bg-gray-700/50 rounded p-3 border border-gray-600">
                                                 <DissatisfactionAnalysis
                                                     sources={analysis.sources}
                                                     totalContribution={analysis.totalContribution}
+                                                    showContributionPercent
+                                                    showContributionValue
                                                 />
                                             </div>
-                                        ) : null;
+                                        );
                                     })()}
 
                                     {/* 当前诉求 */}

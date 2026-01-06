@@ -1369,6 +1369,7 @@ function GameApp({ gameState }) {
                         popStructure={gameState.popStructure}
                         population={gameState.population}
                         classApproval={gameState.classApproval}
+                        approvalBreakdown={gameState.approvalBreakdown}
                         classInfluence={gameState.classInfluence}
                         classWealth={gameState.classWealth}
                         classWealthDelta={gameState.classWealthDelta}
@@ -1388,12 +1389,21 @@ function GameApp({ gameState }) {
                         onUpdateTaxPolicies={gameState.setTaxPolicies}
                         onStrategicAction={handleStrategicAction}
                         resources={gameState.resources}
+                        market={gameState.market}
                         militaryPower={currentMilitaryPower}
                         promiseTasks={gameState.promiseTasks}
                         nations={gameState.nations}
                         epoch={gameState.epoch}
                         techsUnlocked={gameState.techsUnlocked}
                         officials={gameState.officials} // Pass officials data for average loyalty calculation
+
+                        // Extra approval drivers (so UI can explain 'mysterious' drops)
+                        legitimacyTaxModifier={gameState.legitimacyTaxModifier}
+                        taxShock={gameState.taxShock}
+                        eventApprovalModifiers={gameState.eventApprovalModifiers}
+                        decreeApprovalModifiers={gameState.decreeApprovalModifiers}
+                        legitimacyApprovalModifier={gameState.legitimacyApprovalModifier}
+
                         onClose={closeSheet}
                     />
                 )}

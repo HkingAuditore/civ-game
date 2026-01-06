@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { COUNTRIES, RESOURCES, STRATA } from '../config';
 import { isOldUpgradeFormat, migrateUpgradesToNewFormat } from '../utils/buildingUpgradeUtils';
 import { migrateAllOfficialsForInvestment } from '../logic/officials/migration';
-import { DEFAULT_DIFFICULTY, getDifficultyConfig } from '../config/difficulty';
+import { DEFAULT_DIFFICULTY, getDifficultyConfig, getStartingSilverMultiplier } from '../config/difficulty';
 import { getScenarioById } from '../config/scenarios';
 import { Share } from '@capacitor/share';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
@@ -669,6 +669,7 @@ export const useGameState = () => {
 
     // ========== 社会阶层状态 ==========
     const [classApproval, setClassApproval] = useState({});
+    const [approvalBreakdown, setApprovalBreakdown] = useState({}); // [NEW] 各阶层满意度分解数据（来自 simulation）
     const [classInfluence, setClassInfluence] = useState({});
     const [classWealth, setClassWealth] = useState(buildInitialWealth());
     const [classWealthDelta, setClassWealthDelta] = useState({});
@@ -931,8 +932,10 @@ export const useGameState = () => {
             if (startNewGame === 'true') {
                 localStorage.removeItem('start_new_game');
                 const newGameDifficulty = localStorage.getItem('new_game_difficulty');
+                let difficultyForNewGame = DEFAULT_DIFFICULTY;
                 if (newGameDifficulty) {
                     console.log(`[DEBUG] Initializing New Game with Difficulty: ${newGameDifficulty}`);
+                    difficultyForNewGame = newGameDifficulty;
                     setDifficulty(newGameDifficulty);
                     localStorage.removeItem('new_game_difficulty');
                 }
@@ -941,6 +944,16 @@ export const useGameState = () => {
                     applyScenarioConfig(newGameScenario);
                     localStorage.removeItem('new_game_scenario');
                 }
+
+                // Difficulty-based starting treasury boost
+                const startingSilverMultiplier = getStartingSilverMultiplier(difficultyForNewGame);
+                if (startingSilverMultiplier !== 1.0) {
+                    setResources(prev => ({
+                        ...prev,
+                        silver: Math.floor((prev?.silver ?? INITIAL_RESOURCES.silver) * startingSilverMultiplier),
+                    }));
+                }
+
                 // 跳过自动加载，开始新游戏
                 return;
             }
@@ -997,7 +1010,9 @@ export const useGameState = () => {
             if (saves.length === 0) {
                 // No saves found, start fresh - check for new game difficulty
                 const newGameDifficulty = localStorage.getItem('new_game_difficulty');
+                let difficultyForNewGame = DEFAULT_DIFFICULTY;
                 if (newGameDifficulty) {
+                    difficultyForNewGame = newGameDifficulty;
                     setDifficulty(newGameDifficulty);
                     localStorage.removeItem('new_game_difficulty');
                 }
@@ -1006,6 +1021,16 @@ export const useGameState = () => {
                     applyScenarioConfig(newGameScenario);
                     localStorage.removeItem('new_game_scenario');
                 }
+
+                // Difficulty-based starting treasury boost
+                const startingSilverMultiplier = getStartingSilverMultiplier(difficultyForNewGame);
+                if (startingSilverMultiplier !== 1.0) {
+                    setResources(prev => ({
+                        ...prev,
+                        silver: Math.floor((prev?.silver ?? INITIAL_RESOURCES.silver) * startingSilverMultiplier),
+                    }));
+                }
+
                 return;
             }
 
@@ -1920,6 +1945,8 @@ export const useGameState = () => {
         // 社会阶层
         classApproval,
         setClassApproval,
+        approvalBreakdown,
+        setApprovalBreakdown,
         classInfluence,
         setClassInfluence,
         classWealth,

@@ -1037,6 +1037,7 @@ export const simulateTick = ({
     const classApproval = {};
     const classInfluence = {};
     const classWealthResult = {};
+    const approvalBreakdown = {}; // NEW: per-stratum approval calculation breakdown for UI traceability
     const logs = [];
     const buildingJobFill = {};
     const buildingStaffingRatios = {};
@@ -3564,6 +3565,7 @@ export const simulateTick = ({
         }
 
         // Sustained needs satisfaction bonus (reward consecutive ticks of high fulfillment)
+        let sustainedBonus = 0;
         const needsHistory = (classNeedsHistory || {})[key];
         if (needsHistory && needsHistory.length > 0) {
             const threshold = 0.95;
@@ -3577,20 +3579,22 @@ export const simulateTick = ({
                 }
             }
             if (consecutiveSatisfied >= 3) {
-                const sustainedBonus = Math.min(15, consecutiveSatisfied * 0.6);
+                sustainedBonus = Math.min(15, consecutiveSatisfied * 0.6);
                 targetApproval = Math.min(100, targetApproval + sustainedBonus);
             }
         }
 
         // Wealth Trend Logic
+        let trend = 0;
+        let trendBonus = 0;
         const history = (classWealthHistory || {})[key];
         if (history && history.length >= 20) { // Check for 20 ticks of history
             const recentWealth = history.slice(-10).reduce((a, b) => a + b, 0) / 10;
             const pastWealth = history.slice(-20, -10).reduce((a, b) => a + b, 0) / 10;
 
             if (pastWealth > 1) { // Avoid division by zero or tiny numbers
-                const trend = (recentWealth - pastWealth) / pastWealth;
-                const trendBonus = Math.min(15, Math.abs(trend) * 50); // Scale bonus with trend, cap at 15
+                trend = (recentWealth - pastWealth) / pastWealth;
+                trendBonus = Math.min(15, Math.abs(trend) * 50); // Scale bonus with trend, cap at 15
 
                 if (trend > 0.05) { // Modest but sustained growth
                     targetApproval += trendBonus;
@@ -3612,59 +3616,146 @@ export const simulateTick = ({
             targetApproval -= penalty;
         }
 
-        // Gradual adjustment
+        // Build per-stratum approval breakdown (so UI can explain *exactly* why approval is low)
+        // Numbers represent contributions to target/current approval in this tick.
+        approvalBreakdown[key] = {
+            baseTarget: 0,
+            livingStandardBase: 0,
+            taxReliefBonus: 0,
+            luxuryShortagePenalty: 0,
+            povertyPenalty: 0,
+            sustainedNeedsBonus: 0,
+            wealthTrendBonus: 0,
+            positiveSatisfactionBonus: 0,
+            unemployedPenalty: 0,
+            eventBonus: 0,
+            decreeBonus: 0,
+            officialTargetBonus: 0,
+            legitimacyPenalty: 0,  // [NEW] 非法政府惩罚
+            taxShockPenalty: 0,
+            shockCapApplied: null,
+            currentApprovalStart: 0,
+            targetApprovalPreShockCap: 0,
+            targetApprovalFinal: 0,
+            adjustmentSpeed: 0.02,
+            inertiaDelta: 0,
+            effectiveApprovalCap: livingStandardApprovalCap,
+            capApplied: null,
+            approvalAfterCap: 0,
+            approvalFinal: 0,
+        };
+
+        // Base / living standard target
+        approvalBreakdown[key].baseTarget = 70;
+        approvalBreakdown[key].livingStandardBase = (targetApproval - 70);
+
+        // Tax relief bonus
+        // (Only the explicit +5 is recorded here; tax burden cap effect is tracked via target changes elsewhere)
+        if (headRate < 0.6) {
+            approvalBreakdown[key].taxReliefBonus = 5;
+        }
+
+        // Luxury shortage penalty (if any)
+        if ((luxuryShortages?.length || 0) > 0) {
+            approvalBreakdown[key].luxuryShortagePenalty = -Math.min(15, luxuryShortages.length * 3);
+        }
+
+        // Poverty penalty (if any)
+        if ((livingTracker?.level === '赤贫' || livingTracker?.level === '贫困')) {
+            const penaltyBase = livingTracker.level === '赤贫' ? 2.5 : 1.5;
+            const penalty = Math.min(30, Math.ceil((livingTracker.streak || 0) * penaltyBase));
+            approvalBreakdown[key].povertyPenalty = -penalty;
+        }
+
+        // Sustained needs bonus
+        if (sustainedBonus) {
+            approvalBreakdown[key].sustainedNeedsBonus = sustainedBonus;
+        }
+
+        // Wealth trend bonus/penalty
+        if (trendBonus && trend && Math.abs(trend) > 0.05) {
+            approvalBreakdown[key].wealthTrendBonus = (trend > 0 ? trendBonus : -trendBonus);
+        }
+
+        // Positive satisfaction bonus
+        if (satisfaction >= 0.98) {
+            approvalBreakdown[key].positiveSatisfactionBonus = 10;
+        }
+
+        // Unemployed penalty
+        if (key === 'unemployed') {
+            const ratio = count / Math.max(1, population);
+            const penalty = 2 + ratio * 30;
+            approvalBreakdown[key].unemployedPenalty = -penalty;
+        }
+
+        // Event / decree / official
         const eventBonus = eventApprovalModifiers?.[key] || 0;
         if (eventBonus) {
             targetApproval += eventBonus;
+            approvalBreakdown[key].eventBonus = eventBonus;
         }
 
-        // 应用政令满意度修正
         const decreeBonus = decreeApprovalModifiers[key] || 0;
         if (decreeBonus) {
             targetApproval += decreeBonus;
+            approvalBreakdown[key].decreeBonus = decreeBonus;
         }
 
-        // 官员满意度修正
         const officialBonus = activeOfficialEffects?.approval?.[key] || 0;
-
-        // 正面官员效果加到目标值
         if (officialBonus > 0) {
             targetApproval += officialBonus;
+            approvalBreakdown[key].officialTargetBonus = officialBonus;
         }
 
-        // 计算有效满意度上限（负面官员效果直接降低上限）
+        // [FIX] 非法政府惩罚：使用上一tick的合法性来影响目标满意度
+        // 而不是在惯性计算之后直接扣除当前好感度（这会导致无限下降的BUG）
+        const prevLegitimacyModifier = getLegitimacyApprovalModifier(previousLegitimacy);
+        if (prevLegitimacyModifier < 0) {
+            targetApproval += prevLegitimacyModifier;  // 应用到目标，通过惯性缓慢影响
+            approvalBreakdown[key].legitimacyPenalty = prevLegitimacyModifier;
+        }
+
+        // Effective cap (negative official bonus reduces cap)
         let effectiveApprovalCap = livingStandardApprovalCap;
         if (officialBonus < 0) {
             effectiveApprovalCap = Math.max(0, livingStandardApprovalCap + officialBonus);
         }
+        approvalBreakdown[key].effectiveApprovalCap = effectiveApprovalCap;
 
         let currentApproval = classApproval[key] || 50;
-        const adjustmentSpeed = 0.02; // How slowly approval changes per tick
+        approvalBreakdown[key].currentApprovalStart = currentApproval;
+        approvalBreakdown[key].adjustmentSpeed = 0.02;
 
-        // 税收冲击惩罚：只有当冲击值显著时才应用
-        // 修复：之前只要 taxShockPenalty > 0 就硬性限制到35%，导致轻微历史冲击也会永久锁死满意度
+        // Tax shock (applies to current approval, and may apply an extra cap)
         if (taxShockPenalty > 1) {
-            // 冲击值直接扣减当前满意度
             currentApproval = Math.max(0, currentApproval - taxShockPenalty);
+            approvalBreakdown[key].taxShockPenalty = -taxShockPenalty;
 
-            // 只有当冲击显著（>5）时才限制满意度上限
-            // 上限根据冲击程度动态计算：冲击5→上限60，冲击15→上限40，冲击25→上限25
             if (taxShockPenalty > 5) {
                 const shockCap = Math.max(25, 70 - taxShockPenalty * 2);
+                approvalBreakdown[key].shockCapApplied = shockCap;
                 targetApproval = Math.min(targetApproval, shockCap);
             }
         }
 
-        // 满意度向目标值移动
+        approvalBreakdown[key].targetApprovalPreShockCap = targetApproval;
+        approvalBreakdown[key].targetApprovalFinal = targetApproval;
+
+        // Inertia move towards target
+        const adjustmentSpeed = 0.02; // How slowly approval changes per tick
         let newApproval = currentApproval + (targetApproval - currentApproval) * adjustmentSpeed;
+        approvalBreakdown[key].inertiaDelta = (newApproval - currentApproval);
 
-        // 应用有效满意度上限（包含官员惩罚）
+        // Apply cap
+        const beforeCap = newApproval;
         newApproval = Math.min(newApproval, effectiveApprovalCap);
-
-        // DEBUG: 检查 miner 阶层的满意度计算
-        if (key === 'miner' && tick % 30 === 0) {
-            console.log(`[DEBUG miner] taxShock=${taxShockPenalty.toFixed(2)}, targetApproval=${targetApproval.toFixed(1)}, effectiveCap=${effectiveApprovalCap}, newApproval=${newApproval.toFixed(1)}, current=${currentApproval.toFixed(1)}`);
+        if (newApproval !== beforeCap) {
+            approvalBreakdown[key].capApplied = effectiveApprovalCap;
         }
+        approvalBreakdown[key].approvalAfterCap = newApproval;
+
+        approvalBreakdown[key].approvalFinal = Math.max(0, Math.min(100, newApproval));
 
         classApproval[key] = Math.max(0, Math.min(100, newApproval));
     });
@@ -3787,14 +3878,11 @@ export const simulateTick = ({
     legitimacyTaxModifier = getLegitimacyTaxModifier(coalitionLegitimacy);
     const legitimacyApprovalModifier = getLegitimacyApprovalModifier(coalitionLegitimacy);
 
-    // 非法政府满意度惩罚（对所有阶层应用）
-    if (legitimacyApprovalModifier < 0) {
-        Object.keys(classApproval).forEach(key => {
-            classApproval[key] = Math.max(0, Math.min(100,
-                (classApproval[key] || 50) + legitimacyApprovalModifier
-            ));
-        });
-    }
+    // [FIX BUG] 非法政府满意度惩罚的应用方式已改变：
+    // 之前的 BUG: 每个 tick 都直接从当前好感度扣除 -15，导致无限下降
+    // 修复: 惩罚已在上方惯性计算循环中应用到 targetApproval，这里不再重复应用
+    // 保留此处代码注释以说明设计意图
+    // NOTE: legitimacyApprovalModifier 现在应该在 approvalBreakdown 中体现（需要在上方循环添加）
 
     let exodusPopulationLoss = 0;
     let extraStabilityPenalty = 0;
@@ -5431,6 +5519,7 @@ export const simulateTick = ({
         population: nextPopulation,
         birthAccumulator,
         classApproval,
+        approvalBreakdown,
         classInfluence,
         classWealth: classWealthResult,
         classLivingStandard, // 各阶层生活水平数据

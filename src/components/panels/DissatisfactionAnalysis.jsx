@@ -2,13 +2,17 @@ import React from 'react';
 import { Icon } from '../common/UIComponents';
 
 /**
- * 不满来源分析组件
- * 展示导致阶层组织度增长的各项因素
+ * 好感度变化分析组件
+ * 展示影响阶层好感度变化的各项正负因素
  */
 export const DissatisfactionAnalysis = ({
     sources = [],
     totalContribution = 0,
     className = '',
+    maxItems = null, // number | null
+    showContributionValue = false,
+    showContributionPercent = true,
+    title = '好感度变化分析',
 }) => {
     if (!sources || sources.length === 0) {
         return (
@@ -66,22 +70,40 @@ export const DissatisfactionAnalysis = ({
         return '轻微';
     };
 
-    // 总体评估文字
-    const getOverallAssessment = (total) => {
-        if (total >= 3) return { text: '危急', color: 'text-red-400' };
-        if (total >= 2) return { text: '严峻', color: 'text-red-400' };
-        if (total >= 1) return { text: '需关注', color: 'text-orange-400' };
+    // 总体评估文字 - 只根据负面因素计算严重程度
+    // severity 为 'danger' 或 'warning' 视为负面因素，'info' 视为正面/中性因素
+    const negativeSources = sources.filter(s => s.severity === 'danger' || s.severity === 'warning');
+    const positiveSources = sources.filter(s => s.severity === 'info');
+    const negativeTotal = negativeSources.reduce((sum, s) => sum + s.contribution, 0);
+    const positiveTotal = positiveSources.reduce((sum, s) => sum + s.contribution, 0);
+
+    const getOverallAssessment = (negTotal, posTotal) => {
+        // 如果没有负面因素，根据正面因素给出积极评价
+        if (negTotal < 0.1) {
+            if (posTotal >= 2) return { text: '良好', color: 'text-green-400' };
+            if (posTotal >= 1) return { text: '稳定', color: 'text-green-400' };
+            return { text: '平稳', color: 'text-gray-400' };
+        }
+        // 有负面因素时，根据负面程度评估
+        if (negTotal >= 3) return { text: '危急', color: 'text-red-400' };
+        if (negTotal >= 2) return { text: '严峻', color: 'text-red-400' };
+        if (negTotal >= 1) return { text: '需关注', color: 'text-orange-400' };
         return { text: '轻微', color: 'text-yellow-400' };
     };
 
-    const overallAssessment = getOverallAssessment(totalContribution);
+    const overallAssessment = getOverallAssessment(negativeTotal, positiveTotal);
+
+    const normalizedTotal = Number.isFinite(totalContribution) && totalContribution > 0 ? totalContribution : 0;
+    const visibleSources = (Number.isFinite(maxItems) && maxItems > 0)
+        ? sources.slice(0, maxItems)
+        : sources;
 
     return (
         <div className={`space-y-2 ${className}`}>
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
                     <Icon name="BarChart2" size={14} className="text-gray-400" />
-                    <span className="text-xs font-bold text-gray-300">不满来源分析</span>
+                    <span className="text-xs font-bold text-gray-300">{title}</span>
                 </div>
                 <span className="text-[10px] text-gray-400">
                     综合评估: <span className={overallAssessment.color}>{overallAssessment.text}</span>
@@ -89,10 +111,11 @@ export const DissatisfactionAnalysis = ({
             </div>
 
             <div className="space-y-1.5">
-                {sources.map((source, idx) => {
+                {visibleSources.map((source, idx) => {
                     const styles = getSeverityStyles(source.severity);
                     const barWidth = Math.min(100, (source.contribution / 2) * 100);
                     const severityText = getSeverityText(source.contribution);
+                    const percent = normalizedTotal > 0 ? Math.round((source.contribution / normalizedTotal) * 100) : 0;
 
                     return (
                         <div
@@ -115,6 +138,13 @@ export const DissatisfactionAnalysis = ({
                                     <div className={`text-xs font-bold ${styles.text}`}>
                                         {severityText}
                                     </div>
+                                    {(showContributionValue || showContributionPercent) && (
+                                        <div className="text-[9px] text-gray-400 font-mono leading-tight">
+                                            {showContributionValue ? source.contribution.toFixed(2) : ''}
+                                            {(showContributionValue && showContributionPercent) ? ' · ' : ''}
+                                            {showContributionPercent ? `${percent}%` : ''}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
