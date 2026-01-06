@@ -150,15 +150,15 @@ export const BUILDING_UPGRADES = {
     library: [
         {
             name: "学堂",
-            cost: { stone: 150, plank: 40, papyrus: 30, brick: 40, silver: 600 },
+            cost: { stone: 150, plank: 40, papyrus: 30, brick: 40, silver: 600, science: 80 },
             input: { papyrus: 0.08 },
             output: { science: 1.3867 }, // 1.3x of base 1.0667
             jobs: { scribe: 4 }, // keep same, efficiency upgrade
         },
         {
             name: "书院",
-            cost: { brick: 120, plank: 60, papyrus: 80, silver: 1400 },
-            input: { papyrus: 0.15 },
+            cost: { brick: 120, plank: 60, papyrus: 80, silver: 1400, science: 200 },
+            input: { papyrus: 0.15, science: 0.15 },
             output: { science: 2.4, culture: 0.12 }, // 2.25x of base 1.0667 + 文教传承
             jobs: { scribe: 5 }, // +1 scribe only (officials are expensive)
         },
@@ -637,15 +637,15 @@ export const BUILDING_UPGRADES = {
     printing_house: [
         {
             name: "大印刷所",
-            cost: { brick: 120, papyrus: 40, silver: 500 },
-            input: { papyrus: 0.48, coffee: 0.09 },
+            cost: { brick: 120, papyrus: 40, silver: 500, science: 100 },
+            input: { papyrus: 0.48, coffee: 0.09, science: 0.20 },
             output: { science: 2.34 },
             jobs: { artisan: 3, scribe: 2, capitalist: 1 },
         },
         {
             name: "出版社",
-            cost: { brick: 200, papyrus: 80, silver: 1100 },
-            input: { papyrus: 0.75, coffee: 0.15 },
+            cost: { brick: 200, papyrus: 80, silver: 1100, science: 250 },
+            input: { papyrus: 0.75, coffee: 0.15, science: 0.35 },
             output: { science: 3.24, culture: 0.45 },
             jobs: { artisan: 3, scribe: 2, capitalist: 1 },
         },
@@ -746,15 +746,15 @@ export const BUILDING_UPGRADES = {
     university: [
         {
             name: "著名学府",
-            cost: { brick: 250, papyrus: 60, silver: 750 },
-            input: { papyrus: 0.3125, coffee: 0.1875, delicacies: 0.125 },
+            cost: { brick: 250, papyrus: 60, silver: 750, science: 150 },
+            input: { papyrus: 0.3125, coffee: 0.1875, delicacies: 0.125, science: 0.40 },
             output: { science: 4.875, culture: 1.3 },
             jobs: { scribe: 5, engineer: 2, official: 2 },
         },
         {
             name: "皇家学院",
-            cost: { brick: 400, papyrus: 120, silver: 1700 },
-            input: { papyrus: 0.4375, coffee: 0.25, delicacies: 0.15 },
+            cost: { brick: 400, papyrus: 120, silver: 1700, science: 400 },
+            input: { papyrus: 0.4375, coffee: 0.25, delicacies: 0.15, science: 0.70 },
             output: { science: 8.4375, culture: 2.25 },
             jobs: { scribe: 6, engineer: 2, official: 2 },
         },
@@ -803,15 +803,15 @@ export const BUILDING_UPGRADES = {
     steel_foundry: [
         {
             name: "大炼钢厂",
-            cost: { brick: 200, iron: 120, silver: 750 },
-            input: { iron: 0.35, coal: 0.35 },
+            cost: { brick: 200, iron: 120, silver: 750, science: 150 },
+            input: { iron: 0.35, coal: 0.35, science: 0.15 },
             output: { steel: 0.52 }, // 1.3x
             jobs: { engineer: 3, worker: 4, capitalist: 1 }, // keep same, efficiency upgrade
         },
         {
             name: "钢铁联合厂",
-            cost: { steel: 100, iron: 200, silver: 1700 },
-            input: { iron: 0.55, coal: 0.55 },
+            cost: { steel: 100, iron: 200, silver: 1700, science: 350 },
+            input: { iron: 0.55, coal: 0.55, science: 0.30 },
             output: { steel: 0.9, tools: 0.1 }, // 2.25x + 钢工具副产
             jobs: { engineer: 3, worker: 5, capitalist: 1 }, // +1 worker only
         },
@@ -821,15 +821,15 @@ export const BUILDING_UPGRADES = {
     factory: [
         {
             name: "大工厂",
-            cost: { brick: 300, steel: 120, silver: 850 },
-            input: { steel: 0.52, coal: 0.52 },
+            cost: { brick: 300, steel: 120, silver: 850, science: 200 },
+            input: { steel: 0.52, coal: 0.52, science: 0.30 },
             output: { tools: 3.12 }, // 1.3x of base 2.40
             jobs: { worker: 20, engineer: 4, capitalist: 1 },
         },
         {
             name: "制造中心",
-            cost: { steel: 200, tools: 80, silver: 1900 },
-            input: { steel: 0.90, coal: 0.90 },
+            cost: { steel: 200, tools: 80, silver: 1900, science: 450 },
+            input: { steel: 0.90, coal: 0.90, science: 0.50 },
             output: { tools: 5.4, steel: 0.02, science: 0.05 }, // 2.25x + 废钢回收&工艺改良
             jobs: { worker: 21, engineer: 4, capitalist: 1 },
         },
@@ -1079,11 +1079,11 @@ export const getUpgradeCost = (buildingId, targetLevel, existingUpgradeCount = 0
     // growthFactor 如 1.15，则 Rate = 0.15
     // k < 1 (如 0.9) 确保斜率逐渐降低 (concave down slope)
     // 这种模型下，价格随数量增加而增加，但增加的幅度逐渐减缓
-    
+
     // 使用 0.9 的指数，保持一定的增长压力但避免后期爆炸
     const slopeExponent = 0.9;
     const rate = Math.max(0, growthFactor - 1);
-    
+
     // Multiplier = 1 + Rate * (Count ^ k)
     // 例: Count=10, Rate=0.15
     // Linear (k=1): 1 + 1.5 = 2.5x

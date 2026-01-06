@@ -35,13 +35,12 @@ export const STRATA = {
         // Dynamic needs: unlock when wealth ratio >= threshold
         luxuryNeeds: {
             1.0: { ale: 0.04 },
-            1.5: { wood: 0.02 },                    // 基本工具和衣物
+            1.5: { wood: 0.02, culture: 0.02 },                    // 基本工具和衣物，基础文化
             2.0: { plank: 0.03, stone: 0.01 },          // 更多麦酒，修缮材料
             2.5: { furniture: 0.02, tools: 0.02 },                // 基本家具，石材
-            3.0: { spice: 0.04, brick: 0.02 },        // 香料，砖块，食物多样化
-            3.5: { culture: 0.01 }, // 更多衣物，麦酒，工具，少量文化
+            3.0: { spice: 0.04, brick: 0.02, culture: 0.05 },        // 香料，砖块，更多文化
             4.5: { copper: 0.004 }, // 更好家具，更多木板，铜器
-            5.5: { delicacies: 0.02, fine_clothes: 0.01 }, // 珍馐，华服，砖块，文化
+            5.5: { delicacies: 0.02, fine_clothes: 0.01, culture: 0.08 }, // 珍馐，华服，文化
             7.0: { coffee: 0.02 },     // 咖啡，香料，石材
             8.0: {} // 高端奢侈需求
         },
@@ -67,13 +66,12 @@ export const STRATA = {
         needs: { food: 0.65, cloth: 0.10 },
         luxuryNeeds: {
             1.0: { ale: 0.04 },
-            1.5: { stone: 0.01 },                     // 更好工具和工作衣物
+            1.5: { stone: 0.01, culture: 0.02 },                     // 更好工具和工作衣物，基础文化
             2.0: { plank: 0.04, wood: 0.03 },           // 麦酒，板材，木材
             2.5: { furniture: 0.025 },                // 家具，优质工具
-            3.0: { spice: 0.03, brick: 0.025 },       // 香料，砖块，衣物
-            3.5: { tools: 0.03, culture: 0.01 }, // 更多麦酒，板材，石材，文化
-            4.5: { copper: 0.006 },   // 家具，铜工具，木材
-            5.5: { delicacies: 0.025, fine_clothes: 0.015 }, // 珍馐，华服，文化
+            3.0: { spice: 0.03, brick: 0.025, culture: 0.05 },       // 香料，砖块，更多文化
+            4.5: { copper: 0.006, tools: 0.03 },   // 家具，铜工具，木材
+            5.5: { delicacies: 0.025, fine_clothes: 0.015, culture: 0.08 }, // 珍馐，华服，文化
             7.0: { coffee: 0.03 },       // 咖啡，香料，石材
             8.0: {} // 高端需求
         },
@@ -99,12 +97,12 @@ export const STRATA = {
         needs: { food: 0.50, cloth: 0.06 },
         luxuryNeeds: {
             1.0: { ale: 0.03 },
-            2.0: {},                      // 基本舒适品
+            2.0: { culture: 0.015 },                      // 基本舒适品，开始渴望文化
             2.5: { food: 0.06 },           // 更多麦酒，衣物，食物
             3.0: { furniture: 0.01, plank: 0.02, tools: 0.006 },   // 基本家具，板材，工具
-            4.0: { spice: 0.02, stone: 0.006, culture: 0.006 }, // 香料，石材，食物，少量文化
+            4.0: { spice: 0.02, stone: 0.006, culture: 0.03 }, // 香料，石材，更多文化
             5.0: {}, // 麦酒，家具，衣物，板材
-            6.0: { delicacies: 0.01, brick: 0.015 }, // 珍馐，砖块，工具，文化
+            6.0: { delicacies: 0.01, brick: 0.015, culture: 0.05 }, // 珍馐，砖块，文化
             7.5: { fine_clothes: 0.008, copper: 0.004 }, // 华服，香料，板材，铜器
             9.0: { coffee: 0.01 }, // 珍馐，家具，砖块，咖啡
             10.0: {} // 华服，文化，香料
@@ -115,7 +113,7 @@ export const STRATA = {
         }
     },
 
-        worker: {
+    worker: {
         name: "工人",
         icon: 'Hammer',
         weight: 2,
@@ -131,14 +129,14 @@ export const STRATA = {
         needs: { food: 0.70, cloth: 0.12 },
         luxuryNeeds: {
             1.0: { tools: 0.05, ale: 0.07 },
-            1.8: { plank: 0.02 },          // 更好工具，麦酒，板材
+            1.5: { plank: 0.02, culture: 0.03 },          // 更好工具，板材，基础文化
             2.5: { furniture: 0.03, spice: 0.02 },    // 家具，香料，衣物
-            3.0: { coffee: 0.025, brick: 0.03, culture: 0.015 }, // 咖啡，砖块，工具，文化
-            4.0: { fine_clothes: 0.03, delicacies: 0.04, stone: 0.015 }, // 华服，珍馐，板材，石材
-            5.0: { steel: 0.01, copper: 0.008 }, // 钢，铜器，家具，麦酒
-            6.5: {}, // 珍馐，华服，砖块，文化
+            3.0: { coffee: 0.025, brick: 0.03, culture: 0.08 }, // 咖啡，砖块，更多文化
+            4.0: { fine_clothes: 0.03, delicacies: 0.04, stone: 0.015 }, // 华服，珍馐，石材
+            5.0: { steel: 0.01, copper: 0.008, culture: 0.12 }, // 钢，铜器，大量文化
+            6.5: {}, // 珍馐，华服，砖块
             8.0: { papyrus: 0.02 }, // 纸张，衣物，麦酒，咖啡
-            10.0: {}, // 香料，钢，家具，文化
+            10.0: {}, // 香料，钢，家具
             12.0: {} // 华服，珍馐，砖块
         },
         buffs: {
@@ -165,15 +163,15 @@ export const STRATA = {
         maxConsumptionMultiplier: 6, // 中层阶级消费上限6倍
         needs: { food: 0.80, cloth: 0.14 },
         luxuryNeeds: {
-            1.0: { tools: 0.06, ale: 0.08, furniture: 0.04 },
+            1.0: { tools: 0.06, ale: 0.08, furniture: 0.04, culture: 0.04 },
             1.8: { copper: 0.015, spice: 0.04 },   // 铜料，香料，家具
-            2.5: { coffee: 0.03, fine_clothes: 0.025, brick: 0.03, culture: 0.02 }, // 咖啡，华服，砖块，文化
-            3.5: { delicacies: 0.06, stone: 0.025, dye: 0.015 }, // 珍馐，石材，衣物，板材
-            4.5: { steel: 0.008, iron: 0.01 }, // 家具，钢，咖啡，香料
-            6.0: {}, // 华服，珍馐，砖块，文化
-            8.0: { papyrus: 0.03 }, // 纸张，家具，工具，文化
+            2.5: { coffee: 0.03, fine_clothes: 0.025, brick: 0.03, culture: 0.10 }, // 咖啡，华服，砖块，更多文化
+            3.5: { delicacies: 0.06, stone: 0.025, dye: 0.015 }, // 珍馐，石材，衣物
+            4.5: { steel: 0.008, iron: 0.01, culture: 0.15 }, // 家具，钢，大量文化
+            6.0: {}, // 华服，珍馐，砖块
+            8.0: { papyrus: 0.03 }, // 纸张，家具，工具
             10.0: {}, // 钢，香料，麦酒，衣物
-            12.0: {} // 珍馐，华服，文化，咖啡
+            12.0: {} // 珍馐，华服，咖啡
         },
         buffs: {
             satisfied: { desc: "坊市繁盛", production: 0.1 },
@@ -198,12 +196,13 @@ export const STRATA = {
         luxuryNeeds: {
             1.0: { ale: 0.05 },
             1.8: { wood: 0.03 },          // 采矿工具，麦酒，衣物
+            2.0: { culture: 0.02 },    // 开始需要文化娱乐
             2.5: { furniture: 0.02, spice: 0.015, food: 0.15 },    // 家具，香料，食物
-            3.0: { plank: 0.03, brick: 0.02, coffee: 0.015, culture: 0.01 }, // 板材，砖块，咖啡，文化
-            4.0: { delicacies: 0.03 }, // 珍馐，衣物，麦酒，石材
-            5.5: { copper: 0.01 }, // 家具，铜器，香料，文化
-            7.0: { fine_clothes: 0.02 }, // 华服，砖块，咖啡，工具
-            9.0: {}, // 珍馐，文化，板材，麦酒
+            3.0: { plank: 0.03, brick: 0.02, coffee: 0.015 }, // 板材，砖块，咖啡
+            4.0: { delicacies: 0.03, culture: 0.05 }, // 珍馐，更多文化
+            5.5: { copper: 0.01 }, // 家具，铜器，香料
+            7.0: { fine_clothes: 0.02, culture: 0.08 }, // 华服，大量文化
+            9.0: {}, // 珍馐，板材，麦酒
             11.0: {} // 钢，家具，香料，华服
         },
         buffs: {
@@ -227,14 +226,14 @@ export const STRATA = {
         maxConsumptionMultiplier: 10, // 中层阶级消费上限6倍
         needs: { food: 1.80, cloth: 0.25 },
         luxuryNeeds: {
-            1.0: { delicacies: 0.60, spice: 0.20, furniture: 0.12, plank: 0.08, ale: 0.15, fine_clothes: 0.10, culture: 0.12, dye: 0.02 },
-            1.5: { coffee: 0.14 },         // 咖啡，华服，文化
-            2.0: { delicacies: 0.35, plank: 0.12, brick: 0.05 }, // 珍馐，香料，板材，砖块
-            3.0: { steel: 0.05, culture: 0.15, coal: 0.03 }, // 家具，钢，衣物，文化
-            5.0: { papyrus: 0.08, copper: 0.06, stone: 0.05 }, // 纸张，铜器，华服，石材
-            8.0: {}, // 香料，咖啡，钢，文化
+            1.0: { delicacies: 0.60, spice: 0.20, furniture: 0.12, plank: 0.08, ale: 0.15, fine_clothes: 0.10, culture: 0.20, dye: 0.02 },
+            1.5: { coffee: 0.14 },         // 咖啡，华服
+            2.0: { delicacies: 0.35, plank: 0.12, brick: 0.05, culture: 0.35 }, // 珍馐，板材，大量文化
+            3.0: { steel: 0.05, coal: 0.03 }, // 家具，钢，衣物
+            5.0: { papyrus: 0.08, copper: 0.06, stone: 0.05, culture: 0.50 }, // 纸张，铜器，巨量文化
+            8.0: {}, // 香料，咖啡，钢
             12.0: {}, // 珍馐，家具，砖块，板材
-            18.0: {} // 华服，纸张，铜器，文化
+            18.0: {} // 华服，纸张，铜器
         },
         buffs: {
             satisfied: { desc: "商贸兴隆", taxIncome: 0.15, gatherBonus: 0.05 },
@@ -267,13 +266,13 @@ export const STRATA = {
         maxConsumptionMultiplier: 6, // 中层阶级消费上限6倍
         needs: { food: 0.75, cloth: 0.12 },
         luxuryNeeds: {
-            1.0: { spice: 0.12, ale: 0.12 },
+            1.0: { spice: 0.12, ale: 0.12, culture: 0.08 },
             1.8: { tools: 0.05 },          // 麦酒，香料，工具
-            2.5: { coffee: 0.07, furniture: 0.07, culture: 0.06 }, // 咖啡，家具，文化
+            2.5: { coffee: 0.07, furniture: 0.07, culture: 0.15 }, // 咖啡，家具，更多文化
             3.5: { fine_clothes: 0.08, delicacies: 0.12, plank: 0.07 }, // 华服，珍馐，板材
-            5.0: { copper: 0.05, steel: 0.03 }, // 铜器，钢，香料，文化
+            5.0: { copper: 0.05, steel: 0.03, culture: 0.25 }, // 铜器，钢，大量文化
             7.0: { papyrus: 0.05 }, // 纸张，家具，咖啡，麦酒
-            10.0: { brick: 0.08 }, // 珍馐，华服，砖块，文化
+            10.0: { brick: 0.08 }, // 珍馐，华服，砖块
             14.0: {} // 钢，铜器，家具，石材
         },
         buffs: {
@@ -297,15 +296,15 @@ export const STRATA = {
         maxConsumptionMultiplier: 6, // 中层阶级消费上限6倍
         needs: { food: 0.85, cloth: 0.15 },
         luxuryNeeds: {
-            1.0: { papyrus: 0.10, furniture: 0.05 },
-            1.5: { coffee: 0.07, culture: 0.06 },         // 咖啡，纸张，文化
-            2.0: { fine_clothes: 0.05, plank: 0.025 },  // 华服，家具，板材
-            3.0: { delicacies: 0.09, spice: 0.05 },       // 珍馐，香料，文化
-            5.0: { copper: 0.035, brick: 0.025 }, // 衣物，铜器，纸张，砖块
-            7.0: {}, // 咖啡，华服，家具，文化
+            1.0: { papyrus: 0.10, furniture: 0.05, culture: 0.12 },
+            1.5: { coffee: 0.07 },         // 咖啡，纸张
+            2.0: { fine_clothes: 0.05, plank: 0.025, culture: 0.25 },  // 华服，板材，大量文化
+            3.0: { delicacies: 0.09, spice: 0.05 },       // 珍馐，香料
+            5.0: { copper: 0.035, brick: 0.025, culture: 0.35 }, // 铜器，砖块，巨量文化
+            7.0: {}, // 咖啡，华服，家具
             10.0: { stone: 0.04 }, // 珍馐，香料，石材，板材
-            14.0: { cloth: 0.07 }, // 纸张，衣物，铜器，文化
-            18.0: { steel: 0.015 } // 钢，家具，华服，文化
+            14.0: { cloth: 0.07 }, // 纸张，衣物，铜器
+            18.0: { steel: 0.015 } // 钢，家具，华服
         },
         buffs: {
             satisfied: { desc: "文献井然", scienceBonus: 0.15 },
@@ -329,12 +328,14 @@ export const STRATA = {
         needs: { food: 0.85, cloth: 0.12 },
         luxuryNeeds: {
             1.0: { ale: 0.08 },
-            2.0: { tools: 0.07, copper: 0.025, iron: 0.02 },          // 麦酒，武器/盔甲，铜器
-            2.5: { furniture: 0.05, spice: 0.05, culture: 0.04 },    // 家具，香料，文化
+            1.5: { culture: 0.06 },    // 军人需要士气文化
+            2.0: { tools: 0.07, copper: 0.025, iron: 0.02 },          // 麦酒，武器，铜器
+            2.5: { furniture: 0.05, spice: 0.05 },    // 家具，香料
+            3.0: { culture: 0.12 },    // 更多士气文化
             3.5: { fine_clothes: 0.07, delicacies: 0.07, steel: 0.025 }, // 华服，珍馐，钢
-            5.0: { brick: 0.05 }, // 充足食物，衣物，砖块，文化
-            7.0: { coffee: 0.09, stone: 0.05 }, // 咖啡，石材，工具，麦酒
-            10.0: {}, // 华服，珍馐，钢，文化
+            5.0: { brick: 0.05, culture: 0.18 }, // 砖块，大量文化
+            7.0: { coffee: 0.09, stone: 0.05 }, // 咖啡，石材，工具
+            10.0: {}, // 华服，珍馐，钢
             14.0: {} // 砖块，板材，铜器，家具
         },
         buffs: {
@@ -358,13 +359,13 @@ export const STRATA = {
         maxConsumptionMultiplier: 6, // 中层阶级消费上限6倍
         needs: { food: 0.90, cloth: 0.15 },
         luxuryNeeds: {
-            1.0: { papyrus: 0.08, ale: 0.06, culture: 0.10 },
-            1.5: { plank: 0.02 },      // 纸张，文化，板材
-            2.0: { fine_clothes: 0.06, furniture: 0.06, stone: 0.04 }, // 华服，家具，石材
-            3.0: { delicacies: 0.08, spice: 0.04 },    // 珍馐，香料，文化
-            4.5: { copper: 0.04, brick: 0.04 },          // 铜器，衣物，砖块
-            6.0: { coffee: 0.05, steel: 0.01 },        // 文化，咖啡，钢
-            8.0: { papyrus: 0.09 }, // 家具，华服，纸张，文化
+            1.0: { papyrus: 0.08, ale: 0.06, culture: 0.18 },
+            1.5: { plank: 0.02 },      // 纸张，板材
+            2.0: { fine_clothes: 0.06, furniture: 0.06, stone: 0.04, culture: 0.30 }, // 华服，家具，石材，大量文化
+            3.0: { delicacies: 0.08, spice: 0.04 },    // 珍馐，香料
+            4.5: { copper: 0.04, brick: 0.04, culture: 0.40 },          // 铜器，砖块，巨量文化
+            6.0: { coffee: 0.05, steel: 0.01 },        // 咖啡，钢
+            8.0: { papyrus: 0.09 }, // 家具，华服，纸张
             10.0: {} // 珍馐，砖块，铜器，香料
         },
         buffs: {
@@ -389,14 +390,15 @@ export const STRATA = {
         maxConsumptionMultiplier: 10, // 上层阶级消费上限10倍
         needs: { food: 1.20, cloth: 0.20 },
         luxuryNeeds: {
-            1.0: { delicacies: 0.50, papyrus: 0.12, coffee: 0.08, furniture: 0.10, stone: 0.04, fine_clothes: 0.10, culture: 0.15 },
-            1.3: {},  // 咖啡，华服，文化
+            1.0: { delicacies: 0.50, papyrus: 0.12, coffee: 0.08, furniture: 0.10, stone: 0.04, fine_clothes: 0.10, culture: 0.25 },
+            1.3: {},  // 咖啡，华服
             1.8: { delicacies: 0.30, spice: 0.12, plank: 0.08, brick: 0.06 },  // 珍馐，香料，板材，砖块
-            2.5: { steel: 0.04, culture: 0.15, iron: 0.03, coal: 0.03 }, // 家具，钢，衣物，文化
-            4.0: { papyrus: 0.08, copper: 0.04, stone: 0.04 },       // 纸张，铜器，石材
-            6.0: { fine_clothes: 0.15 }, // 珍馐，华服，钢，文化
+            2.0: { culture: 0.40 }, // 大量文化需求
+            2.5: { steel: 0.04, iron: 0.03, coal: 0.03 }, // 家具，钢，衣物
+            4.0: { papyrus: 0.08, copper: 0.04, stone: 0.04, culture: 0.55 },       // 纸张，铜器，巨量文化
+            6.0: { fine_clothes: 0.15 }, // 珍馐，华服，钢
             9.0: {}, // 香料，咖啡，砖块，家具
-            14.0: {}, // 纸张，铜器，石材，文化
+            14.0: {}, // 纸张，铜器，石材
             20.0: {} // 钢，家具，珍馐，华服
         },
         buffs: {
@@ -420,14 +422,15 @@ export const STRATA = {
         maxConsumptionMultiplier: 10, // 上层阶级消费上限10倍
         needs: { food: 2.00, cloth: 0.30 },
         luxuryNeeds: {
-            1.0: { delicacies: 0.80, spice: 0.20, furniture: 0.18, brick: 0.10, plank: 0.10, fine_clothes: 0.15, culture: 0.18 },
-            1.3: { delicacies: 0.40, fine_clothes: 0.12, culture: 0.12 },  // 珍馐，华服，文化
+            1.0: { delicacies: 0.80, spice: 0.20, furniture: 0.18, brick: 0.10, plank: 0.10, fine_clothes: 0.15, culture: 0.30 },
+            1.3: { delicacies: 0.40, fine_clothes: 0.12 },  // 珍馐，华服
+            1.5: { culture: 0.45 },  // 大量文化需求
             1.8: { spice: 0.20, coffee: 0.10, stone: 0.08 },  // 香料，咖啡，家具，石材
-            2.5: { plank: 0.12, steel: 0.04, brick: 0.08 }, // 板材，钢，砖块，文化
+            2.5: { plank: 0.12, steel: 0.04, brick: 0.08, culture: 0.60 }, // 板材，钢，巨量文化
             4.0: { copper: 0.06, papyrus: 0.04 },         // 衣物，铜器，纸张
-            6.0: {}, // 珍馐，华服，钢，文化
+            6.0: {}, // 珍馐，华服，钢
             9.0: {}, // 香料，咖啡，砖块，家具
-            14.0: {}, // 纸张，铜器，石材，文化
+            14.0: {}, // 纸张，铜器，石材
             20.0: {} // 钢，家具，珍馐，华服
         },
         buffs: {
@@ -451,14 +454,15 @@ export const STRATA = {
         maxConsumptionMultiplier: 10, // 上层阶级消费上限10倍
         needs: { food: 2.50, cloth: 0.35 },
         luxuryNeeds: {
-            1.0: { delicacies: 0.70, coffee: 0.15, furniture: 0.15, steel: 0.05, culture: 0.20 },
-            1.3: { fine_clothes: 0.12, culture: 0.12 },  // 咖啡，华服，文化
-            1.8: { delicacies: 0.30, spice: 0.15, brick: 0.08 },  // 珍馐，香料，家具，砖块
-            2.5: { stone: 0.06, plank: 0.10, coal: 0.04, iron: 0.03 }, // 石材，板材，钢，文化
+            1.0: { delicacies: 0.70, coffee: 0.15, furniture: 0.15, steel: 0.05, culture: 0.35 },
+            1.3: { fine_clothes: 0.12 },  // 咖啡，华服
+            1.5: { culture: 0.50 },  // 大量文化需求
+            1.8: { delicacies: 0.30, spice: 0.15, brick: 0.08 },  // 珍馐，香料，砖块
+            2.5: { stone: 0.06, plank: 0.10, coal: 0.04, iron: 0.03, culture: 0.70 }, // 石材，板材，巨量文化
             4.0: { copper: 0.08, papyrus: 0.06 },       // 铜器，纸张，衣物
-            6.0: {}, // 珍馐，华服，钢，文化
+            6.0: {}, // 珍馐，华服，钢
             10.0: {}, // 香料，咖啡，砖块，家具
-            15.0: {}, // 纸张，铜器，石材，文化
+            15.0: {}, // 纸张，铜器，石材
             22.0: {} // 钢，家具，珍馐，华服
         },
         buffs: {
@@ -482,14 +486,15 @@ export const STRATA = {
         maxConsumptionMultiplier: 10, // 上层阶级消费上限10倍
         needs: { food: 1.50, cloth: 0.25 },
         luxuryNeeds: {
-            1.0: { delicacies: 0.90, coffee: 0.10, furniture: 0.15, ale: 0.15, culture: 0.12 },
-            1.3: { delicacies: 0.40, fine_clothes: 0.10, culture: 0.08 },  // 珍馐，华服，文化
-            1.8: { spice: 0.12, steel: 0.04 },  // 香料，家具，麦酒，钢
-            2.5: { coffee: 0.08, brick: 0.06, stone: 0.04 }, // 咖啡，砖块，石材，文化
-            4.0: { tools: 0.06, copper: 0.04, plank: 0.06 },  // 工具，铜器，衣物，板材
-            6.0: {}, // 珍馐，华服，钢，文化
+            1.0: { delicacies: 0.90, coffee: 0.10, furniture: 0.15, ale: 0.15, culture: 0.20 },
+            1.3: { delicacies: 0.40, fine_clothes: 0.10 },  // 珍馐，华服
+            1.5: { culture: 0.35 },  // 大量荣耀文化
+            1.8: { spice: 0.12, steel: 0.04 },  // 香料，钢
+            2.5: { coffee: 0.08, brick: 0.06, stone: 0.04, culture: 0.50 }, // 咖啡，砖块，巨量文化
+            4.0: { tools: 0.06, copper: 0.04, plank: 0.06 },  // 工具，铜器，板材
+            6.0: {}, // 珍馐，华服，钢
             10.0: {}, // 香料，咖啡，砖块，家具
-            15.0: {}, // 铜器，纸张，石材，文化
+            15.0: {}, // 铜器，纸张，石材
             22.0: {} // 钢，家具，珍馐，华服
         },
         buffs: {
@@ -513,14 +518,15 @@ export const STRATA = {
         maxConsumptionMultiplier: 10, // 上层阶级消费上限10倍
         needs: { food: 1.00, cloth: 0.18 },
         luxuryNeeds: {
-            1.0: { coffee: 0.12, ale: 0.08, furniture: 0.10, culture: 0.12 },
-            1.3: { fine_clothes: 0.08, culture: 0.08 },  // 咖啡，华服，文化
-            1.8: { delicacies: 0.15, spice: 0.08, tools: 0.06 },  // 珍馐，香料，家具，工具
-            2.5: { plank: 0.08, copper: 0.04, stone: 0.04 },       // 板材，铜器，石材，文化
-            4.0: { papyrus: 0.06, brick: 0.06, steel: 0.04, coal: 0.05, iron: 0.03 },        // 纸张，衣物，砖块，钢
-            6.0: {}, // 珍馐，华服，钢，文化
+            1.0: { coffee: 0.12, ale: 0.08, furniture: 0.10, culture: 0.18 },
+            1.3: { fine_clothes: 0.08 },  // 咖啡，华服
+            1.8: { delicacies: 0.15, spice: 0.08, tools: 0.06 },  // 珍馐，香料，工具
+            2.0: { culture: 0.30 },       // 大量知识文化
+            2.5: { plank: 0.08, copper: 0.04, stone: 0.04 },       // 板材，铜器，石材
+            4.0: { papyrus: 0.06, brick: 0.06, steel: 0.04, coal: 0.05, iron: 0.03, culture: 0.45 },        // 纸张，砖块，巨量文化
+            6.0: {}, // 珍馐，华服，钢
             10.0: {},    // 香料，咖啡，砖块，家具
-            15.0: {},    // 铜器，纸张，石材，文化
+            15.0: {},    // 铜器，纸张，石材
             22.0: {} // 钢，家具，珍馐，华服
         },
         buffs: {

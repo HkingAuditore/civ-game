@@ -49,6 +49,7 @@ export const DIFFICULTY_CONFIG = {
         populationGrowthMultiplier: 1.5,       // 150% growth rate
         buildingUpgradeCostMultiplier: 1.0,    // 80% upgrade cost
         armyMaintenanceMultiplier: 0.5,        // 50% army maintenance
+        maxConsumptionMultiplierBonus: -1,     // -1 to max consumption multiplier (easier economy)
     },
     [DIFFICULTY_LEVELS.EASY]: {
         id: DIFFICULTY_LEVELS.EASY,
@@ -81,6 +82,7 @@ export const DIFFICULTY_CONFIG = {
         populationGrowthMultiplier: 1.2,       // 120% growth rate
         buildingUpgradeCostMultiplier: 1.2,    // 90% upgrade cost
         armyMaintenanceMultiplier: 0.75,       // 75% army maintenance
+        maxConsumptionMultiplierBonus: 0,      // No change to max consumption multiplier
     },
     [DIFFICULTY_LEVELS.NORMAL]: {
         id: DIFFICULTY_LEVELS.NORMAL,
@@ -113,6 +115,7 @@ export const DIFFICULTY_CONFIG = {
         populationGrowthMultiplier: 1.0,       // Standard growth rate
         buildingUpgradeCostMultiplier: 1.5,    // Standard upgrade cost
         armyMaintenanceMultiplier: 1.0,        // Standard army maintenance
+        maxConsumptionMultiplierBonus: 0,      // No change to max consumption multiplier
     },
     [DIFFICULTY_LEVELS.HARD]: {
         id: DIFFICULTY_LEVELS.HARD,
@@ -145,6 +148,7 @@ export const DIFFICULTY_CONFIG = {
         populationGrowthMultiplier: 0.8,       // 80% growth rate
         buildingUpgradeCostMultiplier: 3.0,    // 300% upgrade cost
         armyMaintenanceMultiplier: 1.5,       // 150% army maintenance
+        maxConsumptionMultiplierBonus: 2,      // +2 to max consumption multiplier (more consumption)
     },
     [DIFFICULTY_LEVELS.VERY_HARD]: {
         id: DIFFICULTY_LEVELS.VERY_HARD,
@@ -177,6 +181,7 @@ export const DIFFICULTY_CONFIG = {
         populationGrowthMultiplier: 0.5,       // 50% growth rate
         buildingUpgradeCostMultiplier: 5.0,   // 500% upgrade cost
         armyMaintenanceMultiplier: 2.0,        // 200% army maintenance
+        maxConsumptionMultiplierBonus: 4,      // +4 to max consumption multiplier (much more consumption)
     },
     [DIFFICULTY_LEVELS.EXTREME]: {
         id: DIFFICULTY_LEVELS.EXTREME,
@@ -209,6 +214,7 @@ export const DIFFICULTY_CONFIG = {
         populationGrowthMultiplier: 0.2,       // 20% growth rate
         buildingUpgradeCostMultiplier: 10.0,   // 1000% upgrade cost
         armyMaintenanceMultiplier: 3.0,        // 300% army maintenance
+        maxConsumptionMultiplierBonus: 8,      // +8 to max consumption multiplier (extreme consumption)
     },
 };
 
@@ -384,7 +390,6 @@ export default {
     applyRaidDamageModifier,
     applyPopulationLossModifier,
     getStabilityDampeningBonus,
-    getStabilityDampeningBonus,
     isInGracePeriod,
     getBuildingCostGrowthFactor,
     getInventoryTargetDaysMultiplier,
@@ -396,6 +401,7 @@ export default {
     getPopulationGrowthMultiplier,
     getBuildingUpgradeCostMultiplier,
     getArmyMaintenanceMultiplier,
+    getMaxConsumptionMultiplierBonus,
 };
 
 /**
@@ -474,4 +480,16 @@ export function getBuildingUpgradeCostMultiplier(difficultyLevel) {
 export function getArmyMaintenanceMultiplier(difficultyLevel) {
     const config = getDifficultyConfig(difficultyLevel);
     return config.armyMaintenanceMultiplier || 1.0;
+}
+
+/**
+ * Get max consumption multiplier bonus
+ * Positive values = higher consumption cap (hard difficulties increase resource sink)
+ * Negative values = lower consumption cap (easy difficulties reduce resource sink)
+ * @param {string} difficultyLevel
+ * @returns {number} Bonus value to add to base maxConsumptionMultiplier (default 0)
+ */
+export function getMaxConsumptionMultiplierBonus(difficultyLevel) {
+    const config = getDifficultyConfig(difficultyLevel);
+    return config.maxConsumptionMultiplierBonus || 0;
 }

@@ -127,7 +127,8 @@ import {
 import {
     getInventoryTargetDaysMultiplier,
     getPopulationGrowthMultiplier,
-    getArmyMaintenanceMultiplier
+    getArmyMaintenanceMultiplier,
+    getMaxConsumptionMultiplierBonus
 } from '../config/difficulty';
 import {
     calculateFinancialStatus,
@@ -2351,7 +2352,8 @@ export const simulateTick = ({
         const incomeRatioForLuxury = essentialCostPerCapita > 0
             ? incomePerCapita / essentialCostPerCapita
             : (incomePerCapita > 0 ? 10 : 0);
-        const maxConsumptionMultiplier = def.maxConsumptionMultiplier || 6;
+        // Apply difficulty bonus to max consumption multiplier
+        const maxConsumptionMultiplier = Math.max(1, (def.maxConsumptionMultiplier || 6) + getMaxConsumptionMultiplierBonus(difficulty));
         const consumptionMultiplier = calculateWealthMultiplier(
             incomeRatioForLuxury,
             wealthRatioForLuxury,
@@ -2459,7 +2461,7 @@ export const simulateTick = ({
                 // 该函数现在支持高财富比率补偿低收入
                 // incomeRatio在这里使用wealthRatio近似（因为高财富意味着历史上收入高）
                 const wealthElasticity = def.wealthElasticity || 1.0;
-                const maxMultiplier = def.maxConsumptionMultiplier || 6;
+                const maxMultiplier = Math.max(1, (def.maxConsumptionMultiplier || 6) + getMaxConsumptionMultiplierBonus(difficulty));
                 const wealthMultiplier = calculateWealthMultiplier(wealthRatio, wealthRatio, wealthElasticity, maxMultiplier);
                 // 记录财富乘数（取最后一次计算的值，用于UI显示）
                 if (!stratumWealthMultipliers[key] || Math.abs(wealthMultiplier - 1) > Math.abs(stratumWealthMultipliers[key] - 1)) {

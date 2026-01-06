@@ -8,7 +8,7 @@ import { isResourceUnlocked } from '../../utils/resources';
 import { isTradableResource, getBasePrice } from '../utils/helpers';
 import { calculateLivingStandardData, calculateWealthMultiplier, calculateLuxuryConsumptionMultiplier, getSimpleLivingStandard } from '../../utils/livingStandard';
 import { applyBuyPriceControl } from '../officials/cabinetSynergy';
-import { getResourceConsumptionMultiplier } from '../../config/difficulty';
+import { getResourceConsumptionMultiplier, getMaxConsumptionMultiplierBonus } from '../../config/difficulty';
 
 /**
  * Process needs consumption for all strata
@@ -80,15 +80,17 @@ export const processNeedsConsumption = ({
             }
         });
         const incomeRatio = essentialCost > 0 ? incomePerCapita / essentialCost : (incomePerCapita > 0 ? 10 : 0);
-        const maxConsumptionMultiplier = def.maxConsumptionMultiplier || 6;
-        
+        // Apply difficulty bonus to max consumption multiplier
+        const difficultyBonus = getMaxConsumptionMultiplierBonus(difficulty);
+        const maxConsumptionMultiplier = Math.max(1, (def.maxConsumptionMultiplier || 6) + difficultyBonus);
+
         // 消费能力（受阶层上限限制）：用于计算实际购买量
         const consumptionMultiplier = calculateWealthMultiplier(incomeRatio, wealthRatio, def.wealthElasticity || 1.0, maxConsumptionMultiplier);
-        
+
         // 解锁能力（不受阶层上限限制，统一上限10）：用于判断是否能解锁奢侈品需求
         // 这样即使底层阶级（上限3）只要足够富裕也能解锁高级奢侈品，只是购买量受限
         const unlockMultiplier = calculateWealthMultiplier(incomeRatio, wealthRatio, def.wealthElasticity || 1.0, 10);
-        
+
         const livingStandardLevel = getSimpleLivingStandard(incomeRatio).level;
         const luxuryConsumptionMultiplier = calculateLuxuryConsumptionMultiplier({
             consumptionMultiplier,
@@ -131,7 +133,7 @@ export const processNeedsConsumption = ({
             if (isTradableResource(resKey)) {
                 // Tradable resource - requires payment
                 const marketPrice = priceMap[resKey] || getBasePrice(resKey);
-                
+
                 // 1) Price control: same approach as simulation.js
                 const priceControlActive = leftFactionDominant
                     && priceControls?.enabled
@@ -371,7 +373,7 @@ export const calculateLivingStandards = ({
         // 消费倍率（受阶层上限限制）：用于计算实际购买量
         const maxConsumptionMultiplier = def.maxConsumptionMultiplier || 6;
         const consumptionMultiplier = calculateWealthMultiplier(incomeRatio, wealthRatio, wealthElasticity, maxConsumptionMultiplier);
-        
+
         // 解锁能力（不受阶层上限限制，统一上限10）：用于判断是否能解锁奢侈品需求
         // 与 processNeedsConsumption 保持一致
         const unlockMultiplier = calculateWealthMultiplier(incomeRatio, wealthRatio, wealthElasticity, 10);
