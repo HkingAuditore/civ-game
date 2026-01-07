@@ -239,20 +239,20 @@ export const BUILDING_UPGRADES = {
         },
     ],
 
-    // amphitheater: base output 1.2 culture, owner: cleric, base jobs: cleric:2
+    // amphitheater: base output 5.4 culture, owner: cleric, base jobs: cleric:3
     amphitheater: [
         {
             name: "大剧场",
             cost: { stone: 120, brick: 40, silver: 400 },
             input: { fine_clothes: 0.06 }, // 降低消耗
-            output: { culture: 1.56, silver: 0.8 }, // 1.3x + 门票收入
+            output: { culture: 7.02, silver: 0.8 }, // 1.3x + 门票收入
             jobs: { cleric: 2 }, // 减少岗位，提升人均效率
         },
         {
             name: "宏伟剧场",
             cost: { brick: 80, furniture: 20, silver: 900 },
             input: { fine_clothes: 0.08, ale: 0.03 }, // 降低消耗
-            output: { culture: 2.16, silver: 1.5 }, // 1.8x + 高额门票
+            output: { culture: 12.15, silver: 1.5 }, // 2.25x + 高额门票
             jobs: { cleric: 2 }, // 适度增加
         },
     ],
@@ -331,20 +331,20 @@ export const BUILDING_UPGRADES = {
         },
     ],
 
-    // tailor_workshop: base output 0.8 fine_clothes + 0.1 culture, owner: artisan, base jobs: artisan:2
+    // tailor_workshop: base output 0.5 fine_clothes + 0.5 culture, owner: artisan, base jobs: artisan:3
     tailor_workshop: [
         {
             name: "高级成衣坊",
             cost: { plank: 50, tools: 15, silver: 350 },
             input: { tools: 0.035, cloth: 0.85, dye: 0.17 },
-            output: { fine_clothes: 1.04, culture: 0.13 }, // 1.3x
+            output: { fine_clothes: 1.04, culture: 0.65 }, // 1.3x
             jobs: { artisan: 3 }, // keep same, efficiency upgrade
         },
         {
             name: "御用成衣坊",
             cost: { brick: 40, fine_clothes: 10, silver: 800 },
             input: { tools: 0.05, cloth: 1.3, dye: 0.25 },
-            output: { fine_clothes: 1.8, culture: 0.225 }, // 2.25x
+            output: { fine_clothes: 1.8, culture: 1.125 }, // 2.25x
             jobs: { artisan: 4 }, // +1 artisan only
         },
     ],
@@ -404,20 +404,20 @@ export const BUILDING_UPGRADES = {
         },
     ],
 
-    // church: base output culture: 0.8, silver: 0.5, owner: cleric, base jobs: cleric:3
+    // church: base output culture: 3.2, silver: 0.6667, owner: cleric, base jobs: cleric:4
     church: [
         {
             name: "大教堂",
             cost: { brick: 80, furniture: 25, silver: 500 },
             input: { furniture: 0.05, fine_clothes: 0.04 }, // 降低消耗
-            output: { culture: 1.04, silver: 1.2 }, // 1.3x + 奉献收入
+            output: { culture: 4.16, silver: 1.2 }, // 1.3x + 奉献收入
             jobs: { cleric: 3 }, // 减少岗位
         },
         {
             name: "主教座堂",
             cost: { brick: 150, furniture: 40, silver: 1200 },
             input: { furniture: 0.06, fine_clothes: 0.05, papyrus: 0.02 }, // 降低消耗
-            output: { culture: 1.44, silver: 2.0, science: 0.15 }, // 1.8x + 高额奉献 + 神学
+            output: { culture: 7.2, silver: 2.0, science: 0.15 }, // 1.8x + 高额奉献 + 神学
             jobs: { cleric: 4 }, // 减少岗位
         },
     ],
@@ -425,20 +425,20 @@ export const BUILDING_UPGRADES = {
 
     // ========== 封建时代新建筑升级 ==========
 
-    // monastery_cellar: base output ale: 2.0, culture: 0.25, owner: cleric, base jobs: cleric:1, worker:2
+    // monastery_cellar: base output ale: 3.0, culture: 1.2, owner: cleric, base jobs: cleric:1, worker:3
     monastery_cellar: [
         {
             name: "修道院大酒窖",
             cost: { stone: 80, tools: 20, silver: 400 },
             input: { food: 2.0, wood: 0.35 },
-            output: { ale: 2.6, culture: 0.33 }, // 1.3x
+            output: { ale: 2.6, culture: 1.56 }, // 1.3x
             jobs: { cleric: 1, worker: 3 }, // keep same
         },
         {
             name: "酿酒修道院",
             cost: { brick: 100, furniture: 20, silver: 900 },
             input: { food: 2.7, wood: 0.5 },
-            output: { ale: 4.5, culture: 0.56, science: 0.08 }, // 2.25x + 神学研究
+            output: { ale: 4.5, culture: 2.7, science: 0.08 }, // 2.25x + 神学研究
             jobs: { cleric: 2, worker: 2 }, // +1 cleric
         },
     ],
@@ -518,20 +518,20 @@ export const BUILDING_UPGRADES = {
         },
     ],
 
-    // navigator_school: base output science: 0.6, culture: 0.2, owner: official, base jobs: navigator:2, scribe:1, official:1
+    // navigator_school: base output science: 0.75, culture: 1.0, owner: official, base jobs: navigator:3, scribe:1, official:1
     navigator_school: [
         {
             name: "航海学府",
             cost: { plank: 80, papyrus: 40, silver: 400 },
             input: { papyrus: 0.05 },
-            output: { science: 0.78, culture: 0.26 }, // 1.3x
+            output: { science: 0.78, culture: 1.3 }, // 1.3x
             jobs: { navigator: 3, scribe: 1, official: 1 }, // keep same, efficiency upgrade
         },
         {
             name: "皇家航海学院",
             cost: { brick: 60, papyrus: 80, silver: 900 },
             input: { papyrus: 0.08, coffee: 0.03 }, // 需要咖啡提神
-            output: { science: 1.35, culture: 0.45 }, // 2.25x
+            output: { science: 1.35, culture: 2.25 }, // 2.25x
             jobs: { navigator: 4, scribe: 1, official: 1 }, // +1 navigator only
         },
     ],
@@ -554,20 +554,20 @@ export const BUILDING_UPGRADES = {
         },
     ],
 
-    // shaft_mine: base output 1.2 iron, 0.8 copper, owner: miner, base jobs: miner:5, engineer:1
+    // shaft_mine: base output 1.44 iron, 0.96 copper, owner: miner, base jobs: miner:6, engineer:1
     shaft_mine: [
         {
             name: "通风矿井",
             cost: { brick: 120, tools: 45, silver: 650 },
-            input: { tools: 0.14, wood: 0.3 },
-            output: { iron: 1.56, copper: 1.04 }, // 1.3x
+            input: { tools: 0.14, wood: 0.3, science: 0.065 },
+            output: { iron: 1.872, copper: 1.248 }, // 1.3x
             jobs: { miner: 6, engineer: 1 }, // keep same
         },
         {
             name: "蒸汽矿井",
             cost: { brick: 200, steel: 50, tools: 80, silver: 1200 },
-            input: { tools: 0.2, coal: 0.15, wood: 0.4 }, // 引入煤炭
-            output: { iron: 2.7, copper: 1.8, coal: 0.1 }, // 2.25x + 煤炭回收
+            input: { tools: 0.2, coal: 0.15, wood: 0.4, science: 0.11 }, // 引入煤炭
+            output: { iron: 3.24, copper: 2.16, coal: 0.1 }, // 2.25x + 煤炭回收
             jobs: { miner: 7, engineer: 1 }, // +1 miner
         },
     ],
@@ -575,20 +575,20 @@ export const BUILDING_UPGRADES = {
 
     // ========== 探索时代新建筑升级 ==========
 
-    // dye_workshop: base output dye: 1.2, fine_clothes: 0.3, owner: artisan, base jobs: artisan:2, worker:2
+    // dye_workshop: base output dye: 1.8, fine_clothes: 0.45, owner: artisan, base jobs: artisan:3, worker:2
     dye_workshop: [
         {
             name: "大印染工坊",
             cost: { brick: 80, tools: 25, silver: 480 },
-            input: { food: 0.9, cloth: 0.5, spice: 0.06 },
-            output: { dye: 1.56, fine_clothes: 0.39 }, // 1.3x
+            input: { food: 0.9, cloth: 0.5, spice: 0.06, science: 0.026 },
+            output: { dye: 2.34, fine_clothes: 0.585 }, // 1.3x
             jobs: { artisan: 3, worker: 2 }, // keep same
         },
         {
             name: "皇家印染工坊",
             cost: { brick: 140, tools: 45, silver: 1050 },
-            input: { food: 1.2, cloth: 0.7, spice: 0.08, iron: 0.02 }, // 需要金属染缸
-            output: { dye: 2.7, fine_clothes: 0.675, culture: 0.08 }, // 2.25x + 织染艺术
+            input: { food: 1.2, cloth: 0.7, spice: 0.08, iron: 0.02, science: 0.045 }, // 需要金属染缸
+            output: { dye: 4.05, fine_clothes: 1.0125, culture: 0.08 }, // 2.25x + 织染艺术
             jobs: { artisan: 4, worker: 2 }, // +1 artisan
         },
     ],
@@ -612,43 +612,43 @@ export const BUILDING_UPGRADES = {
         },
     ],
 
-    // coffee_house: base output culture: 1.0, science: 1.0, owner: merchant, base jobs: merchant:1, scribe:2
+    // coffee_house: base output culture: 4.0, science: 1.3333, owner: merchant, base jobs: merchant:1, scribe:3
     // 效率提升型升级：氛围优化，产出增加但岗位不增加
     coffee_house: [
         {
             name: "文人咖啡馆",
             cost: { plank: 80, coffee: 25, silver: 400 },
             input: { coffee: 0.2, delicacies: 0.08 }, // 降低消耗
-            output: { culture: 1.3, science: 1.3, silver: 0.6 }, // 1.3x + 消费收入
-            jobs: { merchant: 1, scribe: 1 }, // 减少scribe岗位
+            output: { culture: 5.2, science: 1.733, silver: 0.6 }, // 1.3x + 消费收入
+            jobs: { merchant: 1, scribe: 2 }, // 减少scribe岗位
         },
         {
             name: "沙龙",
             cost: { brick: 60, furniture: 25, silver: 900 },
             input: { coffee: 0.3, delicacies: 0.1 }, // 降低消耗
-            output: { culture: 1.8, science: 1.8, silver: 1.2 }, // 1.8x + 高端消费
+            output: { culture: 9.0, science: 3.0, silver: 1.2 }, // 2.25x + 高端消费
             jobs: { merchant: 1, scribe: 3 }, // 适度增加
         },
     ],
 
     // ========== 启蒙时代建筑 ==========
 
-    // printing_house: base output science: ~1.2, owner: capitalist, base jobs: artisan:2, scribe:2, capitalist:1
+    // printing_house: base output science: 2.4, culture: 2.0, owner: capitalist, base jobs: artisan:5, scribe:3, capitalist:1
     // 效率提升型升级：印刷机改良，产出增加但岗位不增加
     printing_house: [
         {
             name: "大印刷所",
             cost: { brick: 120, papyrus: 40, silver: 500, science: 100 },
             input: { papyrus: 0.48, coffee: 0.09, science: 0.20 },
-            output: { science: 2.34 },
-            jobs: { artisan: 3, scribe: 2, capitalist: 1 },
+            output: { science: 3.12, culture: 2.6 },
+            jobs: { artisan: 5, scribe: 3, capitalist: 1 },
         },
         {
             name: "出版社",
             cost: { brick: 200, papyrus: 80, silver: 1100, science: 250 },
             input: { papyrus: 0.75, coffee: 0.15, science: 0.35 },
-            output: { science: 3.24, culture: 0.45 },
-            jobs: { artisan: 3, scribe: 2, capitalist: 1 },
+            output: { science: 5.4, culture: 4.5 },
+            jobs: { artisan: 5, scribe: 3, capitalist: 1 },
         },
     ],
 
@@ -981,21 +981,21 @@ export const BUILDING_UPGRADES = {
         },
     ],
 
-    // rail_depot: base output silver: ~1.5, maxPop: ~14, owner: capitalist, base jobs: engineer:2, merchant:2, capitalist:1
+    // rail_depot: base output silver: 2.7, maxPop: 14, owner: capitalist, base jobs: engineer:4, merchant:3, capitalist:1
     rail_depot: [
         {
             name: "大铁路站",
             cost: { steel: 120, coal: 80, silver: 850 },
-            input: { coal: 0.375, ale: 0.1, delicacies: 0.05 },
-            output: { silver: 2.4375, maxPop: 14 },
-            jobs: { engineer: 4, merchant: 2, capitalist: 1 },
+            input: { coal: 0.375, ale: 0.1, delicacies: 0.05, science: 0.195 },
+            output: { silver: 3.51, maxPop: 15 },
+            jobs: { engineer: 4, merchant: 3, capitalist: 1 },
         },
         {
             name: "铁路枢纽",
             cost: { steel: 220, coal: 150, silver: 1900 },
-            input: { coal: 0.5625, ale: 0.15, delicacies: 0.075 },
-            output: { silver: 3.375, maxPop: 18, food: 0.625, culture: 0.125 },
-            jobs: { engineer: 3, merchant: 2, capitalist: 1 },
+            input: { coal: 0.5625, ale: 0.15, delicacies: 0.075, science: 0.3375 },
+            output: { silver: 6.075, maxPop: 16, food: 0.625, culture: 0.125 },
+            jobs: { engineer: 5, merchant: 4, capitalist: 1 },
         },
     ],
 
