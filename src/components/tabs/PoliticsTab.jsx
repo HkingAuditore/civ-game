@@ -22,11 +22,11 @@ const STRATA_GROUPS = {
     },
     middle: {
         name: '中产阶级',
-        keys: ['worker', 'artisan', 'miner', 'soldier', 'cleric', 'scribe', 'navigator'],
+        keys: ['artisan', 'miner', 'soldier', 'cleric', 'scribe', 'navigator'],
     },
     lower: {
         name: '底层阶级',
-        keys: ['unemployed', 'peasant', 'serf', 'lumberjack', 'slave'],
+        keys: ['unemployed', 'peasant', 'worker', 'serf', 'lumberjack', 'slave'],
     },
 };
 
