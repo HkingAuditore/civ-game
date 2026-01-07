@@ -437,7 +437,7 @@ const TradeRoutesModal = ({
         const capacity = Math.floor(baseCapacity * multiplier);
 
         // 4. Hard Cap (Safety)
-        return Math.min(50, capacity);
+        return Math.min(200, capacity);
     };
 
     const getMaxTradeRoutesForRelation = (relation = 0, isAllied = false) => {
