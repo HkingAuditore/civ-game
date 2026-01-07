@@ -80,7 +80,7 @@ const TradeRoutesModal = ({
 
     const remainingMerchants = Math.max(0, (merchantCount || 0) - assignedTotal);
 
-    const setAssignment = (nationId, nextValue) => {
+    const setAssignment = (nationId, nextValue, force = false) => {
         if (!onUpdateMerchantAssignments) return;
 
         const nation = nations.find(n => n.id === nationId);
@@ -93,7 +93,8 @@ const TradeRoutesModal = ({
             return calculateMaxTradeRoutes(rel, allied, merchantCount);
         };
 
-        const cap = isOpenMarket ? 999 : getMaxTradeRoutesForRelation(relation, isAllied);
+        // If force is true (e.g. from paste), bypass the relation cap
+        const cap = (isOpenMarket || force) ? 999999 : getMaxTradeRoutesForRelation(relation, isAllied);
         const safe = Math.max(0, Math.min(cap, Math.floor(Number(nextValue) || 0)));
 
         const next = {
@@ -527,8 +528,17 @@ const TradeRoutesModal = ({
                             className="w-16 h-8 rounded bg-gray-900/60 border border-white/10 text-gray-100 text-center font-mono"
                             value={value}
                             onChange={(e) => setAssignment(nation.id, e.target.value)}
+                            onPaste={(e) => {
+                                e.preventDefault();
+                                const pastedText = e.clipboardData.getData('text');
+                                const num = parseInt(pastedText, 10);
+                                if (!isNaN(num)) {
+                                    setAssignment(nation.id, num, true); // Force assignment
+                                }
+                            }}
+                            onFocus={(e) => e.target.select()}
                             inputMode="numeric"
-                            disabled={nation.isAtWar || maxWithNation === 0}
+                            disabled={nation.isAtWar}
                         />
 
                         <button
