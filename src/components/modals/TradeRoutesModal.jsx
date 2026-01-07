@@ -88,15 +88,9 @@ const TradeRoutesModal = ({
         const isAllied = nation?.alliedWithPlayer === true;
         const isOpenMarket = Boolean(nation?.openMarketUntil && daysElapsed < nation.openMarketUntil);
 
+        // Use the shared calculation function
         const getMaxTradeRoutesForRelation = (rel = 0, allied = false) => {
-            const baseCap = allied ? 4 :
-                (rel >= 80 ? 4 :
-                    (rel >= 60 ? 3 :
-                        (rel >= 40 ? 2 :
-                            (rel >= 20 ? 1 : 0))));
-            const scaledBonus = Math.max(0, Math.floor((merchantCount || 0) / 100));
-            const hardCap = 30;
-            return Math.min(hardCap, baseCap + scaledBonus);
+            return calculateMaxTradeRoutes(rel, allied, merchantCount);
         };
 
         const cap = isOpenMarket ? 999 : getMaxTradeRoutesForRelation(relation, isAllied);
@@ -419,21 +413,35 @@ const TradeRoutesModal = ({
         { id: 'priceCompare', label: '物价对比', shortLabel: '物价', count: tradableResources.length, icon: 'BarChart2' },
     ];
 
-    const getMaxTradeRoutesForRelation = (relation = 0, isAllied = false) => {
-        // Relation is the *gate* for whether trade is allowed at all.
-        // Cap should scale into late-game when merchant population grows.
-        const baseCap = isAllied ? 4 :
-            (relation >= 80 ? 4 :
-                (relation >= 60 ? 3 :
-                    (relation >= 40 ? 2 :
-                        (relation >= 20 ? 1 : 0))));
+    const calculateMaxTradeRoutes = (relation = 0, isAllied = false, mCount = 0) => {
+        // 1. Base Capacity (from Merchant Population)
+        // Every 5 merchants = +1 capacity. Base 2.
+        // e.g. 0-39 => 2, 40-79 => 3 ... 400 => 12
+        const baseCapacity = 2 + Math.floor((mCount || 0) / 5);
 
-        // Scale cap slowly with total merchant count (global).
-        // Example: 0-99 merchants => +0, 100-199 => +1, ...
-        // Keep a conservative hard cap to avoid UI/exploit runaway.
-        const scaledBonus = Math.max(0, Math.floor((merchantCount || 0) / 100));
-        const hardCap = 30;
-        return Math.min(hardCap, baseCap + scaledBonus);
+        // 2. Relationship Multiplier (The Amplifier)
+        let multiplier = 0;
+        if (isAllied) {
+            multiplier = 2.0; // Ally: 200%
+        } else if (relation >= 80) {
+            multiplier = 1.5; // Very Friendly: 150%
+        } else if (relation >= 20) {
+            multiplier = 1.0; // Neutral/Good: 100%
+        } else if (relation >= 0) {
+            multiplier = 0.5; // Cold: 50%
+        } else {
+            multiplier = 0.0; // Hostile: 0%
+        }
+
+        // 3. Final Calculation
+        const capacity = Math.floor(baseCapacity * multiplier);
+
+        // 4. Hard Cap (Safety)
+        return Math.min(50, capacity);
+    };
+
+    const getMaxTradeRoutesForRelation = (relation = 0, isAllied = false) => {
+        return calculateMaxTradeRoutes(relation, isAllied, merchantCount);
     };
 
     const isOpenMarketActiveWithNation = (nation) => {

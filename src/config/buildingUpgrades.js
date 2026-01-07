@@ -512,7 +512,8 @@ export const BUILDING_UPGRADES = {
             name: "皇家船厂",
             cost: { plank: 200, iron: 40, silver: 1100 },
             input: { wood: 0.6, tools: 0.03, cloth: 0.06 }, // 需要帆布
-            output: { spice: 0.79, silver: 0.25, science: 0.05 }, // 2.25x + 贸易利润&航海测绘
+            // Level 2 should never regress vs Level 1: keep the 2.25x spice progression and add bonus outputs
+            output: { spice: 1.55, silver: 0.25, science: 0.05 }, // 2.25x + 贸易利润&航海测绘
             jobs: { navigator: 3, worker: 2, merchant: 1 }, // +1 navigator only
         },
     ],
