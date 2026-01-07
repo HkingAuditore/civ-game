@@ -468,6 +468,15 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
 
     // 批量购买状态
     const [buyCount, setBuyCount] = useState(1);
+    // 批量拆除状态
+    const [sellCount, setSellCount] = useState(1);
+
+    // 确保 sellCount 不超过当前建筑数量
+    useEffect(() => {
+        if (sellCount > count) {
+            setSellCount(Math.max(1, count));
+        }
+    }, [count, sellCount]);
 
     // 计算批量成本
     const calculateBulkCost = (count) => {
@@ -1101,39 +1110,12 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                             <p className="text-[11px] text-gray-400">
                                 需要先采购/支付下列资源与资金才能建造：
                             </p>
+                            {buyCount > 1 && (
+                                <span className="text-[10px] text-green-300 font-semibold">
+                                    x{buyCount} 座
+                                </span>
+                            )}
                         </div>
-
-                        {/* Quantity Selector */}
-                        <div className="flex bg-gray-800 rounded-lg p-1 gap-1 mb-3">
-                            {[1, 5, 10].map(n => (
-                                <button
-                                    key={n}
-                                    onClick={() => setBuyCount(n)}
-                                    className={`flex-1 py-1 rounded text-xs font-bold transition-all ${buyCount === n
-                                        ? 'bg-blue-600 text-white shadow'
-                                        : 'text-gray-400 hover:bg-gray-700 hover:text-gray-200'
-                                        }`}
-                                >
-                                    x{n}
-                                </button>
-                            ))}
-                            <button
-                                onClick={() => setBuyCount(calculateMaxBuy())}
-                                className={`flex-1 py-1 rounded text-xs font-bold transition-all ${buyCount === calculateMaxBuy()
-                                    ? 'bg-blue-600 text-white shadow'
-                                    : 'text-gray-400 hover:bg-gray-700 hover:text-gray-200'
-                                    }`}
-                                title="购买最大可负担数量 (上限100)"
-                            >
-                                x{calculateMaxBuy()}
-                            </button>
-                        </div>
-
-                        {(buyCount > 1) && (
-                            <div className="text-[10px] text-blue-300 mb-2 text-center">
-                                正在计划建造 {buyCount} 座 {building.name}
-                            </div>
-                        )}
 
                         <div className="grid grid-cols-2 gap-x-4 gap-y-1">
                             {Object.entries(nextCost).map(([res, val]) => {
@@ -1167,35 +1149,107 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
 
                     {/* 操作按钮 */}
                     <div className="grid grid-cols-2 gap-4 pt-2">
-                        <button
-                            onClick={() => onBuy && onBuy(building.id, buyCount)}
-                            disabled={!canAffordNext}
-                            className="w-full px-4 py-3 rounded-lg text-xs sm:text-sm font-bold transition-all bg-green-600 hover:bg-green-500 text-white shadow-lg hover:shadow-green-500/30 disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed disabled:shadow-none flex items-center justify-center gap-2"
-                        >
-                            <Icon name="Plus" size={16} />
-                            <div className="flex flex-col items-center sm:flex-row sm:items-center gap-0 sm:gap-1 leading-tight whitespace-nowrap sm:whitespace-normal">
-                                <span className="tracking-wide">建造 {buyCount > 1 ? `x${buyCount}` : ''}</span>
-                                <span className="font-mono text-[11px] sm:text-sm opacity-90 flex items-center gap-0.5">
-                                    <span className="inline-flex items-center gap-0.5 sm:hidden">
-                                        <Icon name="Coins" size={10} className="text-yellow-300" />
-                                        {compactSilverCost}
-                                    </span>
-                                    <span className="hidden sm:inline-flex items-center gap-0.5">
-                                        <Icon name="Coins" size={12} className="text-yellow-300" />
-                                        ({formatSilverCost(nextSilverCost)})
-                                    </span>
-                                </span>
+                        {/* 建造区域 */}
+                        <div className="flex flex-col gap-2">
+                            {/* 建造数量选择器 */}
+                            <div className="flex bg-gray-800 rounded-lg p-1 gap-1">
+                                {[1, 5, 10].map(n => (
+                                    <button
+                                        key={`buy-${n}`}
+                                        onClick={() => setBuyCount(n)}
+                                        className={`flex-1 py-1 rounded text-xs font-bold transition-all ${buyCount === n
+                                            ? 'bg-green-600 text-white shadow'
+                                            : 'text-gray-400 hover:bg-gray-700 hover:text-gray-200'
+                                            }`}
+                                    >
+                                        x{n}
+                                    </button>
+                                ))}
+                                <button
+                                    onClick={() => setBuyCount(calculateMaxBuy())}
+                                    className={`flex-1 py-1 rounded text-xs font-bold transition-all ${buyCount === calculateMaxBuy() && ![1, 5, 10].includes(buyCount)
+                                        ? 'bg-green-600 text-white shadow'
+                                        : 'text-gray-400 hover:bg-gray-700 hover:text-gray-200'
+                                        }`}
+                                    title="购买最大可负担数量 (上限100)"
+                                >
+                                    Max
+                                </button>
                             </div>
-                        </button>
-
-                        {count > 0 && (
                             <button
-                                onClick={() => onSell && onSell(building.id)}
-                                className="w-full px-4 py-3 bg-red-700 hover:bg-red-600 text-white rounded-lg text-sm font-bold transition-all shadow-lg hover:shadow-red-600/30 flex items-center justify-center gap-2"
+                                onClick={() => onBuy && onBuy(building.id, buyCount)}
+                                disabled={!canAffordNext}
+                                className="w-full px-4 py-3 rounded-lg text-xs sm:text-sm font-bold transition-all bg-green-600 hover:bg-green-500 text-white shadow-lg hover:shadow-green-500/30 disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed disabled:shadow-none flex items-center justify-center gap-2"
                             >
-                                <Icon name="Minus" size={16} />
-                                <span>拆除</span>
+                                <Icon name="Plus" size={16} />
+                                <div className="flex flex-col items-center sm:flex-row sm:items-center gap-0 sm:gap-1 leading-tight whitespace-nowrap sm:whitespace-normal">
+                                    <span className="tracking-wide">建造 {buyCount > 1 ? `x${buyCount}` : ''}</span>
+                                    <span className="font-mono text-[11px] sm:text-sm opacity-90 flex items-center gap-0.5">
+                                        <span className="inline-flex items-center gap-0.5 sm:hidden">
+                                            <Icon name="Coins" size={10} className="text-yellow-300" />
+                                            {compactSilverCost}
+                                        </span>
+                                        <span className="hidden sm:inline-flex items-center gap-0.5">
+                                            <Icon name="Coins" size={12} className="text-yellow-300" />
+                                            ({formatSilverCost(nextSilverCost)})
+                                        </span>
+                                    </span>
+                                </div>
                             </button>
+                        </div>
+
+                        {/* 拆除区域 */}
+                        {count > 0 ? (
+                            <div className="flex flex-col gap-2">
+                                {/* 拆除数量选择器 */}
+                                <div className="flex bg-gray-800 rounded-lg p-1 gap-1">
+                                    {[1, 5, 10].filter(n => n <= count).map(n => (
+                                        <button
+                                            key={`sell-${n}`}
+                                            onClick={() => setSellCount(n)}
+                                            className={`flex-1 py-1 rounded text-xs font-bold transition-all ${sellCount === n
+                                                ? 'bg-red-600 text-white shadow'
+                                                : 'text-gray-400 hover:bg-gray-700 hover:text-gray-200'
+                                                }`}
+                                        >
+                                            x{n}
+                                        </button>
+                                    ))}
+                                    {count > 10 && (
+                                        <button
+                                            onClick={() => setSellCount(count)}
+                                            className={`flex-1 py-1 rounded text-xs font-bold transition-all ${sellCount === count
+                                                ? 'bg-red-600 text-white shadow'
+                                                : 'text-gray-400 hover:bg-gray-700 hover:text-gray-200'
+                                                }`}
+                                            title={`拆除全部 (${count}座)`}
+                                        >
+                                            全部
+                                        </button>
+                                    )}
+                                </div>
+                                <button
+                                    onClick={() => onSell && onSell(building.id, sellCount)}
+                                    className="w-full px-4 py-3 bg-red-700 hover:bg-red-600 text-white rounded-lg text-xs sm:text-sm font-bold transition-all shadow-lg hover:shadow-red-600/30 flex items-center justify-center gap-2"
+                                >
+                                    <Icon name="Minus" size={16} />
+                                    <span>拆除 {sellCount > 1 ? `x${sellCount}` : ''}</span>
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col gap-2 opacity-50">
+                                {/* 占位：无建筑时显示禁用状态 */}
+                                <div className="flex bg-gray-800 rounded-lg p-1 gap-1">
+                                    <div className="flex-1 py-1 rounded text-xs font-bold text-gray-500 text-center">-</div>
+                                </div>
+                                <button
+                                    disabled
+                                    className="w-full px-4 py-3 bg-gray-700 text-gray-500 rounded-lg text-xs sm:text-sm font-bold cursor-not-allowed flex items-center justify-center gap-2"
+                                >
+                                    <Icon name="Minus" size={16} />
+                                    <span>拆除</span>
+                                </button>
+                            </div>
                         )}
                     </div>
                 </>

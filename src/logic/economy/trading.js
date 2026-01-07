@@ -485,6 +485,7 @@ export const simulateMerchantTrade = ({
                     foreignUnitPrice: candidate.foreignPrice,
                     getResourceTaxRate: getExportTaxRate,
                     roleWagePayout,
+                    roleExpense,
                     classFinancialData,
                     taxPolicies,
                     tick,
@@ -516,10 +517,10 @@ export const simulateMerchantTrade = ({
                     getLocalPrice,
                     foreignUnitPrice: candidate.foreignPrice,
                     getResourceTaxRate: getImportTaxRate,
+                    roleWagePayout,
                     roleExpense,
                     classFinancialData,
                     taxPolicies,
-                    tick,
                     logs,
                 });
 
@@ -567,6 +568,7 @@ const executeExportTradeV2 = ({
     getResourceTaxRate,
     classFinancialData,
     taxPolicies,
+    roleExpense,
     logs,
 }) => {
     const localPrice = getLocalPrice(resourceKey);
@@ -651,6 +653,10 @@ const executeExportTradeV2 = ({
         if (baseTaxPaid > 0) {
             taxBreakdown.industryTax += baseTaxPaid;
         }
+    }
+
+    if (totalAppliedTax > 0) {
+        roleExpense.merchant = (roleExpense.merchant || 0) + totalAppliedTax;
     }
 
     if (classFinancialData && classFinancialData.merchant) {
@@ -782,6 +788,10 @@ const executeImportTradeV2 = ({
         if (baseTaxPaid > 0) {
             taxBreakdown.industryTax += baseTaxPaid;
         }
+    }
+
+    if (totalAppliedTax > 0) {
+        roleExpense.merchant = (roleExpense.merchant || 0) + totalAppliedTax;
     }
 
     if (classFinancialData && classFinancialData.merchant) {

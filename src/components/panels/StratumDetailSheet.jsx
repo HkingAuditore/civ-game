@@ -85,8 +85,42 @@ const StratumDetailSheetComponent = ({
     const approval = classApproval[stratumKey] || 50;
     const influence = classInfluence[stratumKey] || 0;
     const wealthValue = classWealth[stratumKey] ?? 0;
-    const totalIncome = (classIncome[stratumKey] || 0) / safeDayScale;
-    const totalExpense = (classExpense[stratumKey] || 0) / safeDayScale;
+    // Use classFinancialData for overview consistent with finance tab
+    const finData = classFinancialData[stratumKey] || {};
+    const incomeData = finData.income || {};
+    const expenseData = finData.expense || {};
+
+    // Calculate total income from detailed breakdown
+    const wageInc = (incomeData.wage || 0);
+    const ownerRev = (incomeData.ownerRevenue || 0);
+    const subsidyInc = (incomeData.subsidy || 0);
+    const salaryInc = (incomeData.salary || 0);
+    const militaryInc = (incomeData.militaryPay || 0);
+    const calculatedTotalIncome = (wageInc + ownerRev + subsidyInc + salaryInc + militaryInc) / safeDayScale;
+
+    // Calculate total expense from detailed breakdown
+    const headTaxExp = (expenseData.headTax || 0);
+    const transTaxExp = (expenseData.transactionTax || 0);
+    const bizTaxExp = (expenseData.businessTax || 0);
+    const tariffsExp = (expenseData.tariffs || 0);
+    const prodCostsExp = (expenseData.productionCosts || 0);
+    const wagesExp = (expenseData.wages || 0);
+    const decayExp = (expenseData.decay || 0);
+
+    // Sum object-based needs expenses
+    const essentialNeedsExp = typeof expenseData.essentialNeeds === 'object'
+        ? Object.values(expenseData.essentialNeeds).reduce((sum, entry) => sum + (typeof entry === 'object' ? entry.cost : entry || 0), 0)
+        : 0;
+    const luxuryNeedsExp = typeof expenseData.luxuryNeeds === 'object'
+        ? Object.values(expenseData.luxuryNeeds).reduce((sum, entry) => sum + (typeof entry === 'object' ? entry.cost : entry || 0), 0)
+        : 0;
+
+    const calculatedTotalExpense = (headTaxExp + transTaxExp + bizTaxExp + tariffsExp + prodCostsExp + wagesExp + decayExp + essentialNeedsExp + luxuryNeedsExp) / safeDayScale;
+
+    // Use calculated values if available (non-zero or if we trust finData structure is present), fall back to props if purely empty
+    // We prefer the calculated one to match Finance tab
+    const totalIncome = calculatedTotalIncome;
+    const totalExpense = calculatedTotalExpense;
     const incomePerCapita = totalIncome / Math.max(count, 1);
     const expensePerCapita = totalExpense / Math.max(count, 1);
     // Net income should be income minus expense, not wealth delta
@@ -916,7 +950,7 @@ const StratumDetailSheetComponent = ({
                                             </div>                                        </div>
                                     </div>
 
-                                    
+
 
                                     {/* 好感度变化分析（完整） */}
                                     {(() => {
