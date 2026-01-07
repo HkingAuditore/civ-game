@@ -4433,7 +4433,7 @@ export const simulateTick = ({
 
     // REFACTORED: Using module function for ally cold events
     // Note: Must use visibleNations to avoid triggering events for destroyed/expired nations
-    processAllyColdEvents(visibleNations, tick, logs);
+    processAllyColdEvents(visibleNations, tick, logs, difficulty);
 
     // REFACTORED: Using module function for AI gift diplomacy
     processAIGiftDiplomacy(visibleNations, logs);
