@@ -61,6 +61,9 @@ export const DIFFICULTY_CONFIG = {
         // Base monthly drift back to 50 (ally/non-ally)
         relationMonthlyDriftRateAlly: 0.04,
         relationMonthlyDriftRateNonAlly: 0.12,
+        // Ally cold event settings (when ally relation < 70)
+        allyColdEventCooldown: 120,            // 4 months cooldown
+        allyColdEventChance: 0.002,            // 0.2% daily chance
         // [NEW] Initial Buildings
         initialBuildings: {
             farm: 3,
@@ -109,6 +112,9 @@ export const DIFFICULTY_CONFIG = {
         relationDailyDriftRate: 0.018,
         relationMonthlyDriftRateAlly: 0.045,
         relationMonthlyDriftRateNonAlly: 0.16,
+        // Ally cold event settings
+        allyColdEventCooldown: 90,             // 3 months cooldown
+        allyColdEventChance: 0.003,            // 0.3% daily chance
         // [NEW] Initial Buildings
         initialBuildings: {
             farm: 2,
@@ -156,6 +162,9 @@ export const DIFFICULTY_CONFIG = {
         relationDailyDriftRate: 0.02,
         relationMonthlyDriftRateAlly: 0.05,
         relationMonthlyDriftRateNonAlly: 0.2,
+        // Ally cold event settings
+        allyColdEventCooldown: 60,             // 2 months cooldown
+        allyColdEventChance: 0.004,            // 0.4% daily chance
         // [NEW] Initial Buildings
         initialBuildings: {
             farm: 1,
@@ -204,6 +213,9 @@ export const DIFFICULTY_CONFIG = {
         relationDailyDriftRate: 0.03,
         relationMonthlyDriftRateAlly: 0.08,
         relationMonthlyDriftRateNonAlly: 0.35,
+        // Ally cold event settings
+        allyColdEventCooldown: 45,             // 1.5 months cooldown
+        allyColdEventChance: 0.005,            // 0.5% daily chance
         // [NEW] Initial Buildings
         initialBuildings: {
             farm: 1,
@@ -250,6 +262,9 @@ export const DIFFICULTY_CONFIG = {
         relationDailyDriftRate: 0.04,
         relationMonthlyDriftRateAlly: 0.1,
         relationMonthlyDriftRateNonAlly: 0.5,
+        // Ally cold event settings
+        allyColdEventCooldown: 60,             // 2 months cooldown (same as normal to avoid spam)
+        allyColdEventChance: 0.004,            // 0.4% daily chance (reduced from higher)
         // [NEW] Initial Buildings
         initialBuildings: {
             farm: 1
@@ -295,6 +310,9 @@ export const DIFFICULTY_CONFIG = {
         relationDailyDriftRate: 0.05,
         relationMonthlyDriftRateAlly: 0.12,
         relationMonthlyDriftRateNonAlly: 0.7,
+        // Ally cold event settings (longer cooldown to prevent spam in extreme)
+        allyColdEventCooldown: 90,             // 3 months cooldown (increased to reduce spam)
+        allyColdEventChance: 0.003,            // 0.3% daily chance (reduced to prevent constant events)
         // [NEW] Initial Buildings
         initialBuildings: {loom_house: 1},
     },
@@ -524,7 +542,32 @@ export default {
     getArmyMaintenanceMultiplier,
     getMaxConsumptionMultiplierBonus,
     getStartingSilverMultiplier,
+    // Ally cold event settings
+    getAllyColdEventCooldown,
+    getAllyColdEventChance,
 };
+
+/**
+ * Get ally cold event cooldown (days) based on difficulty
+ * Higher values = longer cooldown = less frequent events
+ * @param {string} difficultyLevel
+ * @returns {number} Cooldown in days (default 60)
+ */
+export function getAllyColdEventCooldown(difficultyLevel) {
+    const config = getDifficultyConfig(difficultyLevel);
+    return config.allyColdEventCooldown ?? 60;
+}
+
+/**
+ * Get ally cold event daily trigger chance based on difficulty
+ * Lower values = less frequent events
+ * @param {string} difficultyLevel
+ * @returns {number} Daily chance (default 0.004)
+ */
+export function getAllyColdEventChance(difficultyLevel) {
+    const config = getDifficultyConfig(difficultyLevel);
+    return config.allyColdEventChance ?? 0.004;
+}
 
 /**
  * Get initial buildings for the difficulty level

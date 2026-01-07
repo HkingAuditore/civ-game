@@ -84,20 +84,27 @@ export const OfficialDetailModal = ({ isOpen, onClose, official, onUpdateSalary,
     const [salaryDraft, setSalaryDraft] = useState('');
     const [isEditingSalary, setIsEditingSalary] = useState(false);
     const lastOfficialIdRef = useRef(null);
+    const pendingSalaryRef = useRef(null); // Track pending salary to prevent reset
 
     useEffect(() => {
         if (!isOpen) {
             setIsEditingSalary(false);
+            pendingSalaryRef.current = null;
             return;
         }
         const currentId = official?.id || null;
         if (currentId !== lastOfficialIdRef.current) {
             lastOfficialIdRef.current = currentId;
+            pendingSalaryRef.current = null;
             setSalaryDraft(Number.isFinite(official?.salary) ? String(official.salary) : '');
             setIsEditingSalary(false);
             return;
         }
-        if (!isEditingSalary) {
+        // Check if the official.salary matches the pending saved value
+        if (pendingSalaryRef.current !== null && official?.salary === pendingSalaryRef.current) {
+            pendingSalaryRef.current = null; // Clear pending after sync
+        }
+        if (!isEditingSalary && pendingSalaryRef.current === null) {
             setSalaryDraft(Number.isFinite(official?.salary) ? String(official.salary) : '');
         }
     }, [official, isOpen, isEditingSalary]);
@@ -527,6 +534,7 @@ export const OfficialDetailModal = ({ isOpen, onClose, official, onUpdateSalary,
                             onClick={() => {
                                 if (!canEditSalary || !Number.isFinite(parsedSalaryDraft)) return;
                                 const nextSalary = Math.floor(parsedSalaryDraft);
+                                pendingSalaryRef.current = nextSalary; // Mark as pending to prevent reset
                                 onUpdateSalary(official.id, nextSalary);
                                 setSalaryDraft(String(nextSalary));
                                 setIsEditingSalary(false);

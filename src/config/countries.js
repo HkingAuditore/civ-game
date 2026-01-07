@@ -1211,4 +1211,405 @@ export const COUNTRIES = [
       { type: 'balanced_aggression', desc: "适度的军事倾向" }
     ],
   },
+
+  // ========== 信息时代国家（新增，用于补充后期贸易对象） ==========
+  {
+    id: 'pacific_federation',
+    name: "环太平洋共同防务与贸易体",
+    type: "议会-军工复合体",
+    color: "text-sky-300",
+    desc: "披着‘自由航行’外衣的海权贸易集团：港口、舰队与关税同频共振，出口工业品，进口香料咖啡与白银。",
+    appearEpoch: 7,
+    expireEpoch: 9,
+    marketVolatility: 0.22,
+    aggression: 0.35,
+    wealth: 3400,
+    culturalTraits: {
+      navalSupremacy: true,
+      tradingStyle: 'maritime',
+      democraticIdeals: true,
+    },
+    economyTraits: {
+      resourceBias: {
+        steel: 1.6,
+        coal: 1.2,
+        tools: 1.4,
+        coffee: 1.2,
+        spice: 1.1,
+        silver: 1.3,
+      },
+    },
+    specialAbilities: [
+      { type: 'trade_network', desc: "贸易网络效率" },
+      { type: 'naval_commerce', desc: "海运贸易优势" }
+    ],
+  },
+  {
+    id: 'digital_sultanate',
+    name: "石油基金会托管苏丹国",
+    type: "家族资本君主",
+    color: "text-emerald-300",
+    desc: "靠资源租与主权基金把国家当资产负债表来运营：对外卖能源与金属，对内搞‘数字治理’，稳定是买出来的。",
+    appearEpoch: 7,
+    expireEpoch: 9,
+    marketVolatility: 0.20,
+    aggression: 0.55,
+    wealth: 3600,
+    culturalTraits: {
+      autocraticRule: true,
+      multiculturalRule: true,
+      tradingStyle: 'monopolistic',
+    },
+    economyTraits: {
+      resourceBias: {
+        coal: 1.8,
+        steel: 1.4,
+        silver: 1.6,
+        spice: 1.2,
+        coffee: 1.1,
+      },
+    },
+    specialAbilities: [
+      { type: 'financial_center', desc: "金融中心（银币贸易优势）" },
+      { type: 'stable_market', desc: "低市场波动（贸易更稳定）" }
+    ],
+  },
+  {
+    id: 'silicon_commons',
+    name: "算法委员会辖区",
+    type: "平台治理共同体",
+    color: "text-cyan-300",
+    desc: "把‘社区准则’当宪法、把‘推荐系统’当选票：科研与文化输出换取工业品与原料，治理靠条款与封禁。",
+    appearEpoch: 7,
+    expireEpoch: 9,
+    marketVolatility: 0.28,
+    aggression: 0.25,
+    wealth: 3200,
+    culturalTraits: {
+      scientificAdvancement: 0.25,
+      philosophicalDiscourse: true,
+      marketExpertise: true,
+    },
+    economyTraits: {
+      resourceBias: {
+        science: 2.0,
+        culture: 1.8,
+        papyrus: 1.4,
+        tools: 1.2,
+        silver: 1.1,
+      },
+    },
+    specialAbilities: [
+      { type: 'knowledge_trade', desc: "科研与文化出口优势" },
+      { type: 'market_stability', desc: "市场运作成熟" }
+    ],
+  },
+  {
+    id: 'northern_energy_union',
+    name: "北境管道共和国",
+    type: "国家资本寡头",
+    color: "text-slate-200",
+    desc: "靠管道、港口与资源税续命的寒带政权：出口煤铁木钢，进口消费品与文化品；对外讲‘能源安全’，对内讲‘过冬保供’。",
+    appearEpoch: 7,
+    expireEpoch: 9,
+    marketVolatility: 0.30,
+    aggression: 0.45,
+    wealth: 3300,
+    culturalTraits: {
+      vastTerritory: true,
+      bureaucraticEfficiency: 0.15,
+      resourcefulSurvival: true,
+    },
+    economyTraits: {
+      resourceBias: {
+        coal: 1.7,
+        iron: 1.4,
+        wood: 1.3,
+        steel: 1.2,
+        food: 0.9,
+      },
+    },
+    specialAbilities: [
+      { type: 'timber_trade', desc: "木材与矿产出口优势" },
+      { type: 'industrial_trade', desc: "工业原料贸易优势" }
+    ],
+  },
+  {
+    id: 'free_city_network',
+    name: "离岸自由港共同体",
+    type: "自由贸易委员会",
+    color: "text-teal-200",
+    desc: "一串靠‘自由’与‘合规’两张牌活着的离岸港口：转口、结算、洗白、再投资一条龙，谁都懂但谁都离不开。",
+    appearEpoch: 7,
+    expireEpoch: 9,
+    marketVolatility: 0.18,
+    aggression: 0.20,
+    wealth: 3500,
+    culturalTraits: {
+      financialInnovation: true,
+      tradingCompany: true,
+      religiousTolerance: true,
+    },
+    economyTraits: {
+      resourceBias: {
+        silver: 2.0,
+        coffee: 1.3,
+        spice: 1.3,
+        furniture: 1.1,
+        fine_clothes: 1.1,
+        steel: 1.2,
+      },
+    },
+    specialAbilities: [
+      { type: 'banking_system', desc: "金融与结算优势" },
+      { type: 'trade_bonus', desc: "贸易收益优势" }
+    ],
+  },
+  {
+    id: 'southern_agri_bloc',
+    name: "南方民生保障阵线",
+    type: "临时联合政府",
+    color: "text-lime-300",
+    desc: "由粮区、种植园州与运输寡头拼起来的‘民生政府’：粮食咖啡对外换钢铁工具，对内口号永远是‘保供稳价’。",
+    appearEpoch: 7,
+    expireEpoch: 9,
+    marketVolatility: 0.26,
+    aggression: 0.22,
+    wealth: 3100,
+    culturalTraits: {
+      agriculturalFocus: true,
+      peacefulTrade: true,
+      engineeringAdvanced: true,
+    },
+    economyTraits: {
+      resourceBias: {
+        food: 2.1,
+        coffee: 1.6,
+        cloth: 1.2,
+        silver: 1.2,
+        steel: 0.9,
+        tools: 0.9,
+      },
+    },
+    specialAbilities: [
+      { type: 'agricultural_trade', desc: "农业品出口优势" },
+      { type: 'peaceful_merchant', desc: "偏好和平贸易" }
+    ],
+  },
+  {
+    id: 'highland_mining_consortium',
+    name: "资源开发与秩序恢复委员会",
+    type: "治安军政府",
+    color: "text-zinc-300",
+    desc: "名义上是‘恢复秩序’，实际是‘保矿保线’：矿山、炼钢与治安队三位一体，矿产钢材外销换回消费品与舆论口粮。",
+    appearEpoch: 7,
+    expireEpoch: 9,
+    marketVolatility: 0.27,
+    aggression: 0.38,
+    wealth: 3450,
+    culturalTraits: {
+      industrialLobby: true,
+      engineeringAdvanced: true,
+      bureaucraticEfficiency: 0.08,
+    },
+    economyTraits: {
+      resourceBias: {
+        iron: 1.8,
+        coal: 1.5,
+        steel: 1.4,
+        tools: 1.2,
+        silver: 1.1,
+      },
+    },
+    specialAbilities: [
+      { type: 'heavy_industry', desc: "重工业与矿产出口优势" },
+      { type: 'steady_supply', desc: "供应稳定（适中波动）" }
+    ],
+  },
+  {
+    id: 'river_delta_metropolis',
+    name: "河口关税总署同盟",
+    type: "通商口岸督署",
+    color: "text-blue-200",
+    desc: "把口岸当国土、把关税当国库的同盟体：加工转口与结算体系一把抓，‘谁管报关谁有主权’。",
+    appearEpoch: 7,
+    expireEpoch: 9,
+    marketVolatility: 0.19,
+    aggression: 0.22,
+    wealth: 3550,
+    culturalTraits: {
+      urbanPlanning: true,
+      marketExpertise: true,
+      tradingCompany: true,
+    },
+    economyTraits: {
+      resourceBias: {
+        tools: 1.6,
+        steel: 1.3,
+        cloth: 1.2,
+        furniture: 1.2,
+        coffee: 1.2,
+        silver: 1.4,
+      },
+    },
+    specialAbilities: [
+      { type: 'reexport_hub', desc: "转口贸易优势" },
+      { type: 'efficient_market', desc: "市场效率优势" }
+    ],
+  },
+  {
+    id: 'equatorial_spice_union',
+    name: "赤道海峡保护协定",
+    type: "种植园董事会",
+    color: "text-amber-300",
+    desc: "海峡炮台、航道收费与种植园三件套：香料咖啡高价外销，银币回流买工业品；对外叫‘航运安全’，对内叫‘利润分红’。",
+    appearEpoch: 7,
+    expireEpoch: 9,
+    marketVolatility: 0.34,
+    aggression: 0.30,
+    wealth: 3250,
+    culturalTraits: {
+      maritimeTradition: true,
+      tradingStyle: 'plantation',
+      multiculturalRule: true,
+    },
+    economyTraits: {
+      resourceBias: {
+        spice: 2.1,
+        coffee: 1.7,
+        food: 1.1,
+        silver: 1.2,
+        steel: 0.85,
+        tools: 0.9,
+      },
+    },
+    specialAbilities: [
+      { type: 'spice_export', desc: "香料出口优势" },
+      { type: 'cash_crop_trade', desc: "经济作物贸易优势" }
+    ],
+  },
+  {
+    id: 'continental_rail_republic',
+    name: "全国交通统筹共和国",
+    type: "铁路与口粮委员会",
+    color: "text-orange-200",
+    desc: "以铁路时刻表与配给本统治国家的共和国：煤铁走专列、工具走指标、粮食走票证；一句话——‘不调度就没贸易’。",
+    appearEpoch: 7,
+    expireEpoch: 9,
+    marketVolatility: 0.24,
+    aggression: 0.33,
+    wealth: 3350,
+    culturalTraits: {
+      infrastructureFirst: true,
+      bureaucraticEfficiency: 0.10,
+      republicanIdeals: true,
+    },
+    economyTraits: {
+      resourceBias: {
+        coal: 1.3,
+        iron: 1.3,
+        tools: 1.4,
+        food: 1.2,
+        wood: 1.1,
+        silver: 1.1,
+      },
+    },
+    specialAbilities: [
+      { type: 'logistics_mastery', desc: "物流调度优势" },
+      { type: 'bulk_trade', desc: "大宗贸易优势" }
+    ],
+  },
+  {
+    id: 'academy_principalities',
+    name: "智库基金会保护国",
+    type: "学术寡头邦联",
+    color: "text-fuchsia-300",
+    desc: "智库、基金会与出版集团供养出来的邦联政体：对外输出科研与叙事，对内分配课题与头衔；资源和工业品用‘合作项目’结算。",
+    appearEpoch: 7,
+    expireEpoch: 9,
+    marketVolatility: 0.23,
+    aggression: 0.18,
+    wealth: 3150,
+    culturalTraits: {
+      scientificAdvancement: 0.20,
+      philosophicalDiscourse: true,
+      religiousTolerance: true,
+    },
+    economyTraits: {
+      resourceBias: {
+        science: 2.2,
+        culture: 1.9,
+        papyrus: 1.5,
+        silver: 1.2,
+        tools: 0.95,
+        steel: 0.9,
+      },
+    },
+    specialAbilities: [
+      { type: 'research_exports', desc: "科研输出优势" },
+      { type: 'cultural_exports', desc: "文化输出优势" }
+    ],
+  },
+  {
+    id: 'artisan_luxury_cartel',
+    name: "轻奢与审美输出联合体",
+    type: "品牌寡头理事会",
+    color: "text-rose-300",
+    desc: "把‘审美’当战略资源的联合体：衣料家具与精致食品跨国流通，附加值高得离谱；对外叫‘文化输出’，对内叫‘溢价体系’。",
+    appearEpoch: 7,
+    expireEpoch: 9,
+    marketVolatility: 0.31,
+    aggression: 0.24,
+    wealth: 3400,
+    culturalTraits: {
+      guildTradition: true,
+      marketExpertise: true,
+      artisticPatronage: true,
+    },
+    economyTraits: {
+      resourceBias: {
+        fine_clothes: 1.7,
+        furniture: 1.6,
+        delicacies: 1.3,
+        ale: 1.2,
+        cloth: 1.1,
+        silver: 1.3,
+      },
+    },
+    specialAbilities: [
+      { type: 'luxury_goods', desc: "奢侈品出口优势" },
+      { type: 'craftsmanship', desc: "工艺与附加值优势" }
+    ],
+  },
+  {
+    id: 'global_agro_logistics',
+    name: "国际保供与配给署",
+    type: "特别事务署",
+    color: "text-green-200",
+    desc: "打着‘人道’旗号搞‘保供’的超大型机构：仓储、配给、航运调度全包；稳定输出粮食，顺带把波动压到你怀疑人生。",
+    appearEpoch: 7,
+    expireEpoch: 9,
+    marketVolatility: 0.16,
+    aggression: 0.15,
+    wealth: 3300,
+    culturalTraits: {
+      bureaucraticEfficiency: 0.18,
+      infrastructureFirst: true,
+      peacefulTrade: true,
+    },
+    economyTraits: {
+      resourceBias: {
+        food: 2.0,
+        wood: 1.2,
+        cloth: 1.1,
+        coffee: 1.1,
+        silver: 1.15,
+        tools: 0.95,
+      },
+    },
+    specialAbilities: [
+      { type: 'food_security', desc: "粮食供应稳定" },
+      { type: 'low_volatility', desc: "市场波动更低" }
+    ],
+  },
 ];

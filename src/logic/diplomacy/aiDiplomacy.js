@@ -13,6 +13,8 @@ import { isTradableResource } from '../utils/helpers';
 import {
     getRelationChangeMultipliers,
     getRelationDailyDriftRate,
+    getAllyColdEventCooldown,
+    getAllyColdEventChance,
 } from '../../config/difficulty';
 
 /**
@@ -83,18 +85,24 @@ export const processMonthlyRelationDecay = (nations, tick) => {
  * @param {Array} nations - Array of visible nations
  * @param {number} tick - Current game tick
  * @param {Array} logs - Log array (mutable)
+ * @param {string} difficultyLevel - Current difficulty level (default 'normal')
  */
-export const processAllyColdEvents = (nations, tick, logs) => {
+export const processAllyColdEvents = (nations, tick, logs, difficultyLevel = 'normal') => {
     if (!Array.isArray(nations)) return;
+    
+    // Get difficulty-based cooldown and chance
+    const cooldown = getAllyColdEventCooldown(difficultyLevel);
+    const baseChance = getAllyColdEventChance(difficultyLevel);
+    
     nations.forEach(nation => {
         if (nation.isRebelNation) return;
         if (nation.alliedWithPlayer !== true) return;
         if ((nation.relation ?? 50) >= 70) return;
 
         const lastColdEventDay = nation.lastAllyColdEventDay || 0;
-        if (tick - lastColdEventDay < 30) return;
+        if (tick - lastColdEventDay < cooldown) return;
 
-        if (Math.random() < 0.005) {
+        if (Math.random() < baseChance) {
             nation.lastAllyColdEventDay = tick;
             logs.push(`ALLY_COLD_EVENT:${JSON.stringify({
                 nationId: nation.id,
