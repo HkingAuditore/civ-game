@@ -174,7 +174,7 @@ export const useGameActions = (gameState, addLog) => {
         if (!losses || Object.keys(losses).length === 0) return;
 
         const capacity = getMilitaryCapacity();
-        
+
         // [FIX] 如果容量为0，直接返回，防止无限招兵
         if (capacity <= 0) {
             debugLog('gameLoop', `[AUTO_REPLENISH] Failed: No military capacity (capacity=0)`);
@@ -191,7 +191,7 @@ export const useGameActions = (gameState, addLog) => {
         // We must subtract the 'losses' we are about to replenish to understand the TRUE available capacity.
         const totalLossesCount = Object.values(losses).reduce((sum, c) => sum + (c || 0), 0);
         const projectedArmyCount = Math.max(0, totalArmyCount - totalLossesCount);
-        
+
         // Calculate slots based on projected army size
         let availableSlots = Math.max(0, capacity - projectedArmyCount);
 
@@ -216,8 +216,8 @@ export const useGameActions = (gameState, addLog) => {
 
         const replenishTotal = Object.values(replenishCounts).reduce((sum, count) => sum + count, 0);
         if (replenishTotal <= 0) {
-             debugLog('gameLoop', `[AUTO_REPLENISH] Failed: No valid units to replenish (Losses: ${JSON.stringify(losses)})`);
-             return;
+            debugLog('gameLoop', `[AUTO_REPLENISH] Failed: No valid units to replenish (Losses: ${JSON.stringify(losses)})`);
+            return;
         }
 
         let canAfford = true;
@@ -353,7 +353,7 @@ export const useGameActions = (gameState, addLog) => {
 
         const nextEpoch = EPOCHS[epoch + 1];
         const newRes = { ...resources };
-        
+
         const difficulty = gameState.difficulty || 'normal';
         const techCostMultiplier = getTechCostMultiplier(difficulty);
 
@@ -410,7 +410,7 @@ export const useGameActions = (gameState, addLog) => {
             const thisBuildCount = currentCount + i;
             const rawCost = calculateBuildingCost(b.baseCost, thisBuildCount, growthFactor, baseMultiplier);
             const adjustedCost = applyBuildingCostModifier(rawCost, buildingCostMod, b.baseCost);
-            
+
             Object.entries(adjustedCost).forEach(([res, amount]) => {
                 totalCost[res] = (totalCost[res] || 0) + amount;
             });
@@ -455,16 +455,21 @@ export const useGameActions = (gameState, addLog) => {
      * 出售建筑
      * 优先移除最低等级的建筑
      * @param {string} id - 建筑ID
+     * @param {number} count - 拆除数量（默认为1）
      */
-    const sellBuilding = (id) => {
+    const sellBuilding = (id, count = 1) => {
+        const building = BUILDINGS.find(b => b.id === id);
+        if (!building) return;
+
         const currentCount = buildings[id] || 0;
-        if (currentCount > 0) {
-            setBuildings(prev => {
-                const currentVal = prev[id] || 0;
-                if (currentVal <= 0) return prev; // 额外保护：防止减少到负数
-                return { ...prev, [id]: currentVal - 1 };
-            });
-            addLog(`拆除了 ${BUILDINGS.find(b => b.id === id).name}`);
+        const sellCount = Math.min(Math.max(1, Math.floor(count)), currentCount);
+
+        if (sellCount <= 0) return;
+
+        // 批量拆除：逐个处理以确保正确更新升级等级和官员私产
+        for (let i = 0; i < sellCount; i++) {
+            const remainingCount = currentCount - i;
+            if (remainingCount <= 0) break;
 
             // 新格式：优先移除最低等级的建筑
             // 数据格式: { level: count }，注意0级不记录
@@ -478,8 +483,8 @@ export const useGameActions = (gameState, addLog) => {
                 }
             }
 
-            // 0级建筑数量 = 总数 - 有升级记录的数量
-            const level0Count = currentCount - upgradedCount;
+            // 0级建筑数量 = 剩余总数 - 有升级记录的数量
+            const level0Count = remainingCount - upgradedCount;
             let targetLevel = -1;
 
             if (level0Count > 0) {
@@ -510,8 +515,6 @@ export const useGameActions = (gameState, addLog) => {
             // 处理官员私产移除逻辑
             if (targetLevel !== -1 && officials && officials.length > 0) {
                 // 计算该等级建筑拆除后的国家剩余数量
-                // 注意：currentCount 是拆除前的总数，所以0级数量用拆除前计算再-1
-                // 非0级数量直接从 levelCounts 取再-1
                 let remainingGlobalCount = 0;
                 if (targetLevel === 0) {
                     remainingGlobalCount = Math.max(0, level0Count - 1);
@@ -524,16 +527,15 @@ export const useGameActions = (gameState, addLog) => {
                 const holders = [];
 
                 officials.forEach((off, idx) => {
-                    const count = (off.ownedProperties || []).filter(p => p.buildingId === id && (p.level || 0) === targetLevel).length;
-                    if (count > 0) {
-                        totalOwnedByOfficials += count;
-                        holders.push({ index: idx, count, official: off });
+                    const propCount = (off.ownedProperties || []).filter(p => p.buildingId === id && (p.level || 0) === targetLevel).length;
+                    if (propCount > 0) {
+                        totalOwnedByOfficials += propCount;
+                        holders.push({ index: idx, count: propCount, official: off });
                     }
                 });
 
-                // 如果官员持有总数 > 国家剩余总数，说明刚才拆的是官员的或者需要强制移除一个
+                // 如果官员持有总数 > 国家剩余总数，需要移除官员私产
                 if (totalOwnedByOfficials > remainingGlobalCount) {
-                    // 随机选择一个持有者进行移除
                     const victimEntry = holders[Math.floor(Math.random() * holders.length)];
 
                     setOfficials(prev => {
@@ -541,20 +543,31 @@ export const useGameActions = (gameState, addLog) => {
                         const victim = { ...newOfficials[victimEntry.index] };
                         const props = [...(victim.ownedProperties || [])];
 
-                        // 移除一个匹配的产业
                         const removeIdx = props.findIndex(p => p.buildingId === id && (p.level || 0) === targetLevel);
                         if (removeIdx !== -1) {
                             props.splice(removeIdx, 1);
                             victim.ownedProperties = props;
                             newOfficials[victimEntry.index] = victim;
-
-                            addLog(`${victim.name} 失去了一处 ${BUILDINGS.find(b => b.id === id).name}${targetLevel > 0 ? ` (等级 ${targetLevel})` : ''}，因为建筑被拆除`);
                         }
 
                         return newOfficials;
                     });
                 }
             }
+        }
+
+        // 批量更新建筑数量
+        setBuildings(prev => {
+            const currentVal = prev[id] || 0;
+            const newVal = Math.max(0, currentVal - sellCount);
+            return { ...prev, [id]: newVal };
+        });
+
+        // 根据拆除数量显示不同日志
+        if (sellCount === 1) {
+            addLog(`🏚️ 拆除了 ${building.name}`);
+        } else {
+            addLog(`🏚️ 批量拆除了 ${sellCount} 座 ${building.name}`);
         }
     };
 
@@ -608,10 +621,10 @@ export const useGameActions = (gameState, addLog) => {
         const difficultyLevel = gameState.difficulty || 'normal';
         const growthFactor = getBuildingCostGrowthFactor(difficultyLevel);
         const existingUpgradeCount = getUpgradeCountAtOrAboveLevel(fromLevel + 1, count, levelCounts);
-        
+
         const upgradeMultiplier = getBuildingUpgradeCostMultiplier(difficultyLevel);
         const baseUpgradeCost = getUpgradeCost(buildingId, fromLevel + 1, existingUpgradeCount, growthFactor);
-        
+
         const upgradeCost = {};
         if (baseUpgradeCost) {
             Object.entries(baseUpgradeCost).forEach(([res, val]) => {
@@ -862,7 +875,7 @@ export const useGameActions = (gameState, addLog) => {
             const firstBaseCost = getUpgradeCost(buildingId, fromLevel + 1, baseExistingCount, growthFactor);
             const firstCost = {};
             if (firstBaseCost) {
-                 Object.entries(firstBaseCost).forEach(([res, val]) => {
+                Object.entries(firstBaseCost).forEach(([res, val]) => {
                     firstCost[res] = Math.ceil(val * upgradeMultiplier);
                 });
             }
@@ -1316,7 +1329,7 @@ export const useGameActions = (gameState, addLog) => {
 
         const capacity = getMilitaryCapacity();
         const totalArmyCount = getTotalArmyCount(); // 包含当前军队和训练队列中的总数
-        
+
         // [FIX] 增强容量检查
         if (capacity <= 0) {
             if (!silent && !auto) {
@@ -1324,7 +1337,7 @@ export const useGameActions = (gameState, addLog) => {
             }
             return false;
         }
-        
+
         if (totalArmyCount + recruitCount > capacity) {
             if (!silent && !auto) {
                 addLog(`军事容量不足（${totalArmyCount}/${capacity}），还需要 ${recruitCount} 个空位。`);
@@ -1343,7 +1356,7 @@ export const useGameActions = (gameState, addLog) => {
         // 加入训练队列
         const newQueueItems = Array(recruitCount).fill(null).map(() => ({
             unitId,
-            status: 'waiting', 
+            status: 'waiting',
             remainingTime: unit.trainingTime,
             totalTime: unit.trainingTime
         }));

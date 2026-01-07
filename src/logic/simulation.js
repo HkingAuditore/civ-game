@@ -731,6 +731,15 @@ export const simulateTick = ({
         roleWagePayout[role] = 0;
     });
 
+    // [FIX] Separate Labor Income vs Total Income for Wage Calculation
+    // role WagePayout includes owner revenue, which distorts wage expectations if used for labor market logic.
+    const roleLaborIncome = {};
+    const roleLivingExpense = {};
+    ROLE_PRIORITY.forEach(role => {
+        roleLaborIncome[role] = 0;
+        roleLivingExpense[role] = 0;
+    });
+
     // Track class expenses (spending on resources)
     const roleExpense = {};
     Object.keys(STRATA).forEach(key => {
@@ -1263,6 +1272,7 @@ export const simulateTick = ({
                 // 记录人头税支出
                 roleHeadTaxPaid[key] = (roleHeadTaxPaid[key] || 0) + paid;
                 roleExpense[key] = (roleExpense[key] || 0) + paid;
+                roleLivingExpense[key] = (roleLivingExpense[key] || 0) + paid; // Head tax is a living expense
                 if (classFinancialData[key]) {
                     classFinancialData[key].expense.headTax = (classFinancialData[key].expense.headTax || 0) + paid;
                 }
@@ -1276,6 +1286,7 @@ export const simulateTick = ({
                     taxBreakdown.subsidy += subsidyNeeded;
                     // 记录政府补助收入
                     roleWagePayout[key] = (roleWagePayout[key] || 0) + subsidyNeeded;
+                    roleLaborIncome[key] = (roleLaborIncome[key] || 0) + subsidyNeeded; // Subsidy counts as personal income
 
                     if (classFinancialData[key]) {
                         classFinancialData[key].income.subsidy = (classFinancialData[key].income.subsidy || 0) + subsidyNeeded;
@@ -2084,6 +2095,7 @@ export const simulateTick = ({
                     (buildingFinancialData[b.id].wagesByRole[plan.role] || 0) + payout;
 
                 roleWagePayout[plan.role] = (roleWagePayout[plan.role] || 0) + payout;
+                roleLaborIncome[plan.role] = (roleLaborIncome[plan.role] || 0) + payout; // Wages are labor income
                 if (classFinancialData[plan.role]) {
                     classFinancialData[plan.role].income.wage = (classFinancialData[plan.role].income.wage || 0) + payout;
                 }
@@ -2445,6 +2457,7 @@ export const simulateTick = ({
             res.silver = available - totalArmyCost;
             rates.silver = (rates.silver || 0) - totalArmyCost;
             roleWagePayout.soldier = (roleWagePayout.soldier || 0) + totalArmyCost;
+            roleLaborIncome.soldier = (roleLaborIncome.soldier || 0) + totalArmyCost; // Army pay is labor income
             // [FIX] 同步到 classFinancialData 以保持概览和财务面板数据一致
             if (classFinancialData.soldier) {
                 classFinancialData.soldier.income.militaryPay = (classFinancialData.soldier.income.militaryPay || 0) + totalArmyCost;
@@ -2714,6 +2727,7 @@ export const simulateTick = ({
                             totalCost -= subsidyAmount;
                             // Record consumption subsidy as income
                             roleWagePayout[key] = (roleWagePayout[key] || 0) + subsidyAmount;
+                            roleLaborIncome[key] = (roleLaborIncome[key] || 0) + subsidyAmount; // Subsidy is personal income
                             // [FIX] 同步到 classFinancialData 以保持概览和财务面板数据一致
                             if (classFinancialData[key]) {
                                 classFinancialData[key].income.subsidy = (classFinancialData[key].income.subsidy || 0) + subsidyAmount;
@@ -2730,6 +2744,7 @@ export const simulateTick = ({
 
                     wealth[key] = Math.max(0, (wealth[key] || 0) - totalCost);
                     roleExpense[key] = (roleExpense[key] || 0) + totalCost;
+                    roleLivingExpense[key] = (roleLivingExpense[key] || 0) + totalCost; // Needs consumption is living expense
                     satisfied = amount;
 
                     // 统计实际消费的需求量，而不是原始需求量
@@ -3059,6 +3074,7 @@ export const simulateTick = ({
     let totalOfficialWealth = 0;
     let totalOfficialExpense = 0;
     let totalOfficialIncome = 0; // Track income for UI
+    let totalOfficialLaborIncome = 0; // Track labor income (salary + subsidy)
     const pendingOfficialUpgrades = [];
     const officialMarketSnapshot = {
         prices: priceMap,
@@ -3086,6 +3102,7 @@ export const simulateTick = ({
         if (officialsPaid && typeof normalizedOfficial.salary === 'number') {
             currentWealth += normalizedOfficial.salary;
             totalOfficialIncome += normalizedOfficial.salary;
+            totalOfficialLaborIncome += normalizedOfficial.salary; // Add to labor income
             console.log(`[OFFICIAL DEBUG] ${normalizedOfficial.name}: Salary paid! +${normalizedOfficial.salary}, wealth: ${debugInitialWealth} -> ${currentWealth}`);
             // 记录俸禄到财务数据
             if (classFinancialData.official) {
@@ -3158,6 +3175,7 @@ export const simulateTick = ({
                         taxBreakdown.subsidy += subsidyAmount;
                         totalCost -= subsidyAmount;
                         totalOfficialIncome += subsidyAmount;
+                        totalOfficialLaborIncome += subsidyAmount; // Add to labor income
                         if (classFinancialData.official) {
                             classFinancialData.official.income.subsidy =
                                 (classFinancialData.official.income.subsidy || 0) + subsidyAmount;
@@ -3277,6 +3295,7 @@ export const simulateTick = ({
                     currentWealth += subsidyNeeded;
                     taxBreakdown.subsidy += subsidyNeeded;
                     totalOfficialIncome += subsidyNeeded;
+                    totalOfficialLaborIncome += subsidyNeeded; // Add to labor income
                     if (classFinancialData.official) {
                         classFinancialData.official.income.subsidy = (classFinancialData.official.income.subsidy || 0) + subsidyNeeded;
                     }
@@ -3538,6 +3557,9 @@ export const simulateTick = ({
     // Sync Aggregate Stats for UI correctness
     wealth.official = totalOfficialWealth;
     roleExpense.official = (roleExpense.official || 0) + totalOfficialExpense;
+    // [FIX] Update official labor stats
+    roleLivingExpense.official = roleExpense.official; // Capture all official living expenses (Head Tax + Consumption)
+    roleLaborIncome.official = totalOfficialLaborIncome;
 
 
     const livingStandardsResult = calculateLivingStandards({
@@ -4618,13 +4640,43 @@ export const simulateTick = ({
 
         if (pop > 0) {
 
-            const income = roleWagePayout[role] || 0;
+            // [FIX] Use roleLaborIncome and roleLivingExpense to calculate wage signal
+            // This prevents high Owner Revenue (Profit) from artificially inflating the expected Labor Wage.
+            const laborIncome = roleLaborIncome[role] || 0;
+            const livingExpense = roleLivingExpense[role] || 0;
 
-            const expense = roleExpense[role] || 0;
-            // 人头税不计入生活支出，工资调整只考虑生活消费
-            // const headTaxPaid = roleHeadTaxPaid[role] || 0;
+            // If a role has NO labor income (e.g. pure Capitalist who only owns buildings),
+            // we should not let their profit signal drive labor wages.
+            // However, if they have NO labor income, their "Wage Signal" might simply be their Living Expenses
+            // (i.e. if they were to work, they'd need at least this much).
 
-            currentSignal = (income - expense) / pop;
+            // Fallback: if no labor income but has general income, we might be in a weird state.
+            // Ideally, we just look at Labor Income - Living Expense.
+
+            let effectiveIncome = laborIncome;
+            let effectiveExpense = livingExpense;
+
+            // If completely zero labor income (no one working in this role),
+            // the signal would be -Expense/Pop (negative).
+            // This correctly pushes wages up ( Wait? No. (Inc - Exp) -> Signal. Signal is target. Negative Target -> 0 wage?)
+            // Wait, logic: smoothed = prev + (currentSignal - prev) * k.
+            // If Signal < 0. Wage -> 0.
+            // This implies: "We are starving (Expense > Income), so we accept LOWER wages??"
+            // NO. The simulation logic assumes "Signal" is "What we CAN SAVE".
+            // That assumption seems flawed if it drives expected wage.
+
+            // Actually, let's keep the formula structure but swap variables.
+            // If the game economy relies on "Savings" as the signal for "Worker Wealth" -> "Wage Expectation",
+            // then we are doing the right thing by removing Owner Profit (which is huge wealth).
+
+            // Special Case: If labor income is 0 (pure owner), do not drive wage to negative infinity.
+            // Just use 0 or keep previous.
+            if (laborIncome === 0 && roleWageStats[role].totalSlots === 0) {
+                // No one working. Use previous wage as signal (no change).
+                currentSignal = previousWages[role] || 0;
+            } else {
+                currentSignal = (effectiveIncome - effectiveExpense) / pop;
+            }
 
         } else {
 
