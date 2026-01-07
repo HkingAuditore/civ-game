@@ -240,6 +240,9 @@ export const simulateMerchantTrade = ({
 
     // Trade 2.0: player preference multipliers per resource (1 = neutral)
     merchantTradePreferences = null,
+
+    // Control whether to log merchant trade initiation messages
+    shouldLogMerchantTrades = true,
 }) => {
     const merchantCount = popStructure?.merchant || 0;
     if (merchantCount <= 0) {
@@ -499,7 +502,7 @@ export const simulateMerchantTrade = ({
                     // 添加新交易发起日志
                     const resName = RESOURCES[candidate.resourceKey]?.name || candidate.resourceKey;
                     const partnerName = partner?.name || partner?.id || '未知国家';
-                    if (logs && result.trade.amount >= 0.5) {
+                    if (logs && shouldLogMerchantTrades && result.trade.amount >= 0.5) {
                         logs.push(`📦 商人发起贸易: 向${partnerName}出口 ${resName} x${result.trade.amount.toFixed(1)}`);
                     }
                 }
@@ -531,7 +534,7 @@ export const simulateMerchantTrade = ({
                     // 添加新交易发起日志
                     const resName = RESOURCES[candidate.resourceKey]?.name || candidate.resourceKey;
                     const partnerName = partner?.name || partner?.id || '未知国家';
-                    if (logs && result.trade.amount >= 0.5) {
+                    if (logs && shouldLogMerchantTrades && result.trade.amount >= 0.5) {
                         logs.push(`📦 商人发起贸易: 从${partnerName}进口 ${resName} x${result.trade.amount.toFixed(1)}`);
                     }
                 }

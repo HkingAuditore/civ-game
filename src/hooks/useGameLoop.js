@@ -3714,6 +3714,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     const currentSoldierPop = (soldierPopulationAfterEvents ?? result.popStructure?.soldier) || 0;
                     // [FIX] 使用战斗后的军队状态 (result.army)
                     const currentArmyCount = Object.values(result.army || armyStateForQueue || {}).reduce((sum, count) => sum + count, 0);
+                    // [FIX] 计算军队实际人口消耗（考虑不同兵种的populationCost）
+                    const currentArmyPopulation = calculateArmyPopulation(result.army || armyStateForQueue || {});
                     const militaryCapacity = getMilitaryCapacity(current.buildings || {});
 
                     // [FIX] 在队列处理中执行自动补兵，确保使用最新状态
@@ -3854,25 +3856,40 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     }
 
                     // 计算有多少岗位可以用于新训练（避免多次 filter 带来的 O(n) 扫描）
-                    // 只计算已有军队和正在训练的，waiting 状态的就是等待转为 training 的
+                    // [FIX] 必须考虑不同兵种的populationCost，否则会导致超员
                     let waitingCount = 0;
                     let trainingCount = 0;
+                    let trainingPopulation = 0; // [FIX] 训练中单位的实际人口消耗
                     for (let i = 0; i < baseQueue.length; i++) {
-                        const s = baseQueue[i]?.status;
+                        const item = baseQueue[i];
+                        const s = item?.status;
                         if (s === 'waiting') waitingCount++;
-                        else if (s === 'training') trainingCount++;
+                        else if (s === 'training') {
+                            trainingCount++;
+                            // [FIX] 累加训练中单位的人口消耗
+                            const popCost = UNIT_TYPES[item?.unitId]?.populationCost || 1;
+                            trainingPopulation += popCost;
+                        }
                     }
 
-                    const occupiedJobs = currentArmyCount + trainingCount;
-                    const availableJobsForNewTraining = Math.max(0, currentSoldierPop - occupiedJobs);
+                    // [FIX] 使用人口消耗而非单位数量来计算可用岗位
+                    const occupiedPopulation = currentArmyPopulation + trainingPopulation;
+                    const availableJobsForNewTraining = Math.max(0, currentSoldierPop - occupiedPopulation);
 
                     // 将等待中的项转为训练中（如果有可用岗位）
                     // [PERF] 大队列时逐条写日志会严重卡顿，这里做节流：只写摘要日志
-                    let jobsToFill = availableJobsForNewTraining;
+                    // [FIX] 使用人口消耗而非单位数量来判断是否可以开始训练
+                    let remainingPopCapacity = availableJobsForNewTraining;
                     let startedThisTick = 0;
                     const updated = baseQueue.map(item => {
-                        if (item.status === 'waiting' && jobsToFill > 0) {
-                            jobsToFill--;
+                        if (item.status === 'waiting' && remainingPopCapacity > 0) {
+                            // [FIX] 检查该单位的人口消耗是否在可用范围内
+                            const unitPopCost = UNIT_TYPES[item?.unitId]?.populationCost || 1;
+                            if (unitPopCost > remainingPopCapacity) {
+                                // 人口不足以训练此单位，跳过
+                                return item;
+                            }
+                            remainingPopCapacity -= unitPopCost;
                             startedThisTick++;
                             return {
                                 ...item,

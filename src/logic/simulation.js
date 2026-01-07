@@ -234,6 +234,7 @@ export const simulateTick = ({
     cabinetStatus = {}, // [NEW] Cabinet status for synergy/dominance
     priceControls = null, // [NEW] 政府价格管制设置
     previousTaxShock = {}, // [NEW] 上一tick各阶层的累积税收冲击值，用于防止"快速抬税后降税"的漏洞
+    eventEffectSettings = {}, // [NEW] Event effect settings including log visibility
 }) => {
     // console.log('[TICK START]', tick); // Commented for performance
     const res = { ...resources };
@@ -5091,6 +5092,9 @@ export const simulateTick = ({
 
         // Trade 2.0: per-resource preference multipliers (1 = neutral)
         merchantTradePreferences: merchantState.merchantTradePreferences || null,
+
+        // Control whether to log merchant trade initiation messages
+        shouldLogMerchantTrades: eventEffectSettings?.logVisibility?.showMerchantTradeLogs ?? true,
     });
     const merchantLockedCapital = Math.max(0, updatedMerchantState.lockedCapital ?? sumLockedCapital(updatedMerchantState.pendingTrades));
     updatedMerchantState.lockedCapital = merchantLockedCapital;

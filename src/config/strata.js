@@ -34,15 +34,15 @@ export const STRATA = {
         needs: { food: 0.42, cloth: 0.06 },
         // Dynamic needs: unlock when wealth ratio >= threshold
         luxuryNeeds: {
-            1.0: { ale: 0.04 },
-            1.5: { wood: 0.02, culture: 0.02 },                    // 基本工具和衣物，基础文化
-            2.0: { plank: 0.03, stone: 0.01 },          // 更多麦酒，修缮材料
-            2.5: { furniture: 0.02, tools: 0.02 },                // 基本家具，石材
-            3.0: { spice: 0.04, brick: 0.02, culture: 0.04 },        // 香料，砖块，更多文化
-            4.5: { copper: 0.004 }, // 更好家具，更多木板，铜器
-            5.5: { delicacies: 0.02, fine_clothes: 0.01, culture: 0.05 }, // 珍馐，华服，文化
-            7.0: { coffee: 0.02 },     // 咖啡，香料，石材
-            8.0: { delicacies: 0.02, culture: 0.04 } // 高端奢侈需求（仍较克制）
+            1.0: { ale: 0.05 },
+            1.5: { wood: 0.03, culture: 0.03 },                    // 基本工具和衣物，基础文化
+            2.0: { plank: 0.045, stone: 0.015 },          // 更多麦酒，修缮材料
+            2.5: { furniture: 0.03, tools: 0.03 },                // 基本家具，石材
+            3.0: { spice: 0.06, brick: 0.03, culture: 0.06 },        // 香料，砖块，更多文化
+            4.5: { copper: 0.006, plank: 0.02 }, // 更好家具，更多木板，铜器
+            5.5: { delicacies: 0.04, fine_clothes: 0.02, culture: 0.08 }, // 珍馐，华服，文化
+            7.0: { coffee: 0.04, spice: 0.03 },     // 咖啡，香料，石材
+            8.0: { delicacies: 0.05, culture: 0.10, furniture: 0.02 } // 高端奢侈需求（底层暴富后的体面挥霍）
         },
         buffs: {
             satisfied: { desc: "民心稳定", taxIncome: 0.1, production: 0.05 },
@@ -65,15 +65,15 @@ export const STRATA = {
         maxConsumptionMultiplier: 3, // 底层阶级消费上限3倍
         needs: { food: 0.46, cloth: 0.07 },
         luxuryNeeds: {
-            1.0: { ale: 0.04 },
-            1.5: { stone: 0.01, culture: 0.02 },                     // 更好工具和工作衣物，基础文化
-            2.0: { plank: 0.04, wood: 0.04 },           // 麦酒，板材，木材
-            2.5: { tools: 0.02, furniture: 0.02 },                // 工具保养，家具
-            3.0: { spice: 0.03, brick: 0.025, culture: 0.05 },       // 香料，砖块，更多文化
-            4.5: { copper: 0.006, tools: 0.03 },   // 家具，铜工具，木材
-            5.5: { delicacies: 0.025, fine_clothes: 0.015, culture: 0.04 }, // 珍馐，华服，文化
-            7.0: { coffee: 0.03 },       // 咖啡，香料，石材
-            8.0: { delicacies: 0.02, culture: 0.04 } // 高端需求（仍较克制）
+            1.0: { ale: 0.05 },
+            1.5: { stone: 0.015, culture: 0.03 },                     // 更好工具和工作衣物，基础文化
+            2.0: { plank: 0.06, wood: 0.06 },           // 麦酒，板材，木材
+            2.5: { tools: 0.03, furniture: 0.03 },                // 工具保养，家具
+            3.0: { spice: 0.045, brick: 0.035, culture: 0.07 },       // 香料，砖块，更多文化
+            4.5: { copper: 0.01, tools: 0.04, plank: 0.02 },   // 家具，铜工具，木材
+            5.5: { delicacies: 0.04, fine_clothes: 0.02, culture: 0.07 }, // 珍馐，华服，文化
+            7.0: { coffee: 0.05, spice: 0.03 },       // 咖啡，香料，石材
+            8.0: { delicacies: 0.05, culture: 0.10, furniture: 0.02 } // 高端需求（伐木暴富后的挥霍）
         },
         buffs: {
             satisfied: { desc: "林场顺畅", production: 0.06 },
@@ -96,16 +96,16 @@ export const STRATA = {
         maxConsumptionMultiplier: 3, // 底层阶级消费上限3倍
         needs: { food: 0.36, cloth: 0.05 },
         luxuryNeeds: {
-            1.0: { ale: 0.03 },
-            2.0: { culture: 0.015 },                      // 基本舒适品，开始渴望文化
-            2.5: { food: 0.06 },           // 更多麦酒，衣物，食物
-            3.0: { furniture: 0.01, plank: 0.02, tools: 0.006 },   // 基本家具，板材，工具
-            4.0: { spice: 0.02, stone: 0.006, culture: 0.025 }, // 香料，石材，更多文化
-            5.0: { ale: 0.02, cloth: 0.01 }, // 小幅体面化：更常饮酒、更多衣物
-            6.0: { delicacies: 0.01, brick: 0.015, culture: 0.03 }, // 珍馐，砖块，文化
-            7.5: { fine_clothes: 0.008, copper: 0.004 }, // 华服，香料，板材，铜器
-            9.0: { coffee: 0.01 }, // 珍馐，家具，砖块，咖啡
-            10.0: { delicacies: 0.01, culture: 0.03 } // 高端奢侈（仍很有限）
+            1.0: { ale: 0.035 },
+            2.0: { culture: 0.02 },                      // 基本舒适品，开始渴望文化
+            2.5: { food: 0.08 },           // 更多食物（改善伙食）
+            3.0: { furniture: 0.015, plank: 0.03, tools: 0.01 },   // 基本家具，板材，工具
+            4.0: { spice: 0.03, stone: 0.01, culture: 0.035 }, // 香料，石材，更多文化
+            5.0: { ale: 0.03, cloth: 0.015 }, // 小幅体面化：更常饮酒、更多衣物
+            6.0: { delicacies: 0.02, brick: 0.02, culture: 0.045 }, // 珍馐，砖块，文化
+            7.5: { fine_clothes: 0.015, copper: 0.006 }, // 华服，铜器
+            9.0: { coffee: 0.02, furniture: 0.01 }, // 咖啡与一点点体面
+            10.0: { delicacies: 0.02, culture: 0.05 } // 佃农暴富后的“过节式挥霍”
         },
         buffs: {
             satisfied: { desc: "佃农勤恳", production: 0.08 },
@@ -128,16 +128,16 @@ export const STRATA = {
         maxConsumptionMultiplier: 3, // 底层阶级消费上限3倍（防止补贴导致消费爆炸）
         needs: { food: 0.52, cloth: 0.09 },
         luxuryNeeds: {
-            1.0: { tools: 0.05, ale: 0.07 },
-            1.5: { plank: 0.02, culture: 0.03 },          // 更好工具，板材，基础文化
-            2.5: { furniture: 0.03, spice: 0.02 },    // 家具，香料，衣物
-            3.0: { coffee: 0.025, brick: 0.03, culture: 0.04 }, // 咖啡，砖块，更多文化
-            4.0: { fine_clothes: 0.03, delicacies: 0.04, stone: 0.015 }, // 华服，珍馐，石材
-            5.0: { steel: 0.01, copper: 0.008, culture: 0.08 }, // 钢，铜器，大量文化
-            6.5: { delicacies: 0.03, fine_clothes: 0.02, brick: 0.02, culture: 0.06 }, // 工业城市体面化
-            8.0: { papyrus: 0.02 }, // 纸张，衣物，麦酒，咖啡
-            10.0: { coffee: 0.02, spice: 0.02, furniture: 0.02, culture: 0.06 }, // 更体面但仍受限
-            12.0: { delicacies: 0.03, fine_clothes: 0.02, culture: 0.08 } // 顶格也无法与上层相比
+            1.0: { tools: 0.06, ale: 0.09 },
+            1.5: { plank: 0.03, culture: 0.045 },          // 更好工具，板材，基础文化
+            2.5: { furniture: 0.045, spice: 0.03 },    // 家具，香料，衣物
+            3.0: { coffee: 0.04, brick: 0.04, culture: 0.06 }, // 咖啡，砖块，更多文化
+            4.0: { fine_clothes: 0.05, delicacies: 0.07, stone: 0.02 }, // 华服，珍馐，石材
+            5.0: { steel: 0.02, copper: 0.015, culture: 0.12 }, // 钢，铜器，大量文化
+            6.5: { delicacies: 0.06, fine_clothes: 0.04, brick: 0.03, culture: 0.10 }, // 工业城市体面化
+            8.0: { papyrus: 0.035, furniture: 0.02 }, // 报刊与城市生活
+            10.0: { coffee: 0.04, spice: 0.04, furniture: 0.04, culture: 0.10 }, // 工人暴富后的体面社交
+            12.0: { delicacies: 0.08, fine_clothes: 0.05, culture: 0.14 } // 顶格仍低于上层，但明显更能“花钱”
         },
         buffs: {
             satisfied: { desc: "工人积极", industryBonus: 0.15 },
@@ -163,15 +163,15 @@ export const STRATA = {
         maxConsumptionMultiplier: 6, // 中层阶级消费上限6倍
         needs: { food: 0.62, cloth: 0.11 },
         luxuryNeeds: {
-            1.0: { tools: 0.06, ale: 0.08, furniture: 0.04, culture: 0.04 },
-            1.8: { copper: 0.015, spice: 0.04 },   // 铜料，香料，家具
-            2.5: { coffee: 0.03, fine_clothes: 0.025, brick: 0.03, culture: 0.10 }, // 咖啡，华服，砖块，更多文化
-            3.5: { delicacies: 0.06, stone: 0.025, dye: 0.015 }, // 珍馐，石材，衣物
-            4.5: { steel: 0.008, iron: 0.01, culture: 0.15 }, // 家具，钢，大量文化
-            6.0: { tools: 0.04, copper: 0.02, furniture: 0.03, culture: 0.10 }, // 工匠更像“升级工坊+体面生活”
-            8.0: { papyrus: 0.03 }, // 纸张，家具，工具
-            10.0: { coffee: 0.03, fine_clothes: 0.03, dye: 0.02, culture: 0.12 }, // 体面社交
-            12.0: { delicacies: 0.06, culture: 0.18 } // 奢侈仍低于上层
+            1.0: { tools: 0.07, ale: 0.10, furniture: 0.05, culture: 0.06 },
+            1.8: { copper: 0.02, spice: 0.05 },   // 铜料，香料
+            2.5: { coffee: 0.04, fine_clothes: 0.035, brick: 0.04, culture: 0.14 }, // 咖啡，华服，砖块，更多文化
+            3.5: { delicacies: 0.09, stone: 0.035, dye: 0.025 }, // 珍馐，石材，染料
+            4.5: { steel: 0.015, iron: 0.02, culture: 0.20 }, // 技艺升级的“烧钱”
+            6.0: { tools: 0.06, copper: 0.03, furniture: 0.04, culture: 0.16 }, // 升级工坊+体面生活
+            8.0: { papyrus: 0.05, furniture: 0.03 }, // 报刊与室内陈设
+            10.0: { coffee: 0.05, fine_clothes: 0.05, dye: 0.03, culture: 0.20 }, // 体面社交
+            12.0: { delicacies: 0.10, culture: 0.28, spice: 0.04 } // 顶格仍低于商人/贵族，但明显更能花钱
         },
         buffs: {
             satisfied: { desc: "坊市繁盛", production: 0.1 },
@@ -194,16 +194,16 @@ export const STRATA = {
         maxConsumptionMultiplier: 4, // 中层阶级消费上限6倍
         needs: { food: 0.56, cloth: 0.10 },
         luxuryNeeds: {
-            1.0: { ale: 0.05 },
-            1.8: { wood: 0.03 },          // 采矿工具，麦酒，衣物
-            2.0: { culture: 0.02 },    // 开始需要文化娱乐
-            2.5: { furniture: 0.02, spice: 0.015, food: 0.15 },    // 家具，香料，食物
-            3.0: { plank: 0.03, brick: 0.02, coffee: 0.015 }, // 板材，砖块，咖啡
-            4.0: { delicacies: 0.03, culture: 0.04 }, // 珍馐，更多文化
-            5.5: { copper: 0.01 }, // 家具，铜器，香料
-            7.0: { fine_clothes: 0.02, culture: 0.08 }, // 华服，大量文化
-            9.0: { ale: 0.04, delicacies: 0.03, culture: 0.05 }, // 高工资犒赏：酒与肉食
-            11.0: { coffee: 0.02, fine_clothes: 0.02, culture: 0.08 } // 仍明显低于上层
+            1.0: { ale: 0.06 },
+            1.8: { wood: 0.04, tools: 0.015 },          // 采矿工具维护
+            2.0: { culture: 0.03 },    // 开始需要文化娱乐
+            2.5: { furniture: 0.03, spice: 0.02, food: 0.20 },    // 改善伙食 + 一点香料
+            3.0: { plank: 0.04, brick: 0.03, coffee: 0.025 }, // 板材，砖块，咖啡
+            4.0: { delicacies: 0.05, culture: 0.06 }, // 珍馐，更多文化
+            5.5: { copper: 0.015, steel: 0.01 }, // 更好的器具/装饰
+            7.0: { fine_clothes: 0.035, culture: 0.11 }, // 华服，大量文化
+            9.0: { ale: 0.06, delicacies: 0.05, culture: 0.08 }, // 高工资犒赏：酒与肉食
+            11.0: { coffee: 0.04, fine_clothes: 0.035, culture: 0.12 } // 顶格仍明显低于上层
         },
         buffs: {
             satisfied: { desc: "矿脉稳定", gatherBonus: 0.1 },
