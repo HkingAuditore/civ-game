@@ -221,12 +221,13 @@ export const processAIPlayerTrade = (visibleNations, tick, resources, market, lo
 
         // 使用玩家设置的税率和关税率计算有效税率
         // AI买入 = 玩家出口（使用出口关税），AI卖出 = 玩家进口（使用进口关税）
-        // 关税率现在独立于交易税：总税率 = 交易税 + 关税（加法叠加）
+        // 关税存储为小数（0=无关税，0.5=50%关税，<0=补贴）
+        // 最终税率 = 交易税 + 关税（加法叠加）
         const baseTaxRate = taxPolicies?.resourceTaxRates?.[resourceKey] || 0;
         const tariffRate = isBuying
             ? (taxPolicies?.exportTariffMultipliers?.[resourceKey] ?? taxPolicies?.resourceTariffMultipliers?.[resourceKey] ?? 0)
             : (taxPolicies?.importTariffMultipliers?.[resourceKey] ?? taxPolicies?.resourceTariffMultipliers?.[resourceKey] ?? 0);
-        const effectiveTariffRate = isOpenMarket ? 0 : baseTaxRate + tariffRate; // 改为加法
+        const effectiveTariffRate = isOpenMarket ? 0 : baseTaxRate + tariffRate;
 
         const quantity = Math.floor(10 + Math.random() * 40);
         const baseValue = quantity * resourcePrice;

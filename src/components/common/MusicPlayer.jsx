@@ -20,6 +20,7 @@ export const MusicPlayer = () => {
     const [musicType, setMusicType] = useState(DEFAULT_TYPE);
     const [inputUrl, setInputUrl] = useState('');
     const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+    const [isLandscape, setIsLandscape] = useState(() => window.innerWidth > window.innerHeight && window.innerHeight < 500);
 
     const DEFAULT_GITEE_TRACKS_URL = 'https://cdn.jsdelivr.net/gh/HkingAuditore/civ-game@master/tracks.json';
     const [giteeTracksUrl, setGiteeTracksUrl] = useState(DEFAULT_GITEE_TRACKS_URL);
@@ -45,7 +46,11 @@ export const MusicPlayer = () => {
     useEffect(() => {
         const handleResize = () => {
             const width = window.innerWidth;
+            const height = window.innerHeight;
             setIsMobile(width < 768);
+
+            // 检测横屏模式：宽度大于高度且高度较小（移动端横屏）
+            setIsLandscape(width > height && height < 500);
 
             // Auto-scaling logic based on screen width
             if (width < 768) {
@@ -357,9 +362,11 @@ export const MusicPlayer = () => {
     const playerKey = `${musicId}-${musicType}`;
 
     return (
-        <div className={`fixed z-[100] transition-all duration-300 pointer-events-none ${isMobile
-            ? 'bottom-20 left-4'
-            : 'bottom-8 left-8'
+        <div className={`fixed z-[100] transition-all duration-300 pointer-events-none ${isLandscape
+                ? 'top-2 left-4'  // 横屏模式：左上角定位
+                : isMobile
+                    ? 'bottom-20 left-4'
+                    : 'bottom-8 left-8'
             }`}>
             <div className={`pointer-events-auto relative flex flex-col ${isMobile ? 'items-start' : 'items-start'}`}>
                 {/* Minimized Button / Toggle */}
@@ -382,27 +389,31 @@ export const MusicPlayer = () => {
                 <motion.div
                     animate={isOpen ? {
                         opacity: 1,
-                        scale: scale, // Use state scale
+                        scale: isLandscape ? 0.85 : scale, // 横屏模式下更小的缩放
                         y: 0,
                         pointerEvents: 'auto',
                         height: 'auto',
-                        width: isMobile ? 320 : 350
+                        width: isLandscape ? 300 : (isMobile ? 320 : 350)
                     } : {
                         opacity: 0,
                         scale: 0.9 * scale, // Scale down from current scale
-                        y: 20,
+                        y: isLandscape ? -20 : 20, // 横屏模式向下展开
                         pointerEvents: 'none',
                         height: 0,
                         width: 0,
                         overflow: 'hidden'
                     }}
                     transition={{ type: "spring", bounce: 0.3, duration: 0.4 }}
-                    className={`bg-black/90 backdrop-blur-md border border-ancient-gold/30 rounded-xl shadow-2xl overflow-hidden absolute bottom-0 ${isMobile ? 'left-0 origin-bottom-left' : 'left-0 origin-bottom-left'}`}
+                    className={`bg-black/90 backdrop-blur-md border border-ancient-gold/30 rounded-xl shadow-2xl overflow-hidden absolute ${isLandscape
+                            ? 'top-0 left-0 origin-top-left'  // 横屏模式：从左上角向下展开
+                            : 'bottom-0 left-0 origin-bottom-left'
+                        }`}
                     style={{
                         visibility: 'visible',
-                        transformOrigin: isMobile ? 'bottom left' : 'bottom left',
-                        transform: isOpen ? `scale(${scale})` : 'scale(0.9)', // Combine with existing scale animation logic if possible, or just apply it.
-                        // However, Framer Motion handles 'scale' in animate prop. We should probably adjust that prop instead.
+                        transformOrigin: isLandscape ? 'top left' : 'bottom left',
+                        transform: isOpen ? `scale(${isLandscape ? 0.85 : scale})` : 'scale(0.9)',
+                        maxHeight: isLandscape ? 'calc(100vh - 20px)' : 'none',  // 横屏模式限制最大高度
+                        overflowY: isLandscape ? 'auto' : 'visible',  // 横屏模式允许滚动
                     }} // Keeping it visible for audio persistence
                 >
                     {/* Header */}

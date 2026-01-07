@@ -159,9 +159,10 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
             // 商人在国内购买资源
             const domesticPurchaseCost = localPrice * exportAmount;  // 商人在国内的购买成本
             const taxRate = taxPolicies?.resourceTaxRates?.[resource] || 0; // 获取该资源的交易税率
-            // 出口使用出口关税倍率：0=无关税，1=100%关税，<0=补贴
-            const tariffMultiplier = taxPolicies?.exportTariffMultipliers?.[resource] ?? taxPolicies?.resourceTariffMultipliers?.[resource] ?? 0;
-            const effectiveTaxRate = taxRate * (1 + tariffMultiplier);
+            // 关税存储为小数（0=无关税，0.5=50%关税，<0=补贴）
+            // 最终税率 = 交易税 + 关税（加法叠加）
+            const tariffRate = taxPolicies?.exportTariffMultipliers?.[resource] ?? taxPolicies?.resourceTariffMultipliers?.[resource] ?? 0;
+            const effectiveTaxRate = taxRate + tariffRate;
             const tradeTax = domesticPurchaseCost * effectiveTaxRate; // 玩家获得的交易税
 
             // 商人在国外销售
@@ -231,9 +232,10 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
             // 商人在国内销售
             const domesticSaleRevenue = localPrice * importAmount;  // 商人在国内的销售收入
             const taxRate = taxPolicies?.resourceTaxRates?.[resource] || 0; // 获取该资源的交易税率
-            // 进口使用进口关税倍率：0=无关税，1=100%关税，<0=补贴
-            const tariffMultiplier = taxPolicies?.importTariffMultipliers?.[resource] ?? taxPolicies?.resourceTariffMultipliers?.[resource] ?? 0;
-            const effectiveTaxRate = taxRate * (1 + tariffMultiplier);
+            // 关税存储为小数（0=无关税，0.5=50%关税，<0=补贴）
+            // 最终税率 = 交易税 + 关税（加法叠加）
+            const tariffRate = taxPolicies?.importTariffMultipliers?.[resource] ?? taxPolicies?.resourceTariffMultipliers?.[resource] ?? 0;
+            const effectiveTaxRate = taxRate + tariffRate;
             const tradeTax = domesticSaleRevenue * effectiveTaxRate; // 玩家获得的交易税
             const merchantProfit = domesticSaleRevenue - foreignPurchaseCost - tradeTax; // 商人获得的利润（含关税成本）
 

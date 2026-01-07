@@ -837,6 +837,34 @@ export const simulateTick = ({
     });
     // console.log('[TICK] Buildings processed. militaryCapacity:', militaryCapacity); // Commented for performance
 
+    // ========== 官员投资产业的业主岗位修正 ==========
+    // 官员投资的产业由官员自己担任业主，不应再计算原始业主（如地主）的岗位
+    // 统计各建筑类型被官员投资的数量，从 jobsAvailable 中减去对应的原始业主岗位数
+    const officialPropertyCountByBuilding = {};
+    (officials || []).forEach(official => {
+        (official.ownedProperties || []).forEach(prop => {
+            if (prop.buildingId) {
+                officialPropertyCountByBuilding[prop.buildingId] =
+                    (officialPropertyCountByBuilding[prop.buildingId] || 0) + 1;
+            }
+        });
+    });
+
+    // 从 jobsAvailable 中减去官员投资产业的原始业主岗位
+    Object.entries(officialPropertyCountByBuilding).forEach(([buildingId, count]) => {
+        const building = BUILDINGS.find(b => b.id === buildingId);
+        if (!building || !building.owner || !building.jobs) return;
+
+        const ownerRole = building.owner;
+        const ownerSlotsPerBuilding = building.jobs[ownerRole] || 0;
+
+        if (ownerSlotsPerBuilding > 0 && jobsAvailable[ownerRole]) {
+            // 减去官员投资产业的原始业主岗位数
+            const slotsToRemove = ownerSlotsPerBuilding * count;
+            jobsAvailable[ownerRole] = Math.max(0, jobsAvailable[ownerRole] - slotsToRemove);
+        }
+    });
+
     // Calculate potential resources: resources from buildings that are unlocked (can be built)
     const potentialResources = new Set();
     BUILDINGS.forEach(b => {
@@ -1042,8 +1070,8 @@ export const simulateTick = ({
                 let outputValue = 0;
                 if (config.output) {
                     Object.entries(config.output).forEach(([resource, amount]) => {
-                         // 跳过特殊资源
-                        if (!RESOURCES[resource]) return; 
+                        // 跳过特殊资源
+                        if (!RESOURCES[resource]) return;
                         const price = priceMap[resource] || getBasePrice(resource);
                         outputValue += amount * price;
                     });
@@ -1062,7 +1090,7 @@ export const simulateTick = ({
                     const avgPaidWage = market?.wages?.[jobRole] ?? getExpectedWage(jobRole);
                     wageCost += avgPaidWage * slots;
                 });
-                
+
                 const headBase = STRATA[role]?.headTaxBase ?? 0.01;
                 const headTaxCost = headBase * getHeadTaxRate(role) * effectiveTaxModifier;
                 const businessTaxBase = building.businessTaxBase ?? 0.1;
@@ -1082,7 +1110,7 @@ export const simulateTick = ({
                 // 但如果该岗位是高利润行业的工人，应该能给得起高工资。
                 // 简单起见，我们对雇员也应用 VACANT_BONUS 到 getExpectedWage 上
                 const avgPaidWage = market?.wages?.[role] ?? getExpectedWage(role);
-                
+
                 // 计算税后（虽然这里只算工资部分，统一后面处理）
                 employeeWage += avgPaidWage * roleSlots * count;
                 employeeSlots += roleSlots * count;
@@ -1097,7 +1125,7 @@ export const simulateTick = ({
         // 但对于 worker 这种纯雇员，如果 market.wages 是 0，这里算出来还是 0
         // 需要一个机制让"空的高利润工厂"广播高工资
         // 在 building production loop 中我们有 wagePressure，但这里还是 start of tick
-        
+
         // 改进：如果是雇员，且计算出的 employeeWage 很低，但所在的工厂很赚钱...
         // 这太复杂了。目前先复用原有逻辑，依赖 VACANT_BONUS 提升吸引力
         const totalIncome = ownerIncome + employeeWage;
@@ -1557,7 +1585,7 @@ export const simulateTick = ({
         let targetMultiplier = baseMultiplier * Math.max(0, Math.min(1, resourceLimit));
         // Potential target multiplier (if staffed)
         let simTargetMultiplier = simBaseMultiplier * Math.max(0, Math.min(1, resourceLimit));
-        
+
         if (b.cat === 'gather' && resourceLimit === 0 && Object.keys(effectiveOps.input).length > 0) {
             // 进入低效模式：20%效率，不消耗原料
             targetMultiplier = baseMultiplier * 0.2;
@@ -1623,7 +1651,7 @@ export const simulateTick = ({
         let actualMultiplier = targetMultiplier;
         // Sim multiplier tracks potential production (full capacity)
         let simActualMultiplier = simTargetMultiplier;
-        
+
         let debugMarginRatio = null;
         let debugData = null;
 

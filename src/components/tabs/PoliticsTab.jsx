@@ -72,8 +72,8 @@ const ResourceTaxCard = ({
     const isSubsidy = currentRate < 0;
     const displayValue = Math.abs(currentRate * 100).toFixed(0);
     const valueColor = isSubsidy ? 'text-green-300' : 'text-blue-300';
-    const currentImportTariff = Number.isFinite(importTariffMultiplier) ? importTariffMultiplier : 1;
-    const currentExportTariff = Number.isFinite(exportTariffMultiplier) ? exportTariffMultiplier : 1;
+    const currentImportTariff = Number.isFinite(importTariffMultiplier) ? importTariffMultiplier : 0;
+    const currentExportTariff = Number.isFinite(exportTariffMultiplier) ? exportTariffMultiplier : 0;
 
     return (
         <div
@@ -135,7 +135,7 @@ const ResourceTaxCard = ({
                             进口关税
                         </span>
                         <span className={`font-mono text-xs ${currentImportTariff < 0 ? 'text-green-300' : 'text-gray-200'}`}>
-                            {currentImportTariff < 0 ? '补贴 ' : ''}{currentImportTariff.toFixed(2)}×
+                            {currentImportTariff < 0 ? '补贴 ' : ''}{(currentImportTariff * 100).toFixed(0)}%
                         </span>
                     </div>
                     <div className="flex items-center gap-1">
@@ -151,7 +151,7 @@ const ResourceTaxCard = ({
                             type="text"
                             inputMode="decimal"
                             step="0.1"
-                            value={draftImportTariff ?? currentImportTariff.toFixed(2)}
+                            value={draftImportTariff ?? (currentImportTariff * 100).toFixed(0)}
                             onChange={(e) => onImportTariffDraftChange(resourceKey, e.target.value)}
                             onBlur={() => onImportTariffCommit(resourceKey)}
                             onKeyDown={(e) => {
@@ -161,7 +161,7 @@ const ResourceTaxCard = ({
                                 }
                             }}
                             className="flex-grow min-w-0 bg-gray-900/70 border border-gray-600 text-[11px] text-gray-200 rounded px-1.5 py-0.5 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
-                            placeholder="进口倍率"
+                            placeholder="进口关税%"
                         />
                     </div>
                 </div>
@@ -173,7 +173,7 @@ const ResourceTaxCard = ({
                             出口关税
                         </span>
                         <span className={`font-mono text-xs ${currentExportTariff < 0 ? 'text-green-300' : 'text-gray-200'}`}>
-                            {currentExportTariff < 0 ? '补贴 ' : ''}{currentExportTariff.toFixed(2)}×
+                            {currentExportTariff < 0 ? '补贴 ' : ''}{(currentExportTariff * 100).toFixed(0)}%
                         </span>
                     </div>
                     <div className="flex items-center gap-1">
@@ -189,7 +189,7 @@ const ResourceTaxCard = ({
                             type="text"
                             inputMode="decimal"
                             step="0.1"
-                            value={draftExportTariff ?? currentExportTariff.toFixed(2)}
+                            value={draftExportTariff ?? (currentExportTariff * 100).toFixed(0)}
                             onChange={(e) => onExportTariffDraftChange(resourceKey, e.target.value)}
                             onBlur={() => onExportTariffCommit(resourceKey)}
                             onKeyDown={(e) => {
@@ -199,7 +199,7 @@ const ResourceTaxCard = ({
                                 }
                             }}
                             className="flex-grow min-w-0 bg-gray-900/70 border border-gray-600 text-[11px] text-gray-200 rounded px-1.5 py-0.5 focus:ring-1 focus:ring-green-500 focus:border-green-500 text-center"
-                            placeholder="出口倍率"
+                            placeholder="出口关税%"
                         />
                     </div>
                 </div>
@@ -429,8 +429,8 @@ const PoliticsTabComponent = ({
     const commitImportTariffDraft = (key) => {
         if (importTariffDrafts[key] === undefined) return;
         const parsed = parseFloat(importTariffDrafts[key]);
-        const multiplier = Number.isNaN(parsed) ? 0 : parsed;
-        onUpdateTaxPolicies?.(prev => ({ ...prev, importTariffMultipliers: { ...(prev?.importTariffMultipliers), [key]: multiplier } }));
+        const rateValue = (Number.isNaN(parsed) ? 0 : parsed) / 100; // 百分数转小数
+        onUpdateTaxPolicies?.(prev => ({ ...prev, importTariffMultipliers: { ...(prev?.importTariffMultipliers), [key]: rateValue } }));
         setImportTariffDrafts(prev => { const next = { ...prev }; delete next[key]; return next; });
     };
 
@@ -438,8 +438,8 @@ const PoliticsTabComponent = ({
     const commitExportTariffDraft = (key) => {
         if (exportTariffDrafts[key] === undefined) return;
         const parsed = parseFloat(exportTariffDrafts[key]);
-        const multiplier = Number.isNaN(parsed) ? 0 : parsed;
-        onUpdateTaxPolicies?.(prev => ({ ...prev, exportTariffMultipliers: { ...(prev?.exportTariffMultipliers), [key]: multiplier } }));
+        const rateValue = (Number.isNaN(parsed) ? 0 : parsed) / 100; // 百分数转小数
+        onUpdateTaxPolicies?.(prev => ({ ...prev, exportTariffMultipliers: { ...(prev?.exportTariffMultipliers), [key]: rateValue } }));
         setExportTariffDrafts(prev => { const next = { ...prev }; delete next[key]; return next; });
     };
 
@@ -466,13 +466,13 @@ const PoliticsTabComponent = ({
     };
     const toggleImportTariffSign = (key, currentValue) => {
         const parsed = parseFloat(currentValue);
-        const newValue = isNaN(parsed) ? -1 : -parsed;
+        const newValue = isNaN(parsed) ? -0.1 : -(parsed / 100); // 输入是百分数，转换后翻转符号
         onUpdateTaxPolicies?.(prev => ({ ...prev, importTariffMultipliers: { ...(prev?.importTariffMultipliers), [key]: newValue } }));
         setImportTariffDrafts(prev => { const next = { ...prev }; delete next[key]; return next; });
     };
     const toggleExportTariffSign = (key, currentValue) => {
         const parsed = parseFloat(currentValue);
-        const newValue = isNaN(parsed) ? -1 : -parsed;
+        const newValue = isNaN(parsed) ? -0.1 : -(parsed / 100); // 输入是百分数，转换后翻转符号
         onUpdateTaxPolicies?.(prev => ({ ...prev, exportTariffMultipliers: { ...(prev?.exportTariffMultipliers), [key]: newValue } }));
         setExportTariffDrafts(prev => { const next = { ...prev }; delete next[key]; return next; });
     };
@@ -585,8 +585,8 @@ const PoliticsTabComponent = ({
                             rate={resourceRates[key]}
                             hasSupply={(market?.supply?.[key] || 0) > 0}
                             draftRate={resourceDrafts[key]}
-                            importTariffMultiplier={importTariffs[key] ?? 1}
-                            exportTariffMultiplier={exportTariffs[key] ?? 1}
+                            importTariffMultiplier={importTariffs[key] ?? 0}
+                            exportTariffMultiplier={exportTariffs[key] ?? 0}
                             draftImportTariff={importTariffDrafts[key]}
                             draftExportTariff={exportTariffDrafts[key]}
                             onDraftChange={handleResourceDraftChange}
@@ -714,8 +714,8 @@ const PoliticsTabComponent = ({
                                                 rate={resourceRates[key]}
                                                 hasSupply={(market?.supply?.[key] || 0) > 0}
                                                 draftRate={resourceDrafts[key]}
-                                                importTariffMultiplier={importTariffs[key] ?? 1}
-                                                exportTariffMultiplier={exportTariffs[key] ?? 1}
+                                                importTariffMultiplier={importTariffs[key] ?? 0}
+                                                exportTariffMultiplier={exportTariffs[key] ?? 0}
                                                 draftImportTariff={importTariffDrafts[key]}
                                                 draftExportTariff={exportTariffDrafts[key]}
                                                 onDraftChange={handleResourceDraftChange}

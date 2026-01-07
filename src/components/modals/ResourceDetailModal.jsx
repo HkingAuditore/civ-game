@@ -588,7 +588,7 @@ const ResourceDetailContent = ({
 
     const currentTaxRate = taxPolicies?.resourceTaxRates?.[resourceKey] ?? 0;
     // 进口/出口关税（向后兼容旧的resourceTariffMultipliers）
-    // 关税倍率：0=无关税，1=100%关税，<0=补贴
+    // 关税存储为小数（0=无关税，0.5=50%关税，<0=补贴）
     const currentImportTariff = taxPolicies?.importTariffMultipliers?.[resourceKey] ?? taxPolicies?.resourceTariffMultipliers?.[resourceKey] ?? 0;
     const currentExportTariff = taxPolicies?.exportTariffMultipliers?.[resourceKey] ?? taxPolicies?.resourceTariffMultipliers?.[resourceKey] ?? 0;
 
@@ -619,12 +619,12 @@ const ResourceDetailContent = ({
     const commitImportTariffDraft = () => {
         if (draftImportTariff === null || !onUpdateTaxPolicies) return;
         const parsed = parseFloat(draftImportTariff);
-        const multiplier = Number.isNaN(parsed) ? 0 : parsed;  // Allow negative for subsidies
+        const rateValue = (Number.isNaN(parsed) ? 0 : parsed) / 100; // 百分数转小数
         onUpdateTaxPolicies(prev => ({
             ...prev,
             importTariffMultipliers: {
                 ...(prev?.importTariffMultipliers || {}),
-                [resourceKey]: multiplier,
+                [resourceKey]: rateValue,
             },
         }));
         setDraftImportTariff(null);
@@ -633,12 +633,12 @@ const ResourceDetailContent = ({
     const commitExportTariffDraft = () => {
         if (draftExportTariff === null || !onUpdateTaxPolicies) return;
         const parsed = parseFloat(draftExportTariff);
-        const multiplier = Number.isNaN(parsed) ? 0 : parsed;  // Allow negative for subsidies
+        const rateValue = (Number.isNaN(parsed) ? 0 : parsed) / 100; // 百分数转小数
         onUpdateTaxPolicies(prev => ({
             ...prev,
             exportTariffMultipliers: {
                 ...(prev?.exportTariffMultipliers || {}),
-                [resourceKey]: multiplier,
+                [resourceKey]: rateValue,
             },
         }));
         setDraftExportTariff(null);
@@ -1085,7 +1085,7 @@ const ResourceDetailContent = ({
                             <div className="grid gap-1.5 lg:gap-2 grid-cols-2">
                                 <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-2 lg:p-2.5">
                                     <p className="text-[8px] lg:text-[9px] uppercase tracking-wide text-yellow-300/80 leading-none">国库银币</p>
-<p className="mt-1 text-base lg:text-lg font-bold text-yellow-200 font-mono leading-none">{formatAmount(latestTreasury)}</p>
+                                    <p className="mt-1 text-base lg:text-lg font-bold text-yellow-200 font-mono leading-none">{formatAmount(latestTreasury)}</p>
                                     <p className="mt-0.5 lg:mt-1 text-[8px] lg:text-[9px] text-yellow-200/80 leading-none">
                                         储备 {formatAmount(resources[resourceKey] || 0)}
                                     </p>
@@ -1148,7 +1148,7 @@ const ResourceDetailContent = ({
                                     <div className="mb-1.5 lg:mb-2 flex items-center justify-between">
                                         <div>
                                             <p className="text-[8px] lg:text-[9px] uppercase tracking-wide text-gray-500 leading-none">国库资金走势</p>
-<p className="text-xs lg:text-sm font-semibold text-white leading-tight mt-0.5">
+                                            <p className="text-xs lg:text-sm font-semibold text-white leading-tight mt-0.5">
                                                 当前 {formatAmount(resources[resourceKey] || 0)} 银币
                                             </p>
                                         </div>
@@ -1251,14 +1251,14 @@ const ResourceDetailContent = ({
                                             <div>
                                                 <p className="text-[10px] lg:text-xs uppercase tracking-wide text-gray-500 mb-1 flex items-center gap-1">
                                                     <Icon name="ArrowDownLeft" size={12} className="text-blue-400" />
-                                                    进口关税倍率
+                                                    进口关税
                                                 </p>
                                                 <div className="flex items-center gap-2 lg:gap-3">
                                                     <input
                                                         type="text"
                                                         inputMode="decimal"
-                                                        step="0.1"
-                                                        value={draftImportTariff ?? currentImportTariff.toFixed(2)}
+                                                        step="1"
+                                                        value={draftImportTariff ?? (currentImportTariff * 100).toFixed(0)}
                                                         onChange={(e) => handleImportTariffDraftChange(e.target.value)}
                                                         onBlur={commitImportTariffDraft}
                                                         onKeyDown={(e) => {
@@ -1268,10 +1268,11 @@ const ResourceDetailContent = ({
                                                             }
                                                         }}
                                                         className="w-20 lg:w-28 bg-gray-800/70 border border-gray-600 text-base lg:text-lg font-mono text-gray-200 rounded-lg px-1.5 lg:px-2 py-1 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
+                                                        placeholder="关税%"
                                                     />
                                                     <div className="text-right flex-1">
-                                                        <p className="text-sm lg:text-base font-semibold text-blue-200">{currentImportTariff.toFixed(2)}×</p>
-                                                        <p className="text-[10px] lg:text-xs text-gray-400">当前倍率</p>
+                                                        <p className="text-sm lg:text-base font-semibold text-blue-200">{(currentImportTariff * 100).toFixed(0)}%</p>
+                                                        <p className="text-[10px] lg:text-xs text-gray-400">当前税率</p>
                                                     </div>
                                                 </div>
                                             </div>
@@ -1279,14 +1280,14 @@ const ResourceDetailContent = ({
                                             <div>
                                                 <p className="text-[10px] lg:text-xs uppercase tracking-wide text-gray-500 mb-1 flex items-center gap-1">
                                                     <Icon name="ArrowUpRight" size={12} className="text-green-400" />
-                                                    出口关税倍率
+                                                    出口关税
                                                 </p>
                                                 <div className="flex items-center gap-2 lg:gap-3">
                                                     <input
                                                         type="text"
                                                         inputMode="decimal"
-                                                        step="0.1"
-                                                        value={draftExportTariff ?? currentExportTariff.toFixed(2)}
+                                                        step="1"
+                                                        value={draftExportTariff ?? (currentExportTariff * 100).toFixed(0)}
                                                         onChange={(e) => handleExportTariffDraftChange(e.target.value)}
                                                         onBlur={commitExportTariffDraft}
                                                         onKeyDown={(e) => {
@@ -1296,14 +1297,15 @@ const ResourceDetailContent = ({
                                                             }
                                                         }}
                                                         className="w-20 lg:w-28 bg-gray-800/70 border border-gray-600 text-base lg:text-lg font-mono text-gray-200 rounded-lg px-1.5 lg:px-2 py-1 focus:ring-1 focus:ring-green-500 focus:border-green-500 text-center"
+                                                        placeholder="关税%"
                                                     />
                                                     <div className="text-right flex-1">
-                                                        <p className="text-sm lg:text-base font-semibold text-green-200">{currentExportTariff.toFixed(2)}×</p>
-                                                        <p className="text-[10px] lg:text-xs text-gray-400">当前倍率</p>
+                                                        <p className="text-sm lg:text-base font-semibold text-green-200">{(currentExportTariff * 100).toFixed(0)}%</p>
+                                                        <p className="text-[10px] lg:text-xs text-gray-400">当前税率</p>
                                                     </div>
                                                 </div>
                                             </div>
-                                            <p className="text-[10px] lg:text-xs text-gray-400">关税与交易税独立计算，最终税率 = 交易税率 + 关税倍率（加法叠加，非乘法）。负数为补贴。</p>
+                                            <p className="text-[10px] lg:text-xs text-gray-400">关税与交易税独立计算，最终税率 = 交易税率 + 关税率（加法叠加）。负数为补贴。</p>
                                         </div>
                                     </div>
                                 )}

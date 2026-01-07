@@ -354,6 +354,16 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                 output: Object.fromEntries(Object.entries(building.output || {}).map(([k, v]) => [k, v * count])),
                 jobs: Object.fromEntries(Object.entries(building.jobs || {}).map(([k, v]) => [k, v * count]))
             };
+
+            // ========== 修正业主岗位：减去官员私产数量 ==========
+            // 官员投资的产业由官员自己担任业主，不应再计算原始业主岗位
+            const ownerRole = building.owner;
+            if (ownerRole && totalStats.jobs[ownerRole] && officialOwnership.count > 0) {
+                const ownerSlotsPerBuilding = building.jobs?.[ownerRole] || 0;
+                const slotsToRemove = ownerSlotsPerBuilding * officialOwnership.count;
+                totalStats.jobs[ownerRole] = Math.max(0, totalStats.jobs[ownerRole] - slotsToRemove);
+            }
+
             return { effectiveTotalStats: totalStats, averageBuilding: building };
         }
 
@@ -365,6 +375,17 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
             if (config.input) for (const [k, v] of Object.entries(config.input)) effectiveOps.input[k] = (effectiveOps.input[k] || 0) + v * lvlCount;
             if (config.output) for (const [k, v] of Object.entries(config.output)) effectiveOps.output[k] = (effectiveOps.output[k] || 0) + v * lvlCount;
             if (config.jobs) for (const [k, v] of Object.entries(config.jobs)) effectiveOps.jobs[k] = (effectiveOps.jobs[k] || 0) + v * lvlCount;
+        }
+
+        // ========== 修正业主岗位：减去官员私产数量 ==========
+        // 官员投资的产业由官员自己担任业主，不应再计算原始业主岗位
+        const ownerRole = building.owner;
+        if (ownerRole && effectiveOps.jobs[ownerRole] && officialOwnership.count > 0) {
+            // 使用基础建筑的业主岗位数（假设官员投资的都是0级建筑）
+            // 注：如果官员投资的是升级后的建筑，这里会有少许误差，但影响不大
+            const ownerSlotsPerBuilding = building.jobs?.[ownerRole] || 0;
+            const slotsToRemove = ownerSlotsPerBuilding * officialOwnership.count;
+            effectiveOps.jobs[ownerRole] = Math.max(0, effectiveOps.jobs[ownerRole] - slotsToRemove);
         }
 
         // 计算平均值
@@ -381,7 +402,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
         }
 
         return { effectiveTotalStats: effectiveOps, averageBuilding: avg };
-    }, [building, count, upgradeLevels]);
+    }, [building, count, upgradeLevels, officialOwnership]);
 
     const [draftMultiplier, setDraftMultiplier] = useState(null);
     const [activeSection, setActiveSection] = useState('overview');

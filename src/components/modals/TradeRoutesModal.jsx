@@ -191,11 +191,12 @@ const TradeRoutesModal = ({
 
         const TRADE_SPEED = 0.05;
         const taxRate = taxPolicies?.resourceTaxRates?.[resourceKey] || 0;
-        // 根据交易类型使用进口或出口关税倍率：0=无关税，1=100%关税，<0=补贴
-        const tariffMultiplier = type === 'export'
+        // 关税存储为小数（0=无关税，0.5=50%关税，<0=补贴）
+        // 最终税率 = 交易税 + 关税（加法叠加）
+        const tariffRate = type === 'export'
             ? (taxPolicies?.exportTariffMultipliers?.[resourceKey] ?? taxPolicies?.resourceTariffMultipliers?.[resourceKey] ?? 0)
             : (taxPolicies?.importTariffMultipliers?.[resourceKey] ?? taxPolicies?.resourceTariffMultipliers?.[resourceKey] ?? 0);
-        const effectiveTaxRate = taxRate * (1 + tariffMultiplier);
+        const effectiveTaxRate = taxRate + tariffRate;
 
         const resourceName = RESOURCES[resourceKey]?.name || resourceKey;
         const isActive = hasTradeRoute(nation.id, resourceKey, type, getRouteModeForNation(nation.id));
