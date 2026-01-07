@@ -245,14 +245,14 @@ export const BUILDING_UPGRADES = {
             name: "大剧场",
             cost: { stone: 120, brick: 40, silver: 400 },
             input: { fine_clothes: 0.06 }, // 降低消耗
-            output: { culture: 7.02, silver: 0.8 }, // 1.3x + 门票收入
+            output: { culture: 6.5, silver: 0.8 }, // 1.2x
             jobs: { cleric: 2 }, // 减少岗位，提升人均效率
         },
         {
             name: "宏伟剧场",
             cost: { brick: 80, furniture: 20, silver: 900 },
             input: { fine_clothes: 0.08, ale: 0.03 }, // 降低消耗
-            output: { culture: 12.15, silver: 1.5 }, // 2.25x + 高额门票
+            output: { culture: 9.0, silver: 1.5 }, // 1.6x + 高额门票
             jobs: { cleric: 2 }, // 适度增加
         },
     ],
@@ -337,14 +337,14 @@ export const BUILDING_UPGRADES = {
             name: "高级成衣坊",
             cost: { plank: 50, tools: 15, silver: 350 },
             input: { tools: 0.035, cloth: 0.85, dye: 0.17 },
-            output: { fine_clothes: 1.04, culture: 0.65 }, // 1.3x
+            output: { fine_clothes: 1.04, culture: 0.6 }, // 1.2x
             jobs: { artisan: 3 }, // keep same, efficiency upgrade
         },
         {
             name: "御用成衣坊",
             cost: { brick: 40, fine_clothes: 10, silver: 800 },
             input: { tools: 0.05, cloth: 1.3, dye: 0.25 },
-            output: { fine_clothes: 1.8, culture: 1.125 }, // 2.25x
+            output: { fine_clothes: 1.8, culture: 0.8 }, // 1.6x
             jobs: { artisan: 4 }, // +1 artisan only
         },
     ],
@@ -410,14 +410,14 @@ export const BUILDING_UPGRADES = {
             name: "大教堂",
             cost: { brick: 80, furniture: 25, silver: 500 },
             input: { furniture: 0.05, fine_clothes: 0.04 }, // 降低消耗
-            output: { culture: 4.16, silver: 1.2 }, // 1.3x + 奉献收入
+            output: { culture: 3.8, silver: 1.2 }, // 1.2x + 奉献收入
             jobs: { cleric: 3 }, // 减少岗位
         },
         {
             name: "主教座堂",
             cost: { brick: 150, furniture: 40, silver: 1200 },
             input: { furniture: 0.06, fine_clothes: 0.05, papyrus: 0.02 }, // 降低消耗
-            output: { culture: 7.2, silver: 2.0, science: 0.15 }, // 1.8x + 高额奉献 + 神学
+            output: { culture: 5.5, silver: 2.0, science: 0.15 }, // 1.7x + 高额奉献 + 神学
             jobs: { cleric: 4 }, // 减少岗位
         },
     ],
@@ -431,14 +431,14 @@ export const BUILDING_UPGRADES = {
             name: "修道院大酒窖",
             cost: { stone: 80, tools: 20, silver: 400 },
             input: { food: 2.0, wood: 0.35 },
-            output: { ale: 2.6, culture: 1.56 }, // 1.3x
+            output: { ale: 2.6, culture: 1.4 }, // 1.2x
             jobs: { cleric: 1, worker: 3 }, // keep same
         },
         {
             name: "酿酒修道院",
             cost: { brick: 100, furniture: 20, silver: 900 },
             input: { food: 2.7, wood: 0.5 },
-            output: { ale: 4.5, culture: 2.7, science: 0.08 }, // 2.25x + 神学研究
+            output: { ale: 4.5, culture: 2.0, science: 0.08 }, // 1.6x + 神学研究
             jobs: { cleric: 2, worker: 2 }, // +1 cleric
         },
     ],
@@ -524,14 +524,14 @@ export const BUILDING_UPGRADES = {
             name: "航海学府",
             cost: { plank: 80, papyrus: 40, silver: 400 },
             input: { papyrus: 0.05 },
-            output: { science: 0.78, culture: 1.3 }, // 1.3x
+            output: { science: 0.78, culture: 1.2 }, // 1.2x
             jobs: { navigator: 3, scribe: 1, official: 1 }, // keep same, efficiency upgrade
         },
         {
             name: "皇家航海学院",
             cost: { brick: 60, papyrus: 80, silver: 900 },
             input: { papyrus: 0.08, coffee: 0.03 }, // 需要咖啡提神
-            output: { science: 1.35, culture: 2.25 }, // 2.25x
+            output: { science: 1.35, culture: 1.8 }, // 1.8x
             jobs: { navigator: 4, scribe: 1, official: 1 }, // +1 navigator only
         },
     ],
@@ -619,14 +619,14 @@ export const BUILDING_UPGRADES = {
             name: "文人咖啡馆",
             cost: { plank: 80, coffee: 25, silver: 400 },
             input: { coffee: 0.2, delicacies: 0.08 }, // 降低消耗
-            output: { culture: 5.2, science: 1.733, silver: 0.6 }, // 1.3x + 消费收入
+            output: { culture: 4.8, science: 1.733, silver: 0.6 }, // 1.2x + 消费收入
             jobs: { merchant: 1, scribe: 2 }, // 减少scribe岗位
         },
         {
             name: "沙龙",
             cost: { brick: 60, furniture: 25, silver: 900 },
             input: { coffee: 0.3, delicacies: 0.1 }, // 降低消耗
-            output: { culture: 9.0, science: 3.0, silver: 1.2 }, // 2.25x + 高端消费
+            output: { culture: 7.0, science: 3.0, silver: 1.2 }, // 1.75x + 高端消费
             jobs: { merchant: 1, scribe: 3 }, // 适度增加
         },
     ],
@@ -640,14 +640,14 @@ export const BUILDING_UPGRADES = {
             name: "大印刷所",
             cost: { brick: 120, papyrus: 40, silver: 500, science: 100 },
             input: { papyrus: 0.48, coffee: 0.09, science: 0.20 },
-            output: { science: 3.12, culture: 2.6 },
+            output: { science: 3.12, culture: 2.4 },
             jobs: { artisan: 5, scribe: 3, capitalist: 1 },
         },
         {
             name: "出版社",
             cost: { brick: 200, papyrus: 80, silver: 1100, science: 250 },
             input: { papyrus: 0.75, coffee: 0.15, science: 0.35 },
-            output: { science: 5.4, culture: 4.5 },
+            output: { science: 5.4, culture: 3.6 },
             jobs: { artisan: 5, scribe: 3, capitalist: 1 },
         },
     ],
