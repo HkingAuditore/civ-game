@@ -438,6 +438,7 @@ const buildMinimalAutoSavePayload = (payload) => ({
     priceControls: payload.priceControls,  // [NEW] 价格管制状态
     taxShock: payload.taxShock,  // [NEW] 累积税收冲击状态
     eventConfirmationEnabled: payload.eventConfirmationEnabled,
+    dailyMilitaryExpense: payload.dailyMilitaryExpense, // [FIX] 每日军费数据
 });
 
 const DEFAULT_EVENT_EFFECT_SETTINGS = {
@@ -705,6 +706,9 @@ export const useGameState = () => {
         forcedSubsidyPaid: 0,
         forcedSubsidyUnpaid: 0,
     });
+
+    // [FIX] 每日军队维护成本（simulation返回的完整数据）
+    const [dailyMilitaryExpense, setDailyMilitaryExpense] = useState(null);
 
     // ========== 时间状态 ==========
     const [daysElapsed, setDaysElapsed] = useState(0);
@@ -2118,5 +2122,10 @@ export const useGameState = () => {
         resetGame,
         eventConfirmationEnabled,
         setEventConfirmationEnabled,
+        // 财政数据
+        fiscalActual,
+        setFiscalActual,
+        dailyMilitaryExpense,
+        setDailyMilitaryExpense,
     };
 };
