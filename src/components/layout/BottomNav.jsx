@@ -99,6 +99,7 @@ export const BottomNav = ({ activeTab, onTabChange, epoch = 0 }) => {
                                 aria-label={tab.label}
                                 aria-selected={isActive}
                                 onClick={() => onTabChange(tab.id)}
+                                data-tutorial={`tab-${tab.id}`}
                                 className={`
                   appearance-none bg-transparent
                   relative flex flex-col items-center justify-center flex-1

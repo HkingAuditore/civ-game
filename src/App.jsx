@@ -7,6 +7,8 @@ import { getCalendarInfo } from './utils/calendar';
 import { calculateTotalDailySalary } from './logic/officials/manager';
 import { enactDecree, getAllTimedDecrees } from './logic/officials/cabinetSynergy';
 import { useGameState, useGameLoop, useGameActions, useSound, useEpicTheme, useViewportHeight, useDevicePerformance, useAchievements } from './hooks';
+import { useTutorialSystem } from './hooks/useTutorialSystem';
+import { TutorialOverlay } from './components/tutorial/TutorialOverlay';
 import {
     Icon,
     FloatingText
@@ -141,6 +143,16 @@ function GameApp({ gameState }) {
     const actions = useGameActions(gameState, addLog);
     useGameLoop(gameState, addLog, actions);
     const { playSound, SOUND_TYPES } = useSound();
+
+    // 交互式教程系统
+    const tutorialSystem = useTutorialSystem({
+        gameState,
+        currentTab: gameState.activeTab,
+        onComplete: () => {
+            addLog('🎓 交互式新手教程完成！祝你建立伟大的文明！');
+        },
+    });
+
     const [showStrata, setShowStrata] = useState(false);
     const lastEventCheckDayRef = useRef(null);
     const [showMarket, setShowMarket] = useState(false);  // 新增：控制国内市场弹窗
@@ -413,10 +425,12 @@ function GameApp({ gameState }) {
     // 删除 GameControls 中的 confirm 对话框，使用弹窗替代
     // 参见 GameControls.jsx 中的重置按钮
 
-    // 重新打开教程
+    // 重新打开教程（同时支持原静态教程和新交互式教程）
     const handleReopenTutorial = () => {
-        gameState.setShowTutorial(true);
-        addLog('📖 重新打开新手教程');
+        // 优先启动交互式教程
+        tutorialSystem.resetTutorial();
+        addLog('📖 重新打开交互式教程');
+        // 如果还需要原静态教程：gameState.setShowTutorial(true);
     };
 
     // 手动采集函数
@@ -1012,6 +1026,7 @@ function GameApp({ gameState }) {
                                     <button
                                         key={tab.id}
                                         onClick={() => gameState.setActiveTab(tab.id)}
+                                        data-tutorial={`tab-${tab.id}`}
                                         className={`relative flex-1 min-w-[80px] py-2.5 flex items-center justify-center gap-2 text-sm font-bold transition-all group ${gameState.activeTab === tab.id
                                             ? 'border-b-2 shadow-glow'
                                             : 'text-gray-400 hover:text-theme-accent'
@@ -1753,12 +1768,26 @@ function GameApp({ gameState }) {
                 )}
             </BottomSheet>
 
-            {/* 新手教程模态框 */}
-            <TutorialModal
+            {/* 新手教程模态框（原静态教程，已被交互式教程取代）
+               如需恢复，设置 show={!tutorialSystem.isActive && gameState.showTutorial}
+            */}
+            {/* <TutorialModal
                 show={gameState.showTutorial}
                 onComplete={handleTutorialComplete}
                 onSkip={handleTutorialSkip}
                 onOpenWiki={() => setIsWikiOpen(true)}
+            /> */}
+
+            {/* 交互式新手教程 */}
+            <TutorialOverlay
+                isActive={tutorialSystem.isActive}
+                currentStep={tutorialSystem.currentStep}
+                stepNumber={tutorialSystem.stepNumber}
+                totalSteps={tutorialSystem.totalSteps}
+                targetRect={tutorialSystem.targetRect}
+                onSkip={tutorialSystem.skipTutorial}
+                onNext={tutorialSystem.nextStep}
+                onClick={tutorialSystem.handleClick}
             />
 
             {/* 百科模态框 */}

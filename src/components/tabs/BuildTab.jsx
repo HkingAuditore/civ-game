@@ -188,6 +188,7 @@ const CompactBuildingCard = ({
     return (
         <div
             className="group relative flex flex-col h-full glass-ancient border border-ancient-gold/20 rounded-lg p-1.5 text-center transition-all hover:border-ancient-gold/40 hover:shadow-glow-gold"
+            data-building-id={building.id}
             onMouseEnter={onMouseEnter}
             onMouseLeave={onMouseLeave}
         >
