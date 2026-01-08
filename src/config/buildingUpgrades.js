@@ -349,21 +349,21 @@ export const BUILDING_UPGRADES = {
         },
     ],
 
-    // mine (iron): base output 0.5 iron, owner: capitalist, base jobs: miner:5, capitalist:1
+    // mine (iron): base output 0.5 iron, owner: landowner, base jobs: miner:5, capitalist:1
     mine: [
         {
             name: "深井铁矿",
             cost: { plank: 80, tools: 25, silver: 400 },
             input: { tools: 0.08, wood: 0.2, food: 0.3 }, // modest input cost
             output: { iron: 1.65 }, // 1.3x
-            jobs: { miner: 7, capitalist: 1 }, // keep same, efficiency upgrade
+            jobs: { miner: 7, landowner: 1 }, // keep same, efficiency upgrade
         },
         {
             name: "大铁矿",
             cost: { brick: 60, tools: 40, silver: 900 },
             input: { tools: 0.15, wood: 0.35, food: 0.45 }, // reasonable input increase
             output: { iron: 2.86, coal: 0.05 }, // 2.25x + 煤层伴生
-            jobs: { miner: 9, capitalist: 1 }, // +2 miners only
+            jobs: { miner: 9, landowner: 1 }, // +2 miners only
         },
     ],
 
