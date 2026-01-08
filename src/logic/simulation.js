@@ -1256,6 +1256,13 @@ export const simulateTick = ({
     const effectiveNeedsReduction = Math.max(-2, Math.min(0.95, needsReduction || 0));
     const needsRequirementMultiplier = 1 - effectiveNeedsReduction;
 
+    // [FIX] 保存税前存款快照，用于后续TaxShock计算
+    // 这样即使税收榨干了存款，也能正确计算税收占比来触发惩罚
+    const preTaxWealth = {};
+    Object.keys(STRATA).forEach(key => {
+        preTaxWealth[key] = wealth[key] || 0;
+    });
+
     Object.keys(STRATA).forEach(key => {
         if (key === 'official') return;
         const count = popStructure[key] || 0;
@@ -3688,17 +3695,28 @@ export const simulateTick = ({
         }
 
         // 税收冲击：当人头税占存款比例过高时，产生反感
-        // 改为基于税收占存款的百分比来判断，而非简单的税率系数
+        // [FIX] 使用税前存款计算税收冲击，避免"榨干后无惩罚"的漏洞
         const headTaxPaidPerCapita = (roleHeadTaxPaid[key] || 0) / Math.max(1, count);
-        // 税收占存款的比例（每天税收 / 人均存款）
-        const taxToWealthRatio = wealthPerCapita > 0.01 ? headTaxPaidPerCapita / wealthPerCapita : 0;
+        // 税前人均存款用于TaxShock计算
+        const preTaxWealthPerCapita = (preTaxWealth[key] || 0) / Math.max(1, count);
+        // 税收占存款的比例（每天税收 / 税前人均存款）
+        const taxToWealthRatio = preTaxWealthPerCapita > 0.01 ? headTaxPaidPerCapita / preTaxWealthPerCapita : 0;
         // 当税收超过存款的5%时开始产生冲击，超过20%时达到最大惩罚
-        // 5%以下无惩罚，5%-20%线性增长，20%以上最大惩罚25
+        // [ENHANCED] 最大惩罚从25提升到50，更严厉惩罚压榨行为
+        // 5%以下无惩罚，5%-20%线性增长到25，20%-100%继续增长到50
         const taxShockThreshold = 0.05; // 5%阈值
-        const taxShockMaxRatio = 0.20;  // 20%达到最大惩罚
-        const instantTaxShock = taxToWealthRatio > taxShockThreshold && headTaxPaidPerCapita > 0
-            ? Math.min(25, ((taxToWealthRatio - taxShockThreshold) / (taxShockMaxRatio - taxShockThreshold)) * 25)
-            : 0;
+        const taxShockMaxRatio = 0.20;  // 20%达到中等惩罚
+        const taxShockExtremeRatio = 1.0; // 100%达到最大惩罚
+        let instantTaxShock = 0;
+        if (taxToWealthRatio > taxShockThreshold && headTaxPaidPerCapita > 0) {
+            if (taxToWealthRatio <= taxShockMaxRatio) {
+                // 5%-20%: 0-25分线性增长
+                instantTaxShock = ((taxToWealthRatio - taxShockThreshold) / (taxShockMaxRatio - taxShockThreshold)) * 25;
+            } else {
+                // 20%-100%: 25-50分线性增长
+                instantTaxShock = 25 + Math.min(25, ((taxToWealthRatio - taxShockMaxRatio) / (taxShockExtremeRatio - taxShockMaxRatio)) * 25);
+            }
+        }
 
         // [NEW] 累积税收冲击机制：防止"快速抬税后降税"的漏洞
         // 原理：民众对被剥削的记忆不会因税率降低而立即消失
@@ -3922,8 +3940,9 @@ export const simulateTick = ({
             currentApproval = Math.max(0, currentApproval - taxShockPenalty);
             approvalBreakdown[key].taxShockPenalty = -taxShockPenalty;
 
+            // [ENHANCED] 冲击越大上限越低，最低可到0（极端压榨将引发彻底反感）
             if (taxShockPenalty > 5) {
-                const shockCap = Math.max(25, 70 - taxShockPenalty * 2);
+                const shockCap = Math.max(0, 70 - taxShockPenalty * 2);
                 approvalBreakdown[key].shockCapApplied = shockCap;
                 targetApproval = Math.min(targetApproval, shockCap);
             }
