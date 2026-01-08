@@ -132,14 +132,23 @@ const normalizePreferenceMultiplier = (v) => {
     return Math.max(0.1, Math.min(5, n));
 };
 
-const scoreImportCandidate = ({ resourceKey, partner, tick, getLocalPrice, res, demand, tradeConfig, merchantTradePreferences }) => {
+const scoreImportCandidate = ({ resourceKey, partner, tick, getLocalPrice, res, demand, tradeConfig, merchantTradePreferences, getImportTaxRate }) => {
     const localPrice = getLocalPrice(resourceKey);
     const foreignPrice = getForeignUnitPrice({ resourceKey, partner, tick });
     if (localPrice == null || foreignPrice == null) return null;
 
-    // Import if foreign is cheaper.
-    const priceAdv = (localPrice - foreignPrice) / Math.max(0.0001, localPrice);
-    if (priceAdv <= 0) return null;
+    // Calculate effective cost with tariff/subsidy
+    // Note: getImportTaxRate needs to be passed in or available. 
+    // We added it to the params.
+    const tariffRate = getImportTaxRate ? getImportTaxRate(resourceKey) : 0;
+    const effectiveCost = foreignPrice * (1 + tariffRate);
+
+    // Import if profitable (Local > EffectiveCost)
+    const profitMargin = (localPrice - effectiveCost) / Math.max(0.1, effectiveCost);
+
+    // If trade loses money (margin <= 0), we usually shouldn't do it unless desperate for shortage?
+    // But merchants are profit driven.
+    if (profitMargin <= -0.1) return null; // Allow slight loss if desperate? No, merchants shouldn't lose money.
 
     const shortage = computeResourceShortageFactor({ resourceKey, res, demand, marketPrice: localPrice });
 
@@ -147,9 +156,12 @@ const scoreImportCandidate = ({ resourceKey, partner, tick, getLocalPrice, res, 
     const status = calculateTradeStatus(resourceKey, partner, tick);
     const partnerSurplus = status?.surplusAmount ? Math.min(1, status.surplusAmount / Math.max(50, status.target || 1)) : 0;
 
+    // Combined Score:
+    // Profit is weighted heavily now to allow Arbitrage.
+    // Shortage is still important.
     const baseScore =
         tradeConfig.shortageWeight * shortage +
-        1.0 * priceAdv +
+        2.0 * Math.max(0, profitMargin) + // Profit weight increased
         0.6 * partnerSurplus;
 
     const prefMultiplier = normalizePreferenceMultiplier(merchantTradePreferences?.import?.[resourceKey] ?? 1);
@@ -382,21 +394,59 @@ export const simulateMerchantTrade = ({
         // Heuristic prefilter: compute local shortage/surplus lists to avoid scoring everything.
         const localShortageList = [];
         const localSurplusList = [];
+
         tradableKeys.forEach(resourceKey => {
             const localPrice = getLocalPrice(resourceKey);
             if (localPrice == null) return;
+
+            // 1. Supply/Demand Signals
             const shortage = computeResourceShortageFactor({ resourceKey, res, demand, marketPrice: localPrice });
             const surplus = computeResourceSurplusFactor({ resourceKey, res, supply, marketPrice: localPrice });
-            if (shortage > 0.01) localShortageList.push({ resourceKey, score: shortage });
-            if (surplus > 0.01) localSurplusList.push({ resourceKey, score: surplus });
+
+            // 2. Price/Profit Signals (Arbitrage)
+            // We must check if trade is profitable AFTER tariffs/subsidies to catch subsidy-driven opportunities.
+            const foreignPrice = getForeignUnitPrice({ resourceKey, partner, tick });
+            let importProfitScore = 0;
+            let exportProfitScore = 0;
+
+            if (foreignPrice != null) {
+                // Import Profitability: LocalPrice - (ForeignPrice * (1 + ImportTariff))
+                const importTariff = getImportTaxRate(resourceKey);
+                // Note: Tariff logic in execution was: foreignPrice * (1 + tariffRate) (conceptually cost)
+                // Actually execution logic: Cost = Foreign + Foreign*Tariff.
+                // If Tariff is -0.5 (-50%), Cost = Foreign * 0.5.
+                const importCost = foreignPrice * (1 + importTariff);
+                if (localPrice > importCost) {
+                    // Normalize score: % profit margin
+                    importProfitScore = (localPrice - importCost) / Math.max(0.1, importCost);
+                }
+
+                // Export Profitability: ForeignPrice - (LocalPrice * (1 + ExportTax))
+                const exportTax = getExportTaxRate(resourceKey);
+                // Export tax is on Local Price.
+                const exportCost = localPrice * (1 + exportTax);
+                if (foreignPrice > exportCost) {
+                    exportProfitScore = (foreignPrice - exportCost) / Math.max(0.1, exportCost);
+                }
+            }
+
+            // Push to candidate list if EITHER shortage exists OR profit is attractive
+            // This ensures we import even if inventory is full, if the price (after subsidy) is good enough.
+            if (shortage > 0.01 || importProfitScore > 0.05) {
+                // Combined score for sorting pre-filter
+                localShortageList.push({ resourceKey, score: Math.max(shortage, importProfitScore) });
+            }
+
+            if (surplus > 0.01 || exportProfitScore > 0.05) {
+                localSurplusList.push({ resourceKey, score: Math.max(surplus, exportProfitScore) });
+            }
         });
 
         let shortageTop = pickTopN(localShortageList, tradeConfig.maxResourcesScoredPerPartner);
         let surplusTop = pickTopN(localSurplusList, tradeConfig.maxResourcesScoredPerPartner);
 
-        // Fallback: if supply/demand signals are missing (common in older saves / edge cases),
-        // the shortage/surplus lists can become empty and block all trading.
-        // In that case, fall back to scanning a capped set of tradable resources using price advantage only.
+        // Fallback: if lists are empty (and no profit found?), fallback scan.
+        // With the new profit logic, this is less likely to happen unless prices match perfectly.
         if (shortageTop.length === 0 && surplusTop.length === 0) {
             const fallbackScans = Math.max(6, tradeConfig.maxResourcesScoredPerPartner);
             const fallbackRanked = [];
@@ -438,6 +488,7 @@ export const simulateMerchantTrade = ({
                 demand,
                 tradeConfig,
                 merchantTradePreferences,
+                getImportTaxRate, // Passthrough tax function
             });
             if (c) candidates.push(c);
         });
