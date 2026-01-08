@@ -25,6 +25,7 @@ export const GameControls = ({
     onReset,
     onTutorial,
     onWiki,
+    onDonate,
     menuDirection = 'down',
     onTriggerEvent,
 }) => {
@@ -280,6 +281,21 @@ export const GameControls = ({
                                     >
                                         <Icon name="Settings" size={12} />
                                         <span className="ml-2">设置</span>
+                                    </button>
+
+                                    <button
+                                        onClick={() => {
+                                            onDonate?.();
+                                            setIsGameMenuOpen(false);
+                                        }}
+                                        disabled={!onDonate}
+                                        className={cn(
+                                            'appearance-none bg-transparent w-full flex items-center px-3 py-2 text-[10px] font-semibold transition-colors rounded touch-feedback',
+                                            onDonate ? 'text-pink-300 hover:bg-pink-500/10' : 'text-ancient-stone/40 cursor-not-allowed'
+                                        )}
+                                    >
+                                        <Icon name="Heart" size={12} />
+                                        <span className="ml-2">打赏作者</span>
                                     </button>
 
                                     <div className="my-1 h-px bg-gradient-to-r from-transparent via-ancient-gold/30 to-transparent mx-2"></div>

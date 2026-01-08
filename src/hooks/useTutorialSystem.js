@@ -299,20 +299,29 @@ export const useTutorialSystem = ({ gameState, currentTab, onComplete } = {}) =>
 
     // 教程激活时自动暂停游戏，关闭时恢复
     const wasPausedBeforeTutorialRef = useRef(false);
+    const setIsPausedRef = useRef(null);
+
+    // 保持对 setIsPaused 函数的引用，避免依赖整个 gameState
     useEffect(() => {
-        if (!gameState?.setIsPaused) return;
+        setIsPausedRef.current = gameState?.setIsPaused;
+    }, [gameState?.setIsPaused]);
+
+    useEffect(() => {
+        const setIsPaused = setIsPausedRef.current;
+        if (!setIsPaused) return;
 
         if (isActive) {
-            // 记录教程开始前的暂停状态
-            wasPausedBeforeTutorialRef.current = gameState.isPaused || false;
+            // 记录教程开始前的暂停状态（只在 isActive 变为 true 时执行一次）
+            wasPausedBeforeTutorialRef.current = gameState?.isPaused || false;
             // 暂停游戏
-            gameState.setIsPaused(true);
+            setIsPaused(true);
         } else {
             // 教程结束后，恢复到教程开始前的状态
             // 如果教程前就是暂停的，保持暂停；否则恢复运行
-            gameState.setIsPaused(wasPausedBeforeTutorialRef.current);
+            setIsPaused(wasPausedBeforeTutorialRef.current);
         }
-    }, [isActive, gameState]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isActive]); // 只依赖 isActive，确保只在教程激活/关闭时执行
 
     return {
         // 状态

@@ -54,6 +54,7 @@ import { SaveTransferModal } from './components/modals/SaveTransferModal';
 import { AchievementsModal } from './components/modals/AchievementsModal';
 import OfficialOverstaffModal from './components/modals/OfficialOverstaffModal';
 import { AchievementToast } from './components/common/AchievementToast';
+import { DonateModal } from './components/modals/DonateModal';
 import { executeStrategicAction, STRATEGIC_ACTIONS } from './logic/strategicActions';
 import { getOrganizationStage, getPhaseFromStage } from './logic/organizationSystem';
 import { createPromiseTask, PROMISE_CONFIG } from './logic/promiseTasks';
@@ -158,6 +159,7 @@ function GameApp({ gameState }) {
     const [showMarket, setShowMarket] = useState(false);  // 新增：控制国内市场弹窗
     const [showSaveTransferModal, setShowSaveTransferModal] = useState(false); // 新增：控制存档传输弹窗
     const [showAchievementsModal, setShowAchievementsModal] = useState(false);
+    const [showDonateModal, setShowDonateModal] = useState(false);
     const [expandedFestival, setExpandedFestival] = useState(null);
 
     // 官员超编检测状态
@@ -851,6 +853,7 @@ function GameApp({ gameState }) {
                             onReset={() => setShowDifficultyModal(true)}
                             onTutorial={handleReopenTutorial}
                             onWiki={() => setIsWikiOpen(true)}
+                            onDonate={() => setShowDonateModal(true)}
                             onTriggerEvent={actions.triggerRandomEvent}
                         />
                     }
@@ -872,6 +875,7 @@ function GameApp({ gameState }) {
                         onReset={() => setShowDifficultyModal(true)}
                         onTutorial={handleReopenTutorial}
                         onWiki={() => setIsWikiOpen(true)}
+                        onDonate={() => setShowDonateModal(true)}
                         menuDirection="up"
                         onTriggerEvent={actions.triggerRandomEvent}
                     />
@@ -1879,6 +1883,12 @@ function GameApp({ gameState }) {
                 isOpen={showAchievementsModal}
                 onClose={() => setShowAchievementsModal(false)}
                 unlockedAchievements={gameState.unlockedAchievements}
+            />
+
+            {/* 打赏作者弹窗 */}
+            <DonateModal
+                isOpen={showDonateModal}
+                onClose={() => setShowDonateModal(false)}
             />
         </div>
     );

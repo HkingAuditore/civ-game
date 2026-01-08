@@ -6,6 +6,7 @@ import { Icon } from '../common/UIComponents';
 import { useSound, useDevicePerformance, PERFORMANCE_MODES } from '../../hooks';
 import { DIFFICULTY_LEVELS, getDifficultyOptions } from '../../config/difficulty';
 
+
 /**
  * 性能模式设置组件
  * 允许用户手动切换性能模式以优化低端设备体验
@@ -88,8 +89,8 @@ const DifficultySectionComponent = ({ currentDifficulty }) => {
             </h4>
 
             <div className={`p-4 rounded-xl border-2 overflow-hidden relative ${currentDifficulty === 'very_easy' || currentDifficulty === 'easy' ? 'bg-emerald-900/20 border-emerald-500/30' :
-                    currentDifficulty === 'normal' ? 'bg-amber-900/20 border-amber-500/30' :
-                        'bg-red-900/20 border-red-500/30'
+                currentDifficulty === 'normal' ? 'bg-amber-900/20 border-amber-500/30' :
+                    'bg-red-900/20 border-red-500/30'
                 }`}>
                 <div className="flex items-center gap-4 relative z-10">
                     <div className="text-4xl filter drop-shadow-lg transform hover:scale-110 transition-transform duration-300">
@@ -97,8 +98,8 @@ const DifficultySectionComponent = ({ currentDifficulty }) => {
                     </div>
                     <div>
                         <div className={`text-lg font-bold flex items-center gap-2 ${currentDifficulty === 'very_easy' || currentDifficulty === 'easy' ? 'text-emerald-300' :
-                                currentDifficulty === 'normal' ? 'text-amber-300' :
-                                    'text-red-300'
+                            currentDifficulty === 'normal' ? 'text-amber-300' :
+                                'text-red-300'
                             }`}>
                             {currentConfig.name}
                         </div>
@@ -564,6 +565,7 @@ export const SettingsPanel = ({
                     <Icon name="ExternalLink" size={14} className="text-gray-500" />
                 </a>
             </div>
+
         </div>
     );
 };
