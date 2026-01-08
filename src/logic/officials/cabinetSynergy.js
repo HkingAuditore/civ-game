@@ -1042,19 +1042,16 @@ export const calculateSellPriceControl = (resourceKey, amount, marketPrice, pric
         return { adjustment: 0, isIncome: false, effectivePrice: marketPrice };
     }
 
+    // [MODIFIED] State Procurement Model (国家统购)
     // 卖家实际获得的价格是政府收购价
     const effectivePrice = govBuyPrice;
-    const priceDiff = (marketPrice - govBuyPrice) * amount;
 
-    if (priceDiff > 0) {
-        // 市场价 > 政府收购价：卖家上缴超额利润，政府收入
-        return { adjustment: priceDiff, isIncome: true, effectivePrice };
-    } else if (priceDiff < 0) {
-        // 市场价 < 政府收购价：政府补贴卖家，政府支出
-        return { adjustment: Math.abs(priceDiff), isIncome: false, effectivePrice };
-    }
+    // 政府全额支付收购款，不再是补差价或收税
+    // 无论市场价如何，政府都必须支付 govBuyPrice * amount
+    // 这总是政府的支出 (isIncome: false)
+    const totalCost = govBuyPrice * amount;
 
-    return { adjustment: 0, isIncome: false, effectivePrice: marketPrice };
+    return { adjustment: totalCost, isIncome: false, effectivePrice };
 };
 
 /**
