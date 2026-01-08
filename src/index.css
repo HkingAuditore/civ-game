@@ -65,6 +65,29 @@
         background-attachment: fixed;
         color: var(--theme-text, #fef3c7);
         position: relative;
+
+        /* 
+         * 禁用 APP WebView 中的长按选择/复制菜单
+         * 防止用户长按文字时弹出系统的"复制"框
+         */
+        -webkit-user-select: none;  /* Safari/Chrome/WebKit */
+        -moz-user-select: none;     /* Firefox */
+        -ms-user-select: none;      /* IE/Edge */
+        user-select: none;          /* Standard */
+        -webkit-touch-callout: none; /* iOS Safari - 禁用长按菜单 */
+        -webkit-tap-highlight-color: transparent; /* 移除点击高亮 */
+    }
+
+    /* 
+     * 允许输入框和文本区域正常选择文本
+     * 这样用户仍然可以在表单中复制/粘贴
+     */
+    input, textarea, [contenteditable="true"] {
+        -webkit-user-select: text;
+        -moz-user-select: text;
+        -ms-user-select: text;
+        user-select: text;
+        -webkit-touch-callout: default;
     }
 
     /* 
