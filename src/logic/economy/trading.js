@@ -728,96 +728,82 @@ const executeImportTradeV2 = ({
     const status = calculateTradeStatus(resourceKey, partner, 0);
     const partnerOffer = Math.max(10, (status?.surplusAmount || 0) + (status?.target || 0) * 0.05);
 
-    const taxRate = getResourceTaxRate(resourceKey);
-    const totalPerUnitCost = foreignPrice;
-    const affordableAmount = totalPerUnitCost > 0 ? wealthForThisBatch / totalPerUnitCost : 0;
+    // FIX: Import Tariffs should be calculated on the Import Value (Foreign Price), not Local Price.
+    // FIX: Imports should NOT pay Industry Tax (which is for local production).
+
+    // Retrieve separate rates
+    const baseRate = taxPolicies?.resourceTaxRates?.[resourceKey] || 0;
+    const tariffRate = taxPolicies?.importTariffMultipliers?.[resourceKey] ?? taxPolicies?.resourceTariffMultipliers?.[resourceKey] ?? 0;
+
+    // Calculate costs
+    const unitCost = foreignPrice;
+    const affordableAmount = unitCost > 0 ? wealthForThisBatch / (unitCost * (1 + Math.max(0, tariffRate))) : 0;
     const amount = Math.min(tradeConfig.maxPurchaseAmount, affordableAmount, partnerOffer);
 
     if (amount <= 0.1) return { success: false };
 
-    const cost = foreignPrice * amount;
+    const importCost = foreignPrice * amount; // Cost paid to foreigner
+    const tariff = importCost * tariffRate;   // Tariff paid to state
+
+    // Total cost to merchant
+    const totalCostToMerchant = importCost + tariff;
+
+    // Gross revenue from selling in local market
     const grossRevenue = localPrice * amount;
-    const tax = grossRevenue * taxRate;
 
-    let netRevenue = grossRevenue;
-    let appliedTax = 0;
-
-    if (tax < 0) {
-        const subsidyAmount = Math.abs(tax);
-        if ((res.silver || 0) >= subsidyAmount * batchMultiplier) {
-            netRevenue += subsidyAmount;
-            appliedTax = -subsidyAmount;
-        } else {
-            logs.push(`Treasury empty, cannot pay import subsidy for ${RESOURCES[resourceKey]?.name || resourceKey}!`);
-        }
-    } else {
-        netRevenue -= tax;
-        appliedTax = tax;
-    }
-
-    const profit = netRevenue - cost;
-    const profitMargin = cost > 0 ? profit / cost : (profit > 0 ? Infinity : -Infinity);
+    // Net profit
+    const profit = grossRevenue - totalCostToMerchant;
+    const profitMargin = totalCostToMerchant > 0 ? profit / totalCostToMerchant : (profit > 0 ? Infinity : -Infinity);
 
     if (profitMargin < tradeConfig.minProfitMargin) {
         return { success: false };
     }
 
     const totalAmount = amount * batchMultiplier;
-    const totalCost = cost * batchMultiplier;
-    const totalNetRevenue = netRevenue * batchMultiplier;
-    const totalAppliedTax = appliedTax * batchMultiplier;
+    const totalImportCost = importCost * batchMultiplier;
+    const totalTariff = tariff * batchMultiplier;
+    const totalCost = totalCostToMerchant * batchMultiplier;
 
     if ((wealth.merchant || 0) < totalCost) return { success: false };
 
     wealth.merchant -= totalCost;
     roleExpense.merchant = (roleExpense.merchant || 0) + totalCost;
 
-    const baseRate = taxPolicies?.resourceTaxRates?.[resourceKey] || 0;
-    const tariffRate = taxPolicies?.importTariffMultipliers?.[resourceKey] ?? taxPolicies?.resourceTariffMultipliers?.[resourceKey] ?? 0;
-    const baseTaxPaid = grossRevenue * baseRate * batchMultiplier;
-    const tariffPaid = grossRevenue * tariffRate * batchMultiplier;
-
-    if (tariffPaid > 0) {
-        taxBreakdown.tariff = (taxBreakdown.tariff || 0) + tariffPaid;
-    } else if (tariffPaid < 0) {
-        taxBreakdown.tariffSubsidy = (taxBreakdown.tariffSubsidy || 0) + Math.abs(tariffPaid);
-    }
-
-    if (totalAppliedTax < 0) {
-        const subsidy = Math.abs(totalAppliedTax);
-        res.silver -= subsidy;
-        taxBreakdown.subsidy += subsidy;
-    } else {
-        if (baseTaxPaid > 0) {
-            taxBreakdown.industryTax += baseTaxPaid;
+    // Record taxes
+    if (totalTariff > 0) {
+        taxBreakdown.tariff = (taxBreakdown.tariff || 0) + totalTariff;
+        // Imports pay tariffs, recorded in merchant expenses
+        if (classFinancialData && classFinancialData.merchant) {
+            classFinancialData.merchant.expense.tariffs = (classFinancialData.merchant.expense.tariffs || 0) + totalTariff;
         }
-    }
+    } else if (totalTariff < 0) {
+        // Subsidy logic (if tariff is negative)
+        const subsidyRaw = Math.abs(totalTariff);
 
-    if (totalAppliedTax > 0) {
-        roleExpense.merchant = (roleExpense.merchant || 0) + totalAppliedTax;
+        // Check if treasury can afford subsidy
+        if ((res.silver || 0) >= subsidyRaw) {
+            taxBreakdown.tariffSubsidy = (taxBreakdown.tariffSubsidy || 0) + subsidyRaw;
+            res.silver -= subsidyRaw;
+            // Refund subsidy to merchant (reducing their effective cost)
+            wealth.merchant += subsidyRaw;
+            roleExpense.merchant -= subsidyRaw;
+
+            if (classFinancialData && classFinancialData.merchant) {
+                classFinancialData.merchant.income.subsidy = (classFinancialData.merchant.income.subsidy || 0) + subsidyRaw;
+            }
+        } else {
+            // Cannot afford property subsidy, treat as 0
+            logs.push(`Treasury empty, cannot pay import subsidy for ${RESOURCES[resourceKey]?.name || resourceKey}!`);
+            // Revert cost deduction for the subsidy part since they didn't get it? 
+            // Logic simplified: they paid full price, no subsidy back.
+        }
     }
 
     if (classFinancialData && classFinancialData.merchant) {
-        const totalTaxPaid = grossRevenue * taxRate * batchMultiplier;
-        if (Math.abs(tariffPaid) > 0.001) {
-            classFinancialData.merchant.expense.tariffs = (classFinancialData.merchant.expense.tariffs || 0) + tariffPaid;
-            const remainingTax = totalTaxPaid - tariffPaid;
-            if (remainingTax > 0) classFinancialData.merchant.expense.transactionTax = (classFinancialData.merchant.expense.transactionTax || 0) + remainingTax;
-        } else {
-            if (totalTaxPaid > 0) classFinancialData.merchant.expense.transactionTax = (classFinancialData.merchant.expense.transactionTax || 0) + totalTaxPaid;
-        }
-
-        const p = totalNetRevenue - totalCost;
-        if (p > 0) {
-            classFinancialData.merchant.income.ownerRevenue = (classFinancialData.merchant.income.ownerRevenue || 0) + p;
-        }
-
-        const subsidy = totalAppliedTax < 0 ? Math.abs(totalAppliedTax) : 0;
-        if (subsidy > 0) {
-            classFinancialData.merchant.income.subsidy = (classFinancialData.merchant.income.subsidy || 0) + subsidy;
+        if (profit > 0) {
+            classFinancialData.merchant.income.ownerRevenue = (classFinancialData.merchant.income.ownerRevenue || 0) + profit * batchMultiplier;
         }
     }
-
     return {
         success: true,
         cost: totalCost,
@@ -826,8 +812,8 @@ const executeImportTradeV2 = ({
             partnerId,
             resource: resourceKey,
             amount: totalAmount,
-            revenue: totalNetRevenue,
-            profit: totalNetRevenue - totalCost,
+            revenue: grossRevenue * batchMultiplier,
+            profit: profit * batchMultiplier,
             daysRemaining: tradeConfig.tradeDuration,
             capitalLocked: totalCost
         }

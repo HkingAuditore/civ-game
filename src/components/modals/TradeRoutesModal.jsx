@@ -240,28 +240,41 @@ const TradeRoutesModal = ({
             const foreignSurplus = tradeStatus.surplusAmount || 0;
             const possibleVolume = Math.min(foreignSurplus, 500) * TRADE_SPEED;
 
-            // Price difference: positive means we save money (foreign is cheaper)
-            const priceDiff = localPrice - foreignPrice;
-            const savingsPerDay = priceDiff * possibleVolume;
+            // Updated cost basis: Cost = ForeignPrice * Amount
+            // Tariff = ForeignPrice * Amount * TariffRate
+            // Total Cost = ForeignPrice * Amount * (1 + TariffRate)
+            // Revenue = LocalPrice * Amount
+            // Margin = Revenue - Total Cost
+
+            const costPerUnit = foreignPrice * (1 + tariffRate);
+            const marginPerUnit = localPrice - costPerUnit;
+
+            // Price difference in UI is now "Effective Margin" per unit
+            const priceDiff = marginPerUnit;
+            const merchantMargin = marginPerUnit * possibleVolume;
+            const taxRevenue = foreignPrice * possibleVolume * tariffRate;
 
             return {
                 nationId: nation.id,
                 nationName: nation.name,
+                nationColor: nation.color, // Include if needed by renderer
                 resource: resourceKey,
                 resourceName,
                 type: 'import',
                 isActive,
                 localPrice,
                 foreignPrice,
-                priceDiff, // Positive = cheaper import
-                savingsPerDay,
+                priceDiff, // Positive = profitable (Post-tax margin)
+                savingsPerDay: merchantMargin, // Used as 'savings' or 'profit'
                 possibleVolume,
                 surplus: foreignSurplus,
+                merchantMargin,
+                taxRevenue: possibleVolume > 0.1 && merchantMargin > 0 ? taxRevenue : 0,
                 // Score for ranking: higher is better
-                // For import: we want high price diff (local more expensive than foreign) AND they have surplus
-                profitScore: priceDiff > 0 ? priceDiff * Math.min(foreignSurplus, 1000) : 0,
-                status: possibleVolume < 0.1 ? '对方无货' : priceDiff <= 0 ? '无价差优势' : '可交易',
-                statusClass: possibleVolume < 0.1 ? 'text-gray-500' : priceDiff <= 0 ? 'text-yellow-500' : 'text-blue-400'
+                // For import: we want high post-tax margin AND they have surplus
+                profitScore: merchantMargin > 0 ? merchantMargin : 0,
+                status: possibleVolume < 0.1 ? '对方无货' : merchantMargin <= 0 ? '商人无利' : '可交易',
+                statusClass: possibleVolume < 0.1 ? 'text-gray-500' : merchantMargin <= 0 ? 'text-yellow-500' : 'text-blue-400'
             };
         }
     };
@@ -596,7 +609,7 @@ const TradeRoutesModal = ({
                             {isExport ? (
                                 <>外价: {opp.foreignPrice.toFixed(1)} ({opp.priceDiff > 0 ? '+' : ''}{opp.priceDiff.toFixed(1)})</>
                             ) : (
-                                <>外价: {opp.foreignPrice.toFixed(1)} ({opp.priceDiff > 0 ? '-' : '+'}{Math.abs(opp.priceDiff).toFixed(1)})</>
+                                <>利润: {opp.priceDiff.toFixed(1)}/u ({((opp.priceDiff / opp.localPrice) * 100).toFixed(0)}%)</>
                             )}
                         </span>
                         <span className="text-[9px] sm:text-[10px] text-gray-500">
