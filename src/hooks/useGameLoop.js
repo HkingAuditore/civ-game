@@ -1429,11 +1429,17 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
                 const maintenance = calculateArmyMaintenance(army);
                 const adjustedResources = { ...result.resources };
+                const resourceShortages = {}; // 记录资源短缺
                 Object.entries(maintenance).forEach(([resource, cost]) => {
                     // 每次 Tick 计算 1 天的维护费用（不再乘以 gameSpeed）
                     const amount = cost;
                     if (amount <= 0) return;
-                    adjustedResources[resource] = Math.max(0, (adjustedResources[resource] || 0) - amount);
+                    const available = adjustedResources[resource] || 0;
+                    const shortage = Math.max(0, amount - available);
+                    if (shortage > 0) {
+                        resourceShortages[resource] = shortage;
+                    }
+                    adjustedResources[resource] = Math.max(0, available - amount);
                 });
 
                 // --- Realized fiscal tracking (must match visible treasury changes) ---
@@ -1493,6 +1499,176 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         forcedSubsidyUnpaid,
                     });
                 }
+
+                // === 详细财政日志 ===
+                // 记录所有影响国库的收入和支出项
+                const treasuryAfterDeductions = Number(adjustedResources.silver || 0);
+                const netTreasuryChange = treasuryAfterDeductions - treasuryAtTickStart;
+
+                console.group('💰 [财政详情] Tick ' + (current.daysElapsed || 0));
+                console.log('🏦 国库起始余额:', treasuryAtTickStart.toFixed(2), '银币');
+
+                // 从simulation返回的税收数据
+                const taxes = result.taxes || {};
+                const breakdown = taxes.breakdown || {};
+
+                console.group('📈 收入项');
+                console.log('  人头税:', (breakdown.headTax || 0).toFixed(2));
+                console.log('  交易税:', (breakdown.industryTax || 0).toFixed(2));
+                console.log('  营业税:', (breakdown.businessTax || 0).toFixed(2));
+                console.log('  关税:', (breakdown.tariff || 0).toFixed(2));
+                if (breakdown.warIndemnity) console.log('  战争赔款收入:', breakdown.warIndemnity.toFixed(2));
+                if (breakdown.policyIncome) console.log('  政令收益:', breakdown.policyIncome.toFixed(2));
+                if (breakdown.priceControlIncome) console.log('  价格管制收入:', breakdown.priceControlIncome.toFixed(2));
+                const totalIncome = (breakdown.headTax || 0) + (breakdown.industryTax || 0) +
+                    (breakdown.businessTax || 0) + (breakdown.tariff || 0) +
+                    (breakdown.warIndemnity || 0) + (breakdown.policyIncome || 0) +
+                    (breakdown.priceControlIncome || 0);
+                console.log('  ✅ 总收入:', totalIncome.toFixed(2));
+                if (taxes.efficiency && taxes.efficiency < 1) {
+                    console.log('  📊 税收效率:', (taxes.efficiency * 100).toFixed(1) + '%',
+                        `(损失: ${(totalIncome * (1 - taxes.efficiency)).toFixed(2)} 银币)`);
+                }
+                console.groupEnd();
+
+                console.group('📉 支出项');
+
+                // === 军队支出（使用simulation返回的真实数据）===
+                // 注意：simulation.js中已经处理了资源购买、时代加成、规模惩罚、军饷倍率
+                const simulationArmyCost = result.dailyMilitaryExpense?.dailyExpense || 0;
+
+                if (simulationArmyCost > 0) {
+                    console.group('  军队维护（simulation计算）');
+                    if (result.dailyMilitaryExpense) {
+                        const armyData = result.dailyMilitaryExpense;
+                        console.log(`    基础资源成本: ${(armyData.resourceCost || 0).toFixed(2)} 银币`);
+                        console.log(`    时代系数: ×${(armyData.epochMultiplier || 1).toFixed(2)}`);
+                        console.log(`    规模惩罚: ×${(armyData.scalePenalty || 1).toFixed(2)}`);
+                        console.log(`    军饷倍率: ×${(armyData.wageMultiplier || 1).toFixed(2)}`);
+                        console.log(`    💰 实际支出: ${simulationArmyCost.toFixed(2)} 银币`);
+
+                        // 显示资源消耗明细
+                        if (armyData.resourceConsumption && Object.keys(armyData.resourceConsumption).length > 0) {
+                            console.log(`    消耗资源:`, armyData.resourceConsumption);
+                        }
+                    } else {
+                        console.log(`    💰 总支出: ${simulationArmyCost.toFixed(2)} 银币`);
+                    }
+                    console.groupEnd();
+                }
+
+                // 保留useGameLoop中的军队维护计算（仅用于对比，标记为"本地计算"）
+                if (false) { // 禁用旧的统计方式
+                    const maintenanceResources = {};
+                    let totalMaintenanceSilverValue = 0;
+                    Object.entries(maintenance || {}).forEach(([resource, cost]) => {
+                        if (cost > 0) {
+                            maintenanceResources[resource] = cost;
+                            if (resource === 'silver') {
+                                totalMaintenanceSilverValue += cost;
+                            } else {
+                                const price = result.market?.prices?.[resource] || 1;
+                                const silverValue = cost * price;
+                                totalMaintenanceSilverValue += silverValue;
+                            }
+                        }
+                    });
+
+                    if (Object.keys(maintenanceResources).length > 0) {
+                        console.group('  军队维护（本地计算 - 仅供参考）');
+                        Object.entries(maintenanceResources).forEach(([resource, cost]) => {
+                            if (resource === 'silver') {
+                                console.log(`    ${resource}: ${cost.toFixed(2)}`);
+                            } else {
+                                const price = result.market?.prices?.[resource] || 1;
+                                const silverValue = cost * price;
+                                console.log(`    ${resource}: ${cost.toFixed(2)} (价值 ${silverValue.toFixed(2)} 银币)`);
+                            }
+                        });
+                        console.log(`    💰 总价值: ${totalMaintenanceSilverValue.toFixed(2)} 银币`);
+                        console.groupEnd();
+                    }
+                }
+
+                if (breakdown.subsidy) console.log('  税收补贴:', breakdown.subsidy.toFixed(2));
+                if (breakdown.tariffSubsidy) console.log('  关税补贴:', breakdown.tariffSubsidy.toFixed(2));
+                if (officialSalaryPaid > 0) console.log('  官员薪俸:', officialSalaryPaid.toFixed(2));
+                if (forcedSubsidyPaid > 0) console.log('  强制补贴:', forcedSubsidyPaid.toFixed(2));
+                if (breakdown.policyExpense) console.log('  政令支出:', breakdown.policyExpense.toFixed(2));
+                if (breakdown.priceControlExpense) console.log('  价格管制支出:', breakdown.priceControlExpense.toFixed(2));
+
+                // 资源短缺警告（暂时保留用于调试）
+                if (Object.keys(resourceShortages).length > 0) {
+                    console.group('  ⚠️ 资源短缺（军队维护需求未满足）');
+                    let totalShortageValue = 0;
+                    Object.entries(resourceShortages).forEach(([resource, shortage]) => {
+                        const price = result.market?.prices?.[resource] || 1;
+                        const silverValue = shortage * price;
+                        totalShortageValue += silverValue;
+                        console.log(`    ${resource}: 短缺 ${shortage.toFixed(2)}，等价 ${silverValue.toFixed(2)} 银币`);
+                    });
+                    console.log(`    💸 短缺总价值: ${totalShortageValue.toFixed(2)} 银币`);
+                    console.warn(`    ℹ️ 注意：这些资源短缺可能导致隐藏的银币支出！`);
+                    console.groupEnd();
+                }
+
+                const totalExpense = simulationArmyCost + (breakdown.subsidy || 0) +
+                    (breakdown.tariffSubsidy || 0) + officialSalaryPaid + forcedSubsidyPaid +
+                    (breakdown.policyExpense || 0) + (breakdown.priceControlExpense || 0);
+                console.log('  ❌ 总支出:', totalExpense.toFixed(2));
+                console.groupEnd();
+
+                console.log('📊 理论净变化:', (totalIncome - totalExpense).toFixed(2), '银币/天');
+                console.log('🏦 国库结束余额:', treasuryAfterDeductions.toFixed(2), '银币');
+                console.log('💵 实际净变化:', netTreasuryChange.toFixed(2), '银币');
+
+                // === 显示simulation中的银币变化追踪 ===
+                if (result._debug?.silverChangeLog && result._debug.silverChangeLog.length > 0) {
+                    console.group('🔍 银币变化详细追踪（simulation内部）');
+                    console.log('  起始余额:', (result._debug.startingSilver || 0).toFixed(2), '银币');
+                    result._debug.silverChangeLog.forEach((log, index) => {
+                        const sign = log.amount >= 0 ? '+' : '';
+                        console.log(`  ${index + 1}. ${log.reason}: ${sign}${log.amount.toFixed(2)} 银币 (余额: ${log.balance.toFixed(2)})`);
+                    });
+                    console.log('  结束余额:', (result._debug.endingSilver || 0).toFixed(2), '银币');
+                    const simulationChange = (result._debug.endingSilver || 0) - (result._debug.startingSilver || 0);
+                    console.log('  💰 Simulation净变化:', simulationChange.toFixed(2), '银币');
+                    console.groupEnd();
+                }
+
+                // === useGameLoop本地扣除（simulation之后）===
+                const useGameLoopDeductions = [];
+                const armyMaintenanceSilver = Object.entries(maintenance || {})
+                    .filter(([res]) => res === 'silver')
+                    .reduce((sum, [, cost]) => sum + cost, 0);
+                if (armyMaintenanceSilver > 0) {
+                    useGameLoopDeductions.push({ reason: '军队维护(本地)', amount: -armyMaintenanceSilver });
+                }
+                if (officialSalaryPaid > 0) {
+                    useGameLoopDeductions.push({ reason: '官员薪俸', amount: -officialSalaryPaid });
+                }
+                if (forcedSubsidyPaid > 0) {
+                    useGameLoopDeductions.push({ reason: '强制补贴', amount: -forcedSubsidyPaid });
+                }
+
+                if (useGameLoopDeductions.length > 0) {
+                    console.group('🔧 useGameLoop本地扣除（simulation之后）');
+                    useGameLoopDeductions.forEach((item, index) => {
+                        const sign = item.amount >= 0 ? '+' : '';
+                        console.log(`  ${index + 1}. ${item.reason}: ${sign}${item.amount.toFixed(2)} 银币`);
+                    });
+                    const totalLocalDeduction = useGameLoopDeductions.reduce((sum, item) => sum + item.amount, 0);
+                    console.log('  💰 本地扣除总计:', totalLocalDeduction.toFixed(2), '银币');
+                    console.groupEnd();
+                }
+
+                if (Math.abs(netTreasuryChange - (totalIncome - totalExpense)) > 0.1) {
+                    console.warn('⚠️ 警告：理论净变化与实际净变化不一致！差异:',
+                        (netTreasuryChange - (totalIncome - totalExpense)).toFixed(2));
+                }
+
+                console.groupEnd();
+                // === 财政日志结束 ===
 
                 setResources(adjustedResources);
 
@@ -1891,6 +2067,14 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     }
                     if (result.jobsAvailable) {
                         setJobsAvailable(result.jobsAvailable);
+                    }
+                    // [FIX] Save military expense data from simulation
+                    console.log('[useGameLoop] Saving dailyMilitaryExpense:', result.dailyMilitaryExpense);
+                    if (result.dailyMilitaryExpense) {
+                        // [CRITICAL FIX] 使用window对象临时存储，绕过React state延迟
+                        // 这是一个临时解决方案，直到重构state管理
+                        window.__GAME_MILITARY_EXPENSE__ = result.dailyMilitaryExpense;
+                        current.dailyMilitaryExpense = result.dailyMilitaryExpense;
                     }
                     // [NEW] Update buildings count (from Free Market expansion)
                     if (nextBuildings) {

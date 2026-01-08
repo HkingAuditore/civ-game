@@ -672,9 +672,17 @@ function GameApp({ gameState }) {
         gameState.population || 100,
         wageRatio
     );
-    // 应用官员军费降低效果（militaryUpkeepMod 通常为负值）
+    // [FIX] 从window对象读取simulation返回的军费数据（临时方案）
+    // 因为React state更新延迟，gameState.dailyMilitaryExpense总是undefined
+    const simulationMilitaryExpense = window.__GAME_MILITARY_EXPENSE__;
     const militaryUpkeepMod = gameState.modifiers?.officialEffects?.militaryUpkeepMod || 0;
-    const silverUpkeepPerDay = armyExpenseData.dailyExpense * (1 + militaryUpkeepMod);
+    console.log('[App.jsx] Military expense final:', {
+        simulationData: simulationMilitaryExpense,
+        localCalc: armyExpenseData.dailyExpense,
+        using: simulationMilitaryExpense?.dailyExpense || armyExpenseData.dailyExpense
+    });
+    // 优先使用simulation数据，fallback到本地计算
+    const silverUpkeepPerDay = simulationMilitaryExpense?.dailyExpense || armyExpenseData.dailyExpense;
     const tradeStats = gameState.tradeStats || { tradeTax: 0 };
     const tradeTax = tradeStats.tradeTax || 0;
     const playerInstallmentExpense = (gameState.playerInstallmentPayment && gameState.playerInstallmentPayment.remainingDays > 0)
@@ -703,7 +711,10 @@ function GameApp({ gameState }) {
     // 计算官员薪水支出
     const officialSalaryPerDay = calculateTotalDailySalary(gameState.officials || []);
 
-    const netSilverPerDay = taxes.total + tradeTax - silverUpkeepPerDay - playerInstallmentExpense - forcedSubsidyExpense - officialSalaryPerDay;
+    // [FIX] 使用simulation返回的完整军队维护成本，包含资源购买、时代加成、规模惩罚
+    const actualArmyUpkeep = gameState.dailyMilitaryExpense?.dailyExpense || silverUpkeepPerDay || 0;
+
+    const netSilverPerDay = taxes.total + tradeTax - actualArmyUpkeep - playerInstallmentExpense - forcedSubsidyExpense - officialSalaryPerDay;
     const netSilverClass = netSilverPerDay >= 0 ? 'text-green-300' : 'text-red-300';
     const netChipClasses = netSilverPerDay >= 0
         ? 'text-green-300 bg-green-900/20 hover:bg-green-900/40'
@@ -1081,6 +1092,8 @@ function GameApp({ gameState }) {
                                                 targetArmyComposition={gameState.targetArmyComposition}
                                                 onUpdateTargetComposition={gameState.setTargetArmyComposition}
                                                 militaryBonus={gameState.modifiers?.militaryBonus}
+                                                // [FIX] Pass unified expense data (simulation preferred for consistency with StatusBar)
+                                                armyExpenseData={simulationMilitaryExpense || armyExpenseData}
                                             />
                                         )}
 

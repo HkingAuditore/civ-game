@@ -255,6 +255,8 @@ const MilitaryTabComponent = ({
     targetArmyComposition = {},
     onUpdateTargetComposition,
     militaryBonus = 0,
+    // [FIX] Receive unified expense data from parent
+    armyExpenseData: propArmyExpenseData,
 }) => {
     const [hoveredUnit, setHoveredUnit] = useState({ unit: null, element: null });
     const [showWarScoreInfo, setShowWarScoreInfo] = useState(false);
@@ -388,7 +390,12 @@ const MilitaryTabComponent = ({
     const maintenance = calculateArmyMaintenance(army);
     // 新军费计算系统：完整军费包含资源成本、时代加成、规模惩罚
     const totalFoodNeed = calculateArmyFoodNeed(army);
-    const armyExpenseData = calculateTotalArmyExpense(
+
+    // [FIX] Use simulation data from window (unified with StatusBar and financial panel)
+    // This ensures MilitaryTab shows the same military expense as the financial panel,
+    // which includes difficulty multiplier and wartime multiplier from simulation.js
+    const simulationMilitaryExpense = window.__GAME_MILITARY_EXPENSE__;
+    const armyExpenseData = simulationMilitaryExpense || propArmyExpenseData || calculateTotalArmyExpense(
         army,
         market?.prices || {},
         epoch,

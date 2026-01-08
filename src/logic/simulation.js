@@ -239,6 +239,14 @@ export const simulateTick = ({
     // console.log('[TICK START]', tick); // Commented for performance
     const res = { ...resources };
     const priceMap = { ...(market?.prices || {}) };
+
+    // === 银币变化追踪器 ===
+    const silverChangeLog = [];
+    const trackSilverChange = (amount, reason) => {
+        silverChangeLog.push({ amount, reason, balance: res.silver || 0 });
+    };
+    const startingSilver = res.silver || 0;
+
     // NEW: Track actual consumption by stratum for UI display
     const stratumConsumption = {};
     // NEW: Track supply source breakdown
@@ -2456,6 +2464,7 @@ export const simulateTick = ({
         const available = res.silver || 0;
         if (available >= totalArmyCost) {
             res.silver = available - totalArmyCost;
+            trackSilverChange(-totalArmyCost, `军队维护支出`);
             rates.silver = (rates.silver || 0) - totalArmyCost;
             roleWagePayout.soldier = (roleWagePayout.soldier || 0) + totalArmyCost;
             roleLaborIncome.soldier = (roleLaborIncome.soldier || 0) + totalArmyCost; // Army pay is labor income
@@ -2468,6 +2477,7 @@ export const simulateTick = ({
             const partialPay = available * 0.9; // 留10%底
             if (partialPay > 0) {
                 res.silver = available - partialPay;
+                trackSilverChange(-partialPay, `军队维护支出（部分支付）`);
                 rates.silver = (rates.silver || 0) - partialPay;
                 roleWagePayout.soldier = (roleWagePayout.soldier || 0) + partialPay;
                 // [FIX] 同步到 classFinancialData 以保持概览和财务面板数据一致
@@ -5671,6 +5681,7 @@ export const simulateTick = ({
     const totalFiscalIncome = baseFiscalIncome * incomePercentMultiplier;
 
     res.silver = (res.silver || 0) + totalFiscalIncome;
+    trackSilverChange(totalFiscalIncome, `税收收入（含战争赔款）`);
     rates.silver = (rates.silver || 0) + totalFiscalIncome;
 
     taxBreakdown.policyIncome = decreeSilverIncome;
@@ -5681,6 +5692,7 @@ export const simulateTick = ({
 
     // Price control income is added to silver here (expense was deducted in real-time)
     res.silver = (res.silver || 0) + priceControlIncome;
+    trackSilverChange(priceControlIncome, `价格管制收入`);
     rates.silver = (rates.silver || 0) + priceControlIncome;
 
     const netTax = totalCollectedTax
@@ -5846,6 +5858,9 @@ export const simulateTick = ({
         // [DEBUG] 临时调试字段 - 追踪自由市场机制问题
         _debug: {
             freeMarket: _freeMarketDebug,
+            silverChangeLog, // 银币变化追踪日志
+            startingSilver,  // tick开始时的银币
+            endingSilver: res.silver || 0, // tick结束时的银币
         },
     };
 };

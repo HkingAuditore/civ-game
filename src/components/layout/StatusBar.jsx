@@ -85,6 +85,15 @@ export const StatusBar = ({
     };
 
     const calendar = getCalendarInfo(gameState.daysElapsed || 0);
+
+    // [DEBUG] 从window对象读取simulation返回的军费数据
+    const simulationMilitaryExpense = window.__GAME_MILITARY_EXPENSE__;
+    console.log('[StatusBar] 军费数据检查:', {
+        'simulation数据': simulationMilitaryExpense?.dailyExpense,
+        'silverUpkeepPerDay': silverUpkeepPerDay,
+        '最终使用值': simulationMilitaryExpense?.dailyExpense || silverUpkeepPerDay || 0
+    });
+
     // 军费支出从 App.jsx 传入，包含完整的资源成本、时代加成、规模惩罚
     // 这里只保留用于显示的 armyFoodNeed（传统食粮需求）
     const foodPrice = gameState.market?.prices?.food ?? (RESOURCES.food?.basePrice || 1);
@@ -422,7 +431,7 @@ export const StatusBar = ({
                                                     {/* 支出项 */}
                                                     <div className="stat-item-compact">
                                                         <span className="text-ancient-stone">军饷维护</span>
-                                                        <span className="text-red-300 font-mono">-{formatNumberShortCN(Math.abs(silverUpkeepPerDay || 0), { decimals: 1 })}</span>
+                                                        <span className="text-red-300 font-mono">-{formatNumberShortCN(Math.abs(window.__GAME_MILITARY_EXPENSE__?.dailyExpense || silverUpkeepPerDay || 0), { decimals: 1 })}</span>
                                                     </div>
                                                     {officialSalaryPerDay > 0 && (
                                                         <div className="stat-item-compact">
