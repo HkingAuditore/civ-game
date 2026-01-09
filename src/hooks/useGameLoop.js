@@ -1,12 +1,10 @@
 // 游戏循环钩子
 // 处理游戏的核心循环逻辑，包括资源生产、人口增长等
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { unstable_batchedUpdates } from 'react-dom';
-import { simulateTick } from '../logic/simulation';
-// Web Worker for offloading simulation to background thread
-import SimulationWorker from '../workers/simulation.worker.js?worker';
-import { BUILDINGS, calculateArmyMaintenance, calculateArmyPopulation, UNIT_TYPES, STRATA, RESOURCES } from '../config';
+import { useSimulationWorker } from './useSimulationWorker';
+import { BUILDINGS, calculateArmyMaintenance, calculateArmyPopulation, UNIT_TYPES, STRATA, RESOURCES, LOG_STORAGE_LIMIT, HISTORY_STORAGE_LIMIT } from '../config';
 import { getBuildingEffectiveConfig } from '../config/buildingUpgrades';
 import { getRandomFestivalEffects } from '../config/festivalEffects';
 import { initCheatCodes } from './cheatCodes';
@@ -74,7 +72,7 @@ const calculateRebelPopulation = (stratumPop = 0) => {
  * @param {Function} setNations - 设置国家函数
  * @param {Function} setTradeRoutes - 设置贸易路线函数
  */
-const processTradeRoutes = (current, result, addLog, setResources, setNations, setTradeRoutes) => {
+const processTradeRoutes = (current) => {
     const { tradeRoutes, nations, resources, daysElapsed, market, popStructure, taxPolicies } = current;
     const routes = tradeRoutes.routes || [];
 
@@ -88,6 +86,33 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
     const routesToRemove = [];
     const tradeLog = [];
     let totalTradeTax = 0; // 玩家获得的贸易税
+    const resourceDelta = {};
+    const nationDelta = {};
+
+    const addResourceDelta = (key, amount) => {
+        if (!Number.isFinite(amount) || amount === 0) return;
+        resourceDelta[key] = (resourceDelta[key] || 0) + amount;
+    };
+
+    const addNationDelta = (nationId, delta) => {
+        if (!nationId || !delta) return;
+        if (!nationDelta[nationId]) {
+            nationDelta[nationId] = { budget: 0, relation: 0, inventory: {} };
+        }
+        if (Number.isFinite(delta.budget)) {
+            nationDelta[nationId].budget += delta.budget;
+        }
+        if (Number.isFinite(delta.relation)) {
+            nationDelta[nationId].relation += delta.relation;
+        }
+        if (delta.inventory) {
+            Object.entries(delta.inventory).forEach(([resKey, amount]) => {
+                if (!Number.isFinite(amount) || amount === 0) return;
+                nationDelta[nationId].inventory[resKey] =
+                    (nationDelta[nationId].inventory[resKey] || 0) + amount;
+            });
+        }
+    };
 
     // 只处理前 merchantCount 条贸易路线（有多少个商人在岗就让多少条贸易路线有用）
     routes.forEach((route, index) => {
@@ -176,29 +201,17 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
                 return;
             }
 
-            // 更新玩家资源：扣除出口的资源，获得交易税
-            setResources(prev => ({
-                ...prev,
-                silver: (prev.silver || 0) + tradeTax,
-                [resource]: Math.max(0, (prev[resource] || 0) - exportAmount),
-            }));
+            // 更新玩家资源：扣除出口的资源，交易税交给 simulation 统一处理
+            addResourceDelta(resource, -exportAmount);
             totalTradeTax += tradeTax;
 
             // 更新外国：支付给商人，获得资源
             // force_sell：关系下降（被倾销），并且对方预算扣款更小（视为“低价抢购”）
-            setNations(prev => prev.map(n =>
-                n.id === nationId
-                    ? {
-                        ...n,
-                        budget: Math.max(0, (n.budget || 0) - foreignSaleRevenue),
-                        inventory: {
-                            ...n.inventory,
-                            [resource]: ((n.inventory || {})[resource] || 0) + exportAmount,
-                        },
-                        relation: Math.min(100, Math.max(-100, (n.relation || 0) + (isForceSell ? (isOpenMarketActive ? 0.2 : -0.6) : 0.2))),
-                    }
-                    : n
-            ));
+            addNationDelta(nationId, {
+                budget: -foreignSaleRevenue,
+                relation: isForceSell ? (isOpenMarketActive ? 0.2 : -0.6) : 0.2,
+                inventory: { [resource]: exportAmount },
+            });
 
         } else if (type === 'import') {
             // 进口：商人在国外以国外价购买，在国内以国内价卖出
@@ -243,29 +256,17 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
                 return;
             }
 
-            // 更新玩家资源：增加进口的资源，获得交易税
-            setResources(prev => ({
-                ...prev,
-                silver: (prev.silver || 0) + tradeTax,
-                [resource]: (prev[resource] || 0) + importAmount,
-            }));
+            // 更新玩家资源：增加进口的资源，交易税交给 simulation 统一处理
+            addResourceDelta(resource, importAmount);
             totalTradeTax += tradeTax;
 
             // 更新外国：收到商人支付，失去资源
             // force_buy：关系下降（被强买），库存允许被压到0
-            setNations(prev => prev.map(n =>
-                n.id === nationId
-                    ? {
-                        ...n,
-                        budget: (n.budget || 0) + foreignPurchaseCost,
-                        inventory: {
-                            ...n.inventory,
-                            [resource]: Math.max(0, ((n.inventory || {})[resource] || 0) - importAmount),
-                        },
-                        relation: Math.min(100, Math.max(-100, (n.relation || 0) + (isForceBuy ? (isOpenMarketActive ? 0.2 : -0.6) : 0.2))),
-                    }
-                    : n
-            ));
+            addNationDelta(nationId, {
+                budget: foreignPurchaseCost,
+                relation: isForceBuy ? (isOpenMarketActive ? 0.2 : -0.6) : 0.2,
+                inventory: { [resource]: -importAmount },
+            });
 
             if (importAmount >= 1 && !isForceBuy) {
                 tradeLog.push(`🚢 进口 ${importAmount.toFixed(1)} ${RESOURCES[resource]?.name || resource} 从 ${nation.name}：商人国外购 ${foreignPurchaseCost.toFixed(1)} 银币，国内售 ${domesticSaleRevenue.toFixed(1)} 银币（税 ${tradeTax.toFixed(1)}），商人赚 ${merchantProfit.toFixed(1)} 银币。`);
@@ -274,7 +275,25 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
     });
 
     // 移除无效的贸易路线
-    if (routesToRemove.length > 0) {
+    return { tradeTax: totalTradeTax, resourceDelta, nationDelta, routesToRemove, tradeLog };
+};
+
+const applyTradeRouteDeltas = (summary, current, addLog, setResources, setNations, setTradeRoutes, options = {}) => {
+    if (!summary) return;
+    const {
+        resourceDelta = {},
+        nationDelta = {},
+        routesToRemove = [],
+        tradeLog = [],
+    } = summary;
+    const {
+        applyResourceDelta = true,
+        applyNationDelta = true,
+        applyRouteRemoval = true,
+        applyLogs = true,
+    } = options;
+
+    if (applyRouteRemoval && routesToRemove.length > 0) {
         setTradeRoutes(prev => ({
             ...prev,
             routes: prev.routes.filter(route =>
@@ -287,23 +306,60 @@ const processTradeRoutes = (current, result, addLog, setResources, setNations, s
         }));
     }
 
-    // 添加日志
-    const logVisibility = current?.eventEffectSettings?.logVisibility || {};
-    const shouldLogMerchantTrades = logVisibility.showMerchantTradeLogs ?? true;
-    const shouldLogTradeRoutes = logVisibility.showTradeRouteLogs ?? true;
-
-    // Merchant autonomous trade details
-    if (shouldLogMerchantTrades) {
-        tradeLog.forEach(log => addLog(log));
+    if (applyResourceDelta && Object.keys(resourceDelta).length > 0) {
+        setResources(prev => {
+            const next = { ...prev };
+            Object.entries(resourceDelta).forEach(([key, delta]) => {
+                const currentValue = next[key] || 0;
+                next[key] = Math.max(0, currentValue + delta);
+            });
+            return next;
+        });
     }
 
-    // Trade route summary logs (if any in future)
-    if (!shouldLogTradeRoutes) {
-        // currently trade routes only output detailed logs above;
-        // keep this block to ensure future trade-route logs can be gated centrally.
+    if (applyNationDelta && Object.keys(nationDelta).length > 0) {
+        setNations(prev => prev.map(n => {
+            const delta = nationDelta[n.id];
+            if (!delta) return n;
+            const nextInventory = { ...(n.inventory || {}) };
+            Object.entries(delta.inventory || {}).forEach(([resKey, amount]) => {
+                nextInventory[resKey] = Math.max(0, (nextInventory[resKey] || 0) + amount);
+            });
+            return {
+                ...n,
+                budget: Math.max(0, (n.budget || 0) + (delta.budget || 0)),
+                inventory: nextInventory,
+                relation: Math.min(100, Math.max(-100, (n.relation || 0) + (delta.relation || 0))),
+            };
+        }));
     }
 
-    return { tradeTax: totalTradeTax };
+    if (applyLogs) {
+        const logVisibility = current?.eventEffectSettings?.logVisibility || {};
+        const shouldLogMerchantTrades = logVisibility.showMerchantTradeLogs ?? true;
+        const shouldLogTradeRoutes = logVisibility.showTradeRouteLogs ?? true;
+
+        if (shouldLogMerchantTrades) {
+            tradeLog.forEach(log => addLog(log));
+        }
+
+        if (!shouldLogTradeRoutes) {
+            // currently trade routes only output detailed logs above;
+            // keep this block to ensure future trade-route logs can be gated centrally.
+        }
+    }
+};
+
+
+const applyResourceDeltaToSnapshot = (resources = {}, delta = {}) => {
+    if (!delta || Object.keys(delta).length === 0) return resources || {};
+    const next = { ...(resources || {}) };
+    Object.entries(delta).forEach(([key, amount]) => {
+        if (!Number.isFinite(amount) || amount === 0) return;
+        const currentValue = next[key] || 0;
+        next[key] = Math.max(0, currentValue + amount);
+    });
+    return next;
 };
 
 const getUnitPopulationCost = (unitId) => {
@@ -852,151 +908,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
     const historyUpdateCounterRef = useRef(0);
     const HISTORY_UPDATE_INTERVAL = 1; // 每1个tick更新一次历史数据（保留最近30天）
 
-    // ========== Web Worker Integration ==========
-    // Worker instance and status for background simulation
-    const workerRef = useRef(null);
-    const workerReadyRef = useRef(false);
-    const pendingSimulationRef = useRef(null); // Stores callback for pending worker result
-    const pendingLatestRef = useRef(null); // Stores latest queued simulation when worker is busy
-    const [useWorker, setUseWorker] = useState(true); // Whether to attempt using worker
-
-    const startWorkerSimulation = useCallback((simulationParams, resolve, reject) => {
-        pendingSimulationRef.current = { resolve, reject };
-
-        // Set timeout for worker response
-        const timeout = setTimeout(() => {
-            if (pendingSimulationRef.current) {
-                console.warn('[GameLoop] Worker timeout, falling back to main thread');
-                pendingSimulationRef.current = null;
-                // Fallback to synchronous execution
-                try {
-                    const result = simulateTick(simulationParams);
-                    resolve(result);
-                } catch (err) {
-                    reject(err);
-                }
-            }
-        }, 2000); // 2 second timeout
-
-        try {
-            workerRef.current.postMessage({
-                type: 'SIMULATE',
-                payload: simulationParams
-            });
-
-            // Replace resolve to clear timeout on success
-            const originalResolve = pendingSimulationRef.current.resolve;
-            pendingSimulationRef.current.resolve = (result) => {
-                clearTimeout(timeout);
-                originalResolve(result);
-            };
-        } catch (postError) {
-            // PostMessage failed (non-cloneable data), fallback
-            clearTimeout(timeout);
-            pendingSimulationRef.current = null;
-            console.warn('[GameLoop] postMessage failed:', postError);
-            try {
-                const result = simulateTick(simulationParams);
-                resolve(result);
-            } catch (err) {
-                reject(err);
-            }
-        }
-    }, []);
-
-    // Initialize Web Worker
-    useEffect(() => {
-        // Only initialize if we want to use Worker and haven't already
-        if (!useWorker || workerRef.current) return;
-
-        try {
-            const worker = new SimulationWorker();
-
-            worker.onmessage = (event) => {
-                const { type, payload, error } = event.data;
-
-                if (type === 'READY') {
-                    console.log('[GameLoop] Simulation Worker ready');
-                    workerReadyRef.current = true;
-                } else if (type === 'RESULT') {
-                    // Handle simulation result from Worker
-                    if (pendingSimulationRef.current) {
-                        pendingSimulationRef.current.resolve(payload);
-                        pendingSimulationRef.current = null;
-                    }
-                    if (pendingLatestRef.current && workerRef.current && workerReadyRef.current) {
-                        const { params, resolve, reject } = pendingLatestRef.current;
-                        pendingLatestRef.current = null;
-                        startWorkerSimulation(params, resolve, reject);
-                    }
-                } else if (type === 'ERROR') {
-                    console.error('[GameLoop] Worker error:', error);
-                    if (pendingSimulationRef.current) {
-                        pendingSimulationRef.current.reject(new Error(error));
-                        pendingSimulationRef.current = null;
-                    }
-                    if (pendingLatestRef.current) {
-                        pendingLatestRef.current.reject(new Error(error));
-                        pendingLatestRef.current = null;
-                    }
-                }
-            };
-
-            worker.onerror = (error) => {
-                console.error('[GameLoop] Worker crashed:', error);
-                workerReadyRef.current = false;
-                setUseWorker(false); // Disable worker, fallback to main thread
-                if (pendingSimulationRef.current) {
-                    pendingSimulationRef.current.reject(new Error('Worker crashed'));
-                    pendingSimulationRef.current = null;
-                }
-                if (pendingLatestRef.current) {
-                    pendingLatestRef.current.reject(new Error('Worker crashed'));
-                    pendingLatestRef.current = null;
-                }
-            };
-
-            workerRef.current = worker;
-        } catch (error) {
-            console.warn('[GameLoop] Failed to create Worker, using main thread:', error);
-            setUseWorker(false);
-        }
-
-        return () => {
-            if (workerRef.current) {
-                workerRef.current.terminate();
-                workerRef.current = null;
-                workerReadyRef.current = false;
-            }
-        };
-    }, [useWorker]);
-
-    // Helper to run simulation (Worker or main thread)
-    const runSimulation = useCallback((simulationParams) => {
-        // Check if Worker is available and ready
-        if (useWorker && workerRef.current && workerReadyRef.current) {
-            if (pendingSimulationRef.current) {
-                // Worker busy: keep only the latest frame
-                return new Promise((resolve, reject) => {
-                    if (pendingLatestRef.current) {
-                        pendingLatestRef.current.resolve({ __skipped: true });
-                    }
-                    pendingLatestRef.current = {
-                        params: simulationParams,
-                        resolve,
-                        reject
-                    };
-                });
-            }
-
-            return new Promise((resolve, reject) => {
-                startWorkerSimulation(simulationParams, resolve, reject);
-            });
-        }
-
-        // Fallback: synchronous execution on main thread
-        return Promise.resolve(simulateTick(simulationParams));
-    }, [useWorker, startWorkerSimulation]);
+    const { runSimulation } = useSimulationWorker();
 
     useEffect(() => {
         saveGameRef.current = gameState.saveGame;
@@ -1216,11 +1128,20 @@ export const useGameLoop = (gameState, addLog, actions) => {
             const officialDailySalary = calculateTotalDailySalary(current.officials || []);
             const canAffordOfficials = (current.resources?.silver || 0) >= officialDailySalary;
 
+            // Process trade routes before simulation so their tax revenue is applied inside the worker.
+            let tradeRouteSummary = null;
+            if (current.tradeRoutes && current.tradeRoutes.routes && current.tradeRoutes.routes.length > 0) {
+                tradeRouteSummary = processTradeRoutes(current);
+            }
+            const tradeRouteTax = tradeRouteSummary?.tradeTax || 0;
+            const tradeRouteResourceDelta = tradeRouteSummary?.resourceDelta || {};
+            setTradeStats(prev => ({ ...prev, tradeRouteTax }));
+
             // Build simulation parameters - 手动列出可序列化字段，排除函数对象（如 actions）
             // 这样可以正确启用 Web Worker 加速，避免 DataCloneError
             const simulationParams = {
                 // 基础游戏数据
-                resources: current.resources,
+                resources: applyResourceDeltaToSnapshot(current.resources, tradeRouteResourceDelta),
                 market: current.market,
                 buildings: current.buildings,
                 buildingUpgrades: current.buildingUpgrades,
@@ -1291,6 +1212,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 merchantState: current.merchantState,
                 tradeRoutes: current.tradeRoutes,
                 tradeStats: current.tradeStats,
+                tradeRouteTax,
 
                 // Buff/Debuff
                 activeBuffs: current.activeBuffs,
@@ -1518,13 +1440,20 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 console.log('  营业税:', (breakdown.businessTax || 0).toFixed(2));
                 console.log('  关税:', (breakdown.tariff || 0).toFixed(2));
                 if (breakdown.warIndemnity) console.log('  战争赔款收入:', breakdown.warIndemnity.toFixed(2));
+                if (breakdown.tradeRouteTax) console.log('  贸易路线税收:', breakdown.tradeRouteTax.toFixed(2));
                 if (breakdown.policyIncome) console.log('  政令收益:', breakdown.policyIncome.toFixed(2));
                 if (breakdown.priceControlIncome) console.log('  价格管制收入:', breakdown.priceControlIncome.toFixed(2));
-                const totalIncome = (breakdown.headTax || 0) + (breakdown.industryTax || 0) +
-                    (breakdown.businessTax || 0) + (breakdown.tariff || 0) +
-                    (breakdown.warIndemnity || 0) + (breakdown.policyIncome || 0) +
-                    (breakdown.priceControlIncome || 0);
+                const effectiveFiscalIncome = typeof breakdown.totalFiscalIncome === 'number'
+                    ? breakdown.totalFiscalIncome
+                    : (breakdown.headTax || 0) + (breakdown.industryTax || 0) +
+                        (breakdown.businessTax || 0) + (breakdown.tariff || 0) +
+                        (breakdown.warIndemnity || 0);
+                const totalIncome = effectiveFiscalIncome + (breakdown.priceControlIncome || 0) +
+                    (breakdown.tradeRouteTax || 0);
                 console.log('  ✅ 总收入:', totalIncome.toFixed(2));
+                if (typeof breakdown.incomePercentMultiplier === 'number') {
+                    console.log('  📌 收入加成倍率:', `×${breakdown.incomePercentMultiplier.toFixed(2)}`);
+                }
                 if (taxes.efficiency && taxes.efficiency < 1) {
                     console.log('  📊 税收效率:', (taxes.efficiency * 100).toFixed(1) + '%',
                         `(损失: ${(totalIncome * (1 - taxes.efficiency)).toFixed(2)} 银币)`);
@@ -1859,8 +1788,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 const previousDemandHistory = current.market?.demandHistory || {};
                 const demandHistory = { ...previousDemandHistory };
 
-                const MAX_MARKET_HISTORY_POINTS = 30;
-
+                const MAX_MARKET_HISTORY_POINTS = HISTORY_STORAGE_LIMIT;
                 Object.keys(result.market?.prices || {}).forEach(resource => {
                     const price = result.market?.prices?.[resource];
 
@@ -1891,7 +1819,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
                 const previousWealthHistory = current.classWealthHistory || {};
                 const wealthHistory = { ...previousWealthHistory };
-                const MAX_WEALTH_POINTS = 30;
+                const MAX_WEALTH_POINTS = HISTORY_STORAGE_LIMIT;
                 Object.entries(result.classWealth || {}).forEach(([key, value]) => {
                     const series = wealthHistory[key] ? [...wealthHistory[key]] : [];
                     series.push(value);
@@ -1903,7 +1831,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
                 const previousNeedsHistory = current.classNeedsHistory || {};
                 const needsHistory = { ...previousNeedsHistory };
-                const MAX_NEEDS_POINTS = 30;
+                const MAX_NEEDS_POINTS = HISTORY_STORAGE_LIMIT;
                 Object.entries(result.needsReport || {}).forEach(([key, report]) => {
                     const series = needsHistory[key] ? [...needsHistory[key]] : [];
                     series.push(report.satisfactionRatio);
@@ -1931,7 +1859,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     historyUpdateCounterRef.current++;
                 }
 
-                const MAX_HISTORY_POINTS = 30;
+                const MAX_HISTORY_POINTS = HISTORY_STORAGE_LIMIT;
                 if (shouldUpdateHistory) {
                     setHistory(prevHistory => {
                         const appendValue = (series = [], value) => {
@@ -2739,16 +2667,19 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 }
 
                 // 处理贸易路线并记录贸易税收入
-                let tradeTax = 0;
-                if (current.tradeRoutes && current.tradeRoutes.routes && current.tradeRoutes.routes.length > 0) {
-                    const summary = processTradeRoutes(current, result, addLog, setResources, setNations, setTradeRoutes);
-                    if (summary) {
-                        tradeTax = summary.tradeTax || 0;
-                    }
-                }
-                setTradeStats({ tradeTax });
-
                 // 处理玩家的分期支付
+                if (tradeRouteSummary) {
+                    applyTradeRouteDeltas(
+                        tradeRouteSummary,
+                        current,
+                        addLog,
+                        setResources,
+                        setNations,
+                        setTradeRoutes,
+                        { applyResourceDelta: false }
+                    );
+                }
+
                 if (gameState.playerInstallmentPayment && gameState.playerInstallmentPayment.remainingDays > 0) {
                     const payment = gameState.playerInstallmentPayment;
                     const paymentAmount = payment.amount;
@@ -2896,7 +2827,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         return log;
                     });
 
-                    setLogs(prev => [...processedLogs.filter(log => log !== null), ...prev].slice(0, 128));
+                    setLogs(prev => [...processedLogs.filter(log => log !== null), ...prev].slice(0, LOG_STORAGE_LIMIT));
 
                     // 检测外交事件并触发事件系统
                     const currentActions = current.actions;

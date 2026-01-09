@@ -672,6 +672,27 @@ const executeExportTradeV2 = ({
         appliedTax = tax;
     }
 
+    const baseRate = taxPolicies?.resourceTaxRates?.[resourceKey] || 0;
+    const tariffRate = taxPolicies?.exportTariffMultipliers?.[resourceKey] ?? taxPolicies?.resourceTariffMultipliers?.[resourceKey] ?? 0;
+    const baseTaxPaid = cost * baseRate * batchMultiplier;
+    const tariffPerUnit = cost * tariffRate;
+    let appliedTariff = 0;
+
+    if (tariffPerUnit > 0) {
+        outlay += tariffPerUnit;
+        appliedTariff = tariffPerUnit;
+    } else if (tariffPerUnit < 0) {
+        const subsidy = Math.abs(tariffPerUnit) * batchMultiplier;
+        if ((res.silver || 0) >= subsidy) {
+            outlay -= Math.abs(tariffPerUnit);
+            appliedTariff = tariffPerUnit;
+        } else {
+            logs.push(`Treasury empty, cannot pay export tariff subsidy for ${RESOURCES[resourceKey]?.name || resourceKey}!`);
+        }
+    }
+
+    appliedTax += appliedTariff;
+
     const profit = revenue - outlay;
     const profitMargin = outlay > 0 ? profit / outlay : (profit > 0 ? Infinity : -Infinity);
 
@@ -688,15 +709,15 @@ const executeExportTradeV2 = ({
 
     wealth.merchant -= totalOutlay;
 
-    const baseRate = taxPolicies?.resourceTaxRates?.[resourceKey] || 0;
-    const tariffRate = taxPolicies?.exportTariffMultipliers?.[resourceKey] ?? taxPolicies?.resourceTariffMultipliers?.[resourceKey] ?? 0;
-    const baseTaxPaid = cost * baseRate * batchMultiplier;
-    const tariffPaid = cost * tariffRate * batchMultiplier;
-
+    const tariffPaid = appliedTariff * batchMultiplier;
     if (tariffPaid > 0) {
         taxBreakdown.tariff = (taxBreakdown.tariff || 0) + tariffPaid;
     } else if (tariffPaid < 0) {
-        taxBreakdown.tariffSubsidy = (taxBreakdown.tariffSubsidy || 0) + Math.abs(tariffPaid);
+        const subsidy = Math.abs(tariffPaid);
+        if ((res.silver || 0) >= subsidy) {
+            res.silver -= subsidy;
+            taxBreakdown.tariffSubsidy = (taxBreakdown.tariffSubsidy || 0) + subsidy;
+        }
     }
 
     if (totalAppliedTax < 0) {
@@ -714,7 +735,8 @@ const executeExportTradeV2 = ({
     }
 
     if (classFinancialData && classFinancialData.merchant) {
-        const totalTaxPaid = cost * taxRate * batchMultiplier;
+        const tariffPaid = appliedTariff * batchMultiplier;
+        const totalTaxPaid = (cost * taxRate + appliedTariff) * batchMultiplier;
         if (Math.abs(tariffPaid) > 0.001) {
             classFinancialData.merchant.expense.tariffs = (classFinancialData.merchant.expense.tariffs || 0) + tariffPaid;
             const remainingTax = totalTaxPaid - tariffPaid;
@@ -940,6 +962,26 @@ const executeExportTrade = ({
         appliedTax = tax;
     }
 
+    const baseRate = taxPolicies?.resourceTaxRates?.[resourceKey] || 0;
+    const tariffRate = taxPolicies?.exportTariffMultipliers?.[resourceKey] ?? taxPolicies?.resourceTariffMultipliers?.[resourceKey] ?? 0;
+    const tariffPerUnit = cost * tariffRate;
+    let appliedTariff = 0;
+
+    if (tariffPerUnit > 0) {
+        outlay += tariffPerUnit;
+        appliedTariff = tariffPerUnit;
+    } else if (tariffPerUnit < 0) {
+        const subsidy = Math.abs(tariffPerUnit) * batchMultiplier;
+        if ((res.silver || 0) >= subsidy) {
+            outlay -= Math.abs(tariffPerUnit);
+            appliedTariff = tariffPerUnit;
+        } else {
+            logs.push(`Treasury empty, cannot pay export tariff subsidy for ${RESOURCES[resourceKey]?.name || resourceKey}!`);
+        }
+    }
+
+    appliedTax += appliedTariff;
+
     const profit = revenue - outlay;
     const profitMargin = outlay > 0 ? profit / outlay : (profit > 0 ? Infinity : -Infinity);
 
@@ -952,11 +994,9 @@ const executeExportTrade = ({
             wealth.merchant -= totalOutlay;
 
             // Separate tariff from base transaction tax for taxBreakdown
-            const baseRate = taxPolicies?.resourceTaxRates?.[resourceKey] || 0;
-            const tariffRate = taxPolicies?.exportTariffMultipliers?.[resourceKey] ?? taxPolicies?.resourceTariffMultipliers?.[resourceKey] ?? 0;
             // Tariff rate is now used directly as percentage (1 = 100% tariff)
             const baseTaxPaid = cost * baseRate * batchMultiplier;
-            const tariffPaid = cost * tariffRate * batchMultiplier;
+            const tariffPaid = appliedTariff * batchMultiplier;
             // DEBUG: 调试关税
             console.log('[EXPORT TRADE DEBUG]', resourceKey, {
                 tariffRate,
@@ -971,7 +1011,11 @@ const executeExportTrade = ({
                 taxBreakdown.tariff = (taxBreakdown.tariff || 0) + tariffPaid;
             } else if (tariffPaid < 0) {
                 // Negative tariff = export subsidy, record separately
-                taxBreakdown.tariffSubsidy = (taxBreakdown.tariffSubsidy || 0) + Math.abs(tariffPaid);
+                const subsidy = Math.abs(tariffPaid);
+                if ((res.silver || 0) >= subsidy) {
+                    res.silver -= subsidy;
+                    taxBreakdown.tariffSubsidy = (taxBreakdown.tariffSubsidy || 0) + subsidy;
+                }
             }
 
             // 记录基础交易税和补贴
@@ -989,7 +1033,7 @@ const executeExportTrade = ({
 
             // [Detailed Financials]
             if (classFinancialData && classFinancialData.merchant) {
-                const totalTaxPaid = cost * taxRate * batchMultiplier;
+                const totalTaxPaid = (cost * taxRate + appliedTariff) * batchMultiplier;
 
                 if (Math.abs(tariffPaid) > 0.001) {
                     classFinancialData.merchant.expense.tariffs = (classFinancialData.merchant.expense.tariffs || 0) + tariffPaid;
@@ -1089,6 +1133,26 @@ const executeImportTrade = ({
         appliedTax = tax;
     }
 
+    const baseRate = taxPolicies?.resourceTaxRates?.[resourceKey] || 0;
+    const tariffRate = taxPolicies?.importTariffMultipliers?.[resourceKey] ?? taxPolicies?.resourceTariffMultipliers?.[resourceKey] ?? 0;
+    const tariffPerUnit = localPrice * tariffRate;
+    let appliedTariff = 0;
+
+    if (tariffPerUnit > 0) {
+        netRevenue -= tariffPerUnit;
+        appliedTariff = tariffPerUnit;
+    } else if (tariffPerUnit < 0) {
+        const subsidy = Math.abs(tariffPerUnit) * batchMultiplier;
+        if ((res.silver || 0) >= subsidy) {
+            netRevenue += Math.abs(tariffPerUnit);
+            appliedTariff = tariffPerUnit;
+        } else {
+            logs.push(`Treasury empty, cannot pay import tariff subsidy for ${RESOURCES[resourceKey]?.name || resourceKey}!`);
+        }
+    }
+
+    appliedTax += appliedTariff;
+
     const profit = netRevenue - cost;
     const profitMargin = cost > 0 ? profit / cost : (profit > 0 ? Infinity : -Infinity);
 
@@ -1104,18 +1168,20 @@ const executeImportTrade = ({
             applyForeignInventoryDeltaAll(resourceKey, -totalAmount);
 
             // Separate tariff from base transaction tax for taxBreakdown
-            const baseRate = taxPolicies?.resourceTaxRates?.[resourceKey] || 0;
-            const tariffRate = taxPolicies?.importTariffMultipliers?.[resourceKey] ?? taxPolicies?.resourceTariffMultipliers?.[resourceKey] ?? 0;
             // Tariff rate is now used directly as percentage (1 = 100% tariff)
             const baseTaxPaid = grossRevenue * baseRate * batchMultiplier;
-            const tariffPaid = grossRevenue * tariffRate * batchMultiplier;
+            const tariffPaid = appliedTariff * batchMultiplier;
 
             // 记录关税（无论总税收正负，关税都要独立记录）
             if (tariffPaid > 0) {
                 taxBreakdown.tariff = (taxBreakdown.tariff || 0) + tariffPaid;
             } else if (tariffPaid < 0) {
                 // Negative tariff = import subsidy, record separately
-                taxBreakdown.tariffSubsidy = (taxBreakdown.tariffSubsidy || 0) + Math.abs(tariffPaid);
+                const subsidy = Math.abs(tariffPaid);
+                if ((res.silver || 0) >= subsidy) {
+                    res.silver -= subsidy;
+                    taxBreakdown.tariffSubsidy = (taxBreakdown.tariffSubsidy || 0) + subsidy;
+                }
             }
 
             // 记录基础交易税和补贴
@@ -1133,7 +1199,7 @@ const executeImportTrade = ({
 
             // [Detailed Financials]
             if (classFinancialData && classFinancialData.merchant) {
-                const totalTaxPaid = grossRevenue * taxRate * batchMultiplier;
+                const totalTaxPaid = (grossRevenue * taxRate + appliedTariff) * batchMultiplier;
 
                 if (Math.abs(tariffPaid) > 0.001) {
                     classFinancialData.merchant.expense.tariffs = (classFinancialData.merchant.expense.tariffs || 0) + tariffPaid;

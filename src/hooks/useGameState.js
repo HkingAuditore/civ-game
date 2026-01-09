@@ -735,7 +735,7 @@ export const useGameState = () => {
 
     // ========== 贸易路线状态 ==========
     const [tradeRoutes, setTradeRoutes] = useState(buildInitialTradeRoutes); // 玩家创建的贸易路线
-    const [tradeStats, setTradeStats] = useState({ tradeTax: 0 }); // 每日贸易路线税收
+    const [tradeStats, setTradeStats] = useState({ tradeTax: 0, tradeRouteTax: 0 }); // 每日贸易路线税收
 
     // ========== 和平协议状态 ==========
     // ========== 策略行动状态 ==========
@@ -1319,7 +1319,7 @@ export const useGameState = () => {
                 : (loadedMerchantStateRaw?.assignments && typeof loadedMerchantStateRaw.assignments === 'object' ? loadedMerchantStateRaw.assignments : {}),
         });
         setTradeRoutes(data.tradeRoutes || buildInitialTradeRoutes());
-        setTradeStats(data.tradeStats || { tradeTax: 0 });
+        setTradeStats(data.tradeStats || { tradeTax: 0, tradeRouteTax: 0 });
         setAutoSaveInterval(data.autoSaveInterval ?? 60);
         setIsAutoSaveEnabled(data.isAutoSaveEnabled ?? true);
         setLastAutoSaveTime(data.lastAutoSaveTime || Date.now());
