@@ -4,6 +4,7 @@
  */
 
 import { STRATA, RESOURCES, ECONOMIC_INFLUENCE } from '../../config';
+import { getHeadTaxRate } from './taxes';
 import { PRICE_FLOOR, BASE_WAGE_REFERENCE } from '../utils/constants';
 import { getBasePrice } from '../utils/helpers';
 
@@ -19,6 +20,8 @@ export const computeLivingCosts = (
     headTaxRates = {},
     resourceTaxRates = {}
 ) => {
+    const headTaxImpactMax = 4;
+    const headTaxImpactCurve = 4;
     const breakdown = {};
     Object.entries(STRATA).forEach(([key, def]) => {
         let needsCost = 0;
@@ -36,8 +39,9 @@ export const computeLivingCosts = (
             taxCost += perCapita * price * taxRate;
         });
         const headBase = Math.max(0, def.headTaxBase ?? 0);
-        const headRate = Math.max(0, headTaxRates?.[key] ?? 1);
-        taxCost += headBase * headRate;
+        const headRate = Math.max(0, getHeadTaxRate(key, headTaxRates));
+        const headRateImpact = headTaxImpactMax * (headRate / (headRate + headTaxImpactCurve));
+        taxCost += headBase * headRateImpact;
         breakdown[key] = {
             needsCost: Number.isFinite(needsCost) ? needsCost : 0,
             taxCost: Number.isFinite(taxCost) ? taxCost : 0,
