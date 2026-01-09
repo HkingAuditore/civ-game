@@ -7,11 +7,19 @@ import { Modal } from '../common/UnifiedUI';
 import { BottomSheet } from './BottomSheet';
 import { DeclareWarModal } from '../modals/DeclareWarModal';
 import TradeRoutesModal from '../modals/TradeRoutesModal';
-import { RESOURCES } from '../../config';
+import {
+    DIPLOMACY_ERA_UNLOCK,
+    EPOCHS,
+    RESOURCES,
+    TREATY_TYPE_LABELS,
+    getTreatyDuration,
+    isDiplomacyUnlocked
+} from '../../config';
 import { calculateNationBattlePower } from '../../config/militaryUnits';
 import { calculateForeignPrice, calculateTradeStatus } from '../../utils/foreignTrade';
 import { calculateDynamicGiftCost, calculateProvokeCost } from '../../utils/diplomaticUtils';
 import { formatNumberShortCN } from '../../utils/numberFormat';
+import { calculateNegotiationAcceptChance } from '../../logic/diplomacy/negotiation';
 
 const relationInfo = (relation = 0, isAllied = false) => {
     // 如果是正式盟友，显示盟友标签
@@ -23,8 +31,25 @@ const relationInfo = (relation = 0, isAllied = false) => {
     if (relation >= 20) return { label: '冷淡', color: 'text-yellow-300', bg: 'bg-yellow-900/20' };
     return { label: '敌对', color: 'text-red-300', bg: 'bg-red-900/20' };
 };
+const getTreatyLabel = (type) => TREATY_TYPE_LABELS[type] || type;
+const getTreatyUnlockEraName = (type) => {
+    const unlockEra = DIPLOMACY_ERA_UNLOCK.treaties[type]?.minEra ?? 0;
+    return EPOCHS[unlockEra]?.name || `Era ${unlockEra}`;
+};
 
-/**
+const NEGOTIATION_MAX_ROUNDS = 3;
+const NEGOTIABLE_TREATY_TYPES = [
+    'peace_treaty',
+    'non_aggression',
+    'trade_agreement',
+    'free_trade',
+    'open_market',
+    'investment_pact',
+    'academic_exchange',
+    'defensive_pact',
+];
+
+
  * Calculate max trade routes allowed with a nation based on relation and alliance
  * @param {number} relation - Relation value (0-100)
  * @param {boolean} isAllied - Whether formally allied with this nation
@@ -39,7 +64,6 @@ const getMaxTradeRoutesForRelation = (relation = 0, isAllied = false) => {
     return 0; // Hostile: no trade
 };
 
-/**
  * Get count of trade routes with a specific nation
  * @param {Array} routes - All trade routes
  * @param {string} nationId - Target nation ID
@@ -101,111 +125,10 @@ const getPreferredResources = (nation) => {
 };
 
 const CULTURAL_TRAIT_LABELS = {
-    // --- 适应与生存 ---
-    adaptability: '环境适应力',      // 比“适应性”更有生命力
-    austereLiving: '清苦自律',       // 对应斯巴达/斯多葛学派，比“简朴生活”更有哲学感
-    resourcefulSurvival: '绝境求生', // 体现利用有限资源的智慧
-    frontierSpirit: '开拓精神',      // 对应美国边疆历史
-    sacrificialCulture: '血祭传统',  // “献祭”略显中性，阿兹特克风格通常带血腥色彩
-
-    // --- 军事与战争 ---
-    ageRegiments: '年龄组兵制',      // 对应祖鲁 Impi 的同龄兵团制度
-    bushidoCode: '武士道',
-    cavalryTradition: '骑术传统',
-    conquistadorSpirit: '征服者',    // 西班牙特有
-    defensiveFocus: '城防重地',      // 比“防御重心”更像战略术语
-    flowerWars: '荣冠战争',          // 阿兹特克 Xochiyaoyotl 的意译，或保留“花之战争”
-    gunpowderEmpire: '火药帝国',
-    honorCode: '荣誉信条',
-    horseLordSupremacy: '马背霸权',  // 比“骑兵霸权”更有游牧感
-    janissarySystem: '耶尼切里制',   // 奥斯曼特有新军，比“近卫军”更准确
-    mercenaryArmy: '雇佣兵团',
-    militaryDiscipline: '军纪严明',
-    militaryFocus: '尚武之风',       // “军事聚焦”太生硬
-    militaryInnovation: '军事革新',
-    militaryPrecision: '兵贵精准',
-    militarySociety: '军国社会',
-    militaryTradition: '戎马传统',
-    mobilityFocus: '机动战术',
-    navalSupremacy: '海上霸主',
-    navalTradition: '航海传统',
-    raidingCulture: '掠夺成性',      // 维京/游牧风格
-    rapidConquest: '兵贵神速',       // 意译 Rapid Conquest
-    strategicDepth: '战略纵深',      // 如果有 vastTerritory 类似的
-
-    // --- 政治与统治 ---
-    autocraticRule: '独裁统治',
-    bureaucraticEfficiency: '吏治高效', // “官僚效率”太现代
-    bureaucraticState: '科层国家',      // 或“官僚体制”
-    celestialMandate: '天命所归',       // 中国特色
-    colonialEmpire: '殖民帝国',
-    democracyBirthplace: '民主摇篮',
-    democraticIdeals: '民主理想',
-    diplomaticMastery: '纵横捭阖',      // 极具外交手腕的雅称
-    diplomaticModifier: '外交修正',     // 游戏术语保留
-    divineKingship: '神授王权',
-    examSystem: '科举制度',             // 专指中国/东亚
-    helotSystem: '黑劳士制',            // 斯巴达特有奴隶制
-    imperialGrandeur: '帝国荣光',
-    imperialLegacy: '帝国遗产',
-    isolationism: '闭关锁国',           // 比“孤立主义”更有历史感
-    isolationist: '排外倾向',
-    junkertradition: '容克贵族',        // 普鲁士
-    laborTax: '徭役制度',               // 古代劳役税的专称
-    legalTradition: '法典传统',
-    manifestDestiny: '天命昭昭',        // 美国西进运动专有名词
-    multiculturalRule: '多元共治',
-    nobleRepublic: '贵族共和',          // 波兰立陶宛联邦
-    parliamentarySystem: '议会政治',
-    tributeSystem: '朝贡体系',          // 东方外交体系
-
-    // --- 经济与贸易 ---
-    agriculturalFocus: '农本思想',      // 或“重农传统”
-    cattleWealth: '牧群资产',           // 非洲游牧民族以牛为财
-    financialExpertise: '金融专长',
-    financialInnovation: '金融革新',
-    goldTrade: '黄金商路',
-    infrastructureFocus: '大兴土木',    // 比“基础设施”更生动
-    marketExpertise: '商贾优势',
-    mercantileTradition: '重商主义',
-    miningExpertise: '矿业专精',
-    navalCommerce: '海路通商',
-    peacefulTrade: '互市通商',
-    tradeProtection: '贸易壁垒',        // 或“保护主义”
-    tradingCompany: '特许商号',         // 对应东印度公司
-    tradingStyle: '贸易风格',
-    transaharaTrade: '穿越沙海',        // 跨撒哈拉贸易的雅称
-
-    // --- 文化、宗教与科技 ---
-    artisticPatronage: '文艺庇护',      // 对应文艺复兴时期的 Patronage
-    astronomyAdvanced: '观星造诣',      // 比“天文学精研”更古雅
-    cradle: '文明摇篮',
-    craftExcellence: '巧夺天工',        // 形容工艺
-    culturalHegemony: '文化霸权',
-    engineeringAdvanced: '工程卓越',
-    explorationBonus: '探索加成',
-    explorerSpirit: '探险精神',
-    floatingGardens: '水上圃田',        // 也就是“奇南帕”，避免与巴比伦“空中花园”混淆
-    ideologicalExport: '思潮输出',
-    industrialPioneer: '工业先驱',
-    islamicLearning: '伊斯兰治学',
-    missionaryZeal: '传教热忱',
-    monumentBuilding: '奇观建造',       // 游戏玩家通俗语
-    orthodoxCenter: '正教中心',
-    orthodoxFaith: '东正信仰',
-    philosophyCenter: '哲思圣地',
-    religiousFervor: '狂热信仰',
-    religiousFocus: '宗教核心',
-    religiousMission: '神圣使命',
-    religiousSyncretism: '三教合流',    // 意译 Syncretism，或“信仰融合”
-    religiousTolerance: '宗教宽容',
-    riverCivilization: '大河文明',
-    roadNetwork: '驰道网络',            // “道路”太普通，古称“驰道”或“驿路”
-    scientificAdvancement: '科学昌明',
-    seafaringMastery: '纵横四海',       // 航海精通的雅称
-    sunWorship: '太阳崇拜',
-    vastTerritory: '疆域辽阔',
-    writingInventor: '文字始祖',
+    adaptability: 'Adaptability',
+    militaryFocus: 'Military focus',
+    marketExpertise: 'Market expertise',
+    diplomaticMastery: 'Diplomatic mastery',
 };
 
 const TRADE_STYLE_LABELS = {
@@ -257,31 +180,30 @@ const DiplomacyTabComponent = ({
     const [showDeclareWarModal, setShowDeclareWarModal] = useState(false);
     // State for trade routes management modal
     const [showTradeRoutesModal, setShowTradeRoutesModal] = useState(false);
+    // State for multi-round negotiation modal
+    const [showNegotiationModal, setShowNegotiationModal] = useState(false);
+    const [negotiationRound, setNegotiationRound] = useState(1);
+    const [negotiationCounter, setNegotiationCounter] = useState(null);
+    const [negotiationDraft, setNegotiationDraft] = useState({
+        type: 'trade_agreement',
+        durationDays: 365,
+        maintenancePerDay: 0,
+        signingGift: 0,
+        resourceKey: '',
+        resourceAmount: 0,
+        stance: 'normal',
+    });
     const [showNationModal, setShowNationModal] = useState(false);
     const [sheetSection, setSheetSection] = useState('diplomacy');
 
     // 外交动作冷却时间配置（天数）
     const DIPLOMATIC_COOLDOWNS = {
-        gift: 30,           // 送礼：30天冷却
-        demand: 60,         // 索要：60天冷却
-        provoke: 90,        // 挑拨：90天冷却
-        propose_alliance: 60, // 请求结盟：60天冷却
-        propose_treaty: 120,  // 条约提案：120天冷却（MVP）
-    };
-
-    // 计算外交动作冷却状态
-    const getDiplomaticCooldown = (nation, action) => {
-        if (!nation || !DIPLOMATIC_COOLDOWNS[action]) return { isOnCooldown: false, remainingDays: 0 };
-        const lastActionDay = nation.lastDiplomaticActionDay?.[action] || 0;
-        const baseCooldown = DIPLOMATIC_COOLDOWNS[action];
-        const cooldownDays = baseCooldown
-            ? Math.max(1, Math.round(baseCooldown * (1 + diplomaticCooldownMod)))
-            : baseCooldown;
-        const daysSinceLastAction = daysElapsed - lastActionDay;
-        if (lastActionDay > 0 && daysSinceLastAction < cooldownDays) {
-            return { isOnCooldown: true, remainingDays: cooldownDays - daysSinceLastAction };
-        }
-        return { isOnCooldown: false, remainingDays: 0 };
+        gift: 30,
+        demand: 60,
+        provoke: 90,
+        propose_alliance: 60,
+        propose_treaty: 120,
+        negotiate_treaty: 120,
     };
 
     const tradableResources = useMemo(
@@ -322,6 +244,72 @@ const DiplomacyTabComponent = ({
     const selectedNation =
         visibleNations.find((nation) => nation.id === selectedNationId) || visibleNations[0] || null;
     const selectedRelation = selectedNation ? relationInfo(selectedNation.relation, selectedNation.alliedWithPlayer === true) : null;
+    const negotiationUnlocked = isDiplomacyUnlocked('economy', 'multi_round_negotiation', epoch);
+
+    const getDefaultNegotiationType = () => {
+        const unlockedType = NEGOTIABLE_TREATY_TYPES.find((type) => isDiplomacyUnlocked('treaties', type, epoch));
+        return unlockedType || 'peace_treaty';
+    };
+
+    const buildNegotiationDraft = (type) => ({
+        type,
+        durationDays: getTreatyDuration(type, epoch),
+        maintenancePerDay: 0,
+        signingGift: 0,
+        resourceKey: '',
+        resourceAmount: 0,
+        stance: 'normal',
+    });
+
+    const openNegotiationModal = () => {
+        const type = getDefaultNegotiationType();
+        setNegotiationDraft(buildNegotiationDraft(type));
+        setNegotiationCounter(null);
+        setNegotiationRound(1);
+        setShowNegotiationModal(true);
+    };
+
+    const closeNegotiationModal = () => {
+        setShowNegotiationModal(false);
+        setNegotiationCounter(null);
+        setNegotiationRound(1);
+    };
+
+    const negotiationEvaluation = useMemo(() => {
+        if (!selectedNation) return { acceptChance: 0, relationGate: false };
+        return calculateNegotiationAcceptChance({
+            proposal: negotiationDraft,
+            nation: selectedNation,
+            epoch,
+            stance: negotiationDraft.stance,
+        });
+    }, [selectedNation, negotiationDraft, epoch]);
+
+    const handleNegotiationResult = (result) => {
+        if (!result) return;
+        if (result.status === 'counter' && result.counterProposal) {
+            setNegotiationCounter(result.counterProposal);
+            setNegotiationDraft((prev) => ({ ...prev, ...result.counterProposal }));
+            setNegotiationRound((prev) => Math.min(NEGOTIATION_MAX_ROUNDS, prev + 1));
+            return;
+        }
+        closeNegotiationModal();
+    };
+
+    const submitNegotiation = (proposal, options = {}) => {
+        if (!selectedNation || typeof onDiplomaticAction !== 'function') return;
+        const nextRound = options?.round || negotiationRound;
+        onDiplomaticAction(selectedNation.id, 'negotiate_treaty', {
+            proposal,
+            stance: proposal.stance || negotiationDraft.stance,
+            round: nextRound,
+            maxRounds: NEGOTIATION_MAX_ROUNDS,
+            ignoreCooldown: nextRound > 1,
+            forceAccept: options?.forceAccept === true,
+            onResult: handleNegotiationResult,
+        });
+    };
+
     const selectedPreferences = useMemo(() => getPreferredResources(selectedNation), [selectedNation]);
 
     const totalAllies = visibleNations.filter((n) => n.alliedWithPlayer === true).length;
@@ -785,7 +773,32 @@ const DiplomacyTabComponent = ({
                                 </div>
 
                                 {/* Treaty Center MVP - HIDDEN */}
-                                {false && <div className="mt-2 bg-gray-900/30 p-2 rounded border border-gray-700/60">
+                                                                <div className="mt-1.5">
+                                    {(() => {
+                                        const negotiationCooldown = getDiplomaticCooldown(selectedNation, 'negotiate_treaty');
+                                        const unlockEra = DIPLOMACY_ERA_UNLOCK.economy?.multi_round_negotiation?.minEra ?? 0;
+                                        const isUnlocked = epoch >= unlockEra;
+                                        const blocked = !isUnlocked || selectedNation?.isAtWar || negotiationCooldown.isOnCooldown;
+                                        let titleText = 'Start negotiation';
+                                        if (!isUnlocked) titleText = `Requires ${EPOCHS[unlockEra]?.name || `Era ${unlockEra}`}`;
+                                        else if (selectedNation?.isAtWar) titleText = 'Cannot negotiate during war';
+                                        else if (negotiationCooldown.isOnCooldown) titleText = `Cooldown (${negotiationCooldown.remainingDays} days)`;
+
+                                        return (
+                                            <button
+                                                className={`w-full px-2 py-1.5 rounded text-white flex items-center justify-center gap-2 font-semibold font-body ${blocked ? 'bg-gray-600 cursor-not-allowed' : 'bg-amber-700 hover:bg-amber-600'}`}
+                                                onClick={openNegotiationModal}
+                                                disabled={blocked}
+                                                title={titleText}
+                                            >
+                                                <Icon name="Handshake" size={12} />
+                                                {negotiationCooldown.isOnCooldown ? `Negotiate (${negotiationCooldown.remainingDays}d)` : 'Diplomatic negotiation'}
+                                            </button>
+                                        );
+                                    })()}
+                                </div>
+
+{false && <div className="mt-2 bg-gray-900/30 p-2 rounded border border-gray-700/60">
                                     <div className="flex items-center justify-between mb-1">
                                         <div className="text-[10px] text-gray-300 flex items-center gap-1 font-decorative">
                                             <Icon name="FileText" size={10} className="text-amber-300" />
@@ -1161,7 +1174,179 @@ const DiplomacyTabComponent = ({
                 </div>
             </Modal>
 
-            {/* 宣战确认模态框 */}
+            {/* Negotiation Modal */}
+            <Modal
+                isOpen={showNegotiationModal}
+                onClose={closeNegotiationModal}
+                title={`Negotiation with ${selectedNation?.name || ''}`}
+                footer={(() => {
+                    const treatyUnlocked = isDiplomacyUnlocked('treaties', negotiationDraft.type, epoch);
+                    const canSubmit = !!selectedNation && negotiationUnlocked && treatyUnlocked && !selectedNation?.isAtWar;
+                    if (negotiationCounter) {
+                        return (
+                            <div className="flex gap-2 justify-end">
+                                <button
+                                    className="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 rounded text-white text-sm font-body"
+                                    onClick={closeNegotiationModal}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 rounded text-white text-sm font-body"
+                                    onClick={() => submitNegotiation({ ...negotiationCounter, stance: negotiationDraft.stance }, { forceAccept: true, round: negotiationRound })}
+                                    disabled={!canSubmit}
+                                >
+                                    Accept counter
+                                </button>
+                                <button
+                                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 rounded text-white text-sm font-body"
+                                    onClick={() => submitNegotiation(negotiationDraft, { round: negotiationRound })}
+                                    disabled={!canSubmit}
+                                >
+                                    Propose new
+                                </button>
+                            </div>
+                        );
+                    }
+                    return (
+                        <div className="flex gap-2 justify-end">
+                            <button
+                                className="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 rounded text-white text-sm font-body"
+                                onClick={closeNegotiationModal}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 rounded text-white text-sm font-body"
+                                onClick={() => submitNegotiation(negotiationDraft, { round: negotiationRound })}
+                                disabled={!canSubmit}
+                            >
+                                Start negotiation
+                            </button>
+                        </div>
+                    );
+                })()}
+            >
+                <div className="space-y-3">
+                    <div className="flex items-center justify-between text-xs text-gray-300 font-body">
+                        <span>Round {negotiationRound}/{NEGOTIATION_MAX_ROUNDS}</span>
+                        <span>Estimated acceptance: <span className="text-amber-300 font-semibold font-epic">{Math.round((negotiationEvaluation.acceptChance || 0) * 100)}%</span></span>
+                    </div>
+                    {negotiationEvaluation.relationGate && (
+                        <div className="text-[11px] text-orange-300">Low relation heavily reduces acceptance.</div>
+                    )}
+
+                    {negotiationCounter && (
+                        <div className="p-2 rounded-lg bg-gray-800/50 border border-gray-700/60">
+                            <div className="text-xs text-gray-200 font-body mb-2">Counter proposal</div>
+                            <div className="grid grid-cols-2 gap-2 text-[11px] text-gray-300">
+                                <div>Duration: {negotiationCounter.durationDays} days</div>
+                                <div>Maintenance: {negotiationCounter.maintenancePerDay || 0}/day</div>
+                                <div>Signing gift: {negotiationCounter.signingGift || 0}</div>
+                                <div>Resource gift: {negotiationCounter.resourceKey ? `${RESOURCES[negotiationCounter.resourceKey]?.name || negotiationCounter.resourceKey} x ${negotiationCounter.resourceAmount || 0}` : 'None'}</div>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="space-y-2">
+                        <label className="text-xs text-gray-400 font-body">Treaty type</label>
+                        <select
+                            className="w-full bg-gray-900/60 border border-gray-700 rounded px-2 py-1 text-sm text-white font-body"
+                            value={negotiationDraft.type}
+                            onChange={(e) => {
+                                const nextType = e.target.value;
+                                setNegotiationDraft((prev) => ({ ...prev, type: nextType, durationDays: getTreatyDuration(nextType, epoch) }));
+                            }}
+                        >
+                            {NEGOTIABLE_TREATY_TYPES.map((type) => {
+                                const locked = !isDiplomacyUnlocked('treaties', type, epoch);
+                                const label = getTreatyLabel(type);
+                                return (
+                                    <option key={type} value={type} disabled={locked}>
+                                        {locked ? `${label} (requires ${getTreatyUnlockEraName(type)})` : label}
+                                    </option>
+                                );
+                            })}
+                        </select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                            <label className="text-xs text-gray-400 font-body">Duration (days)</label>
+                            <input
+                                type="number"
+                                min="30"
+                                className="w-full bg-gray-900/60 border border-gray-700 rounded px-2 py-1 text-sm text-white font-body"
+                                value={negotiationDraft.durationDays}
+                                onChange={(e) => setNegotiationDraft((prev) => ({ ...prev, durationDays: Number(e.target.value) }))}
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-xs text-gray-400 font-body">Maintenance / day</label>
+                            <input
+                                type="number"
+                                min="0"
+                                className="w-full bg-gray-900/60 border border-gray-700 rounded px-2 py-1 text-sm text-white font-body"
+                                value={negotiationDraft.maintenancePerDay}
+                                onChange={(e) => setNegotiationDraft((prev) => ({ ...prev, maintenancePerDay: Number(e.target.value) }))}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                            <label className="text-xs text-gray-400 font-body">Signing gift (silver)</label>
+                            <input
+                                type="number"
+                                min="0"
+                                className="w-full bg-gray-900/60 border border-gray-700 rounded px-2 py-1 text-sm text-white font-body"
+                                value={negotiationDraft.signingGift}
+                                onChange={(e) => setNegotiationDraft((prev) => ({ ...prev, signingGift: Number(e.target.value) }))}
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-xs text-gray-400 font-body">Resource gift</label>
+                            <div className="flex gap-2">
+                                <select
+                                    className="flex-1 bg-gray-900/60 border border-gray-700 rounded px-2 py-1 text-sm text-white font-body"
+                                    value={negotiationDraft.resourceKey}
+                                    onChange={(e) => setNegotiationDraft((prev) => ({ ...prev, resourceKey: e.target.value }))}
+                                >
+                                    <option value="">None</option>
+                                    {tradableResources.map(([key, res]) => (
+                                        <option key={key} value={key}>{res.name}</option>
+                                    ))}
+                                </select>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    className="w-20 bg-gray-900/60 border border-gray-700 rounded px-2 py-1 text-sm text-white font-body"
+                                    value={negotiationDraft.resourceAmount}
+                                    onChange={(e) => setNegotiationDraft((prev) => ({ ...prev, resourceAmount: Number(e.target.value) }))}
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="space-y-1">
+                        <label className="text-xs text-gray-400 font-body">Negotiation stance</label>
+                        <div className="flex gap-2">
+                            {['normal', 'friendly', 'threat'].map((stance) => (
+                                <button
+                                    key={stance}
+                                    className={`flex-1 px-2 py-1 rounded text-xs font-body border ${negotiationDraft.stance === stance ? 'border-amber-400 bg-amber-700/40 text-white' : 'border-gray-600 bg-gray-800/60 text-gray-300'}`}
+                                    onClick={() => setNegotiationDraft((prev) => ({ ...prev, stance }))}
+                                    type="button"
+                                >
+                                    {stance === 'normal' ? 'Neutral' : stance === 'friendly' ? 'Friendly' : 'Threat'}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Declare War Modal */}
             {showDeclareWarModal && selectedNation && (
                 <DeclareWarModal
                     targetNation={selectedNation}
@@ -1438,7 +1623,32 @@ const DiplomacyTabComponent = ({
                                             </div>
 
                                             {/* Treaty Center MVP (Mobile) - HIDDEN */}
-                                            {false && <div className="mt-3 p-3 bg-gray-900/30 rounded-lg border border-ancient-gold/20 shadow-metal-sm">
+                                                                                        <div className="mt-2">
+                                                {(() => {
+                                                    const negotiationCooldown = getDiplomaticCooldown(selectedNation, 'negotiate_treaty');
+                                                    const unlockEra = DIPLOMACY_ERA_UNLOCK.economy?.multi_round_negotiation?.minEra ?? 0;
+                                                    const isUnlocked = epoch >= unlockEra;
+                                                    const blocked = !isUnlocked || selectedNation?.isAtWar || negotiationCooldown.isOnCooldown;
+                                                    let titleText = 'Start negotiation';
+                                                    if (!isUnlocked) titleText = `Requires ${EPOCHS[unlockEra]?.name || `Era ${unlockEra}`}`;
+                                                    else if (selectedNation?.isAtWar) titleText = 'Cannot negotiate during war';
+                                                    else if (negotiationCooldown.isOnCooldown) titleText = `Cooldown (${negotiationCooldown.remainingDays} days)`;
+
+                                                    return (
+                                                        <button
+                                                            className={`w-full p-3 rounded-lg text-white flex items-center justify-center gap-2 font-semibold border border-white/10 shadow-metal-sm ${blocked ? 'bg-gray-600/80 cursor-not-allowed' : 'bg-amber-700 hover:bg-amber-600'}`}
+                                                            onClick={openNegotiationModal}
+                                                            disabled={blocked}
+                                                            title={titleText}
+                                                        >
+                                                            <Icon name="Handshake" size={14} />
+                                                            <span>{negotiationCooldown.isOnCooldown ? `Negotiate (${negotiationCooldown.remainingDays}d)` : 'Diplomatic negotiation'}</span>
+                                                        </button>
+                                                    );
+                                                })()}
+                                            </div>
+
+{false && <div className="mt-3 p-3 bg-gray-900/30 rounded-lg border border-ancient-gold/20 shadow-metal-sm">
                                                 <div className="flex items-center justify-between mb-2">
                                                     <div className="text-sm font-bold text-ancient-parchment font-decorative flex items-center gap-2">
                                                         <Icon name="FileText" size={14} className="text-amber-300" />

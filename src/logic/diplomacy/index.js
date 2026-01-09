@@ -7,3 +7,4 @@ export * from './nations';
 export * from './aiWar';
 export * from './aiDiplomacy';
 export * from './aiEconomy';
+export * from './negotiation';

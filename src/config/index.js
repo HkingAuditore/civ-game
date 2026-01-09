@@ -11,6 +11,21 @@ export { COUNTRIES } from './countries';
 export { MILITARY_ACTIONS, getEnemyUnitsForEpoch } from './militaryActions';
 export { TUTORIAL_STEPS } from './tutorialSteps';
 export { ACHIEVEMENTS } from './achievements';
+export {
+    DIPLOMACY_ERA_UNLOCK,
+    TREATY_CONFIGS,
+    TREATY_TYPE_LABELS,
+    OPEN_MARKET_TREATY_TYPES,
+    PEACE_TREATY_TYPES,
+    ORGANIZATION_EFFECTS,
+    DIPLOMACY_SOVEREIGNTY_TYPES,
+    DIPLOMACY_ORGANIZATION_TYPES,
+    OVERSEAS_BUILDING_MODES,
+    DEFAULT_VASSAL_STATUS,
+    getTreatyDuration,
+    getTreatyBreachPenalty,
+    isDiplomacyUnlocked
+} from './diplomacy';
 
 // 建筑升级配置
 export {
@@ -37,6 +52,7 @@ export {
     createAllianceBreakEvent,
     createTreatyProposalEvent,
     createTreatyProposalResultEvent,
+    createTreatyBreachEvent,
     createNationAnnexedEvent,
     BASE_EVENTS,
     EPOCH_EVENTS,

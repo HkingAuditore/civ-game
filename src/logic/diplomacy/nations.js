@@ -3,7 +3,7 @@
  * Handles AI nation updates, war logic, diplomacy, and economy
  */
 
-import { RESOURCES } from '../../config';
+import { RESOURCES, PEACE_TREATY_TYPES, getTreatyBreachPenalty } from '../../config';
 import { simulateBattle, UNIT_TYPES } from '../../config/militaryUnits';
 import { getEnemyUnitsForEpoch } from '../../config/militaryActions';
 import {
@@ -366,7 +366,7 @@ const checkAllianceStatus = ({ nation, tick, logs }) => {
  * @private
  */
 const checkWarDeclaration = ({ nation, nations, tick, epoch, res, stabilityValue, logs }) => {
-    const relation = nation.relation ?? 50;
+    let relation = nation.relation ?? 50;
     const aggression = nation.aggression ?? 0.2;
 
     // Count current wars
@@ -401,9 +401,37 @@ const checkWarDeclaration = ({ nation, nations, tick, epoch, res, stabilityValue
     const hasPeaceTreaty = nation.peaceTreatyUntil && tick < nation.peaceTreatyUntil;
     // Fixed: Use formal alliance status instead of relation-based check
     const isPlayerAlly = nation.alliedWithPlayer === true;
+    let isBreakingTreaty = false;
+
+    if (hasPeaceTreaty && !isPlayerAlly) {
+        const breachPenalty = getTreatyBreachPenalty(epoch);
+        const lastBreachDay = Number.isFinite(nation.lastTreatyBreachDay) ? nation.lastTreatyBreachDay : -Infinity;
+        const canBreach = (tick - lastBreachDay) >= breachPenalty.cooldownDays;
+        const breachPressure = relation < 15 && aggression > 0.55;
+
+        if (canBreach && breachPressure) {
+            const breachChance = Math.min(0.05, 0.005 + (0.02 * (aggression - 0.55)) + Math.max(0, (15 - relation) / 500));
+            if (Math.random() < breachChance) {
+                isBreakingTreaty = true;
+                nation.relation = Math.max(0, relation - breachPenalty.relationPenalty);
+                nation.peaceTreatyUntil = undefined;
+                if (Array.isArray(nation.treaties)) {
+                    nation.treaties = nation.treaties.filter(t => !PEACE_TREATY_TYPES.includes(t.type));
+                }
+                nation.lastTreatyBreachDay = tick;
+                relation = nation.relation ?? relation;
+                logs.push(`AI_TREATY_BREACH:${JSON.stringify({
+                    nationId: nation.id,
+                    nationName: nation.name,
+                    relationPenalty: breachPenalty.relationPenalty,
+                })}`);
+                logs.push(`⚠️ ${nation.name} 撕毁了与你的和平条约。`);
+            }
+        }
+    }
 
     const canDeclareWar = !nation.isAtWar &&
-        !hasPeaceTreaty &&
+        (!hasPeaceTreaty || isBreakingTreaty) &&
         !isPlayerAlly &&
         relation < 25 &&
         currentWarsWithPlayer < MAX_CONCURRENT_WARS &&
@@ -423,7 +451,7 @@ const checkWarDeclaration = ({ nation, nations, tick, epoch, res, stabilityValue
     const aiWealth = nation.wealth || 500;
     const aiMilitaryStrength = nation.militaryStrength ?? 1.0;
 
-    if (!nation.isAtWar && !hasPeaceTreaty && !isPlayerAlly &&
+    if (!nation.isAtWar && (!hasPeaceTreaty || isBreakingTreaty) && !isPlayerAlly &&
         playerWealth > aiWealth * 2 &&
         aiMilitaryStrength > 0.8 &&
         relation < 50 &&
