@@ -843,7 +843,12 @@ export function checkOrganizationEvents(previousStates, currentStates) {
         }
 
         // 检查达到100%阈值 (起义事件)
-        if (prevOrg < 100 && currOrg >= 100) {
+        // 只要组织度达到或超过100%，就触发事件让后续逻辑处理
+        // 后续逻辑会检查：
+        // 1. 影响力是否足够（<10%会触发人口外流而非叛乱）
+        // 2. 是否已存在该阶层的叛军政府（避免重复创建）
+        // 注意：即使 stage 已经是 UPRISING（老存档），也需要触发事件来处理
+        if (currOrg >= 100) {
             events.push({
                 type: 'uprising',
                 stratumKey,

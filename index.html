@@ -4,6 +4,20 @@
 <head>
     <meta charset="UTF-8" />
     <script>
+        // Polyfill for queueMicrotask - required for older browsers (Chrome < 71, Android WebView < 71)
+        // This must run before any other scripts that might use queueMicrotask
+        (function () {
+            if (typeof queueMicrotask !== 'function') {
+                window.queueMicrotask = function (callback) {
+                    Promise.resolve().then(callback).catch(function (e) {
+                        setTimeout(function () { throw e; }, 0);
+                    });
+                };
+                console.log('[Polyfill] queueMicrotask polyfill applied');
+            }
+        })();
+    </script>
+    <script>
         // Force trailing slash for relative paths to work correctly with base: './'
         (function () {
             var path = window.location.pathname;
@@ -40,10 +54,10 @@
             // 自动检测模式：默认启用低性能模式，只有高端设备才禁用
             // 高端设备标准：8核以上 CPU 且 8GB 以上内存
             var isHighEnd = false;
-            
+
             var deviceMemory = navigator.deviceMemory;
             var cpuCores = navigator.hardwareConcurrency;
-            
+
             // 只有同时满足高内存和高核心数才视为高端设备
             if (deviceMemory !== undefined && cpuCores !== undefined) {
                 if (deviceMemory >= 8 && cpuCores >= 8) {
@@ -70,7 +84,7 @@
                                 'adreno 7', 'adreno 8',         // 高通高端
                                 'mali-g7', 'mali-g9',           // ARM 高端
                             ];
-                            var isHighEndGPU = highEndGPUs.some(function(gpu) {
+                            var isHighEndGPU = highEndGPUs.some(function (gpu) {
                                 return renderer.indexOf(gpu) !== -1;
                             });
                             if (isHighEndGPU) {
@@ -92,7 +106,8 @@
         })();
     </script>
     <link rel="icon" type="image/png" href="./logo.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <link rel="manifest" href="./manifest.json" />
     <meta name="description" content="哈耶克的文明：市场经济 - 史诗级经济策略游戏，建立自由市场帝国，书写经济传奇" />
     <meta name="theme-color" content="#2c1810" />
@@ -100,8 +115,7 @@
     <!-- Epic Fonts - Historical Typography (使用国内 CDN 镜像) -->
     <link rel="preconnect" href="https://fonts.loli.net" crossorigin>
     <link rel="preconnect" href="https://fonts.gstatic.cn" crossorigin>
-    <link
-        id="font-css"
+    <link id="font-css"
         href="https://fonts.loli.net/css2?family=Cinzel:wght@400;600;700;800&family=Cinzel+Decorative:wght@700;900&family=Inter:wght@400;500;600;700&family=Noto+Serif+SC:wght@400;500;600;700;900&display=swap"
         rel="stylesheet"
         onerror="(function(){var l=document.getElementById('font-css');if(!l||l.dataset.fallbackApplied)return;l.dataset.fallbackApplied='1';l.href='https://fonts.gstatic.cn/css2?family=Cinzel:wght@400;600;700;800&family=Cinzel+Decorative:wght@700;900&family=Inter:wght@400;500;600;700&family=Noto+Serif+SC:wght@400;500;600;700;900&display=swap';})();">
@@ -222,12 +236,14 @@
         }
 
         .low-perf-mode .loading-spinner {
-            animation: spin 2s linear infinite; /* 保留旋转但减慢 */
+            animation: spin 2s linear infinite;
+            /* 保留旋转但减慢 */
         }
 
         .low-perf-mode .loading-logo {
             animation: none;
-            filter: none; /* 禁用 drop-shadow */
+            filter: none;
+            /* 禁用 drop-shadow */
             transform: none;
         }
     </style>
@@ -246,7 +262,7 @@
     <script>
         // 全局错误收集器
         var globalErrors = [];
-        window.addEventListener('error', function(e) {
+        window.addEventListener('error', function (e) {
             globalErrors.push({
                 type: 'error',
                 message: e.message,
@@ -255,7 +271,7 @@
                 colno: e.colno
             });
         });
-        window.addEventListener('unhandledrejection', function(e) {
+        window.addEventListener('unhandledrejection', function (e) {
             globalErrors.push({
                 type: 'unhandledrejection',
                 reason: String(e.reason)
@@ -275,12 +291,12 @@
                         if (root && root.childElementCount === 0) {
                             // 收集设备信息用于调试
                             var deviceInfo = 'UA: ' + navigator.userAgent;
-                            var errorInfo = globalErrors.length > 0 
-                                ? '错误详情：' + globalErrors.map(function(e) {
+                            var errorInfo = globalErrors.length > 0
+                                ? '错误详情：' + globalErrors.map(function (e) {
                                     return e.type + ': ' + (e.message || e.reason);
                                 }).join('; ')
                                 : '无捕获的错误';
-                            
+
                             root.innerHTML = '<div style="color: #d4af37; background: #1a1410; padding: 20px; font-family: sans-serif; text-align: center; height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center;">' +
                                 '<h1>加载失败</h1>' +
                                 '<p>应用程序未能正确启动。</p>' +

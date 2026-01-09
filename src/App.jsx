@@ -720,8 +720,8 @@ function GameApp({ gameState }) {
     const baseFiscalIncome = typeof taxes.breakdown?.baseFiscalIncome === 'number'
         ? taxes.breakdown.baseFiscalIncome
         : (taxes.breakdown?.headTax || 0) + (taxes.breakdown?.industryTax || 0) +
-            (taxes.breakdown?.businessTax || 0) + (taxes.breakdown?.tariff || 0) +
-            (taxes.breakdown?.warIndemnity || 0);
+        (taxes.breakdown?.businessTax || 0) + (taxes.breakdown?.tariff || 0) +
+        (taxes.breakdown?.warIndemnity || 0);
     const incomePercentMultiplier = Number.isFinite(taxes.breakdown?.incomePercentMultiplier)
         ? Number(taxes.breakdown.incomePercentMultiplier)
         : 1;
@@ -1477,7 +1477,7 @@ function GameApp({ gameState }) {
                         classInfluence={gameState.classInfluence}
                         classWealth={gameState.classWealth}
                         classWealthDelta={gameState.classWealthDelta}
-                        classIncome={classIncomeWithSubsidy}
+                        classIncome={deferredClassIncomeWithSubsidy}
                         classExpense={gameState.classExpense}
                         classFinancialData={gameState.classFinancialData}
                         classShortages={gameState.classShortages}
@@ -1785,7 +1785,7 @@ function GameApp({ gameState }) {
                     buildings={gameState.buildings}
                     popStructure={gameState.popStructure}
                     wealth={gameState.classWealth}
-                    classIncome={classIncomeWithSubsidy}
+                    classIncome={deferredClassIncomeWithSubsidy}
                     classLivingStandard={gameState.classLivingStandard}
                     army={gameState.army}
                     dailyMilitaryExpense={gameState.dailyMilitaryExpense}
