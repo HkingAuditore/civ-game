@@ -10,3 +10,4 @@ export { useEpicTheme, useEpochClasses, getEpochStyles } from './useEpicTheme';
 export { useNumberAnimation } from './useNumberAnimation';
 export { useViewportHeight, getViewportHeight, vh } from './useViewportHeight';
 export { useDevicePerformance, isLowPerformance, PERFORMANCE_MODES } from './useDevicePerformance';
+export { useThrottledGameState, useThrottledSelector, UI_THROTTLE_PRESETS } from './useThrottledGameState';

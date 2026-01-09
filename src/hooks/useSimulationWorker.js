@@ -25,6 +25,7 @@ export function useSimulationWorker() {
     const workerRef = useRef(null);
     const pendingResolveRef = useRef(null);
     const pendingRejectRef = useRef(null);
+    const pendingLatestRef = useRef(null);
     const [isUsingWorker, setIsUsingWorker] = useState(false);
     const [workerError, setWorkerError] = useState(null);
     const isInitializedRef = useRef(false);
@@ -54,6 +55,22 @@ export function useSimulationWorker() {
                             pendingResolveRef.current = null;
                             pendingRejectRef.current = null;
                         }
+                        if (pendingLatestRef.current && workerRef.current && isUsingWorker) {
+                            const { gameState: queuedState, resolve, reject } = pendingLatestRef.current;
+                            pendingLatestRef.current = null;
+                            try {
+                                workerRef.current.postMessage({
+                                    type: 'SIMULATE',
+                                    payload: queuedState
+                                });
+                                pendingResolveRef.current = resolve;
+                                pendingRejectRef.current = reject;
+                            } catch (error) {
+                                pendingResolveRef.current = null;
+                                pendingRejectRef.current = null;
+                                reject(error);
+                            }
+                        }
                         break;
                         
                     case 'ERROR':
@@ -62,6 +79,10 @@ export function useSimulationWorker() {
                             pendingRejectRef.current(new Error(error));
                             pendingResolveRef.current = null;
                             pendingRejectRef.current = null;
+                        }
+                        if (pendingLatestRef.current) {
+                            pendingLatestRef.current.reject(new Error(error));
+                            pendingLatestRef.current = null;
                         }
                         break;
                         
@@ -82,6 +103,10 @@ export function useSimulationWorker() {
                     pendingRejectRef.current(new Error('Worker crashed'));
                     pendingResolveRef.current = null;
                     pendingRejectRef.current = null;
+                }
+                if (pendingLatestRef.current) {
+                    pendingLatestRef.current.reject(new Error('Worker crashed'));
+                    pendingLatestRef.current = null;
                 }
             };
             
@@ -120,6 +145,10 @@ export function useSimulationWorker() {
                         console.warn('[SimulationWorker] Worker timeout, falling back to main thread');
                         pendingResolveRef.current = null;
                         pendingRejectRef.current = null;
+                        if (pendingLatestRef.current) {
+                            pendingLatestRef.current.resolve({ __skipped: true });
+                            pendingLatestRef.current = null;
+                        }
                         
                         // Fall back to main thread
                         try {
@@ -157,6 +186,15 @@ export function useSimulationWorker() {
                     clearTimeout(timeout);
                     originalResolve(value);
                 };
+            });
+        }
+
+        if (workerRef.current && isUsingWorker && pendingResolveRef.current) {
+            return new Promise((resolve, reject) => {
+                if (pendingLatestRef.current) {
+                    pendingLatestRef.current.resolve({ __skipped: true });
+                }
+                pendingLatestRef.current = { gameState, resolve, reject };
             });
         }
         

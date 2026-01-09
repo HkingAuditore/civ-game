@@ -1,12 +1,12 @@
 // 文明崛起 - 主应用文件
 // 使用拆分后的钩子和组件，保持代码简洁
 
-import React, { useEffect, useRef, useState, useMemo, useCallback, useDeferredValue } from 'react';
-import { GAME_SPEEDS, EPOCHS, RESOURCES, STRATA, calculateArmyFoodNeed, calculateTotalArmyExpense, BUILDINGS, EVENTS, checkAndCreateCoalitionDemandEvent } from './config';
+import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
+import { GAME_SPEEDS, EPOCHS, RESOURCES, STRATA, calculateArmyFoodNeed, calculateTotalArmyExpense, BUILDINGS, EVENTS, checkAndCreateCoalitionDemandEvent, LOG_STORAGE_LIMIT } from './config';
 import { getCalendarInfo } from './utils/calendar';
 import { calculateTotalDailySalary } from './logic/officials/manager';
 import { enactDecree, getAllTimedDecrees } from './logic/officials/cabinetSynergy';
-import { useGameState, useGameLoop, useGameActions, useSound, useEpicTheme, useViewportHeight, useDevicePerformance, useAchievements } from './hooks';
+import { useGameState, useGameLoop, useGameActions, useSound, useEpicTheme, useViewportHeight, useDevicePerformance, useAchievements, useThrottledSelector, UI_THROTTLE_PRESETS } from './hooks';
 import { useTutorialSystem } from './hooks/useTutorialSystem';
 import { TutorialOverlay } from './components/tutorial/TutorialOverlay';
 import {
@@ -99,7 +99,7 @@ function GameApp({ gameState }) {
     // 添加日志函数 - memoized to prevent unnecessary re-renders
     const addLog = useCallback((msg) => {
         if (gameState?.setLogs) {
-            gameState.setLogs(prev => [msg, ...prev].slice(0, 8));
+            gameState.setLogs(prev => [msg, ...prev].slice(0, LOG_STORAGE_LIMIT));
         }
     }, [gameState]);
 
@@ -699,8 +699,10 @@ function GameApp({ gameState }) {
     });
     // 优先使用simulation数据，fallback到本地计算
     const silverUpkeepPerDay = simulationMilitaryExpense?.dailyExpense || armyExpenseData.dailyExpense;
-    const tradeStats = gameState.tradeStats || { tradeTax: 0 };
+    const tradeStats = gameState.tradeStats || { tradeTax: 0, tradeRouteTax: 0 };
     const tradeTax = tradeStats.tradeTax || 0;
+    const tradeRouteTax = taxes.breakdown?.tradeRouteTax ?? tradeStats.tradeRouteTax ?? 0;
+    const tradeTaxForAchievements = tradeTax + tradeRouteTax;
     const playerInstallmentExpense = (gameState.playerInstallmentPayment && gameState.playerInstallmentPayment.remainingDays > 0)
         ? gameState.playerInstallmentPayment.amount
         : 0;
@@ -709,28 +711,26 @@ function GameApp({ gameState }) {
         ? gameState.activeEventEffects.forcedSubsidy.reduce((sum, s) => sum + (s.dailyAmount || 0), 0)
         : 0;
 
-    // 创建包含补贴的阶层收入（用于显示）
-    const classIncomeWithSubsidy = useMemo(() => {
-        const baseIncome = gameState.classIncome || {};
-        const subsidies = gameState.activeEventEffects?.forcedSubsidy || [];
-        if (subsidies.length === 0) return baseIncome;
-
-        const merged = { ...baseIncome };
-        subsidies.forEach(s => {
-            if (s.stratumKey && s.dailyAmount) {
-                merged[s.stratumKey] = (merged[s.stratumKey] || 0) + s.dailyAmount;
-            }
-        });
-        return merged;
-    }, [gameState.classIncome, gameState.activeEventEffects?.forcedSubsidy]);
-
     // 计算官员薪水支出
     const officialSalaryPerDay = calculateTotalDailySalary(gameState.officials || []);
 
     // [FIX] 使用simulation返回的完整军队维护成本，包含资源购买、时代加成、规模惩罚
     const actualArmyUpkeep = gameState.dailyMilitaryExpense?.dailyExpense || silverUpkeepPerDay || 0;
 
-    const netSilverPerDay = taxes.total + tradeTax - actualArmyUpkeep - playerInstallmentExpense - forcedSubsidyExpense - officialSalaryPerDay;
+    const baseFiscalIncome = typeof taxes.breakdown?.baseFiscalIncome === 'number'
+        ? taxes.breakdown.baseFiscalIncome
+        : (taxes.breakdown?.headTax || 0) + (taxes.breakdown?.industryTax || 0) +
+            (taxes.breakdown?.businessTax || 0) + (taxes.breakdown?.tariff || 0) +
+            (taxes.breakdown?.warIndemnity || 0);
+    const incomePercentMultiplier = Number.isFinite(taxes.breakdown?.incomePercentMultiplier)
+        ? Number(taxes.breakdown.incomePercentMultiplier)
+        : 1;
+    const totalFiscalIncome = typeof taxes.breakdown?.totalFiscalIncome === 'number'
+        ? taxes.breakdown.totalFiscalIncome
+        : baseFiscalIncome * incomePercentMultiplier;
+    const fiscalIncomeBonus = totalFiscalIncome - baseFiscalIncome;
+    const netSilverPerDay = taxes.total + fiscalIncomeBonus + tradeTax -
+        actualArmyUpkeep - playerInstallmentExpense - forcedSubsidyExpense - officialSalaryPerDay;
     const netSilverClass = netSilverPerDay >= 0 ? 'text-green-300' : 'text-red-300';
     const netChipClasses = netSilverPerDay >= 0
         ? 'text-green-300 bg-green-900/20 hover:bg-green-900/40'
@@ -738,23 +738,95 @@ function GameApp({ gameState }) {
     const netTrendIcon = netSilverPerDay >= 0 ? 'TrendingUp' : 'TrendingDown';
     const calendar = getCalendarInfo(gameState.daysElapsed || 0);
     const autoSaveAvailable = gameState.hasAutoSave();
-    useAchievements(gameState, { netSilverPerDay, tradeTax, taxes });
+    useAchievements(gameState, { netSilverPerDay, tradeTax: tradeTaxForAchievements, taxes });
 
-    const deferredResources = useDeferredValue(gameState.resources);
-    const deferredMarket = useDeferredValue(gameState.market);
-    const deferredBuildings = useDeferredValue(gameState.buildings);
-    const deferredBuildingUpgrades = useDeferredValue(gameState.buildingUpgrades);
-    const deferredJobFill = useDeferredValue(gameState.jobFill);
-    const deferredPopStructure = useDeferredValue(gameState.popStructure);
-    const deferredLogs = useDeferredValue(gameState.logs);
-    const deferredClassApproval = useDeferredValue(gameState.classApproval);
-    const deferredClassInfluence = useDeferredValue(gameState.classInfluence);
-    const deferredClassWealth = useDeferredValue(gameState.classWealth);
-    const deferredClassIncomeWithSubsidy = useDeferredValue(classIncomeWithSubsidy);
-    const deferredClassExpense = useDeferredValue(gameState.classExpense);
-    const deferredClassShortages = useDeferredValue(gameState.classShortages);
-    const deferredClassLivingStandard = useDeferredValue(gameState.classLivingStandard);
-    const deferredRebellionStates = useDeferredValue(gameState.rebellionStates);
+    const deferredResources = useThrottledSelector(
+        gameState,
+        state => state.resources,
+        UI_THROTTLE_PRESETS.fast
+    );
+    const deferredMarket = useThrottledSelector(
+        gameState,
+        state => state.market,
+        UI_THROTTLE_PRESETS.normal
+    );
+    const deferredBuildings = useThrottledSelector(
+        gameState,
+        state => state.buildings,
+        UI_THROTTLE_PRESETS.slow
+    );
+    const deferredBuildingUpgrades = useThrottledSelector(
+        gameState,
+        state => state.buildingUpgrades,
+        UI_THROTTLE_PRESETS.slow
+    );
+    const deferredJobFill = useThrottledSelector(
+        gameState,
+        state => state.jobFill,
+        UI_THROTTLE_PRESETS.normal
+    );
+    const deferredPopStructure = useThrottledSelector(
+        gameState,
+        state => state.popStructure,
+        UI_THROTTLE_PRESETS.normal
+    );
+    const deferredLogs = useThrottledSelector(
+        gameState,
+        state => state.logs,
+        UI_THROTTLE_PRESETS.slow
+    );
+    const deferredClassApproval = useThrottledSelector(
+        gameState,
+        state => state.classApproval,
+        UI_THROTTLE_PRESETS.normal
+    );
+    const deferredClassInfluence = useThrottledSelector(
+        gameState,
+        state => state.classInfluence,
+        UI_THROTTLE_PRESETS.normal
+    );
+    const deferredClassWealth = useThrottledSelector(
+        gameState,
+        state => state.classWealth,
+        UI_THROTTLE_PRESETS.normal
+    );
+    const deferredClassIncomeWithSubsidy = useThrottledSelector(
+        gameState,
+        state => {
+            const baseIncome = state.classIncome || {};
+            const subsidies = state.activeEventEffects?.forcedSubsidy || [];
+            if (subsidies.length === 0) return baseIncome;
+
+            const merged = { ...baseIncome };
+            subsidies.forEach(s => {
+                if (s.stratumKey && s.dailyAmount) {
+                    merged[s.stratumKey] = (merged[s.stratumKey] || 0) + s.dailyAmount;
+                }
+            });
+            return merged;
+        },
+        UI_THROTTLE_PRESETS.normal
+    );
+    const deferredClassExpense = useThrottledSelector(
+        gameState,
+        state => state.classExpense,
+        UI_THROTTLE_PRESETS.normal
+    );
+    const deferredClassShortages = useThrottledSelector(
+        gameState,
+        state => state.classShortages,
+        UI_THROTTLE_PRESETS.normal
+    );
+    const deferredClassLivingStandard = useThrottledSelector(
+        gameState,
+        state => state.classLivingStandard,
+        UI_THROTTLE_PRESETS.slow
+    );
+    const deferredRebellionStates = useThrottledSelector(
+        gameState,
+        state => state.rebellionStates,
+        UI_THROTTLE_PRESETS.slow
+    );
 
     const handleManualSave = () => {
         // 打开保存弹窗

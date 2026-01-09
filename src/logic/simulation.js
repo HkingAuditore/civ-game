@@ -1,4 +1,4 @@
-import { BUILDINGS, STRATA, EPOCHS, RESOURCES, TECHS, ECONOMIC_INFLUENCE, WEALTH_DECAY_RATE } from '../config';
+﻿import { BUILDINGS, STRATA, EPOCHS, RESOURCES, TECHS, ECONOMIC_INFLUENCE, WEALTH_DECAY_RATE } from '../config';
 import { calculateArmyPopulation, calculateArmyFoodNeed, calculateArmyCapacityNeed, calculateArmyMaintenance, calculateArmyScalePenalty } from '../config';
 import { getBuildingEffectiveConfig, getUpgradeCost, getMaxUpgradeLevel, BUILDING_UPGRADES } from '../config/buildingUpgrades';
 import { isResourceUnlocked } from '../utils/resources';
@@ -59,6 +59,7 @@ import {
     MAX_SAFE_WEALTH,
     // [PERF] Performance utilities
     shouldRunThisTick,
+    tickCache,
     getBuildingLevelDistribution,
     RATE_LIMIT_CONFIG,
 } from './utils';
@@ -211,6 +212,7 @@ export const simulateTick = ({
     classWealthHistory,
     classNeedsHistory,
     merchantState = { pendingTrades: [], lastTradeTime: 0 },
+    tradeRouteTax = 0,
     maxPopBonus = 0,
     eventApprovalModifiers = {},
     eventStabilityModifier = 0,
@@ -1185,8 +1187,15 @@ export const simulateTick = ({
     const classWealthResult = {};
     const approvalBreakdown = {}; // NEW: per-stratum approval calculation breakdown for UI traceability
     const logs = [];
+    const aggregatedLogs = new Map();
     const buildingJobFill = {};
     const buildingStaffingRatios = {};
+
+    const recordAggregatedLog = (message) => {
+        if (!message) return;
+        const count = aggregatedLogs.get(message) || 0;
+        aggregatedLogs.set(message, count + 1);
+    };
 
     Object.entries(passiveGains).forEach(([resKey, amountPerDay]) => {
         if (!amountPerDay) return;
@@ -1623,7 +1632,7 @@ export const simulateTick = ({
             // 添加日志提示（每个建筑类型只提示一次，避免刷屏）
             const inputNames = Object.keys(effectiveOps.input).map(k => RESOURCES[k]?.name || k).join('、');
             if (tick % 30 === 0) { // 每30个tick提示一次
-                logs.push(`⚠️ ${b.name} 缺少 ${inputNames}，工人正在徒手作业（效率20%）`);
+                recordAggregatedLog(`⚠️ ${b.name} 缺少 ${inputNames}，工人正在徒手作业（效率20%）`);
             }
         }
 
@@ -2228,7 +2237,7 @@ export const simulateTick = ({
                             classFinancialData[oKey].expense.businessTax = (classFinancialData[oKey].expense.businessTax || 0) + ownerTax;
                         }
                     } else if (tick % 30 === 0 && ownerWealth < ownerTax * 0.5) {
-                        logs.push(`⚠️ ${STRATA[oKey]?.name || oKey} 无力支付 ${b.name} 的营业税，政府放弃征收。`);
+                        recordAggregatedLog(`⚠️ ${STRATA[oKey]?.name || oKey} 无力支付 ${b.name} 的营业税，政府放弃征收。`);
                     }
                 });
                 taxBreakdown.businessTax += actualTaxCollected;
@@ -2251,7 +2260,7 @@ export const simulateTick = ({
                     });
                 } else {
                     if (tick % 30 === 0) {
-                        logs.push(`⚠️ 国库空虚，无法为 ${b.name} 支付营业补贴！`);
+                        recordAggregatedLog(`⚠️ 国库空虚，无法为 ${b.name} 支付营业补贴！`);
                     }
                 }
             }
@@ -2280,18 +2289,18 @@ export const simulateTick = ({
                     if (surpluses.length > 0) {
                         const shortageTargets = [];
                         Object.keys(RESOURCES).forEach(resourceKey => {
-                            if (!isTradableResource(resourceKey) || resourceKey === 'silver') return;
-                            const stock = res[resourceKey] || 0;
-                            const netRate = rates[resourceKey] || 0;
-                            const demandGap = Math.max(0, (demand[resourceKey] || 0) - (supply[resourceKey] || 0));
-                            const stockGap = Math.max(0, 200 - stock);
-                            const netDeficit = netRate < 0 ? Math.abs(netRate) : 0;
-                            const shortageAmount = Math.max(demandGap, stockGap, netDeficit);
-                            if (shortageAmount <= 0) return;
-                            const importPrice = Math.max(PRICE_FLOOR, getPrice(resourceKey) * 1.15);
-                            const requiredValue = shortageAmount * importPrice;
-                            if (requiredValue <= 0) return;
-                            shortageTargets.push({ resource: resourceKey, shortageAmount, importPrice, requiredValue });
+                                if (!isTradableResource(resourceKey) || resourceKey === 'silver') return;
+                                const stock = res[resourceKey] || 0;
+                                const netRate = rates[resourceKey] || 0;
+                                const demandGap = Math.max(0, (demand[resourceKey] || 0) - (supply[resourceKey] || 0));
+                                const stockGap = Math.max(0, 200 - stock);
+                                const netDeficit = netRate < 0 ? Math.abs(netRate) : 0;
+                                const shortageAmount = Math.max(demandGap, stockGap, netDeficit);
+                                if (shortageAmount <= 0) return;
+                                const importPrice = Math.max(PRICE_FLOOR, getPrice(resourceKey) * 1.15);
+                                const requiredValue = shortageAmount * importPrice;
+                                if (requiredValue <= 0) return;
+                                shortageTargets.push({ resource: resourceKey, shortageAmount, importPrice, requiredValue });
                         });
 
                         if (shortageTargets.length > 0) {
@@ -2444,7 +2453,7 @@ export const simulateTick = ({
         // 如果资源不足，记录日志
         if (consumed < needed && tick % 30 === 0) {
             const shortage = needed - consumed;
-            logs.push(`⚠️ 军队维护资源不足：缺少 ${RESOURCES[resource]?.name || resource} ${shortage.toFixed(1)}/日`);
+            recordAggregatedLog(`⚠️ 军队维护资源不足：缺少 ${RESOURCES[resource]?.name || resource} ${shortage.toFixed(1)}/日`);
         }
     });
 
@@ -2752,7 +2761,7 @@ export const simulateTick = ({
                             }
                         } else {
                             if (tick % 20 === 0) {
-                                logs.push(`国库空虚，无法为 ${STRATA[key]?.name || key} 支付 ${RESOURCES[resKey]?.name || resKey} 消费补贴！`);
+                                recordAggregatedLog(`国库空虚，无法为 ${STRATA[key]?.name || key} 支付 ${RESOURCES[resKey]?.name || resKey} 消费补贴！`);
                             }
                         }
                     } else if (taxPaid > 0) {
@@ -3199,7 +3208,7 @@ export const simulateTick = ({
                                 (classFinancialData.official.income.subsidy || 0) + subsidyAmount;
                         }
                     } else if (tick % 20 === 0) {
-                        logs.push(`国库空虚，无法为 官员 支付 ${RESOURCES[resource]?.name || resource} 消费补贴！`);
+                        recordAggregatedLog(`国库空虚，无法为 官员 支付 ${RESOURCES[resource]?.name || resource} 消费补贴！`);
                     }
                 } else if (taxPaid > 0) {
                     taxBreakdown.industryTax += taxPaid;
@@ -4227,6 +4236,10 @@ export const simulateTick = ({
     // Track global peace request cooldown - find the most recent peace request across all nations
     // This prevents multiple AI nations from spamming peace requests simultaneously
     let lastGlobalPeaceRequest = -Infinity;
+    const shouldUpdatePrices = shouldRunThisTick(tick, 'priceUpdate');
+    const shouldUpdateTrade = shouldRunThisTick(tick, 'tradeUpdate');
+    const shouldUpdateDiplomacy = shouldRunThisTick(tick, 'diplomacyUpdate');
+    const shouldUpdateAI = shouldRunThisTick(tick, 'aiDecision');
     (nations || []).forEach(n => {
         if (n.lastPeaceRequestDay && n.lastPeaceRequestDay > lastGlobalPeaceRequest) {
             lastGlobalPeaceRequest = n.lastPeaceRequestDay;
@@ -4340,7 +4353,9 @@ export const simulateTick = ({
         }
 
         // REFACTORED: Using module function for foreign economy simulation
-        updateAINationInventory({ nation: next, tick, gameSpeed });
+        if (shouldUpdateTrade) {
+            updateAINationInventory({ nation: next, tick, gameSpeed });
+        }
         if (next.isAtWar) {
             next.warDuration = (next.warDuration || 0) + 1;
             // 累计与该国战争期间的军费支出（用于战争赔款计算）
@@ -4349,7 +4364,7 @@ export const simulateTick = ({
             const dailyExpenseShare = (armyExpenseResult?.dailyExpense || 0) / warringNationsCount;
             next.warTotalExpense = (next.warTotalExpense || 0) + dailyExpenseShare;
 
-            if (visibleEpoch >= 1) {
+            if (visibleEpoch >= 1 && shouldUpdateAI) {
                 // REFACTORED: Using module function for AI military action
                 const militaryResult = processAIMilitaryAction({
                     nation: next,
@@ -4364,17 +4379,19 @@ export const simulateTick = ({
             }
             // REFACTORED: Using module function for AI peace request check
             // Pass global cooldown to prevent multiple nations from requesting peace simultaneously
-            const peaceRequested = checkAIPeaceRequest({ nation: next, tick, lastGlobalPeaceRequest, logs });
-            if (peaceRequested) {
-                lastGlobalPeaceRequest = tick; // Update global cooldown for subsequent nations
+            if (shouldUpdateAI) {
+                const peaceRequested = checkAIPeaceRequest({ nation: next, tick, lastGlobalPeaceRequest, logs });
+                if (peaceRequested) {
+                    lastGlobalPeaceRequest = tick; // Update global cooldown for subsequent nations
+                }
+
+                // REFACTORED: Using module function for AI surrender demand check
+                // 传入玩家财富，使赔款计算与玩家主动求和时一致
+                checkAISurrenderDemand({ nation: next, tick, population, playerWealth: playerWealthBaseline, logs });
+
+                // Check if AI should offer unconditional peace when player is in desperate situation
+                checkMercyPeace({ nation: next, tick, population, playerWealth: playerWealthBaseline, resources: res, logs });
             }
-
-            // REFACTORED: Using module function for AI surrender demand check
-            // 传入玩家财富，使赔款计算与玩家主动求和时一致
-            checkAISurrenderDemand({ nation: next, tick, population, playerWealth: playerWealthBaseline, logs });
-
-            // Check if AI should offer unconditional peace when player is in desperate situation
-            checkMercyPeace({ nation: next, tick, population, playerWealth: playerWealthBaseline, resources: res, logs });
         } else if (next.warDuration) {
             next.warDuration = 0;
             next.warTotalExpense = 0; // 清除战争军费记录
@@ -4382,7 +4399,9 @@ export const simulateTick = ({
         const relation = next.relation ?? 50;
 
         // REFACTORED: Using module function for relation decay
-        processNationRelationDecay(next, difficulty);
+        if (shouldUpdateDiplomacy) {
+            processNationRelationDecay(next, difficulty);
+        }
 
         const relationMultipliers = getRelationChangeMultipliers(difficulty);
 
@@ -4400,7 +4419,9 @@ export const simulateTick = ({
         }
 
         // REFACTORED: Using module function for AI alliance breaking check
-        checkAIBreakAlliance(next, logs);
+        if (shouldUpdateDiplomacy) {
+            checkAIBreakAlliance(next, logs);
+        }
 
         const aggression = next.aggression ?? 0.2;
         const hostility = Math.max(0, (50 - relation) / 70);
@@ -4408,16 +4429,18 @@ export const simulateTick = ({
 
 
         // REFACTORED: Using module function for war declaration check
-        checkWarDeclaration({
-            nation: next,
-            nations,
-            tick,
-            epoch: visibleEpoch,
-            resources: res,
-            stabilityValue,
-            logs,
-            difficultyLevel: difficulty,
-        });
+        if (shouldUpdateAI) {
+            checkWarDeclaration({
+                nation: next,
+                nations,
+                tick,
+                epoch: visibleEpoch,
+                resources: res,
+                stabilityValue,
+                logs,
+                difficultyLevel: difficulty,
+            });
+        }
 
 
         // REFACTORED: Using module function for installment payment
@@ -4431,15 +4454,17 @@ export const simulateTick = ({
         processPostWarRecovery(next);
 
         // REFACTORED: Using module functions for AI development system
-        initializeAIDevelopmentBaseline({ nation: next, tick });
-        processAIIndependentGrowth({ nation: next, tick });
-        updateAIDevelopment({
-            nation: next,
-            epoch,
-            playerPopulationBaseline,
-            playerWealthBaseline,
-            tick,
-        });
+        if (shouldUpdateTrade) {
+            initializeAIDevelopmentBaseline({ nation: next, tick });
+            processAIIndependentGrowth({ nation: next, tick });
+            updateAIDevelopment({
+                nation: next,
+                epoch,
+                playerPopulationBaseline,
+                playerWealthBaseline,
+                tick,
+            });
+        }
 
         return next;
     });
@@ -4451,7 +4476,7 @@ export const simulateTick = ({
 
     // REFACTORED: Using module function for monthly relation decay
     const isMonthTick = tick % 30 === 0;
-    if (isMonthTick) {
+    if (isMonthTick && shouldUpdateDiplomacy) {
         updatedNations = processMonthlyRelationDecay(updatedNations, difficulty);
     }
 
@@ -4462,32 +4487,46 @@ export const simulateTick = ({
 
     // REFACTORED: Using module function for ally cold events
     // Note: Must use visibleNations to avoid triggering events for destroyed/expired nations
-    processAllyColdEvents(visibleNations, tick, logs, difficulty);
+    if (shouldUpdateDiplomacy) {
+        processAllyColdEvents(visibleNations, tick, logs, difficulty);
+    }
 
     // REFACTORED: Using module function for AI gift diplomacy
-    processAIGiftDiplomacy(visibleNations, logs);
+    if (shouldUpdateDiplomacy) {
+        processAIGiftDiplomacy(visibleNations, logs);
+    }
 
 
     // REFACTORED: Using module function for AI-AI trade
-    processAITrade(visibleNations, logs);
+    if (shouldUpdateTrade) {
+        processAITrade(visibleNations, logs);
+    }
 
 
     // REFACTORED: Using module function for AI-Player trade
-    processAIPlayerTrade(visibleNations, tick, res, market, logs, policies);
+    if (shouldUpdateTrade) {
+        processAIPlayerTrade(visibleNations, tick, res, market, logs, policies);
+    }
 
 
     // REFACTORED: Using module function for AI-Player interaction
-    processAIPlayerInteraction(visibleNations, tick, epoch, logs);
+    if (shouldUpdateDiplomacy) {
+        processAIPlayerInteraction(visibleNations, tick, epoch, logs);
+    }
 
 
     // REFACTORED: Using module function for AI-AI alliance formation
-    processAIAllianceFormation(visibleNations, tick, logs);
+    if (shouldUpdateDiplomacy) {
+        processAIAllianceFormation(visibleNations, tick, logs);
+    }
 
 
     // REFACTORED: Using module functions for AI-AI war system
-    processCollectiveAttackWarmonger(visibleNations, tick, logs);
-    processAIAIWarDeclaration(visibleNations, updatedNations, tick, logs);
-    processAIAIWarProgression(visibleNations, updatedNations, tick, logs);
+    if (shouldUpdateAI) {
+        processCollectiveAttackWarmonger(visibleNations, tick, logs);
+        processAIAIWarDeclaration(visibleNations, updatedNations, tick, logs);
+        processAIAIWarProgression(visibleNations, updatedNations, tick, logs);
+    }
 
     // Population fertility calculations (uses constants from ./utils/constants)
     let fertilityBirths = 0;
@@ -4608,7 +4647,7 @@ export const simulateTick = ({
                     starvationDeaths += deaths;
 
                     const reason = lackingFood && lackingCloth ? '食物和布料' : (lackingFood ? '食物' : '布料');
-                    logs.push(`${className} 阶层因长期缺乏${reason}，${deaths} 人死亡！`);
+                    recordAggregatedLog(`${className} 阶层因长期缺乏${reason}，${deaths} 人死亡！`);
                 }
             }
         }
@@ -4656,87 +4695,89 @@ export const simulateTick = ({
     });
 
     // console.log('[TICK] Starting price and wage updates...'); // Commented for performance
-    const updatedPrices = { ...priceMap };
-    const updatedWages = {};
+    let updatedPrices = { ...priceMap };
+    let updatedWages = { ...(market?.wages || {}) };
     const wageSmoothing = 0.35;
 
-    Object.entries(roleWageStats).forEach(([role, data]) => {
-
-        let currentSignal = 0;
-
-        const pop = popStructure[role] || 0;
-
-
-
-        if (pop > 0) {
-
-            // [FIX] Use roleLaborIncome and roleLivingExpense to calculate wage signal
-            // This prevents high Owner Revenue (Profit) from artificially inflating the expected Labor Wage.
-            const laborIncome = roleLaborIncome[role] || 0;
-            const livingExpense = roleLivingExpense[role] || 0;
-
-            // If a role has NO labor income (e.g. pure Capitalist who only owns buildings),
-            // we should not let their profit signal drive labor wages.
-            // However, if they have NO labor income, their "Wage Signal" might simply be their Living Expenses
-            // (i.e. if they were to work, they'd need at least this much).
-
-            // Fallback: if no labor income but has general income, we might be in a weird state.
-            // Ideally, we just look at Labor Income - Living Expense.
-
-            let effectiveIncome = laborIncome;
-            let effectiveExpense = livingExpense;
-
-            // If completely zero labor income (no one working in this role),
-            // the signal would be -Expense/Pop (negative).
-            // This correctly pushes wages up ( Wait? No. (Inc - Exp) -> Signal. Signal is target. Negative Target -> 0 wage?)
-            // Wait, logic: smoothed = prev + (currentSignal - prev) * k.
-            // If Signal < 0. Wage -> 0.
-            // This implies: "We are starving (Expense > Income), so we accept LOWER wages??"
-            // NO. The simulation logic assumes "Signal" is "What we CAN SAVE".
-            // That assumption seems flawed if it drives expected wage.
-
-            // Actually, let's keep the formula structure but swap variables.
-            // If the game economy relies on "Savings" as the signal for "Worker Wealth" -> "Wage Expectation",
-            // then we are doing the right thing by removing Owner Profit (which is huge wealth).
-
-            // Special Case: If labor income is 0 (pure owner), do not drive wage to negative infinity.
-            // Just use 0 or keep previous.
-            if (laborIncome === 0 && roleWageStats[role].totalSlots === 0) {
-                // No one working. Use previous wage as signal (no change).
-                currentSignal = previousWages[role] || 0;
+    if (shouldUpdatePrices) {
+        updatedWages = {};
+        Object.entries(roleWageStats).forEach(([role, data]) => {
+    
+            let currentSignal = 0;
+    
+            const pop = popStructure[role] || 0;
+    
+    
+    
+            if (pop > 0) {
+    
+                // [FIX] Use roleLaborIncome and roleLivingExpense to calculate wage signal
+                // This prevents high Owner Revenue (Profit) from artificially inflating the expected Labor Wage.
+                const laborIncome = roleLaborIncome[role] || 0;
+                const livingExpense = roleLivingExpense[role] || 0;
+    
+                // If a role has NO labor income (e.g. pure Capitalist who only owns buildings),
+                // we should not let their profit signal drive labor wages.
+                // However, if they have NO labor income, their "Wage Signal" might simply be their Living Expenses
+                // (i.e. if they were to work, they'd need at least this much).
+    
+                // Fallback: if no labor income but has general income, we might be in a weird state.
+                // Ideally, we just look at Labor Income - Living Expense.
+    
+                let effectiveIncome = laborIncome;
+                let effectiveExpense = livingExpense;
+    
+                // If completely zero labor income (no one working in this role),
+                // the signal would be -Expense/Pop (negative).
+                // This correctly pushes wages up ( Wait? No. (Inc - Exp) -> Signal. Signal is target. Negative Target -> 0 wage?)
+                // Wait, logic: smoothed = prev + (currentSignal - prev) * k.
+                // If Signal < 0. Wage -> 0.
+                // This implies: "We are starving (Expense > Income), so we accept LOWER wages??"
+                // NO. The simulation logic assumes "Signal" is "What we CAN SAVE".
+                // That assumption seems flawed if it drives expected wage.
+    
+                // Actually, let's keep the formula structure but swap variables.
+                // If the game economy relies on "Savings" as the signal for "Worker Wealth" -> "Wage Expectation",
+                // then we are doing the right thing by removing Owner Profit (which is huge wealth).
+    
+                // Special Case: If labor income is 0 (pure owner), do not drive wage to negative infinity.
+                // Just use 0 or keep previous.
+                if (laborIncome === 0 && roleWageStats[role].totalSlots === 0) {
+                    // No one working. Use previous wage as signal (no change).
+                    currentSignal = previousWages[role] || 0;
+                } else {
+                    currentSignal = (effectiveIncome - effectiveExpense) / pop;
+                }
+    
             } else {
-                currentSignal = (effectiveIncome - effectiveExpense) / pop;
+    
+                if (data.weightedWage > 0 && data.totalSlots > 0) {
+    
+                    currentSignal = data.weightedWage / data.totalSlots;
+    
+                } else {
+    
+                    currentSignal = previousWages[role] || 0;
+    
+                }
+    
             }
-
-        } else {
-
-            if (data.weightedWage > 0 && data.totalSlots > 0) {
-
-                currentSignal = data.weightedWage / data.totalSlots;
-
-            } else {
-
-                currentSignal = previousWages[role] || 0;
-
-            }
-
-        }
-
-
-
-        currentSignal = Math.max(0, currentSignal);
-
-
-
-        const prev = previousWages[role] || 0;
-
-        const smoothed = prev + (currentSignal - prev) * wageSmoothing;
-
-
-
-        updatedWages[role] = parseFloat(smoothed.toFixed(2));
-
-    });
+    
+    
+    
+            currentSignal = Math.max(0, currentSignal);
+    
+    
+    
+            const prev = previousWages[role] || 0;
+    
+            const smoothed = prev + (currentSignal - prev) * wageSmoothing;
+    
+    
+    
+            updatedWages[role] = parseFloat(smoothed.toFixed(2));
+    
+        });
 
 
 
@@ -4754,7 +4795,7 @@ export const simulateTick = ({
     const defaultInventoryPriceImpact = Math.max(0, defaultMarketInfluence.inventoryPriceImpact ?? 0.25);
 
     // 新的市场价格算法：每个建筑有自己的出售价格，市场价是加权平均
-    Object.keys(RESOURCES).forEach(resource => {
+        Object.keys(RESOURCES).forEach(resource => {
         if (!isTradableResource(resource)) return;
 
         const resourceDef = RESOURCES[resource];
@@ -5034,8 +5075,9 @@ export const simulateTick = ({
             finalPrice = Math.min(finalPrice, maxPrice);
         }
 
-        updatedPrices[resource] = parseFloat(finalPrice.toFixed(2));
-    });
+            updatedPrices[resource] = parseFloat(finalPrice.toFixed(2));
+        });
+    }
 
     const getLastTickNetIncomePerCapita = (role) => {
         const history = (classWealthHistory || {})[role];
@@ -5216,6 +5258,8 @@ export const simulateTick = ({
         return classWealth?.[role] || 0;
     };
 
+    const vacantRoleIncomeCache = tickCache.getOrCompute(tick, 'vacantRoleIncomeCache', () => new Map());
+
     /**
      * 为空岗位预估收入（区分业主和雇员）
      * 解决恶性循环：无人工作 → 收入为0 → 更无人愿意去
@@ -5223,6 +5267,9 @@ export const simulateTick = ({
      * @returns {number} 预估的人均收入
      */
     const estimateVacantRoleIncome = (role) => {
+        if (vacantRoleIncomeCache.has(role)) {
+            return vacantRoleIncomeCache.get(role);
+        }
         // 空岗位吸引力加成系数
         const VACANT_BONUS = 1.2;
 
@@ -5309,14 +5356,18 @@ export const simulateTick = ({
         if (totalSlots <= 0) {
             // 没有建筑提供这个岗位：也使用“岗位发出工资的平均数”作为信号
             const avgPaidWage = updatedWages?.[role] ?? market?.wages?.[role] ?? getExpectedWage(role);
-            return avgPaidWage * VACANT_BONUS;
+            const fallback = avgPaidWage * VACANT_BONUS;
+            vacantRoleIncomeCache.set(role, fallback);
+            return fallback;
         }
 
         const totalIncome = ownerIncome + employeeWage;
         const averageIncome = totalIncome / totalSlots;
 
         // 应用吸引力加成
-        return Math.max(0, averageIncome * VACANT_BONUS);
+        const result = Math.max(0, averageIncome * VACANT_BONUS);
+        vacantRoleIncomeCache.set(role, result);
+        return result;
     };
 
     const activeRoleMetrics = ROLE_PRIORITY.map(role => {
@@ -5708,11 +5759,18 @@ export const simulateTick = ({
 
     const priceControlIncome = taxBreakdown.priceControlIncome || 0;
     const priceControlExpense = taxBreakdown.priceControlExpense || 0;
+    const effectiveTradeRouteTax = Number.isFinite(tradeRouteTax) ? tradeRouteTax : 0;
 
     // Price control income is added to silver here (expense was deducted in real-time)
     res.silver = (res.silver || 0) + priceControlIncome;
     trackSilverChange(priceControlIncome, `价格管制收入`);
     rates.silver = (rates.silver || 0) + priceControlIncome;
+
+    if (effectiveTradeRouteTax !== 0) {
+        res.silver = (res.silver || 0) + effectiveTradeRouteTax;
+        trackSilverChange(effectiveTradeRouteTax, `贸易路线税收`);
+        rates.silver = (rates.silver || 0) + effectiveTradeRouteTax;
+    }
 
     const netTax = totalCollectedTax
         - taxBreakdown.subsidy
@@ -5720,6 +5778,7 @@ export const simulateTick = ({
         + warIndemnityIncome
         + decreeSilverIncome
         - decreeSilverExpense
+        + effectiveTradeRouteTax
         + priceControlIncome
         - priceControlExpense;
     const taxes = {
@@ -5737,6 +5796,10 @@ export const simulateTick = ({
             policyExpense: decreeSilverExpense,
             priceControlIncome: priceControlIncome,
             priceControlExpense: priceControlExpense,
+            tradeRouteTax: effectiveTradeRouteTax,
+            baseFiscalIncome,
+            totalFiscalIncome,
+            incomePercentMultiplier,
             // DEBUG: 调试关税策略
             _debug_tariffPolicies: {
                 hasExport: !!policies.exportTariffMultipliers,
@@ -5752,6 +5815,12 @@ export const simulateTick = ({
     roleWagePayout.official = totalOfficialIncome || 0;
     // Explicitly clear official shortages to prevent "ghost" warnings from generic logic
     if (classShortages) classShortages.official = [];
+
+    if (aggregatedLogs.size > 0) {
+        aggregatedLogs.forEach((count, message) => {
+            logs.push(count > 1 ? `${message}（共${count}处）` : message);
+        });
+    }
 
     // console.log('[TICK END]', tick, 'militaryCapacity:', militaryCapacity); // Commented for performance
     return {

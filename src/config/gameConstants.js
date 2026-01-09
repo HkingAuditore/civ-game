@@ -17,6 +17,12 @@ export const GAME_SPEEDS = [0.5, 1, 2, 5];
 export const WEALTH_DECAY_RATE = 0.005;
 
 /**
+ * 日志与历史记录存储上限
+ */
+export const LOG_STORAGE_LIMIT = 128;
+export const HISTORY_STORAGE_LIMIT = 30;
+
+/**
  * 资源类型配置
  * 每个资源包含：
  * - name: 资源名称
