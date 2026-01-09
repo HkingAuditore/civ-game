@@ -1,4 +1,4 @@
-import { BUILDINGS, STRATA, EPOCHS, RESOURCES, TECHS, ECONOMIC_INFLUENCE, WEALTH_DECAY_RATE } from '../config';
+import { BUILDINGS, STRATA, EPOCHS, RESOURCES, TECHS, ECONOMIC_INFLUENCE, WEALTH_DECAY_RATE, TREATY_TYPE_LABELS } from '../config';
 import { calculateArmyPopulation, calculateArmyFoodNeed, calculateArmyCapacityNeed, calculateArmyMaintenance, calculateArmyScalePenalty } from '../config';
 import { getBuildingEffectiveConfig, getUpgradeCost, getMaxUpgradeLevel, BUILDING_UPGRADES } from '../config/buildingUpgrades';
 import { isResourceUnlocked } from '../utils/resources';
@@ -20,6 +20,44 @@ import {
     getGovernmentType, // Determine current polity
 } from './rulingCoalition';
 import { getPolityEffects } from '../config/polityEffects';
+
+const getTreatyLabel = (type) => TREATY_TYPE_LABELS[type] || type;
+const isTreatyActive = (treaty, tick) => !Number.isFinite(treaty?.endDay) || tick < treaty.endDay;
+
+const processNationTreaties = ({ nation, tick, resources, logs }) => {
+    const treaties = Array.isArray(nation.treaties) ? nation.treaties : [];
+    const activeTreaties = [];
+    const expiredTreaties = [];
+    let maintenanceTotal = 0;
+
+    treaties.forEach((treaty) => {
+        if (isTreatyActive(treaty, tick)) {
+            activeTreaties.push(treaty);
+            if (treaty.direction === 'player_to_ai' && Number.isFinite(treaty.maintenancePerDay)) {
+                maintenanceTotal += Math.max(0, treaty.maintenancePerDay);
+            }
+        } else {
+            expiredTreaties.push(treaty);
+        }
+    });
+
+    if (expiredTreaties.length > 0) {
+        expiredTreaties.forEach((treaty) => {
+            logs.push(`Treaty with ${nation.name} expired (${getTreatyLabel(treaty.type)}).`);
+        });
+    }
+
+    if (maintenanceTotal > 0 && resources) {
+        const currentSilver = resources.silver || 0;
+        const paid = Math.max(0, Math.min(currentSilver, maintenanceTotal));
+        resources.silver = currentSilver - paid;
+        nation.budget = (nation.budget || 0) + paid;
+        nation.wealth = (nation.wealth || 0) + paid;
+    }
+
+    nation.treaties = activeTreaties;
+};
+
 
 // ============================================================================
 // REFACTORED MODULE IMPORTS
@@ -206,6 +244,7 @@ export const simulateTick = ({
     militaryWageRatio = 1,
     militaryQueue = [],
     nations = [],
+        diplomacyOrganizations = null,
     tick = 0,
     techsUnlocked = [],
     activeFestivalEffects = [],
@@ -4267,6 +4306,8 @@ export const simulateTick = ({
             return next;
         }
 
+        processNationTreaties({ nation: next, tick, resources: res, logs });
+
         if (next.isRebelNation) {
             // REFACTORED: Using module function for rebel economy initialization
             initializeRebelEconomy(next);
@@ -4505,13 +4546,13 @@ export const simulateTick = ({
 
     // REFACTORED: Using module function for AI-AI trade
     if (shouldUpdateTrade) {
-        processAITrade(visibleNations, logs);
+        processAITrade(visibleNations, logs, diplomacyOrganizations);
     }
 
 
     // REFACTORED: Using module function for AI-Player trade
     if (shouldUpdateTrade) {
-        processAIPlayerTrade(visibleNations, tick, res, market, logs, policies);
+        processAIPlayerTrade(visibleNations, tick, res, market, logs, policies, diplomacyOrganizations);
     }
 
 

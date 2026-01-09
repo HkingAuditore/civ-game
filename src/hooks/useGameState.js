@@ -2,7 +2,7 @@
 // 集中管理所有游戏状态，避免App.jsx中状态定义过多
 
 import { useEffect, useRef, useState } from 'react';
-import { COUNTRIES, RESOURCES, STRATA } from '../config';
+import { COUNTRIES, DEFAULT_VASSAL_STATUS, RESOURCES, STRATA } from '../config';
 import { isOldUpgradeFormat, migrateUpgradesToNewFormat } from '../utils/buildingUpgradeUtils';
 import { migrateAllOfficialsForInvestment } from '../logic/officials/migration';
 import { DEFAULT_DIFFICULTY, getDifficultyConfig, getStartingSilverMultiplier, getInitialBuildings } from '../config/difficulty';
@@ -413,6 +413,8 @@ const buildMinimalAutoSavePayload = (payload) => ({
     merchantState: payload.merchantState,
     tradeRoutes: payload.tradeRoutes,
     tradeStats: payload.tradeStats,
+    diplomacyOrganizations: payload.diplomacyOrganizations,
+    overseasBuildings: payload.overseasBuildings,
     eventEffectSettings: payload.eventEffectSettings,
     activeEventEffects: payload.activeEventEffects,
     rebellionStates: payload.rebellionStates,
@@ -473,6 +475,12 @@ const buildInitialTradeRoutes = () => ({
     // { nationId, resource, type: 'import'|'export', createdAt }
     routes: [],
 });
+
+const buildInitialDiplomacyOrganizations = () => ({
+    organizations: [],
+});
+
+const buildInitialOverseasBuildings = () => ([]);
 
 const isTradable = (resourceKey) => {
     if (resourceKey === 'silver') return false;
@@ -564,6 +572,23 @@ const buildInitialNations = () => {
 
         // 初始化基础人口（用于战后恢复）
         const basePopulation = 1000 + Math.floor(Math.random() * 500); // 1000-1500
+        const vassalStatus = {
+            vassalOf: Object.prototype.hasOwnProperty.call(nation, 'vassalOf')
+                ? nation.vassalOf
+                : DEFAULT_VASSAL_STATUS.vassalOf,
+            vassalType: Object.prototype.hasOwnProperty.call(nation, 'vassalType')
+                ? nation.vassalType
+                : DEFAULT_VASSAL_STATUS.vassalType,
+            autonomy: Number.isFinite(nation.autonomy)
+                ? nation.autonomy
+                : DEFAULT_VASSAL_STATUS.autonomy,
+            tributeRate: Number.isFinite(nation.tributeRate)
+                ? nation.tributeRate
+                : DEFAULT_VASSAL_STATUS.tributeRate,
+            independencePressure: Number.isFinite(nation.independencePressure)
+                ? nation.independencePressure
+                : DEFAULT_VASSAL_STATUS.independencePressure,
+        };
 
         return {
             ...nation,
@@ -571,6 +596,11 @@ const buildInitialNations = () => {
             treaties: Array.isArray(nation.treaties) ? nation.treaties : [],
             openMarketUntil: nation.openMarketUntil ?? null,
             peaceTreatyUntil: nation.peaceTreatyUntil ?? null,
+            ...vassalStatus,
+            organizationMemberships: Array.isArray(nation.organizationMemberships)
+                ? nation.organizationMemberships
+                : [],
+            overseasAssets: Array.isArray(nation.overseasAssets) ? nation.overseasAssets : [],
             warScore: nation.warScore ?? 0,
             isAtWar: nation.isAtWar ?? false,
             wealth,
@@ -736,6 +766,8 @@ export const useGameState = () => {
     // ========== 贸易路线状态 ==========
     const [tradeRoutes, setTradeRoutes] = useState(buildInitialTradeRoutes); // 玩家创建的贸易路线
     const [tradeStats, setTradeStats] = useState({ tradeTax: 0, tradeRouteTax: 0 }); // 每日贸易路线税收
+    const [diplomacyOrganizations, setDiplomacyOrganizations] = useState(buildInitialDiplomacyOrganizations);
+    const [overseasBuildings, setOverseasBuildings] = useState(buildInitialOverseasBuildings);
 
     // ========== 和平协议状态 ==========
     // ========== 策略行动状态 ==========
@@ -1148,6 +1180,8 @@ export const useGameState = () => {
                 merchantState,
                 tradeRoutes,
                 tradeStats,
+                diplomacyOrganizations,
+                overseasBuildings,
                 eventEffectSettings,
                 activeEventEffects,
                 rebellionStates,
@@ -1208,6 +1242,13 @@ export const useGameState = () => {
             treaties: Array.isArray(n.treaties) ? n.treaties : [],
             openMarketUntil: Object.prototype.hasOwnProperty.call(n, 'openMarketUntil') ? n.openMarketUntil : null,
             peaceTreatyUntil: Object.prototype.hasOwnProperty.call(n, 'peaceTreatyUntil') ? n.peaceTreatyUntil : null,
+            vassalOf: Object.prototype.hasOwnProperty.call(n, 'vassalOf') ? n.vassalOf : DEFAULT_VASSAL_STATUS.vassalOf,
+            vassalType: Object.prototype.hasOwnProperty.call(n, 'vassalType') ? n.vassalType : DEFAULT_VASSAL_STATUS.vassalType,
+            autonomy: Number.isFinite(n.autonomy) ? n.autonomy : DEFAULT_VASSAL_STATUS.autonomy,
+            tributeRate: Number.isFinite(n.tributeRate) ? n.tributeRate : DEFAULT_VASSAL_STATUS.tributeRate,
+            independencePressure: Number.isFinite(n.independencePressure) ? n.independencePressure : DEFAULT_VASSAL_STATUS.independencePressure,
+            organizationMemberships: Array.isArray(n.organizationMemberships) ? n.organizationMemberships : [],
+            overseasAssets: Array.isArray(n.overseasAssets) ? n.overseasAssets : [],
         })));
         setOfficials(migrateAllOfficialsForInvestment(data.officials || [], data.daysElapsed || 0));
         setOfficialCandidates(data.officialCandidates || []);
@@ -1320,6 +1361,8 @@ export const useGameState = () => {
         });
         setTradeRoutes(data.tradeRoutes || buildInitialTradeRoutes());
         setTradeStats(data.tradeStats || { tradeTax: 0, tradeRouteTax: 0 });
+        setDiplomacyOrganizations(data.diplomacyOrganizations || buildInitialDiplomacyOrganizations());
+        setOverseasBuildings(data.overseasBuildings || buildInitialOverseasBuildings());
         setAutoSaveInterval(data.autoSaveInterval ?? 60);
         setIsAutoSaveEnabled(data.isAutoSaveEnabled ?? true);
         setLastAutoSaveTime(data.lastAutoSaveTime || Date.now());
@@ -2053,6 +2096,10 @@ export const useGameState = () => {
         setTradeRoutes,
         tradeStats,
         setTradeStats,
+        diplomacyOrganizations,
+        setDiplomacyOrganizations,
+        overseasBuildings,
+        setOverseasBuildings,
 
         // 策略行动
         actionCooldowns,

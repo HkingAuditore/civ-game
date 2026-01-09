@@ -758,12 +758,7 @@ export function createAllianceRequestEvent(nation, callback) {
     };
 }
 
-const TREATY_TYPE_LABELS = {
-    academic_exchange: '学术交流',
-    open_market: '开放市场',
-    non_aggression: '互不侵犯',
-    defensive_pact: '共同防御',
-};
+import { TREATY_TYPE_LABELS } from '../diplomacy';
 
 /**
  * Treaty 2.0: 创建外交事件 - AI提出条约
@@ -791,8 +786,8 @@ export function createTreatyProposalEvent(nation, treaty, callback) {
         id: `treaty_proposal_${nation.id}_${Date.now()}`,
         name: `${nation.name}提出条约：${typeLabel}`,
         icon: treaty?.type === 'academic_exchange' ? 'BookOpen'
-            : treaty?.type === 'open_market' ? 'Store'
-                : treaty?.type === 'non_aggression' ? 'Shield'
+            : (treaty?.type === 'open_market' || treaty?.type === 'trade_agreement' || treaty?.type === 'free_trade') ? 'Store'
+                : (treaty?.type === 'non_aggression' || treaty?.type === 'peace_treaty') ? 'Shield'
                     : 'Users',
         image: null,
         description: descriptionLines.join('\n'),
@@ -852,6 +847,34 @@ export function createTreatyProposalResultEvent(nation, treaty, accepted, callba
         icon: 'FileX',
         image: null,
         description: `${nation.name}拒绝了你的条约提案。你可以继续改善关系,或更换条约条款再尝试。`,
+        isDiplomaticEvent: true,
+        options: [
+            {
+                id: 'acknowledge',
+                text: '了解',
+                description: '确认',
+                effects: {},
+                callback: callback,
+            },
+        ],
+    };
+}
+
+/**
+ * Treaty 2.0: 创建外交事件 - 条约撕毁通知
+ * @param {Object} nation - 条约撕毁方
+ * @param {Object} breachPenalty - 违约惩罚 { relationPenalty: number }
+ * @param {Function} callback - 确认回调
+ * @returns {Object} - 外交事件对象
+ */
+export function createTreatyBreachEvent(nation, breachPenalty, callback) {
+    const penalty = breachPenalty?.relationPenalty ?? 0;
+    return {
+        id: `treaty_breach_${nation.id}_${Date.now()}`,
+        name: `${nation.name}撕毁条约`,
+        icon: 'AlertTriangle',
+        image: null,
+        description: `${nation.name}突然撕毁了与你的和平条约，双方关系急剧恶化（-${penalty}）。你的外交信誉受到冲击。`,
         isDiplomaticEvent: true,
         options: [
             {

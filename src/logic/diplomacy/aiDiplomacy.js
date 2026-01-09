@@ -4,7 +4,7 @@
  * Extracted from simulation.js for better code organization
  */
 
-import { RESOURCES } from '../../config';
+import { ORGANIZATION_EFFECTS, RESOURCES, PEACE_TREATY_TYPES, getTreatyBreachPenalty } from '../../config';
 import {
     calculateAIGiftAmount,
 } from '../../utils/diplomaticUtils';
@@ -164,7 +164,27 @@ export const processAIGiftDiplomacy = (visibleNations, logs) => {
  * @param {Array} visibleNations - Array of visible AI nations
  * @param {Array} logs - Log array (mutable)
  */
-export const processAITrade = (visibleNations, logs) => {
+const getSharedOrganizationEffects = (organizationState, nationId, partnerId) => {
+    const organizations = organizationState?.organizations;
+    if (!Array.isArray(organizations)) {
+        return { tariffDiscount: 0, relationBonus: 0 };
+    }
+
+    return organizations.reduce(
+        (acc, org) => {
+            if (!org || !Array.isArray(org.members)) return acc;
+            if (!org.members.includes(nationId) || !org.members.includes(partnerId)) return acc;
+            const effects = ORGANIZATION_EFFECTS[org.type] || {};
+            return {
+                tariffDiscount: Math.max(acc.tariffDiscount, effects.tariffDiscount || 0),
+                relationBonus: Math.max(acc.relationBonus, effects.relationBonus || 0),
+            };
+        },
+        { tariffDiscount: 0, relationBonus: 0 }
+    );
+};
+
+export const processAITrade = (visibleNations, logs, diplomacyOrganizations = null) => {
     visibleNations.forEach(nation => {
         if (Math.random() > 0.02) return;
         if (nation.isAtWar) return;
@@ -186,7 +206,9 @@ export const processAITrade = (visibleNations, logs) => {
         const tradeValue = Math.floor(20 + Math.random() * 60);
 
         const taxRate = 0.08;
-        const profitAfterTax = tradeValue * (1 - taxRate) - tradeValue * 0.5;
+        const sharedEffects = getSharedOrganizationEffects(diplomacyOrganizations, nation.id, partner.id);
+        const effectiveTaxRate = taxRate * (1 - sharedEffects.tariffDiscount);
+        const profitAfterTax = tradeValue * (1 - effectiveTaxRate) - tradeValue * 0.5;
         if (profitAfterTax <= 0) return;
 
         nation.wealth = (nation.wealth || 0) + tradeValue * 0.05;
@@ -194,8 +216,9 @@ export const processAITrade = (visibleNations, logs) => {
 
         if (!nation.foreignRelations) nation.foreignRelations = {};
         if (!partner.foreignRelations) partner.foreignRelations = {};
-        nation.foreignRelations[partner.id] = Math.min(100, (nation.foreignRelations[partner.id] || 50) + 1);
-        partner.foreignRelations[nation.id] = Math.min(100, (partner.foreignRelations[nation.id] || 50) + 1);
+        const relationBoost = 1 + (sharedEffects.relationBonus || 0);
+        nation.foreignRelations[partner.id] = Math.min(100, (nation.foreignRelations[partner.id] || 50) + relationBoost);
+        partner.foreignRelations[nation.id] = Math.min(100, (partner.foreignRelations[nation.id] || 50) + relationBoost);
     });
 };
 
@@ -208,8 +231,15 @@ export const processAITrade = (visibleNations, logs) => {
  * @param {Array} logs - Log array (mutable)
  * @param {Object} taxPolicies - Player tax policies (optional)
  */
-export const processAIPlayerTrade = (visibleNations, tick, resources, market, logs, taxPolicies = {}) => {
+export const processAIPlayerTrade = (visibleNations, tick, resources, market, logs, taxPolicies = {}, diplomacyOrganizations = null) => {
     const res = resources;
+    const organizationList = diplomacyOrganizations?.organizations || [];
+    const getTariffDiscount = (nationId) => {
+        const org = organizationList.find(entry =>
+            Array.isArray(entry?.members) && entry.members.includes('player') && entry.members.includes(nationId)
+        );
+        return org ? (ORGANIZATION_EFFECTS[org.type]?.tariffDiscount || 0) : 0;
+    };
 
     visibleNations.forEach(nation => {
         if (Math.random() > 0.005) return;
@@ -235,7 +265,9 @@ export const processAIPlayerTrade = (visibleNations, tick, resources, market, lo
         const tariffRate = isBuying
             ? (taxPolicies?.exportTariffMultipliers?.[resourceKey] ?? taxPolicies?.resourceTariffMultipliers?.[resourceKey] ?? 0)
             : (taxPolicies?.importTariffMultipliers?.[resourceKey] ?? taxPolicies?.resourceTariffMultipliers?.[resourceKey] ?? 0);
-        const effectiveTariffRate = isOpenMarket ? 0 : baseTaxRate + tariffRate;
+        const tariffDiscount = getTariffDiscount(nation.id);
+        const adjustedTariffRate = tariffRate * (1 - tariffDiscount);
+        const effectiveTariffRate = isOpenMarket ? 0 : baseTaxRate + adjustedTariffRate;
 
         const quantity = Math.floor(10 + Math.random() * 40);
         const baseValue = quantity * resourcePrice;
@@ -313,6 +345,32 @@ export const processAIPlayerInteraction = (visibleNations, tick, epoch, logs) =>
         const isAtWarWithPlayer = nation.isAtWar === true;
 
         if (isAtWarWithPlayer) return;
+
+        // AI breach peace treaty when relation collapses
+        if (nation.peaceTreatyUntil && tick < nation.peaceTreatyUntil) {
+            const breachPenalty = getTreatyBreachPenalty(epoch);
+            const lastBreachDay = Number.isFinite(nation.lastTreatyBreachDay) ? nation.lastTreatyBreachDay : -Infinity;
+            const canBreach = (tick - lastBreachDay) >= breachPenalty.cooldownDays;
+            const breachPressure = playerRelation < 15 && aggression > 0.55;
+
+            if (canBreach && breachPressure) {
+                const breachChance = Math.min(0.05, 0.005 + (0.02 * (aggression - 0.55)) + Math.max(0, (15 - playerRelation) / 500));
+                if (Math.random() < breachChance) {
+                    nation.relation = Math.max(0, playerRelation - breachPenalty.relationPenalty);
+                    nation.peaceTreatyUntil = undefined;
+                    if (Array.isArray(nation.treaties)) {
+                        nation.treaties = nation.treaties.filter(t => !PEACE_TREATY_TYPES.includes(t.type));
+                    }
+                    nation.lastTreatyBreachDay = tick;
+                    logs.push(`AI_TREATY_BREACH:${JSON.stringify({
+                        nationId: nation.id,
+                        nationName: nation.name,
+                        relationPenalty: breachPenalty.relationPenalty,
+                    })}`);
+                    logs.push(`⚠️ ${nation.name} 撕毁了与你的和平条约，关系恶化（-${breachPenalty.relationPenalty}）。`);
+                }
+            }
+        }
 
         // AI gift to player
         const lastGiftDay = nation.lastGiftToPlayerDay || 0;
