@@ -1319,26 +1319,26 @@ function GameApp({ gameState }) {
 
                                         {/* 外交标签页 */}
                                         {gameState.activeTab === 'diplo' && (
-                                                <DiplomacyTab
-                                                    nations={gameState.nations}
-                                                    epoch={gameState.epoch}
-                                                    market={gameState.market}
-                                                    resources={gameState.resources}
-                                                    daysElapsed={gameState.daysElapsed}
-                                                    onDiplomaticAction={actions.handleDiplomaticAction}
-                                                    tradeRoutes={gameState.tradeRoutes}
-                                                    onTradeRouteAction={actions.handleTradeRouteAction}
-                                                    merchantState={gameState.merchantState}
-                                                    onMerchantStateChange={gameState.setMerchantState}
-                                                    playerInstallmentPayment={gameState.playerInstallmentPayment}
-                                                    jobsAvailable={gameState.jobsAvailable}
-                                                    popStructure={gameState.popStructure}
-                                                    taxPolicies={gameState.taxPolicies}
-                                                    diplomaticCooldownMod={gameState.modifiers?.officialEffects?.diplomaticCooldown || 0}
-                                                    diplomacyOrganizations={gameState.diplomacyOrganizations}
-                                                    overseasInvestments={gameState.overseasInvestments}
-                                                    classWealth={gameState.classWealth}
-                                                />
+                                            <DiplomacyTab
+                                                nations={gameState.nations}
+                                                epoch={gameState.epoch}
+                                                market={gameState.market}
+                                                resources={gameState.resources}
+                                                daysElapsed={gameState.daysElapsed}
+                                                onDiplomaticAction={actions.handleDiplomaticAction}
+                                                tradeRoutes={gameState.tradeRoutes}
+                                                onTradeRouteAction={actions.handleTradeRouteAction}
+                                                merchantState={gameState.merchantState}
+                                                onMerchantStateChange={gameState.setMerchantState}
+                                                playerInstallmentPayment={gameState.playerInstallmentPayment}
+                                                jobsAvailable={gameState.jobsAvailable}
+                                                popStructure={gameState.popStructure}
+                                                taxPolicies={gameState.taxPolicies}
+                                                diplomaticCooldownMod={gameState.modifiers?.officialEffects?.diplomaticCooldown || 0}
+                                                diplomacyOrganizations={gameState.diplomacyOrganizations}
+                                                overseasInvestments={gameState.overseasInvestments}
+                                                classWealth={gameState.classWealth}
+                                            />
                                         )}
 
                                         {/* 总览标签页 - 移动端专属 */}
@@ -1919,6 +1919,14 @@ function GameApp({ gameState }) {
                                     showMerchantTradeLogs: enabled,
                                     showTradeRouteLogs: enabled,
                                 },
+                            }))}
+                            showOfficialLogs={gameState.eventEffectSettings?.logVisibility?.showOfficialLogs ?? true}
+                            onToggleOfficialLogs={(enabled) => gameState.setEventEffectSettings(prev => ({
+                                ...(prev || {}),
+                                logVisibility: {
+                                    ...((prev || {}).logVisibility || {}),
+                                    showOfficialLogs: enabled,
+                                }
                             }))}
                         />
                     </div>

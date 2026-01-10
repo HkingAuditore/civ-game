@@ -7,6 +7,7 @@ import { STRATA, RESOURCES } from '../../config';
 import { calculateForeignPrice, calculateTradeStatus } from '../../utils/foreignTrade';
 import { isTradableResource } from '../utils/helpers';
 import { debugLog } from '../../utils/debugFlags';
+import { getTreatyEffects } from '../diplomacy/treatyEffects';
 
 /**
  * Default merchant trade configuration
@@ -388,6 +389,25 @@ export const simulateMerchantTrade = ({
         if (!partner) continue;
         if (isTradeBlockedWithPartner({ partner })) continue;
 
+        // 获取与该贸易伙伴的条约效果，应用关税减免
+        const treatyEffects = getTreatyEffects(partner, tick);
+        const treatyTariffMult = treatyEffects.tariffMultiplier; // 0~1, 低于1表示减免
+
+        // 创建基于条约的关税率计算函数
+        const getPartnerImportTaxRate = (resource) => {
+            const baseRate = getImportTaxRate(resource);
+            // 条约减免只作用于关税部分，不影响基础交易税
+            const tariffPart = (importTariffMultipliers[resource] ?? 0);
+            const discountedTariff = tariffPart * treatyTariffMult;
+            return (resourceTaxRates[resource] || 0) + discountedTariff;
+        };
+        const getPartnerExportTaxRate = (resource) => {
+            const baseRate = getExportTaxRate(resource);
+            const tariffPart = (exportTariffMultipliers[resource] ?? 0);
+            const discountedTariff = tariffPart * treatyTariffMult;
+            return (resourceTaxRates[resource] || 0) + discountedTariff;
+        };
+
         // Candidate scoring (cap resources scanned for perf)
         const candidates = [];
 
@@ -410,8 +430,8 @@ export const simulateMerchantTrade = ({
             let exportProfitScore = 0;
 
             if (foreignPrice != null) {
-                // Import Profitability: LocalPrice - (ForeignPrice * (1 + ImportTariff))
-                const importTariff = getImportTaxRate(resourceKey);
+                // Import Profitability: LocalPrice - (ForeignPrice * (1 + ImportTariff * treatyMult))
+                const importTariff = getPartnerImportTaxRate(resourceKey);
                 // Note: Tariff logic in execution was: foreignPrice * (1 + tariffRate) (conceptually cost)
                 // Actually execution logic: Cost = Foreign + Foreign*Tariff.
                 // If Tariff is -0.5 (-50%), Cost = Foreign * 0.5.
@@ -421,8 +441,8 @@ export const simulateMerchantTrade = ({
                     importProfitScore = (localPrice - importCost) / Math.max(0.1, importCost);
                 }
 
-                // Export Profitability: ForeignPrice - (LocalPrice * (1 + ExportTax))
-                const exportTax = getExportTaxRate(resourceKey);
+                // Export Profitability: ForeignPrice - (LocalPrice * (1 + ExportTax * treatyMult))
+                const exportTax = getPartnerExportTaxRate(resourceKey);
                 // Export tax is on Local Price.
                 const exportCost = localPrice * (1 + exportTax);
                 if (foreignPrice > exportCost) {

@@ -4,6 +4,7 @@ import { Icon } from '../common/UIComponents';
 import { RESOURCES } from '../../config';
 import { calculateForeignPrice, calculateTradeStatus } from '../../utils/foreignTrade';
 import { formatNumberShortCN } from '../../utils/numberFormat';
+import { getTreatyEffects } from '../../logic/diplomacy/treatyEffects';
 
 const TradeRoutesModal = ({
     tradeRoutes,
@@ -466,9 +467,13 @@ const TradeRoutesModal = ({
         const valueRaw = merchantAssignments?.[nation.id] ?? 0;
         const value = Math.max(0, Math.floor(Number(valueRaw) || 0));
 
+        // 计算条约加成的商人槽位
+        const treatyEffects = getTreatyEffects(nation, daysElapsed);
+        const baseMax = getMaxTradeRoutesForRelation(nation.relation || 0, nation.alliedWithPlayer === true);
+        const treatyBonus = treatyEffects.extraMerchantSlots === Infinity ? 999 : (treatyEffects.extraMerchantSlots || 0);
         const maxWithNation = isOpenMarketActiveWithNation(nation)
             ? 999
-            : getMaxTradeRoutesForRelation(nation.relation || 0, nation.alliedWithPlayer === true);
+            : Math.min(999, baseMax + treatyBonus);
 
         const disabledInc = remainingMerchants <= 0 || nation.isAtWar || value >= maxWithNation;
         const disabledDec = value <= 0;

@@ -54,10 +54,9 @@ const NEGOTIATION_MAX_ROUNDS = 3;
 const NEGOTIABLE_TREATY_TYPES = [
     'peace_treaty',
     'non_aggression',
-];
-const TREATY_TYPES = [
-    'free_trade',
+    'trade_agreement',
     'open_market',
+    'free_trade',
     'investment_pact',
     'academic_exchange',
     'defensive_pact',
@@ -75,7 +74,7 @@ const getMaxTradeRoutesForRelation = (relation = 0, isAllied = false) => {
     if (relation >= 60) return 3; // Friendly: 3 routes
     if (relation >= 40) return 2; // Neutral: 2 routes
     if (relation >= 20) return 1; // Cold: 1 route
-return 0; // Hostile: no trade
+    return 0; // Hostile: no trade
 };
 
 /**
@@ -187,6 +186,7 @@ const DiplomacyTabComponent = ({
     diplomaticCooldownMod = 0,
     overseasInvestments = [],
     classWealth = {},
+    diplomacyOrganizations = { organizations: [] },
 }) => {
     const [selectedNationId, setSelectedNationId] = useState(null);
     const [tradeAmount, setTradeAmount] = useState(10);
@@ -234,19 +234,19 @@ const DiplomacyTabComponent = ({
      */
     const getDiplomaticCooldown = (nation, actionType) => {
         if (!nation) return { isOnCooldown: false, remainingDays: 0 };
-        
+
         const baseCooldown = DIPLOMATIC_COOLDOWNS[actionType] || 30;
         // 应用冷却时间修改器（负值减少冷却时间）
         const adjustedCooldown = Math.max(1, Math.round(baseCooldown * (1 + diplomaticCooldownMod)));
-        
+
         const lastActionDay = nation.lastDiplomaticActionDay?.[actionType] || 0;
         if (lastActionDay <= 0) {
             return { isOnCooldown: false, remainingDays: 0 };
         }
-        
+
         const daysSinceLastAction = daysElapsed - lastActionDay;
         const remainingDays = Math.max(0, adjustedCooldown - daysSinceLastAction);
-        
+
         return {
             isOnCooldown: remainingDays > 0,
             remainingDays: Math.ceil(remainingDays),
@@ -809,40 +809,56 @@ const DiplomacyTabComponent = ({
                                     );
                                 })()}
 
-                                {/* 海外投资管理面板（仅对附庸国显示） */}
-                                {selectedNation?.vassalOf === 'player' && epoch >= 3 && (() => {
+                                {/* 海外投资管理面板（对附庸国或签有投资协议的国家显示） */}
+                                {(() => {
+                                    // 检查是否签有投资协议
+                                    const hasInvestmentPact = Array.isArray(selectedNation?.treaties) &&
+                                        selectedNation.treaties.some(t => t.type === 'investment_pact' && (!t.endDay || daysElapsed < t.endDay));
+                                    const canInvest = (selectedNation?.vassalOf === 'player' || hasInvestmentPact) && epoch >= 3;
+                                    if (!canInvest || !selectedNation) return null;
                                     const nationInvestments = getInvestmentsInNation(overseasInvestments, selectedNation.id);
                                     const totalInvestmentValue = nationInvestments.reduce((sum, inv) => sum + (inv.investmentAmount || 0), 0);
                                     const monthlyProfit = nationInvestments.reduce((sum, inv) => sum + ((inv.operatingData?.profit || 0) * 30), 0);
-                                    const operatingModeLabels = {
-                                        local: '当地运营',
-                                        dumping: '倾销模式',
-                                        buyback: '回购模式',
+                                    const operatingModeConfigs = {
+                                        local: { name: '当地运营', desc: '使用当地资源和市场', icon: '🏠', color: 'text-green-400' },
+                                        dumping: { name: '倾销模式', desc: '本国资源低价销售当地', icon: '📦', color: 'text-orange-400' },
+                                        buyback: { name: '回购模式', desc: '产出运回本国销售', icon: '🚢', color: 'text-blue-400' },
                                     };
-                                    
+                                    const stratumLabels = { capitalist: '资本家', merchant: '商人', landowner: '地主' };
+                                    const stratumIcons = { capitalist: '🏭', merchant: '🛒', landowner: '🌾' };
+
                                     return (
                                         <div className="p-2 rounded border border-amber-500/30 bg-amber-900/20 mb-2">
-                                            <div className="flex items-center justify-between mb-1">
+                                            <div className="flex items-center justify-between mb-2">
                                                 <div className="flex items-center gap-1 text-amber-200 font-body text-[11px]">
                                                     <Icon name="Building2" size={12} />
                                                     海外投资 ({nationInvestments.length}项)
                                                 </div>
-                                                <div className="text-[10px] text-amber-300">
-                                                    月利润: {formatNumberShortCN(monthlyProfit)}
+                                                <div className="text-[10px]">
+                                                    <span className="text-gray-400">总值:</span>
+                                                    <span className="text-amber-300 ml-1">{formatNumberShortCN(totalInvestmentValue)}</span>
+                                                    <span className="text-gray-400 ml-2">月利:</span>
+                                                    <span className={monthlyProfit >= 0 ? 'text-green-400 ml-1' : 'text-red-400 ml-1'}>{formatNumberShortCN(monthlyProfit)}</span>
                                                 </div>
                                             </div>
-                                            
-                                            {nationInvestments.length > 0 ? (
-                                                <div className="space-y-1 mb-2 max-h-24 overflow-y-auto">
-                                                    {nationInvestments.slice(0, 3).map(inv => {
+
+                                            {/* 现有投资列表 */}
+                                            {nationInvestments.length > 0 && (
+                                                <div className="space-y-1 mb-2 max-h-32 overflow-y-auto">
+                                                    {nationInvestments.map(inv => {
                                                         const building = BUILDINGS.find(b => b.id === inv.buildingId);
+                                                        const mode = operatingModeConfigs[inv.operatingMode] || operatingModeConfigs.local;
+                                                        const dailyProfit = inv.operatingData?.profit || 0;
                                                         return (
-                                                            <div key={inv.id} className="flex items-center justify-between text-[9px] bg-amber-900/30 rounded px-1 py-0.5">
-                                                                <span className="text-amber-100">{building?.name || inv.buildingId}</span>
-                                                                <div className="flex items-center gap-1">
-                                                                    <span className="text-gray-400">{operatingModeLabels[inv.operatingMode]}</span>
+                                                            <div key={inv.id} className="flex items-center justify-between text-[9px] bg-amber-900/30 rounded px-2 py-1 border border-amber-700/30">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="text-amber-100 font-semibold">{building?.name || inv.buildingId}</span>
+                                                                    <span className={`${mode.color} text-[8px]`}>{mode.icon}{mode.name}</span>
+                                                                </div>
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="text-gray-400">日利: <span className={dailyProfit >= 0 ? 'text-green-400' : 'text-red-400'}>{dailyProfit.toFixed(1)}</span></span>
                                                                     <button
-                                                                        className="text-red-400 hover:text-red-300"
+                                                                        className="text-red-400 hover:text-red-300 px-1"
                                                                         onClick={() => onDiplomaticAction(selectedNation.id, 'withdraw_overseas_investment', { investmentId: inv.id })}
                                                                         title="撤回投资（扣除20%违约金）"
                                                                     >
@@ -852,40 +868,46 @@ const DiplomacyTabComponent = ({
                                                             </div>
                                                         );
                                                     })}
-                                                    {nationInvestments.length > 3 && (
-                                                        <div className="text-[9px] text-gray-400 text-center">...还有 {nationInvestments.length - 3} 项投资</div>
-                                                    )}
                                                 </div>
-                                            ) : (
-                                                <div className="text-[10px] text-gray-400 mb-2">暂无投资</div>
                                             )}
-                                            
-                                            {/* 新建投资按钮 */}
-                                            <div className="flex flex-wrap gap-1">
+
+                                            {/* 新建投资 - 建筑列表（按阶层分组） */}
+                                            <div className="border-t border-amber-700/40 pt-2 mt-2">
+                                                <div className="text-[10px] text-gray-300 mb-1.5 font-decorative">新建海外投资</div>
+
                                                 {Object.entries(INVESTABLE_BUILDINGS).map(([stratum, buildingIds]) => {
-                                                    const stratumWealth = classWealth[stratum] || 0;
-                                                    const stratumLabels = { capitalist: '资本家', merchant: '商人', landowner: '地主' };
-                                                    if (stratumWealth < 100) return null;
-                                                    return buildingIds.slice(0, 2).map(buildingId => {
-                                                        const building = BUILDINGS.find(b => b.id === buildingId);
-                                                        if (!building) return null;
-                                                        const cost = Object.values(building.cost || {}).reduce((sum, v) => sum + v, 0) * 1.5;
-                                                        if (stratumWealth < cost) return null;
-                                                        return (
-                                                            <button
-                                                                key={`${stratum}_${buildingId}`}
-                                                                className="px-1.5 py-0.5 text-[9px] rounded bg-amber-600 hover:bg-amber-500 text-white font-body"
-                                                                onClick={() => onDiplomaticAction(selectedNation.id, 'establish_overseas_investment', {
-                                                                    buildingId,
-                                                                    ownerStratum: stratum,
-                                                                    operatingMode: 'local',
+                                                    const wealth = classWealth[stratum] || 0;
+                                                    if (wealth < 50) return null;
+                                                    return (
+                                                        <div key={stratum} className="mb-2">
+                                                            <div className="text-[9px] text-gray-400 mb-1">
+                                                                {stratumIcons[stratum]} {stratumLabels[stratum]} (财富: {formatNumberShortCN(wealth)})
+                                                            </div>
+                                                            <div className="flex flex-wrap gap-1">
+                                                                {buildingIds.map(buildingId => {
+                                                                    const building = BUILDINGS.find(b => b.id === buildingId);
+                                                                    if (!building) return null;
+                                                                    const cost = Object.values(building.cost || {}).reduce((sum, v) => sum + v, 0) * 1.5;
+                                                                    const canAfford = wealth >= cost;
+                                                                    return (
+                                                                        <button
+                                                                            key={buildingId}
+                                                                            className={`px-1.5 py-0.5 text-[9px] rounded font-body ${canAfford ? 'bg-amber-600 hover:bg-amber-500 text-white' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}
+                                                                            disabled={!canAfford}
+                                                                            onClick={() => onDiplomaticAction(selectedNation.id, 'establish_overseas_investment', {
+                                                                                buildingId,
+                                                                                ownerStratum: stratum,
+                                                                                operatingMode: 'local',
+                                                                            })}
+                                                                            title={`${building.name}\n成本: ${formatNumberShortCN(cost)}\n投入: ${Object.entries(building.input || {}).map(([r, v]) => `${r}×${v}`).join(', ') || '无'}\n产出: ${Object.entries(building.output || {}).filter(([k]) => !['maxPop', 'militaryCapacity'].includes(k)).map(([r, v]) => `${r}×${v}`).join(', ')}`}
+                                                                        >
+                                                                            +{building.name}
+                                                                        </button>
+                                                                    );
                                                                 })}
-                                                                title={`${stratumLabels[stratum]}投资建造 ${building.name}（成本: ${formatNumberShortCN(cost)}）`}
-                                                            >
-                                                                +{building.name}
-                                                            </button>
-                                                        );
-                                                    });
+                                                            </div>
+                                                        </div>
+                                                    );
                                                 })}
                                             </div>
                                         </div>
@@ -999,33 +1021,9 @@ const DiplomacyTabComponent = ({
                                     })()}
                                 </div>
 
-                                {/* Treaty Center MVP - HIDDEN */}
-                                                                <div className="mt-1.5">
-                                    {(() => {
-                                        const negotiationCooldown = getDiplomaticCooldown(selectedNation, 'negotiate_treaty');
-                                        const unlockEra = DIPLOMACY_ERA_UNLOCK.economy?.multi_round_negotiation?.minEra ?? 0;
-                                        const isUnlocked = epoch >= unlockEra;
-                                        const blocked = !isUnlocked || selectedNation?.isAtWar || negotiationCooldown.isOnCooldown;
-                                        let titleText = 'Start negotiation';
-                                        if (!isUnlocked) titleText = `Requires ${EPOCHS[unlockEra]?.name || `Era ${unlockEra}`}`;
-                                        else if (selectedNation?.isAtWar) titleText = 'Cannot negotiate during war';
-                                        else if (negotiationCooldown.isOnCooldown) titleText = `Cooldown (${negotiationCooldown.remainingDays} days)`;
+                                {/* Treaty Center MVP - HIDDEN: Diplomatic negotiation button removed as it duplicates 条约中心 below */}
 
-                                        return (
-                                            <button
-                                                className={`w-full px-2 py-1.5 rounded text-white flex items-center justify-center gap-2 font-semibold font-body ${blocked ? 'bg-gray-600 cursor-not-allowed' : 'bg-amber-700 hover:bg-amber-600'}`}
-                                                onClick={openNegotiationModal}
-                                                disabled={blocked}
-                                                title={titleText}
-                                            >
-                                                <Icon name="Handshake" size={12} />
-                                                {negotiationCooldown.isOnCooldown ? `Negotiate (${negotiationCooldown.remainingDays}d)` : 'Diplomatic negotiation'}
-                                            </button>
-                                        );
-                                    })()}
-                                </div>
-
-{false && <div className="mt-2 bg-gray-900/30 p-2 rounded border border-gray-700/60">
+                                <div className="mt-2 bg-gray-900/30 p-2 rounded border border-gray-700/60">
                                     <div className="flex items-center justify-between mb-1">
                                         <div className="text-[10px] text-gray-300 flex items-center gap-1 font-decorative">
                                             <Icon name="FileText" size={10} className="text-amber-300" />
@@ -1085,24 +1083,343 @@ const DiplomacyTabComponent = ({
                                         })()}
                                     </div>
 
-                                    {Array.isArray(selectedNation?.treaties) && selectedNation.treaties.length > 0 && (
-                                        <div className="mt-2 text-[10px] text-gray-300 font-body">
-                                            <div className="text-[9px] text-gray-500 mb-1 font-decorative">当前条约</div>
-                                            <div className="space-y-1">
-                                                {selectedNation.treaties.slice(-3).reverse().map((t) => (
-                                                    <div key={t.id || `${t.type}-${t.endDay}`} className="flex items-center justify-between bg-gray-800/40 border border-gray-700/60 rounded px-2 py-1">
-                                                        <span className="text-gray-200">
-                                                            {t.type === 'open_market' ? '开放市场' : t.type === 'non_aggression' ? '互不侵犯' : t.type}
-                                                        </span>
-                                                        <span className="text-gray-400 font-epic">
-                                                            {Number.isFinite(t.endDay) ? `剩${Math.max(0, t.endDay - daysElapsed)}天` : '生效中'}
-                                                        </span>
-                                                    </div>
-                                                ))}
+                                    {/* 第二行条约按钮 */}
+                                    <div className="flex gap-1.5 text-[10px] mt-1.5">
+                                        {/* 贸易协定 */}
+                                        {(() => {
+                                            const treatyCooldown = getDiplomaticCooldown(selectedNation, 'propose_treaty');
+                                            const isUnlocked = isDiplomacyUnlocked('treaties', 'trade_agreement', epoch);
+                                            const hasActive = Array.isArray(selectedNation?.treaties) &&
+                                                selectedNation.treaties.some(t => t.type === 'trade_agreement' && (!t.endDay || daysElapsed < t.endDay));
+                                            const blocked = !isUnlocked || selectedNation?.isAtWar || treatyCooldown.isOnCooldown || hasActive;
+
+                                            let titleText = '提出贸易协定（关税-25%, 商路+3）';
+                                            if (!isUnlocked) titleText = `需要${EPOCHS[2]?.name || '古典时代'}解锁`;
+                                            else if (selectedNation?.isAtWar) titleText = '交战期间无法签署';
+                                            else if (treatyCooldown.isOnCooldown) titleText = `冷却中（还需${treatyCooldown.remainingDays}天）`;
+                                            else if (hasActive) titleText = '贸易协定已生效中';
+
+                                            return (
+                                                <button
+                                                    className={`flex-1 px-2 py-1 rounded text-white flex items-center justify-center gap-1 font-semibold font-body ${blocked ? 'bg-gray-600 cursor-not-allowed opacity-60' : 'bg-amber-700 hover:bg-amber-600'}`}
+                                                    onClick={() => onDiplomaticAction(selectedNation.id, 'propose_treaty', { type: 'trade_agreement', durationDays: getTreatyDuration('trade_agreement', epoch) })}
+                                                    disabled={blocked}
+                                                    title={titleText}
+                                                >
+                                                    <Icon name="TrendingUp" size={12} />
+                                                    {!isUnlocked ? '🔒贸易' : '贸易协定'}
+                                                </button>
+                                            );
+                                        })()}
+
+                                        {/* 自由贸易协定 */}
+                                        {(() => {
+                                            const treatyCooldown = getDiplomaticCooldown(selectedNation, 'propose_treaty');
+                                            const isUnlocked = isDiplomacyUnlocked('treaties', 'free_trade', epoch);
+                                            const hasActive = Array.isArray(selectedNation?.treaties) &&
+                                                selectedNation.treaties.some(t => t.type === 'free_trade' && (!t.endDay || daysElapsed < t.endDay));
+                                            const blocked = !isUnlocked || selectedNation?.isAtWar || treatyCooldown.isOnCooldown || hasActive;
+
+                                            let titleText = '提出自由贸易协定（关税=0, 商路无限）';
+                                            if (!isUnlocked) titleText = `需要${EPOCHS[4]?.name || '探索时代'}解锁`;
+                                            else if (selectedNation?.isAtWar) titleText = '交战期间无法签署';
+                                            else if (treatyCooldown.isOnCooldown) titleText = `冷却中（还需${treatyCooldown.remainingDays}天）`;
+                                            else if (hasActive) titleText = '自由贸易协定已生效中';
+
+                                            return (
+                                                <button
+                                                    className={`flex-1 px-2 py-1 rounded text-white flex items-center justify-center gap-1 font-semibold font-body ${blocked ? 'bg-gray-600 cursor-not-allowed opacity-60' : 'bg-cyan-700 hover:bg-cyan-600'}`}
+                                                    onClick={() => onDiplomaticAction(selectedNation.id, 'propose_treaty', { type: 'free_trade', durationDays: getTreatyDuration('free_trade', epoch) })}
+                                                    disabled={blocked}
+                                                    title={titleText}
+                                                >
+                                                    <Icon name="Globe" size={12} />
+                                                    {!isUnlocked ? '🔒自贸' : '自由贸易'}
+                                                </button>
+                                            );
+                                        })()}
+                                    </div>
+
+                                    {/* 第三行条约按钮 */}
+                                    <div className="flex gap-1.5 text-[10px] mt-1.5">
+                                        {/* 学术交流 */}
+                                        {(() => {
+                                            const treatyCooldown = getDiplomaticCooldown(selectedNation, 'propose_treaty');
+                                            const isUnlocked = isDiplomacyUnlocked('treaties', 'academic_exchange', epoch);
+                                            const hasActive = Array.isArray(selectedNation?.treaties) &&
+                                                selectedNation.treaties.some(t => t.type === 'academic_exchange' && (!t.endDay || daysElapsed < t.endDay));
+                                            const blocked = !isUnlocked || selectedNation?.isAtWar || treatyCooldown.isOnCooldown || hasActive;
+
+                                            let titleText = '提出学术交流协定（科技+5%）';
+                                            if (!isUnlocked) titleText = `需要${EPOCHS[3]?.name || '封建时代'}解锁`;
+                                            else if (selectedNation?.isAtWar) titleText = '交战期间无法签署';
+                                            else if (treatyCooldown.isOnCooldown) titleText = `冷却中（还需${treatyCooldown.remainingDays}天）`;
+                                            else if (hasActive) titleText = '学术交流协定已生效中';
+
+                                            return (
+                                                <button
+                                                    className={`flex-1 px-2 py-1 rounded text-white flex items-center justify-center gap-1 font-semibold font-body ${blocked ? 'bg-gray-600 cursor-not-allowed opacity-60' : 'bg-purple-700 hover:bg-purple-600'}`}
+                                                    onClick={() => onDiplomaticAction(selectedNation.id, 'propose_treaty', { type: 'academic_exchange', durationDays: getTreatyDuration('academic_exchange', epoch) })}
+                                                    disabled={blocked}
+                                                    title={titleText}
+                                                >
+                                                    <Icon name="BookOpen" size={12} />
+                                                    {!isUnlocked ? '🔒学术' : '学术交流'}
+                                                </button>
+                                            );
+                                        })()}
+
+                                        {/* 共同防御 */}
+                                        {(() => {
+                                            const treatyCooldown = getDiplomaticCooldown(selectedNation, 'propose_treaty');
+                                            const isUnlocked = isDiplomacyUnlocked('treaties', 'defensive_pact', epoch);
+                                            const hasActive = Array.isArray(selectedNation?.treaties) &&
+                                                selectedNation.treaties.some(t => t.type === 'defensive_pact' && (!t.endDay || daysElapsed < t.endDay));
+                                            const blocked = !isUnlocked || selectedNation?.isAtWar || treatyCooldown.isOnCooldown || hasActive;
+
+                                            let titleText = '提出共同防御条约（互相保护）';
+                                            if (!isUnlocked) titleText = `需要${EPOCHS[3]?.name || '封建时代'}解锁`;
+                                            else if (selectedNation?.isAtWar) titleText = '交战期间无法签署';
+                                            else if (treatyCooldown.isOnCooldown) titleText = `冷却中（还需${treatyCooldown.remainingDays}天）`;
+                                            else if (hasActive) titleText = '共同防御条约已生效中';
+
+                                            return (
+                                                <button
+                                                    className={`flex-1 px-2 py-1 rounded text-white flex items-center justify-center gap-1 font-semibold font-body ${blocked ? 'bg-gray-600 cursor-not-allowed opacity-60' : 'bg-red-700 hover:bg-red-600'}`}
+                                                    onClick={() => onDiplomaticAction(selectedNation.id, 'propose_treaty', { type: 'defensive_pact', durationDays: getTreatyDuration('defensive_pact', epoch) })}
+                                                    disabled={blocked}
+                                                    title={titleText}
+                                                >
+                                                    <Icon name="Shield" size={12} />
+                                                    {!isUnlocked ? '🔒防御' : '共同防御'}
+                                                </button>
+                                            );
+                                        })()}
+
+                                        {/* 投资协议 */}
+                                        {(() => {
+                                            const treatyCooldown = getDiplomaticCooldown(selectedNation, 'propose_treaty');
+                                            const isUnlocked = isDiplomacyUnlocked('treaties', 'investment_pact', epoch);
+                                            const hasActive = Array.isArray(selectedNation?.treaties) &&
+                                                selectedNation.treaties.some(t => t.type === 'investment_pact' && (!t.endDay || daysElapsed < t.endDay));
+                                            const blocked = !isUnlocked || selectedNation?.isAtWar || treatyCooldown.isOnCooldown || hasActive;
+
+                                            let titleText = '提出投资协议（解锁海外投资）';
+                                            if (!isUnlocked) titleText = `需要${EPOCHS[4]?.name || '探索时代'}解锁`;
+                                            else if (selectedNation?.isAtWar) titleText = '交战期间无法签署';
+                                            else if (treatyCooldown.isOnCooldown) titleText = `冷却中（还需${treatyCooldown.remainingDays}天）`;
+                                            else if (hasActive) titleText = '投资协议已生效中';
+
+                                            return (
+                                                <button
+                                                    className={`flex-1 px-2 py-1 rounded text-white flex items-center justify-center gap-1 font-semibold font-body ${blocked ? 'bg-gray-600 cursor-not-allowed opacity-60' : 'bg-emerald-700 hover:bg-emerald-600'}`}
+                                                    onClick={() => onDiplomaticAction(selectedNation.id, 'propose_treaty', { type: 'investment_pact', durationDays: getTreatyDuration('investment_pact', epoch) })}
+                                                    disabled={blocked}
+                                                    title={titleText}
+                                                >
+                                                    <Icon name="Building2" size={12} />
+                                                    {!isUnlocked ? '🔒投资' : '投资协议'}
+                                                </button>
+                                            );
+                                        })()}
+                                    </div>
+
+                                    {/* 当前条约 */}
+                                    {(() => {
+                                        const activeTreaties = Array.isArray(selectedNation?.treaties)
+                                            ? selectedNation.treaties.filter(t => !Number.isFinite(t.endDay) || daysElapsed < t.endDay)
+                                            : [];
+                                        if (activeTreaties.length === 0) return null;
+                                        return (
+                                            <div className="mt-2 text-[10px] text-gray-300 font-body">
+                                                <div className="text-[9px] text-gray-500 mb-1 font-decorative flex items-center gap-1">
+                                                    <Icon name="FileText" size={10} className="text-amber-300" />
+                                                    当前生效条约 ({activeTreaties.length})
+                                                </div>
+                                                <div className="space-y-1 max-h-24 overflow-y-auto">
+                                                    {activeTreaties.map((t) => (
+                                                        <div key={t.id || `${t.type}-${t.endDay}`} className="flex items-center justify-between bg-gray-800/40 border border-gray-700/60 rounded px-2 py-1">
+                                                            <span className="text-gray-200">
+                                                                {getTreatyLabel(t.type)}
+                                                            </span>
+                                                            <span className="text-gray-400 font-epic text-[9px]">
+                                                                {Number.isFinite(t.endDay) ? `剩${Math.max(0, t.endDay - daysElapsed)}天` : '永久'}
+                                                            </span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                                {/* 条约效果汇总 */}
+                                                {(() => {
+                                                    const hasTrade = activeTreaties.some(t => ['trade_agreement', 'free_trade', 'open_market'].includes(t.type));
+                                                    if (!hasTrade) return null;
+                                                    const tariffMult = activeTreaties.reduce((min, t) => {
+                                                        if (t.type === 'free_trade') return 0;
+                                                        if (t.type === 'trade_agreement') return Math.min(min, 0.75);
+                                                        if (t.type === 'open_market') return Math.min(min, 0.80);
+                                                        return min;
+                                                    }, 1.0);
+                                                    const extraSlots = activeTreaties.reduce((sum, t) => {
+                                                        if (t.type === 'free_trade') return Infinity;
+                                                        if (t.type === 'trade_agreement') return sum + 3;
+                                                        if (t.type === 'open_market') return sum + 2;
+                                                        return sum;
+                                                    }, 0);
+                                                    return (
+                                                        <div className="mt-1 pt-1 border-t border-gray-700/40 text-[9px] text-green-400 flex gap-2 flex-wrap">
+                                                            {tariffMult < 1 && <span>📉 关税{tariffMult === 0 ? '免除' : `-${Math.round((1 - tariffMult) * 100)}%`}</span>}
+                                                            {extraSlots > 0 && <span>🚢 商路{extraSlots === Infinity ? '无限' : `+${extraSlots}`}</span>}
+                                                        </div>
+                                                    );
+                                                })()}
                                             </div>
+                                        );
+                                    })()}
+                                </div>
+
+                                {/* 国际组织面板 */}
+                                {(() => {
+                                    const organizations = Array.isArray(diplomacyOrganizations?.organizations)
+                                        ? diplomacyOrganizations.organizations
+                                        : [];
+                                    const playerOrgs = organizations.filter(org =>
+                                        Array.isArray(org?.members) && org.members.includes('player')
+                                    );
+                                    const nationOrgs = organizations.filter(org =>
+                                        Array.isArray(org?.members) && org.members.includes(selectedNation?.id)
+                                    );
+                                    const sharedOrgs = playerOrgs.filter(org =>
+                                        nationOrgs.some(no => no.id === org.id)
+                                    );
+
+                                    const ORG_TYPES = [
+                                        { type: 'military_alliance', name: '军事联盟', icon: 'Shield', era: 3, color: 'red' },
+                                        { type: 'economic_bloc', name: '经济共同体', icon: 'TrendingUp', era: 5, color: 'amber' },
+                                        { type: 'trade_zone', name: '自贸区', icon: 'Globe', era: 5, color: 'cyan' },
+                                    ];
+
+                                    return (
+                                        <div className="mt-2 bg-gray-900/30 p-2 rounded border border-gray-700/60">
+                                            <div className="flex items-center justify-between mb-1">
+                                                <div className="text-[10px] text-gray-300 flex items-center gap-1 font-decorative">
+                                                    <Icon name="Users" size={10} className="text-purple-300" />
+                                                    国际组织
+                                                </div>
+                                                <div className="text-[9px] text-gray-500 font-body">创建或邀请加入组织</div>
+                                            </div>
+
+                                            {/* 共同组织列表 */}
+                                            {sharedOrgs.length > 0 && (
+                                                <div className="mb-2">
+                                                    <div className="text-[9px] text-gray-500 mb-1">共同成员</div>
+                                                    <div className="space-y-1">
+                                                        {sharedOrgs.map(org => {
+                                                            const orgType = ORG_TYPES.find(t => t.type === org.type);
+                                                            return (
+                                                                <div key={org.id} className="flex items-center justify-between bg-gray-800/40 border border-purple-500/30 rounded px-2 py-1">
+                                                                    <span className="text-[10px] text-purple-200 flex items-center gap-1">
+                                                                        <Icon name={orgType?.icon || 'Users'} size={10} />
+                                                                        {org.name}
+                                                                    </span>
+                                                                    <span className="text-[9px] text-gray-400">{org.members?.length || 0}成员</span>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* 创建/邀请按钮 */}
+                                            <div className="flex gap-1.5 text-[10px] flex-wrap">
+                                                {ORG_TYPES.map(orgType => {
+                                                    const isUnlocked = isDiplomacyUnlocked('organizations', orgType.type, epoch);
+                                                    const playerHasOrg = playerOrgs.some(o => o.type === orgType.type);
+                                                    const nationInOrg = nationOrgs.some(o => o.type === orgType.type);
+                                                    const playerOrg = playerOrgs.find(o => o.type === orgType.type);
+                                                    const nationAlreadyInPlayerOrg = playerOrg && Array.isArray(playerOrg.members) && playerOrg.members.includes(selectedNation?.id);
+
+                                                    const blocked = !isUnlocked || selectedNation?.isAtWar;
+
+                                                    // 决定显示什么按钮
+                                                    let buttonText = '';
+                                                    let action = '';
+                                                    let canClick = !blocked;
+
+                                                    if (!isUnlocked) {
+                                                        buttonText = `🔒${orgType.name.substring(0, 2)}`;
+                                                        canClick = false;
+                                                    } else if (nationAlreadyInPlayerOrg) {
+                                                        buttonText = `移除${orgType.name.substring(0, 2)}`;
+                                                        action = 'leave_org';
+                                                    } else if (playerHasOrg && !nationInOrg) {
+                                                        buttonText = `邀请${orgType.name.substring(0, 2)}`;
+                                                        action = 'join_org';
+                                                    } else if (!playerHasOrg) {
+                                                        buttonText = `创建${orgType.name.substring(0, 2)}`;
+                                                        action = 'create_org';
+                                                    } else {
+                                                        buttonText = orgType.name.substring(0, 2);
+                                                        canClick = false;
+                                                    }
+
+                                                    const colorClasses = {
+                                                        red: canClick ? 'bg-red-700 hover:bg-red-600' : 'bg-gray-600',
+                                                        amber: canClick ? 'bg-amber-700 hover:bg-amber-600' : 'bg-gray-600',
+                                                        cyan: canClick ? 'bg-cyan-700 hover:bg-cyan-600' : 'bg-gray-600',
+                                                    };
+
+                                                    return (
+                                                        <button
+                                                            key={orgType.type}
+                                                            className={`flex-1 px-2 py-1 rounded text-white flex items-center justify-center gap-1 font-semibold font-body ${colorClasses[orgType.color]} ${!canClick ? 'cursor-not-allowed opacity-60' : ''}`}
+                                                            onClick={() => {
+                                                                if (!canClick || !action) return;
+                                                                onDiplomaticAction(selectedNation.id, action, {
+                                                                    type: orgType.type,
+                                                                    orgId: playerOrg?.id,
+                                                                });
+                                                            }}
+                                                            disabled={!canClick}
+                                                            title={!isUnlocked
+                                                                ? `需要${EPOCHS[orgType.era]?.name || `Era ${orgType.era}`}解锁`
+                                                                : blocked
+                                                                    ? '交战期间无法操作'
+                                                                    : `${buttonText} - ${orgType.name}`
+                                                            }
+                                                        >
+                                                            <Icon name={orgType.icon} size={12} />
+                                                            {buttonText}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+
+                                            {/* 玩家已加入的组织列表 */}
+                                            {playerOrgs.length > 0 && (
+                                                <div className="mt-2 pt-2 border-t border-gray-700/40">
+                                                    <div className="text-[9px] text-gray-500 mb-1">你的组织</div>
+                                                    <div className="space-y-1 max-h-20 overflow-y-auto">
+                                                        {playerOrgs.map(org => {
+                                                            const orgType = ORG_TYPES.find(t => t.type === org.type);
+                                                            const hasNation = Array.isArray(org.members) && org.members.includes(selectedNation?.id);
+                                                            return (
+                                                                <div key={org.id} className="flex items-center justify-between bg-gray-800/40 border border-gray-700/60 rounded px-2 py-1">
+                                                                    <span className="text-[10px] text-gray-200 flex items-center gap-1">
+                                                                        <Icon name={orgType?.icon || 'Users'} size={10} className={hasNation ? 'text-green-400' : 'text-gray-400'} />
+                                                                        {org.name}
+                                                                    </span>
+                                                                    <span className="text-[9px] text-gray-400">
+                                                                        {hasNation && <span className="text-green-400 mr-1">✓</span>}
+                                                                        {org.members?.length || 0}国
+                                                                    </span>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
-                                    )}
-                                </div>}
+                                    );
+                                })()}
 
                                 <div className="mt-1 text-[10px] text-gray-400 flex items-center justify-between font-epic">
                                     <span className="flex items-center gap-1">
@@ -1401,11 +1718,11 @@ const DiplomacyTabComponent = ({
                 </div>
             </Modal>
 
-            {/* Negotiation Modal */}
+            {/* 外交谈判模态框 */}
             <Modal
                 isOpen={showNegotiationModal}
                 onClose={closeNegotiationModal}
-                title={`Negotiation with ${selectedNation?.name || ''}`}
+                title={`与 ${selectedNation?.name || ''} 外交谈判`}
                 footer={(() => {
                     const treatyUnlocked = isDiplomacyUnlocked('treaties', negotiationDraft.type, epoch);
                     const canSubmit = !!selectedNation && negotiationUnlocked && treatyUnlocked && !selectedNation?.isAtWar;
@@ -1416,21 +1733,21 @@ const DiplomacyTabComponent = ({
                                     className="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 rounded text-white text-sm font-body"
                                     onClick={closeNegotiationModal}
                                 >
-                                    Cancel
+                                    取消
                                 </button>
                                 <button
                                     className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 rounded text-white text-sm font-body"
                                     onClick={() => submitNegotiation({ ...negotiationCounter, stance: negotiationDraft.stance }, { forceAccept: true, round: negotiationRound })}
                                     disabled={!canSubmit}
                                 >
-                                    Accept counter
+                                    接受反提案
                                 </button>
                                 <button
                                     className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 rounded text-white text-sm font-body"
                                     onClick={() => submitNegotiation(negotiationDraft, { round: negotiationRound })}
                                     disabled={!canSubmit}
                                 >
-                                    Propose new
+                                    再次提案
                                 </button>
                             </div>
                         );
@@ -1441,44 +1758,53 @@ const DiplomacyTabComponent = ({
                                 className="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 rounded text-white text-sm font-body"
                                 onClick={closeNegotiationModal}
                             >
-                                Cancel
+                                取消
                             </button>
                             <button
                                 className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 rounded text-white text-sm font-body"
                                 onClick={() => submitNegotiation(negotiationDraft, { round: negotiationRound })}
                                 disabled={!canSubmit}
                             >
-                                Start negotiation
+                                发起谈判
                             </button>
                         </div>
                     );
                 })()}
             >
                 <div className="space-y-3">
+                    {/* 谈判状态栏 */}
                     <div className="flex items-center justify-between text-xs text-gray-300 font-body">
-                        <span>Round {negotiationRound}/{NEGOTIATION_MAX_ROUNDS}</span>
-                        <span>Estimated acceptance: <span className="text-amber-300 font-semibold font-epic">{Math.round((negotiationEvaluation.acceptChance || 0) * 100)}%</span></span>
+                        <span>第 {negotiationRound}/{NEGOTIATION_MAX_ROUNDS} 轮</span>
+                        <span>预估接受率: <span className="text-amber-300 font-semibold font-epic">{Math.round((negotiationEvaluation.acceptChance || 0) * 100)}%</span></span>
                     </div>
                     {negotiationEvaluation.relationGate && (
-                        <div className="text-[11px] text-orange-300">Low relation heavily reduces acceptance.</div>
+                        <div className="text-[11px] text-orange-300 font-body">⚠️ 关系过低会大幅降低接受率</div>
                     )}
 
+                    {/* 对方反提案 */}
                     {negotiationCounter && (
-                        <div className="p-2 rounded-lg bg-gray-800/50 border border-gray-700/60">
-                            <div className="text-xs text-gray-200 font-body mb-2">Counter proposal</div>
-                            <div className="grid grid-cols-2 gap-2 text-[11px] text-gray-300">
-                                <div>Duration: {negotiationCounter.durationDays} days</div>
-                                <div>Maintenance: {negotiationCounter.maintenancePerDay || 0}/day</div>
-                                <div>Signing gift: {negotiationCounter.signingGift || 0}</div>
-                                <div>Resource gift: {negotiationCounter.resourceKey ? `${RESOURCES[negotiationCounter.resourceKey]?.name || negotiationCounter.resourceKey} x ${negotiationCounter.resourceAmount || 0}` : 'None'}</div>
+                        <div className="p-2 rounded-lg bg-amber-900/30 border border-amber-600/50">
+                            <div className="text-xs text-amber-200 font-decorative mb-2 flex items-center gap-1">
+                                <Icon name="MessageSquare" size={12} />
+                                对方反提案
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-[11px] text-gray-200 font-body">
+                                <div>期限: <span className="text-white font-epic">{negotiationCounter.durationDays}</span> 天</div>
+                                <div>维护费: <span className="text-white font-epic">{negotiationCounter.maintenancePerDay || 0}</span>/天</div>
+                                <div>签约金: <span className="text-amber-300 font-epic">{negotiationCounter.signingGift || 0}</span> 银币</div>
+                                <div>资源: {negotiationCounter.resourceKey ? <span className="text-cyan-300 font-epic">{RESOURCES[negotiationCounter.resourceKey]?.name || negotiationCounter.resourceKey} ×{negotiationCounter.resourceAmount || 0}</span> : <span className="text-gray-500">无</span>}</div>
                             </div>
                         </div>
                     )}
 
+                    {/* 条约类型选择 */}
                     <div className="space-y-2">
-                        <label className="text-xs text-gray-400 font-body">Treaty type</label>
+                        <label className="text-xs text-gray-400 font-decorative flex items-center gap-1">
+                            <Icon name="FileText" size={12} className="text-amber-300" />
+                            条约类型
+                        </label>
                         <select
-                            className="w-full bg-gray-900/60 border border-gray-700 rounded px-2 py-1 text-sm text-white font-body"
+                            className="w-full bg-gray-900/60 border border-gray-700 rounded px-2 py-1.5 text-sm text-white font-body"
                             value={negotiationDraft.type}
                             onChange={(e) => {
                                 const nextType = e.target.value;
@@ -1490,82 +1816,109 @@ const DiplomacyTabComponent = ({
                                 const label = getTreatyLabel(type);
                                 return (
                                     <option key={type} value={type} disabled={locked}>
-                                        {locked ? `${label} (requires ${getTreatyUnlockEraName(type)})` : label}
+                                        {locked ? `🔒 ${label} (需要${getTreatyUnlockEraName(type)})` : label}
                                     </option>
                                 );
                             })}
                         </select>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2">
-                        <div className="space-y-1">
-                            <label className="text-xs text-gray-400 font-body">Duration (days)</label>
-                            <input
-                                type="number"
-                                min="30"
-                                className="w-full bg-gray-900/60 border border-gray-700 rounded px-2 py-1 text-sm text-white font-body"
-                                value={negotiationDraft.durationDays}
-                                onChange={(e) => setNegotiationDraft((prev) => ({ ...prev, durationDays: Number(e.target.value) }))}
-                            />
+                    {/* 条约内容 */}
+                    <div className="p-2 rounded-lg bg-gray-800/40 border border-gray-700/60">
+                        <div className="text-xs text-gray-400 font-decorative mb-2 flex items-center gap-1">
+                            <Icon name="Settings" size={12} className="text-blue-300" />
+                            条约内容
                         </div>
-                        <div className="space-y-1">
-                            <label className="text-xs text-gray-400 font-body">Maintenance / day</label>
-                            <input
-                                type="number"
-                                min="0"
-                                className="w-full bg-gray-900/60 border border-gray-700 rounded px-2 py-1 text-sm text-white font-body"
-                                value={negotiationDraft.maintenancePerDay}
-                                onChange={(e) => setNegotiationDraft((prev) => ({ ...prev, maintenancePerDay: Number(e.target.value) }))}
-                            />
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2">
-                        <div className="space-y-1">
-                            <label className="text-xs text-gray-400 font-body">Signing gift (silver)</label>
-                            <input
-                                type="number"
-                                min="0"
-                                className="w-full bg-gray-900/60 border border-gray-700 rounded px-2 py-1 text-sm text-white font-body"
-                                value={negotiationDraft.signingGift}
-                                onChange={(e) => setNegotiationDraft((prev) => ({ ...prev, signingGift: Number(e.target.value) }))}
-                            />
-                        </div>
-                        <div className="space-y-1">
-                            <label className="text-xs text-gray-400 font-body">Resource gift</label>
-                            <div className="flex gap-2">
-                                <select
-                                    className="flex-1 bg-gray-900/60 border border-gray-700 rounded px-2 py-1 text-sm text-white font-body"
-                                    value={negotiationDraft.resourceKey}
-                                    onChange={(e) => setNegotiationDraft((prev) => ({ ...prev, resourceKey: e.target.value }))}
-                                >
-                                    <option value="">None</option>
-                                    {tradableResources.map(([key, res]) => (
-                                        <option key={key} value={key}>{res.name}</option>
-                                    ))}
-                                </select>
+                        <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                                <label className="text-[10px] text-gray-500 font-body">期限（天）</label>
+                                <input
+                                    type="number"
+                                    min="30"
+                                    className="w-full bg-gray-900/60 border border-gray-700 rounded px-2 py-1 text-sm text-white font-body"
+                                    value={negotiationDraft.durationDays}
+                                    onChange={(e) => setNegotiationDraft((prev) => ({ ...prev, durationDays: Number(e.target.value) }))}
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[10px] text-gray-500 font-body">每日维护费</label>
                                 <input
                                     type="number"
                                     min="0"
-                                    className="w-20 bg-gray-900/60 border border-gray-700 rounded px-2 py-1 text-sm text-white font-body"
-                                    value={negotiationDraft.resourceAmount}
-                                    onChange={(e) => setNegotiationDraft((prev) => ({ ...prev, resourceAmount: Number(e.target.value) }))}
+                                    className="w-full bg-gray-900/60 border border-gray-700 rounded px-2 py-1 text-sm text-white font-body"
+                                    value={negotiationDraft.maintenancePerDay}
+                                    onChange={(e) => setNegotiationDraft((prev) => ({ ...prev, maintenancePerDay: Number(e.target.value) }))}
                                 />
                             </div>
                         </div>
                     </div>
 
+                    {/* 我方筹码 */}
+                    <div className="p-2 rounded-lg bg-green-900/20 border border-green-700/40">
+                        <div className="text-xs text-green-300 font-decorative mb-2 flex items-center gap-1">
+                            <Icon name="Gift" size={12} />
+                            我方筹码
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                                <label className="text-[10px] text-gray-500 font-body">签约赠金（银币）</label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    className="w-full bg-gray-900/60 border border-gray-700 rounded px-2 py-1 text-sm text-white font-body"
+                                    value={negotiationDraft.signingGift}
+                                    onChange={(e) => setNegotiationDraft((prev) => ({ ...prev, signingGift: Number(e.target.value) }))}
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[10px] text-gray-500 font-body">赠送资源</label>
+                                <div className="flex gap-1">
+                                    <select
+                                        className="flex-1 bg-gray-900/60 border border-gray-700 rounded px-2 py-1 text-sm text-white font-body"
+                                        value={negotiationDraft.resourceKey}
+                                        onChange={(e) => setNegotiationDraft((prev) => ({ ...prev, resourceKey: e.target.value }))}
+                                    >
+                                        <option value="">无</option>
+                                        {tradableResources.map(([key, res]) => (
+                                            <option key={key} value={key}>{res.name}</option>
+                                        ))}
+                                    </select>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        className="w-16 bg-gray-900/60 border border-gray-700 rounded px-2 py-1 text-sm text-white font-body"
+                                        value={negotiationDraft.resourceAmount}
+                                        onChange={(e) => setNegotiationDraft((prev) => ({ ...prev, resourceAmount: Number(e.target.value) }))}
+                                        placeholder="数量"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* 谈判姿态 */}
                     <div className="space-y-1">
-                        <label className="text-xs text-gray-400 font-body">Negotiation stance</label>
+                        <label className="text-xs text-gray-400 font-decorative flex items-center gap-1">
+                            <Icon name="Users" size={12} className="text-purple-300" />
+                            谈判姿态
+                        </label>
                         <div className="flex gap-2">
-                            {['normal', 'friendly', 'threat'].map((stance) => (
+                            {[
+                                { key: 'normal', label: '中立', color: 'gray', desc: '普通谈判' },
+                                { key: 'friendly', label: '友好', color: 'green', desc: '关系+5' },
+                                { key: 'threat', label: '威胁', color: 'red', desc: '关系-20' }
+                            ].map(({ key, label, color, desc }) => (
                                 <button
-                                    key={stance}
-                                    className={`flex-1 px-2 py-1 rounded text-xs font-body border ${negotiationDraft.stance === stance ? 'border-amber-400 bg-amber-700/40 text-white' : 'border-gray-600 bg-gray-800/60 text-gray-300'}`}
-                                    onClick={() => setNegotiationDraft((prev) => ({ ...prev, stance }))}
+                                    key={key}
+                                    className={`flex-1 px-2 py-1.5 rounded text-xs font-body border flex flex-col items-center ${negotiationDraft.stance === key
+                                        ? `border-amber-400 bg-amber-700/40 text-white`
+                                        : `border-gray-600 bg-gray-800/60 text-gray-300 hover:bg-gray-700/60`
+                                        }`}
+                                    onClick={() => setNegotiationDraft((prev) => ({ ...prev, stance: key }))}
                                     type="button"
                                 >
-                                    {stance === 'normal' ? 'Neutral' : stance === 'friendly' ? 'Friendly' : 'Threat'}
+                                    <span className="font-semibold">{label}</span>
+                                    <span className={`text-[9px] ${key === 'friendly' ? 'text-green-400' : key === 'threat' ? 'text-red-400' : 'text-gray-500'}`}>{desc}</span>
                                 </button>
                             ))}
                         </div>
@@ -1849,33 +2202,8 @@ const DiplomacyTabComponent = ({
                                                 })()}
                                             </div>
 
-                                            {/* Treaty Center MVP (Mobile) - HIDDEN */}
-                                                                                        <div className="mt-2">
-                                                {(() => {
-                                                    const negotiationCooldown = getDiplomaticCooldown(selectedNation, 'negotiate_treaty');
-                                                    const unlockEra = DIPLOMACY_ERA_UNLOCK.economy?.multi_round_negotiation?.minEra ?? 0;
-                                                    const isUnlocked = epoch >= unlockEra;
-                                                    const blocked = !isUnlocked || selectedNation?.isAtWar || negotiationCooldown.isOnCooldown;
-                                                    let titleText = 'Start negotiation';
-                                                    if (!isUnlocked) titleText = `Requires ${EPOCHS[unlockEra]?.name || `Era ${unlockEra}`}`;
-                                                    else if (selectedNation?.isAtWar) titleText = 'Cannot negotiate during war';
-                                                    else if (negotiationCooldown.isOnCooldown) titleText = `Cooldown (${negotiationCooldown.remainingDays} days)`;
-
-                                                    return (
-                                                        <button
-                                                            className={`w-full p-3 rounded-lg text-white flex items-center justify-center gap-2 font-semibold border border-white/10 shadow-metal-sm ${blocked ? 'bg-gray-600/80 cursor-not-allowed' : 'bg-amber-700 hover:bg-amber-600'}`}
-                                                            onClick={openNegotiationModal}
-                                                            disabled={blocked}
-                                                            title={titleText}
-                                                        >
-                                                            <Icon name="Handshake" size={14} />
-                                                            <span>{negotiationCooldown.isOnCooldown ? `Negotiate (${negotiationCooldown.remainingDays}d)` : 'Diplomatic negotiation'}</span>
-                                                        </button>
-                                                    );
-                                                })()}
-                                            </div>
-
-{false && <div className="mt-3 p-3 bg-gray-900/30 rounded-lg border border-ancient-gold/20 shadow-metal-sm">
+                                            {/* Mobile Treaty Center - Enabled */}
+                                            <div className="mt-3 p-3 bg-gray-900/30 rounded-lg border border-ancient-gold/20 shadow-metal-sm">
                                                 <div className="flex items-center justify-between mb-2">
                                                     <div className="text-sm font-bold text-ancient-parchment font-decorative flex items-center gap-2">
                                                         <Icon name="FileText" size={14} className="text-amber-300" />
@@ -1949,7 +2277,7 @@ const DiplomacyTabComponent = ({
                                                         </div>
                                                     </div>
                                                 )}
-                                            </div>}
+                                            </div>
 
                                             <div className="mt-2 text-center text-[10px] text-gray-400 font-epic">
                                                 礼物成本: {calculateDynamicGiftCost(resources.silver || 0, selectedNation?.wealth || 0)} | 挑拨成本: {calculateProvokeCost(resources.silver || 0, selectedNation?.wealth || 0)}

@@ -140,6 +140,8 @@ export const SettingsPanel = ({
     onToggleEventConfirmation,
     showMerchantTradeLogs,
     onToggleMerchantTradeLogs,
+    showOfficialLogs,
+    onToggleOfficialLogs,
 }) => {
     const merchantTradeLogToggleAvailable = typeof onToggleMerchantTradeLogs === 'function';
     const { enabled: soundEnabled, volume, toggleSound, setVolume, playSound, SOUND_TYPES } = useSound();
@@ -330,6 +332,29 @@ export const SettingsPanel = ({
                         </label>
                         <p className="text-[11px] text-gray-400 leading-relaxed">
                             关闭后，事件日志将不再显示商人自动交易明细与贸易路线交易明细。
+                        </p>
+                    </div>
+
+                    {/* 官员日志显示 */}
+                    <div className="border-t border-gray-700 pt-4 space-y-2">
+                        <div className="flex items-center justify-between text-xs text-gray-300">
+                            <span>显示官员日志</span>
+                            <span className={(showOfficialLogs ?? true) ? 'text-emerald-300' : 'text-gray-500'}>
+                                {(showOfficialLogs ?? true) ? '已启用' : '已关闭'}
+                            </span>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                            <input
+                                type="checkbox"
+                                className="sr-only peer"
+                                checked={showOfficialLogs ?? true}
+                                onChange={(e) => onToggleOfficialLogs && onToggleOfficialLogs(e.target.checked)}
+                            />
+                            <div className="w-10 h-5 bg-gray-700 rounded-full peer peer-checked:bg-emerald-600 transition-colors" />
+                            <div className={`absolute left-1 top-1 w-3 h-3 rounded-full bg-white transition-transform ${(showOfficialLogs ?? true) ? 'translate-x-5' : ''}`} />
+                        </label>
+                        <p className="text-[11px] text-gray-400 leading-relaxed">
+                            关闭后，将不再显示官员投资、升级与政策提案相关的日志通知。
                         </p>
                     </div>
                 </>

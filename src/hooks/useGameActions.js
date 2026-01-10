@@ -3413,7 +3413,7 @@ const handleDiplomaticAction = (nationId, action, payload = {}) => {
             // ========== 海外投资相关行动 ==========
             case 'establish_overseas_investment': {
                 // 在附庸国建立海外投资
-                const { buildingId, ownerStratum, operatingMode } = details || {};
+                const { buildingId, ownerStratum, operatingMode } = payload || {};
                 if (!targetNation || !buildingId) {
                     addLog('建立海外投资失败：参数不完整');
                     break;
