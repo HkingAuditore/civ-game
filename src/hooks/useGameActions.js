@@ -110,6 +110,11 @@ export const useGameActions = (gameState, addLog) => {
         setTradeRoutes,
         diplomacyOrganizations,
         setDiplomacyOrganizations,
+        overseasInvestments,
+        setOverseasInvestments,
+        foreignInvestments,
+        setForeignInvestments,
+        setClassWealth,
         jobsAvailable,
         eventEffectSettings,
         setActiveEventEffects,
@@ -3315,6 +3320,224 @@ const handleDiplomaticAction = (nationId, action, payload = {}) => {
                 addLog(`${targetNation.name} 已退出 ${org.name}。`);
                 break;
             }
+
+            // ========== 附庸系统行动 ==========
+            case 'establish_vassal': {
+                const vassalType = payload?.vassalType;
+                if (!vassalType) {
+                    addLog('无法建立附庸关系：缺少附庸类型。');
+                    return;
+                }
+                
+                // 动态导入附庸系统模块
+                import('../logic/diplomacy/vassalSystem').then(({ canEstablishVassal, establishVassalRelation }) => {
+                    import('../config/diplomacy').then(({ VASSAL_TYPE_CONFIGS }) => {
+                        const config = VASSAL_TYPE_CONFIGS[vassalType];
+                        if (!config) {
+                            addLog(`无效的附庸类型：${vassalType}`);
+                            return;
+                        }
+
+                        const playerMilitary = Object.values(army || {}).reduce((sum, count) => sum + count, 0) / 100;
+                        const warScore = targetNation.warScore || 0;
+                        
+                        const { canEstablish, reason } = canEstablishVassal(targetNation, vassalType, {
+                            epoch,
+                            playerMilitary: Math.max(0.5, playerMilitary),
+                            warScore: Math.abs(warScore),
+                        });
+
+                        if (!canEstablish) {
+                            addLog(`无法将 ${targetNation.name} 变为${config.name}：${reason}`);
+                            return;
+                        }
+
+                        setNations(prev => prev.map(n => {
+                            if (n.id !== nationId) return n;
+                            return establishVassalRelation(n, vassalType, epoch);
+                        }));
+
+                        addLog(`📜 ${targetNation.name} 已成为你的${config.name}！`);
+                    });
+                }).catch(err => {
+                    console.error('Failed to load vassal system:', err);
+                    addLog('附庸系统加载失败。');
+                });
+                break;
+            }
+
+            case 'release_vassal': {
+                if (targetNation.vassalOf !== 'player') {
+                    addLog(`${targetNation.name} 不是你的附庸国。`);
+                    return;
+                }
+
+                import('../logic/diplomacy/vassalSystem').then(({ releaseVassal }) => {
+                    setNations(prev => prev.map(n => {
+                        if (n.id !== nationId) return n;
+                        return releaseVassal(n, 'released');
+                    }));
+                    addLog(`📜 你释放了 ${targetNation.name}，对方关系提升。`);
+                }).catch(err => {
+                    console.error('Failed to load vassal system:', err);
+                    addLog('附庸系统加载失败。');
+                });
+                break;
+            }
+
+            case 'adjust_vassal_policy': {
+                if (targetNation.vassalOf !== 'player') {
+                    addLog(`${targetNation.name} 不是你的附庸国。`);
+                    return;
+                }
+
+                const policyChanges = payload?.policy || {};
+                
+                import('../logic/diplomacy/vassalSystem').then(({ adjustVassalPolicy }) => {
+                    try {
+                        setNations(prev => prev.map(n => {
+                            if (n.id !== nationId) return n;
+                            return adjustVassalPolicy(n, policyChanges);
+                        }));
+                        addLog(`📜 已调整对 ${targetNation.name} 的附庸政策。`);
+                    } catch (err) {
+                        addLog(`调整政策失败：${err.message}`);
+                    }
+                }).catch(err => {
+                    console.error('Failed to load vassal system:', err);
+                    addLog('附庸系统加载失败。');
+                });
+                break;
+            }
+
+            // ========== 海外投资相关行动 ==========
+            case 'establish_overseas_investment': {
+                // 在附庸国建立海外投资
+                const { buildingId, ownerStratum, operatingMode } = details || {};
+                if (!targetNation || !buildingId) {
+                    addLog('建立海外投资失败：参数不完整');
+                    break;
+                }
+                
+                import('../logic/diplomacy/overseasInvestment').then(({ establishOverseasInvestment }) => {
+                    const result = establishOverseasInvestment({
+                        targetNation,
+                        buildingId,
+                        ownerStratum: ownerStratum || 'capitalist',
+                        operatingMode: operatingMode || 'local',
+                        existingInvestments: overseasInvestments || [],
+                        classWealth,
+                        daysElapsed,
+                    });
+                    
+                    if (result.success) {
+                        // 更新海外投资列表
+                        setOverseasInvestments(prev => [...prev, result.investment]);
+                        // 扣除业主阶层财富
+                        setClassWealth(prev => ({
+                            ...prev,
+                            [ownerStratum || 'capitalist']: Math.max(0, (prev[ownerStratum || 'capitalist'] || 0) - result.cost),
+                        }));
+                        addLog(`🏭 ${result.message}`);
+                    } else {
+                        addLog(`⚠️ ${result.message}`);
+                    }
+                }).catch(err => {
+                    console.error('Failed to load overseas investment system:', err);
+                    addLog('海外投资系统加载失败。');
+                });
+                break;
+            }
+
+            case 'withdraw_overseas_investment': {
+                // 撤回海外投资
+                const { investmentId } = details || {};
+                if (!investmentId) {
+                    addLog('撤回投资失败：参数不完整');
+                    break;
+                }
+                
+                setOverseasInvestments(prev => {
+                    const investment = prev.find(inv => inv.id === investmentId);
+                    if (!investment) {
+                        addLog('找不到该投资记录');
+                        return prev;
+                    }
+                    
+                    // 返还部分投资（扣除20%违约金）
+                    const returnAmount = (investment.investmentAmount || 0) * 0.8;
+                    const ownerStratum = investment.ownerStratum || 'capitalist';
+                    setClassWealth(prevWealth => ({
+                        ...prevWealth,
+                        [ownerStratum]: (prevWealth[ownerStratum] || 0) + returnAmount,
+                    }));
+                    
+                    addLog(`💰 已撤回在附庸国的投资，收回 ${returnAmount.toFixed(0)} 银币（扣除20%违约金）`);
+                    return prev.filter(inv => inv.id !== investmentId);
+                });
+                break;
+            }
+
+            case 'change_investment_mode': {
+                // 切换海外投资运营模式
+                const { investmentId, newMode } = details || {};
+                if (!investmentId || !newMode) {
+                    addLog('切换模式失败：参数不完整');
+                    break;
+                }
+                
+                setOverseasInvestments(prev => prev.map(inv => {
+                    if (inv.id !== investmentId) return inv;
+                    addLog(`📦 已将海外投资切换为${newMode === 'dumping' ? '倾销' : newMode === 'buyback' ? '回购' : '当地运营'}模式`);
+                    return { ...inv, operatingMode: newMode };
+                }));
+                break;
+            }
+
+            case 'nationalize_foreign_investment': {
+                // 国有化外资建筑
+                const { investmentId } = details || {};
+                if (!investmentId) {
+                    addLog('国有化失败：参数不完整');
+                    break;
+                }
+                
+                import('../logic/diplomacy/overseasInvestment').then(({ nationalizeInvestment }) => {
+                    setForeignInvestments(prev => {
+                        const investment = prev.find(inv => inv.id === investmentId);
+                        if (!investment) {
+                            addLog('找不到该外资记录');
+                            return prev;
+                        }
+                        
+                        const ownerNation = nations.find(n => n.id === investment.ownerNationId);
+                        const result = nationalizeInvestment(investment, ownerNation);
+                        
+                        if (result.success) {
+                            // 降低与业主国的关系
+                            if (ownerNation) {
+                                setNations(prevNations => prevNations.map(n => {
+                                    if (n.id !== ownerNation.id) return n;
+                                    return {
+                                        ...n,
+                                        relation: Math.max(0, (n.relation || 50) + result.relationPenalty),
+                                    };
+                                }));
+                            }
+                            addLog(`🏛️ ${result.message}`);
+                            return prev.map(inv => inv.id === investmentId ? { ...inv, status: 'nationalized' } : inv);
+                        } else {
+                            addLog(`⚠️ ${result.message}`);
+                            return prev;
+                        }
+                    });
+                }).catch(err => {
+                    console.error('Failed to load overseas investment system:', err);
+                    addLog('海外投资系统加载失败。');
+                });
+                break;
+            }
+
             case 'investigate':
                 resultEvent = createInvestigationResultEvent(
                     stratumKey,

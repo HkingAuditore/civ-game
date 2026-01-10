@@ -24,7 +24,15 @@ export {
     DEFAULT_VASSAL_STATUS,
     getTreatyDuration,
     getTreatyBreachPenalty,
-    isDiplomacyUnlocked
+    isDiplomacyUnlocked,
+    // 附庸系统配置
+    VASSAL_TYPE_CONFIGS,
+    VASSAL_TYPE_LABELS,
+    getAutonomyEffects,
+    calculateIndependenceDesire,
+    calculateTribute,
+    VASSAL_TRANSITION_REQUIREMENTS,
+    INDEPENDENCE_WAR_CONDITIONS,
 } from './diplomacy';
 
 // 建筑升级配置

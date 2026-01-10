@@ -677,6 +677,10 @@ export const useGameState = () => {
     // ========== 政令与外交状态 ==========
     const [nations, setNations] = useState(buildInitialNations());
 
+    // ========== 海外投资系统状态 ==========
+    const [overseasInvestments, setOverseasInvestments] = useState([]);    // 玩家在附庸国的投资
+    const [foreignInvestments, setForeignInvestments] = useState([]);      // 外国在玩家国的投资
+
     // ========== 官员系统状态 ==========
     const [officials, setOfficials] = useState([]);           // 当前雇佣的官员
     const [officialCandidates, setOfficialCandidates] = useState([]); // 当前候选人列表
@@ -1182,6 +1186,8 @@ export const useGameState = () => {
                 tradeStats,
                 diplomacyOrganizations,
                 overseasBuildings,
+                overseasInvestments,
+                foreignInvestments,
                 eventEffectSettings,
                 activeEventEffects,
                 rebellionStates,
@@ -1363,6 +1369,8 @@ export const useGameState = () => {
         setTradeStats(data.tradeStats || { tradeTax: 0, tradeRouteTax: 0 });
         setDiplomacyOrganizations(data.diplomacyOrganizations || buildInitialDiplomacyOrganizations());
         setOverseasBuildings(data.overseasBuildings || buildInitialOverseasBuildings());
+        setOverseasInvestments(data.overseasInvestments || []);
+        setForeignInvestments(data.foreignInvestments || []);
         setAutoSaveInterval(data.autoSaveInterval ?? 60);
         setIsAutoSaveEnabled(data.isAutoSaveEnabled ?? true);
         setLastAutoSaveTime(data.lastAutoSaveTime || Date.now());
@@ -2098,8 +2106,11 @@ export const useGameState = () => {
         setTradeStats,
         diplomacyOrganizations,
         setDiplomacyOrganizations,
-        overseasBuildings,
-        setOverseasBuildings,
+        overseasInvestments,
+        setOverseasInvestments,
+        foreignInvestments,
+        setForeignInvestments,
+        setOverseasBuildings,        setOverseasBuildings,
 
         // 策略行动
         actionCooldowns,

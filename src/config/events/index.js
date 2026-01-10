@@ -26,6 +26,14 @@ import {
     createAllyAttackedEvent,
     createAIDemandSurrenderEvent,
     createRebelDemandSurrenderEvent,
+    createIndependenceWarEvent,
+    createVassalAutonomyRequestEvent,
+    createVassalRequestEvent,
+    createOverseasInvestmentOpportunityEvent,
+    createNationalizationThreatEvent,
+    createTradeDisputeEvent,
+    createMilitaryAllianceInviteEvent,
+    createBorderIncidentEvent,
     REBEL_DEMAND_SURRENDER_TYPE,
 } from './diplomaticEvents';
 // 叛乱事件系统
@@ -75,6 +83,14 @@ export {
     createAllyAttackedEvent,
     createAIDemandSurrenderEvent,
     createRebelDemandSurrenderEvent,
+    createIndependenceWarEvent,
+    createVassalAutonomyRequestEvent,
+    createVassalRequestEvent,
+    createOverseasInvestmentOpportunityEvent,
+    createNationalizationThreatEvent,
+    createTradeDisputeEvent,
+    createMilitaryAllianceInviteEvent,
+    createBorderIncidentEvent,
     REBEL_DEMAND_SURRENDER_TYPE,
 };
 

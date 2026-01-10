@@ -34,6 +34,13 @@ import {
     createAIDemandSurrenderEvent,
     createAllyAttackedEvent,
     createRebelDemandSurrenderEvent,
+    createIndependenceWarEvent,
+    createOverseasInvestmentOpportunityEvent,
+    createNationalizationThreatEvent,
+    createTradeDisputeEvent,
+    createMilitaryAllianceInviteEvent,
+    createBorderIncidentEvent,
+    createVassalRequestEvent,
     REBEL_DEMAND_SURRENDER_TYPE,
 } from '../config/events';
 import { calculateTotalDailySalary, getCabinetStatus, calculateOfficialCapacity } from '../logic/officials/manager';
@@ -860,6 +867,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
         officialCapacity, // 官员容量
         setOfficialCapacity, // 官员容量更新函数
         setFiscalActual, // [NEW] realized fiscal numbers per tick
+        overseasInvestments, // 海外投资列表
+        setOverseasInvestments, // 海外投资更新函数
     } = gameState;
 
     // 使用ref保存最新状态，避免闭包问题
@@ -1656,6 +1665,43 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     adjustedClassWealth[key] = (adjustedClassWealth[key] || 0) + delta;
                 });
                 let adjustedTotalWealth = Object.values(adjustedClassWealth).reduce((sum, val) => sum + val, 0);
+
+                // ========== 海外投资每日结算 ==========
+                if (overseasInvestments && overseasInvestments.length > 0) {
+                    import('../logic/diplomacy/overseasInvestment').then(({ processOverseasInvestments }) => {
+                        const investmentResult = processOverseasInvestments({
+                            overseasInvestments,
+                            nations: current.nations || [],
+                            resources: current.resources || {},
+                            marketPrices: current.market?.prices || {},
+                            classWealth: adjustedClassWealth,
+                            daysElapsed: current.daysElapsed || 0,
+                        });
+
+                        // 更新海外投资状态
+                        if (investmentResult.updatedInvestments) {
+                            setOverseasInvestments(investmentResult.updatedInvestments);
+                        }
+
+                        // 将利润汇入各阶层财富
+                        if (investmentResult.profitByStratum && Object.keys(investmentResult.profitByStratum).length > 0) {
+                            gameState.setClassWealth(prev => {
+                                const updated = { ...prev };
+                                Object.entries(investmentResult.profitByStratum).forEach(([stratum, profit]) => {
+                                    updated[stratum] = (updated[stratum] || 0) + profit;
+                                });
+                                return updated;
+                            });
+                        }
+
+                        // 输出日志
+                        if (investmentResult.logs && investmentResult.logs.length > 0) {
+                            investmentResult.logs.forEach(log => addLog(log));
+                        }
+                    }).catch(err => {
+                        console.error('Failed to process overseas investments:', err);
+                    });
+                }
 
                 // ========== 官僚政变检测（基于忠诚度系统） ==========
                 let coupOutcome = null;
@@ -3419,6 +3465,67 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                 }
                             }
 
+                            // 附庸国独立战争事件
+                            if (log.includes('VASSAL_INDEPENDENCE_WAR:')) {
+                                try {
+                                    const jsonStr = log.replace('VASSAL_INDEPENDENCE_WAR:', '');
+                                    const eventData = JSON.parse(jsonStr);
+                                    const nation = result.nations?.find(n => n.id === eventData.nationId);
+                                    if (nation && currentActions && currentActions.triggerDiplomaticEvent) {
+                                        const event = createIndependenceWarEvent(nation, {
+                                            vassalType: nation.vassalType,
+                                            autonomy: nation.autonomy,
+                                            independencePressure: nation.independencePressure,
+                                            tributeRate: nation.tributeRate,
+                                        }, (action) => {
+                                            if (action === 'crush') {
+                                                // 镇压：维持战争状态，降低稳定度
+                                                setStability(prev => Math.max(0, prev - 10));
+                                                addLog(`⚔️ 你决定出兵镇压 ${nation.name} 的叛乱！`);
+                                            } else if (action === 'negotiate') {
+                                                // 谈判：尝试取消战争，大幅提高自主度和降低朝贡率
+                                                setNations(prev => prev.map(n => {
+                                                    if (n.id !== nation.id) return n;
+                                                    return {
+                                                        ...n,
+                                                        isAtWar: false,
+                                                        warTarget: null,
+                                                        independenceWar: false,
+                                                        vassalOf: 'player',
+                                                        autonomy: Math.min(100, (n.autonomy || 50) + 25),
+                                                        tributeRate: Math.max(0.02, (n.tributeRate || 0.1) * 0.5),
+                                                        independencePressure: Math.max(0, (n.independencePressure || 0) - 30),
+                                                    };
+                                                }));
+                                                addLog(`📜 你与 ${nation.name} 达成协议，提高其自主度并降低朝贡，叛乱平息。`);
+                                            } else if (action === 'release') {
+                                                // 释放：承认独立，关系提升
+                                                setNations(prev => prev.map(n => {
+                                                    if (n.id !== nation.id) return n;
+                                                    return {
+                                                        ...n,
+                                                        isAtWar: false,
+                                                        warTarget: null,
+                                                        independenceWar: false,
+                                                        vassalOf: null,
+                                                        vassalType: null,
+                                                        autonomy: 100,
+                                                        tributeRate: 0,
+                                                        independencePressure: 0,
+                                                        relation: Math.min(100, (n.relation || 50) + 30),
+                                                    };
+                                                }));
+                                                addLog(`🏳️ 你承认了 ${nation.name} 的独立，对方感激你的明智决定。`);
+                                            }
+                                        });
+                                        currentActions.triggerDiplomaticEvent(event);
+                                        debugLog('event', '[EVENT DEBUG] Independence War event triggered:', nation.name);
+                                    }
+                                } catch (e) {
+                                    debugError('event', '[EVENT DEBUG] Failed to parse independence war event:', e);
+                                }
+                            }
+
                             // 检测盟友冷淡事件
                             if (log.includes('ALLY_COLD_EVENT:')) {
                                 try {
@@ -3712,6 +3819,243 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                 }
                             }
 
+                            // 检测海外投资机会事件
+                            if (log.includes('OVERSEAS_INVESTMENT_OPPORTUNITY:')) {
+                                try {
+                                    const jsonStr = log.replace('OVERSEAS_INVESTMENT_OPPORTUNITY:', '');
+                                    const eventData = JSON.parse(jsonStr);
+                                    const nation = result.nations?.find(n => n.id === eventData.nationId);
+                                    if (nation && currentActions && currentActions.triggerDiplomaticEvent) {
+                                        const event = createOverseasInvestmentOpportunityEvent(
+                                            nation,
+                                            eventData.opportunity,
+                                            (accepted, investmentDetails) => {
+                                                if (accepted && investmentDetails) {
+                                                    // 通过外交行动建立投资
+                                                    if (actions?.handleDiplomaticAction) {
+                                                        actions.handleDiplomaticAction(nation.id, 'establish_overseas_investment', {
+                                                            buildingId: investmentDetails.buildingId,
+                                                            ownerStratum: investmentDetails.ownerStratum,
+                                                            operatingMode: investmentDetails.operatingMode,
+                                                        });
+                                                    }
+                                                }
+                                            }
+                                        );
+                                        currentActions.triggerDiplomaticEvent(event);
+                                        debugLog('event', '[EVENT DEBUG] Overseas Investment Opportunity event triggered:', nation.name);
+                                    }
+                                } catch (e) {
+                                    debugError('event', '[EVENT DEBUG] Failed to parse Overseas Investment Opportunity event:', e);
+                                }
+                            }
+
+                            // 检测外资国有化威胁事件
+                            if (log.includes('NATIONALIZATION_THREAT:')) {
+                                try {
+                                    const jsonStr = log.replace('NATIONALIZATION_THREAT:', '');
+                                    const eventData = JSON.parse(jsonStr);
+                                    const nation = result.nations?.find(n => n.id === eventData.nationId);
+                                    if (nation && currentActions && currentActions.triggerDiplomaticEvent) {
+                                        const event = createNationalizationThreatEvent(
+                                            nation,
+                                            eventData.investment,
+                                            (action, details) => {
+                                                if (action === 'accept_compensation') {
+                                                    // 接受补偿，移除投资
+                                                    setResources(prev => ({
+                                                        ...prev,
+                                                        silver: (prev.silver || 0) + (details?.compensation || 0)
+                                                    }));
+                                                    addLog(`💰 你接受了 ${nation.name} 的国有化补偿金 ${details?.compensation || 0} 银币。`);
+                                                } else if (action === 'negotiate') {
+                                                    // 尝试谈判
+                                                    setNations(prev => prev.map(n =>
+                                                        n.id === nation.id
+                                                            ? { ...n, relation: Math.max(0, (n.relation || 50) - 10) }
+                                                            : n
+                                                    ));
+                                                    addLog(`🤝 你尝试与 ${nation.name} 就国有化问题进行谈判，关系下降。`);
+                                                } else if (action === 'threaten') {
+                                                    // 发出警告
+                                                    setNations(prev => prev.map(n =>
+                                                        n.id === nation.id
+                                                            ? { ...n, relation: Math.max(0, (n.relation || 50) - 25) }
+                                                            : n
+                                                    ));
+                                                    addLog(`⚠️ 你警告 ${nation.name} 不要国有化你的投资，关系严重恶化！`);
+                                                }
+                                            }
+                                        );
+                                        currentActions.triggerDiplomaticEvent(event);
+                                        debugLog('event', '[EVENT DEBUG] Nationalization Threat event triggered:', nation.name);
+                                    }
+                                } catch (e) {
+                                    debugError('event', '[EVENT DEBUG] Failed to parse Nationalization Threat event:', e);
+                                }
+                            }
+
+                            // 检测贸易争端事件
+                            if (log.includes('TRADE_DISPUTE:')) {
+                                try {
+                                    const jsonStr = log.replace('TRADE_DISPUTE:', '');
+                                    const eventData = JSON.parse(jsonStr);
+                                    const nation1 = result.nations?.find(n => n.id === eventData.nation1Id);
+                                    const nation2 = result.nations?.find(n => n.id === eventData.nation2Id);
+                                    if (nation1 && nation2 && currentActions && currentActions.triggerDiplomaticEvent) {
+                                        const event = createTradeDisputeEvent(
+                                            nation1,
+                                            nation2,
+                                            eventData.disputeType,
+                                            (decision) => {
+                                                if (decision === 'support_nation1') {
+                                                    setNations(prev => prev.map(n => {
+                                                        if (n.id === nation1.id) return { ...n, relation: Math.min(100, (n.relation || 50) + 10) };
+                                                        if (n.id === nation2.id) return { ...n, relation: Math.max(0, (n.relation || 50) - 15) };
+                                                        return n;
+                                                    }));
+                                                    addLog(`⚖️ 你在贸易争端中支持 ${nation1.name}。`);
+                                                } else if (decision === 'support_nation2') {
+                                                    setNations(prev => prev.map(n => {
+                                                        if (n.id === nation2.id) return { ...n, relation: Math.min(100, (n.relation || 50) + 10) };
+                                                        if (n.id === nation1.id) return { ...n, relation: Math.max(0, (n.relation || 50) - 15) };
+                                                        return n;
+                                                    }));
+                                                    addLog(`⚖️ 你在贸易争端中支持 ${nation2.name}。`);
+                                                } else if (decision === 'mediate') {
+                                                    setNations(prev => prev.map(n => {
+                                                        if (n.id === nation1.id || n.id === nation2.id) {
+                                                            return { ...n, relation: Math.min(100, (n.relation || 50) + 5) };
+                                                        }
+                                                        return n;
+                                                    }));
+                                                    addLog(`🤝 你成功调停了 ${nation1.name} 与 ${nation2.name} 之间的贸易争端。`);
+                                                }
+                                            }
+                                        );
+                                        currentActions.triggerDiplomaticEvent(event);
+                                        debugLog('event', '[EVENT DEBUG] Trade Dispute event triggered:', nation1.name, nation2.name);
+                                    }
+                                } catch (e) {
+                                    debugError('event', '[EVENT DEBUG] Failed to parse Trade Dispute event:', e);
+                                }
+                            }
+
+                            // 检测军事同盟邀请事件
+                            if (log.includes('MILITARY_ALLIANCE_INVITE:')) {
+                                try {
+                                    const jsonStr = log.replace('MILITARY_ALLIANCE_INVITE:', '');
+                                    const eventData = JSON.parse(jsonStr);
+                                    const inviter = result.nations?.find(n => n.id === eventData.inviterId);
+                                    const target = result.nations?.find(n => n.id === eventData.targetId);
+                                    if (inviter && target && currentActions && currentActions.triggerDiplomaticEvent) {
+                                        const event = createMilitaryAllianceInviteEvent(
+                                            inviter,
+                                            target,
+                                            eventData.reason,
+                                            (accepted, rejectType) => {
+                                                if (accepted) {
+                                                    setNations(prev => prev.map(n => {
+                                                        if (n.id === inviter.id) {
+                                                            return { ...n, alliedWithPlayer: true, relation: Math.min(100, (n.relation || 50) + 20) };
+                                                        }
+                                                        if (n.id === target.id) {
+                                                            return { ...n, relation: Math.max(0, (n.relation || 50) - 20) };
+                                                        }
+                                                        return n;
+                                                    }));
+                                                    addLog(`🤝 你与 ${inviter.name} 建立军事同盟，共同对抗 ${target.name}。`);
+                                                } else if (rejectType === 'warn_target') {
+                                                    setNations(prev => prev.map(n => {
+                                                        if (n.id === target.id) return { ...n, relation: Math.min(100, (n.relation || 50) + 15) };
+                                                        if (n.id === inviter.id) return { ...n, relation: Math.max(0, (n.relation || 50) - 25) };
+                                                        return n;
+                                                    }));
+                                                    addLog(`📢 你向 ${target.name} 通报了 ${inviter.name} 的同盟邀请。`);
+                                                } else {
+                                                    addLog(`你婉拒了 ${inviter.name} 的军事同盟邀请。`);
+                                                }
+                                            }
+                                        );
+                                        currentActions.triggerDiplomaticEvent(event);
+                                        debugLog('event', '[EVENT DEBUG] Military Alliance Invite event triggered:', inviter.name);
+                                    }
+                                } catch (e) {
+                                    debugError('event', '[EVENT DEBUG] Failed to parse Military Alliance Invite event:', e);
+                                }
+                            }
+
+                            // 检测边境冲突事件
+                            if (log.includes('BORDER_INCIDENT:')) {
+                                try {
+                                    const jsonStr = log.replace('BORDER_INCIDENT:', '');
+                                    const eventData = JSON.parse(jsonStr);
+                                    const nation = result.nations?.find(n => n.id === eventData.nationId);
+                                    if (nation && currentActions && currentActions.triggerDiplomaticEvent) {
+                                        const event = createBorderIncidentEvent(
+                                            nation,
+                                            { casualties: eventData.casualties, isOurFault: eventData.isOurFault },
+                                            (response) => {
+                                                if (response === 'apologize') {
+                                                    setResources(prev => ({ ...prev, silver: Math.max(0, (prev.silver || 0) - 500) }));
+                                                    addLog(`🙏 你向 ${nation.name} 道歉并支付了赔偿金。`);
+                                                } else if (response === 'deny') {
+                                                    setNations(prev => prev.map(n =>
+                                                        n.id === nation.id ? { ...n, relation: Math.max(0, (n.relation || 50) - 15) } : n
+                                                    ));
+                                                    addLog(`❌ 你否认了边境冲突的责任，${nation.name} 对此表示不满。`);
+                                                } else if (response === 'demand_apology') {
+                                                    addLog(`📜 你向 ${nation.name} 发出正式抗议，要求道歉。`);
+                                                } else if (response === 'retaliate') {
+                                                    setNations(prev => prev.map(n =>
+                                                        n.id === nation.id ? { ...n, relation: Math.max(0, (n.relation || 50) - 30) } : n
+                                                    ));
+                                                    addLog(`⚔️ 你下令对 ${nation.name} 进行军事报复！`);
+                                                } else if (response === 'protest') {
+                                                    addLog(`📜 你向 ${nation.name} 提出外交抗议。`);
+                                                }
+                                            }
+                                        );
+                                        currentActions.triggerDiplomaticEvent(event);
+                                        debugLog('event', '[EVENT DEBUG] Border Incident event triggered:', nation.name);
+                                    }
+                                } catch (e) {
+                                    debugError('event', '[EVENT DEBUG] Failed to parse Border Incident event:', e);
+                                }
+                            }
+
+                            // 检测附庸请求事件
+                            if (log.includes('VASSAL_REQUEST:')) {
+                                try {
+                                    const jsonStr = log.replace('VASSAL_REQUEST:', '');
+                                    const eventData = JSON.parse(jsonStr);
+                                    const nation = result.nations?.find(n => n.id === eventData.nationId);
+                                    if (nation && currentActions && currentActions.triggerDiplomaticEvent) {
+                                        const event = createVassalRequestEvent(
+                                            nation,
+                                            eventData.vassalType,
+                                            eventData.reason,
+                                            (accepted, vassalType) => {
+                                                if (accepted) {
+                                                    // 通过外交行动建立附庸关系
+                                                    if (actions?.handleDiplomaticAction) {
+                                                        actions.handleDiplomaticAction(nation.id, 'establish_vassal', {
+                                                            vassalType: vassalType
+                                                        });
+                                                    }
+                                                    addLog(`👑 ${nation.name} 成为你的附庸！`);
+                                                } else {
+                                                    addLog(`你拒绝了 ${nation.name} 成为附庸的请求。`);
+                                                }
+                                            }
+                                        );
+                                        currentActions.triggerDiplomaticEvent(event);
+                                        debugLog('event', '[EVENT DEBUG] Vassal Request event triggered:', nation.name);
+                                    }
+                                } catch (e) {
+                                    debugError('event', '[EVENT DEBUG] Failed to parse Vassal Request event:', e);
+                                }
+                            }
 
 
                         });

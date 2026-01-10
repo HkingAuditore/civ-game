@@ -1336,6 +1336,8 @@ function GameApp({ gameState }) {
                                                     taxPolicies={gameState.taxPolicies}
                                                     diplomaticCooldownMod={gameState.modifiers?.officialEffects?.diplomaticCooldown || 0}
                                                     diplomacyOrganizations={gameState.diplomacyOrganizations}
+                                                    overseasInvestments={gameState.overseasInvestments}
+                                                    classWealth={gameState.classWealth}
                                                 />
                                         )}
 

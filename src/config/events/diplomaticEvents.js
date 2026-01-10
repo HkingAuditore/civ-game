@@ -1272,3 +1272,488 @@ export function createAIDemandSurrenderEvent(nation, warScore, demands, playerSt
         options,
     };
 }
+
+/**
+ * 创建外交事件 - 附庸国发动独立战争
+ * @param {Object} nation - 发动独立战争的附庸国
+ * @param {Object} vassalInfo - 附庸信息 { vassalType, autonomy, independencePressure, tributeRate }
+ * @param {Function} callback - 回调 (action: 'negotiate' | 'crush' | 'release') => void
+ * @returns {Object} - 外交事件对象
+ */
+export function createIndependenceWarEvent(nation, vassalInfo, callback) {
+    const vassalTypeNames = {
+        protectorate: '保护国',
+        tributary: '朝贡国',
+        puppet: '傀儡国',
+        colony: '殖民地',
+    };
+    const vassalTypeName = vassalTypeNames[vassalInfo?.vassalType] || '附庸国';
+    const independencePressure = vassalInfo?.independencePressure || 0;
+    
+    let description = `⚠️ 紧急！你的${vassalTypeName}${nation.name}发动了独立战争！\n\n`;
+    
+    if (independencePressure > 80) {
+        description += `长期的高压统治和剥削积累了巨大的不满。${nation.name}的人民决心不惜一切代价争取独立！\n\n`;
+    } else if (independencePressure > 60) {
+        description += `${nation.name}的民族主义情绪高涨，他们认为时机已到，决定挑战宗主国的权威。\n\n`;
+    } else {
+        description += `${nation.name}趁你的注意力被其他事务分散，发动了突然的叛乱。\n\n`;
+    }
+    
+    description += `当前形势：\n`;
+    description += `• 独立倾向：${Math.round(independencePressure)}%\n`;
+    description += `• 自主度：${Math.round(vassalInfo?.autonomy || 0)}%\n`;
+    description += `• 朝贡率：${Math.round((vassalInfo?.tributeRate || 0) * 100)}%\n\n`;
+    description += `你必须做出决定：是动用武力镇压叛乱，还是寻求和平解决？`;
+
+    return {
+        id: `independence_war_${nation.id}_${Date.now()}`,
+        name: `${nation.name}发动独立战争！`,
+        icon: 'Flag',
+        image: null,
+        description,
+        isDiplomaticEvent: true,
+        options: [
+            {
+                id: 'crush',
+                text: '出兵镇压！',
+                description: `调动军队镇压叛乱，维护帝国统一（稳定度-10，进入战争状态）`,
+                effects: {
+                    stability: -10,
+                },
+                callback: () => callback('crush'),
+            },
+            {
+                id: 'negotiate',
+                text: '谈判解决',
+                description: `尝试通过降低朝贡、提高自主度来平息叛乱（独立战争可能取消，但附庸条件将大幅放宽）`,
+                effects: {},
+                callback: () => callback('negotiate'),
+            },
+            {
+                id: 'release',
+                text: '承认独立',
+                description: `和平释放${nation.name}，避免战争消耗（关系大幅提升，但失去该附庸）`,
+                effects: {},
+                callback: () => callback('release'),
+            },
+        ],
+    };
+}
+
+/**
+ * 创建外交事件 - 附庸请求提高自主度
+ * @param {Object} nation - 请求的附庸国
+ * @param {Object} vassalInfo - 当前附庸信息
+ * @param {Function} callback - 回调 (action: 'accept' | 'partial' | 'reject') => void
+ * @returns {Object} - 外交事件对象
+ */
+export function createVassalAutonomyRequestEvent(nation, vassalInfo, callback) {
+    const currentAutonomy = vassalInfo?.autonomy || 50;
+    const requestedAutonomy = Math.min(100, currentAutonomy + 15);
+    const currentTributeRate = (vassalInfo?.tributeRate || 0.1) * 100;
+    const requestedTributeRate = Math.max(5, currentTributeRate - 5);
+
+    return {
+        id: `vassal_autonomy_request_${nation.id}_${Date.now()}`,
+        name: `${nation.name}请求放宽管制`,
+        icon: 'MessageCircle',
+        image: null,
+        description: `你的附庸国${nation.name}派遣使节前来，请求提高自主度并降低朝贡负担。
+
+他们的要求：
+• 自主度：${Math.round(currentAutonomy)}% → ${Math.round(requestedAutonomy)}%
+• 朝贡率：${Math.round(currentTributeRate)}% → ${Math.round(requestedTributeRate)}%
+
+如果拒绝，他们的独立倾向将会上升。`,
+        isDiplomaticEvent: true,
+        options: [
+            {
+                id: 'accept',
+                text: '同意全部要求',
+                description: `提高自主度至${Math.round(requestedAutonomy)}%，降低朝贡率至${Math.round(requestedTributeRate)}%（独立倾向-15）`,
+                effects: {},
+                callback: () => callback('accept', { autonomy: requestedAutonomy, tributeRate: requestedTributeRate / 100 }),
+            },
+            {
+                id: 'partial',
+                text: '部分同意',
+                description: `只同意降低朝贡率，不提高自主度（独立倾向-5）`,
+                effects: {},
+                callback: () => callback('partial', { tributeRate: requestedTributeRate / 100 }),
+            },
+            {
+                id: 'reject',
+                text: '拒绝要求',
+                description: `维持现状（独立倾向+10）`,
+                effects: {},
+                callback: () => callback('reject'),
+            },
+        ],
+    };
+}
+
+/**
+ * 创建外交事件 - AI国家请求成为附庸（在战败或关系良好时）
+ * @param {Object} nation - 请求成为附庸的国家
+ * @param {string} vassalType - 请求的附庸类型
+ * @param {string} reason - 原因 ('war_defeat' | 'diplomatic' | 'protection')
+ * @param {Function} callback - 回调 (accepted: boolean, vassalType?: string) => void
+ * @returns {Object} - 外交事件对象
+ */
+export function createVassalRequestEvent(nation, vassalType, reason, callback) {
+    const vassalTypeNames = {
+        protectorate: '保护国',
+        tributary: '朝贡国',
+        puppet: '傀儡国',
+    };
+    const vassalTypeName = vassalTypeNames[vassalType] || '附庸国';
+    
+    let description = '';
+    let title = '';
+    
+    switch (reason) {
+        case 'war_defeat':
+            title = `${nation.name}请求臣服`;
+            description = `在战争中遭受重创后，${nation.name}的统治者派遣使节前来，表示愿意接受附庸地位以换取和平。
+
+他们愿意成为你的${vassalTypeName}，定期朝贡并接受你的保护。这将为你带来：
+• 定期朝贡收入
+• 贸易优惠
+• 军事通行权`;
+            break;
+        case 'protection':
+            title = `${nation.name}寻求保护`;
+            description = `${nation.name}正面临强敌威胁，他们希望成为你的${vassalTypeName}以换取军事保护。
+
+作为回报，他们将：
+• 定期缴纳朝贡
+• 开放市场给你的商人
+• 在军事上配合你的行动`;
+            break;
+        default:
+            title = `${nation.name}提议建立附庸关系`;
+            description = `${nation.name}对你的国力印象深刻，主动提议成为你的${vassalTypeName}。
+
+这是一个和平扩大影响力的机会：
+• 无需战争即可获得附庸
+• 立即开始获得朝贡收入
+• 扩大你的外交影响力`;
+    }
+
+    return {
+        id: `vassal_request_${nation.id}_${Date.now()}`,
+        name: title,
+        icon: 'Crown',
+        image: null,
+        description,
+        isDiplomaticEvent: true,
+        options: [
+            {
+                id: 'accept',
+                text: `接受，建立${vassalTypeName}关系`,
+                description: `${nation.name}将成为你的${vassalTypeName}`,
+                effects: {},
+                callback: () => callback(true, vassalType),
+            },
+            {
+                id: 'reject',
+                text: '拒绝',
+                description: '保持现有关系',
+                effects: {},
+                callback: () => callback(false),
+            },
+        ],
+    };
+}
+
+/**
+ * 创建外交事件 - 海外投资机会
+ * 当附庸国有特殊投资机会时触发
+ * @param {Object} nation - 附庸国
+ * @param {Object} opportunity - 投资机会详情
+ * @param {Function} callback - 回调 (accept: boolean, investmentDetails?: Object) => void
+ * @returns {Object} - 外交事件对象
+ */
+export function createOverseasInvestmentOpportunityEvent(nation, opportunity, callback) {
+    const { buildingType, potentialProfit, requiredInvestment, ownerStratum } = opportunity;
+    const stratumNames = { capitalist: '资本家', merchant: '商人', landowner: '地主' };
+    const stratumName = stratumNames[ownerStratum] || '投资者';
+
+    return {
+        id: `overseas_investment_${nation.id}_${Date.now()}`,
+        name: `${nation.name}的投资机会`,
+        icon: 'Building2',
+        image: null,
+        description: `${nation.name}的使节带来消息：当地发现了一个极佳的投资机会！
+
+${stratumName}阶层的商人对在该国建设${buildingType}表现出浓厚兴趣。
+
+预计投资额：${formatNumberShortCN(requiredInvestment)} 银币
+预期月收益：${formatNumberShortCN(potentialProfit)} 银币
+
+是否批准这项投资？`,
+        isDiplomaticEvent: true,
+        options: [
+            {
+                id: 'accept_local',
+                text: '批准投资（当地运营）',
+                description: `利润留在当地再投资，长期收益更高`,
+                effects: {},
+                callback: () => callback(true, { ...opportunity, operatingMode: 'local' }),
+            },
+            {
+                id: 'accept_buyback',
+                text: '批准投资（回购模式）',
+                description: `产品运回本国销售，立即获得收益`,
+                effects: {},
+                callback: () => callback(true, { ...opportunity, operatingMode: 'buyback' }),
+            },
+            {
+                id: 'reject',
+                text: '暂不投资',
+                description: '保持观望',
+                effects: {},
+                callback: () => callback(false),
+            },
+        ],
+    };
+}
+
+/**
+ * 创建外交事件 - 外资国有化警告
+ * 当附庸国的独立倾向过高时，可能国有化外资
+ * @param {Object} nation - 附庸国
+ * @param {Object} investment - 被威胁的投资
+ * @param {Function} callback - 回调 (action: string) => void
+ * @returns {Object} - 外交事件对象
+ */
+export function createNationalizationThreatEvent(nation, investment, callback) {
+    const investmentValue = investment.investmentAmount || 0;
+    const compensationRate = 0.3; // 国有化补偿率
+    const compensation = Math.floor(investmentValue * compensationRate);
+
+    return {
+        id: `nationalization_threat_${nation.id}_${Date.now()}`,
+        name: `${nation.name}威胁国有化`,
+        icon: 'AlertTriangle',
+        image: null,
+        description: `${nation.name}政府宣布正在考虑国有化外资企业！
+
+你在该国的投资（价值 ${formatNumberShortCN(investmentValue)} 银币）正面临被没收的风险。
+
+政府表示愿意提供 ${formatNumberShortCN(compensation)} 银币的补偿，但这远低于实际价值。
+
+你需要做出回应：`,
+        isDiplomaticEvent: true,
+        options: [
+            {
+                id: 'accept_compensation',
+                text: '接受补偿',
+                description: `获得 ${formatNumberShortCN(compensation)} 银币，放弃投资`,
+                effects: {},
+                callback: () => callback('accept_compensation', { compensation }),
+            },
+            {
+                id: 'negotiate',
+                text: '外交谈判',
+                description: '尝试通过谈判阻止国有化（关系-10）',
+                effects: {},
+                callback: () => callback('negotiate'),
+            },
+            {
+                id: 'threaten',
+                text: '发出警告',
+                description: '威胁采取报复措施（可能引发外交危机）',
+                effects: {},
+                callback: () => callback('threaten'),
+            },
+        ],
+    };
+}
+
+/**
+ * 创建外交事件 - 贸易争端
+ * 当国际组织成员间发生贸易摩擦时触发
+ * @param {Object} nation1 - 争端一方
+ * @param {Object} nation2 - 争端另一方
+ * @param {string} disputeType - 争端类型
+ * @param {Function} callback - 回调 (decision: string) => void
+ * @returns {Object} - 外交事件对象
+ */
+export function createTradeDisputeEvent(nation1, nation2, disputeType, callback) {
+    const disputeDescriptions = {
+        tariff: `${nation1.name}单方面提高了对${nation2.name}商品的关税，引发了贸易争端。`,
+        dumping: `${nation1.name}指控${nation2.name}在其市场上倾销商品，要求采取保护措施。`,
+        subsidy: `${nation2.name}对本国产业的补贴政策引发了${nation1.name}的不满。`,
+    };
+
+    return {
+        id: `trade_dispute_${Date.now()}`,
+        name: '国际贸易争端',
+        icon: 'Scale',
+        image: null,
+        description: `${disputeDescriptions[disputeType] || '两国之间爆发了贸易争端。'}
+
+作为地区大国，双方都希望你能够介入调停。你的决定将影响与两国的关系。`,
+        isDiplomaticEvent: true,
+        options: [
+            {
+                id: 'support_nation1',
+                text: `支持${nation1.name}`,
+                description: `与${nation1.name}关系+10，与${nation2.name}关系-15`,
+                effects: {},
+                callback: () => callback('support_nation1'),
+            },
+            {
+                id: 'support_nation2',
+                text: `支持${nation2.name}`,
+                description: `与${nation2.name}关系+10，与${nation1.name}关系-15`,
+                effects: {},
+                callback: () => callback('support_nation2'),
+            },
+            {
+                id: 'mediate',
+                text: '公正调停',
+                description: '尝试达成双方都能接受的解决方案（双方关系各+5）',
+                effects: {},
+                callback: () => callback('mediate'),
+            },
+            {
+                id: 'ignore',
+                text: '不介入',
+                description: '这不是我们的事务',
+                effects: {},
+                callback: () => callback('ignore'),
+            },
+        ],
+    };
+}
+
+/**
+ * 创建外交事件 - 军事同盟邀请
+ * AI国家邀请玩家加入针对第三方的军事同盟
+ * @param {Object} inviter - 邀请国
+ * @param {Object} target - 目标国（被针对的国家）
+ * @param {string} reason - 邀请原因
+ * @param {Function} callback - 回调 (accepted: boolean) => void
+ * @returns {Object} - 外交事件对象
+ */
+export function createMilitaryAllianceInviteEvent(inviter, target, reason, callback) {
+    const reasonDescriptions = {
+        containment: `${inviter.name}认为${target.name}的扩张威胁到了地区稳定，希望联合其他国家进行遏制。`,
+        revenge: `${inviter.name}与${target.name}有宿怨，正在寻找盟友准备复仇。`,
+        preemptive: `${inviter.name}的情报显示${target.name}正在秘密备战，希望先发制人。`,
+    };
+
+    return {
+        id: `military_alliance_invite_${Date.now()}`,
+        name: `${inviter.name}的军事同盟邀请`,
+        icon: 'Shield',
+        image: null,
+        description: `${inviter.name}的特使秘密到访，提出建立针对${target.name}的军事同盟。
+
+${reasonDescriptions[reason] || `${inviter.name}希望与我们建立更紧密的军事合作。`}
+
+加入同盟意味着：
+• 与${inviter.name}建立军事同盟
+• 承诺在战时提供军事支援
+• 可能与${target.name}关系恶化`,
+        isDiplomaticEvent: true,
+        options: [
+            {
+                id: 'accept',
+                text: '加入同盟',
+                description: `与${inviter.name}建立军事同盟，与${target.name}关系-20`,
+                effects: {},
+                callback: () => callback(true),
+            },
+            {
+                id: 'reject_friendly',
+                text: '婉拒',
+                description: '表示目前不便加入，但保持友好关系',
+                effects: {},
+                callback: () => callback(false, 'friendly'),
+            },
+            {
+                id: 'reject_warn_target',
+                text: '拒绝并警告目标国',
+                description: `向${target.name}通报此事（与${target.name}关系+15，与${inviter.name}关系-25）`,
+                effects: {},
+                callback: () => callback(false, 'warn_target'),
+            },
+        ],
+    };
+}
+
+/**
+ * 创建外交事件 - 边境冲突
+ * 与邻国发生边境摩擦
+ * @param {Object} nation - 发生冲突的国家
+ * @param {Object} incidentDetails - 冲突详情
+ * @param {Function} callback - 回调 (response: string) => void
+ * @returns {Object} - 外交事件对象
+ */
+export function createBorderIncidentEvent(nation, incidentDetails, callback) {
+    const { casualties, isOurFault } = incidentDetails;
+    
+    let description = '';
+    if (isOurFault) {
+        description = `我方边境巡逻队在争议地区与${nation.name}的部队发生冲突，造成对方${casualties}人伤亡。
+
+${nation.name}政府强烈抗议，要求赔偿并保证不再发生类似事件。`;
+    } else {
+        description = `${nation.name}的军队越过边境，与我方巡逻队发生冲突，造成我方${casualties}人伤亡。
+
+我们需要对这一挑衅行为做出回应。`;
+    }
+
+    const options = isOurFault ? [
+        {
+            id: 'apologize',
+            text: '道歉并赔偿',
+            description: `支付赔偿金，关系恢复（-500银币）`,
+            effects: {},
+            callback: () => callback('apologize'),
+        },
+        {
+            id: 'deny',
+            text: '否认责任',
+            description: '坚称这是对方的责任（关系-15）',
+            effects: {},
+            callback: () => callback('deny'),
+        },
+    ] : [
+        {
+            id: 'demand_apology',
+            text: '要求道歉',
+            description: '通过外交渠道要求对方道歉',
+            effects: {},
+            callback: () => callback('demand_apology'),
+        },
+        {
+            id: 'retaliate',
+            text: '军事报复',
+            description: '派兵进行报复性打击（关系-30，可能引发战争）',
+            effects: {},
+            callback: () => callback('retaliate'),
+        },
+        {
+            id: 'protest',
+            text: '外交抗议',
+            description: '提出正式抗议但不采取进一步行动',
+            effects: {},
+            callback: () => callback('protest'),
+        },
+    ];
+
+    return {
+        id: `border_incident_${nation.id}_${Date.now()}`,
+        name: '边境冲突',
+        icon: 'Swords',
+        image: null,
+        description,
+        isDiplomaticEvent: true,
+        options,
+    };
+}
