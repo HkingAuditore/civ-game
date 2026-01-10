@@ -563,3 +563,146 @@ export const processNationRelationDecay = (nation, difficultyLevel = 'normal') =
         });
     }
 };
+
+/**
+ * AI 海外投资决策逻辑
+ * 当玩家拥有附庸国时，AI（作为玩家的顾问/自动化）会建议或自动执行投资决策
+ * @param {Object} context - 决策上下文
+ * @returns {Object|null} 投资建议或 null
+ */
+export const makeAIInvestmentDecision = ({
+    nation,
+    overseasInvestments = [],
+    classWealth = {},
+    epoch = 0,
+    marketPrices = {},
+}) => {
+    // 只有附庸国可以接受投资
+    if (nation.vassalOf !== 'player') return null;
+
+    // 工业时代（epoch >= 3）才能进行海外投资
+    if (epoch < 3) return null;
+
+    // 获取该国已有的投资数量
+    const existingInvestments = overseasInvestments.filter(inv => inv.targetNationId === nation.id);
+    const vassalConfig = nation.vassalConfig || {};
+    const autonomy = vassalConfig.autonomy || 50;
+
+    // 高自主度的附庸不太愿意接受更多投资
+    const maxInvestments = autonomy >= 70 ? 2 : autonomy >= 50 ? 3 : 5;
+    if (existingInvestments.length >= maxInvestments) return null;
+
+    // 评估投资价值的因素
+    const investmentScore = {
+        value: 0,
+        stratum: null,
+        buildingId: null,
+        mode: 'local',
+        reason: '',
+    };
+
+    // 根据各阶层财富评估投资能力
+    const investableStrata = ['capitalist', 'merchant', 'landowner'];
+    const stratumPriority = investableStrata
+        .map(stratum => ({
+            stratum,
+            wealth: classWealth[stratum] || 0,
+        }))
+        .filter(s => s.wealth >= 500) // 最低投资门槛
+        .sort((a, b) => b.wealth - a.wealth);
+
+    if (stratumPriority.length === 0) return null;
+
+    // 选择财富最多的阶层进行投资
+    const bestStratum = stratumPriority[0];
+
+    // 根据附庸国特点选择投资建筑
+    const nationEconomy = nation.economy || 'balanced';
+    let preferredBuildings = [];
+
+    switch (nationEconomy) {
+        case 'agricultural':
+            preferredBuildings = ['plantation', 'granary', 'grain_mill'];
+            break;
+        case 'industrial':
+            preferredBuildings = ['factory', 'steelmill', 'coal_mine'];
+            break;
+        case 'commercial':
+            preferredBuildings = ['market', 'warehouse', 'trade_post'];
+            break;
+        default:
+            preferredBuildings = ['factory', 'plantation', 'market'];
+    }
+
+    // 选择第一个可用的建筑
+    const selectedBuilding = preferredBuildings[0];
+
+    // 选择运营模式
+    // - 当地运营：默认，平衡模式
+    // - 倾销模式：当附庸市场价格较低时
+    // - 回购模式：当本国市场价格较高时
+    let operatingMode = 'local';
+    if (marketPrices && Object.keys(marketPrices).length > 0) {
+        const avgPrice = Object.values(marketPrices).reduce((sum, p) => sum + p, 0) / Object.keys(marketPrices).length;
+        if (avgPrice > 1.2) {
+            operatingMode = 'buyback'; // 本国价格高，回购有利
+        } else if (avgPrice < 0.8) {
+            operatingMode = 'dumping'; // 倾销到附庸市场
+        }
+    }
+
+    // 计算投资评分
+    investmentScore.value = bestStratum.wealth * 0.1 + (100 - autonomy) * 0.5;
+    investmentScore.stratum = bestStratum.stratum;
+    investmentScore.buildingId = selectedBuilding;
+    investmentScore.mode = operatingMode;
+    investmentScore.reason = `${bestStratum.stratum === 'capitalist' ? '资本家' : bestStratum.stratum === 'merchant' ? '商人' : '地主'}阶层财富充裕，建议投资${nation.name}的${selectedBuilding}`;
+
+    // 只有评分足够高才建议投资
+    if (investmentScore.value < 30) return null;
+
+    return {
+        type: 'overseas_investment_suggestion',
+        targetNationId: nation.id,
+        targetNationName: nation.name,
+        ownerStratum: investmentScore.stratum,
+        buildingId: investmentScore.buildingId,
+        operatingMode: investmentScore.mode,
+        score: investmentScore.value,
+        reason: investmentScore.reason,
+    };
+};
+
+/**
+ * 批量处理AI投资建议
+ * @param {Object} context - 上下文
+ * @returns {Array} 投资建议列表
+ */
+export const processAIInvestmentSuggestions = ({
+    nations = [],
+    overseasInvestments = [],
+    classWealth = {},
+    epoch = 0,
+    marketPrices = {},
+}) => {
+    const suggestions = [];
+
+    // 遍历所有附庸国
+    const vassalNations = nations.filter(n => n.vassalOf === 'player');
+    
+    for (const nation of vassalNations) {
+        const suggestion = makeAIInvestmentDecision({
+            nation,
+            overseasInvestments,
+            classWealth,
+            epoch,
+            marketPrices,
+        });
+        
+        if (suggestion) {
+            suggestions.push(suggestion);
+        }
+    }
+
+    return suggestions;
+};

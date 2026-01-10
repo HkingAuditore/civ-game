@@ -13,13 +13,26 @@ import {
     RESOURCES,
     TREATY_TYPE_LABELS,
     getTreatyDuration,
-    isDiplomacyUnlocked
+    isDiplomacyUnlocked,
+    VASSAL_TYPE_CONFIGS,
+    VASSAL_TYPE_LABELS,
+    calculateIndependenceDesire,
+    calculateTribute,
+    BUILDINGS,
 } from '../../config';
 import { calculateNationBattlePower } from '../../config/militaryUnits';
 import { calculateForeignPrice, calculateTradeStatus } from '../../utils/foreignTrade';
 import { calculateDynamicGiftCost, calculateProvokeCost } from '../../utils/diplomaticUtils';
 import { formatNumberShortCN } from '../../utils/numberFormat';
 import { calculateNegotiationAcceptChance } from '../../logic/diplomacy/negotiation';
+import {
+    OVERSEAS_INVESTMENT_CONFIGS,
+    INVESTABLE_BUILDINGS,
+    getInvestmentsInNation,
+    calculateOverseasInvestmentSummary,
+} from '../../logic/diplomacy/overseasInvestment';
+import { DiplomacyStatsPanel } from '../panels/DiplomacyStatsPanel';
+import { VassalPolicyModal } from '../modals/VassalPolicyModal';
 
 const relationInfo = (relation = 0, isAllied = false) => {
     // 如果是正式盟友，显示盟友标签
@@ -41,7 +54,8 @@ const NEGOTIATION_MAX_ROUNDS = 3;
 const NEGOTIABLE_TREATY_TYPES = [
     'peace_treaty',
     'non_aggression',
-    'trade_agreement',
+];
+const TREATY_TYPES = [
     'free_trade',
     'open_market',
     'investment_pact',
@@ -50,8 +64,8 @@ const NEGOTIABLE_TREATY_TYPES = [
 ];
 
 
- * Calculate max trade routes allowed with a nation based on relation and alliance
- * @param {number} relation - Relation value (0-100)
+/**
+ * Calculate max trade routes allowed with a nation based on relation and alliance * @param {number} relation - Relation value (0-100)
  * @param {boolean} isAllied - Whether formally allied with this nation
  * @returns {number} Max trade routes allowed
  */
@@ -61,9 +75,10 @@ const getMaxTradeRoutesForRelation = (relation = 0, isAllied = false) => {
     if (relation >= 60) return 3; // Friendly: 3 routes
     if (relation >= 40) return 2; // Neutral: 2 routes
     if (relation >= 20) return 1; // Cold: 1 route
-    return 0; // Hostile: no trade
+return 0; // Hostile: no trade
 };
 
+/**
  * Get count of trade routes with a specific nation
  * @param {Array} routes - All trade routes
  * @param {string} nationId - Target nation ID
@@ -170,6 +185,8 @@ const DiplomacyTabComponent = ({
     popStructure = {},
     taxPolicies = {},
     diplomaticCooldownMod = 0,
+    overseasInvestments = [],
+    classWealth = {},
 }) => {
     const [selectedNationId, setSelectedNationId] = useState(null);
     const [tradeAmount, setTradeAmount] = useState(10);
@@ -195,6 +212,9 @@ const DiplomacyTabComponent = ({
     });
     const [showNationModal, setShowNationModal] = useState(false);
     const [sheetSection, setSheetSection] = useState('diplomacy');
+    // 附庸政策模态框状态
+    const [showVassalPolicyModal, setShowVassalPolicyModal] = useState(false);
+    const [vassalPolicyTarget, setVassalPolicyTarget] = useState(null);
 
     // 外交动作冷却时间配置（天数）
     const DIPLOMATIC_COOLDOWNS = {
@@ -204,6 +224,33 @@ const DiplomacyTabComponent = ({
         propose_alliance: 60,
         propose_treaty: 120,
         negotiate_treaty: 120,
+    };
+
+    /**
+     * 计算外交行动的冷却状态
+     * @param {Object} nation - 目标国家对象
+     * @param {string} actionType - 外交行动类型
+     * @returns {{ isOnCooldown: boolean, remainingDays: number }} 冷却状态
+     */
+    const getDiplomaticCooldown = (nation, actionType) => {
+        if (!nation) return { isOnCooldown: false, remainingDays: 0 };
+        
+        const baseCooldown = DIPLOMATIC_COOLDOWNS[actionType] || 30;
+        // 应用冷却时间修改器（负值减少冷却时间）
+        const adjustedCooldown = Math.max(1, Math.round(baseCooldown * (1 + diplomaticCooldownMod)));
+        
+        const lastActionDay = nation.lastDiplomaticActionDay?.[actionType] || 0;
+        if (lastActionDay <= 0) {
+            return { isOnCooldown: false, remainingDays: 0 };
+        }
+        
+        const daysSinceLastAction = daysElapsed - lastActionDay;
+        const remainingDays = Math.max(0, adjustedCooldown - daysSinceLastAction);
+        
+        return {
+            isOnCooldown: remainingDays > 0,
+            remainingDays: Math.ceil(remainingDays),
+        };
     };
 
     const tradableResources = useMemo(
@@ -434,6 +481,16 @@ const DiplomacyTabComponent = ({
                 </div>
             </div>
 
+            {/* 外交统计面板 - 仅在桌面端显示 */}
+            <div className="hidden md:block">
+                <DiplomacyStatsPanel
+                    nations={visibleNations}
+                    daysElapsed={daysElapsed}
+                    tradeRoutes={tradeRoutes}
+                    overseasInvestments={overseasInvestments}
+                />
+            </div>
+
             {/* Mobile Trade Routes Button - Only visible on mobile */}
             <div className="md:hidden flex items-center justify-between gap-2 bg-gray-800/60 px-3 py-2 rounded-lg border border-gray-700 text-xs">
                 <div className="flex items-center gap-3">
@@ -483,6 +540,11 @@ const DiplomacyTabComponent = ({
                                 <span className={`px-1.5 py-0.5 rounded text-[10px] flex-shrink-0 ${relation.bg} ${relation.color} font-epic`}>
                                     {relation.label}
                                 </span>
+                                {nation.vassalOf === 'player' && (
+                                    <span className="px-1.5 py-0.5 rounded text-[10px] bg-purple-900 text-purple-200 font-epic flex-shrink-0">
+                                        {VASSAL_TYPE_LABELS[nation.vassalType] || '附庸'}
+                                    </span>
+                                )}
                                 {nation.isRebelNation && (
                                     <span className="px-1.5 py-0.5 rounded text-[10px] bg-red-900 text-red-100 font-epic flex-shrink-0">
                                         叛乱
@@ -664,6 +726,171 @@ const DiplomacyTabComponent = ({
                                             </div>
                                         </div>
                                     )}
+
+                                {/* 附庸状态显示 */}
+                                {selectedNation?.vassalOf === 'player' && (
+                                    <div className="p-2 rounded border border-purple-500/30 bg-purple-900/20 mb-2">
+                                        <div className="flex items-center justify-between mb-1">
+                                            <div className="flex items-center gap-1 text-purple-200 font-body">
+                                                <Icon name="Crown" size={12} />
+                                                {VASSAL_TYPE_LABELS[selectedNation.vassalType] || '附庸国'}
+                                            </div>
+                                            <div className="flex items-center gap-1">
+                                                <button
+                                                    className="px-2 py-0.5 text-[10px] rounded bg-blue-600 hover:bg-blue-500 text-white font-body"
+                                                    onClick={() => {
+                                                        setVassalPolicyTarget(selectedNation);
+                                                        setShowVassalPolicyModal(true);
+                                                    }}
+                                                    title="调整该附庸国的外交控制、贸易政策、自主度和朝贡率"
+                                                >
+                                                    调整政策
+                                                </button>
+                                                <button
+                                                    className="px-2 py-0.5 text-[10px] rounded bg-purple-600 hover:bg-purple-500 text-white font-body"
+                                                    onClick={() => onDiplomaticAction(selectedNation.id, 'release_vassal')}
+                                                    title="释放该附庸国，对方关系将大幅提升"
+                                                >
+                                                    释放
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-1 text-[10px]">
+                                            <div className="flex justify-between text-gray-300">
+                                                <span>自主度</span>
+                                                <span className="text-purple-200">{Math.round(selectedNation.autonomy || 0)}%</span>
+                                            </div>
+                                            <div className="flex justify-between text-gray-300">
+                                                <span>朝贡率</span>
+                                                <span className="text-amber-200">{Math.round((selectedNation.tributeRate || 0) * 100)}%</span>
+                                            </div>
+                                            <div className="flex justify-between text-gray-300">
+                                                <span>独立倾向</span>
+                                                <span className={`${(selectedNation.independencePressure || 0) > 60 ? 'text-red-300' : 'text-gray-200'}`}>
+                                                    {Math.round(selectedNation.independencePressure || 0)}%
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between text-gray-300">
+                                                <span>预计朝贡</span>
+                                                <span className="text-amber-200">{formatNumberShortCN(calculateTribute(selectedNation))}银/月</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* 可建立附庸关系（战争状态下通过战争分数判断） */}
+                                {selectedNation?.isAtWar && !selectedNation?.vassalOf && (selectedNation?.warScore || 0) >= 30 && (() => {
+                                    const warScore = Math.abs(selectedNation?.warScore || 0);
+                                    const availableTypes = Object.entries(VASSAL_TYPE_CONFIGS)
+                                        .filter(([type, config]) => {
+                                            const requirements = { protectorate: 30, tributary: 50, puppet: 80, colony: 100 };
+                                            return isDiplomacyUnlocked('sovereignty', type, epoch) && warScore >= requirements[type];
+                                        });
+                                    if (availableTypes.length === 0) return null;
+                                    return (
+                                        <div className="p-2 rounded border border-teal-500/30 bg-teal-900/20 mb-2">
+                                            <div className="flex items-center gap-1 text-teal-200 font-body mb-1 text-[11px]">
+                                                <Icon name="Flag" size={12} />
+                                                战争分数足够，可要求成为附庸
+                                            </div>
+                                            <div className="flex flex-wrap gap-1">
+                                                {availableTypes.map(([type, config]) => (
+                                                    <button
+                                                        key={type}
+                                                        className="px-2 py-1 text-[10px] rounded bg-teal-600 hover:bg-teal-500 text-white font-body"
+                                                        onClick={() => onDiplomaticAction(selectedNation.id, 'establish_vassal', { vassalType: type })}
+                                                        title={config.description}
+                                                    >
+                                                        {config.name}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+
+                                {/* 海外投资管理面板（仅对附庸国显示） */}
+                                {selectedNation?.vassalOf === 'player' && epoch >= 3 && (() => {
+                                    const nationInvestments = getInvestmentsInNation(overseasInvestments, selectedNation.id);
+                                    const totalInvestmentValue = nationInvestments.reduce((sum, inv) => sum + (inv.investmentAmount || 0), 0);
+                                    const monthlyProfit = nationInvestments.reduce((sum, inv) => sum + ((inv.operatingData?.profit || 0) * 30), 0);
+                                    const operatingModeLabels = {
+                                        local: '当地运营',
+                                        dumping: '倾销模式',
+                                        buyback: '回购模式',
+                                    };
+                                    
+                                    return (
+                                        <div className="p-2 rounded border border-amber-500/30 bg-amber-900/20 mb-2">
+                                            <div className="flex items-center justify-between mb-1">
+                                                <div className="flex items-center gap-1 text-amber-200 font-body text-[11px]">
+                                                    <Icon name="Building2" size={12} />
+                                                    海外投资 ({nationInvestments.length}项)
+                                                </div>
+                                                <div className="text-[10px] text-amber-300">
+                                                    月利润: {formatNumberShortCN(monthlyProfit)}
+                                                </div>
+                                            </div>
+                                            
+                                            {nationInvestments.length > 0 ? (
+                                                <div className="space-y-1 mb-2 max-h-24 overflow-y-auto">
+                                                    {nationInvestments.slice(0, 3).map(inv => {
+                                                        const building = BUILDINGS.find(b => b.id === inv.buildingId);
+                                                        return (
+                                                            <div key={inv.id} className="flex items-center justify-between text-[9px] bg-amber-900/30 rounded px-1 py-0.5">
+                                                                <span className="text-amber-100">{building?.name || inv.buildingId}</span>
+                                                                <div className="flex items-center gap-1">
+                                                                    <span className="text-gray-400">{operatingModeLabels[inv.operatingMode]}</span>
+                                                                    <button
+                                                                        className="text-red-400 hover:text-red-300"
+                                                                        onClick={() => onDiplomaticAction(selectedNation.id, 'withdraw_overseas_investment', { investmentId: inv.id })}
+                                                                        title="撤回投资（扣除20%违约金）"
+                                                                    >
+                                                                        ✕
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                    {nationInvestments.length > 3 && (
+                                                        <div className="text-[9px] text-gray-400 text-center">...还有 {nationInvestments.length - 3} 项投资</div>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <div className="text-[10px] text-gray-400 mb-2">暂无投资</div>
+                                            )}
+                                            
+                                            {/* 新建投资按钮 */}
+                                            <div className="flex flex-wrap gap-1">
+                                                {Object.entries(INVESTABLE_BUILDINGS).map(([stratum, buildingIds]) => {
+                                                    const stratumWealth = classWealth[stratum] || 0;
+                                                    const stratumLabels = { capitalist: '资本家', merchant: '商人', landowner: '地主' };
+                                                    if (stratumWealth < 100) return null;
+                                                    return buildingIds.slice(0, 2).map(buildingId => {
+                                                        const building = BUILDINGS.find(b => b.id === buildingId);
+                                                        if (!building) return null;
+                                                        const cost = Object.values(building.cost || {}).reduce((sum, v) => sum + v, 0) * 1.5;
+                                                        if (stratumWealth < cost) return null;
+                                                        return (
+                                                            <button
+                                                                key={`${stratum}_${buildingId}`}
+                                                                className="px-1.5 py-0.5 text-[9px] rounded bg-amber-600 hover:bg-amber-500 text-white font-body"
+                                                                onClick={() => onDiplomaticAction(selectedNation.id, 'establish_overseas_investment', {
+                                                                    buildingId,
+                                                                    ownerStratum: stratum,
+                                                                    operatingMode: 'local',
+                                                                })}
+                                                                title={`${stratumLabels[stratum]}投资建造 ${building.name}（成本: ${formatNumberShortCN(cost)}）`}
+                                                            >
+                                                                +{building.name}
+                                                            </button>
+                                                        );
+                                                    });
+                                                })}
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
 
                                 <div className="flex gap-1.5 text-xs font-body">
                                     {(() => {
@@ -1864,6 +2091,20 @@ const DiplomacyTabComponent = ({
                     )}
                 </div>
             </BottomSheet>
+
+            {/* 附庸政策调整模态框 */}
+            {showVassalPolicyModal && vassalPolicyTarget && (
+                <VassalPolicyModal
+                    nation={vassalPolicyTarget}
+                    onClose={() => {
+                        setShowVassalPolicyModal(false);
+                        setVassalPolicyTarget(null);
+                    }}
+                    onApply={(policy) => {
+                        onDiplomaticAction(vassalPolicyTarget.id, 'adjust_vassal_policy', { policy });
+                    }}
+                />
+            )}
         </div>
     );
 };

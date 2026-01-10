@@ -18,6 +18,7 @@ import {
     GLOBAL_WAR_COOLDOWN
 } from '../utils';
 import { getRelationMonthlyDriftRate } from '../../config/difficulty';
+import { processVassalUpdates } from './vassalSystem';
 
 /**
  * Update all AI nations for one tick
@@ -37,6 +38,7 @@ export const updateNations = ({
     const res = { ...resources };
     let warIndemnityIncome = 0;
     let raidPopulationLoss = 0;
+    let vassalTributeIncome = 0;
 
     // Calculate player baselines for AI scaling
     const playerPopulationBaseline = Math.max(10, population);
@@ -144,11 +146,37 @@ export const updateNations = ({
         updatedNations = processMonthlyRelationDecay(updatedNations);
     }
 
+    // 处理附庸系统更新
+    const playerAtWar = updatedNations.some(n => n.isAtWar && !n.vassalOf);
+    const playerMilitary = Object.values(army || {}).reduce((sum, count) => sum + count, 0) / 100;
+    const vassalResult = processVassalUpdates({
+        nations: updatedNations,
+        daysElapsed: tick,
+        epoch,
+        playerMilitary: Math.max(0.5, playerMilitary),
+        playerStability: stabilityValue,
+        playerAtWar,
+        logs,
+    });
+    updatedNations = vassalResult.nations;
+    vassalTributeIncome = vassalResult.tributeIncome;
+    res.silver = (res.silver || 0) + vassalTributeIncome;
+
+    // 处理附庸事件（独立战争等）
+    if (vassalResult.vassalEvents && vassalResult.vassalEvents.length > 0) {
+        vassalResult.vassalEvents.forEach(event => {
+            if (event.type === 'independence_war') {
+                logs.push(`VASSAL_INDEPENDENCE_WAR:${JSON.stringify(event)}`);
+            }
+        });
+    }
+
     return {
         nations: updatedNations,
         resources: res,
         warIndemnityIncome,
-        raidPopulationLoss
+        raidPopulationLoss,
+        vassalTributeIncome,
     };
 };
 
@@ -366,6 +394,11 @@ const checkAllianceStatus = ({ nation, tick, logs }) => {
  * @private
  */
 const checkWarDeclaration = ({ nation, nations, tick, epoch, res, stabilityValue, logs }) => {
+    // 附庸国不会主动对玩家宣战（独立战争由vassalSystem处理）
+    if (nation.vassalOf === 'player') {
+        return;
+    }
+
     let relation = nation.relation ?? 50;
     const aggression = nation.aggression ?? 0.2;
 
