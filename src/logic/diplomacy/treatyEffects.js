@@ -90,6 +90,7 @@ export const getTreatyEffects = (nation, daysElapsed) => {
         hasMutualDefense: false,         // 是否有共同防御
         relationDecayReduction: 0,       // 关系衰减减少
         techBonus: 0,                    // 科技加成
+        hasPriceConvergence: false,      // 是否启用价格收敛
         activeTreatyTypes: [],           // 活跃条约类型列表
     };
     
@@ -125,6 +126,7 @@ export const getTreatyEffects = (nation, daysElapsed) => {
         // 布尔效果取或
         if (config.overseasBuildingAccess) effects.hasOverseasAccess = true;
         if (config.mutualDefense) effects.hasMutualDefense = true;
+        if (config.priceConvergence) effects.hasPriceConvergence = true;
         
         // 关系衰减减少取最高
         if (config.relationDecayReduction !== undefined) {
@@ -202,3 +204,121 @@ export const getTreatyEffectDescriptions = (nation, daysElapsed) => {
     
     return descriptions;
 };
+
+/**
+ * 价格收敛配置
+ */
+export const PRICE_CONVERGENCE_CONFIG = {
+    // 每日收敛率（价格差距缩小的比例）
+    DAILY_CONVERGENCE_RATE: 0.05,  // 5%
+    
+    // 最小价格差距比例（收敛后的最小差距）
+    MIN_PRICE_DIFF_RATIO: 0.10,    // 10%
+    
+    // 价格波动范围
+    PRICE_FLUCTUATION: 0.02,       // 2%
+};
+
+/**
+ * 计算价格收敛后的新价格
+ * @param {number} playerPrice - 玩家市场价格
+ * @param {number} nationPrice - AI国家市场价格
+ * @param {number} convergenceRate - 收敛率（默认使用配置值）
+ * @returns {Object} - 收敛后的价格
+ */
+export function calculatePriceConvergence(playerPrice, nationPrice, convergenceRate = PRICE_CONVERGENCE_CONFIG.DAILY_CONVERGENCE_RATE) {
+    if (!playerPrice || !nationPrice) {
+        return { playerPrice, nationPrice, changed: false };
+    }
+    
+    const avgPrice = (playerPrice + nationPrice) / 2;
+    const minDiff = avgPrice * PRICE_CONVERGENCE_CONFIG.MIN_PRICE_DIFF_RATIO;
+    
+    // 计算当前差距
+    const currentDiff = Math.abs(playerPrice - nationPrice);
+    
+    // 如果差距已经很小，不再收敛
+    if (currentDiff <= minDiff) {
+        return { playerPrice, nationPrice, changed: false };
+    }
+    
+    // 向平均价格靠近
+    const newPlayerPrice = playerPrice + (avgPrice - playerPrice) * convergenceRate;
+    const newNationPrice = nationPrice + (avgPrice - nationPrice) * convergenceRate;
+    
+    return {
+        playerPrice: Math.round(newPlayerPrice * 100) / 100,
+        nationPrice: Math.round(newNationPrice * 100) / 100,
+        changed: true,
+        convergenceAmount: Math.abs(newPlayerPrice - playerPrice),
+    };
+}
+
+/**
+ * 处理所有自由贸易协定国家的价格收敛
+ * @param {Object} marketPrices - 玩家市场价格对象
+ * @param {Array} nations - 所有国家数组
+ * @param {number} daysElapsed - 当前游戏天数
+ * @returns {Object} - 更新后的价格和国家数据
+ */
+export function processPriceConvergence(marketPrices, nations, daysElapsed) {
+    const updatedMarketPrices = { ...marketPrices };
+    const nationPriceUpdates = [];
+    const logs = [];
+    
+    // 找出所有有自由贸易协定的国家
+    const freeTradNations = nations.filter(nation => {
+        if (!nation || nation.isPlayer) return false;
+        const effects = getTreatyEffects(nation, daysElapsed);
+        return effects.hasPriceConvergence;
+    });
+    
+    if (freeTradNations.length === 0) {
+        return { marketPrices: updatedMarketPrices, nationPriceUpdates, logs };
+    }
+    
+    // 获取所有可交易资源
+    const resources = Object.keys(marketPrices);
+    
+    for (const nation of freeTradNations) {
+        const nationPrices = nation.nationPrices || {};
+        const updatedNationPrices = { ...nationPrices };
+        let hasChanges = false;
+        
+        for (const resource of resources) {
+            const playerPrice = updatedMarketPrices[resource];
+            const nationPrice = nationPrices[resource];
+            
+            if (!playerPrice || !nationPrice) continue;
+            
+            const result = calculatePriceConvergence(playerPrice, nationPrice);
+            
+            if (result.changed) {
+                // 更新双方价格
+                updatedMarketPrices[resource] = result.playerPrice;
+                updatedNationPrices[resource] = result.nationPrice;
+                hasChanges = true;
+            }
+        }
+        
+        if (hasChanges) {
+            nationPriceUpdates.push({
+                nationId: nation.id,
+                nationPrices: updatedNationPrices,
+            });
+        }
+    }
+    
+    // 如果有价格变化，添加日志（每10天报告一次）
+    if (nationPriceUpdates.length > 0 && daysElapsed % 10 === 0) {
+        const nationNames = freeTradNations.slice(0, 3).map(n => n.name).join('、');
+        const suffix = freeTradNations.length > 3 ? `等${freeTradNations.length}国` : '';
+        logs.push(`📊 自由贸易效应：与${nationNames}${suffix}的市场价格正在趋同。`);
+    }
+    
+    return {
+        marketPrices: updatedMarketPrices,
+        nationPriceUpdates,
+        logs,
+    };
+}

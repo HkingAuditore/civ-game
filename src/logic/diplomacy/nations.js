@@ -19,6 +19,173 @@ import {
 } from '../utils';
 import { getRelationMonthlyDriftRate } from '../../config/difficulty';
 import { processVassalUpdates } from './vassalSystem';
+import {
+    AI_ECONOMY_CONFIG,
+    getSocialStructureTemplate,
+} from '../../config/diplomacy';
+
+// ========== AI国家经济数据初始化与更新 ==========
+
+/**
+ * 初始化AI国家的经济数据（价格、库存、阶层）
+ * @param {Object} nation - 国家对象
+ * @param {Object} marketPrices - 玩家市场价格
+ * @returns {Object} 更新后的国家对象
+ */
+export const initializeNationEconomyData = (nation, marketPrices = {}) => {
+    if (!nation) return nation;
+    
+    const updated = { ...nation };
+    const config = AI_ECONOMY_CONFIG;
+    
+    // 1. 初始化价格数据（如果不存在）
+    if (!updated.nationPrices || Object.keys(updated.nationPrices).length === 0) {
+        updated.nationPrices = {};
+        Object.entries(RESOURCES).forEach(([resourceKey, resourceConfig]) => {
+            // 跳过虚拟资源
+            if (resourceConfig.type === 'virtual' || resourceConfig.type === 'currency') return;
+            
+            // 基于玩家市场价格或基础价格
+            const basePrice = marketPrices[resourceKey] || resourceConfig.basePrice || 1;
+            const variation = (Math.random() - 0.5) * 2 * config.prices.initialVariation;
+            updated.nationPrices[resourceKey] = Math.max(
+                resourceConfig.minPrice || 0.1,
+                Math.min(resourceConfig.maxPrice || 100, basePrice * (1 + variation))
+            );
+        });
+    }
+    
+    // 2. 初始化库存数据（如果不存在）
+    if (!updated.nationInventories || Object.keys(updated.nationInventories).length === 0) {
+        updated.nationInventories = {};
+        const wealth = updated.wealth || 1000;
+        
+        // 确定国家规模
+        let sizeMultiplier = config.inventory.baseMultipliers.small;
+        if (wealth > config.sizeThresholds.medium) {
+            sizeMultiplier = config.inventory.baseMultipliers.large;
+        } else if (wealth > config.sizeThresholds.small) {
+            sizeMultiplier = config.inventory.baseMultipliers.medium;
+        }
+        
+        Object.entries(RESOURCES).forEach(([resourceKey, resourceConfig]) => {
+            if (resourceConfig.type === 'virtual' || resourceConfig.type === 'currency') return;
+            
+            const weight = config.inventory.resourceWeights[resourceKey] || config.inventory.resourceWeights.default;
+            const baseInventory = sizeMultiplier * weight * (0.8 + Math.random() * 0.4);
+            updated.nationInventories[resourceKey] = Math.floor(baseInventory);
+        });
+    }
+    
+    // 3. 初始化阶层结构（如果不存在）
+    if (!updated.socialStructure) {
+        const governmentType = updated.governmentType || 'default';
+        updated.socialStructure = getSocialStructureTemplate(governmentType);
+    }
+    
+    // 4. 初始化稳定度（如果不存在）
+    if (typeof updated.stability !== 'number') {
+        updated.stability = 50 + (Math.random() - 0.5) * 20;
+    }
+    
+    return updated;
+};
+
+/**
+ * 更新AI国家的每日经济数据
+ * @param {Object} nation - 国家对象
+ * @param {Object} marketPrices - 玩家市场价格
+ * @returns {Object} 更新后的国家对象
+ */
+export const updateNationEconomyData = (nation, marketPrices = {}) => {
+    if (!nation || !nation.nationPrices) return nation;
+    
+    const updated = { ...nation };
+    const config = AI_ECONOMY_CONFIG;
+    
+    // 1. 更新价格（每日随机波动）
+    updated.nationPrices = { ...updated.nationPrices };
+    Object.entries(updated.nationPrices).forEach(([resourceKey, currentPrice]) => {
+        const resourceConfig = RESOURCES[resourceKey];
+        if (!resourceConfig) return;
+        
+        // 随机波动
+        const variation = (Math.random() - 0.5) * 2 * config.prices.dailyVariation;
+        let newPrice = currentPrice * (1 + variation);
+        
+        // 向玩家市场价格缓慢收敛（如果有自由贸易协定则更快）
+        const playerPrice = marketPrices[resourceKey];
+        if (playerPrice) {
+            const hasFreeTrade = nation.treaties?.some(t => t.type === 'free_trade' && t.status === 'active');
+            const convergenceRate = hasFreeTrade ? 0.03 : 0.01;
+            newPrice = newPrice * (1 - convergenceRate) + playerPrice * convergenceRate;
+        }
+        
+        // 限制价格范围
+        const minPrice = resourceConfig.minPrice || 0.1;
+        const maxPrice = resourceConfig.maxPrice || 100;
+        updated.nationPrices[resourceKey] = Math.max(minPrice, Math.min(maxPrice, newPrice));
+    });
+    
+    // 2. 更新库存（简化模拟生产和消费）
+    updated.nationInventories = { ...updated.nationInventories };
+    Object.entries(updated.nationInventories).forEach(([resourceKey, currentInventory]) => {
+        const resourceConfig = RESOURCES[resourceKey];
+        if (!resourceConfig) return;
+        
+        // 基于国家财富计算生产/消费基线
+        const wealthFactor = Math.max(0.5, (updated.wealth || 1000) / 2000);
+        const changeRate = config.inventory.dailyChangeRate;
+        
+        // 随机生产/消费变化
+        const change = currentInventory * changeRate * (Math.random() - 0.5) * 2 * wealthFactor;
+        
+        // 战争状态消耗更多资源
+        const warPenalty = updated.isAtWar ? 0.98 : 1.0;
+        
+        let newInventory = (currentInventory + change) * warPenalty;
+        
+        // 确保库存不为负，且有最小值
+        const minInventory = 5;
+        const maxInventory = 500 * wealthFactor;
+        updated.nationInventories[resourceKey] = Math.max(minInventory, Math.min(maxInventory, Math.floor(newInventory)));
+    });
+    
+    // 3. 更新阶层满意度
+    if (updated.socialStructure) {
+        updated.socialStructure = { ...updated.socialStructure };
+        
+        // 计算满意度变化因素
+        let satisfactionChange = 0;
+        
+        // 战争状态降低满意度
+        if (updated.isAtWar) satisfactionChange -= 0.2;
+        
+        // 附庸状态影响满意度
+        if (updated.vassalOf === 'player') {
+            const autonomy = updated.autonomy || 50;
+            satisfactionChange -= (100 - autonomy) * 0.01;  // 自主度越低，满意度下降越快
+        }
+        
+        // 更新各阶层满意度
+        ['elites', 'commoners', 'underclass'].forEach(stratum => {
+            if (updated.socialStructure[stratum]) {
+                updated.socialStructure[stratum] = { ...updated.socialStructure[stratum] };
+                const baseSatisfaction = updated.socialStructure[stratum].baseSatisfaction || 50;
+                let currentSat = updated.socialStructure[stratum].satisfaction || baseSatisfaction;
+                
+                // 应用变化并向基线回归
+                currentSat += satisfactionChange;
+                currentSat = currentSat * 0.99 + baseSatisfaction * 0.01;  // 缓慢回归基线
+                
+                // 限制范围
+                updated.socialStructure[stratum].satisfaction = Math.max(0, Math.min(100, currentSat));
+            }
+        });
+    }
+    
+    return updated;
+};
 
 /**
  * Update all AI nations for one tick
@@ -33,7 +200,8 @@ export const updateNations = ({
     army,
     population,
     stabilityValue,
-    logs
+    logs,
+    marketPrices = {},  // 新增：玩家市场价格，用于AI经济数据初始化和更新
 }) => {
     const res = { ...resources };
     let warIndemnityIncome = 0;
@@ -45,7 +213,8 @@ export const updateNations = ({
     const playerWealthBaseline = Math.max(500, (res.food || 0) + (res.silver || 0) + (res.wood || 0));
 
     let updatedNations = (nations || []).map(nationInput => {
-        const nation = { ...nationInput };
+        // 首先初始化经济数据（如果不存在）
+        let nation = initializeNationEconomyData({ ...nationInput }, marketPrices);
         const next = nation;
 
         // Process war-related updates
@@ -126,7 +295,7 @@ export const updateNations = ({
             }
         }
 
-        // Update economy
+        // Update economy (原有逻辑)
         updateNationEconomy({
             nation: next,
             tick,
@@ -134,6 +303,10 @@ export const updateNations = ({
             playerPopulationBaseline,
             playerWealthBaseline
         });
+
+        // 更新AI国家经济数据（新增：价格、库存、阶层满意度）
+        const economyUpdated = updateNationEconomyData(next, marketPrices);
+        Object.assign(next, economyUpdated);
 
         return next;
     });

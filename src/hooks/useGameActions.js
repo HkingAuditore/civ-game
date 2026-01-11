@@ -31,7 +31,9 @@ import {
     isDiplomacyUnlocked,
     OPEN_MARKET_TREATY_TYPES,
     PEACE_TREATY_TYPES,
-    TREATY_CONFIGS
+    TREATY_CONFIGS,
+    calculateTreatySigningCost,
+    getTreatyDailyMaintenance,
 } from '../config';
 import { getBuildingCostGrowthFactor, getBuildingCostBaseMultiplier, getTechCostMultiplier, getBuildingUpgradeCostMultiplier } from '../config/difficulty';
 import { debugLog } from '../utils/debugFlags';
@@ -44,7 +46,9 @@ import { isResourceUnlocked } from '../utils/resources';
 import { calculateDynamicGiftCost, calculateProvokeCost, INSTALLMENT_CONFIG } from '../utils/diplomaticUtils';
 import { filterEventEffects } from '../utils/eventEffectFilter';
 import { calculateNegotiationAcceptChance, generateCounterProposal } from '../logic/diplomacy/negotiation';
-// 叛乱系统
+// 外交叛乱干预系统
+import { executeIntervention, INTERVENTION_OPTIONS } from '../logic/diplomacy/rebellionSystem';
+// 内部叛乱系统
 import {
     processRebellionAction,
     createInvestigationResultEvent,
@@ -2655,6 +2659,24 @@ const handleDiplomaticAction = (nationId, action, payload = {}) => {
                     return isTargetAlly && n.alliedWithPlayer === true;
                 });
 
+                // ===== 违约后果增强 =====
+                let breachConsequences = null;
+                if (breachPenalty) {
+                    breachConsequences = {
+                        // 贸易中断天数（基于时代）
+                        tradeBlockadeDays: Math.floor(90 + epoch * 30),
+                        // 声誉惩罚比例
+                        reputationPenalty: Math.floor(breachPenalty.relationPenalty * 0.3),
+                        // 违约记录
+                        breachRecord: {
+                            targetNationId: nationId,
+                            targetNationName: targetNation.name,
+                            breachDay: daysElapsed,
+                            breachType: 'peace_treaty',
+                        },
+                    };
+                }
+
                   // 对目标国家宣战
                 setNations(prev => {
                     let updated = prev.map(n => {
@@ -2664,7 +2686,8 @@ const handleDiplomaticAction = (nationId, action, payload = {}) => {
                             const nextTreaties = Array.isArray(n.treaties)
                                 ? n.treaties.filter(t => !PEACE_TREATY_TYPES.includes(t.type))
                                 : n.treaties;
-                            return {
+                            
+                            const updates = {
                                 ...n,
                                 relation: Math.max(0, (n.relation || 0) - (breachPenalty?.relationPenalty || 0)),
                                 isAtWar: true,
@@ -2675,10 +2698,31 @@ const handleDiplomaticAction = (nationId, action, payload = {}) => {
                                 peaceTreatyUntil: undefined,
                                 treaties: nextTreaties,
                                 lastTreatyBreachDay: breachPenalty ? daysElapsed : n.lastTreatyBreachDay,
-                                lootReserve: initialLootReserve, // 初始化掠夺储备
-                                lastMilitaryActionDay: undefined, // 重置军事行动冷却
+                                lootReserve: initialLootReserve,
+                                lastMilitaryActionDay: undefined,
+                            };
+                            
+                            // 违约后果：贸易中断
+                            if (breachConsequences) {
+                                updates.tradeBlockadeUntil = daysElapsed + breachConsequences.tradeBlockadeDays;
+                                // 记录违约历史
+                                updates.breachHistory = [
+                                    ...(n.breachHistory || []),
+                                    breachConsequences.breachRecord,
+                                ];
+                            }
+                            
+                            return updates;
+                        }
+                        
+                        // 违约后果：声誉惩罚（所有其他国家关系下降）
+                        if (breachConsequences && n.id !== nationId) {
+                            return {
+                                ...n,
+                                relation: Math.max(0, (n.relation || 50) - breachConsequences.reputationPenalty),
                             };
                         }
+                        
                         return n;
                     });
 
@@ -2707,10 +2751,29 @@ const handleDiplomaticAction = (nationId, action, payload = {}) => {
                     return updated;
                   });
 
-                if (breachPenalty) {
-                    addLog(`你撕毁与 ${targetNation.name} 的和平条约，关系恶化（-${breachPenalty.relationPenalty}）。`);
+                // 违约后果：冻结海外投资
+                if (breachConsequences && setOverseasInvestments) {
+                    setOverseasInvestments(prev => 
+                        (prev || []).map(inv => {
+                            if (inv.nationId === nationId) {
+                                return {
+                                    ...inv,
+                                    frozen: true,
+                                    frozenReason: 'war_breach',
+                                    frozenUntil: daysElapsed + breachConsequences.tradeBlockadeDays,
+                                };
+                            }
+                            return inv;
+                        })
+                    );
                 }
-                addLog(`你向 ${targetNation.name} 宣战了！`);
+
+                if (breachPenalty) {
+                    addLog(`⚠️ 你撕毁与 ${targetNation.name} 的和平条约！`);
+                    addLog(`  📉 关系恶化 -${breachPenalty.relationPenalty}，国际声誉下降 -${breachConsequences.reputationPenalty}`);
+                    addLog(`  🚫 贸易中断 ${breachConsequences.tradeBlockadeDays} 天，海外投资冻结`);
+                }
+                addLog(`⚔️ 你向 ${targetNation.name} 宣战了！`);
 
                 // 通知盟友参战
                 if (targetAllies.length > 0) {
@@ -2724,6 +2787,80 @@ const handleDiplomaticAction = (nationId, action, payload = {}) => {
                         addLog(`⚖️ ${ally.name} 同时是你和 ${targetNation.name} 的盟友，选择保持中立。`);
                     });
                 }
+                break;
+            }
+
+            // ========================================================================
+            // 外交干预操作（支持政府、支持叛军、颠覆活动等）
+            // ========================================================================
+            case 'foreign_intervention': {
+                const { interventionType } = options || {};
+                
+                if (!interventionType) {
+                    addLog('请选择干预类型。');
+                    return;
+                }
+                
+                const interventionOption = INTERVENTION_OPTIONS[interventionType];
+                if (!interventionOption) {
+                    addLog('无效的干预类型。');
+                    return;
+                }
+                
+                // 检查冷却
+                const lastInterventionDay = targetNation.lastDiplomaticActionDay?.intervention || 0;
+                if (daysElapsed - lastInterventionDay < 30) {
+                    addLog(`最近已对 ${targetNation.name} 进行过干预，请等待 ${30 - (daysElapsed - lastInterventionDay)} 天。`);
+                    return;
+                }
+                
+                // 检查前置条件
+                if (interventionOption.requiresCivilWar && !targetNation.isInCivilWar) {
+                    addLog(`${targetNation.name} 当前没有内战，无法进行军事干预。`);
+                    return;
+                }
+                
+                // 执行干预
+                const result = executeIntervention(targetNation, interventionType, resources);
+                
+                if (!result.success) {
+                    const reasons = {
+                        invalid_intervention: '无效的干预类型',
+                        no_civil_war: '该国没有内战',
+                        insufficient_silver: '银币不足',
+                        insufficient_military: '军力不足',
+                    };
+                    addLog(`干预失败：${reasons[result.reason] || result.reason}`);
+                    return;
+                }
+                
+                // 扣除资源
+                if (result.cost.silver) {
+                    setResources(prev => ({ ...prev, silver: Math.max(0, (prev.silver || 0) - result.cost.silver) }));
+                }
+                
+                // 更新目标国家
+                setNations(prev => prev.map(n => {
+                    if (n.id !== nationId) return n;
+                    return {
+                        ...n,
+                        ...result.nationUpdates,
+                        lastDiplomaticActionDay: {
+                            ...(n.lastDiplomaticActionDay || {}),
+                            intervention: daysElapsed,
+                        },
+                    };
+                }));
+                
+                // 根据干预类型生成不同的日志
+                const interventionLogs = {
+                    support_government: `🏛️ 你决定支持 ${targetNation.name} 的现政权，提供了援助。关系提升。`,
+                    support_rebels: `🏴 你秘密资助 ${targetNation.name} 的反对派势力，推动其国内动荡。`,
+                    destabilize: `🕵️ 你派遣间谍前往 ${targetNation.name} 进行颠覆活动。`,
+                    military_intervention: `⚔️ 你直接派兵干预 ${targetNation.name} 的内战！`,
+                    humanitarian_aid: `❤️ 你向 ${targetNation.name} 的受难平民提供人道主义援助。`,
+                };
+                addLog(interventionLogs[interventionType] || result.message);
                 break;
             }
 
@@ -2927,6 +3064,21 @@ const handleDiplomaticAction = (nationId, action, payload = {}) => {
 
                 const accepted = Math.random() < acceptChance;
 
+                // 计算签约成本
+                const signingCost = calculateTreatySigningCost(type, resources.silver || 0, targetNation.wealth || 0);
+                const autoMaintenancePerDay = getTreatyDailyMaintenance(type);
+                const finalMaintenancePerDay = maintenancePerDay > 0 ? maintenancePerDay : autoMaintenancePerDay;
+
+                // 如果接受，检查并扣除签约成本
+                if (accepted && signingCost > 0) {
+                    const currentSilver = resources.silver || 0;
+                    if (currentSilver < signingCost) {
+                        addLog(`📜 签约失败：签约成本 ${signingCost} 银币不足（当前 ${Math.floor(currentSilver)}）。`);
+                        return;
+                    }
+                    setResources(prev => ({ ...prev, silver: Math.max(0, (prev.silver || 0) - signingCost) }));
+                }
+
                 setNations(prev => prev.map(n => {
                     if (n.id !== nationId) return n;
 
@@ -2947,7 +3099,7 @@ const handleDiplomaticAction = (nationId, action, payload = {}) => {
                         type,
                         startDay: daysElapsed,
                         endDay: daysElapsed + durationDays,
-                        maintenancePerDay,
+                        maintenancePerDay: finalMaintenancePerDay,
                         direction: 'player_to_ai',
                     });
 
@@ -2974,11 +3126,18 @@ const handleDiplomaticAction = (nationId, action, payload = {}) => {
                     return { ...n, ...updates };
                 }));
 
-                const resultEvent = createTreatyProposalResultEvent(targetNation, { type, durationDays, maintenancePerDay }, accepted, () => { });
+                const resultEvent = createTreatyProposalResultEvent(targetNation, { type, durationDays, maintenancePerDay: finalMaintenancePerDay }, accepted, () => { });
                 triggerDiplomaticEvent(resultEvent);
 
                 if (accepted) {
-                    addLog(`📜 ${targetNation.name} 同意了你的条约提案（${type}）。`);
+                    let costInfo = '';
+                    if (signingCost > 0) {
+                        costInfo = `，签约成本 ${Math.floor(signingCost)} 银币`;
+                    }
+                    if (finalMaintenancePerDay > 0) {
+                        costInfo += `，每日维护费 ${finalMaintenancePerDay} 银币`;
+                    }
+                    addLog(`📜 ${targetNation.name} 同意了你的条约提案（${type}）${costInfo}。`);
                 } else {
                     addLog(`📜 ${targetNation.name} 拒绝了你的条约提案。`);
                 }
@@ -3077,7 +3236,24 @@ const handleDiplomaticAction = (nationId, action, payload = {}) => {
                 const accepted = forceAccept || Math.random() < evaluation.acceptChance;
                 const stanceDelta = stance === 'friendly' ? 2 : (stance === 'threat' ? -20 : 0);
 
+                // 计算签约成本
+                const negotiateSigningCost = calculateTreatySigningCost(type, resources.silver || 0, targetNation.wealth || 0);
+                const negotiateAutoMaintenancePerDay = getTreatyDailyMaintenance(type);
+                const negotiateFinalMaintenancePerDay = maintenancePerDay > 0 ? maintenancePerDay : negotiateAutoMaintenancePerDay;
+
                 if (accepted) {
+                    // 检查并扣除签约成本
+                    if (negotiateSigningCost > 0) {
+                        const currentSilver = resources.silver || 0;
+                        const totalCostNeeded = negotiateSigningCost + signingGift;
+                        if (currentSilver < totalCostNeeded) {
+                            addLog(`📜 签约失败：签约成本 ${Math.floor(negotiateSigningCost)} + 赠礼 ${signingGift} = ${Math.floor(totalCostNeeded)} 银币不足（当前 ${Math.floor(currentSilver)}）。`);
+                            if (onResult) onResult({ status: 'blocked', reason: 'silver' });
+                            return;
+                        }
+                        setResources(prev => ({ ...prev, silver: Math.max(0, (prev.silver || 0) - negotiateSigningCost) }));
+                    }
+
                     if (signingGift > 0) {
                         setResources(prev => ({ ...prev, silver: Math.max(0, (prev.silver || 0) - signingGift) }));
                     }
@@ -3094,7 +3270,7 @@ const handleDiplomaticAction = (nationId, action, payload = {}) => {
                             type,
                             startDay: daysElapsed,
                             endDay: daysElapsed + durationDays,
-                            maintenancePerDay,
+                            maintenancePerDay: negotiateFinalMaintenancePerDay,
                             direction: 'player_to_ai',
                         });
 
@@ -3127,7 +3303,14 @@ const handleDiplomaticAction = (nationId, action, payload = {}) => {
                         return { ...n, ...updates };
                     }));
 
-                    addLog(`🤝 ${targetNation.name} 同意了谈判条约（${type}）。`);
+                    let negotiateCostInfo = '';
+                    if (negotiateSigningCost > 0) {
+                        negotiateCostInfo = `，签约成本 ${Math.floor(negotiateSigningCost)} 银币`;
+                    }
+                    if (negotiateFinalMaintenancePerDay > 0) {
+                        negotiateCostInfo += `，每日维护费 ${negotiateFinalMaintenancePerDay} 银币`;
+                    }
+                    addLog(`🤝 ${targetNation.name} 同意了谈判条约（${type}）${negotiateCostInfo}。`);
                     if (onResult) onResult({ status: 'accepted', acceptChance: evaluation.acceptChance });
                     break;
                 }

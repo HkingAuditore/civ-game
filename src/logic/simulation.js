@@ -10,6 +10,7 @@ import { calculateLivingStandards } from './population/needs';
 import { applyBuyPriceControl, applySellPriceControl } from './officials/cabinetSynergy';
 import { calculateAIGiftAmount, calculateAIPeaceTribute, calculateAISurrenderDemand } from '../utils/diplomaticUtils';
 import { debugLog } from '../utils/debugFlags';
+import { processPriceConvergence } from './diplomacy/treatyEffects';
 import {
     calculateCoalitionInfluenceShare,
     calculateLegitimacy,
@@ -223,6 +224,16 @@ import {
     initializeRebelEconomy,
     processPostWarRecovery,
     processInstallmentPayment,
+    // International Organization functions
+    processOrganizationMonthlyUpdate,
+    getOrganizationEffects,
+    // Population Migration functions
+    processMonthlyMigration,
+    applyMigrationToPopStructure,
+    generateMigrationLogs,
+    // Rebellion System functions
+    processRebellionSystemDaily,
+    getRebellionRiskAssessment,
 } from './diplomacy';
 
 export const simulateTick = ({
@@ -4530,10 +4541,152 @@ export const simulateTick = ({
         updatedNations = processMonthlyRelationDecay(updatedNations, difficulty);
     }
 
+    // ========================================================================
+    // INTERNATIONAL ORGANIZATION MONTHLY UPDATE (Phase 2 Integration)
+    // Process organization membership fees and effects
+    // ========================================================================
+    let organizationUpdateResult = null;
+    if (isMonthTick && shouldUpdateDiplomacy && diplomacyOrganizations?.organizations?.length > 0) {
+        organizationUpdateResult = processOrganizationMonthlyUpdate({
+            organizations: diplomacyOrganizations.organizations,
+            nations: updatedNations,
+            playerWealth: res.silver || 0,
+            daysElapsed: tick,
+        });
+        
+        // 扣除组织成员费
+        if (organizationUpdateResult.fees.player > 0) {
+            res.silver = Math.max(0, (res.silver || 0) - organizationUpdateResult.fees.player);
+        }
+        
+        // 更新AI国家的费用
+        if (organizationUpdateResult.fees.ai) {
+            for (const [nationId, fee] of Object.entries(organizationUpdateResult.fees.ai)) {
+                const nation = updatedNations.find(n => n.id === nationId);
+                if (nation) {
+                    nation.wealth = Math.max(0, (nation.wealth || 0) - fee);
+                }
+            }
+        }
+        
+        // 添加日志
+        organizationUpdateResult.logs.forEach(log => logs.push(log));
+    }
+
+    // ========================================================================
+    // POPULATION MIGRATION MONTHLY UPDATE (Phase 2 Integration)
+    // Process international population movement
+    // ========================================================================
+    let populationMigrationResult = null;
+    if (isMonthTick && shouldUpdateDiplomacy) {
+        populationMigrationResult = processMonthlyMigration({
+            nations: updatedNations,
+            epoch,
+            playerPopulation: nextPopulation,
+            playerResources: res,
+            classApproval: previousApproval,
+            daysElapsed: tick,
+        });
+        
+        // 应用人口变化
+        if (populationMigrationResult.immigrantsIn > 0 || populationMigrationResult.emigrantsOut > 0) {
+            const netMigration = populationMigrationResult.immigrantsIn - populationMigrationResult.emigrantsOut;
+            nextPopulation = Math.max(10, nextPopulation + netMigration);
+            
+            // 应用人口结构变化
+            if (Object.keys(populationMigrationResult.byStratum).length > 0) {
+                nextPopStructure = applyMigrationToPopStructure(
+                    nextPopStructure,
+                    populationMigrationResult.byStratum,
+                    nextPopulation - netMigration  // 变化前的人口
+                );
+            }
+            
+            // 添加移民日志
+            const migrationLogs = generateMigrationLogs(populationMigrationResult.events);
+            migrationLogs.forEach(log => logs.push(log));
+        }
+    }
+
+    // ========================================================================
+    // REBELLION SYSTEM DAILY UPDATE (Phase 4 Integration)
+    // Process AI nation stability, dissident organization, and civil wars
+    // ========================================================================
+    let rebellionSystemResult = null;
+    if (shouldUpdateDiplomacy) {
+        rebellionSystemResult = processRebellionSystemDaily(updatedNations, {
+            daysElapsed: tick,
+            epoch,
+        });
+        
+        // 应用叛乱系统更新
+        if (rebellionSystemResult && rebellionSystemResult.updates) {
+            for (const update of rebellionSystemResult.updates) {
+                const nationIndex = updatedNations.findIndex(n => n.id === update.id);
+                if (nationIndex >= 0) {
+                    updatedNations[nationIndex] = {
+                        ...updatedNations[nationIndex],
+                        ...update,
+                    };
+                }
+            }
+        }
+        
+        // 处理叛乱事件
+        if (rebellionSystemResult && rebellionSystemResult.events) {
+            for (const event of rebellionSystemResult.events) {
+                if (event.type === 'civil_war_started') {
+                    logs.push(`⚔️ ${event.nationName} 爆发内战！反对派势力与政府军交战中...`);
+                } else if (event.type === 'civil_war_ended') {
+                    if (event.winner === 'rebels') {
+                        logs.push(`🏴 ${event.nationName} 的叛军取得胜利，政权更迭为${event.newGovernment || '新政府'}！`);
+                    } else {
+                        logs.push(`🏛️ ${event.nationName} 的政府军平定叛乱，恢复秩序。`);
+                    }
+                }
+            }
+        }
+    }
+
     // Filter visible nations for diplomacy processing
     const visibleNations = updatedNations.filter(n =>
         epoch >= (n.appearEpoch ?? 0) && (n.expireEpoch == null || epoch <= n.expireEpoch) && !n.isRebelNation
     );
+
+    // ========================================================================
+    // PRICE CONVERGENCE DAILY UPDATE (Phase 4.2 Integration)
+    // Process market price convergence for free trade agreement nations
+    // ========================================================================
+    let priceConvergenceResult = null;
+    if (shouldUpdateDiplomacy && market?.prices) {
+        priceConvergenceResult = processPriceConvergence(market.prices, updatedNations, tick);
+        
+        // 更新市场价格
+        if (priceConvergenceResult.marketPrices) {
+            market = {
+                ...market,
+                prices: priceConvergenceResult.marketPrices,
+            };
+        }
+        
+        // 更新AI国家价格
+        if (priceConvergenceResult.nationPriceUpdates) {
+            for (const update of priceConvergenceResult.nationPriceUpdates) {
+                const nationIndex = updatedNations.findIndex(n => n.id === update.nationId);
+                if (nationIndex >= 0) {
+                    updatedNations[nationIndex] = {
+                        ...updatedNations[nationIndex],
+                        nationPrices: update.nationPrices,
+                    };
+                }
+            }
+        }
+        
+        // 添加日志
+        if (priceConvergenceResult.logs) {
+            priceConvergenceResult.logs.forEach(log => logs.push(log));
+        }
+    }
 
     // REFACTORED: Using module function for ally cold events
     // Note: Must use visibleNations to avoid triggering events for destroyed/expired nations

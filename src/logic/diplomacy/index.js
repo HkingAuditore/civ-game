@@ -8,3 +8,6 @@ export * from './aiWar';
 export * from './aiDiplomacy';
 export * from './aiEconomy';
 export * from './negotiation';
+export * from './organizationDiplomacy';
+export * from './populationMigration';
+export * from './rebellionSystem';
