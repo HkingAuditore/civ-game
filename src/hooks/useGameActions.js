@@ -3451,7 +3451,7 @@ const handleDiplomaticAction = (nationId, action, payload = {}) => {
 
             case 'withdraw_overseas_investment': {
                 // 撤回海外投资
-                const { investmentId } = details || {};
+                const { investmentId } = payload || {};
                 if (!investmentId) {
                     addLog('撤回投资失败：参数不完整');
                     break;
@@ -3479,18 +3479,21 @@ const handleDiplomaticAction = (nationId, action, payload = {}) => {
             }
 
             case 'change_investment_mode': {
-                // 切换海外投资运营模式
-                const { investmentId, newMode } = details || {};
-                if (!investmentId || !newMode) {
+                // 切换海外投资运营模式（支持批量）
+                const { investmentId, investmentIds, operatingMode: newMode } = payload || {};
+                const targetIds = investmentIds || (investmentId ? [investmentId] : []);
+                
+                if (targetIds.length === 0 || !newMode) {
                     addLog('切换模式失败：参数不完整');
                     break;
                 }
                 
                 setOverseasInvestments(prev => prev.map(inv => {
-                    if (inv.id !== investmentId) return inv;
-                    addLog(`📦 已将海外投资切换为${newMode === 'dumping' ? '倾销' : newMode === 'buyback' ? '回购' : '当地运营'}模式`);
+                    if (!targetIds.includes(inv.id)) return inv;
                     return { ...inv, operatingMode: newMode };
                 }));
+                
+                addLog(`📦 已将 ${targetIds.length} 个海外投资切换为${newMode === 'dumping' ? '倾销' : newMode === 'buyback' ? '回购' : '当地运营'}模式`);
                 break;
             }
 
@@ -3612,8 +3615,8 @@ const handleDiplomaticAction = (nationId, action, payload = {}) => {
                 console.warn('[REBELLION] Unknown action:', action);
         }
 
-        // 触发结果事件
-        if (resultEvent) {
+        // 触发结果事件（仅当resultEvent已定义时）
+        if (typeof resultEvent !== 'undefined' && resultEvent) {
             triggerDiplomaticEvent(resultEvent);
         }
     };

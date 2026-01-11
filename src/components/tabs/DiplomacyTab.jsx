@@ -33,6 +33,7 @@ import {
 } from '../../logic/diplomacy/overseasInvestment';
 import { DiplomacyStatsPanel } from '../panels/DiplomacyStatsPanel';
 import { VassalPolicyModal } from '../modals/VassalPolicyModal';
+import { OverseasInvestmentPanel } from '../panels/OverseasInvestmentPanel';
 
 const relationInfo = (relation = 0, isAllied = false) => {
     // 如果是正式盟友，显示盟友标签
@@ -215,6 +216,9 @@ const DiplomacyTabComponent = ({
     // 附庸政策模态框状态
     const [showVassalPolicyModal, setShowVassalPolicyModal] = useState(false);
     const [vassalPolicyTarget, setVassalPolicyTarget] = useState(null);
+    // 海外投资面板状态
+    const [showOverseasInvestmentPanel, setShowOverseasInvestmentPanel] = useState(false);
+    const [investmentPanelNation, setInvestmentPanelNation] = useState(null);
 
     // 外交动作冷却时间配置（天数）
     const DIPLOMATIC_COOLDOWNS = {
@@ -829,86 +833,31 @@ const DiplomacyTabComponent = ({
 
                                     return (
                                         <div className="p-2 rounded border border-amber-500/30 bg-amber-900/20 mb-2">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <div className="flex items-center gap-1 text-amber-200 font-body text-[11px]">
-                                                    <Icon name="Building2" size={12} />
-                                                    海外投资 ({nationInvestments.length}项)
-                                                </div>
-                                                <div className="text-[10px]">
-                                                    <span className="text-gray-400">总值:</span>
-                                                    <span className="text-amber-300 ml-1">{formatNumberShortCN(totalInvestmentValue)}</span>
-                                                    <span className="text-gray-400 ml-2">月利:</span>
-                                                    <span className={monthlyProfit >= 0 ? 'text-green-400 ml-1' : 'text-red-400 ml-1'}>{formatNumberShortCN(monthlyProfit)}</span>
-                                                </div>
-                                            </div>
-
-                                            {/* 现有投资列表 */}
-                                            {nationInvestments.length > 0 && (
-                                                <div className="space-y-1 mb-2 max-h-32 overflow-y-auto">
-                                                    {nationInvestments.map(inv => {
-                                                        const building = BUILDINGS.find(b => b.id === inv.buildingId);
-                                                        const mode = operatingModeConfigs[inv.operatingMode] || operatingModeConfigs.local;
-                                                        const dailyProfit = inv.operatingData?.profit || 0;
-                                                        return (
-                                                            <div key={inv.id} className="flex items-center justify-between text-[9px] bg-amber-900/30 rounded px-2 py-1 border border-amber-700/30">
-                                                                <div className="flex items-center gap-2">
-                                                                    <span className="text-amber-100 font-semibold">{building?.name || inv.buildingId}</span>
-                                                                    <span className={`${mode.color} text-[8px]`}>{mode.icon}{mode.name}</span>
-                                                                </div>
-                                                                <div className="flex items-center gap-2">
-                                                                    <span className="text-gray-400">日利: <span className={dailyProfit >= 0 ? 'text-green-400' : 'text-red-400'}>{dailyProfit.toFixed(1)}</span></span>
-                                                                    <button
-                                                                        className="text-red-400 hover:text-red-300 px-1"
-                                                                        onClick={() => onDiplomaticAction(selectedNation.id, 'withdraw_overseas_investment', { investmentId: inv.id })}
-                                                                        title="撤回投资（扣除20%违约金）"
-                                                                    >
-                                                                        ✕
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            )}
-
-                                            {/* 新建投资 - 建筑列表（按阶层分组） */}
-                                            <div className="border-t border-amber-700/40 pt-2 mt-2">
-                                                <div className="text-[10px] text-gray-300 mb-1.5 font-decorative">新建海外投资</div>
-
-                                                {Object.entries(INVESTABLE_BUILDINGS).map(([stratum, buildingIds]) => {
-                                                    const wealth = classWealth[stratum] || 0;
-                                                    if (wealth < 50) return null;
-                                                    return (
-                                                        <div key={stratum} className="mb-2">
-                                                            <div className="text-[9px] text-gray-400 mb-1">
-                                                                {stratumIcons[stratum]} {stratumLabels[stratum]} (财富: {formatNumberShortCN(wealth)})
-                                                            </div>
-                                                            <div className="flex flex-wrap gap-1">
-                                                                {buildingIds.map(buildingId => {
-                                                                    const building = BUILDINGS.find(b => b.id === buildingId);
-                                                                    if (!building) return null;
-                                                                    const cost = Object.values(building.cost || {}).reduce((sum, v) => sum + v, 0) * 1.5;
-                                                                    const canAfford = wealth >= cost;
-                                                                    return (
-                                                                        <button
-                                                                            key={buildingId}
-                                                                            className={`px-1.5 py-0.5 text-[9px] rounded font-body ${canAfford ? 'bg-amber-600 hover:bg-amber-500 text-white' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}
-                                                                            disabled={!canAfford}
-                                                                            onClick={() => onDiplomaticAction(selectedNation.id, 'establish_overseas_investment', {
-                                                                                buildingId,
-                                                                                ownerStratum: stratum,
-                                                                                operatingMode: 'local',
-                                                                            })}
-                                                                            title={`${building.name}\n成本: ${formatNumberShortCN(cost)}\n投入: ${Object.entries(building.input || {}).map(([r, v]) => `${r}×${v}`).join(', ') || '无'}\n产出: ${Object.entries(building.output || {}).filter(([k]) => !['maxPop', 'militaryCapacity'].includes(k)).map(([r, v]) => `${r}×${v}`).join(', ')}`}
-                                                                        >
-                                                                            +{building.name}
-                                                                        </button>
-                                                                    );
-                                                                })}
-                                                            </div>
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <Icon name="Building2" size={14} className="text-amber-400" />
+                                                    <div>
+                                                        <div className="text-[11px] text-amber-200 font-semibold">
+                                                            海外投资 ({nationInvestments.length}项)
                                                         </div>
-                                                    );
-                                                })}
+                                                        <div className="text-[9px] text-gray-400">
+                                                            总值: {formatNumberShortCN(totalInvestmentValue)} ·
+                                                            月利: <span className={monthlyProfit >= 0 ? 'text-green-400' : 'text-red-400'}>
+                                                                {monthlyProfit >= 0 ? '+' : ''}{formatNumberShortCN(monthlyProfit)}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    className="px-3 py-1.5 rounded bg-amber-600 hover:bg-amber-500 text-white text-[10px] font-semibold flex items-center gap-1"
+                                                    onClick={() => {
+                                                        setInvestmentPanelNation(selectedNation);
+                                                        setShowOverseasInvestmentPanel(true);
+                                                    }}
+                                                >
+                                                    <Icon name="Settings" size={12} />
+                                                    管理投资
+                                                </button>
                                             </div>
                                         </div>
                                     );
@@ -1927,70 +1876,74 @@ const DiplomacyTabComponent = ({
             </Modal>
 
             {/* Declare War Modal */}
-            {showDeclareWarModal && selectedNation && (
-                <DeclareWarModal
-                    targetNation={selectedNation}
-                    allies={targetNationAllies}
-                    onConfirm={() => {
-                        handleSimpleAction(selectedNation.id, 'declare_war');
-                        setShowDeclareWarModal(false);
-                    }}
-                    onCancel={() => setShowDeclareWarModal(false)}
-                />
-            )}
+            {
+                showDeclareWarModal && selectedNation && (
+                    <DeclareWarModal
+                        targetNation={selectedNation}
+                        allies={targetNationAllies}
+                        onConfirm={() => {
+                            handleSimpleAction(selectedNation.id, 'declare_war');
+                            setShowDeclareWarModal(false);
+                        }}
+                        onCancel={() => setShowDeclareWarModal(false)}
+                    />
+                )
+            }
 
-            {showTradeRoutesModal && (
-                <TradeRoutesModal
-                    tradeRoutes={tradeRoutes}
-                    nations={visibleNations}
-                    resources={resources}
-                    market={market}
-                    taxPolicies={taxPolicies}
-                    daysElapsed={daysElapsed}
-                    epoch={epoch}
-                    merchantCount={merchantCount}
-                    merchantAssignments={merchantState?.merchantAssignments || {}}
-                    merchantTradePreferences={merchantState?.merchantTradePreferences || { import: {}, export: {} }}
-                    pendingTrades={merchantState?.pendingTrades || []}
-                    onUpdateMerchantAssignments={(next) => {
-                        if (typeof onMerchantStateChange === 'function') {
-                            onMerchantStateChange({
-                                ...(merchantState || {}),
-                                merchantAssignments: next || {},
-                            });
-                        }
-                    }}
-                    onUpdateMerchantTradePreferences={(next) => {
-                        if (typeof onMerchantStateChange === 'function') {
-                            onMerchantStateChange({
-                                ...(merchantState || {}),
-                                merchantTradePreferences: next || { import: {}, export: {} },
-                            });
-                        }
-                    }}
-                    onCreateRoute={(nationId, resourceKey, type, payload) => {
-                        // Legacy trade-route create (when merchants not unlocked) + new mode payload
-                        if (typeof onDiplomaticAction === 'function') {
-                            onDiplomaticAction(nationId, 'trade_route', {
-                                action: 'create',
-                                resourceKey,
-                                type,
-                                ...(payload && typeof payload === 'object' ? payload : {}),
-                            });
-                        }
-                    }}
-                    onCancelRoute={(nationId, resourceKey, type) => {
-                        if (typeof onDiplomaticAction === 'function') {
-                            onDiplomaticAction(nationId, 'trade_route', {
-                                action: 'cancel',
-                                resourceKey,
-                                type,
-                            });
-                        }
-                    }}
-                    onClose={() => setShowTradeRoutesModal(false)}
-                />
-            )}
+            {
+                showTradeRoutesModal && (
+                    <TradeRoutesModal
+                        tradeRoutes={tradeRoutes}
+                        nations={visibleNations}
+                        resources={resources}
+                        market={market}
+                        taxPolicies={taxPolicies}
+                        daysElapsed={daysElapsed}
+                        epoch={epoch}
+                        merchantCount={merchantCount}
+                        merchantAssignments={merchantState?.merchantAssignments || {}}
+                        merchantTradePreferences={merchantState?.merchantTradePreferences || { import: {}, export: {} }}
+                        pendingTrades={merchantState?.pendingTrades || []}
+                        onUpdateMerchantAssignments={(next) => {
+                            if (typeof onMerchantStateChange === 'function') {
+                                onMerchantStateChange({
+                                    ...(merchantState || {}),
+                                    merchantAssignments: next || {},
+                                });
+                            }
+                        }}
+                        onUpdateMerchantTradePreferences={(next) => {
+                            if (typeof onMerchantStateChange === 'function') {
+                                onMerchantStateChange({
+                                    ...(merchantState || {}),
+                                    merchantTradePreferences: next || { import: {}, export: {} },
+                                });
+                            }
+                        }}
+                        onCreateRoute={(nationId, resourceKey, type, payload) => {
+                            // Legacy trade-route create (when merchants not unlocked) + new mode payload
+                            if (typeof onDiplomaticAction === 'function') {
+                                onDiplomaticAction(nationId, 'trade_route', {
+                                    action: 'create',
+                                    resourceKey,
+                                    type,
+                                    ...(payload && typeof payload === 'object' ? payload : {}),
+                                });
+                            }
+                        }}
+                        onCancelRoute={(nationId, resourceKey, type) => {
+                            if (typeof onDiplomaticAction === 'function') {
+                                onDiplomaticAction(nationId, 'trade_route', {
+                                    action: 'cancel',
+                                    resourceKey,
+                                    type,
+                                });
+                            }
+                        }}
+                        onClose={() => setShowTradeRoutesModal(false)}
+                    />
+                )
+            }
 
             <BottomSheet
                 isOpen={showNationModal}
@@ -2421,19 +2374,55 @@ const DiplomacyTabComponent = ({
             </BottomSheet>
 
             {/* 附庸政策调整模态框 */}
-            {showVassalPolicyModal && vassalPolicyTarget && (
-                <VassalPolicyModal
-                    nation={vassalPolicyTarget}
-                    onClose={() => {
-                        setShowVassalPolicyModal(false);
-                        setVassalPolicyTarget(null);
-                    }}
-                    onApply={(policy) => {
-                        onDiplomaticAction(vassalPolicyTarget.id, 'adjust_vassal_policy', { policy });
-                    }}
-                />
-            )}
-        </div>
+            {
+                showVassalPolicyModal && vassalPolicyTarget && (
+                    <VassalPolicyModal
+                        nation={vassalPolicyTarget}
+                        onClose={() => {
+                            setShowVassalPolicyModal(false);
+                            setVassalPolicyTarget(null);
+                        }}
+                        onApply={(policy) => {
+                            onDiplomaticAction(vassalPolicyTarget.id, 'adjust_vassal_policy', { policy });
+                        }}
+                    />
+                )
+            }
+
+            {/* 海外投资管理面板 */}
+            <OverseasInvestmentPanel
+                isOpen={showOverseasInvestmentPanel}
+                onClose={() => {
+                    setShowOverseasInvestmentPanel(false);
+                    setInvestmentPanelNation(null);
+                }}
+                targetNation={investmentPanelNation}
+                overseasInvestments={overseasInvestments}
+                classWealth={classWealth}
+                epoch={epoch}
+                market={market}
+                onInvest={(nationId, buildingId, ownerStratum) => {
+                    onDiplomaticAction(nationId, 'establish_overseas_investment', {
+                        buildingId,
+                        ownerStratum,
+                        operatingMode: 'local',
+                    });
+                }}
+                onWithdraw={(investmentId) => {
+                    if (investmentPanelNation) {
+                        onDiplomaticAction(investmentPanelNation.id, 'withdraw_overseas_investment', { investmentId });
+                    }
+                }}
+                onModeChange={(investmentIds, newMode) => {
+                    if (investmentPanelNation) {
+                        const payload = Array.isArray(investmentIds)
+                            ? { investmentIds, operatingMode: newMode }
+                            : { investmentId: investmentIds, operatingMode: newMode };
+                        onDiplomaticAction(investmentPanelNation.id, 'change_investment_mode', payload);
+                    }
+                }}
+            />
+        </div >
     );
 };
 

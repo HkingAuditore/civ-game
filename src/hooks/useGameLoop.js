@@ -1698,6 +1698,38 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         if (investmentResult.logs && investmentResult.logs.length > 0) {
                             investmentResult.logs.forEach(log => addLog(log));
                         }
+
+                        // [NEW] 应用市场资源变更
+                        if (investmentResult.marketChanges && Object.keys(investmentResult.marketChanges).length > 0) {
+                            setNations(prevNations => {
+                                return prevNations.map(nation => {
+                                    const changes = investmentResult.marketChanges[nation.id];
+                                    if (!changes) return nation;
+
+                                    const nextInventories = { ...(nation.inventories || {}) };
+                                    Object.entries(changes).forEach(([res, delta]) => {
+                                        nextInventories[res] = Math.max(0, (nextInventories[res] || 0) + delta);
+                                    });
+
+                                    return {
+                                        ...nation,
+                                        inventories: nextInventories,
+                                        // 注意：价格变动通常由下个tick的AI模拟根据库存变动自动计算，此处只需更新库存
+                                    };
+                                });
+                            });
+                        }
+
+                        // [NEW] 应用玩家资源变更（本国消耗/回购产出）
+                        if (investmentResult.playerInventoryChanges && Object.keys(investmentResult.playerInventoryChanges).length > 0) {
+                            setResources(prevResources => {
+                                const nextResources = { ...prevResources };
+                                Object.entries(investmentResult.playerInventoryChanges).forEach(([res, delta]) => {
+                                    nextResources[res] = Math.max(0, (nextResources[res] || 0) + delta);
+                                });
+                                return nextResources;
+                            });
+                        }
                     }).catch(err => {
                         console.error('Failed to process overseas investments:', err);
                     });
