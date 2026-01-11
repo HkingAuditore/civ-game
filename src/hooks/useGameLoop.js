@@ -76,6 +76,8 @@ import {
     createRebelNation,
     createRebellionEndEvent,
 } from '../logic/rebellionSystem';
+import { getTreatyDailyMaintenance } from '../config/diplomacy';
+import { processVassalUpdates } from '../logic/diplomacy/vassalSystem';
 import { LOYALTY_CONFIG } from '../config/officials';
 
 const calculateRebelPopulation = (stratumPop = 0) => {
@@ -1667,72 +1669,178 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 let adjustedTotalWealth = Object.values(adjustedClassWealth).reduce((sum, val) => sum + val, 0);
 
                 // ========== 海外投资每日结算 ==========
-                if (overseasInvestments && overseasInvestments.length > 0) {
-                    import('../logic/diplomacy/overseasInvestment').then(({ processOverseasInvestments }) => {
-                        const investmentResult = processOverseasInvestments({
-                            overseasInvestments,
-                            nations: current.nations || [],
-                            resources: current.resources || {},
-                            marketPrices: current.market?.prices || {},
-                            classWealth: adjustedClassWealth,
-                            daysElapsed: current.daysElapsed || 0,
-                        });
-
-                        // 更新海外投资状态
-                        if (investmentResult.updatedInvestments) {
-                            setOverseasInvestments(investmentResult.updatedInvestments);
-                        }
-
-                        // 将利润汇入各阶层财富
-                        if (investmentResult.profitByStratum && Object.keys(investmentResult.profitByStratum).length > 0) {
-                            gameState.setClassWealth(prev => {
-                                const updated = { ...prev };
-                                Object.entries(investmentResult.profitByStratum).forEach(([stratum, profit]) => {
-                                    updated[stratum] = (updated[stratum] || 0) + profit;
-                                });
-                                return updated;
+                // ========== 海外投资每日结算 ==========
+                if ((overseasInvestments && overseasInvestments.length > 0) || (foreignInvestments && foreignInvestments.length > 0)) {
+                    import('../logic/diplomacy/overseasInvestment').then(({ processOverseasInvestments, processForeignInvestments }) => {
+                        // 1. 处理我方在外投资
+                        if (overseasInvestments && overseasInvestments.length > 0) {
+                            const investmentResult = processOverseasInvestments({
+                                overseasInvestments,
+                                nations: current.nations || [],
+                                resources: current.resources || {},
+                                marketPrices: current.market?.prices || {},
+                                classWealth: adjustedClassWealth,
+                                daysElapsed: current.daysElapsed || 0,
                             });
-                        }
 
-                        // 输出日志
-                        if (investmentResult.logs && investmentResult.logs.length > 0) {
-                            investmentResult.logs.forEach(log => addLog(log));
-                        }
+                            // 更新海外投资状态
+                            if (investmentResult.updatedInvestments) {
+                                setOverseasInvestments(investmentResult.updatedInvestments);
+                            }
 
-                        // [NEW] 应用市场资源变更
-                        if (investmentResult.marketChanges && Object.keys(investmentResult.marketChanges).length > 0) {
-                            setNations(prevNations => {
-                                return prevNations.map(nation => {
-                                    const changes = investmentResult.marketChanges[nation.id];
-                                    if (!changes) return nation;
-
-                                    const nextInventories = { ...(nation.inventories || {}) };
-                                    Object.entries(changes).forEach(([res, delta]) => {
-                                        nextInventories[res] = Math.max(0, (nextInventories[res] || 0) + delta);
+                            // 将利润汇入各阶层财富
+                            if (investmentResult.profitByStratum && Object.keys(investmentResult.profitByStratum).length > 0) {
+                                gameState.setClassWealth(prev => {
+                                    const updated = { ...prev };
+                                    Object.entries(investmentResult.profitByStratum).forEach(([stratum, profit]) => {
+                                        updated[stratum] = (updated[stratum] || 0) + profit;
                                     });
-
-                                    return {
-                                        ...nation,
-                                        inventories: nextInventories,
-                                        // 注意：价格变动通常由下个tick的AI模拟根据库存变动自动计算，此处只需更新库存
-                                    };
+                                    return updated;
                                 });
-                            });
+                            }
+
+                            // 输出日志
+                            if (investmentResult.logs && investmentResult.logs.length > 0) {
+                                investmentResult.logs.forEach(log => addLog(log));
+                            }
+
+                            // [NEW] 应用市场资源变更
+                            if (investmentResult.marketChanges && Object.keys(investmentResult.marketChanges).length > 0) {
+                                setNations(prevNations => {
+                                    return prevNations.map(nation => {
+                                        const changes = investmentResult.marketChanges[nation.id];
+                                        if (!changes) return nation;
+
+                                        const nextInventories = { ...(nation.inventories || {}) };
+                                        Object.entries(changes).forEach(([res, delta]) => {
+                                            nextInventories[res] = Math.max(0, (nextInventories[res] || 0) + delta);
+                                        });
+
+                                        return {
+                                            ...nation,
+                                            inventories: nextInventories,
+                                        };
+                                    });
+                                });
+                            }
+
+                            // [NEW] 应用玩家资源变更（本国消耗/回购产出）
+                            if (investmentResult.playerInventoryChanges && Object.keys(investmentResult.playerInventoryChanges).length > 0) {
+                                setResources(prevResources => {
+                                    const nextResources = { ...prevResources };
+                                    Object.entries(investmentResult.playerInventoryChanges).forEach(([res, delta]) => {
+                                        nextResources[res] = Math.max(0, (nextResources[res] || 0) + delta);
+                                    });
+                                    return nextResources;
+                                });
+                            }
                         }
 
-                        // [NEW] 应用玩家资源变更（本国消耗/回购产出）
-                        if (investmentResult.playerInventoryChanges && Object.keys(investmentResult.playerInventoryChanges).length > 0) {
-                            setResources(prevResources => {
-                                const nextResources = { ...prevResources };
-                                Object.entries(investmentResult.playerInventoryChanges).forEach(([res, delta]) => {
-                                    nextResources[res] = Math.max(0, (nextResources[res] || 0) + delta);
-                                });
-                                return nextResources;
+                        // 2. 处理外国在华投资 (Phase 2 Add)
+                        if (current.foreignInvestments && current.foreignInvestments.length > 0) {
+                            const fiResult = processForeignInvestments({
+                                foreignInvestments: current.foreignInvestments,
+                                playerMarket: adjustedMarket, // 使用更新后的市场数据
+                                playerResources: current.resources, // 使用当前资源
+                                taxPolicies: current.taxPolicies || {},
+                                daysElapsed: current.daysElapsed || 0,
                             });
+
+                            // 更新外资状态
+                            if (fiResult.updatedInvestments) {
+                                setForeignInvestments(fiResult.updatedInvestments);
+                            }
+
+                            // 应用税收收益
+                            if (fiResult.totalTaxRevenue > 0) {
+                                setResources(prev => ({
+                                    ...prev,
+                                    silver: (prev.silver || 0) + fiResult.totalTaxRevenue
+                                }));
+                                // 记录日志（可选，为了不刷屏可以合并）
+                                // addLog(`收到外资企业税收: ${fiResult.totalTaxRevenue.toFixed(1)} 银币`);
+                            }
+
+                            // 日志
+                            if (fiResult.logs && fiResult.logs.length > 0) {
+                                fiResult.logs.forEach(log => addLog(log));
+                            }
                         }
+
                     }).catch(err => {
-                        console.error('Failed to process overseas investments:', err);
+                        console.error('Failed to process investments:', err);
                     });
+                }
+
+                // ========== 条约维护费每日扣除 ==========
+                let totalTreatyMaintenance = 0;
+                if (current.nations) {
+                    current.nations.forEach(nation => {
+                        if (nation.treaties) {
+                            nation.treaties.forEach(treaty => {
+                                // 检查条约是否生效
+                                if ((!treaty.endDay || (current.daysElapsed || 0) < treaty.endDay)) {
+                                    totalTreatyMaintenance += getTreatyDailyMaintenance(treaty.type);
+                                }
+                            });
+                        }
+                    });
+                }
+                if (totalTreatyMaintenance > 0) {
+                    setResources(prev => ({
+                        ...prev,
+                        silver: Math.max(0, (prev.silver || 0) - totalTreatyMaintenance)
+                    }));
+                    // 记录一下，虽然不一定每次都log，避免刷屏
+                    if (isDebugEnabled('diplomacy')) {
+                       console.log(`[Diplomacy] Deducted ${totalTreatyMaintenance} silver for treaty maintenance.`);
+                    }
+                }
+
+                // ========== 附庸每日更新（朝贡与独立倾向） ==========
+                if (current.nations && current.nations.some(n => n.vassalOf === 'player')) {
+                    const vassalLogs = [];
+                    const vassalUpdateResult = processVassalUpdates({
+                        nations: current.nations,
+                        daysElapsed: current.daysElapsed || 0,
+                        epoch: current.epoch || 0,
+                        playerMilitary: result.totalInfluence || 1.0, 
+                        playerStability: result.stability || 50,
+                        playerAtWar: current.nations.some(n => n.isAtWar && (n.warTarget === 'player' || n.id === 'player')), 
+                        playerWealth: adjustedResources.silver || 0, 
+                        logs: vassalLogs
+                    });
+                    
+                    if (vassalUpdateResult) {
+                        // 更新国家列表（包含附庸状态变化）
+                        if (vassalUpdateResult.nations) {
+                            setNations(vassalUpdateResult.nations);
+                        }
+                        
+                        // 结算现金朝贡
+                        if (vassalUpdateResult.tributeIncome > 0) {
+                             setResources(prev => ({
+                                ...prev,
+                                silver: (prev.silver || 0) + vassalUpdateResult.tributeIncome
+                            }));
+                        }
+                        
+                        // 结算资源朝贡
+                        if (vassalUpdateResult.resourceTribute && Object.keys(vassalUpdateResult.resourceTribute).length > 0) {
+                            setResources(prev => {
+                                const nextRes = { ...prev };
+                                Object.entries(vassalUpdateResult.resourceTribute).forEach(([res, amount]) => {
+                                    nextRes[res] = (nextRes[res] || 0) + amount;
+                                });
+                                return nextRes;
+                            });
+                        }
+                        
+                        // 显示日志
+                        if (vassalLogs.length > 0) {
+                            vassalLogs.forEach(log => addLog(log));
+                        }
+                    }
                 }
 
                 // ========== 官僚政变检测（基于忠诚度系统） ==========

@@ -983,7 +983,7 @@ export const simulateTick = ({
     // 职业持久化：基于上一帧状态进行增减，而非每帧重置
     // console.log('[TICK] Starting population allocation...'); // Commented for performance
     const hasPreviousPopStructure = previousPopStructure && Object.keys(previousPopStructure).length > 0;
-    const popStructure = {};
+    let popStructure = {};
 
     let diff = 0;
 
@@ -4595,8 +4595,8 @@ export const simulateTick = ({
             
             // 应用人口结构变化
             if (Object.keys(populationMigrationResult.byStratum).length > 0) {
-                nextPopStructure = applyMigrationToPopStructure(
-                    nextPopStructure,
+                popStructure = applyMigrationToPopStructure(
+                    popStructure,
                     populationMigrationResult.byStratum,
                     nextPopulation - netMigration  // 变化前的人口
                 );

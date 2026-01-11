@@ -788,3 +788,166 @@ export function calculateOverseasInvestmentSummary(overseasInvestments) {
     
     return summary;
 }
+
+// ===== 外资系统（AI在玩家国投资）=====
+
+/**
+ * 外资税率政策配置
+ */
+export const FOREIGN_INVESTMENT_POLICIES = {
+    normal: { taxRate: 0.10, relationImpact: 0 },
+    increased_tax: { taxRate: 0.25, relationImpact: -5 },
+    heavy_tax: { taxRate: 0.50, relationImpact: -15 },
+};
+
+/**
+ * 计算外资建筑利润（AI在玩家国的投资）
+ * @param {Object} investment - 外资记录
+ * @param {Object} playerMarket - 玩家市场
+ * @param {Object} playerResources - 玩家资源
+ * @returns {Object} - { profit, outputValue, inputCost, wageCost, jobsProvided }
+ */
+export function calculateForeignInvestmentProfit(investment, playerMarket = {}, playerResources = {}) {
+    const building = BUILDINGS.find(b => b.id === investment.buildingId);
+    if (!building) return { profit: 0, outputValue: 0, inputCost: 0, wageCost: 0, jobsProvided: 0 };
+    
+    const prices = playerMarket.prices || {};
+    
+    // 计算输入成本
+    let inputCost = 0;
+    Object.entries(building.input || {}).forEach(([resourceKey, amount]) => {
+        const price = prices[resourceKey] || RESOURCES[resourceKey]?.basePrice || 1;
+        inputCost += amount * price;
+    });
+    
+    // 计算产出价值
+    let outputValue = 0;
+    Object.entries(building.output || {}).forEach(([resourceKey, amount]) => {
+        if (resourceKey === 'maxPop' || resourceKey === 'militaryCapacity') return;
+        const price = prices[resourceKey] || RESOURCES[resourceKey]?.basePrice || 1;
+        outputValue += amount * price;
+    });
+    
+    // 计算工资成本
+    let wageCost = 0;
+    let jobsProvided = 0;
+    if (building.jobs) {
+        Object.values(building.jobs).forEach(slots => {
+            jobsProvided += slots;
+            wageCost += slots * 0.5; // 基础日工资
+        });
+    }
+    
+    const profit = outputValue - inputCost - wageCost;
+    
+    return { profit, outputValue, inputCost, wageCost, jobsProvided };
+}
+
+/**
+ * 处理外资建筑每日更新
+ * @param {Object} params - 参数
+ * @returns {Object} - { updatedInvestments, taxRevenue, profitOutflow, logs }
+ */
+export function processForeignInvestments({
+    foreignInvestments = [],
+    nations = [],
+    playerMarket = {},
+    playerResources = {},
+    foreignInvestmentPolicy = 'normal',
+    daysElapsed = 0,
+}) {
+    const logs = [];
+    let totalTaxRevenue = 0;
+    let totalProfitOutflow = 0;
+    const updatedInvestments = [];
+    const policyConfig = FOREIGN_INVESTMENT_POLICIES[foreignInvestmentPolicy] || FOREIGN_INVESTMENT_POLICIES.normal;
+    
+    foreignInvestments.forEach(investment => {
+        if (investment.status !== 'operating') {
+            updatedInvestments.push(investment);
+            return;
+        }
+        
+        // 计算利润
+        const profitResult = calculateForeignInvestmentProfit(investment, playerMarket, playerResources);
+        
+        // 应用税率
+        const taxAmount = profitResult.profit * policyConfig.taxRate;
+        const profitAfterTax = profitResult.profit * (1 - policyConfig.taxRate);
+        
+        totalTaxRevenue += taxAmount;
+        totalProfitOutflow += profitAfterTax;
+        
+        // 更新投资记录
+        updatedInvestments.push({
+            ...investment,
+            dailyProfit: profitResult.profit,
+            jobsProvided: profitResult.jobsProvided,
+            operatingData: {
+                ...profitResult,
+                taxPaid: taxAmount,
+                profitRepatriated: profitAfterTax,
+            },
+        });
+    });
+    
+    // 每月日志
+    if (daysElapsed % 30 === 0 && foreignInvestments.length > 0) {
+        logs.push(`🏭 外资月报: 税收+${(totalTaxRevenue * 30).toFixed(0)}, 利润外流-${(totalProfitOutflow * 30).toFixed(0)}`);
+    }
+    
+    return {
+        updatedInvestments,
+        taxRevenue: totalTaxRevenue,
+        profitOutflow: totalProfitOutflow,
+        logs,
+    };
+}
+
+/**
+ * AI决策：是否在玩家国建立投资
+ * @param {Object} nation - AI国家
+ * @param {Object} playerState - 玩家状态
+ * @param {Array} existingInvestments - 现有外资
+ * @returns {Object|null} - 投资决策或null
+ */
+export function aiDecideForeignInvestment(nation, playerState, existingInvestments = []) {
+    // 检查是否有投资协议
+    const hasInvestmentPact = Array.isArray(nation.treaties) && 
+        nation.treaties.some(t => t.type === 'investment_pact' && t.withPlayer);
+    
+    if (!hasInvestmentPact) return null;
+    
+    // 检查关系
+    if ((nation.relation || 50) < 40) return null;
+    
+    // 检查AI是否有足够财富
+    const nationWealth = nation.wealth || 1000;
+    if (nationWealth < 5000) return null;
+    
+    // 检查现有投资数量
+    const currentInvestments = existingInvestments.filter(inv => inv.ownerNationId === nation.id);
+    const maxInvestments = Math.floor(nationWealth / 10000) + 1;
+    if (currentInvestments.length >= maxInvestments) return null;
+    
+    // 随机决定是否投资（每月10%概率）
+    if (Math.random() > 0.10 / 30) return null;
+    
+    // 选择投资建筑（偏好采集类）
+    const preferredBuildings = ['farm', 'mine', 'lumber_camp', 'iron_mine', 'coal_mine', 'factory'];
+    const availableBuildings = preferredBuildings.filter(bId => {
+        const building = BUILDINGS.find(b => b.id === bId);
+        return building && (building.epoch || 0) <= (playerState.epoch || 0);
+    });
+    
+    if (availableBuildings.length === 0) return null;
+    
+    const selectedBuilding = availableBuildings[Math.floor(Math.random() * availableBuildings.length)];
+    
+    return {
+        buildingId: selectedBuilding,
+        ownerNationId: nation.id,
+        investorStratum: 'capitalist',
+    };
+}
+
