@@ -30,9 +30,13 @@ export {
     VASSAL_TYPE_LABELS,
     getAutonomyEffects,
     calculateIndependenceDesire,
-    calculateTribute,
+    // calculateTribute 已废弃，请使用 vassalSystem.js 中的 calculateEnhancedTribute
     VASSAL_TRANSITION_REQUIREMENTS,
     INDEPENDENCE_WAR_CONDITIONS,
+    // 条约成本配置
+    calculateTreatySigningCost,
+    getTreatyDailyMaintenance,
+    TREATY_COSTS,
 } from './diplomacy';
 
 // 建筑升级配置

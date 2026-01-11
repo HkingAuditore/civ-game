@@ -17,9 +17,9 @@ import {
     VASSAL_TYPE_CONFIGS,
     VASSAL_TYPE_LABELS,
     calculateIndependenceDesire,
-    calculateTribute,
     BUILDINGS,
 } from '../../config';
+import { calculateEnhancedTribute } from '../../logic/diplomacy/vassalSystem';
 import { calculateNationBattlePower } from '../../config/militaryUnits';
 import { calculateForeignPrice, calculateTradeStatus } from '../../utils/foreignTrade';
 import { calculateDynamicGiftCost, calculateProvokeCost } from '../../utils/diplomaticUtils';
@@ -34,6 +34,9 @@ import {
 import { DiplomacyStatsPanel } from '../panels/DiplomacyStatsPanel';
 import { VassalPolicyModal } from '../modals/VassalPolicyModal';
 import { OverseasInvestmentPanel } from '../panels/OverseasInvestmentPanel';
+import RebellionPanel from '../panels/RebellionPanel';
+import MigrationPanel from '../panels/MigrationPanel';
+import EraProgressionPanel from '../panels/EraProgressionPanel';
 
 const relationInfo = (relation = 0, isAllied = false) => {
     // 如果是正式盟友，显示盟友标签
@@ -188,6 +191,8 @@ const DiplomacyTabComponent = ({
     overseasInvestments = [],
     classWealth = {},
     diplomacyOrganizations = { organizations: [] },
+    gameState = {},
+    population = {},
 }) => {
     const [selectedNationId, setSelectedNationId] = useState(null);
     const [tradeAmount, setTradeAmount] = useState(10);
@@ -776,7 +781,7 @@ const DiplomacyTabComponent = ({
                                             </div>
                                             <div className="flex justify-between text-gray-300">
                                                 <span>预计朝贡</span>
-                                                <span className="text-amber-200">{formatNumberShortCN(calculateTribute(selectedNation))}银/月</span>
+<span className="text-amber-200">{formatNumberShortCN(calculateEnhancedTribute(selectedNation, resources.silver || 10000).silver)}银/月</span>
                                             </div>
                                         </div>
                                     </div>
@@ -1989,27 +1994,49 @@ const DiplomacyTabComponent = ({
 
                             {/* --- TABS --- */}
                             <div className="px-3">
-                                <div className="flex items-center gap-1 text-sm rounded-full glass-ancient border border-ancient-gold/30 p-1 shadow-metal-sm">
+                                <div className="flex items-center gap-1 text-sm rounded-lg glass-ancient border border-ancient-gold/30 p-1 shadow-metal-sm flex-wrap">
                                     <button
-                                        className={`w-1/2 py-2 rounded-full border-2 transition-all ${sheetSection === 'diplomacy'
+                                        className={`flex-1 min-w-[60px] py-2 rounded-lg border-2 transition-all ${sheetSection === 'diplomacy'
                                             ? 'bg-ancient-gold/20 border-ancient-gold/70 text-ancient-parchment shadow-gold-metal'
                                             : 'border-transparent text-ancient-stone hover:text-ancient-parchment'}`}
                                         onClick={() => setSheetSection('diplomacy')}
                                     >
-                                        <span className="flex items-center justify-center gap-1.5 font-bold">
-                                            <Icon name="Handshake" size={14} />
+                                        <span className="flex items-center justify-center gap-1 font-bold text-xs">
+                                            <Icon name="Handshake" size={12} />
                                             外交
                                         </span>
                                     </button>
                                     <button
-                                        className={`w-1/2 py-2 rounded-full border-2 transition-all ${sheetSection === 'trade'
+                                        className={`flex-1 min-w-[60px] py-2 rounded-lg border-2 transition-all ${sheetSection === 'trade'
                                             ? 'bg-blue-900/50 border-ancient-gold/50 text-blue-100 shadow-metal-sm'
                                             : 'border-transparent text-ancient-stone hover:text-ancient-parchment'}`}
                                         onClick={() => setSheetSection('trade')}
                                     >
-                                        <span className="flex items-center justify-center gap-1.5 font-bold">
-                                            <Icon name="Coins" size={14} />
+                                        <span className="flex items-center justify-center gap-1 font-bold text-xs">
+                                            <Icon name="Coins" size={12} />
                                             贸易
+                                        </span>
+                                    </button>
+                                    <button
+                                        className={`flex-1 min-w-[60px] py-2 rounded-lg border-2 transition-all ${sheetSection === 'world'
+                                            ? 'bg-red-900/50 border-red-500/50 text-red-100 shadow-metal-sm'
+                                            : 'border-transparent text-ancient-stone hover:text-ancient-parchment'}`}
+                                        onClick={() => setSheetSection('world')}
+                                    >
+                                        <span className="flex items-center justify-center gap-1 font-bold text-xs">
+                                            ⚔️
+                                            局势
+                                        </span>
+                                    </button>
+                                    <button
+                                        className={`flex-1 min-w-[60px] py-2 rounded-lg border-2 transition-all ${sheetSection === 'migration'
+                                            ? 'bg-green-900/50 border-green-500/50 text-green-100 shadow-metal-sm'
+                                            : 'border-transparent text-ancient-stone hover:text-ancient-parchment'}`}
+                                        onClick={() => setSheetSection('migration')}
+                                    >
+                                        <span className="flex items-center justify-center gap-1 font-bold text-xs">
+                                            🌍
+                                            移民
                                         </span>
                                     </button>
                                 </div>
@@ -2363,6 +2390,37 @@ const DiplomacyTabComponent = ({
                                                 })}
                                             </div>
                                         </div>
+                                    </div>
+                                )}
+
+                                {/* 世界局势 - 叛乱与稳定度 */}
+                                {sheetSection === 'world' && (
+                                    <div className="space-y-3">
+                                        <RebellionPanel
+                                            nations={nations}
+                                            onIntervene={(nationId, interventionType) => {
+                                                onDiplomaticAction(nationId, 'foreign_intervention', { interventionType });
+                                            }}
+                                            playerResources={resources}
+                                        />
+                                    </div>
+                                )}
+
+                                {/* 人口流动 - 移民管理 */}
+                                {sheetSection === 'migration' && (
+                                    <div className="space-y-3">
+                                        <MigrationPanel
+                                            currentPolicy={gameState?.borderPolicy || 'controlled'}
+                                            onPolicyChange={(policy) => {
+                                                // TODO: 实现边境政策变更
+                                                console.log('边境政策变更:', policy);
+                                            }}
+                                            migrationStats={gameState?.migrationStats || {}}
+                                            recentFlows={gameState?.recentMigrationFlows || { inflows: [], outflows: [] }}
+                                            population={population}
+                                        />
+                                        {/* 时代演进效果 */}
+                                        <EraProgressionPanel currentEra={epoch} />
                                     </div>
                                 )}
                             </div>

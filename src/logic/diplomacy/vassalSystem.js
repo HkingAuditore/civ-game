@@ -6,9 +6,11 @@
 import {
     VASSAL_TYPE_CONFIGS,
     calculateIndependenceDesire,
-    calculateTribute,
     isDiplomacyUnlocked,
     INDEPENDENCE_WAR_CONDITIONS,
+    TRIBUTE_CONFIG,
+    INDEPENDENCE_CONFIG,
+    calculateAverageSatisfaction,
 } from '../../config/diplomacy';
 
 /**
@@ -23,9 +25,11 @@ export const processVassalUpdates = ({
     playerMilitary = 1.0,
     playerStability = 50,
     playerAtWar = false,
+    playerWealth = 10000,  // 新增：玩家财富参数
     logs = [],
 }) => {
     let tributeIncome = 0;
+    let resourceTribute = {};  // 新增：资源朝贡汇总
     const vassalEvents = [];
 
     const updatedNations = (nations || []).map(nation => {
@@ -38,20 +42,54 @@ export const processVassalUpdates = ({
         const vassalConfig = VASSAL_TYPE_CONFIGS[updated.vassalType];
         if (!vassalConfig) return updated;
 
-        // 1. 每30天结算朝贡
+        // 1. 每30天结算朝贡（使用新的计算方式）
         if (daysElapsed > 0 && daysElapsed % 30 === 0) {
-            const tribute = calculateTribute(updated);
-            if (tribute > 0) {
-                tributeIncome += tribute;
-                updated.wealth = Math.max(0, (updated.wealth || 0) - tribute);
-                logs.push(`📜 ${updated.name}（${vassalConfig.name}）缴纳朝贡 ${tribute} 银币`);
+            const tribute = calculateEnhancedTribute(updated, playerWealth);
+            
+            if (tribute.silver > 0) {
+                tributeIncome += tribute.silver;
+                updated.wealth = Math.max(0, (updated.wealth || 0) - tribute.silver);
+                logs.push(`📜 ${updated.name}（${vassalConfig.name}）缴纳朝贡 ${tribute.silver} 银币`);
+            }
+            
+            // 处理资源朝贡
+            if (Object.keys(tribute.resources).length > 0) {
+                Object.entries(tribute.resources).forEach(([resourceKey, amount]) => {
+                    // 从附庸库存扣除
+                    if (updated.nationInventories && updated.nationInventories[resourceKey]) {
+                        updated.nationInventories[resourceKey] = Math.max(
+                            0, 
+                            updated.nationInventories[resourceKey] - amount
+                        );
+                    }
+                    // 汇总资源朝贡
+                    resourceTribute[resourceKey] = (resourceTribute[resourceKey] || 0) + amount;
+                });
+                
+                const resourceList = Object.entries(tribute.resources)
+                    .map(([k, v]) => `${k}:${v}`)
+                    .join(', ');
+                logs.push(`📦 ${updated.name} 朝贡资源: ${resourceList}`);
             }
         }
 
-        // 2. 更新独立倾向
-        const baseIndependenceGrowth = getIndependenceGrowthRate(updated.vassalType, epoch);
+        // 2. 更新独立倾向（使用新的计算方式）
+        const independenceGrowth = getEnhancedIndependenceGrowthRate(
+            updated.vassalType, 
+            epoch,
+            updated.socialStructure
+        );
+        
+        // 应用控制手段的减免（如果有）
+        let effectiveGrowth = independenceGrowth;
+        if (updated.vassalPolicy?.controlMeasures) {
+            const measures = updated.vassalPolicy.controlMeasures;
+            if (measures.governor) effectiveGrowth -= INDEPENDENCE_CONFIG.controlMeasures.governor.independenceReduction;
+            if (measures.garrison) effectiveGrowth -= INDEPENDENCE_CONFIG.controlMeasures.garrison.independenceReduction;
+        }
+        
         updated.independencePressure = Math.min(100, Math.max(0,
-            (updated.independencePressure || 0) + baseIndependenceGrowth
+            (updated.independencePressure || 0) + Math.max(0, effectiveGrowth)
         ));
 
         // 3. 检查独立战争触发
@@ -92,31 +130,121 @@ export const processVassalUpdates = ({
     return {
         nations: updatedNations,
         tributeIncome,
+        resourceTribute,  // 新增：返回资源朝贡
         vassalEvents,
     };
 };
 
 /**
- * 获取独立倾向增长率（每天）
+ * 计算朝贡金额（重构版）
+ * 基于玩家财富和附庸规模计算有意义的朝贡金额
+ * @param {Object} vassalNation - 附庸国对象
+ * @param {number} playerWealth - 玩家财富（可选）
+ * @returns {Object} { silver: 金钱朝贡, resources: 资源朝贡 }
+ */
+export const calculateEnhancedTribute = (vassalNation, playerWealth = 10000) => {
+    if (!vassalNation || vassalNation.vassalOf === null) {
+        return { silver: 0, resources: {} };
+    }
+    
+    const config = TRIBUTE_CONFIG;
+    const tributeRate = vassalNation.tributeRate || 0;
+    const autonomy = vassalNation.autonomy || 100;
+    const vassalWealth = vassalNation.wealth || 500;
+    
+    // 计算基础朝贡金额
+    // 公式: max(固定基数, 玩家财富×比例) × 附庸财富占比 × 朝贡率
+    const playerBasedTribute = playerWealth * config.playerWealthRate;
+    const vassalBasedTribute = vassalWealth * config.vassalWealthRate;
+    
+    let baseTribute = Math.max(
+        config.baseAmount,
+        playerBasedTribute * 0.5 + vassalBasedTribute * 0.5
+    );
+    
+    // 应用朝贡率
+    baseTribute *= tributeRate;
+    
+    // 附庸规模系数
+    let sizeMultiplier = config.sizeMultipliers.small;
+    if (vassalWealth > 3000) {
+        sizeMultiplier = config.sizeMultipliers.large;
+    } else if (vassalWealth > 1000) {
+        sizeMultiplier = config.sizeMultipliers.medium;
+    }
+    baseTribute *= sizeMultiplier;
+    
+    // 自主度降低实际朝贡
+    const autonomyFactor = 1 - (autonomy / 200);
+    baseTribute *= autonomyFactor;
+    
+    // 独立倾向降低实际朝贡
+    const independenceDesire = vassalNation.independencePressure || 0;
+    const resistanceFactor = Math.max(0.3, 1 - (independenceDesire / 150));
+    baseTribute *= resistanceFactor;
+    
+    // 计算资源朝贡
+    const resources = {};
+    if (config.resourceTribute.enabled && vassalNation.nationInventories) {
+        config.resourceTribute.resources.forEach(resourceKey => {
+            const inventory = vassalNation.nationInventories[resourceKey] || 0;
+            if (inventory > 10) {
+                // 基于库存和朝贡率计算资源朝贡
+                const resourceAmount = Math.floor(
+                    Math.min(
+                        inventory * 0.1,  // 最多朝贡10%库存
+                        config.resourceTribute.baseAmount * tributeRate * sizeMultiplier
+                    ) * autonomyFactor * resistanceFactor
+                );
+                if (resourceAmount > 0) {
+                    resources[resourceKey] = resourceAmount;
+                }
+            }
+        });
+    }
+    
+    return {
+        silver: Math.floor(baseTribute),
+        resources,
+    };
+};
+
+/**
+ * 获取独立倾向增长率（每天）- 重构版
  * @param {string} vassalType - 附庸类型
  * @param {number} epoch - 当前时代
+ * @param {Object} socialStructure - 阶层结构
  * @returns {number} 每日增长率
  */
-const getIndependenceGrowthRate = (vassalType, epoch) => {
-    // 基础增长率（每天）
-    const baseRates = {
-        protectorate: 0.01,
-        tributary: 0.02,
-        puppet: 0.03,
-        colony: 0.05,
-    };
+const getEnhancedIndependenceGrowthRate = (vassalType, epoch, socialStructure = null) => {
+    const config = INDEPENDENCE_CONFIG;
     
-    const baseRate = baseRates[vassalType] || 0.02;
+    // 基础增长率
+    const baseRate = config.dailyGrowthRates[vassalType] || 0.15;
     
-    // 时代越晚，民族主义越强，独立倾向增长越快
-    const eraMultiplier = 1 + Math.max(0, epoch - 4) * 0.1;
+    // 时代系数（后期民族主义更强）
+    const eraMultiplier = config.eraMultiplier.base + 
+        Math.max(0, epoch - 3) * config.eraMultiplier.perEra;
     
-    return baseRate * eraMultiplier;
+    let rate = baseRate * eraMultiplier;
+    
+    // 阶层满意度影响
+    if (socialStructure) {
+        const avgSatisfaction = calculateAverageSatisfaction(socialStructure);
+        
+        if (avgSatisfaction < config.satisfactionThresholds.critical) {
+            // 满意度极低：大幅增加独立倾向
+            rate *= 2.0;
+        } else if (avgSatisfaction < config.satisfactionThresholds.low) {
+            // 满意度低：增加独立倾向
+            rate *= 1.3;
+        } else if (avgSatisfaction > config.satisfactionThresholds.high) {
+            // 满意度高：降低独立倾向
+            rate *= 0.7;
+        }
+    }
+    
+    return rate;
 };
 
 /**
@@ -311,16 +439,24 @@ export const getPlayerVassals = (nations) => {
 /**
  * 计算附庸系统带来的总收益
  * @param {Array} nations - 所有国家列表
+ * @param {number} playerWealth - 玩家财富（可选）
  * @returns {Object} 收益汇总
  */
-export const calculateVassalBenefits = (nations) => {
+export const calculateVassalBenefits = (nations, playerWealth = 10000) => {
     const vassals = getPlayerVassals(nations);
     
     let totalTribute = 0;
     let totalTradeBonus = 0;
+    let totalResourceTribute = {};
     
     vassals.forEach(vassal => {
-        totalTribute += calculateTribute(vassal);
+        const tribute = calculateEnhancedTribute(vassal, playerWealth);
+        totalTribute += tribute.silver;
+        
+        // 汇总资源朝贡
+        Object.entries(tribute.resources).forEach(([res, amount]) => {
+            totalResourceTribute[res] = (totalResourceTribute[res] || 0) + amount;
+        });
         
         const config = VASSAL_TYPE_CONFIGS[vassal.vassalType];
         if (config) {
@@ -331,6 +467,7 @@ export const calculateVassalBenefits = (nations) => {
     return {
         vassalCount: vassals.length,
         monthlyTribute: totalTribute,
+        monthlyResourceTribute: totalResourceTribute,
         tradeBonus: totalTradeBonus / Math.max(1, vassals.length),
     };
 };

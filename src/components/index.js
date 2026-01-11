@@ -63,6 +63,9 @@ export { StratumDetailSheet } from './panels/StratumDetailSheet';
 export { LogPanel } from './panels/LogPanel';
 export { SettingsPanel } from './panels/SettingsPanel';
 export { default as EmpireScene } from './panels/EmpireScene';
+export { default as RebellionPanel } from './panels/RebellionPanel';
+export { default as MigrationPanel } from './panels/MigrationPanel';
+export { default as EraProgressionPanel } from './panels/EraProgressionPanel';
 
 // 标签页组件
 export { BuildTab } from './tabs/BuildTab';

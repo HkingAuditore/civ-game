@@ -205,6 +205,55 @@ const TRADE_POLICY_OPTIONS = [
 ];
 
 /**
+ * 控制手段选项
+ */
+const CONTROL_MEASURES = [
+    {
+        id: 'governor',
+        title: '派遣总督',
+        icon: 'UserCheck',
+        description: '派遣一名总督管理附庸内政',
+        effects: '独立倾向-0.2/天，精英满意度+5',
+        effectColor: 'text-blue-400',
+        dailyCost: 50,
+        independenceDaily: -0.2,
+        eliteSatisfaction: 5,
+    },
+    {
+        id: 'garrison',
+        title: '驻军占领',
+        icon: 'Shield',
+        description: '在附庸境内驻扎军队',
+        effects: '独立倾向-0.5/天，平民满意度-10',
+        effectColor: 'text-red-400',
+        dailyCost: 100,
+        independenceDaily: -0.5,
+        commonersSatisfaction: -10,
+    },
+    {
+        id: 'cultural',
+        title: '文化同化',
+        icon: 'BookOpen',
+        description: '推广本国文化和语言',
+        effects: '独立倾向上限-0.05/天（长期）',
+        effectColor: 'text-purple-400',
+        dailyCost: 30,
+        independenceCapDaily: -0.05,
+    },
+    {
+        id: 'economic_aid',
+        title: '经济扶持',
+        icon: 'DollarSign',
+        description: '提供经济援助改善民生',
+        effects: '平民满意度+5，下层满意度+10',
+        effectColor: 'text-green-400',
+        dailyCost: 80,
+        commonersSatisfaction: 5,
+        underclassSatisfaction: 10,
+    },
+];
+
+/**
  * 附庸政策调整模态框主组件
  */
 const VassalPolicyModalComponent = ({
@@ -229,6 +278,36 @@ const VassalPolicyModalComponent = ({
         (nation?.tributeRate || baseTributeRate) * 100
     );
     
+    // 控制手段状态（多选）
+    const [activeControlMeasures, setActiveControlMeasures] = useState(
+        nation?.vassalPolicy?.controlMeasures || []
+    );
+    
+    // 切换控制手段
+    const toggleControlMeasure = (measureId) => {
+        setActiveControlMeasures(prev => 
+            prev.includes(measureId) 
+                ? prev.filter(id => id !== measureId)
+                : [...prev, measureId]
+        );
+    };
+    
+    // 计算控制手段总成本
+    const totalControlCost = useMemo(() => {
+        return activeControlMeasures.reduce((sum, measureId) => {
+            const measure = CONTROL_MEASURES.find(m => m.id === measureId);
+            return sum + (measure?.dailyCost || 0);
+        }, 0);
+    }, [activeControlMeasures]);
+    
+    // 计算控制手段带来的独立倾向变化
+    const controlMeasuresIndependenceChange = useMemo(() => {
+        return activeControlMeasures.reduce((sum, measureId) => {
+            const measure = CONTROL_MEASURES.find(m => m.id === measureId);
+            return sum + ((measure?.independenceDaily || 0) * 365);  // 年化
+        }, 0);
+    }, [activeControlMeasures]);
+    
     // 计算预估独立倾向变化
     const estimatedIndependenceChange = useMemo(() => {
         let change = 0;
@@ -249,8 +328,11 @@ const VassalPolicyModalComponent = ({
         const autonomyChange = autonomy - baseAutonomy;
         if (autonomyChange < 0) change += Math.abs(autonomyChange) * 0.3;
         
+        // 控制手段影响
+        change += controlMeasuresIndependenceChange;
+        
         return change;
-    }, [diplomaticControl, tradePolicy, autonomy, tributeRate, baseAutonomy, baseTributeRate]);
+    }, [diplomaticControl, tradePolicy, autonomy, tributeRate, baseAutonomy, baseTributeRate, controlMeasuresIndependenceChange]);
     
     // 计算预估朝贡收入
     const estimatedTribute = useMemo(() => {
@@ -265,6 +347,8 @@ const VassalPolicyModalComponent = ({
             tradePolicy,
             autonomy,
             tributeRate: tributeRate / 100,
+            controlMeasures: activeControlMeasures,
+            controlCostPerDay: totalControlCost,
         });
         onClose?.();
     };
@@ -275,6 +359,7 @@ const VassalPolicyModalComponent = ({
         setTradePolicy('preferential');
         setAutonomy(baseAutonomy);
         setTributeRate(baseTributeRate * 100);
+        setActiveControlMeasures([]);
     };
     
     if (!nation) return null;
@@ -389,6 +474,53 @@ const VassalPolicyModalComponent = ({
                         </div>
                     </div>
                     
+                    {/* 控制手段 */}
+                    <div>
+                        <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-1.5 font-decorative">
+                            <Icon name="Target" size={14} className="text-orange-400" />
+                            控制手段
+                            {totalControlCost > 0 && (
+                                <span className="text-xs text-amber-400 font-body ml-2">
+                                    (每日成本: {totalControlCost} 银币)
+                                </span>
+                            )}
+                        </h3>
+                        <div className="grid grid-cols-2 gap-2">
+                            {CONTROL_MEASURES.map(measure => {
+                                const isActive = activeControlMeasures.includes(measure.id);
+                                return (
+                                    <button
+                                        key={measure.id}
+                                        onClick={() => toggleControlMeasure(measure.id)}
+                                        className={`
+                                            p-2 rounded-lg border transition-all text-left
+                                            ${isActive 
+                                                ? 'border-orange-500 bg-orange-900/30' 
+                                                : 'border-gray-600/50 bg-gray-800/30 hover:bg-gray-700/30'
+                                            }
+                                        `}
+                                    >
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <Icon 
+                                                name={measure.icon} 
+                                                size={14} 
+                                                className={isActive ? 'text-orange-400' : 'text-gray-400'} 
+                                            />
+                                            <span className={`text-xs font-bold ${isActive ? 'text-white' : 'text-gray-300'} font-decorative`}>
+                                                {measure.title}
+                                            </span>
+                                        </div>
+                                        <p className="text-[10px] text-gray-400 font-body">{measure.description}</p>
+                                        <div className="flex items-center justify-between mt-1">
+                                            <span className={`text-[10px] ${measure.effectColor} font-body`}>{measure.effects}</span>
+                                            <span className="text-[10px] text-amber-300 font-body">{measure.dailyCost}/天</span>
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                    
                     {/* 预估影响 */}
                     <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
                         <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-1.5 font-decorative">
@@ -411,6 +543,14 @@ const VassalPolicyModalComponent = ({
                                     {formatNumberShortCN(estimatedTribute)}
                                 </span>
                             </div>
+                            {totalControlCost > 0 && (
+                                <div className="flex items-center justify-between bg-gray-900/50 rounded px-2 py-1.5 col-span-2">
+                                    <span className="text-gray-400 font-body">每日控制成本</span>
+                                    <span className="text-red-400 font-mono font-epic">
+                                        -{totalControlCost} 银币/天
+                                    </span>
+                                </div>
+                            )}
                         </div>
                         
                         {estimatedIndependenceChange > 5 && (

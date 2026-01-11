@@ -277,15 +277,32 @@ export function canEstablishOverseasInvestment(targetNation, buildingId, ownerSt
  * @param {Object} investment - 海外投资记录
  * @param {Object} targetNation - 目标国家
  * @param {Object} playerResources - 玩家资源
+ * @param {Object} playerMarketPrices - 玩家市场价格（用作后备）
  * @returns {Object} - { outputValue, inputCost, wageCost, profit }
  */
-export function calculateLocalModeProfit(investment, targetNation, playerResources) {
+export function calculateLocalModeProfit(investment, targetNation, playerResources, playerMarketPrices = {}) {
     const building = BUILDINGS.find(b => b.id === investment.buildingId);
     if (!building) return { outputValue: 0, inputCost: 0, wageCost: 0, profit: 0 };
     
-    // 使用附庸国的资源和价格
-    const nationPrices = targetNation.prices || {};
-    const nationInventories = targetNation.inventories || {};
+    // 使用附庸国的资源和价格（兼容两种属性名，优先使用nationPrices/nationInventories）
+    const nationPrices = targetNation.nationPrices || targetNation.prices || {};
+    const nationInventories = targetNation.nationInventories || targetNation.inventories || {};
+    
+    // 如果AI价格为空，使用玩家市场价格×0.9作为后备
+    const getPrice = (resourceKey) => {
+        if (nationPrices[resourceKey]) return nationPrices[resourceKey];
+        if (playerMarketPrices[resourceKey]) return playerMarketPrices[resourceKey] * 0.9;
+        return getBasePrice(resourceKey);
+    };
+    
+    // 如果AI库存为空，基于建筑产能模拟虚拟库存
+    const getInventory = (resourceKey, requiredAmount) => {
+        const actualInventory = nationInventories[resourceKey] || 0;
+        if (actualInventory > 0) return actualInventory;
+        // 虚拟库存：假设有足够的原材料（基于国家财富）
+        const wealthFactor = Math.max(0.5, (targetNation.wealth || 1000) / 2000);
+        return Math.floor(requiredAmount * 2 * wealthFactor);
+    };
     
     let inputCost = 0;
     let inputAvailable = true;
@@ -293,8 +310,8 @@ export function calculateLocalModeProfit(investment, targetNation, playerResourc
     
     // 计算原材料成本（从当地市场采购）
     Object.entries(building.input || {}).forEach(([resourceKey, amount]) => {
-        const localPrice = nationPrices[resourceKey] || getBasePrice(resourceKey);
-        const localInventory = nationInventories[resourceKey] || 0;
+        const localPrice = getPrice(resourceKey);
+        const localInventory = getInventory(resourceKey, amount);
         
         if (localInventory < amount) {
             inputAvailable = false;
@@ -317,7 +334,7 @@ export function calculateLocalModeProfit(investment, targetNation, playerResourc
     if (inputAvailable) {
         Object.entries(building.output || {}).forEach(([resourceKey, amount]) => {
             if (resourceKey === 'maxPop' || resourceKey === 'militaryCapacity') return;
-            const localPrice = nationPrices[resourceKey] || getBasePrice(resourceKey);
+            const localPrice = getPrice(resourceKey);
             outputValue += amount * localPrice;
             
             // 记录产出
@@ -345,8 +362,16 @@ export function calculateDumpingModeProfit(investment, targetNation, playerResou
     const building = BUILDINGS.find(b => b.id === investment.buildingId);
     if (!building) return { outputValue: 0, inputCost: 0, wageCost: 0, profit: 0, transportCost: 0 };
     
-    const nationPrices = targetNation.prices || {};
+    // 兼容两种属性名
+    const nationPrices = targetNation.nationPrices || targetNation.prices || {};
     const transportCostRate = OVERSEAS_INVESTMENT_CONFIGS.operatingModes.dumping.transportCost;
+    
+    // 获取当地价格的辅助函数
+    const getLocalPrice = (resourceKey) => {
+        if (nationPrices[resourceKey]) return nationPrices[resourceKey];
+        if (marketPrices[resourceKey]) return marketPrices[resourceKey] * 0.9;
+        return getBasePrice(resourceKey);
+    };
     
     let inputCost = 0;
     let transportCost = 0;
@@ -368,7 +393,7 @@ export function calculateDumpingModeProfit(investment, targetNation, playerResou
     let outputValue = 0;
     Object.entries(building.output || {}).forEach(([resourceKey, amount]) => {
         if (resourceKey === 'maxPop' || resourceKey === 'militaryCapacity') return;
-        const localPrice = nationPrices[resourceKey] || getBasePrice(resourceKey);
+        const localPrice = getLocalPrice(resourceKey);
         outputValue += amount * localPrice * 0.8;  // 20%折扣倾销
         
         // 记录当地产出
@@ -393,9 +418,25 @@ export function calculateBuybackModeProfit(investment, targetNation, playerResou
     const building = BUILDINGS.find(b => b.id === investment.buildingId);
     if (!building) return { outputValue: 0, inputCost: 0, wageCost: 0, profit: 0, transportCost: 0, resourcesGained: {} };
     
-    const nationPrices = targetNation.prices || {};
-    const nationInventories = targetNation.inventories || {};
+    // 兼容两种属性名
+    const nationPrices = targetNation.nationPrices || targetNation.prices || {};
+    const nationInventories = targetNation.nationInventories || targetNation.inventories || {};
     const transportCostRate = OVERSEAS_INVESTMENT_CONFIGS.operatingModes.buyback.transportCost;
+    
+    // 获取当地价格的辅助函数
+    const getLocalPrice = (resourceKey) => {
+        if (nationPrices[resourceKey]) return nationPrices[resourceKey];
+        if (marketPrices[resourceKey]) return marketPrices[resourceKey] * 0.9;
+        return getBasePrice(resourceKey);
+    };
+    
+    // 获取当地库存的辅助函数
+    const getLocalInventory = (resourceKey, requiredAmount) => {
+        const actualInventory = nationInventories[resourceKey] || 0;
+        if (actualInventory > 0) return actualInventory;
+        const wealthFactor = Math.max(0.5, (targetNation.wealth || 1000) / 2000);
+        return Math.floor(requiredAmount * 2 * wealthFactor);
+    };
     
     let inputCost = 0;
     let inputAvailable = true;
@@ -404,8 +445,8 @@ export function calculateBuybackModeProfit(investment, targetNation, playerResou
     
     // 原材料从当地采购（当地价格）
     Object.entries(building.input || {}).forEach(([resourceKey, amount]) => {
-        const localPrice = nationPrices[resourceKey] || getBasePrice(resourceKey);
-        const localInventory = nationInventories[resourceKey] || 0;
+        const localPrice = getLocalPrice(resourceKey);
+        const localInventory = getLocalInventory(resourceKey, amount);
         
         if (localInventory < amount) {
             inputAvailable = false;
@@ -535,7 +576,8 @@ export function processOverseasInvestments({
                 profitResult = calculateBuybackModeProfit(investment, targetNation, resources, marketPrices);
                 break;
             default:
-                profitResult = calculateLocalModeProfit(investment, targetNation, resources);
+                // 当地运营模式也传入marketPrices作为后备价格
+                profitResult = calculateLocalModeProfit(investment, targetNation, resources, marketPrices);
         }
         
         // 汇总资源变更
@@ -565,11 +607,25 @@ export function processOverseasInvestments({
         
         // 更新投资记录
         const updated = { ...investment };
+        
+        // 维护利润历史记录（保留最近30天）
+        const profitHistory = [...(investment.operatingData?.profitHistory || [])];
+        profitHistory.push({
+            day: daysElapsed,
+            profit: profitResult.profit,
+            repatriated: profitResult.profit * repatriationRate,
+        });
+        // 只保留最近30条记录
+        if (profitHistory.length > 30) {
+            profitHistory.shift();
+        }
+        
         updated.operatingData = {
             ...updated.operatingData,
             ...profitResult,
             repatriatedProfit,
             retainedProfit,
+            profitHistory,
         };
         
         // 累加利润
