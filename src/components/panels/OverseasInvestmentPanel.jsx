@@ -220,6 +220,59 @@ export const OverseasInvestmentPanel = memo(({
                                                     </div>
                                                 </div>
 
+                                                {/* 投入产出价格对比 */}
+                                                {(() => {
+                                                    const buildingConfig = BUILDINGS.find(b => b.id === group.buildingId);
+                                                    if (!buildingConfig) return null;
+                                                    const inputEntries = Object.entries(buildingConfig.input || {});
+                                                    const outputEntries = Object.entries(buildingConfig.output || {}).filter(([k]) => !['maxPop', 'militaryCapacity'].includes(k));
+
+                                                    return (
+                                                        <div className="grid grid-cols-2 gap-2 text-[10px]">
+                                                            <div className="bg-gray-900/40 rounded p-2">
+                                                                <div className="text-red-400 mb-1">📥 投入:</div>
+                                                                {inputEntries.length > 0 ? (
+                                                                    inputEntries.map(([r, v]) => {
+                                                                        const localPrice = market?.prices?.[r] ?? RESOURCES[r]?.basePrice ?? 1;
+                                                                        const foreignPrice = targetNation?.market?.prices?.[r] ?? targetNation?.prices?.[r] ?? RESOURCES[r]?.basePrice ?? 1;
+                                                                        const priceDiff = foreignPrice - localPrice;
+                                                                        return (
+                                                                            <div key={r} className="flex justify-between items-center">
+                                                                                <span className="text-gray-300">{RESOURCES[r]?.name || r} ×{v}</span>
+                                                                                <span className={`text-[8px] ${priceDiff < 0 ? 'text-green-400' : priceDiff > 0 ? 'text-red-400' : 'text-gray-500'}`}>
+                                                                                    {priceDiff < 0 ? `▼${Math.abs(priceDiff).toFixed(1)}` : priceDiff > 0 ? `▲${priceDiff.toFixed(1)}` : '='}
+                                                                                </span>
+                                                                            </div>
+                                                                        );
+                                                                    })
+                                                                ) : (
+                                                                    <div className="text-gray-500">无</div>
+                                                                )}
+                                                            </div>
+                                                            <div className="bg-gray-900/40 rounded p-2">
+                                                                <div className="text-green-400 mb-1">📤 产出:</div>
+                                                                {outputEntries.length > 0 ? (
+                                                                    outputEntries.map(([r, v]) => {
+                                                                        const localPrice = market?.prices?.[r] ?? RESOURCES[r]?.basePrice ?? 1;
+                                                                        const foreignPrice = targetNation?.market?.prices?.[r] ?? targetNation?.prices?.[r] ?? RESOURCES[r]?.basePrice ?? 1;
+                                                                        const priceDiff = localPrice - foreignPrice;
+                                                                        return (
+                                                                            <div key={r} className="flex justify-between items-center">
+                                                                                <span className="text-gray-300">{RESOURCES[r]?.name || r} ×{v}</span>
+                                                                                <span className={`text-[8px] ${priceDiff > 0 ? 'text-green-400' : priceDiff < 0 ? 'text-red-400' : 'text-gray-500'}`}>
+                                                                                    {priceDiff > 0 ? `▲回购+${priceDiff.toFixed(1)}` : priceDiff < 0 ? `▼倾销+${Math.abs(priceDiff).toFixed(1)}` : '='}
+                                                                                </span>
+                                                                            </div>
+                                                                        );
+                                                                    })
+                                                                ) : (
+                                                                    <div className="text-gray-500">无</div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })()}
+
                                                 {/* 批量切换运营模式 */}
                                                 <div>
                                                     <div className="text-[10px] text-gray-400 mb-1">批量切换运营模式 (应用到全部{count}个):</div>
@@ -386,16 +439,14 @@ export const OverseasInvestmentPanel = memo(({
                                                         {inputEntries.length > 0 ? (
                                                             inputEntries.map(([r, v]) => {
                                                                 const localPrice = market?.prices?.[r] ?? RESOURCES[r]?.basePrice ?? 1;
-                                                                const foreignPrice = targetNation?.market?.prices?.[r] ?? localPrice;
+                                                                const foreignPrice = targetNation?.market?.prices?.[r] ?? targetNation?.prices?.[r] ?? RESOURCES[r]?.basePrice ?? 1;
                                                                 const priceDiff = foreignPrice - localPrice;
                                                                 return (
                                                                     <div key={r} className="flex justify-between items-center">
                                                                         <span className="text-gray-300">{RESOURCES[r]?.name || r} ×{v}</span>
-                                                                        {priceDiff !== 0 && (
-                                                                            <span className={`text-[8px] ${priceDiff < 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                                                                {priceDiff < 0 ? '▼便宜' : '▲贵'}
-                                                                            </span>
-                                                                        )}
+                                                                        <span className={`text-[8px] ${priceDiff < 0 ? 'text-green-400' : priceDiff > 0 ? 'text-red-400' : 'text-gray-500'}`}>
+                                                                            {priceDiff < 0 ? `▼${Math.abs(priceDiff).toFixed(1)}` : priceDiff > 0 ? `▲${priceDiff.toFixed(1)}` : '='}
+                                                                        </span>
                                                                     </div>
                                                                 );
                                                             })
@@ -407,16 +458,14 @@ export const OverseasInvestmentPanel = memo(({
                                                         <div className="text-green-400 mb-1">📤 产出:</div>
                                                         {outputEntries.map(([r, v]) => {
                                                             const localPrice = market?.prices?.[r] ?? RESOURCES[r]?.basePrice ?? 1;
-                                                            const foreignPrice = targetNation?.market?.prices?.[r] ?? localPrice;
+                                                            const foreignPrice = targetNation?.market?.prices?.[r] ?? targetNation?.prices?.[r] ?? RESOURCES[r]?.basePrice ?? 1;
                                                             const priceDiff = localPrice - foreignPrice;
                                                             return (
                                                                 <div key={r} className="flex justify-between items-center">
                                                                     <span className="text-gray-300">{RESOURCES[r]?.name || r} ×{v}</span>
-                                                                    {priceDiff !== 0 && (
-                                                                        <span className={`text-[8px] ${priceDiff > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                                                            {priceDiff > 0 ? '▲回购赚' : '▼倾销赚'}
-                                                                        </span>
-                                                                    )}
+                                                                    <span className={`text-[8px] ${priceDiff > 0 ? 'text-green-400' : priceDiff < 0 ? 'text-red-400' : 'text-gray-500'}`}>
+                                                                        {priceDiff > 0 ? `▲回购+${priceDiff.toFixed(1)}` : priceDiff < 0 ? `▼倾销+${Math.abs(priceDiff).toFixed(1)}` : '='}
+                                                                    </span>
                                                                 </div>
                                                             );
                                                         })}

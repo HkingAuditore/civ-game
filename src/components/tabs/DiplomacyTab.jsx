@@ -781,7 +781,7 @@ const DiplomacyTabComponent = ({
                                             </div>
                                             <div className="flex justify-between text-gray-300">
                                                 <span>预计朝贡</span>
-<span className="text-amber-200">{formatNumberShortCN(calculateEnhancedTribute(selectedNation, resources.silver || 10000).silver)}银/月</span>
+                                                <span className="text-amber-200">{formatNumberShortCN(calculateEnhancedTribute(selectedNation, resources.silver || 10000).silver)}银/月</span>
                                             </div>
                                         </div>
                                     </div>
@@ -2039,6 +2039,17 @@ const DiplomacyTabComponent = ({
                                             移民
                                         </span>
                                     </button>
+                                    <button
+                                        className={`flex-1 min-w-[60px] py-2 rounded-lg border-2 transition-all ${sheetSection === 'organizations'
+                                            ? 'bg-purple-900/50 border-purple-500/50 text-purple-100 shadow-metal-sm'
+                                            : 'border-transparent text-ancient-stone hover:text-ancient-parchment'}`}
+                                        onClick={() => setSheetSection('organizations')}
+                                    >
+                                        <span className="flex items-center justify-center gap-1 font-bold text-xs">
+                                            🏛️
+                                            组织
+                                        </span>
+                                    </button>
                                 </div>
                             </div>
 
@@ -2087,6 +2098,57 @@ const DiplomacyTabComponent = ({
                                                     <Icon name="BookOpen" size={12} className="inline mr-1.5 text-amber-300" />
                                                     {selectedNation.desc}
                                                 </p>
+                                            </div>
+                                        )}
+
+                                        {/* 附庸状态显示 - 移动端 */}
+                                        {selectedNation?.vassalOf === 'player' && (
+                                            <div className="p-3 glass-ancient rounded-lg border border-purple-500/30 shadow-metal-sm">
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <h4 className="text-base font-bold text-purple-200 font-decorative flex items-center gap-2">
+                                                        <Icon name="Crown" size={14} className="text-purple-300" />
+                                                        {VASSAL_TYPE_LABELS[selectedNation.vassalType] || '附庸国'}
+                                                    </h4>
+                                                    <div className="flex items-center gap-2">
+                                                        <button
+                                                            className="px-2 py-1 text-xs rounded bg-blue-600 hover:bg-blue-500 text-white font-body"
+                                                            onClick={() => {
+                                                                setVassalPolicyTarget(selectedNation);
+                                                                setShowVassalPolicyModal(true);
+                                                            }}
+                                                        >
+                                                            调整政策
+                                                        </button>
+                                                        <button
+                                                            className="px-2 py-1 text-xs rounded bg-purple-600 hover:bg-purple-500 text-white font-body"
+                                                            onClick={() => onDiplomaticAction(selectedNation.id, 'release_vassal')}
+                                                        >
+                                                            释放
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                                    <div className="p-2 rounded bg-purple-900/20 border border-purple-700/30">
+                                                        <div className="text-gray-400 mb-1">自主度</div>
+                                                        <div className="text-lg font-bold text-purple-200 font-epic">{Math.round(selectedNation.autonomy || 0)}%</div>
+                                                    </div>
+                                                    <div className="p-2 rounded bg-amber-900/20 border border-amber-700/30">
+                                                        <div className="text-gray-400 mb-1">朝贡率</div>
+                                                        <div className="text-lg font-bold text-amber-200 font-epic">{Math.round((selectedNation.tributeRate || 0) * 100)}%</div>
+                                                    </div>
+                                                    <div className="p-2 rounded bg-red-900/20 border border-red-700/30">
+                                                        <div className="text-gray-400 mb-1">独立倾向</div>
+                                                        <div className={`text-lg font-bold font-epic ${(selectedNation.independencePressure || 0) > 60 ? 'text-red-300' : 'text-gray-200'}`}>
+                                                            {Math.round(selectedNation.independencePressure || 0)}%
+                                                        </div>
+                                                    </div>
+                                                    <div className="p-2 rounded bg-green-900/20 border border-green-700/30">
+                                                        <div className="text-gray-400 mb-1">预计朝贡</div>
+                                                        <div className="text-lg font-bold text-green-200 font-epic">
+                                                            {formatNumberShortCN(calculateEnhancedTribute(selectedNation, resources.silver || 10000).silver)}银/月
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             </div>
                                         )}
 
@@ -2193,48 +2255,149 @@ const DiplomacyTabComponent = ({
                                                 </div>
 
                                                 <div className="grid grid-cols-2 gap-2 text-sm">
+                                                    {/* 互不侵犯条约 */}
                                                     {(() => {
                                                         const treatyCooldown = getDiplomaticCooldown(selectedNation, 'propose_treaty');
                                                         const isPeaceActive = selectedNation?.peaceTreatyUntil && daysElapsed < selectedNation.peaceTreatyUntil;
                                                         const blocked = selectedNation?.isAtWar || treatyCooldown.isOnCooldown || isPeaceActive;
-
-                                                        let titleText = '提出互不侵犯条约（1年）';
-                                                        if (selectedNation?.isAtWar) titleText = '交战期间无法签署互不侵犯';
-                                                        else if (treatyCooldown.isOnCooldown) titleText = `冷却中（还需${treatyCooldown.remainingDays}天）`;
-                                                        else if (isPeaceActive) titleText = '互不侵犯/和平协议已生效中，无法重复提出';
-
                                                         return (
                                                             <button
-                                                                className={`p-3 rounded-lg text-white flex flex-col items-center justify-center gap-1 font-semibold border border-white/10 shadow-metal-sm ${blocked ? 'bg-gray-600/80 cursor-not-allowed' : 'bg-green-700 hover:bg-green-600'}`}
+                                                                className={`p-2 rounded-lg text-white flex flex-col items-center justify-center gap-1 font-semibold border border-white/10 shadow-metal-sm ${blocked ? 'bg-gray-600/80 cursor-not-allowed' : 'bg-green-700 hover:bg-green-600'}`}
                                                                 onClick={() => handleSimpleAction(selectedNation.id, 'propose_treaty', { type: 'non_aggression', durationDays: 365 })}
                                                                 disabled={blocked}
-                                                                title={titleText}
                                                             >
                                                                 <Icon name="Shield" size={14} />
-                                                                <span>{treatyCooldown.isOnCooldown ? `互不侵(${treatyCooldown.remainingDays}天)` : '互不侵犯'}</span>
+                                                                <span className="text-xs">互不侵犯</span>
                                                             </button>
                                                         );
                                                     })()}
 
+                                                    {/* 开放市场 */}
                                                     {(() => {
                                                         const treatyCooldown = getDiplomaticCooldown(selectedNation, 'propose_treaty');
-                                                        const isOpenMarketActive = selectedNation?.openMarketUntil && daysElapsed < selectedNation.openMarketUntil;
-                                                        const blocked = selectedNation?.isAtWar || treatyCooldown.isOnCooldown || isOpenMarketActive;
-
-                                                        let titleText = '提出开放市场条约（2年）';
-                                                        if (selectedNation?.isAtWar) titleText = '交战期间无法签署开放市场';
-                                                        else if (treatyCooldown.isOnCooldown) titleText = `冷却中（还需${treatyCooldown.remainingDays}天）`;
-                                                        else if (isOpenMarketActive) titleText = '开放市场协议已生效中，无法重复提出';
-
+                                                        const hasActive = Array.isArray(selectedNation?.treaties) && selectedNation.treaties.some(t => t.type === 'open_market' && (!t.endDay || daysElapsed < t.endDay));
+                                                        const blocked = selectedNation?.isAtWar || treatyCooldown.isOnCooldown || hasActive;
                                                         return (
                                                             <button
-                                                                className={`p-3 rounded-lg text-white flex flex-col items-center justify-center gap-1 font-semibold border border-white/10 shadow-metal-sm ${blocked ? 'bg-gray-600/80 cursor-not-allowed' : 'bg-blue-700 hover:bg-blue-600'}`}
+                                                                className={`p-2 rounded-lg text-white flex flex-col items-center justify-center gap-1 font-semibold border border-white/10 shadow-metal-sm ${blocked ? 'bg-gray-600/80 cursor-not-allowed' : 'bg-blue-700 hover:bg-blue-600'}`}
                                                                 onClick={() => handleSimpleAction(selectedNation.id, 'propose_treaty', { type: 'open_market', durationDays: 730 })}
                                                                 disabled={blocked}
-                                                                title={titleText}
                                                             >
                                                                 <Icon name="Store" size={14} />
-                                                                <span>{treatyCooldown.isOnCooldown ? `市场(${treatyCooldown.remainingDays}天)` : '开放市场'}</span>
+                                                                <span className="text-xs">开放市场</span>
+                                                            </button>
+                                                        );
+                                                    })()}
+
+                                                    {/* 贸易协定 */}
+                                                    {(() => {
+                                                        const isUnlocked = isDiplomacyUnlocked('treaties', 'trade_agreement', epoch);
+                                                        const treatyCooldown = getDiplomaticCooldown(selectedNation, 'propose_treaty');
+                                                        const hasActive = Array.isArray(selectedNation?.treaties) && selectedNation.treaties.some(t => t.type === 'trade_agreement' && (!t.endDay || daysElapsed < t.endDay));
+                                                        const blocked = !isUnlocked || selectedNation?.isAtWar || treatyCooldown.isOnCooldown || hasActive;
+                                                        return (
+                                                            <button
+                                                                className={`p-2 rounded-lg text-white flex flex-col items-center justify-center gap-1 font-semibold border border-white/10 shadow-metal-sm ${blocked ? 'bg-gray-600/80 cursor-not-allowed' : 'bg-amber-700 hover:bg-amber-600'}`}
+                                                                onClick={() => handleSimpleAction(selectedNation.id, 'propose_treaty', { type: 'trade_agreement', durationDays: getTreatyDuration('trade_agreement', epoch) })}
+                                                                disabled={blocked}
+                                                            >
+                                                                <Icon name="Handshake" size={14} />
+                                                                <span className="text-xs">{!isUnlocked ? '🔒贸易' : '贸易协定'}</span>
+                                                            </button>
+                                                        );
+                                                    })()}
+
+                                                    {/* 自由贸易 */}
+                                                    {(() => {
+                                                        const isUnlocked = isDiplomacyUnlocked('treaties', 'free_trade', epoch);
+                                                        const treatyCooldown = getDiplomaticCooldown(selectedNation, 'propose_treaty');
+                                                        const hasActive = Array.isArray(selectedNation?.treaties) && selectedNation.treaties.some(t => t.type === 'free_trade' && (!t.endDay || daysElapsed < t.endDay));
+                                                        const blocked = !isUnlocked || selectedNation?.isAtWar || treatyCooldown.isOnCooldown || hasActive;
+                                                        return (
+                                                            <button
+                                                                className={`p-2 rounded-lg text-white flex flex-col items-center justify-center gap-1 font-semibold border border-white/10 shadow-metal-sm ${blocked ? 'bg-gray-600/80 cursor-not-allowed' : 'bg-teal-700 hover:bg-teal-600'}`}
+                                                                onClick={() => handleSimpleAction(selectedNation.id, 'propose_treaty', { type: 'free_trade', durationDays: getTreatyDuration('free_trade', epoch) })}
+                                                                disabled={blocked}
+                                                            >
+                                                                <Icon name="Globe" size={14} />
+                                                                <span className="text-xs">{!isUnlocked ? '🔒自贸' : '自由贸易'}</span>
+                                                            </button>
+                                                        );
+                                                    })()}
+
+                                                    {/* 学术交流 */}
+                                                    {(() => {
+                                                        const isUnlocked = isDiplomacyUnlocked('treaties', 'academic_exchange', epoch);
+                                                        const treatyCooldown = getDiplomaticCooldown(selectedNation, 'propose_treaty');
+                                                        const hasActive = Array.isArray(selectedNation?.treaties) && selectedNation.treaties.some(t => t.type === 'academic_exchange' && (!t.endDay || daysElapsed < t.endDay));
+                                                        const blocked = !isUnlocked || selectedNation?.isAtWar || treatyCooldown.isOnCooldown || hasActive;
+                                                        return (
+                                                            <button
+                                                                className={`p-2 rounded-lg text-white flex flex-col items-center justify-center gap-1 font-semibold border border-white/10 shadow-metal-sm ${blocked ? 'bg-gray-600/80 cursor-not-allowed' : 'bg-purple-700 hover:bg-purple-600'}`}
+                                                                onClick={() => handleSimpleAction(selectedNation.id, 'propose_treaty', { type: 'academic_exchange', durationDays: getTreatyDuration('academic_exchange', epoch) })}
+                                                                disabled={blocked}
+                                                            >
+                                                                <Icon name="BookOpen" size={14} />
+                                                                <span className="text-xs">{!isUnlocked ? '🔒学术' : '学术交流'}</span>
+                                                            </button>
+                                                        );
+                                                    })()}
+
+                                                    {/* 共同防御 */}
+                                                    {(() => {
+                                                        const isUnlocked = isDiplomacyUnlocked('treaties', 'defensive_pact', epoch);
+                                                        const treatyCooldown = getDiplomaticCooldown(selectedNation, 'propose_treaty');
+                                                        const hasActive = Array.isArray(selectedNation?.treaties) && selectedNation.treaties.some(t => t.type === 'defensive_pact' && (!t.endDay || daysElapsed < t.endDay));
+                                                        const blocked = !isUnlocked || selectedNation?.isAtWar || treatyCooldown.isOnCooldown || hasActive;
+                                                        return (
+                                                            <button
+                                                                className={`p-2 rounded-lg text-white flex flex-col items-center justify-center gap-1 font-semibold border border-white/10 shadow-metal-sm ${blocked ? 'bg-gray-600/80 cursor-not-allowed' : 'bg-red-700 hover:bg-red-600'}`}
+                                                                onClick={() => handleSimpleAction(selectedNation.id, 'propose_treaty', { type: 'defensive_pact', durationDays: getTreatyDuration('defensive_pact', epoch) })}
+                                                                disabled={blocked}
+                                                            >
+                                                                <Icon name="ShieldCheck" size={14} />
+                                                                <span className="text-xs">{!isUnlocked ? '🔒防御' : '共同防御'}</span>
+                                                            </button>
+                                                        );
+                                                    })()}
+
+                                                    {/* 投资协议 */}
+                                                    {(() => {
+                                                        const isUnlocked = isDiplomacyUnlocked('treaties', 'investment_pact', epoch);
+                                                        const treatyCooldown = getDiplomaticCooldown(selectedNation, 'propose_treaty');
+                                                        const hasActive = Array.isArray(selectedNation?.treaties) && selectedNation.treaties.some(t => t.type === 'investment_pact' && (!t.endDay || daysElapsed < t.endDay));
+                                                        const blocked = !isUnlocked || selectedNation?.isAtWar || treatyCooldown.isOnCooldown || hasActive;
+                                                        return (
+                                                            <button
+                                                                className={`p-2 rounded-lg text-white flex flex-col items-center justify-center gap-1 font-semibold border border-white/10 shadow-metal-sm ${blocked ? 'bg-gray-600/80 cursor-not-allowed' : 'bg-emerald-700 hover:bg-emerald-600'}`}
+                                                                onClick={() => handleSimpleAction(selectedNation.id, 'propose_treaty', { type: 'investment_pact', durationDays: getTreatyDuration('investment_pact', epoch) })}
+                                                                disabled={blocked}
+                                                            >
+                                                                <Icon name="Building2" size={14} />
+                                                                <span className="text-xs">{!isUnlocked ? '🔒投资' : '投资协议'}</span>
+                                                            </button>
+                                                        );
+                                                    })()}
+
+                                                    {/* 海外投资入口 */}
+                                                    {(() => {
+                                                        const hasInvestmentPact = Array.isArray(selectedNation?.treaties) && selectedNation.treaties.some(t => t.type === 'investment_pact' && (!t.endDay || daysElapsed < t.endDay));
+                                                        const isVassal = selectedNation?.vassalOf === 'player';
+                                                        const canInvest = hasInvestmentPact || isVassal;
+                                                        return (
+                                                            <button
+                                                                className={`p-2 rounded-lg text-white flex flex-col items-center justify-center gap-1 font-semibold border border-white/10 shadow-metal-sm ${!canInvest ? 'bg-gray-600/80 cursor-not-allowed' : 'bg-cyan-700 hover:bg-cyan-600'}`}
+                                                                onClick={() => {
+                                                                    if (canInvest) {
+                                                                        setInvestmentPanelNation(selectedNation);
+                                                                        setShowOverseasInvestmentPanel(true);
+                                                                    }
+                                                                }}
+                                                                disabled={!canInvest}
+                                                                title={!canInvest ? '需要投资协议或附庸关系' : '管理海外投资'}
+                                                            >
+                                                                <Icon name="Factory" size={14} />
+                                                                <span className="text-xs">海外投资</span>
                                                             </button>
                                                         );
                                                     })()}
@@ -2423,6 +2586,165 @@ const DiplomacyTabComponent = ({
                                         <EraProgressionPanel currentEra={epoch} />
                                     </div>
                                 )}
+
+                                {/* 国际组织面板 - 移动端 */}
+                                {sheetSection === 'organizations' && (() => {
+                                    const organizations = Array.isArray(diplomacyOrganizations?.organizations)
+                                        ? diplomacyOrganizations.organizations
+                                        : [];
+                                    const playerOrgs = organizations.filter(org =>
+                                        Array.isArray(org?.members) && org.members.includes('player')
+                                    );
+                                    const nationOrgs = organizations.filter(org =>
+                                        Array.isArray(org?.members) && org.members.includes(selectedNation?.id)
+                                    );
+                                    const sharedOrgs = playerOrgs.filter(org =>
+                                        nationOrgs.some(no => no.id === org.id)
+                                    );
+
+                                    const ORG_TYPES = [
+                                        { type: 'military_alliance', name: '军事联盟', icon: 'Shield', era: 3, color: 'red' },
+                                        { type: 'economic_bloc', name: '经济共同体', icon: 'TrendingUp', era: 5, color: 'amber' },
+                                        { type: 'trade_zone', name: '自贸区', icon: 'Globe', era: 5, color: 'cyan' },
+                                    ];
+
+                                    return (
+                                        <div className="space-y-4">
+                                            {/* 组织创建/邀请 */}
+                                            <div className="p-3 glass-ancient rounded-lg border border-ancient-gold/20 shadow-metal-sm">
+                                                <h4 className="text-base font-bold text-ancient-parchment font-decorative flex items-center gap-2 mb-3">
+                                                    <Icon name="Users" size={14} className="text-purple-300" />
+                                                    国际组织
+                                                </h4>
+                                                <p className="text-xs text-gray-400 mb-3 font-body">创建或邀请国家加入组织</p>
+
+                                                <div className="grid grid-cols-3 gap-2 text-sm">
+                                                    {ORG_TYPES.map(orgType => {
+                                                        const isUnlocked = isDiplomacyUnlocked('organizations', orgType.type, epoch);
+                                                        const playerHasOrg = playerOrgs.some(o => o.type === orgType.type);
+                                                        const nationInOrg = nationOrgs.some(o => o.type === orgType.type);
+                                                        const playerOrg = playerOrgs.find(o => o.type === orgType.type);
+                                                        const nationAlreadyInPlayerOrg = playerOrg && Array.isArray(playerOrg.members) && playerOrg.members.includes(selectedNation?.id);
+
+                                                        const blocked = !isUnlocked || selectedNation?.isAtWar;
+
+                                                        let buttonText = '';
+                                                        let action = '';
+                                                        let canClick = !blocked;
+
+                                                        if (!isUnlocked) {
+                                                            buttonText = `🔒${orgType.name.substring(0, 2)}`;
+                                                            canClick = false;
+                                                        } else if (nationAlreadyInPlayerOrg) {
+                                                            buttonText = `移除${orgType.name.substring(0, 2)}`;
+                                                            action = 'leave_org';
+                                                        } else if (playerHasOrg && !nationInOrg) {
+                                                            buttonText = `邀请${orgType.name.substring(0, 2)}`;
+                                                            action = 'join_org';
+                                                        } else if (!playerHasOrg) {
+                                                            buttonText = `创建${orgType.name.substring(0, 2)}`;
+                                                            action = 'create_org';
+                                                        } else {
+                                                            buttonText = orgType.name.substring(0, 2);
+                                                            canClick = false;
+                                                        }
+
+                                                        const colorClasses = {
+                                                            red: canClick ? 'bg-red-700 hover:bg-red-600' : 'bg-gray-600',
+                                                            amber: canClick ? 'bg-amber-700 hover:bg-amber-600' : 'bg-gray-600',
+                                                            cyan: canClick ? 'bg-cyan-700 hover:bg-cyan-600' : 'bg-gray-600',
+                                                        };
+
+                                                        return (
+                                                            <button
+                                                                key={orgType.type}
+                                                                className={`p-3 rounded-lg text-white flex flex-col items-center justify-center gap-1 font-semibold border border-white/10 shadow-metal-sm ${colorClasses[orgType.color]} ${!canClick ? 'cursor-not-allowed opacity-60' : ''}`}
+                                                                onClick={() => {
+                                                                    if (!canClick || !action) return;
+                                                                    onDiplomaticAction(selectedNation.id, action, {
+                                                                        type: orgType.type,
+                                                                        orgId: playerOrg?.id,
+                                                                    });
+                                                                }}
+                                                                disabled={!canClick}
+                                                                title={!isUnlocked
+                                                                    ? `需要${EPOCHS[orgType.era]?.name || `Era ${orgType.era}`}解锁`
+                                                                    : blocked
+                                                                        ? '交战期间无法操作'
+                                                                        : `${buttonText} - ${orgType.name}`
+                                                                }
+                                                            >
+                                                                <Icon name={orgType.icon} size={16} />
+                                                                <span className="text-xs">{buttonText}</span>
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+
+                                            {/* 共同组织 */}
+                                            {sharedOrgs.length > 0 && (
+                                                <div className="p-3 glass-ancient rounded-lg border border-purple-500/30 shadow-metal-sm">
+                                                    <h4 className="text-sm font-bold text-purple-200 font-decorative flex items-center gap-2 mb-2">
+                                                        <Icon name="Link" size={12} className="text-purple-300" />
+                                                        共同成员组织
+                                                    </h4>
+                                                    <div className="space-y-2">
+                                                        {sharedOrgs.map(org => {
+                                                            const orgType = ORG_TYPES.find(t => t.type === org.type);
+                                                            return (
+                                                                <div key={org.id} className="flex items-center justify-between bg-purple-900/20 border border-purple-500/30 rounded-lg px-3 py-2">
+                                                                    <span className="text-sm text-purple-100 flex items-center gap-2">
+                                                                        <Icon name={orgType?.icon || 'Users'} size={14} />
+                                                                        {org.name}
+                                                                    </span>
+                                                                    <span className="text-xs text-gray-400">{org.members?.length || 0}成员</span>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* 玩家已加入的组织 */}
+                                            {playerOrgs.length > 0 && (
+                                                <div className="p-3 glass-ancient rounded-lg border border-ancient-gold/20 shadow-metal-sm">
+                                                    <h4 className="text-sm font-bold text-ancient-parchment font-decorative flex items-center gap-2 mb-2">
+                                                        <Icon name="Building2" size={12} className="text-amber-300" />
+                                                        你的组织
+                                                    </h4>
+                                                    <div className="space-y-2">
+                                                        {playerOrgs.map(org => {
+                                                            const orgType = ORG_TYPES.find(t => t.type === org.type);
+                                                            const hasNation = Array.isArray(org.members) && org.members.includes(selectedNation?.id);
+                                                            return (
+                                                                <div key={org.id} className="flex items-center justify-between bg-gray-800/40 border border-gray-700/60 rounded-lg px-3 py-2">
+                                                                    <span className="text-sm text-gray-200 flex items-center gap-2">
+                                                                        <Icon name={orgType?.icon || 'Users'} size={14} className={hasNation ? 'text-green-400' : 'text-gray-400'} />
+                                                                        {org.name}
+                                                                    </span>
+                                                                    <span className="text-xs text-gray-400">
+                                                                        {hasNation && <span className="text-green-400 mr-1">✓ 含此国</span>}
+                                                                        {org.members?.length || 0}国
+                                                                    </span>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* 无组织提示 */}
+                                            {playerOrgs.length === 0 && (
+                                                <div className="p-4 text-center text-gray-400 text-sm">
+                                                    <Icon name="Info" size={20} className="mx-auto mb-2 text-gray-500" />
+                                                    <p>你尚未创建任何国际组织</p>
+                                                    <p className="text-xs mt-1">使用上方按钮创建组织并邀请国家加入</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
                             </div>
                         </div>
                     ) : (
