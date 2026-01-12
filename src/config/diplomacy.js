@@ -47,6 +47,9 @@ export const TREATY_CONFIGS = {
     defensive_pact: { baseDuration: 1095, minRelation: 70 },
 };
 
+export const NEGOTIABLE_TREATY_TYPES = Object.keys(TREATY_CONFIGS);
+export const NEGOTIATION_MAX_ROUNDS = 3;
+
 export const TREATY_TYPE_LABELS = {
     peace_treaty: '和平条约',
     non_aggression: '互不侵犯',
@@ -183,15 +186,15 @@ export const getAutonomyEffects = (autonomy) => ({
  */
 export const calculateIndependenceDesire = (vassalNation, overlordMilitary = 1.0) => {
     if (!vassalNation || vassalNation.vassalOf === null) return 0;
-    
+
     let desire = vassalNation.independencePressure || 0;
-    
+
     // 朝贡负担
     desire += (vassalNation.tributeRate || 0) * 100;
-    
+
     // 自主度压力
     desire += (100 - (vassalNation.autonomy || 100)) * 0.3;
-    
+
     // 社会满意度影响（如果有阶层数据）
     if (vassalNation.socialStructure) {
         const eliteSat = vassalNation.socialStructure.elites?.satisfaction || 50;
@@ -199,11 +202,11 @@ export const calculateIndependenceDesire = (vassalNation, overlordMilitary = 1.0
         desire += (100 - eliteSat) * 0.15;
         desire += (100 - commonerSat) * 0.1;
     }
-    
+
     // 宗主军事优势抑制
     const militaryAdvantage = Math.max(0, overlordMilitary - (vassalNation.militaryStrength || 0.5));
     desire -= militaryAdvantage * 30;
-    
+
     return Math.min(100, Math.max(0, desire));
 };
 
@@ -215,21 +218,21 @@ export const calculateIndependenceDesire = (vassalNation, overlordMilitary = 1.0
  */
 export const calculateTribute = (vassalNation) => {
     if (!vassalNation || vassalNation.vassalOf === null) return 0;
-    
+
     const tributeRate = vassalNation.tributeRate || 0;
     const autonomy = vassalNation.autonomy || 100;
-    
+
     // 基于国家财富估算GDP增量
     const gdpEstimate = (vassalNation.wealth || 500) * 0.05;
     const tributeBase = gdpEstimate * tributeRate;
-    
+
     // 自主度降低实际朝贡
     const autonomyFactor = 1 - (autonomy / 200);
-    
+
     // 独立倾向降低实际朝贡
     const independenceDesire = vassalNation.independencePressure || 0;
     const resistanceFactor = 1 - (independenceDesire / 200);
-    
+
     return Math.floor(tributeBase * autonomyFactor * resistanceFactor);
 };
 
@@ -356,7 +359,7 @@ export const TREATY_COSTS = {
     non_aggression: { signingCostRate: 0.01, dailyMaintenance: 2 },
     trade_agreement: { signingCostRate: 0.02, dailyMaintenance: 5 },
     free_trade: { signingCostRate: 0.03, dailyMaintenance: 10 },
-    investment_pact: { signingCostRate: 0.025, dailyMaintenance: 8 },
+    investment_pact: { signingCostRate: 0.02, dailyMaintenance: 8 },
     open_market: { signingCostRate: 0.02, dailyMaintenance: 5 },
     academic_exchange: { signingCostRate: 0.015, dailyMaintenance: 3 },
     defensive_pact: { signingCostRate: 0.05, dailyMaintenance: 15 },
@@ -372,7 +375,7 @@ export const TREATY_COSTS = {
 export const calculateTreatySigningCost = (treatyType, playerWealth, targetWealth) => {
     const config = TREATY_COSTS[treatyType];
     if (!config) return 0;
-    
+
     const minWealth = Math.min(playerWealth || 0, targetWealth || 0);
     return Math.floor(minWealth * config.signingCostRate);
 };
@@ -395,14 +398,14 @@ export const TRIBUTE_CONFIG = {
     baseAmount: 200,                    // 固定基数（保底）
     playerWealthRate: 0.008,            // 基于玩家财富的比例
     vassalWealthRate: 0.03,             // 基于附庸财富的比例
-    
+
     // 附庸规模系数
     sizeMultipliers: {
         small: 0.6,     // 小型附庸
         medium: 1.0,    // 中型附庸  
         large: 1.5,     // 大型附庸
     },
-    
+
     // 资源朝贡配置
     resourceTribute: {
         enabled: true,
@@ -422,20 +425,20 @@ export const INDEPENDENCE_CONFIG = {
         puppet: 0.25,           // 傀儡国：较高增长
         colony: 0.40,           // 殖民地：最高增长
     },
-    
+
     // 时代系数（后期民族主义更强）
     eraMultiplier: {
         base: 1.0,
         perEra: 0.15,           // 每个时代增加15%
     },
-    
+
     // 阶层满意度影响
     satisfactionThresholds: {
         critical: 30,           // 低于此值大幅增加独立倾向
         low: 50,                // 低于此值小幅增加独立倾向
         high: 70,               // 高于此值降低独立倾向
     },
-    
+
     // 控制手段效果
     controlMeasures: {
         governor: {             // 派遣总督
@@ -468,7 +471,7 @@ export const INDEPENDENCE_CONFIG = {
  */
 export const getSocialStructureTemplate = (governmentType) => {
     const template = SOCIAL_STRUCTURE_TEMPLATES[governmentType] || SOCIAL_STRUCTURE_TEMPLATES.default;
-    
+
     // 深拷贝并添加当前满意度
     return {
         elites: {
@@ -493,17 +496,17 @@ export const getSocialStructureTemplate = (governmentType) => {
  */
 export const calculateAverageSatisfaction = (socialStructure) => {
     if (!socialStructure) return 50;
-    
+
     const { elites, commoners, underclass } = socialStructure;
-    
+
     // 按影响力加权计算
     const totalInfluence = (elites?.influence || 0.4) + (commoners?.influence || 0.35) + (underclass?.influence || 0.25);
-    
-    const weightedSum = 
+
+    const weightedSum =
         (elites?.satisfaction || 50) * (elites?.influence || 0.4) +
         (commoners?.satisfaction || 50) * (commoners?.influence || 0.35) +
         (underclass?.satisfaction || 50) * (underclass?.influence || 0.25);
-    
+
     return weightedSum / totalInfluence;
 };
 
@@ -521,7 +524,7 @@ export const ERA_PROGRESSION_EFFECTS = {
         maxBonus: 0.5,              // 最高+50%
         description: '商人驻留效率',
     },
-    
+
     // 殖民/附庸控制力演进
     vassalControl: {
         baseControl: 1.0,
@@ -530,7 +533,7 @@ export const ERA_PROGRESSION_EFFECTS = {
         tributeBonus: 0.03,         // 每个时代朝贡效率+3%
         description: '附庸控制效率',
     },
-    
+
     // 条约效果演进
     treatyEfficiency: {
         baseDurationBonus: 0,
@@ -539,7 +542,7 @@ export const ERA_PROGRESSION_EFFECTS = {
         perEraMaintenanceReduction: 0.02, // 每个时代维护费-2%
         description: '条约效率',
     },
-    
+
     // 国际组织效果演进
     organizationEfficiency: {
         baseEffectMultiplier: 1.0,
@@ -548,7 +551,7 @@ export const ERA_PROGRESSION_EFFECTS = {
         memberCapBonus: 1,          // 每个时代成员上限+1
         description: '国际组织效率',
     },
-    
+
     // 海外投资效率演进
     overseasInvestment: {
         baseProfitMultiplier: 1.0,
@@ -557,7 +560,7 @@ export const ERA_PROGRESSION_EFFECTS = {
         perEraRiskReduction: 0.02,  // 每个时代风险-2%
         description: '海外投资效率',
     },
-    
+
     // 移民效率演进
     migrationEfficiency: {
         baseFlowMultiplier: 1.0,
@@ -579,57 +582,57 @@ export const getEraProgressionEffect = (effectType, currentEra, unlockEra = 0) =
     if (!config) {
         return { multiplier: 1.0, bonus: 0 };
     }
-    
+
     // 计算时代优势（当前时代超过解锁时代的程度）
     const eraAdvantage = Math.max(0, currentEra - unlockEra);
-    
+
     const result = {
         effectType,
         currentEra,
         eraAdvantage,
         description: config.description,
     };
-    
+
     // 根据效果类型计算具体加成
     switch (effectType) {
         case 'merchantEfficiency':
-            result.multiplier = config.baseEfficiency + 
+            result.multiplier = config.baseEfficiency +
                 Math.min(eraAdvantage * config.perEraBonus, config.maxBonus);
             result.bonusPercent = Math.round((result.multiplier - 1) * 100);
             break;
-            
+
         case 'vassalControl':
             result.controlMultiplier = config.baseControl + eraAdvantage * config.perEraBonus;
             result.independenceReductionBonus = eraAdvantage * config.independenceReduction;
             result.tributeBonus = eraAdvantage * config.tributeBonus;
             break;
-            
+
         case 'treatyEfficiency':
             result.durationBonus = config.baseDurationBonus + eraAdvantage * config.perEraDurationBonus;
-            result.maintenanceReduction = config.baseMaintenanceReduction + 
+            result.maintenanceReduction = config.baseMaintenanceReduction +
                 eraAdvantage * config.perEraMaintenanceReduction;
             break;
-            
+
         case 'organizationEfficiency':
-            result.effectMultiplier = config.baseEffectMultiplier + 
+            result.effectMultiplier = config.baseEffectMultiplier +
                 Math.min(eraAdvantage * config.perEraBonus, config.maxBonus);
             result.memberCapBonus = eraAdvantage * config.memberCapBonus;
             break;
-            
+
         case 'overseasInvestment':
             result.profitMultiplier = config.baseProfitMultiplier + eraAdvantage * config.perEraBonus;
             result.riskReduction = config.baseRiskReduction + eraAdvantage * config.perEraRiskReduction;
             break;
-            
+
         case 'migrationEfficiency':
             result.flowMultiplier = config.baseFlowMultiplier + eraAdvantage * config.perEraBonus;
             result.integrationBonus = eraAdvantage * config.integrationSpeedBonus;
             break;
-            
+
         default:
             result.multiplier = 1.0;
     }
-    
+
     return result;
 };
 
@@ -640,11 +643,11 @@ export const getEraProgressionEffect = (effectType, currentEra, unlockEra = 0) =
  */
 export const getAllEraProgressionEffects = (currentEra) => {
     const effects = {};
-    
+
     for (const effectType of Object.keys(ERA_PROGRESSION_EFFECTS)) {
         effects[effectType] = getEraProgressionEffect(effectType, currentEra);
     }
-    
+
     return effects;
 };
 
@@ -656,12 +659,12 @@ export const getAllEraProgressionEffects = (currentEra) => {
 export const getEraProgressionDescriptions = (currentEra) => {
     const descriptions = [];
     const effects = getAllEraProgressionEffects(currentEra);
-    
+
     for (const [type, effect] of Object.entries(effects)) {
         const config = ERA_PROGRESSION_EFFECTS[type];
         let desc = config.description;
         let value = '';
-        
+
         switch (type) {
             case 'merchantEfficiency':
                 if (effect.bonusPercent > 0) {
@@ -694,7 +697,7 @@ export const getEraProgressionDescriptions = (currentEra) => {
                 }
                 break;
         }
-        
+
         if (value) {
             descriptions.push({
                 type,
@@ -704,6 +707,6 @@ export const getEraProgressionDescriptions = (currentEra) => {
             });
         }
     }
-    
+
     return descriptions;
 };

@@ -8,7 +8,7 @@ import { BottomSheet } from '../tabs/BottomSheet';
 import { Icon } from '../common/UIComponents';
 import { BUILDINGS, RESOURCES } from '../../config';
 import { formatNumberShortCN } from '../../utils/numberFormat';
-import { OverseasBuildingCard } from './OverseasBuildingCard';
+// import { OverseasBuildingCard } from './OverseasBuildingCard'; // Unused
 import {
     OVERSEAS_INVESTMENT_CONFIGS,
     INVESTABLE_BUILDINGS,
@@ -37,7 +37,7 @@ export const OverseasInvestmentPanel = memo(({
     market = {},
     onInvest,
     onWithdraw,
-    onModeChange,
+    onConfigChange,
 }) => {
     const [expandedCard, setExpandedCard] = useState(null);
     const [selectedStratum, setSelectedStratum] = useState('capitalist');
@@ -108,6 +108,18 @@ export const OverseasInvestmentPanel = memo(({
     // 阶层财富
     const stratumWealth = classWealth[selectedStratum] || 0;
 
+    // UI helper: treaty affects profit repatriation (logic uses 80% / 100%)
+    const hasInvestmentPact = useMemo(() => {
+        const treaties = targetNation?.treaties;
+        if (!treaties) return false;
+        if (Array.isArray(treaties)) {
+            return treaties.some(t => t?.type === 'investment_pact' && t?.status === 'active');
+        }
+        return treaties?.investment_pact?.status === 'active';
+    }, [targetNation]);
+
+    const repatriationRate = hasInvestmentPact ? 1.0 : 0.8;
+
     if (!targetNation) return null;
 
     return (
@@ -140,11 +152,19 @@ export const OverseasInvestmentPanel = memo(({
                     <div className="flex items-center justify-between mb-2">
                         <h4 className="text-sm font-semibold text-white flex items-center gap-2">
                             <Icon name="Building2" size={14} className="text-amber-400" />
-                            现有海外建筑
+                            现有海外资产
                         </h4>
                         {nationInvestments.length > 0 && (
                             <span className="text-[10px] text-gray-400">{nationInvestments.length}项投资</span>
                         )}
+                    </div>
+
+                    {/* 规则提示 */}
+                    <div className="text-[10px] text-gray-400 bg-gray-900/30 border border-gray-700/40 rounded-lg p-2 mb-2 leading-relaxed">
+                        <div className="font-semibold text-gray-200 mb-0.5">结算说明</div>
+                        <div>— 工资：按<strong>目标国</strong>物价与阶层生存需求估算（不是国内的 market.wages 体系）。</div>
+                        <div>— 运输：跨国调货/运回会产生约 <strong>15%</strong> 的损耗/运费。</div>
+                        <div>— 利润汇回：当前为 <strong>{Math.round(repatriationRate * 100)}%</strong>{hasInvestmentPact ? '（已签署投资协议）' : '（未签署投资协议）'}。</div>
                     </div>
 
                     {groupedInvestments.length > 0 ? (
@@ -208,10 +228,38 @@ export const OverseasInvestmentPanel = memo(({
                                                             {group.investments.reduce((s, i) => s + (i.operatingData?.inputCost || 0), 0).toFixed(1)}/日
                                                         </div>
                                                     </div>
-                                                    <div className="bg-gray-900/40 rounded p-2">
-                                                        <div className="text-gray-400">总工资成本</div>
-                                                        <div className="text-orange-400 font-semibold">
+                                                    <div className="bg-gray-900/40 rounded p-2 relative group">
+                                                        <div className="text-gray-400">总工资成本（目标国）</div>
+                                                        <div className="text-orange-400 font-semibold cursor-help">
                                                             {group.investments.reduce((s, i) => s + (i.operatingData?.wageCost || 0), 0).toFixed(1)}/日
+                                                        </div>
+
+                                                        {/* Wage Breakdown Tooltip */}
+                                                        <div className="absolute bottom-full left-0 mb-2 w-56 bg-gray-900 border border-gray-700 rounded-lg shadow-xl p-2 hidden group-hover:block z-50">
+                                                            <div className="text-[10px] text-gray-400 mb-1 border-b border-gray-700 pb-1">工资明细（单座建筑 / 按目标国物价）</div>
+                                                            {group.investments[0]?.operatingData?.wageBreakdown?.map((item, idx) => (
+                                                                <div key={idx} className="flex justify-between text-[10px] items-center mb-0.5 last:mb-0">
+                                                                    <span className="text-gray-300">
+                                                                        {(() => {
+                                                                            const nameMap = {
+                                                                                peasant: '农民', worker: '工人', artisan: '工匠',
+                                                                                merchant: '商人', engineer: '工程师', scribe: '学者',
+                                                                                official: '官员', cleric: '教士', capitalist: '资本家',
+                                                                                landowner: '地主', serf: '农奴', lumberjack: '伐木工',
+                                                                                miner: '矿工', navigator: '航海家'
+                                                                            };
+                                                                            return nameMap[item.stratumId] || item.stratumId;
+                                                                        })()}
+                                                                        <span className="text-gray-500 ml-1">×{item.count}</span>
+                                                                    </span>
+                                                                    <span className="text-orange-300 font-mono">
+                                                                        {item.total.toFixed(1)}
+                                                                    </span>
+                                                                </div>
+                                                            ))}
+                                                            {!group.investments[0]?.operatingData?.wageBreakdown && (
+                                                                <div className="text-[9px] text-gray-500 italic">暂无明细数据</div>
+                                                            )}
                                                         </div>
                                                     </div>
                                                     <div className="bg-gray-900/40 rounded p-2">
@@ -227,21 +275,39 @@ export const OverseasInvestmentPanel = memo(({
                                                     const inputEntries = Object.entries(buildingConfig.input || {});
                                                     const outputEntries = Object.entries(buildingConfig.output || {}).filter(([k]) => !['maxPop', 'militaryCapacity'].includes(k));
 
+                                                    // Get current mode from first investment in group
+                                                    const currentInputMode = group.investments[0]?.inputSource || 'local';
+                                                    const currentOutputMode = group.investments[0]?.outputDest || 'local';
+
                                                     return (
                                                         <div className="grid grid-cols-2 gap-2 text-[10px]">
+                                                            {/* 投入部分 */}
                                                             <div className="bg-gray-900/40 rounded p-2">
-                                                                <div className="text-red-400 mb-1">📥 投入:</div>
+                                                                <div className="text-red-400 mb-1 flex justify-between">
+                                                                    <span>📥 投入</span>
+                                                                    <span className="text-[9px] text-gray-400">
+                                                                        {currentInputMode === 'local' ? '当地采购' : '国内进口'}
+                                                                    </span>
+                                                                </div>
                                                                 {inputEntries.length > 0 ? (
                                                                     inputEntries.map(([r, v]) => {
                                                                         const localPrice = market?.prices?.[r] ?? RESOURCES[r]?.basePrice ?? 1;
                                                                         const foreignPrice = targetNation?.market?.prices?.[r] ?? targetNation?.prices?.[r] ?? RESOURCES[r]?.basePrice ?? 1;
-                                                                        const priceDiff = foreignPrice - localPrice;
+
+                                                                        // Calculate effective cost based on mode
+                                                                        const costLocal = foreignPrice;
+                                                                        const costImport = localPrice * 1.15; // 15% transport
+                                                                        const activeCost = currentInputMode === 'local' ? costLocal : costImport;
+
                                                                         return (
-                                                                            <div key={r} className="flex justify-between items-center">
+                                                                            <div key={r} className="flex justify-between items-center mb-1">
                                                                                 <span className="text-gray-300">{RESOURCES[r]?.name || r} ×{v}</span>
-                                                                                <span className={`text-[8px] ${priceDiff < 0 ? 'text-green-400' : priceDiff > 0 ? 'text-red-400' : 'text-gray-500'}`}>
-                                                                                    {priceDiff < 0 ? `▼${Math.abs(priceDiff).toFixed(1)}` : priceDiff > 0 ? `▲${priceDiff.toFixed(1)}` : '='}
-                                                                                </span>
+                                                                                <div className="text-right">
+                                                                                    <div className="text-red-300 font-mono">-{activeCost.toFixed(1)}</div>
+                                                                                    <div className="text-[8px] text-gray-500 scale-90 origin-right">
+                                                                                        (当地:{costLocal.toFixed(1)} / 进口:{costImport.toFixed(1)})
+                                                                                    </div>
+                                                                                </div>
                                                                             </div>
                                                                         );
                                                                     })
@@ -249,19 +315,34 @@ export const OverseasInvestmentPanel = memo(({
                                                                     <div className="text-gray-500">无</div>
                                                                 )}
                                                             </div>
+
+                                                            {/* 产出部分 */}
                                                             <div className="bg-gray-900/40 rounded p-2">
-                                                                <div className="text-green-400 mb-1">📤 产出:</div>
+                                                                <div className="text-green-400 mb-1 flex justify-between">
+                                                                    <span>📤 产出</span>
+                                                                    <span className="text-[9px] text-gray-400">
+                                                                        {currentOutputMode === 'local' ? '当地销售' : '运回国内'}
+                                                                    </span>
+                                                                </div>
                                                                 {outputEntries.length > 0 ? (
                                                                     outputEntries.map(([r, v]) => {
                                                                         const localPrice = market?.prices?.[r] ?? RESOURCES[r]?.basePrice ?? 1;
                                                                         const foreignPrice = targetNation?.market?.prices?.[r] ?? targetNation?.prices?.[r] ?? RESOURCES[r]?.basePrice ?? 1;
-                                                                        const priceDiff = localPrice - foreignPrice;
+
+                                                                        // Calculate effective revenue based on mode
+                                                                        const revLocal = foreignPrice;
+                                                                        const revExport = localPrice * 0.85; // 15% transport deduction
+                                                                        const activeRev = currentOutputMode === 'local' ? revLocal : revExport;
+
                                                                         return (
-                                                                            <div key={r} className="flex justify-between items-center">
+                                                                            <div key={r} className="flex justify-between items-center mb-1">
                                                                                 <span className="text-gray-300">{RESOURCES[r]?.name || r} ×{v}</span>
-                                                                                <span className={`text-[8px] ${priceDiff > 0 ? 'text-green-400' : priceDiff < 0 ? 'text-red-400' : 'text-gray-500'}`}>
-                                                                                    {priceDiff > 0 ? `▲回购+${priceDiff.toFixed(1)}` : priceDiff < 0 ? `▼倾销+${Math.abs(priceDiff).toFixed(1)}` : '='}
-                                                                                </span>
+                                                                                <div className="text-right">
+                                                                                    <div className="text-green-300 font-mono">+{activeRev.toFixed(1)}</div>
+                                                                                    <div className="text-[8px] text-gray-500 scale-90 origin-right">
+                                                                                        (当地:{revLocal.toFixed(1)} / 运回:{revExport.toFixed(1)})
+                                                                                    </div>
+                                                                                </div>
                                                                             </div>
                                                                         );
                                                                     })
@@ -273,37 +354,68 @@ export const OverseasInvestmentPanel = memo(({
                                                     );
                                                 })()}
 
-                                                {/* 批量切换运营模式 */}
-                                                <div>
-                                                    <div className="text-[10px] text-gray-400 mb-1">批量切换运营模式 (应用到全部{count}个):</div>
-                                                    <div className="flex gap-1">
-                                                        {[
-                                                            { id: 'local', name: '当地运营', icon: '🏠', color: 'text-green-400', bg: 'bg-green-900/30' },
-                                                            { id: 'dumping', name: '倾销模式', icon: '📦', color: 'text-orange-400', bg: 'bg-orange-900/30' },
-                                                            { id: 'buyback', name: '回购模式', icon: '🚢', color: 'text-blue-400', bg: 'bg-blue-900/30' },
-                                                        ].map(mode => {
-                                                            const currentMode = group.investments[0]?.operatingMode || 'local';
-                                                            const isActive = currentMode === mode.id;
-                                                            return (
-                                                                <button
-                                                                    key={mode.id}
-                                                                    className={`flex-1 px-2 py-1.5 rounded text-[10px] transition-all ${isActive
-                                                                        ? `${mode.bg} ${mode.color} border border-current`
-                                                                        : 'bg-gray-700/50 text-gray-400 hover:bg-gray-600/50'
-                                                                        }`}
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        if (!isActive && onModeChange) {
-                                                                            // 批量切换所有同类建筑的模式
-                                                                            const ids = group.investments.map(inv => inv.id);
-                                                                            onModeChange(ids, mode.id);
-                                                                        }
-                                                                    }}
-                                                                >
-                                                                    {mode.icon} {mode.name}
-                                                                </button>
-                                                            );
-                                                        })}
+                                                {/* 批量配置 */}
+                                                <div className="grid grid-cols-2 gap-2 mt-2">
+                                                    {/* 原料来源 */}
+                                                    <div className="bg-gray-900/40 rounded p-2">
+                                                        <div className="text-[10px] text-gray-400 mb-1">原料来源（决定用哪国价格）</div>
+                                                        <div className="flex gap-1">
+                                                            {[
+                                                                { id: 'local', name: '当地采购' },
+                                                                { id: 'home', name: '国内进口' }
+                                                            ].map(opt => {
+                                                                const isActive = group.investments[0]?.inputSource === opt.id || (!group.investments[0]?.inputSource && opt.id === 'local');
+                                                                return (
+                                                                    <button
+                                                                        key={opt.id}
+                                                                        className={`flex-1 px-1 py-1.5 rounded text-[9px] transition-all ${isActive
+                                                                            ? 'bg-amber-600 text-white'
+                                                                            : 'bg-gray-700/50 text-gray-400 hover:bg-gray-600'
+                                                                            }`}
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            if (!isActive && onConfigChange) {
+                                                                                const ids = group.investments.map(inv => inv.id);
+                                                                                onConfigChange(ids, { inputSource: opt.id });
+                                                                            }
+                                                                        }}
+                                                                    >
+                                                                        {opt.name}
+                                                                    </button>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* 产品去向 */}
+                                                    <div className="bg-gray-900/40 rounded p-2">
+                                                        <div className="text-[10px] text-gray-400 mb-1">产出销售地（决定用哪国价格）</div>
+                                                        <div className="flex gap-1">
+                                                            {[
+                                                                { id: 'local', name: '当地销售' },
+                                                                { id: 'home', name: '运回国内' }
+                                                            ].map(opt => {
+                                                                const isActive = group.investments[0]?.outputDest === opt.id || (!group.investments[0]?.outputDest && opt.id === 'local');
+                                                                return (
+                                                                    <button
+                                                                        key={opt.id}
+                                                                        className={`flex-1 px-1 py-1.5 rounded text-[9px] transition-all ${isActive
+                                                                            ? 'bg-amber-600 text-white'
+                                                                            : 'bg-gray-700/50 text-gray-400 hover:bg-gray-600'
+                                                                            }`}
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            if (!isActive && onConfigChange) {
+                                                                                const ids = group.investments.map(inv => inv.id);
+                                                                                onConfigChange(ids, { outputDest: opt.id });
+                                                                            }
+                                                                        }}
+                                                                    >
+                                                                        {opt.name}
+                                                                    </button>
+                                                                );
+                                                            })}
+                                                        </div>
                                                     </div>
                                                 </div>
 
@@ -317,7 +429,7 @@ export const OverseasInvestmentPanel = memo(({
                                                         }
                                                     }}
                                                 >
-                                                    撤回全部{count}个投资 (-20%违约金)
+                                                    撤回全部{count}个投资（-20% 违约金）
                                                 </button>
                                             </div>
                                         )}
@@ -489,7 +601,7 @@ export const OverseasInvestmentPanel = memo(({
 
                 {/* 提示信息 */}
                 <div className="text-[10px] text-gray-500 text-center pt-2 border-t border-gray-700/30">
-                    💡 海外投资使用当地资源和劳动力，利润由运营模式决定
+                    💡 海外投资：资金来自阶层财富；原料来源/产出销售地会影响价格与运输成本。
                 </div>
             </div>
         </BottomSheet >

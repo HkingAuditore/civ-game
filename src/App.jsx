@@ -1274,7 +1274,7 @@ function GameApp({ gameState }) {
 
                                                 // 内阁协同系统 props
                                                 classWealth={gameState.classWealth}
-                                                activeDecrees={gameState.activeDecrees}
+activeDecrees={gameState.activeDecrees}
                                                 decreeCooldowns={gameState.decreeCooldowns}
                                                 quotaTargets={gameState.quotaTargets}
                                                 expansionSettings={gameState.expansionSettings}
@@ -1338,6 +1338,8 @@ function GameApp({ gameState }) {
                                                 diplomacyOrganizations={gameState.diplomacyOrganizations}
                                                 overseasInvestments={gameState.overseasInvestments}
                                                 classWealth={gameState.classWealth}
+                                                foreignInvestments={gameState.foreignInvestments}
+                                                foreignInvestmentPolicy={gameState.foreignInvestmentPolicy}
                                             />
                                         )}
 

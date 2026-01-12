@@ -1,0 +1,158 @@
+import React, { useState, useEffect } from 'react';
+import DiplomacyDashboard from './DiplomacyDashboard';
+import NationList from './NationList';
+import NationDetailView from './NationDetailView';
+import { Icon } from '../common/UIComponents';
+import { Button } from '../common/UnifiedUI';
+import { COLORS } from '../../config/unifiedStyles';
+
+/**
+ * 外交界面主布局 (DiplomacyLayout)
+ * 管理左侧国家列表和右侧详细视图的布局
+ * 负责移动端/桌面端的响应式切换
+ */
+const DiplomacyLayout = ({
+    nations,
+    visibleNations,
+    selectedNationId,
+    onSelectNation,
+    selectedNation,
+    gameState,
+    relationInfo,
+
+    // Context Props
+    epoch,
+    market,
+    resources,
+    daysElapsed,
+    diplomaticCooldownMod,
+    diplomacyOrganizations,
+    overseasInvestments,
+    tradeRoutes,
+
+    // Actions Handlers
+    onDiplomaticAction,
+    onNegotiate,
+    onManageTrade,
+    onManageForeignInvestment,
+    onDeclareWar,
+    onProvoke,
+
+    // Sub-Actions Handlers
+    onVassalPolicy,
+    onOverseasInvestment,
+    onShowOverseasOverview,
+    merchantState,
+    onMerchantStateChange,
+}) => {
+    // 移动端视图控制
+    const [isMobileDetailOpen, setIsMobileDetailOpen] = useState(false);
+
+    // 当选中国家时，移动端自动打开详情页
+    useEffect(() => {
+        if (selectedNationId) {
+            setIsMobileDetailOpen(true);
+        }
+    }, [selectedNationId]);
+
+    // 处理返回列表（移动端）
+    const handleBackToList = () => {
+        setIsMobileDetailOpen(false);
+        onSelectNation(null);
+    };
+
+    return (
+        <div className="flex h-full gap-4 relative overflow-hidden">
+            {/* 左侧：国家列表 */}
+            <div className={`
+                flex-shrink-0 w-full md:w-1/3 lg:w-80 h-full flex flex-col transition-all duration-300
+                ${isMobileDetailOpen ? 'hidden md:flex' : 'flex'}
+            `}>
+                <NationList
+                    nations={nations}
+                    visibleNations={visibleNations}
+                    selectedNationId={selectedNationId}
+                    onSelectNation={onSelectNation}
+                    relationInfo={relationInfo}
+                />
+            </div>
+
+            {/* 右侧：详细视图/仪表盘 */}
+            <div className={`
+                flex-1 h-full min-w-0 transition-all duration-300 relative flex flex-col
+                ${!isMobileDetailOpen ? 'hidden md:flex' : 'flex'}
+            `}>
+                {isMobileDetailOpen && (
+                    <div className="md:hidden flex items-center mb-2 px-1 relative z-50">
+                        <button
+                            onClick={handleBackToList}
+                            className={`flex items-center gap-1 text-ancient-gold font-bold px-3 py-1.5 rounded-lg border border-ancient-gold/30 ${COLORS.background.glass}`}
+                        >
+                            <Icon name="ArrowLeft" size={16} />
+                            <span>返回列表</span>
+                        </button>
+                    </div>
+                )}
+
+                <div className="mb-3 rounded-xl border border-theme-border bg-theme-surface-trans px-3 py-2 flex flex-wrap items-center gap-2">
+                    <div className="text-[10px] uppercase tracking-wider text-theme-text opacity-70 font-bold">
+                        全局事务
+                    </div>
+                    <div className="ml-auto flex flex-wrap gap-2">
+                        <Button size="sm" variant="secondary" onClick={onManageTrade}>
+                            商人派驻
+                        </Button>
+                        <Button size="sm" variant="secondary" onClick={onShowOverseasOverview}>
+                            海外投资总览
+                        </Button>
+                        <Button size="sm" variant="secondary" onClick={onManageForeignInvestment}>
+                            外资管理
+                        </Button>
+                    </div>
+                </div>
+
+                {selectedNationId && selectedNation ? (
+                    <NationDetailView
+                        nation={selectedNation}
+                        gameState={gameState}
+                        epoch={epoch}
+                        market={market}
+                        resources={resources}
+                        daysElapsed={daysElapsed}
+                        relationInfo={relationInfo}
+                        diplomaticCooldownMod={diplomaticCooldownMod}
+
+                        onDiplomaticAction={onDiplomaticAction}
+                        onNegotiate={onNegotiate}
+                        onDeclareWar={onDeclareWar}
+                        onProvoke={onProvoke}
+
+                        onVassalPolicy={onVassalPolicy}
+                        onOverseasInvestment={onOverseasInvestment}
+                        diplomacyOrganizations={diplomacyOrganizations}
+                        tradeRoutes={tradeRoutes}
+                        merchantState={merchantState}
+                        onMerchantStateChange={onMerchantStateChange}
+                        popStructure={gameState?.popStructure} // Ensure popStructure is passed
+                    />
+                ) : (
+                    <DiplomacyDashboard
+                        nations={nations}
+                        diplomacyOrganizations={diplomacyOrganizations}
+                        overseasInvestments={overseasInvestments}
+                        onSelectNation={onSelectNation}
+                        epoch={epoch}
+                        gameState={gameState}
+                        market={market}
+                        resources={resources}
+                        daysElapsed={daysElapsed}
+                        tradeRoutes={tradeRoutes}
+                        onDiplomaticAction={onDiplomaticAction}
+                    />
+                )}
+            </div>
+        </div>
+    );
+};
+
+export default DiplomacyLayout;

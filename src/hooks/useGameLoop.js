@@ -941,6 +941,12 @@ export const useGameLoop = (gameState, addLog, actions) => {
     const AUTO_RECRUIT_BATCH_LIMIT = 3;
     const AUTO_RECRUIT_FAIL_COOLDOWN = 5000;
 
+    // [FIX] Overseas Investment Ref to track latest state updates
+    const overseasInvestmentsRef = useRef(overseasInvestments);
+    useEffect(() => {
+        overseasInvestmentsRef.current = overseasInvestments;
+    }, [overseasInvestments]);
+
     // ========== 历史数据节流 ==========
     // 每 HISTORY_UPDATE_INTERVAL 个 tick 才更新一次历史数据，减少内存操作
     const historyUpdateCounterRef = useRef(0);
@@ -989,10 +995,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
             autoSaveInterval,
             isAutoSaveEnabled,
             lastAutoSaveTime,
-        merchantState,
-        tradeRoutes,
-        diplomacyOrganizations,
-        actions,
+            merchantState,
+            tradeRoutes,
+            diplomacyOrganizations,
+            actions,
             tradeStats,
             actionCooldowns,
             actionUsage,
@@ -1670,12 +1676,12 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
                 // ========== 海外投资每日结算 ==========
                 // ========== 海外投资每日结算 ==========
-                if ((overseasInvestments && overseasInvestments.length > 0) || (foreignInvestments && foreignInvestments.length > 0)) {
+                if ((overseasInvestmentsRef.current && overseasInvestmentsRef.current.length > 0) || (current.foreignInvestments && current.foreignInvestments.length > 0)) {
                     import('../logic/diplomacy/overseasInvestment').then(({ processOverseasInvestments, processForeignInvestments }) => {
                         // 1. 处理我方在外投资
-                        if (overseasInvestments && overseasInvestments.length > 0) {
+                        if (overseasInvestmentsRef.current && overseasInvestmentsRef.current.length > 0) {
                             const investmentResult = processOverseasInvestments({
-                                overseasInvestments,
+                                overseasInvestments: overseasInvestmentsRef.current,
                                 nations: current.nations || [],
                                 resources: current.resources || {},
                                 marketPrices: current.market?.prices || {},
@@ -1685,7 +1691,20 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
                             // 更新海外投资状态
                             if (investmentResult.updatedInvestments) {
-                                setOverseasInvestments(investmentResult.updatedInvestments);
+                                setOverseasInvestments(prev => {
+                                    const updatedMap = new Map(investmentResult.updatedInvestments.map(i => [i.id, i]));
+                                    return prev.map(item => {
+                                        const updated = updatedMap.get(item.id);
+                                        if (!updated) return item;
+                                        // Preserve user-configurable fields from the latest state
+                                        // to prevent the simulation snapshot from overwriting recent UI changes
+                                        return {
+                                            ...updated,
+                                            inputSource: item.inputSource, // Keep latest user config
+                                            outputDest: item.outputDest,   // Keep latest user config
+                                        };
+                                    });
+                                });
                             }
 
                             // 将利润汇入各阶层财富
@@ -1740,6 +1759,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         if (current.foreignInvestments && current.foreignInvestments.length > 0) {
                             const fiResult = processForeignInvestments({
                                 foreignInvestments: current.foreignInvestments,
+                                foreignInvestmentPolicy: current.foreignInvestmentPolicy || 'normal',
                                 playerMarket: adjustedMarket, // 使用更新后的市场数据
                                 playerResources: current.resources, // 使用当前资源
                                 taxPolicies: current.taxPolicies || {},
@@ -1748,7 +1768,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
                             // 更新外资状态
                             if (fiResult.updatedInvestments) {
-                                setForeignInvestments(fiResult.updatedInvestments);
+                                setForeignInvestments(prev => {
+                                    const updatedMap = new Map(fiResult.updatedInvestments.map(i => [i.id, i]));
+                                    return prev.map(item => updatedMap.get(item.id) || item);
+                                });
                             }
 
                             // 应用税收收益
@@ -1793,7 +1816,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     }));
                     // 记录一下，虽然不一定每次都log，避免刷屏
                     if (isDebugEnabled('diplomacy')) {
-                       console.log(`[Diplomacy] Deducted ${totalTreatyMaintenance} silver for treaty maintenance.`);
+                        console.log(`[Diplomacy] Deducted ${totalTreatyMaintenance} silver for treaty maintenance.`);
                     }
                 }
 
@@ -1804,27 +1827,27 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         nations: current.nations,
                         daysElapsed: current.daysElapsed || 0,
                         epoch: current.epoch || 0,
-                        playerMilitary: result.totalInfluence || 1.0, 
+                        playerMilitary: result.totalInfluence || 1.0,
                         playerStability: result.stability || 50,
-                        playerAtWar: current.nations.some(n => n.isAtWar && (n.warTarget === 'player' || n.id === 'player')), 
-                        playerWealth: adjustedResources.silver || 0, 
+                        playerAtWar: current.nations.some(n => n.isAtWar && (n.warTarget === 'player' || n.id === 'player')),
+                        playerWealth: adjustedResources.silver || 0,
                         logs: vassalLogs
                     });
-                    
+
                     if (vassalUpdateResult) {
                         // 更新国家列表（包含附庸状态变化）
                         if (vassalUpdateResult.nations) {
                             setNations(vassalUpdateResult.nations);
                         }
-                        
+
                         // 结算现金朝贡
                         if (vassalUpdateResult.tributeIncome > 0) {
-                             setResources(prev => ({
+                            setResources(prev => ({
                                 ...prev,
                                 silver: (prev.silver || 0) + vassalUpdateResult.tributeIncome
                             }));
                         }
-                        
+
                         // 结算资源朝贡
                         if (vassalUpdateResult.resourceTribute && Object.keys(vassalUpdateResult.resourceTribute).length > 0) {
                             setResources(prev => {
@@ -1835,7 +1858,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                 return nextRes;
                             });
                         }
-                        
+
                         // 显示日志
                         if (vassalLogs.length > 0) {
                             vassalLogs.forEach(log => addLog(log));

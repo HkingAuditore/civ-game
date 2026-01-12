@@ -255,7 +255,7 @@ export const simulateTick = ({
     militaryWageRatio = 1,
     militaryQueue = [],
     nations = [],
-        diplomacyOrganizations = null,
+    diplomacyOrganizations = null,
     tick = 0,
     techsUnlocked = [],
     activeFestivalEffects = [],
@@ -2345,18 +2345,18 @@ export const simulateTick = ({
                     if (surpluses.length > 0) {
                         const shortageTargets = [];
                         Object.keys(RESOURCES).forEach(resourceKey => {
-                                if (!isTradableResource(resourceKey) || resourceKey === 'silver') return;
-                                const stock = res[resourceKey] || 0;
-                                const netRate = rates[resourceKey] || 0;
-                                const demandGap = Math.max(0, (demand[resourceKey] || 0) - (supply[resourceKey] || 0));
-                                const stockGap = Math.max(0, 200 - stock);
-                                const netDeficit = netRate < 0 ? Math.abs(netRate) : 0;
-                                const shortageAmount = Math.max(demandGap, stockGap, netDeficit);
-                                if (shortageAmount <= 0) return;
-                                const importPrice = Math.max(PRICE_FLOOR, getPrice(resourceKey) * 1.15);
-                                const requiredValue = shortageAmount * importPrice;
-                                if (requiredValue <= 0) return;
-                                shortageTargets.push({ resource: resourceKey, shortageAmount, importPrice, requiredValue });
+                            if (!isTradableResource(resourceKey) || resourceKey === 'silver') return;
+                            const stock = res[resourceKey] || 0;
+                            const netRate = rates[resourceKey] || 0;
+                            const demandGap = Math.max(0, (demand[resourceKey] || 0) - (supply[resourceKey] || 0));
+                            const stockGap = Math.max(0, 200 - stock);
+                            const netDeficit = netRate < 0 ? Math.abs(netRate) : 0;
+                            const shortageAmount = Math.max(demandGap, stockGap, netDeficit);
+                            if (shortageAmount <= 0) return;
+                            const importPrice = Math.max(PRICE_FLOOR, getPrice(resourceKey) * 1.15);
+                            const requiredValue = shortageAmount * importPrice;
+                            if (requiredValue <= 0) return;
+                            shortageTargets.push({ resource: resourceKey, shortageAmount, importPrice, requiredValue });
                         });
 
                         if (shortageTargets.length > 0) {
@@ -4553,12 +4553,12 @@ export const simulateTick = ({
             playerWealth: res.silver || 0,
             daysElapsed: tick,
         });
-        
+
         // 扣除组织成员费
         if (organizationUpdateResult.fees.player > 0) {
             res.silver = Math.max(0, (res.silver || 0) - organizationUpdateResult.fees.player);
         }
-        
+
         // 更新AI国家的费用
         if (organizationUpdateResult.fees.ai) {
             for (const [nationId, fee] of Object.entries(organizationUpdateResult.fees.ai)) {
@@ -4568,7 +4568,7 @@ export const simulateTick = ({
                 }
             }
         }
-        
+
         // 添加日志
         organizationUpdateResult.logs.forEach(log => logs.push(log));
     }
@@ -4586,13 +4586,14 @@ export const simulateTick = ({
             playerResources: res,
             classApproval: previousApproval,
             daysElapsed: tick,
+            maxPop: totalMaxPop, // [NEW] Pass maxPop for cap enforcement
         });
-        
+
         // 应用人口变化
         if (populationMigrationResult.immigrantsIn > 0 || populationMigrationResult.emigrantsOut > 0) {
             const netMigration = populationMigrationResult.immigrantsIn - populationMigrationResult.emigrantsOut;
             nextPopulation = Math.max(10, nextPopulation + netMigration);
-            
+
             // 应用人口结构变化
             if (Object.keys(populationMigrationResult.byStratum).length > 0) {
                 popStructure = applyMigrationToPopStructure(
@@ -4601,7 +4602,7 @@ export const simulateTick = ({
                     nextPopulation - netMigration  // 变化前的人口
                 );
             }
-            
+
             // 添加移民日志
             const migrationLogs = generateMigrationLogs(populationMigrationResult.events);
             migrationLogs.forEach(log => logs.push(log));
@@ -4618,7 +4619,7 @@ export const simulateTick = ({
             daysElapsed: tick,
             epoch,
         });
-        
+
         // 应用叛乱系统更新
         if (rebellionSystemResult && rebellionSystemResult.updates) {
             for (const update of rebellionSystemResult.updates) {
@@ -4631,7 +4632,7 @@ export const simulateTick = ({
                 }
             }
         }
-        
+
         // 处理叛乱事件
         if (rebellionSystemResult && rebellionSystemResult.events) {
             for (const event of rebellionSystemResult.events) {
@@ -4660,7 +4661,7 @@ export const simulateTick = ({
     let priceConvergenceResult = null;
     if (shouldUpdateDiplomacy && market?.prices) {
         priceConvergenceResult = processPriceConvergence(market.prices, updatedNations, tick);
-        
+
         // 更新市场价格
         if (priceConvergenceResult.marketPrices) {
             market = {
@@ -4668,7 +4669,7 @@ export const simulateTick = ({
                 prices: priceConvergenceResult.marketPrices,
             };
         }
-        
+
         // 更新AI国家价格
         if (priceConvergenceResult.nationPriceUpdates) {
             for (const update of priceConvergenceResult.nationPriceUpdates) {
@@ -4681,7 +4682,7 @@ export const simulateTick = ({
                 }
             }
         }
-        
+
         // 添加日志
         if (priceConvergenceResult.logs) {
             priceConvergenceResult.logs.forEach(log => logs.push(log));
@@ -4905,31 +4906,31 @@ export const simulateTick = ({
     if (shouldUpdatePrices) {
         updatedWages = {};
         Object.entries(roleWageStats).forEach(([role, data]) => {
-    
+
             let currentSignal = 0;
-    
+
             const pop = popStructure[role] || 0;
-    
-    
-    
+
+
+
             if (pop > 0) {
-    
+
                 // [FIX] Use roleLaborIncome and roleLivingExpense to calculate wage signal
                 // This prevents high Owner Revenue (Profit) from artificially inflating the expected Labor Wage.
                 const laborIncome = roleLaborIncome[role] || 0;
                 const livingExpense = roleLivingExpense[role] || 0;
-    
+
                 // If a role has NO labor income (e.g. pure Capitalist who only owns buildings),
                 // we should not let their profit signal drive labor wages.
                 // However, if they have NO labor income, their "Wage Signal" might simply be their Living Expenses
                 // (i.e. if they were to work, they'd need at least this much).
-    
+
                 // Fallback: if no labor income but has general income, we might be in a weird state.
                 // Ideally, we just look at Labor Income - Living Expense.
-    
+
                 let effectiveIncome = laborIncome;
                 let effectiveExpense = livingExpense;
-    
+
                 // If completely zero labor income (no one working in this role),
                 // the signal would be -Expense/Pop (negative).
                 // This correctly pushes wages up ( Wait? No. (Inc - Exp) -> Signal. Signal is target. Negative Target -> 0 wage?)
@@ -4938,11 +4939,11 @@ export const simulateTick = ({
                 // This implies: "We are starving (Expense > Income), so we accept LOWER wages??"
                 // NO. The simulation logic assumes "Signal" is "What we CAN SAVE".
                 // That assumption seems flawed if it drives expected wage.
-    
+
                 // Actually, let's keep the formula structure but swap variables.
                 // If the game economy relies on "Savings" as the signal for "Worker Wealth" -> "Wage Expectation",
                 // then we are doing the right thing by removing Owner Profit (which is huge wealth).
-    
+
                 // Special Case: If labor income is 0 (pure owner), do not drive wage to negative infinity.
                 // Just use 0 or keep previous.
                 if (laborIncome === 0 && roleWageStats[role].totalSlots === 0) {
@@ -4951,204 +4952,263 @@ export const simulateTick = ({
                 } else {
                     currentSignal = (effectiveIncome - effectiveExpense) / pop;
                 }
-    
+
             } else {
-    
+
                 if (data.weightedWage > 0 && data.totalSlots > 0) {
-    
+
                     currentSignal = data.weightedWage / data.totalSlots;
-    
+
                 } else {
-    
+
                     currentSignal = previousWages[role] || 0;
-    
+
                 }
-    
+
             }
-    
-    
-    
+
+
+
             currentSignal = Math.max(0, currentSignal);
-    
-    
-    
+
+
+
             const prev = previousWages[role] || 0;
-    
+
             const smoothed = prev + (currentSignal - prev) * wageSmoothing;
-    
-    
-    
+
+
+
             updatedWages[role] = parseFloat(smoothed.toFixed(2));
-    
+
         });
 
 
 
-    const demandPopulation = Math.max(0, nextPopulation ?? population ?? 0);
+        const demandPopulation = Math.max(0, nextPopulation ?? population ?? 0);
 
-    // calculateMinProfitMargin is imported from ./utils/helpers
+        // calculateMinProfitMargin is imported from ./utils/helpers
 
-    // 获取全局默认的市场参数（作为 fallback）
-    const defaultMarketInfluence = ECONOMIC_INFLUENCE?.market || {};
-    const defaultSupplyDemandWeight = Math.max(0, defaultMarketInfluence.supplyDemandWeight ?? 1);
-    const defaultVirtualDemandPerPop = Math.max(0, defaultMarketInfluence.virtualDemandPerPop || 0);
-    // 应用难度乘数到库存目标天数（低难度=更多缓冲=更稳定经济，高难度=更少缓冲=更波动经济）
-    const inventoryMultiplier = getInventoryTargetDaysMultiplier(difficulty);
-    const defaultInventoryTargetDays = Math.max(0.1, (defaultMarketInfluence.inventoryTargetDays ?? 1.5) * inventoryMultiplier);
-    const defaultInventoryPriceImpact = Math.max(0, defaultMarketInfluence.inventoryPriceImpact ?? 0.25);
+        // 获取全局默认的市场参数（作为 fallback）
+        const defaultMarketInfluence = ECONOMIC_INFLUENCE?.market || {};
+        const defaultSupplyDemandWeight = Math.max(0, defaultMarketInfluence.supplyDemandWeight ?? 1);
+        const defaultVirtualDemandPerPop = Math.max(0, defaultMarketInfluence.virtualDemandPerPop || 0);
+        // 应用难度乘数到库存目标天数（低难度=更多缓冲=更稳定经济，高难度=更少缓冲=更波动经济）
+        const inventoryMultiplier = getInventoryTargetDaysMultiplier(difficulty);
+        const defaultInventoryTargetDays = Math.max(0.1, (defaultMarketInfluence.inventoryTargetDays ?? 1.5) * inventoryMultiplier);
+        const defaultInventoryPriceImpact = Math.max(0, defaultMarketInfluence.inventoryPriceImpact ?? 0.25);
 
-    // 新的市场价格算法：每个建筑有自己的出售价格，市场价是加权平均
+        // 新的市场价格算法：每个建筑有自己的出售价格，市场价是加权平均
         Object.keys(RESOURCES).forEach(resource => {
-        if (!isTradableResource(resource)) return;
+            if (!isTradableResource(resource)) return;
 
-        const resourceDef = RESOURCES[resource];
-        const resourceMarketConfig = resourceDef?.marketConfig || {};
+            const resourceDef = RESOURCES[resource];
+            const resourceMarketConfig = resourceDef?.marketConfig || {};
 
-        // 获取资源的经济参数
-        const supplyDemandWeight = resourceMarketConfig.supplyDemandWeight !== undefined
-            ? Math.max(0, resourceMarketConfig.supplyDemandWeight)
-            : defaultSupplyDemandWeight;
-        const virtualDemandPerPop = resourceMarketConfig.virtualDemandPerPop !== undefined
-            ? Math.max(0, resourceMarketConfig.virtualDemandPerPop)
-            : defaultVirtualDemandPerPop;
-        // 资源特定的库存目标天数也应用难度乘数
-        const inventoryTargetDays = resourceMarketConfig.inventoryTargetDays !== undefined
-            ? Math.max(0.1, resourceMarketConfig.inventoryTargetDays * inventoryMultiplier)
-            : defaultInventoryTargetDays;
-        const inventoryPriceImpact = resourceMarketConfig.inventoryPriceImpact !== undefined
-            ? Math.max(0, resourceMarketConfig.inventoryPriceImpact)
-            : defaultInventoryPriceImpact;
+            // 获取资源的经济参数
+            const supplyDemandWeight = resourceMarketConfig.supplyDemandWeight !== undefined
+                ? Math.max(0, resourceMarketConfig.supplyDemandWeight)
+                : defaultSupplyDemandWeight;
+            const virtualDemandPerPop = resourceMarketConfig.virtualDemandPerPop !== undefined
+                ? Math.max(0, resourceMarketConfig.virtualDemandPerPop)
+                : defaultVirtualDemandPerPop;
+            // 资源特定的库存目标天数也应用难度乘数
+            const inventoryTargetDays = resourceMarketConfig.inventoryTargetDays !== undefined
+                ? Math.max(0.1, resourceMarketConfig.inventoryTargetDays * inventoryMultiplier)
+                : defaultInventoryTargetDays;
+            const inventoryPriceImpact = resourceMarketConfig.inventoryPriceImpact !== undefined
+                ? Math.max(0, resourceMarketConfig.inventoryPriceImpact)
+                : defaultInventoryPriceImpact;
 
-        const sup = supply[resource] || 0;
-        const dem = demand[resource] || 0;
-        const virtualDemandBaseline = virtualDemandPerPop * demandPopulation;
-        const adjustedDemand = dem + virtualDemandBaseline;
-
-
-        // 计算当前库存可以支撑多少天
-        const dailyDemand = adjustedDemand;
-        const inventoryStock = res[resource] || 0;
-        // 当库存为0时，无论需求如何都应该触发短缺价格（返回极低天数）
-        // 当库存>0但需求=0时，库存充足，返回目标天数
-        const inventoryDays = inventoryStock <= 0
-            ? 0.01  // 库存为0时，视为极度短缺，触发最大涨价
-            : (dailyDemand > 0 ? inventoryStock / dailyDemand : inventoryTargetDays);
-
-        // DEBUG: 价格计算调试日志（每5个tick输出一次，避免刷屏）
-        // if (tick % 5 === 0 && (resource === 'food' || resource === 'cloth' || resource === 'tools')) {
-        //     console.log(`[价格调试] ${RESOURCES[resource]?.name || resource}:`, {
-        //         tick,
-        //         inventoryStock: inventoryStock.toFixed(2),
-        //         demand: dem.toFixed(2),
-        //         virtualDemand: virtualDemandBaseline.toFixed(2),
-        //         dailyDemand: dailyDemand.toFixed(2),
-        //         inventoryDays: inventoryDays.toFixed(2),
-        //         inventoryTargetDays,
-        //         inventoryRatio: (inventoryDays / inventoryTargetDays).toFixed(3),
-        //         currentPrice: (priceMap[resource] || 0).toFixed(2),
-        //     });
-        // }
+            const sup = supply[resource] || 0;
+            const dem = demand[resource] || 0;
+            const virtualDemandBaseline = virtualDemandPerPop * demandPopulation;
+            const adjustedDemand = dem + virtualDemandBaseline;
 
 
-        // 收集所有生产该资源的建筑及其出售价格
-        const buildingPrices = [];
-        let totalOutput = 0;
+            // 计算当前库存可以支撑多少天
+            const dailyDemand = adjustedDemand;
+            const inventoryStock = res[resource] || 0;
+            // 当库存为0时，无论需求如何都应该触发短缺价格（返回极低天数）
+            // 当库存>0但需求=0时，库存充足，返回目标天数
+            const inventoryDays = inventoryStock <= 0
+                ? 0.01  // 库存为0时，视为极度短缺，触发最大涨价
+                : (dailyDemand > 0 ? inventoryStock / dailyDemand : inventoryTargetDays);
 
-        BUILDINGS.forEach(building => {
-            const buildingCount = builds[building.id] || 0;
-            if (buildingCount <= 0) return;
+            // DEBUG: 价格计算调试日志（每5个tick输出一次，避免刷屏）
+            // if (tick % 5 === 0 && (resource === 'food' || resource === 'cloth' || resource === 'tools')) {
+            //     console.log(`[价格调试] ${RESOURCES[resource]?.name || resource}:`, {
+            //         tick,
+            //         inventoryStock: inventoryStock.toFixed(2),
+            //         demand: dem.toFixed(2),
+            //         virtualDemand: virtualDemandBaseline.toFixed(2),
+            //         dailyDemand: dailyDemand.toFixed(2),
+            //         inventoryDays: inventoryDays.toFixed(2),
+            //         inventoryTargetDays,
+            //         inventoryRatio: (inventoryDays / inventoryTargetDays).toFixed(3),
+            //         currentPrice: (priceMap[resource] || 0).toFixed(2),
+            //     });
+            // }
 
-            // 获取该建筑的升级等级分布
-            // buildingUpgrades[building.id] 格式为 { 等级: 数量 }
-            const storedLevelCounts = buildingUpgrades[building.id] || {};
 
-            // 计算已升级的建筑数量
-            let upgradedCount = 0;
-            Object.entries(storedLevelCounts).forEach(([lvlStr, lvlCount]) => {
-                const lvl = parseInt(lvlStr);
-                if (Number.isFinite(lvl) && lvl > 0 && lvlCount > 0) {
-                    upgradedCount += lvlCount;
-                }
+            // 收集所有生产该资源的建筑及其出售价格
+            const buildingPrices = [];
+            let totalOutput = 0;
+
+            BUILDINGS.forEach(building => {
+                const buildingCount = builds[building.id] || 0;
+                if (buildingCount <= 0) return;
+
+                // 获取该建筑的升级等级分布
+                // buildingUpgrades[building.id] 格式为 { 等级: 数量 }
+                const storedLevelCounts = buildingUpgrades[building.id] || {};
+
+                // 计算已升级的建筑数量
+                let upgradedCount = 0;
+                Object.entries(storedLevelCounts).forEach(([lvlStr, lvlCount]) => {
+                    const lvl = parseInt(lvlStr);
+                    if (Number.isFinite(lvl) && lvl > 0 && lvlCount > 0) {
+                        upgradedCount += lvlCount;
+                    }
+                });
+
+                // 构建完整的等级分布（包括0级）
+                const levelCounts = { 0: Math.max(0, buildingCount - upgradedCount) };
+                Object.entries(storedLevelCounts).forEach(([lvlStr, lvlCount]) => {
+                    const lvl = parseInt(lvlStr);
+                    if (Number.isFinite(lvl) && lvl > 0 && lvlCount > 0) {
+                        levelCounts[lvl] = lvlCount;
+                    }
+                });
+
+                // 按等级分组计算
+                Object.entries(levelCounts).forEach(([levelStr, count]) => {
+                    const level = parseInt(levelStr);
+                    const config = getBuildingEffectiveConfig(building, level);
+
+                    const outputAmount = config.output?.[resource];
+                    if (!outputAmount || outputAmount <= 0) return;
+
+                    // 使用基础建筑的 marketConfig（升级配置可以覆盖，否则沿用基础）
+                    const buildingMarketConfig = building.marketConfig || {};
+                    const buildingPriceWeights = buildingMarketConfig.price || ECONOMIC_INFLUENCE?.price || {};
+                    const buildingWageWeights = buildingMarketConfig.wage || ECONOMIC_INFLUENCE?.wage || {};
+
+                    const resourceSpecificPriceLivingCosts = buildLivingCostMap(
+                        livingCostBreakdown,
+                        buildingPriceWeights
+                    );
+                    const resourceSpecificWageLivingCosts = buildLivingCostMap(
+                        livingCostBreakdown,
+                        buildingWageWeights
+                    );
+
+                    // 计算原材料成本（含税）- 使用升级后的 input
+                    let inputCost = 0;
+                    if (config.input) {
+                        Object.entries(config.input).forEach(([inputKey, amount]) => {
+                            if (!amount || amount <= 0) return;
+                            const inputPrice = priceMap[inputKey] || getBasePrice(inputKey);
+                            const inputTaxRate = getResourceTaxRate(inputKey);
+
+                            // 原材料成本 = 价格 × 数量 × (1 + 税率)
+                            // 如果税率为负（补贴），则成本降低
+                            const baseCost = amount * inputPrice;
+                            const taxCost = baseCost * inputTaxRate;
+                            inputCost += baseCost + taxCost;
+                        });
+                    }
+
+                    // 计算工资成本 - 使用升级后的 jobs，但 owner 从基础建筑获取
+                    let laborCost = 0;
+                    const ownerKey = building.owner;
+                    const effectiveJobs = config.jobs || {};
+                    const isSelfOwned = ownerKey && effectiveJobs[ownerKey];
+                    if (Object.keys(effectiveJobs).length > 0 && !isSelfOwned) {
+                        Object.entries(effectiveJobs).forEach(([role, slots]) => {
+                            if (!slots || slots <= 0) return;
+                            const wage = updatedWages[role] || getExpectedWage(role);
+                            laborCost += slots * wage;
+                        });
+                    }
+
+                    // 计算营业税成本
+                    const businessTaxMultiplier = policies?.businessTaxRates?.[building.id] ?? 1;
+                    const businessTaxBase = building.businessTaxBase ?? 0.1;
+                    const businessTaxCost = businessTaxBase * businessTaxMultiplier;
+
+                    // 计算业主生活需求成本 - 使用升级后的 jobs 中的 owner 数量
+                    let ownerLivingCost = 0;
+                    if (ownerKey) {
+                        const ownerLivingCostBase = resourceSpecificWageLivingCosts[ownerKey] || 0;
+                        ownerLivingCost = ownerLivingCostBase * (effectiveJobs[ownerKey] || 0);
+                    }
+
+                    // 成本价 = (原材料成本含税 + 工资成本 + 营业税成本 + 业主生活需求成本) / 产出数量
+                    const totalCost = inputCost + laborCost + businessTaxCost + ownerLivingCost;
+                    const costPrice = totalCost / outputAmount;
+
+                    // === 三层价格模型 ===
+                    // 1. 计算供需调整系数（基于库存天数）
+                    const inventoryRatio = inventoryDays / inventoryTargetDays;
+                    let priceMultiplier = 1.0;
+
+                    if (inventoryRatio < 0.5) {
+                        // 库存紧张，大幅涨价
+                        priceMultiplier = 1.0 + (1.0 - inventoryRatio * 2) * 5.0; // 最高6倍
+                    } else if (inventoryRatio < 1.0) {
+                        // 库存偏低，适度涨价
+                        priceMultiplier = 1.0 + (1.0 - inventoryRatio) * 1.0; // 1.0-2.0倍
+                    } else if (inventoryRatio > 2.0) {
+                        // 库存积压，大幅降价
+                        // 修正：从上一档位(1.0-2.0)的结束点(0.7)继续下降，保持连贯性
+                        priceMultiplier = 0.7 - (inventoryRatio - 2.0) * 0.3; // 最低0.1倍
+                        priceMultiplier = Math.max(0.1, priceMultiplier);
+                    } else if (inventoryRatio > 1.0) {
+                        // 库存充足，适度降价
+                        priceMultiplier = 1.0 - (inventoryRatio - 1.0) * 0.3; // 0.7-1.0倍
+                    }
+
+                    // 2. 获取基础价格（市场认可的合理价格）
+                    const basePrice = getBasePrice(resource);
+
+                    // 3. 计算市场价格（基于basePrice和供需关系）
+                    let marketBasedPrice = basePrice * priceMultiplier;
+
+                    // 4. 最终价格 = 市场价格（允许低于成本价）
+                    // 当供过于求时，价格可能低于成本，生产者会亏损
+                    // 这会促使生产者减产或转行，实现市场自我调节
+                    let sellingPrice = marketBasedPrice;
+
+                    // 不超过物价限额
+                    const minPrice = resourceDef.minPrice ?? PRICE_FLOOR;
+                    const maxPrice = resourceDef.maxPrice;
+                    sellingPrice = Math.max(sellingPrice, minPrice);
+                    if (maxPrice !== undefined) {
+                        sellingPrice = Math.min(sellingPrice, maxPrice);
+                    }
+
+                    // 记录该建筑等级的出售价格和产量
+                    const levelOutput = outputAmount * count;
+                    totalOutput += levelOutput;
+                    buildingPrices.push({
+                        price: sellingPrice,
+                        output: levelOutput
+                    });
+                });
             });
 
-            // 构建完整的等级分布（包括0级）
-            const levelCounts = { 0: Math.max(0, buildingCount - upgradedCount) };
-            Object.entries(storedLevelCounts).forEach(([lvlStr, lvlCount]) => {
-                const lvl = parseInt(lvlStr);
-                if (Number.isFinite(lvl) && lvl > 0 && lvlCount > 0) {
-                    levelCounts[lvl] = lvlCount;
-                }
-            });
-
-            // 按等级分组计算
-            Object.entries(levelCounts).forEach(([levelStr, count]) => {
-                const level = parseInt(levelStr);
-                const config = getBuildingEffectiveConfig(building, level);
-
-                const outputAmount = config.output?.[resource];
-                if (!outputAmount || outputAmount <= 0) return;
-
-                // 使用基础建筑的 marketConfig（升级配置可以覆盖，否则沿用基础）
-                const buildingMarketConfig = building.marketConfig || {};
-                const buildingPriceWeights = buildingMarketConfig.price || ECONOMIC_INFLUENCE?.price || {};
-                const buildingWageWeights = buildingMarketConfig.wage || ECONOMIC_INFLUENCE?.wage || {};
-
-                const resourceSpecificPriceLivingCosts = buildLivingCostMap(
-                    livingCostBreakdown,
-                    buildingPriceWeights
-                );
-                const resourceSpecificWageLivingCosts = buildLivingCostMap(
-                    livingCostBreakdown,
-                    buildingWageWeights
-                );
-
-                // 计算原材料成本（含税）- 使用升级后的 input
-                let inputCost = 0;
-                if (config.input) {
-                    Object.entries(config.input).forEach(([inputKey, amount]) => {
-                        if (!amount || amount <= 0) return;
-                        const inputPrice = priceMap[inputKey] || getBasePrice(inputKey);
-                        const inputTaxRate = getResourceTaxRate(inputKey);
-
-                        // 原材料成本 = 价格 × 数量 × (1 + 税率)
-                        // 如果税率为负（补贴），则成本降低
-                        const baseCost = amount * inputPrice;
-                        const taxCost = baseCost * inputTaxRate;
-                        inputCost += baseCost + taxCost;
-                    });
-                }
-
-                // 计算工资成本 - 使用升级后的 jobs，但 owner 从基础建筑获取
-                let laborCost = 0;
-                const ownerKey = building.owner;
-                const effectiveJobs = config.jobs || {};
-                const isSelfOwned = ownerKey && effectiveJobs[ownerKey];
-                if (Object.keys(effectiveJobs).length > 0 && !isSelfOwned) {
-                    Object.entries(effectiveJobs).forEach(([role, slots]) => {
-                        if (!slots || slots <= 0) return;
-                        const wage = updatedWages[role] || getExpectedWage(role);
-                        laborCost += slots * wage;
-                    });
-                }
-
-                // 计算营业税成本
-                const businessTaxMultiplier = policies?.businessTaxRates?.[building.id] ?? 1;
-                const businessTaxBase = building.businessTaxBase ?? 0.1;
-                const businessTaxCost = businessTaxBase * businessTaxMultiplier;
-
-                // 计算业主生活需求成本 - 使用升级后的 jobs 中的 owner 数量
-                let ownerLivingCost = 0;
-                if (ownerKey) {
-                    const ownerLivingCostBase = resourceSpecificWageLivingCosts[ownerKey] || 0;
-                    ownerLivingCost = ownerLivingCostBase * (effectiveJobs[ownerKey] || 0);
-                }
-
-                // 成本价 = (原材料成本含税 + 工资成本 + 营业税成本 + 业主生活需求成本) / 产出数量
-                const totalCost = inputCost + laborCost + businessTaxCost + ownerLivingCost;
-                const costPrice = totalCost / outputAmount;
-
-                // === 三层价格模型 ===
-                // 1. 计算供需调整系数（基于库存天数）
+            // 计算市场价：所有建筑的加权平均价格
+            let marketPrice = 0;
+            if (totalOutput > 0 && buildingPrices.length > 0) {
+                let weightedSum = 0;
+                buildingPrices.forEach(bp => {
+                    weightedSum += bp.price * bp.output;
+                });
+                marketPrice = weightedSum / totalOutput;
+            } else {
+                // 如果没有建筑生产，根据库存情况调整基础价格
+                const basePrice = getBasePrice(resource);
                 const inventoryRatio = inventoryDays / inventoryTargetDays;
                 let priceMultiplier = 1.0;
 
@@ -5168,115 +5228,56 @@ export const simulateTick = ({
                     priceMultiplier = 1.0 - (inventoryRatio - 1.0) * 0.3; // 0.7-1.0倍
                 }
 
-                // 2. 获取基础价格（市场认可的合理价格）
-                const basePrice = getBasePrice(resource);
+                marketPrice = basePrice * priceMultiplier;
 
-                // 3. 计算市场价格（基于basePrice和供需关系）
-                let marketBasedPrice = basePrice * priceMultiplier;
-
-                // 4. 最终价格 = 市场价格（允许低于成本价）
-                // 当供过于求时，价格可能低于成本，生产者会亏损
-                // 这会促使生产者减产或转行，实现市场自我调节
-                let sellingPrice = marketBasedPrice;
-
-                // 不超过物价限额
+                // 限制价格范围
                 const minPrice = resourceDef.minPrice ?? PRICE_FLOOR;
                 const maxPrice = resourceDef.maxPrice;
-                sellingPrice = Math.max(sellingPrice, minPrice);
+                marketPrice = Math.max(marketPrice, minPrice);
                 if (maxPrice !== undefined) {
-                    sellingPrice = Math.min(sellingPrice, maxPrice);
+                    marketPrice = Math.min(marketPrice, maxPrice);
                 }
-
-                // 记录该建筑等级的出售价格和产量
-                const levelOutput = outputAmount * count;
-                totalOutput += levelOutput;
-                buildingPrices.push({
-                    price: sellingPrice,
-                    output: levelOutput
-                });
-            });
-        });
-
-        // 计算市场价：所有建筑的加权平均价格
-        let marketPrice = 0;
-        if (totalOutput > 0 && buildingPrices.length > 0) {
-            let weightedSum = 0;
-            buildingPrices.forEach(bp => {
-                weightedSum += bp.price * bp.output;
-            });
-            marketPrice = weightedSum / totalOutput;
-        } else {
-            // 如果没有建筑生产，根据库存情况调整基础价格
-            const basePrice = getBasePrice(resource);
-            const inventoryRatio = inventoryDays / inventoryTargetDays;
-            let priceMultiplier = 1.0;
-
-            if (inventoryRatio < 0.5) {
-                // 库存紧张，大幅涨价
-                priceMultiplier = 1.0 + (1.0 - inventoryRatio * 2) * 5.0; // 最高6倍
-            } else if (inventoryRatio < 1.0) {
-                // 库存偏低，适度涨价
-                priceMultiplier = 1.0 + (1.0 - inventoryRatio) * 1.0; // 1.0-2.0倍
-            } else if (inventoryRatio > 2.0) {
-                // 库存积压，大幅降价
-                // 修正：从上一档位(1.0-2.0)的结束点(0.7)继续下降，保持连贯性
-                priceMultiplier = 0.7 - (inventoryRatio - 2.0) * 0.3; // 最低0.1倍
-                priceMultiplier = Math.max(0.1, priceMultiplier);
-            } else if (inventoryRatio > 1.0) {
-                // 库存充足，适度降价
-                priceMultiplier = 1.0 - (inventoryRatio - 1.0) * 0.3; // 0.7-1.0倍
             }
 
-            marketPrice = basePrice * priceMultiplier;
 
-            // 限制价格范围
+            // 战争物价上涨：计算与玩家直接交战的敌对国家数量
+            // 注意：统计与玩家交战的AI国家（nation.isAtWar表示该AI与玩家交战）
+            let warCount = 0;
+            updatedNations.forEach(n => {
+                if (n.isAtWar === true) {
+                    warCount++;
+                }
+            });
+            // AI国家之间的战争也会影响物价（国际局势紧张）
+            let foreignWarCount = 0;
+            updatedNations.forEach(n => {
+                if (!n.isPlayer && n.foreignWars) {
+                    Object.values(n.foreignWars).forEach(war => {
+                        if (war?.isAtWar) foreignWarCount++;
+                    });
+                }
+            });
+            foreignWarCount = Math.floor(foreignWarCount / 2); // 每场战争被计算两次，需要除以2
+
+            // 战争物价系数：每场与玩家的战争增加2.5%物价，每场AI间战争增加1%物价
+            const warPriceMultiplier = 1 + (warCount * 0.025) + (foreignWarCount * 0.01);
+
+            // 【修复】将战争乘数应用到目标价格（marketPrice），而非平滑后的价格
+            // 这样平滑处理会正确地向战争调整后的目标价格移动，避免价格卡在上限
+            const warAdjustedMarketPrice = marketPrice * warPriceMultiplier;
+
+            // 平滑处理：向战争调整后的目标价格平滑移动
+            const prevPrice = priceMap[resource] || warAdjustedMarketPrice;
+            const smoothed = prevPrice + (warAdjustedMarketPrice - prevPrice) * 0.1;
+
+            // 应用价格限制
             const minPrice = resourceDef.minPrice ?? PRICE_FLOOR;
             const maxPrice = resourceDef.maxPrice;
-            marketPrice = Math.max(marketPrice, minPrice);
+            let finalPrice = smoothed;
+            finalPrice = Math.max(finalPrice, minPrice);
             if (maxPrice !== undefined) {
-                marketPrice = Math.min(marketPrice, maxPrice);
+                finalPrice = Math.min(finalPrice, maxPrice);
             }
-        }
-
-
-        // 战争物价上涨：计算与玩家直接交战的敌对国家数量
-        // 注意：统计与玩家交战的AI国家（nation.isAtWar表示该AI与玩家交战）
-        let warCount = 0;
-        updatedNations.forEach(n => {
-            if (n.isAtWar === true) {
-                warCount++;
-            }
-        });
-        // AI国家之间的战争也会影响物价（国际局势紧张）
-        let foreignWarCount = 0;
-        updatedNations.forEach(n => {
-            if (!n.isPlayer && n.foreignWars) {
-                Object.values(n.foreignWars).forEach(war => {
-                    if (war?.isAtWar) foreignWarCount++;
-                });
-            }
-        });
-        foreignWarCount = Math.floor(foreignWarCount / 2); // 每场战争被计算两次，需要除以2
-
-        // 战争物价系数：每场与玩家的战争增加2.5%物价，每场AI间战争增加1%物价
-        const warPriceMultiplier = 1 + (warCount * 0.025) + (foreignWarCount * 0.01);
-
-        // 【修复】将战争乘数应用到目标价格（marketPrice），而非平滑后的价格
-        // 这样平滑处理会正确地向战争调整后的目标价格移动，避免价格卡在上限
-        const warAdjustedMarketPrice = marketPrice * warPriceMultiplier;
-
-        // 平滑处理：向战争调整后的目标价格平滑移动
-        const prevPrice = priceMap[resource] || warAdjustedMarketPrice;
-        const smoothed = prevPrice + (warAdjustedMarketPrice - prevPrice) * 0.1;
-
-        // 应用价格限制
-        const minPrice = resourceDef.minPrice ?? PRICE_FLOOR;
-        const maxPrice = resourceDef.maxPrice;
-        let finalPrice = smoothed;
-        finalPrice = Math.max(finalPrice, minPrice);
-        if (maxPrice !== undefined) {
-            finalPrice = Math.min(finalPrice, maxPrice);
-        }
 
             updatedPrices[resource] = parseFloat(finalPrice.toFixed(2));
         });
