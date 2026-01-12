@@ -288,9 +288,9 @@ export function canEstablishOverseasInvestment(targetNation, buildingId, ownerSt
 /**
  * 通用：计算海外建筑利润 (基于配置)
  * @param {Object} investment - 投资对象 { ..., inputSource, outputDest }
- * @param {Object} targetNation 
- * @param {Object} playerResources 
- * @param {Object} playerMarketPrices 
+ * @param {Object} targetNation
+ * @param {Object} playerResources
+ * @param {Object} playerMarketPrices
  */
 export function calculateOverseasProfit(investment, targetNation, playerResources, playerMarketPrices = {}) {
     const building = BUILDINGS.find(b => b.id === investment.buildingId);
@@ -878,4 +878,3 @@ export function aiDecideForeignInvestment(nation, playerState, existingInvestmen
         investorStratum: 'capitalist',
     };
 }
-
