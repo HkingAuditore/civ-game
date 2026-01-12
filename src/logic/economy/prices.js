@@ -3,12 +3,12 @@
  * Handles resource cost calculations, price updates, and market price dynamics
  */
 
-import { BUILDINGS, STRATA, RESOURCES, ECONOMIC_INFLUENCE } from '../../config';
-import { PRICE_FLOOR, BASE_WAGE_REFERENCE } from '../utils/constants';
-import { getBasePrice, isTradableResource } from '../utils/helpers';
-import { buildLivingCostMap } from './wages';
-import { getBuildingEffectiveConfig } from '../../config/buildingUpgrades';
-import { getOutputBuildingsForResource } from './resourceBuildingIndex';
+import { BUILDINGS, STRATA, RESOURCES, ECONOMIC_INFLUENCE } from '../../config/index.js';
+import { PRICE_FLOOR, BASE_WAGE_REFERENCE } from '../utils/constants.js';
+import { getBasePrice, isTradableResource } from '../utils/helpers.js';
+import { buildLivingCostMap } from './wages.js';
+import { getBuildingEffectiveConfig } from '../../config/buildingUpgrades.js';
+import { getOutputBuildingsForResource } from './resourceBuildingIndex.js';
 
 /**
  * Calculate resource cost based on production chain
