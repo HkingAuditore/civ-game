@@ -201,14 +201,24 @@ const NationDetailView = ({
                             onClick={() => onProvoke?.()}
                             color="orange"
                         />
-                        <ActionCard
-                            icon="Swords"
-                            title="宣战"
-                            desc="开启战争！这将导致稳定度下降。"
-                            cost={diplomaticCooldownMod ? `稳定度-${diplomaticCooldownMod}` : '稳定度'}
-                            onClick={() => onDeclareWar?.()}
-                            color="red"
-                        />
+                        {nation.isAtWar ? (
+                            <ActionCard
+                                icon="Flag"
+                                title="求和"
+                                desc="尝试通过谈判结束战争。"
+                                onClick={() => onDiplomaticAction?.(nation.id, 'propose_peace')}
+                                color="purple"
+                            />
+                        ) : (
+                            <ActionCard
+                                icon="Swords"
+                                title="宣战"
+                                desc="开启战争！这将导致稳定度下降。"
+                                cost={diplomaticCooldownMod ? `稳定度-${diplomaticCooldownMod}` : '稳定度'}
+                                onClick={() => onDeclareWar?.()}
+                                color="red"
+                            />
+                        )}
                     </div>
                 )}
 

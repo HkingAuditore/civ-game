@@ -1888,6 +1888,47 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     });
                 }
 
+                // 4. AI Autonomous Investment (10% chance to check daily)
+                if (Math.random() < 0.1) {
+                    import('../logic/diplomacy/autonomousInvestment').then(({ processAIInvestment }) => {
+                        if (!processAIInvestment) return;
+                        
+                        const potentialInvestors = (current.nations || []).filter(n => n.id !== 'player' && (n.wealth || 0) > 5000);
+                        
+                        potentialInvestors.forEach(investor => {
+                            const decision = processAIInvestment({
+                                investorNation: investor,
+                                nations: current.nations || [],
+                                playerState: {
+                                    population: current.population,
+                                    wealth: current.resources?.silver || 0,
+                                    resources: current.resources,
+                                    id: 'player'
+                                },
+                                market: adjustedMarket,
+                                epoch: current.epoch,
+                                daysElapsed: current.daysElapsed
+                            });
+
+                            if (decision && decision.type === 'request_investment' && decision.targetId === 'player') {
+                                // Trigger Event via Log
+                                const eventData = {
+                                    nationId: investor.id,
+                                    opportunity: {
+                                        buildingType: decision.building.name,
+                                        buildingId: decision.building.id,
+                                        potentialProfit: (decision.roi * decision.cost / 12), 
+                                        requiredInvestment: decision.cost,
+                                        ownerStratum: 'capitalist'
+                                    }
+                                };
+                                // This special log string handles the event triggering in the main loop listener
+                                addLog(`OVERSEAS_INVESTMENT_OPPORTUNITY:${JSON.stringify(eventData)}`);
+                            }
+                        });
+                    }).catch(err => console.warn('AI investment error:', err));
+                }
+
                 // ========== 条约维护费每日扣除 ==========
                 let totalTreatyMaintenance = 0;
                 if (current.nations) {
@@ -4089,10 +4130,11 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                 if (accepted && investmentDetails) {
                                                     // 通过外交行动建立投资
                                                     if (actions?.handleDiplomaticAction) {
-                                                        actions.handleDiplomaticAction(nation.id, 'establish_overseas_investment', {
+                                                        actions.handleDiplomaticAction(nation.id, 'accept_foreign_investment', {
                                                             buildingId: investmentDetails.buildingId,
                                                             ownerStratum: investmentDetails.ownerStratum,
                                                             operatingMode: investmentDetails.operatingMode,
+                                                            investmentAmount: investmentDetails.requiredInvestment 
                                                         });
                                                     }
                                                 }

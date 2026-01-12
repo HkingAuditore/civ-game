@@ -2316,7 +2316,7 @@ export const useGameActions = (gameState, addLog) => {
             }
         }
 
-        if (targetNation.isAtWar && (action === 'gift' || action === 'trade' || action === 'import' || action === 'demand')) {
+        if (targetNation?.isAtWar && (action === 'gift' || action === 'trade' || action === 'import' || action === 'demand')) {
             addLog(`${targetNation.name} 与你正处于战争状态，无法进行此外交行动。`);
             return;
         }
@@ -2491,6 +2491,150 @@ export const useGameActions = (gameState, addLog) => {
                 if (shouldLogTradeRoutes) {
                     addLog(`从 ${targetNation.name} 进口 ${amount}${RESOURCES[resourceKey].name}，支出 ${cost.toFixed(1)} 银币（单价差 ${profitPerUnit >= 0 ? '+' : ''}${profitPerUnit.toFixed(2)}）。`);
                 }
+                break;
+            }
+
+            case 'negotiate_treaty': {
+                const { proposal, onResult } = payload;
+                if (!proposal) return;
+
+                const acceptanceChance = calculateNegotiationAcceptChance({
+                    proposal,
+                    nation: targetNation,
+                    epoch: 0, 
+                    stance: proposal.stance,
+                    daysElapsed,
+                    playerWealth: resources?.silver || 0,
+                    targetWealth: targetNation.wealth || 0,
+                });
+
+                const isAccept = Math.random() < acceptanceChance.acceptChance || payload.forceAccept;
+                
+                if (isAccept) {
+                    // Apply Treaty Effects
+                    const newTreaty = {
+                        id: `treaty_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                        type: proposal.type,
+                        partnerId: nationId, 
+                        signedDay: daysElapsed,
+                        duration: proposal.durationDays,
+                        terms: proposal 
+                    };
+
+                    setNations(prev => prev.map(n => {
+                        if (n.id === nationId) {
+                            const isPeaceTreaty = ['peace_treaty', 'white_peace', 'surrender'].includes(proposal.type);
+                            return {
+                                ...n,
+                                relation: clampRelation((n.relation || 0) + 15),
+                                isAtWar: isPeaceTreaty ? false : n.isAtWar,
+                                warStartDay: isPeaceTreaty ? undefined : n.warStartDay,
+                                warScore: isPeaceTreaty ? 0 : n.warScore,
+                                treaties: [...(n.treaties || []), { ...newTreaty, partnerId: 'player' }],
+                                peaceTreatyUntil: isPeaceTreaty ? (daysElapsed + proposal.durationDays) : n.peaceTreatyUntil
+                            };
+                        }
+                        return n;
+                    }));
+                    
+                    if (onResult) onResult({ status: 'accepted', treaty: newTreaty });
+                    addLog(`与 ${targetNation.name} 签署了 ${proposal.type === 'peace_treaty' ? '和平条约' : '条约'}。`);
+                } else {
+                    addLog(`${targetNation.name} 拒绝了你的提案。`);
+                    if (onResult) onResult({ status: 'rejected' });
+                }
+                break;
+            }
+
+            case 'propose_peace': {
+                if (!currentActions?.triggerDiplomaticEvent) {
+                    console.error('triggerDiplomaticEvent not available');
+                    return;
+                }
+                
+                // Player Advantage is negative of AI War Score
+                const playerAdvantage = -(targetNation.warScore || 0);
+                
+                const event = createPlayerPeaceProposalEvent(
+                    targetNation,
+                    playerAdvantage,
+                    targetNation.warDuration || 0,
+                    targetNation.enemyLosses || 0,
+                    { population: typeof getTotalPopulation === 'function' ? getTotalPopulation() : 1000 },
+                    (choice, value) => {
+                        handleDiplomaticAction(nationId, 'finalize_peace', { type: choice, value });
+                    }
+                );
+                currentActions.triggerDiplomaticEvent(event);
+                break;
+            }
+
+            case 'finalize_peace': {
+                const { type, value } = payload;
+                if (!type) return;
+
+                setNations(prev => prev.map(n => {
+                    if (n.id === nationId) {
+                        let silverChange = 0;
+                        let popChange = 0;
+                        let relationChange = 10;
+                        let lootReserveChange = 0;
+
+                        // Handle resource transfers
+                        if (['demand_high', 'demand_standard', 'demand_installment'].includes(type)) {
+                            silverChange = -Math.floor(value || 0); // AI loses silver
+                            setResources(r => ({ ...r, silver: (r.silver || 0) + Math.abs(silverChange) }));
+                            lootReserveChange = Math.abs(silverChange);
+                            addLog(`获得战争赔款 ${Math.abs(silverChange)} 银币`);
+                        } else if (['pay_high', 'pay_installment'].includes(type)) {
+                            // Player pays AI
+                            const payment = Math.floor(value || 0);
+                            setResources(r => ({ ...r, silver: Math.max(0, (r.silver || 0) - payment) }));
+                            silverChange = payment; // AI gains silver
+                            addLog(`支付战争赔款 ${payment} 银币`);
+                        }
+
+                        // Handle population transfers
+                        if (['demand_population', 'demand_annex'].includes(type)) {
+                            popChange = -Math.floor(value || 0); // AI loses pop
+                             // TODO: Add to player population (need global setter or event)
+                             // For now assuming simplified population abstraction or separate effect
+                             addLog(`接收割让人口 ${Math.abs(popChange)} (及对应土地)`);
+                        } else if (type === 'offer_population') {
+                            // Player loses pop
+                             addLog(`割让人口 ${Math.floor(value || 0)}`);
+                        }
+
+                        // Handle Vassalage
+                        let vassalUpdates = {};
+                         if (['demand_colony', 'demand_puppet', 'demand_tributary', 'demand_protectorate'].includes(type)) {
+                             const vassalType = value; // passed as string in event
+                             vassalUpdates = {
+                                 vassalOf: 'player',
+                                 vassalType: vassalType,
+                                 autonomy: VASSAL_TYPE_CONFIGS[vassalType]?.autonomy || 50,
+                                 tributeRate: VASSAL_TYPE_CONFIGS[vassalType]?.tributeRate || 0.1,
+                             };
+                             addLog(`${n.name} 成为你的${VASSAL_TYPE_LABELS[vassalType]}`);
+                         }
+
+                        return {
+                            ...n,
+                            isAtWar: false,
+                            warScore: 0,
+                            warDuration: 0,
+                            peaceTreatyUntil: daysElapsed + 365,
+                            relation: Math.min(100, Math.max(0, (n.relation || 0) + relationChange)),
+                            wealth: Math.max(0, (n.wealth || 0) + silverChange),
+                            population: Math.max(100, (n.population || 1000) + popChange),
+                            lootReserve: Math.max(0, (n.lootReserve || 0) - lootReserveChange),
+                            ...vassalUpdates
+                        };
+                    }
+                    return n;
+                }));
+
+                addLog(`与 ${targetNation.name} 达成和平协议。`);
                 break;
             }
 
@@ -3787,6 +3931,48 @@ export const useGameActions = (gameState, addLog) => {
                 }).catch(err => {
                     console.error('Failed to load overseas investment system:', err);
                     addLog('海外投资系统加载失败。');
+                });
+                break;
+            }
+
+            case 'accept_foreign_investment': {
+                // 接受外国投资（外国 -> 玩家）
+                const { buildingId, ownerStratum, operatingMode, investmentAmount } = payload || {};
+                const investorNation = nations.find(n => n.id === nationId);
+
+                if (!investorNation || !buildingId) {
+                    addLog('接受投资失败：参数不完整');
+                    break;
+                }
+
+                import('../logic/diplomacy/overseasInvestment').then(({ createForeignInvestment }) => {
+                    const newInvestment = createForeignInvestment({
+                        buildingId,
+                        ownerNationId: investorNation.id,
+                        investorStratum: ownerStratum || 'capitalist',
+                    });
+
+                    if (newInvestment) {
+                        newInvestment.operatingMode = operatingMode || 'local';
+                        newInvestment.investmentAmount = investmentAmount || 0;
+                        newInvestment.createdDay = daysElapsed;
+
+                        setForeignInvestments(prev => [...prev, newInvestment]);
+
+                        setNations(prev => prev.map(n => {
+                            if (n.id !== investorNation.id) return n;
+                            return {
+                                ...n,
+                                wealth: Math.max(0, (n.wealth || 0) - (investmentAmount || 0)),
+                                relation: Math.min(100, (n.relation || 0) + 5),
+                            };
+                        }));
+
+                        addLog(`🏭 批准了 ${investorNation.name} 的投资请求，即将在本地建设 ${BUILDINGS.find(b => b.id === buildingId)?.name || '工厂'}。`);
+                    }
+                }).catch(err => {
+                    console.error('Failed to accept foreign investment:', err);
+                    addLog('外资系统加载失败。');
                 });
                 break;
             }
