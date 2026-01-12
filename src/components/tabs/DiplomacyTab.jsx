@@ -224,6 +224,7 @@ const DiplomacyTabComponent = ({
     // 海外投资面板状态
     const [showOverseasInvestmentPanel, setShowOverseasInvestmentPanel] = useState(false);
     const [investmentPanelNation, setInvestmentPanelNation] = useState(null);
+    const [mobileTab, setMobileTab] = useState('nations'); // 'nations', 'world', 'organizations', 'migration'
 
     // 外交动作冷却时间配置（天数）
     const DIPLOMATIC_COOLDOWNS = {
@@ -453,6 +454,88 @@ const DiplomacyTabComponent = ({
         return '僵持阶段，继续作战或准备谈判。';
     };
 
+    const renderMobileOrganizations = () => {
+        const organizations = Array.isArray(diplomacyOrganizations?.organizations)
+            ? diplomacyOrganizations.organizations
+            : [];
+        const playerOrgs = organizations.filter(org =>
+            Array.isArray(org?.members) && org.members.includes('player')
+        );
+
+        const ORG_TYPES = [
+            { type: 'military_alliance', name: '军事联盟', icon: 'Shield', era: 3, color: 'red' },
+            { type: 'economic_bloc', name: '经济共同体', icon: 'TrendingUp', era: 5, color: 'amber' },
+            { type: 'trade_zone', name: '自贸区', icon: 'Globe', era: 5, color: 'cyan' },
+        ];
+
+        return (
+            <div className="space-y-4 pb-20">
+                {/* 组织创建 */}
+                <div className="p-3 bg-gray-900/60 rounded-lg border border-gray-700/50">
+                    <h4 className="text-sm font-bold text-white font-decorative flex items-center gap-2 mb-3">
+                        <Icon name="Users" size={14} className="text-purple-300" />
+                        创建国际组织
+                    </h4>
+
+                    <div className="grid grid-cols-3 gap-2 text-xs">
+                        {ORG_TYPES.map(orgType => {
+                            const isUnlocked = isDiplomacyUnlocked('organizations', orgType.type, epoch);
+                            const playerHasOrg = playerOrgs.some(o => o.type === orgType.type);
+
+                            const blocked = !isUnlocked;
+                            let buttonText = playerHasOrg ? '已创建' : `创建${orgType.name.substring(0, 2)}`;
+                            let canClick = isUnlocked && !playerHasOrg;
+
+                            return (
+                                <button
+                                    key={orgType.type}
+                                    className={`p-2 rounded border flex flex-col items-center gap-1 ${canClick
+                                        ? 'bg-gray-800 border-gray-600 hover:bg-gray-700 text-white'
+                                        : 'bg-gray-900/50 border-gray-800 text-gray-600 cursor-not-allowed'
+                                        }`}
+                                    onClick={() => {
+                                        if (canClick) {
+                                            onDiplomaticAction('player', 'create_org', { type: orgType.type });
+                                        }
+                                    }}
+                                    disabled={!canClick}
+                                >
+                                    <Icon name={orgType.icon} size={14} className={canClick ? 'text-amber-400' : 'text-gray-600'} />
+                                    <span>{isUnlocked ? buttonText : '未解锁'}</span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {/* 玩家组织列表 */}
+                {playerOrgs.length > 0 ? (
+                    <div className="p-3 bg-gray-900/60 rounded-lg border border-gray-700/50">
+                        <h4 className="text-sm font-bold text-white mb-2">我的组织</h4>
+                        <div className="space-y-2">
+                            {playerOrgs.map(org => {
+                                const orgType = ORG_TYPES.find(t => t.type === org.type);
+                                return (
+                                    <div key={org.id} className="flex items-center justify-between bg-gray-800 rounded px-3 py-2 border border-gray-700">
+                                        <div className="flex items-center gap-2">
+                                            <Icon name={orgType?.icon || 'Users'} size={14} className="text-blue-400" />
+                                            <span className="text-sm text-gray-200">{org.name}</span>
+                                        </div>
+                                        <span className="text-xs text-gray-500">{org.members?.length || 0} 成员</span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                ) : (
+                    <div className="text-center text-gray-500 text-xs py-4">
+                        你尚未建立任何国际组织
+                    </div>
+                )}
+            </div>
+        );
+    };
+
     return (
         <div className="space-y-2 font-body">
             {/* 精简的统计信息 - 仅在桌面端显示 */}
@@ -500,97 +583,151 @@ const DiplomacyTabComponent = ({
                 />
             </div>
 
-            {/* Mobile Trade Routes Button - Only visible on mobile */}
-            <div className="md:hidden flex items-center justify-between gap-2 bg-gray-800/60 px-3 py-2 rounded-lg border border-gray-700 text-xs">
-                <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-1">
-                        <span className="text-gray-400">派驻:</span>
-                        <span className={`font-semibold ${assignedMerchants > 0 ? 'text-amber-300' : 'text-gray-500'}`}>
-                            {assignedMerchants}/{merchantCount}
-                        </span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                        <span className="text-gray-400">剩余:</span>
-                        <span className="text-green-300 font-semibold">{remainingMerchants}</span>
-                    </div>
-                </div>
-
-                <button
-                    onClick={() => setShowTradeRoutesModal(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-xs rounded shadow-sm border border-amber-400/50 transition-all active:scale-95"
-                >
-                    <Icon name="Users" size={14} />
-                    <span className="font-bold">派驻商人</span>
-                </button>
+            {/* Mobile Tab Navigation */}
+            <div className="md:hidden flex items-center justify-between bg-gray-900/90 p-1 rounded-lg mb-3 border border-gray-700/50 sticky top-0 z-20 backdrop-blur-md shadow-lg">
+                {[
+                    { id: 'nations', label: '列国', icon: 'Flag' },
+                    { id: 'world', label: '局势', icon: 'Globe' },
+                    { id: 'organizations', label: '组织', icon: 'Users' },
+                    { id: 'migration', label: '移民', icon: 'Footprints' },
+                ].map(tab => (
+                    <button
+                        key={tab.id}
+                        onClick={() => setMobileTab(tab.id)}
+                        className={`flex-1 flex flex-col items-center justify-center py-1.5 rounded-md transition-all duration-200 ${mobileTab === tab.id
+                            ? 'bg-gray-700 text-amber-400 shadow-md'
+                            : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'
+                            }`}
+                    >
+                        <Icon name={tab.icon} size={16} className="mb-0.5" />
+                        <span className="text-[10px] font-bold">{tab.label}</span>
+                    </button>
+                ))}
             </div>
 
-            <div className="md:hidden grid grid-cols-1 gap-2">
-                {visibleNations.map((nation) => {
-                    const relation = relationInfo(nation.relation || 0, nation.alliedWithPlayer === true);
-                    const militaryEstimate = getEstimatedMilitaryStrength(nation, epoch, daysElapsed);
-                    const compactMilitaryLabel = militaryEstimate.label === '情报不足'
-                        ? '情报不足'
-                        : militaryEstimate.label === '未知'
-                            ? '??'
-                            : militaryEstimate.label;
-                    return (
-                        <button
-                            key={nation.id}
-                            onClick={() => {
-                                setSelectedNationId(nation.id);
-                                setShowNationModal(true);
-                            }}
-                            className="w-full rounded-xl border border-ancient-gold/20 bg-gray-900/60 p-3 text-left transition-all hover:border-ancient-gold/40"
-                        >
-                            {/* 第一行：国家名称和关系标签 */}
-                            <div className="flex items-center gap-2 mb-2">
-                                <Icon name="Flag" size={16} className={nation.color || 'text-gray-300'} />
-                                <span className="text-sm font-semibold text-white flex-1">{nation.name || '未知国家'}</span>
-                                <span className={`px-1.5 py-0.5 rounded text-[10px] flex-shrink-0 ${relation.bg} ${relation.color} font-epic`}>
-                                    {relation.label}
-                                </span>
-                                {nation.vassalOf === 'player' && (
-                                    <span className="px-1.5 py-0.5 rounded text-[10px] bg-purple-900 text-purple-200 font-epic flex-shrink-0">
-                                        {VASSAL_TYPE_LABELS[nation.vassalType] || '附庸'}
+            {/* Mobile Content Area */}
+            <div className="md:hidden">
+                {mobileTab === 'nations' && (
+                    <div className="space-y-2">
+                        {/* Mobile Trade Routes Button */}
+                        <div className="flex items-center justify-between gap-2 bg-gray-800/60 px-3 py-2 rounded-lg border border-gray-700 text-xs">
+                            <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-1">
+                                    <span className="text-gray-400">派驻:</span>
+                                    <span className={`font-semibold ${assignedMerchants > 0 ? 'text-amber-300' : 'text-gray-500'}`}>
+                                        {assignedMerchants}/{merchantCount}
                                     </span>
-                                )}
-                                {nation.isRebelNation && (
-                                    <span className="px-1.5 py-0.5 rounded text-[10px] bg-red-900 text-red-100 font-epic flex-shrink-0">
-                                        叛乱
-                                    </span>
-                                )}
-                                <Icon
-                                    name={(nation.isAtWar === true) ? 'Swords' : 'ShieldCheck'}
-                                    size={14}
-                                    className={(nation.isAtWar === true) ? 'text-red-400 flex-shrink-0' : 'text-green-400 flex-shrink-0'}
-                                />
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <span className="text-gray-400">剩余:</span>
+                                    <span className="text-green-300 font-semibold">{remainingMerchants}</span>
+                                </div>
                             </div>
-                            {/* 第二行：数值统计 */}
-                            <div className="flex items-center justify-start gap-4 text-[11px] text-gray-200 font-body">
-                                <span className="flex items-center gap-1">
-                                    <Icon name="Users" size={12} className="text-blue-300" />
-                                    <span className="font-mono text-blue-100 font-semibold font-epic">
-                                        {formatStatValue(nation?.population, '')}
-                                    </span>
-                                </span>
-                                <span className="flex items-center gap-1">
-                                    <Icon name="Coins" size={12} className="text-amber-300" />
-                                    <span className="font-mono text-amber-100 font-semibold font-epic">
-                                        {formatStatValue(nation?.wealth, '')}
-                                    </span>
-                                </span>
-                                <span className="flex items-center gap-1">
-                                    <Icon name="Swords" size={12} className="text-red-300" />
-                                    <span className={`font-mono font-semibold font-epic ${militaryEstimate.colorClass}`}>
-                                        {compactMilitaryLabel}
-                                    </span>
-                                </span>
-                            </div>
-                        </button>
-                    );
-                })}
-                {visibleNations.length === 0 && (
-                    <div className="p-3 text-xs text-gray-400 font-body">当前时代暂无可接触的国家。</div>
+
+                            <button
+                                onClick={() => setShowTradeRoutesModal(true)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-xs rounded shadow-sm border border-amber-400/50 transition-all active:scale-95"
+                            >
+                                <Icon name="Users" size={14} />
+                                <span className="font-bold">派驻商人</span>
+                            </button>
+                        </div>
+
+                        {/* Nations List */}
+                        <div className="grid grid-cols-1 gap-2 pb-20">
+                            {visibleNations.map((nation) => {
+                                const relation = relationInfo(nation.relation || 0, nation.alliedWithPlayer === true);
+                                const militaryEstimate = getEstimatedMilitaryStrength(nation, epoch, daysElapsed);
+                                const compactMilitaryLabel = militaryEstimate.label === '情报不足'
+                                    ? '情报不足'
+                                    : militaryEstimate.label === '未知'
+                                        ? '??'
+                                        : militaryEstimate.label;
+                                return (
+                                    <button
+                                        key={nation.id}
+                                        onClick={() => {
+                                            setSelectedNationId(nation.id);
+                                            setShowNationModal(true);
+                                        }}
+                                        className="w-full rounded-xl border border-ancient-gold/20 bg-gray-900/60 p-3 text-left transition-all hover:border-ancient-gold/40 shadow-sm active:bg-gray-800"
+                                    >
+                                        {/* 第一行：国家名称和关系标签 */}
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <Icon name="Flag" size={16} className={nation.color || 'text-gray-300'} />
+                                            <span className="text-sm font-semibold text-white flex-1">{nation.name || '未知国家'}</span>
+                                            <span className={`px-1.5 py-0.5 rounded text-[10px] flex-shrink-0 ${relation.bg} ${relation.color} font-epic`}>
+                                                {relation.label}
+                                            </span>
+                                            {nation.vassalOf === 'player' && (
+                                                <span className="px-1.5 py-0.5 rounded text-[10px] bg-purple-900 text-purple-200 font-epic flex-shrink-0">
+                                                    {VASSAL_TYPE_LABELS[nation.vassalType] || '附庸'}
+                                                </span>
+                                            )}
+                                            {nation.isRebelNation && (
+                                                <span className="px-1.5 py-0.5 rounded text-[10px] bg-red-900 text-red-100 font-epic flex-shrink-0">
+                                                    叛乱
+                                                </span>
+                                            )}
+                                            <Icon
+                                                name={(nation.isAtWar === true) ? 'Swords' : 'ShieldCheck'}
+                                                size={14}
+                                                className={(nation.isAtWar === true) ? 'text-red-400 flex-shrink-0' : 'text-green-400 flex-shrink-0'}
+                                            />
+                                        </div>
+                                        {/* 第二行：数值统计 */}
+                                        <div className="flex items-center justify-start gap-4 text-[11px] text-gray-200 font-body">
+                                            <span className="flex items-center gap-1">
+                                                <Icon name="Users" size={12} className="text-blue-300" />
+                                                <span className="font-mono text-blue-100 font-semibold font-epic">
+                                                    {formatStatValue(nation?.population, '')}
+                                                </span>
+                                            </span>
+                                            <span className="flex items-center gap-1">
+                                                <Icon name="Coins" size={12} className="text-amber-300" />
+                                                <span className="font-mono text-amber-100 font-semibold font-epic">
+                                                    {formatStatValue(nation?.wealth, '')}
+                                                </span>
+                                            </span>
+                                            <span className="flex items-center gap-1">
+                                                <Icon name="Swords" size={12} className="text-red-300" />
+                                                <span className={`font-mono font-semibold font-epic ${militaryEstimate.colorClass}`}>
+                                                    {compactMilitaryLabel}
+                                                </span>
+                                            </span>
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                            {visibleNations.length === 0 && (
+                                <div className="p-3 text-xs text-gray-400 font-body text-center">当前时代暂无可接触的国家。</div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {mobileTab === 'world' && (
+                    <div className="pb-20">
+                        <RebellionPanel
+                            nations={visibleNations}
+                            onIntervene={(nationId, action) => onDiplomaticAction(nationId, 'foreign_intervention', { interventionType: action })}
+                            playerResources={resources}
+                        />
+                    </div>
+                )}
+
+                {mobileTab === 'organizations' && renderMobileOrganizations()}
+
+                {mobileTab === 'migration' && (
+                    <div className="pb-20">
+                        <MigrationPanel
+                            currentPolicy={gameState.borderPolicy}
+                            onPolicyChange={(policy) => onDiplomaticAction('player', 'set_border_policy', { policy })}
+                            migrationStats={gameState.migrationStats}
+                            recentFlows={gameState.recentMigrationFlows}
+                            population={population}
+                        />
+                    </div>
                 )}
             </div>
 
@@ -1623,7 +1760,7 @@ const DiplomacyTabComponent = ({
                     <p className="text-sm text-gray-300 font-body mb-3">
                         选择要离间的目标国家。挑拨成功后，{selectedNation?.name} 与目标国家的关系将会恶化。
                     </p>
-                    <div className="max-h-60 overflow-y-auto space-y-1">
+                    <div className="max-h-[50vh] overflow-y-auto space-y-1 scrollbar-thin scrollbar-thumb-gray-600">
                         {provokeTargetNations.map(nation => {
                             const nationRelation = relationInfo(nation.relation || 0, nation.alliedWithPlayer === true);
                             const foreignRelation = selectedNation?.foreignRelations?.[nation.id] ?? 50;
@@ -1725,7 +1862,7 @@ const DiplomacyTabComponent = ({
                     );
                 })()}
             >
-                <div className="space-y-3">
+                <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-gray-600">
                     {/* 谈判状态栏 */}
                     <div className="flex items-center justify-between text-xs text-gray-300 font-body">
                         <span>第 {negotiationRound}/{NEGOTIATION_MAX_ROUNDS} 轮</span>
@@ -2015,39 +2152,6 @@ const DiplomacyTabComponent = ({
                                         <span className="flex items-center justify-center gap-1 font-bold text-xs">
                                             <Icon name="Coins" size={12} />
                                             贸易
-                                        </span>
-                                    </button>
-                                    <button
-                                        className={`flex-1 min-w-[60px] py-2 rounded-lg border-2 transition-all ${sheetSection === 'world'
-                                            ? 'bg-red-900/50 border-red-500/50 text-red-100 shadow-metal-sm'
-                                            : 'border-transparent text-ancient-stone hover:text-ancient-parchment'}`}
-                                        onClick={() => setSheetSection('world')}
-                                    >
-                                        <span className="flex items-center justify-center gap-1 font-bold text-xs">
-                                            ⚔️
-                                            局势
-                                        </span>
-                                    </button>
-                                    <button
-                                        className={`flex-1 min-w-[60px] py-2 rounded-lg border-2 transition-all ${sheetSection === 'migration'
-                                            ? 'bg-green-900/50 border-green-500/50 text-green-100 shadow-metal-sm'
-                                            : 'border-transparent text-ancient-stone hover:text-ancient-parchment'}`}
-                                        onClick={() => setSheetSection('migration')}
-                                    >
-                                        <span className="flex items-center justify-center gap-1 font-bold text-xs">
-                                            🌍
-                                            移民
-                                        </span>
-                                    </button>
-                                    <button
-                                        className={`flex-1 min-w-[60px] py-2 rounded-lg border-2 transition-all ${sheetSection === 'organizations'
-                                            ? 'bg-purple-900/50 border-purple-500/50 text-purple-100 shadow-metal-sm'
-                                            : 'border-transparent text-ancient-stone hover:text-ancient-parchment'}`}
-                                        onClick={() => setSheetSection('organizations')}
-                                    >
-                                        <span className="flex items-center justify-center gap-1 font-bold text-xs">
-                                            🏛️
-                                            组织
                                         </span>
                                     </button>
                                 </div>
@@ -2397,7 +2501,7 @@ const DiplomacyTabComponent = ({
                                                                 title={!canInvest ? '需要投资协议或附庸关系' : '管理海外投资'}
                                                             >
                                                                 <Icon name="Factory" size={14} />
-                                                                <span className="text-xs">海外投资</span>
+                                                                <span className="text-xs">{!canInvest ? '需协议' : '海外投资'}</span>
                                                             </button>
                                                         );
                                                     })()}
@@ -2555,196 +2659,6 @@ const DiplomacyTabComponent = ({
                                         </div>
                                     </div>
                                 )}
-
-                                {/* 世界局势 - 叛乱与稳定度 */}
-                                {sheetSection === 'world' && (
-                                    <div className="space-y-3">
-                                        <RebellionPanel
-                                            nations={nations}
-                                            onIntervene={(nationId, interventionType) => {
-                                                onDiplomaticAction(nationId, 'foreign_intervention', { interventionType });
-                                            }}
-                                            playerResources={resources}
-                                        />
-                                    </div>
-                                )}
-
-                                {/* 人口流动 - 移民管理 */}
-                                {sheetSection === 'migration' && (
-                                    <div className="space-y-3">
-                                        <MigrationPanel
-                                            currentPolicy={gameState?.borderPolicy || 'controlled'}
-                                            onPolicyChange={(policy) => {
-                                                // TODO: 实现边境政策变更
-                                                console.log('边境政策变更:', policy);
-                                            }}
-                                            migrationStats={gameState?.migrationStats || {}}
-                                            recentFlows={gameState?.recentMigrationFlows || { inflows: [], outflows: [] }}
-                                            population={population}
-                                        />
-                                        {/* 时代演进效果 */}
-                                        <EraProgressionPanel currentEra={epoch} />
-                                    </div>
-                                )}
-
-                                {/* 国际组织面板 - 移动端 */}
-                                {sheetSection === 'organizations' && (() => {
-                                    const organizations = Array.isArray(diplomacyOrganizations?.organizations)
-                                        ? diplomacyOrganizations.organizations
-                                        : [];
-                                    const playerOrgs = organizations.filter(org =>
-                                        Array.isArray(org?.members) && org.members.includes('player')
-                                    );
-                                    const nationOrgs = organizations.filter(org =>
-                                        Array.isArray(org?.members) && org.members.includes(selectedNation?.id)
-                                    );
-                                    const sharedOrgs = playerOrgs.filter(org =>
-                                        nationOrgs.some(no => no.id === org.id)
-                                    );
-
-                                    const ORG_TYPES = [
-                                        { type: 'military_alliance', name: '军事联盟', icon: 'Shield', era: 3, color: 'red' },
-                                        { type: 'economic_bloc', name: '经济共同体', icon: 'TrendingUp', era: 5, color: 'amber' },
-                                        { type: 'trade_zone', name: '自贸区', icon: 'Globe', era: 5, color: 'cyan' },
-                                    ];
-
-                                    return (
-                                        <div className="space-y-4">
-                                            {/* 组织创建/邀请 */}
-                                            <div className="p-3 glass-ancient rounded-lg border border-ancient-gold/20 shadow-metal-sm">
-                                                <h4 className="text-base font-bold text-ancient-parchment font-decorative flex items-center gap-2 mb-3">
-                                                    <Icon name="Users" size={14} className="text-purple-300" />
-                                                    国际组织
-                                                </h4>
-                                                <p className="text-xs text-gray-400 mb-3 font-body">创建或邀请国家加入组织</p>
-
-                                                <div className="grid grid-cols-3 gap-2 text-sm">
-                                                    {ORG_TYPES.map(orgType => {
-                                                        const isUnlocked = isDiplomacyUnlocked('organizations', orgType.type, epoch);
-                                                        const playerHasOrg = playerOrgs.some(o => o.type === orgType.type);
-                                                        const nationInOrg = nationOrgs.some(o => o.type === orgType.type);
-                                                        const playerOrg = playerOrgs.find(o => o.type === orgType.type);
-                                                        const nationAlreadyInPlayerOrg = playerOrg && Array.isArray(playerOrg.members) && playerOrg.members.includes(selectedNation?.id);
-
-                                                        const blocked = !isUnlocked || selectedNation?.isAtWar;
-
-                                                        let buttonText = '';
-                                                        let action = '';
-                                                        let canClick = !blocked;
-
-                                                        if (!isUnlocked) {
-                                                            buttonText = `🔒${orgType.name.substring(0, 2)}`;
-                                                            canClick = false;
-                                                        } else if (nationAlreadyInPlayerOrg) {
-                                                            buttonText = `移除${orgType.name.substring(0, 2)}`;
-                                                            action = 'leave_org';
-                                                        } else if (playerHasOrg && !nationInOrg) {
-                                                            buttonText = `邀请${orgType.name.substring(0, 2)}`;
-                                                            action = 'join_org';
-                                                        } else if (!playerHasOrg) {
-                                                            buttonText = `创建${orgType.name.substring(0, 2)}`;
-                                                            action = 'create_org';
-                                                        } else {
-                                                            buttonText = orgType.name.substring(0, 2);
-                                                            canClick = false;
-                                                        }
-
-                                                        const colorClasses = {
-                                                            red: canClick ? 'bg-red-700 hover:bg-red-600' : 'bg-gray-600',
-                                                            amber: canClick ? 'bg-amber-700 hover:bg-amber-600' : 'bg-gray-600',
-                                                            cyan: canClick ? 'bg-cyan-700 hover:bg-cyan-600' : 'bg-gray-600',
-                                                        };
-
-                                                        return (
-                                                            <button
-                                                                key={orgType.type}
-                                                                className={`p-3 rounded-lg text-white flex flex-col items-center justify-center gap-1 font-semibold border border-white/10 shadow-metal-sm ${colorClasses[orgType.color]} ${!canClick ? 'cursor-not-allowed opacity-60' : ''}`}
-                                                                onClick={() => {
-                                                                    if (!canClick || !action) return;
-                                                                    onDiplomaticAction(selectedNation.id, action, {
-                                                                        type: orgType.type,
-                                                                        orgId: playerOrg?.id,
-                                                                    });
-                                                                }}
-                                                                disabled={!canClick}
-                                                                title={!isUnlocked
-                                                                    ? `需要${EPOCHS[orgType.era]?.name || `Era ${orgType.era}`}解锁`
-                                                                    : blocked
-                                                                        ? '交战期间无法操作'
-                                                                        : `${buttonText} - ${orgType.name}`
-                                                                }
-                                                            >
-                                                                <Icon name={orgType.icon} size={16} />
-                                                                <span className="text-xs">{buttonText}</span>
-                                                            </button>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </div>
-
-                                            {/* 共同组织 */}
-                                            {sharedOrgs.length > 0 && (
-                                                <div className="p-3 glass-ancient rounded-lg border border-purple-500/30 shadow-metal-sm">
-                                                    <h4 className="text-sm font-bold text-purple-200 font-decorative flex items-center gap-2 mb-2">
-                                                        <Icon name="Link" size={12} className="text-purple-300" />
-                                                        共同成员组织
-                                                    </h4>
-                                                    <div className="space-y-2">
-                                                        {sharedOrgs.map(org => {
-                                                            const orgType = ORG_TYPES.find(t => t.type === org.type);
-                                                            return (
-                                                                <div key={org.id} className="flex items-center justify-between bg-purple-900/20 border border-purple-500/30 rounded-lg px-3 py-2">
-                                                                    <span className="text-sm text-purple-100 flex items-center gap-2">
-                                                                        <Icon name={orgType?.icon || 'Users'} size={14} />
-                                                                        {org.name}
-                                                                    </span>
-                                                                    <span className="text-xs text-gray-400">{org.members?.length || 0}成员</span>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            {/* 玩家已加入的组织 */}
-                                            {playerOrgs.length > 0 && (
-                                                <div className="p-3 glass-ancient rounded-lg border border-ancient-gold/20 shadow-metal-sm">
-                                                    <h4 className="text-sm font-bold text-ancient-parchment font-decorative flex items-center gap-2 mb-2">
-                                                        <Icon name="Building2" size={12} className="text-amber-300" />
-                                                        你的组织
-                                                    </h4>
-                                                    <div className="space-y-2">
-                                                        {playerOrgs.map(org => {
-                                                            const orgType = ORG_TYPES.find(t => t.type === org.type);
-                                                            const hasNation = Array.isArray(org.members) && org.members.includes(selectedNation?.id);
-                                                            return (
-                                                                <div key={org.id} className="flex items-center justify-between bg-gray-800/40 border border-gray-700/60 rounded-lg px-3 py-2">
-                                                                    <span className="text-sm text-gray-200 flex items-center gap-2">
-                                                                        <Icon name={orgType?.icon || 'Users'} size={14} className={hasNation ? 'text-green-400' : 'text-gray-400'} />
-                                                                        {org.name}
-                                                                    </span>
-                                                                    <span className="text-xs text-gray-400">
-                                                                        {hasNation && <span className="text-green-400 mr-1">✓ 含此国</span>}
-                                                                        {org.members?.length || 0}国
-                                                                    </span>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            {/* 无组织提示 */}
-                                            {playerOrgs.length === 0 && (
-                                                <div className="p-4 text-center text-gray-400 text-sm">
-                                                    <Icon name="Info" size={20} className="mx-auto mb-2 text-gray-500" />
-                                                    <p>你尚未创建任何国际组织</p>
-                                                    <p className="text-xs mt-1">使用上方按钮创建组织并邀请国家加入</p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    );
-                                })()}
                             </div>
                         </div>
                     ) : (
