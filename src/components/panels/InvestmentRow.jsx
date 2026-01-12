@@ -178,7 +178,7 @@ export const InvestmentRow = memo(({ group, expandedCard, setExpandedCard, playe
                             <div className="text-orange-400">{group.investments.reduce((s, i) => s + (i.operatingData?.wageCost || 0), 0).toFixed(1)}</div>
                         </div>
                         <div>
-                            <div className="text-gray-500">其他成本</div>
+                            <div className="text-gray-500">原材料成本</div>
                             <div className="text-red-400">{group.investments.reduce((s, i) => s + ((i.operatingData?.inputCost || 0) + (i.operatingData?.transportCost || 0)), 0).toFixed(1)}</div>
                         </div>
                     </div>

@@ -1,4 +1,5 @@
-import { RESOURCES, TREATY_CONFIGS } from '../../config';
+import { RESOURCES, TREATY_CONFIGS, TREATY_VALUES } from '../../config';
+import { calculateTradeStatus } from '../../utils/foreignTrade';
 
 const BASE_CHANCE_BY_TYPE = {
     peace_treaty: 0.45,
@@ -17,6 +18,70 @@ const getResourceGiftValue = (resourceKey, amount) => {
     return Math.max(0, basePrice * amount);
 };
 
+const getResourceDealValue = (resourceKey, amount, nation, daysElapsed = 0) => {
+    if (!resourceKey || !Number.isFinite(amount) || amount <= 0) return 0;
+    const basePrice = RESOURCES[resourceKey]?.basePrice || 0;
+    if (!nation) return Math.max(0, basePrice * amount);
+    const tradeStatus = calculateTradeStatus(resourceKey, nation, daysElapsed);
+    const multiplier = tradeStatus.isShortage ? 1.5 : (tradeStatus.isSurplus ? 0.6 : 1.0);
+    return Math.max(0, basePrice * amount * multiplier);
+};
+
+export const calculateDealScore = ({
+    proposal = {},
+    nation = {},
+    stance = 'normal',
+    daysElapsed = 0,
+    playerPower = 0,
+    targetPower = 0,
+    playerWealth = 0,
+    targetWealth = 0,
+}) => {
+    const type = proposal.type;
+    const relation = nation.relation || 0;
+    const signingGift = Math.max(0, Math.floor(Number(proposal.signingGift) || 0));
+    const resourceKey = proposal.resourceKey || '';
+    const resourceAmount = Math.max(0, Math.floor(Number(proposal.resourceAmount) || 0));
+    const demandSilver = Math.max(0, Math.floor(Number(proposal.demandSilver) || 0));
+    const demandResourceKey = proposal.demandResourceKey || '';
+    const demandResourceAmount = Math.max(0, Math.floor(Number(proposal.demandResourceAmount) || 0));
+    const maintenancePerDay = Math.max(0, Math.floor(Number(proposal.maintenancePerDay) || 0));
+    const durationDays = Math.max(1, Math.floor(Number(proposal.durationDays) || 365));
+
+    const treatyBase = TREATY_VALUES[type] ?? 0;
+    const combinedWealth = Math.max(1000, (playerWealth || 0) + (targetWealth || 0));
+    const wealthScale = Math.max(0.6, Math.min(3.0, combinedWealth / 12000));
+    const treatyValue = treatyBase * wealthScale;
+    const offerResourceValue = getResourceDealValue(resourceKey, resourceAmount, nation, daysElapsed);
+    const demandResourceValue = getResourceDealValue(demandResourceKey, demandResourceAmount, nation, daysElapsed);
+    const maintenanceValue = maintenancePerDay * Math.min(365, durationDays);
+
+    const offerValue = signingGift + offerResourceValue + maintenanceValue;
+    const demandValue = demandSilver + demandResourceValue;
+
+    const relationScore = (relation - 50) * 8;
+    const stanceScore = stance === 'friendly' ? 120 : 0;
+    const powerGap = Math.max(0, (playerPower || 0) - (targetPower || 0));
+    const threatScore = stance === 'threat' && powerGap > 0
+        ? Math.min(600, (powerGap / Math.max(1, targetPower || 1)) * 350)
+        : 0;
+
+    const score = offerValue + relationScore + stanceScore + threatScore - demandValue - treatyValue;
+
+    return {
+        score,
+        breakdown: {
+            offerValue,
+            demandValue,
+            treatyValue,
+            relationScore,
+            stanceScore,
+            threatScore,
+            maintenanceValue,
+        },
+    };
+};
+
 /**
  * 计算谈判接受率（不包含随机）
  */
@@ -25,6 +90,11 @@ export const calculateNegotiationAcceptChance = ({
     nation = {},
     epoch = 0,
     stance = 'normal',
+    daysElapsed = 0,
+    playerPower = 0,
+    targetPower = 0,
+    playerWealth = 0,
+    targetWealth = 0,
 }) => {
     const type = proposal.type;
     const relation = nation.relation || 0;
@@ -54,7 +124,19 @@ export const calculateNegotiationAcceptChance = ({
         ? 0.03
         : (stance === 'threat' && relation < 40 ? 0.06 : 0);
 
-    let acceptChance = base + relationBoost - aggressionPenalty - maintenancePenalty + durationBonus + giftBonus + stanceBonus;
+    const deal = calculateDealScore({
+        proposal,
+        nation,
+        stance,
+        daysElapsed,
+        playerPower,
+        targetPower,
+        playerWealth,
+        targetWealth,
+    });
+    let acceptChance = 0.5 + (deal.score / 2000);
+    acceptChance += base - 0.25;
+    acceptChance += relationBoost - aggressionPenalty - maintenancePenalty + durationBonus + giftBonus + stanceBonus;
 
     if (type === 'open_market' && relation < 55) acceptChance *= 0.4;
     if (type === 'trade_agreement' && relation < 50) acceptChance *= 0.5;
@@ -73,6 +155,8 @@ export const calculateNegotiationAcceptChance = ({
         acceptChance: Math.max(0.02, Math.min(0.95, acceptChance)),
         relationGate,
         minRelation,
+        dealScore: deal.score,
+        dealBreakdown: deal.breakdown,
     };
 };
 

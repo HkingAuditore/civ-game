@@ -68,6 +68,47 @@ const NationList = ({ nations, visibleNations, selectedNationId, onSelectNation,
             </div>
 
             <div className="flex-1 overflow-y-auto p-2 space-y-1.5 scrollbar-thin scrollbar-thumb-ancient-gold/20 hover:scrollbar-thumb-ancient-gold/40 scrollbar-track-ancient-ink/30">
+                {/* Global Overview Item */}
+                <div
+                    onClick={() => onSelectNation(null)}
+                    className={`
+                        relative p-2.5 rounded-lg border cursor-pointer transition-all duration-200 group mb-3
+                        ${selectedNationId === null
+                            ? 'bg-theme-accent/10 border-theme-accent shadow-gold-metal'
+                            : 'bg-theme-surface-trans border-theme-border hover:border-theme-accent hover:bg-theme-surface'}
+                    `}
+                >
+                    <div className="flex items-center gap-2.5">
+                        <div
+                            className={`
+                                w-8 h-8 rounded bg-gray-800 flex items-center justify-center border text-sm shadow-inner
+                                ${selectedNationId === null ? 'border-theme-accent text-theme-accent' : 'border-gray-700 text-theme-text opacity-70'}
+                            `}
+                        >
+                            <Icon name="Globe" size={16} />
+                        </div>
+                        <div className="flex flex-col">
+                            <span
+                                className={`font-bold text-sm leading-tight ${selectedNationId === null
+                                    ? 'text-theme-accent'
+                                    : 'text-theme-text group-hover:text-theme-accent transition-colors'}`}
+                            >
+                                外交概览
+                            </span>
+                            <span className="text-[10px] text-ancient-stone/60">
+                                查看全球局势
+                            </span>
+                        </div>
+                    </div>
+
+                    {selectedNationId === null && (
+                        <div
+                            className="absolute left-0 top-2 bottom-2 w-0.5 bg-theme-accent rounded-r"
+                            style={{ boxShadow: '0 0 8px var(--theme-glow)' }}
+                        />
+                    )}
+                </div>
+
                 {filteredNations.length === 0 ? (
                     <div className="text-center py-8 text-ancient-stone/50 text-sm flex flex-col items-center gap-2">
                         <Icon name="Search" size={24} className="opacity-50" />

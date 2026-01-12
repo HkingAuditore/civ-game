@@ -47,7 +47,23 @@ export const TREATY_CONFIGS = {
     defensive_pact: { baseDuration: 1095, minRelation: 70 },
 };
 
-export const NEGOTIABLE_TREATY_TYPES = Object.keys(TREATY_CONFIGS);
+export const TREATY_VALUES = {
+    peace_treaty: 200,
+    non_aggression: 300,
+    trade_agreement: 500,
+    open_market: 1200,
+    free_trade: 1600,
+    investment_pact: 1400,
+    academic_exchange: 800,
+    defensive_pact: 2000,
+};
+
+export const NEGOTIABLE_TREATY_TYPES = [
+    'trade_agreement',
+    'investment_pact',
+    'open_market',
+    'free_trade',
+];
 export const NEGOTIATION_MAX_ROUNDS = 3;
 
 export const TREATY_TYPE_LABELS = {
@@ -357,10 +373,10 @@ export const AI_ECONOMY_CONFIG = {
 export const TREATY_COSTS = {
     peace_treaty: { signingCostRate: 0.005, dailyMaintenance: 0 },
     non_aggression: { signingCostRate: 0.01, dailyMaintenance: 2 },
-    trade_agreement: { signingCostRate: 0.02, dailyMaintenance: 5 },
-    free_trade: { signingCostRate: 0.03, dailyMaintenance: 10 },
-    investment_pact: { signingCostRate: 0.02, dailyMaintenance: 8 },
-    open_market: { signingCostRate: 0.02, dailyMaintenance: 5 },
+    trade_agreement: { signingCostRate: 0.035, dailyMaintenance: 6 },
+    free_trade: { signingCostRate: 0.05, dailyMaintenance: 12 },
+    investment_pact: { signingCostRate: 0.04, dailyMaintenance: 9 },
+    open_market: { signingCostRate: 0.04, dailyMaintenance: 6 },
     academic_exchange: { signingCostRate: 0.015, dailyMaintenance: 3 },
     defensive_pact: { signingCostRate: 0.05, dailyMaintenance: 15 },
 };
@@ -376,8 +392,11 @@ export const calculateTreatySigningCost = (treatyType, playerWealth, targetWealt
     const config = TREATY_COSTS[treatyType];
     if (!config) return 0;
 
-    const minWealth = Math.min(playerWealth || 0, targetWealth || 0);
-    return Math.floor(minWealth * config.signingCostRate);
+    const player = Math.max(0, playerWealth || 0);
+    const target = Math.max(0, targetWealth || 0);
+    const weightedBase = player * 0.6 + target * 0.4;
+    const scaled = Math.floor(weightedBase * config.signingCostRate);
+    return Math.max(200, scaled);
 };
 
 /**

@@ -206,6 +206,52 @@ export const getTreatyEffectDescriptions = (nation, daysElapsed) => {
 };
 
 /**
+ * 获取单个条约类型的效果描述文本（用于UI预览）
+ * @param {string} treatyType
+ * @returns {Array<string>} 效果描述数组
+ */
+export const getTreatyEffectDescriptionsByType = (treatyType) => {
+    const config = TREATY_EFFECT_CONFIGS[treatyType];
+    if (!config) return [];
+
+    const descriptions = [];
+
+    if (config.tariffMultiplier !== undefined) {
+        if (config.tariffMultiplier === 0) {
+            descriptions.push('关税免除');
+        } else if (config.tariffMultiplier < 1) {
+            const discount = Math.round((1 - config.tariffMultiplier) * 100);
+            descriptions.push(`关税减免 ${discount}%`);
+        }
+    }
+    if (config.extraMerchantSlots === Infinity) {
+        descriptions.push('商人槽位无限制');
+    } else if (typeof config.extraMerchantSlots === 'number' && config.extraMerchantSlots > 0) {
+        descriptions.push(`商人槽位 +${config.extraMerchantSlots}`);
+    }
+    if (config.tradeEfficiencyBonus) {
+        descriptions.push(`贸易利润 +${Math.round(config.tradeEfficiencyBonus * 100)}%`);
+    }
+    if (config.overseasBuildingAccess) {
+        descriptions.push('可建海外设施');
+    }
+    if (config.mutualDefense) {
+        descriptions.push('共同防御');
+    }
+    if (config.relationDecayReduction) {
+        descriptions.push(`关系衰减 -${Math.round(config.relationDecayReduction * 100)}%`);
+    }
+    if (config.techBonus) {
+        descriptions.push(`科技速度 +${Math.round(config.techBonus * 100)}%`);
+    }
+    if (config.priceConvergence) {
+        descriptions.push('市场价格联动');
+    }
+
+    return descriptions;
+};
+
+/**
  * 价格收敛配置
  */
 export const PRICE_CONVERGENCE_CONFIG = {

@@ -17,6 +17,7 @@ import {
     getTreatyDailyMaintenance,
     isDiplomacyUnlocked,
 } from '../../config/diplomacy';
+import { getTreatyEffectDescriptionsByType } from '../../logic/diplomacy/treatyEffects';
 
 // 条约图标和颜色配置
 const TREATY_VISUALS = {
@@ -28,18 +29,6 @@ const TREATY_VISUALS = {
     open_market: { icon: 'Store', color: 'blue', bg: 'bg-blue-900/40', border: 'border-blue-600/50' },
     academic_exchange: { icon: 'BookOpen', color: 'purple', bg: 'bg-purple-900/40', border: 'border-purple-600/50' },
     defensive_pact: { icon: 'ShieldCheck', color: 'red', bg: 'bg-red-900/40', border: 'border-red-600/50' },
-};
-
-// 条约效果描述
-const TREATY_EFFECTS = {
-    peace_treaty: ['双方停止所有战争行为', '战争冷却期30天'],
-    non_aggression: ['双方承诺不主动宣战', '违约将受外交惩罚'],
-    trade_agreement: ['降低贸易关税10%', '增加商人驻留效率'],
-    free_trade: ['取消所有贸易关税', '共享市场价格信息'],
-    investment_pact: ['允许海外投资建筑', '投资收益保护'],
-    open_market: ['开放市场准入', '允许AI商人进驻'],
-    academic_exchange: ['增加科研点数+5%', '可交流科技'],
-    defensive_pact: ['受攻击时自动援助', '共享军事情报'],
 };
 
 /**
@@ -67,7 +56,7 @@ export const TreatyNegotiationModal = memo(({
         const signingCost = calculateTreatySigningCost(treatyType, playerWealth, targetNation.wealth || 1000);
         const dailyMaintenance = getTreatyDailyMaintenance(treatyType);
         const visual = TREATY_VISUALS[treatyType] || TREATY_VISUALS.peace_treaty;
-        const effects = TREATY_EFFECTS[treatyType] || [];
+        const effects = getTreatyEffectDescriptionsByType(treatyType);
 
         // 检查是否已有同类型条约
         const hasExisting = existingTreaties.some(t => t.type === treatyType && (!t.endDay || daysElapsed < t.endDay));
@@ -138,12 +127,16 @@ export const TreatyNegotiationModal = memo(({
                         条约效果
                     </h4>
                     <div className="space-y-1.5">
-                        {treatyDetails.effects.map((effect, idx) => (
-                            <div key={idx} className="flex items-center gap-2 text-sm text-gray-300">
-                                <Icon name="Check" size={12} className="text-green-400" />
-                                {effect}
-                            </div>
-                        ))}
+                        {treatyDetails.effects.length > 0 ? (
+                            treatyDetails.effects.map((effect, idx) => (
+                                <div key={idx} className="flex items-center gap-2 text-sm text-gray-300">
+                                    <Icon name="Check" size={12} className="text-green-400" />
+                                    {effect}
+                                </div>
+                            ))
+                        ) : (
+                            <div className="text-xs text-gray-500">暂无明确经济效果</div>
+                        )}
                     </div>
                 </div>
 

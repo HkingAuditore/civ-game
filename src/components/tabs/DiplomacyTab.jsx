@@ -8,8 +8,10 @@ import { ForeignInvestmentPanel } from '../panels/ForeignInvestmentPanel';
 import DiplomacyLayout from '../diplomacy/DiplomacyLayout';
 import NegotiationDialog from '../diplomacy/NegotiationDialog';
 import ProvokeDialog from '../diplomacy/ProvokeDialog';
+import OrganizationDetailsModal from '../modals/OrganizationDetailsModal';
 import {
     DIPLOMACY_ERA_UNLOCK,
+    NEGOTIABLE_TREATY_TYPES,
     RESOURCES,
     getTreatyDuration,
     isDiplomacyUnlocked,
@@ -18,17 +20,6 @@ import { calculateNegotiationAcceptChance } from '../../logic/diplomacy/negotiat
 
 // Constants
 const NEGOTIATION_MAX_ROUNDS = 3;
-const NEGOTIABLE_TREATY_TYPES = [
-    'peace_treaty',
-    'non_aggression',
-    'trade_agreement',
-    'open_market',
-    'free_trade',
-    'investment_pact',
-    'academic_exchange',
-    'defensive_pact',
-];
-
 const relationInfo = (relation = 0, isAllied = false) => {
     if (isAllied) return { label: '盟友', color: 'text-green-300', bg: 'bg-green-900/20' };
     if (relation >= 80) return { label: '亲密', color: 'text-emerald-300', bg: 'bg-emerald-900/20' };
@@ -76,6 +67,10 @@ const DiplomacyTabComponent = ({
     const [showOverseasOverview, setShowOverseasOverview] = useState(false);
     const [showForeignInvestmentPanel, setShowForeignInvestmentPanel] = useState(false);
 
+    // Organization Modal State
+    const [showOrganizationModal, setShowOrganizationModal] = useState(false);
+    const [selectedOrganization, setSelectedOrganization] = useState(null);
+
     // Negotiation State
     const [showNegotiationModal, setShowNegotiationModal] = useState(false);
     const [negotiationRound, setNegotiationRound] = useState(1);
@@ -87,6 +82,9 @@ const DiplomacyTabComponent = ({
         signingGift: 0,
         resourceKey: '',
         resourceAmount: 0,
+        demandSilver: 0,
+        demandResourceKey: '',
+        demandResourceAmount: 0,
         stance: 'normal',
     });
 
@@ -141,6 +139,9 @@ const DiplomacyTabComponent = ({
         signingGift: 0,
         resourceKey: '',
         resourceAmount: 0,
+        demandSilver: 0,
+        demandResourceKey: '',
+        demandResourceAmount: 0,
         stance: 'normal',
     });
 
@@ -159,8 +160,11 @@ const DiplomacyTabComponent = ({
             nation: selectedNation,
             epoch,
             stance: negotiationDraft.stance,
+            daysElapsed,
+            playerWealth: resources?.silver || 0,
+            targetWealth: selectedNation?.wealth || 0,
         });
-    }, [selectedNation, negotiationDraft, epoch]);
+    }, [selectedNation, negotiationDraft, epoch, daysElapsed, resources]);
 
     const handleNegotiationResult = (result) => {
         if (!result) return;
@@ -273,6 +277,12 @@ const DiplomacyTabComponent = ({
                     setInvestmentPanelNation(nation);
                     setShowOverseasInvestmentPanel(true);
                 }}
+
+                // Organization Actions
+                onViewOrganization={(org) => {
+                    setSelectedOrganization(org);
+                    setShowOrganizationModal(true);
+                }}
             />
 
             {/* --- Modals & Dialogs --- */}
@@ -289,7 +299,7 @@ const DiplomacyTabComponent = ({
                 submitNegotiation={submitNegotiation}
                 isDiplomacyUnlocked={isDiplomacyUnlocked}
                 epoch={epoch}
-                tradableResources={Object.entries(RESOURCES).filter(([key, res]) => res.tradeable)}
+                tradableResources={Object.entries(RESOURCES).filter(([key, res]) => res?.type !== 'virtual' && key !== 'silver')}
             />
 
             <ProvokeDialog
@@ -441,6 +451,28 @@ const DiplomacyTabComponent = ({
                 overseasInvestments={overseasInvestments}
                 nations={visibleNations}
                 market={market}
+            />
+
+            <OrganizationDetailsModal
+                isOpen={showOrganizationModal}
+                onClose={() => {
+                    setShowOrganizationModal(false);
+                    setSelectedOrganization(null);
+                }}
+                organization={selectedOrganization}
+                nations={visibleNations}
+                playerNationId="player"
+                isDiplomacyUnlocked={(type, id) => isDiplomacyUnlocked(type, id, epoch)}
+                onJoin={(orgId) => {
+                    if (onDiplomaticAction) {
+                        onDiplomaticAction('player', 'join_org', { orgId });
+                    }
+                }}
+                onLeave={(orgId) => {
+                    if (onDiplomaticAction) {
+                        onDiplomaticAction('player', 'leave_org', { orgId });
+                    }
+                }}
             />
         </div>
     );

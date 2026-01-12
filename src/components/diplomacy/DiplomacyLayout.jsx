@@ -72,7 +72,10 @@ const DiplomacyLayout = ({
                     nations={nations}
                     visibleNations={visibleNations}
                     selectedNationId={selectedNationId}
-                    onSelectNation={onSelectNation}
+                    onSelectNation={(id) => {
+                        onSelectNation(id);
+                        setIsMobileDetailOpen(true);
+                    }}
                     relationInfo={relationInfo}
                 />
             </div>
