@@ -27,7 +27,7 @@ export const OVERSEAS_INVESTMENT_CONFIGS = {
 
     // 运营配置 (灵活配置)
     config: {
-        transportCostRate: 0.15,       // 跨国运输成本 (15%)
+        transportCostRate: 0.0,       // 跨国运输成本 (0%)
     },
 
     // 投资收益基础配置
