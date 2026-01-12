@@ -118,6 +118,8 @@ export const useGameActions = (gameState, addLog) => {
         setOverseasInvestments,
         foreignInvestments,
         setForeignInvestments,
+        foreignInvestmentPolicy,
+        setForeignInvestmentPolicy,
         setClassWealth,
         jobsAvailable,
         eventEffectSettings,
@@ -2195,7 +2197,7 @@ export const useGameActions = (gameState, addLog) => {
      * @param {string} action - 外交行动类型
      * @param {Object} payload - 附加参数
      */
-    
+
     const handleTradeRouteAction = (nationId, action, payload = {}) => {
         if (typeof setTradeRoutes !== 'function') return;
         const resourceKey = payload.resourceKey || payload.resource;
@@ -2274,21 +2276,16 @@ export const useGameActions = (gameState, addLog) => {
         }
     };
 
-const handleDiplomaticAction = (nationId, action, payload = {}) => {
+    const handleDiplomaticAction = (nationId, action, payload = {}) => {
         const targetNation = nations.find(n => n.id === nationId);
-        if (!targetNation) return;
+        if (!targetNation && nationId !== 'player') return;
         const clampRelation = (value) => Math.max(0, Math.min(100, value));
 
         // 外交动作冷却时间配置（天数）        
         const DIPLOMATIC_COOLDOWNS = {
-            gift: 30,           // ???30???
-            demand: 30,         // ???30???
-            provoke: 30,        // ???30???
-            propose_alliance: 30, // ?????30???
-            create_org: 180,    // ?????180???
-            join_org: 90,       // ???????90???
-            leave_org: 60,      // ???????60???
-            break_alliance: 0,  // ????????????????
+            gift: 30,           // 30天
+            demand: 30,         // 30天
+            provoke: 30,        // 30天
             negotiate_treaty: 120, // Multi-round negotiation cooldown
         };
 
@@ -2629,6 +2626,82 @@ const handleDiplomaticAction = (nationId, action, payload = {}) => {
                 break;
             }
 
+            case 'insult': {
+                // 羞辱：降低关系，可能引发战争或获得声望（暂时简化为降低关系）
+                const relationDamage = Math.floor(15 + Math.random() * 15);
+                setNations(prev => prev.map(n =>
+                    n.id === nationId
+                        ? {
+                            ...n,
+                            relation: clampRelation((n.relation || 0) - relationDamage),
+                            lastDiplomaticActionDay: {
+                                ...(n.lastDiplomaticActionDay || {}),
+                                insult: daysElapsed,
+                            },
+                        }
+                        : n
+                ));
+
+                // 小概率触发宣战
+                if (Math.random() < 0.05 && (targetNation.relation || 50) < 20) {
+                    // 对方宣战逻辑可以在这里扩展，目前仅提示
+                    addLog(`🤬 你的羞辱彻底激怒了 ${targetNation.name}，局势紧张！`);
+                } else {
+                    addLog(`🤬 你羞辱了 ${targetNation.name}，双方关系恶化。`);
+                }
+                break;
+            }
+
+            case 'propose_alliance': {
+                // 结盟请求
+                if (targetNation.isAtWar) {
+                    addLog(`${targetNation.name} 处于战争中，无法结盟。`);
+                    return;
+                }
+                if (targetNation.alliedWithPlayer) {
+                    addLog(`你与 ${targetNation.name} 已经是盟友了。`);
+                    return;
+                }
+
+                const relation = targetNation.relation || 0;
+                const minRelation = 70; // 结盟门槛
+
+                if (relation < minRelation) {
+                    addLog(`${targetNation.name} 拒绝了你的结盟请求（关系需达到 ${minRelation}）。`);
+
+                    // 记录冷却
+                    setNations(prev => prev.map(n =>
+                        n.id === nationId
+                            ? {
+                                ...n,
+                                lastDiplomaticActionDay: {
+                                    ...(n.lastDiplomaticActionDay || {}),
+                                    propose_alliance: daysElapsed
+                                }
+                            }
+                            : n
+                    ));
+                    return;
+                }
+
+                // 成功结盟
+                setNations(prev => prev.map(n =>
+                    n.id === nationId
+                        ? {
+                            ...n,
+                            alliedWithPlayer: true,
+                            relation: clampRelation(n.relation + 10),
+                            lastDiplomaticActionDay: {
+                                ...(n.lastDiplomaticActionDay || {}),
+                                propose_alliance: daysElapsed
+                            }
+                        }
+                        : n
+                ));
+                addLog(`🤝 祝贺！你与 ${targetNation.name} 正式结为盟友。`);
+                break;
+            }
+
             case 'declare_war': {
                 // 检查和平协议是否仍然有效
                 const isPeaceActive = targetNation.peaceTreatyUntil && daysElapsed < targetNation.peaceTreatyUntil;
@@ -2677,7 +2750,7 @@ const handleDiplomaticAction = (nationId, action, payload = {}) => {
                     };
                 }
 
-                  // 对目标国家宣战
+                // 对目标国家宣战
                 setNations(prev => {
                     let updated = prev.map(n => {
                         if (n.id === nationId) {
@@ -2686,7 +2759,7 @@ const handleDiplomaticAction = (nationId, action, payload = {}) => {
                             const nextTreaties = Array.isArray(n.treaties)
                                 ? n.treaties.filter(t => !PEACE_TREATY_TYPES.includes(t.type))
                                 : n.treaties;
-                            
+
                             const updates = {
                                 ...n,
                                 relation: Math.max(0, (n.relation || 0) - (breachPenalty?.relationPenalty || 0)),
@@ -2701,7 +2774,7 @@ const handleDiplomaticAction = (nationId, action, payload = {}) => {
                                 lootReserve: initialLootReserve,
                                 lastMilitaryActionDay: undefined,
                             };
-                            
+
                             // 违约后果：贸易中断
                             if (breachConsequences) {
                                 updates.tradeBlockadeUntil = daysElapsed + breachConsequences.tradeBlockadeDays;
@@ -2711,10 +2784,10 @@ const handleDiplomaticAction = (nationId, action, payload = {}) => {
                                     breachConsequences.breachRecord,
                                 ];
                             }
-                            
+
                             return updates;
                         }
-                        
+
                         // 违约后果：声誉惩罚（所有其他国家关系下降）
                         if (breachConsequences && n.id !== nationId) {
                             return {
@@ -2722,7 +2795,7 @@ const handleDiplomaticAction = (nationId, action, payload = {}) => {
                                 relation: Math.max(0, (n.relation || 50) - breachConsequences.reputationPenalty),
                             };
                         }
-                        
+
                         return n;
                     });
 
@@ -2749,11 +2822,11 @@ const handleDiplomaticAction = (nationId, action, payload = {}) => {
                     }
 
                     return updated;
-                  });
+                });
 
                 // 违约后果：冻结海外投资
                 if (breachConsequences && setOverseasInvestments) {
-                    setOverseasInvestments(prev => 
+                    setOverseasInvestments(prev =>
                         (prev || []).map(inv => {
                             if (inv.nationId === nationId) {
                                 return {
@@ -2795,34 +2868,34 @@ const handleDiplomaticAction = (nationId, action, payload = {}) => {
             // ========================================================================
             case 'foreign_intervention': {
                 const { interventionType } = options || {};
-                
+
                 if (!interventionType) {
                     addLog('请选择干预类型。');
                     return;
                 }
-                
+
                 const interventionOption = INTERVENTION_OPTIONS[interventionType];
                 if (!interventionOption) {
                     addLog('无效的干预类型。');
                     return;
                 }
-                
+
                 // 检查冷却
                 const lastInterventionDay = targetNation.lastDiplomaticActionDay?.intervention || 0;
                 if (daysElapsed - lastInterventionDay < 30) {
                     addLog(`最近已对 ${targetNation.name} 进行过干预，请等待 ${30 - (daysElapsed - lastInterventionDay)} 天。`);
                     return;
                 }
-                
+
                 // 检查前置条件
                 if (interventionOption.requiresCivilWar && !targetNation.isInCivilWar) {
                     addLog(`${targetNation.name} 当前没有内战，无法进行军事干预。`);
                     return;
                 }
-                
+
                 // 执行干预
                 const result = executeIntervention(targetNation, interventionType, resources);
-                
+
                 if (!result.success) {
                     const reasons = {
                         invalid_intervention: '无效的干预类型',
@@ -2833,12 +2906,12 @@ const handleDiplomaticAction = (nationId, action, payload = {}) => {
                     addLog(`干预失败：${reasons[result.reason] || result.reason}`);
                     return;
                 }
-                
+
                 // 扣除资源
                 if (result.cost.silver) {
                     setResources(prev => ({ ...prev, silver: Math.max(0, (prev.silver || 0) - result.cost.silver) }));
                 }
-                
+
                 // 更新目标国家
                 setNations(prev => prev.map(n => {
                     if (n.id !== nationId) return n;
@@ -2851,7 +2924,7 @@ const handleDiplomaticAction = (nationId, action, payload = {}) => {
                         },
                     };
                 }));
-                
+
                 // 根据干预类型生成不同的日志
                 const interventionLogs = {
                     support_government: `🏛️ 你决定支持 ${targetNation.name} 的现政权，提供了援助。关系提升。`,
@@ -3112,16 +3185,16 @@ const handleDiplomaticAction = (nationId, action, payload = {}) => {
                         },
                     };
 
-                      // Minimal effects (still asymmetric in data model: stored on AI nation; it affects your interaction with them)
-                      if (OPEN_MARKET_TREATY_TYPES.includes(type)) {
-                          updates.openMarketUntil = Math.max(n.openMarketUntil || 0, daysElapsed + durationDays);
-                      }
-                      if (PEACE_TREATY_TYPES.includes(type)) {
-                          updates.peaceTreatyUntil = Math.max(n.peaceTreatyUntil || 0, daysElapsed + durationDays);
-                      }
-                      if (type === 'defensive_pact') {
-                          updates.alliedWithPlayer = true;
-                      }
+                    // Minimal effects (still asymmetric in data model: stored on AI nation; it affects your interaction with them)
+                    if (OPEN_MARKET_TREATY_TYPES.includes(type)) {
+                        updates.openMarketUntil = Math.max(n.openMarketUntil || 0, daysElapsed + durationDays);
+                    }
+                    if (PEACE_TREATY_TYPES.includes(type)) {
+                        updates.peaceTreatyUntil = Math.max(n.peaceTreatyUntil || 0, daysElapsed + durationDays);
+                    }
+                    if (type === 'defensive_pact') {
+                        updates.alliedWithPlayer = true;
+                    }
 
                     return { ...n, ...updates };
                 }));
@@ -3316,14 +3389,16 @@ const handleDiplomaticAction = (nationId, action, payload = {}) => {
                 }
 
                 const counterProposal = !forceAccept && round < maxRounds
-                    ? generateCounterProposal({ proposal: {
-                        type,
-                        durationDays,
-                        maintenancePerDay,
-                        signingGift,
-                        resourceKey,
-                        resourceAmount,
-                    }, nation: targetNation, round })
+                    ? generateCounterProposal({
+                        proposal: {
+                            type,
+                            durationDays,
+                            maintenancePerDay,
+                            signingGift,
+                            resourceKey,
+                            resourceAmount,
+                        }, nation: targetNation, round
+                    })
                     : null;
 
                 if (counterProposal) {
@@ -3354,6 +3429,10 @@ const handleDiplomaticAction = (nationId, action, payload = {}) => {
                 if (onResult) onResult({ status: 'rejected', acceptChance: evaluation.acceptChance });
                 break;
             }
+
+
+
+
             case 'create_org': {
                 const type = payload?.type;
                 if (!type) {
@@ -3364,7 +3443,11 @@ const handleDiplomaticAction = (nationId, action, payload = {}) => {
                     addLog('该组织尚未解锁。');
                     return;
                 }
-                if (targetNation.isAtWar) {
+
+                // Support solo creation (player starts it) OR joint creation (with targetNation)
+                const isSolo = nationId === 'player';
+
+                if (!isSolo && targetNation.isAtWar) {
                     addLog(`无法创建组织：${targetNation.name} 正与你交战。`);
                     return;
                 }
@@ -3375,40 +3458,53 @@ const handleDiplomaticAction = (nationId, action, payload = {}) => {
                     return;
                 }
 
-                const relation = targetNation.relation || 0;
-                const minRelation = type === 'trade_zone' ? 65 : 60;
-                if (relation < minRelation) {
-                    addLog(`关系不足（需要${minRelation}），无法与 ${targetNation.name} 共建组织。`);
-                    return;
+                // If not solo, check relation
+                if (!isSolo) {
+                    const relation = targetNation.relation || 0;
+                    const minRelation = type === 'trade_zone' ? 65 : 60;
+                    if (relation < minRelation) {
+                        addLog(`关系不足（需要${minRelation}），无法与 ${targetNation.name} 共建组织。`);
+                        return;
+                    }
                 }
 
-                const name = payload?.name
-                    || (type === 'economic_bloc' ? `${targetNation.name}?????` : `${targetNation.name}???`);
+                const orgName = payload?.name || (
+                    isSolo
+                        ? (type === 'military_alliance' ? 'New Alliance' : 'New Bloc')
+                        : (type === 'economic_bloc' ? `${targetNation.name} Co-Prosperity` : `${targetNation.name} Pact`)
+                );
+
+                const initialMembers = isSolo ? ['player'] : ['player', nationId];
+
                 const org = {
                     id: `org_${type}_${Date.now()}`,
                     type,
-                    name,
+                    name: orgName,
                     leaderId: 'player',
-                    members: ['player', nationId],
+                    members: initialMembers,
                     createdDay: daysElapsed,
                 };
 
                 updateOrganizationState(prev => [...prev, org]);
-                setNations(prev => prev.map(n => {
-                    if (n.id !== nationId) return n;
-                    const memberships = Array.isArray(n.organizationMemberships) ? n.organizationMemberships : [];
-                    return {
-                        ...n,
-                        relation: clampRelation((n.relation || 0) + 5),
-                        organizationMemberships: memberships.includes(org.id) ? memberships : [...memberships, org.id],
-                        lastDiplomaticActionDay: {
-                            ...(n.lastDiplomaticActionDay || {}),
-                            create_org: daysElapsed,
-                        },
-                    };
-                }));
 
-                addLog(`你与 ${targetNation.name} 建立了新的组织：${name}。`);
+                if (!isSolo) {
+                    setNations(prev => prev.map(n => {
+                        if (n.id !== nationId) return n;
+                        const memberships = Array.isArray(n.organizationMemberships) ? n.organizationMemberships : [];
+                        return {
+                            ...n,
+                            relation: clampRelation((n.relation || 0) + 5),
+                            organizationMemberships: memberships.includes(org.id) ? memberships : [...memberships, org.id],
+                            lastDiplomaticActionDay: {
+                                ...(n.lastDiplomaticActionDay || {}),
+                                create_org: daysElapsed,
+                            },
+                        };
+                    }));
+                    addLog(`你与 ${targetNation.name} 建立了新的组织：${orgName}。`);
+                } else {
+                    addLog(`你建立了新的组织：${orgName}。`);
+                }
                 break;
             }
             case 'join_org': {
@@ -3511,7 +3607,7 @@ const handleDiplomaticAction = (nationId, action, payload = {}) => {
                     addLog('无法建立附庸关系：缺少附庸类型。');
                     return;
                 }
-                
+
                 // 动态导入附庸系统模块
                 import('../logic/diplomacy/vassalSystem').then(({ canEstablishVassal, establishVassalRelation }) => {
                     import('../config/diplomacy').then(({ VASSAL_TYPE_CONFIGS }) => {
@@ -3523,7 +3619,7 @@ const handleDiplomaticAction = (nationId, action, payload = {}) => {
 
                         const playerMilitary = Object.values(army || {}).reduce((sum, count) => sum + count, 0) / 100;
                         const warScore = targetNation.warScore || 0;
-                        
+
                         const { canEstablish, reason } = canEstablishVassal(targetNation, vassalType, {
                             epoch,
                             playerMilitary: Math.max(0.5, playerMilitary),
@@ -3575,7 +3671,7 @@ const handleDiplomaticAction = (nationId, action, payload = {}) => {
                 }
 
                 const policyChanges = payload?.policy || {};
-                
+
                 import('../logic/diplomacy/vassalSystem').then(({ adjustVassalPolicy }) => {
                     try {
                         setNations(prev => prev.map(n => {
@@ -3601,7 +3697,7 @@ const handleDiplomaticAction = (nationId, action, payload = {}) => {
                     addLog('建立海外投资失败：参数不完整');
                     break;
                 }
-                
+
                 import('../logic/diplomacy/overseasInvestment').then(({ establishOverseasInvestment }) => {
                     const result = establishOverseasInvestment({
                         targetNation,
@@ -3612,7 +3708,7 @@ const handleDiplomaticAction = (nationId, action, payload = {}) => {
                         classWealth,
                         daysElapsed,
                     });
-                    
+
                     if (result.success) {
                         // 更新海外投资列表
                         setOverseasInvestments(prev => [...prev, result.investment]);
@@ -3639,14 +3735,14 @@ const handleDiplomaticAction = (nationId, action, payload = {}) => {
                     addLog('撤回投资失败：参数不完整');
                     break;
                 }
-                
+
                 setOverseasInvestments(prev => {
                     const investment = prev.find(inv => inv.id === investmentId);
                     if (!investment) {
                         addLog('找不到该投资记录');
                         return prev;
                     }
-                    
+
                     // 返还部分投资（扣除20%违约金）
                     const returnAmount = (investment.investmentAmount || 0) * 0.8;
                     const ownerStratum = investment.ownerStratum || 'capitalist';
@@ -3654,7 +3750,7 @@ const handleDiplomaticAction = (nationId, action, payload = {}) => {
                         ...prevWealth,
                         [ownerStratum]: (prevWealth[ownerStratum] || 0) + returnAmount,
                     }));
-                    
+
                     addLog(`💰 已撤回在附庸国的投资，收回 ${returnAmount.toFixed(0)} 银币（扣除20%违约金）`);
                     return prev.filter(inv => inv.id !== investmentId);
                 });
@@ -3662,32 +3758,64 @@ const handleDiplomaticAction = (nationId, action, payload = {}) => {
             }
 
             case 'change_investment_mode': {
-                // 切换海外投资运营模式（支持批量）
-                const { investmentId, investmentIds, operatingMode: newMode } = payload || {};
+                // 切换海外投资运营模式（支持批量修改配置）
+                const { investmentId, investmentIds, updates, operatingMode: legacyMode } = payload || {};
                 const targetIds = investmentIds || (investmentId ? [investmentId] : []);
-                
-                if (targetIds.length === 0 || !newMode) {
-                    addLog('切换模式失败：参数不完整');
+
+                if (targetIds.length === 0) {
+                    addLog('切换配置失败：参数不完整');
                     break;
                 }
-                
+
+                let finalUpdates = updates || {};
+
+                // 兼容旧参数 logic (如果UI传参仍是 operatingMode)
+                if (!updates && legacyMode) {
+                    if (legacyMode === 'dumping') {
+                        finalUpdates = { inputSource: 'home', outputDest: 'local' };
+                    } else if (legacyMode === 'buyback') {
+                        finalUpdates = { inputSource: 'local', outputDest: 'home' };
+                    } else {
+                        finalUpdates = { inputSource: 'local', outputDest: 'local' };
+                    }
+                }
+
+                if (Object.keys(finalUpdates).length === 0) {
+                    addLog('切换配置失败：无有效更新');
+                    break;
+                }
+
                 setOverseasInvestments(prev => prev.map(inv => {
-                    if (!targetIds.includes(inv.id)) return inv;
-                    return { ...inv, operatingMode: newMode };
+                    if (targetIds.includes(inv.id)) {
+                        return { ...inv, ...finalUpdates };
+                    }
+                    return inv;
                 }));
-                
-                addLog(`📦 已将 ${targetIds.length} 个海外投资切换为${newMode === 'dumping' ? '倾销' : newMode === 'buyback' ? '回购' : '当地运营'}模式`);
+
+                addLog(`📦 已更新 ${targetIds.length} 个海外投资的运营配置`);
+                break;
+            }
+
+            case 'set_foreign_investment_policy': {
+                const { policy } = payload || {};
+                if (!policy) {
+                    addLog('Foreign investment policy update failed: missing policy.');
+                    break;
+                }
+                const policyLabels = { normal: 'normal tax', increased_tax: 'higher tax', heavy_tax: 'heavy tax' };
+                setForeignInvestmentPolicy(policy);
+                addLog(`Foreign investment policy set to ${policyLabels[policy] || policy}.`);
                 break;
             }
 
             case 'nationalize_foreign_investment': {
                 // 国有化外资建筑
-                const { investmentId } = details || {};
+                const { investmentId } = payload || {};
                 if (!investmentId) {
                     addLog('国有化失败：参数不完整');
                     break;
                 }
-                
+
                 import('../logic/diplomacy/overseasInvestment').then(({ nationalizeInvestment }) => {
                     setForeignInvestments(prev => {
                         const investment = prev.find(inv => inv.id === investmentId);
@@ -3695,10 +3823,10 @@ const handleDiplomaticAction = (nationId, action, payload = {}) => {
                             addLog('找不到该外资记录');
                             return prev;
                         }
-                        
+
                         const ownerNation = nations.find(n => n.id === investment.ownerNationId);
                         const result = nationalizeInvestment(investment, ownerNation);
-                        
+
                         if (result.success) {
                             // 降低与业主国的关系
                             if (ownerNation) {
@@ -3816,7 +3944,7 @@ const handleDiplomaticAction = (nationId, action, payload = {}) => {
         const totalArmy = Object.values(army || {}).reduce((sum, count) => sum + (count || 0), 0);
         const militaryStrength = calculateBattlePower(army, epoch, modifiers?.militaryBonus || 0) / 100;
         const result = processRebellionAction(action, stratumKey, rebellionState, army, militaryStrength);
-        const resultCallback = () => {};
+        const resultCallback = () => { };
 
         if (result.updatedOrganization !== undefined || result.pauseDays) {
             setRebellionStates(prev => {
@@ -4020,7 +4148,7 @@ const handleDiplomaticAction = (nationId, action, payload = {}) => {
                 populationGain,
                 populationGain,
                 'war_annex',
-                () => {}
+                () => { }
             );
             triggerDiplomaticEvent(annexEvent);
             addLog(`Annexed ${targetNation.name}.`);
@@ -4178,7 +4306,7 @@ const handleDiplomaticAction = (nationId, action, payload = {}) => {
                 transferPopulation,
                 transferPopulation,
                 'war_annex',
-                () => {}
+                () => { }
             );
             triggerDiplomaticEvent(annexEvent);
             addLog(`Annexed ${targetNation.name}.`);

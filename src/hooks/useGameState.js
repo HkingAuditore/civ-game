@@ -415,6 +415,7 @@ const buildMinimalAutoSavePayload = (payload) => ({
     tradeStats: payload.tradeStats,
     diplomacyOrganizations: payload.diplomacyOrganizations,
     overseasBuildings: payload.overseasBuildings,
+    foreignInvestmentPolicy: payload.foreignInvestmentPolicy,
     eventEffectSettings: payload.eventEffectSettings,
     activeEventEffects: payload.activeEventEffects,
     rebellionStates: payload.rebellionStates,
@@ -679,7 +680,8 @@ export const useGameState = () => {
 
     // ========== 海外投资系统状态 ==========
     const [overseasInvestments, setOverseasInvestments] = useState([]);    // 玩家在附庸国的投资
-    const [foreignInvestments, setForeignInvestments] = useState([]);      // 外国在玩家国的投资
+    const [foreignInvestments, setForeignInvestments] = useState([]);
+    const [foreignInvestmentPolicy, setForeignInvestmentPolicy] = useState('normal');      // 外国在玩家国的投资
 
     // ========== 官员系统状态 ==========
     const [officials, setOfficials] = useState([]);           // 当前雇佣的官员
@@ -1188,6 +1190,7 @@ export const useGameState = () => {
                 overseasBuildings,
                 overseasInvestments,
                 foreignInvestments,
+                foreignInvestmentPolicy,
                 eventEffectSettings,
                 activeEventEffects,
                 rebellionStates,
@@ -1371,6 +1374,7 @@ export const useGameState = () => {
         setOverseasBuildings(data.overseasBuildings || buildInitialOverseasBuildings());
         setOverseasInvestments(data.overseasInvestments || []);
         setForeignInvestments(data.foreignInvestments || []);
+        setForeignInvestmentPolicy(data.foreignInvestmentPolicy || 'normal');
         setAutoSaveInterval(data.autoSaveInterval ?? 60);
         setIsAutoSaveEnabled(data.isAutoSaveEnabled ?? true);
         setLastAutoSaveTime(data.lastAutoSaveTime || Date.now());
@@ -2110,6 +2114,8 @@ export const useGameState = () => {
         setOverseasInvestments,
         foreignInvestments,
         setForeignInvestments,
+        foreignInvestmentPolicy,
+        setForeignInvestmentPolicy,
         setOverseasBuildings,        setOverseasBuildings,
 
         // 策略行动
