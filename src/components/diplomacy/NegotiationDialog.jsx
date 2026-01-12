@@ -4,6 +4,7 @@ import { Icon } from '../common/UIComponents';
 import { RESOURCES } from '../../config/gameConstants';
 import { NEGOTIABLE_TREATY_TYPES, NEGOTIATION_MAX_ROUNDS } from '../../config/diplomacy';
 import { getTreatyLabel, getTreatyUnlockEraName, getTreatyDuration } from '../../utils/diplomacyUtils';
+import { getTreatyEffectDescriptionsByType } from '../../logic/diplomacy/treatyEffects';
 
 const NegotiationDialog = ({
     isOpen,
@@ -19,6 +20,9 @@ const NegotiationDialog = ({
     epoch,
     tradableResources
 }) => {
+    const dealScore = Math.round(negotiationEvaluation.dealScore || 0);
+    const dealScale = 2000;
+    const dealProgress = Math.min(100, Math.abs(dealScore) / dealScale * 100);
 
     // 渲染底部按钮栏
     const renderFooter = () => {
@@ -35,7 +39,7 @@ const NegotiationDialog = ({
                         variant="primary"
                         onClick={() => submitNegotiation({ ...negotiationCounter, stance: negotiationDraft.stance }, { forceAccept: true, round: negotiationRound })}
                         disabled={!canSubmit}
-                        icon="Check"
+                        icon={<Icon name="Check" size={14} />}
                     >
                         接受反提案
                     </Button>
@@ -43,7 +47,7 @@ const NegotiationDialog = ({
                         variant="epic"
                         onClick={() => submitNegotiation(negotiationDraft, { round: negotiationRound })}
                         disabled={!canSubmit}
-                        icon="ArrowUpCircle"
+                        icon={<Icon name="ArrowUpCircle" size={14} />}
                     >
                         坚持原提案
                     </Button>
@@ -59,7 +63,7 @@ const NegotiationDialog = ({
                     variant="epic"
                     onClick={() => submitNegotiation(negotiationDraft, { round: negotiationRound })}
                     disabled={!canSubmit}
-                    icon="Send"
+                    icon={<Icon name="Send" size={14} />}
                 >
                     发起提案
                 </Button>
@@ -89,6 +93,25 @@ const NegotiationDialog = ({
                             {Math.round((negotiationEvaluation.acceptChance || 0) * 100)}%
                         </span>
                     </div>
+                </div>
+                <div className="bg-black/20 border border-ancient-gold/10 rounded p-2">
+                    <div className="flex items-center justify-between text-xs text-ancient-stone mb-1">
+                        <span>交易差额</span>
+                        <span className={`${dealScore >= 0 ? 'text-green-400' : 'text-red-400'} font-mono font-bold`}>
+                            {dealScore >= 0 ? `+${dealScore}` : `${dealScore}`}
+                        </span>
+                    </div>
+                    <div className="h-2 bg-gray-800/60 rounded overflow-hidden">
+                        <div
+                            className={`${dealScore >= 0 ? 'bg-green-500' : 'bg-red-500'} h-full transition-all`}
+                            style={{ width: `${dealProgress}%` }}
+                        />
+                    </div>
+                    {dealScore < 0 && (
+                        <div className="text-[10px] text-red-300 mt-1">
+                            还差约 {Math.abs(dealScore)} 价值
+                        </div>
+                    )}
                 </div>
 
                 {negotiationEvaluation.relationGate && (
@@ -126,6 +149,18 @@ const NegotiationDialog = ({
                                     </span>
                                 ) : <span className="text-ancient-stone/50">无</span>}
                             </div>
+                            <div className="flex justify-between border-b border-ancient-gold/10 pb-1">
+                                <span className="text-ancient-stone">索要银币:</span>
+                                <span className="font-mono font-bold text-red-300">{negotiationCounter.demandSilver || 0}</span>
+                            </div>
+                            <div className="flex justify-between border-b border-ancient-gold/10 pb-1">
+                                <span className="text-ancient-stone">索要资源:</span>
+                                {negotiationCounter.demandResourceKey ? (
+                                    <span className="font-mono font-bold text-red-300">
+                                        {RESOURCES[negotiationCounter.demandResourceKey]?.name || negotiationCounter.demandResourceKey} ×{negotiationCounter.demandResourceAmount || 0}
+                                    </span>
+                                ) : <span className="text-ancient-stone/50">无</span>}
+                            </div>
                         </div>
                     </Card>
                 )}
@@ -138,26 +173,49 @@ const NegotiationDialog = ({
                         <Icon name="FileText" size={14} />
                         拟定条约类型
                     </label>
-                    <div className="relative">
-                        <select
-                            className="w-full bg-ancient-ink/60 border border-ancient-gold/30 rounded px-3 py-2 text-sm text-ancient-parchment focus:border-ancient-gold outline-none appearance-none"
-                            value={negotiationDraft.type}
-                            onChange={(e) => {
-                                const nextType = e.target.value;
-                                setNegotiationDraft((prev) => ({ ...prev, type: nextType, durationDays: getTreatyDuration(nextType, epoch) }));
-                            }}
-                        >
-                            {NEGOTIABLE_TREATY_TYPES.map((type) => {
-                                const locked = !isDiplomacyUnlocked('treaties', type, epoch);
-                                const label = getTreatyLabel(type);
-                                return (
-                                    <option key={type} value={type} disabled={locked} className="bg-gray-900 text-gray-200">
-                                        {locked ? `🔒 ${label} (需要${getTreatyUnlockEraName(type)})` : label}
-                                    </option>
-                                );
-                            })}
-                        </select>
-                        <Icon name="ChevronDown" size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-ancient-stone pointer-events-none" />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {NEGOTIABLE_TREATY_TYPES.map((type) => {
+                            const locked = !isDiplomacyUnlocked('treaties', type, epoch);
+                            const label = getTreatyLabel(type);
+                            const effects = getTreatyEffectDescriptionsByType(type);
+                            const isSelected = negotiationDraft.type === type;
+                            return (
+                                <button
+                                    key={type}
+                                    type="button"
+                                    disabled={locked}
+                                    onClick={() => {
+                                        if (locked) return;
+                                        setNegotiationDraft((prev) => ({ ...prev, type, durationDays: getTreatyDuration(type, epoch) }));
+                                    }}
+                                    className={`
+                                        rounded-lg border p-3 text-left transition-all
+                                        ${locked ? 'opacity-50 cursor-not-allowed border-ancient-gold/10 bg-black/20' : 'hover:border-ancient-gold/40'}
+                                        ${isSelected ? 'border-ancient-gold/60 bg-ancient-gold/10 shadow-inner' : 'border-ancient-gold/20 bg-ancient-ink/30'}
+                                    `}
+                                >
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div className="text-sm font-semibold text-ancient-parchment">{label}</div>
+                                        {locked ? (
+                                            <div className="text-[10px] text-ancient-stone">🔒 {getTreatyUnlockEraName(type)}</div>
+                                        ) : (
+                                            <div className={`text-[10px] ${isSelected ? 'text-ancient-gold' : 'text-ancient-stone'}`}>
+                                                {isSelected ? '已选择' : '可提议'}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="flex flex-wrap gap-1">
+                                        {effects.length > 0 ? effects.map((effect) => (
+                                            <span key={effect} className="text-[10px] text-ancient-parchment bg-black/30 border border-ancient-gold/10 px-2 py-0.5 rounded">
+                                                {effect}
+                                            </span>
+                                        )) : (
+                                            <span className="text-[10px] text-ancient-stone/70">暂无明确经济效果</span>
+                                        )}
+                                    </div>
+                                </button>
+                            );
+                        })}
                     </div>
                 </div>
 
@@ -211,12 +269,12 @@ const NegotiationDialog = ({
                                 icon={<Icon name="Coins" size={14} className="text-amber-500" />}
                             />
                         </div>
-                        <div className="space-y-1 col-span-2 sm:col-span-1">
+                        <div className="space-y-1 col-span-2">
                             <label className="text-[10px] text-ancient-stone">附赠战略资源</label>
-                            <div className="flex gap-2">
-                                <div className="relative flex-1">
+                            <div className="grid grid-cols-[minmax(180px,1fr)_110px] gap-2">
+                                <div className="relative min-w-[180px]">
                                     <select
-                                        className="w-full h-full bg-ancient-ink/60 border border-ancient-gold/30 rounded px-2 text-xs text-ancient-parchment outline-none appearance-none"
+                                        className="w-full h-full bg-ancient-ink/60 border border-ancient-gold/30 rounded px-3 py-2 text-xs text-ancient-parchment outline-none appearance-none"
                                         value={negotiationDraft.resourceKey}
                                         onChange={(e) => setNegotiationDraft((prev) => ({ ...prev, resourceKey: e.target.value }))}
                                     >
@@ -230,16 +288,69 @@ const NegotiationDialog = ({
                                     type="number"
                                     min="0"
                                     placeholder="数量"
-                                    className="w-20 font-mono text-center"
+                                    className="w-full font-mono text-center"
                                     value={negotiationDraft.resourceAmount}
                                     onChange={(e) => setNegotiationDraft((prev) => ({ ...prev, resourceAmount: Number(e.target.value) }))}
                                 />
+                            </div>
+                            <div className="text-[10px] text-ancient-stone/80">
+                                当前选择：{negotiationDraft.resourceKey ? RESOURCES[negotiationDraft.resourceKey]?.name || negotiationDraft.resourceKey : '无'}
                             </div>
                         </div>
                     </div>
                 </Card>
 
-                {/* 4. 谈判姿态 */}
+                {/* 4. 我方索要筹码 */}
+                <Card className="p-4 space-y-4 bg-red-900/5 border-red-800/20">
+                    <div className="text-xs font-bold text-red-400/70 uppercase tracking-wider flex items-center gap-2 border-b border-red-800/20 pb-2 mb-2">
+                        <Icon name="Hand" size={14} />
+                        我方索要筹码
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                            <label className="text-[10px] text-ancient-stone">索要银币</label>
+                            <Input
+                                type="number"
+                                min="0"
+                                value={negotiationDraft.demandSilver}
+                                onChange={(e) => setNegotiationDraft((prev) => ({ ...prev, demandSilver: Number(e.target.value) }))}
+                                className="font-mono text-right text-red-300"
+                                icon={<Icon name="Coins" size={14} className="text-red-400" />}
+                            />
+                        </div>
+                        <div className="space-y-1 col-span-2">
+                            <label className="text-[10px] text-ancient-stone">索要资源</label>
+                            <div className="grid grid-cols-[minmax(180px,1fr)_110px] gap-2">
+                                <div className="relative min-w-[180px]">
+                                    <select
+                                        className="w-full h-full bg-ancient-ink/60 border border-ancient-gold/30 rounded px-3 py-2 text-xs text-ancient-parchment outline-none appearance-none"
+                                        value={negotiationDraft.demandResourceKey}
+                                        onChange={(e) => setNegotiationDraft((prev) => ({ ...prev, demandResourceKey: e.target.value }))}
+                                    >
+                                        <option value="">无</option>
+                                        {tradableResources.map(([key, res]) => (
+                                            <option key={key} value={key} className="bg-gray-900">{res.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <Input
+                                    type="number"
+                                    min="0"
+                                    placeholder="数量"
+                                    className="w-full font-mono text-center"
+                                    value={negotiationDraft.demandResourceAmount}
+                                    onChange={(e) => setNegotiationDraft((prev) => ({ ...prev, demandResourceAmount: Number(e.target.value) }))}
+                                />
+                            </div>
+                            <div className="text-[10px] text-ancient-stone/80">
+                                当前选择：{negotiationDraft.demandResourceKey ? RESOURCES[negotiationDraft.demandResourceKey]?.name || negotiationDraft.demandResourceKey : '无'}
+                            </div>
+                        </div>
+                    </div>
+                </Card>
+
+                {/* 5. 谈判姿态 */}
                 <div className="space-y-2 pt-2">
                     <label className="text-xs font-bold text-ancient-gold uppercase tracking-wider flex items-center gap-2">
                         <Icon name="Users" size={14} />
@@ -247,9 +358,9 @@ const NegotiationDialog = ({
                     </label>
                     <div className="flex gap-2 p-1 bg-black/20 rounded-lg">
                         {[
-                            { key: 'normal', label: '中立', color: 'text-gray-300', desc: '标准流程' },
-                            { key: 'friendly', label: '友好', color: 'text-green-400', desc: '关系+5' },
-                            { key: 'threat', label: '强硬', color: 'text-red-400', desc: '关系-20' }
+                            { key: 'normal', label: '中立', color: 'text-gray-300', desc: '按常规评估' },
+                            { key: 'friendly', label: '友好', color: 'text-green-400', desc: '更易接受' },
+                            { key: 'threat', label: '强硬', color: 'text-red-400', desc: '看重实力' }
                         ].map(({ key, label, color, desc }) => (
                             <button
                                 key={key}
@@ -267,6 +378,10 @@ const NegotiationDialog = ({
                                 <span className="text-[9px] text-ancient-stone">{desc}</span>
                             </button>
                         ))}
+                    </div>
+                    <div className="text-[10px] text-ancient-stone/80 flex flex-wrap gap-3">
+                        <span>友好：交易差额 +120，成功更稳</span>
+                        <span>强硬：按军力差加分，失败关系-20</span>
                     </div>
                 </div>
             </div>

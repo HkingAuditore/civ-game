@@ -35,6 +35,7 @@ const DiplomacyDashboard = ({
     market,
     daysElapsed,
     onDiplomaticAction,
+    onViewOrganization,
 }) => {
     const visibleNations = useMemo(() => {
         return (nations || []).filter(
@@ -243,14 +244,25 @@ const DiplomacyDashboard = ({
                                     return (
                                         <Card
                                             key={org.id}
-                                            className={`p-4 flex items-center justify-between group ${isMember ? 'border-ancient-gold/40 bg-ancient-gold/5' : 'border-ancient-stone/20 bg-ancient-ink/30'}`}
+                                            onClick={() => onDiplomaticAction && onViewOrganization && onViewOrganization(org)}
+                                            className={`
+                                                p-4 flex items-center justify-between group transition-all duration-300
+                                                ${onViewOrganization
+                                                    ? 'cursor-pointer hover:bg-ancient-gold/10 hover:border-ancient-gold/40'
+                                                    : ''
+                                                }
+                                                ${isMember
+                                                    ? 'border-ancient-gold/40 bg-ancient-gold/5'
+                                                    : 'border-ancient-stone/20 bg-ancient-ink/30'
+                                                }
+                                            `}
                                         >
                                             <div className="flex items-center gap-4">
                                                 <div className="w-10 h-10 rounded-full bg-ancient-stone/20 flex items-center justify-center border border-ancient-stone/30 font-bold text-ancient-parchment">
                                                     {org.name.charAt(0)}
                                                 </div>
                                                 <div>
-                                                    <div className="font-bold text-ancient-parchment text-base">{org.name}</div>
+                                                    <div className="font-bold text-ancient-parchment text-base group-hover:text-ancient-gold transition-colors">{org.name}</div>
                                                     <div className="text-xs text-ancient-stone flex items-center gap-2">
                                                         <span>{org.members?.length || 0} 个成员国</span>
                                                         <span className="opacity-50">|</span>
@@ -263,7 +275,10 @@ const DiplomacyDashboard = ({
                                                 <Button
                                                     size="sm"
                                                     variant="secondary"
-                                                    onClick={() => onDiplomaticAction?.('player', 'join_org', { orgId: org.id })}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        onDiplomaticAction?.('player', 'join_org', { orgId: org.id });
+                                                    }}
                                                 >
                                                     申请加入
                                                 </Button>

@@ -38,7 +38,7 @@ import {
 import { getBuildingCostGrowthFactor, getBuildingCostBaseMultiplier, getTechCostMultiplier, getBuildingUpgradeCostMultiplier } from '../config/difficulty';
 import { debugLog } from '../utils/debugFlags';
 import { getUpgradeCountAtOrAboveLevel, calculateBuildingCost, applyBuildingCostModifier } from '../utils/buildingUpgradeUtils';
-import { simulateBattle, calculateBattlePower, generateNationArmy } from '../config';
+import { simulateBattle, calculateBattlePower, calculateNationBattlePower, generateNationArmy } from '../config';
 import { calculateForeignPrice, calculateTradeStatus } from '../utils/foreignTrade';
 import { generateSound, SOUND_TYPES } from '../config/sounds';
 import { getEnemyUnitsForEpoch, calculateProportionalLoot } from '../config/militaryActions';
@@ -3252,6 +3252,9 @@ export const useGameActions = (gameState, addLog) => {
                 const signingGift = Math.max(0, Math.floor(Number(proposal.signingGift) || 0));
                 const resourceKey = proposal.resourceKey || '';
                 const resourceAmount = Math.max(0, Math.floor(Number(proposal.resourceAmount) || 0));
+                const demandSilver = Math.max(0, Math.floor(Number(proposal.demandSilver) || 0));
+                const demandResourceKey = proposal.demandResourceKey || '';
+                const demandResourceAmount = Math.max(0, Math.floor(Number(proposal.demandResourceAmount) || 0));
 
                 const isPeaceActive = targetNation.peaceTreatyUntil && daysElapsed < targetNation.peaceTreatyUntil;
                 const isOpenMarketActive = targetNation.openMarketUntil && daysElapsed < targetNation.openMarketUntil;
@@ -3292,6 +3295,26 @@ export const useGameActions = (gameState, addLog) => {
                     }
                 }
 
+                if (demandSilver > 0 && (targetNation.wealth || 0) < demandSilver) {
+                    addLog(`${targetNation.name} 无法承担索要金额（缺少 ${demandSilver} 银币）。`);
+                    if (onResult) onResult({ status: 'blocked', reason: 'demand_silver' });
+                    return;
+                }
+
+                if (demandResourceAmount > 0) {
+                    if (!RESOURCES[demandResourceKey] || RESOURCES[demandResourceKey].type === 'virtual' || demandResourceKey === 'silver') {
+                        addLog('索要资源无效，谈判已取消。');
+                        if (onResult) onResult({ status: 'blocked', reason: 'demand_resource' });
+                        return;
+                    }
+                    const targetInventory = targetNation.inventory?.[demandResourceKey] || 0;
+                    if (targetInventory < demandResourceAmount) {
+                        addLog(`${targetNation.name} 无法提供 ${RESOURCES[demandResourceKey]?.name || demandResourceKey} ×${demandResourceAmount}。`);
+                        if (onResult) onResult({ status: 'blocked', reason: 'demand_resource' });
+                        return;
+                    }
+                }
+
                 const evaluation = calculateNegotiationAcceptChance({
                     proposal: {
                         type,
@@ -3300,13 +3323,21 @@ export const useGameActions = (gameState, addLog) => {
                         signingGift,
                         resourceKey,
                         resourceAmount,
+                        demandSilver,
+                        demandResourceKey,
+                        demandResourceAmount,
                     },
                     nation: targetNation,
                     epoch,
                     stance,
+                    daysElapsed,
+                    playerPower: calculateBattlePower(army, epoch, modifiers?.militaryBonus || 0),
+                    targetPower: calculateNationBattlePower(targetNation, epoch),
+                    playerWealth: resources?.silver || 0,
+                    targetWealth: targetNation?.wealth || 0,
                 });
 
-                const accepted = forceAccept || Math.random() < evaluation.acceptChance;
+                const accepted = forceAccept || (evaluation.dealScore || 0) >= 0;
                 const stanceDelta = stance === 'friendly' ? 2 : (stance === 'threat' ? -20 : 0);
 
                 // 计算签约成本
@@ -3350,7 +3381,7 @@ export const useGameActions = (gameState, addLog) => {
                         const updates = {
                             treaties: nextTreaties,
                             relation: clampRelation((n.relation || 0) + 6 + stanceDelta),
-                            wealth: (n.wealth || 0) + signingGift,
+                            wealth: (n.wealth || 0) + signingGift - demandSilver,
                             lastDiplomaticActionDay: {
                                 ...(n.lastDiplomaticActionDay || {}),
                                 negotiate_treaty: daysElapsed,
@@ -3361,6 +3392,12 @@ export const useGameActions = (gameState, addLog) => {
                             updates.inventory = {
                                 ...(n.inventory || {}),
                                 [resourceKey]: ((n.inventory || {})[resourceKey] || 0) + resourceAmount,
+                            };
+                        }
+                        if (demandResourceAmount > 0 && demandResourceKey) {
+                            updates.inventory = {
+                                ...(updates.inventory || n.inventory || {}),
+                                [demandResourceKey]: Math.max(0, ((updates.inventory || n.inventory || {})[demandResourceKey] || 0) - demandResourceAmount),
                             };
                         }
                         if (OPEN_MARKET_TREATY_TYPES.includes(type)) {
@@ -3376,12 +3413,31 @@ export const useGameActions = (gameState, addLog) => {
                         return { ...n, ...updates };
                     }));
 
+                    if (demandSilver > 0) {
+                        setResources(prev => ({ ...prev, silver: (prev.silver || 0) + demandSilver }));
+                    }
+                    if (demandResourceAmount > 0 && demandResourceKey) {
+                        setResources(prev => ({
+                            ...prev,
+                            [demandResourceKey]: (prev[demandResourceKey] || 0) + demandResourceAmount,
+                        }));
+                    }
+
                     let negotiateCostInfo = '';
                     if (negotiateSigningCost > 0) {
                         negotiateCostInfo = `，签约成本 ${Math.floor(negotiateSigningCost)} 银币`;
                     }
                     if (negotiateFinalMaintenancePerDay > 0) {
                         negotiateCostInfo += `，每日维护费 ${negotiateFinalMaintenancePerDay} 银币`;
+                    }
+                    if (demandSilver > 0 || demandResourceAmount > 0) {
+                        const demandParts = [];
+                        if (demandSilver > 0) demandParts.push(`索要 ${demandSilver} 银币`);
+                        if (demandResourceAmount > 0) {
+                            const name = RESOURCES[demandResourceKey]?.name || demandResourceKey;
+                            demandParts.push(`索要 ${name}×${demandResourceAmount}`);
+                        }
+                        negotiateCostInfo += `，${demandParts.join('，')}`;
                     }
                     addLog(`🤝 ${targetNation.name} 同意了谈判条约（${type}）${negotiateCostInfo}。`);
                     if (onResult) onResult({ status: 'accepted', acceptChance: evaluation.acceptChance });
@@ -3425,7 +3481,11 @@ export const useGameActions = (gameState, addLog) => {
                         }
                         : n
                 ));
-                addLog(`${targetNation.name} 拒绝了谈判，双方关系下降。`);
+                if ((evaluation.dealScore || 0) < 0) {
+                    addLog(`${targetNation.name} 认为筹码不足，谈判失败（差额 ${Math.round(Math.abs(evaluation.dealScore || 0))}）。`);
+                } else {
+                    addLog(`${targetNation.name} 拒绝了谈判，双方关系下降。`);
+                }
                 if (onResult) onResult({ status: 'rejected', acceptChance: evaluation.acceptChance });
                 break;
             }
@@ -4173,8 +4233,18 @@ export const useGameActions = (gameState, addLog) => {
         }
 
         if (proposalType === 'open_market') {
+            const nextTreaties = Array.isArray(targetNation.treaties) ? [...targetNation.treaties] : [];
+            nextTreaties.push({
+                id: `treaty_${nationId}_${Date.now()}`,
+                type: 'open_market',
+                startDay: daysElapsed,
+                endDay: daysElapsed + paymentAmount,
+                maintenancePerDay: 0,
+                direction: 'war_forced',
+            });
             endWarWithNation(nationId, {
                 openMarketUntil: daysElapsed + paymentAmount,
+                treaties: nextTreaties,
             });
             addLog(`${targetNation.name} opened its market.`);
             return;
@@ -4320,8 +4390,18 @@ export const useGameActions = (gameState, addLog) => {
         }
 
         if (proposalType === 'demand_open_market') {
+            const nextTreaties = Array.isArray(targetNation.treaties) ? [...targetNation.treaties] : [];
+            nextTreaties.push({
+                id: `treaty_${nationId}_${Date.now()}`,
+                type: 'open_market',
+                startDay: daysElapsed,
+                endDay: daysElapsed + paymentAmount,
+                maintenancePerDay: 0,
+                direction: 'war_forced',
+            });
             endWarWithNation(nationId, {
                 openMarketUntil: daysElapsed + paymentAmount,
+                treaties: nextTreaties,
             });
             addLog(`${targetNation.name} opened its market.`);
             return;
