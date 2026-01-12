@@ -58,7 +58,7 @@ export const OverseasOverviewPanel = ({
         return Object.entries(summary.byStratum || {}).map(([stratum, data]) => ({
             id: stratum,
             name: { capitalist: '资本家', merchant: '商人', landowner: '地主' }[stratum] || stratum,
-            profit: data.profit, // Monthly profit
+            profit: data.dailyProfit, // Daily profit
             value: data.value,
             count: data.count,
             color: { capitalist: 'text-purple-400', merchant: 'text-amber-400', landowner: 'text-green-400' }[stratum],
@@ -99,9 +99,9 @@ export const OverseasOverviewPanel = ({
                         </div>
                     </div>
                     <div className="bg-gradient-to-br from-green-900/40 to-black/40 rounded-xl p-4 border border-green-700/30 shadow-lg">
-                        <div className="text-xs text-green-500 uppercase tracking-wider font-bold mb-1">月净利润 (汇回)</div>
+                        <div className="text-xs text-green-500 uppercase tracking-wider font-bold mb-1">日净利润 (汇回)</div>
                         <div className="text-2xl font-bold text-green-300 font-mono tracking-tight">
-                            +{formatNumberShortCN(summary.estimatedMonthlyProfit)}
+                            +{formatNumberShortCN(summary.estimatedDailyProfit)}
                         </div>
                     </div>
                     <div className="bg-gradient-to-br from-blue-900/40 to-black/40 rounded-xl p-4 border border-blue-700/30 shadow-lg">
@@ -132,7 +132,7 @@ export const OverseasOverviewPanel = ({
                                             <div className="font-mono text-gray-200">{formatNumberShortCN(d.value)}</div>
                                         </div>
                                         <div className="text-right">
-                                            <div className="text-[10px] text-gray-400">月利润</div>
+                                            <div className="text-[10px] text-gray-400">日利润</div>
                                             <div className={`font-mono font-bold ${d.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                                                 {d.profit >= 0 ? '+' : ''}{formatNumberShortCN(d.profit)}
                                             </div>

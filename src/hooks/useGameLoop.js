@@ -1716,6 +1716,22 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                     });
                                     return updated;
                                 });
+
+                                // [NEW] 同时更新详细财务数据用于UI显示
+                                setClassFinancialData(prev => {
+                                    const updated = { ...prev };
+                                    Object.entries(investmentResult.profitByStratum).forEach(([stratum, profit]) => {
+                                        // 浅拷贝该阶层的数据以确保不可变性
+                                        updated[stratum] = {
+                                            ...(updated[stratum] || {}),
+                                            income: { ...(updated[stratum]?.income || {}) }
+                                        };
+
+                                        // 计入经营营收 (ownerRevenue)
+                                        updated[stratum].income.ownerRevenue = (updated[stratum].income.ownerRevenue || 0) + profit;
+                                    });
+                                    return updated;
+                                });
                             }
 
                             // 输出日志
@@ -1788,10 +1804,87 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             if (fiResult.logs && fiResult.logs.length > 0) {
                                 fiResult.logs.forEach(log => addLog(log));
                             }
+                            // 日志
+                            if (fiResult.logs && fiResult.logs.length > 0) {
+                                fiResult.logs.forEach(log => addLog(log));
+                            }
+                        }
+
+                        // 3. 自主投资逻辑 (5% probability daily)
+                        if (Math.random() < 0.05) {
+                            import('../logic/diplomacy/autonomousInvestment').then(({ processClassAutonomousInvestment }) => {
+                                const result = processClassAutonomousInvestment({
+                                    nations: current.nations || [],
+                                    playerNation: current.nations.find(n => n.id === 'player'),
+                                    diplomacyOrganizations: current.diplomacyOrganizations,
+                                    overseasInvestments: overseasInvestmentsRef.current,
+                                    classWealth: adjustedClassWealth,
+                                    market: adjustedMarket,
+                                    epoch: current.epoch,
+                                    daysElapsed: current.daysElapsed
+                                });
+
+                                if (result && result.success) {
+                                    const { stratum, targetNation, building, cost, dailyProfit, action } = result;
+
+                                    // Execute Investment
+                                    const newInvestment = action();
+                                    if (newInvestment) {
+                                        // Deduct Wealth
+                                        setClassWealth(prev => ({
+                                            ...prev,
+                                            [stratum]: Math.max(0, (prev[stratum] || 0) - cost)
+                                        }));
+
+                                        // Add Investment
+                                        setOverseasInvestments(prev => [...prev, newInvestment]);
+
+                                        // Log
+                                        const stratumName = STRATA[stratum]?.name || stratum;
+                                        addLog(`💰 ${stratumName}发现在 ${targetNation.name} 投资 ${building.name} 有利可图（预计日利 ${dailyProfit.toFixed(1)}），已自动注资 ${formatNumberShortCN(cost)}。`);
+                                    }
+                                }
+                            }).catch(err => console.warn('Autonomous investment error:', err));
                         }
 
                     }).catch(err => {
                         console.error('Failed to process investments:', err);
+                    });
+                } else {
+                    // Even if no existing investments, try autonomous investment if logic is imported
+                    // But here we depend on the dynamic import block which was triggered by existing investments check
+                    // We should probably move this out if we want it to happen even with 0 investments.
+                    // However, to keep code compact and leverage the same import, let's keep it here 
+                    // OR add a separate check roughly here.
+
+                    // Let's add a separate check outside this block to ensure it runs even if no investments exist yet.
+                }
+
+                // Add separate autonomous investment check if not already running inside
+                if (!((overseasInvestmentsRef.current && overseasInvestmentsRef.current.length > 0) || (current.foreignInvestments && current.foreignInvestments.length > 0)) && Math.random() < 0.05) {
+                    import('../logic/diplomacy/overseasInvestment').then(() => {
+                        import('../logic/diplomacy/autonomousInvestment').then(({ processClassAutonomousInvestment }) => {
+                            const result = processClassAutonomousInvestment({
+                                nations: current.nations || [],
+                                playerNation: current.nations.find(n => n.id === 'player'),
+                                diplomacyOrganizations: current.diplomacyOrganizations,
+                                overseasInvestments: overseasInvestmentsRef.current || [],
+                                classWealth: adjustedClassWealth,
+                                market: adjustedMarket,
+                                epoch: current.epoch,
+                                daysElapsed: current.daysElapsed
+                            });
+                            if (result && result.success) {
+                                const { stratum, targetNation, building, cost, dailyProfit, action } = result;
+                                const newInvestment = action();
+                                if (newInvestment) {
+                                    setClassWealth(prev => ({ ...prev, [stratum]: Math.max(0, (prev[stratum] || 0) - cost) }));
+                                    setOverseasInvestments(prev => [...prev, newInvestment]);
+                                    const stratumName = STRATA[stratum]?.name || stratum;
+                                    addLog(`💰 ${stratumName}发现在 ${targetNation.name} 投资 ${building.name} 有利可图（预计日利 ${dailyProfit.toFixed(1)}），已自动注资 ${formatNumberShortCN(cost)}。`);
+                                }
+                            }
+                        });
                     });
                 }
 
