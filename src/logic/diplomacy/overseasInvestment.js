@@ -47,6 +47,27 @@ export const OVERSEAS_INVESTMENT_CONFIGS = {
 };
 
 /**
+ * 投资策略定义
+ */
+export const INVESTMENT_STRATEGIES = {
+    PROFIT_MAX: {
+        id: 'PROFIT_MAX',
+        name: '利润优先',
+        desc: '自动选择成本最低的原料来源和售价最高的销售去向，以最大化利润。',
+    },
+    RESOURCE_EXTRACTION: {
+        id: 'RESOURCE_EXTRACTION',
+        name: '资源掠夺',
+        desc: '优先将产出运回国内，无论当地价格是否更高。原料倾向于当地采购以降低成本。',
+    },
+    MARKET_DUMPING: {
+        id: 'MARKET_DUMPING',
+        name: '市场倾销',
+        desc: '优先使用国内原料（去库存），产出优先在当地销售以占据市场。',
+    },
+};
+
+/**
  * 海外投资允许的建筑类别（按accessType）
  * - colony: 仅采集类
  * - vassal: 采集+加工类（受附庸等级限制）
@@ -57,6 +78,15 @@ export const OVERSEAS_BUILDING_CATEGORIES = {
     vassal: ['gather', 'industry'],  // 附庸国：采集+加工
     treaty: ['gather', 'industry'],  // 投资协议：采集+加工
 };
+
+/**
+ * 所有可海外投资的建筑ID列表（静态引用）
+ */
+export const INVESTABLE_BUILDINGS = [
+    'farm', 'mine', 'logging_camp', 'plantation', 'fishery',
+    'distillery', 'furniture_factory', 'textile_mill', 'steel_mill', 'paper_mill', 'shipyard', 'arms_factory',
+    'market', 'bank', 'stock_exchange'
+];
 
 /**
  * 获取可在海外投资的建筑列表
@@ -92,28 +122,6 @@ export function getInvestableBuildings(accessType = 'treaty', ownerStratum = nul
     }).map(b => b.id);
 }
 
-/**
- * 传统静态列表（向后兼容）- 现已扩展
- */
-export const INVESTABLE_BUILDINGS = {
-    capitalist: [
-        // 工业建筑
-        'factory', 'steel_foundry', 'textile_mill', 'coal_mine', 'copper_mine', 'iron_mine',
-        'sawmill', 'smelter', 'forge', 'brickworks', 'glassworks', 'paper_mill',
-        'furniture_workshop', 'tailor_workshop', 'culinary_kitchen', 'distillery',
-        'pottery', 'toolmaker', 'loom_house', 'dye_works',
-    ],
-    merchant: [
-        // 商业/贸易建筑
-        'market', 'trading_post', 'trade_port', 'warehouse', 'bank', 'stock_exchange',
-        'coffee_plantation', 'spice_trade',
-    ],
-    landowner: [
-        // 农业/采集建筑
-        'farm', 'large_estate', 'plantation', 'lumber_camp', 'quarry', 'fishing_wharf',
-        'coffee_plantation', 'ranch', 'vineyard', 'orchard', 'pasture',
-    ],
-};
 
 // ===== 数据结构 =====
 
@@ -141,8 +149,9 @@ export function createOverseasInvestment({
         buildingId,
         targetNationId,
         ownerStratum,
-        inputSource,
-        outputDest,
+        targetNationId,
+        ownerStratum,
+        strategy: 'PROFIT_MAX', // Default strategy
         investmentAmount,
         createdDay: 0,  // 将在实际创建时设置
 
@@ -286,8 +295,8 @@ export function canEstablishOverseasInvestment(targetNation, buildingId, ownerSt
 // ===== 利润计算 =====
 
 /**
- * 通用：计算海外建筑利润 (基于配置)
- * @param {Object} investment - 投资对象 { ..., inputSource, outputDest }
+ * 通用：计算海外建筑利润 (基于策略自动决定流向)
+ * @param {Object} investment - 投资对象 { ..., strategy }
  * @param {Object} targetNation
  * @param {Object} playerResources
  * @param {Object} playerMarketPrices
@@ -296,10 +305,9 @@ export function calculateOverseasProfit(investment, targetNation, playerResource
     const building = BUILDINGS.find(b => b.id === investment.buildingId);
     if (!building) return { outputValue: 0, inputCost: 0, wageCost: 0, profit: 0, transportCost: 0 };
 
-    const { inputSource = 'local', outputDest = 'local' } = investment;
+    const strategy = investment.strategy || 'PROFIT_MAX';
     const transportRate = OVERSEAS_INVESTMENT_CONFIGS.config.transportCostRate;
 
-    // 价格获取器
     // 价格获取器
     const getNationPrice = (res) => (targetNation.market?.prices || {})[res] || (targetNation.prices || {})[res] || playerMarketPrices[res] || getBasePrice(res);
     const getHomePrice = (res) => playerMarketPrices[res] || getBasePrice(res);
@@ -318,51 +326,87 @@ export function calculateOverseasProfit(investment, targetNation, playerResource
     const localResourceChanges = {};
     const playerResourceChanges = {};
 
-    // 1. 计算投入成本
+    // 决策结果记录 (用于UI显示)
+    const decisions = {
+        inputs: {}, // { resource: 'local' | 'home' }
+        outputs: {}, // { resource: 'local' | 'home' }
+    };
+
+    // 1. 计算投入成本 & 自动决策来源
     Object.entries(building.input || {}).forEach(([res, amount]) => {
-        if (inputSource === 'local') {
+        const localPrice = getNationPrice(res);
+        const homePrice = getHomePrice(res);
+        const importCost = homePrice * (1 + transportRate);
+
+        let useLocal = true;
+
+        if (strategy === 'PROFIT_MAX') {
+            // 选便宜的
+            if (importCost < localPrice) useLocal = false;
+        } else if (strategy === 'MARKET_DUMPING') {
+            // 倾销模式：优先用国内原料 (去库存)
+            useLocal = false;
+        } else if (strategy === 'RESOURCE_EXTRACTION') {
+            // 掠夺模式：倾向于就地取材降低成本，除非国内极其便宜
+            if (importCost < localPrice * 0.8) useLocal = false;
+        }
+
+        decisions.inputs[res] = useLocal ? 'local' : 'home';
+
+        if (useLocal) {
             // 当地采购
             const localInventory = getNationInventory(res, amount);
             if (localInventory < amount) inputAvailable = false;
 
-            const price = getNationPrice(res);
-            inputCost += amount * price;
+            inputCost += amount * localPrice;
 
             if (inputAvailable) {
                 localResourceChanges[res] = (localResourceChanges[res] || 0) - amount;
             }
         } else {
-            // 国内进口 (假设玩家总是有货，或者应该检查玩家库存？暂简化为有货但付钱)
-            // 严谨点应该检查 playerResources[res] >= amount
-            // 这里简化逻辑，假设市场无限供应
-            const price = getHomePrice(res);
-            const baseInput = amount * price;
+            // 国内进口
+            const baseInput = amount * homePrice;
             inputCost += baseInput;
             transportCost += baseInput * transportRate; // 运费
-
             playerResourceChanges[res] = (playerResourceChanges[res] || 0) - amount;
         }
     });
 
     if (!inputAvailable) {
-        // 原料不足，无生产
-        return { outputValue: 0, inputCost: 0, wageCost: 0, profit: 0, transportCost: 0, inputAvailable: false };
+        return { outputValue: 0, inputCost: 0, wageCost: 0, profit: 0, transportCost: 0, inputAvailable: false, decisions };
     }
 
-    // 2. 计算产出价值
+    // 2. 计算产出价值 & 自动决策去向
     let outputValue = 0;
     Object.entries(building.output || {}).forEach(([res, amount]) => {
         if (res === 'maxPop' || res === 'militaryCapacity') return;
 
-        if (outputDest === 'local') {
+        const localPrice = getNationPrice(res);
+        const homePrice = getHomePrice(res);
+        const exportNetValue = homePrice * (1 - transportRate);
+
+        let sellLocal = true;
+
+        if (strategy === 'PROFIT_MAX') {
+            // 选卖得贵的 (净收入)
+            if (exportNetValue > localPrice) sellLocal = false;
+        } else if (strategy === 'RESOURCE_EXTRACTION') {
+            // 掠夺模式：强制运回国内 (除非亏损严重? 暂定强制)
+            sellLocal = false;
+        } else if (strategy === 'MARKET_DUMPING') {
+            // 倾销模式：强制当地销售抢占市场
+            sellLocal = true;
+        }
+
+        decisions.outputs[res] = sellLocal ? 'local' : 'home';
+
+        if (sellLocal) {
             // 当地销售
-            const price = getNationPrice(res);
-            outputValue += amount * price;
+            outputValue += amount * localPrice;
             localResourceChanges[res] = (localResourceChanges[res] || 0) + amount;
         } else {
             // 运回国内
-            const price = getHomePrice(res);
-            const grossValue = amount * price;
+            const grossValue = amount * homePrice;
             const transport = grossValue * transportRate;
 
             outputValue += (grossValue - transport); // 净收入
@@ -371,7 +415,7 @@ export function calculateOverseasProfit(investment, targetNation, playerResource
         }
     });
 
-    // 3. 计算工资 (始终是当地人工)
+    // 3. 计算工资
     const { total: wageCost, breakdown: wageBreakdown } = calculateVassalWageCost(building, targetNation);
 
     // 4. 总利润
@@ -381,12 +425,13 @@ export function calculateOverseasProfit(investment, targetNation, playerResource
         outputValue,
         inputCost,
         wageCost,
-        wageBreakdown, // Adds detailed breakdown for UI
+        wageBreakdown,
         transportCost,
         profit,
         inputAvailable: true,
         localResourceChanges,
-        playerResourceChanges
+        playerResourceChanges,
+        decisions // Return strategy decisions for UI
     };
 }
 
@@ -406,8 +451,8 @@ function calculateVassalWageCost(building, nation) {
     // 投资协议不再提供劳动力成本折扣 (Review Item: Cancelled as per request)
     const treatyModifier = 1.0;
 
-    // 生活水平乘数 (由设计决定，例如为了吸引劳动力，需支付高于生存线的工资)
-    const LIVING_STANDARD_MULTIPLIER = 1.5;
+    // 生活水平乘数 (用户要求：按照劳动力原价，不再设置倍数)
+    const LIVING_STANDARD_MULTIPLIER = 1.0;
 
     let totalWage = 0;
     const wageBreakdown = [];
@@ -445,6 +490,28 @@ function calculateVassalWageCost(building, nation) {
     });
 
     return { total: totalWage, breakdown: wageBreakdown };
+}
+
+/**
+ * 比较两国劳动力成本
+ * @param {string} buildingId - 建筑ID
+ * @param {Object} nationA - 国家A (通常是本国)
+ * @param {Object} nationB - 国家B (通常是附庸国)
+ * @returns {Object} - { ratio: number, wageA: number, wageB: number } ratio < 1 意味着B更便宜
+ */
+export function compareLaborCost(buildingId, nationA, nationB) {
+    const building = BUILDINGS.find(b => b.id === buildingId);
+    if (!building) return { ratio: 1, wageA: 0, wageB: 0 };
+
+    const wageA = calculateVassalWageCost(building, nationA).total;
+    const wageB = calculateVassalWageCost(building, nationB).total;
+
+    if (wageA === 0) return { ratio: 1, wageA, wageB };
+    return {
+        ratio: wageB / wageA,
+        wageA,
+        wageB
+    };
 }
 
 /**
@@ -592,8 +659,7 @@ export function establishOverseasInvestment({
     targetNation,
     buildingId,
     ownerStratum,
-    inputSource = 'local',
-    outputDest = 'local',
+    strategy = 'PROFIT_MAX',
     existingInvestments = [],
     classWealth = {},
     daysElapsed = 0,
@@ -627,8 +693,8 @@ export function establishOverseasInvestment({
         buildingId,
         targetNationId: targetNation.id,
         ownerStratum,
-        inputSource,
-        outputDest,
+        ownerStratum,
+        strategy,
         investmentAmount: investmentCost,
     });
 
@@ -682,39 +748,51 @@ export function getInvestmentsInNation(overseasInvestments, nationId) {
  * @param {Array} overseasInvestments - 所有海外投资
  * @returns {Object} - { totalValue, monthlyProfit, byNation, byStratum }
  */
-export function calculateOverseasInvestmentSummary(overseasInvestments) {
+export function calculateOverseasInvestmentSummary(overseasInvestments, targetNationId) {
     const summary = {
         totalValue: 0,
         estimatedMonthlyProfit: 0,
-        byNation: {},
+        estimatedDailyProfit: 0,
+        byNation: {}, // Keyed by nation ID (string)
         byStratum: {},
         count: 0,
     };
 
+    if (!overseasInvestments || !Array.isArray(overseasInvestments)) return summary;
+
     overseasInvestments.forEach(inv => {
+        // If targetNationId is provided, filter by it.
+        // inv.targetNationId might be string or number, force string comparison if needed.
+        if (targetNationId && String(inv.targetNationId) !== String(targetNationId)) return;
+
         if (inv.status !== 'operating') return;
 
         summary.count++;
         summary.totalValue += inv.investmentAmount || 0;
 
-        const monthlyProfit = (inv.operatingData?.profit || 0) * 30;
+        const dailyProfit = inv.operatingData?.profit || 0;
+        const monthlyProfit = dailyProfit * 30;
+
+        summary.estimatedDailyProfit += dailyProfit;
         summary.estimatedMonthlyProfit += monthlyProfit;
 
         // 按国家统计
         if (!summary.byNation[inv.targetNationId]) {
-            summary.byNation[inv.targetNationId] = { count: 0, value: 0, profit: 0 };
+            summary.byNation[inv.targetNationId] = { count: 0, value: 0, profit: 0, dailyProfit: 0 };
         }
         summary.byNation[inv.targetNationId].count++;
         summary.byNation[inv.targetNationId].value += inv.investmentAmount || 0;
         summary.byNation[inv.targetNationId].profit += monthlyProfit;
+        summary.byNation[inv.targetNationId].dailyProfit += dailyProfit;
 
         // 按阶层统计
         if (!summary.byStratum[inv.ownerStratum]) {
-            summary.byStratum[inv.ownerStratum] = { count: 0, value: 0, profit: 0 };
+            summary.byStratum[inv.ownerStratum] = { count: 0, value: 0, profit: 0, dailyProfit: 0 };
         }
         summary.byStratum[inv.ownerStratum].count++;
         summary.byStratum[inv.ownerStratum].value += inv.investmentAmount || 0;
         summary.byStratum[inv.ownerStratum].profit += monthlyProfit;
+        summary.byStratum[inv.ownerStratum].dailyProfit += dailyProfit;
     });
 
     return summary;

@@ -315,6 +315,25 @@ const trimHistorySnapshot = (history, limit) => {
     return next;
 };
 
+// [NEW] 迁移旧版海外投资数据（从 input/output 到 strategy）
+const migrateOverseasInvestments = (investments) => {
+    if (!Array.isArray(investments)) return [];
+    return investments.map(inv => {
+        // 如果已有 strategy 且有效，则跳过
+        if (inv.strategy) return inv;
+
+        const newInv = { ...inv };
+        if (inv.outputDest === 'home') {
+            newInv.strategy = 'RESOURCE_EXTRACTION';
+        } else if (inv.inputSource === 'home') {
+            newInv.strategy = 'MARKET_DUMPING';
+        } else {
+            newInv.strategy = 'PROFIT_MAX';
+        }
+        return newInv;
+    });
+};
+
 const trimMarketSnapshot = (market, limit) => {
     if (!market || typeof market !== 'object') {
         return market;
@@ -1372,7 +1391,7 @@ export const useGameState = () => {
         setTradeStats(data.tradeStats || { tradeTax: 0, tradeRouteTax: 0 });
         setDiplomacyOrganizations(data.diplomacyOrganizations || buildInitialDiplomacyOrganizations());
         setOverseasBuildings(data.overseasBuildings || buildInitialOverseasBuildings());
-        setOverseasInvestments(data.overseasInvestments || []);
+        setOverseasInvestments(migrateOverseasInvestments(data.overseasInvestments || []));
         setForeignInvestments(data.foreignInvestments || []);
         setForeignInvestmentPolicy(data.foreignInvestmentPolicy || 'normal');
         setAutoSaveInterval(data.autoSaveInterval ?? 60);
@@ -2116,7 +2135,7 @@ export const useGameState = () => {
         setForeignInvestments,
         foreignInvestmentPolicy,
         setForeignInvestmentPolicy,
-        setOverseasBuildings,        setOverseasBuildings,
+        setOverseasBuildings, setOverseasBuildings,
 
         // 策略行动
         actionCooldowns,

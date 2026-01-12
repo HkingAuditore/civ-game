@@ -3692,7 +3692,10 @@ export const useGameActions = (gameState, addLog) => {
             // ========== 海外投资相关行动 ==========
             case 'establish_overseas_investment': {
                 // 在附庸国建立海外投资
-                const { buildingId, ownerStratum, operatingMode } = payload || {};
+                const { buildingId, ownerStratum, strategy } = payload || {};
+                const targetNationId = payload?.targetNation?.id || payload?.targetNationId || nationId;
+                const targetNation = nations.find(n => n.id === targetNationId);
+
                 if (!targetNation || !buildingId) {
                     addLog('建立海外投资失败：参数不完整');
                     break;
@@ -3703,7 +3706,7 @@ export const useGameActions = (gameState, addLog) => {
                         targetNation,
                         buildingId,
                         ownerStratum: ownerStratum || 'capitalist',
-                        operatingMode: operatingMode || 'local',
+                        strategy: strategy || 'PROFIT_MAX',
                         existingInvestments: overseasInvestments || [],
                         classWealth,
                         daysElapsed,
@@ -3759,7 +3762,7 @@ export const useGameActions = (gameState, addLog) => {
 
             case 'change_investment_mode': {
                 // 切换海外投资运营模式（支持批量修改配置）
-                const { investmentId, investmentIds, updates, operatingMode: legacyMode } = payload || {};
+                const { investmentId, investmentIds, updates } = payload || {};
                 const targetIds = investmentIds || (investmentId ? [investmentId] : []);
 
                 if (targetIds.length === 0) {
@@ -3767,18 +3770,7 @@ export const useGameActions = (gameState, addLog) => {
                     break;
                 }
 
-                let finalUpdates = updates || {};
-
-                // 兼容旧参数 logic (如果UI传参仍是 operatingMode)
-                if (!updates && legacyMode) {
-                    if (legacyMode === 'dumping') {
-                        finalUpdates = { inputSource: 'home', outputDest: 'local' };
-                    } else if (legacyMode === 'buyback') {
-                        finalUpdates = { inputSource: 'local', outputDest: 'home' };
-                    } else {
-                        finalUpdates = { inputSource: 'local', outputDest: 'local' };
-                    }
-                }
+                const finalUpdates = updates || {};
 
                 if (Object.keys(finalUpdates).length === 0) {
                     addLog('切换配置失败：无有效更新');
@@ -3792,7 +3784,7 @@ export const useGameActions = (gameState, addLog) => {
                     return inv;
                 }));
 
-                addLog(`📦 已更新 ${targetIds.length} 个海外投资的运营配置`);
+                addLog(`📦 已更新 ${targetIds.length} 个海外投资的运营策略`);
                 break;
             }
 

@@ -385,15 +385,16 @@ const DiplomacyTabComponent = ({
                     setInvestmentPanelNation(null);
                 }}
                 targetNation={investmentPanelNation}
+                playerNation={nations.find(n => n.id === 'player')}
                 overseasInvestments={overseasInvestments}
                 classWealth={classWealth}
                 epoch={epoch}
                 market={market}
-                onInvest={(nationId, buildingId, ownerStratum) => {
+                onInvest={(nationId, buildingId, ownerStratum, strategy) => {
                     onDiplomaticAction(nationId, 'establish_overseas_investment', {
                         buildingId,
                         ownerStratum,
-                        operatingMode: 'local',
+                        strategy,
                     });
                 }}
                 onWithdraw={(investmentId) => {
