@@ -4,6 +4,7 @@ import {
     createForeignInvestment
 } from './overseasInvestment';
 import { BUILDINGS, RESOURCES } from '../../config';
+import { debugLog } from '../../utils/debugFlags';
 
 /**
  * Process autonomous overseas for specific classes (Capitalist, Merchant)
@@ -160,11 +161,19 @@ export function processAIInvestment({
     // 1. Check AI capability
     // Must be Civilized or Industrial era (Epoch 2+) to invest
     // Must have enough budget (Wealth > 5000)
-    if ((investorNation.epoch || 0) < 2) return null;
-    if ((investorNation.wealth || 0) < 5000) return null;
+    if ((investorNation.epoch || 0) < 2) {
+        debugLog('overseas', `[AI投资] ${investorNation.name} 时代不足 (${investorNation.epoch || 0} < 2)`);
+        return null;
+    }
+    if ((investorNation.wealth || 0) < 5000) {
+        debugLog('overseas', `[AI投资] ${investorNation.name} 财富不足 (${investorNation.wealth || 0} < 5000)`);
+        return null;
+    }
 
-    // Chance to invest: Low daily chance (e.g. 1%)
-    if (Math.random() > 0.01) return null;
+    // Chance to invest: 5% daily chance (increased from 1% for better gameplay)
+    if (Math.random() > 0.05) return null;
+    
+    debugLog('overseas', `[AI投资] ${investorNation.name} 开始评估投资机会...`);
 
     // 2. Identify Targets
     // Target Player?
@@ -179,25 +188,36 @@ export function processAIInvestment({
     
     // Evaluate Player
     const playerRelation = investorNation.relation || 0;
-    if (playerRelation > 40) {
+    // 关系 > 30 即可考虑投资 (降低门槛)
+    if (playerRelation > 30) {
         targets.push({ id: 'player', name: 'Player', ...playerState });
     }
 
-    if (targets.length === 0) return null;
+    if (targets.length === 0) {
+        debugLog('overseas', `[AI投资] ${investorNation.name} 无合适投资目标 (关系: ${investorNation.relation || 0})`);
+        return null;
+    }
 
     // 3. Evaluate Buildings
     // AI prefers resource extraction or profitable industry
+    // Fix: BUILDINGS uses 'cat' not 'category', and 'baseCost' not 'cost'
     const candidateBuildings = BUILDINGS.filter(b => 
-        (b.category === 'resource' || b.category === 'manufacturing') &&
-        b.epoch <= (investorNation.epoch || 0) &&
-        b.cost && b.cost.silver
+        (b.cat === 'gather' || b.cat === 'industry') &&
+        (b.epoch || 0) <= (investorNation.epoch || 0) &&
+        (b.baseCost || b.cost) // Has cost definition
     );
+    
+    debugLog('overseas', `[AI投资] ${investorNation.name} 找到 ${candidateBuildings.length} 个候选建筑`);
+    
      // Shuffle
      const shuffledBuildings = candidateBuildings.sort(() => Math.random() - 0.5);
 
      for (const target of targets) {
          for (const building of shuffledBuildings) {
-             const cost = (building.cost.silver || 1000) * 1.5; // Foreign investment markup
+             // Fix: use baseCost (primary) or cost (fallback)
+             const costConfig = building.baseCost || building.cost || {};
+             const baseCost = Object.values(costConfig).reduce((sum, v) => sum + (typeof v === 'number' ? v : 0), 0);
+             const cost = (baseCost || 1000) * 1.5; // Foreign investment markup
              if ((investorNation.wealth || 0) < cost) continue;
 
              // ROI Calc
@@ -257,6 +277,8 @@ export function processAIInvestment({
 
             dailyProfit = revenue - expense;
             const roi = (dailyProfit * 360) / cost;
+            
+            debugLog('overseas', `[AI投资] ${investorNation.name} 评估 ${building.name}: ROI=${(roi*100).toFixed(1)}%, profit=${dailyProfit.toFixed(1)}/day`);
             
             if (roi > 0.10) { // 10% ROI acceptable for AI
                  return {

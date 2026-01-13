@@ -1888,8 +1888,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     });
                 }
 
-                // 4. AI Autonomous Investment (10% chance to check daily)
-                if (Math.random() < 0.1) {
+                // 4. AI Autonomous Investment (30% chance to check daily - increased for better gameplay)
+                if (Math.random() < 0.3) {
                     import('../logic/diplomacy/autonomousInvestment').then(({ processAIInvestment }) => {
                         if (!processAIInvestment) return;
                         

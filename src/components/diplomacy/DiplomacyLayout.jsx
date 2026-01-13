@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import DiplomacyDashboard from './DiplomacyDashboard';
 import NationList from './NationList';
 import NationDetailView from './NationDetailView';
+import { VassalManagementSheet } from '../panels/VassalManagementSheet';
+import { VassalOverviewPanel } from '../panels/VassalOverviewPanel';
 import { Icon } from '../common/UIComponents';
 import { Button } from '../common/UnifiedUI';
 import { COLORS } from '../../config/unifiedStyles';
@@ -47,6 +49,31 @@ const DiplomacyLayout = ({
 }) => {
     // 移动端视图控制
     const [isMobileDetailOpen, setIsMobileDetailOpen] = useState(false);
+    
+    // 附庸管理面板状态
+    const [vassalSheetOpen, setVassalSheetOpen] = useState(false);
+    const [vassalSheetNation, setVassalSheetNation] = useState(null);
+    
+    // 附庸概览面板状态
+    const [vassalOverviewOpen, setVassalOverviewOpen] = useState(false);
+
+    // 打开附庸管理面板
+    const handleOpenVassalSheet = (nation) => {
+        setVassalSheetNation(nation);
+        setVassalSheetOpen(true);
+    };
+    
+    // 打开附庸概览面板
+    const handleOpenVassalOverview = () => {
+        setVassalOverviewOpen(true);
+    };
+    
+    // 从附庸概览选择某个附庸后，打开详细管理
+    const handleSelectVassal = (nation) => {
+        setVassalOverviewOpen(false);
+        setVassalSheetNation(nation);
+        setVassalSheetOpen(true);
+    };
 
     // 当选中国家时，移动端自动打开详情页
     useEffect(() => {
@@ -111,6 +138,10 @@ const DiplomacyLayout = ({
                         <Button size="sm" variant="secondary" onClick={onManageForeignInvestment}>
                             外资管理
                         </Button>
+                        <Button size="sm" variant="secondary" onClick={handleOpenVassalOverview}>
+                            <Icon name="Crown" size={14} className="mr-1" />
+                            附庸概览
+                        </Button>
                     </div>
                 </div>
 
@@ -132,6 +163,7 @@ const DiplomacyLayout = ({
 
                         onVassalPolicy={onVassalPolicy}
                         onOverseasInvestment={onOverseasInvestment}
+                        onOpenVassalSheet={handleOpenVassalSheet}
                         diplomacyOrganizations={diplomacyOrganizations}
                         tradeRoutes={tradeRoutes}
                         merchantState={merchantState}
@@ -154,6 +186,27 @@ const DiplomacyLayout = ({
                     />
                 )}
             </div>
+
+            {/* 附庸管理 Bottom Sheet */}
+            <VassalManagementSheet
+                isOpen={vassalSheetOpen}
+                onClose={() => setVassalSheetOpen(false)}
+                nation={vassalSheetNation}
+                playerResources={resources}
+                onVassalPolicy={onVassalPolicy}
+                onDiplomaticAction={onDiplomaticAction}
+            />
+            
+            {/* 附庸概览 Bottom Sheet */}
+            <VassalOverviewPanel
+                isOpen={vassalOverviewOpen}
+                onClose={() => setVassalOverviewOpen(false)}
+                nations={nations}
+                playerResources={resources}
+                onSelectVassal={handleSelectVassal}
+                onAdjustPolicy={onVassalPolicy}
+                onReleaseVassal={(nation) => onDiplomaticAction?.(nation.id, 'release_vassal')}
+            />
         </div>
     );
 };

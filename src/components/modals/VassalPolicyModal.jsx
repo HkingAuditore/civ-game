@@ -365,10 +365,21 @@ const VassalPolicyModalComponent = ({
     if (!nation) return null;
     
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-            <div className="bg-gray-900 rounded-xl border border-gray-700 shadow-2xl w-full max-w-lg max-h-[90vh] overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+            {/* Bottom Sheet Container */}
+            <div 
+                className="bg-gray-900 rounded-t-2xl border-t border-x border-gray-700 shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden animate-slide-up"
+                style={{
+                    animation: 'slideUp 0.3s ease-out'
+                }}
+            >
+                {/* 拖动指示条 */}
+                <div className="flex justify-center py-2">
+                    <div className="w-12 h-1 bg-gray-600 rounded-full" />
+                </div>
+                
                 {/* 标题栏 */}
-                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800/50">
+                <div className="flex items-center justify-between px-4 py-2 border-b border-gray-700 bg-gray-800/50">
                     <div className="flex items-center gap-2">
                         <Icon name="Settings" size={18} className="text-purple-400" />
                         <h2 className="text-base font-bold text-white font-decorative">
@@ -380,14 +391,14 @@ const VassalPolicyModalComponent = ({
                     </div>
                     <button 
                         onClick={onClose}
-                        className="p-1 rounded hover:bg-gray-700 transition-colors"
+                        className="p-1.5 rounded-full hover:bg-gray-700 transition-colors"
                     >
                         <Icon name="X" size={18} className="text-gray-400" />
                     </button>
                 </div>
                 
                 {/* 内容区 */}
-                <div className="p-4 space-y-4 overflow-y-auto max-h-[calc(90vh-120px)]">
+                <div className="p-4 space-y-4 overflow-y-auto max-h-[calc(85vh-140px)]">
                     {/* 外交控制 */}
                     <div>
                         <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-1.5 font-decorative">
@@ -563,7 +574,7 @@ const VassalPolicyModalComponent = ({
                 </div>
                 
                 {/* 底部按钮 */}
-                <div className="flex items-center justify-between px-4 py-3 border-t border-gray-700 bg-gray-800/30">
+                <div className="flex items-center justify-between px-4 py-3 border-t border-gray-700 bg-gray-800/50">
                     <button
                         onClick={handleReset}
                         className="px-3 py-1.5 text-sm text-gray-400 hover:text-white transition-colors font-body"
@@ -573,19 +584,33 @@ const VassalPolicyModalComponent = ({
                     <div className="flex items-center gap-2">
                         <button
                             onClick={onClose}
-                            className="px-4 py-1.5 text-sm rounded bg-gray-700 hover:bg-gray-600 text-white transition-colors font-body"
+                            className="px-4 py-1.5 text-sm rounded-lg bg-gray-700 hover:bg-gray-600 text-white transition-colors font-body"
                         >
                             取消
                         </button>
                         <button
                             onClick={handleApply}
-                            className="px-4 py-1.5 text-sm rounded bg-blue-600 hover:bg-blue-500 text-white transition-colors font-body"
+                            className="px-4 py-1.5 text-sm rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition-colors font-body"
                         >
                             应用政策
                         </button>
                     </div>
                 </div>
             </div>
+            
+            {/* 动画样式 */}
+            <style>{`
+                @keyframes slideUp {
+                    from {
+                        transform: translateY(100%);
+                        opacity: 0;
+                    }
+                    to {
+                        transform: translateY(0);
+                        opacity: 1;
+                    }
+                }
+            `}</style>
         </div>
     );
 };
