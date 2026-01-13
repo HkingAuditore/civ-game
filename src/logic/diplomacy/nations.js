@@ -384,7 +384,7 @@ const processWarActions = ({ nation, tick, epoch, res, army, stabilityValue, log
     const hasDefenders = Object.values(defenderArmy).some(count => count > 0);
 
     if (!hasDefenders) {
-        // No defense - automatic loss
+        // No defense - automatic loss (AI wins)
         const lossMultiplier = { raid: 0.15, assault: 0.25, scorched_earth: 0.2 }[actionType] || 0.15;
         const foodLoss = Math.floor((res.food || 0) * lossMultiplier);
         const silverLoss = Math.floor((res.silver || 0) * lossMultiplier * 0.5);
@@ -392,7 +392,7 @@ const processWarActions = ({ nation, tick, epoch, res, army, stabilityValue, log
         if (foodLoss > 0) res.food = Math.max(0, (res.food || 0) - foodLoss);
         if (silverLoss > 0) res.silver = Math.max(0, (res.silver || 0) - silverLoss);
 
-        nation.warScore = (nation.warScore || 0) + 8;
+        nation.warScore = (nation.warScore || 0) - 8;  // AI赢：玩家优势减少
         nation.wealth = (nation.wealth || 0) + Math.floor((foodLoss + silverLoss) * 0.08);
 
         logs.push(`⚔️ ${nation.name} ${actionType === 'raid' ? 'raided' : 'attacked'} undefended! Lost ${foodLoss} food, ${silverLoss} silver.`);
@@ -411,15 +411,15 @@ const processWarActions = ({ nation, tick, epoch, res, army, stabilityValue, log
         });
 
         if (battleResult.victory) {
-            // AI won
+            // AI won - 减少玩家优势
             const foodLoss = Math.floor((res.food || 0) * 0.1);
             const silverLoss = Math.floor((res.silver || 0) * 0.05);
             if (foodLoss > 0) res.food = Math.max(0, (res.food || 0) - foodLoss);
             if (silverLoss > 0) res.silver = Math.max(0, (res.silver || 0) - silverLoss);
-            nation.warScore = (nation.warScore || 0) + 5;
+            nation.warScore = (nation.warScore || 0) - 5;  // AI赢：玩家优势减少
         } else {
-            // Player won
-            nation.warScore = (nation.warScore || 0) - 3;
+            // Player won - 增加玩家优势
+            nation.warScore = (nation.warScore || 0) + 3;  // 玩家赢：玩家优势增加
             const enemyLosses = Object.values(battleResult.attackerLosses || {})
                 .reduce((sum, val) => sum + (val || 0), 0);
             nation.enemyLosses = (nation.enemyLosses || 0) + enemyLosses;

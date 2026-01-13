@@ -224,6 +224,20 @@ const NationDetailView = ({
 
                 {activeTab === 'trade' && (
                     <div className="space-y-6">
+                                                <div className="flex flex-col sm:flex-row gap-3 items-center justify-between p-4 bg-black/20 rounded-lg">
+                            <div className="text-sm text-ancient-stone">
+                                管理在该国的投资与资产
+                            </div>
+                            <Button
+                                onClick={() => onOverseasInvestment?.(nation)}
+                                variant="secondary"
+                                icon={<Icon name="Factory" size={16} />}
+                                className="w-full sm:w-auto"
+                            >
+                                海外投资管理
+                            </Button>
+                        </div>
+                        
                         <Card className="p-0 overflow-hidden border-ancient-gold/20 bg-ancient-ink/30">
                             <div className="p-4 border-b border-white/5 bg-black/20 flex justify-between items-center">
                                 <div className="flex items-center gap-2">
@@ -249,19 +263,7 @@ const NationDetailView = ({
                             />
                         </Card>
 
-                        <div className="flex flex-col sm:flex-row gap-3 items-center justify-between p-4 bg-black/20 rounded-lg">
-                            <div className="text-sm text-ancient-stone">
-                                管理在该国的投资与资产
-                            </div>
-                            <Button
-                                onClick={() => onOverseasInvestment?.(nation)}
-                                variant="secondary"
-                                icon={<Icon name="Factory" size={16} />}
-                                className="w-full sm:w-auto"
-                            >
-                                海外投资管理
-                            </Button>
-                        </div>
+
                     </div>
                 )}
 
