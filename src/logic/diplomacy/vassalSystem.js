@@ -14,6 +14,104 @@ import {
 } from '../../config/diplomacy';
 
 /**
+ * Calculate dynamic control cost based on vassal wealth
+ * @param {string} measureType - Control measure type
+ * @param {number} vassalWealth - Vassal nation wealth
+ * @returns {number} Daily cost
+ */
+export const calculateControlMeasureCost = (measureType, vassalWealth = 1000) => {
+    const measureConfig = INDEPENDENCE_CONFIG.controlMeasures[measureType];
+    if (!measureConfig) return 0;
+    
+    const baseCost = measureConfig.baseCost || 50;
+    const scalingFactor = measureConfig.wealthScalingFactor || 0;
+    const scaledCost = Math.floor(vassalWealth * scalingFactor);
+    
+    return baseCost + scaledCost;
+};
+
+/**
+ * Calculate governor effectiveness based on assigned official
+ * @param {Object} official - Assigned official object
+ * @param {Object} measureConfig - Governor measure config
+ * @returns {Object} Effectiveness data
+ */
+export const calculateGovernorEffectiveness = (official, measureConfig) => {
+    if (!official) {
+        return {
+            effectiveness: 0,
+            independenceReduction: 0,
+            satisfactionBonus: 0,
+            warning: 'no_official',
+        };
+    }
+    
+    const baseEffectiveness = measureConfig.baseEffectiveness || 0.5;
+    
+    // Prestige affects effectiveness (0-100 scale)
+    const prestigeFactor = (official.prestige || 50) / 100;
+    
+    // Loyalty affects reliability (low loyalty = reduced effectiveness + risk)
+    const loyaltyFactor = (official.loyalty || 50) / 100;
+    
+    // Combined effectiveness (prestige for competence, loyalty for reliability)
+    const effectiveness = baseEffectiveness * (0.5 + prestigeFactor * 0.5) * (0.5 + loyaltyFactor * 0.5);
+    
+    // Calculate actual independence reduction
+    const baseReduction = measureConfig.independenceReduction || 0.2;
+    const actualReduction = baseReduction * (1 + effectiveness);
+    
+    // Satisfaction bonus modified by official's origin stratum
+    let satisfactionBonus = measureConfig.eliteSatisfactionBonus || 2;
+    if (official.sourceStratum === 'elite' || official.sourceStratum === 'nobles') {
+        satisfactionBonus *= 1.2; // Nobles are better at dealing with elites
+    } else if (official.sourceStratum === 'commoner') {
+        satisfactionBonus *= 0.8; // Commoners less respected by elites
+    }
+    
+    // Low loyalty risk: might increase independence or siphon funds
+    let loyaltyRisk = null;
+    if ((official.loyalty || 50) < 40) {
+        loyaltyRisk = {
+            type: 'low_loyalty',
+            corruptionChance: (40 - (official.loyalty || 50)) / 100,
+            independenceIncrease: 0.05 * (40 - (official.loyalty || 50)) / 40,
+        };
+    }
+    
+    return {
+        effectiveness,
+        independenceReduction: actualReduction,
+        satisfactionBonus: Math.floor(satisfactionBonus),
+        loyaltyRisk,
+        officialName: official.name || 'Unknown Official',
+        officialPrestige: official.prestige || 50,
+        officialLoyalty: official.loyalty || 50,
+    };
+};
+
+/**
+ * Check if garrison is effective based on military strength
+ * @param {number} playerMilitary - Player's military strength
+ * @param {number} vassalMilitary - Vassal's military strength
+ * @returns {Object} Garrison effectiveness data
+ */
+export const checkGarrisonEffectiveness = (playerMilitary, vassalMilitary) => {
+    const threshold = INDEPENDENCE_CONFIG.garrisonMilitaryThreshold || 0.5;
+    const requiredStrength = vassalMilitary * threshold;
+    const isEffective = playerMilitary >= requiredStrength;
+    
+    return {
+        isEffective,
+        playerMilitary,
+        vassalMilitary,
+        requiredStrength,
+        ratio: vassalMilitary > 0 ? playerMilitary / vassalMilitary : 1,
+        warning: !isEffective ? 'insufficient_military' : null,
+    };
+};
+
+/**
  * 处理所有附庸国的每日更新
  * @param {Object} params - 更新参数
  * @returns {Object} 更新后的状态
@@ -25,12 +123,15 @@ export const processVassalUpdates = ({
     playerMilitary = 1.0,
     playerStability = 50,
     playerAtWar = false,
-    playerWealth = 10000,  // 新增：玩家财富参数
+    playerWealth = 10000,
+    officials = [],       // NEW: Player's officials list
     logs = [],
 }) => {
     let tributeIncome = 0;
-    let resourceTribute = {};  // 新增：资源朝贡汇总
+    let resourceTribute = {};
+    let totalControlCost = 0;  // NEW: Track total control costs
     const vassalEvents = [];
+    const controlWarnings = [];  // NEW: Track warnings about control measures
 
     const updatedNations = (nations || []).map(nation => {
         // 跳过非附庸国
@@ -41,8 +142,184 @@ export const processVassalUpdates = ({
         const updated = { ...nation };
         const vassalConfig = VASSAL_TYPE_CONFIGS[updated.vassalType];
         if (!vassalConfig) return updated;
+        
+        const vassalWealth = updated.wealth || 500;
+        const vassalMilitary = updated.militaryStrength || 0.5;
 
-        // 1. 每30天结算朝贡（使用新的计算方式）
+        // ========== 1. Process Control Measures Costs and Effects ==========
+        let controlMeasureIndependenceReduction = 0;
+        let vassalWealthChange = 0;
+        
+        if (updated.vassalPolicy?.controlMeasures) {
+            const measures = updated.vassalPolicy.controlMeasures;
+            
+            // Process each active control measure
+            Object.entries(measures).forEach(([measureId, measureData]) => {
+                // Support both boolean (legacy) and object format
+                const isActive = measureData === true || (measureData && measureData.active !== false);
+                if (!isActive) return;
+                
+                const measureConfig = INDEPENDENCE_CONFIG.controlMeasures[measureId];
+                if (!measureConfig) return;
+                
+                // Calculate dynamic cost
+                const dailyCost = calculateControlMeasureCost(measureId, vassalWealth);
+                totalControlCost += dailyCost;
+                
+                // Process specific measure effects
+                switch (measureId) {
+                    case 'governor': {
+                        // Governor requires an assigned official
+                        const officialId = measureData.officialId;
+                        const official = officials.find(o => o.id === officialId);
+                        
+                        if (measureConfig.requiresOfficial && !official) {
+                            controlWarnings.push({
+                                type: 'governor_no_official',
+                                nationId: updated.id,
+                                nationName: updated.name,
+                                message: `${updated.name}的总督职位空缺，控制效果失效`,
+                            });
+                            // Still charge cost but no effect
+                            break;
+                        }
+                        
+                        const govEffect = calculateGovernorEffectiveness(official, measureConfig);
+                        controlMeasureIndependenceReduction += govEffect.independenceReduction;
+                        
+                        // Apply elite satisfaction bonus
+                        if (govEffect.satisfactionBonus > 0 && updated.socialStructure?.elites) {
+                            updated.socialStructure = {
+                                ...updated.socialStructure,
+                                elites: {
+                                    ...updated.socialStructure.elites,
+                                    satisfaction: Math.min(100, 
+                                        (updated.socialStructure.elites.satisfaction || 50) + 
+                                        govEffect.satisfactionBonus * 0.1  // Daily accumulation
+                                    ),
+                                }
+                            };
+                        }
+                        
+                        // Low loyalty risk effects
+                        if (govEffect.loyaltyRisk && Math.random() < govEffect.loyaltyRisk.corruptionChance * 0.01) {
+                            // Corrupt official increases independence
+                            controlMeasureIndependenceReduction -= govEffect.loyaltyRisk.independenceIncrease;
+                            logs.push(`⚠️ ${updated.name}的总督${govEffect.officialName}行为不端，引发民众不满`);
+                        }
+                        break;
+                    }
+                    
+                    case 'garrison': {
+                        // Check military strength requirement
+                        const garrisonCheck = checkGarrisonEffectiveness(playerMilitary, vassalMilitary);
+                        
+                        if (!garrisonCheck.isEffective) {
+                            controlWarnings.push({
+                                type: 'garrison_insufficient_military',
+                                nationId: updated.id,
+                                nationName: updated.name,
+                                required: garrisonCheck.requiredStrength,
+                                current: playerMilitary,
+                                message: `驻军${updated.name}需要军力${garrisonCheck.requiredStrength.toFixed(1)}，当前${playerMilitary.toFixed(1)}`,
+                            });
+                            // Cost is still incurred but effect is reduced
+                            controlMeasureIndependenceReduction += measureConfig.independenceReduction * 0.2; // 20% effectiveness without proper military
+                        } else {
+                            controlMeasureIndependenceReduction += measureConfig.independenceReduction;
+                        }
+                        
+                        // Apply commoner satisfaction penalty
+                        if (measureConfig.commonerSatisfactionPenalty && updated.socialStructure?.commoners) {
+                            updated.socialStructure = {
+                                ...updated.socialStructure,
+                                commoners: {
+                                    ...updated.socialStructure.commoners,
+                                    satisfaction: Math.max(0,
+                                        (updated.socialStructure.commoners.satisfaction || 50) + 
+                                        measureConfig.commonerSatisfactionPenalty * 0.1  // Daily accumulation
+                                    ),
+                                }
+                            };
+                        }
+                        break;
+                    }
+                    
+                    case 'assimilation': {
+                        // Cultural assimilation reduces independence cap over time
+                        const currentCap = updated.independenceCap || 100;
+                        const newCap = Math.max(
+                            measureConfig.minIndependenceCap || 30,
+                            currentCap - measureConfig.independenceCapReduction
+                        );
+                        updated.independenceCap = newCap;
+                        
+                        // Small satisfaction penalty across all classes
+                        if (measureConfig.satisfactionPenalty && updated.socialStructure) {
+                            const penalty = measureConfig.satisfactionPenalty * 0.1;
+                            if (updated.socialStructure.elites) {
+                                updated.socialStructure.elites.satisfaction = Math.max(0,
+                                    (updated.socialStructure.elites.satisfaction || 50) + penalty
+                                );
+                            }
+                            if (updated.socialStructure.commoners) {
+                                updated.socialStructure.commoners.satisfaction = Math.max(0,
+                                    (updated.socialStructure.commoners.satisfaction || 50) + penalty
+                                );
+                            }
+                        }
+                        break;
+                    }
+                    
+                    case 'economicAid': {
+                        // Economic aid improves satisfaction and transfers wealth
+                        controlMeasureIndependenceReduction += measureConfig.independenceReduction || 0.1;
+                        
+                        // Apply satisfaction bonuses
+                        if (updated.socialStructure) {
+                            if (measureConfig.commonerSatisfactionBonus && updated.socialStructure.commoners) {
+                                updated.socialStructure = {
+                                    ...updated.socialStructure,
+                                    commoners: {
+                                        ...updated.socialStructure.commoners,
+                                        satisfaction: Math.min(100,
+                                            (updated.socialStructure.commoners.satisfaction || 50) + 
+                                            measureConfig.commonerSatisfactionBonus * 0.1
+                                        ),
+                                    }
+                                };
+                            }
+                            if (measureConfig.underclassSatisfactionBonus && updated.socialStructure.underclass) {
+                                updated.socialStructure = {
+                                    ...updated.socialStructure,
+                                    underclass: {
+                                        ...updated.socialStructure.underclass,
+                                        satisfaction: Math.min(100,
+                                            (updated.socialStructure.underclass.satisfaction || 50) + 
+                                            measureConfig.underclassSatisfactionBonus * 0.1
+                                        ),
+                                    }
+                                };
+                            }
+                        }
+                        
+                        // Transfer small amount of wealth to vassal
+                        if (measureConfig.vassalWealthTransfer) {
+                            const transfer = Math.floor(dailyCost * measureConfig.vassalWealthTransfer);
+                            vassalWealthChange += transfer;
+                        }
+                        break;
+                    }
+                }
+            });
+        }
+        
+        // Apply wealth change from economic aid
+        if (vassalWealthChange > 0) {
+            updated.wealth = (updated.wealth || 0) + vassalWealthChange;
+        }
+
+        // ========== 2. 每30天结算朝贡（使用新的计算方式） ==========
         if (daysElapsed > 0 && daysElapsed % 30 === 0) {
             const tribute = calculateEnhancedTribute(updated, playerWealth);
             
@@ -73,26 +350,29 @@ export const processVassalUpdates = ({
             }
         }
 
-        // 2. 更新独立倾向（使用新的计算方式）
+        // ========== 3. 更新独立倾向（使用新的计算方式） ==========
         const independenceGrowth = getEnhancedIndependenceGrowthRate(
             updated.vassalType, 
             epoch,
             updated.socialStructure
         );
         
-        // 应用控制手段的减免（如果有）
-        let effectiveGrowth = independenceGrowth;
-        if (updated.vassalPolicy?.controlMeasures) {
-            const measures = updated.vassalPolicy.controlMeasures;
-            if (measures.governor) effectiveGrowth -= INDEPENDENCE_CONFIG.controlMeasures.governor.independenceReduction;
-            if (measures.garrison) effectiveGrowth -= INDEPENDENCE_CONFIG.controlMeasures.garrison.independenceReduction;
+        // Apply control measures reduction
+        let effectiveGrowth = independenceGrowth - controlMeasureIndependenceReduction;
+        
+        // Apply independence cap if exists
+        const independenceCap = updated.independenceCap || 100;
+        const currentIndependence = updated.independencePressure || 0;
+        
+        if (currentIndependence >= independenceCap) {
+            effectiveGrowth = 0; // Cap reached
         }
         
-        updated.independencePressure = Math.min(100, Math.max(0,
-            (updated.independencePressure || 0) + Math.max(0, effectiveGrowth)
+        updated.independencePressure = Math.min(independenceCap, Math.max(0,
+            currentIndependence + Math.max(0, effectiveGrowth)
         ));
 
-        // 3. 检查独立战争触发
+        // ========== 4. 检查独立战争触发 ==========
         const independenceDesire = calculateIndependenceDesire(updated, playerMilitary);
         if (independenceDesire >= INDEPENDENCE_WAR_CONDITIONS.minIndependenceDesire) {
             const warTriggered = checkIndependenceWarTrigger({
@@ -119,7 +399,7 @@ export const processVassalUpdates = ({
             }
         }
 
-        // 4. 自主度缓慢恢复（除非是殖民地）
+        // ========== 5. 自主度缓慢恢复（除非是殖民地） ==========
         if (updated.vassalType !== 'colony' && updated.autonomy < vassalConfig.autonomy) {
             updated.autonomy = Math.min(vassalConfig.autonomy, (updated.autonomy || 0) + 0.1);
         }
@@ -127,11 +407,18 @@ export const processVassalUpdates = ({
         return updated;
     });
 
+    // Log control warnings
+    controlWarnings.forEach(warning => {
+        logs.push(`⚠️ ${warning.message}`);
+    });
+
     return {
         nations: updatedNations,
         tributeIncome,
-        resourceTribute,  // 新增：返回资源朝贡
+        resourceTribute,
+        totalControlCost,    // NEW: Return total control cost for deduction
         vassalEvents,
+        controlWarnings,     // NEW: Return warnings for UI
     };
 };
 
@@ -309,6 +596,7 @@ export const establishVassalRelation = (nation, vassalType, epoch) => {
         autonomy: config.autonomy,
         tributeRate: config.tributeRate,
         independencePressure: 0,
+        independenceCap: 100,  // NEW: Initialize independence cap
         // 结束战争状态
         isAtWar: false,
         warTarget: null,
@@ -332,6 +620,7 @@ export const releaseVassal = (nation, reason = 'released') => {
         autonomy: 100,
         tributeRate: 0,
         independencePressure: 0,
+        independenceCap: 100,  // Reset independence cap
         relation: Math.min(100, Math.max(0, (nation.relation || 50) + relationChange)),
     };
 };
@@ -355,6 +644,7 @@ export const adjustVassalPolicy = (nation, policyChanges) => {
         updated.vassalPolicy = {
             diplomaticControl: 'guided',
             tradePolicy: 'preferential',
+            controlMeasures: {},  // NEW: Object format for control measures
         };
     }
     
@@ -424,6 +714,14 @@ export const adjustVassalPolicy = (nation, policyChanges) => {
         }
     }
     
+    // NEW: Update control measures with new object format
+    if (policyChanges.controlMeasures) {
+        updated.vassalPolicy.controlMeasures = {
+            ...updated.vassalPolicy.controlMeasures,
+            ...policyChanges.controlMeasures,
+        };
+    }
+    
     return updated;
 };
 
@@ -448,6 +746,7 @@ export const calculateVassalBenefits = (nations, playerWealth = 10000) => {
     let totalTribute = 0;
     let totalTradeBonus = 0;
     let totalResourceTribute = {};
+    let totalControlCost = 0;  // NEW: Calculate total control costs
     
     vassals.forEach(vassal => {
         const tribute = calculateEnhancedTribute(vassal, playerWealth);
@@ -462,6 +761,17 @@ export const calculateVassalBenefits = (nations, playerWealth = 10000) => {
         if (config) {
             totalTradeBonus += config.tariffDiscount;
         }
+        
+        // Calculate control measure costs
+        if (vassal.vassalPolicy?.controlMeasures) {
+            const vassalWealth = vassal.wealth || 500;
+            Object.entries(vassal.vassalPolicy.controlMeasures).forEach(([measureId, measureData]) => {
+                const isActive = measureData === true || (measureData && measureData.active !== false);
+                if (isActive) {
+                    totalControlCost += calculateControlMeasureCost(measureId, vassalWealth);
+                }
+            });
+        }
     });
     
     return {
@@ -469,6 +779,7 @@ export const calculateVassalBenefits = (nations, playerWealth = 10000) => {
         monthlyTribute: totalTribute,
         monthlyResourceTribute: totalResourceTribute,
         tradeBonus: totalTradeBonus / Math.max(1, vassals.length),
+        dailyControlCost: totalControlCost,  // NEW: Include daily control cost
     };
 };
 
@@ -520,4 +831,119 @@ export const canEstablishVassal = (nation, vassalType, { epoch, playerMilitary, 
     }
     
     return { canEstablish: true, reason: null };
+};
+
+/**
+ * Check if a vassal can perform diplomatic action based on restrictions
+ * @param {Object} nation - Vassal nation
+ * @param {string} actionType - Type of diplomatic action ('alliance', 'treaty', 'trade')
+ * @returns {Object} { allowed, reason }
+ */
+export const canVassalPerformDiplomacy = (nation, actionType) => {
+    if (nation.vassalOf !== 'player') {
+        return { allowed: true, reason: null };
+    }
+    
+    const vassalConfig = VASSAL_TYPE_CONFIGS[nation.vassalType];
+    if (!vassalConfig) {
+        return { allowed: true, reason: null };
+    }
+    
+    const diplomaticControl = nation.vassalPolicy?.diplomaticControl || 'guided';
+    
+    switch (actionType) {
+        case 'alliance':
+            if (!vassalConfig.canFormAlliance) {
+                return { 
+                    allowed: false, 
+                    reason: `${vassalConfig.name}不能独立结盟` 
+                };
+            }
+            if (diplomaticControl === 'puppet') {
+                return { 
+                    allowed: false, 
+                    reason: '傀儡外交政策禁止独立结盟' 
+                };
+            }
+            break;
+            
+        case 'treaty':
+            if (!vassalConfig.canSignTreaties) {
+                return { 
+                    allowed: false, 
+                    reason: `${vassalConfig.name}不能独立签署条约` 
+                };
+            }
+            if (diplomaticControl === 'puppet') {
+                return { 
+                    allowed: false, 
+                    reason: '傀儡外交政策禁止独立签署条约' 
+                };
+            }
+            break;
+            
+        case 'trade':
+            if (!vassalConfig.canTrade) {
+                return { 
+                    allowed: false, 
+                    reason: `${vassalConfig.name}的贸易受宗主国控制` 
+                };
+            }
+            if (nation.vassalPolicy?.tradePolicy === 'monopoly') {
+                return { 
+                    allowed: false, 
+                    reason: '垄断贸易政策禁止独立贸易' 
+                };
+            }
+            break;
+    }
+    
+    return { allowed: true, reason: null };
+};
+
+/**
+ * Validate and clean up governor assignments
+ * @param {Array} nations - All nations
+ * @param {Array} officials - Player officials
+ * @returns {Object} { nations, removedGovernors }
+ */
+export const validateGovernorAssignments = (nations, officials) => {
+    const officialIds = new Set(officials.map(o => o.id));
+    const removedGovernors = [];
+    
+    const updatedNations = nations.map(nation => {
+        if (nation.vassalOf !== 'player') return nation;
+        
+        const governorMeasure = nation.vassalPolicy?.controlMeasures?.governor;
+        if (!governorMeasure) return nation;
+        
+        const officialId = governorMeasure.officialId;
+        if (officialId && !officialIds.has(officialId)) {
+            // Official no longer exists, remove governor assignment
+            removedGovernors.push({
+                nationId: nation.id,
+                nationName: nation.name,
+                officialId,
+            });
+            
+            return {
+                ...nation,
+                vassalPolicy: {
+                    ...nation.vassalPolicy,
+                    controlMeasures: {
+                        ...nation.vassalPolicy.controlMeasures,
+                        governor: {
+                            ...governorMeasure,
+                            officialId: null,
+                            active: false,
+                        },
+                    },
+                },
+            };
+        }
+        
+        return nation;
+    });
+    
+    return { nations: updatedNations, removedGovernors };
 };

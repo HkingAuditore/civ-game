@@ -9,13 +9,13 @@ import {
     calculateAIGiftAmount,
 } from '../../utils/diplomaticUtils';
 import { clamp } from '../utils';
-import { isTradableResource } from '../utils/helpers';
 import {
     getRelationChangeMultipliers,
     getRelationDailyDriftRate,
     getAllyColdEventCooldown,
     getAllyColdEventChance,
 } from '../../config/difficulty';
+import { canVassalPerformDiplomacy } from './vassalSystem';
 
 /**
  * Initialize foreign relations between AI nations
@@ -189,6 +189,12 @@ export const processAITrade = (visibleNations, logs, diplomacyOrganizations = nu
         if (Math.random() > 0.02) return;
         if (nation.isAtWar) return;
 
+        // Check vassal trade restrictions - puppets and colonies cannot trade independently
+        const vassalTradeCheck = canVassalPerformDiplomacy(nation, 'trade');
+        if (!vassalTradeCheck.allowed) {
+            return; // Skip - this vassal cannot trade independently
+        }
+
         const wealth = nation.wealth || 500;
         if (wealth < 300) return;
 
@@ -196,6 +202,11 @@ export const processAITrade = (visibleNations, logs, diplomacyOrganizations = nu
             if (n.id === nation.id) return false;
             if (n.isAtWar) return false;
             if (nation.foreignWars?.[n.id]?.isAtWar) return false;
+            
+            // Check if trade partner is also restricted
+            const otherTradeCheck = canVassalPerformDiplomacy(n, 'trade');
+            if (!otherTradeCheck.allowed) return false;
+            
             const relation = nation.foreignRelations?.[n.id] ?? 50;
             return relation >= 30;
         });
@@ -346,6 +357,11 @@ export const processAIPlayerInteraction = (visibleNations, tick, epoch, logs) =>
 
         if (isAtWarWithPlayer) return;
 
+        // Check vassal treaty restrictions for AI-player treaty proposals
+        const vassalTreatyCheck = canVassalPerformDiplomacy(nation, 'treaty');
+        // Note: canProposeTreaties used for treaty proposal gating (currently disabled section below)
+        void vassalTreatyCheck; // Suppress unused variable warning until treaty proposals are re-enabled
+
         // AI breach peace treaty when relation collapses
         if (nation.peaceTreatyUntil && tick < nation.peaceTreatyUntil) {
             const breachPenalty = getTreatyBreachPenalty(epoch);
@@ -420,7 +436,9 @@ export const processAIPlayerInteraction = (visibleNations, tick, epoch, logs) =>
         }
 
         // Treaty 2.0 MVP: AI treaty proposal (open market / non-aggression / academic exchange) - DISABLED
-        if (false) {
+        // Re-enable when treaty proposals are needed, and use vassalTreatyCheck.allowed to gate proposals
+        /* DISABLED CODE BLOCK
+        if (vassalTreatyCheck.allowed) {
             const lastTreatyProposalDay = nation.lastTreatyProposalDay || 0;
             const treatyProposalCooldown = 730; // 2 years
             const canProposeTreaty = (tick - lastTreatyProposalDay) >= treatyProposalCooldown;
@@ -464,6 +482,7 @@ export const processAIPlayerInteraction = (visibleNations, tick, epoch, logs) =>
                 }
             }
         }
+        END DISABLED CODE BLOCK */
     });
 };
 
@@ -477,6 +496,12 @@ export const processAIAllianceFormation = (visibleNations, tick, logs) => {
     visibleNations.forEach(nation => {
         if (Math.random() > 0.002) return;
 
+        // Check vassal diplomatic restrictions - puppets and colonies cannot form alliances
+        const vassalAllianceCheck = canVassalPerformDiplomacy(nation, 'alliance');
+        if (!vassalAllianceCheck.allowed) {
+            return; // Skip - this vassal cannot form independent alliances
+        }
+
         const nationAggression = nation.aggression ?? 0.3;
         if (nationAggression > 0.6) return;
 
@@ -486,6 +511,11 @@ export const processAIAllianceFormation = (visibleNations, tick, logs) => {
             if (other.id === nation.id) return false;
             if (nation.allies.includes(other.id)) return false;
             if (nation.foreignWars?.[other.id]?.isAtWar) return false;
+            
+            // Check if potential ally is also restricted
+            const otherAllianceCheck = canVassalPerformDiplomacy(other, 'alliance');
+            if (!otherAllianceCheck.allowed) return false;
+            
             const relation = nation.foreignRelations?.[other.id] ?? 50;
             const otherRelation = other.foreignRelations?.[nation.id] ?? 50;
             return relation >= 70 && otherRelation >= 70;

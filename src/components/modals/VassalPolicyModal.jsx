@@ -4,8 +4,9 @@
  */
 import React, { useState, useMemo, memo } from 'react';
 import { Icon } from '../common/UIComponents';
-import { VASSAL_TYPE_CONFIGS, VASSAL_TYPE_LABELS, getAutonomyEffects } from '../../config/diplomacy';
+import { VASSAL_TYPE_CONFIGS, VASSAL_TYPE_LABELS, getAutonomyEffects, INDEPENDENCE_CONFIG } from '../../config/diplomacy';
 import { formatNumberShortCN } from '../../utils/numberFormat';
+import { calculateControlMeasureCost, checkGarrisonEffectiveness, calculateGovernorEffectiveness } from '../../logic/diplomacy/vassalSystem';
 
 /**
  * 政策选项卡片
@@ -205,53 +206,150 @@ const TRADE_POLICY_OPTIONS = [
 ];
 
 /**
- * 控制手段选项
+ * 控制手段选项 (REVAMPED with dynamic costs)
  */
 const CONTROL_MEASURES = [
     {
         id: 'governor',
         title: '派遣总督',
         icon: 'UserCheck',
-        description: '派遣一名总督管理附庸内政',
-        effects: '独立倾向-0.2/天，精英满意度+5',
+        description: '派遣一名官员担任总督管理附庸内政',
+        effects: '效果基于官员能力',
         effectColor: 'text-blue-400',
-        dailyCost: 50,
-        independenceDaily: -0.2,
-        eliteSatisfaction: 5,
+        requiresOfficial: true,
     },
     {
         id: 'garrison',
         title: '驻军占领',
         icon: 'Shield',
-        description: '在附庸境内驻扎军队',
-        effects: '独立倾向-0.5/天，平民满意度-10',
+        description: '在附庸境内驻扎军队（需要足够军力）',
+        effects: '独立倾向-0.5/天，平民满意度-3',
         effectColor: 'text-red-400',
-        dailyCost: 100,
-        independenceDaily: -0.5,
-        commonersSatisfaction: -10,
+        requiresMilitary: true,
     },
     {
-        id: 'cultural',
+        id: 'assimilation',
         title: '文化同化',
         icon: 'BookOpen',
         description: '推广本国文化和语言',
         effects: '独立倾向上限-0.05/天（长期）',
         effectColor: 'text-purple-400',
-        dailyCost: 30,
-        independenceCapDaily: -0.05,
     },
     {
-        id: 'economic_aid',
+        id: 'economicAid',
         title: '经济扶持',
         icon: 'DollarSign',
         description: '提供经济援助改善民生',
-        effects: '平民满意度+5，下层满意度+10',
+        effects: '平民满意度+3，下层满意度+5，独立倾向-0.1',
         effectColor: 'text-green-400',
-        dailyCost: 80,
-        commonersSatisfaction: 5,
-        underclassSatisfaction: 10,
     },
 ];
+
+/**
+ * Official Selector Component for Governor Assignment
+ */
+const OfficialSelector = memo(({
+    officials = [],
+    selectedOfficialId,
+    onSelect,
+    measureConfig,
+}) => {
+    const availableOfficials = useMemo(() => {
+        // Filter officials that can be assigned (not busy, etc.)
+        return officials.filter(o => o && !o.isBusy);
+    }, [officials]);
+
+    const selectedOfficial = useMemo(() => {
+        return officials.find(o => o?.id === selectedOfficialId);
+    }, [officials, selectedOfficialId]);
+
+    // Calculate projected effectiveness if an official is selected
+    const effectiveness = useMemo(() => {
+        if (!selectedOfficial) return null;
+        return calculateGovernorEffectiveness(selectedOfficial, measureConfig);
+    }, [selectedOfficial, measureConfig]);
+
+    return (
+        <div className="space-y-2">
+            <label className="text-xs text-gray-400 font-body">选择总督官员</label>
+            <select
+                value={selectedOfficialId || ''}
+                onChange={(e) => onSelect(e.target.value || null)}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-sm text-white focus:border-blue-500 focus:outline-none"
+            >
+                <option value="">-- 选择官员 --</option>
+                {availableOfficials.map(official => (
+                    <option key={official.id} value={official.id}>
+                        {official.name} (威望:{official.prestige || 50} 忠诚:{official.loyalty || 50})
+                    </option>
+                ))}
+            </select>
+            
+            {selectedOfficial && effectiveness && (
+                <div className="bg-gray-900/50 rounded p-2 space-y-1">
+                    <div className="flex items-center justify-between text-xs">
+                        <span className="text-gray-400">官员</span>
+                        <span className="text-white font-medium">{effectiveness.officialName}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                        <span className="text-gray-400">威望/忠诚</span>
+                        <span className="text-blue-400">{effectiveness.officialPrestige} / {effectiveness.officialLoyalty}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                        <span className="text-gray-400">预计效能</span>
+                        <span className={`${effectiveness.effectiveness > 0.7 ? 'text-green-400' : effectiveness.effectiveness > 0.4 ? 'text-yellow-400' : 'text-red-400'}`}>
+                            {(effectiveness.effectiveness * 100).toFixed(0)}%
+                        </span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                        <span className="text-gray-400">独立倾向减少</span>
+                        <span className="text-green-400">-{effectiveness.independenceReduction.toFixed(2)}/天</span>
+                    </div>
+                    {effectiveness.loyaltyRisk && (
+                        <div className="flex items-center gap-1 text-xs text-yellow-400 mt-1">
+                            <Icon name="AlertTriangle" size={10} />
+                            <span>警告: 低忠诚度官员可能引发问题</span>
+                        </div>
+                    )}
+                </div>
+            )}
+            
+            {availableOfficials.length === 0 && (
+                <div className="text-xs text-yellow-400 flex items-center gap-1">
+                    <Icon name="AlertCircle" size={12} />
+                    <span>没有可用的官员，请先招募官员</span>
+                </div>
+            )}
+        </div>
+    );
+});
+
+/**
+ * Garrison Military Check Component
+ */
+const GarrisonMilitaryCheck = memo(({
+    playerMilitary = 1.0,
+    vassalMilitary = 0.5,
+}) => {
+    const check = checkGarrisonEffectiveness(playerMilitary, vassalMilitary);
+    
+    return (
+        <div className={`bg-gray-900/50 rounded p-2 ${check.isEffective ? 'border-green-500/30' : 'border-red-500/30'} border`}>
+            <div className="flex items-center justify-between text-xs">
+                <span className="text-gray-400">军力要求</span>
+                <span className={check.isEffective ? 'text-green-400' : 'text-red-400'}>
+                    {check.requiredStrength.toFixed(1)} (当前: {playerMilitary.toFixed(1)})
+                </span>
+            </div>
+            <div className="flex items-center justify-between text-xs mt-1">
+                <span className="text-gray-400">状态</span>
+                <span className={check.isEffective ? 'text-green-400' : 'text-red-400'}>
+                    {check.isEffective ? '✓ 有效' : '✗ 军力不足 (仅20%效果)'}
+                </span>
+            </div>
+        </div>
+    );
+});
 
 /**
  * 附庸政策调整模态框主组件
@@ -260,11 +358,15 @@ const VassalPolicyModalComponent = ({
     nation,
     onClose,
     onApply,
+    officials = [],       // NEW: Officials list for governor selection
+    playerMilitary = 1.0, // NEW: Player military strength
 }) => {
     // 获取附庸配置
     const vassalConfig = VASSAL_TYPE_CONFIGS[nation?.vassalType] || {};
     const baseAutonomy = vassalConfig.autonomy || 50;
     const baseTributeRate = vassalConfig.tributeRate || 0.1;
+    const vassalWealth = nation?.wealth || 500;
+    const vassalMilitary = nation?.militaryStrength || 0.5;
     
     // 政策状态
     const [diplomaticControl, setDiplomaticControl] = useState(
@@ -278,35 +380,93 @@ const VassalPolicyModalComponent = ({
         (nation?.tributeRate || baseTributeRate) * 100
     );
     
-    // 控制手段状态（多选）
-    const [activeControlMeasures, setActiveControlMeasures] = useState(
-        nation?.vassalPolicy?.controlMeasures || []
-    );
+    // 控制手段状态 (NEW: Object format with officialId support)
+    const [controlMeasures, setControlMeasures] = useState(() => {
+        const existing = nation?.vassalPolicy?.controlMeasures || {};
+        const initial = {};
+        CONTROL_MEASURES.forEach(m => {
+            if (typeof existing[m.id] === 'boolean') {
+                // Migrate from legacy boolean format
+                initial[m.id] = { active: existing[m.id], officialId: null };
+            } else if (existing[m.id]) {
+                initial[m.id] = { ...existing[m.id] };
+            } else {
+                initial[m.id] = { active: false, officialId: null };
+            }
+        });
+        return initial;
+    });
     
-    // 切换控制手段
+    // Toggle control measure
     const toggleControlMeasure = (measureId) => {
-        setActiveControlMeasures(prev => 
-            prev.includes(measureId) 
-                ? prev.filter(id => id !== measureId)
-                : [...prev, measureId]
-        );
+        setControlMeasures(prev => ({
+            ...prev,
+            [measureId]: {
+                ...prev[measureId],
+                active: !prev[measureId]?.active,
+            },
+        }));
     };
     
-    // 计算控制手段总成本
+    // Set governor official
+    const setGovernorOfficial = (officialId) => {
+        setControlMeasures(prev => ({
+            ...prev,
+            governor: {
+                ...prev.governor,
+                officialId: officialId || null,
+                active: !!officialId, // Auto-activate when official is selected
+            },
+        }));
+    };
+    
+    // Get active control measure IDs
+    const activeControlMeasures = useMemo(() => {
+        return Object.entries(controlMeasures)
+            .filter(([, data]) => data.active)
+            .map(([id]) => id);
+    }, [controlMeasures]);
+    
+    // 计算控制手段总成本 (NEW: Dynamic cost calculation)
     const totalControlCost = useMemo(() => {
         return activeControlMeasures.reduce((sum, measureId) => {
-            const measure = CONTROL_MEASURES.find(m => m.id === measureId);
-            return sum + (measure?.dailyCost || 0);
+            return sum + calculateControlMeasureCost(measureId, vassalWealth);
         }, 0);
-    }, [activeControlMeasures]);
+    }, [activeControlMeasures, vassalWealth]);
+    
+    // Calculate individual measure costs for display
+    const measureCosts = useMemo(() => {
+        const costs = {};
+        CONTROL_MEASURES.forEach(m => {
+            costs[m.id] = calculateControlMeasureCost(m.id, vassalWealth);
+        });
+        return costs;
+    }, [vassalWealth]);
     
     // 计算控制手段带来的独立倾向变化
     const controlMeasuresIndependenceChange = useMemo(() => {
-        return activeControlMeasures.reduce((sum, measureId) => {
-            const measure = CONTROL_MEASURES.find(m => m.id === measureId);
-            return sum + ((measure?.independenceDaily || 0) * 365);  // 年化
-        }, 0);
-    }, [activeControlMeasures]);
+        let total = 0;
+        activeControlMeasures.forEach(measureId => {
+            const config = INDEPENDENCE_CONFIG.controlMeasures[measureId];
+            if (config?.independenceReduction) {
+                total -= config.independenceReduction * 365; // Annualized
+            }
+            if (config?.independenceCapReduction) {
+                total -= config.independenceCapReduction * 365;
+            }
+        });
+        // Apply governor effectiveness modifier if governor is selected
+        if (controlMeasures.governor?.active && controlMeasures.governor?.officialId) {
+            const official = officials.find(o => o.id === controlMeasures.governor.officialId);
+            if (official) {
+                const govConfig = INDEPENDENCE_CONFIG.controlMeasures.governor;
+                const eff = calculateGovernorEffectiveness(official, govConfig);
+                // Adjust for actual governor effectiveness
+                total = total * (0.5 + eff.effectiveness * 0.5);
+            }
+        }
+        return total;
+    }, [activeControlMeasures, controlMeasures.governor, officials]);
     
     // 计算预估独立倾向变化
     const estimatedIndependenceChange = useMemo(() => {
@@ -347,7 +507,7 @@ const VassalPolicyModalComponent = ({
             tradePolicy,
             autonomy,
             tributeRate: tributeRate / 100,
-            controlMeasures: activeControlMeasures,
+            controlMeasures,  // NEW: Pass full object with officialId
             controlCostPerDay: totalControlCost,
         });
         onClose?.();
@@ -359,7 +519,11 @@ const VassalPolicyModalComponent = ({
         setTradePolicy('preferential');
         setAutonomy(baseAutonomy);
         setTributeRate(baseTributeRate * 100);
-        setActiveControlMeasures([]);
+        const resetMeasures = {};
+        CONTROL_MEASURES.forEach(m => {
+            resetMeasures[m.id] = { active: false, officialId: null };
+        });
+        setControlMeasures(resetMeasures);
     };
     
     if (!nation) return null;
@@ -485,48 +649,86 @@ const VassalPolicyModalComponent = ({
                         </div>
                     </div>
                     
-                    {/* 控制手段 */}
+                    {/* 控制手段 (REVAMPED) */}
                     <div>
                         <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-1.5 font-decorative">
                             <Icon name="Target" size={14} className="text-orange-400" />
                             控制手段
                             {totalControlCost > 0 && (
                                 <span className="text-xs text-amber-400 font-body ml-2">
-                                    (每日成本: {totalControlCost} 银币)
+                                    (每日成本: {formatNumberShortCN(totalControlCost)} 银币)
                                 </span>
                             )}
                         </h3>
-                        <div className="grid grid-cols-2 gap-2">
+                        <p className="text-xs text-gray-500 mb-2">
+                            成本基于附庸财富动态计算：基础成本 + 附庸财富 × 比例系数
+                        </p>
+                        <div className="grid grid-cols-1 gap-3">
                             {CONTROL_MEASURES.map(measure => {
-                                const isActive = activeControlMeasures.includes(measure.id);
+                                const isActive = controlMeasures[measure.id]?.active;
+                                const dynamicCost = measureCosts[measure.id];
+                                
                                 return (
-                                    <button
+                                    <div
                                         key={measure.id}
-                                        onClick={() => toggleControlMeasure(measure.id)}
                                         className={`
-                                            p-2 rounded-lg border transition-all text-left
+                                            p-3 rounded-lg border transition-all
                                             ${isActive 
                                                 ? 'border-orange-500 bg-orange-900/30' 
-                                                : 'border-gray-600/50 bg-gray-800/30 hover:bg-gray-700/30'
+                                                : 'border-gray-600/50 bg-gray-800/30'
                                             }
                                         `}
                                     >
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <Icon 
-                                                name={measure.icon} 
-                                                size={14} 
-                                                className={isActive ? 'text-orange-400' : 'text-gray-400'} 
-                                            />
-                                            <span className={`text-xs font-bold ${isActive ? 'text-white' : 'text-gray-300'} font-decorative`}>
-                                                {measure.title}
+                                        <div className="flex items-center justify-between mb-2">
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    onClick={() => !measure.requiresOfficial && toggleControlMeasure(measure.id)}
+                                                    className={`flex items-center gap-2 ${measure.requiresOfficial ? 'cursor-default' : 'cursor-pointer'}`}
+                                                >
+                                                    <Icon 
+                                                        name={measure.icon} 
+                                                        size={16} 
+                                                        className={isActive ? 'text-orange-400' : 'text-gray-400'} 
+                                                    />
+                                                    <span className={`text-sm font-bold ${isActive ? 'text-white' : 'text-gray-300'} font-decorative`}>
+                                                        {measure.title}
+                                                    </span>
+                                                </button>
+                                                {!measure.requiresOfficial && (
+                                                    <button
+                                                        onClick={() => toggleControlMeasure(measure.id)}
+                                                        className={`px-2 py-0.5 text-xs rounded ${isActive ? 'bg-orange-600 text-white' : 'bg-gray-700 text-gray-300'}`}
+                                                    >
+                                                        {isActive ? '启用' : '禁用'}
+                                                    </button>
+                                                )}
+                                            </div>
+                                            <span className="text-xs text-amber-300 font-body">
+                                                {formatNumberShortCN(dynamicCost)}/天
                                             </span>
                                         </div>
-                                        <p className="text-[10px] text-gray-400 font-body">{measure.description}</p>
-                                        <div className="flex items-center justify-between mt-1">
-                                            <span className={`text-[10px] ${measure.effectColor} font-body`}>{measure.effects}</span>
-                                            <span className="text-[10px] text-amber-300 font-body">{measure.dailyCost}/天</span>
-                                        </div>
-                                    </button>
+                                        
+                                        <p className="text-xs text-gray-400 mb-2 font-body">{measure.description}</p>
+                                        <p className={`text-xs ${measure.effectColor} font-body mb-2`}>{measure.effects}</p>
+                                        
+                                        {/* Governor-specific: Official Selector */}
+                                        {measure.id === 'governor' && (
+                                            <OfficialSelector
+                                                officials={officials}
+                                                selectedOfficialId={controlMeasures.governor?.officialId}
+                                                onSelect={setGovernorOfficial}
+                                                measureConfig={INDEPENDENCE_CONFIG.controlMeasures.governor}
+                                            />
+                                        )}
+                                        
+                                        {/* Garrison-specific: Military Check */}
+                                        {measure.id === 'garrison' && isActive && (
+                                            <GarrisonMilitaryCheck
+                                                playerMilitary={playerMilitary}
+                                                vassalMilitary={vassalMilitary}
+                                            />
+                                        )}
+                                    </div>
                                 );
                             })}
                         </div>
@@ -555,12 +757,20 @@ const VassalPolicyModalComponent = ({
                                 </span>
                             </div>
                             {totalControlCost > 0 && (
-                                <div className="flex items-center justify-between bg-gray-900/50 rounded px-2 py-1.5 col-span-2">
-                                    <span className="text-gray-400 font-body">每日控制成本</span>
-                                    <span className="text-red-400 font-mono font-epic">
-                                        -{totalControlCost} 银币/天
-                                    </span>
-                                </div>
+                                <>
+                                    <div className="flex items-center justify-between bg-gray-900/50 rounded px-2 py-1.5">
+                                        <span className="text-gray-400 font-body">每日控制成本</span>
+                                        <span className="text-red-400 font-mono font-epic">
+                                            -{formatNumberShortCN(totalControlCost)}/天
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center justify-between bg-gray-900/50 rounded px-2 py-1.5">
+                                        <span className="text-gray-400 font-body">月控制成本</span>
+                                        <span className="text-red-400 font-mono font-epic">
+                                            -{formatNumberShortCN(totalControlCost * 30)}/月
+                                        </span>
+                                    </div>
+                                </>
                             )}
                         </div>
                         
@@ -568,6 +778,13 @@ const VassalPolicyModalComponent = ({
                             <div className="mt-2 text-xs text-yellow-400 flex items-center gap-1 font-body">
                                 <Icon name="AlertTriangle" size={12} />
                                 当前政策可能导致附庸独立倾向上升较快
+                            </div>
+                        )}
+                        
+                        {totalControlCost > estimatedTribute && (
+                            <div className="mt-2 text-xs text-red-400 flex items-center gap-1 font-body">
+                                <Icon name="AlertTriangle" size={12} />
+                                控制成本超过朝贡收入！考虑减少控制措施
                             </div>
                         )}
                     </div>

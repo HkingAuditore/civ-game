@@ -103,6 +103,185 @@ export const DEFAULT_VASSAL_STATUS = {
     independencePressure: 0.0,
 };
 
+// ========== 附庸政策系统 (Unified Vassal Policy System) ==========
+
+/**
+ * 劳工政策 (Labor Policy)
+ * 影响海外投资中的工资成本和当地动荡
+ */
+export const LABOR_POLICY_DEFINITIONS = {
+    standard: {
+        id: 'standard',
+        name: '正常雇佣',
+        description: '按当地生活成本支付正常工资',
+        wageMultiplier: 1.0,         // 100% wage
+        unrestPerDay: 0,              // No unrest from labor
+        relationPerDay: 0,            // No relation impact
+        independenceGrowthMod: 1.0,   // Normal independence growth
+    },
+    exploitation: {
+        id: 'exploitation',
+        name: '压榨剥削',
+        description: '低于市场价的工资，劳动条件恶劣',
+        wageMultiplier: 0.6,         // 60% wage
+        unrestPerDay: 0.05,           // +0.05% unrest/day
+        relationPerDay: -0.5,         // Relation -0.5/day (but capped)
+        independenceGrowthMod: 1.2,   // 20% faster independence growth
+    },
+    slavery: {
+        id: 'slavery',
+        name: '强制劳动',
+        description: '几乎无偿的强制劳动，极高独立风险',
+        wageMultiplier: 0.3,         // 30% wage
+        unrestPerDay: 0.15,           // +0.15% unrest/day
+        relationPerDay: -2.0,         // Relation -2.0/day (capped)
+        independenceGrowthMod: 1.8,   // 80% faster independence growth
+        minEra: 2,                    // Unlocks at era 2
+    },
+};
+
+/**
+ * 贸易政策 (Trade Policy)
+ * 影响玩家与附庸之间的贸易条件
+ */
+export const TRADE_POLICY_DEFINITIONS = {
+    free: {
+        id: 'free',
+        name: '自由贸易',
+        description: '附庸可与任何国家贸易',
+        playerPriceMod: 0,            // No price advantage
+        tariffDiscount: 0,            // No tariff discount
+        tributeMod: 0.8,              // -20% tribute (as concession)
+        independenceGrowthMod: 0.8,   // 20% slower independence growth
+    },
+    preferential: {
+        id: 'preferential',
+        name: '优惠准入',
+        description: '玩家商人享有优先贸易权',
+        playerPriceMod: -0.1,         // 10% cheaper for player
+        tariffDiscount: 0.5,          // 50% tariff discount
+        tributeMod: 1.0,              // Normal tribute
+        independenceGrowthMod: 1.0,   // Normal
+    },
+    exclusive: {
+        id: 'exclusive',
+        name: '排他贸易',
+        description: '附庸只能与玩家贸易',
+        playerPriceMod: -0.25,        // 25% cheaper for player
+        tariffDiscount: 1.0,          // No tariffs
+        tributeMod: 1.2,              // +20% tribute
+        independenceGrowthMod: 1.3,   // 30% faster independence
+    },
+    dumping: {
+        id: 'dumping',
+        name: '倾销市场',
+        description: '强制附庸购买玩家过剩商品',
+        playerPriceMod: 0.2,          // +20% sell price (forced sales)
+        tariffDiscount: 1.0,          // No tariffs
+        tributeMod: 1.0,              // Normal tribute
+        independenceGrowthMod: 1.4,   // 40% faster independence
+        forcedExports: true,          // Flag for forced export logic
+    },
+    looting: {
+        id: 'looting',
+        name: '资源掠夺',
+        description: '以极低价格获取附庸资源',
+        playerPriceMod: -0.4,         // 40% cheaper buying
+        tariffDiscount: 1.0,          // No tariffs
+        tributeMod: 1.5,              // +50% tribute (in resources)
+        independenceGrowthMod: 1.6,   // 60% faster independence
+        forcedImports: true,          // Flag for forced import logic
+        minEra: 3,                    // Unlocks at era 3
+    },
+};
+
+/**
+ * 治理政策 (Governance Policy)
+ * 影响附庸的行政管理方式
+ */
+export const GOVERNANCE_POLICY_DEFINITIONS = {
+    autonomous: {
+        id: 'autonomous',
+        name: '自治',
+        description: '附庸完全自我管理',
+        tributeMod: 0.5,              // -50% tribute (as concession)
+        controlCostMod: 0,            // No control cost
+        independenceGrowthMod: 0.6,   // 40% slower independence
+        autonomyMin: 70,              // Minimum autonomy enforced
+    },
+    puppet_govt: {
+        id: 'puppet_govt',
+        name: '傀儡政府',
+        description: '扶植亲玩家的本地政府',
+        tributeMod: 1.0,              // Normal tribute
+        controlCostMod: 0.5,          // 50% control cost (cheaper)
+        independenceGrowthMod: 1.0,   // Normal
+        autonomyMin: 20,              // Can be low
+    },
+    direct_rule: {
+        id: 'direct_rule',
+        name: '总督直辖',
+        description: '派遣总督直接管理（需消耗官员）',
+        tributeMod: 1.3,              // +30% tribute
+        controlCostMod: 1.5,          // 150% control cost (expensive)
+        independenceGrowthMod: 0.8,   // 20% slower (active suppression)
+        autonomyMin: 0,               // Can be minimal
+        requiresGovernor: true,       // Must assign an official
+    },
+};
+
+/**
+ * 获取劳工政策对工资的修正
+ * @param {string} laborPolicyId - 劳工政策ID
+ * @returns {number} 工资乘数 (1.0 = 100%)
+ */
+export const getLaborWageMultiplier = (laborPolicyId) => {
+    return LABOR_POLICY_DEFINITIONS[laborPolicyId]?.wageMultiplier ?? 1.0;
+};
+
+/**
+ * 获取贸易政策对价格的修正
+ * @param {string} tradePolicyId - 贸易政策ID
+ * @returns {number} 价格修正 (负数=便宜)
+ */
+export const getTradePriceMod = (tradePolicyId) => {
+    return TRADE_POLICY_DEFINITIONS[tradePolicyId]?.playerPriceMod ?? 0;
+};
+
+/**
+ * 附庸政策预设 (Presets for quick setup)
+ */
+export const VASSAL_POLICY_PRESETS = {
+    protectorate: {
+        name: '保护国模式',
+        description: '高自治、低朝贡、友好关系',
+        labor: 'standard',
+        trade: 'preferential',
+        governance: 'autonomous',
+    },
+    tributary: {
+        name: '朝贡国模式',
+        description: '中等控制、倾销市场',
+        labor: 'exploitation',
+        trade: 'dumping',
+        governance: 'puppet_govt',
+    },
+    puppet: {
+        name: '傀儡国模式',
+        description: '高控制、资源掠夺',
+        labor: 'exploitation',
+        trade: 'looting',
+        governance: 'puppet_govt',
+    },
+    colony: {
+        name: '殖民地模式',
+        description: '强制劳动、完全控制',
+        labor: 'slavery',
+        trade: 'looting',
+        governance: 'direct_rule',
+    },
+};
+
 export const getTreatyDuration = (treatyType, currentEra) => {
     const config = TREATY_CONFIGS[treatyType];
     if (!config) return 365;
@@ -130,6 +309,9 @@ export const isDiplomacyUnlocked = (category, mechanismId, currentEra) => {
  * - autonomy: 初始自主度 (0-100)
  * - tributeRate: 朝贡比例（基于GDP增量）
  * - exploitationFactor: 工资剥削系数（1.0为市场价）
+ * - canFormAlliance: 是否可以独立结盟
+ * - canSignTreaties: 是否可以独立签署条约
+ * - canTrade: 是否可以自由贸易
  */
 export const VASSAL_TYPE_CONFIGS = {
     protectorate: {
@@ -141,6 +323,10 @@ export const VASSAL_TYPE_CONFIGS = {
         exploitationFactor: 0.9,
         tariffDiscount: 0.5,
         description: '高自主度附庸，提供有限朝贡与优惠贸易',
+        // Diplomatic restrictions
+        canFormAlliance: true,
+        canSignTreaties: true,
+        canTrade: true,
     },
     tributary: {
         name: '朝贡国',
@@ -151,6 +337,10 @@ export const VASSAL_TYPE_CONFIGS = {
         exploitationFactor: 0.7,
         tariffDiscount: 0.75,
         description: '中等自主度附庸，定期朝贡与优先贸易',
+        // Diplomatic restrictions
+        canFormAlliance: false,  // Cannot form independent alliances
+        canSignTreaties: true,
+        canTrade: true,
     },
     puppet: {
         name: '傀儡国',
@@ -161,6 +351,10 @@ export const VASSAL_TYPE_CONFIGS = {
         exploitationFactor: 0.5,
         tariffDiscount: 1.0,
         description: '低自主度附庸，高额朝贡与完全贸易控制',
+        // Diplomatic restrictions - heavily restricted
+        canFormAlliance: false,
+        canSignTreaties: false,
+        canTrade: false,  // Only through suzerain
     },
     colony: {
         name: '殖民地',
@@ -171,6 +365,10 @@ export const VASSAL_TYPE_CONFIGS = {
         exploitationFactor: 0.3,
         tariffDiscount: 1.0,
         description: '无自主度领地，强制资源配额与贸易垄断',
+        // Diplomatic restrictions - no independent diplomacy
+        canFormAlliance: false,
+        canSignTreaties: false,
+        canTrade: false,
     },
 };
 
@@ -458,29 +656,42 @@ export const INDEPENDENCE_CONFIG = {
         high: 70,               // 高于此值降低独立倾向
     },
 
-    // 控制手段效果
+    // 控制手段效果 (REVAMPED - dynamic cost scaling)
     controlMeasures: {
         governor: {             // 派遣总督
-            cost: 50,           // 每日成本
-            independenceReduction: 0.3,  // 每日减少独立倾向
-            eliteSatisfactionBonus: 2,   // 精英满意度提升
+            baseCost: 30,       // Base daily cost (reduced from 50)
+            wealthScalingFactor: 0.003,  // 0.3% of vassal wealth
+            independenceReduction: 0.2,  // Base reduction (modified by official stats)
+            eliteSatisfactionBonus: 2,   // Elite satisfaction bonus
+            requiresOfficial: true,      // Now requires an assigned official
+            baseEffectiveness: 0.5,      // Base effectiveness (multiplied by official prestige)
         },
         garrison: {             // 驻军占领
-            costPerMilitary: 0.5,        // 每点军力的日成本
-            independenceReduction: 0.5,  // 每日减少独立倾向
-            commonerSatisfactionPenalty: -3,  // 平民满意度下降
+            baseCost: 50,       // Base daily cost (reduced from 100)
+            wealthScalingFactor: 0.005,  // 0.5% of vassal wealth
+            independenceReduction: 0.5,  // Per day reduction
+            commonerSatisfactionPenalty: -3,  // Commoner satisfaction penalty
+            militaryStrengthRequirement: 0.5, // Player military must be >= 50% of vassal
         },
         assimilation: {         // 文化同化
-            cost: 100,          // 每日成本
-            independenceCapReduction: 0.05,  // 每日降低独立倾向上限
-            minIndependenceCap: 30,          // 最低独立倾向上限
+            baseCost: 60,       // Base daily cost (reduced from 100)
+            wealthScalingFactor: 0.002,  // 0.2% of vassal wealth
+            independenceCapReduction: 0.05,  // Daily reduction of independence cap
+            minIndependenceCap: 30,          // Minimum independence cap
+            satisfactionPenalty: -1,         // All classes satisfaction penalty
         },
         economicAid: {          // 经济扶持
-            cost: 80,           // 每日成本
-            commonerSatisfactionBonus: 3,    // 平民满意度提升
-            underclassSatisfactionBonus: 5,  // 下层满意度提升
+            baseCost: 50,       // Base daily cost (reduced from 80)
+            wealthScalingFactor: 0.004,  // 0.4% of vassal wealth
+            commonerSatisfactionBonus: 3,    // Commoner satisfaction bonus
+            underclassSatisfactionBonus: 5,  // Underclass satisfaction bonus
+            vassalWealthTransfer: 0.001,     // 0.1% of cost transferred to vassal wealth
+            independenceReduction: 0.1,      // Small independence reduction from goodwill
         },
     },
+
+    // Garrison military requirement
+    garrisonMilitaryThreshold: 0.5, // Player must have 50% of vassal's military
 };
 
 /**

@@ -443,15 +443,17 @@ export function calculateOverseasProfit(investment, targetNation, playerResource
  * 计算附庸国/投资国工资成本
  * @param {Object} building - 建筑配置
  * @param {Object} nation - 目标国家
- * @returns {number} - 工资成本
+ * @returns {Object} - { total: 工资成本, breakdown: 明细 }
  */
 function calculateVassalWageCost(building, nation) {
-    if (!building.jobs) return 0;
+    if (!building.jobs) return { total: 0, breakdown: [] };
 
-    // 投资协议不再提供劳动力成本折扣 (Review Item: Cancelled as per request)
-    const treatyModifier = 1.0;
+    // 从附庸政策获取劳工工资修正 (核心新逻辑)
+    const laborPolicy = nation?.vassalPolicy?.labor || 'standard';
+    // 动态导入避免循环依赖，使用内联默认值
+    const laborWageMultiplier = getLaborPolicyWageMultiplier(laborPolicy);
 
-    // 生活水平乘数 (用户要求：按照劳动力原价，不再设置倍数)
+    // 生活水平乘数 (保留以备未来扩展)
     const LIVING_STANDARD_MULTIPLIER = 1.0;
 
     let totalWage = 0;
@@ -460,14 +462,12 @@ function calculateVassalWageCost(building, nation) {
 
     Object.entries(building.jobs).forEach(([stratumId, count]) => {
         // [FIX] 排除拥有者自己给自己发工资的情况
-        // 投资者（拥有者）的收益体现在利润中，而不是作为成本的工资
         if (building.owner && stratumId === building.owner) return;
 
         const stratumConfig = STRATA[stratumId];
-        if (!stratumConfig) return; // 跳过无效阶层
+        if (!stratumConfig) return;
 
         // 计算该阶层的生存成本 (Subsistence Cost)
-        // Cost = Sum(Need_Amount * Local_Price)
         let subsistenceCost = 0;
         if (stratumConfig.needs) {
             Object.entries(stratumConfig.needs).forEach(([resKey, amount]) => {
@@ -476,8 +476,8 @@ function calculateVassalWageCost(building, nation) {
             });
         }
 
-        // 单人日工资 = 生存成本 * 生活水平乘数 (已移除协议折扣)
-        const wagePerWorker = subsistenceCost * LIVING_STANDARD_MULTIPLIER;
+        // 单人日工资 = 生存成本 * 生活水平 * 劳工政策修正
+        const wagePerWorker = subsistenceCost * LIVING_STANDARD_MULTIPLIER * laborWageMultiplier;
         const totalStratumWage = count * wagePerWorker;
 
         totalWage += totalStratumWage;
@@ -485,11 +485,28 @@ function calculateVassalWageCost(building, nation) {
             stratumId,
             count,
             wagePerWorker,
-            total: totalStratumWage
+            total: totalStratumWage,
+            laborPolicy,
+            laborMultiplier: laborWageMultiplier,
         });
     });
 
     return { total: totalWage, breakdown: wageBreakdown };
+}
+
+/**
+ * 获取劳工政策对应的工资乘数
+ * @param {string} laborPolicyId - 劳工政策ID
+ * @returns {number} - 工资乘数
+ */
+function getLaborPolicyWageMultiplier(laborPolicyId) {
+    // 内联定义以避免循环依赖
+    const multipliers = {
+        standard: 1.0,
+        exploitation: 0.6,
+        slavery: 0.3,
+    };
+    return multipliers[laborPolicyId] ?? 1.0;
 }
 
 /**

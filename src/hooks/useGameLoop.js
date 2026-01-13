@@ -1957,14 +1957,20 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 // ========== 附庸每日更新（朝贡与独立倾向） ==========
                 if (current.nations && current.nations.some(n => n.vassalOf === 'player')) {
                     const vassalLogs = [];
+                    
+                    // Calculate player military strength from army
+                    const totalArmyUnits = Object.values(current.army || {}).reduce((sum, count) => sum + count, 0);
+                    const playerMilitaryStrength = Math.max(0.5, totalArmyUnits / 100);
+                    
                     const vassalUpdateResult = processVassalUpdates({
                         nations: current.nations,
                         daysElapsed: current.daysElapsed || 0,
                         epoch: current.epoch || 0,
-                        playerMilitary: result.totalInfluence || 1.0,
+                        playerMilitary: playerMilitaryStrength,
                         playerStability: result.stability || 50,
                         playerAtWar: current.nations.some(n => n.isAtWar && (n.warTarget === 'player' || n.id === 'player')),
                         playerWealth: adjustedResources.silver || 0,
+                        officials: result.officials || [],  // Pass officials for governor system
                         logs: vassalLogs
                     });
 
@@ -1991,6 +1997,17 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                 });
                                 return nextRes;
                             });
+                        }
+
+                        // NEW: Deduct control costs from treasury
+                        if (vassalUpdateResult.totalControlCost > 0) {
+                            setResources(prev => ({
+                                ...prev,
+                                silver: Math.max(0, (prev.silver || 0) - vassalUpdateResult.totalControlCost)
+                            }));
+                            if (isDebugEnabled('diplomacy')) {
+                                console.log(`[Vassal] Deducted ${vassalUpdateResult.totalControlCost} silver for control measures.`);
+                            }
                         }
 
                         // 显示日志

@@ -195,6 +195,13 @@ const DiplomacyLayout = ({
                     onDiplomaticAction?.(nationId, 'adjust_vassal_policy', { policy });
                 }}
                 onDiplomaticAction={onDiplomaticAction}
+                officials={gameState?.officials || []}
+                playerMilitary={(() => {
+                    // Calculate player military from army
+                    const army = gameState?.army || {};
+                    const totalUnits = Object.values(army).reduce((sum, count) => sum + (count || 0), 0);
+                    return Math.max(0.5, totalUnits / 100);
+                })()}
             />
             
             {/* 附庸概览 Bottom Sheet */}
