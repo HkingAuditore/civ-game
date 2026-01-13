@@ -185,6 +185,9 @@ export const initCheatCodes = (gameState, addLog) => {
             console.log('  cheat.setRelation(nation, value)     - Set relation with a nation');
             console.log('  cheat.makePeaceAll()        - End all wars & reset warscore');
             console.log('  cheat.declareWar(nation)    - Instantly declare war');
+            console.log('  cheat.makeVassal(nation, type)       - Make nation a vassal (type: protectorate/tributary/puppet/colony)');
+            console.log('  cheat.releaseVassal(nation)          - Release a vassal nation');
+            console.log('  cheat.listVassals()                  - List all your vassal nations');
             console.log('  cheat.setHeadTax(stratum, rate)      - Set head tax for a class');
             console.log('  cheat.setAllHeadTax(rate)            - Set head tax for all classes');
             console.log('  cheat.setResourceTax(res, rate)      - Set trade tax for a resource');
@@ -1270,6 +1273,122 @@ export const initCheatCodes = (gameState, addLog) => {
         },
 
         /**
+         * Make a nation a vassal (bypass requirements)
+         * @param {string} nationIdentifier - Nation ID or name
+         * @param {string} vassalType - Vassal type: protectorate/tributary/puppet/colony
+         */
+        makeVassal: (nationIdentifier, vassalType = 'tributary') => {
+            const nation = findNationByIdOrName(nationIdentifier, gameState.nations || []);
+            if (!nation) {
+                console.log(`❌ Nation "${nationIdentifier}" not found`);
+                console.log('%cAvailable nations:', 'color: #888;');
+                (gameState.nations || []).forEach(n => console.log(`  - ${n.name} (${n.id})`));
+                return;
+            }
+
+            const validTypes = ['protectorate', 'tributary', 'puppet', 'colony'];
+            const typeLabels = {
+                protectorate: '保护国',
+                tributary: '朝贡国',
+                puppet: '傀儡国',
+                colony: '殖民地',
+            };
+            const typeConfigs = {
+                protectorate: { autonomy: 80, tributeRate: 0.08 },
+                tributary: { autonomy: 50, tributeRate: 0.15 },
+                puppet: { autonomy: 20, tributeRate: 0.25 },
+                colony: { autonomy: 5, tributeRate: 0.35 },
+            };
+
+            if (!validTypes.includes(vassalType)) {
+                console.log(`❌ Invalid vassal type: "${vassalType}"`);
+                console.log('%cValid types:', 'color: #888;');
+                validTypes.forEach(t => console.log(`  - ${t} (${typeLabels[t]})`));
+                return;
+            }
+
+            if (nation.vassalOf === 'player') {
+                console.log(`⚠️ ${nation.name} is already your vassal`);
+                return;
+            }
+
+            const config = typeConfigs[vassalType];
+            gameState.setNations(prev => prev.map(n => {
+                if (n.id !== nation.id) return n;
+                return {
+                    ...n,
+                    vassalOf: 'player',
+                    vassalType: vassalType,
+                    autonomy: config.autonomy,
+                    tributeRate: config.tributeRate,
+                    independencePressure: 0,
+                    isAtWar: false,
+                    warScore: 0,
+                    warTarget: null,
+                };
+            }));
+
+            addLog(`👑 作弊码：${nation.name} 成为你的${typeLabels[vassalType]}`);
+            console.log(`%c✅ ${nation.name} is now your ${typeLabels[vassalType]} (${vassalType})`, 'color: #00ff00; font-weight: bold;');
+        },
+
+        /**
+         * Release a vassal nation
+         * @param {string} nationIdentifier - Nation ID or name
+         */
+        releaseVassal: (nationIdentifier) => {
+            const nation = findNationByIdOrName(nationIdentifier, gameState.nations || []);
+            if (!nation) {
+                console.log(`❌ Nation "${nationIdentifier}" not found`);
+                return;
+            }
+
+            if (nation.vassalOf !== 'player') {
+                console.log(`⚠️ ${nation.name} is not your vassal`);
+                return;
+            }
+
+            gameState.setNations(prev => prev.map(n => {
+                if (n.id !== nation.id) return n;
+                return {
+                    ...n,
+                    vassalOf: null,
+                    vassalType: null,
+                    autonomy: 100,
+                    tributeRate: 0,
+                    independencePressure: 0,
+                    relation: Math.min(100, (n.relation || 50) + 20),
+                };
+            }));
+
+            addLog(`🕊️ 作弊码：释放附庸 ${nation.name}`);
+            console.log(`%c✅ Released ${nation.name} from vassal status`, 'color: #00ff00;');
+        },
+
+        /**
+         * List all vassal nations
+         */
+        listVassals: () => {
+            const typeLabels = {
+                protectorate: '保护国',
+                tributary: '朝贡国',
+                puppet: '傀儡国',
+                colony: '殖民地',
+            };
+            const vassals = (gameState.nations || []).filter(n => n.vassalOf === 'player');
+            if (vassals.length === 0) {
+                console.log('%c📋 You have no vassals', 'color: #ffff00;');
+                return;
+            }
+            console.log('%c📋 Your Vassals:', 'color: #00ff00; font-size: 14px; font-weight: bold;');
+            vassals.forEach(v => {
+                const typeName = typeLabels[v.vassalType] || '附庸';
+                console.log(`  • ${v.name} (${v.id})`);
+                console.log(`    Type: ${typeName} | Autonomy: ${v.autonomy || 0}% | Tribute: ${Math.round((v.tributeRate || 0) * 100)}% | Independence: ${v.independencePressure || 0}%`);
+            });
+        },
+
+        /**
          * Set head tax rate for a specific stratum
          */
         setHeadTax: (stratumKey, rate = 0) => {
@@ -1382,6 +1501,8 @@ export const initCheatCodes = (gameState, addLog) => {
         'skipyear': () => window.cheat.skipYear(),
         'peaceall': () => window.cheat.makePeaceAll(),
         'peace': () => window.cheat.makePeaceAll(),
+        'vassal': () => console.log('%c👑 Use cheat.makeVassal("nation", "type") to make a nation your vassal', 'color: #ffff00;'),
+        'listvassal': () => window.cheat.listVassals(),
     };
 
     // Buffer to store recently typed characters

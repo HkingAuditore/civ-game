@@ -41,7 +41,6 @@ const DiplomacyLayout = ({
     onProvoke,
 
     // Sub-Actions Handlers
-    onVassalPolicy,
     onOverseasInvestment,
     onShowOverseasOverview,
     merchantState,
@@ -161,7 +160,6 @@ const DiplomacyLayout = ({
                         onDeclareWar={onDeclareWar}
                         onProvoke={onProvoke}
 
-                        onVassalPolicy={onVassalPolicy}
                         onOverseasInvestment={onOverseasInvestment}
                         onOpenVassalSheet={handleOpenVassalSheet}
                         diplomacyOrganizations={diplomacyOrganizations}
@@ -193,7 +191,9 @@ const DiplomacyLayout = ({
                 onClose={() => setVassalSheetOpen(false)}
                 nation={vassalSheetNation}
                 playerResources={resources}
-                onVassalPolicy={onVassalPolicy}
+                onApplyVassalPolicy={(nationId, policy) => {
+                    onDiplomaticAction?.(nationId, 'adjust_vassal_policy', { policy });
+                }}
                 onDiplomaticAction={onDiplomaticAction}
             />
             
@@ -204,7 +204,7 @@ const DiplomacyLayout = ({
                 nations={nations}
                 playerResources={resources}
                 onSelectVassal={handleSelectVassal}
-                onAdjustPolicy={onVassalPolicy}
+                onAdjustPolicy={handleSelectVassal}
                 onReleaseVassal={(nation) => onDiplomaticAction?.(nation.id, 'release_vassal')}
             />
         </div>

@@ -1,7 +1,6 @@
 import React, { useMemo, useState, useEffect, memo } from 'react';
 import { DeclareWarModal } from '../modals/DeclareWarModal';
 import TradeRoutesModal from '../modals/TradeRoutesModal';
-import { VassalPolicyModal } from '../modals/VassalPolicyModal';
 import { OverseasInvestmentPanel } from '../panels/OverseasInvestmentPanel';
 import { OverseasOverviewPanel } from '../panels/OverseasOverviewPanel';
 import { ForeignInvestmentPanel } from '../panels/ForeignInvestmentPanel';
@@ -60,8 +59,6 @@ const DiplomacyTabComponent = ({
     const [showProvokeModal, setShowProvokeModal] = useState(false);
     const [showDeclareWarModal, setShowDeclareWarModal] = useState(false);
     const [showTradeRoutesModal, setShowTradeRoutesModal] = useState(false);
-    const [showVassalPolicyModal, setShowVassalPolicyModal] = useState(false);
-    const [vassalPolicyTarget, setVassalPolicyTarget] = useState(null);
     const [showOverseasInvestmentPanel, setShowOverseasInvestmentPanel] = useState(false);
     const [investmentPanelNation, setInvestmentPanelNation] = useState(null);
     const [showOverseasOverview, setShowOverseasOverview] = useState(false);
@@ -268,11 +265,7 @@ const DiplomacyTabComponent = ({
                 onDeclareWar={() => setShowDeclareWarModal(true)}
                 onProvoke={() => setShowProvokeModal(true)}
 
-                // Sub-Actions Handlers (Vassal/Investment)
-                onVassalPolicy={(nation) => {
-                    setVassalPolicyTarget(nation);
-                    setShowVassalPolicyModal(true);
-                }}
+                // Sub-Actions Handlers (Investment)
                 onOverseasInvestment={(nation) => {
                     setInvestmentPanelNation(nation);
                     setShowOverseasInvestmentPanel(true);
@@ -372,19 +365,6 @@ const DiplomacyTabComponent = ({
                         }
                     }}
                     onClose={() => setShowTradeRoutesModal(false)}
-                />
-            )}
-
-            {showVassalPolicyModal && vassalPolicyTarget && (
-                <VassalPolicyModal
-                    nation={vassalPolicyTarget}
-                    onClose={() => {
-                        setShowVassalPolicyModal(false);
-                        setVassalPolicyTarget(null);
-                    }}
-                    onApply={(policy) => {
-                        onDiplomaticAction(vassalPolicyTarget.id, 'adjust_vassal_policy', { policy });
-                    }}
                 />
             )}
 

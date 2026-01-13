@@ -33,7 +33,6 @@ const NationDetailView = ({
     onNegotiate,
     onDeclareWar,
     onProvoke,
-    onVassalPolicy,
     onOverseasInvestment,
     onOpenVassalSheet,
     diplomacyOrganizations,
@@ -271,7 +270,6 @@ const NationDetailView = ({
                 {activeTab === 'vassal' && (
                     <VassalManagementTab
                         nation={nation}
-                        onVassalPolicy={onVassalPolicy}
                         onDiplomaticAction={onDiplomaticAction}
                         onOpenVassalSheet={onOpenVassalSheet}
                     />
@@ -378,7 +376,7 @@ const DetailedMarketTable = ({ nation, market, epoch, daysElapsed, onTrade }) =>
     );
 };
 
-const VassalManagementTab = ({ nation, onVassalPolicy, onDiplomaticAction, onOpenVassalSheet }) => (
+const VassalManagementTab = ({ nation, onDiplomaticAction, onOpenVassalSheet }) => (
     <div className="space-y-4">
         {nation.vassalOf === 'player' ? (
             <Card className="p-6 bg-purple-900/10 border-purple-500/30">
@@ -417,15 +415,12 @@ const VassalManagementTab = ({ nation, onVassalPolicy, onDiplomaticAction, onOpe
                 <div className="flex gap-3 flex-wrap">
                     <Button 
                         onClick={() => onOpenVassalSheet?.(nation)} 
-                        variant="secondary" 
+                        variant="primary" 
                         size="sm"
                         className="flex-1"
                     >
                         <Icon name="Settings" size={14} className="mr-1" />
                         详细管理
-                    </Button>
-                    <Button onClick={() => onVassalPolicy?.(nation)} variant="primary" size="sm" className="flex-1">
-                        调整附庸政策
                     </Button>
                     <Button
                         onClick={() => onDiplomaticAction?.(nation.id, 'release_vassal')}
