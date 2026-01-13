@@ -72,7 +72,7 @@ export class EconomyLedger {
         }
 
         // 3. 特殊统计 (如税收)
-        this._updateSystemStats(from, to, amount, subCategory);
+        this._updateSystemStats(from, to, amount, subCategory, metadata);
     }
 
     // --- 内部方法 ---
@@ -155,7 +155,7 @@ export class EconomyLedger {
         }
     }
 
-    _updateSystemStats(from, to, amount, type) {
+    _updateSystemStats(from, to, amount, type, metadata = {}) {
         // 税收统计
         if (to === 'state') {
             if (type === TRANSACTION_CATEGORIES.EXPENSE.HEAD_TAX) this.taxBreakdown.headTax += amount;
