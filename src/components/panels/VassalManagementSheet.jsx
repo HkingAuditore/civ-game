@@ -522,9 +522,10 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
         onApplyPolicy?.({
             diplomaticControl,
             tradePolicy,
+            labor: laborPolicy,  // NEW: Labor policy
             autonomy,
             tributeRate: tributeRate / 100,
-            controlMeasures,  // NEW: Pass full object with officialId
+            controlMeasures,
             controlCostPerDay: totalControlCost,
         });
     };
@@ -533,6 +534,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
     const handleReset = () => {
         setDiplomaticControl('guided');
         setTradePolicy('preferential');
+        setLaborPolicy('standard');  // NEW: Reset labor policy
         setAutonomy(baseAutonomy);
         setTributeRate(baseTributeRate * 100);
         const resetMeasures = {};
@@ -547,13 +549,34 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
         return checkGarrisonEffectiveness(playerMilitary, vassalMilitary);
     }, [playerMilitary, vassalMilitary]);
 
-    // Governor effectiveness
+    // Governor effectiveness - using new deep integration
     const governorEffectiveness = useMemo(() => {
         const officialId = controlMeasures.governor?.officialId;
         if (!officialId) return null;
         const official = officials.find(o => o.id === officialId);
         if (!official) return null;
-        return calculateGovernorEffectiveness(official, INDEPENDENCE_CONFIG.controlMeasures.governor);
+
+        // Use new calculateGovernorFullEffects from vassalGovernors module
+        // (Inline calculation to avoid import)
+        const prestige = official.prestige ?? 50;
+        const admin = official.administrative ?? official.admin ?? 50;
+        const military = official.military ?? official.mil ?? 30;
+        const loyalty = official.loyalty ?? 50;
+
+        const independenceReduction = prestige * 0.005;
+        const tributeBonus = Math.min(50, admin * 1); // +1% per point, max 50%
+        const stabilityBonus = military * 1; // +1% per point
+        const corruptionRisk = loyalty < 40 ? (40 - loyalty) * 0.2 : 0; // % corruption
+
+        return {
+            effectiveness: (prestige + admin) / 200,
+            independenceReduction,
+            tributeBonus,
+            stabilityBonus,
+            corruptionRisk,
+            officialName: official.name,
+            stats: { prestige, admin, military, loyalty },
+        };
     }, [controlMeasures.governor, officials]);
 
     return (
@@ -589,6 +612,28 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                             />
                         );
                     })}
+                </div>
+            </div>
+
+            {/* 劳工政策 (NEW) */}
+            <div>
+                <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-1.5">
+                    <Icon name="Users" size={14} className="text-orange-400" />
+                    劳工政策
+                    <span className="text-[10px] text-gray-500 ml-1">（影响海外投资工资成本）</span>
+                </h3>
+                <div className="space-y-2">
+                    {LABOR_POLICY_OPTIONS.map(option => (
+                        <PolicyOptionCard
+                            key={option.id}
+                            selected={laborPolicy === option.id}
+                            title={option.title}
+                            description={option.description}
+                            effects={option.effects}
+                            effectColor={option.effectColor}
+                            onClick={() => setLaborPolicy(option.id)}
+                        />
+                    ))}
                 </div>
             </div>
 
@@ -727,7 +772,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                                             ) : (
                                                 officials.filter(o => o && !o.isBusy).map(official => (
                                                     <option key={official.id} value={official.id}>
-                                                        {official.name} (威望:{official.prestige || 50})
+                                                        {official.name} (威{official.prestige || 50}/政{official.administrative || 50}/军{official.military || 30})
                                                     </option>
                                                 ))
                                             )}
@@ -739,9 +784,19 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                                             </div>
                                         )}
                                         {governorEffectiveness && (
-                                            <div className="text-[10px] text-green-400">
-                                                效能: {(governorEffectiveness.effectiveness * 100).toFixed(0)}% |
-                                                独立倾向: -{governorEffectiveness.independenceReduction.toFixed(2)}/天
+                                            <div className="text-[10px] space-y-0.5 mt-1 p-2 bg-gray-800/50 rounded">
+                                                <div className="text-gray-400">
+                                                    <span className="text-white">{governorEffectiveness.officialName}</span>
+                                                    {' '}(威望:{governorEffectiveness.stats.prestige} 行政:{governorEffectiveness.stats.admin} 军事:{governorEffectiveness.stats.military})
+                                                </div>
+                                                <div className="flex flex-wrap gap-2">
+                                                    <span className="text-green-400">朝贡+{governorEffectiveness.tributeBonus}%</span>
+                                                    <span className="text-cyan-400">稳定+{governorEffectiveness.stabilityBonus}%</span>
+                                                    <span className="text-blue-400">独立倾向-{(governorEffectiveness.independenceReduction * 100).toFixed(1)}%</span>
+                                                    {governorEffectiveness.corruptionRisk > 0 && (
+                                                        <span className="text-red-400">腐败风险{governorEffectiveness.corruptionRisk.toFixed(0)}%</span>
+                                                    )}
+                                                </div>
                                             </div>
                                         )}
                                     </div>

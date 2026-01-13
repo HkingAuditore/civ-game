@@ -1374,6 +1374,37 @@ export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence 
     greed = Math.max(0.3, Math.min(3.0, greed));
     greed = Math.round(greed * 100) / 100;
 
+    // ========== NEW: 生成核心属性 (用于总督系统) ==========
+    // 威望 (Prestige): 20-80基础，根据阶层和效果调整
+    let prestige = 30 + Math.floor(Math.random() * 40); // 30-70 基础
+    const prestigeStrata = { nobles: 15, landowner: 10, cleric: 8, merchant: 5, capitalist: 5 };
+    prestige += prestigeStrata[sourceStratum] || 0;
+    // 政治效果加成威望
+    if (effects.approval || effects.stability || effects.coalitionApproval) {
+        prestige += 10;
+    }
+    prestige = Math.min(100, Math.max(10, prestige));
+
+    // 行政能力 (Administrative): 20-80基础，根据阶层和效果调整
+    let administrative = 25 + Math.floor(Math.random() * 35); // 25-60 基础
+    const adminStrata = { scribe: 20, merchant: 10, engineer: 15, capitalist: 8 };
+    administrative += adminStrata[sourceStratum] || 0;
+    // 经济效果加成行政
+    if (effects.taxEfficiency || effects.incomePercent || effects.tradeBonus) {
+        administrative += 15;
+    }
+    administrative = Math.min(100, Math.max(10, administrative));
+
+    // 军事能力 (Military): 20-60基础，根据阶层和效果调整
+    let military = 15 + Math.floor(Math.random() * 30); // 15-45 基础
+    const militaryStrata = { soldier: 30, knight: 25, landowner: 10, navigator: 8 };
+    military += militaryStrata[sourceStratum] || 0;
+    // 军事效果加成
+    if (effects.militaryBonus || effects.militaryUpkeep) {
+        military += 20;
+    }
+    military = Math.min(100, Math.max(5, military));
+
     return {
         id,
         name,
@@ -1386,6 +1417,10 @@ export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence 
         greed, // 个人贪婪度
         influence: 5 + (salary / 10),
         stratumInfluenceBonus,
+        // NEW: 核心属性 (用于总督系统)
+        prestige,           // 威望：影响独立倾向压制、精英满意度
+        administrative,     // 行政：影响朝贡效率、腐败减少
+        military,           // 军事：影响稳定性、动荡压制
         // 政治立场信息
         politicalStance: stanceResult.stanceId,
         stanceConditionParams: stanceResult.conditionParams, // 条件参数数组

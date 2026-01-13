@@ -153,6 +153,9 @@ export const useGameActions = (gameState, addLog) => {
         lastBattleDay,
         setLastBattleDay,
         setPlayerInstallmentPayment,
+        // Ruling coalition for political demands
+        rulingCoalition,
+        setRulingCoalition,
     } = gameState;
 
     const toggleDecree = (decreeId) => {
@@ -510,6 +513,29 @@ export const useGameActions = (gameState, addLog) => {
                         peaceTreatyUntil: daysElapsed + 365,
                     } : n));
                 }
+            }
+        }
+
+        // Handle modifyCoalition effect (for political demand events)
+        if (filtered.modifyCoalition && typeof filtered.modifyCoalition === 'object') {
+            const { addToCoalition, removeFromCoalition } = filtered.modifyCoalition;
+
+            if (addToCoalition && typeof setRulingCoalition === 'function') {
+                setRulingCoalition(prev => {
+                    const currentCoalition = Array.isArray(prev) ? prev : [];
+                    // Avoid duplicates
+                    if (currentCoalition.includes(addToCoalition)) {
+                        return currentCoalition;
+                    }
+                    return [...currentCoalition, addToCoalition];
+                });
+            }
+
+            if (removeFromCoalition && typeof setRulingCoalition === 'function') {
+                setRulingCoalition(prev => {
+                    const currentCoalition = Array.isArray(prev) ? prev : [];
+                    return currentCoalition.filter(stratum => stratum !== removeFromCoalition);
+                });
             }
         }
     };
