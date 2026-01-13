@@ -34,6 +34,8 @@ import {
     TREATY_CONFIGS,
     calculateTreatySigningCost,
     getTreatyDailyMaintenance,
+    VASSAL_TYPE_CONFIGS,
+    VASSAL_TYPE_LABELS,
 } from '../config';
 import { getBuildingCostGrowthFactor, getBuildingCostBaseMultiplier, getTechCostMultiplier, getBuildingUpgradeCostMultiplier } from '../config/difficulty';
 import { debugLog } from '../utils/debugFlags';
@@ -2501,7 +2503,7 @@ export const useGameActions = (gameState, addLog) => {
                 const acceptanceChance = calculateNegotiationAcceptChance({
                     proposal,
                     nation: targetNation,
-                    epoch: 0, 
+                    epoch: 0,
                     stance: proposal.stance,
                     daysElapsed,
                     playerWealth: resources?.silver || 0,
@@ -2509,16 +2511,16 @@ export const useGameActions = (gameState, addLog) => {
                 });
 
                 const isAccept = Math.random() < acceptanceChance.acceptChance || payload.forceAccept;
-                
+
                 if (isAccept) {
                     // Apply Treaty Effects
                     const newTreaty = {
                         id: `treaty_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                         type: proposal.type,
-                        partnerId: nationId, 
+                        partnerId: nationId,
                         signedDay: daysElapsed,
                         duration: proposal.durationDays,
-                        terms: proposal 
+                        terms: proposal
                     };
 
                     setNations(prev => prev.map(n => {
@@ -2536,7 +2538,7 @@ export const useGameActions = (gameState, addLog) => {
                         }
                         return n;
                     }));
-                    
+
                     if (onResult) onResult({ status: 'accepted', treaty: newTreaty });
                     addLog(`与 ${targetNation.name} 签署了 ${proposal.type === 'peace_treaty' ? '和平条约' : '条约'}。`);
                 } else {
@@ -2547,14 +2549,9 @@ export const useGameActions = (gameState, addLog) => {
             }
 
             case 'propose_peace': {
-                if (!currentActions?.triggerDiplomaticEvent) {
-                    console.error('triggerDiplomaticEvent not available');
-                    return;
-                }
-                
-                // Player Advantage is negative of AI War Score
-                const playerAdvantage = -(targetNation.warScore || 0);
-                
+                // warScore 正数 = 玩家优势（玩家胜利时 +分）
+                const playerAdvantage = targetNation.warScore || 0;
+
                 const event = createPlayerPeaceProposalEvent(
                     targetNation,
                     playerAdvantage,
@@ -2565,13 +2562,23 @@ export const useGameActions = (gameState, addLog) => {
                         handleDiplomaticAction(nationId, 'finalize_peace', { type: choice, value });
                     }
                 );
-                currentActions.triggerDiplomaticEvent(event);
+                triggerDiplomaticEvent(event);
                 break;
             }
 
             case 'finalize_peace': {
                 const { type, value } = payload;
                 if (!type) return;
+
+                // 如果是叛乱政府，使用专门的叛乱结束处理
+                if (targetNation.isRebelNation) {
+                    // 判断是玩家胜利还是失败
+                    // white_peace/demand_* 视为玩家胜利（叛乱平定）
+                    // pay_*/offer_* 视为玩家失败（向叛军妥协）
+                    const playerVictory = !['pay_high', 'pay_installment', 'offer_population'].includes(type);
+                    handleRebellionWarEnd(nationId, playerVictory);
+                    return;
+                }
 
                 setNations(prev => prev.map(n => {
                     if (n.id === nationId) {
@@ -2597,26 +2604,26 @@ export const useGameActions = (gameState, addLog) => {
                         // Handle population transfers
                         if (['demand_population', 'demand_annex'].includes(type)) {
                             popChange = -Math.floor(value || 0); // AI loses pop
-                             // TODO: Add to player population (need global setter or event)
-                             // For now assuming simplified population abstraction or separate effect
-                             addLog(`接收割让人口 ${Math.abs(popChange)} (及对应土地)`);
+                            // TODO: Add to player population (need global setter or event)
+                            // For now assuming simplified population abstraction or separate effect
+                            addLog(`接收割让人口 ${Math.abs(popChange)} (及对应土地)`);
                         } else if (type === 'offer_population') {
                             // Player loses pop
-                             addLog(`割让人口 ${Math.floor(value || 0)}`);
+                            addLog(`割让人口 ${Math.floor(value || 0)}`);
                         }
 
                         // Handle Vassalage
                         let vassalUpdates = {};
-                         if (['demand_colony', 'demand_puppet', 'demand_tributary', 'demand_protectorate'].includes(type)) {
-                             const vassalType = value; // passed as string in event
-                             vassalUpdates = {
-                                 vassalOf: 'player',
-                                 vassalType: vassalType,
-                                 autonomy: VASSAL_TYPE_CONFIGS[vassalType]?.autonomy || 50,
-                                 tributeRate: VASSAL_TYPE_CONFIGS[vassalType]?.tributeRate || 0.1,
-                             };
-                             addLog(`${n.name} 成为你的${VASSAL_TYPE_LABELS[vassalType]}`);
-                         }
+                        if (['demand_colony', 'demand_puppet', 'demand_tributary', 'demand_protectorate'].includes(type)) {
+                            const vassalType = value; // passed as string in event
+                            vassalUpdates = {
+                                vassalOf: 'player',
+                                vassalType: vassalType,
+                                autonomy: VASSAL_TYPE_CONFIGS[vassalType]?.autonomy || 50,
+                                tributeRate: VASSAL_TYPE_CONFIGS[vassalType]?.tributeRate || 0.1,
+                            };
+                            addLog(`${n.name} 成为你的${VASSAL_TYPE_LABELS[vassalType]}`);
+                        }
 
                         return {
                             ...n,
