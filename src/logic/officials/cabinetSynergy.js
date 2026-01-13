@@ -261,6 +261,33 @@ export const REFORM_DECREES = {
         },
         description: '税收 -30%，稳定度 +15%',
     },
+    forced_labor: {
+        id: 'forced_labor',
+        name: '强制劳动',
+        icon: 'Hammer',
+        duration: 60,
+        cooldown: 300,
+        cost: 0,
+        effects: {
+            categories: { gather: 0.20, industry: 0.10 }, // 采集/工业产出提升
+            stability: -0.10, // 稳定度大幅下降
+            approval: { peasant: -20, worker: -15, serf: -20 }, // 底层严重不满
+        },
+        description: '采集/工业产出提升，但大幅降低底层满意度和稳定度',
+    },
+    tithe: {
+        id: 'tithe',
+        name: '什一税',
+        icon: 'Cross',
+        duration: 90,
+        cooldown: 360,
+        cost: 0,
+        effects: {
+            incomePercent: 0.10, // 收入增加
+            approval: { cleric: 15, peasant: -10, merchant: -5 }, // 教士支持，平民不满
+        },
+        description: '财政收入 +10%，教士满意度提升，平民满意度下降',
+    },
 };
 
 // ========== 核心计算函数 ==========
