@@ -28,32 +28,33 @@ const DealStatus = ({
     else { statusColor = 'text-red-400'; statusText = t('status.hopeless', '毫无希望'); }
 
     return (
-        <div className="w-full flex flex-col gap-4">
+        <div className="w-full flex flex-col gap-2 lg:gap-4">
             {/* Header: Round & Chance */}
-            <div className="flex justify-between items-end border-b border-ancient-gold/10 pb-2">
+            <div className="flex justify-between items-end border-b border-ancient-gold/10 pb-1 lg:pb-2">
                 <div className="flex flex-col">
-                    <span className="text-[10px] text-ancient-stone uppercase tracking-widest">{t('negotiation.round', 'Negotiation Round')}</span>
-                    <div className="text-xl font-bold font-mono text-ancient-parchment flex items-center gap-2">
-                        <Icon name="Clock" size={16} className="text-ancient-gold" />
-                        {round} <span className="text-ancient-stone text-sm">/ {NEGOTIATION_MAX_ROUNDS}</span>
+                    <span className="text-[8px] lg:text-[10px] text-ancient-stone uppercase tracking-widest">{t('negotiation.round', 'Negotiation Round')}</span>
+                    <div className="text-base lg:text-xl font-bold font-mono text-ancient-parchment flex items-center gap-1 lg:gap-2">
+                        <Icon name="Clock" size={14} className="text-ancient-gold lg:hidden" />
+                        <Icon name="Clock" size={16} className="text-ancient-gold hidden lg:block" />
+                        {round} <span className="text-ancient-stone text-xs lg:text-sm">/ {NEGOTIATION_MAX_ROUNDS}</span>
                     </div>
                 </div>
                 <div className="flex flex-col items-end">
-                    <span className="text-[10px] text-ancient-stone uppercase tracking-widest">{t('negotiation.successChance', 'Success Chance')}</span>
-                    <div className={`text-xl font-bold font-mono ${statusColor}`}>
+                    <span className="text-[8px] lg:text-[10px] text-ancient-stone uppercase tracking-widest">{t('negotiation.successChance', 'Success Chance')}</span>
+                    <div className={`text-base lg:text-xl font-bold font-mono ${statusColor}`}>
                         {Math.round(acceptChance * 100)}%
-                        <span className="text-xs ml-1 opacity-70">({statusText})</span>
+                        <span className="text-[10px] lg:text-xs ml-1 opacity-70">({statusText})</span>
                     </div>
                 </div>
             </div>
 
             {/* The Deal Scale */}
-            <div className="bg-black/40 rounded-xl p-3 border border-ancient-gold/20 shadow-inner relative overflow-hidden">
+            <div className="bg-black/40 rounded-xl p-2 lg:p-3 border border-ancient-gold/20 shadow-inner relative overflow-hidden">
                 {/* Center Marker */}
                 <div className="absolute top-0 bottom-0 left-1/2 w-px bg-ancient-gold/30 z-10" />
 
                 {/* Labels */}
-                <div className="flex justify-between text-[10px] text-ancient-stone mb-1 font-bold">
+                <div className="flex justify-between text-[8px] lg:text-[10px] text-ancient-stone mb-0.5 lg:mb-1 font-bold">
                     <span className="text-red-400">{t('negotiation.loss', '亏损 (Loss)')}</span>
                     <span className="text-green-400">{t('negotiation.gain', '获利 (Gain)')}</span>
                 </div>

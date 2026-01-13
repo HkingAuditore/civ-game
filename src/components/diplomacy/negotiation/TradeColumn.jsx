@@ -22,16 +22,17 @@ const TradeColumn = ({
     const bgColor = isOffer ? 'bg-green-900/10' : 'bg-red-900/10';
 
     return (
-        <Card className={`h-full flex flex-col gap-4 ${bgColor} ${borderColor} ${className}`}>
-            <div className={`text-sm font-bold uppercase tracking-wider flex items-center gap-2 border-b ${borderColor} pb-3 mb-1 ${themeColor}`}>
-                <Icon name={iconName} size={16} />
+        <Card className={`h-full flex flex-col gap-2 lg:gap-4 ${bgColor} ${borderColor} ${className}`}>
+            <div className={`text-xs lg:text-sm font-bold uppercase tracking-wider flex items-center gap-2 border-b ${borderColor} pb-2 lg:pb-3 mb-1 ${themeColor}`}>
+                <Icon name={iconName} size={14} className="lg:hidden" />
+                <Icon name={iconName} size={16} className="hidden lg:block" />
                 {isOffer ? t('negotiation.myOffer', '我方筹码 (Offer)') : t('negotiation.myDemand', '我方索求 (Demand)')}
             </div>
 
-            <div className="flex-1 space-y-6">
+            <div className="flex-1 space-y-1 lg:space-y-6">
                 {/* Silver Input */}
-                <div className="space-y-2">
-                    <label className="text-xs text-ancient-stone uppercase font-bold flex items-center gap-1">
+                <div className="space-y-0.5 lg:space-y-2">
+                    <label className="text-[10px] lg:text-xs text-ancient-stone uppercase font-bold flex items-center gap-1">
                         <Icon name="Coins" size={12} className={isOffer ? 'text-amber-400' : 'text-red-300'} />
                         {isOffer ? t('negotiation.paySilver', '支付银币') : t('negotiation.demandSilver', '索要银币')}
                     </label>
@@ -45,26 +46,26 @@ const TradeColumn = ({
                             min="0"
                             value={draft[silverKey]}
                             onChange={(e) => setDraft(prev => ({ ...prev, [silverKey]: Number(e.target.value) }))}
-                            className={`flex-1 bg-transparent py-2 pl-3 text-right font-mono text-lg font-bold outline-none
+                            className={`flex-1 bg-transparent py-0.5 lg:py-2 pl-2 lg:pl-3 text-right font-mono text-sm lg:text-lg font-bold outline-none
                                 ${isOffer ? 'text-amber-400' : 'text-red-300'}
                             `}
                         />
-                         <div className="px-3 py-2 text-xs text-ancient-stone bg-black/20 h-full flex items-center select-none border-l border-white/5">
+                         <div className="px-2 lg:px-3 py-1 lg:py-2 text-[10px] lg:text-xs text-ancient-stone bg-black/20 h-full flex items-center select-none border-l border-white/5">
                             {t('negotiation.silverUnit', 'Silver')}
                         </div>
                     </div>
                 </div>
 
                 {/* Resource Input */}
-                <div className="space-y-2">
-                    <label className="text-xs text-ancient-stone uppercase font-bold flex items-center gap-1">
+                <div className="space-y-0.5 lg:space-y-2">
+                    <label className="text-[10px] lg:text-xs text-ancient-stone uppercase font-bold flex items-center gap-1">
                         <Icon name="Package" size={12} className="text-blue-400" />
                         {isOffer ? t('negotiation.giveResource', '交付资源') : t('negotiation.askResource', '索取资源')}
                     </label>
 
-                    <div className="bg-black/20 rounded-lg p-1 border border-ancient-gold/10 hover:border-ancient-gold/30 transition-colors">
+                    <div className="bg-black/20 rounded-lg p-0 lg:p-1 border border-ancient-gold/10 hover:border-ancient-gold/30 transition-colors">
                         <select
-                            className="w-full bg-transparent text-ancient-parchment text-sm p-2 outline-none cursor-pointer"
+                            className="w-full bg-transparent text-ancient-parchment text-xs lg:text-sm p-1 lg:p-2 outline-none cursor-pointer"
                             value={draft[resourceKeyKey]}
                             onChange={(e) => setDraft(prev => ({ ...prev, [resourceKeyKey]: e.target.value }))}
                         >
@@ -78,16 +79,16 @@ const TradeColumn = ({
                     </div>
 
                     {draft[resourceKeyKey] && (
-                        <div className="relative group animate-fade-in-up">
+                        <div className="relative group animate-fade-in-up mt-0.5 lg:mt-2">
                             <Input
                                 type="number"
                                 min="0"
                                 placeholder={t('common.amount', '数量')}
                                 value={draft[resourceAmountKey]}
                                 onChange={(e) => setDraft(prev => ({ ...prev, [resourceAmountKey]: Number(e.target.value) }))}
-                                className="font-mono text-center text-lg font-bold text-blue-300 bg-black/20 border-ancient-gold/10 group-hover:border-ancient-gold/30"
+                                className="font-mono text-center text-sm lg:text-lg font-bold text-blue-300 bg-black/20 border-ancient-gold/10 group-hover:border-ancient-gold/30 h-7 lg:h-10"
                             />
-                            <div className="text-center text-[10px] text-ancient-stone mt-1">
+                            <div className="text-center text-[10px] text-ancient-stone mt-0.5 lg:mt-1">
                                 {RESOURCES[draft[resourceKeyKey]]?.name || ''}
                             </div>
                         </div>
