@@ -12,15 +12,15 @@ const TreatyTerms = ({
     t = (k, v) => v
 }) => {
     return (
-        <div className="flex flex-col gap-4 h-full">
+        <div className="flex flex-col gap-2 lg:gap-4 h-full">
             {/* Treaty Type Selector */}
-            <div className="space-y-2">
-                <label className="text-xs font-bold text-ancient-gold uppercase tracking-wider flex items-center justify-center gap-2">
+            <div className="space-y-1 lg:space-y-2">
+                <label className="text-[10px] lg:text-xs font-bold text-ancient-gold uppercase tracking-wider flex items-center justify-center gap-2">
                     <Icon name="FileText" size={14} />
                     {t('negotiation.treatyType', '条约类型')}
                 </label>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-4 lg:grid-cols-2 gap-0.5 lg:gap-2">
                     {NEGOTIABLE_TREATY_TYPES.map((type) => {
                         const locked = !isDiplomacyUnlocked('treaties', type, epoch);
                         const label = getTreatyLabel(type);
@@ -41,7 +41,8 @@ const TreatyTerms = ({
                                     }));
                                 }}
                                 className={`
-                                    relative p-2 rounded-lg border text-left transition-all group
+                                    relative p-1 lg:p-2 rounded-lg border text-center lg:text-left transition-all group
+                                    flex flex-col items-center lg:items-start justify-center lg:justify-start h-8 lg:h-auto
                                     ${locked
                                         ? 'opacity-40 cursor-not-allowed border-transparent bg-black/20 grayscale'
                                         : 'hover:border-ancient-gold/40 hover:bg-ancient-gold/5'
@@ -52,9 +53,9 @@ const TreatyTerms = ({
                                     }
                                 `}
                             >
-                                <div className="text-xs font-bold text-ancient-parchment truncate">{label}</div>
+                                <div className="text-[9px] lg:text-xs font-bold text-ancient-parchment truncate w-full">{label}</div>
                                 {locked && (
-                                    <div className="text-[9px] text-red-400 mt-1 flex items-center gap-1">
+                                    <div className="hidden lg:flex text-[8px] lg:text-[9px] text-red-400 mt-0.5 lg:mt-1 items-center gap-1">
                                         <Icon name="Lock" size={8} />
                                         {getTreatyUnlockEraName(type)}
                                     </div>
@@ -76,8 +77,8 @@ const TreatyTerms = ({
             </div>
 
             {/* Terms Details */}
-            <Card className="p-3 bg-ancient-ink/20 border-ancient-gold/10 space-y-3">
-                <div className="flex justify-between items-center text-xs border-b border-ancient-gold/10 pb-2">
+            <Card className="p-2 lg:p-3 bg-ancient-ink/20 border-ancient-gold/10 space-y-2 lg:space-y-3">
+                <div className="flex justify-between items-center text-[10px] lg:text-xs border-b border-ancient-gold/10 pb-1 lg:pb-2">
                     <span className="text-ancient-stone">{t('negotiation.duration', '持续时间')}</span>
                     <div className="flex items-center gap-1">
                         <Input
@@ -85,13 +86,13 @@ const TreatyTerms = ({
                             min="30"
                             value={draft.durationDays}
                             onChange={(e) => setDraft(prev => ({ ...prev, durationDays: Number(e.target.value) }))}
-                            className="w-16 h-6 text-right font-mono text-xs py-0"
+                            className="w-12 lg:w-16 h-5 lg:h-6 text-right font-mono text-[10px] lg:text-xs py-0"
                         />
-                        <span className="text-ancient-stone text-[10px]">{t('common.days', '天')}</span>
+                        <span className="text-ancient-stone text-[9px] lg:text-[10px]">{t('common.days', '天')}</span>
                     </div>
                 </div>
 
-                <div className="flex justify-between items-center text-xs">
+                <div className="flex justify-between items-center text-[10px] lg:text-xs">
                     <span className="text-ancient-stone">{t('negotiation.maintenance', '每日维护')}</span>
                     <div className="flex items-center gap-1">
                         <Input
@@ -99,7 +100,7 @@ const TreatyTerms = ({
                             min="0"
                             value={draft.maintenancePerDay}
                             onChange={(e) => setDraft(prev => ({ ...prev, maintenancePerDay: Number(e.target.value) }))}
-                            className="w-16 h-6 text-right font-mono text-xs py-0 text-amber-400"
+                            className="w-12 lg:w-16 h-5 lg:h-6 text-right font-mono text-[10px] lg:text-xs py-0 text-amber-400"
                         />
                         <Icon name="Coins" size={10} className="text-amber-500" />
                     </div>
@@ -107,8 +108,8 @@ const TreatyTerms = ({
             </Card>
 
             {/* Stance Selector */}
-            <div className="mt-auto pt-2">
-                <label className="text-[10px] font-bold text-ancient-stone uppercase tracking-wider mb-2 block text-center">
+            <div className="mt-auto pt-1 lg:pt-2">
+                <label className="text-[9px] lg:text-[10px] font-bold text-ancient-stone uppercase tracking-wider mb-1 lg:mb-2 block text-center">
                     {t('negotiation.stance', '谈判姿态')}
                 </label>
                 <div className="flex gap-1 bg-black/30 p-1 rounded-lg">
@@ -122,15 +123,16 @@ const TreatyTerms = ({
                             type="button"
                             onClick={() => setDraft(prev => ({ ...prev, stance: key }))}
                             className={`
-                                flex-1 py-1.5 px-2 rounded flex flex-col items-center gap-0.5 transition-all
+                                flex-1 py-1 lg:py-1.5 px-1 lg:px-2 rounded flex flex-col items-center gap-0.5 transition-all
                                 ${draft.stance === key
                                     ? 'bg-ancient-gold/20 text-ancient-gold shadow-inner border border-ancient-gold/30'
                                     : 'text-ancient-stone hover:bg-white/5 hover:text-ancient-parchment'
                                 }
                             `}
                         >
-                            <Icon name={icon} size={14} />
-                            <span className="text-[10px] font-bold">{label}</span>
+                            <Icon name={icon} size={14} className="lg:hidden" />
+                            <Icon name={icon} size={14} className="hidden lg:block" />
+                            <span className="text-[9px] lg:text-[10px] font-bold">{label}</span>
                         </button>
                     ))}
                 </div>

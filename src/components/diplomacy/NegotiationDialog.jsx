@@ -103,24 +103,24 @@ const NegotiationDialog = ({
             size="xl"
             containerClassName="max-h-[95vh] h-[90vh] flex flex-col"
         >
-            <div className="h-full flex flex-col lg:grid lg:grid-cols-[1fr_1.2fr_1fr] gap-4 overflow-y-auto lg:overflow-hidden p-1">
+            <div className="h-full flex flex-col gap-1 lg:grid lg:grid-cols-[1fr_1.2fr_1fr] lg:gap-4 overflow-y-auto lg:overflow-hidden p-1">
 
-                {/* --- LEFT: MY OFFER --- */}
-                <div className="order-2 lg:order-1 flex flex-col h-full overflow-hidden">
+                {/* --- LEFT (Row 1): MY OFFER --- */}
+                <div className="flex flex-col h-auto lg:h-full lg:order-1 overflow-visible lg:overflow-hidden">
                     <TradeColumn
                         type="offer"
                         draft={negotiationDraft}
                         setDraft={setNegotiationDraft}
                         tradableResources={tradableResources}
-                        className="h-full"
+                        className="h-auto"
                         t={t}
                     />
                 </div>
 
-                {/* --- CENTER: TERMS & STATUS --- */}
-                <div className="order-1 lg:order-2 flex flex-col gap-4 h-full overflow-y-auto pr-1 custom-scrollbar">
+                {/* --- CENTER (Row 2): TERMS & STATUS --- */}
+                <div className="flex flex-col gap-1 lg:gap-4 h-auto lg:h-full lg:order-2 overflow-visible lg:overflow-y-auto pr-0 lg:pr-1 custom-scrollbar">
                     {/* Status Section */}
-                    <Card className="p-4 bg-black/40 border-ancient-gold/20">
+                    <Card className="p-2 lg:p-4 bg-black/40 border-ancient-gold/20">
                         <DealStatus
                             round={negotiationRound}
                             evaluation={negotiationEvaluation}
@@ -142,14 +142,14 @@ const NegotiationDialog = ({
                     </div>
                 </div>
 
-                {/* --- RIGHT: MY DEMAND --- */}
-                <div className="order-3 lg:order-3 flex flex-col h-full overflow-hidden">
+                {/* --- RIGHT (Row 3): MY DEMAND --- */}
+                <div className="flex flex-col h-auto lg:h-full lg:order-3 overflow-visible lg:overflow-hidden">
                      <TradeColumn
                         type="demand"
                         draft={negotiationDraft}
                         setDraft={setNegotiationDraft}
                         tradableResources={tradableResources}
-                        className="h-full"
+                        className="h-auto"
                         t={t}
                     />
                 </div>
