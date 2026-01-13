@@ -171,6 +171,7 @@ import {
     getMaxConsumptionMultiplierBonus,
     getRelationChangeMultipliers
 } from '../config/difficulty';
+import { EconomyLedger, TRANSACTION_CATEGORIES } from './economy/ledger';
 import {
     calculateFinancialStatus,
     calculateOfficialPropertyProfit,
@@ -397,6 +398,17 @@ export const simulateTick = ({
     };
     // REFACTORED: Use imported function from ./economy/taxes
     const taxBreakdown = initializeTaxBreakdown();
+
+    // Initialize Ledger
+    const ledger = new EconomyLedger({
+        resources: res,
+        wealth: wealth,
+        officials: officials, // Note: officials array reference passed, but modification might need care
+        classFinancialData: classFinancialData,
+        taxBreakdown: taxBreakdown,
+        silverChangeLog: silverChangeLog,
+        buildingFinancialData: buildingFinancialData
+    }, { safeWealth });
 
     // REFACTORED: Use imported function from ./buildings/effects
     const bonuses = initializeBonuses();
@@ -701,14 +713,8 @@ export const simulateTick = ({
         // 特殊处理银币产出：直接作为所有者收入，不进入国库，不交税
         if (resource === 'silver' && amount > 0) {
             roleWagePayout[ownerKey] = (roleWagePayout[ownerKey] || 0) + amount;
-            if (classFinancialData[ownerKey]) {
-                // Silver production is direct revenue
-                classFinancialData[ownerKey].income.ownerRevenue = (classFinancialData[ownerKey].income.ownerRevenue || 0) + amount;
-            }
-            // Per-building realized owner revenue (if building context exists)
-            if (currentBuildingId && buildingFinancialData[currentBuildingId]) {
-                buildingFinancialData[currentBuildingId].ownerRevenue += amount;
-            }
+            // 使用 Ledger 记录收入
+            ledger.transfer('void', ownerKey, amount, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE, { buildingId: currentBuildingId });
             return;
         }
         if (amount <= 0) return;
@@ -738,25 +744,13 @@ export const simulateTick = ({
             }
 
             const grossIncome = effectivePrice * amount;
-            // Note: Tax is handled on consumption side generally for 'Resource Tax', 
-            // but we might want to consider if 'Sales Tax' applies. 
-            // Current login assumes getResourceTaxRate is consumption tax.
+            const netIncome = grossIncome;
 
-            let netIncome = grossIncome;
-
-            // 记录owner的净销售收入（在tick结束时统一结算到wealth）
+            // 记录owner的净销售收入 (本地追踪)
             roleWagePayout[ownerKey] = (roleWagePayout[ownerKey] || 0) + netIncome;
 
-            // Per-building realized owner revenue (if building context exists)
-            if (currentBuildingId && buildingFinancialData[currentBuildingId]) {
-                buildingFinancialData[currentBuildingId].ownerRevenue += netIncome;
-            }
-
-            // NEW: Detailed tracking
-            if (classFinancialData[ownerKey]) {
-                // Track net income as owner revenue (profit from sales)
-                classFinancialData[ownerKey].income.ownerRevenue = (classFinancialData[ownerKey].income.ownerRevenue || 0) + netIncome;
-            }
+            // 使用 Ledger 记录收入
+            ledger.transfer('void', ownerKey, netIncome, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE, { buildingId: currentBuildingId });
         }
     };
 
@@ -814,19 +808,10 @@ export const simulateTick = ({
     });
 
     const applyRoleIncomeToWealth = () => {
-        Object.entries(roleWagePayout).forEach(([role, payout]) => {
-            if (payout <= 0) {
-                directIncomeApplied[role] = payout;
-                return;
-            }
-            const alreadyApplied = directIncomeApplied[role] || 0;
-            const netPayout = payout - alreadyApplied;
-            if (netPayout > 0) {
-                // [FIX] Apply safe wealth limit to prevent overflow
-                wealth[role] = safeWealth((wealth[role] || 0) + netPayout);
-            }
-            directIncomeApplied[role] = payout;
-        });
+        // [REFACTORED] Wealth is now updated immediately via Ledger.
+        // This function is kept empty or removed to prevent double counting.
+        // We keep it empty if called elsewhere, or remove calls.
+        // For now, empty implementation.
     };
 
     // console.log('[TICK] Processing buildings...'); // Commented for performance
@@ -1336,30 +1321,19 @@ export const simulateTick = ({
         if (due !== 0) {
             if (due > 0) {
                 const paid = Math.min(available, due);
-                wealth[key] = available - paid;
-                taxBreakdown.headTax += paid;
-                // 记录人头税支出
+                ledger.transfer(key, 'state', paid, TRANSACTION_CATEGORIES.EXPENSE.HEAD_TAX, TRANSACTION_CATEGORIES.EXPENSE.HEAD_TAX);
+                // 记录人头税支出 (本地追踪用于逻辑判断)
                 roleHeadTaxPaid[key] = (roleHeadTaxPaid[key] || 0) + paid;
                 roleExpense[key] = (roleExpense[key] || 0) + paid;
-                roleLivingExpense[key] = (roleLivingExpense[key] || 0) + paid; // Head tax is a living expense
-                if (classFinancialData[key]) {
-                    classFinancialData[key].expense.headTax = (classFinancialData[key].expense.headTax || 0) + paid;
-                }
+                roleLivingExpense[key] = (roleLivingExpense[key] || 0) + paid;
             } else {
                 const subsidyNeeded = -due;
                 const treasury = res.silver || 0;
                 if (treasury >= subsidyNeeded) {
-                    res.silver = treasury - subsidyNeeded;
-                    // [FIX] Apply safe wealth limit to prevent overflow
-                    wealth[key] = safeWealth(available + subsidyNeeded);
-                    taxBreakdown.subsidy += subsidyNeeded;
-                    // 记录政府补助收入
+                    ledger.transfer('state', key, subsidyNeeded, TRANSACTION_CATEGORIES.INCOME.SUBSIDY, TRANSACTION_CATEGORIES.INCOME.SUBSIDY);
+                    // 记录政府补助收入 (本地追踪)
                     roleWagePayout[key] = (roleWagePayout[key] || 0) + subsidyNeeded;
-                    roleLaborIncome[key] = (roleLaborIncome[key] || 0) + subsidyNeeded; // Subsidy counts as personal income
-
-                    if (classFinancialData[key]) {
-                        classFinancialData[key].income.subsidy = (classFinancialData[key].income.subsidy || 0) + subsidyNeeded;
-                    }
+                    roleLaborIncome[key] = (roleLaborIncome[key] || 0) + subsidyNeeded;
                 }
             }
         }
@@ -1899,43 +1873,21 @@ export const simulateTick = ({
                         if (taxPaid < 0) {
                             const subsidyAmount = Math.abs(taxPaid);
                             if ((res.silver || 0) >= subsidyAmount) {
-                                res.silver -= subsidyAmount;
-                                taxBreakdown.subsidy += subsidyAmount;
+                                ledger.transfer('state', ownerKey, subsidyAmount, TRANSACTION_CATEGORIES.INCOME.SUBSIDY, TRANSACTION_CATEGORIES.INCOME.SUBSIDY);
                                 totalCost -= subsidyAmount;
                                 roleWagePayout[ownerKey] = (roleWagePayout[ownerKey] || 0) + subsidyAmount;
-                                if (classFinancialData[ownerKey]) {
-                                    classFinancialData[ownerKey].income.subsidy = (classFinancialData[ownerKey].income.subsidy || 0) + subsidyAmount;
-                                }
                             }
                         } else if (taxPaid > 0) {
-                            taxBreakdown.industryTax += taxPaid;
+                            ledger.transfer(ownerKey, 'state', taxPaid, TRANSACTION_CATEGORIES.EXPENSE.RESOURCE_TAX, TRANSACTION_CATEGORIES.EXPENSE.RESOURCE_TAX);
                             totalCost += taxPaid;
-                            if (classFinancialData[ownerKey]) {
-                                classFinancialData[ownerKey].expense.transactionTax = (classFinancialData[ownerKey].expense.transactionTax || 0) + taxPaid;
-                            }
                         }
 
-                        const currentWealth = wealth[ownerKey] || 0;
-                        let actualPaidFromWealth = 0;
-                        let paidFromIncome = 0;
-
-                        if (currentWealth >= totalCost) {
-                            actualPaidFromWealth = totalCost;
-                            wealth[ownerKey] = currentWealth - totalCost;
-                        } else {
-                            actualPaidFromWealth = currentWealth;
-                            wealth[ownerKey] = 0;
-                            paidFromIncome = totalCost - actualPaidFromWealth;
-                            roleWagePayout[ownerKey] = (roleWagePayout[ownerKey] || 0) - paidFromIncome;
-                        }
+                        // Pay base cost
+                        ledger.transfer(ownerKey, 'void', baseCost, TRANSACTION_CATEGORIES.EXPENSE.PRODUCTION_COST, TRANSACTION_CATEGORIES.EXPENSE.PRODUCTION_COST, { buildingId: b.id });
                         roleExpense[ownerKey] = (roleExpense[ownerKey] || 0) + totalCost;
 
-                        // Per-building realized production input costs
+                        // Per-building realized production input costs (manual update for building stats if ledger doesn't support aggregate yet)
                         buildingFinancialData[b.id].productionCosts += totalCost;
-
-                        if (classFinancialData[ownerKey]) {
-                            classFinancialData[ownerKey].expense.productionCosts = (classFinancialData[ownerKey].expense.productionCosts || 0) + totalCost;
-                        }
                     });
 
                     demand[resKey] = (demand[resKey] || 0) + consumed;
@@ -2146,12 +2098,8 @@ export const simulateTick = ({
                 const disposableWealth = Math.max(0, available - reservedWealth);
                 const paid = Math.min(disposableWealth, ownerBill);
 
-                wealth[oKey] = available - paid;
+                ledger.transfer(oKey, 'void', paid, TRANSACTION_CATEGORIES.EXPENSE.WAGES_PAID, TRANSACTION_CATEGORIES.EXPENSE.WAGES_PAID, { buildingId: b.id });
                 roleExpense[oKey] = (roleExpense[oKey] || 0) + paid;
-
-                if (classFinancialData[oKey]) {
-                    classFinancialData[oKey].expense.wages = (classFinancialData[oKey].expense.wages || 0) + paid;
-                }
 
                 ownerPaidRatio[oKey] = ownerBill > 0 ? paid / ownerBill : 0;
             });
@@ -2175,11 +2123,11 @@ export const simulateTick = ({
                 buildingFinancialData[b.id].wagesByRole[plan.role] =
                     (buildingFinancialData[b.id].wagesByRole[plan.role] || 0) + payout;
 
+                // 使用 Ledger 发放工资
+                ledger.transfer('void', plan.role, payout, TRANSACTION_CATEGORIES.INCOME.WAGE, TRANSACTION_CATEGORIES.INCOME.WAGE, { buildingId: b.id });
+
                 roleWagePayout[plan.role] = (roleWagePayout[plan.role] || 0) + payout;
                 roleLaborIncome[plan.role] = (roleLaborIncome[plan.role] || 0) + payout; // Wages are labor income
-                if (classFinancialData[plan.role]) {
-                    classFinancialData[plan.role].income.wage = (classFinancialData[plan.role].income.wage || 0) + payout;
-                }
             }
         });
 
@@ -2275,44 +2223,29 @@ export const simulateTick = ({
 
             if (totalBusinessTax > 0) {
                 // 正值：按 owner 比例收税
-                let actualTaxCollected = 0;
                 Object.entries(ownerLevelGroups).forEach(([oKey, group]) => {
                     const proportion = group.totalCount / count;
                     const ownerTax = totalBusinessTax * proportion;
                     const ownerWealth = wealth[oKey] || 0;
                     if (ownerWealth >= ownerTax) {
-                        wealth[oKey] = ownerWealth - ownerTax;
+                        ledger.transfer(oKey, 'state', ownerTax, TRANSACTION_CATEGORIES.EXPENSE.BUSINESS_TAX, TRANSACTION_CATEGORIES.EXPENSE.BUSINESS_TAX, { buildingId: b.id });
                         roleBusinessTaxPaid[oKey] = (roleBusinessTaxPaid[oKey] || 0) + ownerTax;
                         roleExpense[oKey] = (roleExpense[oKey] || 0) + ownerTax;
-
-                        // Per-building: accumulate business tax paid (only positive tax)
-                        buildingFinancialData[b.id].businessTaxPaid += ownerTax;
-
-                        actualTaxCollected += ownerTax;
-                        if (classFinancialData[oKey]) {
-                            classFinancialData[oKey].expense.businessTax = (classFinancialData[oKey].expense.businessTax || 0) + ownerTax;
-                        }
                     } else if (tick % 30 === 0 && ownerWealth < ownerTax * 0.5) {
                         recordAggregatedLog(`?? ${STRATA[oKey]?.name || oKey} 无力支付 ${b.name} 的营业税，政府放弃征收。`);
                     }
                 });
-                taxBreakdown.businessTax += actualTaxCollected;
+                // taxBreakdown 由 Ledger 自动更新
             } else if (totalBusinessTax < 0) {
                 // 负值：按 owner 比例发放补贴
                 const subsidyAmount = Math.abs(totalBusinessTax);
                 const treasury = res.silver || 0;
                 if (treasury >= subsidyAmount) {
-                    res.silver = treasury - subsidyAmount;
-                    taxBreakdown.subsidy += subsidyAmount;
                     Object.entries(ownerLevelGroups).forEach(([oKey, group]) => {
                         const proportion = group.totalCount / count;
                         const ownerSubsidy = subsidyAmount * proportion;
-                        // [FIX] Apply safe wealth limit to prevent overflow
-                        wealth[oKey] = safeWealth((wealth[oKey] || 0) + ownerSubsidy);
+                        ledger.transfer('state', oKey, ownerSubsidy, TRANSACTION_CATEGORIES.INCOME.SUBSIDY, TRANSACTION_CATEGORIES.INCOME.SUBSIDY);
                         roleWagePayout[oKey] = (roleWagePayout[oKey] || 0) + ownerSubsidy;
-                        if (classFinancialData[oKey]) {
-                            classFinancialData[oKey].income.subsidy = (classFinancialData[oKey].income.subsidy || 0) + ownerSubsidy;
-                        }
                     });
                 } else {
                     if (tick % 30 === 0) {
@@ -2805,27 +2738,27 @@ export const simulateTick = ({
                     if (taxPaid < 0) {
                         const subsidyAmount = Math.abs(taxPaid);
                         if ((res.silver || 0) >= subsidyAmount) {
-                            res.silver -= subsidyAmount;
-                            taxBreakdown.subsidy += subsidyAmount;
+                            ledger.transfer('state', key, subsidyAmount, TRANSACTION_CATEGORIES.INCOME.SUBSIDY, TRANSACTION_CATEGORIES.INCOME.SUBSIDY);
                             totalCost -= subsidyAmount;
                             // Record consumption subsidy as income
                             roleWagePayout[key] = (roleWagePayout[key] || 0) + subsidyAmount;
                             roleLaborIncome[key] = (roleLaborIncome[key] || 0) + subsidyAmount; // Subsidy is personal income
-                            // [FIX] 同步到 classFinancialData 以保持概览和财务面板数据一致
-                            if (classFinancialData[key]) {
-                                classFinancialData[key].income.subsidy = (classFinancialData[key].income.subsidy || 0) + subsidyAmount;
-                            }
                         } else {
                             if (tick % 20 === 0) {
                                 recordAggregatedLog(`国库空虚，无法为 ${STRATA[key]?.name || key} 支付 ${RESOURCES[resKey]?.name || resKey} 消费补贴！`);
                             }
                         }
                     } else if (taxPaid > 0) {
-                        taxBreakdown.industryTax += taxPaid;
+                        ledger.transfer(key, 'state', taxPaid, TRANSACTION_CATEGORIES.EXPENSE.RESOURCE_TAX, TRANSACTION_CATEGORIES.EXPENSE.RESOURCE_TAX);
                         totalCost += taxPaid;
                     }
 
-                    wealth[key] = Math.max(0, (wealth[key] || 0) - totalCost);
+                    // Wealth deduction for consumption
+                    const isEssential = def.needs && def.needs.hasOwnProperty(resKey);
+                    const expenseCat = isEssential ? TRANSACTION_CATEGORIES.EXPENSE.ESSENTIAL_CONSUMPTION : TRANSACTION_CATEGORIES.EXPENSE.LUXURY_CONSUMPTION;
+
+                    ledger.transfer(key, 'void', totalCost, expenseCat, expenseCat, { resource: resKey, quantity: amount, price: finalEffectivePrice });
+
                     roleExpense[key] = (roleExpense[key] || 0) + totalCost;
                     roleLivingExpense[key] = (roleLivingExpense[key] || 0) + totalCost; // Needs consumption is living expense
                     satisfied = amount;
@@ -2836,45 +2769,6 @@ export const simulateTick = ({
                     // NEW: Track consumption by stratum
                     if (!stratumConsumption[key]) stratumConsumption[key] = {};
                     stratumConsumption[key][resKey] = (stratumConsumption[key][resKey] || 0) + amount;
-
-                    if (classFinancialData[key]) {
-                        // 分类记录：baseNeeds 中的资源是必需品，其他是奢侈品
-                        // 存储 { cost, quantity, price } 以便 UI 显示详情
-                        const needEntry = {
-                            cost: totalCost,
-                            quantity: amount,
-                            price: finalEffectivePrice
-                        };
-
-                        if (def.needs && def.needs.hasOwnProperty(resKey)) {
-                            // 必需品消费
-                            classFinancialData[key].expense.essentialNeeds = classFinancialData[key].expense.essentialNeeds || {};
-                            const existing = classFinancialData[key].expense.essentialNeeds[resKey];
-                            if (existing && typeof existing === 'object') {
-                                existing.cost += totalCost;
-                                existing.quantity += amount;
-                            } else {
-                                classFinancialData[key].expense.essentialNeeds[resKey] = needEntry;
-                            }
-                        } else {
-                            // 奢侈品消费
-                            classFinancialData[key].expense.luxuryNeeds = classFinancialData[key].expense.luxuryNeeds || {};
-                            const existing = classFinancialData[key].expense.luxuryNeeds[resKey];
-                            if (existing && typeof existing === 'object') {
-                                existing.cost += totalCost;
-                                existing.quantity += amount;
-                            } else {
-                                classFinancialData[key].expense.luxuryNeeds[resKey] = needEntry;
-                            }
-                        }
-
-                        // Also track transaction tax component for needs
-                        // Note: taxBreakdown.industryTax is updated above for positive tax
-                        // taxPaid was calculated above
-                        if (taxPaid > 0) {
-                            classFinancialData[key].expense.transactionTax = (classFinancialData[key].expense.transactionTax || 0) + taxPaid;
-                        }
-                    }
                 }
 
                 // 记录短缺原因
@@ -2982,19 +2876,14 @@ export const simulateTick = ({
     let decreeApprovalModifiers = calculateDecreeApprovalModifiers(decreesFromActiveForApproval);
 
     // Keep a few legacy special-cases, but key off `activeDecrees`
-    if (activeDecrees?.forced_labor) {
-        if (popStructure.serf > 0) classApproval.serf = Math.max(0, (classApproval.serf || 50) - 5);
-    }
+    // Forced labor static penalty is handled by calculateDecreeApprovalModifiers
 
     if (activeDecrees?.tithe) {
-        if (popStructure.cleric > 0) classApproval.cleric = Math.max(0, (classApproval.cleric || 50) - 2);
         const titheDue = (popStructure.cleric || 0) * 2 * effectiveTaxModifier;
         if (titheDue > 0) {
             const available = wealth.cleric || 0;
             const paid = Math.min(available, titheDue);
-            wealth.cleric = Math.max(0, available - paid);
-            taxBreakdown.headTax += paid;
-            // 记录什一税支出
+            ledger.transfer('cleric', 'state', paid, TRANSACTION_CATEGORIES.EXPENSE.HEAD_TAX, TRANSACTION_CATEGORIES.EXPENSE.HEAD_TAX);
             roleExpense.cleric = (roleExpense.cleric || 0) + paid;
         }
     }
@@ -3254,20 +3143,15 @@ export const simulateTick = ({
                 if (taxPaid < 0) {
                     const subsidyAmount = Math.abs(taxPaid);
                     if ((res.silver || 0) >= subsidyAmount) {
-                        res.silver -= subsidyAmount;
-                        taxBreakdown.subsidy += subsidyAmount;
+                        ledger.transfer('state', 'official', subsidyAmount, TRANSACTION_CATEGORIES.INCOME.SUBSIDY, TRANSACTION_CATEGORIES.INCOME.SUBSIDY);
                         totalCost -= subsidyAmount;
                         totalOfficialIncome += subsidyAmount;
                         totalOfficialLaborIncome += subsidyAmount; // Add to labor income
-                        if (classFinancialData.official) {
-                            classFinancialData.official.income.subsidy =
-                                (classFinancialData.official.income.subsidy || 0) + subsidyAmount;
-                        }
                     } else if (tick % 20 === 0) {
                         recordAggregatedLog(`国库空虚，无法为 官员 支付 ${RESOURCES[resource]?.name || resource} 消费补贴！`);
                     }
                 } else if (taxPaid > 0) {
-                    taxBreakdown.industryTax += taxPaid;
+                    ledger.transfer('official', 'state', taxPaid, TRANSACTION_CATEGORIES.EXPENSE.RESOURCE_TAX, TRANSACTION_CATEGORIES.EXPENSE.RESOURCE_TAX);
                     totalCost += taxPaid;
                 }
 
@@ -3293,22 +3177,9 @@ export const simulateTick = ({
                 if (!stratumConsumption.official) stratumConsumption.official = {};
                 stratumConsumption.official[resource] = (stratumConsumption.official[resource] || 0) + amount;
 
-                if (classFinancialData.official) {
-                    const needEntry = { cost: totalCost, quantity: amount, price };
-                    const bucket = isLuxury ? 'luxuryNeeds' : 'essentialNeeds';
-                    classFinancialData.official.expense[bucket] = classFinancialData.official.expense[bucket] || {};
-                    const existing = classFinancialData.official.expense[bucket][resource];
-                    if (existing && typeof existing === 'object') {
-                        existing.cost += totalCost;
-                        existing.quantity += amount;
-                    } else {
-                        classFinancialData.official.expense[bucket][resource] = needEntry;
-                    }
-                    if (taxPaid > 0) {
-                        classFinancialData.official.expense.transactionTax =
-                            (classFinancialData.official.expense.transactionTax || 0) + taxPaid;
-                    }
-                }
+                // 使用 Ledger 记录支出 (更新 classFinancialData 和 aggregate wealth)
+                const expenseCat = isLuxury ? TRANSACTION_CATEGORIES.EXPENSE.LUXURY_CONSUMPTION : TRANSACTION_CATEGORIES.EXPENSE.ESSENTIAL_CONSUMPTION;
+                ledger.transfer('official', 'void', totalCost, expenseCat, expenseCat, { resource, quantity: amount, price });
             } else {
                 const amount = Math.min(requirement, available);
                 if (amount > 0) {
@@ -3364,24 +3235,18 @@ export const simulateTick = ({
                 const taxPaid = Math.min(currentWealth, plannedPerCapitaTax);
                 debugHeadTaxPaid = taxPaid;
                 currentWealth = Math.max(0, currentWealth - taxPaid);
-                taxBreakdown.headTax += taxPaid;
+                ledger.transfer('official', 'state', taxPaid, TRANSACTION_CATEGORIES.EXPENSE.HEAD_TAX, TRANSACTION_CATEGORIES.EXPENSE.HEAD_TAX);
+
                 roleHeadTaxPaid.official = (roleHeadTaxPaid.official || 0) + taxPaid;
                 roleExpense.official = (roleExpense.official || 0) + taxPaid;
-                if (classFinancialData.official) {
-                    classFinancialData.official.expense.headTax = (classFinancialData.official.expense.headTax || 0) + taxPaid;
-                }
             } else {
                 const subsidyNeeded = Math.abs(plannedPerCapitaTax);
                 const treasury = res.silver || 0;
                 if (treasury >= subsidyNeeded) {
-                    res.silver = treasury - subsidyNeeded;
+                    ledger.transfer('state', 'official', subsidyNeeded, TRANSACTION_CATEGORIES.INCOME.SUBSIDY, TRANSACTION_CATEGORIES.INCOME.SUBSIDY);
                     currentWealth += subsidyNeeded;
-                    taxBreakdown.subsidy += subsidyNeeded;
                     totalOfficialIncome += subsidyNeeded;
                     totalOfficialLaborIncome += subsidyNeeded; // Add to labor income
-                    if (classFinancialData.official) {
-                        classFinancialData.official.income.subsidy = (classFinancialData.official.income.subsidy || 0) + subsidyNeeded;
-                    }
                 }
             }
         }
@@ -3415,10 +3280,7 @@ export const simulateTick = ({
         if (totalPropertyIncome > 0) {
             currentWealth += totalPropertyIncome;
             totalOfficialIncome += totalPropertyIncome;
-            if (classFinancialData.official) {
-                classFinancialData.official.income.ownerRevenue =
-                    (classFinancialData.official.income.ownerRevenue || 0) + totalPropertyIncome;
-            }
+            ledger.transfer('void', 'official', totalPropertyIncome, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE);
         }
 
         // [DEBUG] 追踪财富变化 - 产业收益后
@@ -5343,6 +5205,7 @@ export const simulateTick = ({
         merchantPop: popStructure?.merchant || 0,
     });
     const updatedMerchantState = simulateMerchantTrade({
+        ledger, // [REFACTORED] Pass ledger for financial transactions
         res,
         wealth,
         popStructure,
@@ -5941,10 +5804,7 @@ export const simulateTick = ({
             classWealthResult.official = Math.max(0, wealth.official);
             totalWealth = Object.values(classWealthResult).reduce((sum, val) => sum + val, 0);
             totalOfficialIncome += distributed;
-            if (classFinancialData.official) {
-                classFinancialData.official.income.corruption =
-                    (classFinancialData.official.income.corruption || 0) + distributed;
-            }
+            ledger.transfer('void', 'official', distributed, TRANSACTION_CATEGORIES.INCOME.CORRUPTION, TRANSACTION_CATEGORIES.INCOME.CORRUPTION);
         }
     }
     const tariffSubsidy = taxBreakdown.tariffSubsidy || 0; // 关税补贴支出
