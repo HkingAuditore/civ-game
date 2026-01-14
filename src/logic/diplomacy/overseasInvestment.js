@@ -189,7 +189,7 @@ export function createForeignInvestment({
 
     // 计算提供的岗位数量
     const jobsProvided = Object.values(building.jobs || {}).reduce((sum, val) => sum + val, 0);
-    
+
     // 估算每日利润（基于建筑产出，简化计算）
     // 实际利润应该在 processForeignInvestments 中动态计算
     const outputValue = Object.entries(building.output || {}).reduce((sum, [res, val]) => {
@@ -231,7 +231,7 @@ export function createForeignInvestment({
  * 1) Array form: nation.treaties = [{ type, status, endDay, withPlayer, ... }]
  * 2) Map form:  nation.treaties = { [type]: { status, endDay, withPlayer, ... } }
  */
-function hasActiveTreaty(nation, treatyType, daysElapsed = 0) {
+export function hasActiveTreaty(nation, treatyType, daysElapsed = 0) {
     const treaties = nation?.treaties;
     if (!treaties) return false;
 
@@ -915,8 +915,11 @@ export function processForeignInvestments({
         const profitResult = calculateForeignInvestmentProfit(investment, playerMarket, playerResources);
 
         // 应用税率
-        const taxAmount = profitResult.profit * policyConfig.taxRate;
-        const profitAfterTax = profitResult.profit * (1 - policyConfig.taxRate);
+        // 应用税率 (仅对正利润征税)
+        const dailyProfit = profitResult.profit;
+        const taxAmount = dailyProfit > 0 ? dailyProfit * policyConfig.taxRate : 0;
+        // 如果亏损，利润外流为0 (投资者承担亏损，不从东道国流出资金)
+        const profitAfterTax = dailyProfit > 0 ? dailyProfit * (1 - policyConfig.taxRate) : 0;
 
         totalTaxRevenue += taxAmount;
         totalProfitOutflow += profitAfterTax;

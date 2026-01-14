@@ -58,11 +58,16 @@ export const ForeignInvestmentPanel = memo(({
                     relation: nation?.relation || 50,
                     investments: [],
                     totalProfit: 0,
+                    totalTaxableProfit: 0,
                     totalJobs: 0,
                 };
             }
             groups[nationId].investments.push(inv);
             groups[nationId].totalProfit += inv.dailyProfit || 0;
+            // Only count positive profit for outflow/tax calculation
+            if ((inv.dailyProfit || 0) > 0) {
+                groups[nationId].totalTaxableProfit += inv.dailyProfit;
+            }
             groups[nationId].totalJobs += inv.jobsProvided || 0;
         });
         return Object.values(groups);
@@ -71,11 +76,24 @@ export const ForeignInvestmentPanel = memo(({
     // 总览统计（只统计存在的国家的投资）
     const summary = useMemo(() => {
         const totalBuildings = validForeignInvestments.length;
+        // Total raw profit (can be negative)
         const totalDailyProfit = validForeignInvestments.reduce((sum, inv) => sum + (inv.dailyProfit || 0), 0);
         const totalJobs = validForeignInvestments.reduce((sum, inv) => sum + (inv.jobsProvided || 0), 0);
+
         const policyConfig = FOREIGN_INVESTMENT_POLICIES[currentPolicy] || FOREIGN_INVESTMENT_POLICIES.normal;
-        const dailyTaxRevenue = totalDailyProfit * policyConfig.taxRate;
-        const dailyProfitOutflow = totalDailyProfit * (1 - policyConfig.taxRate);
+
+        // Calculate tax and outflow based on POSITIVE profits only (no negative tax)
+        // Aggregated by investment to match logic
+        let dailyTaxRevenue = 0;
+        let dailyProfitOutflow = 0;
+
+        validForeignInvestments.forEach(inv => {
+            const profit = inv.dailyProfit || 0;
+            if (profit > 0) {
+                dailyTaxRevenue += profit * policyConfig.taxRate;
+                dailyProfitOutflow += profit * (1 - policyConfig.taxRate);
+            }
+        });
 
         return {
             totalBuildings,
@@ -200,7 +218,7 @@ export const ForeignInvestmentPanel = memo(({
                                         </div>
                                         <div className="text-right">
                                             <div className="text-sm font-bold text-red-400">
-                                                -{formatNumberShortCN(group.totalProfit * (1 - policyConfig.taxRate))}/日
+                                                -{formatNumberShortCN(group.totalTaxableProfit * (1 - policyConfig.taxRate))}/日
                                             </div>
                                             <div className="text-[9px] text-gray-500">利润外流</div>
                                         </div>

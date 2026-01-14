@@ -872,6 +872,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
         overseasInvestments, // 海外投资列表
         setOverseasInvestments, // 海外投资更新函数
         foreignInvestments, // [NEW] 用于 simulation 计算
+        setForeignInvestments, // [FIX] Destructure setter
     } = gameState;
 
     // 使用ref保存最新状态，避免闭包问题
@@ -1902,10 +1903,12 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             const decision = processAIInvestment({
                                 investorNation: investor,
                                 nations: current.nations || [],
+                                diplomacyOrganizations: current.diplomacyOrganizations, // [NEW] Pass organizations for treaty checks
                                 playerState: {
                                     population: current.population,
                                     wealth: current.resources?.silver || 0,
                                     resources: current.resources,
+                                    buildings: current.buildings, // [NEW] Pass buildings for existence check
                                     id: 'player'
                                 },
                                 market: adjustedMarket,
