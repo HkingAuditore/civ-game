@@ -34,6 +34,13 @@ export const StatusBar = ({
     const MAX_FISCAL_ITEMS = 6;
     const REASON_LABELS = {
         '税收收入（含战争赔款）': '税收收入',
+        tax_head: '人头税',
+        tax_industry: '交易税',
+        tax_business: '营业税',
+        tax_tariff: '关税',
+        income_war_indemnity: '战争赔款',
+        income_policy: '政令收入',
+        expense_policy: '政令支出',
         '价格管制收入': '价格管制收入',
         '贸易路线税收': '贸易路线税收',
         '军队维护支出': '军饷维护',
