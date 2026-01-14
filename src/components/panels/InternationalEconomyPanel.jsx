@@ -217,39 +217,17 @@ const ForeignCapitalTab = ({ foreignInvestments, nations, currentPolicy, onPolic
         return Object.values(groups).sort((a,b) => b.totalProfit - a.totalProfit);
     }, [foreignInvestments, nations]);
 
-    const policyConfig = FOREIGN_INVESTMENT_POLICIES[currentPolicy] || FOREIGN_INVESTMENT_POLICIES.normal;
-
     return (
         <div className="space-y-4">
-            {/* Policy Control */}
-            <div className="bg-gray-800/50 rounded-xl p-3 border border-gray-700/40">
-                <div className="flex justify-between items-center mb-3">
-                    <div className="text-sm font-bold text-gray-200 flex items-center gap-2">
-                        <Icon name="Scale" size={16} className="text-blue-400" />
-                        外资监管政策
-                    </div>
-                    <div className="text-[10px] text-gray-400">
-                        当前税率: <span className="text-white font-bold">{(policyConfig.taxRate * 100).toFixed(0)}%</span>
-                    </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                    {Object.entries(FOREIGN_INVESTMENT_POLICIES).map(([key, config]) => (
-                        <button
-                            key={key}
-                            onClick={() => key === 'nationalization' ? onNationalize?.() : onPolicyChange?.(key)}
-                            className={`p-2 rounded-lg text-left border transition-all ${
-                                currentPolicy === key
-                                    ? 'bg-blue-900/40 border-blue-500/50 text-blue-200 ring-1 ring-blue-500/30'
-                                    : key === 'nationalization'
-                                        ? 'bg-red-900/10 border-red-800/30 text-red-400 hover:bg-red-900/30'
-                                        : 'bg-gray-800/40 border-gray-700/50 text-gray-400 hover:bg-gray-700/50'
-                            }`}
-                        >
-                            <div className="text-[11px] font-bold mb-0.5">{config.name}</div>
-                            <div className="text-[9px] opacity-70 leading-tight">{config.description}</div>
-                        </button>
-                    ))}
-                </div>
+            {/* Global Actions */}
+            <div className="flex justify-end">
+                <button
+                    onClick={() => onNationalize?.()}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-red-900/20 border border-red-800/30 text-red-400 hover:bg-red-900/40 rounded-lg text-xs transition-colors"
+                >
+                    <Icon name="AlertTriangle" size={12} />
+                    <span>国有化所有外资</span>
+                </button>
             </div>
 
             {/* List */}
@@ -266,9 +244,14 @@ const ForeignCapitalTab = ({ foreignInvestments, nations, currentPolicy, onPolic
                                 </Badge>
                              </div>
                              <div className="text-right text-[10px] text-gray-400">
-                                <div className="flex gap-2">
-                                    <span>纳税: <span className="text-green-400">+{formatNumberShortCN(group.totalTax)}</span></span>
-                                    <span>流出: <span className="text-red-400">-{formatNumberShortCN(group.totalProfit - group.totalTax)}</span></span>
+                                <div className="flex flex-col items-end">
+                                    <div className="flex gap-2">
+                                        <span>纳税: <span className="text-green-400">+{formatNumberShortCN(group.totalTax)}</span></span>
+                                        <span>流出: <span className="text-red-400">-{formatNumberShortCN(group.totalProfit - group.totalTax)}</span></span>
+                                    </div>
+                                    <div className="text-[9px] opacity-70">
+                                        实际税率: {group.totalProfit > 0 ? ((group.totalTax / group.totalProfit) * 100).toFixed(1) : 0}%
+                                    </div>
                                 </div>
                              </div>
                         </div>

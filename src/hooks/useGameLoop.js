@@ -1687,6 +1687,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             const investmentResult = processOverseasInvestments({
                                 overseasInvestments: overseasInvestmentsRef.current,
                                 nations: current.nations || [],
+                                organizations: current.diplomacyOrganizations?.organizations || [],
                                 resources: current.resources || {},
                                 marketPrices: current.market?.prices || {},
                                 classWealth: adjustedClassWealth,
@@ -1809,6 +1810,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         if (current.foreignInvestments && current.foreignInvestments.length > 0) {
                             const fiResult = processForeignInvestments({
                                 foreignInvestments: current.foreignInvestments,
+                                nations: current.nations || [],
+                                organizations: current.diplomacyOrganizations?.organizations || [],
                                 foreignInvestmentPolicy: current.foreignInvestmentPolicy || 'normal',
                                 playerMarket: adjustedMarket, // 使用更新后的市场数据
                                 playerResources: current.resources, // 使用当前资源
