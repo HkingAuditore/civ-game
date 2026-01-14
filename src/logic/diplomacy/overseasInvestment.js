@@ -844,52 +844,10 @@ export const FOREIGN_INVESTMENT_POLICIES = {
     increased_tax: { taxRate: 0.25, relationImpact: -5 },
     heavy_tax: { taxRate: 0.50, relationImpact: -15 },
 };/**
- * 计算外资建筑利润（AI在玩家国的投资）
- * @param {Object} investment - 外资记录
- * @param {Object} playerMarket - 玩家市场
- * @param {Object} playerResources - 玩家资源
- * @returns {Object} - { profit, outputValue, inputCost, wageCost, jobsProvided }
- */
-export function calculateForeignInvestmentProfit(investment, playerMarket = {}, playerResources = {}) {
-    const building = BUILDINGS.find(b => b.id === investment.buildingId);
-    if (!building) return { profit: 0, outputValue: 0, inputCost: 0, wageCost: 0, jobsProvided: 0 };
-
-    const prices = playerMarket.prices || {};
-
-    // 计算输入成本
-    let inputCost = 0;
-    Object.entries(building.input || {}).forEach(([resourceKey, amount]) => {
-        const price = prices[resourceKey] || RESOURCES[resourceKey]?.basePrice || 1;
-        inputCost += amount * price;
-    });
-
-    // 计算产出价值
-    let outputValue = 0;
-    Object.entries(building.output || {}).forEach(([resourceKey, amount]) => {
-        if (resourceKey === 'maxPop' || resourceKey === 'militaryCapacity') return;
-        const price = prices[resourceKey] || RESOURCES[resourceKey]?.basePrice || 1;
-        outputValue += amount * price;
-    });
-
-    // 计算工资成本
-    let wageCost = 0;
-    let jobsProvided = 0;
-    if (building.jobs) {
-        Object.values(building.jobs).forEach(slots => {
-            jobsProvided += slots;
-            wageCost += slots * 0.5; // 基础日工资
-        });
-    }
-
-    const profit = outputValue - inputCost - wageCost;
-
-    return { profit, outputValue, inputCost, wageCost, jobsProvided };
-}
-
-/**
- * 处理外资建筑每日更新
+ * 处理外资建筑每日更新 (Dynamic Logic)
+ * 使用 calculateOverseasProfit 动态决定供应链（本地采购 vs 进口）
  * @param {Object} params - 参数
- * @returns {Object} - { updatedInvestments, taxRevenue, profitOutflow, logs }
+ * @returns {Object} - { updatedInvestments, taxRevenue, profitOutflow, logs, marketChanges }
  */
 export function processForeignInvestments({
     foreignInvestments = [],
@@ -905,32 +863,85 @@ export function processForeignInvestments({
     const updatedInvestments = [];
     const policyConfig = FOREIGN_INVESTMENT_POLICIES[foreignInvestmentPolicy] || FOREIGN_INVESTMENT_POLICIES.normal;
 
+    // 追踪玩家市场变化 (被外资买入/卖出)
+    const marketChanges = {}; // { resourceKey: delta }
+
     foreignInvestments.forEach(investment => {
         if (investment.status !== 'operating') {
             updatedInvestments.push(investment);
             return;
         }
 
-        // 计算利润
-        const profitResult = calculateForeignInvestmentProfit(investment, playerMarket, playerResources);
+        const building = BUILDINGS.find(b => b.id === investment.buildingId);
+        if (!building) {
+            updatedInvestments.push(investment);
+            return;
+        }
 
-        // 应用税率
-        // 应用税率 (仅对正利润征税)
-        const dailyProfit = profitResult.profit;
+        // 1. 准备上下文
+        // 投资国 (Owner) -> 相当于 "Home"
+        const ownerNation = nations.find(n => n.id === investment.ownerNationId);
+        // 如果找不到投资国，假设它有基础价格和无限库存
+        const homePrices = ownerNation?.market?.prices || ownerNation?.prices || {};
+        const homeResources = ownerNation?.inventories || {}; // 用作 "PlayerResources" 参数 (Home Inventory)
+
+        // 东道国 (Player) -> 相当于 "TargetNation"
+        // 构造一个类似 Nation 的对象供 calculateOverseasProfit 使用
+        const targetNation = {
+            id: 'player',
+            name: 'Player',
+            market: playerMarket,
+            inventories: playerResources,
+            wealth: 10000, // 假设足够，影响库存模拟
+            vassalPolicy: { labor: 'standard' }, // 玩家默认劳工政策
+        };
+
+        // 2. 确保 investment 有 strategy (默认为 Profit Max)
+        const invWithStrategy = {
+            ...investment,
+            strategy: investment.strategy || 'PROFIT_MAX'
+        };
+
+        // 3. 调用核心计算逻辑
+        // calculateOverseasProfit(investment, targetNation, playerResources, playerMarketPrices)
+        // investment: 投资对象
+        // targetNation: 建筑所在地 (Player)
+        // playerResources: 母国库存 (AI Owner Inventory) - 用于判断是否能从母国进口
+        // playerMarketPrices: 母国价格 (AI Owner Prices)
+        const profitResult = calculateOverseasProfit(
+            invWithStrategy,
+            targetNation,
+            homeResources,
+            homePrices
+        );
+
+        // 4. 处理结果
+        const dailyProfit = profitResult.profit || 0;
+
+        // 计算税收
         const taxAmount = dailyProfit > 0 ? dailyProfit * policyConfig.taxRate : 0;
-        // 如果亏损，利润外流为0 (投资者承担亏损，不从东道国流出资金)
         const profitAfterTax = dailyProfit > 0 ? dailyProfit * (1 - policyConfig.taxRate) : 0;
 
         totalTaxRevenue += taxAmount;
         totalProfitOutflow += profitAfterTax;
 
+        // 记录市场变化 (localResourceChanges 指的是 TargetNation 即 Player 的变化)
+        if (profitResult.localResourceChanges) {
+            Object.entries(profitResult.localResourceChanges).forEach(([res, delta]) => {
+                marketChanges[res] = (marketChanges[res] || 0) + delta;
+            });
+        }
+
+        // 计算岗位数
+        const jobsProvided = building.jobs ? Object.values(building.jobs).reduce((a, b) => a + b, 0) : 0;
+
         // 更新投资记录
         updatedInvestments.push({
-            ...investment,
-            dailyProfit: profitResult.profit,
-            jobsProvided: profitResult.jobsProvided,
+            ...invWithStrategy, // 保留 strategy
+            dailyProfit: dailyProfit,
+            jobsProvided: jobsProvided,
             operatingData: {
-                ...profitResult,
+                ...profitResult, // 包含 decisions, inputCost, outputValue 等
                 taxPaid: taxAmount,
                 profitRepatriated: profitAfterTax,
             },
@@ -947,6 +958,7 @@ export function processForeignInvestments({
         taxRevenue: totalTaxRevenue,
         profitOutflow: totalProfitOutflow,
         logs,
+        marketChanges, // 返回给 GameLoop 使用 (如果支持)
     };
 }
 

@@ -2,8 +2,7 @@ import React, { useMemo, useState, useEffect, memo } from 'react';
 import { DeclareWarModal } from '../modals/DeclareWarModal';
 import TradeRoutesModal from '../modals/TradeRoutesModal';
 import { OverseasInvestmentPanel } from '../panels/OverseasInvestmentPanel';
-import { OverseasOverviewPanel } from '../panels/OverseasOverviewPanel';
-import { ForeignInvestmentPanel } from '../panels/ForeignInvestmentPanel';
+import { InternationalEconomyPanel } from '../panels/InternationalEconomyPanel';
 import DiplomacyLayout from '../diplomacy/DiplomacyLayout';
 import NegotiationDialog from '../diplomacy/NegotiationDialog';
 import ProvokeDialog from '../diplomacy/ProvokeDialog';
@@ -62,8 +61,7 @@ const DiplomacyTabComponent = ({
     const [showTradeRoutesModal, setShowTradeRoutesModal] = useState(false);
     const [showOverseasInvestmentPanel, setShowOverseasInvestmentPanel] = useState(false);
     const [investmentPanelNation, setInvestmentPanelNation] = useState(null);
-    const [showOverseasOverview, setShowOverseasOverview] = useState(false);
-    const [showForeignInvestmentPanel, setShowForeignInvestmentPanel] = useState(false);
+    const [showInternationalEconomy, setShowInternationalEconomy] = useState(false);
 
     // Organization Modal State
     const [showOrganizationModal, setShowOrganizationModal] = useState(false);
@@ -262,8 +260,7 @@ const DiplomacyTabComponent = ({
                 onDiplomaticAction={onDiplomaticAction}
                 onNegotiate={() => openNegotiationModal()}
                 onManageTrade={() => setShowTradeRoutesModal(true)}
-                onManageForeignInvestment={() => setShowForeignInvestmentPanel(true)}
-                onShowOverseasOverview={() => setShowOverseasOverview(true)}
+                onManageInternationalEconomy={() => setShowInternationalEconomy(true)}
                 onDeclareWar={() => setShowDeclareWarModal(true)}
                 onProvoke={() => setShowProvokeModal(true)}
 
@@ -404,12 +401,14 @@ const DiplomacyTabComponent = ({
                 }}
             />
 
-            <ForeignInvestmentPanel
-                isOpen={showForeignInvestmentPanel}
-                onClose={() => setShowForeignInvestmentPanel(false)}
+            <InternationalEconomyPanel
+                isOpen={showInternationalEconomy}
+                onClose={() => setShowInternationalEconomy(false)}
+                overseasInvestments={overseasInvestments}
                 foreignInvestments={foreignInvestments}
                 nations={visibleNations}
-                market={market}
+                playerMarket={market}
+                playerResources={resources}
                 currentPolicy={foreignInvestmentPolicy}
                 onPolicyChange={(policy) => {
                     if (typeof onDiplomaticAction === 'function') {
@@ -418,21 +417,22 @@ const DiplomacyTabComponent = ({
                 }}
                 onNationalize={() => {
                     if (typeof onDiplomaticAction === 'function') {
-                        foreignInvestments.forEach((investment) => {
+                        // Assuming nationalize applies generally or we iterate all;
+                        // The original panel had a nationalize button per investment or general?
+                        // The logic provided in ForeignInvestmentPanel iterates all if the button was general.
+                        // But InternationalEconomyPanel passes `onNationalize` which is triggered by a button in the panel.
+                        // Let's assume general nationalization or specific if the panel supports it.
+                        // Looking at ForeignInvestmentPanel code it passed specific investment ID if button was per row,
+                        // but the general button iterated all.
+                        // InternationalEconomyPanel implementation calls onNationalize without args for the policy button.
+                        // So we implement general nationalization here for safety.
+                         foreignInvestments.forEach((investment) => {
                             onDiplomaticAction('player', 'nationalize_foreign_investment', {
                                 investmentId: investment.id,
                             });
                         });
                     }
                 }}
-            />
-
-            <OverseasOverviewPanel
-                isOpen={showOverseasOverview}
-                onClose={() => setShowOverseasOverview(false)}
-                overseasInvestments={overseasInvestments}
-                nations={visibleNations}
-                market={market}
             />
 
             <OrganizationDetailsModal
