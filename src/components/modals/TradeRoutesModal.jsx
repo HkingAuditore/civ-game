@@ -7,7 +7,6 @@ import { formatNumberShortCN } from '../../utils/numberFormat';
 import { getTreatyEffects } from '../../logic/diplomacy/treatyEffects';
 
 const TradeRoutesModal = ({
-    tradeRoutes,
     nations,
     resources,
     market,
@@ -21,8 +20,6 @@ const TradeRoutesModal = ({
     onUpdateMerchantAssignments,
     onUpdateMerchantTradePreferences,
     onClose,
-    onCancelRoute,
-    onCreateRoute // New: allow creating routes from this modal
 }) => {
     // Tab state: 'assignments', 'priceCompare'
     const [activeTab, setActiveTab] = useState('assignments');
@@ -138,45 +135,8 @@ const TradeRoutesModal = ({
         );
     }, [nations, epoch]);
 
-    // Check if a trade route exists
-    // Check if a trade route exists
-    const hasTradeRoute = (nationId, resourceKey, type, mode = null) => {
-        if (!tradeRoutes?.routes) return false;
-
-        const activeRoute = tradeRoutes.routes.find(route =>
-            route.nationId === nationId &&
-            route.resource === resourceKey &&
-            route.type === type
-        );
-
-        if (!activeRoute) return false;
-
-        // If we want to check strict mode match:
-        if (mode) {
-            // UI passes mode as flags: { dumping, forceBuy }
-            // Engine stores route.mode as string: 'normal' | 'force_sell' | 'force_buy'
-            const expected = resolveRouteModeStringForNation(nationId, type);
-            const actual = (activeRoute.mode || 'normal');
-            const actualStr = (typeof actual === 'string') ? actual : (
-                actual?.dumping ? 'force_sell' : actual?.forceBuy ? 'force_buy' : 'normal'
-            );
-            return actualStr === expected;
-        }
-
-        return true;
-    };
-
     const getRouteModeForNation = (nationId) => {
         return getNationRouteMode(nationId);
-    };
-
-    // Engine expects route.mode to be a string: 'normal' | 'force_sell' | 'force_buy'
-    // UI stores per-nation toggles as { dumping: boolean, forceBuy: boolean }
-    const resolveRouteModeStringForNation = (nationId, tradeType) => {
-        const flags = getNationRouteMode(nationId);
-        if (tradeType === 'export' && flags?.dumping) return 'force_sell';
-        if (tradeType === 'import' && flags?.forceBuy) return 'force_buy';
-        return 'normal';
     };
 
     // Calculate estimated profit/cost for a potential trade opportunity
@@ -195,7 +155,6 @@ const TradeRoutesModal = ({
         const effectiveTaxRate = taxRate + tariffRate;
 
         const resourceName = RESOURCES[resourceKey]?.name || resourceKey;
-        const isActive = hasTradeRoute(nation.id, resourceKey, type, getRouteModeForNation(nation.id));
 
         if (type === 'export') {
             // Export: We sell to them. Need foreign shortage.
@@ -220,7 +179,6 @@ const TradeRoutesModal = ({
                 resource: resourceKey,
                 resourceName,
                 type: 'export',
-                isActive,
                 localPrice,
                 foreignPrice,
                 priceDiff,
@@ -262,7 +220,6 @@ const TradeRoutesModal = ({
                 resource: resourceKey,
                 resourceName,
                 type: 'import',
-                isActive,
                 localPrice,
                 foreignPrice,
                 priceDiff, // Positive = profitable (Post-tax margin)
@@ -294,42 +251,7 @@ const TradeRoutesModal = ({
         }
 
         return opportunities;
-    }, [visibleNations, tradableResources, market, resources, taxPolicies, daysElapsed, tradeRoutes]);
-
-    // Best export opportunities (sorted by profit score)
-    const bestExportOpportunities = useMemo(() => {
-        return allOpportunities
-            .filter(o => o.type === 'export' && o.profitScore > 0)
-            .sort((a, b) => b.profitScore - a.profitScore)
-            .slice(0, 20); // Top 20
-    }, [allOpportunities]);
-
-    // Best import opportunities (sorted by savings score)
-    const bestImportOpportunities = useMemo(() => {
-        return allOpportunities
-            .filter(o => o.type === 'import' && o.profitScore > 0)
-            .sort((a, b) => b.profitScore - a.profitScore)
-            .slice(0, 20); // Top 20
-    }, [allOpportunities]);
-
-    // Active routes with economics data
-    const activeRoutes = useMemo(() => {
-        return (tradeRoutes.routes || []).map(route => {
-            const nation = nations.find(n => n.id === route.nationId);
-            if (!nation) return { ...route, economics: null };
-            return {
-                ...route,
-                opportunity: {
-                    ...calculateTradeOpportunity(nation, route.resource, route.type),
-                    mode: route?.mode || 'normal',
-                }
-            };
-        });
-    }, [tradeRoutes.routes, nations, market, resources, taxPolicies, daysElapsed]);
-
-    // Counts
-    const exportCount = bestExportOpportunities.length;
-    const importCount = bestImportOpportunities.length;
+    }, [visibleNations, tradableResources, market, resources, taxPolicies, daysElapsed]);
 
     // 为价格对比生成各国物价数据（按所选资源）
     const priceComparisonData = useMemo(() => {
@@ -578,8 +500,7 @@ const TradeRoutesModal = ({
         return (
             <div
                 key={`${opp.nationId}-${opp.resource}-${opp.type}-${index}`}
-                className={`grid grid-cols-12 gap-1 sm:gap-2 items-center p-2 sm:p-3 rounded-lg ${opp.isActive ? 'bg-amber-900/30 border-amber-500/30' : 'bg-gray-800/40 border-white/5'
-                    } hover:bg-gray-800/60 border hover:border-white/10 transition-colors text-xs sm:text-sm`}
+                className={`grid grid-cols-12 gap-1 sm:gap-2 items-center p-2 sm:p-3 rounded-lg bg-gray-800/40 border border-white/5 hover:bg-gray-800/60 hover:border-white/10 transition-colors text-xs sm:text-sm`}
             >
                 {/* Rank */}
                 {showRank && (
@@ -602,9 +523,6 @@ const TradeRoutesModal = ({
                 {/* Resource */}
                 <div className="col-span-2 flex items-center gap-1 min-w-0">
                     <span className="text-gray-300 truncate">{opp.resourceName}</span>
-                    {/* Show Mode Badge if active */}
-                    {(opp.mode?.dumping && isExport) && <span className="text-[9px] text-red-400 border border-red-500/30 px-1 rounded">倾</span>}
-                    {(opp.mode?.forceBuy && !isExport) && <span className="text-[9px] text-purple-400 border border-purple-500/30 px-1 rounded">强</span>}
                 </div>
 
                 {/* Price Info */}
@@ -635,76 +553,13 @@ const TradeRoutesModal = ({
                     )}
                 </div>
 
-                {/* Action */}
+                {/* Action - Just an indicator that it's available */}
                 <div className="col-span-2 flex justify-center">
-                    {opp.isActive ? (
-                        <button
-                            onClick={() => onCancelRoute(opp.nationId, opp.resource, opp.type)}
-                            className="p-1 sm:p-1.5 rounded bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 transition-colors"
-                            title="取消路线"
-                        >
-                            <Icon name="X" size={12} />
-                        </button>
-                    ) : onCreateRoute ? (
-                        <button
-                            onClick={() => onCreateRoute(
-                                opp.nationId,
-                                opp.resource,
-                                opp.type,
-                                {
-                                    mode: resolveRouteModeStringForNation(opp.nationId, opp.type),
-                                }
-                            )}
-                            className={`p-1 sm:p-1.5 rounded ${isExport
-                                ? 'bg-green-500/10 hover:bg-green-500/20 text-green-400 border border-green-500/20'
-                                : 'bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20'
-                                } transition-colors`}
-                            title="创建路线"
-                        >
-                            <Icon name="Plus" size={12} />
-                        </button>
-                    ) : (
-                        <span className="text-[10px] text-gray-600">-</span>
-                    )}
+                    <span className="text-[10px] text-green-400/50 border border-green-500/20 px-1 rounded">机会</span>
                 </div>
             </div>
         );
     };
-
-    const renderActiveRouteRow = (route, index) => {
-        const opp = route.opportunity;
-        if (!opp) {
-            return (
-                <div key={index} className="p-3 bg-gray-800/40 rounded-lg text-gray-500 text-sm flex items-center justify-between group">
-                    <span>无效路线（国家已不可用）</span>
-                    <button
-                        onClick={() => onCancelRoute(route.nationId, route.resource, route.type)}
-                        className="px-2 py-1 bg-red-600/20 hover:bg-red-600/40 text-red-400 rounded text-xs transition-colors flex items-center gap-1"
-                    >
-                        <Icon name="Trash" size={12} />
-                        <span className="opacity-0 group-hover:opacity-100 transition-opacity">清除</span>
-                    </button>
-                </div>
-            );
-        }
-        return renderOpportunityRow(opp, index, false);
-    };
-
-    // Auto-cleanup invalid routes when the modal is open
-    useEffect(() => {
-        const invalidRoutes = activeRoutes.filter(r => r.economics === null);
-        if (invalidRoutes.length > 0) {
-            // Clean up one by one to avoid state conflicts, rely on re-renders
-            const route = invalidRoutes[0];
-            if (onCancelRoute) {
-                // Use a small timeout to avoid render-cycle conflicts
-                const timer = setTimeout(() => {
-                    onCancelRoute(route.nationId, route.resource, route.type);
-                }, 0);
-                return () => clearTimeout(timer);
-            }
-        }
-    }, [activeRoutes, onCancelRoute]);
 
     return createPortal(
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4">

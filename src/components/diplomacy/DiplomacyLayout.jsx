@@ -31,6 +31,7 @@ const DiplomacyLayout = ({
     diplomacyOrganizations,
     overseasInvestments,
     tradeRoutes,
+    tradeOpportunities,
 
     // Actions Handlers
     onDiplomaticAction,
@@ -180,6 +181,7 @@ const DiplomacyLayout = ({
                         resources={resources}
                         daysElapsed={daysElapsed}
                         tradeRoutes={tradeRoutes}
+                        tradeOpportunities={tradeOpportunities}
                         onDiplomaticAction={onDiplomaticAction}
                     />
                 )}

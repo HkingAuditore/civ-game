@@ -410,10 +410,21 @@ const RebellionPanel = ({
             <div className="p-3 border-t border-gray-700/50 bg-gray-800/30">
                 <div className="text-xs text-gray-500 mb-1">干预成本</div>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-                    <span className="text-gray-400">🏛️ 支持政权: 1000银</span>
-                    <span className="text-gray-400">🕵️ 颠覆活动: 300银</span>
-                    <span className="text-gray-400">🏴 资助反对派: 500银</span>
-                    <span className="text-gray-400">❤️ 人道援助: 200银</span>
+                    {Object.values(INTERVENTION_OPTIONS).map(opt => {
+                        if (opt.requiresCivilWar) return null; // Skip civil war only options in summary
+                        const iconMap = {
+                            support_government: '🏛️',
+                            destabilize: '🕵️',
+                            support_rebels: '🏴',
+                            humanitarian_aid: '❤️',
+                            military_intervention: '⚔️'
+                        };
+                        return (
+                            <span key={opt.id} className="text-gray-400">
+                                {iconMap[opt.id] || '•'} {opt.name}: {opt.cost.silver}银
+                            </span>
+                        );
+                    })}
                 </div>
             </div>
         </div>
