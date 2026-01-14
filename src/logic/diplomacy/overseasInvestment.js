@@ -787,22 +787,41 @@ export function processOverseasInvestments({
             profitHistory.shift();
         }
 
-        // 自动撤资逻辑 (Autonomous Divestment)
-        // 如果连续亏损或无利可图超过一定天数，自动拆除建筑
-        // 净利润 (repatriatedProfit) <= 0 视为无利可图
+        // 自动撤资逻辑 (Autonomous Divestment - Probabilistic)
         const isUnprofitable = repatriatedProfit <= 0;
         const consecutiveLossDays = isUnprofitable ? (updated.operatingData?.consecutiveLossDays || 0) + 1 : 0;
 
-        // 撤资阈值：30天连续无利可图
-        if (consecutiveLossDays > 30) {
-            logs.push(`📉 由于长期入不敷出（${targetTaxRate * 100}% 税率/低利润），${STRATA[updated.ownerStratum]?.name || '业主'}决定出售在 ${targetNation.name} 的 ${BUILDINGS.find(b=>b.id===updated.buildingId)?.name}。`);
-            // 投资被移除（不加入 updatedInvestments），返还少量残值（例如 10% 初始投资）
-            // 假设残值直接汇入阶层财富 (在 processOverseasInvestments 外部处理不容易，这里直接加到 profitByStratum 模拟一次性收入)
-            const salvageValue = (updated.investmentAmount || 0) * 0.1;
-            profitByStratum[updated.ownerStratum] = (profitByStratum[updated.ownerStratum] || 0) + salvageValue;
+        // 从连续亏损30天起，每天有概率移除
+        if (consecutiveLossDays >= 30) {
+            // 基础概率 1%
+            let divestProbability = 0.01;
 
-            // Skip adding to updatedInvestments -> Effectively removed
-            return;
+            // 时间系数：每超过1天增加 0.5%
+            const daysFactor = (consecutiveLossDays - 30) * 0.005;
+            divestProbability += daysFactor;
+
+            // 亏损系数：亏损越多概率越大 (如果利润为负)
+            // profitResult.profit 是日利润。如果为负，则为亏损。
+            // 注意：repatriatedProfit 在亏损时为0 (Math.max(0, ...))，所以不能用它判断亏损深度。
+            // 我们应该用 profitResult.profit (原始利润)
+            if (profitResult.profit < 0) {
+                const lossRatio = Math.abs(profitResult.profit) / (updated.investmentAmount || 1000);
+                // 假设日亏损 1% 投资额增加 1% 概率 (1:1 Ratio)
+                divestProbability += lossRatio;
+            }
+
+            // 上限 50%
+            divestProbability = Math.min(0.5, divestProbability);
+
+            if (Math.random() < divestProbability) {
+                logs.push(`📉 由于长期入不敷出（${consecutiveLossDays}天），${STRATA[updated.ownerStratum]?.name || '业主'}决定关闭在 ${targetNation.name} 的 ${BUILDINGS.find(b=>b.id===updated.buildingId)?.name}。`);
+
+                const salvageValue = (updated.investmentAmount || 0) * 0.1;
+                profitByStratum[updated.ownerStratum] = (profitByStratum[updated.ownerStratum] || 0) + salvageValue;
+
+                // Skip adding to updatedInvestments -> Effectively removed from UI and Logic
+                return;
+            }
         }
 
         updated.operatingData = {
@@ -1107,14 +1126,29 @@ export function processForeignInvestments({
             });
         }
 
-        // 自动撤资逻辑 (Autonomous Divestment for Foreign Investors)
+        // 自动撤资逻辑 (Autonomous Divestment for Foreign Investors - Probabilistic)
         const isUnprofitable = profitAfterTax <= 0;
         const consecutiveLossDays = isUnprofitable ? (investment.operatingData?.consecutiveLossDays || 0) + 1 : 0;
 
-        if (consecutiveLossDays > 30) {
-            logs.push(`📉 ${ownerNation?.name || '外资'} 因长期亏损，撤出了在我国的 ${building.name} 投资。`);
-            // Investment removed
-            return;
+        if (consecutiveLossDays >= 30) {
+            let divestProbability = 0.01;
+            const daysFactor = (consecutiveLossDays - 30) * 0.005;
+            divestProbability += daysFactor;
+
+            // 亏损系数
+            if (dailyProfit < 0) {
+                // 估算投资额用于比率计算 (假设基准 1000)
+                const estimatedInvestment = 1000;
+                divestProbability += Math.abs(dailyProfit) / estimatedInvestment;
+            }
+
+            divestProbability = Math.min(0.5, divestProbability);
+
+            if (Math.random() < divestProbability) {
+                logs.push(`📉 ${ownerNation?.name || '外资'} 因长期亏损（${consecutiveLossDays}天），撤出了在我国的 ${building.name} 投资。`);
+                // Investment removed
+                return;
+            }
         }
 
         // 计算岗位数
