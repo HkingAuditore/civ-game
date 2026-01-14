@@ -1100,7 +1100,8 @@ export const applyBuyPriceControl = ({
     marketPrice,
     priceControls,
     taxBreakdown,
-    resources
+    resources,
+    onTreasuryChange
 }) => {
     const result = calculateBuyPriceControl(resourceKey, amount, marketPrice, priceControls);
 
@@ -1113,6 +1114,9 @@ export const applyBuyPriceControl = ({
             const treasury = resources.silver || 0;
             if (treasury >= result.adjustment) {
                 resources.silver = treasury - result.adjustment;
+                if (typeof onTreasuryChange === 'function') {
+                    onTreasuryChange(-result.adjustment, 'price_control_buy');
+                }
                 taxBreakdown.priceControlExpense = (taxBreakdown.priceControlExpense || 0) + result.adjustment;
             } else {
                 // 国库不足，使用市场价
@@ -1142,7 +1146,8 @@ export const applySellPriceControl = ({
     marketPrice,
     priceControls,
     taxBreakdown,
-    resources
+    resources,
+    onTreasuryChange
 }) => {
     const result = calculateSellPriceControl(resourceKey, amount, marketPrice, priceControls);
 
@@ -1155,6 +1160,9 @@ export const applySellPriceControl = ({
             const treasury = resources.silver || 0;
             if (treasury >= result.adjustment) {
                 resources.silver = treasury - result.adjustment;
+                if (typeof onTreasuryChange === 'function') {
+                    onTreasuryChange(-result.adjustment, 'price_control_sell');
+                }
                 taxBreakdown.priceControlExpense = (taxBreakdown.priceControlExpense || 0) + result.adjustment;
             } else {
                 // 国库不足，使用市场价

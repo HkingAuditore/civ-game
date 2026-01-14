@@ -28,6 +28,18 @@ import {
     isInGracePeriod,
 } from '../../config/difficulty';
 
+const applyTreasuryChange = (resources, delta, reason, onTreasuryChange) => {
+    if (!resources || !Number.isFinite(delta) || delta === 0) return 0;
+    const before = Number(resources.silver || 0);
+    const after = Math.max(0, before + delta);
+    const actual = after - before;
+    resources.silver = after;
+    if (typeof onTreasuryChange === 'function' && actual !== 0) {
+        onTreasuryChange(actual, reason);
+    }
+    return actual;
+};
+
 /**
  * Process rebel nation war actions (raids and surrender demands)
  * @param {Object} params - Parameters
@@ -47,6 +59,7 @@ export const processRebelWarActions = ({
     population,
     army,
     logs,
+    onTreasuryChange,
 }) => {
     let raidPopulationLoss = 0;
     const res = resources;
@@ -123,7 +136,7 @@ export const processRebelWarActions = ({
 
         // Apply resource losses
         if (foodLoss > 0) res.food = Math.max(0, (res.food || 0) - foodLoss);
-        if (silverLoss > 0) res.silver = Math.max(0, (res.silver || 0) - silverLoss);
+        if (silverLoss > 0) applyTreasuryChange(res, -silverLoss, 'rebel_raid_loss', onTreasuryChange);
         if (popLoss > 0) raidPopulationLoss += popLoss;
 
         // Adjust war score
@@ -256,6 +269,7 @@ export const processAIMilitaryAction = ({
     army,
     logs,
     difficultyLevel = DEFAULT_DIFFICULTY,
+    onTreasuryChange,
 }) => {
     let raidPopulationLoss = 0;
     const next = nation;
@@ -410,7 +424,7 @@ export const processAIMilitaryAction = ({
             if (woodLoss > 0) res.wood = Math.max(0, (res.wood || 0) - woodLoss);
         }
         if (foodLoss > 0) res.food = Math.max(0, (res.food || 0) - foodLoss);
-        if (silverLoss > 0) res.silver = Math.max(0, (res.silver || 0) - silverLoss);
+        if (silverLoss > 0) applyTreasuryChange(res, -silverLoss, 'ai_war_action_loss', onTreasuryChange);
         let popLoss = Math.min(Math.floor(3 * actionLossMultiplier), Math.max(1, Math.floor(actionStrength * 20 * actionLossMultiplier)));
         popLoss = applyPopulationLossModifier(popLoss, difficultyLevel);
         raidPopulationLoss += popLoss;
@@ -479,7 +493,7 @@ export const processAIMilitaryAction = ({
                 if (woodLoss > 0) res.wood = Math.max(0, (res.wood || 0) - woodLoss);
             }
             if (foodLoss > 0) res.food = Math.max(0, (res.food || 0) - foodLoss);
-            if (silverLoss > 0) res.silver = Math.max(0, (res.silver || 0) - silverLoss);
+            if (silverLoss > 0) applyTreasuryChange(res, -silverLoss, 'ai_war_action_loss', onTreasuryChange);
             let popLoss = Math.min(Math.floor(3 * actionLossMultiplier), Math.max(1, Math.floor(actionStrength * 20 * actionLossMultiplier)));
             popLoss = applyPopulationLossModifier(popLoss, difficultyLevel);
             raidPopulationLoss += popLoss;

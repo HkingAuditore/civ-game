@@ -447,7 +447,7 @@ function GameApp({ gameState }) {
         gameState.setResources(prev => ({
             ...prev,
             silver: (prev.silver || 0) + 1
-        }));
+        }), { reason: 'manual_gather_silver' });
     };
 
     // 新增：处理显示建筑详情的函数 - memoized
@@ -546,7 +546,7 @@ function GameApp({ gameState }) {
                     newRes.culture = Math.max(0, (newRes.culture || 0) - result.effects.resourceCost.culture);
                 }
                 return newRes;
-            });
+            }, { reason: 'strategic_action_cost', meta: { actionId, stratumKey } });
         }
 
         if (action.cooldown > 0) {
@@ -1231,7 +1231,7 @@ function GameApp({ gameState }) {
                                                     gameState.setResources(prev => ({
                                                         ...prev,
                                                         silver: Math.max(0, (prev.silver || 0) - amount)
-                                                    }));
+                                                    }), { reason: 'politics_spend_silver', meta: { amount } });
                                                 }}
 
                                                 // 官员系统 props
@@ -1302,7 +1302,7 @@ activeDecrees={gameState.activeDecrees}
                                                             gameState.setResources(prev => ({
                                                                 ...prev,
                                                                 silver: Math.max(0, (prev.silver || 0) - result.cost)
-                                                            }));
+                                                            }), { reason: 'decree_enact_cost', meta: { decreeId } });
                                                         }
                                                         gameState.setLogs(prev => [`颁布法令：${decree.name}`, ...prev].slice(0, 8));
                                                     }

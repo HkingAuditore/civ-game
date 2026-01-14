@@ -158,6 +158,14 @@ export const useGameActions = (gameState, addLog) => {
         setRulingCoalition,
     } = gameState;
 
+    const setResourcesWithReason = (updater, reason, meta = null) => {
+        setResources(updater, { reason, meta });
+    };
+
+    const setClassWealthWithReason = (updater, reason, meta = null) => {
+        setClassWealth(updater, { reason, meta });
+    };
+
     const toggleDecree = (decreeId) => {
         if (!decreeId || typeof setDecrees !== 'function') return;
 
@@ -310,18 +318,18 @@ export const useGameActions = (gameState, addLog) => {
         const filtered = filterEventEffects(effects, epoch, techsUnlocked) || {};
 
         if (filtered.resources && typeof filtered.resources === 'object') {
-            setResources(prev => {
+            setResourcesWithReason(prev => {
                 const next = { ...prev };
                 Object.entries(filtered.resources).forEach(([key, value]) => {
                     if (typeof value !== 'number') return;
                     next[key] = Math.max(0, (next[key] || 0) + value);
                 });
                 return next;
-            });
+            }, 'event_effects_resource');
         }
 
         if (filtered.resourcePercent && typeof filtered.resourcePercent === 'object') {
-            setResources(prev => {
+            setResourcesWithReason(prev => {
                 const next = { ...prev };
                 Object.entries(filtered.resourcePercent).forEach(([key, percent]) => {
                     if (typeof percent !== 'number') return;
@@ -330,7 +338,7 @@ export const useGameActions = (gameState, addLog) => {
                     next[key] = Math.max(0, base + delta);
                 });
                 return next;
-            });
+            }, 'event_effects_resource_percent');
         }
 
         if (typeof filtered.population === 'number') {
@@ -683,14 +691,14 @@ export const useGameActions = (gameState, addLog) => {
             return;
         }
 
-        setResources(prev => {
+        setResourcesWithReason(prev => {
             const next = { ...prev };
             next.silver = Math.max(0, (next.silver || 0) - totalSilverCost);
             Object.entries(totalResourceCost).forEach(([res, amount]) => {
                 next[res] = Math.max(0, (next[res] || 0) - amount);
             });
             return next;
-        });
+        }, 'auto_replenish_cost');
 
         const replenishItems = [];
         Object.entries(replenishCounts).forEach(([unitId, count]) => {
@@ -803,7 +811,7 @@ export const useGameActions = (gameState, addLog) => {
         }
         newRes.silver = Math.max(0, (newRes.silver || 0) - silverCost);
 
-        setResources(newRes);
+        setResourcesWithReason(newRes, 'upgrade_epoch');
         setEpoch(epoch + 1);
         addLog(`🎉 文明进入 ${nextEpoch.name}！`);
 
@@ -872,7 +880,7 @@ export const useGameActions = (gameState, addLog) => {
         });
         newRes.silver = Math.max(0, (newRes.silver || 0) - silverCost);
 
-        setResources(newRes);
+        setResourcesWithReason(newRes, 'build_purchase', { buildingId: id, count: finalCount });
         setBuildings(prev => ({ ...prev, [id]: (prev[id] || 0) + finalCount }));
         addLog(`建造了 ${finalCount} 个 ${b.name}`);
 
@@ -1105,7 +1113,7 @@ export const useGameActions = (gameState, addLog) => {
             }
         });
         newRes.silver = Math.max(0, (newRes.silver || 0) - silverCost);
-        setResources(newRes);
+        setResourcesWithReason(newRes, 'building_upgrade', { buildingId, count: 1 });
 
         // 5. 更新升级等级（新格式：等级计数）
         const nextLevel = fromLevel + 1;
@@ -1348,7 +1356,7 @@ export const useGameActions = (gameState, addLog) => {
             newRes[resource] = Math.max(0, (newRes[resource] || 0) - amount);
         }
         newRes.silver = Math.max(0, (newRes.silver || 0) - actualSilverCost);
-        setResources(newRes);
+        setResourcesWithReason(newRes, 'building_upgrade_batch', { buildingId, count: successCount });
 
         // 更新升级等级（新格式：等级计数）
         const nextLevel = fromLevel + 1;
@@ -1498,7 +1506,7 @@ export const useGameActions = (gameState, addLog) => {
         }
         newRes.silver = Math.max(0, (newRes.silver || 0) - silverCost);
 
-        setResources(newRes);
+        setResourcesWithReason(newRes, 'tech_research', { techId: id });
         setTechsUnlocked(prev => [...prev, id]);
         addLog(`✓ 研究完成：${tech.name}`);
 
@@ -1618,10 +1626,10 @@ export const useGameActions = (gameState, addLog) => {
 
         // 获取没收的财产
         if (result.wealthGained > 0) {
-            setResources(prev => ({
+            setResourcesWithReason(prev => ({
                 ...prev,
                 silver: (prev.silver || 0) + result.wealthGained
-            }));
+            }), 'official_disposal_confiscation', { officialId, disposalType });
         }
 
         // 应用阶层好感度惩罚
@@ -1700,11 +1708,11 @@ export const useGameActions = (gameState, addLog) => {
             text: "+1",
             color: "text-white"
         }]);
-        setResources(prev => ({
+        setResourcesWithReason(prev => ({
             ...prev,
             food: prev.food + 1,
             wood: prev.wood + 1
-        }));
+        }), 'manual_gather');
     };
 
     // ========== 军事系统 ==========
@@ -1784,7 +1792,7 @@ export const useGameActions = (gameState, addLog) => {
             newRes[resource] -= totalUnitCost[resource];
         }
         newRes.silver = Math.max(0, (newRes.silver || 0) - silverCost);
-        setResources(newRes);
+        setResourcesWithReason(newRes, 'recruit_unit', { unitId, count: recruitCount });
 
         // 加入训练队列
         const newQueueItems = Array(recruitCount).fill(null).map(() => ({
@@ -1844,14 +1852,14 @@ export const useGameActions = (gameState, addLog) => {
                 }, 0);
                 const refundSilver = Math.floor(silverCost * 0.5);
 
-                setResources(prev => {
+                setResourcesWithReason(prev => {
                     const newRes = { ...prev };
                     for (let resource in refundResources) {
                         newRes[resource] = (newRes[resource] || 0) + refundResources[resource];
                     }
                     newRes.silver = (newRes.silver || 0) + refundSilver;
                     return newRes;
-                });
+                }, 'cancel_training_refund', { unitId, queueIndex });
 
                 addLog(`取消训练 ${unit.name}，返还50%资源`);
             }
@@ -1885,14 +1893,14 @@ export const useGameActions = (gameState, addLog) => {
             });
 
             // Refund all resources
-            setResources(prevRes => {
+            setResourcesWithReason(prevRes => {
                 const newRes = { ...prevRes };
                 for (let resource in totalRefundResources) {
                     newRes[resource] = (newRes[resource] || 0) + totalRefundResources[resource];
                 }
                 newRes.silver = (newRes.silver || 0) + totalRefundSilver;
                 return newRes;
-            });
+            }, 'cancel_all_training_refund');
 
             addLog(`一键取消了 ${prev.length} 个训练任务，返还50%资源`);
             return [];
@@ -2080,13 +2088,13 @@ export const useGameActions = (gameState, addLog) => {
             resourcesGained = unlockedLoot;
 
             if (Object.keys(unlockedLoot).length > 0) {
-                setResources(prev => {
+                setResourcesWithReason(prev => {
                     const updated = { ...prev };
                     Object.entries(unlockedLoot).forEach(([resource, amount]) => {
                         updated[resource] = (updated[resource] || 0) + amount;
                     });
                     return updated;
-                });
+                }, 'battle_loot', { nationId, missionId });
             }
         }
 
@@ -2374,7 +2382,7 @@ export const useGameActions = (gameState, addLog) => {
                     addLog(`银币不足，无法赠送礼物。需要 ${giftCost} 银币。`);
                     return;
                 }
-                setResources(prev => ({ ...prev, silver: prev.silver - giftCost }));
+                setResourcesWithReason(prev => ({ ...prev, silver: prev.silver - giftCost }), 'diplomatic_gift', { nationId });
                 setNations(prev => prev.map(n =>
                     n.id === nationId
                         ? {
@@ -2429,11 +2437,11 @@ export const useGameActions = (gameState, addLog) => {
                 const profitPerUnit = foreignPrice - localPrice;
 
                 // 执行交易
-                setResources(prev => ({
+                setResourcesWithReason(prev => ({
                     ...prev,
                     silver: prev.silver + payout,
                     [resourceKey]: Math.max(0, (prev[resourceKey] || 0) - amount),
-                }));
+                }), 'diplomatic_trade_export', { nationId, resourceKey, amount });
 
                 setNations(prev => prev.map(n =>
                     n.id === nationId
@@ -2494,11 +2502,11 @@ export const useGameActions = (gameState, addLog) => {
                 const profitPerUnit = localPrice - foreignPrice;
 
                 // 执行交易
-                setResources(prev => ({
+                setResourcesWithReason(prev => ({
                     ...prev,
                     silver: prev.silver - cost,
                     [resourceKey]: (prev[resourceKey] || 0) + amount,
-                }));
+                }), 'diplomatic_trade_import', { nationId, resourceKey, amount });
 
                 setNations(prev => prev.map(n =>
                     n.id === nationId
@@ -2625,13 +2633,13 @@ export const useGameActions = (gameState, addLog) => {
                         // Handle resource transfers
                         if (['demand_high', 'demand_standard', 'demand_installment'].includes(type)) {
                             silverChange = -Math.floor(value || 0); // AI loses silver
-                            setResources(r => ({ ...r, silver: (r.silver || 0) + Math.abs(silverChange) }));
+                            setResourcesWithReason(r => ({ ...r, silver: (r.silver || 0) + Math.abs(silverChange) }), 'war_reparation_receive', { nationId });
                             lootReserveChange = Math.abs(silverChange);
                             addLog(`获得战争赔款 ${Math.abs(silverChange)} 银币`);
                         } else if (['pay_high', 'pay_installment'].includes(type)) {
                             // Player pays AI
                             const payment = Math.floor(value || 0);
-                            setResources(r => ({ ...r, silver: Math.max(0, (r.silver || 0) - payment) }));
+                            setResourcesWithReason(r => ({ ...r, silver: Math.max(0, (r.silver || 0) - payment) }), 'war_reparation_pay', { nationId });
                             silverChange = payment; // AI gains silver
                             addLog(`支付战争赔款 ${payment} 银币`);
                         }
@@ -2685,7 +2693,7 @@ export const useGameActions = (gameState, addLog) => {
                 const successChance = Math.max(0.1, (armyPower / (armyPower + 200)) * 0.6 + (targetNation.relation || 0) / 300);
                 if (Math.random() < successChance) {
                     const tribute = Math.min(targetNation.wealth || 0, Math.ceil(150 + armyPower * 0.25));
-                    setResources(prev => ({ ...prev, silver: prev.silver + tribute }));
+                    setResourcesWithReason(prev => ({ ...prev, silver: prev.silver + tribute }), 'diplomatic_demand_tribute', { nationId });
                     setNations(prev => prev.map(n =>
                         n.id === nationId
                             ? {
@@ -2765,7 +2773,7 @@ export const useGameActions = (gameState, addLog) => {
                 const playerRelation = targetNation.relation || 50;
                 const successChance = Math.min(0.8, 0.3 + playerRelation / 200);
 
-                setResources(prev => ({ ...prev, silver: prev.silver - provokeCost }));
+                setResourcesWithReason(prev => ({ ...prev, silver: prev.silver - provokeCost }), 'diplomatic_provoke_cost', { nationId });
 
                 if (Math.random() < successChance) {
                     // 成功：降低两国之间的关系
@@ -3095,7 +3103,11 @@ export const useGameActions = (gameState, addLog) => {
 
                 // 扣除资源
                 if (result.cost.silver) {
-                    setResources(prev => ({ ...prev, silver: Math.max(0, (prev.silver || 0) - result.cost.silver) }));
+                    setResourcesWithReason(
+                        prev => ({ ...prev, silver: Math.max(0, (prev.silver || 0) - result.cost.silver) }),
+                        'foreign_intervention_cost',
+                        { nationId, interventionType }
+                    );
                 }
 
                 // 更新目标国家
@@ -3335,7 +3347,11 @@ export const useGameActions = (gameState, addLog) => {
                         addLog(`📜 签约失败：签约成本 ${signingCost} 银币不足（当前 ${Math.floor(currentSilver)}）。`);
                         return;
                     }
-                    setResources(prev => ({ ...prev, silver: Math.max(0, (prev.silver || 0) - signingCost) }));
+                    setResourcesWithReason(
+                        prev => ({ ...prev, silver: Math.max(0, (prev.silver || 0) - signingCost) }),
+                        'treaty_signing_cost',
+                        { nationId, treatyType: type }
+                    );
                 }
 
                 setNations(prev => prev.map(n => {
@@ -3541,14 +3557,26 @@ export const useGameActions = (gameState, addLog) => {
                             if (onResult) onResult({ status: 'blocked', reason: 'silver' });
                             return;
                         }
-                        setResources(prev => ({ ...prev, silver: Math.max(0, (prev.silver || 0) - negotiateSigningCost) }));
+                        setResourcesWithReason(
+                            prev => ({ ...prev, silver: Math.max(0, (prev.silver || 0) - negotiateSigningCost) }),
+                            'treaty_negotiate_signing_cost',
+                            { nationId, treatyType: type }
+                        );
                     }
 
                     if (signingGift > 0) {
-                        setResources(prev => ({ ...prev, silver: Math.max(0, (prev.silver || 0) - signingGift) }));
+                        setResourcesWithReason(
+                            prev => ({ ...prev, silver: Math.max(0, (prev.silver || 0) - signingGift) }),
+                            'treaty_negotiate_signing_gift',
+                            { nationId, treatyType: type }
+                        );
                     }
                     if (resourceAmount > 0 && resourceKey) {
-                        setResources(prev => ({ ...prev, [resourceKey]: Math.max(0, (prev[resourceKey] || 0) - resourceAmount) }));
+                        setResourcesWithReason(
+                            prev => ({ ...prev, [resourceKey]: Math.max(0, (prev[resourceKey] || 0) - resourceAmount) }),
+                            'treaty_negotiate_resource_gift',
+                            { nationId, treatyType: type, resourceKey, amount: resourceAmount }
+                        );
                     }
 
                     setNations(prev => prev.map(n => {
@@ -3600,13 +3628,21 @@ export const useGameActions = (gameState, addLog) => {
                     }));
 
                     if (demandSilver > 0) {
-                        setResources(prev => ({ ...prev, silver: (prev.silver || 0) + demandSilver }));
+                        setResourcesWithReason(
+                            prev => ({ ...prev, silver: (prev.silver || 0) + demandSilver }),
+                            'treaty_negotiate_demand_silver',
+                            { nationId, treatyType: type }
+                        );
                     }
                     if (demandResourceAmount > 0 && demandResourceKey) {
-                        setResources(prev => ({
-                            ...prev,
-                            [demandResourceKey]: (prev[demandResourceKey] || 0) + demandResourceAmount,
-                        }));
+                        setResourcesWithReason(
+                            prev => ({
+                                ...prev,
+                                [demandResourceKey]: (prev[demandResourceKey] || 0) + demandResourceAmount,
+                            }),
+                            'treaty_negotiate_demand_resource',
+                            { nationId, treatyType: type, resourceKey: demandResourceKey, amount: demandResourceAmount }
+                        );
                     }
 
                     let negotiateCostInfo = '';
@@ -3990,10 +4026,10 @@ export const useGameActions = (gameState, addLog) => {
                             return newList;
                         });
                         // 扣除业主阶层财富
-                        setClassWealth(prev => ({
+                        setClassWealthWithReason(prev => ({
                             ...prev,
                             [ownerStratum || 'capitalist']: Math.max(0, (prev[ownerStratum || 'capitalist'] || 0) - result.cost),
-                        }));
+                        }), 'overseas_investment_cost', { ownerStratum, investmentId: result.investment?.id });
                         addLog(`🏭 ${result.message}`);
                     } else {
                         addLog(`⚠️ ${result.message}`);
@@ -4039,7 +4075,7 @@ export const useGameActions = (gameState, addLog) => {
                 const constructionCost = applyBuildingCostModifier(rawCost, buildingCostMod, building.baseCost);
                 
                 // 执行资源扣除
-                setResources(prev => {
+                setResourcesWithReason(prev => {
                     const nextRes = { ...prev };
                     
                     // 先加上投资款
@@ -4074,7 +4110,7 @@ export const useGameActions = (gameState, addLog) => {
                     }
                     
                     return nextRes;
-                });
+                }, 'foreign_investment_accept', { nationId, buildingId });
 
                 import('../logic/diplomacy/overseasInvestment').then(({ createForeignInvestment }) => {
                     const newInvestment = createForeignInvestment({
@@ -4132,10 +4168,10 @@ export const useGameActions = (gameState, addLog) => {
                     // 返还部分投资（扣除20%违约金）
                     const returnAmount = (investment.investmentAmount || 0) * 0.8;
                     const ownerStratum = investment.ownerStratum || 'capitalist';
-                    setClassWealth(prevWealth => ({
+                    setClassWealthWithReason(prevWealth => ({
                         ...prevWealth,
                         [ownerStratum]: (prevWealth[ownerStratum] || 0) + returnAmount,
-                    }));
+                    }), 'overseas_investment_withdraw', { ownerStratum, investmentId });
 
                     addLog(`💰 已撤回在附庸国的投资，收回 ${returnAmount.toFixed(0)} 银币（扣除20%违约金）`);
                     return prev.filter(inv => inv.id !== investmentId);
@@ -4430,10 +4466,10 @@ export const useGameActions = (gameState, addLog) => {
             (action, nation) => {
                 if (action === 'end_celebrate') {
                     setStability(prev => Math.min(100, (prev || 50) + 15));
-                    setResources(prev => ({
+                    setResourcesWithReason(prev => ({
                         ...prev,
                         culture: (prev.culture || 0) + 50,
-                    }));
+                    }), 'rebellion_end_celebrate');
                 } else if (action === 'end_rebuild') {
                     setStability(prev => Math.min(100, (prev || 50) + 5));
                 } else if (action === 'end_defeat') {
@@ -4574,7 +4610,11 @@ export const useGameActions = (gameState, addLog) => {
         }
 
         if (paymentAmount > 0) {
-            setResources(prev => ({ ...prev, silver: (prev.silver || 0) + paymentAmount }));
+            setResourcesWithReason(
+                prev => ({ ...prev, silver: (prev.silver || 0) + paymentAmount }),
+                'peace_payment_received',
+                { nationId }
+            );
         }
         endWarWithNation(nationId, {
             wealth: Math.max(0, (targetNation.wealth || 0) - paymentAmount),
@@ -4745,7 +4785,11 @@ export const useGameActions = (gameState, addLog) => {
 
         if (proposalType === 'demand_high' || proposalType === 'demand_standard') {
             if (paymentAmount > 0) {
-                setResources(prev => ({ ...prev, silver: (prev.silver || 0) + paymentAmount }));
+                setResourcesWithReason(
+                    prev => ({ ...prev, silver: (prev.silver || 0) + paymentAmount }),
+                    'peace_demand_payment',
+                    { nationId, proposalType }
+                );
             }
             endWarWithNation(nationId, {
                 wealth: Math.max(0, (targetNation.wealth || 0) - paymentAmount),
@@ -4755,7 +4799,11 @@ export const useGameActions = (gameState, addLog) => {
         }
 
         if (proposalType === 'pay_high' || proposalType === 'pay_standard' || proposalType === 'pay_moderate') {
-            setResources(prev => ({ ...prev, silver: Math.max(0, (prev.silver || 0) - paymentAmount) }));
+            setResourcesWithReason(
+                prev => ({ ...prev, silver: Math.max(0, (prev.silver || 0) - paymentAmount) }),
+                'peace_payment',
+                { nationId, proposalType }
+            );
             endWarWithNation(nationId, {
                 wealth: (targetNation.wealth || 0) + paymentAmount,
             });

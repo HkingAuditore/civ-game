@@ -6,7 +6,6 @@ import { unstable_batchedUpdates } from 'react-dom';
 import { useSimulationWorker } from './useSimulationWorker';
 import {
     BUILDINGS,
-    calculateArmyMaintenance,
     calculateArmyPopulation,
     UNIT_TYPES,
     STRATA,
@@ -348,7 +347,7 @@ const applyTradeRouteDeltas = (summary, current, addLog, setResources, setNation
                 next[key] = Math.max(0, currentValue + delta);
             });
             return next;
-        });
+        }, { reason: 'trade_route_delta' });
     }
 
     if (applyNationDelta && Object.keys(nationDelta).length > 0) {
@@ -1399,20 +1398,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     (current.activeEventEffects?.stratumDemand?.length || 0) > 0 ||
                     (current.activeEventEffects?.buildingProduction?.length || 0) > 0;
 
-                const maintenance = calculateArmyMaintenance(army);
                 const adjustedResources = { ...result.resources };
-                const resourceShortages = {}; // 记录资源短缺
-                Object.entries(maintenance).forEach(([resource, cost]) => {
-                    // 每次 Tick 计算 1 天的维护费用（不再乘以 gameSpeed）
-                    const amount = cost;
-                    if (amount <= 0) return;
-                    const available = adjustedResources[resource] || 0;
-                    const shortage = Math.max(0, amount - available);
-                    if (shortage > 0) {
-                        resourceShortages[resource] = shortage;
-                    }
-                    adjustedResources[resource] = Math.max(0, available - amount);
-                });
+                const resourceShortages = {}; // 记录资源短缺（由 simulation 记录时这里为空）
 
                 // --- Realized fiscal tracking (must match visible treasury changes) ---
                 // We must baseline against the treasury BEFORE this tick starts (current.resources.silver).
@@ -1617,12 +1604,6 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
                 // === useGameLoop本地扣除（simulation之后）===
                 const useGameLoopDeductions = [];
-                const armyMaintenanceSilver = Object.entries(maintenance || {})
-                    .filter(([res]) => res === 'silver')
-                    .reduce((sum, [, cost]) => sum + cost, 0);
-                if (armyMaintenanceSilver > 0) {
-                    useGameLoopDeductions.push({ reason: '军队维护(本地)', amount: -armyMaintenanceSilver });
-                }
                 if (officialSalaryPaid > 0) {
                     useGameLoopDeductions.push({ reason: '官员薪俸', amount: -officialSalaryPaid });
                 }
@@ -1641,15 +1622,53 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     console.groupEnd();
                 }
 
-                if (Math.abs(netTreasuryChange - (totalIncome - totalExpense)) > 0.1) {
-                    console.warn('⚠️ 警告：理论净变化与实际净变化不一致！差异:',
-                        (netTreasuryChange - (totalIncome - totalExpense)).toFixed(2));
+                const auditEntries = [];
+                if (Array.isArray(result?._debug?.silverChangeLog) && result._debug.silverChangeLog.length > 0) {
+                    result._debug.silverChangeLog.forEach((entry) => {
+                        if (!entry) return;
+                        auditEntries.push({
+                            amount: entry.amount,
+                            reason: entry.reason || 'simulation',
+                            meta: { source: 'simulation' },
+                        });
+                    });
+                }
+                if (officialSalaryPaid > 0) {
+                    auditEntries.push({
+                        amount: -officialSalaryPaid,
+                        reason: 'official_salary',
+                        meta: { source: 'game_loop' },
+                    });
+                }
+                if (forcedSubsidyPaid > 0) {
+                    auditEntries.push({
+                        amount: -forcedSubsidyPaid,
+                        reason: 'forced_subsidy',
+                        meta: { source: 'game_loop' },
+                    });
+                }
+                const auditDelta = auditEntries.reduce((sum, entry) => {
+                    const amount = Number(entry?.amount || 0);
+                    return Number.isFinite(amount) ? sum + amount : sum;
+                }, 0);
+                console.log('📋 审计净变化:', auditDelta.toFixed(2), '银币');
+                if (Math.abs(netTreasuryChange - auditDelta) > 0.1) {
+                    console.warn('⚠️ 警告：审计净变化与实际净变化不一致！差异:',
+                        (netTreasuryChange - auditDelta).toFixed(2));
                 }
 
                 console.groupEnd();
                 // === 财政日志结束 ===
 
-                setResources(adjustedResources);
+                const auditStartingSilver = Number.isFinite(result?._debug?.startingSilver)
+                    ? result._debug.startingSilver
+                    : treasuryAtTickStart;
+                setResources(adjustedResources, {
+                    reason: 'tick_update',
+                    meta: { day: current.daysElapsed || 0 },
+                    auditEntries,
+                    auditStartingSilver,
+                });
 
                 // 处理强制补贴效果的每日更新
                 // 注意：这里只处理 forcedSubsidy 的递减和过期，不处理其他效果的更新
@@ -1720,7 +1739,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                         updated[stratum] = (updated[stratum] || 0) + profit;
                                     });
                                     return updated;
-                                });
+                                }, { reason: 'overseas_investment_profit' });
 
                                 // [NEW] 同时更新详细财务数据用于UI显示
                                 setClassFinancialData(prev => {
@@ -1772,7 +1791,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                         nextResources[res] = Math.max(0, (nextResources[res] || 0) + delta);
                                     });
                                     return nextResources;
-                                });
+                                }, { reason: 'overseas_investment_resource_change' });
                             }
 
                             // 1.5 处理本国海外投资自动升级 (每日 3% 概率检查)
@@ -1796,7 +1815,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                             updated[stratum] = Math.max(0, (updated[stratum] || 0) + delta);
                                         });
                                         return updated;
-                                    });
+                                    }, { reason: 'overseas_investment_upgrade_cost' });
                                 }
                             }
 
@@ -1817,6 +1836,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                 playerResources: current.resources, // 使用当前资源
                                 taxPolicies: current.taxPolicies || {},
                                 daysElapsed: current.daysElapsed || 0,
+                                // [NEW] 传递 jobFill 和 buildings 用于计算实际到岗率
+                                jobFill: current.jobFill || {},
+                                buildings: current.buildings || {},
                             });
 
                             // 更新外资状态
@@ -1832,7 +1854,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                 setResources(prev => ({
                                     ...prev,
                                     silver: (prev.silver || 0) + fiResult.totalTaxRevenue
-                                }));
+                                }), { reason: 'foreign_investment_tax' });
                                 // 记录日志（可选，为了不刷屏可以合并）
                                 // addLog(`收到外资企业税收: ${fiResult.totalTaxRevenue.toFixed(1)} 银币`);
                             }
@@ -1905,7 +1927,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                         setClassWealth(prev => ({
                                             ...prev,
                                             [stratum]: Math.max(0, (prev[stratum] || 0) - cost)
-                                        }));
+                                        }), { reason: 'autonomous_investment_cost', meta: { stratum } });
 
                                         // Add Investment
                                         setOverseasInvestments(prev => [...prev, newInvestment]);
@@ -1949,7 +1971,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                 const { stratum, targetNation, building, cost, dailyProfit, action } = result;
                                 const newInvestment = action();
                                 if (newInvestment) {
-                                    setClassWealth(prev => ({ ...prev, [stratum]: Math.max(0, (prev[stratum] || 0) - cost) }));
+                                    setClassWealth(prev => ({ ...prev, [stratum]: Math.max(0, (prev[stratum] || 0) - cost) }), { reason: 'autonomous_investment_cost', meta: { stratum } });
                                     setOverseasInvestments(prev => [...prev, newInvestment]);
                                     const stratumName = STRATA[stratum]?.name || stratum;
                                     addLog(`💰 ${stratumName}发现在 ${targetNation.name} 投资 ${building.name} 有利可图（预计日利 ${dailyProfit.toFixed(1)}），已自动注资 ${formatNumberShortCN(cost)}。`);
@@ -1976,6 +1998,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                     wealth: current.resources?.silver || 0,
                                     resources: current.resources,
                                     buildings: current.buildings, // [NEW] Pass buildings for existence check
+                                    jobFill: current.jobFill, // [NEW] Pass jobFill for staffing ratio calculation
                                     id: 'player'
                                 },
                                 market: adjustedMarket,
@@ -2024,7 +2047,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     setResources(prev => ({
                         ...prev,
                         silver: Math.max(0, (prev.silver || 0) - totalTreatyMaintenance)
-                    }));
+                    }), { reason: 'treaty_maintenance' });
                     // 记录一下，虽然不一定每次都log，避免刷屏
                     if (isDebugEnabled('diplomacy')) {
                         console.log(`[Diplomacy] Deducted ${totalTreatyMaintenance} silver for treaty maintenance.`);
@@ -2062,7 +2085,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             setResources(prev => ({
                                 ...prev,
                                 silver: (prev.silver || 0) + vassalUpdateResult.tributeIncome
-                            }));
+                            }), { reason: 'vassal_tribute_cash' });
                         }
 
                         // 结算资源朝贡
@@ -2073,7 +2096,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                     nextRes[res] = (nextRes[res] || 0) + amount;
                                 });
                                 return nextRes;
-                            });
+                            }, { reason: 'vassal_tribute_resource' });
                         }
 
                         // NEW: Deduct control costs from treasury
@@ -2081,7 +2104,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             setResources(prev => ({
                                 ...prev,
                                 silver: Math.max(0, (prev.silver || 0) - vassalUpdateResult.totalControlCost)
-                            }));
+                            }), { reason: 'vassal_control_cost' });
                             if (isDebugEnabled('diplomacy')) {
                                 console.log(`[Vassal] Deducted ${vassalUpdateResult.totalControlCost} silver for control measures.`);
                             }
@@ -2379,7 +2402,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         const prevWealth = current.classWealth?.[key] || 0;
                         wealthDelta[key] = adjustedClassWealth[key] - prevWealth;
                     });
-                    setClassWealth(adjustedClassWealth);
+                    setClassWealth(adjustedClassWealth, { reason: 'tick_class_wealth_update', meta: { day: current.daysElapsed || 0 } });
                     setClassWealthDelta(wealthDelta);
                     setClassIncome(result.classIncome || {});
                     setClassExpense(result.classExpense || {});
@@ -2643,7 +2666,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                         setClassWealth(prev => ({
                                             ...prev,
                                             [stratumKey]: Math.max(0, (prev[stratumKey] || 0) - fleeingCapital),
-                                        }));
+                                        }), { reason: 'rebellion_fleeing_capital', meta: { stratumKey } });
                                     }
 
                                     addLog(`⚠️ ${STRATA[stratumKey]?.name || stratumKey}阶层组织度达到100%，但社会影响力不足（${Math.round(stratumInfluence * 100)}%），无法发动叛乱！${leaving}人愤怒地离开了国家。`);
@@ -2786,7 +2809,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                     updated[resKey] = Math.max(0, (updated[resKey] || 0) - amount);
                                                 });
                                                 return updated;
-                                            });
+                                            }, { reason: 'rebellion_loot' });
                                             const lootSummary = Object.entries(rebelResult.lootedResources).map(([k, v]) => `${RESOURCES[k]?.name || k}: ${v}`).join('、');
                                             addLog(`⚠️ 叛军掠夺了物资：${lootSummary}（总价值约${Math.floor(rebelResult.lootedValue)}银币）`);
                                         }
@@ -2975,7 +2998,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                             updated[resKey] = Math.max(0, (updated[resKey] || 0) - amount);
                                         });
                                         return updated;
-                                    });
+                                    }, { reason: 'rebellion_loot' });
                                     const lootSummary = Object.entries(rebelResult.lootedResources)
                                         .map(([k, v]) => `${RESOURCES[k]?.name || k}: ${v}`)
                                         .join('、');
@@ -3041,7 +3064,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         setResources(prev => ({
                             ...prev,
                             silver: (prev.silver || 0) - paymentAmount
-                        }));
+                        }), { reason: 'installment_payment' });
 
                         gameState.setPlayerInstallmentPayment(prev => ({
                             ...prev,
@@ -3561,7 +3584,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                     setResources(prev => ({
                                                         ...prev,
                                                         silver: Math.max(0, (prev.silver || 0) - reformAmount)
-                                                    }));
+                                                    }), { reason: 'rebel_reform_payment' });
 
                                                     // 按人口比例分配给各阶层
                                                     const popShare = {};
@@ -3592,7 +3615,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                         });
                                                         debugLog('gameLoop', '[REBEL REFORM] Distributed:', distributions.join(', '));
                                                         return newWealth;
-                                                    });
+                                                    }, { reason: 'rebel_reform_distribution', meta: { coalitionStrata } });
 
                                                     const distribDesc = coalitionStrata.length > 1
                                                         ? `（按比例分配给：${distributions.join('、')}）`
@@ -3705,7 +3728,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                     if (nation && currentActions && currentActions.triggerDiplomaticEvent) {
                                         const event = createGiftEvent(nation, eventData.amount, () => {
                                             // 接受礼物的回调
-                                            setResources(prev => ({ ...prev, silver: (prev.silver || 0) + eventData.amount }));
+                                            setResources(prev => ({ ...prev, silver: (prev.silver || 0) + eventData.amount }), { reason: 'ai_gift_received' });
                                             setNations(prev => prev.map(n => n.id === nation.id ? { ...n, relation: Math.min(100, (n.relation || 0) + 15) } : n));
                                             addLog(`💰 你接受了 ${nation.name} 的礼物，获得 ${eventData.amount} 银币。`);
                                         });
@@ -3731,7 +3754,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                     addLog(`❌ 银币不足，无法满足 ${nation.name} 的请求！`);
                                                     return;
                                                 }
-                                                setResources(prev => ({ ...prev, silver: (prev.silver || 0) - eventData.amount }));
+                                                setResources(prev => ({ ...prev, silver: (prev.silver || 0) - eventData.amount }), { reason: 'ai_request_payment' });
                                                 setNations(prev => prev.map(n => n.id === nation.id ? { ...n, relation: Math.min(100, (n.relation || 0) + 10) } : n));
                                                 addLog(`🤝 你满足了 ${nation.name} 的请求，关系提升了。`);
                                             } else {
@@ -3932,7 +3955,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                     addLog(`❌ 银币不足，无法向 ${nation.name} 赠送礼物！`);
                                                     return;
                                                 }
-                                                setResources(prev => ({ ...prev, silver: (prev.silver || 0) - giftCost }));
+                                                setResources(prev => ({ ...prev, silver: (prev.silver || 0) - giftCost }), { reason: 'ally_gift' });
                                                 setNations(prev => prev.map(n =>
                                                     n.id === nation.id
                                                         ? { ...n, relation: Math.min(100, (n.relation || 0) + 15) }
@@ -4030,7 +4053,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                         addLog(`❌ 银币不足（需要 ${amount}，当前 ${Math.floor(currentSilver)}），无法接受投降条件！`);
                                                         return;
                                                     }
-                                                    setResources(prev => ({ ...prev, silver: Math.max(0, (prev.silver || 0) - amount) }));
+                                                    setResources(prev => ({ ...prev, silver: Math.max(0, (prev.silver || 0) - amount) }), { reason: 'war_reparation_payment' });
                                                     addLog(`💰 你向 ${nation.name} 支付了 ${amount} 银币赔款。`);
                                                 } else if (actionType === 'pay_installment') {
                                                     // 分期付款 - amount 是每日金额
@@ -4265,7 +4288,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                     setResources(prev => ({
                                                         ...prev,
                                                         silver: (prev.silver || 0) + (details?.compensation || 0)
-                                                    }));
+                                                    }), { reason: 'nationalization_compensation' });
                                                     addLog(`💰 你接受了 ${nation.name} 的国有化补偿金 ${details?.compensation || 0} 银币。`);
                                                 } else if (action === 'negotiate') {
                                                     // 尝试谈判
@@ -4396,7 +4419,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                             { casualties: eventData.casualties, isOurFault: eventData.isOurFault },
                                             (response) => {
                                                 if (response === 'apologize') {
-                                                    setResources(prev => ({ ...prev, silver: Math.max(0, (prev.silver || 0) - 500) }));
+                                                    setResources(prev => ({ ...prev, silver: Math.max(0, (prev.silver || 0) - 500) }), { reason: 'border_incident_compensation' });
                                                     addLog(`🙏 你向 ${nation.name} 道歉并支付了赔偿金。`);
                                                 } else if (response === 'deny') {
                                                     setNations(prev => prev.map(n =>
@@ -4586,7 +4609,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                         next[res] = Math.max(0, (next[res] || 0) - amount);
                                     });
                                     return next;
-                                });
+                                }, { reason: 'auto_replenish_cost' });
 
                                 // 添加到队列
                                 Object.entries(replenishCounts).forEach(([unitId, count]) => {

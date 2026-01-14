@@ -9,6 +9,18 @@ import { clamp } from '../utils';
 import { calculateTradeStatus } from '../../utils/foreignTrade';
 import { isTradableResource } from '../utils/helpers';
 
+const applyTreasuryChange = (resources, delta, reason, onTreasuryChange) => {
+    if (!resources || !Number.isFinite(delta) || delta === 0) return 0;
+    const before = Number(resources.silver || 0);
+    const after = Math.max(0, before + delta);
+    const actual = after - before;
+    resources.silver = after;
+    if (typeof onTreasuryChange === 'function' && actual !== 0) {
+        onTreasuryChange(actual, reason);
+    }
+    return actual;
+};
+
 /**
  * Update AI nation economy (resources, budget, inventory)
  * @param {Object} params - Parameters
@@ -352,6 +364,7 @@ export const processInstallmentPayment = ({
     nation,
     resources,
     logs,
+    onTreasuryChange,
 }) => {
     let warIndemnityIncome = 0;
     const next = nation;
@@ -359,7 +372,7 @@ export const processInstallmentPayment = ({
 
     if (next.installmentPayment && next.installmentPayment.remainingDays > 0) {
         const payment = next.installmentPayment.amount;
-        res.silver = (res.silver || 0) + payment;
+        applyTreasuryChange(res, payment, 'installment_payment_income', onTreasuryChange);
         warIndemnityIncome += payment;
         next.installmentPayment.paidAmount += payment;
         next.installmentPayment.remainingDays -= 1;

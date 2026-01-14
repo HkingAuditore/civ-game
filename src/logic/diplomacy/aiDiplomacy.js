@@ -17,6 +17,18 @@ import {
 } from '../../config/difficulty';
 import { canVassalPerformDiplomacy } from './vassalSystem';
 
+const applyTreasuryChange = (resources, delta, reason, onTreasuryChange) => {
+    if (!resources || !Number.isFinite(delta) || delta === 0) return 0;
+    const before = Number(resources.silver || 0);
+    const after = Math.max(0, before + delta);
+    const actual = after - before;
+    resources.silver = after;
+    if (typeof onTreasuryChange === 'function' && actual !== 0) {
+        onTreasuryChange(actual, reason);
+    }
+    return actual;
+};
+
 /**
  * Initialize foreign relations between AI nations
  * @param {Array} nations - Array of nations
@@ -242,7 +254,7 @@ export const processAITrade = (visibleNations, logs, diplomacyOrganizations = nu
  * @param {Array} logs - Log array (mutable)
  * @param {Object} taxPolicies - Player tax policies (optional)
  */
-export const processAIPlayerTrade = (visibleNations, tick, resources, market, logs, taxPolicies = {}, diplomacyOrganizations = null) => {
+export const processAIPlayerTrade = (visibleNations, tick, resources, market, logs, taxPolicies = {}, diplomacyOrganizations = null, onTreasuryChange = null) => {
     const res = resources;
     const organizationList = diplomacyOrganizations?.organizations || [];
     const getTariffDiscount = (nationId) => {
@@ -292,7 +304,7 @@ export const processAIPlayerTrade = (visibleNations, tick, resources, market, lo
 
             if ((res[resourceKey] || 0) >= quantity) {
                 res[resourceKey] = (res[resourceKey] || 0) - quantity;
-                res.silver = (res.silver || 0) + tariff;
+                applyTreasuryChange(res, tariff, 'ai_trade_tariff', onTreasuryChange);
                 nation.wealth = Math.max(0, (nation.wealth || 0) - baseValue - tariff);
                 if (!nation.inventory) {
                     nation.inventory = {};
@@ -318,7 +330,7 @@ export const processAIPlayerTrade = (visibleNations, tick, resources, market, lo
 
             if (aiWealth >= baseValue * 0.6) {
                 res[resourceKey] = (res[resourceKey] || 0) + quantity;
-                res.silver = (res.silver || 0) + tariff;
+                applyTreasuryChange(res, tariff, 'ai_trade_tariff', onTreasuryChange);
                 nation.wealth = (nation.wealth || 0) + baseValue - tariff;
                 if (!nation.inventory) {
                     nation.inventory = {};

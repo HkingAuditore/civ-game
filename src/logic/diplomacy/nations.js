@@ -26,6 +26,18 @@ import {
     TREATY_TYPE_LABELS,
 } from '../../config/diplomacy.js';
 
+const applyTreasuryChange = (resources, delta, reason, onTreasuryChange) => {
+    if (!resources || !Number.isFinite(delta) || delta === 0) return 0;
+    const before = Number(resources.silver || 0);
+    const after = Math.max(0, before + delta);
+    const actual = after - before;
+    resources.silver = after;
+    if (typeof onTreasuryChange === 'function' && actual !== 0) {
+        onTreasuryChange(actual, reason);
+    }
+    return actual;
+};
+
 // ========== AI国家经济数据初始化与更新 ==========
 
 /**
@@ -280,6 +292,7 @@ export const updateNations = ({
     stabilityValue,
     logs,
     marketPrices = {},  // 新增：玩家市场价格，用于AI经济数据初始化和更新
+    onTreasuryChange,
 }) => {
     const res = { ...resources };
     let warIndemnityIncome = 0;
@@ -307,7 +320,8 @@ export const updateNations = ({
                 res,
                 army,
                 stabilityValue,
-                logs
+                logs,
+                onTreasuryChange,
             });
 
             // Check for peace requests
@@ -360,7 +374,7 @@ export const updateNations = ({
         // Process installment payments
         if (next.installmentPayment && next.installmentPayment.remainingDays > 0) {
             const payment = next.installmentPayment.amount;
-            res.silver = (res.silver || 0) + payment;
+            applyTreasuryChange(res, payment, 'installment_payment_income', onTreasuryChange);
             warIndemnityIncome += payment;
             next.installmentPayment.paidAmount += payment;
             next.installmentPayment.remainingDays -= 1;
@@ -418,7 +432,7 @@ export const updateNations = ({
     });
     updatedNations = vassalResult.nations;
     vassalTributeIncome = vassalResult.tributeIncome;
-    res.silver = (res.silver || 0) + vassalTributeIncome;
+    applyTreasuryChange(res, vassalTributeIncome, 'vassal_tribute_income', onTreasuryChange);
 
     // 处理附庸事件（独立战争等）
     if (vassalResult.vassalEvents && vassalResult.vassalEvents.length > 0) {
@@ -442,7 +456,7 @@ export const updateNations = ({
  * Process war actions for a nation at war with player
  * @private
  */
-const processWarActions = ({ nation, tick, epoch, res, army, stabilityValue, logs }) => {
+const processWarActions = ({ nation, tick, epoch, res, army, stabilityValue, logs, onTreasuryChange }) => {
     // Frequency of AI actions based on aggression
     const actionFrequency = Math.max(10, Math.floor(30 - (nation.aggression || 0.3) * 20));
 
@@ -475,7 +489,7 @@ const processWarActions = ({ nation, tick, epoch, res, army, stabilityValue, log
         const silverLoss = Math.floor((res.silver || 0) * lossMultiplier * 0.5);
 
         if (foodLoss > 0) res.food = Math.max(0, (res.food || 0) - foodLoss);
-        if (silverLoss > 0) res.silver = Math.max(0, (res.silver || 0) - silverLoss);
+        if (silverLoss > 0) applyTreasuryChange(res, -silverLoss, 'ai_raid_loss', onTreasuryChange);
 
         nation.warScore = (nation.warScore || 0) - 8;  // AI赢：玩家优势减少
         nation.wealth = (nation.wealth || 0) + Math.floor((foodLoss + silverLoss) * 0.08);
@@ -500,7 +514,7 @@ const processWarActions = ({ nation, tick, epoch, res, army, stabilityValue, log
             const foodLoss = Math.floor((res.food || 0) * 0.1);
             const silverLoss = Math.floor((res.silver || 0) * 0.05);
             if (foodLoss > 0) res.food = Math.max(0, (res.food || 0) - foodLoss);
-            if (silverLoss > 0) res.silver = Math.max(0, (res.silver || 0) - silverLoss);
+            if (silverLoss > 0) applyTreasuryChange(res, -silverLoss, 'ai_battle_loss', onTreasuryChange);
             nation.warScore = (nation.warScore || 0) - 5;  // AI赢：玩家优势减少
         } else {
             // Player won - 增加玩家优势

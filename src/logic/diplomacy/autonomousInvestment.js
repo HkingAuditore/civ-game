@@ -8,6 +8,9 @@ import {
 import { BUILDINGS, RESOURCES } from '../../config';
 import { debugLog } from '../../utils/debugFlags';
 
+// [NEW] 外资投资的最低到岗率要求 (95%)
+const MIN_FOREIGN_INVESTMENT_STAFFING_RATIO = 0.95;
+
 /**
  * Process autonomous overseas for specific classes (Capitalist, Merchant)
  * @param {Object} context - Game context
@@ -184,7 +187,7 @@ export function processAIInvestment({
     investorNation,
     nations,
     diplomacyOrganizations, // [NEW] Pass organizations for treaty checks
-    playerState, // { population, resources, taxes, ..., buildings: {} }
+    playerState, // { population, resources, taxes, ..., buildings: {}, staffingRatios: {} }
     market, // Player market (used if targeting player)
     epoch,
     daysElapsed
@@ -302,6 +305,31 @@ export function processAIInvestment({
             // Check if player has constructed this building type (count > 0)
             if (!targetBuildings[building.id] || targetBuildings[building.id] <= 0) {
                 // console.log(`[AI投资] ${investorNation.name} 跳过 ${building.name} (目标未建造)`);
+                continue;
+            }
+
+            // [NEW] Check staffing ratio (Requirement: "到岗率不足95%不允许投资")
+            // Calculate staffing ratio from jobFill data
+            const targetJobFill = target.jobFill || {};
+            const buildingJobFillData = targetJobFill[building.id] || {};
+            const buildingJobs = building.jobs || {};
+            const buildingCount = targetBuildings[building.id] || 0;
+            
+            // Calculate total slots and filled slots
+            let totalSlots = 0;
+            let filledSlots = 0;
+            Object.entries(buildingJobs).forEach(([role, slotsPerBuilding]) => {
+                const totalRoleSlots = slotsPerBuilding * buildingCount;
+                totalSlots += totalRoleSlots;
+                filledSlots += Math.min(buildingJobFillData[role] || 0, totalRoleSlots);
+            });
+            
+            // Calculate staffing ratio (default to 1 if no slots)
+            const buildingStaffingRatio = totalSlots > 0 ? filledSlots / totalSlots : 1;
+            
+            // 检查是否满足95%要求
+            if (buildingStaffingRatio < MIN_FOREIGN_INVESTMENT_STAFFING_RATIO) {
+                console.log(`[AI投资] ${investorNation.name} 跳过 ${building.name} (到岗率不足: ${(buildingStaffingRatio * 100).toFixed(1)}% < 95%)`);
                 continue;
             }
 

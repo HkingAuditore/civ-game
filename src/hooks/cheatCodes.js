@@ -375,7 +375,7 @@ export const initCheatCodes = (gameState, addLog) => {
             gameState.setResources(prev => ({
                 ...prev,
                 silver: (prev.silver || 0) + amount
-            }));
+            }), { reason: 'cheat_code', meta: { code: 'addSilver', amount } });
             addLog(`💰 作弊码：获得 ${amount} 银币`);
             console.log(`✅ Added ${amount} silver`);
         },
@@ -387,7 +387,7 @@ export const initCheatCodes = (gameState, addLog) => {
             gameState.setResources(prev => ({
                 ...prev,
                 food: (prev.food || 0) + amount
-            }));
+            }), { reason: 'cheat_code', meta: { code: 'addFood', amount } });
             addLog(`🌾 作弊码：获得 ${amount} 食物`);
             console.log(`✅ Added ${amount} food`);
         },
@@ -399,7 +399,7 @@ export const initCheatCodes = (gameState, addLog) => {
             gameState.setResources(prev => ({
                 ...prev,
                 wood: (prev.wood || 0) + amount
-            }));
+            }), { reason: 'cheat_code', meta: { code: 'addWood', amount } });
             addLog(`🪵 作弊码：获得 ${amount} 木材`);
             console.log(`✅ Added ${amount} wood`);
         },
@@ -411,7 +411,7 @@ export const initCheatCodes = (gameState, addLog) => {
             gameState.setResources(prev => ({
                 ...prev,
                 stone: (prev.stone || 0) + amount
-            }));
+            }), { reason: 'cheat_code', meta: { code: 'addStone', amount } });
             addLog(`🪨 作弊码：获得 ${amount} 石料`);
             console.log(`✅ Added ${amount} stone`);
         },
@@ -423,7 +423,7 @@ export const initCheatCodes = (gameState, addLog) => {
             gameState.setResources(prev => ({
                 ...prev,
                 iron: (prev.iron || 0) + amount
-            }));
+            }), { reason: 'cheat_code', meta: { code: 'addIron', amount } });
             addLog(`⚙️ 作弊码：获得 ${amount} 铁矿`);
             console.log(`✅ Added ${amount} iron`);
         },
@@ -435,7 +435,7 @@ export const initCheatCodes = (gameState, addLog) => {
             gameState.setResources(prev => ({
                 ...prev,
                 brick: (prev.brick || 0) + amount
-            }));
+            }), { reason: 'cheat_code', meta: { code: 'addBrick', amount } });
             addLog(`🧱 作弊码：获得 ${amount} 砖块`);
             console.log(`✅ Added ${amount} brick`);
         },
@@ -447,7 +447,7 @@ export const initCheatCodes = (gameState, addLog) => {
             gameState.setResources(prev => ({
                 ...prev,
                 tool: (prev.tool || 0) + amount
-            }));
+            }), { reason: 'cheat_code', meta: { code: 'addTool', amount } });
             addLog(`🔨 作弊码：获得 ${amount} 工具`);
             console.log(`✅ Added ${amount} tools`);
         },
@@ -459,7 +459,7 @@ export const initCheatCodes = (gameState, addLog) => {
             gameState.setResources(prev => ({
                 ...prev,
                 cloth: (prev.cloth || 0) + amount
-            }));
+            }), { reason: 'cheat_code', meta: { code: 'addCloth', amount } });
             addLog(`🧵 作弊码：获得 ${amount} 布匹`);
             console.log(`✅ Added ${amount} cloth`);
         },
@@ -471,7 +471,7 @@ export const initCheatCodes = (gameState, addLog) => {
             gameState.setResources(prev => ({
                 ...prev,
                 beer: (prev.beer || 0) + amount
-            }));
+            }), { reason: 'cheat_code', meta: { code: 'addBeer', amount } });
             addLog(`🍺 作弊码：获得 ${amount} 啤酒`);
             console.log(`✅ Added ${amount} beer`);
         },
@@ -483,7 +483,7 @@ export const initCheatCodes = (gameState, addLog) => {
             gameState.setResources(prev => ({
                 ...prev,
                 furniture: (prev.furniture || 0) + amount
-            }));
+            }), { reason: 'cheat_code', meta: { code: 'addFurniture', amount } });
             addLog(`🪑 作弊码：获得 ${amount} 家具`);
             console.log(`✅ Added ${amount} furniture`);
         },
@@ -507,7 +507,7 @@ export const initCheatCodes = (gameState, addLog) => {
                     newResources[key] = (prev[key] || 0) + amount * multiplier;
                 });
                 return newResources;
-            });
+            }, { reason: 'cheat_code', meta: { code: 'addAll', amount } });
             addLog(`✨ 作弊码：获得所有资源 x${amount}（共 ${storableResources.length} 种）`);
             console.log(`✅ Added ${amount} of all resources (${storableResources.length} types)`);
         },
@@ -651,7 +651,7 @@ export const initCheatCodes = (gameState, addLog) => {
                 noble: 100000,
                 clergy: 30000,
                 scholar: 40000
-            });
+            }, { reason: 'cheat_code', meta: { code: 'richEmpire' } });
             addLog(`💎 作弊码：所有阶层变得富有`);
             console.log(`✅ Made all classes wealthy`);
         },
@@ -1163,7 +1163,7 @@ export const initCheatCodes = (gameState, addLog) => {
             gameState.setClassWealth(prev => ({
                 ...prev,
                 [key]: wealth,
-            }));
+            }), { reason: 'cheat_code', meta: { code: 'setClassWealth', stratumKey: key, value: wealth } });
             addLog(`💰 作弊码：${key} 财富设为 ${wealth}`);
             console.log(`✅ Wealth for "${key}" set to ${wealth}`);
         },
@@ -1177,7 +1177,7 @@ export const initCheatCodes = (gameState, addLog) => {
             Object.keys(STRATA || {}).forEach(key => {
                 map[key] = wealth;
             });
-            gameState.setClassWealth(map);
+            gameState.setClassWealth(map, { reason: 'cheat_code', meta: { code: 'setAllClassWealth', value: wealth } });
             addLog(`💰 作弊码：所有阶层财富统一为 ${wealth}`);
             console.log(`✅ All class wealth set to ${wealth}`);
         },

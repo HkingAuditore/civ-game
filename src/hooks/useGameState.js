@@ -663,7 +663,7 @@ const buildScenarioPopulation = (scenarioOverrides) => {
  */
 export const useGameState = () => {
     // ========== 基础资源状态 ==========
-    const [resources, setResources] = useState(INITIAL_RESOURCES);
+    const [resources, setResourcesState] = useState(INITIAL_RESOURCES);
 
     // ========== 人口与社会状态 ==========
     const [population, setPopulation] = useState(5);
@@ -727,7 +727,7 @@ export const useGameState = () => {
     const [classApproval, setClassApproval] = useState({});
     const [approvalBreakdown, setApprovalBreakdown] = useState({}); // [NEW] 各阶层满意度分解数据（来自 simulation）
     const [classInfluence, setClassInfluence] = useState({});
-    const [classWealth, setClassWealth] = useState(buildInitialWealth());
+    const [classWealth, setClassWealthState] = useState(buildInitialWealth());
     const [classWealthDelta, setClassWealthDelta] = useState({});
     const [classIncome, setClassIncome] = useState({});
     const [classExpense, setClassExpense] = useState({});
@@ -761,12 +761,161 @@ export const useGameState = () => {
         forcedSubsidyPaid: 0,
         forcedSubsidyUnpaid: 0,
     });
+    const [treasuryChangeLog, setTreasuryChangeLog] = useState([]);
+    const [resourceChangeLog, setResourceChangeLog] = useState([]);
+    const [classWealthChangeLog, setClassWealthChangeLog] = useState([]);
 
     // [FIX] 每日军队维护成本（simulation返回的完整数据）
     const [dailyMilitaryExpense, setDailyMilitaryExpense] = useState(null);
 
     // ========== 时间状态 ==========
     const [daysElapsed, setDaysElapsed] = useState(0);
+
+    const appendTreasuryChangeLog = (entry) => {
+        setTreasuryChangeLog(prev => {
+            const next = [...prev, entry];
+            return next.slice(-300);
+        });
+    };
+
+    const appendResourceChangeLog = (entries) => {
+        if (!Array.isArray(entries) || entries.length === 0) return;
+        setResourceChangeLog(prev => {
+            const next = [...prev, ...entries];
+            return next.slice(-600);
+        });
+    };
+
+    const appendClassWealthChangeLog = (entries) => {
+        if (!Array.isArray(entries) || entries.length === 0) return;
+        setClassWealthChangeLog(prev => {
+            const next = [...prev, ...entries];
+            return next.slice(-600);
+        });
+    };
+
+    const setResources = (updater, options = {}) => {
+        const {
+            reason = 'unknown',
+            meta = null,
+            audit = true,
+            auditEntries = null,
+            auditStartingSilver = null,
+        } = options || {};
+        setResourcesState(prev => {
+            const before = Number(prev?.silver || 0);
+            const next = typeof updater === 'function' ? updater(prev) : updater;
+            if (!next || typeof next !== 'object') return prev;
+            const after = Number(next?.silver || 0);
+            if (audit) {
+                const resourceEntries = [];
+                const allKeys = new Set([
+                    ...Object.keys(prev || {}),
+                    ...Object.keys(next || {}),
+                ]);
+                const timestamp = Date.now();
+                allKeys.forEach((key) => {
+                    const beforeValue = Number(prev?.[key] || 0);
+                    const afterValue = Number(next?.[key] || 0);
+                    if (!Number.isFinite(beforeValue) && !Number.isFinite(afterValue)) return;
+                    if (beforeValue === afterValue) return;
+                    resourceEntries.push({
+                        timestamp,
+                        day: daysElapsed,
+                        resource: key,
+                        amount: afterValue - beforeValue,
+                        before: beforeValue,
+                        after: afterValue,
+                        reason,
+                        meta,
+                    });
+                });
+                if (resourceEntries.length > 0) {
+                    appendResourceChangeLog(resourceEntries);
+                }
+
+                const entries = Array.isArray(auditEntries) ? auditEntries : [];
+                if (entries.length > 0 && Number.isFinite(after)) {
+                    let running = Number.isFinite(auditStartingSilver) ? auditStartingSilver : before;
+                    let entryTotal = 0;
+                    entries.forEach((entry) => {
+                        const amount = Number(entry?.amount || 0);
+                        if (!Number.isFinite(amount) || amount === 0) return;
+                        const entryBefore = running;
+                        const entryAfter = entryBefore + amount;
+                        appendTreasuryChangeLog({
+                            timestamp: Date.now(),
+                            day: daysElapsed,
+                            amount,
+                            before: entryBefore,
+                            after: entryAfter,
+                            reason: entry?.reason || reason,
+                            meta: entry?.meta ?? meta,
+                        });
+                        running = entryAfter;
+                        entryTotal += amount;
+                    });
+                    const residual = (after - before) - entryTotal;
+                    if (Number.isFinite(residual) && Math.abs(residual) > 0.01) {
+                        appendTreasuryChangeLog({
+                            timestamp: Date.now(),
+                            day: daysElapsed,
+                            amount: residual,
+                            before: running,
+                            after: running + residual,
+                            reason: 'untracked_delta',
+                            meta: { reason, meta },
+                        });
+                    }
+                } else if (Number.isFinite(after) && after !== before) {
+                    appendTreasuryChangeLog({
+                        timestamp: Date.now(),
+                        day: daysElapsed,
+                        amount: after - before,
+                        before,
+                        after,
+                        reason,
+                        meta,
+                    });
+                }
+            }
+            return next;
+        });
+    };
+
+    const setClassWealth = (updater, options = {}) => {
+        const { reason = 'unknown', meta = null, audit = true } = options || {};
+        setClassWealthState(prev => {
+            const next = typeof updater === 'function' ? updater(prev) : updater;
+            if (!next || typeof next !== 'object') return prev;
+            if (audit) {
+                const entries = [];
+                const timestamp = Date.now();
+                const allKeys = new Set([
+                    ...Object.keys(prev || {}),
+                    ...Object.keys(next || {}),
+                ]);
+                allKeys.forEach((key) => {
+                    const beforeValue = Number(prev?.[key] || 0);
+                    const afterValue = Number(next?.[key] || 0);
+                    if (!Number.isFinite(beforeValue) && !Number.isFinite(afterValue)) return;
+                    if (beforeValue === afterValue) return;
+                    entries.push({
+                        timestamp,
+                        day: daysElapsed,
+                        stratum: key,
+                        amount: afterValue - beforeValue,
+                        before: beforeValue,
+                        after: afterValue,
+                        reason,
+                        meta,
+                    });
+                });
+                appendClassWealthChangeLog(entries);
+            }
+            return next;
+        });
+    };
 
     // ========== 军事系统状态 ==========
     const [army, setArmy] = useState({});
@@ -872,7 +1021,10 @@ export const useGameState = () => {
         const overrides = scenario.overrides || {};
 
         if (overrides.resources) {
-            setResources({ ...INITIAL_RESOURCES, ...overrides.resources });
+            setResources(
+                { ...INITIAL_RESOURCES, ...overrides.resources },
+                { reason: 'scenario_override', meta: { scenarioId } }
+            );
         }
 
         // Default starting buildings: 1 farm + 1 lumber camp + 1 loom house
@@ -907,7 +1059,10 @@ export const useGameState = () => {
         }
 
         if (overrides.classWealth) {
-            setClassWealth({ ...buildInitialWealth(), ...overrides.classWealth });
+            setClassWealth(
+                { ...buildInitialWealth(), ...overrides.classWealth },
+                { reason: 'scenario_override', meta: { scenarioId } }
+            );
         }
 
         if (typeof overrides.stability === 'number') {
@@ -1013,10 +1168,13 @@ export const useGameState = () => {
                 // Difficulty-based starting treasury boost
                 const startingSilverMultiplier = getStartingSilverMultiplier(difficultyForNewGame);
                 if (startingSilverMultiplier !== 1.0) {
-                    setResources(prev => ({
-                        ...prev,
-                        silver: Math.floor((prev?.silver ?? INITIAL_RESOURCES.silver) * startingSilverMultiplier),
-                    }));
+                    setResources(
+                        prev => ({
+                            ...prev,
+                            silver: Math.floor((prev?.silver ?? INITIAL_RESOURCES.silver) * startingSilverMultiplier),
+                        }),
+                        { reason: 'difficulty_starting_silver' }
+                    );
                 }
 
                 // 跳过自动加载，开始新游戏
@@ -1094,10 +1252,13 @@ export const useGameState = () => {
                 // Difficulty-based starting treasury boost
                 const startingSilverMultiplier = getStartingSilverMultiplier(difficultyForNewGame);
                 if (startingSilverMultiplier !== 1.0) {
-                    setResources(prev => ({
-                        ...prev,
-                        silver: Math.floor((prev?.silver ?? INITIAL_RESOURCES.silver) * startingSilverMultiplier),
-                    }));
+                    setResources(
+                        prev => ({
+                            ...prev,
+                            silver: Math.floor((prev?.silver ?? INITIAL_RESOURCES.silver) * startingSilverMultiplier),
+                        }),
+                        { reason: 'difficulty_starting_silver' }
+                    );
                 }
 
                 return;
@@ -1234,7 +1395,7 @@ export const useGameState = () => {
         if (!data || typeof data !== 'object') {
             throw new Error('存档数据无效');
         }
-        setResources(data.resources || INITIAL_RESOURCES);
+        setResources(data.resources || INITIAL_RESOURCES, { reason: 'load_game', audit: false });
 
         // [FIX] 存档人口同步修复：防止population和popStructure不一致导致的恶性扣减循环
         // 如果存档中的population与popStructure总和不一致，以popStructure为准
@@ -1302,7 +1463,7 @@ export const useGameState = () => {
         setTaxShock(data.taxShock || {});
         setClassApproval(data.classApproval || {});
         setClassInfluence(data.classInfluence || {});
-        setClassWealth(data.classWealth || buildInitialWealth());
+        setClassWealth(data.classWealth || buildInitialWealth(), { reason: 'load_game', audit: false });
         setClassWealthDelta(data.classWealthDelta || {});
         setClassIncome(data.classIncome || {});
         setClassExpense(data.classExpense || {});
@@ -1951,6 +2112,8 @@ export const useGameState = () => {
         // 资源
         resources,
         setResources,
+        treasuryChangeLog,
+        resourceChangeLog,
         market,
         setMarket,
 
@@ -2037,6 +2200,7 @@ export const useGameState = () => {
         setClassInfluence,
         classWealth,
         setClassWealth,
+        classWealthChangeLog,
         classWealthDelta,
         setClassWealthDelta,
         classIncome,

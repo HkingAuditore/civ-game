@@ -663,12 +663,17 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
     const buildingModifiers = getBuildingModifiers(building);
 
     // 计算实际产出（优先使用 supplyBreakdown 中的数据，包含加成）
-    // 当建筑因为某些原因（如业主财富不足）没有实际产出时，仍显示理论值作为参考
+    // [CRITICAL FIX] 当没有实际产出时（supplyBreakdown 无数据或为0），不应回退到理论值
+    // 这样到岗率为0%的建筑才会正确显示无产出
     const totalOutputs = Object.entries(effectiveTotalStats.output || {}).map(([resKey, baseAmount]) => {
+        // 理论满员产量 = 配置产出 × 科技加成乘数（用于tooltip比较）
+        const theoreticalFullOutput = baseAmount * buildingModifiers.totalMultiplier;
+        // 实际产出：直接从 supplyBreakdown 获取，没有则为0
         const rawValue = supplyBreakdown[resKey]?.buildings?.[building.id];
-        const actualAmount = (rawValue !== undefined && rawValue > 0) ? rawValue : baseAmount;
-        const hasBonus = actualAmount !== baseAmount && actualAmount > 0;
-        return [resKey, actualAmount, baseAmount, hasBonus];
+        const actualAmount = (rawValue !== undefined && rawValue > 0) ? rawValue : 0;
+        // hasBonus 表示有实际产出且与理论值有差异
+        const hasBonus = actualAmount > 0 && Math.abs(actualAmount - theoreticalFullOutput) > 0.01;
+        return [resKey, actualAmount, theoreticalFullOutput, hasBonus];
     }).filter(([, amount]) => amount > 0);
 
     // 计算实际投入（优先使用 demandBreakdown 中的数据）

@@ -25,7 +25,7 @@ import { getPolityEffects } from '../config/polityEffects';
 const getTreatyLabel = (type) => TREATY_TYPE_LABELS[type] || type;
 const isTreatyActive = (treaty, tick) => !Number.isFinite(treaty?.endDay) || tick < treaty.endDay;
 
-const processNationTreaties = ({ nation, tick, resources, logs }) => {
+const processNationTreaties = ({ nation, tick, resources, logs, onTreasuryChange }) => {
     const treaties = Array.isArray(nation.treaties) ? nation.treaties : [];
     const activeTreaties = [];
     const expiredTreaties = [];
@@ -52,6 +52,9 @@ const processNationTreaties = ({ nation, tick, resources, logs }) => {
         const currentSilver = resources.silver || 0;
         const paid = Math.max(0, Math.min(currentSilver, maintenanceTotal));
         resources.silver = currentSilver - paid;
+        if (typeof onTreasuryChange === 'function' && paid > 0) {
+            onTreasuryChange(-paid, 'treaty_maintenance');
+        }
         nation.budget = (nation.budget || 0) + paid;
         nation.wealth = (nation.wealth || 0) + paid;
     }
@@ -740,7 +743,8 @@ export const simulateTick = ({
                     marketPrice,
                     priceControls,
                     taxBreakdown,
-                    resources: res
+                    resources: res,
+                    onTreasuryChange: trackSilverChange,
                 });
                 if (pcResult.success) {
                     effectivePrice = pcResult.effectivePrice;
@@ -1513,6 +1517,13 @@ export const simulateTick = ({
         // when actually paying wages.
         if (Object.keys(effectiveOps.jobs).length > 0) {
             buildingJobFill[b.id] = buildingJobFill[b.id] || {};
+            
+            // [CRITICAL FIX] 使用瓶颈法则计算到岗率
+            // 生产受限于最低的非业主角色填充率（工人是生产的瓶颈）
+            // 业主可以管理但不能替代工人生产
+            let minNonOwnerFillRate = Infinity;
+            let hasNonOwnerRole = false;
+            
             for (let role in effectiveOps.jobs) {
                 const roleRequired = effectiveOps.jobs[role];
                 if (!roleWageStats[role]) {
@@ -1530,6 +1541,14 @@ export const simulateTick = ({
                 buildingFinancialData[b.id].filledByRole[role] =
                     (buildingFinancialData[b.id].filledByRole[role] || 0) + roleFilled;
 
+                // [CRITICAL FIX] 对于非业主角色，追踪最低填充率作为生产瓶颈
+                const isOwnerRole = Object.keys(ownerLevelGroups).includes(role);
+                if (!isOwnerRole && roleRequired > 0) {
+                    hasNonOwnerRole = true;
+                    const roleFillRate = roleRequired > 0 ? roleFilled / roleRequired : 0;
+                    minNonOwnerFillRate = Math.min(minNonOwnerFillRate, roleFillRate);
+                }
+
                 const vacancySlots = Math.max(0, roleRequired - roleFilled);
                 if (vacancySlots > 1e-3) {
                     const availableSlots = vacancySlots >= 1 ? Math.floor(vacancySlots) : 1;
@@ -1540,7 +1559,7 @@ export const simulateTick = ({
                         availableSlots,
                     });
                 }
-                if (!Object.keys(ownerLevelGroups).includes(role) && roleFilled > 0) {
+                if (!isOwnerRole && roleFilled > 0) {
                     const cached = roleExpectedWages[role] ?? getExpectedWage(role);
                     const livingFloor = getLivingCostFloor(role);
                     const adjustedWage = Math.max(cached, livingFloor);
@@ -1555,7 +1574,18 @@ export const simulateTick = ({
                     });
                 }
             }
-            if (totalSlots > 0) staffingRatio = filledSlots / totalSlots;
+            
+            // [CRITICAL FIX] 到岗率计算使用瓶颈法则：
+            // - 如果有非业主角色（工人），使用最低工人填充率作为生产上限
+            // - 如果只有业主角色（如农场只有peasant），使用平均填充率
+            if (hasNonOwnerRole) {
+                // 有工人角色时，生产受最低工人填充率限制
+                staffingRatio = minNonOwnerFillRate === Infinity ? 0 : minNonOwnerFillRate;
+            } else if (totalSlots > 0) {
+                // 只有业主角色时（自营建筑），使用普通平均
+                staffingRatio = filledSlots / totalSlots;
+            }
+            
             if (totalSlots > 0) {
                 buildingStaffingRatios[b.id] = staffingRatio;
             }
@@ -2438,6 +2468,7 @@ export const simulateTick = ({
                 priceControls,
                 taxBreakdown,
                 resources: res,
+                onTreasuryChange: trackSilverChange,
             });
             effectivePrice = pcResult.effectivePrice;
         }
@@ -2727,7 +2758,8 @@ export const simulateTick = ({
                             marketPrice,
                             priceControls,
                             taxBreakdown,
-                            resources: res
+                            resources: res,
+                            onTreasuryChange: trackSilverChange,
                         });
                         // If success (treasury sufficient for subsidy), use gov price
                         // If fail (treasury empty), it returns marketPrice
@@ -4186,7 +4218,7 @@ export const simulateTick = ({
             return next;
         }
 
-        processNationTreaties({ nation: next, tick, resources: res, logs });
+        processNationTreaties({ nation: next, tick, resources: res, logs, onTreasuryChange: trackSilverChange });
 
         if (next.isRebelNation) {
             // REFACTORED: Using module function for rebel economy initialization
@@ -4202,6 +4234,7 @@ export const simulateTick = ({
                     population,
                     army,
                     logs,
+                    onTreasuryChange: trackSilverChange,
                 });
                 raidPopulationLoss += rebelResult.raidPopulationLoss;
             }
@@ -4301,6 +4334,7 @@ export const simulateTick = ({
                     army,
                     logs,
                     difficultyLevel: difficulty,
+                    onTreasuryChange: trackSilverChange,
                 });
                 raidPopulationLoss += militaryResult.raidPopulationLoss;
             }
@@ -4375,6 +4409,7 @@ export const simulateTick = ({
             nation: next,
             resources: res,
             logs,
+            onTreasuryChange: trackSilverChange,
         });
 
         // REFACTORED: Using module function for post-war recovery
@@ -4423,6 +4458,7 @@ export const simulateTick = ({
         // 扣除组织成员费
         if (organizationUpdateResult.fees.player > 0) {
             res.silver = Math.max(0, (res.silver || 0) - organizationUpdateResult.fees.player);
+            trackSilverChange(-organizationUpdateResult.fees.player, 'organization_membership_fee');
         }
 
         // 更新AI国家的费用
@@ -4575,7 +4611,7 @@ export const simulateTick = ({
 
     // REFACTORED: Using module function for AI-Player trade
     if (shouldUpdateTrade) {
-        processAIPlayerTrade(visibleNations, tick, res, market, logs, policies, diplomacyOrganizations);
+        processAIPlayerTrade(visibleNations, tick, res, market, logs, policies, diplomacyOrganizations, trackSilverChange);
     }
 
 

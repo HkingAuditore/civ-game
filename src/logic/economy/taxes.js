@@ -5,6 +5,18 @@
 
 import { STRATA, TAX_LIMITS } from '../../config';
 
+const applyTreasuryChange = (resources, delta, reason, onTreasuryChange) => {
+    if (!resources || !Number.isFinite(delta) || delta === 0) return 0;
+    const before = Number(resources.silver || 0);
+    const after = Math.max(0, before + delta);
+    const actual = after - before;
+    resources.silver = after;
+    if (typeof onTreasuryChange === 'function' && actual !== 0) {
+        onTreasuryChange(actual, reason);
+    }
+    return actual;
+};
+
 /**
  * Initialize tax breakdown structure
  * @returns {Object} Empty tax breakdown
@@ -77,7 +89,8 @@ export const collectHeadTax = ({
     roleExpense,
     roleHeadTaxPaid,
     roleWagePayout,
-    logs
+    logs,
+    onTreasuryChange,
 }) => {
     const updatedWealth = { ...wealth };
     const updatedTaxBreakdown = { ...taxBreakdown };
@@ -115,7 +128,7 @@ export const collectHeadTax = ({
                 const subsidyNeeded = -due;
                 const treasury = res.silver || 0;
                 if (treasury >= subsidyNeeded) {
-                    res.silver = treasury - subsidyNeeded;
+                    applyTreasuryChange(res, -subsidyNeeded, 'head_tax_subsidy', onTreasuryChange);
                     updatedWealth[key] = available + subsidyNeeded;
                     updatedTaxBreakdown.subsidy += subsidyNeeded;
                     roleWagePayout[key] = (roleWagePayout[key] || 0) + subsidyNeeded;

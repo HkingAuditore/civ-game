@@ -215,7 +215,7 @@ export function createForeignInvestment({
         const price = RESOURCES[res]?.basePrice || 1;
         return sum + val * price;
     }, 0);
-    const estimatedDailyProfit = Math.max(0, outputValue - inputCost);
+    const estimatedDailyProfit = outputValue - inputCost; // Allow negative (losses)
 
     return {
         id: `fi_${ownerNationId}_${buildingId}_${Date.now()}`,
@@ -768,8 +768,10 @@ export function processOverseasInvestments({
             targetTaxRate = 0.60;
         }
 
-        const taxPaid = profitResult.profit * targetTaxRate;
-        const repatriatedProfit = Math.max(0, profitResult.profit - taxPaid);
+        // [FIX] Allow negative profits (losses) - no more Math.max(0, ...)
+        // 只有正利润才需缴税；亏损时税额为0，全额亏损由投资者承担
+        const taxPaid = profitResult.profit > 0 ? profitResult.profit * targetTaxRate : 0;
+        const repatriatedProfit = profitResult.profit - taxPaid; // Allow negative
         const retainedProfit = taxPaid;
 
         // 更新投资记录
@@ -1032,6 +1034,9 @@ export function processForeignInvestments({
     playerResources = {},
     foreignInvestmentPolicy = 'normal',
     daysElapsed = 0,
+    // [NEW] 用于计算实际到岗率
+    jobFill = {},
+    buildings = {},
 }) {
     const logs = [];
     let totalTaxRevenue = 0;
@@ -1091,8 +1096,27 @@ export function processForeignInvestments({
             homePrices
         );
 
-        // 4. 处理结果
-        const dailyProfit = profitResult.profit || 0;
+        // 4. [NEW] 计算实际到岗率并应用到利润
+        // 外资企业的实际利润取决于玩家建筑的岗位填充率
+        const buildingJobs = building.jobs || {};
+        const buildingCount = buildings[building.id] || 0;
+        const buildingJobFillData = jobFill[building.id] || {};
+        
+        let totalSlots = 0;
+        let filledSlots = 0;
+        Object.entries(buildingJobs).forEach(([role, slotsPerBuilding]) => {
+            const totalRoleSlots = slotsPerBuilding * buildingCount;
+            totalSlots += totalRoleSlots;
+            filledSlots += Math.min(buildingJobFillData[role] || 0, totalRoleSlots);
+        });
+        
+        // 计算到岗率 (如果没有建筑或岗位，默认为0)
+        const staffingRatio = (totalSlots > 0 && buildingCount > 0) ? filledSlots / totalSlots : 0;
+        
+        // 5. 处理结果 - 利润乘以到岗率
+        // 理论利润 * 到岗率 = 实际利润
+        const theoreticalProfit = profitResult.profit || 0;
+        const dailyProfit = theoreticalProfit * staffingRatio;
 
         // 计算税收 (Strict Rules Logic for Foreign Investment)
         let effectiveTaxRate = 0.60; // 默认惩罚性税率 60%
@@ -1164,6 +1188,10 @@ export function processForeignInvestments({
                 taxPaid: taxAmount,
                 profitRepatriated: profitAfterTax,
                 consecutiveLossDays, // Update counter
+                // [NEW] 到岗率相关数据
+                staffingRatio,
+                theoreticalProfit,
+                profit: dailyProfit, // 覆盖为实际利润（已乘以到岗率）
             },
         });
     });

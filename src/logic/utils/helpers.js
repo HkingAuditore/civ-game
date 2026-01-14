@@ -4,7 +4,7 @@
  */
 
 import { RESOURCES, TECHS } from '../../config/index.js';
-import { PRICE_FLOOR, ROLE_PRIORITY } from './constants.js';
+import { PRICE_FLOOR, ROLE_PRIORITY, SPECIAL_TRADE_RESOURCES } from './constants.js';
 
 /**
  * Clamp a value between min and max
