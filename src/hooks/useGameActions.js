@@ -2599,9 +2599,18 @@ export const useGameActions = (gameState, addLog) => {
                 // 如果是叛乱政府，使用专门的叛乱结束处理
                 if (targetNation.isRebelNation) {
                     // 判断是玩家胜利还是失败
-                    // white_peace/demand_* 视为玩家胜利（叛乱平定）
-                    // pay_*/offer_* 视为玩家失败（向叛军妥协）
-                    const playerVictory = !['pay_high', 'pay_installment', 'offer_population'].includes(type);
+                    // demand_* 视为玩家胜利（叛乱平定）- 玩家向叛军索要赔款
+                    // pay_*/offer_*/peace_only 视为玩家失败（向叛军妥协）- 玩家付出任何代价或无条件求和
+                    const defeatOptions = [
+                        'pay_high',           // 支付巨额赔款
+                        'pay_standard',       // 支付赔款
+                        'pay_moderate',       // 支付象征性赔款
+                        'pay_installment',    // 分期支付赔款
+                        'pay_installment_moderate', // 分期支付（低额）
+                        'offer_population',   // 割让人口
+                        'peace_only',         // 无条件求和（玩家主动低头）
+                    ];
+                    const playerVictory = !defeatOptions.includes(type);
                     handleRebellionWarEnd(nationId, playerVictory);
                     return;
                 }
