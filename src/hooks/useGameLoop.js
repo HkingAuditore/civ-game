@@ -1020,8 +1020,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
             quotaTargets, // 计划经济目标配额
             officialCapacity, // 官员容量
             priceControls, // [NEW] 计划经济价格管制设置
+            foreignInvestments, // [NEW] 海外投资
         };
-    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, livingStandardStreaks, migrationCooldowns, taxShock, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, diplomacyOrganizations, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability, rulingCoalition, legitimacy, difficulty, officials, activeDecrees, expansionSettings, quotaTargets, officialCapacity, priceControls]);
+    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, livingStandardStreaks, migrationCooldowns, taxShock, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, diplomacyOrganizations, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability, rulingCoalition, legitimacy, difficulty, officials, activeDecrees, expansionSettings, quotaTargets, officialCapacity, priceControls, foreignInvestments]);
 
     // 监听国家列表变化，自动清理无效的贸易路线（修复暂停状态下无法清理的问题）
     useEffect(() => {
@@ -1308,6 +1309,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 // 官员系统
                 officials: current.officials || [],
                 officialsPaid: canAffordOfficials,
+                foreignInvestments: current.foreignInvestments || [], // [NEW] Pass foreign investments to worker
             };
 
             // Execute simulation
@@ -1892,9 +1894,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 if (Math.random() < 0.3) {
                     import('../logic/diplomacy/autonomousInvestment').then(({ processAIInvestment }) => {
                         if (!processAIInvestment) return;
-                        
+
                         const potentialInvestors = (current.nations || []).filter(n => n.id !== 'player' && (n.wealth || 0) > 5000);
-                        
+
                         potentialInvestors.forEach(investor => {
                             const decision = processAIInvestment({
                                 investorNation: investor,
@@ -1913,7 +1915,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             if (decision && decision.type === 'request_investment' && decision.targetId === 'player') {
                                 // 外资：直接投资，不需要玩家批准
                                 const actionsRef = current.actions;
-                                
+
                                 if (actionsRef && actionsRef.handleDiplomaticAction) {
                                     // 直接创建外资投资
                                     actionsRef.handleDiplomaticAction(investor.id, 'accept_foreign_investment', {
@@ -1922,7 +1924,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                         operatingMode: 'local', // 默认当地运营模式
                                         investmentAmount: decision.cost
                                     });
-                                    
+
                                     console.log(`[外资] ${investor.name} 在本地投资了 ${decision.building.name}，投资额: ${decision.cost}`);
                                     addLog(`🏦 ${investor.name} 在本地投资建造了 ${decision.building.name}。`);
                                 } else {
@@ -1961,11 +1963,11 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 // ========== 附庸每日更新（朝贡与独立倾向） ==========
                 if (current.nations && current.nations.some(n => n.vassalOf === 'player')) {
                     const vassalLogs = [];
-                    
+
                     // Calculate player military strength from army
                     const totalArmyUnits = Object.values(current.army || {}).reduce((sum, count) => sum + count, 0);
                     const playerMilitaryStrength = Math.max(0.5, totalArmyUnits / 100);
-                    
+
                     const vassalUpdateResult = processVassalUpdates({
                         nations: current.nations,
                         daysElapsed: current.daysElapsed || 0,
@@ -4158,7 +4160,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                             buildingId: investmentDetails.buildingId,
                                                             ownerStratum: investmentDetails.ownerStratum,
                                                             operatingMode: investmentDetails.operatingMode,
-                                                            investmentAmount: investmentDetails.requiredInvestment 
+                                                            investmentAmount: investmentDetails.requiredInvestment
                                                         });
                                                     }
                                                 }

@@ -237,6 +237,7 @@ import {
     processRebellionSystemDaily,
     getRebellionRiskAssessment,
 } from './diplomacy';
+import { calculateOverseasInvestmentSummary } from './diplomacy/overseasInvestment';
 
 export const simulateTick = ({
     resources,
@@ -5906,6 +5907,10 @@ export const simulateTick = ({
         : previousTradeOpportunities;
 
     // console.log('[TICK END]', tick, 'militaryCapacity:', militaryCapacity); // Commented for performance
+
+    // [NEW] Calculate foreign investment stats
+    const foreignStats = calculateOverseasInvestmentSummary(foreignInvestments);
+
     return {
         tradeOpportunities,
         resources: res,
