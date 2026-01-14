@@ -10,7 +10,42 @@
  */
 
 /**
- * 总督效果配置
+ * 总督施政纲领 (Governor Mandates)
+ * 决定总督治理的侧重点，并修正属性收益
+ */
+export const GOVERNOR_MANDATES = {
+    pacify: {
+        name: '安抚',
+        desc: '专注降低动荡和独立倾向，但会减少朝贡',
+        statFocus: 'military', // 军事属性收益翻倍
+        independenceMod: 2.0,  // 独立压制效果 +100%
+        tributeMod: 0.8,       // 朝贡 -20%
+    },
+    exploit: {
+        name: '压榨',
+        desc: '最大化朝贡收入，但大幅增加动荡',
+        statFocus: 'administrative', // 行政属性收益翻倍
+        independenceMod: 0.5,  // 独立压制效果 -50%
+        tributeMod: 1.5,       // 朝贡 +50%
+        unrestIncrease: 0.1,   // 每日动荡 +0.1
+    },
+    develop: {
+        name: '开发',
+        desc: '促进附庸经济增长和自主度恢复',
+        statFocus: 'administrative',
+        tributeMod: 0.5,       // 朝贡减半（用于再投资）
+        vassalGrowth: 1.5,     // 附庸经济增长 +50%
+    },
+    integrate: {
+        name: '同化',
+        desc: '降低独立倾向上限，提高忠诚度',
+        statFocus: 'prestige', // 威望属性收益翻倍
+        independenceCapReduction: 0.1, // 每日降低独立上限
+    },
+};
+
+/**
+ * 总督效果配置 (数值增强版)
  */
 export const GOVERNOR_EFFECTS_CONFIG = {
     // 基础效果（无总督时）
@@ -18,48 +53,48 @@ export const GOVERNOR_EFFECTS_CONFIG = {
         independenceReduction: 0,
         tributeModifier: 1.0,
         stabilityBonus: 0,
-        corruptionRate: 0.05, // 5% baseline corruption
+        corruptionRate: 0.05,
     },
 
     // 威望加成
     prestige: {
-        independencePerPoint: -0.005, // 每点威望 -0.5% 独立倾向增长
-        eliteSatisfactionPerPoint: 0.02, // 每点威望 +2% 精英满意度
+        independencePerPoint: 0.02, // [Boosted] 每点威望 -2% 独立倾向增长 (was 0.5%)
+        eliteSatisfactionPerPoint: 0.1, // [Boosted] 每点威望 +10% 精英满意度 (was 2%)
     },
 
     // 行政能力加成
     administrative: {
-        tributePerPoint: 0.01,       // 每点行政 +1% 朝贡收入
-        corruptionReducePerPoint: 0.001, // 每点行政 -0.1% 腐败率
-        maxTributeBonus: 0.5,        // 最大朝贡加成 50%
+        tributePerPoint: 0.02,       // [Boosted] 每点行政 +2% 朝贡收入 (was 1%)
+        corruptionReducePerPoint: 0.002,
+        maxTributeBonus: 2.0,        // [Boosted] 最大朝贡加成 200% (was 50%)
     },
 
     // 军事能力加成
     military: {
-        stabilityPerPoint: 0.01,     // 每点军事 +1% 稳定性
-        unrestSuppressionPerPoint: 0.005, // 每点军事 -0.5% 动荡
+        stabilityPerPoint: 0.05,     // [Boosted] 每点军事 +5% 稳定性
+        unrestSuppressionPerPoint: 0.05, // [Boosted] 每点军事 -5% 动荡
     },
 
     // 忠诚度影响
     loyalty: {
-        corruptionThreshold: 40,     // 低于此值开始腐败
-        severeLoyaltyThreshold: 20,  // 严重低忠诚
-        corruptionPerLoyaltyDeficit: 0.002, // 每点忠诚不足 +0.2% 腐败
-        independenceRiskPerDeficit: 0.001,  // 每点忠诚不足 +0.1% 独立风险
+        corruptionThreshold: 40,
+        severeLoyaltyThreshold: 20,
+        corruptionPerLoyaltyDeficit: 0.002,
+        independenceRiskPerDeficit: 0.005, // [Boosted]
     },
 
     // 来源阶层加成
     stratumBonus: {
         nobles: { eliteSatisfaction: 1.3, commonerSatisfaction: 0.8 },
-        capitalist: { tributeBonus: 1.2, eliteSatisfaction: 1.0 },
-        commoner: { commonerSatisfaction: 1.3, eliteSatisfaction: 0.7 },
-        clergy: { stability: 1.2, corruption: 0.8 },
+        capitalist: { tributeBonus: 1.3, eliteSatisfaction: 1.0 }, // Boosted
+        commoner: { commonerSatisfaction: 1.5, eliteSatisfaction: 0.6 }, // Boosted
+        clergy: { stability: 1.5, corruption: 0.8 }, // Boosted
     },
 
     // 每日成本基数
     dailyCost: {
         base: 30,
-        perPrestige: 0.5, // 高威望官员更贵
+        perPrestige: 0.5,
     },
 };
 
@@ -81,99 +116,138 @@ export const calculateGovernorFullEffects = (official, vassalNation = {}) => {
         };
     }
 
+    // 获取当前 Mandate
+    const mandateId = vassalNation.vassalPolicy?.controlMeasures?.governor?.mandate || 'pacify';
+    const mandate = GOVERNOR_MANDATES[mandateId] || GOVERNOR_MANDATES.pacify;
+
     const prestige = official.prestige ?? 50;
     const administrative = official.administrative ?? official.admin ?? 50;
     const military = official.military ?? official.mil ?? 30;
     const loyalty = official.loyalty ?? 50;
     const sourceStratum = official.sourceStratum || 'commoner';
 
+    // 应用 Mandate 的属性聚焦 (Stat Focus)
+    // 聚焦的属性按 1.5 倍计算
+    const effPrestige = mandate.statFocus === 'prestige' ? prestige * 1.5 : prestige;
+    const effAdmin = mandate.statFocus === 'administrative' ? administrative * 1.5 : administrative;
+    const effMilitary = mandate.statFocus === 'military' ? military * 1.5 : military;
+
     // ========== 独立倾向压制 ==========
-    const prestigeIndependenceEffect = prestige * config.prestige.independencePerPoint;
-    let independenceReduction = -prestigeIndependenceEffect; // 正数表示压制
+    let independenceReduction = effPrestige * config.prestige.independencePerPoint;
+    independenceReduction *= (mandate.independenceMod || 1.0); // Apply Mandate mod
 
     // ========== 朝贡效率 ==========
     const adminTributeBonus = Math.min(
         config.administrative.maxTributeBonus,
-        administrative * config.administrative.tributePerPoint
+        effAdmin * config.administrative.tributePerPoint
     );
     let tributeModifier = 1.0 + adminTributeBonus;
+    tributeModifier *= (mandate.tributeMod || 1.0); // Apply Mandate mod
 
-    // ========== 稳定性 ==========
-    let stabilityBonus = military * config.military.stabilityPerPoint;
+    // ========== 稳定性与动荡 ==========
+    let stabilityBonus = effMilitary * config.military.stabilityPerPoint;
+    let unrestSuppression = effMilitary * config.military.unrestSuppressionPerPoint;
+
+    // Mandate side effects
+    if (mandate.unrestIncrease) {
+        unrestSuppression -= mandate.unrestIncrease; // Can become negative (increase unrest)
+    }
 
     // ========== 腐败率 ==========
     let corruptionRate = config.base.corruptionRate;
-    // 行政能力降低腐败
-    corruptionRate -= administrative * config.administrative.corruptionReducePerPoint;
-    // 低忠诚增加腐败
+    corruptionRate -= effAdmin * config.administrative.corruptionReducePerPoint;
     if (loyalty < config.loyalty.corruptionThreshold) {
         const deficit = config.loyalty.corruptionThreshold - loyalty;
         corruptionRate += deficit * config.loyalty.corruptionPerLoyaltyDeficit;
     }
-    corruptionRate = Math.max(0, Math.min(0.3, corruptionRate)); // 0-30% 范围
+    corruptionRate = Math.max(0, Math.min(0.5, corruptionRate)); // Cap at 50%
 
-    // 腐败减少朝贡收入
+    // 腐败减少朝贡
     tributeModifier *= (1 - corruptionRate);
 
-    // ========== 阶层满意度加成 ==========
-    let eliteSatisfactionBonus = prestige * config.prestige.eliteSatisfactionPerPoint;
+    // ========== 阶层满意度 ==========
+    let eliteSatisfactionBonus = effPrestige * config.prestige.eliteSatisfactionPerPoint;
     let commonerSatisfactionBonus = 0;
+
     const stratumBonus = config.stratumBonus[sourceStratum] || {};
     eliteSatisfactionBonus *= stratumBonus.eliteSatisfaction || 1.0;
     commonerSatisfactionBonus = stratumBonus.commonerSatisfaction || 1.0;
     stabilityBonus *= stratumBonus.stability || 1.0;
-    corruptionRate *= stratumBonus.corruption || 1.0;
     tributeModifier *= stratumBonus.tributeBonus || 1.0;
-
-    // ========== 动荡压制 ==========
-    const unrestSuppression = military * config.military.unrestSuppressionPerPoint;
-
-    // ========== 低忠诚风险 ==========
-    const warnings = [];
-    let independenceRiskFromLoyalty = 0;
-    if (loyalty < config.loyalty.corruptionThreshold) {
-        warnings.push('low_loyalty_corruption_risk');
-        independenceRiskFromLoyalty = (config.loyalty.corruptionThreshold - loyalty) *
-            config.loyalty.independenceRiskPerDeficit;
-    }
-    if (loyalty < config.loyalty.severeLoyaltyThreshold) {
-        warnings.push('severe_loyalty_danger');
-    }
 
     // ========== 每日成本 ==========
     const dailyCost = config.dailyCost.base + prestige * config.dailyCost.perPrestige;
 
-    // ========== 汇总 ==========
+    // ========== 生成随机治理事件 (Governor Actions) ==========
+    const governorEvent = generateGovernorEvent(official, mandate, vassalNation);
+
     return {
         hasGovernor: true,
         officialId: official.id,
         officialName: official.name,
         sourceStratum,
+        mandateId,
 
         // 核心效果
-        independenceReduction: Math.max(0, independenceReduction - independenceRiskFromLoyalty),
-        tributeModifier: Math.max(0.5, tributeModifier), // 最低50%
+        independenceReduction: Math.max(-0.5, independenceReduction), // Allow negative (growth)
+        tributeModifier: Math.max(0.1, tributeModifier),
         stabilityBonus: Math.max(0, stabilityBonus),
         corruptionRate,
+
+        // 特殊效果
+        independenceCapReduction: mandate.independenceCapReduction || 0,
 
         // 满意度
         eliteSatisfactionBonus,
         commonerSatisfactionBonus,
         unrestSuppression,
 
-        // 成本与风险
+        // 成本与事件
         dailyCost,
-        warnings,
-
-        // 原始属性（用于UI显示）
-        stats: {
-            prestige,
-            administrative,
-            military,
-            loyalty,
-        },
+        governorEvent, // New event trigger
+        warnings: [],
     };
 };
+
+/**
+ * 生成随机治理事件
+ * @private
+ */
+function generateGovernorEvent(official, mandate, nation) {
+    // 每日 2% 概率触发事件
+    if (Math.random() > 0.02) return null;
+
+    const eventType = Math.random();
+
+    // 基于 Mandate 和 属性 触发不同事件
+    if (mandate.name === '压榨') {
+        if (official.administrative > 60) {
+            return {
+                type: 'efficient_squeeze',
+                desc: `${official.name}高效地搜刮了额外资源`,
+                effect: { silver: 50 },
+            };
+        } else {
+            return {
+                type: 'brutal_squeeze',
+                desc: `${official.name}的压榨导致民怨沸腾`,
+                effect: { unrest: 5 },
+            };
+        }
+    }
+
+    if (mandate.name === '安抚') {
+        if (official.military > 60) {
+            return {
+                type: 'military_parade',
+                desc: `${official.name}阅兵展示军威，震慑了分离主义者`,
+                effect: { independence: -5 },
+            };
+        }
+    }
+
+    return null;
+}
 
 /**
  * 计算总督的腐败损失

@@ -11,7 +11,12 @@ import {
     TRIBUTE_CONFIG,
     INDEPENDENCE_CONFIG,
     calculateAverageSatisfaction,
-} from '../../config/diplomacy';
+    LABOR_POLICY_DEFINITIONS,
+    TRADE_POLICY_DEFINITIONS,
+    GOVERNANCE_POLICY_DEFINITIONS,
+    VASSAL_POLICY_PRESETS,
+} from '../../config/diplomacy.js';
+import { calculateGovernorFullEffects } from './vassalGovernors.js';
 
 /**
  * Calculate dynamic control cost based on vassal wealth
@@ -185,8 +190,6 @@ export const processVassalUpdates = ({
                         }
 
                         // ========== NEW: Use deep governor integration ==========
-                        // Import dynamically to avoid circular deps
-                        const { calculateGovernorFullEffects } = require('./vassalGovernors');
                         const govEffects = calculateGovernorFullEffects(official, updated);
 
                         // Apply independence reduction from governor
@@ -220,6 +223,33 @@ export const processVassalUpdates = ({
                             // Daily 1% chance to trigger corruption event
                             controlMeasureIndependenceReduction -= 0.05;
                             logs.push(`⚠️ ${updated.name}的总督${govEffects.officialName}行为不端，引发民众不满`);
+                        }
+
+                        // ========== NEW: 处理总督治理事件 (Governor Events) ==========
+                        if (govEffects.governorEvent) {
+                            const event = govEffects.governorEvent;
+                            logs.push(`🏛️ ${updated.name}总督事件: ${event.desc}`);
+
+                            // 效果应用
+                            if (event.effect.silver) {
+                                // 搜刮到的银币直接计入今日朝贡
+                                tributeIncome += event.effect.silver;
+                            }
+                            if (event.effect.unrest) {
+                                updated.unrest = (updated.unrest || 0) + event.effect.unrest;
+                            }
+                            if (event.effect.independence) {
+                                // 直接调整当前的独立倾向数值 (负数 = 降低)
+                                updated.independencePressure = Math.max(0, (updated.independencePressure || 0) + event.effect.independence);
+                            }
+                        }
+
+                        // 应用独立上限降低 (同化政策)
+                        if (govEffects.independenceCapReduction > 0) {
+                            updated.independenceCap = Math.max(
+                                10, // 最小上限
+                                (updated.independenceCap || 100) - govEffects.independenceCapReduction
+                            );
                         }
 
                         // Override cost with governor-calculated cost
@@ -416,9 +446,18 @@ export const processVassalUpdates = ({
             }
         }
 
-        // ========== 5. 自主度缓慢恢复（除非是殖民地） ==========
-        if (updated.vassalType !== 'colony' && updated.autonomy < vassalConfig.autonomy) {
-            updated.autonomy = Math.min(vassalConfig.autonomy, (updated.autonomy || 0) + 0.1);
+        // ========== 5. 自主度缓慢恢复 (基于治理政策) ==========
+        // 不再基于vassalType硬编码，而是基于治理政策设定的最小自主度
+        const governancePolicy = updated.vassalPolicy?.governance || 'autonomous';
+        const governanceConfig = GOVERNANCE_POLICY_DEFINITIONS[governancePolicy];
+
+        // 目标自主度：取配置的初始自主度与政策限制的较小值
+        // 但通常我们希望自主度能恢复到"正常水平"
+        const targetAutonomy = vassalConfig.autonomy;
+
+        // 如果当前政策允许恢复（不是直接统治），且低于目标值，则缓慢恢复
+        if (governancePolicy !== 'direct_rule' && (updated.autonomy || 0) < targetAutonomy) {
+             updated.autonomy = Math.min(targetAutonomy, (updated.autonomy || 0) + 0.1);
         }
 
         return updated;
@@ -523,78 +562,67 @@ export const calculateEnhancedTribute = (vassalNation, playerWealth = 10000) => 
 };
 
 /**
- * 获取独立倾向增长率（每天）- 重构版
- * 现在使用 vassalPolicy 中的劳工/贸易政策修正
+ * 获取独立倾向增长率（每天）- 完全统一版
+ * 不再依赖 vassalType，完全基于具体政策参数
  * @param {Object} nation - 附庸国家对象
  * @param {number} epoch - 当前时代
  * @returns {number} 每日增长率
  */
 const getEnhancedIndependenceGrowthRate = (nation, epoch) => {
     const config = INDEPENDENCE_CONFIG;
-    const vassalType = nation?.vassalType || 'protectorate';
-    const socialStructure = nation?.socialStructure;
-
-    // 基础增长率（根据附庸类型）
-    const baseRate = config.dailyGrowthRates[vassalType] || 0.15;
+    // 移除对 vassalType 的依赖，使用统一的基础增长率
+    const UNIFIED_BASE_RATE = 0.10;
 
     // 时代系数（后期民族主义更强）
     const eraMultiplier = config.eraMultiplier.base +
         Math.max(0, epoch - 3) * config.eraMultiplier.perEra;
 
-    let rate = baseRate * eraMultiplier;
+    let rate = UNIFIED_BASE_RATE * eraMultiplier;
 
-    // 阶层满意度影响
-    if (socialStructure) {
-        const avgSatisfaction = calculateAverageSatisfaction(socialStructure);
+    // 阶层满意度影响 (SoL Driven)
+    // 如果有新的阶层数据，使用新的 satisfaction
+    if (nation?.socialStructure) {
+        const avgSatisfaction = calculateAverageSatisfaction(nation.socialStructure);
 
-        if (avgSatisfaction < config.satisfactionThresholds.critical) {
-            rate *= 2.0;
-        } else if (avgSatisfaction < config.satisfactionThresholds.low) {
-            rate *= 1.3;
-        } else if (avgSatisfaction > config.satisfactionThresholds.high) {
-            rate *= 0.7;
-        }
+        // 满意度越低，增长越快。满意度50是基准。
+        // 满意度 0 -> 2.5x 增长
+        // 满意度 100 -> 0.5x 增长
+        const satisfactionMod = 2.5 - (avgSatisfaction / 50);
+        rate *= Math.max(0.5, satisfactionMod);
     }
 
-    // ========== NEW: 应用劳工政策独立倾向修正 ==========
-    const laborPolicy = nation?.vassalPolicy?.labor || 'standard';
-    const laborGrowthMod = getLaborPolicyIndependenceMod(laborPolicy);
-    rate *= laborGrowthMod;
+    // ========== 政策影响 (Policy Driven) ==========
+    const vassalPolicy = nation?.vassalPolicy || {};
 
-    // ========== NEW: 应用贸易政策独立倾向修正 ==========
-    const tradePolicy = nation?.vassalPolicy?.tradePolicy || 'preferential';
-    const tradeGrowthMod = getTradePolicyIndependenceMod(tradePolicy);
-    rate *= tradeGrowthMod;
+    // 1. 劳工政策 (Labor)
+    const laborPolicyId = vassalPolicy.labor || 'standard';
+    const laborConfig = LABOR_POLICY_DEFINITIONS[laborPolicyId];
+    if (laborConfig) {
+        rate *= (laborConfig.independenceGrowthMod || 1.0);
+    }
+
+    // 2. 贸易政策 (Trade)
+    // Note: stored as 'tradePolicy' in some places, check consistency
+    const tradePolicyId = vassalPolicy.tradePolicy || 'preferential';
+    const tradeConfig = TRADE_POLICY_DEFINITIONS[tradePolicyId];
+    if (tradeConfig) {
+        rate *= (tradeConfig.independenceGrowthMod || 1.0);
+    }
+
+    // 3. 治理政策 (Governance)
+    const governancePolicyId = vassalPolicy.governance || 'autonomous';
+    const governanceConfig = GOVERNANCE_POLICY_DEFINITIONS[governancePolicyId];
+    if (governanceConfig) {
+        rate *= (governanceConfig.independenceGrowthMod || 1.0);
+    }
+
+    // 4. 朝贡率影响
+    const tributeRate = nation.tributeRate || 0;
+    // 每 10% 朝贡增加 50% 独立倾向增长
+    rate *= (1 + tributeRate * 5);
 
     return rate;
 };
-
-/**
- * 获取劳工政策对独立倾向增长的修正
- */
-function getLaborPolicyIndependenceMod(laborPolicyId) {
-    const mods = {
-        standard: 1.0,
-        exploitation: 1.2,  // +20%
-        slavery: 1.8,       // +80%
-    };
-    return mods[laborPolicyId] ?? 1.0;
-}
-
-/**
- * 获取贸易政策对独立倾向增长的修正
- */
-function getTradePolicyIndependenceMod(tradePolicyId) {
-    const mods = {
-        free: 0.8,          // -20%
-        preferential: 1.0,
-        exclusive: 1.3,     // +30%
-        dumping: 1.4,       // +40%
-        looting: 1.6,       // +60%
-        monopoly: 1.3,      // +30% (legacy)
-    };
-    return mods[tradePolicyId] ?? 1.0;
-}
 
 /**
  * 检查是否触发独立战争
@@ -651,14 +679,28 @@ export const establishVassalRelation = (nation, vassalType, epoch) => {
         throw new Error(`${config.name}尚未解锁（需要时代 ${config.minEra}）`);
     }
 
+    // 获取该类型的政策预设
+    const preset = VASSAL_POLICY_PRESETS[vassalType];
+
     return {
         ...nation,
         vassalOf: 'player',
         vassalType,
+
+        // 核心参数初始化
         autonomy: config.autonomy,
         tributeRate: config.tributeRate,
         independencePressure: 0,
-        independenceCap: 100,  // NEW: Initialize independence cap
+        independenceCap: 100,
+
+        // 初始化详细政策 (基于预设)
+        vassalPolicy: {
+            labor: preset?.labor || 'standard',
+            tradePolicy: preset?.trade || 'preferential',
+            governance: preset?.governance || 'autonomous',
+            controlMeasures: {},
+        },
+
         // 结束战争状态
         isAtWar: false,
         warTarget: null,
@@ -840,9 +882,15 @@ export const calculateVassalBenefits = (nations, playerWealth = 10000) => {
             totalResourceTribute[res] = (totalResourceTribute[res] || 0) + amount;
         });
 
-        const config = VASSAL_TYPE_CONFIGS[vassal.vassalType];
-        if (config) {
-            totalTradeBonus += config.tariffDiscount;
+        // 贸易加成基于贸易政策
+        const tradePolicyId = vassal.vassalPolicy?.tradePolicy || 'preferential';
+        const tradeConfig = TRADE_POLICY_DEFINITIONS[tradePolicyId];
+        if (tradeConfig) {
+            totalTradeBonus += (tradeConfig.tariffDiscount || 0);
+        } else {
+            // Fallback to type config if policy missing (legacy safety)
+            const config = VASSAL_TYPE_CONFIGS[vassal.vassalType];
+            if (config) totalTradeBonus += config.tariffDiscount;
         }
 
         // Calculate control measure costs
@@ -918,6 +966,7 @@ export const canEstablishVassal = (nation, vassalType, { epoch, playerMilitary, 
 
 /**
  * Check if a vassal can perform diplomatic action based on restrictions
+ * 基于政策（policy）而非类型（type）的判断
  * @param {Object} nation - Vassal nation
  * @param {string} actionType - Type of diplomatic action ('alliance', 'treaty', 'trade')
  * @returns {Object} { allowed, reason }
@@ -927,36 +976,22 @@ export const canVassalPerformDiplomacy = (nation, actionType) => {
         return { allowed: true, reason: null };
     }
 
-    const vassalConfig = VASSAL_TYPE_CONFIGS[nation.vassalType];
-    if (!vassalConfig) {
-        return { allowed: true, reason: null };
-    }
-
     const diplomaticControl = nation.vassalPolicy?.diplomaticControl || 'guided';
+    const tradePolicy = nation.vassalPolicy?.tradePolicy || 'preferential';
 
     switch (actionType) {
         case 'alliance':
-            if (!vassalConfig.canFormAlliance) {
+            // 只有"自治"的外交政策允许结盟
+            if (diplomaticControl !== 'autonomous') {
                 return {
                     allowed: false,
-                    reason: `${vassalConfig.name}不能独立结盟`
-                };
-            }
-            if (diplomaticControl === 'puppet') {
-                return {
-                    allowed: false,
-                    reason: '傀儡外交政策禁止独立结盟'
+                    reason: '当前外交政策禁止独立结盟'
                 };
             }
             break;
 
         case 'treaty':
-            if (!vassalConfig.canSignTreaties) {
-                return {
-                    allowed: false,
-                    reason: `${vassalConfig.name}不能独立签署条约`
-                };
-            }
+            // "自治"或"引导"允许签条约，"傀儡"禁止
             if (diplomaticControl === 'puppet') {
                 return {
                     allowed: false,
@@ -966,16 +1001,12 @@ export const canVassalPerformDiplomacy = (nation, actionType) => {
             break;
 
         case 'trade':
-            if (!vassalConfig.canTrade) {
+            // 垄断、排他、掠夺政策禁止独立贸易
+            const restrictiveTradePolicies = ['monopoly', 'exclusive', 'looting'];
+            if (restrictiveTradePolicies.includes(tradePolicy)) {
                 return {
                     allowed: false,
-                    reason: `${vassalConfig.name}的贸易受宗主国控制`
-                };
-            }
-            if (nation.vassalPolicy?.tradePolicy === 'monopoly') {
-                return {
-                    allowed: false,
-                    reason: '垄断贸易政策禁止独立贸易'
+                    reason: '当前贸易政策禁止独立贸易'
                 };
             }
             break;

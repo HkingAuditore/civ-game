@@ -9,9 +9,9 @@
  * 依赖：附庸系统 (vassalSystem.js)
  */
 
-import { BUILDINGS, RESOURCES, STRATA } from '../../config';
-import { debugLog } from '../../utils/debugFlags';
-import { getMaxUpgradeLevel, getUpgradeCost, getBuildingEffectiveConfig } from '../../config/buildingUpgrades';
+import { BUILDINGS, RESOURCES, STRATA } from '../../config/index.js';
+import { debugLog } from '../../utils/debugFlags.js';
+import { getMaxUpgradeLevel, getUpgradeCost, getBuildingEffectiveConfig } from '../../config/buildingUpgrades.js';
 
 // ===== 配置常量 =====
 
@@ -474,7 +474,18 @@ export function calculateOverseasProfit(investment, targetNation, playerResource
 
 
 /**
- * 计算附庸国/投资国工资成本
+ * 阶层期望生活水平 (Standard of Living)
+ * 必须与 nations.js 中的定义保持一致
+ */
+const STRATUM_EXPECTATIONS = {
+    elites: 15.0,
+    commoners: 3.0,
+    underclass: 1.0
+};
+
+/**
+ * 计算附庸国/投资国工资成本 (深度整合版)
+ * 基于真实的阶层人口供需和生活水平计算市场工资
  * @param {Object} building - 建筑配置
  * @param {Object} nation - 目标国家
  * @returns {Object} - { total: 工资成本, breakdown: 明细 }
@@ -482,26 +493,26 @@ export function calculateOverseasProfit(investment, targetNation, playerResource
 function calculateVassalWageCost(building, nation) {
     if (!building.jobs) return { total: 0, breakdown: [] };
 
-    // 从附庸政策获取劳工工资修正 (核心新逻辑)
+    // 从附庸政策获取劳工工资修正
     const laborPolicy = nation?.vassalPolicy?.labor || 'standard';
-    // 动态导入避免循环依赖，使用内联默认值
     const laborWageMultiplier = getLaborPolicyWageMultiplier(laborPolicy);
-
-    // 生活水平乘数 (保留以备未来扩展)
-    const LIVING_STANDARD_MULTIPLIER = 1.0;
 
     let totalWage = 0;
     const wageBreakdown = [];
     const marketPrices = nation.market?.prices || nation.prices || {};
 
     Object.entries(building.jobs).forEach(([stratumId, count]) => {
-        // [FIX] 排除拥有者自己给自己发工资的情况
-        if (building.owner && stratumId === building.owner) return;
+        // [Overseas Logic] In overseas investments, the 'owner' in building config is irrelevant.
+        // The investor (player) pays wages to ALL local workers defined in jobs.
+        // So we do NOT skip building.owner here.
 
         const stratumConfig = STRATA[stratumId];
-        if (!stratumConfig) return;
+        if (!stratumConfig) {
+            console.log(`[Overseas] Missing stratum config for ${stratumId}. STRATA keys: ${Object.keys(STRATA || {})}`);
+            return;
+        }
 
-        // 计算该阶层的生存成本 (Subsistence Cost)
+        // 1. 计算生存成本 (Subsistence Cost)
         let subsistenceCost = 0;
         if (stratumConfig.needs) {
             Object.entries(stratumConfig.needs).forEach(([resKey, amount]) => {
@@ -510,8 +521,38 @@ function calculateVassalWageCost(building, nation) {
             });
         }
 
-        // 单人日工资 = 生存成本 * 生活水平 * 劳工政策修正
-        const wagePerWorker = subsistenceCost * LIVING_STANDARD_MULTIPLIER * laborWageMultiplier;
+        // 2. 确定期望工资基准
+        // 正常情况下，工资应足以维持期望的 SoL (Standard of Living)
+        // Wage = Subsistence * Expected_SoL
+        const expectedSoL = STRATUM_EXPECTATIONS[stratumId] || 1.0;
+        const baseWage = subsistenceCost * expectedSoL;
+
+        // 3. 计算劳动力供需因子
+        // 如果该阶层人口稀少，工资上涨
+        let supplyFactor = 1.0;
+        if (nation.socialStructure && nation.socialStructure[stratumId]) {
+            const stratumPop = nation.socialStructure[stratumId].population || 1000;
+            // 简单模型：如果需求(count)占总人口比例过高，成本指数上升
+            // 假设该建筑只占总需求的很小一部分，但我们需要一个能够反映"该国劳动力充裕度"的指标
+            // 如果人口很少 (e.g. < 500)，供应紧张，工资上涨
+            if (stratumPop < 500) {
+                supplyFactor = 1.5;
+            } else if (stratumPop > 10000) {
+                supplyFactor = 0.8; // 劳动力过剩，工资降低
+            }
+
+            // 如果该阶层当前生活水平很高，他们可能要求更高工资？
+            // 或者：如果当前生活水平低，他们愿意接受低工资？
+            // 经济学上：工资决定生活水平。但在博弈中，已有生活水平高的群体议价能力强。
+            const currentSoL = nation.socialStructure[stratumId].sol || 1.0;
+            if (currentSoL > expectedSoL) {
+                supplyFactor *= 1.1; // 议价能力强
+            }
+        }
+
+        // 4. 综合计算单人日工资
+        // Final Wage = Base * Supply * Policy
+        const wagePerWorker = baseWage * supplyFactor * laborWageMultiplier;
         const totalStratumWage = count * wagePerWorker;
 
         totalWage += totalStratumWage;
@@ -522,6 +563,8 @@ function calculateVassalWageCost(building, nation) {
             total: totalStratumWage,
             laborPolicy,
             laborMultiplier: laborWageMultiplier,
+            baseWage,
+            supplyFactor
         });
     });
 

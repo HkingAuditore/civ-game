@@ -3,9 +3,9 @@
  * 定义官员效果、姓名库及生成逻辑
  */
 
-import { STRATA } from './strata';
-import { RESOURCES } from './gameConstants';
-import { assignPoliticalStance, getStanceInfo } from './politicalStances';
+import { STRATA } from './strata.js';
+import { RESOURCES } from './gameConstants.js';
+import { assignPoliticalStance, getStanceInfo } from './politicalStances.js';
 
 // ========== 效果类型定义 ==========
 // 设计原则：每种效果类型都应该能显著影响玩家的游戏风格和决策

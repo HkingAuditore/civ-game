@@ -3,8 +3,8 @@
  * Contains utility functions used across the simulation system
  */
 
-import { RESOURCES } from '../../config';
-import { SPECIAL_TRADE_RESOURCES, PRICE_FLOOR } from './constants';
+import { RESOURCES, TECHS } from '../../config/index.js';
+import { PRICE_FLOOR, ROLE_PRIORITY } from './constants.js';
 
 /**
  * Clamp a value between min and max

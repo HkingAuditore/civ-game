@@ -1,7 +1,7 @@
 // 叛乱事件系统
 // 当阶层长期不满且拥有较大影响力时，可能发动叛乱
 
-import { STRATA } from '../strata';
+import { STRATA } from '../strata.js';
 
 // 叛乱阶段枚举
 export const REBELLION_PHASE = {

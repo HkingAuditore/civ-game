@@ -4,7 +4,7 @@
  * 注意：条件数值在分配立场时动态生成
  */
 
-import { STRATA } from './strata';
+import { STRATA } from './strata.js';
 
 // ========== 政治议题定义 ==========
 export const POLITICAL_ISSUES = {
