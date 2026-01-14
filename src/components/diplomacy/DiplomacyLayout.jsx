@@ -37,13 +37,12 @@ const DiplomacyLayout = ({
     onDiplomaticAction,
     onNegotiate,
     onManageTrade,
-    onManageForeignInvestment,
+    onManageInternationalEconomy,
     onDeclareWar,
     onProvoke,
 
     // Sub-Actions Handlers
     onOverseasInvestment,
-    onShowOverseasOverview,
     merchantState,
     onMerchantStateChange,
 
@@ -135,11 +134,8 @@ const DiplomacyLayout = ({
                         <Button size="sm" variant="secondary" onClick={onManageTrade}>
                             商人派驻
                         </Button>
-                        <Button size="sm" variant="secondary" onClick={onShowOverseasOverview}>
-                            海外投资总览
-                        </Button>
-                        <Button size="sm" variant="secondary" onClick={onManageForeignInvestment}>
-                            外资管理
+                        <Button size="sm" variant="secondary" onClick={onManageInternationalEconomy}>
+                            国际经济概览
                         </Button>
                         <Button size="sm" variant="secondary" onClick={handleOpenVassalOverview}>
                             <Icon name="Crown" size={14} className="mr-1" />
