@@ -22,6 +22,8 @@ import { processVassalUpdates } from './vassalSystem.js';
 import {
     AI_ECONOMY_CONFIG,
     getSocialStructureTemplate,
+    TREATY_CONFIGS,
+    TREATY_TYPE_LABELS,
 } from '../../config/diplomacy.js';
 
 // ========== AI国家经济数据初始化与更新 ==========
@@ -345,6 +347,13 @@ export const updateNations = ({
             epoch,
             res,
             stabilityValue,
+            logs
+        });
+
+        // Check treaty stability
+        checkTreatyStability({
+            nation: next,
+            tick,
             logs
         });
 
@@ -751,6 +760,68 @@ const checkWarDeclaration = ({ nation, nations, tick, epoch, res, stabilityValue
             logs.push(`WAR_DECLARATION_EVENT:${JSON.stringify({ nationId: nation.id, nationName: nation.name, reason: 'wealth' })}`);
         }
     }
+};
+
+/**
+ * Check treaty stability based on relations
+ * @private
+ */
+const checkTreatyStability = ({ nation, tick, logs }) => {
+    if (!nation.treaties || nation.treaties.length === 0) return;
+
+    const currentRelation = nation.relation || 50;
+    // Filter active treaties that are with the player
+    const activeTreaties = nation.treaties.filter(t =>
+        (t.status === 'active' || (!t.status && (t.endDay == null || t.endDay > tick))) &&
+        t.withPlayer !== false
+    );
+
+    let treatiesChanged = false;
+
+    activeTreaties.forEach(treaty => {
+        const config = TREATY_CONFIGS[treaty.type];
+        if (!config) return;
+
+        const minRelation = config.minRelation || 0;
+
+        // If relation is below threshold
+        if (currentRelation < minRelation) {
+            // Initialize or increment instability counter
+            treaty.instability = (treaty.instability || 0) + 1;
+
+            // Warning threshold (e.g., 10 days of low relation)
+            if (treaty.instability === 10) {
+                const treatyName = TREATY_TYPE_LABELS[treaty.type] || treaty.type;
+                logs.push(`⚠️ 与 ${nation.name} 的关系恶化，${treatyName}岌岌可危！`);
+            }
+
+            // Termination threshold (e.g., 30 days)
+            if (treaty.instability >= 30) {
+                const treatyName = TREATY_TYPE_LABELS[treaty.type] || treaty.type;
+
+                // Terminate treaty
+                treaty.status = 'terminated';
+                treaty.endDay = tick; // End immediately
+                treaty.instability = 0;
+                treatiesChanged = true;
+
+                logs.push(`❌ 由于关系长期恶化，与 ${nation.name} 的 ${treatyName} 已自动终止。`);
+
+                // Add specific logic for investment pact termination if needed (e.g., notification event)
+            }
+        } else {
+            // Recover stability if relation is good
+            if (treaty.instability > 0) {
+                treaty.instability = Math.max(0, treaty.instability - 1);
+                if (treaty.instability === 0) {
+                    // Recovered
+                }
+            }
+        }
+    });
+
+    // If any treaty was terminated, we might need to trigger cleanup or side effects elsewhere,
+    // but usually checking status='active' is enough for other systems.
 };
 
 /**

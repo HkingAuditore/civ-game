@@ -405,8 +405,8 @@ export function calculateOverseasProfit(investment, targetNation, playerResource
     const transportRate = OVERSEAS_INVESTMENT_CONFIGS.config.transportCostRate;
 
     // 价格获取器
-    const getNationPrice = (res) => (targetNation.market?.prices || {})[res] || (targetNation.prices || {})[res] || playerMarketPrices[res] || getBasePrice(res);
-    const getHomePrice = (res) => playerMarketPrices[res] || getBasePrice(res);
+    const getNationPrice = (res) => (targetNation.market?.prices || {})[res] ?? (targetNation.prices || {})[res] ?? playerMarketPrices[res] ?? getBasePrice(res);
+    const getHomePrice = (res) => playerMarketPrices[res] ?? getBasePrice(res);
 
     // 库存获取器
     const getNationInventory = (res, amount) => {
@@ -748,7 +748,7 @@ export function processOverseasInvestments({
         }
 
         // 计算利润汇回 (Strict Rules Logic)
-        let targetTaxRate = 0.25; // 默认：无协议时，除非是贸易站否则不能投资，若能投资则税率默认 25%
+        let targetTaxRate = 0.60; // 默认：无协议时的惩罚性税率 (60%)
 
         const isVassal = targetNation.vassalOf === 'player';
         const hasTreaty = hasActiveTreaty(targetNation, 'investment_pact', daysElapsed);
@@ -764,8 +764,8 @@ export function processOverseasInvestments({
             // 3. 投资协定 (Standard Pact): 固定 25% 税率 (硬性规定)
             targetTaxRate = 0.25;
         } else {
-            // 4. 无条约: 默认 25% (或更高，暂定 25% 以保持一致)
-            targetTaxRate = 0.25;
+            // 4. 无条约 (关系恶化导致协定终止): 惩罚性税率 60%
+            targetTaxRate = 0.60;
         }
 
         const taxPaid = profitResult.profit * targetTaxRate;
@@ -787,12 +787,31 @@ export function processOverseasInvestments({
             profitHistory.shift();
         }
 
+        // 自动撤资逻辑 (Autonomous Divestment)
+        // 如果连续亏损或无利可图超过一定天数，自动拆除建筑
+        // 净利润 (repatriatedProfit) <= 0 视为无利可图
+        const isUnprofitable = repatriatedProfit <= 0;
+        const consecutiveLossDays = isUnprofitable ? (updated.operatingData?.consecutiveLossDays || 0) + 1 : 0;
+
+        // 撤资阈值：30天连续无利可图
+        if (consecutiveLossDays > 30) {
+            logs.push(`📉 由于长期入不敷出（${targetTaxRate * 100}% 税率/低利润），${STRATA[updated.ownerStratum]?.name || '业主'}决定出售在 ${targetNation.name} 的 ${BUILDINGS.find(b=>b.id===updated.buildingId)?.name}。`);
+            // 投资被移除（不加入 updatedInvestments），返还少量残值（例如 10% 初始投资）
+            // 假设残值直接汇入阶层财富 (在 processOverseasInvestments 外部处理不容易，这里直接加到 profitByStratum 模拟一次性收入)
+            const salvageValue = (updated.investmentAmount || 0) * 0.1;
+            profitByStratum[updated.ownerStratum] = (profitByStratum[updated.ownerStratum] || 0) + salvageValue;
+
+            // Skip adding to updatedInvestments -> Effectively removed
+            return;
+        }
+
         updated.operatingData = {
             ...updated.operatingData,
             ...profitResult,
             repatriatedProfit,
             retainedProfit,
             profitHistory,
+            consecutiveLossDays, // Update counter
         };
 
         // 累加利润
@@ -1057,25 +1076,23 @@ export function processForeignInvestments({
         const dailyProfit = profitResult.profit || 0;
 
         // 计算税收 (Strict Rules Logic for Foreign Investment)
-        // 双方都是，玩家也调不了 -> 这里的 policyConfig 可能被覆盖
-        let effectiveTaxRate = policyConfig.taxRate;
+        let effectiveTaxRate = 0.60; // 默认惩罚性税率 60%
         const isVassal = ownerNation && ownerNation.vassalOf === 'player';
         const hasTreaty = ownerNation ? hasActiveTreaty(ownerNation, 'investment_pact', daysElapsed) : false;
         const inBloc = isInSameBloc(ownerNation, organizations);
 
         if (isVassal) {
             // 附庸国在宗主国投资：宗主国通常可以收税
-            // 用户说"双方都是，玩家也调不了" 通常指 25% 条约税
-            // 如果附庸在Bloc里，10%
-            // 否则 25% (Vassal implies pact-like relation)
             effectiveTaxRate = 0.25;
             if (inBloc) effectiveTaxRate = 0.10;
         } else if (inBloc) {
             effectiveTaxRate = 0.10;
         } else if (hasTreaty) {
             effectiveTaxRate = 0.25;
+        } else {
+            // 无条约：惩罚性税率 60%
+            effectiveTaxRate = 0.60;
         }
-        // 如果无条约，使用 policyConfig.taxRate (默认或玩家设置) 或默认25%如果投资已存在
 
         const taxAmount = dailyProfit > 0 ? dailyProfit * effectiveTaxRate : 0;
         const profitAfterTax = dailyProfit > 0 ? dailyProfit * (1 - effectiveTaxRate) : 0;
@@ -1083,11 +1100,21 @@ export function processForeignInvestments({
         totalTaxRevenue += taxAmount;
         totalProfitOutflow += profitAfterTax;
 
-        // 记录市场变化 (localResourceChanges 指的是 TargetNation 即 Player 的变化)
+        // 记录市场变化
         if (profitResult.localResourceChanges) {
             Object.entries(profitResult.localResourceChanges).forEach(([res, delta]) => {
                 marketChanges[res] = (marketChanges[res] || 0) + delta;
             });
+        }
+
+        // 自动撤资逻辑 (Autonomous Divestment for Foreign Investors)
+        const isUnprofitable = profitAfterTax <= 0;
+        const consecutiveLossDays = isUnprofitable ? (investment.operatingData?.consecutiveLossDays || 0) + 1 : 0;
+
+        if (consecutiveLossDays > 30) {
+            logs.push(`📉 ${ownerNation?.name || '外资'} 因长期亏损，撤出了在我国的 ${building.name} 投资。`);
+            // Investment removed
+            return;
         }
 
         // 计算岗位数
@@ -1102,6 +1129,7 @@ export function processForeignInvestments({
                 ...profitResult, // 包含 decisions, inputCost, outputValue 等
                 taxPaid: taxAmount,
                 profitRepatriated: profitAfterTax,
+                consecutiveLossDays, // Update counter
             },
         });
     });
