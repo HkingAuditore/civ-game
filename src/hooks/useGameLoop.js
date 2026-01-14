@@ -871,6 +871,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
         setFiscalActual, // [NEW] realized fiscal numbers per tick
         overseasInvestments, // 海外投资列表
         setOverseasInvestments, // 海外投资更新函数
+        foreignInvestments, // [NEW] 用于 simulation 计算
     } = gameState;
 
     // 使用ref保存最新状态，避免闭包问题
