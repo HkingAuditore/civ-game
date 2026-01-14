@@ -1602,18 +1602,18 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 console.log('💵 实际净变化:', netTreasuryChange.toFixed(2), '银币');
 
                 // === 显示simulation中的银币变化追踪 ===
-                if (result._debug?.silverChangeLog && result._debug.silverChangeLog.length > 0) {
-                    console.group('🔍 银币变化详细追踪（simulation内部）');
-                    console.log('  起始余额:', (result._debug.startingSilver || 0).toFixed(2), '银币');
-                    result._debug.silverChangeLog.forEach((log, index) => {
-                        const sign = log.amount >= 0 ? '+' : '';
-                        console.log(`  ${index + 1}. ${log.reason}: ${sign}${log.amount.toFixed(2)} 银币 (余额: ${log.balance.toFixed(2)})`);
-                    });
-                    console.log('  结束余额:', (result._debug.endingSilver || 0).toFixed(2), '银币');
-                    const simulationChange = (result._debug.endingSilver || 0) - (result._debug.startingSilver || 0);
-                    console.log('  💰 Simulation净变化:', simulationChange.toFixed(2), '银币');
-                    console.groupEnd();
-                }
+                // if (result._debug?.silverChangeLog && result._debug.silverChangeLog.length > 0) {
+                //     console.group('🔍 银币变化详细追踪（simulation内部）');
+                //     console.log('  起始余额:', (result._debug.startingSilver || 0).toFixed(2), '银币');
+                //     result._debug.silverChangeLog.forEach((log, index) => {
+                //         const sign = log.amount >= 0 ? '+' : '';
+                //         console.log(`  ${index + 1}. ${log.reason}: ${sign}${log.amount.toFixed(2)} 银币 (余额: ${log.balance.toFixed(2)})`);
+                //     });
+                //     console.log('  结束余额:', (result._debug.endingSilver || 0).toFixed(2), '银币');
+                //     const simulationChange = (result._debug.endingSilver || 0) - (result._debug.startingSilver || 0);
+                //     console.log('  💰 Simulation净变化:', simulationChange.toFixed(2), '银币');
+                //     console.groupEnd();
+                // }
 
                 // === useGameLoop本地扣除（simulation之后）===
                 const useGameLoopDeductions = [];
@@ -1814,8 +1814,11 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             }
                         }
 
-                        // 3. 自主投资逻辑 (5% probability daily)
-                        if (Math.random() < 0.05) {
+                // 3. 自主投资逻辑 (5% probability daily)
+                        const autoInvestRoll = Math.random();
+                        console.log(`🤖 [AUTO-INVEST] 自动投资检查: roll=${autoInvestRoll.toFixed(3)}, threshold=0.05, trigger=${autoInvestRoll < 0.05}`);
+                        if (autoInvestRoll < 0.05) {
+                            console.log(`🤖 [AUTO-INVEST] 触发自动投资逻辑...`);
                             import('../logic/diplomacy/autonomousInvestment').then(({ processClassAutonomousInvestment }) => {
                                 const result = processClassAutonomousInvestment({
                                     nations: current.nations || [],

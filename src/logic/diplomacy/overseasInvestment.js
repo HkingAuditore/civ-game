@@ -82,44 +82,58 @@ export const OVERSEAS_BUILDING_CATEGORIES = {
 /**
  * 所有可海外投资的建筑ID列表（静态引用）
  */
-export const INVESTABLE_BUILDINGS = [
-    'farm', 'mine', 'logging_camp', 'plantation', 'fishery',
-    'distillery', 'furniture_factory', 'textile_mill', 'steel_mill', 'paper_mill', 'shipyard', 'arms_factory',
-    'market', 'bank', 'stock_exchange'
-];
+// [DYNAMIC] No hardcoded building list - buildings are filtered dynamically based on:
+// 1. Epoch unlock (player's current tech level)
+// 2. Building category (gather/industry for overseas)
+// 3. Employment relationship (owner must hire different strata)
 
 /**
- * 获取可在海外投资的建筑列表
+ * 获取可在海外投资的建筑列表（动态计算）
+ * 
+ * 核心逻辑：
+ * 1. 根据玩家当前时代（epoch）过滤已解锁的建筑
+ * 2. 根据访问类型（accessType）过滤允许的建筑类别
+ * 3. 只返回有雇佣关系的建筑（jobs中有不同于owner的阶层）
+ * 4. 如果指定了ownerStratum，只返回该阶层可以作为业主的建筑
+ * 
  * @param {string} accessType - 'colony' | 'vassal' | 'treaty'
- * @param {string} ownerStratum - 业主阶层 (可选，用于过滤)
+ * @param {string} ownerStratum - 业主阶层 (可选，用于过滤该阶层可投资的建筑)
  * @param {number} epoch - 当前时代
- * @returns {Array} - 可投资建筑ID列表
+ * @param {Object|null} unlockedTechs - 已解锁的科技 (null=跳过科技检查)
+ * @returns {Array} - 可投资建筑对象列表 (返回完整building对象，不只是id)
  */
-export function getInvestableBuildings(accessType = 'treaty', ownerStratum = null, epoch = 0) {
+export function getInvestableBuildings(accessType = 'treaty', ownerStratum = null, epoch = 0, unlockedTechs = null) {
     const allowedCategories = OVERSEAS_BUILDING_CATEGORIES[accessType] || ['gather', 'industry'];
 
     return BUILDINGS.filter(building => {
-        // 检查建筑类别
+        // 1. Check building category (gather/industry for overseas)
         if (!allowedCategories.includes(building.cat)) return false;
 
-        // 检查时代解锁
+        // 2. Check epoch unlock
         if ((building.epoch || 0) > epoch) return false;
 
-        // 如果指定了阶层，检查建筑owner匹配
-        // 但也允许 capitalist 投资 industry 建筑
-        if (ownerStratum) {
-            const buildingOwner = building.owner || 'worker';
-            // 资本家可投资：工业建筑、采集建筑
-            if (ownerStratum === 'capitalist' && building.cat === 'industry') return true;
-            // 商人可投资：商业相关建筑
-            if (ownerStratum === 'merchant' && (buildingOwner === 'merchant' || building.cat === 'civic')) return true;
-            // 地主可投资：农业/采集建筑
-            if (ownerStratum === 'landowner' && (building.cat === 'gather' || buildingOwner === 'landowner')) return true;
+        // 3. Check tech requirement (if unlockedTechs provided)
+        if (building.requiresTech && unlockedTechs) {
+            if (!unlockedTechs[building.requiresTech]) return false;
         }
 
-        // 默认允许所有采集和工业建筑
+        // 4. Must have an owner defined (someone needs to own the business)
+        const buildingOwner = building.owner;
+        if (!buildingOwner) return false;
+
+        // 5. [CRITICAL] Must have employment relationship
+        // The building must hire workers from different strata than the owner
+        // This is the core requirement for overseas investment - exploiting foreign labor
+        const jobs = building.jobs || {};
+        const hasEmployees = Object.keys(jobs).some(jobStratum => jobStratum !== buildingOwner);
+        if (!hasEmployees) return false;
+
+        // 6. If ownerStratum specified, only show buildings where that stratum is the owner
+        // Any stratum that can be an owner can invest in their own buildings
+        if (ownerStratum && buildingOwner !== ownerStratum) return false;
+
         return true;
-    }).map(b => b.id);
+    });
 }
 
 

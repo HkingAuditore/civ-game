@@ -2129,6 +2129,7 @@ export const useGameState = () => {
         setTradeStats,
         diplomacyOrganizations,
         setDiplomacyOrganizations,
+        overseasInvestments,
         setOverseasInvestments,
         foreignInvestments,
         setForeignInvestments, // [FIX] Expose setter

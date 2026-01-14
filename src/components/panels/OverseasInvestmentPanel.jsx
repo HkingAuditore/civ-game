@@ -6,25 +6,20 @@
 import React, { useState, useMemo, memo } from 'react';
 import { BottomSheet } from '../tabs/BottomSheet';
 import { Icon } from '../common/UIComponents';
-import { BUILDINGS, RESOURCES } from '../../config';
+import { BUILDINGS, RESOURCES, STRATA } from '../../config';
 import { formatNumberShortCN } from '../../utils/numberFormat';
 import { InvestmentRow } from './InvestmentRow';
 import {
     OVERSEAS_INVESTMENT_CONFIGS,
-    INVESTABLE_BUILDINGS,
     INVESTMENT_STRATEGIES,
     getInvestmentsInNation,
     calculateOverseasInvestmentSummary,
     OVERSEAS_BUILDING_CATEGORIES,
+    getInvestableBuildings,
     compareLaborCost,
 } from '../../logic/diplomacy/overseasInvestment';
 
-// Stratum Configuration
-const STRATUM_CONFIG = {
-    capitalist: { name: '资本家', icon: '🏭', color: 'text-purple-400', categories: ['gather', 'industry'] },
-    merchant: { name: '商人', icon: '⚖️', color: 'text-amber-400', categories: ['industry'] },
-    landowner: { name: '地主', icon: '🌾', color: 'text-green-400', categories: ['gather'] },
-};
+// No hardcoded stratum list - dynamically computed from available buildings
 
 /**
  * Overseas Investment Management Panel
@@ -41,12 +36,59 @@ export const OverseasInvestmentPanel = memo(({
     onWithdraw,
     onConfigChange,
     playerNation,
+    unlockedTechs = null,
 }) => {
     const [expandedCard, setExpandedCard] = useState(null);
-    const [selectedStratum, setSelectedStratum] = useState('capitalist');
+    const [selectedStratumOverride, setSelectedStratumOverride] = useState(null);
     const [selectedStrategy, setSelectedStrategy] = useState('PROFIT_MAX');
     const [showNewInvestment, setShowNewInvestment] = useState(true);
-    const [investFeedback, setInvestFeedback] = useState(null); // { buildingId, message, type }
+    const [investFeedback, setInvestFeedback] = useState(null);
+
+    // Determine access type based on nation relationship
+    const accessType = useMemo(() => {
+        if (!targetNation) return 'treaty';
+        const isVassal = targetNation.vassalOf === 'player';
+        return isVassal ? 'vassal' : 'treaty';
+    }, [targetNation]);
+
+    // Get all investable buildings first (without stratum filter)
+    // This gives us the list of buildings and their owners dynamically
+    const allInvestableBuildings = useMemo(() => {
+        return getInvestableBuildings(accessType, null, epoch, unlockedTechs);
+    }, [accessType, epoch, unlockedTechs]);
+
+    // Dynamically compute which strata can invest (based on buildings that have them as owner)
+    const investableStrata = useMemo(() => {
+        const strataSet = new Set();
+        allInvestableBuildings.forEach(b => {
+            if (b.owner) strataSet.add(b.owner);
+        });
+        // Convert to array with config from STRATA
+        return Array.from(strataSet).map(stratumId => ({
+            id: stratumId,
+            name: STRATA[stratumId]?.name || stratumId,
+            icon: STRATA[stratumId]?.icon || '👤',
+            color: STRATA[stratumId]?.color || 'text-gray-400',
+        })).sort((a, b) => {
+            // Sort by common investment strata first
+            const order = ['capitalist', 'landowner', 'merchant'];
+            return (order.indexOf(a.id) === -1 ? 999 : order.indexOf(a.id)) - 
+                   (order.indexOf(b.id) === -1 ? 999 : order.indexOf(b.id));
+        });
+    }, [allInvestableBuildings]);
+
+    // Selected stratum: use override if set, otherwise first available
+    const selectedStratum = useMemo(() => {
+        if (selectedStratumOverride && investableStrata.find(s => s.id === selectedStratumOverride)) {
+            return selectedStratumOverride;
+        }
+        return investableStrata[0]?.id || 'capitalist';
+    }, [selectedStratumOverride, investableStrata]);
+
+    // Get buildings for the selected stratum
+    const availableBuildings = useMemo(() => {
+        return getInvestableBuildings(accessType, selectedStratum, epoch, unlockedTechs);
+    }, [accessType, selectedStratum, epoch, unlockedTechs]);
 
     // Group current investments by building type
     const groupedInvestments = useMemo(() => {
@@ -75,42 +117,27 @@ export const OverseasInvestmentPanel = memo(({
         return Object.values(groups);
     }, [overseasInvestments, targetNation]);
 
-    // Calculate investable buildings
-    const availableBuildings = useMemo(() => {
-        if (!targetNation) return [];
-
-        // Filter by stratum categories
-        const allowedCategories = STRATUM_CONFIG[selectedStratum]?.categories || [];
-
-        return INVESTABLE_BUILDINGS.filter(bId => {
-            const building = BUILDINGS.find(b => b.id === bId);
-            if (!building) return false;
-
-            // Simple owner match or category fallback
-            if (building.owner === selectedStratum) return true;
-
-            // Fallback: check categories (mostly for legacy or multi-class buildings)
-            const category = building.cat || building.category || 'industry';
-            if (allowedCategories.includes(category)) return true;
-
-            return false;
-
-            // Tech condition (simple check: if epoch requirement is met)
-            // Assuming simplified condition for now as full tech tree availability might not be passed
-            return true;
-        }).map(bId => BUILDINGS.find(b => b.id === bId));
-    }, [targetNation, selectedStratum]);
-
     const handleInvest = (buildingId) => {
+        console.log('🟢🟢🟢 [INVEST-CLICK] handleInvest 被调用:', {
+            buildingId,
+            targetNationId: targetNation?.id,
+            selectedStratum,
+            selectedStrategy,
+            onInvestExists: !!onInvest
+        });
         if (onInvest) {
+            console.log('🟢🟢🟢 [INVEST-CLICK] 调用 onInvest 回调...');
             onInvest(targetNation.id, buildingId, selectedStratum, selectedStrategy);
             // Show temporary feedback (mock) or rely on parent update
             setInvestFeedback({ buildingId, message: '投资建立中...', type: 'success' });
             setTimeout(() => setInvestFeedback(null), 2000);
+        } else {
+            console.error('🔴🔴🔴 [INVEST-CLICK] onInvest 回调不存在！');
         }
     };
 
     const stratumWealth = classWealth[selectedStratum] || 0;
+    const selectedStratumConfig = investableStrata.find(s => s.id === selectedStratum) || { name: selectedStratum, icon: '👤' };
 
     if (!isOpen || !targetNation) return null;
 
@@ -121,7 +148,7 @@ export const OverseasInvestmentPanel = memo(({
                 <div className="bg-gray-800/50 rounded-lg p-3 flex justify-between items-center border border-gray-700/50">
                     <div className="text-xs text-gray-400">可用投资资金</div>
                     <div className="font-bold text-amber-400 text-lg flex items-center gap-2">
-                        <span>{STRATUM_CONFIG[selectedStratum]?.icon}</span>
+                        <span>{selectedStratumConfig.icon}</span>
                         {formatNumberShortCN(stratumWealth)}
                     </div>
                 </div>
@@ -173,21 +200,21 @@ export const OverseasInvestmentPanel = memo(({
                         <div className="mt-3 space-y-3">
                             {/* 阶层选择 */}
                             <div>
-                                <div className="text-[10px] text-gray-400 mb-1.5">选择投资阶层:</div>
-                                <div className="flex gap-1">
-                                    {Object.entries(STRATUM_CONFIG).map(([stratumId, config]) => {
-                                        const wealth = classWealth[stratumId] || 0;
-                                        const isSelected = selectedStratum === stratumId;
+                                <div className="text-[10px] text-gray-400 mb-1.5">选择投资阶层 ({investableStrata.length}个可投资):</div>
+                                <div className="flex gap-1 flex-wrap">
+                                    {investableStrata.map((stratum) => {
+                                        const wealth = classWealth[stratum.id] || 0;
+                                        const isSelected = selectedStratum === stratum.id;
                                         return (
                                             <button
-                                                key={stratumId}
-                                                className={`flex-1 px-2 py-2 rounded-lg text-[11px] transition-all ${isSelected
+                                                key={stratum.id}
+                                                className={`flex-1 min-w-[80px] px-2 py-2 rounded-lg text-[11px] transition-all ${isSelected
                                                     ? 'bg-amber-600 text-white border border-amber-500'
                                                     : 'bg-gray-700/50 text-gray-300 hover:bg-gray-600/50 border border-gray-600/50'
                                                     }`}
-                                                onClick={() => setSelectedStratum(stratumId)}
+                                                onClick={() => setSelectedStratumOverride(stratum.id)}
                                             >
-                                                <div>{config.icon} {config.name}</div>
+                                                <div>{stratum.icon} {stratum.name}</div>
                                                 <div className="text-[9px] opacity-70 mt-0.5">
                                                     财富: {formatNumberShortCN(wealth)}
                                                 </div>
@@ -231,6 +258,9 @@ export const OverseasInvestmentPanel = memo(({
                                         const cost = Object.values(building.cost || building.baseCost || {}).reduce((sum, v) => sum + v, 0) * 1.5; // Estimated overseas cost factor
                                         const canAfford = stratumWealth >= cost;
 
+                                        // Debug log
+                                        console.log(`🏗️ [BUILDING-RENDER] ${building.name}: cost=${cost}, stratumWealth=${stratumWealth}, canAfford=${canAfford}`);
+
                                         // Labor Analysis Preview
                                         const laborAnalysis = targetNation && playerNation ? compareLaborCost(building.id, playerNation, targetNation) : null;
 
@@ -245,7 +275,14 @@ export const OverseasInvestmentPanel = memo(({
                                                     ? 'bg-gray-800/60 border-gray-700 hover:bg-gray-700 hover:border-gray-600'
                                                     : 'bg-gray-800/30 border-gray-800 opacity-50 cursor-not-allowed'
                                                     }`}
-                                                onClick={() => handleInvest(building.id)}
+                                                style={{ position: 'relative', zIndex: 9999 }}
+                                                onMouseDown={(e) => console.log('🟡 [MOUSE-DOWN]', building.id)}
+                                                onMouseUp={(e) => console.log('🟠 [MOUSE-UP]', building.id)}
+                                                onClick={(e) => {
+                                                    console.log('🔵🔵🔵 [BUTTON-CLICK] 按钮被点击!', building.id, 'canAfford:', canAfford, 'disabled:', !canAfford);
+                                                    e.stopPropagation();
+                                                    handleInvest(building.id);
+                                                }}
                                             >
                                                 <div className="flex items-center justify-between mb-2">
                                                     <div className="flex items-center gap-2">

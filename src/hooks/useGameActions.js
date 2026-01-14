@@ -3933,12 +3933,31 @@ export const useGameActions = (gameState, addLog) => {
                 const targetNationId = payload?.targetNation?.id || payload?.targetNationId || nationId;
                 const targetNation = nations.find(n => n.id === targetNationId);
 
+                console.log('🔴🔴🔴 [INVEST-DEBUG] 收到投资请求:', {
+                    nationId,
+                    targetNationId,
+                    targetNationFound: !!targetNation,
+                    targetNationName: targetNation?.name,
+                    buildingId,
+                    ownerStratum,
+                    strategy,
+                    nationsCount: nations.length,
+                    nationIds: nations.map(n => n.id),
+                });
+
                 if (!targetNation || !buildingId) {
-                    addLog('建立海外投资失败：参数不完整');
+                    addLog(`建立海外投资失败：参数不完整 (targetNationId=${targetNationId}, buildingId=${buildingId})`);
                     break;
                 }
 
                 import('../logic/diplomacy/overseasInvestment').then(({ establishOverseasInvestment }) => {
+                    console.log('🔴🔴🔴 [INVEST-DEBUG] 调用 establishOverseasInvestment:', {
+                        targetNation: { id: targetNation.id, name: targetNation.name, vassalOf: targetNation.vassalOf },
+                        buildingId,
+                        ownerStratum: ownerStratum || 'capitalist',
+                        classWealth,
+                    });
+
                     const result = establishOverseasInvestment({
                         targetNation,
                         buildingId,
@@ -3949,9 +3968,18 @@ export const useGameActions = (gameState, addLog) => {
                         daysElapsed,
                     });
 
+                    console.log('🔴🔴🔴 [INVEST-DEBUG] 投资结果:', result);
+
                     if (result.success) {
                         // 更新海外投资列表
-                        setOverseasInvestments(prev => [...prev, result.investment]);
+                        console.log('🔴🔴🔴 [INVEST-DEBUG] 准备调用 setOverseasInvestments, investment:', result.investment);
+                        console.log('🔴🔴🔴 [INVEST-DEBUG] setOverseasInvestments 函数存在?', typeof setOverseasInvestments);
+                        setOverseasInvestments(prev => {
+                            console.log('🔴🔴🔴 [INVEST-DEBUG] setOverseasInvestments 被调用! prev:', prev, 'adding:', result.investment);
+                            const newList = [...prev, result.investment];
+                            console.log('🔴🔴🔴 [INVEST-DEBUG] 新列表:', newList);
+                            return newList;
+                        });
                         // 扣除业主阶层财富
                         setClassWealth(prev => ({
                             ...prev,
