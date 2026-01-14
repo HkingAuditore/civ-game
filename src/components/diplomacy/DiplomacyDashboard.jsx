@@ -33,6 +33,7 @@ const DiplomacyDashboard = ({
     overseasInvestments,
     market,
     daysElapsed,
+    tradeOpportunities = { exports: [], imports: [] }, // [NEW] Backend-driven
     onDiplomaticAction,
     onViewOrganization,
 }) => {
@@ -79,53 +80,6 @@ const DiplomacyDashboard = ({
 
         return { expensive, cheap };
     }, [market, epoch]);
-
-    const tradeOpportunities = useMemo(() => {
-        const tradables = getTradableResources(epoch);
-        const localPrices = market?.prices || {};
-        const activePartners = visibleNations.filter((n) => !n.isAtWar);
-        const exportOps = [];
-        const importOps = [];
-
-        // Optimize: Limit check to first 10 relevant partners if list is huge
-        const partnersToCheck = activePartners.slice(0, 15);
-
-        partnersToCheck.forEach((nation) => {
-            tradables.forEach(([resourceKey, res]) => {
-                const localPrice = localPrices[resourceKey] ?? res.basePrice ?? 1;
-                const foreignPrice = calculateForeignPrice(resourceKey, nation, daysElapsed);
-                const status = calculateTradeStatus(resourceKey, nation, daysElapsed);
-
-                if (foreignPrice > localPrice && status.shortageAmount > 0) {
-                    exportOps.push({
-                        nationId: nation.id,
-                        nationName: nation.name,
-                        resourceName: res.name || resourceKey,
-                        diff: foreignPrice - localPrice,
-                        score: (foreignPrice - localPrice) * status.shortageAmount,
-                    });
-                }
-
-                if (foreignPrice < localPrice && status.surplusAmount > 0) {
-                    importOps.push({
-                        nationId: nation.id,
-                        nationName: nation.name,
-                        resourceName: res.name || resourceKey,
-                        diff: localPrice - foreignPrice,
-                        score: (localPrice - foreignPrice) * status.surplusAmount,
-                    });
-                }
-            });
-        });
-
-        exportOps.sort((a, b) => b.score - a.score);
-        importOps.sort((a, b) => b.score - a.score);
-
-        return {
-            exports: exportOps.slice(0, 4),
-            imports: importOps.slice(0, 4),
-        };
-    }, [visibleNations, market, epoch, daysElapsed]);
 
     return (
         <div className="p-6 h-full overflow-y-auto space-y-6 scrollbar-thin scrollbar-thumb-ancient-gold/20">

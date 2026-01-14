@@ -36,6 +36,7 @@ const DiplomacyTabComponent = ({
     daysElapsed = 0,
     onDiplomaticAction,
     tradeRoutes = { routes: [] },
+    tradeOpportunities = { exports: [], imports: [] },
     onTradeRouteAction,
     merchantState = { merchantAssignments: {} },
     onMerchantStateChange,
@@ -243,6 +244,7 @@ const DiplomacyTabComponent = ({
                 diplomacyOrganizations={diplomacyOrganizations}
                 overseasInvestments={overseasInvestments}
                 tradeRoutes={tradeRoutes}
+                tradeOpportunities={tradeOpportunities}
                 merchantState={merchantState}
                 onMerchantStateChange={(nationId, count) => {
                     if (onMerchantStateChange) {

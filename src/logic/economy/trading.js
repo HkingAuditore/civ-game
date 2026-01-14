@@ -224,6 +224,78 @@ const scoreExportCandidate = ({ resourceKey, partner, tick, getLocalPrice, res, 
 // --- Trade 2.0 end helpers ---------------------------------------------
 
 /**
+ * Analyze global trade opportunities for UI display
+ * Scans all visible nations and returns top export/import opportunities
+ */
+export const analyzeTradeOpportunities = ({
+    nations,
+    res,
+    supply,
+    demand,
+    market,
+    tick,
+    taxPolicies,
+    tradeConfig = DEFAULT_TRADE_CONFIG,
+    merchantTradePreferences = null
+}) => {
+    const opportunities = { exports: [], imports: [] };
+    const getLocalPrice = (k) => market?.prices?.[k];
+
+    // Tax rate helpers (simplified for analysis)
+    const resourceTaxRates = taxPolicies?.resourceTaxRates || {};
+    const importTariffMultipliers = taxPolicies?.importTariffMultipliers || taxPolicies?.resourceTariffMultipliers || {};
+    const getImportTaxRate = (resource) => {
+        const baseTaxRate = resourceTaxRates[resource] || 0;
+        const tariffRate = importTariffMultipliers[resource] ?? 0;
+        return baseTaxRate + tariffRate;
+    };
+
+    const tradableKeys = Object.keys(RESOURCES).filter(key => isTradableResource(key));
+    const allExports = [];
+    const allImports = [];
+
+    // Scan all visible nations
+    (nations || []).forEach(partner => {
+        if (!partner || partner.isAtWar) return;
+
+        tradableKeys.forEach(resourceKey => {
+            // Export check
+            const exp = scoreExportCandidate({
+                resourceKey,
+                partner,
+                tick,
+                getLocalPrice,
+                res,
+                supply,
+                tradeConfig,
+                merchantTradePreferences,
+            });
+            if (exp && exp.score > 0) allExports.push(exp);
+
+            // Import check
+            const imp = scoreImportCandidate({
+                resourceKey,
+                partner,
+                tick,
+                getLocalPrice,
+                res,
+                demand,
+                tradeConfig,
+                merchantTradePreferences,
+                getImportTaxRate,
+            });
+            if (imp && imp.score > 0) allImports.push(imp);
+        });
+    });
+
+    // Return top 10 of each
+    opportunities.exports = pickTopN(allExports, 10);
+    opportunities.imports = pickTopN(allImports, 10);
+
+    return opportunities;
+};
+
+/**
  * Simulate merchant trading for one tick
  * @param {Object} params - Trading parameters
  * @returns {Object} Updated merchant state

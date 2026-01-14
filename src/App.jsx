@@ -1327,6 +1327,7 @@ activeDecrees={gameState.activeDecrees}
                                                 daysElapsed={gameState.daysElapsed}
                                                 onDiplomaticAction={actions.handleDiplomaticAction}
                                                 tradeRoutes={gameState.tradeRoutes}
+                                                tradeOpportunities={gameState.tradeOpportunities} // [NEW] Backend-driven opportunities
                                                 onTradeRouteAction={actions.handleTradeRouteAction}
                                                 merchantState={gameState.merchantState}
                                                 onMerchantStateChange={gameState.setMerchantState}

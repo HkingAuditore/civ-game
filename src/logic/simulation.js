@@ -120,6 +120,7 @@ import {
     calculateFinalTaxes,
     // Trading functions
     simulateMerchantTrade,
+    analyzeTradeOpportunities,
 } from './economy';
 
 import {
@@ -289,6 +290,7 @@ export const simulateTick = ({
     previousTaxShock = {}, // [NEW] 上一tick各阶层的累积税收冲击值，用于防止"快速抬税后降税"的漏洞
     eventEffectSettings = {}, // [NEW] Event effect settings including log visibility
     foreignInvestments = [], // [NEW] Foreign investments for profit calculation
+    tradeOpportunities: previousTradeOpportunities = null, // [NEW] Cache for trade opportunities
 }) => {
     // console.log('[TICK START]', tick); // Commented for performance
     const res = { ...resources };
@@ -5889,8 +5891,23 @@ export const simulateTick = ({
         });
     }
 
+    // Trade Opportunities Analysis (Throttled: every 10 ticks)
+    const tradeOpportunities = (tick % 10 === 0)
+        ? analyzeTradeOpportunities({
+            nations: updatedNations,
+            res,
+            supply,
+            demand,
+            market: { prices: updatedPrices },
+            tick,
+            taxPolicies: policies,
+            merchantTradePreferences: updatedMerchantState.merchantTradePreferences
+        })
+        : previousTradeOpportunities;
+
     // console.log('[TICK END]', tick, 'militaryCapacity:', militaryCapacity); // Commented for performance
     return {
+        tradeOpportunities,
         resources: res,
         rates,
         popStructure,
