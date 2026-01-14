@@ -1681,7 +1681,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 // ========== 海外投资每日结算 ==========
                 // ========== 海外投资每日结算 ==========
                 if ((overseasInvestmentsRef.current && overseasInvestmentsRef.current.length > 0) || (current.foreignInvestments && current.foreignInvestments.length > 0)) {
-                    import('../logic/diplomacy/overseasInvestment').then(({ processOverseasInvestments, processForeignInvestments }) => {
+                    import('../logic/diplomacy/overseasInvestment').then(({ processOverseasInvestments, processForeignInvestments, processForeignInvestmentUpgrades, processOverseasInvestmentUpgrades }) => {
                         // 1. 处理我方在外投资
                         if (overseasInvestmentsRef.current && overseasInvestmentsRef.current.length > 0) {
                             const investmentResult = processOverseasInvestments({
@@ -1773,6 +1773,36 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                     return nextResources;
                                 });
                             }
+
+                            // 1.5 处理本国海外投资自动升级 (每日 3% 概率检查)
+                            const overseasUpgradeResult = processOverseasInvestmentUpgrades({
+                                overseasInvestments: investmentResult.updatedInvestments || overseasInvestmentsRef.current,
+                                nations: current.nations || [],
+                                classWealth: adjustedClassWealth,
+                                marketPrices: current.market?.prices || {},
+                                daysElapsed: current.daysElapsed || 0,
+                            });
+
+                            // 更新海外投资状态（如果有升级）
+                            if (overseasUpgradeResult.upgrades && overseasUpgradeResult.upgrades.length > 0) {
+                                setOverseasInvestments(overseasUpgradeResult.updatedInvestments);
+
+                                // 扣除业主阶层财富（升级成本）
+                                if (overseasUpgradeResult.wealthChanges) {
+                                    gameState.setClassWealth(prev => {
+                                        const updated = { ...prev };
+                                        Object.entries(overseasUpgradeResult.wealthChanges).forEach(([stratum, delta]) => {
+                                            updated[stratum] = Math.max(0, (updated[stratum] || 0) + delta);
+                                        });
+                                        return updated;
+                                    });
+                                }
+                            }
+
+                            // 升级日志
+                            if (overseasUpgradeResult.logs && overseasUpgradeResult.logs.length > 0) {
+                                overseasUpgradeResult.logs.forEach(log => addLog(log));
+                            }
                         }
 
                         // 2. 处理外国在华投资 (Phase 2 Add)
@@ -1808,9 +1838,40 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             if (fiResult.logs && fiResult.logs.length > 0) {
                                 fiResult.logs.forEach(log => addLog(log));
                             }
-                            // 日志
-                            if (fiResult.logs && fiResult.logs.length > 0) {
-                                fiResult.logs.forEach(log => addLog(log));
+
+                            // 2.5 处理外资企业自动升级建筑 (每日 3% 概率检查)
+                            const upgradeResult = processForeignInvestmentUpgrades({
+                                foreignInvestments: fiResult.updatedInvestments || current.foreignInvestments,
+                                nations: current.nations || [],
+                                playerMarket: adjustedMarket,
+                                playerResources: current.resources,
+                                buildingUpgrades: current.buildingUpgrades || {},
+                                buildingCounts: current.buildings || {},
+                                daysElapsed: current.daysElapsed || 0,
+                            });
+
+                            // 更新外资状态（如果有升级）
+                            if (upgradeResult.upgrades && upgradeResult.upgrades.length > 0) {
+                                setForeignInvestments(upgradeResult.updatedInvestments);
+
+                                // 扣除投资国财富（升级成本从投资国扣除）
+                                setNations(prevNations => {
+                                    return prevNations.map(nation => {
+                                        const nationUpgrades = upgradeResult.upgrades.filter(u => u.ownerNationId === nation.id);
+                                        if (nationUpgrades.length === 0) return nation;
+
+                                        const totalCost = nationUpgrades.reduce((sum, u) => sum + u.cost, 0);
+                                        return {
+                                            ...nation,
+                                            wealth: Math.max(0, (nation.wealth || 0) - totalCost),
+                                        };
+                                    });
+                                });
+                            }
+
+                            // 升级日志
+                            if (upgradeResult.logs && upgradeResult.logs.length > 0) {
+                                upgradeResult.logs.forEach(log => addLog(log));
                             }
                         }
 

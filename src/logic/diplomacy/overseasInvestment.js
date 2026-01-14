@@ -11,6 +11,7 @@
 
 import { BUILDINGS, RESOURCES, STRATA } from '../../config';
 import { debugLog } from '../../utils/debugFlags';
+import { getMaxUpgradeLevel, getUpgradeCost, getBuildingEffectiveConfig } from '../../config/buildingUpgrades';
 
 // ===== 配置常量 =====
 
@@ -977,6 +978,177 @@ export function processForeignInvestments({
 }
 
 /**
+ * 处理外资建筑自动升级
+ * 外资企业会自动升级在玩家国的建筑（类似本国业主和官员的升级逻辑）
+ * 
+ * @param {Object} params - 参数
+ * @returns {Object} - { updatedInvestments, upgrades, logs }
+ */
+export function processForeignInvestmentUpgrades({
+    foreignInvestments = [],
+    nations = [],
+    playerMarket = {},
+    playerResources = {},
+    buildingUpgrades = {},
+    buildingCounts = {},
+    daysElapsed = 0,
+}) {
+    const logs = [];
+    const upgrades = []; // Record of upgrades to apply
+    const updatedInvestments = [...foreignInvestments];
+
+    // Constants for upgrade logic
+    const UPGRADE_COOLDOWN = 60; // Days between upgrades per investment
+    const UPGRADE_CHANCE_PER_CHECK = 0.03; // 3% chance per day per eligible investment
+    const MIN_ROI_FOR_UPGRADE = 0.05; // Minimum 5% ROI to consider upgrade
+    const MIN_NATION_WEALTH_FOR_UPGRADE = 10000; // Investor nation must have this much wealth
+
+    foreignInvestments.forEach((investment, index) => {
+        if (investment.status !== 'operating') return;
+
+        // Check upgrade cooldown
+        const lastUpgradeDay = investment.lastUpgradeDay || 0;
+        if (daysElapsed - lastUpgradeDay < UPGRADE_COOLDOWN) return;
+
+        // Random chance check (to avoid all upgrades happening at once)
+        if (Math.random() > UPGRADE_CHANCE_PER_CHECK) return;
+
+        // Get the building config
+        const building = BUILDINGS.find(b => b.id === investment.buildingId);
+        if (!building) return;
+
+        // Check if building has upgrades available
+        const maxLevel = getMaxUpgradeLevel(building.id);
+        if (maxLevel <= 0) return;
+
+        // Get investor nation wealth
+        const investorNation = nations.find(n => n.id === investment.ownerNationId);
+        const nationWealth = investorNation?.wealth || 0;
+        if (nationWealth < MIN_NATION_WEALTH_FOR_UPGRADE) return;
+
+        // Determine current level of this specific investment
+        // Foreign investments track their own level (default 0)
+        const currentLevel = investment.upgradeLevel || 0;
+        if (currentLevel >= maxLevel) return; // Already at max level
+
+        const nextLevel = currentLevel + 1;
+
+        // Get upgrade cost
+        // For foreign investments, we calculate cost based on home market prices
+        const homePrices = investorNation?.market?.prices || investorNation?.prices || {};
+        const upgradeCost = getUpgradeCost(building.id, nextLevel, 0); // existingUpgradeCount=0 for base cost
+        if (!upgradeCost) return;
+
+        // Calculate cost in silver (using investor's home market prices)
+        let totalCost = 0;
+        for (const [resource, amount] of Object.entries(upgradeCost)) {
+            if (resource === 'silver') {
+                totalCost += amount;
+            } else {
+                const price = homePrices[resource] || playerMarket?.prices?.[resource] || RESOURCES[resource]?.basePrice || 1;
+                totalCost += amount * price;
+            }
+        }
+
+        // Check if nation can afford (use 30% of wealth as max budget)
+        const maxBudget = nationWealth * 0.3;
+        if (totalCost > maxBudget) return;
+
+        // Calculate ROI for the upgrade
+        // Compare profit before and after upgrade
+        const currentConfig = getBuildingEffectiveConfig(building, currentLevel);
+        const nextConfig = getBuildingEffectiveConfig(building, nextLevel);
+
+        // Calculate current profit
+        const currentProfit = calculateSimpleBuildingProfit(building, currentConfig, playerMarket);
+        const nextProfit = calculateSimpleBuildingProfit(building, nextConfig, playerMarket);
+        const profitGain = nextProfit - currentProfit;
+
+        if (profitGain <= 0) return; // No profit improvement
+
+        // ROI = (annual profit gain) / cost
+        const annualProfitGain = profitGain * 365;
+        const roi = annualProfitGain / totalCost;
+
+        if (roi < MIN_ROI_FOR_UPGRADE) return; // ROI too low
+
+        // === Execute the upgrade ===
+        debugLog('overseas', `🏭 [外资升级] ${investorNation?.name || '外国'} 升级 ${building.name} Lv${currentLevel} → Lv${nextLevel}，花费 ${totalCost.toFixed(0)}，预计ROI ${(roi * 100).toFixed(1)}%`);
+
+        // Record the upgrade
+        upgrades.push({
+            investmentId: investment.id,
+            investmentIndex: index,
+            buildingId: building.id,
+            fromLevel: currentLevel,
+            toLevel: nextLevel,
+            cost: totalCost,
+            ownerNationId: investment.ownerNationId,
+            profitGain,
+            roi,
+        });
+
+        // Update investment record
+        updatedInvestments[index] = {
+            ...investment,
+            upgradeLevel: nextLevel,
+            lastUpgradeDay: daysElapsed,
+            // Update daily profit estimate based on new level
+            dailyProfit: nextProfit,
+        };
+
+        // Log
+        const nationName = investorNation?.name || '外国';
+        logs.push(`🏭 ${nationName}升级了在本国的 ${building.name}（Lv${currentLevel} → Lv${nextLevel}，花费 ${Math.ceil(totalCost)} 银）`);
+    });
+
+    return {
+        updatedInvestments,
+        upgrades,
+        logs,
+    };
+}
+
+/**
+ * 简化的建筑利润计算（用于外资升级ROI评估）
+ * @param {Object} building - 建筑配置
+ * @param {Object} effectiveConfig - 升级后的有效配置
+ * @param {Object} market - 市场数据
+ * @returns {number} - 日利润
+ */
+function calculateSimpleBuildingProfit(building, effectiveConfig, market) {
+    const prices = market?.prices || {};
+
+    // Output value
+    let outputValue = 0;
+    const output = effectiveConfig?.output || building.output || {};
+    Object.entries(output).forEach(([res, amount]) => {
+        if (res === 'maxPop' || res === 'militaryCapacity') return;
+        const price = prices[res] || RESOURCES[res]?.basePrice || 1;
+        outputValue += amount * price;
+    });
+
+    // Input cost
+    let inputCost = 0;
+    const input = effectiveConfig?.input || building.input || {};
+    Object.entries(input).forEach(([res, amount]) => {
+        const price = prices[res] || RESOURCES[res]?.basePrice || 1;
+        inputCost += amount * price;
+    });
+
+    // Simple wage estimate (not exact, but good enough for comparison)
+    let wageCost = 0;
+    const jobs = effectiveConfig?.jobs || building.jobs || {};
+    Object.entries(jobs).forEach(([stratum, count]) => {
+        if (building.owner && stratum === building.owner) return; // Owner doesn't pay self
+        // Estimate wage as 10 silver per worker per day
+        wageCost += count * 10;
+    });
+
+    return outputValue - inputCost - wageCost;
+}
+
+/**
  * AI决策：是否在玩家国建立投资
  * @param {Object} nation - AI国家
  * @param {Object} playerState - 玩家状态
@@ -1019,5 +1191,142 @@ export function aiDecideForeignInvestment(nation, playerState, existingInvestmen
         buildingId: selectedBuilding,
         ownerNationId: nation.id,
         investorStratum: 'capitalist',
+    };
+}
+
+/**
+ * 处理本国海外投资的自动升级
+ * 本国业主（资本家/商人）会根据ROI自动升级海外资产
+ * 
+ * @param {Object} params - 参数
+ * @returns {Object} - 升级结果
+ */
+export function processOverseasInvestmentUpgrades({
+    overseasInvestments = [],
+    nations = [],
+    classWealth = {},
+    marketPrices = {},
+    daysElapsed = 0,
+}) {
+    const logs = [];
+    const upgrades = []; // Record of upgrades to apply
+    const updatedInvestments = [...overseasInvestments];
+    const wealthChanges = {}; // { stratum: delta }
+
+    // Constants for upgrade logic
+    const UPGRADE_COOLDOWN = 60; // Days between upgrades per investment
+    const UPGRADE_CHANCE_PER_CHECK = 0.03; // 3% chance per day per eligible investment
+    const MIN_ROI_FOR_UPGRADE = 0.05; // Minimum 5% ROI to consider upgrade
+    const MIN_STRATUM_WEALTH_FOR_UPGRADE = 10000; // Owner stratum must have this much wealth
+
+    overseasInvestments.forEach((investment, index) => {
+        if (investment.status !== 'operating') return;
+
+        // Check upgrade cooldown
+        const lastUpgradeDay = investment.lastUpgradeDay || 0;
+        if (daysElapsed - lastUpgradeDay < UPGRADE_COOLDOWN) return;
+
+        // Random chance check (to avoid all upgrades happening at once)
+        if (Math.random() > UPGRADE_CHANCE_PER_CHECK) return;
+
+        // Get the building config
+        const building = BUILDINGS.find(b => b.id === investment.buildingId);
+        if (!building) return;
+
+        // Check if building has upgrades available
+        const maxLevel = getMaxUpgradeLevel(building.id);
+        if (maxLevel <= 0) return;
+
+        // Get owner stratum wealth
+        const ownerStratum = investment.ownerStratum || 'capitalist';
+        const stratumWealth = classWealth[ownerStratum] || 0;
+        if (stratumWealth < MIN_STRATUM_WEALTH_FOR_UPGRADE) return;
+
+        // Determine current level of this specific investment
+        const currentLevel = investment.upgradeLevel || 0;
+        if (currentLevel >= maxLevel) return; // Already at max level
+
+        const nextLevel = currentLevel + 1;
+
+        // Get target nation for market prices
+        const targetNation = nations.find(n => n.id === investment.targetNationId);
+        const targetPrices = targetNation?.market?.prices || targetNation?.prices || {};
+
+        // Get upgrade cost
+        const upgradeCost = getUpgradeCost(building.id, nextLevel, 0);
+        if (!upgradeCost) return;
+
+        // Calculate cost in silver (using player's home market prices)
+        let totalCost = 0;
+        for (const [resource, amount] of Object.entries(upgradeCost)) {
+            if (resource === 'silver') {
+                totalCost += amount;
+            } else {
+                // Use player market prices (domestic) for upgrade materials
+                const price = marketPrices[resource] || 1;
+                totalCost += amount * price;
+            }
+        }
+
+        // Check if stratum can afford (use 20% of wealth as max budget per upgrade)
+        const maxBudget = stratumWealth * 0.2;
+        if (totalCost > maxBudget) return;
+
+        // Calculate ROI for the upgrade
+        const currentConfig = getBuildingEffectiveConfig(building, currentLevel);
+        const nextConfig = getBuildingEffectiveConfig(building, nextLevel);
+
+        // Calculate profit using target nation's market prices
+        const currentProfit = calculateSimpleBuildingProfit(building, currentConfig, { prices: targetPrices });
+        const nextProfit = calculateSimpleBuildingProfit(building, nextConfig, { prices: targetPrices });
+        const profitGain = nextProfit - currentProfit;
+
+        if (profitGain <= 0) return; // No profit improvement
+
+        // ROI = (annual profit gain) / cost
+        const annualProfitGain = profitGain * 365;
+        const roi = annualProfitGain / totalCost;
+
+        if (roi < MIN_ROI_FOR_UPGRADE) return; // ROI too low
+
+        // === Execute the upgrade ===
+        const targetName = targetNation?.name || '海外';
+        debugLog('overseas', `🏭 [海外升级] ${ownerStratum} 升级 ${targetName} 的 ${building.name} Lv${currentLevel} → Lv${nextLevel}，花费 ${totalCost.toFixed(0)}，预计ROI ${(roi * 100).toFixed(1)}%`);
+
+        // Record the upgrade
+        upgrades.push({
+            investmentId: investment.id,
+            investmentIndex: index,
+            buildingId: building.id,
+            fromLevel: currentLevel,
+            toLevel: nextLevel,
+            cost: totalCost,
+            ownerStratum,
+            targetNationId: investment.targetNationId,
+            profitGain,
+            roi,
+        });
+
+        // Update investment record
+        updatedInvestments[index] = {
+            ...investment,
+            upgradeLevel: nextLevel,
+            lastUpgradeDay: daysElapsed,
+            dailyProfit: nextProfit,
+        };
+
+        // Deduct cost from owner stratum wealth
+        wealthChanges[ownerStratum] = (wealthChanges[ownerStratum] || 0) - totalCost;
+
+        // Log
+        const stratumName = STRATA[ownerStratum]?.name || ownerStratum;
+        logs.push(`🏭 ${stratumName}升级了在 ${targetName} 的 ${building.name}（Lv${currentLevel} → Lv${nextLevel}，花费 ${Math.ceil(totalCost)} 银）`);
+    });
+
+    return {
+        updatedInvestments,
+        upgrades,
+        wealthChanges,
+        logs,
     };
 }
