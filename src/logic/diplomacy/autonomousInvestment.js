@@ -161,8 +161,8 @@ export function processAIInvestment({
     // 1. Check AI capability
     // Must be Civilized or Industrial era (Epoch 2+) to invest
     // Must have enough budget (Wealth > 5000)
-    if ((investorNation.epoch || 0) < 2) {
-        debugLog('overseas', `[AI投资] ${investorNation.name} 时代不足 (${investorNation.epoch || 0} < 2)`);
+    if (epoch < 2) {
+        debugLog('overseas', `[AI投资] ${investorNation.name} 时代不足 (${epoch} < 2)`);
         return null;
     }
     if ((investorNation.wealth || 0) < 5000) {
@@ -170,9 +170,8 @@ export function processAIInvestment({
         return null;
     }
 
-    // Chance to invest: 5% daily chance (increased from 1% for better gameplay)
-    if (Math.random() > 0.05) return null;
-    
+    // Note: The game loop already has a 30% daily probability check, so no additional probability check needed here
+    console.log(`[AI投资] ${investorNation.name} 通过初始检查, wealth=${investorNation.wealth}, epoch=${epoch}, relation=${investorNation.relation}`);
     debugLog('overseas', `[AI投资] ${investorNation.name} 开始评估投资机会...`);
 
     // 2. Identify Targets
@@ -191,9 +190,11 @@ export function processAIInvestment({
     // 关系 > 30 即可考虑投资 (降低门槛)
     if (playerRelation > 30) {
         targets.push({ id: 'player', name: 'Player', ...playerState });
+        console.log(`[AI投资] ${investorNation.name} 将玩家加入投资目标 (关系: ${playerRelation})`);
     }
 
     if (targets.length === 0) {
+        console.log(`[AI投资] ${investorNation.name} 无合适投资目标 (关系: ${investorNation.relation || 0} <= 30)`);
         debugLog('overseas', `[AI投资] ${investorNation.name} 无合适投资目标 (关系: ${investorNation.relation || 0})`);
         return null;
     }
@@ -203,7 +204,7 @@ export function processAIInvestment({
     // Fix: BUILDINGS uses 'cat' not 'category', and 'baseCost' not 'cost'
     const candidateBuildings = BUILDINGS.filter(b => 
         (b.cat === 'gather' || b.cat === 'industry') &&
-        (b.epoch || 0) <= (investorNation.epoch || 0) &&
+        (b.epoch || 0) <= epoch &&
         (b.baseCost || b.cost) // Has cost definition
     );
     
@@ -220,67 +221,29 @@ export function processAIInvestment({
              const cost = (baseCost || 1000) * 1.5; // Foreign investment markup
              if ((investorNation.wealth || 0) < cost) continue;
 
-             // ROI Calc
-             // If target is player, use player market prices
-             const prices = target.id === 'player' ? (market?.prices || {}) : {};
-             
-             // Mock investment
+             // Use existing calculateOverseasProfit function to get accurate profit calculation
+             // Create a mock investment object for the calculation
              const mockInvestment = {
-                id: 'ai_calc',
-                buildingId: building.id,
-                strategy: 'PROFIT_MAX',
-            };
-            
-            // We need a way to calc profit using player's data if target is player
-            // Reuse profit calc but pass player as "Nation" with market
-            const targetAsNationParams = target.id === 'player' ? {
-                market: { prices },
-                inventories: playerState.resources || {},
-                wealth: playerState.wealth || 0
-            } : target;
-
-            // Note: calculateOverseasProfit assumes 'targetNation' is the host, and 'playerResources' describes the investor home.
-            // Here: Investor = AI, Target = Player.
-            // So we need to flip the logic or supply params correctly.
-            // Actually calculateOverseasProfit is designed for Player -> Overseas.
-            // For AI -> Player, the "Local" is Player, "Home" is AI.
-            // But the function uses 'playerMarketPrices' as HOME prices usually.
-            // Let's approximate:
-            // Local Price (Player) vs Home Price (AI).
-            // AI Prices? We can use investorNation.market.prices or mock based on base price.
-            
-            // Simplified Decision:
-            // Just satisfy basic ROI: (OutputValue - InputCost) > threshold
-            // Using Player Prices for everything (assuming local sourcing and local sales for dumping/profit)
-            
-            let dailyProfit = 0;
-            const outputFunc = building.output || {};
-            const inputFunc = building.input || {};
-            
-            let revenue = 0;
-            let expense = 0;
-            
-            Object.entries(outputFunc).forEach(([res, amt]) => {
-                if (res === 'maxPop' || res === 'militaryCapacity') return;
-                const price = prices[res] || RESOURCES[res]?.basePrice || 1;
-                revenue += amt * price;
-            });
-            
-            Object.entries(inputFunc).forEach(([res, amt]) => {
-                const price = prices[res] || RESOURCES[res]?.basePrice || 1;
-                expense += amt * price;
-            });
-            
-            // Wage estimate
-            // Assume 100 workers per building roughly, wage ~1-2 silver
-            expense += 100; 
-
-            dailyProfit = revenue - expense;
-            const roi = (dailyProfit * 360) / cost;
-            
+                 buildingId: building.id,
+                 strategy: 'PROFIT_MAX',
+             };
+             
+             // For AI investing in player, player is "target nation", AI is "home"
+             const profitResult = calculateOverseasProfit(
+                 mockInvestment,
+                 target, // target nation (player)
+                 {}, // player resources (not needed for price calc)
+                 market?.prices || {} // player market prices
+             );
+             
+             const dailyProfit = profitResult.profit || 0;
+             const roi = cost > 0 ? (dailyProfit * 360) / cost : 0;
+             
+             console.log(`[AI投资] ${investorNation.name} 评估 ${building.name}: output=${profitResult.outputValue?.toFixed(1)}, input=${profitResult.inputCost?.toFixed(1)}, wage=${profitResult.wageCost?.toFixed(1)}, profit=${dailyProfit.toFixed(1)}/day, ROI=${(roi*100).toFixed(1)}%`);
             debugLog('overseas', `[AI投资] ${investorNation.name} 评估 ${building.name}: ROI=${(roi*100).toFixed(1)}%, profit=${dailyProfit.toFixed(1)}/day`);
             
             if (roi > 0.10) { // 10% ROI acceptable for AI
+                 console.log(`[AI投资] ${investorNation.name} 决定投资 ${building.name}! ROI=${(roi*100).toFixed(1)}%`);
                  return {
                      type: 'request_investment',
                      investorNation,
@@ -310,5 +273,6 @@ export function processAIInvestment({
          }
      }
 
+    console.log(`[AI投资] ${investorNation.name} 未找到合适的投资机会 (没有ROI>10%的建筑)`);
     return null;
 }

@@ -187,17 +187,36 @@ export function createForeignInvestment({
         return null;
     }
 
+    // 计算提供的岗位数量
+    const jobsProvided = Object.values(building.jobs || {}).reduce((sum, val) => sum + val, 0);
+    
+    // 估算每日利润（基于建筑产出，简化计算）
+    // 实际利润应该在 processForeignInvestments 中动态计算
+    const outputValue = Object.entries(building.output || {}).reduce((sum, [res, val]) => {
+        const price = RESOURCES[res]?.basePrice || 1;
+        return sum + val * price;
+    }, 0);
+    const inputCost = Object.entries(building.input || {}).reduce((sum, [res, val]) => {
+        const price = RESOURCES[res]?.basePrice || 1;
+        return sum + val * price;
+    }, 0);
+    const estimatedDailyProfit = Math.max(0, outputValue - inputCost);
+
     return {
         id: `fi_${ownerNationId}_${buildingId}_${Date.now()}`,
         buildingId,
         ownerNationId,
         investorStratum,
 
+        // 添加显示用的字段
+        dailyProfit: estimatedDailyProfit,
+        jobsProvided: jobsProvided,
+
         operatingData: {
-            outputValue: 0,
-            inputCost: 0,
+            outputValue: outputValue,
+            inputCost: inputCost,
             wageCost: 0,
-            profit: 0,
+            profit: estimatedDailyProfit,
         },
 
         status: 'operating',        // 'operating' | 'nationalized'

@@ -45,14 +45,17 @@ const DiplomacyLayout = ({
     onShowOverseasOverview,
     merchantState,
     onMerchantStateChange,
+
+    // Organization Actions
+    onViewOrganization,
 }) => {
     // 移动端视图控制
     const [isMobileDetailOpen, setIsMobileDetailOpen] = useState(false);
-    
+
     // 附庸管理面板状态
     const [vassalSheetOpen, setVassalSheetOpen] = useState(false);
     const [vassalSheetNation, setVassalSheetNation] = useState(null);
-    
+
     // 附庸概览面板状态
     const [vassalOverviewOpen, setVassalOverviewOpen] = useState(false);
 
@@ -61,12 +64,12 @@ const DiplomacyLayout = ({
         setVassalSheetNation(nation);
         setVassalSheetOpen(true);
     };
-    
+
     // 打开附庸概览面板
     const handleOpenVassalOverview = () => {
         setVassalOverviewOpen(true);
     };
-    
+
     // 从附庸概览选择某个附庸后，打开详细管理
     const handleSelectVassal = (nation) => {
         setVassalOverviewOpen(false);
@@ -181,6 +184,7 @@ const DiplomacyLayout = ({
                         daysElapsed={daysElapsed}
                         tradeRoutes={tradeRoutes}
                         onDiplomaticAction={onDiplomaticAction}
+                        onViewOrganization={onViewOrganization}
                     />
                 )}
             </div>
@@ -203,7 +207,7 @@ const DiplomacyLayout = ({
                     return Math.max(0.5, totalUnits / 100);
                 })()}
             />
-            
+
             {/* 附庸概览 Bottom Sheet */}
             <VassalOverviewPanel
                 isOpen={vassalOverviewOpen}

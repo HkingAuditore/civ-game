@@ -43,33 +43,17 @@ export const ORGANIZATION_TYPE_CONFIGS = {
         name: '经济共同体',
         minEra: 5,
         minMembers: 2,
-        maxMembers: 8,
+        maxMembers: 10,
         createCost: 0.03,
         memberFee: 0.002,
-        minRelation: 50,
-        effects: {
-            tariffDiscount: 0.2,     // 成员间关税减免 20%
-            relationBonus: 3,
-            tradeEfficiency: 0.15,   // 贸易效率加成 15%
-        },
-        description: '成员国共享经济利益，减免关税',
-    },
-    trade_zone: {
-        id: 'trade_zone',
-        name: '自贸区',
-        minEra: 5,
-        minMembers: 2,
-        maxMembers: 10,
-        createCost: 0.05,
-        memberFee: 0.003,
         minRelation: 45,
         effects: {
-            tariffDiscount: 0.4,     // 成员间关税减免 40%
+            tariffDiscount: 0.3,     // 成员间关税减免 30%
             relationBonus: 5,
-            tradeEfficiency: 0.25,
-            priceConvergence: 0.05,  // 价格收敛 5%/月
+            tradeEfficiency: 0.2,    // 贸易效率加成 20%
+            priceConvergence: 0.03,  // 价格收敛 3%/月
         },
-        description: '成员国贸易完全自由化，市场价格趋同',
+        description: '成员国共享经济利益，减免关税，促进贸易自由化',
     },
 };
 

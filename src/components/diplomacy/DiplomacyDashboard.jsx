@@ -7,8 +7,7 @@ import { calculateForeignPrice, calculateTradeStatus } from '../../utils/foreign
 
 const ORG_TYPES = [
     { type: 'military_alliance', name: '军事同盟', icon: 'Shield', era: 3, color: 'text-red-400', desc: '共同防御与军事通行 (时代 3 解锁)' },
-    { type: 'economic_bloc', name: '经济共同体', icon: 'TrendingUp', era: 5, color: 'text-amber-400', desc: '关税减免与贸易加成 (时代 5 解锁)' },
-    { type: 'trade_zone', name: '自由贸易区', icon: 'Globe', era: 5, color: 'text-cyan-400', desc: '提升整体贸易效率 (时代 5 解锁)' },
+    { type: 'economic_bloc', name: '经济共同体', icon: 'TrendingUp', era: 5, color: 'text-amber-400', desc: '关税减免、贸易加成与市场整合 (时代 5 解锁)' },
 ];
 
 const formatNumber = (value) => {

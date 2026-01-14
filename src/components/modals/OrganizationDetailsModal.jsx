@@ -196,7 +196,6 @@ const getOrgIcon = (type) => {
     switch (type) {
         case 'military_alliance': return 'Shield';
         case 'economic_bloc': return 'TrendingUp';
-        case 'trade_zone': return 'Globe';
         default: return 'Flag';
     }
 };

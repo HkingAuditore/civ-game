@@ -1911,19 +1911,23 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             });
 
                             if (decision && decision.type === 'request_investment' && decision.targetId === 'player') {
-                                // Trigger Event via Log
-                                const eventData = {
-                                    nationId: investor.id,
-                                    opportunity: {
-                                        buildingType: decision.building.name,
+                                // 外资：直接投资，不需要玩家批准
+                                const actionsRef = current.actions;
+                                
+                                if (actionsRef && actionsRef.handleDiplomaticAction) {
+                                    // 直接创建外资投资
+                                    actionsRef.handleDiplomaticAction(investor.id, 'accept_foreign_investment', {
                                         buildingId: decision.building.id,
-                                        potentialProfit: (decision.roi * decision.cost / 12), 
-                                        requiredInvestment: decision.cost,
-                                        ownerStratum: 'capitalist'
-                                    }
-                                };
-                                // This special log string handles the event triggering in the main loop listener
-                                addLog(`OVERSEAS_INVESTMENT_OPPORTUNITY:${JSON.stringify(eventData)}`);
+                                        ownerStratum: 'capitalist',
+                                        operatingMode: 'local', // 默认当地运营模式
+                                        investmentAmount: decision.cost
+                                    });
+                                    
+                                    console.log(`[外资] ${investor.name} 在本地投资了 ${decision.building.name}，投资额: ${decision.cost}`);
+                                    addLog(`🏦 ${investor.name} 在本地投资建造了 ${decision.building.name}。`);
+                                } else {
+                                    console.warn('[外资] handleDiplomaticAction 不可用');
+                                }
                             }
                         });
                     }).catch(err => console.warn('AI investment error:', err));
@@ -4135,15 +4139,18 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
                             // 检测海外投资机会事件
                             if (log.includes('OVERSEAS_INVESTMENT_OPPORTUNITY:')) {
+                                console.log('[AI投资事件监听] 检测到投资机会日志:', log);
                                 try {
                                     const jsonStr = log.replace('OVERSEAS_INVESTMENT_OPPORTUNITY:', '');
                                     const eventData = JSON.parse(jsonStr);
                                     const nation = result.nations?.find(n => n.id === eventData.nationId);
+                                    console.log('[AI投资事件监听] 解析成功, nation:', nation?.name, 'currentActions:', !!currentActions, 'triggerDiplomaticEvent:', !!currentActions?.triggerDiplomaticEvent);
                                     if (nation && currentActions && currentActions.triggerDiplomaticEvent) {
                                         const event = createOverseasInvestmentOpportunityEvent(
                                             nation,
                                             eventData.opportunity,
                                             (accepted, investmentDetails) => {
+                                                console.log('[AI投资事件监听] 回调被触发, accepted:', accepted, 'details:', investmentDetails);
                                                 if (accepted && investmentDetails) {
                                                     // 通过外交行动建立投资
                                                     if (actions?.handleDiplomaticAction) {
@@ -4157,10 +4164,14 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                 }
                                             }
                                         );
+                                        console.log('[AI投资事件监听] 创建事件成功, 正在触发:', event);
                                         currentActions.triggerDiplomaticEvent(event);
                                         debugLog('event', '[EVENT DEBUG] Overseas Investment Opportunity event triggered:', nation.name);
+                                    } else {
+                                        console.log('[AI投资事件监听] 缺少必要条件, nation:', !!nation, 'currentActions:', !!currentActions);
                                     }
                                 } catch (e) {
+                                    console.error('[AI投资事件监听] 解析失败:', e);
                                     debugError('event', '[EVENT DEBUG] Failed to parse Overseas Investment Opportunity event:', e);
                                 }
                             }

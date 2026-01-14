@@ -21,7 +21,6 @@ export const DIPLOMACY_ERA_UNLOCK = {
     organizations: {
         military_alliance: { minEra: 3, name: '军事联盟' },
         economic_bloc: { minEra: 5, name: '经济共同体' },
-        trade_zone: { minEra: 5, name: '自贸区' },
     },
     economy: {
         merchant_stationing: { minEra: 3, name: '商人驻留' },
@@ -81,18 +80,21 @@ export const OPEN_MARKET_TREATY_TYPES = ['open_market', 'trade_agreement', 'free
 export const PEACE_TREATY_TYPES = ['peace_treaty', 'non_aggression'];
 
 export const ORGANIZATION_EFFECTS = {
-    economic_bloc: {
-        tariffDiscount: 0.2,
-        relationBonus: 3,
-    },
-    trade_zone: {
-        tariffDiscount: 0.4,
+    military_alliance: {
+        mutualDefense: true,
         relationBonus: 5,
+        militaryBonus: 0.1,
+    },
+    economic_bloc: {
+        tariffDiscount: 0.3,
+        relationBonus: 5,
+        tradeEfficiency: 0.2,
+        priceConvergence: 0.03,
     },
 };
 
 export const DIPLOMACY_SOVEREIGNTY_TYPES = ['protectorate', 'tributary', 'puppet', 'colony'];
-export const DIPLOMACY_ORGANIZATION_TYPES = ['military_alliance', 'economic_bloc', 'trade_zone'];
+export const DIPLOMACY_ORGANIZATION_TYPES = ['military_alliance', 'economic_bloc'];
 export const OVERSEAS_BUILDING_MODES = ['local', 'dumping', 'buyback'];
 
 export const DEFAULT_VASSAL_STATUS = {

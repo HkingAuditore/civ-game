@@ -288,6 +288,7 @@ export const simulateTick = ({
     priceControls = null, // [NEW] 政府价格管制设置
     previousTaxShock = {}, // [NEW] 上一tick各阶层的累积税收冲击值，用于防止"快速抬税后降税"的漏洞
     eventEffectSettings = {}, // [NEW] Event effect settings including log visibility
+    foreignInvestments = [], // [NEW] Foreign investments for profit calculation
 }) => {
     // console.log('[TICK START]', tick); // Commented for performance
     const res = { ...resources };
@@ -6004,6 +6005,7 @@ export const simulateTick = ({
                 diplomaticIncident: bonuses.diplomaticIncident || 0,
             },
         },
+        foreignInvestmentStats: foreignStats, // [NEW] Return calculated foreign stats
         army, // 确保返回army状态，以便保存战斗损失
         officials: updatedOfficials, // 更新后的官员列表（含财务数据）
         // 计算有效官员容量（基于时代、政体和科技）

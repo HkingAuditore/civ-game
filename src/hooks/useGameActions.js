@@ -3698,7 +3698,7 @@ export const useGameActions = (gameState, addLog) => {
                 // If not solo, check relation
                 if (!isSolo) {
                     const relation = targetNation.relation || 0;
-                    const minRelation = type === 'trade_zone' ? 65 : 60;
+                    const minRelation = type === 'military_alliance' ? 60 : 50;
                     if (relation < minRelation) {
                         addLog(`关系不足（需要${minRelation}），无法与 ${targetNation.name} 共建组织。`);
                         return;
@@ -3769,7 +3769,7 @@ export const useGameActions = (gameState, addLog) => {
                 }
 
                 const relation = targetNation.relation || 0;
-                const minRelation = org.type === 'trade_zone' ? 60 : 55;
+                const minRelation = org.type === 'military_alliance' ? 55 : 45;
                 if (relation < minRelation) {
                     addLog(`关系不足（需要${minRelation}），无法邀请加入。`);
                     return;
@@ -3978,6 +3978,67 @@ export const useGameActions = (gameState, addLog) => {
                     break;
                 }
 
+                const building = BUILDINGS.find(b => b.id === buildingId);
+                if (!building) break;
+
+                // 1. 玩家接收投资资金 (AI -> 玩家)
+                // 这笔钱用于支付建筑公司、购买材料等
+                const fundingReceived = investmentAmount || 0;
+                
+                // 2. 计算并扣除建造成本
+                // 使用当前的建筑数量计算成本（通常外资是新增建筑，所以是第N+1个）
+                const currentCount = buildings[buildingId] || 0;
+                
+                // 获取当前难度设置
+                const difficulty = gameState?.difficulty || 'normal';
+                
+                // 使用 calculateBuildingCost 工具函数计算资源消耗
+                const growthFactor = getBuildingCostGrowthFactor(difficulty);
+                const baseMultiplier = getBuildingCostBaseMultiplier(difficulty);
+                // 假设外资建筑也享受同样的成本加成（作为一个简化的处理）
+                const buildingCostMod = gameState?.modifiers?.officialEffects?.buildingCostMod || 0;
+                
+                const rawCost = calculateBuildingCost(building.baseCost, currentCount, growthFactor, baseMultiplier);
+                const constructionCost = applyBuildingCostModifier(rawCost, buildingCostMod, building.baseCost);
+                
+                // 执行资源扣除
+                setResources(prev => {
+                    const nextRes = { ...prev };
+                    
+                    // 先加上投资款
+                    nextRes.silver = (nextRes.silver || 0) + fundingReceived;
+                    
+                    const shortages = [];
+                    let importCost = 0;
+
+                    Object.entries(constructionCost).forEach(([res, amount]) => {
+                        if (res === 'silver') {
+                            nextRes.silver -= amount;
+                        } else {
+                            if ((nextRes[res] || 0) >= amount) {
+                                nextRes[res] -= amount;
+                            } else {
+                                // 资源不足，尝试用银币自动进口（假设全球市场有售）
+                                // 简化：直接按当前市场价购买
+                                const needed = amount - (nextRes[res] || 0);
+                                nextRes[res] = 0; // 用光库存
+                                
+                                const price = market?.prices?.[res] || RESOURCES[res]?.basePrice || 1;
+                                const cost = needed * price * 1.2; // 紧急进口溢价 20%
+                                importCost += cost;
+                                shortages.push(`${RESOURCES[res]?.name || res}`);
+                            }
+                        }
+                    });
+
+                    // 扣除进口费用
+                    if (importCost > 0) {
+                        nextRes.silver -= importCost;
+                    }
+                    
+                    return nextRes;
+                });
+
                 import('../logic/diplomacy/overseasInvestment').then(({ createForeignInvestment }) => {
                     const newInvestment = createForeignInvestment({
                         buildingId,
@@ -3992,6 +4053,12 @@ export const useGameActions = (gameState, addLog) => {
 
                         setForeignInvestments(prev => [...prev, newInvestment]);
 
+                        // 增加建筑数量
+                        setBuildings(prev => ({
+                            ...prev,
+                            [buildingId]: (prev[buildingId] || 0) + 1,
+                        }));
+                        
                         setNations(prev => prev.map(n => {
                             if (n.id !== investorNation.id) return n;
                             return {
@@ -4001,7 +4068,7 @@ export const useGameActions = (gameState, addLog) => {
                             };
                         }));
 
-                        addLog(`🏭 批准了 ${investorNation.name} 的投资请求，即将在本地建设 ${BUILDINGS.find(b => b.id === buildingId)?.name || '工厂'}。`);
+                        addLog(`🏭 ${investorNation.name} 投资 ${fundingReceived.toFixed(0)} 银币，在本地建设了 ${building.name}。消耗了相应的建材。`);
                     }
                 }).catch(err => {
                     console.error('Failed to accept foreign investment:', err);

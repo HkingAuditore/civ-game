@@ -38,10 +38,16 @@ export const ForeignInvestmentPanel = memo(({
     const [selectedNation, setSelectedNation] = useState(null);
     const [expandedBuilding, setExpandedBuilding] = useState(null);
 
-    // 按投资来源国家分组
+    // 过滤出有效的投资（排除不存在的国家）
+    const validForeignInvestments = useMemo(() => {
+        const existingNationIds = new Set(nations.map(n => n.id));
+        return foreignInvestments.filter(inv => existingNationIds.has(inv.ownerNationId));
+    }, [foreignInvestments, nations]);
+
+    // 按投资来源国家分组（只包含存在的国家）
     const investmentsByNation = useMemo(() => {
         const groups = {};
-        foreignInvestments.forEach(inv => {
+        validForeignInvestments.forEach(inv => {
             const nationId = inv.ownerNationId;
             if (!groups[nationId]) {
                 const nation = nations.find(n => n.id === nationId);
@@ -60,13 +66,13 @@ export const ForeignInvestmentPanel = memo(({
             groups[nationId].totalJobs += inv.jobsProvided || 0;
         });
         return Object.values(groups);
-    }, [foreignInvestments, nations]);
+    }, [validForeignInvestments, nations]);
 
-    // 总览统计
+    // 总览统计（只统计存在的国家的投资）
     const summary = useMemo(() => {
-        const totalBuildings = foreignInvestments.length;
-        const totalDailyProfit = foreignInvestments.reduce((sum, inv) => sum + (inv.dailyProfit || 0), 0);
-        const totalJobs = foreignInvestments.reduce((sum, inv) => sum + (inv.jobsProvided || 0), 0);
+        const totalBuildings = validForeignInvestments.length;
+        const totalDailyProfit = validForeignInvestments.reduce((sum, inv) => sum + (inv.dailyProfit || 0), 0);
+        const totalJobs = validForeignInvestments.reduce((sum, inv) => sum + (inv.jobsProvided || 0), 0);
         const policyConfig = FOREIGN_INVESTMENT_POLICIES[currentPolicy] || FOREIGN_INVESTMENT_POLICIES.normal;
         const dailyTaxRevenue = totalDailyProfit * policyConfig.taxRate;
         const dailyProfitOutflow = totalDailyProfit * (1 - policyConfig.taxRate);
@@ -79,7 +85,7 @@ export const ForeignInvestmentPanel = memo(({
             dailyProfitOutflow,
             investorCount: investmentsByNation.length,
         };
-    }, [foreignInvestments, investmentsByNation, currentPolicy]);
+    }, [validForeignInvestments, investmentsByNation, currentPolicy]);
 
     const policyConfig = FOREIGN_INVESTMENT_POLICIES[currentPolicy] || FOREIGN_INVESTMENT_POLICIES.normal;
 
