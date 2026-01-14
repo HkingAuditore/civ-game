@@ -1,10 +1,10 @@
 // Diplomatic Events - Functions to create dynamic diplomatic events
 // These events are generated dynamically based on game state
 
-import { calculatePeacePayment, calculateInstallmentPlan, calculateAllyMaintenanceCost, INSTALLMENT_CONFIG } from '../../utils/diplomaticUtils';
-import { formatNumberShortCN } from '../../utils/numberFormat';
-import { STRATA } from '../strata';
-import { VASSAL_TYPE_CONFIGS } from '../diplomacy';
+import { calculatePeacePayment, calculateInstallmentPlan, calculateAllyMaintenanceCost, INSTALLMENT_CONFIG } from '../../utils/diplomaticUtils.js';
+import { formatNumberShortCN } from '../../utils/numberFormat.js';
+import { STRATA } from '../strata.js';
+import { VASSAL_TYPE_CONFIGS } from '../diplomacy.js';
 
 export const REBEL_DEMAND_SURRENDER_TYPE = {
     REFORM: 'reform',
@@ -804,7 +804,7 @@ export function createAllianceRequestEvent(nation, callback) {
     };
 }
 
-import { TREATY_TYPE_LABELS } from '../diplomacy';
+import { TREATY_TYPE_LABELS } from '../diplomacy.js';
 
 /**
  * Treaty 2.0: 创建外交事件 - AI提出条约

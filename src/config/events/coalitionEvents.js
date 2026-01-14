@@ -1,7 +1,7 @@
 // Coalition Events - 执政联盟相关事件
 // 处理在野阶层要求加入执政联盟等政治诉求
 
-import { STRATA } from '../strata';
+import { STRATA } from '../strata.js';
 
 /**
  * 获取阶层名称
