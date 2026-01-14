@@ -17,6 +17,7 @@ import {
     OVERSEAS_BUILDING_CATEGORIES,
     getInvestableBuildings,
     compareLaborCost,
+    hasActiveTreaty,
 } from '../../logic/diplomacy/overseasInvestment';
 
 // No hardcoded stratum list - dynamically computed from available buildings
@@ -49,6 +50,13 @@ export const OverseasInvestmentPanel = memo(({
         if (!targetNation) return 'treaty';
         const isVassal = targetNation.vassalOf === 'player';
         return isVassal ? 'vassal' : 'treaty';
+    }, [targetNation]);
+
+    const canInvest = useMemo(() => {
+        if (!targetNation) return false;
+        const isVassal = targetNation.vassalOf === 'player';
+        const hasPact = hasActiveTreaty(targetNation, 'investment_pact', targetNation.daysElapsed || 0);
+        return isVassal || hasPact;
     }, [targetNation]);
 
     // Get all investable buildings first (without stratum filter)
@@ -196,7 +204,17 @@ export const OverseasInvestmentPanel = memo(({
                         {showNewInvestment ? '收起' : '新建海外投资'}
                     </button>
 
-                    {showNewInvestment && (
+                    {showNewInvestment && !canInvest && (
+                        <div className="mt-3 p-4 bg-red-900/20 border border-red-700/50 rounded-lg text-center">
+                            <Icon name="Lock" size={24} className="mx-auto mb-2 text-red-400" />
+                            <div className="text-red-300 font-bold text-sm">需要投资协定</div>
+                            <div className="text-red-400/80 text-xs mt-1">
+                                您必须先与 {targetNation.name} 签署《投资协定》或使其成为附庸，才能建立海外资产。
+                            </div>
+                        </div>
+                    )}
+
+                    {showNewInvestment && canInvest && (
                         <div className="mt-3 space-y-3">
                             {/* 阶层选择 */}
                             <div>

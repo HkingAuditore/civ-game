@@ -3,28 +3,62 @@
  * Handles AI nation updates, war logic, diplomacy, and economy
  */
 
-import { RESOURCES, PEACE_TREATY_TYPES, getTreatyBreachPenalty } from '../../config';
-import { simulateBattle, UNIT_TYPES } from '../../config/militaryUnits';
-import { getEnemyUnitsForEpoch } from '../../config/militaryActions';
+import { RESOURCES, PEACE_TREATY_TYPES, getTreatyBreachPenalty } from '../../config/index.js';
+import { simulateBattle, UNIT_TYPES } from '../../config/militaryUnits.js';
+import { getEnemyUnitsForEpoch } from '../../config/militaryActions.js';
 import {
     calculateAIGiftAmount,
     calculateAIPeaceTribute,
     calculateAISurrenderDemand
-} from '../../utils/diplomaticUtils';
+} from '../../utils/diplomaticUtils.js';
 import {
     clamp,
     PEACE_REQUEST_COOLDOWN_DAYS,
     MAX_CONCURRENT_WARS,
     GLOBAL_WAR_COOLDOWN
-} from '../utils';
-import { getRelationMonthlyDriftRate } from '../../config/difficulty';
-import { processVassalUpdates } from './vassalSystem';
+} from '../utils/index.js';
+import { getRelationMonthlyDriftRate } from '../../config/difficulty.js';
+import { processVassalUpdates } from './vassalSystem.js';
 import {
     AI_ECONOMY_CONFIG,
     getSocialStructureTemplate,
-} from '../../config/diplomacy';
+    TREATY_CONFIGS,
+    TREATY_TYPE_LABELS,
+} from '../../config/diplomacy.js';
 
 // ========== AI国家经济数据初始化与更新 ==========
+
+/**
+ * 财富分配系数（假设）
+ * 用于将国家总财富分配给各阶层
+ */
+const WEALTH_DISTRIBUTION = {
+    elites: 0.60,      // 精英阶层掌握60%财富
+    commoners: 0.35,   // 平民阶层掌握35%财富
+    underclass: 0.05,  // 底层阶层掌握5%财富
+};
+
+/**
+ * 计算当地生存成本
+ * @param {Object} nationPrices - 当地市场价格
+ * @returns {number} 每日生存成本
+ */
+const calculateSubsistenceCost = (nationPrices = {}) => {
+    // 基本生存篮子：食物、布料、木材
+    const basket = {
+        food: 1.0,
+        cloth: 0.1,
+        wood: 0.2,
+    };
+
+    let cost = 0;
+    Object.entries(basket).forEach(([res, amount]) => {
+        const price = nationPrices[res] || RESOURCES[res]?.basePrice || 1;
+        cost += amount * price;
+    });
+
+    return cost;
+};
 
 /**
  * 初始化AI国家的经济数据（价格、库存、阶层）
@@ -77,17 +111,91 @@ export const initializeNationEconomyData = (nation, marketPrices = {}) => {
         });
     }
     
-    // 3. 初始化阶层结构（如果不存在）
+    // 3. 初始化阶层结构（如果不存在或不完整）
     if (!updated.socialStructure) {
         const governmentType = updated.governmentType || 'default';
         updated.socialStructure = getSocialStructureTemplate(governmentType);
     }
     
+    // 立即执行一次完整的阶层数据更新以填充 population 和 wealth
+    updated.socialStructure = updateSocialClasses(updated).socialStructure;
+
     // 4. 初始化稳定度（如果不存在）
     if (typeof updated.stability !== 'number') {
         updated.stability = 50 + (Math.random() - 0.5) * 20;
     }
     
+    return updated;
+};
+
+/**
+ * 更新阶层数据（人口、财富、生活水平）
+ * @param {Object} nation - 国家对象
+ * @returns {Object} 更新后的国家对象
+ */
+const updateSocialClasses = (nation) => {
+    if (!nation || !nation.socialStructure) return nation;
+
+    const updated = { ...nation };
+    const structure = { ...updated.socialStructure };
+    const totalPop = updated.population || 1000;
+    const totalWealth = updated.wealth || 1000;
+    const subsistenceCost = calculateSubsistenceCost(updated.nationPrices);
+
+    // 通用影响因素
+    let generalSatisfactionMod = 0;
+    if (updated.isAtWar) generalSatisfactionMod -= 5;
+    if (updated.vassalOf === 'player') {
+        const autonomy = updated.autonomy || 50;
+        generalSatisfactionMod -= (100 - autonomy) * 0.05;
+    }
+
+    ['elites', 'commoners', 'underclass'].forEach(stratum => {
+        if (!structure[stratum]) return;
+
+        const data = { ...structure[stratum] };
+
+        // 1. 更新人口
+        const ratio = data.ratio || 0.33;
+        data.population = Math.floor(totalPop * ratio);
+
+        // 2. 更新财富
+        // 使用预设的财富分配比例，加一点随机波动模拟流动
+        const wealthShare = WEALTH_DISTRIBUTION[stratum] || 0.33;
+        data.wealth = Math.floor(totalWealth * wealthShare);
+
+        // 3. 计算人均财富与生活水平 (SoL)
+        // 人均财富 = 阶层总财富 / 阶层人口
+        const perCapitaWealth = data.population > 0 ? data.wealth / data.population : 0;
+
+        // 生活水平 = 人均财富 / 生存成本
+        // 阈值：底层需维持 1.0，平民 2.0，精英 10.0
+        const solRatio = subsistenceCost > 0 ? perCapitaWealth / subsistenceCost : 1;
+
+        data.sol = solRatio;
+
+        // 4. 更新满意度
+        // 基于SoL和基准期望的对比
+        const expectations = {
+            elites: 15.0,
+            commoners: 3.0,
+            underclass: 1.0
+        };
+        const expectedSol = expectations[stratum] || 1.0;
+
+        // 满意度趋向目标值：(实际SoL / 期望SoL) * 50
+        // 如果实际 >= 期望，满意度 > 50
+        let targetSatisfaction = Math.min(100, (solRatio / expectedSol) * 50);
+        targetSatisfaction = Math.max(0, targetSatisfaction + generalSatisfactionMod);
+
+        // 缓慢趋近
+        const currentSat = data.satisfaction || 50;
+        data.satisfaction = currentSat * 0.95 + targetSatisfaction * 0.05;
+
+        structure[stratum] = data;
+    });
+
+    updated.socialStructure = structure;
     return updated;
 };
 
@@ -100,7 +208,7 @@ export const initializeNationEconomyData = (nation, marketPrices = {}) => {
 export const updateNationEconomyData = (nation, marketPrices = {}) => {
     if (!nation || !nation.nationPrices) return nation;
     
-    const updated = { ...nation };
+    let updated = { ...nation };
     const config = AI_ECONOMY_CONFIG;
     
     // 1. 更新价格（每日随机波动）
@@ -151,38 +259,8 @@ export const updateNationEconomyData = (nation, marketPrices = {}) => {
         updated.nationInventories[resourceKey] = Math.max(minInventory, Math.min(maxInventory, Math.floor(newInventory)));
     });
     
-    // 3. 更新阶层满意度
-    if (updated.socialStructure) {
-        updated.socialStructure = { ...updated.socialStructure };
-        
-        // 计算满意度变化因素
-        let satisfactionChange = 0;
-        
-        // 战争状态降低满意度
-        if (updated.isAtWar) satisfactionChange -= 0.2;
-        
-        // 附庸状态影响满意度
-        if (updated.vassalOf === 'player') {
-            const autonomy = updated.autonomy || 50;
-            satisfactionChange -= (100 - autonomy) * 0.01;  // 自主度越低，满意度下降越快
-        }
-        
-        // 更新各阶层满意度
-        ['elites', 'commoners', 'underclass'].forEach(stratum => {
-            if (updated.socialStructure[stratum]) {
-                updated.socialStructure[stratum] = { ...updated.socialStructure[stratum] };
-                const baseSatisfaction = updated.socialStructure[stratum].baseSatisfaction || 50;
-                let currentSat = updated.socialStructure[stratum].satisfaction || baseSatisfaction;
-                
-                // 应用变化并向基线回归
-                currentSat += satisfactionChange;
-                currentSat = currentSat * 0.99 + baseSatisfaction * 0.01;  // 缓慢回归基线
-                
-                // 限制范围
-                updated.socialStructure[stratum].satisfaction = Math.max(0, Math.min(100, currentSat));
-            }
-        });
-    }
+    // 3. 全面更新阶层数据（代替旧的简单满意度更新）
+    updated = updateSocialClasses(updated);
     
     return updated;
 };
@@ -269,6 +347,13 @@ export const updateNations = ({
             epoch,
             res,
             stabilityValue,
+            logs
+        });
+
+        // Check treaty stability
+        checkTreatyStability({
+            nation: next,
+            tick,
             logs
         });
 
@@ -675,6 +760,68 @@ const checkWarDeclaration = ({ nation, nations, tick, epoch, res, stabilityValue
             logs.push(`WAR_DECLARATION_EVENT:${JSON.stringify({ nationId: nation.id, nationName: nation.name, reason: 'wealth' })}`);
         }
     }
+};
+
+/**
+ * Check treaty stability based on relations
+ * @private
+ */
+const checkTreatyStability = ({ nation, tick, logs }) => {
+    if (!nation.treaties || nation.treaties.length === 0) return;
+
+    const currentRelation = nation.relation || 50;
+    // Filter active treaties that are with the player
+    const activeTreaties = nation.treaties.filter(t =>
+        (t.status === 'active' || (!t.status && (t.endDay == null || t.endDay > tick))) &&
+        t.withPlayer !== false
+    );
+
+    let treatiesChanged = false;
+
+    activeTreaties.forEach(treaty => {
+        const config = TREATY_CONFIGS[treaty.type];
+        if (!config) return;
+
+        const minRelation = config.minRelation || 0;
+
+        // If relation is below threshold
+        if (currentRelation < minRelation) {
+            // Initialize or increment instability counter
+            treaty.instability = (treaty.instability || 0) + 1;
+
+            // Warning threshold (e.g., 10 days of low relation)
+            if (treaty.instability === 10) {
+                const treatyName = TREATY_TYPE_LABELS[treaty.type] || treaty.type;
+                logs.push(`⚠️ 与 ${nation.name} 的关系恶化，${treatyName}岌岌可危！`);
+            }
+
+            // Termination threshold (e.g., 30 days)
+            if (treaty.instability >= 30) {
+                const treatyName = TREATY_TYPE_LABELS[treaty.type] || treaty.type;
+
+                // Terminate treaty
+                treaty.status = 'terminated';
+                treaty.endDay = tick; // End immediately
+                treaty.instability = 0;
+                treatiesChanged = true;
+
+                logs.push(`❌ 由于关系长期恶化，与 ${nation.name} 的 ${treatyName} 已自动终止。`);
+
+                // Add specific logic for investment pact termination if needed (e.g., notification event)
+            }
+        } else {
+            // Recover stability if relation is good
+            if (treaty.instability > 0) {
+                treaty.instability = Math.max(0, treaty.instability - 1);
+                if (treaty.instability === 0) {
+                    // Recovered
+                }
+            }
+        }
+    });
+
+    // If any treaty was terminated, we might need to trigger cleanup or side effects elsewhere,
+    // but usually checking status='active' is enough for other systems.
 };
 
 /**

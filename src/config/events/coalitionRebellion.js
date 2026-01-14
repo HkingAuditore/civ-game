@@ -1,8 +1,8 @@
 // 联合叛乱系统 (Coalition Rebellion System)
 // 当多个阶层同时处于高组织度状态时，可以联合发动叛乱
 
-import { STRATA } from '../strata';
-import { REBELLION_PHASE, REBELLION_CONFIG } from './rebellionEvents';
+import { STRATA } from '../strata.js';
+import { REBELLION_PHASE, REBELLION_CONFIG } from './rebellionEvents.js';
 
 /**
  * 获取阶层中文名称

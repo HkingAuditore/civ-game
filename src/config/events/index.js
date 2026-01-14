@@ -1,12 +1,12 @@
 // Events module - Main entry point
 // Exports all events and event-related functions
 
-import { BASE_EVENTS } from './baseEvents';
-import { CLASS_CONFLICT_EVENTS } from './classConflictEvents';
-import { EPOCH_EVENTS } from './epochEvents';
-import { economicEvents as ECONOMIC_EVENTS } from './economicEvents';
-import { STATIC_DIPLOMATIC_EVENTS } from './staticDiplomaticEvents';
-import { canTriggerEvent, getRandomEvent as getRandomEventFromList } from './eventUtils';
+import { BASE_EVENTS } from './baseEvents.js';
+import { CLASS_CONFLICT_EVENTS } from './classConflictEvents.js';
+import { EPOCH_EVENTS } from './epochEvents.js';
+import { economicEvents as ECONOMIC_EVENTS } from './economicEvents.js';
+import { STATIC_DIPLOMATIC_EVENTS } from './staticDiplomaticEvents.js';
+import { canTriggerEvent, getRandomEvent as getRandomEventFromList } from './eventUtils.js';
 import {
     createWarDeclarationEvent,
     createGiftEvent,
@@ -35,7 +35,7 @@ import {
     createMilitaryAllianceInviteEvent,
     createBorderIncidentEvent,
     REBEL_DEMAND_SURRENDER_TYPE,
-} from './diplomaticEvents';
+} from './diplomaticEvents.js';
 // 叛乱事件系统
 import {
     REBELLION_PHASE,
@@ -50,7 +50,7 @@ import {
     createSuppressionResultEvent,
     createRebelNation,
     createRebellionEndEvent,
-} from './rebellionEvents';
+} from './rebellionEvents.js';
 
 // Combine all events into a single array
 export const EVENTS = [...BASE_EVENTS, ...CLASS_CONFLICT_EVENTS, ...EPOCH_EVENTS, ...ECONOMIC_EVENTS, ...STATIC_DIPLOMATIC_EVENTS];
@@ -118,7 +118,7 @@ import {
     createCoalitionRebelNation,
     createCoalitionRebellionEvent,
     calculateCoalitionPopLoss,
-} from './coalitionRebellion';
+} from './coalitionRebellion.js';
 
 export {
     createCoalitionRebelNation,
@@ -132,7 +132,7 @@ import {
     createCoalitionDemandEvent,
     checkAndCreateCoalitionDemandEvent,
     resetCoalitionEventCooldowns,
-} from './coalitionEvents';
+} from './coalitionEvents.js';
 
 export {
     checkCoalitionDemandCondition,

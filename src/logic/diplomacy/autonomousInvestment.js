@@ -243,8 +243,17 @@ export function processAIInvestment({
     const playerRelation = investorNation.relation || 0;
     // 关系 > 30 且满足投资条约/附庸关系
     if (playerRelation > 30 && canInvestInTarget(playerState)) {
-        targets.push({ id: 'player', name: 'Player', ...playerState });
-        console.log(`[AI投资] ${investorNation.name} 将玩家加入投资目标 (关系: ${playerRelation}, 协议有效)`);
+        // [NEW] Relation-based Probability Scaling
+        // Higher relation = higher chance to consider investing
+        // Map relation 30..100 to probability 0.1..1.0
+        const relationProbability = Math.max(0.1, (playerRelation - 30) / 70);
+
+        if (Math.random() < relationProbability) {
+            targets.push({ id: 'player', name: 'Player', ...playerState });
+            console.log(`[AI投资] ${investorNation.name} 将玩家加入投资目标 (关系: ${playerRelation}, 概率: ${relationProbability.toFixed(2)})`);
+        } else {
+            console.log(`[AI投资] ${investorNation.name} 因关系不足(${playerRelation})随机跳过本次对玩家投资`);
+        }
     } else {
         // console.log(`[AI投资] ${investorNation.name} 跳过玩家 (关系: ${playerRelation}, 协议: ${canInvestInTarget(playerState)})`);
     }
