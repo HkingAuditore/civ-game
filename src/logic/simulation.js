@@ -583,6 +583,19 @@ export const simulateTick = ({
             });
         }
 
+        // [FIX] Apply market changes to target nations (supply/demand impact)
+        if (oiResult.marketChanges) {
+            // marketChanges structure: { [nationId]: { [resource]: amount } }
+            Object.entries(oiResult.marketChanges).forEach(([nationId, changes]) => {
+                const nation = nations.find(n => n.id === nationId);
+                if (nation && nation.inventory) {
+                    Object.entries(changes).forEach(([resKey, amount]) => {
+                        nation.inventory[resKey] = Math.max(0, (nation.inventory[resKey] || 0) + amount);
+                    });
+                }
+            });
+        }
+
         // Process Upgrades
         const upgradeResult = processOverseasInvestmentUpgrades({
             overseasInvestments: updatedOverseasInvestments,

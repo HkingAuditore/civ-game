@@ -636,10 +636,40 @@ export const useGameLoop = (gameState, addLog, actions) => {
         overseasInvestmentsRef.current = overseasInvestments;
     }, [overseasInvestments]);
 
+    // ========== 历史数据 Ref 管理 ==========
+    // 使用 Ref 存储高频更新的历史数据，避免每帧触发 React 重渲染
+    // 仅在节流间隔到达时同步到 State 供 UI 显示
+    const classWealthHistoryRef = useRef(classWealthHistory || {});
+    const classNeedsHistoryRef = useRef(classNeedsHistory || {});
+    const marketHistoryRef = useRef({
+        price: market?.priceHistory || {},
+        supply: market?.supplyHistory || {},
+        demand: market?.demandHistory || {},
+    });
+
+    // 初始化/同步 Ref
+    useEffect(() => {
+        if (classWealthHistory) classWealthHistoryRef.current = classWealthHistory;
+    }, []); // 仅挂载时同步，后续由 loop 维护
+
+    useEffect(() => {
+        if (classNeedsHistory) classNeedsHistoryRef.current = classNeedsHistory;
+    }, []);
+
+    useEffect(() => {
+        if (market?.priceHistory) {
+            marketHistoryRef.current = {
+                price: market.priceHistory || {},
+                supply: market.supplyHistory || {},
+                demand: market.demandHistory || {},
+            };
+        }
+    }, []);
+
     // ========== 历史数据节流 ==========
-    // 每 HISTORY_UPDATE_INTERVAL 个 tick 才更新一次历史数据，减少内存操作
+    // 每 HISTORY_UPDATE_INTERVAL 个 tick 才更新一次历史数据 State
     const historyUpdateCounterRef = useRef(0);
-    const HISTORY_UPDATE_INTERVAL = 1; // 每1个tick更新一次历史数据（保留最近30天）
+    const HISTORY_UPDATE_INTERVAL = 5; // 每5个tick同步一次历史数据到UI（显著减少重渲染）
 
     const { runSimulation } = useSimulationWorker();
 
@@ -945,9 +975,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 activeBuffs: current.activeBuffs,
                 activeDebuffs: current.activeDebuffs,
 
-                // 历史数据
-                classWealthHistory: current.classWealthHistory,
-                classNeedsHistory: current.classNeedsHistory,
+                // 历史数据 (Pass from Ref for latest data without waiting for State)
+                classWealthHistory: classWealthHistoryRef.current,
+                classNeedsHistory: classNeedsHistoryRef.current,
 
                 // 时间和节日
                 daysElapsed: current.daysElapsed,
@@ -1717,93 +1747,71 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 const nextNations = coupOutcome?.nations || result.nations;
                 const nextPopulation = coupOutcome?.population ?? result.population;
 
-                // --- 市场数据历史记录更新 ---
-                const previousPriceHistory = current.market?.priceHistory || {};
-                const priceHistory = { ...previousPriceHistory };
+                // --- 历史数据更新 (Update Refs directly) ---
+                const MAX_POINTS = HISTORY_STORAGE_LIMIT;
 
-                const previousSupplyHistory = current.market?.supplyHistory || {};
-                const supplyHistory = { ...previousSupplyHistory };
-
-                const previousDemandHistory = current.market?.demandHistory || {};
-                const demandHistory = { ...previousDemandHistory };
-
-                const MAX_MARKET_HISTORY_POINTS = HISTORY_STORAGE_LIMIT;
+                // 1. Market History Ref Update
+                const mHist = marketHistoryRef.current;
                 Object.keys(result.market?.prices || {}).forEach(resource => {
-                    const price = result.market?.prices?.[resource];
+                    // Price
+                    if (!mHist.price[resource]) mHist.price[resource] = [];
+                    mHist.price[resource].push(result.market?.prices?.[resource] || 0);
+                    if (mHist.price[resource].length > MAX_POINTS) mHist.price[resource].shift();
 
-                    if (!priceHistory[resource]) priceHistory[resource] = [];
-                    priceHistory[resource] = [...priceHistory[resource], price];
-                    if (priceHistory[resource].length > MAX_MARKET_HISTORY_POINTS) {
-                        priceHistory[resource].shift();
-                    }
+                    // Supply
+                    if (!mHist.supply[resource]) mHist.supply[resource] = [];
+                    mHist.supply[resource].push(result.market?.supply?.[resource] || 0);
+                    if (mHist.supply[resource].length > MAX_POINTS) mHist.supply[resource].shift();
 
-                    if (!supplyHistory[resource]) supplyHistory[resource] = [];
-                    supplyHistory[resource] = [
-                        ...supplyHistory[resource],
-                        result.market?.supply?.[resource] || 0,
-                    ];
-                    if (supplyHistory[resource].length > MAX_MARKET_HISTORY_POINTS) {
-                        supplyHistory[resource].shift();
-                    }
-
-                    if (!demandHistory[resource]) demandHistory[resource] = [];
-                    demandHistory[resource] = [
-                        ...demandHistory[resource],
-                        result.market?.demand?.[resource] || 0,
-                    ];
-                    if (demandHistory[resource].length > MAX_MARKET_HISTORY_POINTS) {
-                        demandHistory[resource].shift();
-                    }
+                    // Demand
+                    if (!mHist.demand[resource]) mHist.demand[resource] = [];
+                    mHist.demand[resource].push(result.market?.demand?.[resource] || 0);
+                    if (mHist.demand[resource].length > MAX_POINTS) mHist.demand[resource].shift();
                 });
 
-                const previousWealthHistory = current.classWealthHistory || {};
-                const wealthHistory = { ...previousWealthHistory };
-                const MAX_WEALTH_POINTS = HISTORY_STORAGE_LIMIT;
+                // 2. Class Wealth History Ref Update
+                const wHist = classWealthHistoryRef.current;
                 Object.entries(result.classWealth || {}).forEach(([key, value]) => {
-                    const series = wealthHistory[key] ? [...wealthHistory[key]] : [];
-                    series.push(value);
-                    if (series.length > MAX_WEALTH_POINTS) {
-                        series.shift();
-                    }
-                    wealthHistory[key] = series;
+                    if (!wHist[key]) wHist[key] = [];
+                    wHist[key].push(value);
+                    if (wHist[key].length > MAX_POINTS) wHist[key].shift();
                 });
 
-                const previousNeedsHistory = current.classNeedsHistory || {};
-                const needsHistory = { ...previousNeedsHistory };
-                const MAX_NEEDS_POINTS = HISTORY_STORAGE_LIMIT;
+                // 3. Class Needs History Ref Update
+                const nHist = classNeedsHistoryRef.current;
                 Object.entries(result.needsReport || {}).forEach(([key, report]) => {
-                    const series = needsHistory[key] ? [...needsHistory[key]] : [];
-                    series.push(report.satisfactionRatio);
-                    if (series.length > MAX_NEEDS_POINTS) {
-                        series.shift();
-                    }
-                    needsHistory[key] = series;
+                    if (!nHist[key]) nHist[key] = [];
+                    nHist[key].push(report.satisfactionRatio);
+                    if (nHist[key].length > MAX_POINTS) nHist[key].shift();
                 });
 
                 const adjustedMarket = {
                     ...(result.market || {}),
-                    priceHistory,
-                    supplyHistory,
-                    demandHistory,
-                    // 加成修饰符数据，供UI显示"谁吃到了buff"
+                    // Use Ref data for consistency, but this object is recreated every tick.
+                    // The cost is just object creation, not React render (until setState).
+                    priceHistory: mHist.price,
+                    supplyHistory: mHist.supply,
+                    demandHistory: mHist.demand,
                     modifiers: result.modifiers || {},
                 };
 
-                // ========== 历史数据节流更新 ==========
-                // 只在计数器到达间隔时更新历史数据，减少 80% 的数组操作
-                const shouldUpdateHistory = historyUpdateCounterRef.current >= HISTORY_UPDATE_INTERVAL;
-                if (shouldUpdateHistory) {
-                    historyUpdateCounterRef.current = 0;
-                } else {
-                    historyUpdateCounterRef.current++;
-                }
+                // ========== 历史数据节流同步 ==========
+                // 仅当计数器到达间隔时，才将 Ref 中的数据同步到 React State
+                historyUpdateCounterRef.current++;
+                const shouldUpdateUIState = historyUpdateCounterRef.current >= HISTORY_UPDATE_INTERVAL;
 
-                const MAX_HISTORY_POINTS = HISTORY_STORAGE_LIMIT;
-                if (shouldUpdateHistory) {
+                if (shouldUpdateUIState) {
+                    historyUpdateCounterRef.current = 0;
+
+                    // Sync Class History State (clone to trigger render)
+                    setClassWealthHistory({ ...classWealthHistoryRef.current });
+                    setClassNeedsHistory({ ...classNeedsHistoryRef.current });
+
+                    // Sync Global History (Legacy structure)
                     setHistory(prevHistory => {
                         const appendValue = (series = [], value) => {
                             const nextSeries = [...series, value];
-                            if (nextSeries.length > MAX_HISTORY_POINTS) {
+                            if (nextSeries.length > MAX_POINTS) {
                                 nextSeries.shift();
                             }
                             return nextSeries;
@@ -1862,11 +1870,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     if (typeof window !== 'undefined') {
                         window.__buildingDebugData = result.buildingDebugData || {};
                     }
-                    // 历史数据只在节流条件满足时更新
-                    if (shouldUpdateHistory) {
-                        setClassWealthHistory(wealthHistory);
-                        setClassNeedsHistory(needsHistory);
-                    }
+                    // 历史数据更新已移至上方 Ref 管理部分，此处不再重复调用
                     setTotalInfluence(result.totalInfluence);
                     setTotalWealth(adjustedTotalWealth);
                     setActiveBuffs(result.activeBuffs);
