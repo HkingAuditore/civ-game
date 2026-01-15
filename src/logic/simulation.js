@@ -5854,14 +5854,69 @@ export const simulateTick = ({
     const baseFiscalIncome = totalCollectedTax + warIndemnityIncome;
     // NEW: Apply income percentage bonus (from tech/decree effects)
     const incomePercentMultiplier = Math.max(0, 1 + incomePercentBonus);
-    const totalFiscalIncome = baseFiscalIncome * incomePercentMultiplier;
 
-    res.silver = (res.silver || 0) + totalFiscalIncome;
-    trackSilverChange(totalFiscalIncome, `税收收入（含战争赔款）`);
-    rates.silver = (rates.silver || 0) + totalFiscalIncome;
+    // 分项记录税收和收入，确保日志清晰 (Fix: Generic Tax Revenue)
+    // 1. 人头税
+    const finalHeadTax = collectedHeadTax * incomePercentMultiplier;
+    if (finalHeadTax !== 0) {
+        res.silver = (res.silver || 0) + finalHeadTax;
+        rates.silver = (rates.silver || 0) + finalHeadTax;
+        trackSilverChange(finalHeadTax, 'tax_head');
+    }
+
+    // 2. 交易税
+    const finalIndustryTax = collectedIndustryTax * incomePercentMultiplier;
+    if (finalIndustryTax !== 0) {
+        res.silver = (res.silver || 0) + finalIndustryTax;
+        rates.silver = (rates.silver || 0) + finalIndustryTax;
+        trackSilverChange(finalIndustryTax, 'tax_industry');
+    }
+
+    // 3. 营业税
+    const finalBusinessTax = collectedBusinessTax * incomePercentMultiplier;
+    if (finalBusinessTax !== 0) {
+        res.silver = (res.silver || 0) + finalBusinessTax;
+        rates.silver = (rates.silver || 0) + finalBusinessTax;
+        trackSilverChange(finalBusinessTax, 'tax_business');
+    }
+
+    // 4. 关税
+    const finalTariff = collectedTariff * incomePercentMultiplier;
+    if (finalTariff !== 0) {
+        res.silver = (res.silver || 0) + finalTariff;
+        rates.silver = (rates.silver || 0) + finalTariff;
+        trackSilverChange(finalTariff, 'tax_tariff');
+    }
+
+    // 5. 战争赔款
+    const finalWarIndemnity = warIndemnityIncome * incomePercentMultiplier;
+    if (finalWarIndemnity > 0) {
+        res.silver = (res.silver || 0) + finalWarIndemnity;
+        rates.silver = (rates.silver || 0) + finalWarIndemnity;
+        trackSilverChange(finalWarIndemnity, 'income_war_indemnity');
+    }
+
+    // 6. 政令收入
+    if (decreeSilverIncome > 0) {
+        res.silver = (res.silver || 0) + decreeSilverIncome;
+        rates.silver = (rates.silver || 0) + decreeSilverIncome;
+        trackSilverChange(decreeSilverIncome, 'income_policy');
+    }
+
+    // 7. 政令支出 (此前未扣除，现修正)
+    if (decreeSilverExpense > 0) {
+        const expense = Math.min(res.silver || 0, decreeSilverExpense);
+        if (expense > 0) {
+            res.silver = (res.silver || 0) - expense;
+            rates.silver = (rates.silver || 0) - expense;
+            trackSilverChange(-expense, 'expense_policy');
+        }
+    }
 
     taxBreakdown.policyIncome = decreeSilverIncome;
     taxBreakdown.policyExpense = decreeSilverExpense;
+
+    const totalFiscalIncome = (totalCollectedTax + warIndemnityIncome) * incomePercentMultiplier;
 
     const priceControlIncome = taxBreakdown.priceControlIncome || 0;
     const priceControlExpense = taxBreakdown.priceControlExpense || 0;
