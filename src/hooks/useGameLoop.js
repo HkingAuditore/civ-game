@@ -20,7 +20,6 @@ import { getBuildingEffectiveConfig } from '../config/buildingUpgrades';
 import { getRandomFestivalEffects } from '../config/festivalEffects';
 import { initCheatCodes } from './cheatCodes';
 import { getCalendarInfo } from '../utils/calendar';
-import { calculateForeignPrice, calculateTradeStatus } from '../utils/foreignTrade';
 import {
     createEnemyPeaceRequestEvent,
     createWarDeclarationEvent,
@@ -82,317 +81,6 @@ import { LOYALTY_CONFIG } from '../config/officials';
 const calculateRebelPopulation = (stratumPop = 0) => {
     if (!Number.isFinite(stratumPop) || stratumPop <= 0) return 0;
     return Math.min(stratumPop, Math.max(1, Math.floor(stratumPop * 0.8)));
-};
-
-/**
- * 处理贸易路线的自动执行
- * @param {Object} current - 当前游戏状态
- * @param {Object} result - simulateTick的结果
- * @param {Function} addLog - 添加日志函数
- * @param {Function} setResources - 设置资源函数
- * @param {Function} setNations - 设置国家函数
- * @param {Function} setTradeRoutes - 设置贸易路线函数
- */
-const processTradeRoutes = (current) => {
-    const { tradeRoutes, nations, resources, daysElapsed, market, popStructure, taxPolicies, diplomacyOrganizations } = current;
-    const routes = tradeRoutes.routes || [];
-    const organizationList = diplomacyOrganizations?.organizations || [];
-    const findSharedOrganization = (nationId) => organizationList.find(org =>
-        Array.isArray(org?.members) && org.members.includes('player') && org.members.includes(nationId)
-    );
-    const getTariffDiscount = (nationId) => {
-        const org = findSharedOrganization(nationId);
-        return org ? (ORGANIZATION_EFFECTS[org.type]?.tariffDiscount || 0) : 0;
-    };
-
-    // 贸易路线配置
-    const TRADE_SPEED = 0.05; // 每天传输盈余/缺口的5%
-    const MIN_TRADE_AMOUNT = 0.1; // 最小贸易量
-
-    // 获取在岗商人数量，决定有多少条贸易路线有效
-    const merchantCount = popStructure?.merchant || 0;
-
-    const routesToRemove = [];
-    const tradeLog = [];
-    let totalTradeTax = 0; // 玩家获得的贸易税
-    const resourceDelta = {};
-    const nationDelta = {};
-
-    const addResourceDelta = (key, amount) => {
-        if (!Number.isFinite(amount) || amount === 0) return;
-        resourceDelta[key] = (resourceDelta[key] || 0) + amount;
-    };
-
-    const addNationDelta = (nationId, delta) => {
-        if (!nationId || !delta) return;
-        if (!nationDelta[nationId]) {
-            nationDelta[nationId] = { budget: 0, relation: 0, inventory: {} };
-        }
-        if (Number.isFinite(delta.budget)) {
-            nationDelta[nationId].budget += delta.budget;
-        }
-        if (Number.isFinite(delta.relation)) {
-            nationDelta[nationId].relation += delta.relation;
-        }
-        if (delta.inventory) {
-            Object.entries(delta.inventory).forEach(([resKey, amount]) => {
-                if (!Number.isFinite(amount) || amount === 0) return;
-                nationDelta[nationId].inventory[resKey] =
-                    (nationDelta[nationId].inventory[resKey] || 0) + amount;
-            });
-        }
-    };
-
-    // 只处理前 merchantCount 条贸易路线（有多少个商人在岗就让多少条贸易路线有用）
-    routes.forEach((route, index) => {
-        const { nationId, resource, type } = route;
-        const nation = nations.find(n => n.id === nationId);
-
-        if (!nation) {
-            routesToRemove.push(route);
-            return;
-        }
-
-        // 如果超过商人数量，则跳过该贸易路线
-        if (index >= merchantCount) {
-            return;
-        }
-
-        // 检查是否处于战争，如果是则暂停贸易路线
-        if (nation.isAtWar) {
-            return; // 不移除路线，只是暂停
-        }
-
-        // 获取贸易状态
-        const tradeStatus = calculateTradeStatus(resource, nation, daysElapsed);
-        const localPrice = market?.prices?.[resource] ?? (RESOURCES[resource]?.basePrice || 1);
-        const foreignPrice = calculateForeignPrice(resource, nation, daysElapsed);
-
-        // New: trade route mode
-        // - normal: must satisfy surplus/shortage like old rules
-        // - force_sell: allow exporting even if the partner has no shortage ("dumping")
-        // - force_buy: allow importing even if the partner has no surplus ("coercive purchase")
-        const mode = route?.mode || 'normal';
-        const isForceSell = mode === 'force_sell';
-        const isForceBuy = mode === 'force_buy';
-
-        // If open market treaty is active, coercive trade does not cause diplomatic debuff.
-        const isOpenMarketActive = Boolean(nation?.openMarketUntil && daysElapsed < nation.openMarketUntil);
-
-        if (type === 'export') {
-            // 出口：商人在国内以国内价购买，在国外以国外价卖出
-            // 玩家只赚取商人在国内购买时的交易税
-
-            // Normal export requires partner shortage; force_sell ignores it.
-            if (!isForceSell) {
-                if (!tradeStatus.isShortage || tradeStatus.shortageAmount <= 0) {
-                    return; // 对方没有缺口，暂停贸易但保留路线
-                }
-            }
-
-            // 计算我方盈余
-            const myInventory = resources[resource] || 0;
-            const myTarget = 500; // 简化：使用固定目标库存
-            const mySurplus = Math.max(0, myInventory - myTarget);
-
-            if (mySurplus <= MIN_TRADE_AMOUNT) {
-                return; // 我方没有盈余，暂停贸易但保留路线
-            }
-
-            // 计算本次出口量：
-            // - normal: min(盈余, 对方缺口)
-            // - force_sell: 允许倾销，只看我方盈余（但仍受 TRADE_SPEED 限制）
-            const shortageCap = Math.max(0, tradeStatus.shortageAmount || 0);
-            const exportCap = isForceSell ? mySurplus : Math.min(mySurplus, shortageCap);
-            const exportAmount = exportCap * TRADE_SPEED;
-
-            if (exportAmount < MIN_TRADE_AMOUNT) {
-                return;
-            }
-
-            // 商人在国内购买资源
-            const domesticPurchaseCost = localPrice * exportAmount;  // 商人在国内的购买成本
-            const taxRate = taxPolicies?.resourceTaxRates?.[resource] || 0; // 获取该资源的交易税率
-            // 关税存储为小数（0=无关税，0.5=50%关税，<0=补贴）
-            // 最终税率 = 交易税 + 关税（加法叠加）
-            const tariffRate = taxPolicies?.exportTariffMultipliers?.[resource] ?? taxPolicies?.resourceTariffMultipliers?.[resource] ?? 0;
-            const tariffDiscount = getTariffDiscount(nationId);
-            const adjustedTariffRate = tariffRate * (1 - tariffDiscount);
-            const effectiveTaxRate = taxRate + adjustedTariffRate;
-            const tradeTax = domesticPurchaseCost * effectiveTaxRate; // 玩家获得的交易税
-
-            // 商人在国外销售
-            // force_sell：倾销折价，避免无脑刷钱，同时制造外交代价
-            const dumpingDiscount = 0.6;
-            const effectiveForeignPrice = isForceSell ? foreignPrice * dumpingDiscount : foreignPrice;
-            const foreignSaleRevenue = effectiveForeignPrice * exportAmount;  // 商人在国外的销售收入
-            const merchantProfit = foreignSaleRevenue - domesticPurchaseCost - tradeTax; // 商人获得的利润（含关税成本）
-
-            if (merchantProfit <= 0) {
-                return;
-            }
-
-            // 更新玩家资源：扣除出口的资源，交易税交给 simulation 统一处理
-            addResourceDelta(resource, -exportAmount);
-            totalTradeTax += tradeTax;
-
-            // 更新外国：支付给商人，获得资源
-            // force_sell：关系下降（被倾销），并且对方预算扣款更小（视为“低价抢购”）
-            addNationDelta(nationId, {
-                budget: -foreignSaleRevenue,
-                relation: isForceSell ? (isOpenMarketActive ? 0.2 : -0.6) : 0.2,
-                inventory: { [resource]: exportAmount },
-            });
-
-        } else if (type === 'import') {
-            // 进口：商人在国外以国外价购买，在国内以国内价卖出
-            // 玩家只赚取商人在国内销售时的交易税
-
-            // Normal import requires partner surplus; force_buy ignores it.
-            if (!isForceBuy) {
-                if (!tradeStatus.isSurplus || tradeStatus.surplusAmount <= 0) {
-                    return; // 对方没有盈余，暂停贸易但保留路线
-                }
-            }
-
-            // 计算本次进口量：
-            // - normal: 对方盈余的一定比例
-            // - force_buy: 允许强买，按固定“目标供给”抽取一部分（同时对关系造成伤害）
-            const normalImportCap = Math.max(0, tradeStatus.surplusAmount || 0);
-            const forcedBaseline = Math.max(10, tradeStatus.target || 0); // 给旧存档/无target时兜底
-            const importCap = isForceBuy ? forcedBaseline : normalImportCap;
-            const importAmount = importCap * TRADE_SPEED;
-
-            if (importAmount < MIN_TRADE_AMOUNT) {
-                return;
-            }
-
-            // 商人在国外购买资源
-            // force_buy：强买溢价（你硬要买，对方抬价），避免无脑套利
-            const forcedPremium = 1.3;
-            const effectiveForeignPrice = isForceBuy ? foreignPrice * forcedPremium : foreignPrice;
-            const foreignPurchaseCost = effectiveForeignPrice * importAmount;  // 商人在国外的购买成本
-
-            // 商人在国内销售
-            const domesticSaleRevenue = localPrice * importAmount;  // 商人在国内的销售收入
-            const taxRate = taxPolicies?.resourceTaxRates?.[resource] || 0; // 获取该资源的交易税率
-            // 关税存储为小数（0=无关税，0.5=50%关税，<0=补贴）
-            // 最终税率 = 交易税 + 关税（加法叠加）
-            const tariffRate = taxPolicies?.importTariffMultipliers?.[resource] ?? taxPolicies?.resourceTariffMultipliers?.[resource] ?? 0;
-            const tariffDiscount = getTariffDiscount(nationId);
-            const adjustedTariffRate = tariffRate * (1 - tariffDiscount);
-            const effectiveTaxRate = taxRate + adjustedTariffRate;
-            const tradeTax = domesticSaleRevenue * effectiveTaxRate; // 玩家获得的交易税
-            const merchantProfit = domesticSaleRevenue - foreignPurchaseCost - tradeTax; // 商人获得的利润（含关税成本）
-
-            if (merchantProfit <= 0) {
-                return;
-            }
-
-            // 更新玩家资源：增加进口的资源，交易税交给 simulation 统一处理
-            addResourceDelta(resource, importAmount);
-            totalTradeTax += tradeTax;
-
-            // 更新外国：收到商人支付，失去资源
-            // force_buy：关系下降（被强买），库存允许被压到0
-            addNationDelta(nationId, {
-                budget: foreignPurchaseCost,
-                relation: isForceBuy ? (isOpenMarketActive ? 0.2 : -0.6) : 0.2,
-                inventory: { [resource]: -importAmount },
-            });
-
-            if (importAmount >= 1 && !isForceBuy) {
-                tradeLog.push(`🚢 进口 ${importAmount.toFixed(1)} ${RESOURCES[resource]?.name || resource} 从 ${nation.name}：商人国外购 ${foreignPurchaseCost.toFixed(1)} 银币，国内售 ${domesticSaleRevenue.toFixed(1)} 银币（税 ${tradeTax.toFixed(1)}），商人赚 ${merchantProfit.toFixed(1)} 银币。`);
-            }
-        }
-    });
-
-    // 移除无效的贸易路线
-    return { tradeTax: totalTradeTax, resourceDelta, nationDelta, routesToRemove, tradeLog };
-};
-
-const applyTradeRouteDeltas = (summary, current, addLog, setResources, setNations, setTradeRoutes, options = {}) => {
-    if (!summary) return;
-    const {
-        resourceDelta = {},
-        nationDelta = {},
-        routesToRemove = [],
-        tradeLog = [],
-    } = summary;
-    const {
-        applyResourceDelta = true,
-        applyNationDelta = true,
-        applyRouteRemoval = true,
-        applyLogs = true,
-    } = options;
-
-    if (applyRouteRemoval && routesToRemove.length > 0) {
-        setTradeRoutes(prev => ({
-            ...prev,
-            routes: prev.routes.filter(route =>
-                !routesToRemove.some(r =>
-                    r.nationId === route.nationId &&
-                    r.resource === route.resource &&
-                    r.type === route.type
-                )
-            )
-        }));
-    }
-
-    if (applyResourceDelta && Object.keys(resourceDelta).length > 0) {
-        setResources(prev => {
-            const next = { ...prev };
-            Object.entries(resourceDelta).forEach(([key, delta]) => {
-                const currentValue = next[key] || 0;
-                next[key] = Math.max(0, currentValue + delta);
-            });
-            return next;
-        }, { reason: 'trade_route_delta' });
-    }
-
-    if (applyNationDelta && Object.keys(nationDelta).length > 0) {
-        setNations(prev => prev.map(n => {
-            const delta = nationDelta[n.id];
-            if (!delta) return n;
-            const nextInventory = { ...(n.inventory || {}) };
-            Object.entries(delta.inventory || {}).forEach(([resKey, amount]) => {
-                nextInventory[resKey] = Math.max(0, (nextInventory[resKey] || 0) + amount);
-            });
-            return {
-                ...n,
-                budget: Math.max(0, (n.budget || 0) + (delta.budget || 0)),
-                inventory: nextInventory,
-                relation: Math.min(100, Math.max(-100, (n.relation || 0) + (delta.relation || 0))),
-            };
-        }));
-    }
-
-    if (applyLogs) {
-        const logVisibility = current?.eventEffectSettings?.logVisibility || {};
-        const shouldLogMerchantTrades = logVisibility.showMerchantTradeLogs ?? true;
-        const shouldLogTradeRoutes = logVisibility.showTradeRouteLogs ?? true;
-
-        if (shouldLogMerchantTrades) {
-            tradeLog.forEach(log => addLog(log));
-        }
-
-        if (!shouldLogTradeRoutes) {
-            // currently trade routes only output detailed logs above;
-            // keep this block to ensure future trade-route logs can be gated centrally.
-        }
-    }
-};
-
-
-const applyResourceDeltaToSnapshot = (resources = {}, delta = {}) => {
-    if (!delta || Object.keys(delta).length === 0) return resources || {};
-    const next = { ...(resources || {}) };
-    Object.entries(delta).forEach(([key, amount]) => {
-        if (!Number.isFinite(amount) || amount === 0) return;
-        const currentValue = next[key] || 0;
-        next[key] = Math.max(0, currentValue + amount);
-    });
-    return next;
 };
 
 const getUnitPopulationCost = (unitId) => {
@@ -1175,20 +863,11 @@ export const useGameLoop = (gameState, addLog, actions) => {
             const officialDailySalary = calculateTotalDailySalary(current.officials || []);
             const canAffordOfficials = (current.resources?.silver || 0) >= officialDailySalary;
 
-            // Process trade routes before simulation so their tax revenue is applied inside the worker.
-            let tradeRouteSummary = null;
-            if (current.tradeRoutes && current.tradeRoutes.routes && current.tradeRoutes.routes.length > 0) {
-                tradeRouteSummary = processTradeRoutes(current);
-            }
-            const tradeRouteTax = tradeRouteSummary?.tradeTax || 0;
-            const tradeRouteResourceDelta = tradeRouteSummary?.resourceDelta || {};
-            setTradeStats(prev => ({ ...prev, tradeRouteTax }));
-
             // Build simulation parameters - 手动列出可序列化字段，排除函数对象（如 actions）
             // 这样可以正确启用 Web Worker 加速，避免 DataCloneError
             const simulationParams = {
                 // 基础游戏数据
-                resources: applyResourceDeltaToSnapshot(current.resources, tradeRouteResourceDelta),
+                resources: current.resources,
                 market: current.market,
                 buildings: current.buildings,
                 buildingUpgrades: current.buildingUpgrades,
@@ -1260,7 +939,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 merchantState: current.merchantState,
                 tradeRoutes: current.tradeRoutes,
                 tradeStats: current.tradeStats,
-                tradeRouteTax,
+                tradeRouteTax: current.tradeStats?.tradeRouteTax || 0, // Pass last tick's value for continuity, but worker re-calculates
 
                 // Buff/Debuff
                 activeBuffs: current.activeBuffs,
@@ -1311,6 +990,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 officials: current.officials || [],
                 officialsPaid: canAffordOfficials,
                 foreignInvestments: current.foreignInvestments || [], // [NEW] Pass foreign investments to worker
+                overseasInvestments: current.overseasInvestments || [], // [NEW] Pass overseas investments to worker
+                foreignInvestmentPolicy: current.foreignInvestmentPolicy || 'normal', // [NEW] Pass policy
             };
 
             // Execute simulation
@@ -1721,288 +1402,33 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 });
                 let adjustedTotalWealth = Object.values(adjustedClassWealth).reduce((sum, val) => sum + val, 0);
 
-                // ========== 海外投资每日结算 ==========
-                // ========== 海外投资每日结算 ==========
-                if ((overseasInvestmentsRef.current && overseasInvestmentsRef.current.length > 0) || (current.foreignInvestments && current.foreignInvestments.length > 0)) {
-                    import('../logic/diplomacy/overseasInvestment').then(({ processOverseasInvestments, processForeignInvestments, processForeignInvestmentUpgrades, processOverseasInvestmentUpgrades }) => {
-                        // 1. 处理我方在外投资
-                        if (overseasInvestmentsRef.current && overseasInvestmentsRef.current.length > 0) {
-                            const investmentResult = processOverseasInvestments({
-                                overseasInvestments: overseasInvestmentsRef.current,
-                                nations: current.nations || [],
-                                organizations: current.diplomacyOrganizations?.organizations || [],
-                                resources: current.resources || {},
-                                marketPrices: current.market?.prices || {},
-                                classWealth: adjustedClassWealth,
-                                daysElapsed: current.daysElapsed || 0,
-                            });
-
-                            // 更新海外投资状态
-                            if (investmentResult.updatedInvestments) {
-                                setOverseasInvestments(prev => {
-                                    const updatedMap = new Map(investmentResult.updatedInvestments.map(i => [i.id, i]));
-                                    return prev.map(item => {
-                                        const updated = updatedMap.get(item.id);
-                                        if (!updated) return item;
-                                        // Preserve user-configurable fields from the latest state
-                                        // to prevent the simulation snapshot from overwriting recent UI changes
-                                        return {
-                                            ...updated,
-                                            inputSource: item.inputSource, // Keep latest user config
-                                            outputDest: item.outputDest,   // Keep latest user config
-                                        };
-                                    });
-                                });
-                            }
-
-                            // 将利润汇入各阶层财富
-                            if (investmentResult.profitByStratum && Object.keys(investmentResult.profitByStratum).length > 0) {
-                                gameState.setClassWealth(prev => {
-                                    const updated = { ...prev };
-                                    Object.entries(investmentResult.profitByStratum).forEach(([stratum, profit]) => {
-                                        updated[stratum] = (updated[stratum] || 0) + profit;
-                                    });
-                                    return updated;
-                                }, { reason: 'overseas_investment_profit' });
-
-                                // [NEW] 同时更新详细财务数据用于UI显示
-                                setClassFinancialData(prev => {
-                                    const updated = { ...prev };
-                                    Object.entries(investmentResult.profitByStratum).forEach(([stratum, profit]) => {
-                                        // 浅拷贝该阶层的数据以确保不可变性
-                                        updated[stratum] = {
-                                            ...(updated[stratum] || {}),
-                                            income: { ...(updated[stratum]?.income || {}) }
-                                        };
-
-                                        // 计入经营营收 (ownerRevenue)
-                                        updated[stratum].income.ownerRevenue = (updated[stratum].income.ownerRevenue || 0) + profit;
-                                    });
-                                    return updated;
-                                });
-                            }
-
-                            // 输出日志
-                            if (investmentResult.logs && investmentResult.logs.length > 0) {
-                                investmentResult.logs.forEach(log => addLog(log));
-                            }
-
-                            // [NEW] 应用市场资源变更
-                            if (investmentResult.marketChanges && Object.keys(investmentResult.marketChanges).length > 0) {
-                                setNations(prevNations => {
-                                    return prevNations.map(nation => {
-                                        const changes = investmentResult.marketChanges[nation.id];
-                                        if (!changes) return nation;
-
-                                        const nextInventories = { ...(nation.inventories || {}) };
-                                        Object.entries(changes).forEach(([res, delta]) => {
-                                            nextInventories[res] = Math.max(0, (nextInventories[res] || 0) + delta);
-                                        });
-
-                                        return {
-                                            ...nation,
-                                            inventories: nextInventories,
-                                        };
-                                    });
-                                });
-                            }
-
-                            // [NEW] 应用玩家资源变更（本国消耗/回购产出）
-                            if (investmentResult.playerInventoryChanges && Object.keys(investmentResult.playerInventoryChanges).length > 0) {
-                                setResources(prevResources => {
-                                    const nextResources = { ...prevResources };
-                                    Object.entries(investmentResult.playerInventoryChanges).forEach(([res, delta]) => {
-                                        nextResources[res] = Math.max(0, (nextResources[res] || 0) + delta);
-                                    });
-                                    return nextResources;
-                                }, { reason: 'overseas_investment_resource_change' });
-                            }
-
-                            // 1.5 处理本国海外投资自动升级 (每日 3% 概率检查)
-                            const overseasUpgradeResult = processOverseasInvestmentUpgrades({
-                                overseasInvestments: investmentResult.updatedInvestments || overseasInvestmentsRef.current,
-                                nations: current.nations || [],
-                                classWealth: adjustedClassWealth,
-                                marketPrices: current.market?.prices || {},
-                                daysElapsed: current.daysElapsed || 0,
-                            });
-
-                            // 更新海外投资状态（如果有升级）
-                            if (overseasUpgradeResult.upgrades && overseasUpgradeResult.upgrades.length > 0) {
-                                setOverseasInvestments(overseasUpgradeResult.updatedInvestments);
-
-                                // 扣除业主阶层财富（升级成本）
-                                if (overseasUpgradeResult.wealthChanges) {
-                                    gameState.setClassWealth(prev => {
-                                        const updated = { ...prev };
-                                        Object.entries(overseasUpgradeResult.wealthChanges).forEach(([stratum, delta]) => {
-                                            updated[stratum] = Math.max(0, (updated[stratum] || 0) + delta);
-                                        });
-                                        return updated;
-                                    }, { reason: 'overseas_investment_upgrade_cost' });
-                                }
-                            }
-
-                            // 升级日志
-                            if (overseasUpgradeResult.logs && overseasUpgradeResult.logs.length > 0) {
-                                overseasUpgradeResult.logs.forEach(log => addLog(log));
-                            }
-                        }
-
-                        // 2. 处理外国在华投资 (Phase 2 Add)
-                        if (current.foreignInvestments && current.foreignInvestments.length > 0) {
-                            const fiResult = processForeignInvestments({
-                                foreignInvestments: current.foreignInvestments,
-                                nations: current.nations || [],
-                                organizations: current.diplomacyOrganizations?.organizations || [],
-                                foreignInvestmentPolicy: current.foreignInvestmentPolicy || 'normal',
-                                playerMarket: adjustedMarket, // 使用更新后的市场数据
-                                playerResources: current.resources, // 使用当前资源
-                                taxPolicies: current.taxPolicies || {},
-                                daysElapsed: current.daysElapsed || 0,
-                                // [NEW] 传递 jobFill 和 buildings 用于计算实际到岗率
-                                jobFill: current.jobFill || {},
-                                buildings: current.buildings || {},
-                            });
-
-                            // 更新外资状态
-                            if (fiResult.updatedInvestments) {
-                                setForeignInvestments(prev => {
-                                    const updatedMap = new Map(fiResult.updatedInvestments.map(i => [i.id, i]));
-                                    return prev.map(item => updatedMap.get(item.id) || item);
-                                });
-                            }
-
-                            // 应用税收收益
-                            if (fiResult.totalTaxRevenue > 0) {
-                                setResources(prev => ({
-                                    ...prev,
-                                    silver: (prev.silver || 0) + fiResult.totalTaxRevenue
-                                }), { reason: 'foreign_investment_tax' });
-                                // 记录日志（可选，为了不刷屏可以合并）
-                                // addLog(`收到外资企业税收: ${fiResult.totalTaxRevenue.toFixed(1)} 银币`);
-                            }
-
-                            // 日志
-                            if (fiResult.logs && fiResult.logs.length > 0) {
-                                fiResult.logs.forEach(log => addLog(log));
-                            }
-
-                            // 2.5 处理外资企业自动升级建筑 (每日 3% 概率检查)
-                            const upgradeResult = processForeignInvestmentUpgrades({
-                                foreignInvestments: fiResult.updatedInvestments || current.foreignInvestments,
-                                nations: current.nations || [],
-                                playerMarket: adjustedMarket,
-                                playerResources: current.resources,
-                                buildingUpgrades: current.buildingUpgrades || {},
-                                buildingCounts: current.buildings || {},
-                                daysElapsed: current.daysElapsed || 0,
-                            });
-
-                            // 更新外资状态（如果有升级）
-                            if (upgradeResult.upgrades && upgradeResult.upgrades.length > 0) {
-                                setForeignInvestments(upgradeResult.updatedInvestments);
-
-                                // 扣除投资国财富（升级成本从投资国扣除）
-                                setNations(prevNations => {
-                                    return prevNations.map(nation => {
-                                        const nationUpgrades = upgradeResult.upgrades.filter(u => u.ownerNationId === nation.id);
-                                        if (nationUpgrades.length === 0) return nation;
-
-                                        const totalCost = nationUpgrades.reduce((sum, u) => sum + u.cost, 0);
-                                        return {
-                                            ...nation,
-                                            wealth: Math.max(0, (nation.wealth || 0) - totalCost),
-                                        };
-                                    });
-                                });
-                            }
-
-                            // 升级日志
-                            if (upgradeResult.logs && upgradeResult.logs.length > 0) {
-                                upgradeResult.logs.forEach(log => addLog(log));
-                            }
-                        }
-
                 // 3. 自主投资逻辑 (5% probability daily)
-                        const autoInvestRoll = Math.random();
-                        console.log(`🤖 [AUTO-INVEST] 自动投资检查: roll=${autoInvestRoll.toFixed(3)}, threshold=0.05, trigger=${autoInvestRoll < 0.05}`);
-                        if (autoInvestRoll < 0.05) {
-                            console.log(`🤖 [AUTO-INVEST] 触发自动投资逻辑...`);
-                            import('../logic/diplomacy/autonomousInvestment').then(({ processClassAutonomousInvestment }) => {
-                                const result = processClassAutonomousInvestment({
-                                    nations: current.nations || [],
-                                    playerNation: current.nations.find(n => n.id === 'player'),
-                                    diplomacyOrganizations: current.diplomacyOrganizations,
-                                    overseasInvestments: overseasInvestmentsRef.current,
-                                    classWealth: adjustedClassWealth,
-                                    market: adjustedMarket,
-                                    epoch: current.epoch,
-                                    daysElapsed: current.daysElapsed
-                                });
-
-                                if (result && result.success) {
-                                    const { stratum, targetNation, building, cost, dailyProfit, action } = result;
-
-                                    // Execute Investment
-                                    const newInvestment = action();
-                                    if (newInvestment) {
-                                        // Deduct Wealth
-                                        setClassWealth(prev => ({
-                                            ...prev,
-                                            [stratum]: Math.max(0, (prev[stratum] || 0) - cost)
-                                        }), { reason: 'autonomous_investment_cost', meta: { stratum } });
-
-                                        // Add Investment
-                                        setOverseasInvestments(prev => [...prev, newInvestment]);
-
-                                        // Log
-                                        const stratumName = STRATA[stratum]?.name || stratum;
-                                        addLog(`💰 ${stratumName}发现在 ${targetNation.name} 投资 ${building.name} 有利可图（预计日利 ${dailyProfit.toFixed(1)}），已自动注资 ${formatNumberShortCN(cost)}。`);
-                                    }
-                                }
-                            }).catch(err => console.warn('Autonomous investment error:', err));
-                        }
-
-                    }).catch(err => {
-                        console.error('Failed to process investments:', err);
-                    });
-                } else {
-                    // Even if no existing investments, try autonomous investment if logic is imported
-                    // But here we depend on the dynamic import block which was triggered by existing investments check
-                    // We should probably move this out if we want it to happen even with 0 investments.
-                    // However, to keep code compact and leverage the same import, let's keep it here 
-                    // OR add a separate check roughly here.
-
-                    // Let's add a separate check outside this block to ensure it runs even if no investments exist yet.
-                }
-
-                // Add separate autonomous investment check if not already running inside
-                if (!((overseasInvestmentsRef.current && overseasInvestmentsRef.current.length > 0) || (current.foreignInvestments && current.foreignInvestments.length > 0)) && Math.random() < 0.05) {
-                    import('../logic/diplomacy/overseasInvestment').then(() => {
-                        import('../logic/diplomacy/autonomousInvestment').then(({ processClassAutonomousInvestment }) => {
-                            const result = processClassAutonomousInvestment({
-                                nations: current.nations || [],
-                                playerNation: current.nations.find(n => n.id === 'player'),
-                                diplomacyOrganizations: current.diplomacyOrganizations,
-                                overseasInvestments: overseasInvestmentsRef.current || [],
-                                classWealth: adjustedClassWealth,
-                                market: adjustedMarket,
-                                epoch: current.epoch,
-                                daysElapsed: current.daysElapsed
-                            });
-                            if (result && result.success) {
-                                const { stratum, targetNation, building, cost, dailyProfit, action } = result;
-                                const newInvestment = action();
-                                if (newInvestment) {
-                                    setClassWealth(prev => ({ ...prev, [stratum]: Math.max(0, (prev[stratum] || 0) - cost) }), { reason: 'autonomous_investment_cost', meta: { stratum } });
-                                    setOverseasInvestments(prev => [...prev, newInvestment]);
-                                    const stratumName = STRATA[stratum]?.name || stratum;
-                                    addLog(`💰 ${stratumName}发现在 ${targetNation.name} 投资 ${building.name} 有利可图（预计日利 ${dailyProfit.toFixed(1)}），已自动注资 ${formatNumberShortCN(cost)}。`);
-                                }
-                            }
+                // Note: Autonomous investment creation is still done on main thread for now,
+                // but processed via logic imports. Could be moved to worker in future.
+                if (Math.random() < 0.05) {
+                    import('../logic/diplomacy/autonomousInvestment').then(({ processClassAutonomousInvestment }) => {
+                        const result = processClassAutonomousInvestment({
+                            nations: current.nations || [],
+                            playerNation: current.nations.find(n => n.id === 'player'),
+                            diplomacyOrganizations: current.diplomacyOrganizations,
+                            overseasInvestments: overseasInvestmentsRef.current || [],
+                            classWealth: adjustedClassWealth,
+                            market: adjustedMarket,
+                            epoch: current.epoch,
+                            daysElapsed: current.daysElapsed
                         });
-                    });
+
+                        if (result && result.success) {
+                            const { stratum, targetNation, building, cost, dailyProfit, action } = result;
+                            const newInvestment = action();
+                            if (newInvestment) {
+                                setClassWealth(prev => ({ ...prev, [stratum]: Math.max(0, (prev[stratum] || 0) - cost) }), { reason: 'autonomous_investment_cost', meta: { stratum } });
+                                setOverseasInvestments(prev => [...prev, newInvestment]);
+                                const stratumName = STRATA[stratum]?.name || stratum;
+                                addLog(`💰 ${stratumName}发现在 ${targetNation.name} 投资 ${building.name} 有利可图（预计日利 ${dailyProfit.toFixed(1)}），已自动注资 ${formatNumberShortCN(cost)}。`);
+                            }
+                        }
+                    }).catch(err => console.warn('Autonomous investment error:', err));
                 }
 
                 // 4. AI Autonomous Investment (30% chance to check daily - increased for better gameplay)
@@ -2500,6 +1926,19 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         if (prev === nextState) return prev;
                         return nextState;
                     });
+                    if (result.tradeRoutes) {
+                        setTradeRoutes(result.tradeRoutes);
+                    }
+                    if (result.overseasInvestments) {
+                        setOverseasInvestments(result.overseasInvestments);
+                    }
+                    if (result.foreignInvestments) {
+                        setForeignInvestments(result.foreignInvestments);
+                    }
+                    // Update trade route tax stats
+                    const calculatedTradeRouteTax = result.taxes?.breakdown?.tradeRouteTax || 0;
+                    setTradeStats(prev => ({ ...prev, tradeRouteTax: calculatedTradeRouteTax }));
+
                     if (nextNations) {
                         setNations(nextNations);
                     }
@@ -3066,20 +2505,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     setPromiseTasks(newRemaining);
                 }
 
-                // 处理贸易路线并记录贸易税收入
                 // 处理玩家的分期支付
-                if (tradeRouteSummary) {
-                    applyTradeRouteDeltas(
-                        tradeRouteSummary,
-                        current,
-                        addLog,
-                        setResources,
-                        setNations,
-                        setTradeRoutes,
-                        { applyResourceDelta: false }
-                    );
-                }
-
                 if (gameState.playerInstallmentPayment && gameState.playerInstallmentPayment.remainingDays > 0) {
                     const payment = gameState.playerInstallmentPayment;
                     const paymentAmount = payment.amount;
