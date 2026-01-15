@@ -1,9 +1,10 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Icon } from '../common/UIComponents';
 import { Card, Button } from '../common/UnifiedUI';
 import { RESOURCES } from '../../config';
 import { isDiplomacyUnlocked } from '../../config/diplomacy';
 import { calculateForeignPrice, calculateTradeStatus } from '../../utils/foreignTrade';
+import { CreateOrganizationModal } from '../modals/CreateOrganizationModal';
 
 const ORG_TYPES = [
     { type: 'military_alliance', name: '军事同盟', icon: 'Shield', era: 3, color: 'text-red-400', desc: '共同防御与军事通行 (时代 3 解锁)' },
@@ -37,7 +38,11 @@ const DiplomacyDashboard = ({
     onDiplomaticAction,
     onViewOrganization,
 }) => {
+    const [showCreateOrgModal, setShowCreateOrgModal] = useState(false);
+    const [createOrgType, setCreateOrgType] = useState(null);
+
     const visibleNations = useMemo(() => {
+
         return (nations || []).filter(
             (nation) =>
                 epoch >= (nation.appearEpoch ?? 0) &&
@@ -152,7 +157,12 @@ const DiplomacyDashboard = ({
                                 return (
                                     <button
                                         key={orgType.type}
-                                        onClick={() => canClick && onDiplomaticAction?.('player', 'create_org', { type: orgType.type })}
+                                        onClick={() => {
+                                            if (canClick) {
+                                                setCreateOrgType(orgType);
+                                                setShowCreateOrgModal(true);
+                                            }
+                                        }}
                                         disabled={!canClick}
                                         className={`
                                             relative overflow-hidden p-4 rounded-xl border flex items-center gap-4 transition-all duration-300 text-left group
@@ -286,6 +296,23 @@ const DiplomacyDashboard = ({
                 </div>
 
             </div>
+            {/* Create Org Modal */}
+            <CreateOrganizationModal
+                isOpen={showCreateOrgModal}
+                onClose={() => {
+                    setShowCreateOrgModal(false);
+                    setCreateOrgType(null);
+                }}
+                orgType={createOrgType}
+                onCreate={(name) => {
+                    if (onDiplomaticAction && createOrgType) {
+                        onDiplomaticAction('player', 'create_org', {
+                            type: createOrgType.type,
+                            name: name
+                        });
+                    }
+                }}
+            />
         </div>
     );
 };

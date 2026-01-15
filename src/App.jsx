@@ -1787,6 +1787,8 @@ activeDecrees={gameState.activeDecrees}
                 <ResourceDetailModal
                     resourceKey={gameState.resourceDetailView}
                     resources={gameState.resources}
+                    treasuryChangeLog={gameState.treasuryChangeLog}
+                    daysElapsed={gameState.daysElapsed}
                     market={gameState.market}
                     buildings={gameState.buildings}
                     popStructure={gameState.popStructure}

@@ -1152,7 +1152,7 @@ const StratumDetailSheetComponent = ({
                                     <div>
                                         <div className="text-[9px] text-gray-400 mb-0.5 leading-none">净收益</div>
                                         <div className={`text-sm font-bold font-mono leading-none ${netIncome >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                            {netIncome >= 0 ? '+' : ''}{netIncome.toFixed(2)}
+                                            {netIncome >= 0 ? '+' : '-'}{netIncome.toFixed(2)}
                                         </div>
                                     </div>
                                 </div>

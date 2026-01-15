@@ -14,11 +14,15 @@ import { TRANSACTION_CATEGORIES } from './ledger';
  * Helper: Apply treasury (silver) change and optionally invoke callback for tracking
  */
 const applyTreasuryChange = (resources, delta, reason, onTreasuryChange) => {
-    if (delta === 0) return;
-    resources.silver = Math.max(0, (resources.silver || 0) + delta);
-    if (typeof onTreasuryChange === 'function') {
-        onTreasuryChange(delta, reason);
+    if (!resources || !Number.isFinite(delta) || delta === 0) return 0;
+    const before = Number(resources.silver || 0);
+    const after = Math.max(0, before + delta);
+    const actual = after - before;
+    resources.silver = after;
+    if (typeof onTreasuryChange === 'function' && actual !== 0) {
+        onTreasuryChange(actual, reason);
     }
+    return actual;
 };
 
 /**

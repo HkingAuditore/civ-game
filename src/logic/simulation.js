@@ -322,20 +322,38 @@ export const simulateTick = ({
         if (tradeRouteSummary) {
             calculatedTradeRouteTax = tradeRouteSummary.tradeTax || 0;
 
-            // Apply resource deltas immediately to simulation snapshot
-            if (tradeRouteSummary.resourceDelta) {
-                Object.entries(tradeRouteSummary.resourceDelta).forEach(([key, delta]) => {
-                    res[key] = Math.max(0, (res[key] || 0) + delta);
-                });
-            }
+            // [MOVED] Resource deltas application moved to after log system initialization
+            // to ensure silver changes are properly tracked.
         }
     }
 
     // === 资源变化追踪系统 ===
-    // Silver change log (for financial reporting)
-    const silverChangeLog = [];
+    // Silver change log (aggregated for performance)
+    // 使用 Map 聚合：每个 reason 只维护一个累加值，而不是记录每一条
+    const silverChangeTotals = new Map();
+    const silverChangeLog = {
+        // 记录方法：累加到对应的 key
+        record: (amount, reason) => {
+            if (!Number.isFinite(amount) || amount === 0) return;
+            const key = reason || 'unknown';
+            silverChangeTotals.set(key, (silverChangeTotals.get(key) || 0) + amount);
+        },
+        // 兼容数组 push 的调用（Ledger 用）
+        push: (entry) => {
+            if (!entry || !Number.isFinite(entry.amount) || entry.amount === 0) return;
+            const key = entry.reason || 'unknown';
+            silverChangeTotals.set(key, (silverChangeTotals.get(key) || 0) + entry.amount);
+        },
+        // 转换为数组供 useGameLoop 使用
+        toArray: () => Array.from(silverChangeTotals.entries()).map(([reason, amount]) => ({
+            amount,
+            reason,
+        })),
+        // 兼容数组的 length 属性
+        get length() { return silverChangeTotals.size; },
+    };
     const trackSilverChange = (amount, reason) => {
-        silverChangeLog.push({ amount, reason, balance: res.silver || 0 });
+        silverChangeLog.record(amount, reason);
     };
 
     // General resource change log (for all resource types)
@@ -377,6 +395,14 @@ export const simulateTick = ({
     // [FIX] Trade tax is calculated per-tick based on active routes.
     // Do not add initialTradeRouteTax (previous tick's value) to avoid double counting/accumulation.
     const tradeRouteTax = calculatedTradeRouteTax;
+
+    // [FIXED] Apply trade route resource deltas AFTER log system is initialized
+    if (tradeRouteSummary && tradeRouteSummary.resourceDelta) {
+        Object.entries(tradeRouteSummary.resourceDelta).forEach(([key, delta]) => {
+            // Use applyResourceChange to ensure logging (especially for silver)
+            applyResourceChange(key, delta, 'trade_route_transaction');
+        });
+    }
 
     // Adapter callback for external modules (different argument order)
     // External modules call: onResourceChange(delta, reason, resourceType)
@@ -579,7 +605,8 @@ export const simulateTick = ({
         // Apply market/player resource changes
         if (oiResult.playerInventoryChanges) {
             Object.entries(oiResult.playerInventoryChanges).forEach(([key, delta]) => {
-                res[key] = Math.max(0, (res[key] || 0) + delta);
+                // [FIX] Use applyResourceChange to ensure tracking (especially for silver)
+                applyResourceChange(key, delta, 'overseas_investment_return');
             });
         }
 
@@ -1437,13 +1464,13 @@ export const simulateTick = ({
         const gain = amountPerDay;
         const current = res[resKey] || 0;
         if (gain >= 0) {
-            res[resKey] = current + gain;
+            applyResourceChange(resKey, gain, 'passive_gain');
             rates[resKey] = (rates[resKey] || 0) + gain;
         } else {
             const needed = Math.abs(gain);
             const spent = Math.min(current, needed);
             if (spent > 0) {
-                res[resKey] = current - spent;
+                applyResourceChange(resKey, -spent, 'passive_cost');
                 rates[resKey] = (rates[resKey] || 0) - spent;
             }
         }
@@ -1456,13 +1483,13 @@ export const simulateTick = ({
         const gain = amountPerPop * totalPopulation;
         const current = res[resKey] || 0;
         if (gain >= 0) {
-            res[resKey] = current + gain;
+            applyResourceChange(resKey, gain, 'passive_pop_gain');
             rates[resKey] = (rates[resKey] || 0) + gain;
         } else {
             const needed = Math.abs(gain);
             const spent = Math.min(current, needed);
             if (spent > 0) {
-                res[resKey] = current - spent;
+                applyResourceChange(resKey, -spent, 'passive_pop_cost');
                 rates[resKey] = (rates[resKey] || 0) - spent;
             }
         }
@@ -1479,18 +1506,18 @@ export const simulateTick = ({
             const modification = Math.abs(currentRate) * percent;
             if (currentRate >= 0) {
                 // Production resource: positive percent = more production
-                res[resKey] = (res[resKey] || 0) + modification;
+                applyResourceChange(resKey, modification, 'passive_percent_gain');
                 rates[resKey] = currentRate + modification;
             } else {
                 // Consumption resource: positive percent = less consumption (better)
-                res[resKey] = (res[resKey] || 0) - modification;
+                applyResourceChange(resKey, -modification, 'passive_percent_cost');
                 rates[resKey] = currentRate - modification;
             }
         } else {
             // If rate is 0, use a base value scaled by population for the modifier
             const baseValue = totalPopulation * 0.01; // 1% of population as base
             const modification = baseValue * percent;
-            res[resKey] = (res[resKey] || 0) + modification;
+            applyResourceChange(resKey, modification, 'passive_percent_base_gain');
             rates[resKey] = (rates[resKey] || 0) + modification;
         }
     });
@@ -2443,7 +2470,33 @@ export const simulateTick = ({
                     if (!supplyBreakdown[resKey]) supplyBreakdown[resKey] = { buildings: {}, imports: 0 };
                     supplyBreakdown[resKey].buildings[b.id] = (supplyBreakdown[resKey].buildings[b.id] || 0) + amount;
                 } else {
-                    res[resKey] = (res[resKey] || 0) + amount;
+                    if (resKey === 'silver') {
+                        // [FIX] 银币产出需要按 owner 分配，不能直接全额进国库
+                        Object.entries(levelOutputAmounts).forEach(([lvlStr, resOutputs]) => {
+                            const lvl = parseInt(lvlStr);
+                            const levelBaseOutput = resOutputs[resKey] || 0;
+                            if (levelBaseOutput <= 0) return;
+
+                            // 计算该等级(即该owner)应得的份额
+                            const baseTotal = totalAmount * actualMultiplier;
+                            const proportion = baseTotal > 0 ? levelBaseOutput / baseTotal : 0;
+                            const levelAmount = amount * proportion;
+
+                            if (levelAmount <= 0) return;
+
+                            const config = getBuildingEffectiveConfig(b, lvl);
+                            const ownerKey = config.owner || 'state';
+
+                            if (ownerKey === 'state') {
+                                applyResourceChange(resKey, levelAmount, 'building_production_direct');
+                            } else {
+                                // 私有建筑产出的银币直接进入业主口袋
+                                ledger.transfer('void', ownerKey, levelAmount, 'building_production_direct', 'building_production_direct', { buildingId: b.id });
+                            }
+                        });
+                    } else {
+                        applyResourceChange(resKey, amount, 'building_production_direct');
+                    }
                 }
             }
         }
@@ -2554,7 +2607,7 @@ export const simulateTick = ({
                                     ledger.transfer(marketOwnerKey, 'void', exportValue, TRANSACTION_CATEGORIES.EXPENSE.TRADE_EXPORT_PURCHASE, TRANSACTION_CATEGORIES.EXPENSE.TRADE_EXPORT_PURCHASE);
                                     roleExpense[marketOwnerKey] = (roleExpense[marketOwnerKey] || 0) + exportValue;
 
-                                    res[sourceResource] = Math.max(0, currentStock - exportAmount);
+                                    applyResourceChange(sourceResource, -exportAmount, 'trade_export_deduction');
                                     supply[sourceResource] = (supply[sourceResource] || 0) + exportAmount;
                                     rates[sourceResource] = (rates[sourceResource] || 0) - exportAmount;
                                     surplus.stock = Math.max(0, surplus.stock - exportAmount);
@@ -2570,7 +2623,7 @@ export const simulateTick = ({
                                     ledger.transfer('void', marketOwnerKey, importCost, TRANSACTION_CATEGORIES.INCOME.TRADE_IMPORT_REVENUE, TRANSACTION_CATEGORIES.INCOME.TRADE_IMPORT_REVENUE);
                                     availableMerchantWealth += importCost;
 
-                                    res[target.resource] = (res[target.resource] || 0) + importAmount;
+                                    applyResourceChange(target.resource, importAmount, 'trade_import_gain');
                                     supply[target.resource] = (supply[target.resource] || 0) + importAmount;
                                     rates[target.resource] = (rates[target.resource] || 0) + importAmount;
 
@@ -4417,8 +4470,18 @@ export const simulateTick = ({
         }
     });
 
+    let updatedOrganizations = diplomacyOrganizations?.organizations ? [...diplomacyOrganizations.organizations] : [];
+    let organizationUpdatesOccurred = false;
+
     let updatedNations = (nations || []).map(nation => {
         const next = { ...nation };
+
+        // [UI COMPATIBILITY] Derive alliedWithPlayer from organization membership
+        next.alliedWithPlayer = updatedOrganizations.some(org =>
+            org.type === 'military_alliance' &&
+            org.members.includes(nation.id) &&
+            org.members.includes('player')
+        );
 
         // Apply manual trade deltas (from processManualTradeRoutes)
         if (tradeRouteSummary?.nationDelta && tradeRouteSummary.nationDelta[nation.id]) {
@@ -4611,7 +4674,20 @@ export const simulateTick = ({
 
         // REFACTORED: Using module function for AI alliance breaking check
         if (shouldUpdateDiplomacy) {
-            checkAIBreakAlliance(next, logs);
+            const breakResult = checkAIBreakAlliance(next, logs, { organizations: updatedOrganizations });
+            if (breakResult && breakResult.memberLeaveRequests) {
+                breakResult.memberLeaveRequests.forEach(req => {
+                    const orgIndex = updatedOrganizations.findIndex(o => o.id === req.orgId);
+                    if (orgIndex >= 0) {
+                        const org = updatedOrganizations[orgIndex];
+                        updatedOrganizations[orgIndex] = {
+                            ...org,
+                            members: org.members.filter(m => m !== req.nationId)
+                        };
+                        organizationUpdatesOccurred = true;
+                    }
+                });
+            }
         }
 
         const aggression = next.aggression ?? 0.2;
@@ -4630,6 +4706,7 @@ export const simulateTick = ({
                 stabilityValue,
                 logs,
                 difficultyLevel: difficulty,
+                diplomacyOrganizations: { organizations: updatedOrganizations }, // [NEW] Pass organization state
             });
         }
 
@@ -4855,14 +4932,35 @@ export const simulateTick = ({
 
     // REFACTORED: Using module function for AI-AI alliance formation
     if (shouldUpdateDiplomacy) {
-        processAIAllianceFormation(visibleNations, tick, logs);
+        const allianceResult = processAIAllianceFormation(visibleNations, tick, logs, { organizations: updatedOrganizations }, visibleEpoch);
+
+        if (allianceResult && allianceResult.createdOrganizations.length > 0) {
+            updatedOrganizations.push(...allianceResult.createdOrganizations);
+            organizationUpdatesOccurred = true;
+        }
+
+        if (allianceResult && allianceResult.memberJoinRequests.length > 0) {
+            allianceResult.memberJoinRequests.forEach(req => {
+                const orgIndex = updatedOrganizations.findIndex(o => o.id === req.orgId);
+                if (orgIndex >= 0) {
+                    const org = updatedOrganizations[orgIndex];
+                    if (!org.members.includes(req.nationId)) {
+                        updatedOrganizations[orgIndex] = {
+                            ...org,
+                            members: [...org.members, req.nationId]
+                        };
+                        organizationUpdatesOccurred = true;
+                    }
+                }
+            });
+        }
     }
 
 
     // REFACTORED: Using module functions for AI-AI war system
     if (shouldUpdateAI) {
-        processCollectiveAttackWarmonger(visibleNations, tick, logs);
-        processAIAIWarDeclaration(visibleNations, updatedNations, tick, logs);
+        processCollectiveAttackWarmonger(visibleNations, tick, logs, { organizations: updatedOrganizations });
+        processAIAIWarDeclaration(visibleNations, updatedNations, tick, logs, { organizations: updatedOrganizations });
         processAIAIWarProgression(visibleNations, updatedNations, tick, logs);
     }
 
@@ -5973,7 +6071,7 @@ export const simulateTick = ({
             // 1. Deduct resources from market
             Object.entries(baseCost).forEach(([resource, amount]) => {
                 if (resource !== 'silver') {
-                    res[resource] = Math.max(0, (res[resource] || 0) - amount);
+                    applyResourceChange(resource, -amount, 'building_construction_cost');
                 }
             });
 
@@ -6056,6 +6154,29 @@ export const simulateTick = ({
     const collectedTariff = (taxBreakdown.tariff || 0) * effectiveTaxEfficiency; // 关税收入
     const taxBaseForCorruption = taxBreakdown.headTax + taxBreakdown.industryTax + taxBreakdown.businessTax + (taxBreakdown.tariff || 0);
     const efficiencyNoCorruption = Math.max(0, Math.min(1, efficiency * (1 + (bonuses.taxEfficiencyBonus || 0))));
+
+    // 计算效率损失（税收效率 < 1 导致的损失）
+    // Ledger 添加了 taxBreakdown.xxx（全额），但实际只有 collectedXxx（效率调整后）进入国库
+    // 差额 = 全额 - 收到的 = taxBreakdown.xxx * (1 - effectiveTaxEfficiency)
+    const efficiencyLoss = taxBaseForCorruption * (1 - effectiveTaxEfficiency);
+
+    console.log('[TAX DEBUG] Efficiency Calc:', {
+        efficiency,
+        bonuses: bonuses.taxEfficiencyBonus,
+        rawTaxEfficiency,
+        effectiveTaxEfficiency,
+        taxBase: taxBaseForCorruption,
+        efficiencyLoss,
+        officialsCount: updatedOfficials.length
+    });
+
+    // 先从国库扣除效率损失（无论有没有官员）
+    if (efficiencyLoss > 0) {
+        applySilverChange(-efficiencyLoss, 'tax_efficiency_loss');
+        console.log('[TAX DEBUG] Applied efficiency loss:', -efficiencyLoss);
+    }
+
+    // 然后计算腐败（官员从效率损失中获取的部分）
     const corruptionLoss = Math.max(0, taxBaseForCorruption * (efficiencyNoCorruption - effectiveTaxEfficiency));
     if (corruptionLoss > 0 && updatedOfficials.length > 0) {
         const paidMultiplier = officialsPaid ? 1 : 0.5;
@@ -6079,6 +6200,8 @@ export const simulateTick = ({
             classWealthResult.official = Math.max(0, wealth.official);
             totalWealth = Object.values(classWealthResult).reduce((sum, val) => sum + val, 0);
             totalOfficialIncome += distributed;
+            // 腐败实际上是效率损失的一部分，已经被扣除了，这里只是给官员加财富
+            // 不再调用 ledger.transfer，因为银子已经从国库扣除了
             ledger.transfer('void', 'official', distributed, TRANSACTION_CATEGORIES.INCOME.CORRUPTION, TRANSACTION_CATEGORIES.INCOME.CORRUPTION);
         }
     }
@@ -6090,34 +6213,32 @@ export const simulateTick = ({
     // NEW: Apply income percentage bonus (from tech/decree effects)
     const incomePercentMultiplier = Math.max(0, 1 + incomePercentBonus);
 
-    // 分项记录税收和收入，确保日志清晰 (Fix: Generic Tax Revenue)
-    // 1. 人头税
+    // 税收处理
+    // 注意：Ledger 已将税收 (taxBreakdown.xxx) 添加到国库并记录日志
+    // 税收效率损失已通过腐败分配给官员（第 6082-6105 行）
+    // 这里只需要处理收入倍率加成（如果 incomePercentMultiplier > 1）
+
+    // 计算最终税额（用于 rates 显示）
     const finalHeadTax = collectedHeadTax * incomePercentMultiplier;
-    if (finalHeadTax !== 0) {
-        applySilverChange(finalHeadTax, 'tax_head');
-        rates.silver = (rates.silver || 0) + finalHeadTax;
-    }
-
-    // 2. 交易税
     const finalIndustryTax = collectedIndustryTax * incomePercentMultiplier;
-    if (finalIndustryTax !== 0) {
-        applySilverChange(finalIndustryTax, 'tax_industry');
-        rates.silver = (rates.silver || 0) + finalIndustryTax;
-    }
-
-    // 3. 营业税
     const finalBusinessTax = collectedBusinessTax * incomePercentMultiplier;
-    if (finalBusinessTax !== 0) {
-        applySilverChange(finalBusinessTax, 'tax_business');
-        rates.silver = (rates.silver || 0) + finalBusinessTax;
+    const finalTariff = collectedTariff * incomePercentMultiplier;
+
+    // 收入倍率加成部分（额外收入）
+    if (incomePercentMultiplier > 1) {
+        const headTaxBonus = collectedHeadTax * (incomePercentMultiplier - 1);
+        const industryTaxBonus = collectedIndustryTax * (incomePercentMultiplier - 1);
+        const businessTaxBonus = collectedBusinessTax * (incomePercentMultiplier - 1);
+        const tariffBonus = collectedTariff * (incomePercentMultiplier - 1);
+
+        if (headTaxBonus > 0) applySilverChange(headTaxBonus, 'headTax'); // 累加到 Ledger 的记录
+        if (industryTaxBonus > 0) applySilverChange(industryTaxBonus, 'transactionTax');
+        if (businessTaxBonus > 0) applySilverChange(businessTaxBonus, 'businessTax');
+        if (tariffBonus > 0) applySilverChange(tariffBonus, 'tariffs');
     }
 
-    // 4. 关税
-    const finalTariff = collectedTariff * incomePercentMultiplier;
-    if (finalTariff !== 0) {
-        applySilverChange(finalTariff, 'tax_tariff');
-        rates.silver = (rates.silver || 0) + finalTariff;
-    }
+    // 更新 rates（用于 UI 显示）
+    rates.silver = (rates.silver || 0) + finalHeadTax + finalIndustryTax + finalBusinessTax + finalTariff;
 
     // 5. 战争赔款加成部分
     // NOTE: processInstallmentPayment() already recorded the base amount with 'installment_payment_income'
@@ -6248,7 +6369,11 @@ export const simulateTick = ({
                 // Let's verify `processForeignInvestments` implementation.
                 // It calculates profit but does NOT modify `playerResources` in place inside calculation.
                 // It returns `marketChanges`.
-                res[key] = Math.max(0, (res[key] || 0) + delta);
+                // [FIX] Silver produced by foreign investors belongs to them (profit), not the state treasury.
+                if (key === 'silver') return;
+
+                // [FIX] Use applyResourceChange to ensure tracking
+                applyResourceChange(key, delta, 'autonomous_investment_return');
             });
         }
 
@@ -6357,6 +6482,8 @@ export const simulateTick = ({
         merchantState: updatedMerchantState,
         buildingUpgrades: updatedBuildingUpgrades, // Owner auto-upgrade results
         migrationCooldowns: updatedMigrationCooldowns, // 阶层迁移冷却状态
+        migrationCooldowns: updatedMigrationCooldowns, // 阶层迁移冷却状态
+        diplomacyOrganizations: organizationUpdatesOccurred ? { organizations: updatedOrganizations } : null,
         taxShock: updatedTaxShock, // [NEW] 各阶层累积税收冲击值
         // 加成修饰符数据，供UI显示"谁吃到了buff"
         modifiers: {
@@ -6434,11 +6561,12 @@ export const simulateTick = ({
         // [DEBUG] 临时调试字段 - 追踪自由市场机制问题
         _debug: {
             freeMarket: _freeMarketDebug,
-            // [DEBUG] Log the log
+            // [DEBUG] Log the log - 使用聚合后的数据
             silverChangeLog: (() => {
-                const hasMilitary = silverChangeLog.some(e => e.reason === 'expense_army_maintenance');
-                console.log('[Simulation End] silverChangeLog has military?', hasMilitary, 'Entries:', silverChangeLog.length);
-                return silverChangeLog;
+                const logArray = silverChangeLog.toArray();
+                const hasMilitary = logArray.some(e => e.reason === 'expense_army_maintenance');
+                console.log('[Simulation End] silverChangeLog has military?', hasMilitary, 'Entries:', logArray.length);
+                return logArray;
             })(),
             classWealthChangeLog, // 阶层财富变化追踪日志
             startingSilver,  // tick开始时的银币

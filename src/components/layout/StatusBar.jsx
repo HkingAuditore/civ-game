@@ -101,6 +101,24 @@ export const StatusBar = ({
         militaryPay: '军饷维护',
         maintenance: '维护费',
         untracked_delta: '对账差额',
+        // 新增日志映射
+        building_production_direct: '建筑直接产出',
+        passive_gain: '被动收益',
+        passive_cost: '被动支出',
+        passive_pop_gain: '人口红利',
+        passive_pop_cost: '人口维护',
+        passive_percent_gain: '被动加成收益',
+        passive_percent_cost: '被动加成支出',
+        passive_percent_base_gain: '被动基础收益',
+        event_effects_resource_percent: '事件资源加成',
+        event_effects_stratum_percent: '事件阶层需求',
+        event_effects_building_production: '事件建筑产出',
+        trade_import_gain: '贸易进口收入',
+        trade_export_deduction: '贸易出口成本',
+        autonomous_investment_return: '投资回报',
+        trade_route_transaction: '贸易结算',
+        overseas_investment_return: '海外投资收益',
+        tax_efficiency_loss: '征税效率损失',
     };
 
     // Debug: Check activeEventEffects

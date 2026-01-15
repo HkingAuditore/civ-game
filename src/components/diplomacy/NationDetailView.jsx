@@ -155,14 +155,7 @@ const NationDetailView = ({
                             onClick={() => onDiplomaticAction?.(nation.id, 'gift')}
                             color="green"
                         />
-                        <ActionCard
-                            icon="Handshake"
-                            title="提议结盟"
-                            desc={nation.relation >= 70 ? '请求建立正式军事同盟。' : '关系需达到 70。'}
-                            disabled={nation.relation < 70}
-                            onClick={() => onDiplomaticAction?.(nation.id, 'propose_alliance')}
-                            color="emerald"
-                        />
+
                         <ActionCard
                             icon="ScrollText"
                             title="外交谈判"
@@ -225,7 +218,7 @@ const NationDetailView = ({
 
                 {activeTab === 'trade' && (
                     <div className="space-y-6">
-                                                <div className="flex flex-col sm:flex-row gap-3 items-center justify-between p-4 bg-black/20 rounded-lg">
+                        <div className="flex flex-col sm:flex-row gap-3 items-center justify-between p-4 bg-black/20 rounded-lg">
                             <div className="text-sm text-ancient-stone">
                                 管理在该国的投资与资产
                             </div>
@@ -244,7 +237,7 @@ const NationDetailView = ({
                             nation={nation}
                             foreignInvestments={foreignInvestments}
                         />
-                        
+
                         <Card className="p-0 overflow-hidden border-ancient-gold/20 bg-ancient-ink/30">
                             <div className="p-4 border-b border-white/5 bg-black/20 flex justify-between items-center">
                                 <div className="flex items-center gap-2">
@@ -294,7 +287,7 @@ const NationDetailView = ({
 const ForeignInvestmentFromNation = ({ nation, foreignInvestments = [] }) => {
     // Filter investments from this nation in player's country
     const investmentsFromNation = useMemo(() => {
-        return foreignInvestments.filter(inv => 
+        return foreignInvestments.filter(inv =>
             inv.ownerNationId === nation?.id && inv.status === 'operating'
         ).map(inv => {
             const building = BUILDINGS.find(b => b.id === inv.buildingId);
@@ -357,7 +350,7 @@ const ForeignInvestmentFromNation = ({ nation, foreignInvestments = [] }) => {
                         <div className="flex justify-between items-center">
                             <div className="flex items-center gap-3">
                                 <div className="w-8 h-8 rounded bg-amber-900/30 flex items-center justify-center">
-                                    <Icon name={inv.building?.visual?.icon || "Building"} size={16} className="text-amber-400"/>
+                                    <Icon name={inv.building?.visual?.icon || "Building"} size={16} className="text-amber-400" />
                                 </div>
                                 <div>
                                     <div className="text-sm font-bold text-ancient-parchment">
@@ -519,9 +512,9 @@ const VassalManagementTab = ({ nation, onDiplomaticAction, onOpenVassalSheet }) 
                     </div>
                 </div>
                 <div className="flex gap-3 flex-wrap">
-                    <Button 
-                        onClick={() => onOpenVassalSheet?.(nation)} 
-                        variant="primary" 
+                    <Button
+                        onClick={() => onOpenVassalSheet?.(nation)}
+                        variant="primary"
                         size="sm"
                         className="flex-1"
                     >
