@@ -120,9 +120,11 @@ export const calculateGovernorFullEffects = (official, vassalNation = {}) => {
     const mandateId = vassalNation.vassalPolicy?.controlMeasures?.governor?.mandate || 'pacify';
     const mandate = GOVERNOR_MANDATES[mandateId] || GOVERNOR_MANDATES.pacify;
 
-    const prestige = official.prestige ?? 50;
-    const administrative = official.administrative ?? official.admin ?? 50;
-    const military = official.military ?? official.mil ?? 30;
+    // 从统一的 stats 对象读取属性，向后兼容旧存档
+    const prestige = official.stats?.prestige ?? official.prestige ?? 50;
+    const administrative = official.stats?.administrative ?? official.administrative ?? official.admin ?? 50;
+    const military = official.stats?.military ?? official.military ?? official.mil ?? 30;
+    const diplomacy = official.stats?.diplomacy ?? official.diplomacy ?? 30; // 新增外交属性
     const loyalty = official.loyalty ?? 50;
     const sourceStratum = official.sourceStratum || 'commoner';
 
