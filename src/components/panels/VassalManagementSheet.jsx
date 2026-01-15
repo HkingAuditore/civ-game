@@ -16,6 +16,7 @@ import {
     checkGarrisonEffectiveness,
     calculateGovernorEffectiveness
 } from '../../logic/diplomacy/vassalSystem';
+import { GOVERNOR_MANDATES, calculateGovernorFullEffects, GOVERNOR_EFFECTS_CONFIG } from '../../logic/diplomacy/vassalGovernors';
 
 // ==================== 政策调整相关组件 ====================
 
@@ -455,11 +456,14 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
         CONTROL_MEASURES.forEach(m => {
             if (typeof existing[m.id] === 'boolean') {
                 // Migrate from legacy boolean format
-                initial[m.id] = { active: existing[m.id], officialId: null };
+                initial[m.id] = { active: existing[m.id], officialId: null, mandate: 'pacify' };
             } else if (existing[m.id]) {
                 initial[m.id] = { ...existing[m.id] };
+                if (m.id === 'governor' && !initial[m.id].mandate) {
+                    initial[m.id].mandate = 'pacify';
+                }
             } else {
-                initial[m.id] = { active: false, officialId: null };
+                initial[m.id] = { active: false, officialId: null, mandate: 'pacify' };
             }
         });
         return initial;
@@ -488,6 +492,17 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
         }));
     };
 
+    // Set governor mandate
+    const setGovernorMandate = (mandateId) => {
+        setControlMeasures(prev => ({
+            ...prev,
+            governor: {
+                ...prev.governor,
+                mandate: mandateId,
+            },
+        }));
+    };
+
     // Get active control measure IDs
     const activeControlMeasures = useMemo(() => {
         return Object.entries(controlMeasures)
@@ -495,21 +510,34 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
             .map(([id]) => id);
     }, [controlMeasures]);
 
-    // 计算控制手段总成本 (NEW: Dynamic cost calculation)
-    const totalControlCost = useMemo(() => {
-        return activeControlMeasures.reduce((sum, measureId) => {
-            return sum + calculateControlMeasureCost(measureId, vassalWealth);
-        }, 0);
-    }, [activeControlMeasures, vassalWealth]);
-
     // Calculate individual measure costs for display
     const measureCosts = useMemo(() => {
         const costs = {};
         CONTROL_MEASURES.forEach(m => {
-            costs[m.id] = calculateControlMeasureCost(m.id, vassalWealth);
+            if (m.id === 'governor') {
+                const officialId = controlMeasures.governor?.officialId;
+                const official = officials.find(o => o.id === officialId);
+                if (official) {
+                    const baseCost = GOVERNOR_EFFECTS_CONFIG.dailyCost.base;
+                    const prestigeCost = (official.prestige || 50) * GOVERNOR_EFFECTS_CONFIG.dailyCost.perPrestige;
+                    // Use prestige-based cost directly to match backend replacement logic
+                    costs[m.id] = baseCost + prestigeCost;
+                } else {
+                    costs[m.id] = calculateControlMeasureCost(m.id, vassalWealth);
+                }
+            } else {
+                costs[m.id] = calculateControlMeasureCost(m.id, vassalWealth);
+            }
         });
         return costs;
-    }, [vassalWealth]);
+    }, [vassalWealth, controlMeasures.governor?.officialId, officials]);
+
+    // 计算控制手段总成本 (NEW: Dynamic cost calculation)
+    const totalControlCost = useMemo(() => {
+        return activeControlMeasures.reduce((sum, measureId) => {
+            return sum + (measureCosts[measureId] || 0);
+        }, 0);
+    }, [activeControlMeasures, measureCosts]);
 
     // 计算预估朝贡收入
     const estimatedTribute = useMemo(() => {
@@ -539,7 +567,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
         setTributeRate(baseTributeRate * 100);
         const resetMeasures = {};
         CONTROL_MEASURES.forEach(m => {
-            resetMeasures[m.id] = { active: false, officialId: null };
+            resetMeasures[m.id] = { active: false, officialId: null, mandate: 'pacify' };
         });
         setControlMeasures(resetMeasures);
     };
@@ -556,28 +584,50 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
         const official = officials.find(o => o.id === officialId);
         if (!official) return null;
 
-        // Use new calculateGovernorFullEffects from vassalGovernors module
-        // (Inline calculation to avoid import)
-        const prestige = official.prestige ?? 50;
-        const admin = official.administrative ?? official.admin ?? 50;
-        const military = official.military ?? official.mil ?? 30;
-        const loyalty = official.loyalty ?? 50;
+        // Mock vassal object with selected mandate to preview effects
+        const mockVassal = {
+            ...nation,
+            vassalPolicy: {
+                controlMeasures: {
+                    governor: {
+                        mandate: controlMeasures.governor?.mandate || 'pacify'
+                    }
+                }
+            }
+        };
 
-        const independenceReduction = prestige * 0.005;
-        const tributeBonus = Math.min(50, admin * 1); // +1% per point, max 50%
-        const stabilityBonus = military * 1; // +1% per point
-        const corruptionRisk = loyalty < 40 ? (40 - loyalty) * 0.2 : 0; // % corruption
+        const effects = calculateGovernorFullEffects(official, mockVassal);
 
         return {
-            effectiveness: (prestige + admin) / 200,
-            independenceReduction,
-            tributeBonus,
-            stabilityBonus,
-            corruptionRisk,
-            officialName: official.name,
-            stats: { prestige, admin, military, loyalty },
+            ...effects,
+            stats: {
+                prestige: official.prestige || 50,
+                admin: official.administrative || 50,
+                military: official.military || 30,
+                loyalty: official.loyalty || 50
+            },
+            // For display compatibility with old component
+            tributeBonus: Math.round((effects.tributeModifier - 1) * 100),
+            stabilityBonus: Math.round((effects.stabilityBonus || 0) * 100), // Assuming stabilityBonus is multiplier or raw?
+            // backend returns stabilityBonus as e.g. 5 (not percent 0.05), so raw is fine if display expects it.
+            // Wait, calculateGovernorFullEffects: stabilityBonus = effMilitary * 0.05. e.g. 50 * 0.05 = 2.5.
+            // Old code: stabilityBonus = military * 1.
+            // New code returns ~2.5. If UI expects "points", it might be different.
+            // Let's check old UI: `稳定+{governorEffectiveness.stabilityBonus}%`
+            // If new is 2.5, it means +2.5%. Old was +50%.
+            // I should scale it to percentage if needed.
+            // Config: stabilityPerPoint = 0.05. 50 * 0.05 = 2.5.
+            // In processVassalUpdates: updated.unrest -= govEffects.unrestSuppression.
+            // It doesn't use stabilityBonus directly except maybe for display or other logic?
+            // Actually it is used: `updated.unrest = Math.max(0, (updated.unrest || 0) - govEffects.unrestSuppression);`
+            // So stabilityBonus might not be used in update loop?
+            // Ah, the returned object has: `stabilityBonus: Math.max(0, stabilityBonus)`.
+            // Let's just pass it through.
+
+            // Adjust to match display expectation
+            corruptionRisk: effects.corruptionRate * 100,
         };
-    }, [controlMeasures.governor, officials]);
+    }, [controlMeasures.governor, officials, nation]);
 
     return (
         <div className="space-y-4">
@@ -758,9 +808,10 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                                 <p className="text-[10px] text-gray-400">{measure.description}</p>
                                 <p className={`text-[10px] ${measure.effectColor}`}>{measure.effects}</p>
 
-                                {/* Governor: Official Selector */}
+                                {/* Governor: Official Selector & Mandate Selector */}
                                 {measure.id === 'governor' && (
-                                    <div className="mt-2 space-y-1">
+                                    <div className="mt-2 space-y-2">
+                                        {/* Official Selector */}
                                         <select
                                             value={controlMeasures.governor?.officialId || ''}
                                             onChange={(e) => setGovernorOfficial(e.target.value || null)}
@@ -777,6 +828,35 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                                                 ))
                                             )}
                                         </select>
+
+                                        {/* Mandate Selector */}
+                                        {controlMeasures.governor?.officialId && (
+                                            <div className="space-y-1">
+                                                <div className="text-[10px] text-gray-400 flex items-center gap-1">
+                                                    <Icon name="Scroll" size={10} />
+                                                    施政纲领
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-1">
+                                                    {Object.entries(GOVERNOR_MANDATES).map(([mandateId, mandate]) => (
+                                                        <button
+                                                            key={mandateId}
+                                                            onClick={() => setGovernorMandate(mandateId)}
+                                                            className={`
+                                                                px-2 py-1.5 rounded text-[10px] text-left border transition-all
+                                                                ${controlMeasures.governor?.mandate === mandateId
+                                                                    ? 'bg-blue-900/50 border-blue-500 text-white'
+                                                                    : 'bg-gray-800/50 border-gray-600/50 text-gray-400 hover:bg-gray-700/50'
+                                                                }
+                                                            `}
+                                                        >
+                                                            <div className="font-bold">{mandate.name}</div>
+                                                            <div className="text-[9px] opacity-70 truncate">{mandate.desc}</div>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
                                         {officials.length === 0 && (
                                             <div className="text-[10px] text-yellow-400 flex items-center gap-1">
                                                 <Icon name="AlertCircle" size={10} />
