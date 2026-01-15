@@ -1633,6 +1633,30 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         });
                     });
                 }
+                const auditReasons = new Set(auditEntries.map(entry => entry.reason));
+                const hasAnyReason = (reasons) => reasons.some(reason => auditReasons.has(reason));
+                const addAuditEntry = (amount, reason) => {
+                    if (!Number.isFinite(amount) || amount === 0) return;
+                    if (auditReasons.has(reason)) return;
+                    auditEntries.push({
+                        amount,
+                        reason,
+                        meta: { source: 'game_loop_fallback' },
+                    });
+                    auditReasons.add(reason);
+                };
+                const fallbackMilitaryExpense = Number(result?.dailyMilitaryExpense?.dailyExpense || 0);
+                if (fallbackMilitaryExpense > 0 && !hasAnyReason(['军队维护支出', '军队维护支出（部分支付）', 'militaryPay', 'expense_army_maintenance', 'expense_army_maintenance_partial'])) {
+                    addAuditEntry(-fallbackMilitaryExpense, '军队维护支出');
+                }
+                const fallbackSubsidy = Number(breakdown?.subsidy || 0);
+                if (fallbackSubsidy > 0 && !hasAnyReason(['subsidy', 'head_tax_subsidy', 'tax_subsidy'])) {
+                    addAuditEntry(-fallbackSubsidy, 'subsidy');
+                }
+                const fallbackTariffSubsidy = Number(breakdown?.tariffSubsidy || 0);
+                if (fallbackTariffSubsidy > 0 && !hasAnyReason(['tariff_subsidy'])) {
+                    addAuditEntry(-fallbackTariffSubsidy, 'tariff_subsidy');
+                }
                 if (officialSalaryPaid > 0) {
                     auditEntries.push({
                         amount: -officialSalaryPaid,

@@ -300,11 +300,73 @@ export const simulateTick = ({
     const res = { ...resources };
     const priceMap = { ...(market?.prices || {}) };
 
-    // === 银币变化追踪器 ===
+    // === 资源变化追踪系统 ===
+    // Silver change log (for financial reporting)
     const silverChangeLog = [];
     const trackSilverChange = (amount, reason) => {
         silverChangeLog.push({ amount, reason, balance: res.silver || 0 });
     };
+
+    // General resource change log (for all resource types)
+    const resourceChangeLog = {};
+    const trackResourceChange = (resourceType, amount, reason) => {
+        if (!resourceChangeLog[resourceType]) {
+            resourceChangeLog[resourceType] = [];
+        }
+        resourceChangeLog[resourceType].push({ amount, reason, balance: res[resourceType] || 0 });
+    };
+
+    // Helper: modify res[resourceType] AND track the change in one call (for traceability)
+    const applyResourceChange = (resourceType, amount, reason) => {
+        if (amount === 0) return;
+        res[resourceType] = (res[resourceType] || 0) + amount;
+        trackResourceChange(resourceType, amount, reason);
+        // Also track silver changes in the dedicated log for financial reporting
+        if (resourceType === 'silver') {
+            trackSilverChange(amount, reason);
+        }
+    };
+
+    // Convenience wrapper for silver (most common case)
+    const applySilverChange = (amount, reason) => {
+        applyResourceChange('silver', amount, reason);
+    };
+
+    // Adapter callback for external modules (different argument order)
+    // External modules call: onResourceChange(delta, reason, resourceType)
+    const onResourceChangeCallback = (delta, reason, resourceType) => {
+        applyResourceChange(resourceType, delta, reason);
+    };
+
+    // === 阶层财富变化追踪系统 ===
+    // Class wealth change log (for financial reporting)
+    const classWealthChangeLog = {};
+    const trackClassWealthChange = (stratumKey, amount, reason) => {
+        if (!classWealthChangeLog[stratumKey]) {
+            classWealthChangeLog[stratumKey] = [];
+        }
+        classWealthChangeLog[stratumKey].push({ amount, reason, balance: wealth[stratumKey] || 0 });
+    };
+
+    // Helper: modify wealth[stratumKey] AND track the change in one call (for traceability)
+    // Used for non-ledger wealth changes (layoffs, decay, capital flight, etc.)
+    const applyClassWealthChange = (stratumKey, amount, reason) => {
+        if (amount === 0) return;
+        wealth[stratumKey] = Math.max(0, (wealth[stratumKey] || 0) + amount);
+        trackClassWealthChange(stratumKey, amount, reason);
+    };
+
+    // Helper: transfer wealth between strata with tracking (for population transfers)
+    const transferClassWealth = (fromStratum, toStratum, amount, reason) => {
+        if (amount <= 0) return;
+        const available = wealth[fromStratum] || 0;
+        const actualTransfer = Math.min(available, amount);
+        if (actualTransfer > 0) {
+            applyClassWealthChange(fromStratum, -actualTransfer, `${reason}_out`);
+            applyClassWealthChange(toStratum, actualTransfer, `${reason}_in`);
+        }
+    };
+
     const startingSilver = res.silver || 0;
 
     // NEW: Track actual consumption by stratum for UI display
@@ -333,7 +395,7 @@ export const simulateTick = ({
     if (Object.keys(STRATA).length > 0) {
         Object.keys(STRATA).forEach(key => {
             classFinancialData[key] = {
-                income: { wage: 0, ownerRevenue: 0, subsidy: 0 },
+                income: { wage: 0, ownerRevenue: 0, subsidy: 0, tradeImportRevenue: 0, layoffTransfer: 0 },
                 expense: {
                     headTax: 0,
                     transactionTax: 0,
@@ -343,7 +405,11 @@ export const simulateTick = ({
                     luxuryNeeds: {},     // 奢侈需求消费 { resource: cost }
                     decay: 0,
                     productionCosts: 0,
-                    wages: 0  // 工资支出（业主支付给工人）
+                    wages: 0,  // 工资支出（业主支付给工人）
+                    tradeExportPurchase: 0, // 贸易出口购买成本
+                    capitalFlight: 0, // 资本外逃
+                    buildingCost: 0, // 建筑建造/升级成本
+                    layoffTransfer: 0 // 裁员时随人口转移的财富
                 }
             };
         });
@@ -414,7 +480,8 @@ export const simulateTick = ({
         classFinancialData: classFinancialData,
         taxBreakdown: taxBreakdown,
         silverChangeLog: silverChangeLog,
-        buildingFinancialData: buildingFinancialData
+        buildingFinancialData: buildingFinancialData,
+        classWealthChangeLog: classWealthChangeLog, // Track all class wealth changes
     }, { safeWealth });
 
     // REFACTORED: Use imported function from ./buildings/effects
@@ -1075,8 +1142,8 @@ export const simulateTick = ({
 
             if (perCapWealth > 0) {
                 const transfer = perCapWealth * layoffs;
-                wealth[role] = Math.max(0, roleWealth - transfer);
-                wealth.unemployed = (wealth.unemployed || 0) + transfer;
+                // Use ledger for tracking layoff wealth transfer
+                ledger.transfer(role, 'unemployed', transfer, TRANSACTION_CATEGORIES.EXPENSE.LAYOFF_TRANSFER, TRANSACTION_CATEGORIES.EXPENSE.LAYOFF_TRANSFER);
             }
         }
     });
@@ -2353,7 +2420,7 @@ export const simulateTick = ({
 
                                     const exportValue = exportAmount * sourcePrice;
                                     availableMerchantWealth -= exportValue;
-                                    wealth[marketOwnerKey] = availableMerchantWealth;
+                                    ledger.transfer(marketOwnerKey, 'void', exportValue, TRANSACTION_CATEGORIES.EXPENSE.TRADE_EXPORT_PURCHASE, TRANSACTION_CATEGORIES.EXPENSE.TRADE_EXPORT_PURCHASE);
                                     roleExpense[marketOwnerKey] = (roleExpense[marketOwnerKey] || 0) + exportValue;
 
                                     res[sourceResource] = Math.max(0, currentStock - exportAmount);
@@ -2369,7 +2436,7 @@ export const simulateTick = ({
                                     if (importAmount <= 0) continue;
 
                                     const importCost = importAmount * target.importPrice;
-                                    wealth[marketOwnerKey] += importCost;
+                                    ledger.transfer('void', marketOwnerKey, importCost, TRANSACTION_CATEGORIES.INCOME.TRADE_IMPORT_REVENUE, TRANSACTION_CATEGORIES.INCOME.TRADE_IMPORT_REVENUE);
                                     availableMerchantWealth += importCost;
 
                                     res[target.resource] = (res[target.resource] || 0) + importAmount;
@@ -2503,8 +2570,7 @@ export const simulateTick = ({
     if (totalArmyCost > 0) {
         const available = res.silver || 0;
         if (available >= totalArmyCost) {
-            res.silver = available - totalArmyCost;
-            trackSilverChange(-totalArmyCost, `军队维护支出`);
+            applySilverChange(-totalArmyCost, 'expense_army_maintenance');
             rates.silver = (rates.silver || 0) - totalArmyCost;
             roleWagePayout.soldier = (roleWagePayout.soldier || 0) + totalArmyCost;
             roleLaborIncome.soldier = (roleLaborIncome.soldier || 0) + totalArmyCost; // Army pay is labor income
@@ -2516,8 +2582,7 @@ export const simulateTick = ({
             // 部分支付
             const partialPay = available * 0.9; // 留10%底
             if (partialPay > 0) {
-                res.silver = available - partialPay;
-                trackSilverChange(-partialPay, `军队维护支出（部分支付）`);
+                applySilverChange(-partialPay, 'expense_army_maintenance_partial');
                 rates.silver = (rates.silver || 0) - partialPay;
                 roleWagePayout.soldier = (roleWagePayout.soldier || 0) + partialPay;
                 // [FIX] 同步到 classFinancialData 以保持概览和财务面板数据一致
@@ -3065,7 +3130,7 @@ export const simulateTick = ({
             // Apply wealth deductions
             Object.entries(wealthDeductions).forEach(([stratum, amount]) => {
                 if (wealth[stratum]) {
-                    wealth[stratum] = Math.max(0, wealth[stratum] - amount);
+                    ledger.transfer(stratum, 'void', amount, TRANSACTION_CATEGORIES.EXPENSE.BUILDING_COST, TRANSACTION_CATEGORIES.EXPENSE.BUILDING_COST);
                 }
             });
             // Update the main `builds` object for the rest of the tick
@@ -4000,12 +4065,9 @@ export const simulateTick = ({
             decay = Math.min(decay, maxDecay);
 
             if (decay > 0) {
-                wealth[key] = Math.max(0, currentWealth - decay);
+                ledger.transfer(key, 'void', decay, TRANSACTION_CATEGORIES.EXPENSE.DECAY, TRANSACTION_CATEGORIES.EXPENSE.DECAY);
                 // Record decay as expense so UI balances
                 roleExpense[key] = (roleExpense[key] || 0) + decay;
-                if (classFinancialData[key]) {
-                    classFinancialData[key].expense.decay = (classFinancialData[key].expense.decay || 0) + decay;
-                }
             }
         }
     });
@@ -4084,7 +4146,7 @@ export const simulateTick = ({
                 // Note: This is NOT recorded as expense because it's population movement,
                 // not economic activity. The wealth moves with the people leaving.
                 if (fleeingCapital > 0) {
-                    wealth[key] = Math.max(0, currentWealth - fleeingCapital);
+                    ledger.transfer(key, 'void', fleeingCapital, TRANSACTION_CATEGORIES.EXPENSE.CAPITAL_FLIGHT, TRANSACTION_CATEGORIES.EXPENSE.CAPITAL_FLIGHT);
                 }
 
                 // [FIX] 同步更新popStructure，确保人口真正从该阶层移除
@@ -4235,6 +4297,7 @@ export const simulateTick = ({
                     army,
                     logs,
                     onTreasuryChange: trackSilverChange,
+                    onResourceChange: onResourceChangeCallback,
                 });
                 raidPopulationLoss += rebelResult.raidPopulationLoss;
             }
@@ -4335,6 +4398,7 @@ export const simulateTick = ({
                     logs,
                     difficultyLevel: difficulty,
                     onTreasuryChange: trackSilverChange,
+                    onResourceChange: onResourceChangeCallback,
                 });
                 raidPopulationLoss += militaryResult.raidPopulationLoss;
             }
@@ -4457,8 +4521,10 @@ export const simulateTick = ({
 
         // 扣除组织成员费
         if (organizationUpdateResult.fees.player > 0) {
-            res.silver = Math.max(0, (res.silver || 0) - organizationUpdateResult.fees.player);
-            trackSilverChange(-organizationUpdateResult.fees.player, 'organization_membership_fee');
+            const feeToDeduct = Math.min(res.silver || 0, organizationUpdateResult.fees.player);
+            if (feeToDeduct > 0) {
+                applySilverChange(-feeToDeduct, 'organization_membership_fee');
+            }
         }
 
         // 更新AI国家的费用
@@ -5275,6 +5341,9 @@ export const simulateTick = ({
         shouldLogMerchantTrades: eventEffectSettings?.logVisibility?.showMerchantTradeLogs ?? true,
         // [NEW] Control official logs
         shouldLogOfficialEvents: eventEffectSettings?.logVisibility?.showOfficialLogs ?? true,
+
+        // Treasury change callback for resource tracking
+        onTreasuryChange: applySilverChange,
     });
     const merchantLockedCapital = Math.max(0, updatedMerchantState.lockedCapital ?? sumLockedCapital(updatedMerchantState.pendingTrades));
     updatedMerchantState.lockedCapital = merchantLockedCapital;
@@ -5743,7 +5812,7 @@ export const simulateTick = ({
             });
 
             // 2. Deduct cost from owner's wealth
-            wealth[ownerKey] = Math.max(0, ownerWealth - totalSilverCost);
+            ledger.transfer(ownerKey, 'void', totalSilverCost, TRANSACTION_CATEGORIES.EXPENSE.BUILDING_COST, TRANSACTION_CATEGORIES.EXPENSE.BUILDING_COST);
 
             // 3. Update building upgrade levels
             if (!updatedBuildingUpgrades[buildingId]) {
@@ -5859,57 +5928,56 @@ export const simulateTick = ({
     // 1. 人头税
     const finalHeadTax = collectedHeadTax * incomePercentMultiplier;
     if (finalHeadTax !== 0) {
-        res.silver = (res.silver || 0) + finalHeadTax;
+        applySilverChange(finalHeadTax, 'tax_head');
         rates.silver = (rates.silver || 0) + finalHeadTax;
-        trackSilverChange(finalHeadTax, 'tax_head');
     }
 
     // 2. 交易税
     const finalIndustryTax = collectedIndustryTax * incomePercentMultiplier;
     if (finalIndustryTax !== 0) {
-        res.silver = (res.silver || 0) + finalIndustryTax;
+        applySilverChange(finalIndustryTax, 'tax_industry');
         rates.silver = (rates.silver || 0) + finalIndustryTax;
-        trackSilverChange(finalIndustryTax, 'tax_industry');
     }
 
     // 3. 营业税
     const finalBusinessTax = collectedBusinessTax * incomePercentMultiplier;
     if (finalBusinessTax !== 0) {
-        res.silver = (res.silver || 0) + finalBusinessTax;
+        applySilverChange(finalBusinessTax, 'tax_business');
         rates.silver = (rates.silver || 0) + finalBusinessTax;
-        trackSilverChange(finalBusinessTax, 'tax_business');
     }
 
     // 4. 关税
     const finalTariff = collectedTariff * incomePercentMultiplier;
     if (finalTariff !== 0) {
-        res.silver = (res.silver || 0) + finalTariff;
+        applySilverChange(finalTariff, 'tax_tariff');
         rates.silver = (rates.silver || 0) + finalTariff;
-        trackSilverChange(finalTariff, 'tax_tariff');
     }
 
-    // 5. 战争赔款
-    const finalWarIndemnity = warIndemnityIncome * incomePercentMultiplier;
-    if (finalWarIndemnity > 0) {
-        res.silver = (res.silver || 0) + finalWarIndemnity;
-        rates.silver = (rates.silver || 0) + finalWarIndemnity;
-        trackSilverChange(finalWarIndemnity, 'income_war_indemnity');
+    // 5. 战争赔款加成部分
+    // NOTE: processInstallmentPayment() already recorded the base amount with 'installment_payment_income'
+    // Here we only add the bonus portion from incomePercentMultiplier (if any)
+    const warIndemnityBonus = warIndemnityIncome * (incomePercentMultiplier - 1);
+    if (warIndemnityBonus > 0) {
+        applySilverChange(warIndemnityBonus, 'income_war_indemnity_bonus');
+        rates.silver = (rates.silver || 0) + warIndemnityBonus;
+    }
+    // Update rates for display (base amount was already added in processInstallmentPayment)
+    if (warIndemnityIncome > 0) {
+        rates.silver = (rates.silver || 0) + warIndemnityIncome;
     }
 
     // 6. 政令收入
     if (decreeSilverIncome > 0) {
-        res.silver = (res.silver || 0) + decreeSilverIncome;
+        applySilverChange(decreeSilverIncome, 'income_policy');
         rates.silver = (rates.silver || 0) + decreeSilverIncome;
-        trackSilverChange(decreeSilverIncome, 'income_policy');
     }
 
     // 7. 政令支出 (此前未扣除，现修正)
     if (decreeSilverExpense > 0) {
         const expense = Math.min(res.silver || 0, decreeSilverExpense);
         if (expense > 0) {
-            res.silver = (res.silver || 0) - expense;
+            applySilverChange(-expense, 'expense_policy');
             rates.silver = (rates.silver || 0) - expense;
-            trackSilverChange(-expense, 'expense_policy');
         }
     }
 
@@ -5923,13 +5991,13 @@ export const simulateTick = ({
     const effectiveTradeRouteTax = Number.isFinite(tradeRouteTax) ? tradeRouteTax : 0;
 
     // Price control income is added to silver here (expense was deducted in real-time)
-    res.silver = (res.silver || 0) + priceControlIncome;
-    trackSilverChange(priceControlIncome, `价格管制收入`);
-    rates.silver = (rates.silver || 0) + priceControlIncome;
+    if (priceControlIncome !== 0) {
+        applySilverChange(priceControlIncome, 'income_price_control');
+        rates.silver = (rates.silver || 0) + priceControlIncome;
+    }
 
     if (effectiveTradeRouteTax !== 0) {
-        res.silver = (res.silver || 0) + effectiveTradeRouteTax;
-        trackSilverChange(effectiveTradeRouteTax, `贸易路线税收`);
+        applySilverChange(effectiveTradeRouteTax, 'income_trade_route');
         rates.silver = (rates.silver || 0) + effectiveTradeRouteTax;
     }
 
@@ -6128,6 +6196,7 @@ export const simulateTick = ({
         _debug: {
             freeMarket: _freeMarketDebug,
             silverChangeLog, // 银币变化追踪日志
+            classWealthChangeLog, // 阶层财富变化追踪日志
             startingSilver,  // tick开始时的银币
             endingSilver: res.silver || 0, // tick结束时的银币
         },

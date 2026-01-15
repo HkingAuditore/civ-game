@@ -41,6 +41,26 @@ const applyTreasuryChange = (resources, delta, reason, onTreasuryChange) => {
 };
 
 /**
+ * Helper: Apply resource change and optionally invoke callback for tracking
+ * @param {Object} resources - Player resources object (mutable)
+ * @param {string} resourceType - Resource type (e.g., 'food', 'wood', 'silver')
+ * @param {number} delta - Amount to change (positive for gain, negative for loss)
+ * @param {string} reason - Reason for the change (for tracking)
+ * @param {Function} onResourceChange - Optional callback (delta, reason, resourceType)
+ */
+const applyResourceChange = (resources, resourceType, delta, reason, onResourceChange) => {
+    if (!resources || !Number.isFinite(delta) || delta === 0) return 0;
+    const before = Number(resources[resourceType] || 0);
+    const after = Math.max(0, before + delta);
+    const actual = after - before;
+    resources[resourceType] = after;
+    if (typeof onResourceChange === 'function' && actual !== 0) {
+        onResourceChange(actual, reason, resourceType);
+    }
+    return actual;
+};
+
+/**
  * Process rebel nation war actions (raids and surrender demands)
  * @param {Object} params - Parameters
  * @param {Object} params.nation - The rebel nation object (mutable)
@@ -60,6 +80,7 @@ export const processRebelWarActions = ({
     army,
     logs,
     onTreasuryChange,
+    onResourceChange,
 }) => {
     let raidPopulationLoss = 0;
     const res = resources;
@@ -135,7 +156,7 @@ export const processRebelWarActions = ({
         }
 
         // Apply resource losses
-        if (foodLoss > 0) res.food = Math.max(0, (res.food || 0) - foodLoss);
+        if (foodLoss > 0) applyResourceChange(res, 'food', -foodLoss, 'rebel_raid_loss', onResourceChange);
         if (silverLoss > 0) applyTreasuryChange(res, -silverLoss, 'rebel_raid_loss', onTreasuryChange);
         if (popLoss > 0) raidPopulationLoss += popLoss;
 
@@ -270,6 +291,7 @@ export const processAIMilitaryAction = ({
     logs,
     difficultyLevel = DEFAULT_DIFFICULTY,
     onTreasuryChange,
+    onResourceChange,
 }) => {
     let raidPopulationLoss = 0;
     const next = nation;
@@ -421,9 +443,9 @@ export const processAIMilitaryAction = ({
         if (actionType === 'scorched_earth') {
             woodLoss = Math.floor((res.wood || 0) * actionStrength * 0.8);
             woodLoss = applyRaidDamageModifier(woodLoss, difficultyLevel);
-            if (woodLoss > 0) res.wood = Math.max(0, (res.wood || 0) - woodLoss);
+            if (woodLoss > 0) applyResourceChange(res, 'wood', -woodLoss, 'ai_scorched_earth', onResourceChange);
         }
-        if (foodLoss > 0) res.food = Math.max(0, (res.food || 0) - foodLoss);
+        if (foodLoss > 0) applyResourceChange(res, 'food', -foodLoss, 'ai_war_action_loss', onResourceChange);
         if (silverLoss > 0) applyTreasuryChange(res, -silverLoss, 'ai_war_action_loss', onTreasuryChange);
         let popLoss = Math.min(Math.floor(3 * actionLossMultiplier), Math.max(1, Math.floor(actionStrength * 20 * actionLossMultiplier)));
         popLoss = applyPopulationLossModifier(popLoss, difficultyLevel);
@@ -490,9 +512,9 @@ export const processAIMilitaryAction = ({
             if (actionType === 'scorched_earth') {
                 woodLoss = Math.floor((res.wood || 0) * actionStrength * 0.8);
                 woodLoss = applyRaidDamageModifier(woodLoss, difficultyLevel);
-                if (woodLoss > 0) res.wood = Math.max(0, (res.wood || 0) - woodLoss);
+                if (woodLoss > 0) applyResourceChange(res, 'wood', -woodLoss, 'ai_scorched_earth', onResourceChange);
             }
-            if (foodLoss > 0) res.food = Math.max(0, (res.food || 0) - foodLoss);
+            if (foodLoss > 0) applyResourceChange(res, 'food', -foodLoss, 'ai_war_action_loss', onResourceChange);
             if (silverLoss > 0) applyTreasuryChange(res, -silverLoss, 'ai_war_action_loss', onTreasuryChange);
             let popLoss = Math.min(Math.floor(3 * actionLossMultiplier), Math.max(1, Math.floor(actionStrength * 20 * actionLossMultiplier)));
             popLoss = applyPopulationLossModifier(popLoss, difficultyLevel);

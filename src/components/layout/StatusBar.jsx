@@ -31,20 +31,23 @@ export const StatusBar = ({
     gameControls,
 }) => {
     const TAX_POPOVER_Z_INDEX = 95;
-    const MAX_FISCAL_ITEMS = 6;
+    const MAX_FISCAL_ITEMS = 10;
     const REASON_LABELS = {
         '税收收入（含战争赔款）': '税收收入',
         tax_head: '人头税',
         tax_industry: '交易税',
         tax_business: '营业税',
         tax_tariff: '关税',
-        income_war_indemnity: '战争赔款',
+        income_war_indemnity: '战争赔款收入', // legacy - should not appear after fix
+        income_war_indemnity_bonus: '战争赔款加成',
         income_policy: '政令收入',
         expense_policy: '政令支出',
         '价格管制收入': '价格管制收入',
         '贸易路线税收': '贸易路线税收',
         '军队维护支出': '军饷维护',
         '军队维护支出（部分支付）': '军饷维护',
+        expense_army_maintenance: '军饷维护',
+        expense_army_maintenance_partial: '军饷维护',
         official_salary: '官员薪俸',
         forced_subsidy: '强制补贴',
         treaty_maintenance: '条约维护费',
@@ -76,6 +79,26 @@ export const StatusBar = ({
         border_incident_compensation: '外交赔偿',
         rebel_reform_payment: '叛军妥协支出',
         auto_replenish_cost: '自动补兵支出',
+        headTax: '人头税',
+        transactionTax: '交易税',
+        businessTax: '营业税',
+        tariffs: '关税',
+        subsidy: '税收补贴',
+        tariff_subsidy: '关税补贴',
+        tradeRouteTax: '贸易路线税收',
+        foreignInvestmentTax: '外资税收',
+        headtax: '人头税',
+        transactiontax: '交易税',
+        businesstax: '营业税',
+        tariff: '关税',
+        tariffsubsidy: '关税补贴',
+        traderoutetax: '贸易路线税收',
+        foreign_investment_tax: '外资税收',
+        foreigninvestmenttax: '外资税收',
+        salary: '官员薪俸',
+        militaryPay: '军饷维护',
+        maintenance: '维护费',
+        untracked_delta: '对账差额',
     };
 
     // Debug: Check activeEventEffects
@@ -184,7 +207,9 @@ export const StatusBar = ({
         fiscalTreasuryEntries.forEach(entry => {
             const amount = Number(entry?.amount || 0);
             if (!Number.isFinite(amount) || amount === 0) return;
-            const label = REASON_LABELS[entry?.reason] || entry?.reason || '未知';
+            const rawReason = typeof entry?.reason === 'string' ? entry.reason.trim() : entry?.reason;
+            const lowerReason = typeof rawReason === 'string' ? rawReason.toLowerCase() : rawReason;
+            const label = REASON_LABELS[rawReason] || REASON_LABELS[lowerReason] || rawReason || '未知';
             totals.set(label, (totals.get(label) || 0) + amount);
             net += amount;
         });

@@ -13,6 +13,8 @@ export const TRANSACTION_CATEGORIES = {
         CORRUPTION: 'corruption', // 腐败收入
         TRADE_IMPORT: 'tradeImport', // 贸易进口（视为收入的一种形式？不，这是支出，但如果转手卖就是收入。这里指贸易获利）
         // 修正：贸易获利通常计入 OWNER_REVENUE
+        TRADE_IMPORT_REVENUE: 'tradeImportRevenue', // 贸易进口收入（卖出进口货物）
+        LAYOFF_TRANSFER: 'layoffTransfer', // 裁员时随人口转移的财富
     },
     EXPENSE: {
         HEAD_TAX: 'headTax',
@@ -26,6 +28,10 @@ export const TRANSACTION_CATEGORIES = {
         DECAY: 'decay', // 财富自然衰减
         MAINTENANCE: 'maintenance', // 维护费
         TRADE_EXPORT: 'tradeExport', // 贸易出口支出
+        TRADE_EXPORT_PURCHASE: 'tradeExportPurchase', // 贸易出口购买成本
+        CAPITAL_FLIGHT: 'capitalFlight', // 资本外逃
+        BUILDING_COST: 'buildingCost', // 建筑建造/升级成本
+        LAYOFF_TRANSFER: 'layoffTransfer', // 裁员时随人口转移的财富
     }
 };
 
@@ -42,6 +48,7 @@ export class EconomyLedger {
         this.taxBreakdown = state.taxBreakdown; // 税收统计
         this.silverChangeLog = state.silverChangeLog; // 银币变动日志
         this.buildingFinancialData = state.buildingFinancialData; // 建筑财务统计 (可选)
+        this.classWealthChangeLog = state.classWealthChangeLog || {}; // 阶层财富变动日志
 
         // 辅助函数
         this.safeWealth = helpers.safeWealth;
@@ -61,13 +68,13 @@ export class EconomyLedger {
 
         // 1. 扣款
         if (from !== 'void') {
-            this._deduct(from, amount);
+            this._deduct(from, amount, subCategory, metadata);
             this._recordExpense(from, amount, subCategory, metadata);
         }
 
         // 2. 入账
         if (to !== 'void') {
-            this._add(to, amount);
+            this._add(to, amount, subCategory, metadata);
             this._recordIncome(to, amount, subCategory, metadata);
         }
 
@@ -77,7 +84,30 @@ export class EconomyLedger {
 
     // --- 内部方法 ---
 
-    _deduct(entity, amount) {
+    /**
+     * Track wealth change in classWealthChangeLog
+     * @param {string} entity - Class key (e.g. 'peasant', 'merchant')
+     * @param {number} amount - Amount changed (positive or negative)
+     * @param {string} reason - Reason for the change (e.g. 'wage', 'headTax')
+     */
+    _trackClassWealthChange(entity, amount, reason) {
+        // Skip state and void entities
+        if (entity === 'state' || entity === 'void') return;
+        
+        // Initialize log array for this entity if needed
+        if (!this.classWealthChangeLog[entity]) {
+            this.classWealthChangeLog[entity] = [];
+        }
+        
+        // Add the change record
+        this.classWealthChangeLog[entity].push({
+            amount,
+            reason,
+            balance: this.wealth[entity] || 0
+        });
+    }
+
+    _deduct(entity, amount, reason, metadata = {}) {
         if (entity === 'state') {
             this.resources.silver = Math.max(0, (this.resources.silver || 0) - amount);
         } else if (entity === 'official_pool') {
@@ -99,14 +129,18 @@ export class EconomyLedger {
         } else {
             // 普通阶层
             this.wealth[entity] = Math.max(0, (this.wealth[entity] || 0) - amount);
+            // Track the wealth change
+            this._trackClassWealthChange(entity, -amount, reason);
         }
     }
 
-    _add(entity, amount) {
+    _add(entity, amount, reason, metadata = {}) {
         if (entity === 'state') {
             this.resources.silver = (this.resources.silver || 0) + amount;
         } else {
             this.wealth[entity] = this.safeWealth((this.wealth[entity] || 0) + amount);
+            // Track the wealth change
+            this._trackClassWealthChange(entity, amount, reason);
         }
     }
 

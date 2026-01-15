@@ -11,6 +11,17 @@ import { getTreatyEffects } from '../diplomacy/treatyEffects';
 import { TRANSACTION_CATEGORIES } from './ledger';
 
 /**
+ * Helper: Apply treasury (silver) change and optionally invoke callback for tracking
+ */
+const applyTreasuryChange = (resources, delta, reason, onTreasuryChange) => {
+    if (delta === 0) return;
+    resources.silver = Math.max(0, (resources.silver || 0) + delta);
+    if (typeof onTreasuryChange === 'function') {
+        onTreasuryChange(delta, reason);
+    }
+};
+
+/**
  * Default merchant trade configuration
  */
 export const DEFAULT_TRADE_CONFIG = {
@@ -330,6 +341,9 @@ export const simulateMerchantTrade = ({
 
     // Control whether to log merchant trade initiation messages
     shouldLogMerchantTrades = true,
+
+    // Treasury change callback for resource tracking
+    onTreasuryChange = null,
 }) => {
     const merchantCount = popStructure?.merchant || 0;
     if (merchantCount <= 0) {
@@ -1141,7 +1155,7 @@ const executeExportTrade = ({
                 // Negative tariff = export subsidy, record separately
                 const subsidy = Math.abs(tariffPaid);
                 if ((res.silver || 0) >= subsidy) {
-                    res.silver -= subsidy;
+                    applyTreasuryChange(res, -subsidy, 'expense_export_tariff_subsidy', onTreasuryChange);
                     taxBreakdown.tariffSubsidy = (taxBreakdown.tariffSubsidy || 0) + subsidy;
                 }
             }
@@ -1150,7 +1164,7 @@ const executeExportTrade = ({
             if (totalAppliedTax < 0) {
                 // 总税为负 = 补贴大于税收，从国库支付补贴
                 const subsidy = Math.abs(totalAppliedTax);
-                res.silver -= subsidy;
+                applyTreasuryChange(res, -subsidy, 'expense_export_trade_subsidy', onTreasuryChange);
                 taxBreakdown.subsidy += subsidy;
             } else {
                 // 总税为正，记录基础交易税到industryTax
@@ -1307,7 +1321,7 @@ const executeImportTrade = ({
                 // Negative tariff = import subsidy, record separately
                 const subsidy = Math.abs(tariffPaid);
                 if ((res.silver || 0) >= subsidy) {
-                    res.silver -= subsidy;
+                    applyTreasuryChange(res, -subsidy, 'expense_import_tariff_subsidy', onTreasuryChange);
                     taxBreakdown.tariffSubsidy = (taxBreakdown.tariffSubsidy || 0) + subsidy;
                 }
             }
@@ -1316,7 +1330,7 @@ const executeImportTrade = ({
             if (totalAppliedTax < 0) {
                 // 总税为负 = 补贴大于税收，从国库支付补贴
                 const subsidy = Math.abs(totalAppliedTax);
-                res.silver -= subsidy;
+                applyTreasuryChange(res, -subsidy, 'expense_import_trade_subsidy', onTreasuryChange);
                 taxBreakdown.subsidy += subsidy;
             } else {
                 // 总税为正，记录基础交易税到industryTax

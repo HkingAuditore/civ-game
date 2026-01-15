@@ -38,6 +38,21 @@ const applyTreasuryChange = (resources, delta, reason, onTreasuryChange) => {
     return actual;
 };
 
+/**
+ * Helper: Apply resource change and optionally invoke callback for tracking
+ */
+const applyResourceChange = (resources, resourceType, delta, reason, onResourceChange) => {
+    if (!resources || !Number.isFinite(delta) || delta === 0) return 0;
+    const before = Number(resources[resourceType] || 0);
+    const after = Math.max(0, before + delta);
+    const actual = after - before;
+    resources[resourceType] = after;
+    if (typeof onResourceChange === 'function' && actual !== 0) {
+        onResourceChange(actual, reason, resourceType);
+    }
+    return actual;
+};
+
 // ========== AI国家经济数据初始化与更新 ==========
 
 /**
@@ -293,6 +308,7 @@ export const updateNations = ({
     logs,
     marketPrices = {},  // 新增：玩家市场价格，用于AI经济数据初始化和更新
     onTreasuryChange,
+    onResourceChange,
 }) => {
     const res = { ...resources };
     let warIndemnityIncome = 0;
@@ -322,6 +338,7 @@ export const updateNations = ({
                 stabilityValue,
                 logs,
                 onTreasuryChange,
+                onResourceChange,
             });
 
             // Check for peace requests
@@ -456,7 +473,7 @@ export const updateNations = ({
  * Process war actions for a nation at war with player
  * @private
  */
-const processWarActions = ({ nation, tick, epoch, res, army, stabilityValue, logs, onTreasuryChange }) => {
+const processWarActions = ({ nation, tick, epoch, res, army, stabilityValue, logs, onTreasuryChange, onResourceChange }) => {
     // Frequency of AI actions based on aggression
     const actionFrequency = Math.max(10, Math.floor(30 - (nation.aggression || 0.3) * 20));
 
@@ -488,7 +505,7 @@ const processWarActions = ({ nation, tick, epoch, res, army, stabilityValue, log
         const foodLoss = Math.floor((res.food || 0) * lossMultiplier);
         const silverLoss = Math.floor((res.silver || 0) * lossMultiplier * 0.5);
 
-        if (foodLoss > 0) res.food = Math.max(0, (res.food || 0) - foodLoss);
+        if (foodLoss > 0) applyResourceChange(res, 'food', -foodLoss, 'ai_raid_loss', onResourceChange);
         if (silverLoss > 0) applyTreasuryChange(res, -silverLoss, 'ai_raid_loss', onTreasuryChange);
 
         nation.warScore = (nation.warScore || 0) - 8;  // AI赢：玩家优势减少
@@ -513,7 +530,7 @@ const processWarActions = ({ nation, tick, epoch, res, army, stabilityValue, log
             // AI won - 减少玩家优势
             const foodLoss = Math.floor((res.food || 0) * 0.1);
             const silverLoss = Math.floor((res.silver || 0) * 0.05);
-            if (foodLoss > 0) res.food = Math.max(0, (res.food || 0) - foodLoss);
+            if (foodLoss > 0) applyResourceChange(res, 'food', -foodLoss, 'ai_battle_loss', onResourceChange);
             if (silverLoss > 0) applyTreasuryChange(res, -silverLoss, 'ai_battle_loss', onTreasuryChange);
             nation.warScore = (nation.warScore || 0) - 5;  // AI赢：玩家优势减少
         } else {
