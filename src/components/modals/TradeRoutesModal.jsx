@@ -1,7 +1,7 @@
 import { createPortal } from 'react-dom';
 import { useState, useMemo, useEffect } from 'react';
 import { Icon } from '../common/UIComponents';
-import { RESOURCES } from '../../config';
+import { RESOURCES, COUNTRIES } from '../../config';
 import { calculateForeignPrice, calculateTradeStatus } from '../../utils/foreignTrade';
 import { formatNumberShortCN } from '../../utils/numberFormat';
 import { getTreatyEffects } from '../../logic/diplomacy/treatyEffects';
@@ -866,7 +866,9 @@ const TradeRoutesModal = ({
                                         const resourceIcon = resourceDef?.icon || 'Box';
                                         const resourceColor = resourceDef?.color || 'text-gray-400';
                                         const partnerNation = nations.find(n => n?.id === trade.partnerId);
-                                        const partnerName = partnerNation?.name || trade.partnerId || '未知';
+                                        // Fallback lookup from static config for expired/missing nations
+                                        const staticNationDef = !partnerNation ? COUNTRIES.find(c => c.id === trade.partnerId) : null;
+                                        const partnerName = partnerNation?.name || staticNationDef?.name || trade.partnerId || '未知';
                                         const isExport = trade.type === 'export';
 
                                         return (

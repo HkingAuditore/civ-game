@@ -60,6 +60,15 @@ const applyResourceChange = (resources, resourceType, delta, reason, onResourceC
     return actual;
 };
 
+const areNationsAllied = (id1, id2, organizations) => {
+    if (!organizations) return false;
+    return organizations.some(org =>
+        org.type === 'military_alliance' &&
+        org.members.includes(id1) &&
+        org.members.includes(id2)
+    );
+};
+
 /**
  * Process rebel nation war actions (raids and surrender demands)
  * @param {Object} params - Parameters
@@ -781,6 +790,7 @@ export const checkWarDeclaration = ({
     stabilityValue,
     logs,
     difficultyLevel = DEFAULT_DIFFICULTY,
+    diplomacyOrganizations, // [NEW]
 }) => {
     const next = nation;
     const res = resources;
@@ -827,7 +837,7 @@ export const checkWarDeclaration = ({
     // Check conditions
     const hasPeaceTreaty = next.peaceTreatyUntil && tick < next.peaceTreatyUntil;
     // Fixed: Use formal alliance status instead of relation-based check
-    const isPlayerAlly = next.alliedWithPlayer === true;
+    const isPlayerAlly = areNationsAllied(next.id, 'player', diplomacyOrganizations?.organizations);
 
     const canDeclareWar = !next.isAtWar &&
         !hasPeaceTreaty &&
@@ -879,8 +889,9 @@ export const checkWarDeclaration = ({
  * @param {Array} visibleNations - Array of visible nations
  * @param {number} tick - Current game tick
  * @param {Array} logs - Log array (mutable)
+ * @param {Object} diplomacyOrganizations - Org state
  */
-export const processCollectiveAttackWarmonger = (visibleNations, tick, logs) => {
+export const processCollectiveAttackWarmonger = (visibleNations, tick, logs, diplomacyOrganizations) => {
     visibleNations.forEach(warmonger => {
         const activeWars = Object.values(warmonger.foreignWars || {}).filter(w => w?.isAtWar).length;
         if (activeWars < 3) return;
@@ -894,7 +905,7 @@ export const processCollectiveAttackWarmonger = (visibleNations, tick, logs) => 
         const potentialOpponents = visibleNations.filter(n => {
             if (n.id === warmonger.id) return false;
             if (n.foreignWars?.[warmonger.id]?.isAtWar) return false;
-            if ((n.allies || []).includes(warmonger.id)) return false;
+            if (areNationsAllied(n.id, warmonger.id, diplomacyOrganizations?.organizations)) return false;
             const relation = n.foreignRelations?.[warmonger.id] ?? 50;
             return relation < 40;
         });
@@ -916,10 +927,12 @@ export const processCollectiveAttackWarmonger = (visibleNations, tick, logs) => 
  * Process AI-AI war declarations
  * @param {Array} visibleNations - Array of visible nations
  * @param {Array} updatedNations - Full nations array
+
  * @param {number} tick - Current game tick
  * @param {Array} logs - Log array (mutable)
+ * @param {Object} diplomacyOrganizations - Org state
  */
-export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, logs) => {
+export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, logs, diplomacyOrganizations) => {
     visibleNations.forEach(nation => {
         if (!nation.foreignWars) nation.foreignWars = {};
 
@@ -930,8 +943,9 @@ export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, 
             const peaceUntil = nation.foreignWars[otherNation.id]?.peaceTreatyUntil || 0;
             if (tick < peaceUntil) return;
 
-            const isAllied = (nation.allies || []).includes(otherNation.id) ||
-                (otherNation.allies || []).includes(nation.id);
+
+
+            const isAllied = areNationsAllied(nation.id, otherNation.id, diplomacyOrganizations?.organizations);
             if (isAllied) return;
 
             const currentWarCount = Object.values(nation.foreignWars || {}).filter(w => w?.isAtWar).length;
@@ -949,9 +963,9 @@ export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, 
 
             visibleNations.forEach(n => {
                 if (n.id === nation.id || n.id === otherNation.id) return;
-                const isMyAlly = (nation.allies || []).includes(n.id) || (n.allies || []).includes(nation.id);
+                const isMyAlly = areNationsAllied(nation.id, n.id, diplomacyOrganizations?.organizations);
                 if (isMyAlly) mySideStrength += calculateNationPower(n);
-                const isEnemyAlly = (otherNation.allies || []).includes(n.id) || (n.allies || []).includes(otherNation.id);
+                const isEnemyAlly = areNationsAllied(otherNation.id, n.id, diplomacyOrganizations?.organizations);
                 if (isEnemyAlly) enemySideStrength += calculateNationPower(n);
             });
 

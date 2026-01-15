@@ -171,18 +171,19 @@ export const processNeedsConsumption = ({
 
                     // Apply price control financial transaction (treasury fallback handled inside)
                     let finalEffectivePrice = marketPrice;
-                    if (priceControlActive) {
-                        const pcResult = applyBuyPriceControl({
-                            resourceKey: resKey,
-                            amount,
-                            marketPrice,
-                            priceControls,
-                            taxBreakdown,
-                            resources: res,
-                            onTreasuryChange,
-                        });
-                        finalEffectivePrice = pcResult.effectivePrice;
-                    }
+                        if (priceControlActive) {
+                            const pcResult = applyBuyPriceControl({
+                                resourceKey: resKey,
+                                amount,
+                                marketPrice,
+                                priceControls,
+                                taxBreakdown,
+                                resources: res,
+                                onTreasuryChange,
+                                applyTreasuryChange: (delta, reason) => applyTreasuryChange(res, delta, reason, onTreasuryChange),
+                            });
+                            finalEffectivePrice = pcResult.effectivePrice;
+                        }
 
                     // 2) Transaction tax is based on finalEffectivePrice
                     const taxRate = getResourceTaxRate(resKey);

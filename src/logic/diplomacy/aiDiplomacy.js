@@ -101,11 +101,11 @@ export const processMonthlyRelationDecay = (nations, tick) => {
  */
 export const processAllyColdEvents = (nations, tick, logs, difficultyLevel = 'normal') => {
     if (!Array.isArray(nations)) return;
-    
+
     // Get difficulty-based cooldown and chance
     const cooldown = getAllyColdEventCooldown(difficultyLevel);
     const baseChance = getAllyColdEventChance(difficultyLevel);
-    
+
     nations.forEach(nation => {
         if (nation.isRebelNation) return;
         if (nation.alliedWithPlayer !== true) return;
@@ -214,11 +214,11 @@ export const processAITrade = (visibleNations, logs, diplomacyOrganizations = nu
             if (n.id === nation.id) return false;
             if (n.isAtWar) return false;
             if (nation.foreignWars?.[n.id]?.isAtWar) return false;
-            
+
             // Check if trade partner is also restricted
             const otherTradeCheck = canVassalPerformDiplomacy(n, 'trade');
             if (!otherTradeCheck.allowed) return false;
-            
+
             const relation = nation.foreignRelations?.[n.id] ?? 50;
             return relation >= 30;
         });
@@ -504,79 +504,163 @@ export const processAIPlayerInteraction = (visibleNations, tick, epoch, logs) =>
  * @param {number} tick - Current game tick
  * @param {Array} logs - Log array (mutable)
  */
-export const processAIAllianceFormation = (visibleNations, tick, logs) => {
-    visibleNations.forEach(nation => {
-        if (Math.random() > 0.002) return;
+import { createOrganization } from './organizationDiplomacy';
 
-        // Check vassal diplomatic restrictions - puppets and colonies cannot form alliances
+/**
+ * Process AI-AI alliance formation using International Organizations
+ * @param {Array} visibleNations - Array of visible nations
+ * @param {number} tick - Current game tick
+ * @param {Array} logs - Log array (mutable)
+ * @param {Object} diplomacyOrganizations - Current organization state
+ * @param {number} epoch - Current epoch
+ * @returns {Object} - Returns new organizations and member updates
+ */
+export const processAIAllianceFormation = (visibleNations, tick, logs, diplomacyOrganizations, epoch) => {
+    const existingOrgs = diplomacyOrganizations?.organizations || [];
+    const result = {
+        createdOrganizations: [],
+        memberJoinRequests: [], // { orgId, nationId }
+    };
+
+    // Shuffle nations to avoid bias
+    const shuffledNations = [...visibleNations].sort(() => Math.random() - 0.5);
+
+    shuffledNations.forEach(nation => {
+        if (Math.random() > 0.005) return; // Low daily chance
+
+        // Check vassal diplomatic restrictions
         const vassalAllianceCheck = canVassalPerformDiplomacy(nation, 'alliance');
         if (!vassalAllianceCheck.allowed) {
-            return; // Skip - this vassal cannot form independent alliances
+            return;
         }
 
         const nationAggression = nation.aggression ?? 0.3;
-        if (nationAggression > 0.6) return;
+        // Check if nation is already in a military alliance
+        const myAlliance = existingOrgs.find(org =>
+            org.type === 'military_alliance' && org.members.includes(nation.id)
+        );
 
-        if (!nation.allies) nation.allies = [];
+        // Limit: one military alliance per nation for simplicity
+        if (myAlliance) return;
 
         const potentialAllies = visibleNations.filter(other => {
             if (other.id === nation.id) return false;
-            if (nation.allies.includes(other.id)) return false;
-            if (nation.foreignWars?.[other.id]?.isAtWar) return false;
-            
-            // Check if potential ally is also restricted
+
+            // Check restriction
             const otherAllianceCheck = canVassalPerformDiplomacy(other, 'alliance');
             if (!otherAllianceCheck.allowed) return false;
-            
+
+            // Cannot be at war with each other
+            if (nation.foreignWars?.[other.id]?.isAtWar) return false;
+            if (other.foreignWars?.[nation.id]?.isAtWar) return false;
+
             const relation = nation.foreignRelations?.[other.id] ?? 50;
             const otherRelation = other.foreignRelations?.[nation.id] ?? 50;
-            return relation >= 70 && otherRelation >= 70;
+            return relation >= 75 && otherRelation >= 75; // High relation required
         });
 
         if (potentialAllies.length === 0) return;
 
         const ally = potentialAllies[Math.floor(Math.random() * potentialAllies.length)];
 
-        const avgRelation = ((nation.foreignRelations?.[ally.id] ?? 50) + (ally.foreignRelations?.[nation.id] ?? 50)) / 2;
-        const allianceChance = (avgRelation - 60) / 100;
+        // Check if ally is in an alliance
+        const allyAlliance = existingOrgs.find(org =>
+            org.type === 'military_alliance' && org.members.includes(ally.id)
+        );
 
-        if (Math.random() < allianceChance) {
-            if (!ally.allies) ally.allies = [];
-            nation.allies.push(ally.id);
-            ally.allies.push(nation.id);
-            logs.push(`🤝 国际新闻：${nation.name} 与 ${ally.name} 正式缔结军事同盟！`);
+        if (allyAlliance) {
+            // Request to join ally's alliance
+            // Check if existing members like me
+            const members = allyAlliance.members.map(mid => visibleNations.find(n => n.id === mid)).filter(n => n);
+            const approval = members.every(member => {
+                const rel = member.foreignRelations?.[nation.id] ?? 50;
+                return rel >= 60;
+            });
+
+            if (approval) {
+                result.memberJoinRequests.push({ orgId: allyAlliance.id, nationId: nation.id, orgName: allyAlliance.name });
+                logs.push(`🛡️ ${nation.name} 加入了由 ${ally.name} 所在的 "${allyAlliance.name}"！`);
+            }
+        } else {
+            // Create new alliance
+            // Generate name
+            // Simple AI naming logic
+            const prefixes = ['北方', '南方', '东方', '西方', '神圣', '大', '自由', '联合'];
+            const suffixes = ['协约', '同盟', '公约组织', '防卫阵线', '联盟'];
+            const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
+            const suffix = suffixes[Math.floor(Math.random() * suffixes.length)];
+            // Ensure unique name handling handled by create logic or chance
+            const orgName = `${prefix}${suffix}`;
+
+            const createResult = createOrganization({
+                type: 'military_alliance',
+                founderId: nation.id,
+                founderName: nation.name,
+                name: orgName,
+                epoch,
+                daysElapsed: tick
+            });
+
+            if (createResult.success) {
+                const newOrg = createResult.organization;
+                // Add the ally immediately (simplification)
+                newOrg.members.push(ally.id);
+
+                result.createdOrganizations.push(newOrg);
+                logs.push(`🤝 国际新闻：${nation.name} 与 ${ally.name} 共同建立了新的军事同盟——"${orgName}"！`);
+            }
         }
     });
+
+    return result;
 };
 
 /**
  * Check and process AI breaking alliance with player
  * @param {Object} nation - AI nation object (mutable)
  * @param {Array} logs - Log array (mutable)
+ * @param {Object} diplomacyOrganizations - Org state
+ * @returns {Object|null} - Returns leave request if action taken
  */
-export const checkAIBreakAlliance = (nation, logs) => {
-    if (!nation.alliedWithPlayer || nation.isAtWar) return;
+export const checkAIBreakAlliance = (nation, logs, diplomacyOrganizations) => {
+    // Find alliances with player
+    if (!diplomacyOrganizations) return null;
 
-    const relation = nation.relation ?? 50;
-    const shouldBreakAlliance = (
-        relation < 40 ||
-        (nation.allianceStrain || 0) >= 3
+    const alliancesWithPlayer = (diplomacyOrganizations.organizations || []).filter(org =>
+        org.type === 'military_alliance' &&
+        org.members.includes(nation.id) &&
+        org.members.includes('player')
     );
 
-    if (shouldBreakAlliance) {
-        nation.alliedWithPlayer = false;
-        nation.allianceStrain = 0;
-        logs.push(`AI_BREAK_ALLIANCE:${JSON.stringify({
+    if (alliancesWithPlayer.length === 0) return null;
+
+    const relation = nation.relation ?? 50;
+    const shouldBreak = relation < 30 || (nation.allianceStrain || 0) >= 3;
+
+    if (shouldBreak) {
+        // Leave all alliances with player
+        const leaveRequests = alliancesWithPlayer.map(org => ({
+            orgId: org.id,
             nationId: nation.id,
-            nationName: nation.name,
-            reason: relation < 40 ? 'relation_low' : 'player_neglect'
-        })}`);
+            orgName: org.name
+        }));
+
+        nation.allianceStrain = 0;
+
+        leaveRequests.forEach(req => {
+            logs.push(`💔 ${nation.name} 由于与你的关系恶化，退出了 "${req.orgName}"。`);
+        });
+
+        return { memberLeaveRequests: leaveRequests };
     }
+    return null;
 };
 
 /**
  * Process relation decay for a single nation (daily)
  * @param {Object} nation - AI nation object (mutable)
+ * @param {string} difficultyLevel - Difficulty level
+ * @returns {Object} - Nation object (modified in place mostly, but returned for consistency)
  */
 export const processNationRelationDecay = (nation, difficultyLevel = 'normal') => {
     const relation = nation.relation ?? 50;
@@ -731,7 +815,7 @@ export const processAIInvestmentSuggestions = ({
 
     // 遍历所有附庸国
     const vassalNations = nations.filter(n => n.vassalOf === 'player');
-    
+
     for (const nation of vassalNations) {
         const suggestion = makeAIInvestmentDecision({
             nation,
@@ -740,7 +824,7 @@ export const processAIInvestmentSuggestions = ({
             epoch,
             marketPrices,
         });
-        
+
         if (suggestion) {
             suggestions.push(suggestion);
         }

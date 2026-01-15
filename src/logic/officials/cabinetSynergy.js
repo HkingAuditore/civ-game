@@ -1101,7 +1101,8 @@ export const applyBuyPriceControl = ({
     priceControls,
     taxBreakdown,
     resources,
-    onTreasuryChange
+    onTreasuryChange,
+    applyTreasuryChange
 }) => {
     const result = calculateBuyPriceControl(resourceKey, amount, marketPrice, priceControls);
 
@@ -1113,9 +1114,13 @@ export const applyBuyPriceControl = ({
             // 政府支出：检查国库是否充足
             const treasury = resources.silver || 0;
             if (treasury >= result.adjustment) {
-                resources.silver = treasury - result.adjustment;
-                if (typeof onTreasuryChange === 'function') {
-                    onTreasuryChange(-result.adjustment, 'price_control_buy');
+                if (typeof applyTreasuryChange === 'function') {
+                    applyTreasuryChange(-result.adjustment, 'price_control_buy');
+                } else {
+                    resources.silver = treasury - result.adjustment;
+                    if (typeof onTreasuryChange === 'function') {
+                        onTreasuryChange(-result.adjustment, 'price_control_buy');
+                    }
                 }
                 taxBreakdown.priceControlExpense = (taxBreakdown.priceControlExpense || 0) + result.adjustment;
             } else {
@@ -1147,7 +1152,8 @@ export const applySellPriceControl = ({
     priceControls,
     taxBreakdown,
     resources,
-    onTreasuryChange
+    onTreasuryChange,
+    applyTreasuryChange
 }) => {
     const result = calculateSellPriceControl(resourceKey, amount, marketPrice, priceControls);
 
@@ -1159,9 +1165,13 @@ export const applySellPriceControl = ({
             // 政府支出（保底收购补贴）
             const treasury = resources.silver || 0;
             if (treasury >= result.adjustment) {
-                resources.silver = treasury - result.adjustment;
-                if (typeof onTreasuryChange === 'function') {
-                    onTreasuryChange(-result.adjustment, 'price_control_sell');
+                if (typeof applyTreasuryChange === 'function') {
+                    applyTreasuryChange(-result.adjustment, 'price_control_sell');
+                } else {
+                    resources.silver = treasury - result.adjustment;
+                    if (typeof onTreasuryChange === 'function') {
+                        onTreasuryChange(-result.adjustment, 'price_control_sell');
+                    }
                 }
                 taxBreakdown.priceControlExpense = (taxBreakdown.priceControlExpense || 0) + result.adjustment;
             } else {

@@ -1312,8 +1312,11 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     console.group('🔍 银币变化详细追踪（simulation内部）');
                     console.log('  起始余额:', (result._debug.startingSilver || 0).toFixed(2), '银币');
                     result._debug.silverChangeLog.forEach((log, index) => {
-                        const sign = log.amount >= 0 ? '+' : '';
-                        console.log(`  ${index + 1}. ${log.reason}: ${sign}${log.amount.toFixed(2)} 银币 (余额: ${log.balance.toFixed(2)})`);
+                        if (!log) return;
+                        const amount = log.amount ?? 0;
+                        const balance = log.balance ?? 0;
+                        const sign = amount >= 0 ? '+' : '';
+                        console.log(`  ${index + 1}. ${log.reason}: ${sign}${amount.toFixed(2)} 银币 (余额: ${balance.toFixed(2)})`);
                     });
                     console.log('  结束余额:', (result._debug.endingSilver || 0).toFixed(2), '银币');
                     const simulationChange = (result._debug.endingSilver || 0) - (result._debug.startingSilver || 0);
@@ -1423,6 +1426,11 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         meta: { source: 'game_loop' },
                     });
                 }
+                const treasuryIncome = auditEntries.reduce((sum, entry) => {
+                    const amount = Number(entry?.amount || 0);
+                    if (!Number.isFinite(amount) || amount <= 0) return sum;
+                    return sum + amount;
+                }, 0);
                 const auditDelta = auditEntries.reduce((sum, entry) => {
                     const amount = Number(entry?.amount || 0);
                     return Number.isFinite(amount) ? sum + amount : sum;
@@ -1550,30 +1558,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     }).catch(err => console.warn('AI investment error:', err));
                 }
 
-                // ========== 条约维护费每日扣除 ==========
-                let totalTreatyMaintenance = 0;
-                if (current.nations) {
-                    current.nations.forEach(nation => {
-                        if (nation.treaties) {
-                            nation.treaties.forEach(treaty => {
-                                // 检查条约是否生效
-                                if ((!treaty.endDay || (current.daysElapsed || 0) < treaty.endDay)) {
-                                    totalTreatyMaintenance += getTreatyDailyMaintenance(treaty.type);
-                                }
-                            });
-                        }
-                    });
-                }
-                if (totalTreatyMaintenance > 0) {
-                    setResources(prev => ({
-                        ...prev,
-                        silver: Math.max(0, (prev.silver || 0) - totalTreatyMaintenance)
-                    }), { reason: 'treaty_maintenance' });
-                    // 记录一下，虽然不一定每次都log，避免刷屏
-                    if (isDebugEnabled('diplomacy')) {
-                        console.log(`[Diplomacy] Deducted ${totalTreatyMaintenance} silver for treaty maintenance.`);
-                    }
-                }
+                // 条约维护费已在 simulation 内统一扣除并记账，避免主线程重复扣减。
 
                 // ========== 附庸每日更新（朝贡与独立倾向） ==========
                 if (current.nations && current.nations.some(n => n.vassalOf === 'player')) {
@@ -1862,7 +1847,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         const nextHistory = {
                             ...safeHistory,
                             treasury: appendValue(safeHistory.treasury, result.resources?.silver || 0),
-                            tax: appendValue(safeHistory.tax, result.taxes?.total || 0),
+                            tax: appendValue(safeHistory.tax, treasuryIncome || 0),
                             population: appendValue(safeHistory.population, nextPopulation || 0),
                         };
 
@@ -1986,6 +1971,12 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
                     if (nextNations) {
                         setNations(nextNations);
+                    }
+                    if (result.diplomacyOrganizations) {
+                        setDiplomacyOrganizations(prev => ({
+                            ...(prev || {}),
+                            organizations: result.diplomacyOrganizations.organizations
+                        }));
                     }
                     if (result.jobFill) {
                         setJobFill(result.jobFill);

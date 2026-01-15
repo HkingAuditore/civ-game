@@ -3792,32 +3792,59 @@ export const useGameActions = (gameState, addLog) => {
             case 'join_org': {
                 const type = payload?.type;
                 const orgId = payload?.orgId;
-                const org = orgId
-                    ? organizations.find(o => o?.id === orgId && Array.isArray(o.members) && o.members.includes('player'))
-                    : (type ? getPlayerOrganizationByType(type) : null);
+                // If orgId provided, find that specific org
+                // If type provided, find player's org of that type (for inviting others)
+                let org = null;
+                if (orgId) {
+                    org = organizations.find(o => o?.id === orgId);
+                } else if (type) {
+                    org = getPlayerOrganizationByType(type);
+                }
+
+                const joinerName = nationId === 'player' ? '你' : (targetNation?.name || '未知国家');
 
                 if (!org) {
-                    addLog('没有可邀请加入的组织。');
+                    addLog(nationId === 'player' ? '找不到该组织。' : '没有可邀请加入的组织。');
                     return;
                 }
                 if (!isDiplomacyUnlocked('organizations', org.type, epoch)) {
                     addLog('该组织尚未解锁。');
                     return;
                 }
-                if (targetNation.isAtWar) {
-                    addLog(`无法邀请：${targetNation.name} 正与你交战。`);
-                    return;
+
+                // If inviting AI (nationId != player), check target status
+                if (nationId !== 'player') {
+                    if (targetNation.isAtWar) {
+                        addLog(`无法邀请：${targetNation.name} 正与你交战。`);
+                        return;
+                    }
                 }
+
                 if (isNationInOrganization(org, nationId)) {
-                    addLog(`${targetNation.name} 已是该组织成员。`);
+                    addLog(`${joinerName} 已是该组织成员。`);
                     return;
                 }
 
-                const relation = targetNation.relation || 0;
-                const minRelation = org.type === 'military_alliance' ? 55 : 45;
-                if (relation < minRelation) {
-                    addLog(`关系不足（需要${minRelation}），无法邀请加入。`);
-                    return;
+                // Checks for AI joining (relation check)
+                if (nationId !== 'player') {
+                    const relation = targetNation.relation || 0;
+                    const minRelation = org.type === 'military_alliance' ? 55 : 45;
+                    if (relation < minRelation) {
+                        addLog(`关系不足（需要${minRelation}），无法邀请加入。`);
+                        return;
+                    }
+                } else {
+                    // Player joining AI org? Check relation with leader?
+                    // For now simplicity: allow if not at war with leader?
+                    // Implementation detail: we could check relation with org.founderId
+                    const leaderId = org.leaderId || org.founderId;
+                    if (leaderId && leaderId !== 'player') {
+                        const leaderNation = nations.find(n => n.id === leaderId);
+                        if (leaderNation && leaderNation.isAtWar) {
+                            addLog(`无法加入：该组织领袖 ${leaderNation.name} 正与你交战。`);
+                            return;
+                        }
+                    }
                 }
 
                 updateOrganizationState(prev => prev.map(o => {
@@ -3828,21 +3855,27 @@ export const useGameActions = (gameState, addLog) => {
                         members: members.includes(nationId) ? members : [...members, nationId],
                     };
                 }));
-                setNations(prev => prev.map(n => {
-                    if (n.id !== nationId) return n;
-                    const memberships = Array.isArray(n.organizationMemberships) ? n.organizationMemberships : [];
-                    return {
-                        ...n,
-                        relation: clampRelation((n.relation || 0) + 3),
-                        organizationMemberships: memberships.includes(org.id) ? memberships : [...memberships, org.id],
-                        lastDiplomaticActionDay: {
-                            ...(n.lastDiplomaticActionDay || {}),
-                            join_org: daysElapsed,
-                        },
-                    };
-                }));
 
-                addLog(`${targetNation.name} 加入了 ${org.name}。`);
+                if (nationId !== 'player') {
+                    setNations(prev => prev.map(n => {
+                        if (n.id !== nationId) return n;
+                        const memberships = Array.isArray(n.organizationMemberships) ? n.organizationMemberships : [];
+                        return {
+                            ...n,
+                            relation: clampRelation((n.relation || 0) + 3),
+                            organizationMemberships: memberships.includes(org.id) ? memberships : [...memberships, org.id],
+                            lastDiplomaticActionDay: {
+                                ...(n.lastDiplomaticActionDay || {}),
+                                join_org: daysElapsed,
+                            },
+                        };
+                    }));
+                } else {
+                    // If player joins, maybe improve relation with all members?
+                    // For now, minimal effect.
+                }
+
+                addLog(`${joinerName} 加入了 ${org.name}。`);
                 break;
             }
             case 'leave_org': {
@@ -3851,8 +3884,10 @@ export const useGameActions = (gameState, addLog) => {
                     ? organizations.find(o => o?.id === orgId)
                     : organizations.find(o => isNationInOrganization(o, nationId));
 
+                const leaverName = targetNation ? targetNation.name : '你';
+
                 if (!org || !isNationInOrganization(org, nationId)) {
-                    addLog(`${targetNation.name} 当前不在任何可移除的组织中。`);
+                    addLog(`${leaverName} 当前不在任何可移除的组织中。`);
                     return;
                 }
 
@@ -3864,21 +3899,24 @@ export const useGameActions = (gameState, addLog) => {
                         members: members.filter(m => m !== nationId),
                     };
                 }));
-                setNations(prev => prev.map(n => {
-                    if (n.id !== nationId) return n;
-                    const memberships = Array.isArray(n.organizationMemberships) ? n.organizationMemberships : [];
-                    return {
-                        ...n,
-                        relation: clampRelation((n.relation || 0) - 4),
-                        organizationMemberships: memberships.filter(id => id !== org.id),
-                        lastDiplomaticActionDay: {
-                            ...(n.lastDiplomaticActionDay || {}),
-                            leave_org: daysElapsed,
-                        },
-                    };
-                }));
 
-                addLog(`${targetNation.name} 已退出 ${org.name}。`);
+                if (nationId !== 'player') {
+                    setNations(prev => prev.map(n => {
+                        if (n.id !== nationId) return n;
+                        const memberships = Array.isArray(n.organizationMemberships) ? n.organizationMemberships : [];
+                        return {
+                            ...n,
+                            relation: clampRelation((n.relation || 0) - 4),
+                            organizationMemberships: memberships.filter(id => id !== org.id),
+                            lastDiplomaticActionDay: {
+                                ...(n.lastDiplomaticActionDay || {}),
+                                leave_org: daysElapsed,
+                            },
+                        };
+                    }));
+                }
+
+                addLog(`${leaverName} 已退出 ${org.name}。`);
                 break;
             }
 
