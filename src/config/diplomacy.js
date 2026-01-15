@@ -41,17 +41,21 @@ export const TREATY_CONFIGS = {
     open_market: { baseDuration: 730, minRelation: 55 },
     academic_exchange: { baseDuration: 730, minRelation: 65 },
     defensive_pact: { baseDuration: 1095, minRelation: 70 },
+    military_alliance: { baseDuration: 1825, minRelation: 80 }, // 5 years
+    economic_bloc: { baseDuration: 3650, minRelation: 75 }, // 10 years
 };
 
 export const TREATY_VALUES = {
-    peace_treaty: 200,
-    non_aggression: 300,
-    trade_agreement: 500,
-    open_market: 1200,
-    free_trade: 1600,
-    investment_pact: 1400,
-    academic_exchange: 800,
-    defensive_pact: 2000,
+    peace_treaty: 500,
+    non_aggression: 800,
+    trade_agreement: 1500,
+    open_market: 3000,
+    free_trade: 4500,
+    investment_pact: 4000,
+    academic_exchange: 2500,
+    defensive_pact: 5000,
+    military_alliance: 10000,
+    economic_bloc: 12000,
 };
 
 export const NEGOTIABLE_TREATY_TYPES = [
@@ -59,6 +63,8 @@ export const NEGOTIABLE_TREATY_TYPES = [
     'investment_pact',
     'open_market',
     'free_trade',
+    'military_alliance',
+    'economic_bloc',
 ];
 export const NEGOTIATION_MAX_ROUNDS = 3;
 
@@ -71,6 +77,8 @@ export const TREATY_TYPE_LABELS = {
     open_market: '开放市场',
     academic_exchange: '学术交流',
     defensive_pact: '共同防御',
+    military_alliance: '军事同盟',
+    economic_bloc: '经济共同体',
 };
 
 export const OPEN_MARKET_TREATY_TYPES = ['open_market', 'trade_agreement', 'free_trade'];
