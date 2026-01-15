@@ -4057,60 +4057,103 @@ export const useGameActions = (gameState, addLog) => {
                 // 1. 玩家接收投资资金 (AI -> 玩家)
                 // 这笔钱用于支付建筑公司、购买材料等
                 const fundingReceived = investmentAmount || 0;
-                
+
                 // 2. 计算并扣除建造成本
                 // 使用当前的建筑数量计算成本（通常外资是新增建筑，所以是第N+1个）
                 const currentCount = buildings[buildingId] || 0;
-                
+
                 // 获取当前难度设置
                 const difficulty = gameState?.difficulty || 'normal';
-                
+
                 // 使用 calculateBuildingCost 工具函数计算资源消耗
                 const growthFactor = getBuildingCostGrowthFactor(difficulty);
                 const baseMultiplier = getBuildingCostBaseMultiplier(difficulty);
                 // 假设外资建筑也享受同样的成本加成（作为一个简化的处理）
                 const buildingCostMod = gameState?.modifiers?.officialEffects?.buildingCostMod || 0;
-                
+
                 const rawCost = calculateBuildingCost(building.baseCost, currentCount, growthFactor, baseMultiplier);
                 const constructionCost = applyBuildingCostModifier(rawCost, buildingCostMod, building.baseCost);
-                
-                // 执行资源扣除
+
+                // [FIX] 计算总建造银币成本（包括直接银币成本 + 进口成本）
+                // 投资款应该用于覆盖这些成本，而不是作为玩家收入
+                let totalSilverCostEstimate = constructionCost.silver || 0;
+
+                // 预估进口成本
+                Object.entries(constructionCost).forEach(([res, amount]) => {
+                    if (res === 'silver') return;
+                    const available = resources[res] || 0;
+                    if (available < amount) {
+                        const needed = amount - available;
+                        const price = market?.prices?.[res] || RESOURCES[res]?.basePrice || 1;
+                        totalSilverCostEstimate += needed * price * 1.2; // 紧急进口溢价
+                    }
+                });
+
+                // [FIX] 计算承建利润（如果投资款 > 实际成本）
+                // 这笔利润归国内工人阶层（建筑工人）
+                const constructionProfit = Math.max(0, fundingReceived - totalSilverCostEstimate);
+
+                // 执行资源扣除 - 投资款用于抵消成本，不作为收入
                 setResourcesWithReason(prev => {
                     const nextRes = { ...prev };
-                    
-                    // 先加上投资款
-                    nextRes.silver = (nextRes.silver || 0) + fundingReceived;
-                    
-                    const shortages = [];
-                    let importCost = 0;
+
+                    // [FIX] 不再将投资款加入银币
+                    // 投资款直接用于覆盖建造成本
+                    // 如果投资款够用，玩家不需要消耗任何银币
+                    // 如果不够，玩家需要自掏腰包补差额
+
+                    let remainingBudget = fundingReceived; // AI 提供的建设预算
 
                     Object.entries(constructionCost).forEach(([res, amount]) => {
                         if (res === 'silver') {
-                            nextRes.silver -= amount;
+                            // 银币成本从预算中扣除
+                            if (remainingBudget >= amount) {
+                                remainingBudget -= amount;
+                                // 不消耗玩家银币
+                            } else {
+                                // 预算不够，玩家需要补差额
+                                const playerPays = amount - remainingBudget;
+                                remainingBudget = 0;
+                                nextRes.silver = Math.max(0, (nextRes.silver || 0) - playerPays);
+                            }
                         } else {
+                            // 非银币资源：优先使用玩家库存，不足则从预算购买
                             if ((nextRes[res] || 0) >= amount) {
                                 nextRes[res] -= amount;
                             } else {
-                                // 资源不足，尝试用银币自动进口（假设全球市场有售）
-                                // 简化：直接按当前市场价购买
+                                // 资源不足，从预算购买进口
                                 const needed = amount - (nextRes[res] || 0);
                                 nextRes[res] = 0; // 用光库存
-                                
+
                                 const price = market?.prices?.[res] || RESOURCES[res]?.basePrice || 1;
-                                const cost = needed * price * 1.2; // 紧急进口溢价 20%
-                                importCost += cost;
-                                shortages.push(`${RESOURCES[res]?.name || res}`);
+                                const importCost = needed * price * 1.2; // 紧急进口溢价
+
+                                if (remainingBudget >= importCost) {
+                                    remainingBudget -= importCost;
+                                } else {
+                                    // 预算不够，玩家需要补差额
+                                    const playerPays = importCost - remainingBudget;
+                                    remainingBudget = 0;
+                                    nextRes.silver = Math.max(0, (nextRes.silver || 0) - playerPays);
+                                }
                             }
                         }
                     });
 
-                    // 扣除进口费用
-                    if (importCost > 0) {
-                        nextRes.silver -= importCost;
-                    }
-                    
+                    // [FIX] 剩余预算（如有）不进入国库
+                    // 理论上不应该有剩余，因为 AI 计算投资额时应该精确
+                    // 如果有剩余，作为给工人的建筑费用（进入工人阶层财富）
+
                     return nextRes;
-                }, 'foreign_investment_accept', { nationId, buildingId });
+                }, 'foreign_investment_construction', { nationId, buildingId });
+
+                // [FIX] 如果有承建利润，拨给工人阶层
+                if (constructionProfit > 0) {
+                    setClassWealthWithReason(prev => ({
+                        ...prev,
+                        worker: (prev.worker || 0) + constructionProfit,
+                    }), 'foreign_investment_construction_profit', { nationId, buildingId, profit: constructionProfit });
+                }
 
                 import('../logic/diplomacy/overseasInvestment').then(({ createForeignInvestment }) => {
                     const newInvestment = createForeignInvestment({
@@ -4131,7 +4174,7 @@ export const useGameActions = (gameState, addLog) => {
                             ...prev,
                             [buildingId]: (prev[buildingId] || 0) + 1,
                         }));
-                        
+
                         setNations(prev => prev.map(n => {
                             if (n.id !== investorNation.id) return n;
                             return {
