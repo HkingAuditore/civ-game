@@ -4,7 +4,7 @@
  * Extracted from simulation.js for better code organization
  */
 
-import { RESOURCES } from '../../config';
+import { RESOURCES, EPOCHS } from '../../config';
 import { clamp } from '../utils';
 import { calculateTradeStatus } from '../../utils/foreignTrade';
 import { isTradableResource } from '../utils/helpers';
@@ -232,8 +232,8 @@ export const updateAIDevelopment = ({
     const aiOwnTargetPopulation = (next.economyTraits?.ownBasePopulation || 16) * eraGrowthFactor * populationFactor;
     const aiOwnTargetWealth = (next.economyTraits?.ownBaseWealth || 1000) * eraGrowthFactor * wealthFactor;
 
-    // Blend with player reference (30% player influence)
-    const playerInfluenceFactor = 0.3;
+    // Blend with player reference (Reduced to 5% for independence)
+    const playerInfluenceFactor = 0.05;
     const playerTargetPopulation = playerPopulationBaseline * populationFactor * eraMomentum;
     const playerTargetWealth = playerWealthBaseline * wealthFactor * eraMomentum;
 
@@ -384,4 +384,37 @@ export const processInstallmentPayment = ({
     }
 
     return warIndemnityIncome;
+};
+
+/**
+ * Check and process AI nation epoch progression
+ * @param {Object} nation - AI nation object (mutable)
+ * @param {Array} logs - Log array (mutable)
+ */
+export const checkAIEpochProgression = (nation, logs) => {
+    if (!nation || nation.isRebelNation) return;
+
+    // Safety check
+    const currentEpochId = nation.epoch || 0;
+    if (currentEpochId >= EPOCHS.length - 1) return; // Max epoch reached
+
+    const nextEpochId = currentEpochId + 1;
+    const nextEpochData = EPOCHS.find(e => e.id === nextEpochId);
+
+    if (!nextEpochData) return;
+
+    // Requirements
+    const reqPop = nextEpochData.req?.population || 0;
+    // For wealth, we use a multiplier of the silver cost as a safe buffer
+    const reqWealth = (nextEpochData.cost?.silver || 1000) * 2.5;
+
+    if ((nation.population || 0) >= reqPop && (nation.wealth || 0) >= reqWealth) {
+        // Upgrade!
+        nation.epoch = nextEpochId;
+        // Deduct cost (abstracted simulation of upgrading infrastructure)
+        const cost = nextEpochData.cost?.silver || 0;
+        nation.wealth = Math.max(0, (nation.wealth || 0) - cost);
+
+        logs.push(`🚀 ${nation.name} 迈入了新的时代：${nextEpochData.name}！`);
+    }
 };

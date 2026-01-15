@@ -226,6 +226,7 @@ import {
     initializeAIDevelopmentBaseline,
     processAIIndependentGrowth,
     updateAIDevelopment,
+    checkAIEpochProgression,
     initializeRebelEconomy,
     processPostWarRecovery,
     processInstallmentPayment,
@@ -4496,17 +4497,21 @@ export const simulateTick = ({
             }
         }
 
-        const visible = visibleEpoch >= (nation.appearEpoch ?? 0) && (nation.expireEpoch == null || visibleEpoch <= nation.expireEpoch);
+        // [MODIFIED] AI国家不再因时代过期而消失，发展完全独立
+        const visible = visibleEpoch >= (nation.appearEpoch ?? 0);
         if (!visible) {
-            // 当国家因时代变化而不可见时，清除战争状态和相关数据
-            if (next.isAtWar) {
-                next.isAtWar = false;
-                next.warDuration = 0;
-                next.warScore = 0;
-                next.warStartDay = undefined;
-                logs.push(`??? 随着时代变迁，与 ${next.name} 的战争已成为历史。`);
-            }
             return next;
+        }
+
+        // Initialize nation epoch if not present (Independent AI Era System)
+        if (next.epoch === undefined) {
+            // If already initialized (legacy save), sync to global epoch once to maintain status quo
+            if (next.foreignPower?.initializedAtTick) {
+                next.epoch = visibleEpoch;
+            } else {
+                // New spawn: start at its historical appearance era
+                next.epoch = next.appearEpoch ?? 0;
+            }
         }
 
         processNationTreaties({ nation: next, tick, resources: res, logs, onTreasuryChange: trackSilverChange });
@@ -4726,9 +4731,13 @@ export const simulateTick = ({
         if (shouldUpdateTrade) {
             initializeAIDevelopmentBaseline({ nation: next, tick });
             processAIIndependentGrowth({ nation: next, tick });
+
+            // [NEW] Check for independent epoch progression
+            checkAIEpochProgression(next, logs);
+
             updateAIDevelopment({
                 nation: next,
-                epoch,
+                epoch: next.epoch, // [MODIFIED] Use nation's own epoch for development
                 playerPopulationBaseline,
                 playerWealthBaseline,
                 tick,
@@ -4862,7 +4871,7 @@ export const simulateTick = ({
 
     // Filter visible nations for diplomacy processing
     const visibleNations = updatedNations.filter(n =>
-        epoch >= (n.appearEpoch ?? 0) && (n.expireEpoch == null || epoch <= n.expireEpoch) && !n.isRebelNation
+        epoch >= (n.appearEpoch ?? 0) && !n.isRebelNation
     );
 
     // ========================================================================
