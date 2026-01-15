@@ -978,14 +978,10 @@ export const canEstablishVassal = (nation, vassalType, { epoch, playerMilitary, 
 
     // 检查关系要求（战争状态下通过战争分数判断）
     if (nation.isAtWar) {
-        const requirements = {
-            protectorate: 30,
-            tributary: 50,
-            puppet: 80,
-            colony: 100,
-        };
-        if ((warScore || 0) < (requirements[vassalType] || 50)) {
-            return { canEstablish: false, reason: `战争分数不足（需要 ${requirements[vassalType]}）` };
+        // 统一附庸化要求战争分数 50
+        const requiredScore = 50;
+        if ((warScore || 0) < requiredScore) {
+            return { canEstablish: false, reason: `战争分数不足（需要 ${requiredScore}）` };
         }
     } else {
         // 和平状态需要高关系

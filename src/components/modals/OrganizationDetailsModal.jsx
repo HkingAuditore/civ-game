@@ -34,7 +34,7 @@ const OrganizationDetailsModal = ({
                     id: playerNationId,
                     name: '你的国家',
                     isPlayer: true,
-                    isFounder: memberId === organization.founderId,
+                    isFounder: memberId === (organization.founderId || organization.leaderId),
                     relation: 0
                 };
             }
@@ -43,11 +43,11 @@ const OrganizationDetailsModal = ({
                 id: memberId,
                 name: nation?.name || '未知国家',
                 isPlayer: false,
-                isFounder: memberId === organization.founderId,
+                isFounder: memberId === (organization.founderId || organization.leaderId),
                 relation: nation?.relation || 0,
             };
         });
-    }, [organization.members, nations, playerNationId, organization.founderId]);
+    }, [organization.members, nations, playerNationId, organization.founderId, organization.leaderId]);
 
     const effects = useMemo(() => {
         return getOrganizationEffectDescriptions(organization.type);

@@ -114,86 +114,85 @@ export const VassalOverviewPanel = memo(({
                     </div>
                 </div>
 
-                {/* 附庸列表 */}
+                {/* 附庸列表 - Unified List */}
                 {vassals.length > 0 ? (
                     <div className="space-y-4">
-                        {Object.entries(vassalsByType).map(([typeId, typeVassals]) => (
-                            <div key={typeId}>
-                                <div className="text-sm font-semibold text-gray-300 mb-2 flex items-center gap-2">
-                                    <Icon name="Crown" size={14} className="text-purple-400" />
-                                    {VASSAL_TYPE_LABELS[typeId] || typeId}
-                                    <span className="text-gray-500 text-xs">({typeVassals.length})</span>
-                                </div>
-                                <div className="space-y-2">
-                                    {typeVassals.map(vassal => {
-                                        const tribute = calculateEnhancedTribute(vassal, playerResources.silver || 10000);
-                                        const independence = vassal.independencePressure || 0;
-                                        const isAtRisk = independence > 60;
+                        <div>
+                            <div className="text-sm font-semibold text-gray-300 mb-2 flex items-center gap-2">
+                                <Icon name="Crown" size={14} className="text-purple-400" />
+                                附庸国列表
+                                <span className="text-gray-500 text-xs">({vassals.length})</span>
+                            </div>
+                            <div className="space-y-2">
+                                {vassals.map(vassal => {
+                                    const tribute = calculateEnhancedTribute(vassal, playerResources.silver || 10000);
+                                    const independence = vassal.independencePressure || 0;
+                                    const isAtRisk = independence > 60;
+                                    const vassalLabel = VASSAL_TYPE_LABELS[vassal.vassalType] || '附庸国';
 
-                                        return (
-                                            <div
-                                                key={vassal.id}
-                                                className={`p-3 rounded-lg border transition-all cursor-pointer hover:bg-gray-700/30 ${isAtRisk ? 'border-red-700/50 bg-red-900/20' : 'border-gray-700/40 bg-gray-800/30'}`}
-                                                onClick={() => onSelectVassal && onSelectVassal(vassal)}
-                                            >
-                                                <div className="flex items-center justify-between mb-2">
-                                                    <div className="flex items-center gap-2">
-                                                        <Icon name="Flag" size={16} className="text-amber-400" />
-                                                        <span className="font-semibold text-white">{vassal.name}</span>
-                                                        {isAtRisk && (
-                                                            <span className="px-1.5 py-0.5 text-[9px] bg-red-600 text-white rounded">风险</span>
-                                                        )}
-                                                    </div>
-                                                    <div className="text-sm text-amber-400 font-semibold">
-                                                        +{formatNumberShortCN(tribute.silver)}/月
-                                                    </div>
+                                    return (
+                                        <div
+                                            key={vassal.id}
+                                            className={`p-3 rounded-lg border transition-all cursor-pointer hover:bg-gray-700/30 ${isAtRisk ? 'border-red-700/50 bg-red-900/20' : 'border-gray-700/40 bg-gray-800/30'}`}
+                                            onClick={() => onSelectVassal && onSelectVassal(vassal)}
+                                        >
+                                            <div className="flex items-center justify-between mb-2">
+                                                <div className="flex items-center gap-2">
+                                                    <Icon name="Flag" size={16} className="text-amber-400" />
+                                                    <span className="font-semibold text-white">{vassal.name}</span>
+                                                    {isAtRisk && (
+                                                        <span className="px-1.5 py-0.5 text-[9px] bg-red-600 text-white rounded">风险</span>
+                                                    )}
                                                 </div>
-
-                                                {/* 详细指标 */}
-                                                <div className="grid grid-cols-3 gap-2 text-[11px]">
-                                                    <div>
-                                                        <span className="text-gray-400">自主度:</span>
-                                                        <span className="text-white ml-1">{Math.round(vassal.autonomy || 0)}%</span>
-                                                    </div>
-                                                    <div>
-                                                        <span className="text-gray-400">朝贡率:</span>
-                                                        <span className="text-white ml-1">{Math.round((vassal.tributeRate || 0) * 100)}%</span>
-                                                    </div>
-                                                    <div>
-                                                        <span className="text-gray-400">独立:</span>
-                                                        <span className={`ml-1 ${isAtRisk ? 'text-red-400' : 'text-gray-200'}`}>
-                                                            {Math.round(independence)}%
-                                                        </span>
-                                                    </div>
-                                                </div>
-
-                                                {/* 操作按钮 */}
-                                                <div className="flex gap-2 mt-2">
-                                                    <button
-                                                        className="flex-1 py-1.5 text-[10px] rounded bg-blue-900/50 text-blue-300 hover:bg-blue-800/50 border border-blue-700/40"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            onAdjustPolicy && onAdjustPolicy(vassal);
-                                                        }}
-                                                    >
-                                                        调整政策
-                                                    </button>
-                                                    <button
-                                                        className="flex-1 py-1.5 text-[10px] rounded bg-purple-900/50 text-purple-300 hover:bg-purple-800/50 border border-purple-700/40"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            onReleaseVassal && onReleaseVassal(vassal);
-                                                        }}
-                                                    >
-                                                        释放附庸
-                                                    </button>
+                                                <div className="text-sm text-amber-400 font-semibold">
+                                                    +{formatNumberShortCN(tribute.silver)}/月
                                                 </div>
                                             </div>
-                                        );
-                                    })}
-                                </div>
+
+                                            {/* 详细指标 */}
+                                            <div className="grid grid-cols-3 gap-2 text-[11px]">
+                                                <div>
+                                                    <span className="text-gray-400">自主度:</span>
+                                                    <span className="text-white ml-1">{Math.round(vassal.autonomy || 0)}%</span>
+                                                </div>
+                                                <div>
+                                                    <span className="text-gray-400">朝贡率:</span>
+                                                    <span className="text-white ml-1">{Math.round((vassal.tributeRate || 0) * 100)}%</span>
+                                                </div>
+                                                <div>
+                                                    <span className="text-gray-400">独立:</span>
+                                                    <span className={`ml-1 ${isAtRisk ? 'text-red-400' : 'text-gray-200'}`}>
+                                                        {Math.round(independence)}%
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            {/* 操作按钮 */}
+                                            <div className="flex gap-2 mt-2">
+                                                <button
+                                                    className="flex-1 py-1.5 text-[10px] rounded bg-blue-900/50 text-blue-300 hover:bg-blue-800/50 border border-blue-700/40"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        onAdjustPolicy && onAdjustPolicy(vassal);
+                                                    }}
+                                                >
+                                                    调整政策
+                                                </button>
+                                                <button
+                                                    className="flex-1 py-1.5 text-[10px] rounded bg-purple-900/50 text-purple-300 hover:bg-purple-800/50 border border-purple-700/40"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        onReleaseVassal && onReleaseVassal(vassal);
+                                                    }}
+                                                >
+                                                    释放附庸
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
                             </div>
-                        ))}
+                        </div>
                     </div>
                 ) : (
                     <div className="text-center py-8 text-gray-400 bg-gray-800/30 rounded-lg border border-gray-700/40">

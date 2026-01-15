@@ -455,20 +455,13 @@ export function createPlayerPeaceProposalEvent(
             effects: {},
             callback: () => callback('demand_open_market', OPEN_MARKET_DURATION_DAYS),
         });
-        // 附庸选项：战争分数>350可要求成为殖民地或傀儡国
+        // 附庸选项
         options.push({
-            id: 'demand_colony',
-            text: '🏴 要求成为殖民地',
-            description: `迫使${nation.name}成为你的殖民地,完全控制其内政外交,每日缴纳高额朝贡。`,
+            id: 'demand_vassal',
+            text: '🏴 要求成为附庸国',
+            description: `迫使${nation.name}成为你的附庸国,确立宗主权与朝贡关系。`,
             effects: {},
-            callback: () => callback('demand_colony', 'colony'),
-        });
-        options.push({
-            id: 'demand_puppet',
-            text: '🎭 要求成为傀儡国',
-            description: `使${nation.name}成为傀儡国,控制其外交政策,每日缴纳朝贡。`,
-            effects: {},
-            callback: () => callback('demand_puppet', 'puppet'),
+            callback: () => callback('demand_vassal', 'vassal'),
         });
         options.push({
             id: 'peace_only',
@@ -510,20 +503,13 @@ export function createPlayerPeaceProposalEvent(
             effects: {},
             callback: () => callback('demand_open_market', OPEN_MARKET_DURATION_DAYS),
         });
-        // 附庸选项：战争分数>150可要求成为傀儡或朝贡国
+        // 附庸选项
         options.push({
-            id: 'demand_puppet',
-            text: '🎭 要求成为傀儡国',
-            description: `使${nation.name}成为傀儡国,控制其外交政策。`,
+            id: 'demand_vassal',
+            text: '🏴 要求成为附庸国',
+            description: `迫使${nation.name}成为你的附庸国,确立宗主权与朝贡关系。`,
             effects: {},
-            callback: () => callback('demand_puppet', 'puppet'),
-        });
-        options.push({
-            id: 'demand_tributary',
-            text: '📜 要求成为朝贡国',
-            description: `使${nation.name}成为朝贡国,定期缴纳贡品。`,
-            effects: {},
-            callback: () => callback('demand_tributary', 'tributary'),
+            callback: () => callback('demand_vassal', 'vassal'),
         });
     } else if (warScore > 50) {
         const standardTribute = Math.max(demandingPayments.standard, demandingPayments.low);
@@ -551,20 +537,13 @@ export function createPlayerPeaceProposalEvent(
             effects: {},
             callback: () => callback('demand_population', populationDemand),
         });
-        // 附庸选项：战争分数>50可要求成为朝贡国或保护国
+        // 附庸选项
         options.push({
-            id: 'demand_tributary',
-            text: '📜 要求成为朝贡国',
-            description: `使${nation.name}成为朝贡国,定期缴纳贡品,保留一定自主权。`,
+            id: 'demand_vassal',
+            text: '🏴 要求成为附庸国',
+            description: `迫使${nation.name}成为你的附庸国,确立宗主权与朝贡关系。`,
             effects: {},
-            callback: () => callback('demand_tributary', 'tributary'),
-        });
-        options.push({
-            id: 'demand_protectorate',
-            text: '🛡️ 要求成为保护国',
-            description: `使${nation.name}成为保护国,提供军事保护换取外交影响力。`,
-            effects: {},
-            callback: () => callback('demand_protectorate', 'protectorate'),
+            callback: () => callback('demand_vassal', 'vassal'),
         });
     } else if (warScore < -200) {
         const payment = Math.max(offeringPayments.high, offeringPayments.standard);

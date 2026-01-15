@@ -157,8 +157,6 @@ const DIPLOMATIC_CONTROL_OPTIONS = [
         description: '允许附庸自主进行外交活动',
         effects: '自主度+10/年，独立倾向-5/年',
         effectColor: 'text-green-400',
-        // 只有保护国可以使用自主外交
-        allowedTypes: ['protectorate'],
     },
     {
         id: 'guided',
@@ -166,8 +164,6 @@ const DIPLOMATIC_CONTROL_OPTIONS = [
         description: '附庸外交需经过你的审批',
         effects: '维持现状（默认）',
         effectColor: 'text-gray-400',
-        // 保护国和朝贡国可以使用引导外交
-        allowedTypes: ['protectorate', 'tributary'],
     },
     {
         id: 'puppet',
@@ -175,8 +171,6 @@ const DIPLOMATIC_CONTROL_OPTIONS = [
         description: '完全控制附庸的外交行为',
         effects: '自主度-5/年，独立倾向+3/年',
         effectColor: 'text-red-400',
-        // 所有类型都可以使用僀儡外交
-        allowedTypes: ['protectorate', 'tributary', 'puppet', 'colony'],
     },
 ];
 
@@ -395,15 +389,15 @@ const OverviewTab = memo(({ nation, tribute, typeConfig, isAtRisk, vassalType, a
                     <span className="text-gray-400">军事义务:</span>
                     <span className="text-blue-400">
                         {typeConfig.militaryObligation === 'auto_join' ? '自动参战' :
-                         typeConfig.militaryObligation === 'expeditionary' ? '派遣远征军' :
-                         typeConfig.militaryObligation === 'pay_to_call' ? '付费征召' : '无'}
+                            typeConfig.militaryObligation === 'expeditionary' ? '派遣远征军' :
+                                typeConfig.militaryObligation === 'pay_to_call' ? '付费征召' : '无'}
                     </span>
                 </div>
                 <div className="flex justify-between">
                     <span className="text-gray-400">投资特权:</span>
                     <span className="text-green-400">
                         {typeConfig.economicPrivileges?.investmentCostDiscount > 0
-                            ? `折扣${typeConfig.economicPrivileges.investmentCostDiscount*100}%`
+                            ? `折扣${typeConfig.economicPrivileges.investmentCostDiscount * 100}%`
                             : '无折扣'}
                     </span>
                 </div>
@@ -471,20 +465,12 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
     const vassalWealth = nation?.wealth || 500;
     const vassalMilitary = nation?.militaryStrength || 0.5;
 
-    // 根据附庸类型过滤可用的外交控制选项
-    const availableDiplomaticOptions = useMemo(() => {
-        return DIPLOMATIC_CONTROL_OPTIONS.filter(option =>
-            option.allowedTypes?.includes(vassalType)
-        );
-    }, [vassalType]);
+    // 根据附庸类型过滤可用的外交控制选项 - All available now
+    const availableDiplomaticOptions = DIPLOMATIC_CONTROL_OPTIONS;
 
-    // 获取默认外交控制选项（如果当前选项不可用，则回退到puppet）
+    // 获取默认外交控制选项
     const getDefaultDiplomaticControl = () => {
-        const current = nation?.vassalPolicy?.diplomaticControl || 'guided';
-        const isCurrentAllowed = availableDiplomaticOptions.some(o => o.id === current);
-        if (isCurrentAllowed) return current;
-        // 僀儡国和殖民地强制使用puppet控制
-        return 'puppet';
+        return nation?.vassalPolicy?.diplomaticControl || 'guided';
     };
 
     // 政策状态
@@ -692,29 +678,19 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                 <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-1.5">
                     <Icon name="Globe" size={14} className="text-blue-400" />
                     外交控制
-                    {(vassalType === 'puppet' || vassalType === 'colony') && (
-                        <span className="text-[10px] text-red-400 ml-2">（{VASSAL_TYPE_LABELS[vassalType]}外交受限）</span>
-                    )}
                 </h3>
-                {availableDiplomaticOptions.length === 1 && (
-                    <div className="text-[10px] text-yellow-400 mb-2 flex items-center gap-1">
-                        <Icon name="Lock" size={10} />
-                        {VASSAL_TYPE_LABELS[vassalType]}只能使用僀儡外交模式
-                    </div>
-                )}
+
                 <div className="space-y-2">
                     {DIPLOMATIC_CONTROL_OPTIONS.map(option => {
-                        const isAllowed = option.allowedTypes?.includes(vassalType);
                         return (
                             <PolicyOptionCard
                                 key={option.id}
                                 selected={diplomaticControl === option.id}
                                 title={option.title}
                                 description={option.description}
-                                effects={isAllowed ? option.effects : `不适用于${VASSAL_TYPE_LABELS[vassalType]}`}
-                                effectColor={isAllowed ? option.effectColor : 'text-gray-600'}
-                                onClick={() => isAllowed && setDiplomaticControl(option.id)}
-                                disabled={!isAllowed}
+                                effects={option.effects}
+                                effectColor={option.effectColor}
+                                onClick={() => setDiplomaticControl(option.id)}
                             />
                         );
                     })}

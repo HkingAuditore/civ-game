@@ -2659,15 +2659,15 @@ export const useGameActions = (gameState, addLog) => {
 
                         // Handle Vassalage
                         let vassalUpdates = {};
-                        if (['demand_colony', 'demand_puppet', 'demand_tributary', 'demand_protectorate'].includes(type)) {
-                            const vassalType = value; // passed as string in event
+                        if (['demand_vassal', 'demand_colony', 'demand_puppet', 'demand_tributary', 'demand_protectorate'].includes(type) || type.startsWith('demand_vassal')) {
+                            const vassalType = value || 'vassal'; // passed as string in event, default to unified vassal
                             vassalUpdates = {
                                 vassalOf: 'player',
                                 vassalType: vassalType,
                                 autonomy: VASSAL_TYPE_CONFIGS[vassalType]?.autonomy || 50,
                                 tributeRate: VASSAL_TYPE_CONFIGS[vassalType]?.tributeRate || 0.1,
                             };
-                            addLog(`${n.name} 成为你的${VASSAL_TYPE_LABELS[vassalType]}`);
+                            addLog(`${n.name} 成为你的${VASSAL_TYPE_LABELS[vassalType] || '附庸国'}`);
                         }
 
                         return {
@@ -3764,7 +3764,7 @@ export const useGameActions = (gameState, addLog) => {
                     id: `org_${type}_${Date.now()}`,
                     type,
                     name: orgName,
-                    leaderId: 'player',
+                    founderId: 'player',
                     members: initialMembers,
                     createdDay: daysElapsed,
                 };

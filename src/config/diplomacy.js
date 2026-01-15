@@ -13,10 +13,7 @@ export const DIPLOMACY_ERA_UNLOCK = {
         defensive_pact: { minEra: 3, name: '共同防御' },
     },
     sovereignty: {
-        protectorate: { minEra: 2, name: '保护国' },
-        tributary: { minEra: 3, name: '朝贡国' },
-        puppet: { minEra: 6, name: '傀儡国' },
-        colony: { minEra: 4, name: '殖民地（人口型领地）' },
+        vassal: { minEra: 2, name: '附庸国' },
     },
     organizations: {
         military_alliance: { minEra: 3, name: '军事联盟' },
@@ -93,7 +90,7 @@ export const ORGANIZATION_EFFECTS = {
     },
 };
 
-export const DIPLOMACY_SOVEREIGNTY_TYPES = ['protectorate', 'tributary', 'puppet', 'colony'];
+export const DIPLOMACY_SOVEREIGNTY_TYPES = ['vassal'];
 export const DIPLOMACY_ORGANIZATION_TYPES = ['military_alliance', 'economic_bloc'];
 export const OVERSEAS_BUILDING_MODES = ['local', 'dumping', 'buyback'];
 
@@ -254,6 +251,14 @@ export const getTradePriceMod = (tradePolicyId) => {
  * 附庸政策预设 (Presets for quick setup)
  */
 export const VASSAL_POLICY_PRESETS = {
+    vassal: {
+        name: '标准附庸模式',
+        description: '标准附庸关系',
+        labor: 'standard',
+        trade: 'preferential',
+        governance: 'autonomous',
+    },
+    // Legacy presets
     protectorate: {
         name: '保护国模式',
         description: '高自治、低朝贡、友好关系',
@@ -316,97 +321,41 @@ export const isDiplomacyUnlocked = (category, mechanismId, currentEra) => {
  * - canTrade: 是否可以自由贸易
  */
 export const VASSAL_TYPE_CONFIGS = {
-    protectorate: {
-        name: '保护国',
+    vassal: {
+        name: '附庸国',
         minEra: 2,
-        minRelation: 60,
+        minRelation: 50,
         autonomy: 80,
-        tributeRate: 0.08,
-        exploitationFactor: 0.9,
+        tributeRate: 0.10,
+        exploitationFactor: 1.0,
         tariffDiscount: 0.5,
-        description: '高自主度附庸，提供有限朝贡与优惠贸易',
-        // Diplomatic restrictions
+        description: '接受宗主国保护与指导的国家。具体权利义务由政策决定。',
+        // Default capabilities (modified by autonomy)
         canFormAlliance: true,
         canSignTreaties: true,
         canTrade: true,
         // Military & Economic
-        militaryObligation: 'pay_to_call', // 付费征召
+        militaryObligation: 'pay_to_call', // Default
         economicPrivileges: {
-            investmentCostDiscount: 0.1, // 10% discount
-            profitTaxExemption: 0.2, // 20% less tax
+            investmentCostDiscount: 0.1,
+            profitTaxExemption: 0.1,
             tradePolicyLocked: false,
         }
     },
-    tributary: {
-        name: '朝贡国',
-        minEra: 3,
-        minRelation: 50,
-        autonomy: 50,
-        tributeRate: 0.15,
-        exploitationFactor: 0.7,
-        tariffDiscount: 0.75,
-        description: '中等自主度附庸，定期朝贡与优先贸易',
-        // Diplomatic restrictions
-        canFormAlliance: false,  // Cannot form independent alliances
-        canSignTreaties: true,
-        canTrade: true,
-        // Military & Economic
-        militaryObligation: 'expeditionary', // 派遣远征军
-        economicPrivileges: {
-            investmentCostDiscount: 0.2,
-            profitTaxExemption: 0.5,
-            tradePolicyLocked: false,
-        }
-    },
-    puppet: {
-        name: '傀儡国',
-        minEra: 6,
-        minRelation: 30,
-        autonomy: 20,
-        tributeRate: 0.25,
-        exploitationFactor: 0.5,
-        tariffDiscount: 1.0,
-        description: '低自主度附庸，高额朝贡与完全贸易控制',
-        // Diplomatic restrictions - heavily restricted
-        canFormAlliance: false,
-        canSignTreaties: false,
-        canTrade: false,  // Only through suzerain
-        // Military & Economic
-        militaryObligation: 'auto_join', // 自动参战
-        economicPrivileges: {
-            investmentCostDiscount: 0.4,
-            profitTaxExemption: 0.8,
-            tradePolicyLocked: true, // Master controls policy
-        }
-    },
-    colony: {
-        name: '殖民地',
-        minEra: 4,
-        minRelation: 0,
-        autonomy: 5,
-        tributeRate: 0.35,
-        exploitationFactor: 0.3,
-        tariffDiscount: 1.0,
-        description: '无自主度领地，强制资源配额与贸易垄断',
-        // Diplomatic restrictions - no independent diplomacy
-        canFormAlliance: false,
-        canSignTreaties: false,
-        canTrade: false,
-        // Military & Economic
-        militaryObligation: 'auto_join', // 自动参战
-        economicPrivileges: {
-            investmentCostDiscount: 0.6,
-            profitTaxExemption: 1.0, // Tax free
-            tradePolicyLocked: true,
-        }
-    },
+    // Backwards compatibility keys mapped to same config
+    protectorate: { name: '附庸国', minEra: 2, autonomy: 80, minRelation: 50 },
+    tributary: { name: '附庸国', minEra: 2, autonomy: 60, minRelation: 50 },
+    puppet: { name: '附庸国', minEra: 2, autonomy: 40, minRelation: 50 },
+    colony: { name: '附庸国', minEra: 2, autonomy: 20, minRelation: 50 },
 };
 
 export const VASSAL_TYPE_LABELS = {
-    protectorate: '保护国',
-    tributary: '朝贡国',
-    puppet: '傀儡国',
-    colony: '殖民地',
+    vassal: '附庸国',
+    // Legacy mapping
+    protectorate: '附庸国',
+    tributary: '附庸国',
+    puppet: '附庸国',
+    colony: '附庸国',
 };
 
 /**
@@ -484,24 +433,13 @@ export const calculateTribute = (vassalNation) => {
  * 附庸关系转换要求
  */
 export const VASSAL_TRANSITION_REQUIREMENTS = {
-    // 从主权国家到各类附庸
+    // 建立附庸关系的要求
     fromSovereign: {
-        protectorate: { minRelation: 60, militaryRatio: 0.5, warScore: 30 },
-        tributary: { minRelation: 50, militaryRatio: 0.4, warScore: 50 },
-        puppet: { minRelation: 30, militaryRatio: 0.3, warScore: 80 },
-        colony: { minRelation: 0, militaryRatio: 0.2, warScore: 100 },
+        vassal: { minRelation: 50, militaryRatio: 0.5, warScore: 50 },
     },
-    // 附庸升降级
-    upgrade: {
-        protectorate_to_tributary: { minRelation: 40 },
-        tributary_to_puppet: { minRelation: 30, warScore: 30 },
-        puppet_to_colony: { minRelation: 0, warScore: 50 },
-    },
-    downgrade: {
-        colony_to_puppet: { minRelation: 50, independencePressure: 60 },
-        puppet_to_tributary: { minRelation: 60, independencePressure: 50 },
-        tributary_to_protectorate: { minRelation: 70, independencePressure: 40 },
-    },
+    // Backwards compatibility
+    upgrade: {},
+    downgrade: {},
 };
 
 /**
@@ -667,10 +605,12 @@ export const TRIBUTE_CONFIG = {
 export const INDEPENDENCE_CONFIG = {
     // 每日基础增长率（大幅提高）
     dailyGrowthRates: {
-        protectorate: 0.08,     // 保护国：较低增长
-        tributary: 0.15,        // 朝贡国：中等增长
-        puppet: 0.25,           // 傀儡国：较高增长
-        colony: 0.40,           // 殖民地：最高增长
+        vassal: 0.15, // Unified rate
+        // Legacy
+        protectorate: 0.15,
+        tributary: 0.15,
+        puppet: 0.15,
+        colony: 0.15,
     },
 
     // 时代系数（后期民族主义更强）
