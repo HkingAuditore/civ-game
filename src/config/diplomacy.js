@@ -329,6 +329,13 @@ export const VASSAL_TYPE_CONFIGS = {
         canFormAlliance: true,
         canSignTreaties: true,
         canTrade: true,
+        // Military & Economic
+        militaryObligation: 'pay_to_call', // 付费征召
+        economicPrivileges: {
+            investmentCostDiscount: 0.1, // 10% discount
+            profitTaxExemption: 0.2, // 20% less tax
+            tradePolicyLocked: false,
+        }
     },
     tributary: {
         name: '朝贡国',
@@ -343,6 +350,13 @@ export const VASSAL_TYPE_CONFIGS = {
         canFormAlliance: false,  // Cannot form independent alliances
         canSignTreaties: true,
         canTrade: true,
+        // Military & Economic
+        militaryObligation: 'expeditionary', // 派遣远征军
+        economicPrivileges: {
+            investmentCostDiscount: 0.2,
+            profitTaxExemption: 0.5,
+            tradePolicyLocked: false,
+        }
     },
     puppet: {
         name: '傀儡国',
@@ -357,6 +371,13 @@ export const VASSAL_TYPE_CONFIGS = {
         canFormAlliance: false,
         canSignTreaties: false,
         canTrade: false,  // Only through suzerain
+        // Military & Economic
+        militaryObligation: 'auto_join', // 自动参战
+        economicPrivileges: {
+            investmentCostDiscount: 0.4,
+            profitTaxExemption: 0.8,
+            tradePolicyLocked: true, // Master controls policy
+        }
     },
     colony: {
         name: '殖民地',
@@ -371,6 +392,13 @@ export const VASSAL_TYPE_CONFIGS = {
         canFormAlliance: false,
         canSignTreaties: false,
         canTrade: false,
+        // Military & Economic
+        militaryObligation: 'auto_join', // 自动参战
+        economicPrivileges: {
+            investmentCostDiscount: 0.6,
+            profitTaxExemption: 1.0, // Tax free
+            tradePolicyLocked: true,
+        }
     },
 };
 
@@ -614,15 +642,15 @@ export const getTreatyDailyMaintenance = (treatyType) => {
  */
 export const TRIBUTE_CONFIG = {
     // 基础朝贡计算参数
-    baseAmount: 200,                    // 固定基数（保底）
-    playerWealthRate: 0.008,            // 基于玩家财富的比例
-    vassalWealthRate: 0.03,             // 基于附庸财富的比例
+    baseAmount: 100,                    // 固定基数（保底，降低以减少对穷国的负担）
+    // playerWealthRate Removed: Tribute should not depend on overlord wealth
+    vassalWealthRate: 0.08,             // 基于附庸财富的比例 (Increased to 8%)
 
     // 附庸规模系数
     sizeMultipliers: {
-        small: 0.6,     // 小型附庸
+        small: 0.8,     // 小型附庸
         medium: 1.0,    // 中型附庸  
-        large: 1.5,     // 大型附庸
+        large: 1.3,     // 大型附庸
     },
 
     // 资源朝贡配置
