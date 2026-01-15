@@ -443,7 +443,7 @@ export const simulateTick = ({
     if (Object.keys(STRATA).length > 0) {
         Object.keys(STRATA).forEach(key => {
             classFinancialData[key] = {
-                income: { wage: 0, ownerRevenue: 0, subsidy: 0, tradeImportRevenue: 0, layoffTransfer: 0 },
+                income: { wage: 0, ownerRevenue: 0, subsidy: 0, salary: 0, militaryPay: 0, tradeImportRevenue: 0, layoffTransfer: 0 },
                 expense: {
                     headTax: 0,
                     transactionTax: 0,
@@ -514,6 +514,9 @@ export const simulateTick = ({
     // But we need to update the 'wealth' object (which is the working copy) with the profits.
     // Let's move the Overseas Investment execution AFTER wealth init?
     // Yes, cleaner.
+    // [FIX] 添加缺失的 getHeadTaxRate 本地包装函数
+    const getHeadTaxRate = (key) => getHeadTaxRateFromModule(key, headTaxRates);
+
     const getResourceTaxRate = (resource) => {
         const rate = resourceTaxRates[resource];
         if (typeof rate === 'number') return rate; // 允许负税率
@@ -1699,13 +1702,13 @@ export const simulateTick = ({
         // when actually paying wages.
         if (Object.keys(effectiveOps.jobs).length > 0) {
             buildingJobFill[b.id] = buildingJobFill[b.id] || {};
-            
+
             // [CRITICAL FIX] 使用瓶颈法则计算到岗率
             // 生产受限于最低的非业主角色填充率（工人是生产的瓶颈）
             // 业主可以管理但不能替代工人生产
             let minNonOwnerFillRate = Infinity;
             let hasNonOwnerRole = false;
-            
+
             for (let role in effectiveOps.jobs) {
                 const roleRequired = effectiveOps.jobs[role];
                 if (!roleWageStats[role]) {
@@ -1756,7 +1759,7 @@ export const simulateTick = ({
                     });
                 }
             }
-            
+
             // [CRITICAL FIX] 到岗率计算使用瓶颈法则：
             // - 如果有非业主角色（工人），使用最低工人填充率作为生产上限
             // - 如果只有业主角色（如农场只有peasant），使用平均填充率
@@ -1767,7 +1770,7 @@ export const simulateTick = ({
                 // 只有业主角色时（自营建筑），使用普通平均
                 staffingRatio = filledSlots / totalSlots;
             }
-            
+
             if (totalSlots > 0) {
                 buildingStaffingRatios[b.id] = staffingRatio;
             }
@@ -2719,6 +2722,8 @@ export const simulateTick = ({
     const classShortages = {};
     // 收集各阶层的财富乘数（用于UI显示"谁吃到了buff"）
     const stratumWealthMultipliers = {};
+    // [FIX] 添加缺失的 stratumConsumption 初始化，用于追踪各阶层消费
+    const stratumConsumption = {};
     Object.keys(STRATA).forEach(key => {
         if (key === 'official') {
             needsReport[key] = { satisfactionRatio: 1, totalTrackedNeeds: 0 };

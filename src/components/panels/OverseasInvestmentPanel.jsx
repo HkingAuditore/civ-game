@@ -18,6 +18,7 @@ import {
     getInvestableBuildings,
     compareLaborCost,
     hasActiveTreaty,
+    calculateOverseasProfit,
 } from '../../logic/diplomacy/overseasInvestment';
 
 // No hardcoded stratum list - dynamically computed from available buildings
@@ -152,14 +153,16 @@ export const OverseasInvestmentPanel = memo(({
     return (
         <BottomSheet isOpen={isOpen} onClose={onClose} title={`对 ${targetNation.name} 的海外投资`}>
             <div className="space-y-4 pb-20">
-                {/* 顶部概览: 阶层财富 */}
-                <div className="bg-gray-800/50 rounded-lg p-3 flex justify-between items-center border border-gray-700/50">
-                    <div className="text-xs text-gray-400">可用投资资金</div>
+                {/* 顶部概览: 选中阶层的可用财富 */}
+                {/* <div className="bg-gray-800/50 rounded-lg p-3 flex justify-between items-center border border-gray-700/50">
+                    <div className="text-xs text-gray-400">
+                        <span className="text-gray-500">{selectedStratumConfig.name}</span> 可用资金
+                    </div>
                     <div className="font-bold text-amber-400 text-lg flex items-center gap-2">
-                        <span>{selectedStratumConfig.icon}</span>
+                        <Icon name={selectedStratumConfig.icon} size={18} className="text-amber-400" />
                         {formatNumberShortCN(stratumWealth)}
                     </div>
-                </div>
+                </div> */}
 
                 {/* 现有投资列表 */}
                 <div className="space-y-2">
@@ -232,7 +235,10 @@ export const OverseasInvestmentPanel = memo(({
                                                     }`}
                                                 onClick={() => setSelectedStratumOverride(stratum.id)}
                                             >
-                                                <div>{stratum.icon} {stratum.name}</div>
+                                                <div className="flex items-center gap-1 justify-center">
+                                                    <Icon name={stratum.icon} size={14} />
+                                                    <span>{stratum.name}</span>
+                                                </div>
                                                 <div className="text-[9px] opacity-70 mt-0.5">
                                                     财富: {formatNumberShortCN(wealth)}
                                                 </div>
@@ -315,15 +321,33 @@ export const OverseasInvestmentPanel = memo(({
                                                         </div>
                                                     </div>
 
-                                                    {investFeedback?.buildingId === building.id ? (
+                                    {investFeedback?.buildingId === building.id ? (
                                                         <span className="text-[10px] text-green-400 animate-pulse">{investFeedback.message}</span>
-                                                    ) : (
-                                                        <div className="bg-gray-900/50 px-2 py-1 rounded text-[10px]">
-                                                            <span className="text-gray-400">预计利润: </span>
-                                                            <span className="text-green-400">Yes/日</span>
-                                                            {/* Actual prediction is complex, skipping for UI simplicity or need logic */}
-                                                        </div>
-                                                    )}
+                                                    ) : (() => {
+                                                        // Calculate estimated profit
+                                                        const mockInvestment = {
+                                                            id: 'preview',
+                                                            buildingId: building.id,
+                                                            level: 1,
+                                                            strategy: selectedStrategy,
+                                                            operatingMode: 'local',
+                                                        };
+                                                        const profitCalc = calculateOverseasProfit(
+                                                            mockInvestment,
+                                                            targetNation,
+                                                            {},
+                                                            market?.prices || {}
+                                                        );
+                                                        const estProfit = profitCalc?.profit || 0;
+                                                        return (
+                                                            <div className="bg-gray-900/50 px-2 py-1 rounded text-[10px]">
+                                                                <span className="text-gray-400">预计利润: </span>
+                                                                <span className={estProfit >= 0 ? 'text-green-400' : 'text-red-400'}>
+                                                                    {estProfit >= 0 ? '+' : ''}{estProfit.toFixed(1)}/日
+                                                                </span>
+                                                            </div>
+                                                        );
+                                                    })()}
                                                 </div>
 
                                                 {/* 资源预览 */}
