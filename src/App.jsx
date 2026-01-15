@@ -1341,6 +1341,7 @@ activeDecrees={gameState.activeDecrees}
                                                 classWealth={gameState.classWealth}
                                                 foreignInvestments={gameState.foreignInvestments}
                                                 foreignInvestmentPolicy={gameState.foreignInvestmentPolicy}
+                                                gameState={gameState}
                                             />
                                         )}
 
