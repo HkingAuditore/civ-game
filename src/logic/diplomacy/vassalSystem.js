@@ -628,7 +628,15 @@ const getEnhancedIndependenceGrowthRate = (nation, epoch) => {
         rate *= (governanceConfig.independenceGrowthMod || 1.0);
     }
 
-    // 4. 朝贡率影响
+    // 4. [NEW] 投资政策 (Investment)
+    const investmentPolicyId = vassalPolicy.investmentPolicy || 'autonomous';
+    if (investmentPolicyId === 'guided') {
+        rate *= 1.2; // 引导投资增加20%独立倾向增长
+    } else if (investmentPolicyId === 'forced') {
+        rate *= 1.5; // 强制投资增加50%独立倾向增长
+    }
+
+    // 5. 朝贡率影响
     const tributeRate = nation.tributeRate || 0;
     // 每 10% 朝贡增加 50% 独立倾向增长
     rate *= (1 + tributeRate * 5);
@@ -710,6 +718,7 @@ export const establishVassalRelation = (nation, vassalType, epoch) => {
             labor: preset?.labor || 'standard',
             tradePolicy: preset?.trade || 'preferential',
             governance: preset?.governance || 'autonomous',
+            investmentPolicy: 'autonomous', // [NEW] 默认自主投资
             controlMeasures: {},
         },
 
@@ -817,6 +826,24 @@ export const adjustVassalPolicy = (nation, policyChanges) => {
             };
             updated.independencePressure = Math.min(100, Math.max(0,
                 (updated.independencePressure || 0) + (independenceEffects[policyChanges.labor] || 0)
+            ));
+        }
+    }
+
+    // ========== NEW: 调整投资政策 ==========
+    if (policyChanges.investmentPolicy) {
+        const validOptions = ['autonomous', 'guided', 'forced'];
+        if (validOptions.includes(policyChanges.investmentPolicy)) {
+            updated.vassalPolicy.investmentPolicy = policyChanges.investmentPolicy;
+
+            // 投资政策对独立倾向的一次性影响（切换时）
+            const independenceEffects = {
+                autonomous: 0,
+                guided: 2,     // 引导投资增加独立倾向
+                forced: 5,     // 强制投资大幅增加独立倾向
+            };
+            updated.independencePressure = Math.min(100, Math.max(0,
+                (updated.independencePressure || 0) + (independenceEffects[policyChanges.investmentPolicy] || 0)
             ));
         }
     }

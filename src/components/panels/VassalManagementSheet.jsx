@@ -231,6 +231,31 @@ const TRADE_POLICY_OPTIONS = [
     },
 ];
 
+// 投资政策选项 (NEW)
+const INVESTMENT_POLICY_OPTIONS = [
+    {
+        id: 'autonomous',
+        title: '自主投资',
+        description: '附庸仅投资于高回报项目 (ROI > 15%)',
+        effects: '无额外不满',
+        effectColor: 'text-green-400',
+    },
+    {
+        id: 'guided',
+        title: '引导投资',
+        description: '附庸优先考虑发展，接受较低回报 (ROI > 5%)',
+        effects: '中等不满',
+        effectColor: 'text-yellow-400',
+    },
+    {
+        id: 'forced',
+        title: '强制投资',
+        description: '附庸被迫进行投资，无论盈亏 (ROI > -10%)',
+        effects: '严重不满，亏损时不满加剧',
+        effectColor: 'text-red-400',
+    },
+];
+
 // 控制手段选项 (REVAMPED with dynamic costs)
 const CONTROL_MEASURES = [
     {
@@ -406,14 +431,6 @@ const OverviewTab = memo(({ nation, tribute, typeConfig, isAtRisk, vassalType, a
                 </Button>
             )}
 
-            <Button
-                onClick={() => onDiplomaticAction?.(nation.id, 'demand_investment')}
-                className="w-full bg-amber-700 hover:bg-amber-600"
-            >
-                <Icon name="Briefcase" size={14} className="mr-1" />
-                索取投资
-            </Button>
-
             {/* 释放附庸按钮 */}
             <Button
                 onClick={() => {
@@ -477,6 +494,9 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
     );
     const [laborPolicy, setLaborPolicy] = useState(
         nation?.vassalPolicy?.labor || 'standard'
+    );
+    const [investmentPolicy, setInvestmentPolicy] = useState(
+        nation?.vassalPolicy?.investmentPolicy || 'autonomous'
     );
     const [autonomy, setAutonomy] = useState(nation?.autonomy || baseAutonomy);
     const [tributeRate, setTributeRate] = useState(
@@ -585,6 +605,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
             diplomaticControl,
             tradePolicy,
             labor: laborPolicy,  // NEW: Labor policy
+            investmentPolicy,    // NEW: Investment policy
             autonomy,
             tributeRate: tributeRate / 100,
             controlMeasures,
@@ -597,6 +618,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
         setDiplomaticControl('guided');
         setTradePolicy('preferential');
         setLaborPolicy('standard');  // NEW: Reset labor policy
+        setInvestmentPolicy('autonomous'); // NEW: Reset investment policy
         setAutonomy(baseAutonomy);
         setTributeRate(baseTributeRate * 100);
         const resetMeasures = {};
@@ -716,6 +738,28 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                             effects={option.effects}
                             effectColor={option.effectColor}
                             onClick={() => setLaborPolicy(option.id)}
+                        />
+                    ))}
+                </div>
+            </div>
+
+            {/* 投资政策 (NEW) */}
+            <div>
+                <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-1.5">
+                    <Icon name="Briefcase" size={14} className="text-blue-400" />
+                    投资政策
+                    <span className="text-[10px] text-gray-500 ml-1">（影响附庸对宗主国投资的态度）</span>
+                </h3>
+                <div className="space-y-2">
+                    {INVESTMENT_POLICY_OPTIONS.map(option => (
+                        <PolicyOptionCard
+                            key={option.id}
+                            selected={investmentPolicy === option.id}
+                            title={option.title}
+                            description={option.description}
+                            effects={option.effects}
+                            effectColor={option.effectColor}
+                            onClick={() => setInvestmentPolicy(option.id)}
                         />
                     ))}
                 </div>

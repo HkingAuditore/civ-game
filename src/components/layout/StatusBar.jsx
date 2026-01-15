@@ -95,7 +95,6 @@ export const StatusBar = ({
         tariff: '关税',
         tariffsubsidy: '关税补贴',
         traderoutetax: '贸易路线税收',
-        foreign_investment_tax: '外资税收',
         foreigninvestmenttax: '外资税收',
         salary: '官员薪俸',
         militaryPay: '军饷维护',

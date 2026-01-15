@@ -4202,7 +4202,7 @@ export const useGameActions = (gameState, addLog) => {
 
             case 'accept_foreign_investment': {
                 // 接受外国投资（外国 -> 玩家）
-                const { buildingId, ownerStratum, operatingMode, investmentAmount } = payload || {};
+                const { buildingId, ownerStratum, operatingMode, investmentAmount, investmentPolicy } = payload || {};
                 const investorNation = nations.find(n => n.id === nationId);
 
                 if (!investorNation || !buildingId) {
@@ -4344,13 +4344,30 @@ export const useGameActions = (gameState, addLog) => {
 
                         setNations(prev => prev.map(n => {
                             if (n.id !== investorNation.id) return n;
+
+                            // [NEW] Apply discontent based on investment policy
+                            let unrestChange = 0;
+                            let relationChange = 5; // Default relation boost
+
+                            if (investmentPolicy === 'guided') {
+                                unrestChange = 2;
+                                relationChange = 3; // Less relation boost
+                            } else if (investmentPolicy === 'forced') {
+                                unrestChange = 5;
+                                relationChange = 1; // Minimal relation boost
+                            }
+
                             return {
                                 ...n,
                                 wealth: Math.max(0, (n.wealth || 0) - (investmentAmount || 0)),
-                                relation: Math.min(100, (n.relation || 0) + 5),
+                                relation: Math.min(100, (n.relation || 0) + relationChange),
+                                unrest: (n.unrest || 0) + unrestChange, // Apply discontent
                             };
                         }));
 
+                        if (investmentPolicy === 'guided' || investmentPolicy === 'forced') {
+                            addLog(`⚠️ 由于${investmentPolicy === 'forced' ? '强制' : '引导'}投资政策，${investorNation.name} 国内出现不满。`);
+                        }
                         addLog(`🏭 ${investorNation.name} 投资 ${fundingReceived.toFixed(0)} 银币，在本地建设了 ${building.name}。消耗了相应的建材。`);
                     }
                 }).catch(err => {

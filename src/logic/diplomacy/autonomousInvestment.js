@@ -211,122 +211,75 @@ export function processAIInvestment({
         // Direct Treaty check
         const hasDirectPact = hasActiveTreaty(investorNation, 'investment_pact', daysElapsed);
 
-        // Debug
-        // console.log(`[AI投资检查] ${investorNation.name} -> ${targetId}: VassalOf=${isVassal}, Suzerain=${isSuzerain}, Treaty=${hasInvestmentTreaty||hasDirectPact}`);
-
         return isVassal || isSuzerain || hasInvestmentTreaty || hasDirectPact;
     };
     // 1. Check AI capability
     // Must be Civilized or Industrial era (Epoch 2+) to invest
     // Must have enough budget (Wealth > 5000)
-    if (epoch < 2) {
-        // debugLog('overseas', `[AI投资] ${investorNation.name} 时代不足 (${epoch} < 2)`);
-        return null;
-    }
-    if ((investorNation.wealth || 0) < 5000) {
-        // debugLog('overseas', `[AI投资] ${investorNation.name} 财富不足 (${investorNation.wealth || 0} < 5000)`);
-        return null;
-    }
-
-    // Note: The game loop already has a 30% daily probability check, so no additional probability check needed here
-    // console.log(`[AI投资] ${investorNation.name} 通过初始检查, wealth=${investorNation.wealth}, epoch=${epoch}, relation=${investorNation.relation}`);
-    // debugLog('overseas', `[AI投资] ${investorNation.name} 开始评估投资机会...`);
+    if (epoch < 2) return null;
+    if ((investorNation.wealth || 0) < 5000) return null;
 
     // 2. Identify Targets
-    // Target Player?
-    // Check relations > 40
-    // Check if player has "Open Market" treaty or is Vassal (AI is Suzerain... unlikely but possible) or AI is Vassal of Player
-    // For now, let's say friendly AI (Relation > 50) considers investing in Player
-
-    // Simplification: AI mainly considers PLAYER as target for "Foreign Investment" feature
-    // AI-to-AI investment simulation is less critical for UI but can be added if needed.
-
     const targets = [];
 
     // Evaluate Player
     const playerRelation = investorNation.relation || 0;
     // 关系 > 30 且满足投资条约/附庸关系
     if (playerRelation > 30 && canInvestInTarget(playerState)) {
-        // [NEW] Relation-based Probability Scaling
-        // Higher relation = higher chance to consider investing
-        // Map relation 30..100 to probability 0.1..1.0
         const relationProbability = Math.max(0.1, (playerRelation - 30) / 70);
-
         if (Math.random() < relationProbability) {
             targets.push({ id: 'player', name: 'Player', ...playerState });
-            // console.log(`[AI投资] ${investorNation.name} 将玩家加入投资目标 (关系: ${playerRelation}, 概率: ${relationProbability.toFixed(2)})`);
-        } else {
-            // console.log(`[AI投资] ${investorNation.name} 因关系不足(${playerRelation})随机跳过本次对玩家投资`);
         }
-    } else {
-        // console.log(`[AI投资] ${investorNation.name} 跳过玩家 (关系: ${playerRelation}, 协议: ${canInvestInTarget(playerState)})`);
     }
 
-    if (targets.length === 0) {
-        // console.log(`[AI投资] ${investorNation.name} 无合适投资目标 (关系: ${investorNation.relation || 0} <= 30 或 无有效协议)`);
-        // debugLog('overseas', `[AI投资] ${investorNation.name} 无合适投资目标 (关系: ${investorNation.relation || 0} 或 无协议)`);
-        return null;
+    if (targets.length === 0) return null;
+
+    // 3. Determine Investment Policy Thresholds
+    // 投资政策决定了 AI 愿意接受的 ROI 下限
+    const investmentPolicy = investorNation.vassalPolicy?.investmentPolicy || 'autonomous';
+    let roiThreshold = 0.10; // Default: Autonomous (10%)
+
+    if (investmentPolicy === 'guided') {
+        roiThreshold = 0.05; // Guided: 5%
+    } else if (investmentPolicy === 'forced') {
+        roiThreshold = -0.10; // Forced: Accepts loss up to -10%
     }
 
-    // 3. Evaluate Buildings
-    // AI prefers resource extraction or profitable industry
-    // Fix: BUILDINGS uses 'cat' not 'category', and 'baseCost' not 'cost'
+    // 4. Evaluate Buildings
     const candidateBuildings = BUILDINGS.filter(b => {
-        // 1. Basic Type Check
         if (b.cat !== 'gather' && b.cat !== 'industry') return false;
         if ((b.epoch || 0) > epoch) return false;
         if (!b.baseCost && !b.cost) return false;
 
-        // 2. [NEW] Employment Relationship Check
-        // "不能投资没有雇佣关系的建筑" (Cannot invest in buildings without employment relationship)
-        // Rule: A building is investable ONLY if it employs people OTHER than the owner.
-        // If the only worker is the owner (e.g. Peasant Farm, Quarry), it is Self-Employment, not Capitalist Investment.
-        // This prevents "Free Labor" exploit where Owner-Worker wages are skipped.
         const jobs = b.jobs || {};
         const hasEmployees = Object.keys(jobs).some(jobStratum => jobStratum !== b.owner);
-
         return hasEmployees;
     });
-
-    debugLog('overseas', `[AI投资] ${investorNation.name} 找到 ${candidateBuildings.length} 个候选建筑`);
 
     // Shuffle
     const shuffledBuildings = candidateBuildings.sort(() => Math.random() - 0.5);
 
     for (const target of targets) {
         for (const building of shuffledBuildings) {
-            // Fix: use baseCost (primary) or cost (fallback)
             const costConfig = building.baseCost || building.cost || {};
             const baseCost = Object.values(costConfig).reduce((sum, v) => sum + (typeof v === 'number' ? v : 0), 0);
             const cost = (baseCost || 1000) * 1.5; // Foreign investment markup
             if ((investorNation.wealth || 0) < cost) continue;
 
-            // [NEW] Check if target has this building (Requirement: "我没有造建筑不允许你投资")
             const targetBuildings = target.buildings || {};
             const playerBuildingCount = targetBuildings[building.id] || 0;
-            // Check if player has constructed this building type (count > 0)
-            if (playerBuildingCount <= 0) {
-                console.log(`[AI投资] ${investorNation.name} 跳过 ${building.name} (目标未建造，当前数量: ${playerBuildingCount})`);
-                continue;
-            }
+            if (playerBuildingCount <= 0) continue;
 
-            // [NEW] Check if foreign investment count has reached building count limit
             const existingForeignCount = (foreignInvestments || []).filter(
                 inv => inv.buildingId === building.id && inv.status === 'operating'
             ).length;
-            if (existingForeignCount >= playerBuildingCount) {
-                console.log(`[AI投资] ${investorNation.name} 跳过 ${building.name} (外资数量已达上限: ${existingForeignCount}/${playerBuildingCount})`);
-                continue;
-            }
+            if (existingForeignCount >= playerBuildingCount) continue;
 
-            // [NEW] Check staffing ratio (Requirement: "到岗率不足95%不允许投资")
-            // Calculate staffing ratio from jobFill data
+            // Check staffing ratio
             const targetJobFill = target.jobFill || {};
             const buildingJobFillData = targetJobFill[building.id] || {};
             const buildingJobs = building.jobs || {};
-            const buildingCount = targetBuildings[building.id] || 0;
 
-            // Calculate total slots and filled slots
             let totalSlots = 0;
             let filledSlots = 0;
             Object.entries(buildingJobs).forEach(([role, slotsPerBuilding]) => {
@@ -335,44 +288,28 @@ export function processAIInvestment({
                 filledSlots += Math.min(buildingJobFillData[role] || 0, totalRoleSlots);
             });
 
-            // Calculate staffing ratio (default to 1 if no slots)
             const buildingStaffingRatio = totalSlots > 0 ? filledSlots / totalSlots : 1;
+            if (buildingStaffingRatio < MIN_FOREIGN_INVESTMENT_STAFFING_RATIO) continue;
 
-            // 检查是否满足95%要求
-            if (buildingStaffingRatio < MIN_FOREIGN_INVESTMENT_STAFFING_RATIO) {
-                console.log(`[AI投资] ${investorNation.name} 跳过 ${building.name} (到岗率不足: ${(buildingStaffingRatio * 100).toFixed(1)}% < 95%)`);
-                continue;
-            }
-
-            // [NEW] Use Base Prices to simulate AI Market (Home)
             const investorMarketPrices = {};
-            // RESOURCES is imported from '../../config'
             Object.keys(RESOURCES).forEach(key => {
                 investorMarketPrices[key] = RESOURCES[key].basePrice || 1;
             });
 
-            // Use existing calculateOverseasProfit function to get accurate profit calculation
-            // Create a mock investment object for the calculation
-            const mockInvestment = {
-                buildingId: building.id,
-                strategy: 'PROFIT_MAX',
-            };
-
-            // For AI investing in player, player is "target nation", AI is "home"
             const profitResult = calculateOverseasProfit(
-                mockInvestment,
-                target, // target nation (player)
-                {}, // player resources (not needed for price calc)
-                investorMarketPrices // [FIX] Use AI's (Home) Simulated Prices
+                { buildingId: building.id, strategy: 'PROFIT_MAX' },
+                target,
+                {},
+                investorMarketPrices
             );
 
             const dailyProfit = profitResult.profit || 0;
             const roi = cost > 0 ? (dailyProfit * 360) / cost : 0;
 
-            console.log(`[AI投资] ${investorNation.name} 评估 ${building.name}: output=${profitResult.outputValue?.toFixed(1)}, input=${profitResult.inputCost?.toFixed(1)}, wage=${profitResult.wageCost?.toFixed(1)}, profit=${dailyProfit.toFixed(1)}/day, ROI=${(roi * 100).toFixed(1)}%`);
-            debugLog('overseas', `[AI投资] ${investorNation.name} 评估 ${building.name}: ROI=${(roi * 100).toFixed(1)}%, profit=${dailyProfit.toFixed(1)}/day`);
+            console.log(`[AI投资] ${investorNation.name} 评估 ${building.name} (Policy: ${investmentPolicy}): ROI=${(roi * 100).toFixed(1)}%, Threshold=${(roiThreshold * 100).toFixed(1)}%`);
 
-            if (roi > 0.10) { // 10% ROI acceptable for AI
+            // [NEW] Use dynamic threshold based on policy
+            if (roi > roiThreshold) {
                 console.log(`[AI投资] ${investorNation.name} 决定投资 ${building.name}! ROI=${(roi * 100).toFixed(1)}%`);
                 return {
                     type: 'request_investment',
@@ -381,9 +318,8 @@ export function processAIInvestment({
                     building,
                     cost,
                     roi,
+                    investmentPolicy, // Pass policy for later handling
                     action: () => {
-                        // Logic to actually create the investment or trigger event
-                        // If target is player, return data structure for Event
                         return {
                             type: 'event',
                             eventData: {
@@ -391,9 +327,10 @@ export function processAIInvestment({
                                 opportunity: {
                                     buildingType: building.name,
                                     buildingId: building.id,
-                                    potentialProfit: dailyProfit * 30, // Monthly
+                                    potentialProfit: dailyProfit * 30,
                                     requiredInvestment: cost,
-                                    ownerStratum: 'capitalist' // AI investors are abstracted as Capitalists
+                                    ownerStratum: 'capitalist',
+                                    investmentPolicy: investmentPolicy, // Pass to event
                                 }
                             }
                         };
@@ -403,7 +340,6 @@ export function processAIInvestment({
         }
     }
 
-    console.log(`[AI投资] ${investorNation.name} 未找到合适的投资机会 (没有ROI>10%的建筑)`);
     return null;
 }
 
