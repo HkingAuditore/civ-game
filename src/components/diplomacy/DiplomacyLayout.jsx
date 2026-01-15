@@ -30,6 +30,7 @@ const DiplomacyLayout = ({
     diplomaticCooldownMod,
     diplomacyOrganizations,
     overseasInvestments,
+    foreignInvestments,
     tradeRoutes,
     tradeOpportunities,
 
@@ -167,6 +168,7 @@ const DiplomacyLayout = ({
                         merchantState={merchantState}
                         onMerchantStateChange={onMerchantStateChange}
                         popStructure={gameState?.popStructure} // Ensure popStructure is passed
+                        foreignInvestments={foreignInvestments}
                     />
                 ) : (
                     <DiplomacyDashboard

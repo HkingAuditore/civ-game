@@ -1,7 +1,7 @@
 ﻿import React, { useMemo, useState } from 'react';
 import { Button, Card, Tabs, Badge } from '../common/UnifiedUI';
 import { Icon } from '../common/UIComponents';
-import { RESOURCES, DIPLOMACY_ERA_UNLOCK } from '../../config';
+import { RESOURCES, DIPLOMACY_ERA_UNLOCK, BUILDINGS } from '../../config';
 import { getEstimatedMilitaryStrength } from '../../logic/diplomacy/militaryUtils';
 import { getRelationLabel } from '../../utils/diplomacyUtils';
 import { calculateForeignPrice, calculateTradeStatus } from '../../utils/foreignTrade';
@@ -39,6 +39,7 @@ const NationDetailView = ({
     tradeRoutes,
     merchantState,
     onMerchantStateChange,
+    foreignInvestments = [],
 }) => {
     const [activeTab, setActiveTab] = useState('overview');
 
@@ -237,6 +238,12 @@ const NationDetailView = ({
                                 海外投资管理
                             </Button>
                         </div>
+
+                        {/* Foreign Investments from this nation in player's country */}
+                        <ForeignInvestmentFromNation
+                            nation={nation}
+                            foreignInvestments={foreignInvestments}
+                        />
                         
                         <Card className="p-0 overflow-hidden border-ancient-gold/20 bg-ancient-ink/30">
                             <div className="p-4 border-b border-white/5 bg-black/20 flex justify-between items-center">
@@ -280,6 +287,105 @@ const NationDetailView = ({
 };
 
 // --- Sub-Components ---
+
+/**
+ * Component to display foreign investments from a specific nation in player's country
+ */
+const ForeignInvestmentFromNation = ({ nation, foreignInvestments = [] }) => {
+    // Filter investments from this nation in player's country
+    const investmentsFromNation = useMemo(() => {
+        return foreignInvestments.filter(inv => 
+            inv.ownerNationId === nation?.id && inv.status === 'operating'
+        ).map(inv => {
+            const building = BUILDINGS.find(b => b.id === inv.buildingId);
+            return {
+                ...inv,
+                building,
+                buildingName: building?.name || '未知建筑',
+            };
+        });
+    }, [foreignInvestments, nation?.id]);
+
+    // Calculate totals
+    const totals = useMemo(() => {
+        return investmentsFromNation.reduce((acc, inv) => {
+            acc.totalProfit += (inv.dailyProfit || 0);
+            acc.totalTax += (inv.operatingData?.taxPaid || 0);
+            acc.totalJobs += (inv.jobsProvided || 0);
+            return acc;
+        }, { totalProfit: 0, totalTax: 0, totalJobs: 0 });
+    }, [investmentsFromNation]);
+
+    if (investmentsFromNation.length === 0) {
+        return (
+            <Card className="p-4 bg-ancient-ink/20 border-ancient-gold/10">
+                <div className="flex items-center gap-2 mb-3">
+                    <Icon name="Landmark" size={18} className="text-amber-400" />
+                    <span className="font-bold text-ancient-parchment">该国在我国的投资</span>
+                </div>
+                <div className="text-center text-ancient-stone/60 text-sm py-4 italic">
+                    {nation?.name || '该国'} 目前在我国没有投资。
+                </div>
+            </Card>
+        );
+    }
+
+    return (
+        <Card className="p-0 overflow-hidden border-amber-700/30 bg-amber-900/10">
+            <div className="p-4 border-b border-amber-700/20 bg-black/20 flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                    <Icon name="Landmark" size={20} className="text-amber-400" />
+                    <span className="font-bold text-ancient-parchment">该国在我国的投资</span>
+                    <Badge variant="neutral" className="text-[10px]">
+                        {investmentsFromNation.length} 处
+                    </Badge>
+                </div>
+                <div className="text-right text-xs text-ancient-stone">
+                    <div className="flex gap-3">
+                        <span>税收: <span className="text-green-400 font-mono">+{totals.totalTax.toFixed(1)}</span>/日</span>
+                        <span>利润流出: <span className="text-red-400 font-mono">-{(totals.totalProfit - totals.totalTax).toFixed(1)}</span>/日</span>
+                    </div>
+                    <div className="text-[10px] text-ancient-stone/60 mt-0.5">
+                        提供就业: {totals.totalJobs} 人
+                    </div>
+                </div>
+            </div>
+
+            <div className="divide-y divide-amber-700/20 max-h-[250px] overflow-y-auto">
+                {investmentsFromNation.map(inv => (
+                    <div key={inv.id} className="p-3 hover:bg-white/5 transition-colors">
+                        <div className="flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded bg-amber-900/30 flex items-center justify-center">
+                                    <Icon name={inv.building?.visual?.icon || "Building"} size={16} className="text-amber-400"/>
+                                </div>
+                                <div>
+                                    <div className="text-sm font-bold text-ancient-parchment">
+                                        {inv.buildingName}
+                                    </div>
+                                    <div className="text-[10px] text-ancient-stone flex items-center gap-2">
+                                        <span className="bg-gray-900/50 px-1.5 rounded">岗位: {inv.jobsProvided || 0}</span>
+                                        <span>日利润: <span className="text-amber-300 font-mono">{(inv.dailyProfit || 0).toFixed(1)}</span></span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="text-right">
+                                <div className="text-xs">
+                                    <span className="text-green-400 font-mono">
+                                        税: +{(inv.operatingData?.taxPaid || 0).toFixed(1)}
+                                    </span>
+                                </div>
+                                <div className="text-[9px] text-ancient-stone/60">
+                                    流出: -{((inv.dailyProfit || 0) - (inv.operatingData?.taxPaid || 0)).toFixed(1)}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </Card>
+    );
+};
 
 const StrategicStatus = ({ nation, epoch }) => {
     // Generate some fake but plausible preferences based on personality/resources if actual data is missing

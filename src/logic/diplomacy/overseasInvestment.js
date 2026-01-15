@@ -28,7 +28,7 @@ export const OVERSEAS_INVESTMENT_CONFIGS = {
 
     // 运营配置 (灵活配置)
     config: {
-        transportCostRate: 0.0,       // 跨国运输成本 (0%)
+        transportCostRate: 0.15,      // 跨国运输成本 (15%)
     },
 
     // 投资收益基础配置
@@ -816,7 +816,7 @@ export function processOverseasInvestments({
             divestProbability = Math.min(0.5, divestProbability);
 
             if (Math.random() < divestProbability) {
-                logs.push(`📉 由于长期入不敷出（${consecutiveLossDays}天），${STRATA[updated.ownerStratum]?.name || '业主'}决定关闭在 ${targetNation.name} 的 ${BUILDINGS.find(b=>b.id===updated.buildingId)?.name}。`);
+                logs.push(`📉 由于长期入不敷出（${consecutiveLossDays}天），${STRATA[updated.ownerStratum]?.name || '业主'}决定关闭在 ${targetNation.name} 的 ${BUILDINGS.find(b => b.id === updated.buildingId)?.name}。`);
 
                 const salvageValue = (updated.investmentAmount || 0) * 0.1;
                 profitByStratum[updated.ownerStratum] = (profitByStratum[updated.ownerStratum] || 0) + salvageValue;
@@ -1101,7 +1101,7 @@ export function processForeignInvestments({
         const buildingJobs = building.jobs || {};
         const buildingCount = buildings[building.id] || 0;
         const buildingJobFillData = jobFill[building.id] || {};
-        
+
         let totalSlots = 0;
         let filledSlots = 0;
         Object.entries(buildingJobs).forEach(([role, slotsPerBuilding]) => {
@@ -1109,10 +1109,10 @@ export function processForeignInvestments({
             totalSlots += totalRoleSlots;
             filledSlots += Math.min(buildingJobFillData[role] || 0, totalRoleSlots);
         });
-        
+
         // 计算到岗率 (如果没有建筑或岗位，默认为0)
         const staffingRatio = (totalSlots > 0 && buildingCount > 0) ? filledSlots / totalSlots : 0;
-        
+
         // 5. 处理结果 - 利润乘以到岗率
         // 理论利润 * 到岗率 = 实际利润
         const theoreticalProfit = profitResult.profit || 0;

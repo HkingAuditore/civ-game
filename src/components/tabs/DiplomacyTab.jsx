@@ -241,6 +241,7 @@ const DiplomacyTabComponent = ({
                 diplomaticCooldownMod={diplomaticCooldownMod}
                 diplomacyOrganizations={diplomacyOrganizations}
                 overseasInvestments={overseasInvestments}
+                foreignInvestments={foreignInvestments}
                 tradeRoutes={tradeRoutes}
                 tradeOpportunities={tradeOpportunities}
                 merchantState={merchantState}

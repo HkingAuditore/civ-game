@@ -16,8 +16,8 @@ import {
 // --- Configuration ---
 
 const TABS = [
-    { id: 'assets', label: '海外资产 (我投外国)', icon: 'Globe' },
-    { id: 'capital', label: '外资企业 (外国投我)', icon: 'Landmark' },
+    { id: 'assets', label: '海外资产', icon: 'Globe' },
+    { id: 'capital', label: '外资企业', icon: 'Landmark' },
 ];
 
 const STRATUM_CONFIG = {
