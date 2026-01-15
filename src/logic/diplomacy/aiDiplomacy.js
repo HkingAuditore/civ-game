@@ -515,6 +515,84 @@ import { createOrganization } from './organizationDiplomacy';
  * @param {number} epoch - Current epoch
  * @returns {Object} - Returns new organizations and member updates
  */
+/**
+ * Process AI Economic Bloc formation
+ * Conditions: Era 5+, High Wealth, Good Relations
+ */
+const processAIEconomicBlocFormation = (visibleNations, tick, logs, diplomacyOrganizations, epoch) => {
+    const existingOrgs = diplomacyOrganizations?.organizations || [];
+    const result = { createdOrganizations: [], memberJoinRequests: [] };
+    const shuffled = [...visibleNations].sort(() => Math.random() - 0.5);
+
+    shuffled.forEach(nation => {
+        if (Math.random() > 0.005) return; // Low daily chance
+
+        // Wealth check
+        if ((nation.wealth || 0) < 2000) return;
+
+        // Check if already in an economic bloc
+        const myBloc = existingOrgs.find(org => org.type === 'economic_bloc' && org.members.includes(nation.id));
+        if (myBloc) return;
+
+        const potentialPartners = visibleNations.filter(other => {
+            if (other.id === nation.id) return false;
+            // Wealth check for partner
+            if ((other.wealth || 0) < 2000) return false;
+
+            // Check restriction
+            const otherDiplomacy = canVassalPerformDiplomacy(other, 'alliance'); // Re-use alliance restriction or similar
+            if (!otherDiplomacy.allowed) return false;
+
+            const relation = nation.foreignRelations?.[other.id] ?? 50;
+            const otherRelation = other.foreignRelations?.[nation.id] ?? 50;
+            return relation >= 60 && otherRelation >= 60; // Moderate+ relations
+        });
+
+        if (potentialPartners.length === 0) return;
+
+        const partner = potentialPartners[Math.floor(Math.random() * potentialPartners.length)];
+
+        // Check if partner is in a bloc
+        const partnerBloc = existingOrgs.find(org => org.type === 'economic_bloc' && org.members.includes(partner.id));
+
+        if (partnerBloc) {
+            // Join existing bloc
+            const members = partnerBloc.members.map(mid => visibleNations.find(n => n.id === mid)).filter(n => n);
+            const approval = members.every(member => (member.foreignRelations?.[nation.id] ?? 50) >= 50);
+
+            if (approval) {
+                result.memberJoinRequests.push({ orgId: partnerBloc.id, nationId: nation.id, orgName: partnerBloc.name });
+                logs.push(`💰 ${nation.name} 此刻申请加入 "${partnerBloc.name}" 以寻求经济合作。`);
+            }
+        } else {
+            // Create new Economic Bloc
+            const names = ['贸易同盟', '经济共同体', '自由市场协定', '关税同盟', '繁荣互助会', '商业联合会'];
+            const name = names[Math.floor(Math.random() * names.length)] + (Math.random() > 0.5 ? '' : ` (${nation.name})`);
+
+            const createResult = createOrganization({
+                type: 'economic_bloc',
+                founderId: nation.id,
+                founderName: nation.name,
+                name: name,
+                epoch,
+                daysElapsed: tick
+            });
+
+            if (createResult.success) {
+                // Founder joins automatically in createOrganization logic? 
+                // We also want the partner to join immediately if possible
+                const newOrg = createResult.organization;
+                newOrg.members.push(partner.id);
+
+                result.createdOrganizations.push(newOrg);
+                logs.push(`💰 国际新闻：${nation.name} 与 ${partner.name} 宣布共同建立 "${name}"！`);
+            }
+        }
+    });
+
+    return result;
+};
+
 export const processAIAllianceFormation = (visibleNations, tick, logs, diplomacyOrganizations, epoch) => {
     const existingOrgs = diplomacyOrganizations?.organizations || [];
     const result = {
@@ -611,6 +689,13 @@ export const processAIAllianceFormation = (visibleNations, tick, logs, diplomacy
             }
         }
     });
+
+    // Process Economic Blocs if Era >= 5
+    if (epoch >= 5) {
+        const economicResult = processAIEconomicBlocFormation(visibleNations, tick, logs, diplomacyOrganizations, epoch);
+        result.createdOrganizations.push(...economicResult.createdOrganizations);
+        result.memberJoinRequests.push(...economicResult.memberJoinRequests);
+    }
 
     return result;
 };

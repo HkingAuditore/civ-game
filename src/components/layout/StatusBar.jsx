@@ -501,7 +501,7 @@ export const StatusBar = ({
                                 <div className={`flex items-center gap-0.5 text-[9px] px-1 py-0.5 rounded ${displayNetSilver >= 0 ? 'bg-green-900/30' : 'bg-red-900/30'}`}>
                                     <Icon name={displayNetSilver >= 0 ? 'TrendingUp' : 'TrendingDown'} size={9} className={netSilverClass} />
                                     <span className={`font-mono ${netSilverClass}`}>
-                                        {displayNetSilver >= 0 ? '+' : ''}{formatNumberShortCN(Math.abs(displayNetSilver || 0), { decimals: 1 })}
+                                        {displayNetSilver >= 0 ? '+' : '-'}{formatNumberShortCN(Math.abs(displayNetSilver || 0), { decimals: 1 })}
                                     </span>
                                 </div>
                             </button>
@@ -681,7 +681,7 @@ export const StatusBar = ({
                                                     <div className="stat-item-compact bg-ancient-gold/10">
                                                         <span className="font-bold text-ancient-parchment">净收益</span>
                                                         <span className={`font-bold font-mono ${netSilverClass}`}>
-                                                            {displayNetSilver >= 0 ? '+' : ''}{formatNumberShortCN(Math.abs(displayNetSilver || 0), { decimals: 1 })}
+                                                            {displayNetSilver >= 0 ? '+' : '-'}{formatNumberShortCN(Math.abs(displayNetSilver || 0), { decimals: 1 })}
                                                         </span>
                                                     </div>
                                                 </div>
