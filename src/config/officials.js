@@ -429,6 +429,247 @@ export const OFFICIAL_DRAWBACK_TYPES = {
     },
 };
 
+// ========== 属性-效果映射 ==========
+// 定义每个属性对应的效果池
+export const STAT_EFFECT_MAPPING = {
+    // 行政属性 -> 经济/政治效果
+    administrative: {
+        primaryEffects: [
+            'tax_efficiency', 'income_percent', 'building_cost_reduction',
+            'production_input_cost', 'trade_bonus'
+        ],
+        secondaryEffects: [
+            'category_boost', 'passive_percent', 'needs_reduction'
+        ],
+        weight: 1.0,
+    },
+    // 军事属性 -> 军事/稳定效果
+    military: {
+        primaryEffects: [
+            'military_bonus', 'military_upkeep', 'wartime_production',
+            'stability_bonus'
+        ],
+        secondaryEffects: [
+            'organization_decay', 'building_boost'
+        ],
+        weight: 1.0,
+    },
+    // 外交属性 -> 外交/贸易效果
+    diplomacy: {
+        primaryEffects: [
+            'diplomatic_bonus', 'diplomatic_cooldown', 'trade_bonus'
+        ],
+        secondaryEffects: [
+            'approval_boost', 'coalition_approval', 'passive_gain'
+        ],
+        weight: 1.0,
+    },
+    // 威望属性 -> 政治/人口效果
+    prestige: {
+        primaryEffects: [
+            'approval_boost', 'coalition_approval', 'legitimacy_bonus',
+            'stability_bonus'
+        ],
+        secondaryEffects: [
+            'max_pop', 'population_growth', 'research_speed'
+        ],
+        weight: 1.0,
+    },
+};
+
+/**
+ * 根据属性值计算效果强度因子
+ * @param {number} statValue - 属性值 (0-100)
+ * @returns {number} 强度因子 (0.3 - 1.5)
+ */
+export const calculateEffectStrength = (statValue) => {
+    // 属性值 -> 强度因子的映射
+    // 0-30: 0.3-0.6 (弱)
+    // 30-60: 0.6-1.0 (中)
+    // 60-80: 1.0-1.2 (强)
+    // 80-100: 1.2-1.5 (超强)
+    if (statValue <= 30) {
+        return 0.3 + (statValue / 30) * 0.3;
+    } else if (statValue <= 60) {
+        return 0.6 + ((statValue - 30) / 30) * 0.4;
+    } else if (statValue <= 80) {
+        return 1.0 + ((statValue - 60) / 20) * 0.2;
+    } else {
+        return 1.2 + ((statValue - 80) / 20) * 0.3;
+    }
+};
+
+/**
+ * 根据官员属性生成效果
+ * @param {Object} stats - 官员属性 { administrative, military, diplomacy, prestige }
+ * @param {number} epoch - 当前时代
+ * @param {Object} options - 可选配置
+ * @returns {Object} { effects, rawEffects, effectCount, totalCostScore }
+ */
+export const generateEffectsFromStats = (stats, epoch = 1, options = {}) => {
+    const { maxEffects = 4, minEffects = 2 } = options;
+    
+    const effects = {};
+    const rawEffects = [];
+    let totalCostScore = 0;
+    
+    // 1. 找出最高的两个属性（决定主要效果来源）
+    const sortedStats = Object.entries(stats)
+        .filter(([key]) => STAT_EFFECT_MAPPING[key])
+        .sort((a, b) => b[1] - a[1]);
+    
+    const primaryStat = sortedStats[0];
+    const secondaryStat = sortedStats[1];
+    
+    // 2. 确定效果数量 (基于总属性值)
+    const totalStats = Object.values(stats).reduce((sum, v) => sum + (v || 0), 0);
+    const avgStat = totalStats / 4;
+    let effectCount = Math.floor(avgStat / 25) + 1; // 0-24: 1, 25-49: 2, 50-74: 3, 75-100: 4
+    effectCount = Math.max(minEffects, Math.min(maxEffects, effectCount));
+    
+    // 3. 从主属性池选择效果
+    const usedEffects = new Set();
+    
+    const addEffectFromPool = (statKey, statValue, isPrimary) => {
+        const mapping = STAT_EFFECT_MAPPING[statKey];
+        if (!mapping) return false;
+        
+        const pool = isPrimary ? mapping.primaryEffects : mapping.secondaryEffects;
+        const availableEffects = pool.filter(e => !usedEffects.has(e) && OFFICIAL_EFFECT_TYPES[e]);
+        
+        if (availableEffects.length === 0) return false;
+        
+        // 随机选择一个效果
+        const effectKey = availableEffects[Math.floor(Math.random() * availableEffects.length)];
+        const effectDef = OFFICIAL_EFFECT_TYPES[effectKey];
+        usedEffects.add(effectKey);
+        
+        // 根据属性值计算效果强度
+        const strengthFactor = calculateEffectStrength(statValue);
+        const [minVal, maxVal] = effectDef.valueRange;
+        const range = maxVal - minVal;
+        
+        // 基础随机值 + 属性加成
+        let value = minVal + range * (0.3 + Math.random() * 0.4) * strengthFactor;
+        
+        // 时代缩放 (对fixed数值型效果)
+        if (effectDef.type === 'passive') {
+            value *= (0.5 + epoch * 0.25);
+        }
+        
+        // 确保在范围内
+        value = Math.max(minVal, Math.min(maxVal, value));
+        
+        // 处理带目标的效果
+        if (effectDef.targets) {
+            const target = effectDef.targets[Math.floor(Math.random() * effectDef.targets.length)];
+            rawEffects.push({ 
+                effectKey, 
+                type: effectDef.type, 
+                target, 
+                value, 
+                sourcestat: statKey,
+                strengthFactor 
+            });
+            
+            if (!effects[effectDef.type]) effects[effectDef.type] = {};
+            effects[effectDef.type][target] = value;
+        } else {
+            rawEffects.push({ 
+                effectKey, 
+                type: effectDef.type, 
+                value, 
+                sourcestat: statKey,
+                strengthFactor 
+            });
+            effects[effectDef.type] = value;
+        }
+        
+        totalCostScore += (effectDef.costMultiplier || 1.0) * strengthFactor;
+        return true;
+    };
+    
+    // 4. 添加效果
+    // 首先从主属性添加主要效果
+    if (primaryStat) {
+        addEffectFromPool(primaryStat[0], primaryStat[1], true);
+    }
+    if (secondaryStat && effectCount >= 2) {
+        addEffectFromPool(secondaryStat[0], secondaryStat[1], true);
+    }
+    
+    // 继续添加次要效果直到达到数量
+    let attempts = 0;
+    while (rawEffects.length < effectCount && attempts < 20) {
+        attempts++;
+        const randomStat = sortedStats[Math.floor(Math.random() * sortedStats.length)];
+        if (randomStat) {
+            const isPrimary = Math.random() < 0.3; // 30%概率从主池选
+            addEffectFromPool(randomStat[0], randomStat[1], isPrimary);
+        }
+    }
+    
+    return { effects, rawEffects, effectCount: rawEffects.length, totalCostScore };
+};
+
+/**
+ * 根据当前属性重新计算效果值（用于升级后）
+ * @param {Array} rawEffects - 原始效果数组（含sourcestat）
+ * @param {Object} newStats - 新的属性值
+ * @returns {Object} { effects, rawEffects }
+ */
+export const recalculateEffectsFromStats = (rawEffects, newStats) => {
+    if (!Array.isArray(rawEffects) || rawEffects.length === 0) {
+        return { effects: {}, rawEffects: [] };
+    }
+    
+    const effects = {};
+    const updatedRawEffects = [];
+    
+    for (const rawEffect of rawEffects) {
+        const { effectKey, type, target, sourcestat } = rawEffect;
+        const effectDef = OFFICIAL_EFFECT_TYPES[effectKey];
+        
+        if (!effectDef) {
+            updatedRawEffects.push(rawEffect);
+            continue;
+        }
+        
+        // 获取该效果对应属性的新值
+        const newStatValue = newStats[sourcestat] || 50;
+        const newStrengthFactor = calculateEffectStrength(newStatValue);
+        
+        // 重新计算效果值
+        const [minVal, maxVal] = effectDef.valueRange;
+        const range = maxVal - minVal;
+        
+        // 保持基础随机因子，只更新强度因子
+        const baseRatio = rawEffect.baseRatio || (0.3 + Math.random() * 0.4);
+        let newValue = minVal + range * baseRatio * newStrengthFactor;
+        
+        // 确保在范围内
+        newValue = Math.max(minVal, Math.min(maxVal, newValue));
+        
+        const updatedEffect = {
+            ...rawEffect,
+            value: newValue,
+            strengthFactor: newStrengthFactor,
+            baseRatio,
+        };
+        updatedRawEffects.push(updatedEffect);
+        
+        // 更新effects对象
+        if (target) {
+            if (!effects[type]) effects[type] = {};
+            effects[type][target] = newValue;
+        } else {
+            effects[type] = newValue;
+        }
+    }
+    
+    return { effects, rawEffects: updatedRawEffects };
+};
+
 // ========== 忠诚度系统配置 ==========
 export const LOYALTY_CONFIG = {
     // 初始忠诚度范围
@@ -1212,48 +1453,59 @@ export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence 
 
     const sourceStratum = pickWeightedRandom(dynamicWeights);
 
-    // 2. 生成效果 (2-8个正面)
-    // 时代越后，更有可能产生多效果官员
-    let minEffects = 1;
-    if (epoch >= 3) minEffects = 2;
-    if (epoch >= 6) minEffects = 3;
+    // ========== 先生成核心属性（属性决定效果） ==========
+    // 威望 (Prestige): 20-80基础，根据阶层调整
+    let prestige = 30 + Math.floor(Math.random() * 40); // 30-70 基础
+    const prestigeStrata = { nobles: 15, landowner: 10, cleric: 8, merchant: 5, capitalist: 5 };
+    prestige += prestigeStrata[sourceStratum] || 0;
+    prestige = Math.min(100, Math.max(10, prestige));
 
-    let maxEffects = 3;
-    if (epoch >= 3) maxEffects = 4;
-    if (epoch >= 6) maxEffects = 5;
+    // 行政能力 (Administrative): 20-80基础，根据阶层调整
+    let administrative = 25 + Math.floor(Math.random() * 35); // 25-60 基础
+    const adminStrata = { scribe: 20, merchant: 10, engineer: 15, capitalist: 8 };
+    administrative += adminStrata[sourceStratum] || 0;
+    administrative = Math.min(100, Math.max(10, administrative));
 
-    // 随机生成数量
-    let effectCount = Math.floor(minEffects + Math.random() * (maxEffects - minEffects + 1));
+    // 军事能力 (Military): 20-60基础，根据阶层调整
+    let military = 15 + Math.floor(Math.random() * 30); // 15-45 基础
+    const militaryStrata = { soldier: 30, knight: 25, landowner: 10, navigator: 8 };
+    military += militaryStrata[sourceStratum] || 0;
+    military = Math.min(100, Math.max(5, military));
 
-    const rawEffects = [];
-    let totalCostScore = 0;
+    // 外交能力 (Diplomacy): 20-55基础，根据阶层调整
+    let diplomacy = 20 + Math.floor(Math.random() * 35); // 20-55 基础
+    const diplomacyStrata = { merchant: 20, cleric: 15, navigator: 15, capitalist: 10, scribe: 5 };
+    diplomacy += diplomacyStrata[sourceStratum] || 0;
+    diplomacy = Math.min(100, Math.max(5, diplomacy));
 
-    for (let i = 0; i < effectCount; i++) {
-        const eff = generateEffect(false, sourceStratum, epoch);
-        rawEffects.push(eff);
+    // 统一属性对象
+    const stats = { prestige, administrative, military, diplomacy };
 
-        // 估算成本分：将不同效果映射到可比较的成本区间
-        totalCostScore += normalizeEffectScore(eff, market, rates) * eff.costMultiplier;
-    }
+    // ========== 基于属性生成效果 ==========
+    const effectResult = generateEffectsFromStats(stats, epoch, {
+        minEffects: epoch >= 6 ? 3 : epoch >= 3 ? 2 : 1,
+        maxEffects: epoch >= 6 ? 5 : epoch >= 3 ? 4 : 3,
+    });
+
+    let { effects, rawEffects, totalCostScore } = effectResult;
+    const effectCount = rawEffects.length;
 
     // 3. 生成负面效果 (40% 概率，高时代概率略增)
     const drawbacks = [];
     let drawbackChance = 0.4 + (epoch * 0.03);
 
-    // 如果正面效果特别多 (3个以上)，负面效果概率显著增加，可能出现"高风险高回报"
+    // 如果正面效果特别多 (3个以上)，负面效果概率显著增加
     if (effectCount >= 3) drawbackChance += 0.3;
 
-    // 尝试生成第一个负面效果
+    // 尝试生成负面效果
     if (Math.random() < drawbackChance) {
         drawbacks.push(generateEffect(true, sourceStratum, epoch));
     }
 
-    // [Update] 额外负面效果：每多一个正面效果 (超过3个)，就有一定概率增加一个相关负面效果
-    // 让风险随收益增长，理论上5个正面效果可能伴随3个负面效果
+    // 额外负面效果
     if (drawbacks.length > 0 && effectCount > 3) {
-        const extraDrawbackChance = 0.65; // 提高至 65% 概率追加
-        let potentialExtras = effectCount - 3; // 4个正面->1次追加机会, 5个->2次
-
+        const extraDrawbackChance = 0.65;
+        let potentialExtras = effectCount - 3;
         for (let i = 0; i < potentialExtras; i++) {
             if (Math.random() < extraDrawbackChance) {
                 drawbacks.push(generateEffect(true, sourceStratum, epoch));
@@ -1264,11 +1516,10 @@ export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence 
     // 计算负面效果对成本分的抵消
     drawbacks.forEach(drawback => {
         const score = normalizeEffectScore(drawback, market, rates);
-        totalCostScore -= score * 0.5; // 负面效果抵消部分成本
+        totalCostScore -= score * 0.5;
     });
 
-    // 4. 构建效果对象 (合并同类)
-    const effects = {};
+    // 4. 将负面效果合并到effects对象
     const mergeIntoEffects = (eff) => {
         if (eff.target) {
             if (!effects[eff.type]) effects[eff.type] = {};
@@ -1278,7 +1529,6 @@ export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence 
         }
     };
 
-    rawEffects.forEach(mergeIntoEffects);
     drawbacks.forEach(mergeIntoEffects);
 
     // 5. 计算俸禄
@@ -1374,47 +1624,6 @@ export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence 
     greed = Math.max(0.3, Math.min(3.0, greed));
     greed = Math.round(greed * 100) / 100;
 
-    // ========== 生成核心属性 ==========
-    // 威望 (Prestige): 20-80基础，根据阶层和效果调整
-    let prestige = 30 + Math.floor(Math.random() * 40); // 30-70 基础
-    const prestigeStrata = { nobles: 15, landowner: 10, cleric: 8, merchant: 5, capitalist: 5 };
-    prestige += prestigeStrata[sourceStratum] || 0;
-    // 政治效果加成威望
-    if (effects.approval || effects.stability || effects.coalitionApproval) {
-        prestige += 10;
-    }
-    prestige = Math.min(100, Math.max(10, prestige));
-
-    // 行政能力 (Administrative): 20-80基础，根据阶层和效果调整
-    let administrative = 25 + Math.floor(Math.random() * 35); // 25-60 基础
-    const adminStrata = { scribe: 20, merchant: 10, engineer: 15, capitalist: 8 };
-    administrative += adminStrata[sourceStratum] || 0;
-    // 经济效果加成行政
-    if (effects.taxEfficiency || effects.incomePercent || effects.tradeBonus) {
-        administrative += 15;
-    }
-    administrative = Math.min(100, Math.max(10, administrative));
-
-    // 军事能力 (Military): 20-60基础，根据阶层和效果调整
-    let military = 15 + Math.floor(Math.random() * 30); // 15-45 基础
-    const militaryStrata = { soldier: 30, knight: 25, landowner: 10, navigator: 8 };
-    military += militaryStrata[sourceStratum] || 0;
-    // 军事效果加成
-    if (effects.militaryBonus || effects.militaryUpkeep) {
-        military += 20;
-    }
-    military = Math.min(100, Math.max(5, military));
-
-    // 外交能力 (Diplomacy): 新增属性
-    let diplomacy = 20 + Math.floor(Math.random() * 35); // 20-55 基础
-    const diplomacyStrata = { merchant: 20, cleric: 15, navigator: 15, capitalist: 10, scribe: 5 };
-    diplomacy += diplomacyStrata[sourceStratum] || 0;
-    // 贸易/外交效果加成
-    if (effects.tradeBonus || effects.diplomaticBonus) {
-        diplomacy += 15;
-    }
-    diplomacy = Math.min(100, Math.max(5, diplomacy));
-
     // ========== 等级与经验值系统 ==========
     const level = 1;
     const xp = 0;
@@ -1422,7 +1631,7 @@ export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence 
 
     // ========== 野心值计算 ==========
     // 野心基于总属性值 + 贪婪 + 随机因素
-    const totalStats = prestige + administrative + military + diplomacy;
+    const totalStats = stats.prestige + stats.administrative + stats.military + stats.diplomacy;
     let ambition = Math.floor(totalStats / 8) + Math.floor(greed * 20) + Math.floor(Math.random() * 15);
     ambition = Math.min(100, Math.max(5, ambition));
 
@@ -1445,17 +1654,12 @@ export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence 
         influence: 5 + (salary / 10),
         stratumInfluenceBonus,
         // 统一的核心属性对象
-        stats: {
-            prestige,       // 威望：影响独立倾向压制、精英满意度
-            administrative, // 行政：影响朝贡效率、腐败减少
-            military,       // 军事：影响稳定性、动荡压制
-            diplomacy,      // 外交：影响贸易加成、外交关系
-        },
+        stats,
         // 向后兼容：保留独立属性
-        prestige,
-        administrative,
-        military,
-        diplomacy,
+        prestige: stats.prestige,
+        administrative: stats.administrative,
+        military: stats.military,
+        diplomacy: stats.diplomacy,
         // 等级与成长系统
         level,
         xp,
