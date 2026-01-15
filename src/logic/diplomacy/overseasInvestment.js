@@ -12,6 +12,7 @@
 import { BUILDINGS, RESOURCES, STRATA } from '../../config/index.js';
 import { debugLog } from '../../utils/debugFlags.js';
 import { getMaxUpgradeLevel, getUpgradeCost, getBuildingEffectiveConfig } from '../../config/buildingUpgrades.js';
+import { VASSAL_TYPE_CONFIGS, getLaborWageMultiplier } from '../../config/diplomacy.js';
 
 // ===== 配置常量 =====
 
@@ -567,7 +568,8 @@ function calculateVassalWageCost(building, nation) {
 
     // 从附庸政策获取劳工工资修正
     const laborPolicy = nation?.vassalPolicy?.labor || 'standard';
-    const laborWageMultiplier = getLaborPolicyWageMultiplier(laborPolicy);
+    // Use centralized config for wage multiplier
+    const laborWageMultiplier = getLaborWageMultiplier(laborPolicy);
 
     let totalWage = 0;
     const wageBreakdown = [];
@@ -641,21 +643,6 @@ function calculateVassalWageCost(building, nation) {
     });
 
     return { total: totalWage, breakdown: wageBreakdown };
-}
-
-/**
- * 获取劳工政策对应的工资乘数
- * @param {string} laborPolicyId - 劳工政策ID
- * @returns {number} - 工资乘数
- */
-function getLaborPolicyWageMultiplier(laborPolicyId) {
-    // 内联定义以避免循环依赖
-    const multipliers = {
-        standard: 1.0,
-        exploitation: 0.6,
-        slavery: 0.3,
-    };
-    return multipliers[laborPolicyId] ?? 1.0;
 }
 
 /**
@@ -765,8 +752,13 @@ export function processOverseasInvestments({
         const inBloc = isInSameBloc(targetNation, organizations);
 
         if (isVassal) {
-            // 1. 附庸国 (Suzerain Privilege): 0% 税率 (附庸国无权收税)
-            targetTaxRate = 0.0;
+            // 1. 附庸国 (Suzerain Privilege): Based on Vassal Type Exemption
+            const vassalConfig = VASSAL_TYPE_CONFIGS[targetNation.vassalType];
+            // Base Treaty Rate (25%) reduced by exemption privilege
+            // If exemption is 1.0 (Colony), tax is 0.
+            // If exemption is 0.2 (Protectorate), tax is 25% * 0.8 = 20%.
+            const exemption = vassalConfig?.economicPrivileges?.profitTaxExemption || 0;
+            targetTaxRate = 0.25 * (1 - exemption);
         } else if (inBloc) {
             // 2. 经济共同体 (Common Market): 10% 税率
             targetTaxRate = 0.10;
@@ -903,7 +895,13 @@ export function establishOverseasInvestment({
     // Fix: building config uses 'baseCost', not 'cost'. Fallback matching UI logic.
     const costConfig = building.cost || building.baseCost || {};
     const baseCost = Object.values(costConfig).reduce((sum, v) => sum + v, 0);
-    const investmentCost = baseCost * 1.5;
+
+    // Apply Vassal Privilege Discount
+    const isVassal = targetNation.vassalOf === 'player';
+    const vassalConfig = isVassal ? VASSAL_TYPE_CONFIGS[targetNation.vassalType] : null;
+    const discount = vassalConfig?.economicPrivileges?.investmentCostDiscount || 0;
+
+    const investmentCost = baseCost * 1.5 * (1 - discount);
 
     // 检查业主阶层财富
     const stratumWealth = classWealth[ownerStratum] || 0;
@@ -1356,6 +1354,46 @@ export function processForeignInvestmentUpgrades({
         updatedInvestments,
         upgrades,
         logs,
+    };
+}
+
+/**
+ * 强制附庸国对玩家进行反向投资 (Demand Investment)
+ * @param {Object} vassal - 附庸国对象
+ * @param {string} buildingId - 建筑ID
+ * @returns {Object} - { success, message, investment, cost }
+ */
+export function demandVassalInvestment(vassal, buildingId) {
+    if (vassal.vassalOf !== 'player') {
+        return { success: false, message: '只能向附庸国索取投资' };
+    }
+
+    const building = BUILDINGS.find(b => b.id === buildingId);
+    if (!building) return { success: false, message: '无效的建筑类型' };
+
+    // Cost calculation (Standard cost for them)
+    const costConfig = building.cost || building.baseCost || {};
+    const baseCost = Object.values(costConfig).reduce((sum, v) => sum + v, 0);
+    // Foreign investment usually implies higher cost (transport etc), but this is forced capital flight.
+    // Let's say standard cost.
+    const investmentCost = baseCost * 1.2;
+
+    if ((vassal.wealth || 0) < investmentCost) {
+        return { success: false, message: `${vassal.name} 国库资金不足` };
+    }
+
+    // Create the foreign investment record
+    const investment = createForeignInvestment({
+        buildingId,
+        ownerNationId: vassal.id,
+        investorStratum: 'state', // State-owned (forced)
+    });
+
+    return {
+        success: true,
+        message: `成功迫使 ${vassal.name} 投资 ${building.name}`,
+        investment,
+        cost: investmentCost
     };
 }
 

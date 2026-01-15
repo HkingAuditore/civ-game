@@ -255,6 +255,14 @@ export const processVassalUpdates = ({
                         // Override cost with governor-calculated cost
                         totalControlCost += govEffects.dailyCost - dailyCost; // Adjust by difference
 
+                        // [NEW] Governor Mandate Effects (Persistent State)
+                        if (govEffects.mandateId === 'develop') {
+                            // Develop: Increase Wealth
+                            // Based on Admin skill (tributeModifier scales with Admin)
+                            const growth = Math.floor((updated.wealth || 500) * 0.002 * (govEffects.tributeModifier || 1.0));
+                            updated.wealth = (updated.wealth || 0) + growth;
+                        }
+
                         break;
                     }
 
@@ -369,7 +377,7 @@ export const processVassalUpdates = ({
 
         // ========== 2. 每30天结算朝贡（使用新的计算方式） ==========
         if (daysElapsed > 0 && daysElapsed % 30 === 0) {
-            const tribute = calculateEnhancedTribute(updated, playerWealth);
+            const tribute = calculateEnhancedTribute(updated);
 
             if (tribute.silver > 0) {
                 tributeIncome += tribute.silver;
@@ -457,7 +465,15 @@ export const processVassalUpdates = ({
 
         // 如果当前政策允许恢复（不是直接统治），且低于目标值，则缓慢恢复
         if (governancePolicy !== 'direct_rule' && (updated.autonomy || 0) < targetAutonomy) {
-             updated.autonomy = Math.min(targetAutonomy, (updated.autonomy || 0) + 0.1);
+             let recoveryRate = 0.1;
+
+             // [NEW] Governor 'develop' mandate boosts autonomy recovery
+             const governor = updated.vassalPolicy?.controlMeasures?.governor;
+             if (governor && governor.active !== false && governor.mandate === 'develop') {
+                 recoveryRate += 0.1; // Double recovery speed
+             }
+
+             updated.autonomy = Math.min(targetAutonomy, (updated.autonomy || 0) + recoveryRate);
         }
 
         return updated;
@@ -480,12 +496,11 @@ export const processVassalUpdates = ({
 
 /**
  * 计算朝贡金额（重构版）
- * 基于玩家财富和附庸规模计算有意义的朝贡金额
+ * 基于附庸经济状况计算有意义的朝贡金额
  * @param {Object} vassalNation - 附庸国对象
- * @param {number} playerWealth - 玩家财富（可选）
  * @returns {Object} { silver: 金钱朝贡, resources: 资源朝贡 }
  */
-export const calculateEnhancedTribute = (vassalNation, playerWealth = 10000) => {
+export const calculateEnhancedTribute = (vassalNation) => {
     if (!vassalNation || vassalNation.vassalOf === null) {
         return { silver: 0, resources: {} };
     }
@@ -496,16 +511,13 @@ export const calculateEnhancedTribute = (vassalNation, playerWealth = 10000) => 
     const vassalWealth = vassalNation.wealth || 500;
 
     // 计算基础朝贡金额
-    // 公式: max(固定基数, 玩家财富×比例) × 附庸财富占比 × 朝贡率
-    const playerBasedTribute = playerWealth * config.playerWealthRate;
+    // 公式: 基础值 + 附庸财富 * 比例
+    // 完全移除玩家财富依赖，确保自洽性 (Updated per user request)
     const vassalBasedTribute = vassalWealth * config.vassalWealthRate;
 
-    let baseTribute = Math.max(
-        config.baseAmount,
-        playerBasedTribute * 0.5 + vassalBasedTribute * 0.5
-    );
+    let baseTribute = config.baseAmount + vassalBasedTribute;
 
-    // 应用朝贡率
+    // 应用朝贡率 (这是政策设定的比例，如10%)
     baseTribute *= tributeRate;
 
     // 附庸规模系数
@@ -874,7 +886,7 @@ export const calculateVassalBenefits = (nations, playerWealth = 10000) => {
     let totalControlCost = 0;  // NEW: Calculate total control costs
 
     vassals.forEach(vassal => {
-        const tribute = calculateEnhancedTribute(vassal, playerWealth);
+        const tribute = calculateEnhancedTribute(vassal);
         totalTribute += tribute.silver;
 
         // 汇总资源朝贡
@@ -1060,4 +1072,73 @@ export const validateGovernorAssignments = (nations, officials) => {
     });
 
     return { nations: updatedNations, removedGovernors };
+};
+
+/**
+ * 请求附庸国派遣远征军 (Expeditionary Force)
+ * 仅适用于 tributary (朝贡国) 或更高义务
+ * @param {Object} vassal - 附庸国
+ * @returns {Object} - { success, units, message }
+ */
+export const requestExpeditionaryForce = (vassal) => {
+    const config = VASSAL_TYPE_CONFIGS[vassal.vassalType];
+    const obligation = config?.militaryObligation;
+
+    if (obligation !== 'expeditionary' && obligation !== 'auto_join') {
+        return { success: false, message: '该附庸国没有派遣远征军的义务' };
+    }
+
+    if ((vassal.manpower || 0) < 1000) {
+        return { success: false, message: '附庸国人力不足' };
+    }
+
+    // Calculate force size (e.g., 10% of military strength equivalent)
+    // Simply transfer raw manpower for now, or generate units
+    // Let's transfer Manpower to Player as "Volunteers"
+    const forceSize = Math.floor((vassal.manpower || 0) * 0.1);
+
+    // Deduct from vassal
+    vassal.manpower -= forceSize;
+
+    return {
+        success: true,
+        manpower: forceSize,
+        message: `${vassal.name} 派遣了 ${forceSize} 名志愿军支援前线。`
+    };
+};
+
+/**
+ * 请求附庸国参战 (Call to Arms)
+ * 适用于 protectorate (保护国) - 需付费
+ * @param {Object} vassal - 附庸国
+ * @param {Object} targetEnemy - 目标敌国 (AI Nation)
+ * @param {number} playerWealth - 玩家当前资金
+ * @returns {Object} - { success, cost, message }
+ */
+export const requestWarParticipation = (vassal, targetEnemy, playerWealth) => {
+    const config = VASSAL_TYPE_CONFIGS[vassal.vassalType];
+    const obligation = config?.militaryObligation;
+
+    if (obligation === 'auto_join') {
+        return { success: false, message: '该附庸国会自动参战，无需请求' };
+    }
+
+    // Calculate cost
+    // Base cost 500 + 10% of Vassal Wealth
+    const cost = 500 + Math.floor((vassal.wealth || 0) * 0.1);
+
+    if (playerWealth < cost) {
+        return { success: false, message: `资金不足，需要 ${cost} 银币` };
+    }
+
+    // Check willingness (Relations)
+    if ((vassal.relation || 50) < 40) {
+        return { success: false, message: '关系过低，拒绝参战' };
+    }
+
+    return {
+        success: true,
+        cost,
+        message: `${vassal.name} 同意参战，花费 ${cost} 银币。`
+    };
 };

@@ -917,3 +917,41 @@ export const processAIInvestmentSuggestions = ({
 
     return suggestions;
 };
+
+/**
+ * Check and generate vassal autonomous requests (Autonomous Behavior)
+ * @param {Array} vassals - Player vassals
+ * @param {number} tick - Current tick
+ * @param {Array} logs - Logs
+ */
+export const checkVassalRequests = (vassals, tick, logs) => {
+    vassals.forEach(v => {
+        // 1. Request Lower Tribute (High Unrest + High Tribute)
+        if ((v.unrest || 0) > 40 && (v.tributeRate || 0) > 0.1) {
+            // Check cooldown
+            const lastRequest = v.lastTributeRequestDay || 0;
+            if (tick - lastRequest > 180 && Math.random() < 0.02) {
+                v.lastTributeRequestDay = tick;
+                logs.push(`📜 ${v.name} 因国内动荡严重（${Math.floor(v.unrest)}%），正式请求宗主国降低朝贡率。`);
+            }
+        }
+
+        // 2. Request Economic Aid (Low Wealth)
+        if ((v.wealth || 0) < 200) {
+            const lastRequest = v.lastAidRequestDay || 0;
+            if (tick - lastRequest > 120 && Math.random() < 0.03) {
+                v.lastAidRequestDay = tick;
+                logs.push(`🆘 ${v.name} 财政濒临破产（仅剩 ${Math.floor(v.wealth)} 银币），请求宗主国紧急援助。`);
+            }
+        }
+
+        // 3. Request Investment (High Relations + Good Stability)
+        if ((v.relation || 0) > 80 && (v.unrest || 0) < 20) {
+            const lastRequest = v.lastInvestRequestDay || 0;
+            if (tick - lastRequest > 365 && Math.random() < 0.01) {
+                v.lastInvestRequestDay = tick;
+                logs.push(`📈 ${v.name} 局势稳定，邀请宗主国资本家进场投资以带动经济。`);
+            }
+        }
+    });
+};

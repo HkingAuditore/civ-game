@@ -1,5 +1,6 @@
 
 import { RESOURCES, ORGANIZATION_EFFECTS } from '../../config';
+import { VASSAL_TYPE_CONFIGS, TRADE_POLICY_DEFINITIONS } from '../../config/diplomacy';
 import { calculateForeignPrice, calculateTradeStatus } from '../../utils/foreignTrade';
 
 /**
@@ -34,9 +35,39 @@ export const processManualTradeRoutes = ({
     const findSharedOrganization = (nationId) => organizationList.find(org =>
         Array.isArray(org?.members) && org.members.includes('player') && org.members.includes(nationId)
     );
-    const getTariffDiscount = (nationId) => {
+    const getTariffDiscount = (nationId, nation) => {
+        let discount = 0;
+
+        // Organization Discount
         const org = findSharedOrganization(nationId);
-        return org ? (ORGANIZATION_EFFECTS[org.type]?.tariffDiscount || 0) : 0;
+        if (org) discount = Math.max(discount, ORGANIZATION_EFFECTS[org.type]?.tariffDiscount || 0);
+
+        // Vassal Policy Discount
+        if (nation && nation.vassalOf === 'player') {
+            const policyId = nation.vassalPolicy?.tradePolicy;
+            const policyDiscount = TRADE_POLICY_DEFINITIONS[policyId]?.tariffDiscount || 0;
+            const typeDiscount = VASSAL_TYPE_CONFIGS[nation.vassalType]?.tariffDiscount || 0;
+            discount = Math.max(discount, policyDiscount, typeDiscount);
+        }
+
+        return discount;
+    };
+
+    // Helper to get price modifier from vassal policy
+    const getVassalPriceMultiplier = (nation, type) => {
+        if (!nation || nation.vassalOf !== 'player') return 1.0;
+
+        const policyId = nation.vassalPolicy?.tradePolicy;
+        const mod = TRADE_POLICY_DEFINITIONS[policyId]?.playerPriceMod || 0;
+
+        // Negative mod = Cheaper for player to buy (Import)
+        // Positive mod = More expensive for player to sell (Export, assuming dumping forces high price)
+
+        if (type === 'import') {
+            return 1 + Math.min(0, mod);
+        } else {
+            return 1 + Math.max(0, mod);
+        }
     };
 
     // Configuration
@@ -135,13 +166,17 @@ export const processManualTradeRoutes = ({
             const domesticPurchaseCost = localPrice * exportAmount;
             const taxRate = taxPolicies?.resourceTaxRates?.[resource] || 0;
             const tariffRate = taxPolicies?.exportTariffMultipliers?.[resource] ?? taxPolicies?.resourceTariffMultipliers?.[resource] ?? 0;
-            const tariffDiscount = getTariffDiscount(nationId);
+            const tariffDiscount = getTariffDiscount(nationId, nation);
             const adjustedTariffRate = tariffRate * (1 - tariffDiscount);
             const effectiveTaxRate = taxRate + adjustedTariffRate;
             const tradeTax = domesticPurchaseCost * effectiveTaxRate;
 
             const dumpingDiscount = 0.6;
-            const effectiveForeignPrice = isForceSell ? foreignPrice * dumpingDiscount : foreignPrice;
+            let effectiveForeignPrice = isForceSell ? foreignPrice * dumpingDiscount : foreignPrice;
+
+            // Apply Vassal Price Modifier (for Exports)
+            effectiveForeignPrice *= getVassalPriceMultiplier(nation, 'export');
+
             const foreignSaleRevenue = effectiveForeignPrice * exportAmount;
             const merchantProfit = foreignSaleRevenue - domesticPurchaseCost - tradeTax;
 
@@ -178,13 +213,17 @@ export const processManualTradeRoutes = ({
 
             // Financials
             const forcedPremium = 1.3;
-            const effectiveForeignPrice = isForceBuy ? foreignPrice * forcedPremium : foreignPrice;
+            let effectiveForeignPrice = isForceBuy ? foreignPrice * forcedPremium : foreignPrice;
+
+            // Apply Vassal Price Modifier (for Imports - Looting/Preferential)
+            effectiveForeignPrice *= getVassalPriceMultiplier(nation, 'import');
+
             const foreignPurchaseCost = effectiveForeignPrice * importAmount;
 
             const domesticSaleRevenue = localPrice * importAmount;
             const taxRate = taxPolicies?.resourceTaxRates?.[resource] || 0;
             const tariffRate = taxPolicies?.importTariffMultipliers?.[resource] ?? taxPolicies?.resourceTariffMultipliers?.[resource] ?? 0;
-            const tariffDiscount = getTariffDiscount(nationId);
+            const tariffDiscount = getTariffDiscount(nationId, nation);
             const adjustedTariffRate = tariffRate * (1 - tariffDiscount);
             const effectiveTaxRate = taxRate + adjustedTariffRate;
             const tradeTax = domesticSaleRevenue * effectiveTaxRate;
