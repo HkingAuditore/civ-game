@@ -240,7 +240,8 @@ import {
     processRebellionSystemDaily,
     getRebellionRiskAssessment,
 } from './diplomacy';
-import { calculateOverseasInvestmentSummary } from './diplomacy/overseasInvestment';
+import { calculateOverseasInvestmentSummary, processOverseasInvestments, processForeignInvestments, processOverseasInvestmentUpgrades, processForeignInvestmentUpgrades } from './diplomacy/overseasInvestment';
+import { processManualTradeRoutes } from './economy/manualTrade';
 
 export const simulateTick = ({
     resources,
@@ -268,7 +269,7 @@ export const simulateTick = ({
     classWealthHistory,
     classNeedsHistory,
     merchantState = { pendingTrades: [], lastTradeTime: 0 },
-    tradeRouteTax = 0,
+    tradeRouteTax: initialTradeRouteTax = 0,
     maxPopBonus = 0,
     eventApprovalModifiers = {},
     eventStabilityModifier = 0,
@@ -294,11 +295,41 @@ export const simulateTick = ({
     previousTaxShock = {}, // [NEW] 上一tick各阶层的累积税收冲击值，用于防止"快速抬税后降税"的漏洞
     eventEffectSettings = {}, // [NEW] Event effect settings including log visibility
     foreignInvestments = [], // [NEW] Foreign investments for profit calculation
+    overseasInvestments = [], // [NEW] Overseas investments for processing
+    tradeRoutes = {}, // [NEW] Trade routes for manual trade processing
+    foreignInvestmentPolicy = 'normal', // [NEW] Policy for foreign investments
     tradeOpportunities: previousTradeOpportunities = null, // [NEW] Cache for trade opportunities
 }) => {
     // console.log('[TICK START]', tick); // Commented for performance
     const res = { ...resources };
     const priceMap = { ...(market?.prices || {}) };
+    let calculatedTradeRouteTax = 0;
+
+    // === Process Manual Trade Routes (Worker Side) ===
+    let tradeRouteSummary = null;
+    if (tradeRoutes && tradeRoutes.routes && tradeRoutes.routes.length > 0) {
+        tradeRouteSummary = processManualTradeRoutes({
+            tradeRoutes,
+            nations,
+            resources: res, // Pass current resources snapshot
+            daysElapsed: tick,
+            market: { prices: priceMap },
+            popStructure: previousPopStructure,
+            taxPolicies,
+            diplomacyOrganizations
+        });
+
+        if (tradeRouteSummary) {
+            calculatedTradeRouteTax = tradeRouteSummary.tradeTax || 0;
+
+            // Apply resource deltas immediately to simulation snapshot
+            if (tradeRouteSummary.resourceDelta) {
+                Object.entries(tradeRouteSummary.resourceDelta).forEach(([key, delta]) => {
+                    res[key] = Math.max(0, (res[key] || 0) + delta);
+                });
+            }
+        }
+    }
 
     // === 资源变化追踪系统 ===
     // Silver change log (for financial reporting)
@@ -316,6 +347,12 @@ export const simulateTick = ({
         resourceChangeLog[resourceType].push({ amount, reason, balance: res[resourceType] || 0 });
     };
 
+    // Track trade tax in silver log if any
+    if (calculatedTradeRouteTax > 0) {
+        // We add it to 'rates' later, but for 'trackSilverChange' purposes we should log it?
+        // Actually trackSilverChange is defined below. We will call it there.
+    }
+
     // Helper: modify res[resourceType] AND track the change in one call (for traceability)
     const applyResourceChange = (resourceType, amount, reason) => {
         if (amount === 0) return;
@@ -331,6 +368,15 @@ export const simulateTick = ({
     const applySilverChange = (amount, reason) => {
         applyResourceChange('silver', amount, reason);
     };
+
+    // Record trade tax if calculated
+    if (calculatedTradeRouteTax > 0) {
+        // Note: Manual trade logic adds the *resources* (import/export), but the tax revenue
+        // is usually handled as a separate silver addition.
+    }
+    // [FIX] Trade tax is calculated per-tick based on active routes.
+    // Do not add initialTradeRouteTax (previous tick's value) to avoid double counting/accumulation.
+    const tradeRouteTax = calculatedTradeRouteTax;
 
     // Adapter callback for external modules (different argument order)
     // External modules call: onResourceChange(delta, reason, resourceType)
@@ -369,8 +415,10 @@ export const simulateTick = ({
 
     const startingSilver = res.silver || 0;
 
-    // NEW: Track actual consumption by stratum for UI display
-    const stratumConsumption = {};
+    // === Process Overseas & Foreign Investments (Worker Side) ===
+    let updatedOverseasInvestments = [...overseasInvestments];
+    let updatedForeignInvestments = [...foreignInvestments];
+    let investmentLogs = [];
     // NEW: Track supply source breakdown
     const supplyBreakdown = {};
 
@@ -458,7 +506,14 @@ export const simulateTick = ({
     const demandBreakdown = {};
     const supply = {};
     const wealth = initializeWealth(classWealth);
-    const getHeadTaxRate = (key) => getHeadTaxRateFromModule(key, headTaxRates);
+
+    // Apply Overseas Investment Profits (Calculated above) to Wealth
+    // We need to re-run calculation or extract it?
+    // Actually, processOverseasInvestments depends on 'classWealth' input.
+    // If we pass the raw 'classWealth' param, it's fine.
+    // But we need to update the 'wealth' object (which is the working copy) with the profits.
+    // Let's move the Overseas Investment execution AFTER wealth init?
+    // Yes, cleaner.
     const getResourceTaxRate = (resource) => {
         const rate = resourceTaxRates[resource];
         if (typeof rate === 'number') return rate; // 允许负税率
@@ -486,6 +541,66 @@ export const simulateTick = ({
 
     // REFACTORED: Use imported function from ./buildings/effects
     const bonuses = initializeBonuses();
+
+    // === Execute Investment Logic (Now that Wealth/Ledger is ready) ===
+
+    // 1. Overseas Investments (Player -> AI)
+    if (overseasInvestments.length > 0) {
+        const oiResult = processOverseasInvestments({
+            overseasInvestments, // Use original input
+            nations,
+            organizations: diplomacyOrganizations?.organizations || [],
+            resources: res,
+            marketPrices: priceMap,
+            classWealth: wealth, // Use the working wealth object (simulating direct mutation)
+            daysElapsed: tick,
+        });
+
+        updatedOverseasInvestments = oiResult.updatedInvestments;
+        investmentLogs.push(...oiResult.logs);
+
+        // Apply profits to wealth
+        if (oiResult.profitByStratum) {
+            Object.entries(oiResult.profitByStratum).forEach(([stratum, profit]) => {
+                if (profit > 0) {
+                    // Update wealth directly
+                    wealth[stratum] = (wealth[stratum] || 0) + profit;
+                    // Log in financial data
+                    if (classFinancialData[stratum]) {
+                        classFinancialData[stratum].income.ownerRevenue = (classFinancialData[stratum].income.ownerRevenue || 0) + profit;
+                    }
+                }
+            });
+        }
+
+        // Apply market/player resource changes
+        if (oiResult.playerInventoryChanges) {
+            Object.entries(oiResult.playerInventoryChanges).forEach(([key, delta]) => {
+                res[key] = Math.max(0, (res[key] || 0) + delta);
+            });
+        }
+
+        // Process Upgrades
+        const upgradeResult = processOverseasInvestmentUpgrades({
+            overseasInvestments: updatedOverseasInvestments,
+            nations,
+            classWealth: wealth,
+            marketPrices: priceMap,
+            daysElapsed: tick,
+        });
+
+        if (upgradeResult.upgrades && upgradeResult.upgrades.length > 0) {
+            updatedOverseasInvestments = upgradeResult.updatedInvestments;
+            investmentLogs.push(...upgradeResult.logs);
+            // Deduct costs
+            if (upgradeResult.wealthChanges) {
+                Object.entries(upgradeResult.wealthChanges).forEach(([stratum, delta]) => {
+                    // delta is negative for cost
+                    wealth[stratum] = Math.max(0, (wealth[stratum] || 0) + delta);
+                });
+            }
+        }
+    }
 
     // 2.1 Calculate Cabinet Effects
     // [NEW] Calculate cabinet status to get synergy, dominance, and reform decree effects
@@ -4267,6 +4382,20 @@ export const simulateTick = ({
 
     let updatedNations = (nations || []).map(nation => {
         const next = { ...nation };
+
+        // Apply manual trade deltas (from processManualTradeRoutes)
+        if (tradeRouteSummary?.nationDelta && tradeRouteSummary.nationDelta[nation.id]) {
+            const delta = tradeRouteSummary.nationDelta[nation.id];
+            next.budget = Math.max(0, (next.budget || 0) + (delta.budget || 0));
+            next.relation = Math.min(100, Math.max(-100, (next.relation || 0) + (delta.relation || 0)));
+            if (delta.inventory) {
+                next.inventory = next.inventory || {};
+                Object.entries(delta.inventory).forEach(([k, v]) => {
+                    next.inventory[k] = Math.max(0, (next.inventory[k] || 0) + v);
+                });
+            }
+        }
+
         const visible = visibleEpoch >= (nation.appearEpoch ?? 0) && (nation.expireEpoch == null || visibleEpoch <= nation.expireEpoch);
         if (!visible) {
             // 当国家因时代变化而不可见时，清除战争状态和相关数据
@@ -6051,6 +6180,76 @@ export const simulateTick = ({
         });
     }
 
+    // 2. Foreign Investments (AI -> Player) - Executed AFTER jobFill is populated
+    if (foreignInvestments.length > 0) {
+        const fiResult = processForeignInvestments({
+            foreignInvestments: updatedForeignInvestments,
+            nations: updatedNations, // Use updated nations
+            organizations: diplomacyOrganizations?.organizations || [],
+            playerMarket: { prices: updatedPrices },
+            playerResources: res,
+            foreignInvestmentPolicy,
+            daysElapsed: tick,
+            jobFill: buildingJobFill,
+            buildings: builds,
+        });
+
+        updatedForeignInvestments = fiResult.updatedInvestments;
+        investmentLogs.push(...fiResult.logs);
+
+        if (fiResult.taxRevenue > 0) {
+            applySilverChange(fiResult.taxRevenue, 'foreign_investment_tax');
+        }
+
+        // Apply market changes (from foreign operation)
+        if (fiResult.marketChanges) {
+            Object.entries(fiResult.marketChanges).forEach(([key, delta]) => {
+                // If it's resource accumulation/depletion in player market
+                // Note: processForeignInvestments returns 'marketChanges' for player resource changes
+                // But wait, the function modifies playerResources directly? No, it takes it as input.
+                // It returns marketChanges.
+                // Let's verify `processForeignInvestments` implementation.
+                // It calculates profit but does NOT modify `playerResources` in place inside calculation.
+                // It returns `marketChanges`.
+                res[key] = Math.max(0, (res[key] || 0) + delta);
+            });
+        }
+
+        // Foreign Upgrades
+        const upgradeResult = processForeignInvestmentUpgrades({
+            foreignInvestments: updatedForeignInvestments,
+            nations: updatedNations,
+            playerMarket: { prices: updatedPrices },
+            playerResources: res,
+            buildingUpgrades: updatedBuildingUpgrades, // Use the updated upgrades from earlier
+            buildingCounts: builds,
+            daysElapsed: tick,
+        });
+
+        if (upgradeResult.upgrades && upgradeResult.upgrades.length > 0) {
+            updatedForeignInvestments = upgradeResult.updatedInvestments;
+            investmentLogs.push(...upgradeResult.logs);
+            // Costs are deducted from owner nation wealth inside updateNations?
+            // No, processForeignInvestmentUpgrades just returns the result. We need to update nations.
+            // But we already finished mapping updatedNations.
+            // We should update `updatedNations` again.
+            upgradeResult.upgrades.forEach(u => {
+                const nation = updatedNations.find(n => n.id === u.ownerNationId);
+                if (nation) {
+                    nation.wealth = Math.max(0, (nation.wealth || 0) - u.cost);
+                }
+            });
+        }
+    }
+
+    // Merge investment logs
+    logs.push(...investmentLogs);
+    // Add manual trade logs
+    if (tradeRouteSummary?.tradeLog) {
+        // Gated by log settings? Usually handled in UI, but simulation just returns them.
+        logs.push(...tradeRouteSummary.tradeLog);
+    }
+
     // Trade Opportunities Analysis (Throttled: every 10 ticks)
     const tradeOpportunities = (tick % 10 === 0)
         ? analyzeTradeOpportunities({
@@ -6068,10 +6267,13 @@ export const simulateTick = ({
     // console.log('[TICK END]', tick, 'militaryCapacity:', militaryCapacity); // Commented for performance
 
     // [NEW] Calculate foreign investment stats
-    const foreignStats = calculateOverseasInvestmentSummary(foreignInvestments);
+    const foreignStats = calculateOverseasInvestmentSummary(updatedForeignInvestments);
 
     return {
         tradeOpportunities,
+        tradeRoutes: tradeRoutes ? { ...tradeRoutes, routes: tradeRoutes.routes.filter(r => !tradeRouteSummary?.routesToRemove?.includes(r)) } : undefined,
+        overseasInvestments: updatedOverseasInvestments,
+        foreignInvestments: updatedForeignInvestments,
         resources: res,
         rates,
         popStructure,
