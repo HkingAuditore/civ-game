@@ -1374,7 +1374,7 @@ export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence 
     greed = Math.max(0.3, Math.min(3.0, greed));
     greed = Math.round(greed * 100) / 100;
 
-    // ========== NEW: 生成核心属性 (用于总督系统) ==========
+    // ========== 生成核心属性 ==========
     // 威望 (Prestige): 20-80基础，根据阶层和效果调整
     let prestige = 30 + Math.floor(Math.random() * 40); // 30-70 基础
     const prestigeStrata = { nobles: 15, landowner: 10, cleric: 8, merchant: 5, capitalist: 5 };
@@ -1405,28 +1405,68 @@ export const generateRandomOfficial = (epoch, popStructure = {}, classInfluence 
     }
     military = Math.min(100, Math.max(5, military));
 
+    // 外交能力 (Diplomacy): 新增属性
+    let diplomacy = 20 + Math.floor(Math.random() * 35); // 20-55 基础
+    const diplomacyStrata = { merchant: 20, cleric: 15, navigator: 15, capitalist: 10, scribe: 5 };
+    diplomacy += diplomacyStrata[sourceStratum] || 0;
+    // 贸易/外交效果加成
+    if (effects.tradeBonus || effects.diplomaticBonus) {
+        diplomacy += 15;
+    }
+    diplomacy = Math.min(100, Math.max(5, diplomacy));
+
+    // ========== 等级与经验值系统 ==========
+    const level = 1;
+    const xp = 0;
+    const xpToNextLevel = 100; // 初始升级所需经验
+
+    // ========== 野心值计算 ==========
+    // 野心基于总属性值 + 贪婪 + 随机因素
+    const totalStats = prestige + administrative + military + diplomacy;
+    let ambition = Math.floor(totalStats / 8) + Math.floor(greed * 20) + Math.floor(Math.random() * 15);
+    ambition = Math.min(100, Math.max(5, ambition));
+
+    // ========== 基于野心调整薪资需求 ==========
+    // 野心越高，薪资需求越高
+    const ambitionSalaryMultiplier = 1 + (ambition - 30) * 0.01; // 30为基准，每超过1点+1%
+    const finalSalary = Math.round(salary * Math.max(0.8, ambitionSalaryMultiplier));
+
     return {
         id,
         name,
         sourceStratum,
         effects,
         rawEffects,
-        salary,
+        salary: finalSalary,
+        baseSalary: salary, // 保留原始薪资用于参考
         hireDate: null,
         wealth: 0, // 官员个人财富，初始为0
         greed, // 个人贪婪度
         influence: 5 + (salary / 10),
         stratumInfluenceBonus,
-        // NEW: 核心属性 (用于总督系统)
-        prestige,           // 威望：影响独立倾向压制、精英满意度
-        administrative,     // 行政：影响朝贡效率、腐败减少
-        military,           // 军事：影响稳定性、动荡压制
+        // 统一的核心属性对象
+        stats: {
+            prestige,       // 威望：影响独立倾向压制、精英满意度
+            administrative, // 行政：影响朝贡效率、腐败减少
+            military,       // 军事：影响稳定性、动荡压制
+            diplomacy,      // 外交：影响贸易加成、外交关系
+        },
+        // 向后兼容：保留独立属性
+        prestige,
+        administrative,
+        military,
+        diplomacy,
+        // 等级与成长系统
+        level,
+        xp,
+        xpToNextLevel,
+        ambition, // 野心值
         // 政治立场信息
         politicalStance: stanceResult.stanceId,
-        stanceConditionParams: stanceResult.conditionParams, // 条件参数数组
-        stanceConditionText: stanceResult.conditionText, // 条件文本显示
-        stanceActiveEffects: stanceResult.activeEffects, // 该官员独特的满足效果
-        stanceUnsatisfiedPenalty: stanceResult.unsatisfiedPenalty, // 该官员独特的不满足惩罚
+        stanceConditionParams: stanceResult.conditionParams,
+        stanceConditionText: stanceResult.conditionText,
+        stanceActiveEffects: stanceResult.activeEffects,
+        stanceUnsatisfiedPenalty: stanceResult.unsatisfiedPenalty,
     };
 };
 

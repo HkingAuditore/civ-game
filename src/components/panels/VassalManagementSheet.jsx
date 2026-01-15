@@ -877,7 +877,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                                             ) : (
                                                 officials.filter(o => o && !o.isBusy).map(official => (
                                                     <option key={official.id} value={official.id}>
-                                                        {official.name} (威{official.prestige || 50}/政{official.administrative || 50}/军{official.military || 30})
+                                                        {official.name} (威{official.stats?.prestige ?? official.prestige ?? 50}/政{official.stats?.administrative ?? official.administrative ?? 50}/军{official.stats?.military ?? official.military ?? 30}/交{official.stats?.diplomacy ?? official.diplomacy ?? 30})
                                                     </option>
                                                 ))
                                             )}

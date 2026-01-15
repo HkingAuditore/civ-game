@@ -78,6 +78,7 @@ import { getTreatyDailyMaintenance } from '../config/diplomacy';
 import { processVassalUpdates } from '../logic/diplomacy/vassalSystem';
 import { checkVassalRequests } from '../logic/diplomacy/aiDiplomacy';
 import { LOYALTY_CONFIG } from '../config/officials';
+import { updateAllOfficialsDaily } from '../logic/officials/progression';
 
 const calculateRebelPopulation = (stratumPop = 0) => {
     if (!Number.isFinite(stratumPop) || stratumPop <= 0) return 0;
@@ -1634,6 +1635,24 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             vassalLogs.forEach(log => addLog(log));
                         }
                     }
+                }
+
+                // ========== 官员成长系统（每日经验与升级） ==========
+                let progressionChanges = [];
+                if (result.officials && result.officials.length > 0) {
+                    const progressionResult = updateAllOfficialsDaily(result.officials, {
+                        daysElapsed: current.daysElapsed,
+                    });
+                    result.officials = progressionResult.updatedOfficials;
+                    progressionChanges = progressionResult.allChanges || [];
+                    
+                    // Log level ups
+                    progressionChanges.filter(c => c.type === 'level_up').forEach(change => {
+                        const statDetails = Object.entries(change.statChanges || {})
+                            .map(([stat, val]) => `${stat}+${val}`)
+                            .join(', ');
+                        addLog(`🎖️ ${change.officialName} 晋升至 Lv.${change.newLevel}！(${statDetails})`);
+                    });
                 }
 
                 // ========== 官僚政变检测（基于忠诚度系统） ==========

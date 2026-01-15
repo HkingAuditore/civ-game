@@ -11,10 +11,10 @@ import { calculateControlMeasureCost, checkGarrisonEffectiveness, calculateGover
 /**
  * 政策选项卡片
  */
-const PolicyOptionCard = memo(({ 
-    selected, 
-    title, 
-    description, 
+const PolicyOptionCard = memo(({
+    selected,
+    title,
+    description,
     effects,
     effectColor = 'text-gray-400',
     onClick,
@@ -25,17 +25,16 @@ const PolicyOptionCard = memo(({
         disabled={disabled}
         className={`
             w-full p-2 rounded-lg border transition-all text-left
-            ${selected 
-                ? 'border-blue-500 bg-blue-900/30' 
+            ${selected
+                ? 'border-blue-500 bg-blue-900/30'
                 : 'border-gray-600/50 bg-gray-800/30 hover:bg-gray-700/30'
             }
             ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
         `}
     >
         <div className="flex items-center gap-2 mb-1">
-            <div className={`w-3 h-3 rounded-full border-2 ${
-                selected ? 'border-blue-400 bg-blue-400' : 'border-gray-500'
-            }`} />
+            <div className={`w-3 h-3 rounded-full border-2 ${selected ? 'border-blue-400 bg-blue-400' : 'border-gray-500'
+                }`} />
             <span className={`text-sm font-bold ${selected ? 'text-white' : 'text-gray-300'} font-decorative`}>
                 {title}
             </span>
@@ -52,12 +51,12 @@ const PolicyOptionCard = memo(({
 /**
  * 滑动条控制
  */
-const SliderControl = memo(({ 
-    label, 
-    value, 
-    onChange, 
-    min, 
-    max, 
+const SliderControl = memo(({
+    label,
+    value,
+    onChange,
+    min,
+    max,
     step = 1,
     format = (v) => `${v}%`,
     description,
@@ -66,7 +65,7 @@ const SliderControl = memo(({
 }) => {
     const percentage = ((value - min) / (max - min)) * 100;
     const showWarning = warningThreshold && value >= warningThreshold;
-    
+
     return (
         <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -113,7 +112,7 @@ const SliderControl = memo(({
  */
 const AutonomyEffectsDisplay = memo(({ autonomy }) => {
     const effects = getAutonomyEffects(autonomy);
-    
+
     return (
         <div className="bg-gray-800/50 rounded-lg p-2 mt-2">
             <div className="text-xs text-gray-400 mb-1 font-body">当前自主度权限：</div>
@@ -280,11 +279,11 @@ const OfficialSelector = memo(({
                 <option value="">-- 选择官员 --</option>
                 {availableOfficials.map(official => (
                     <option key={official.id} value={official.id}>
-                        {official.name} (威望:{official.prestige || 50} 忠诚:{official.loyalty || 50})
+                        {official.name} (威望:{official.stats?.prestige ?? official.prestige ?? 50} 忠诚:{official.loyalty || 50})
                     </option>
                 ))}
             </select>
-            
+
             {selectedOfficial && effectiveness && (
                 <div className="bg-gray-900/50 rounded p-2 space-y-1">
                     <div className="flex items-center justify-between text-xs">
@@ -313,7 +312,7 @@ const OfficialSelector = memo(({
                     )}
                 </div>
             )}
-            
+
             {availableOfficials.length === 0 && (
                 <div className="text-xs text-yellow-400 flex items-center gap-1">
                     <Icon name="AlertCircle" size={12} />
@@ -332,7 +331,7 @@ const GarrisonMilitaryCheck = memo(({
     vassalMilitary = 0.5,
 }) => {
     const check = checkGarrisonEffectiveness(playerMilitary, vassalMilitary);
-    
+
     return (
         <div className={`bg-gray-900/50 rounded p-2 ${check.isEffective ? 'border-green-500/30' : 'border-red-500/30'} border`}>
             <div className="flex items-center justify-between text-xs">
@@ -367,7 +366,7 @@ const VassalPolicyModalComponent = ({
     const baseTributeRate = vassalConfig.tributeRate || 0.1;
     const vassalWealth = nation?.wealth || 500;
     const vassalMilitary = nation?.militaryStrength || 0.5;
-    
+
     // 政策状态
     const [diplomaticControl, setDiplomaticControl] = useState(
         nation?.vassalPolicy?.diplomaticControl || 'guided'
@@ -379,7 +378,7 @@ const VassalPolicyModalComponent = ({
     const [tributeRate, setTributeRate] = useState(
         (nation?.tributeRate || baseTributeRate) * 100
     );
-    
+
     // 控制手段状态 (NEW: Object format with officialId support)
     const [controlMeasures, setControlMeasures] = useState(() => {
         const existing = nation?.vassalPolicy?.controlMeasures || {};
@@ -396,7 +395,7 @@ const VassalPolicyModalComponent = ({
         });
         return initial;
     });
-    
+
     // Toggle control measure
     const toggleControlMeasure = (measureId) => {
         setControlMeasures(prev => ({
@@ -407,7 +406,7 @@ const VassalPolicyModalComponent = ({
             },
         }));
     };
-    
+
     // Set governor official
     const setGovernorOfficial = (officialId) => {
         setControlMeasures(prev => ({
@@ -419,21 +418,21 @@ const VassalPolicyModalComponent = ({
             },
         }));
     };
-    
+
     // Get active control measure IDs
     const activeControlMeasures = useMemo(() => {
         return Object.entries(controlMeasures)
             .filter(([, data]) => data.active)
             .map(([id]) => id);
     }, [controlMeasures]);
-    
+
     // 计算控制手段总成本 (NEW: Dynamic cost calculation)
     const totalControlCost = useMemo(() => {
         return activeControlMeasures.reduce((sum, measureId) => {
             return sum + calculateControlMeasureCost(measureId, vassalWealth);
         }, 0);
     }, [activeControlMeasures, vassalWealth]);
-    
+
     // Calculate individual measure costs for display
     const measureCosts = useMemo(() => {
         const costs = {};
@@ -442,7 +441,7 @@ const VassalPolicyModalComponent = ({
         });
         return costs;
     }, [vassalWealth]);
-    
+
     // 计算控制手段带来的独立倾向变化
     const controlMeasuresIndependenceChange = useMemo(() => {
         let total = 0;
@@ -467,39 +466,39 @@ const VassalPolicyModalComponent = ({
         }
         return total;
     }, [activeControlMeasures, controlMeasures.governor, officials]);
-    
+
     // 计算预估独立倾向变化
     const estimatedIndependenceChange = useMemo(() => {
         let change = 0;
-        
+
         // 外交控制影响
         const dipOption = DIPLOMATIC_CONTROL_OPTIONS.find(o => o.id === diplomaticControl);
         if (dipOption) change += dipOption.independenceChange;
-        
+
         // 贸易政策影响
         const tradeOption = TRADE_POLICY_OPTIONS.find(o => o.id === tradePolicy);
         if (tradeOption) change += tradeOption.independenceChange;
-        
+
         // 朝贡率变化影响
         const tributeChange = (tributeRate / 100) - baseTributeRate;
         if (tributeChange > 0) change += tributeChange * 50;
-        
+
         // 自主度变化影响
         const autonomyChange = autonomy - baseAutonomy;
         if (autonomyChange < 0) change += Math.abs(autonomyChange) * 0.3;
-        
+
         // 控制手段影响
         change += controlMeasuresIndependenceChange;
-        
+
         return change;
     }, [diplomaticControl, tradePolicy, autonomy, tributeRate, baseAutonomy, baseTributeRate, controlMeasuresIndependenceChange]);
-    
+
     // 计算预估朝贡收入
     const estimatedTribute = useMemo(() => {
         const gdp = nation?.gdp || 10000;
         return gdp * (tributeRate / 100);
     }, [nation?.gdp, tributeRate]);
-    
+
     // 应用政策
     const handleApply = () => {
         onApply?.({
@@ -512,7 +511,7 @@ const VassalPolicyModalComponent = ({
         });
         onClose?.();
     };
-    
+
     // 重置为默认
     const handleReset = () => {
         setDiplomaticControl('guided');
@@ -525,13 +524,13 @@ const VassalPolicyModalComponent = ({
         });
         setControlMeasures(resetMeasures);
     };
-    
+
     if (!nation) return null;
-    
+
     return (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
             {/* Bottom Sheet Container */}
-            <div 
+            <div
                 className="bg-gray-900 rounded-t-2xl border-t border-x border-gray-700 shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden animate-slide-up"
                 style={{
                     animation: 'slideUp 0.3s ease-out'
@@ -541,7 +540,7 @@ const VassalPolicyModalComponent = ({
                 <div className="flex justify-center py-2">
                     <div className="w-12 h-1 bg-gray-600 rounded-full" />
                 </div>
-                
+
                 {/* 标题栏 */}
                 <div className="flex items-center justify-between px-4 py-2 border-b border-gray-700 bg-gray-800/50">
                     <div className="flex items-center gap-2">
@@ -553,14 +552,14 @@ const VassalPolicyModalComponent = ({
                             {VASSAL_TYPE_LABELS[nation.vassalType] || '附庸'}
                         </span>
                     </div>
-                    <button 
+                    <button
                         onClick={onClose}
                         className="p-1.5 rounded-full hover:bg-gray-700 transition-colors"
                     >
                         <Icon name="X" size={18} className="text-gray-400" />
                     </button>
                 </div>
-                
+
                 {/* 内容区 */}
                 <div className="p-4 space-y-4 overflow-y-auto max-h-[calc(85vh-140px)]">
                     {/* 外交控制 */}
@@ -583,7 +582,7 @@ const VassalPolicyModalComponent = ({
                             ))}
                         </div>
                     </div>
-                    
+
                     {/* 贸易政策 */}
                     <div>
                         <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-1.5 font-decorative">
@@ -604,7 +603,7 @@ const VassalPolicyModalComponent = ({
                             ))}
                         </div>
                     </div>
-                    
+
                     {/* 自主度调整 */}
                     <div>
                         <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-1.5 font-decorative">
@@ -626,7 +625,7 @@ const VassalPolicyModalComponent = ({
                             <AutonomyEffectsDisplay autonomy={autonomy} />
                         </div>
                     </div>
-                    
+
                     {/* 朝贡率调整 */}
                     <div>
                         <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-1.5 font-decorative">
@@ -648,7 +647,7 @@ const VassalPolicyModalComponent = ({
                             />
                         </div>
                     </div>
-                    
+
                     {/* 控制手段 (REVAMPED) */}
                     <div>
                         <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-1.5 font-decorative">
@@ -667,14 +666,14 @@ const VassalPolicyModalComponent = ({
                             {CONTROL_MEASURES.map(measure => {
                                 const isActive = controlMeasures[measure.id]?.active;
                                 const dynamicCost = measureCosts[measure.id];
-                                
+
                                 return (
                                     <div
                                         key={measure.id}
                                         className={`
                                             p-3 rounded-lg border transition-all
-                                            ${isActive 
-                                                ? 'border-orange-500 bg-orange-900/30' 
+                                            ${isActive
+                                                ? 'border-orange-500 bg-orange-900/30'
                                                 : 'border-gray-600/50 bg-gray-800/30'
                                             }
                                         `}
@@ -685,10 +684,10 @@ const VassalPolicyModalComponent = ({
                                                     onClick={() => !measure.requiresOfficial && toggleControlMeasure(measure.id)}
                                                     className={`flex items-center gap-2 ${measure.requiresOfficial ? 'cursor-default' : 'cursor-pointer'}`}
                                                 >
-                                                    <Icon 
-                                                        name={measure.icon} 
-                                                        size={16} 
-                                                        className={isActive ? 'text-orange-400' : 'text-gray-400'} 
+                                                    <Icon
+                                                        name={measure.icon}
+                                                        size={16}
+                                                        className={isActive ? 'text-orange-400' : 'text-gray-400'}
                                                     />
                                                     <span className={`text-sm font-bold ${isActive ? 'text-white' : 'text-gray-300'} font-decorative`}>
                                                         {measure.title}
@@ -707,10 +706,10 @@ const VassalPolicyModalComponent = ({
                                                 {formatNumberShortCN(dynamicCost)}/天
                                             </span>
                                         </div>
-                                        
+
                                         <p className="text-xs text-gray-400 mb-2 font-body">{measure.description}</p>
                                         <p className={`text-xs ${measure.effectColor} font-body mb-2`}>{measure.effects}</p>
-                                        
+
                                         {/* Governor-specific: Official Selector */}
                                         {measure.id === 'governor' && (
                                             <OfficialSelector
@@ -720,7 +719,7 @@ const VassalPolicyModalComponent = ({
                                                 measureConfig={INDEPENDENCE_CONFIG.controlMeasures.governor}
                                             />
                                         )}
-                                        
+
                                         {/* Garrison-specific: Military Check */}
                                         {measure.id === 'garrison' && isActive && (
                                             <GarrisonMilitaryCheck
@@ -733,7 +732,7 @@ const VassalPolicyModalComponent = ({
                             })}
                         </div>
                     </div>
-                    
+
                     {/* 预估影响 */}
                     <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
                         <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-1.5 font-decorative">
@@ -743,10 +742,9 @@ const VassalPolicyModalComponent = ({
                         <div className="grid grid-cols-2 gap-2 text-xs">
                             <div className="flex items-center justify-between bg-gray-900/50 rounded px-2 py-1.5">
                                 <span className="text-gray-400 font-body">独立倾向变化</span>
-                                <span className={`font-mono font-epic ${
-                                    estimatedIndependenceChange > 0 ? 'text-red-400' :
-                                    estimatedIndependenceChange < 0 ? 'text-green-400' : 'text-gray-400'
-                                }`}>
+                                <span className={`font-mono font-epic ${estimatedIndependenceChange > 0 ? 'text-red-400' :
+                                        estimatedIndependenceChange < 0 ? 'text-green-400' : 'text-gray-400'
+                                    }`}>
                                     {estimatedIndependenceChange > 0 ? '+' : ''}{estimatedIndependenceChange.toFixed(1)}/年
                                 </span>
                             </div>
@@ -773,14 +771,14 @@ const VassalPolicyModalComponent = ({
                                 </>
                             )}
                         </div>
-                        
+
                         {estimatedIndependenceChange > 5 && (
                             <div className="mt-2 text-xs text-yellow-400 flex items-center gap-1 font-body">
                                 <Icon name="AlertTriangle" size={12} />
                                 当前政策可能导致附庸独立倾向上升较快
                             </div>
                         )}
-                        
+
                         {totalControlCost > estimatedTribute && (
                             <div className="mt-2 text-xs text-red-400 flex items-center gap-1 font-body">
                                 <Icon name="AlertTriangle" size={12} />
@@ -789,7 +787,7 @@ const VassalPolicyModalComponent = ({
                         )}
                     </div>
                 </div>
-                
+
                 {/* 底部按钮 */}
                 <div className="flex items-center justify-between px-4 py-3 border-t border-gray-700 bg-gray-800/50">
                     <button
@@ -814,7 +812,7 @@ const VassalPolicyModalComponent = ({
                     </div>
                 </div>
             </div>
-            
+
             {/* 动画样式 */}
             <style>{`
                 @keyframes slideUp {
