@@ -1518,6 +1518,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
                         const potentialInvestors = (current.nations || []).filter(n => n.id !== 'player' && (n.wealth || 0) > 5000);
 
+                        // [DEBUG] Log buildings state for debugging
+                        const playerBuildings = current.buildings || {};
+                        console.log(`[AI投资] 玩家建筑状态:`, Object.keys(playerBuildings).filter(k => playerBuildings[k] > 0).map(k => `${k}:${playerBuildings[k]}`).join(', ') || '无');
+
                         potentialInvestors.forEach(investor => {
                             const decision = processAIInvestment({
                                 investorNation: investor,
@@ -1527,7 +1531,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                     population: current.population,
                                     wealth: current.resources?.silver || 0,
                                     resources: current.resources,
-                                    buildings: current.buildings, // [NEW] Pass buildings for existence check
+                                    buildings: current.buildings || {}, // [FIX] Ensure buildings is always an object
                                     jobFill: current.jobFill, // [NEW] Pass jobFill for staffing ratio calculation
                                     id: 'player'
                                 },

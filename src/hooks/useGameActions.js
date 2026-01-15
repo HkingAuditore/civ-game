@@ -4075,34 +4075,57 @@ export const useGameActions = (gameState, addLog) => {
             }
 
             case 'demand_investment': {
-                // Default to 'factory' or 'farm' based on era/availability
-                const buildingId = epoch >= 2 ? 'factory' : 'farm';
-                const result = demandVassalInvestment(targetNation, buildingId);
+                // Find a building that player already has and can be invested
+                // Priority: factory > farm > other buildings player owns
+                // [FIX] Use shared building selection logic with proper filtering
+                // Import and use selectBestInvestmentBuilding for unified logic
+                import('../logic/diplomacy/autonomousInvestment').then(({ selectBestInvestmentBuilding }) => {
+                    const result = selectBestInvestmentBuilding({
+                        targetBuildings: buildings || {},
+                        targetJobFill: jobFill || {},
+                        epoch: epoch,
+                        market: market,
+                        investorWealth: targetNation.wealth || 0
+                    });
 
-                if (result.success && result.investment) {
-                    // Add to foreign investments
-                    const inv = {
-                        ...result.investment,
-                        operatingMode: 'local',
-                        investmentAmount: result.cost,
-                        createdDay: daysElapsed,
-                        status: 'operating'
-                    };
-                    setForeignInvestments(prev => [...prev, inv]);
+                    if (!result || !result.building) {
+                        addLog(`无法强迫 ${targetNation.name} 投资：没有符合条件的建筑（需要有雇佣关系、到岗率≥95%）`);
+                        return;
+                    }
 
-                    // Deduct wealth from vassal
-                    setNations(prev => prev.map(n => n.id === nationId ? { ...n, wealth: Math.max(0, (n.wealth || 0) - result.cost) } : n));
+                    const { building, cost: investmentCost } = result;
+                    const buildingId = building.id;
 
-                    // Add building to player (physically)
-                    setBuildings(prev => ({
-                        ...prev,
-                        [buildingId]: (prev[buildingId] || 0) + 1
-                    }));
+                    // Check if vassal has enough wealth
+                    if ((targetNation.wealth || 0) < investmentCost) {
+                        addLog(`${targetNation.name} 国库资金不足，无法投资 ${building.name}`);
+                        return;
+                    }
 
-                    addLog(result.message);
-                } else {
-                    addLog(result.message);
-                }
+                    // Create the foreign investment
+                    import('../logic/diplomacy/overseasInvestment').then(({ createForeignInvestment }) => {
+                        const investment = createForeignInvestment({
+                            buildingId,
+                            ownerNationId: targetNation.id,
+                            investorStratum: 'state',
+                        });
+
+                        // Add to foreign investments
+                        const inv = {
+                            ...investment,
+                            operatingMode: 'local',
+                            investmentAmount: investmentCost,
+                            createdDay: daysElapsed,
+                            status: 'operating'
+                        };
+                        setForeignInvestments(prev => [...prev, inv]);
+
+                        // Deduct wealth from vassal
+                        setNations(prev => prev.map(n => n.id === nationId ? { ...n, wealth: Math.max(0, (n.wealth || 0) - investmentCost) } : n));
+
+                        addLog(`成功迫使 ${targetNation.name} 投资 ${building.name}`);
+                    });
+                });
                 break;
             }
 
@@ -4188,6 +4211,14 @@ export const useGameActions = (gameState, addLog) => {
 
                 const building = BUILDINGS.find(b => b.id === buildingId);
                 if (!building) break;
+
+                // [FIX] Check if player has this building - foreign investment can only operate existing buildings
+                const playerBuildingCount = buildings[buildingId] || 0;
+                if (playerBuildingCount <= 0) {
+                    console.log(`[外资投资] 拒绝 ${investorNation.name} 投资 ${building.name}：玩家未建造该建筑`);
+                    addLog(`${investorNation.name} 想投资 ${building.name}，但你还没有建造这种建筑。`);
+                    break;
+                }
 
                 // 1. 玩家接收投资资金 (AI -> 玩家)
                 // 这笔钱用于支付建筑公司、购买材料等

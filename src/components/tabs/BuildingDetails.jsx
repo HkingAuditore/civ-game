@@ -377,6 +377,14 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                 totalStats.jobs[ownerRole] = Math.max(0, totalStats.jobs[ownerRole] - slotsToRemove);
             }
 
+            // ========== 修正业主岗位：减去外资投资数量 ==========
+            // 外资投资的产业由外国业主经营，不应计算为本地业主岗位
+            if (ownerRole && totalStats.jobs[ownerRole] && foreignOwnership.count > 0) {
+                const ownerSlotsPerBuilding = building.jobs?.[ownerRole] || 0;
+                const slotsToRemove = ownerSlotsPerBuilding * foreignOwnership.count;
+                totalStats.jobs[ownerRole] = Math.max(0, totalStats.jobs[ownerRole] - slotsToRemove);
+            }
+
             return { effectiveTotalStats: totalStats, averageBuilding: building };
         }
 
@@ -401,6 +409,14 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
             effectiveOps.jobs[ownerRole] = Math.max(0, effectiveOps.jobs[ownerRole] - slotsToRemove);
         }
 
+        // ========== 修正业主岗位：减去外资投资数量 ==========
+        // 外资投资的产业由外国业主经营，不应计算为本地业主岗位
+        if (ownerRole && effectiveOps.jobs[ownerRole] && foreignOwnership.count > 0) {
+            const ownerSlotsPerBuilding = building.jobs?.[ownerRole] || 0;
+            const slotsToRemove = ownerSlotsPerBuilding * foreignOwnership.count;
+            effectiveOps.jobs[ownerRole] = Math.max(0, effectiveOps.jobs[ownerRole] - slotsToRemove);
+        }
+
         // 计算平均值
         const avg = { ...building, input: {}, output: {}, jobs: {} };
         if (count > 0) {
@@ -415,7 +431,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
         }
 
         return { effectiveTotalStats: effectiveOps, averageBuilding: avg };
-    }, [building, count, upgradeLevels, officialOwnership]);
+    }, [building, count, upgradeLevels, officialOwnership, foreignOwnership]);
 
     const [draftMultiplier, setDraftMultiplier] = useState(null);
     const [activeSection, setActiveSection] = useState('overview');

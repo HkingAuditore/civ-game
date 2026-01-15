@@ -302,9 +302,10 @@ export function processAIInvestment({
 
             // [NEW] Check if target has this building (Requirement: "我没有造建筑不允许你投资")
             const targetBuildings = target.buildings || {};
+            const playerBuildingCount = targetBuildings[building.id] || 0;
             // Check if player has constructed this building type (count > 0)
-            if (!targetBuildings[building.id] || targetBuildings[building.id] <= 0) {
-                // console.log(`[AI投资] ${investorNation.name} 跳过 ${building.name} (目标未建造)`);
+            if (playerBuildingCount <= 0) {
+                console.log(`[AI投资] ${investorNation.name} 跳过 ${building.name} (目标未建造，当前数量: ${playerBuildingCount})`);
                 continue;
             }
 
@@ -394,4 +395,149 @@ export function processAIInvestment({
 
     console.log(`[AI投资] ${investorNation.name} 未找到合适的投资机会 (没有ROI>10%的建筑)`);
     return null;
+}
+
+/**
+ * [SHARED] Get best building for foreign investment
+ * Unified logic for both autonomous investment and demand investment
+ * 
+ * @param {Object} params - Parameters
+ * @param {Object} params.targetBuildings - Target nation's buildings { buildingId: count }
+ * @param {Object} params.targetJobFill - Target nation's job fill data { buildingId: { role: count } }
+ * @param {number} params.epoch - Current epoch
+ * @param {Object} params.market - Market data (optional, for ROI calculation)
+ * @param {number} params.investorWealth - Investor's available wealth (optional)
+ * @returns {Object|null} - { building, cost, roi } or null if no valid building
+ */
+export function selectBestInvestmentBuilding({
+    targetBuildings = {},
+    targetJobFill = {},
+    epoch = 0,
+    market = null,
+    investorWealth = Infinity
+}) {
+    // 1. Filter buildings that meet all requirements
+    const candidateBuildings = BUILDINGS.filter(b => {
+        // 1.1 Basic Type Check - only gather and industry
+        if (b.cat !== 'gather' && b.cat !== 'industry') return false;
+        
+        // 1.2 Epoch check
+        if ((b.epoch || 0) > epoch) return false;
+        
+        // 1.3 Must have cost defined
+        if (!b.baseCost && !b.cost) return false;
+
+        // 1.4 [CRITICAL] Employment Relationship Check
+        // Cannot invest in buildings without employment relationship
+        // Rule: A building is investable ONLY if it employs people OTHER than the owner.
+        // If the only worker is the owner (e.g. Peasant Farm, Quarry), it is Self-Employment
+        const jobs = b.jobs || {};
+        const hasEmployees = Object.keys(jobs).some(jobStratum => jobStratum !== b.owner);
+        if (!hasEmployees) {
+            console.log(`[投资筛选] 排除 ${b.name}: 没有雇佣关系 (owner=${b.owner}, jobs=${Object.keys(jobs).join(',')})`);
+            return false;
+        }
+
+        // 1.5 Target must have this building
+        const buildingCount = targetBuildings[b.id] || 0;
+        if (buildingCount <= 0) {
+            return false;
+        }
+
+        // 1.6 Check staffing ratio (>= 95%)
+        const buildingJobFillData = targetJobFill[b.id] || {};
+        const buildingJobs = b.jobs || {};
+        let totalSlots = 0;
+        let filledSlots = 0;
+        Object.entries(buildingJobs).forEach(([role, slotsPerBuilding]) => {
+            const totalRoleSlots = slotsPerBuilding * buildingCount;
+            totalSlots += totalRoleSlots;
+            filledSlots += Math.min(buildingJobFillData[role] || 0, totalRoleSlots);
+        });
+        const staffingRatio = totalSlots > 0 ? filledSlots / totalSlots : 1;
+        if (staffingRatio < MIN_FOREIGN_INVESTMENT_STAFFING_RATIO) {
+            console.log(`[投资筛选] 排除 ${b.name}: 到岗率不足 (${(staffingRatio * 100).toFixed(1)}% < 95%)`);
+            return false;
+        }
+
+        // 1.7 Check if investor can afford
+        const costConfig = b.baseCost || b.cost || {};
+        const baseCost = Object.values(costConfig).reduce((sum, v) => sum + (typeof v === 'number' ? v : 0), 0);
+        const cost = (baseCost || 1000) * 1.5; // Foreign investment markup
+        if (cost > investorWealth) {
+            return false;
+        }
+
+        return true;
+    });
+
+    if (candidateBuildings.length === 0) {
+        console.log('[投资筛选] 没有找到满足条件的建筑');
+        return null;
+    }
+
+    console.log(`[投资筛选] 找到 ${candidateBuildings.length} 个候选建筑: ${candidateBuildings.map(b => b.name).join(', ')}`);
+
+    // 2. Calculate ROI for each candidate and select the best
+    let bestBuilding = null;
+    let bestRoi = -Infinity;
+    let bestCost = 0;
+
+    // Prepare market prices (use base prices if no market data)
+    const prices = {};
+    Object.keys(RESOURCES).forEach(key => {
+        prices[key] = market?.prices?.[key] || RESOURCES[key]?.basePrice || 1;
+    });
+
+    for (const building of candidateBuildings) {
+        const costConfig = building.baseCost || building.cost || {};
+        const baseCost = Object.values(costConfig).reduce((sum, v) => sum + (typeof v === 'number' ? v : 0), 0);
+        const cost = (baseCost || 1000) * 1.5;
+
+        // Calculate daily profit
+        let outputValue = 0;
+        const output = building.output || {};
+        Object.entries(output).forEach(([res, amount]) => {
+            if (res === 'maxPop' || res === 'militaryCapacity') return;
+            const price = prices[res] || 1;
+            outputValue += amount * price;
+        });
+
+        let inputCost = 0;
+        const input = building.input || {};
+        Object.entries(input).forEach(([res, amount]) => {
+            const price = prices[res] || 1;
+            inputCost += amount * price;
+        });
+
+        let wageCost = 0;
+        const jobs = building.jobs || {};
+        Object.entries(jobs).forEach(([stratum, count]) => {
+            if (building.owner && stratum === building.owner) return;
+            wageCost += count * 10; // Estimate 10 silver per worker per day
+        });
+
+        const dailyProfit = outputValue - inputCost - wageCost;
+        const roi = cost > 0 ? (dailyProfit * 360) / cost : 0;
+
+        console.log(`[投资筛选] ${building.name}: profit=${dailyProfit.toFixed(1)}/day, cost=${cost}, ROI=${(roi * 100).toFixed(1)}%`);
+
+        if (roi > bestRoi) {
+            bestRoi = roi;
+            bestBuilding = building;
+            bestCost = cost;
+        }
+    }
+
+    if (!bestBuilding) {
+        console.log('[投资筛选] 没有找到正ROI的建筑');
+        return null;
+    }
+
+    console.log(`[投资筛选] 选择最佳建筑: ${bestBuilding.name} (ROI=${(bestRoi * 100).toFixed(1)}%)`);
+    return {
+        building: bestBuilding,
+        cost: bestCost,
+        roi: bestRoi
+    };
 }
