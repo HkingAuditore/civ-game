@@ -1537,7 +1537,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                 },
                                 market: adjustedMarket,
                                 epoch: current.epoch,
-                                daysElapsed: current.daysElapsed
+                                daysElapsed: current.daysElapsed,
+                                foreignInvestments: current.foreignInvestments || [] // [NEW] Pass existing foreign investments to check limit
                             });
 
                             if (decision && decision.type === 'request_investment' && decision.targetId === 'player') {

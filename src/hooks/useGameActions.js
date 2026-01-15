@@ -4082,14 +4082,15 @@ export const useGameActions = (gameState, addLog) => {
                 import('../logic/diplomacy/autonomousInvestment').then(({ selectBestInvestmentBuilding }) => {
                     const result = selectBestInvestmentBuilding({
                         targetBuildings: buildings || {},
-                        targetJobFill: jobFill || {},
+                        targetJobFill: {}, // Player's jobFill not available here, skip staffing check
                         epoch: epoch,
                         market: market,
-                        investorWealth: targetNation.wealth || 0
+                        investorWealth: targetNation.wealth || 0,
+                        foreignInvestments: foreignInvestments || [] // [NEW] Pass existing foreign investments to check limit
                     });
 
                     if (!result || !result.building) {
-                        addLog(`无法强迫 ${targetNation.name} 投资：没有符合条件的建筑（需要有雇佣关系、到岗率≥95%）`);
+                        addLog(`无法强迫 ${targetNation.name} 投资：没有符合条件的建筑（需要有雇佣关系、外资未满）`);
                         return;
                     }
 
