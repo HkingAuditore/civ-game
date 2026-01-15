@@ -395,7 +395,7 @@ const MilitaryTabComponent = ({
     // This ensures MilitaryTab shows the same military expense as the financial panel,
     // which includes difficulty multiplier and wartime multiplier from simulation.js
     const simulationMilitaryExpense = window.__GAME_MILITARY_EXPENSE__;
-    const armyExpenseData = simulationMilitaryExpense || propArmyExpenseData || calculateTotalArmyExpense(
+    const armyExpenseData = propArmyExpenseData || simulationMilitaryExpense || calculateTotalArmyExpense(
         army,
         market?.prices || {},
         epoch,

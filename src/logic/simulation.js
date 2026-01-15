@@ -2698,10 +2698,24 @@ export const simulateTick = ({
         resourceConsumption: armyResourceConsumption
     };
 
+    // [DEBUG] Military Logic Inspection
+    let militaryDebug = {
+        totalArmyCost,
+        availableSilver: res.silver,
+        applied: false,
+        reason: null,
+        logSizeBefore: silverChangeLog.length
+    };
+
     if (totalArmyCost > 0) {
+        // [DEBUG] Military Log Trace
+        console.log('[Simulation] Applying military cost:', totalArmyCost, 'Reason:', 'expense_army_maintenance');
         const available = res.silver || 0;
         if (available >= totalArmyCost) {
             applySilverChange(-totalArmyCost, 'expense_army_maintenance');
+            militaryDebug.applied = true;
+            militaryDebug.reason = 'expense_army_maintenance';
+
             rates.silver = (rates.silver || 0) - totalArmyCost;
             roleWagePayout.soldier = (roleWagePayout.soldier || 0) + totalArmyCost;
             roleLaborIncome.soldier = (roleLaborIncome.soldier || 0) + totalArmyCost; // Army pay is labor income
@@ -2709,6 +2723,11 @@ export const simulateTick = ({
             if (classFinancialData.soldier) {
                 classFinancialData.soldier.income.militaryPay = (classFinancialData.soldier.income.militaryPay || 0) + totalArmyCost;
             }
+
+            // [DEBUG] Verify Log Immediate
+            const logLast = silverChangeLog[silverChangeLog.length - 1];
+            militaryDebug.logEntryFound = logLast && logLast.reason === 'expense_army_maintenance';
+            militaryDebug.logSizeAfter = silverChangeLog.length;
         } else if (totalArmyCost > 0) {
             // 部分支付
             const partialPay = available * 0.9; // 留10%底
@@ -6415,10 +6434,16 @@ export const simulateTick = ({
         // [DEBUG] 临时调试字段 - 追踪自由市场机制问题
         _debug: {
             freeMarket: _freeMarketDebug,
-            silverChangeLog, // 银币变化追踪日志
+            // [DEBUG] Log the log
+            silverChangeLog: (() => {
+                const hasMilitary = silverChangeLog.some(e => e.reason === 'expense_army_maintenance');
+                console.log('[Simulation End] silverChangeLog has military?', hasMilitary, 'Entries:', silverChangeLog.length);
+                return silverChangeLog;
+            })(),
             classWealthChangeLog, // 阶层财富变化追踪日志
             startingSilver,  // tick开始时的银币
             endingSilver: res.silver || 0, // tick结束时的银币
+            militaryDebugInfo: militaryDebug // [DEBUG] Pass explicit debug info
         },
     };
 };

@@ -556,6 +556,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
         officialCapacity, // 官员容量
         setOfficialCapacity, // 官员容量更新函数
         setFiscalActual, // [NEW] realized fiscal numbers per tick
+        setDailyMilitaryExpense, // [NEW] store simulation military expense for UI
         overseasInvestments, // 海外投资列表
         setOverseasInvestments, // 海外投资更新函数
         foreignInvestments, // [NEW] 用于 simulation 计算
@@ -1020,7 +1021,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 officials: current.officials || [],
                 officialsPaid: canAffordOfficials,
                 foreignInvestments: current.foreignInvestments || [], // [NEW] Pass foreign investments to worker
-                overseasInvestments: current.overseasInvestments || [], // [NEW] Pass overseas investments to worker
+                overseasInvestments: overseasInvestmentsRef.current || [], // [FIX] Use ref for latest state to prevent race condition
                 foreignInvestmentPolicy: current.foreignInvestmentPolicy || 'normal', // [NEW] Pass policy
             };
 
@@ -1299,19 +1300,26 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 console.log('🏦 国库结束余额:', treasuryAfterDeductions.toFixed(2), '银币');
                 console.log('💵 实际净变化:', netTreasuryChange.toFixed(2), '银币');
 
+                // [DEBUG] Military Specific Trace
+                if (result._debug?.militaryDebugInfo) {
+                    console.log('⚔️ [GameLoop] Military Debug:', result._debug.militaryDebugInfo);
+                }
+                const armyCostSim = result.dailyMilitaryExpense?.dailyExpense || 0;
+                console.log('⚔️ [GameLoop] Reported Military Cost:', armyCostSim);
+
                 // === 显示simulation中的银币变化追踪 ===
-                // if (result._debug?.silverChangeLog && result._debug.silverChangeLog.length > 0) {
-                //     console.group('🔍 银币变化详细追踪（simulation内部）');
-                //     console.log('  起始余额:', (result._debug.startingSilver || 0).toFixed(2), '银币');
-                //     result._debug.silverChangeLog.forEach((log, index) => {
-                //         const sign = log.amount >= 0 ? '+' : '';
-                //         console.log(`  ${index + 1}. ${log.reason}: ${sign}${log.amount.toFixed(2)} 银币 (余额: ${log.balance.toFixed(2)})`);
-                //     });
-                //     console.log('  结束余额:', (result._debug.endingSilver || 0).toFixed(2), '银币');
-                //     const simulationChange = (result._debug.endingSilver || 0) - (result._debug.startingSilver || 0);
-                //     console.log('  💰 Simulation净变化:', simulationChange.toFixed(2), '银币');
-                //     console.groupEnd();
-                // }
+                if (result._debug?.silverChangeLog && result._debug.silverChangeLog.length > 0) {
+                    console.group('🔍 银币变化详细追踪（simulation内部）');
+                    console.log('  起始余额:', (result._debug.startingSilver || 0).toFixed(2), '银币');
+                    result._debug.silverChangeLog.forEach((log, index) => {
+                        const sign = log.amount >= 0 ? '+' : '';
+                        console.log(`  ${index + 1}. ${log.reason}: ${sign}${log.amount.toFixed(2)} 银币 (余额: ${log.balance.toFixed(2)})`);
+                    });
+                    console.log('  结束余额:', (result._debug.endingSilver || 0).toFixed(2), '银币');
+                    const simulationChange = (result._debug.endingSilver || 0) - (result._debug.startingSilver || 0);
+                    console.log('  💰 Simulation净变化:', simulationChange.toFixed(2), '银币');
+                    console.groupEnd();
+                }
 
                 // === useGameLoop本地扣除（simulation之后）===
                 const useGameLoopDeductions = [];
@@ -1335,11 +1343,18 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
                 const auditEntries = [];
                 if (Array.isArray(result?._debug?.silverChangeLog) && result._debug.silverChangeLog.length > 0) {
+                    const aggregated = new Map();
                     result._debug.silverChangeLog.forEach((entry) => {
                         if (!entry) return;
+                        const amount = Number(entry.amount || 0);
+                        if (!Number.isFinite(amount) || amount === 0) return;
+                        const reason = entry.reason || 'simulation';
+                        aggregated.set(reason, (aggregated.get(reason) || 0) + amount);
+                    });
+                    aggregated.forEach((amount, reason) => {
                         auditEntries.push({
-                            amount: entry.amount,
-                            reason: entry.reason || 'simulation',
+                            amount,
+                            reason,
                             meta: { source: 'simulation' },
                         });
                     });
@@ -1356,9 +1371,26 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     });
                     auditReasons.add(reason);
                 };
-                const fallbackMilitaryExpense = Number(result?.dailyMilitaryExpense?.dailyExpense || 0);
-                if (fallbackMilitaryExpense > 0 && !hasAnyReason(['军队维护支出', '军队维护支出（部分支付）', 'militaryPay', 'expense_army_maintenance', 'expense_army_maintenance_partial'])) {
-                    addAuditEntry(-fallbackMilitaryExpense, '军队维护支出');
+                const fallbackMilitaryExpense = Number(
+                    result?.dailyMilitaryExpense?.dailyExpense
+                    || current?.dailyMilitaryExpense?.dailyExpense
+                    || 0
+                );
+                const militaryLogKeys = ['军队维护支出', '军队维护支出（部分支付）', 'militaryPay', 'expense_army_maintenance', 'expense_army_maintenance_partial'];
+                const existingMilitaryEntry = auditEntries.find(e => militaryLogKeys.includes(e.reason));
+
+                if (fallbackMilitaryExpense > 0) {
+                    if (!existingMilitaryEntry) {
+                        // Entry missing entirely -> Force add
+                        addAuditEntry(-fallbackMilitaryExpense, 'expense_army_maintenance');
+                        console.warn('[GameLoop] Fixed missing military expense log:', -fallbackMilitaryExpense);
+                    } else if (existingMilitaryEntry.amount === 0) {
+                        // Entry exists but amount is 0 -> Fix amount
+                        existingMilitaryEntry.amount = -fallbackMilitaryExpense;
+                        existingMilitaryEntry.reason = 'expense_army_maintenance'; // Ensure standard key
+                        console.warn('[GameLoop] Fixed zero-amount military expense log:', -fallbackMilitaryExpense);
+                    }
+                    // else: Entry exists and has non-zero amount -> Assume correct
                 }
                 const fallbackSubsidy = Number(breakdown?.subsidy || 0);
                 if (fallbackSubsidy > 0 && !hasAnyReason(['subsidy', 'head_tax_subsidy', 'tax_subsidy'])) {
@@ -1368,6 +1400,15 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 if (fallbackTariffSubsidy > 0 && !hasAnyReason(['tariff_subsidy'])) {
                     addAuditEntry(-fallbackTariffSubsidy, 'tariff_subsidy');
                 }
+                const incomePercentMultiplier = Number.isFinite(breakdown?.incomePercentMultiplier)
+                    ? Number(breakdown.incomePercentMultiplier)
+                    : 1;
+                const fallbackTariff = Number(breakdown?.tariff || 0) * incomePercentMultiplier;
+                if (fallbackTariff !== 0 && !hasAnyReason(['tax_tariff', 'tariff'])) {
+                    addAuditEntry(fallbackTariff, 'tax_tariff');
+                }
+
+
                 if (officialSalaryPaid > 0) {
                     auditEntries.push({
                         amount: -officialSalaryPaid,
@@ -1959,6 +2000,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         // 这是一个临时解决方案，直到重构state管理
                         window.__GAME_MILITARY_EXPENSE__ = result.dailyMilitaryExpense;
                         current.dailyMilitaryExpense = result.dailyMilitaryExpense;
+                        if (typeof setDailyMilitaryExpense === 'function') {
+                            setDailyMilitaryExpense(result.dailyMilitaryExpense);
+                        }
                     }
                     // [NEW] Update buildings count (from Free Market expansion)
                     if (nextBuildings) {

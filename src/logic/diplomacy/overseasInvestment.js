@@ -399,13 +399,14 @@ export function canEstablishOverseasInvestment(targetNation, buildingId, ownerSt
  */
 export function calculateOverseasProfit(investment, targetNation, playerResources, playerMarketPrices = {}) {
     const building = BUILDINGS.find(b => b.id === investment.buildingId);
-    if (!building) return { outputValue: 0, inputCost: 0, wageCost: 0, profit: 0, transportCost: 0 };
+    if (!building) return { outputValue: 0, inputCost: 0, wageCost: 0, businessTaxCost: 0, profit: 0, transportCost: 0 };
 
     const strategy = investment.strategy || 'PROFIT_MAX';
     const transportRate = OVERSEAS_INVESTMENT_CONFIGS.config.transportCostRate;
 
     // 价格获取器
-    const getNationPrice = (res) => (targetNation.market?.prices || {})[res] ?? (targetNation.prices || {})[res] ?? playerMarketPrices[res] ?? getBasePrice(res);
+    // [FIX] AI国家的价格存储在 nationPrices 字段，需要添加到查询链
+    const getNationPrice = (res) => (targetNation.market?.prices || {})[res] ?? (targetNation.nationPrices || {})[res] ?? (targetNation.prices || {})[res] ?? getBasePrice(res);
     const getHomePrice = (res) => playerMarketPrices[res] ?? getBasePrice(res);
 
     // 库存获取器
@@ -469,7 +470,7 @@ export function calculateOverseasProfit(investment, targetNation, playerResource
     });
 
     if (!inputAvailable) {
-        return { outputValue: 0, inputCost: 0, wageCost: 0, profit: 0, transportCost: 0, inputAvailable: false, decisions };
+        return { outputValue: 0, inputCost: 0, wageCost: 0, businessTaxCost: 0, profit: 0, transportCost: 0, inputAvailable: false, decisions };
     }
 
     // 2. 计算产出价值 & 自动决策去向
@@ -514,14 +515,23 @@ export function calculateOverseasProfit(investment, targetNation, playerResource
     // 3. 计算工资
     const { total: wageCost, breakdown: wageBreakdown } = calculateVassalWageCost(building, targetNation);
 
-    // 4. 总利润
-    const profit = outputValue - inputCost - wageCost;
+    // 4. [FIX] 计算营业税成本（与 simulation.js 保持一致）
+    // 外资企业也需要向当地政府缴纳营业税，和国内业主一样
+    const businessTaxBase = building.businessTaxBase ?? 0.1;
+    // 默认营业税率为 1.0（即基础值 * 1.0）
+    // 未来可以根据目标国家的税率政策调整
+    const businessTaxRate = 1.0;
+    const businessTaxCost = businessTaxBase * businessTaxRate;
+
+    // 5. 总利润（扣除营业税）
+    const profit = outputValue - inputCost - wageCost - businessTaxCost;
 
     return {
         outputValue,
         inputCost,
         wageCost,
         wageBreakdown,
+        businessTaxCost, // [NEW] 返回营业税成本供 UI 显示
         transportCost,
         profit,
         inputAvailable: true,
@@ -1063,7 +1073,8 @@ export function processForeignInvestments({
         // 投资国 (Owner) -> 相当于 "Home"
         const ownerNation = nations.find(n => n.id === investment.ownerNationId);
         // 如果找不到投资国，假设它有基础价格和无限库存
-        const homePrices = ownerNation?.market?.prices || ownerNation?.prices || {};
+        // [FIX] AI国家的价格存储在 nationPrices 字段，需要添加到查询链
+        const homePrices = ownerNation?.market?.prices || ownerNation?.nationPrices || ownerNation?.prices || {};
         const homeResources = ownerNation?.inventories || {}; // 用作 "PlayerResources" 参数 (Home Inventory)
 
         // 东道国 (Player) -> 相当于 "TargetNation"
@@ -1110,8 +1121,14 @@ export function processForeignInvestments({
             filledSlots += Math.min(buildingJobFillData[role] || 0, totalRoleSlots);
         });
 
-        // 计算到岗率 (如果没有建筑或岗位，默认为0)
-        const staffingRatio = (totalSlots > 0 && buildingCount > 0) ? filledSlots / totalSlots : 0;
+        // [FIX] 计算到岗率 - 当玩家没有该类型建筑时，外资企业仍应能正常运营
+        // 原逻辑：buildingCount=0 时 staffingRatio=0，导致外资利润和税收为0
+        // 修复：如果玩家没有该建筑，假设外资有独立劳动力来源，默认100%到岗率
+        let staffingRatio = 1.0; // 默认假设外资能独立运营
+        if (totalSlots > 0 && buildingCount > 0) {
+            // 如果玩家有该类型建筑，使用玩家的到岗率作为参考
+            staffingRatio = filledSlots / totalSlots;
+        }
 
         // 5. 处理结果 - 利润乘以到岗率
         // 理论利润 * 到岗率 = 实际利润

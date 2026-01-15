@@ -131,7 +131,7 @@ export function processClassAutonomousInvestment({
                 const dailyProfit = calcResult.profit || 0;
                 // Annualized ROI = (Daily Profit * 360) / Cost
                 const annualROI = (dailyProfit * 360) / cost;
-                
+
                 console.log(`🤖 [AUTO-INVEST] ${stratum} 评估 ${building.name} 在 ${targetNation.name}: profit=${dailyProfit.toFixed(1)}/day, ROI=${(annualROI * 100).toFixed(1)}%, threshold=${(MIN_ROI_THRESHOLD * 100).toFixed(1)}%`);
 
                 if (annualROI > MIN_ROI_THRESHOLD) {
@@ -219,17 +219,17 @@ export function processAIInvestment({
     // Must be Civilized or Industrial era (Epoch 2+) to invest
     // Must have enough budget (Wealth > 5000)
     if (epoch < 2) {
-        debugLog('overseas', `[AI投资] ${investorNation.name} 时代不足 (${epoch} < 2)`);
+        // debugLog('overseas', `[AI投资] ${investorNation.name} 时代不足 (${epoch} < 2)`);
         return null;
     }
     if ((investorNation.wealth || 0) < 5000) {
-        debugLog('overseas', `[AI投资] ${investorNation.name} 财富不足 (${investorNation.wealth || 0} < 5000)`);
+        // debugLog('overseas', `[AI投资] ${investorNation.name} 财富不足 (${investorNation.wealth || 0} < 5000)`);
         return null;
     }
 
     // Note: The game loop already has a 30% daily probability check, so no additional probability check needed here
-    console.log(`[AI投资] ${investorNation.name} 通过初始检查, wealth=${investorNation.wealth}, epoch=${epoch}, relation=${investorNation.relation}`);
-    debugLog('overseas', `[AI投资] ${investorNation.name} 开始评估投资机会...`);
+    // console.log(`[AI投资] ${investorNation.name} 通过初始检查, wealth=${investorNation.wealth}, epoch=${epoch}, relation=${investorNation.relation}`);
+    // debugLog('overseas', `[AI投资] ${investorNation.name} 开始评估投资机会...`);
 
     // 2. Identify Targets
     // Target Player?
@@ -253,17 +253,17 @@ export function processAIInvestment({
 
         if (Math.random() < relationProbability) {
             targets.push({ id: 'player', name: 'Player', ...playerState });
-            console.log(`[AI投资] ${investorNation.name} 将玩家加入投资目标 (关系: ${playerRelation}, 概率: ${relationProbability.toFixed(2)})`);
+            // console.log(`[AI投资] ${investorNation.name} 将玩家加入投资目标 (关系: ${playerRelation}, 概率: ${relationProbability.toFixed(2)})`);
         } else {
-            console.log(`[AI投资] ${investorNation.name} 因关系不足(${playerRelation})随机跳过本次对玩家投资`);
+            // console.log(`[AI投资] ${investorNation.name} 因关系不足(${playerRelation})随机跳过本次对玩家投资`);
         }
     } else {
         // console.log(`[AI投资] ${investorNation.name} 跳过玩家 (关系: ${playerRelation}, 协议: ${canInvestInTarget(playerState)})`);
     }
 
     if (targets.length === 0) {
-        console.log(`[AI投资] ${investorNation.name} 无合适投资目标 (关系: ${investorNation.relation || 0} <= 30 或 无有效协议)`);
-        debugLog('overseas', `[AI投资] ${investorNation.name} 无合适投资目标 (关系: ${investorNation.relation || 0} 或 无协议)`);
+        // console.log(`[AI投资] ${investorNation.name} 无合适投资目标 (关系: ${investorNation.relation || 0} <= 30 或 无有效协议)`);
+        // debugLog('overseas', `[AI投资] ${investorNation.name} 无合适投资目标 (关系: ${investorNation.relation || 0} 或 无协议)`);
         return null;
     }
 
@@ -314,7 +314,7 @@ export function processAIInvestment({
             const buildingJobFillData = targetJobFill[building.id] || {};
             const buildingJobs = building.jobs || {};
             const buildingCount = targetBuildings[building.id] || 0;
-            
+
             // Calculate total slots and filled slots
             let totalSlots = 0;
             let filledSlots = 0;
@@ -323,10 +323,10 @@ export function processAIInvestment({
                 totalSlots += totalRoleSlots;
                 filledSlots += Math.min(buildingJobFillData[role] || 0, totalRoleSlots);
             });
-            
+
             // Calculate staffing ratio (default to 1 if no slots)
             const buildingStaffingRatio = totalSlots > 0 ? filledSlots / totalSlots : 1;
-            
+
             // 检查是否满足95%要求
             if (buildingStaffingRatio < MIN_FOREIGN_INVESTMENT_STAFFING_RATIO) {
                 console.log(`[AI投资] ${investorNation.name} 跳过 ${building.name} (到岗率不足: ${(buildingStaffingRatio * 100).toFixed(1)}% < 95%)`);

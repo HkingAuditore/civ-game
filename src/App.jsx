@@ -690,7 +690,7 @@ function GameApp({ gameState }) {
     );
     // [FIX] 从window对象读取simulation返回的军费数据（临时方案）
     // 因为React state更新延迟，gameState.dailyMilitaryExpense总是undefined
-    const simulationMilitaryExpense = window.__GAME_MILITARY_EXPENSE__;
+    const simulationMilitaryExpense = gameState.dailyMilitaryExpense || window.__GAME_MILITARY_EXPENSE__;
     const militaryUpkeepMod = gameState.modifiers?.officialEffects?.militaryUpkeepMod || 0;
     console.log('[App.jsx] Military expense final:', {
         simulationData: simulationMilitaryExpense,

@@ -306,7 +306,7 @@ const formatCompactCost = (value) => {
 export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade, onDowngrade, onBatchUpgrade, onBatchDowngrade, taxPolicies, onUpdateTaxPolicies, scrollToUpgrade }) => {
     if (!building || !gameState) return null;
 
-    const { resources, epoch, market, buildings, buildingUpgrades, jobFill, popStructure, classFinancialData, officials } = gameState;
+    const { resources, epoch, market, buildings, buildingUpgrades, jobFill, popStructure, classFinancialData, officials, foreignInvestments, nations } = gameState;
     const count = buildings[building.id] || 0;
     const upgradeLevels = buildingUpgrades?.[building.id] || {};
     const officialOwnership = useMemo(() => {
@@ -321,6 +321,19 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
         });
         return summary;
     }, [officials, building.id]);
+
+    // [NEW] 计算该建筑的外资数量
+    const foreignOwnership = useMemo(() => {
+        const summary = { count: 0, owners: {} };
+        (foreignInvestments || []).forEach(inv => {
+            if (inv.buildingId !== building.id || inv.status !== 'operating') return;
+            summary.count += 1;
+            const ownerNation = nations?.find(n => n.id === inv.ownerNationId);
+            const ownerName = ownerNation?.name || inv.ownerNationId || '外国资本';
+            summary.owners[ownerName] = (summary.owners[ownerName] || 0) + 1;
+        });
+        return summary;
+    }, [foreignInvestments, nations, building.id]);
 
     // 计算升级后的聚合效果（总值）和平均值
     const { effectiveTotalStats, averageBuilding } = useMemo(() => {
@@ -1081,7 +1094,7 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                             <div className="flex items-center justify-between">
                                 <span>原始业主</span>
                                 <span className="font-mono text-yellow-300">
-                                    {Math.max(0, count - officialOwnership.count)}
+                                    {Math.max(0, count - officialOwnership.count - foreignOwnership.count)}
                                 </span>
                             </div>
                             {officialOwnership.count > 0 ? (
@@ -1106,6 +1119,31 @@ export const BuildingDetails = ({ building, gameState, onBuy, onSell, onUpgrade,
                                 </div>
                             ) : (
                                 <div className="text-[10px] text-gray-500 mt-1">暂无官员私产</div>
+                            )}
+                            {/* [NEW] 外资显示 */}
+                            {foreignOwnership.count > 0 && (
+                                <div className="mt-2 pt-2 border-t border-gray-700/50">
+                                    <div className="flex items-center justify-between text-amber-300">
+                                        <span className="flex items-center gap-1">
+                                            <Icon name="Globe" size={12} />
+                                            外国投资
+                                        </span>
+                                        <span className="font-mono">{foreignOwnership.count}</span>
+                                    </div>
+                                    <div className="mt-1 flex flex-wrap gap-1.5">
+                                        {Object.entries(foreignOwnership.owners).slice(0, 4).map(([name, ownedCount]) => (
+                                            <span
+                                                key={`foreign-owner-${name}`}
+                                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-900/30 border border-amber-700/40 text-[10px] text-amber-200"
+                                            >
+                                                {name} × {ownedCount}
+                                            </span>
+                                        ))}
+                                        {Object.keys(foreignOwnership.owners).length > 4 && (
+                                            <span className="text-[10px] text-gray-500">等 {Object.keys(foreignOwnership.owners).length} 国</span>
+                                        )}
+                                    </div>
+                                </div>
                             )}
                         </DetailSection>
                     )}
