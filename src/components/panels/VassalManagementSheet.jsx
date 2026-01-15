@@ -367,32 +367,66 @@ const OverviewTab = memo(({ nation, tribute, typeConfig, isAtRisk, vassalType, a
                     <span className="text-white">{formatNumberShortCN(nation.wealth || 0)}</span>
                 </div>
                 <div className="flex justify-between">
-                    <span className="text-gray-400">军事通行:</span>
-                    <span className={typeConfig.militaryAccess ? 'text-green-400' : 'text-red-400'}>
-                        {typeConfig.militaryAccess ? '允许' : '不允许'}
+                    <span className="text-gray-400">军事义务:</span>
+                    <span className="text-blue-400">
+                        {typeConfig.militaryObligation === 'auto_join' ? '自动参战' :
+                         typeConfig.militaryObligation === 'expeditionary' ? '派遣远征军' :
+                         typeConfig.militaryObligation === 'pay_to_call' ? '付费征召' : '无'}
                     </span>
                 </div>
                 <div className="flex justify-between">
-                    <span className="text-gray-400">外交自主:</span>
-                    <span className={typeConfig.diplomaticAutonomy ? 'text-yellow-400' : 'text-green-400'}>
-                        {typeConfig.diplomaticAutonomy ? '独立' : '跟随宗主'}
+                    <span className="text-gray-400">投资特权:</span>
+                    <span className="text-green-400">
+                        {typeConfig.economicPrivileges?.investmentCostDiscount > 0
+                            ? `折扣${typeConfig.economicPrivileges.investmentCostDiscount*100}%`
+                            : '无折扣'}
                     </span>
                 </div>
             </div>
         </div>
 
-        {/* 释放附庸按钮 */}
-        <Button
-            onClick={() => {
-                onDiplomaticAction?.(nation.id, 'release_vassal');
-                onClose();
-            }}
-            variant="danger"
-            className="w-full"
-        >
-            <Icon name="Unlock" size={16} className="mr-2" />
-            释放附庸
-        </Button>
+        {/* 军事与经济行动 */}
+        <div className="grid grid-cols-2 gap-2">
+            {typeConfig.militaryObligation === 'expeditionary' && (
+                <Button
+                    onClick={() => onDiplomaticAction?.(nation.id, 'request_force')}
+                    className="w-full bg-blue-700 hover:bg-blue-600"
+                >
+                    <Icon name="Swords" size={14} className="mr-1" />
+                    请求远征军
+                </Button>
+            )}
+            {typeConfig.militaryObligation === 'pay_to_call' && (
+                <Button
+                    onClick={() => onDiplomaticAction?.(nation.id, 'call_to_arms')}
+                    className="w-full bg-blue-700 hover:bg-blue-600"
+                >
+                    <Icon name="Flag" size={14} className="mr-1" />
+                    战争征召
+                </Button>
+            )}
+
+            <Button
+                onClick={() => onDiplomaticAction?.(nation.id, 'demand_investment')}
+                className="w-full bg-amber-700 hover:bg-amber-600"
+            >
+                <Icon name="Briefcase" size={14} className="mr-1" />
+                索取投资
+            </Button>
+
+            {/* 释放附庸按钮 */}
+            <Button
+                onClick={() => {
+                    onDiplomaticAction?.(nation.id, 'release_vassal');
+                    onClose();
+                }}
+                variant="danger"
+                className="w-full col-span-2"
+            >
+                <Icon name="Unlock" size={16} className="mr-2" />
+                释放附庸
+            </Button>
+        </div>
 
         {/* 提示 */}
         {isAtRisk && (

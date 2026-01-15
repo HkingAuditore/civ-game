@@ -27,6 +27,7 @@ import {
     applyPopulationLossModifier,
     isInGracePeriod,
 } from '../../config/difficulty';
+import { VASSAL_TYPE_CONFIGS } from '../../config/diplomacy';
 
 const applyTreasuryChange = (resources, delta, reason, onTreasuryChange) => {
     if (!resources || !Number.isFinite(delta) || delta === 0) return 0;
@@ -853,6 +854,27 @@ export const checkWarDeclaration = ({
         next.warDeclarationPending = true;
         logs.push(`⚠️ ${next.name} 对你发动了战争！`);
         logs.push(`WAR_DECLARATION_EVENT:${JSON.stringify({ nationId: next.id, nationName: next.name })}`);
+
+        // [NEW] Trigger Auto-Join Vassals
+        // When AI declares on Player, Player's "auto_join" vassals (Colony/Puppet) automatically enter war with AI
+        if (nations) {
+            nations.forEach(vassal => {
+                if (vassal.vassalOf === 'player') {
+                    const config = VASSAL_TYPE_CONFIGS[vassal.vassalType];
+                    if (config?.militaryObligation === 'auto_join') {
+                        // Establish AI-AI war
+                        if (!next.foreignWars) next.foreignWars = {};
+                        if (!vassal.foreignWars) vassal.foreignWars = {};
+
+                        if (!next.foreignWars[vassal.id]?.isAtWar) {
+                            next.foreignWars[vassal.id] = { isAtWar: true, warStartDay: tick, warScore: 0 };
+                            vassal.foreignWars[next.id] = { isAtWar: true, warStartDay: tick, warScore: 0 };
+                            logs.push(`⚔️ ${vassal.name} 作为您的${config.name}，自动对 ${next.name} 宣战！`);
+                        }
+                    }
+                }
+            });
+        }
     }
 
     // Wealth-based war check (also respects minWarEpoch from difficulty)
@@ -879,6 +901,25 @@ export const checkWarDeclaration = ({
             next.warDeclarationPending = true;
             logs.push(`⚠️ ${next.name} 觊觎你的财富，发动了战争！`);
             logs.push(`WAR_DECLARATION_EVENT:${JSON.stringify({ nationId: next.id, nationName: next.name, reason: 'wealth' })}`);
+
+            // [NEW] Trigger Auto-Join Vassals for Wealth War too
+            if (nations) {
+                nations.forEach(vassal => {
+                    if (vassal.vassalOf === 'player') {
+                        const config = VASSAL_TYPE_CONFIGS[vassal.vassalType];
+                        if (config?.militaryObligation === 'auto_join') {
+                            if (!next.foreignWars) next.foreignWars = {};
+                            if (!vassal.foreignWars) vassal.foreignWars = {};
+
+                            if (!next.foreignWars[vassal.id]?.isAtWar) {
+                                next.foreignWars[vassal.id] = { isAtWar: true, warStartDay: tick, warScore: 0 };
+                                vassal.foreignWars[next.id] = { isAtWar: true, warStartDay: tick, warScore: 0 };
+                                logs.push(`⚔️ ${vassal.name} 作为您的${config.name}，自动对 ${next.name} 宣战！`);
+                            }
+                        }
+                    }
+                });
+            }
         }
     }
 };
@@ -983,6 +1024,18 @@ export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, 
             const isAggressiveEnough = aggression > 0.25;
             const isHatedEnemy = relation < 15;
 
+            // [NEW] Check Suzerain Protection (Attack on Vassal = Attack on Suzerain)
+            // If otherNation is Player's Vassal, check if War on Player triggers
+            if (otherNation.vassalOf === 'player' && !nation.isAtWar) {
+                 // AI considering attacking Player's Vassal
+                 // This effectively means declaring war on Player
+                 // So we should check player strength + vassal strength?
+                 // For now, simple logic: attacking vassal = war with player
+                 // We skip this check here to avoid AI suicide, or we let them do it?
+                 // Let's make AI smarter: consider Player Strength before attacking Vassal
+                 // ... skipping complexity for now, just trigger the war if they decide to attack
+            }
+
             if ((isRelationsBadEnough && isAggressiveEnough) || isHatedEnemy) {
                 let warChance = (aggression * 0.003) + ((50 - relation) / 5000);
 
@@ -1015,6 +1068,17 @@ export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, 
                         `📢 国际新闻：战争爆发！${nation.name} 对 ${otherNation.name} 发起了战争！`
                     ];
                     logs.push(declarationNewsTemplates[Math.floor(Math.random() * declarationNewsTemplates.length)]);
+
+                    // [NEW] Suzerain Protection Logic
+                    if (otherNation.vassalOf === 'player') {
+                        if (!nation.isAtWar) {
+                            nation.isAtWar = true;
+                            nation.warStartDay = tick;
+                            nation.warDuration = 0;
+                            nation.warDeclarationPending = true;
+                            logs.push(`⚠️ ${nation.name} 攻击了您的附庸 ${otherNation.name}，自动对您宣战！`);
+                        }
+                    }
 
                     // Alliance chain reaction
                     const isOtherNationPlayerAlly = otherNation.alliedWithPlayer === true;

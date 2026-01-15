@@ -67,6 +67,8 @@ import {
     isSelectionAvailable,
     disposeOfficial,
 } from '../logic/officials/manager';
+import { requestExpeditionaryForce, requestWarParticipation } from '../logic/diplomacy/vassalSystem';
+import { demandVassalInvestment } from '../logic/diplomacy/overseasInvestment';
 
 
 /**
@@ -4006,6 +4008,101 @@ export const useGameActions = (gameState, addLog) => {
                     console.error('Failed to load vassal system:', err);
                     addLog('附庸系统加载失败。');
                 });
+                break;
+            }
+
+            case 'request_force': {
+                const result = requestExpeditionaryForce(targetNation);
+                if (result.success) {
+                    // Grant manpower/units to player
+                    // Assuming 1 unit = 100 manpower
+                    const unitCount = Math.floor((result.manpower || 0) / 100);
+                    if (unitCount > 0) {
+                        const unitId = 'infantry_line'; // Default unit
+                        // Check if unit unlocked
+                        const unitConfig = UNIT_TYPES[unitId];
+                        if (unitConfig && unitConfig.epoch <= epoch) {
+                            const newItems = Array(unitCount).fill(null).map(() => ({
+                                unitId,
+                                status: 'waiting',
+                                remainingTime: 1,
+                                totalTime: 1,
+                                isFree: true // Mark as free/volunteer
+                            }));
+                            setMilitaryQueue(prev => [...prev, ...newItems]);
+                        }
+                    }
+
+                    // Deduct manpower from vassal
+                    setNations(prev => prev.map(n => n.id === nationId ? { ...n, manpower: Math.max(0, (n.manpower || 0) - result.manpower) } : n));
+                    addLog(result.message);
+                } else {
+                    addLog(result.message);
+                }
+                break;
+            }
+
+            case 'call_to_arms': {
+                const result = requestWarParticipation(targetNation, null, resources.silver || 0);
+                if (result.success) {
+                    setResourcesWithReason(prev => ({ ...prev, silver: prev.silver - result.cost }), 'call_to_arms', { nationId });
+
+                    // Trigger war status for vassal against player's enemies
+                    const playerEnemies = nations.filter(n =>
+                        (n.isAtWar && n.warTarget === 'player') || // Enemy attacking Player
+                        (n.foreignWars?.player?.isAtWar) // Player attacking Enemy (AI-AI style record)
+                    );
+
+                    setNations(prev => prev.map(n => {
+                        if (n.id === nationId) {
+                            // Set Vassal to War
+                            const newForeignWars = { ...(n.foreignWars || {}) };
+                            playerEnemies.forEach(enemy => {
+                                if (!newForeignWars[enemy.id]?.isAtWar) {
+                                    newForeignWars[enemy.id] = { isAtWar: true, warStartDay: daysElapsed, warScore: 0 };
+                                }
+                            });
+                            return { ...n, foreignWars: newForeignWars, isAtWar: playerEnemies.length > 0 }; // Simplified
+                        }
+                        return n;
+                    }));
+
+                    addLog(result.message);
+                } else {
+                    addLog(result.message);
+                }
+                break;
+            }
+
+            case 'demand_investment': {
+                // Default to 'factory' or 'farm' based on era/availability
+                const buildingId = epoch >= 2 ? 'factory' : 'farm';
+                const result = demandVassalInvestment(targetNation, buildingId);
+
+                if (result.success && result.investment) {
+                    // Add to foreign investments
+                    const inv = {
+                        ...result.investment,
+                        operatingMode: 'local',
+                        investmentAmount: result.cost,
+                        createdDay: daysElapsed,
+                        status: 'operating'
+                    };
+                    setForeignInvestments(prev => [...prev, inv]);
+
+                    // Deduct wealth from vassal
+                    setNations(prev => prev.map(n => n.id === nationId ? { ...n, wealth: Math.max(0, (n.wealth || 0) - result.cost) } : n));
+
+                    // Add building to player (physically)
+                    setBuildings(prev => ({
+                        ...prev,
+                        [buildingId]: (prev[buildingId] || 0) + 1
+                    }));
+
+                    addLog(result.message);
+                } else {
+                    addLog(result.message);
+                }
                 break;
             }
 

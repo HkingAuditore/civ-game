@@ -76,6 +76,7 @@ import {
 } from '../logic/rebellionSystem';
 import { getTreatyDailyMaintenance } from '../config/diplomacy';
 import { processVassalUpdates } from '../logic/diplomacy/vassalSystem';
+import { checkVassalRequests } from '../logic/diplomacy/aiDiplomacy';
 import { LOYALTY_CONFIG } from '../config/officials';
 
 const calculateRebelPopulation = (stratumPop = 0) => {
@@ -1579,6 +1580,13 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         officials: result.officials || [],  // Pass officials for governor system
                         logs: vassalLogs
                     });
+
+                    // [NEW] Check for vassal autonomous requests (Lower Tribute, Aid, Investment)
+                    checkVassalRequests(
+                        current.nations.filter(n => n.vassalOf === 'player'),
+                        current.daysElapsed || 0,
+                        vassalLogs
+                    );
 
                     if (vassalUpdateResult) {
                         // 更新国家列表（包含附庸状态变化）
