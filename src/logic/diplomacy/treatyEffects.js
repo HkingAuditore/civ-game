@@ -57,6 +57,21 @@ export const TREATY_EFFECT_CONFIGS = {
         extraMerchantSlots: 1,
         mutualDefense: true,
     },
+    military_alliance: {
+        name: '军事同盟',
+        tariffMultiplier: 0.85,       // 关税减免15%
+        extraMerchantSlots: 2,
+        mutualDefense: true,
+        relationDecayReduction: 0.8,  // 关系衰减速度-80%
+    },
+    economic_bloc: {
+        name: '经济共同体',
+        tariffMultiplier: 0.60,       // 关税减免40%
+        extraMerchantSlots: 5,
+        tradeEfficiencyBonus: 0.40,   // 贸易利润+40%
+        priceConvergence: true,
+        overseasBuildingAccess: true,
+    },
 };
 
 /**
