@@ -3,6 +3,8 @@
  * 官员成长系统：处理经验值获取、升级和属性成长
  */
 
+import { recalculateEffectsFromStats } from '../../config/officials';
+
 /**
  * 经验值等级表
  * 每级所需经验随等级增加而提高
@@ -115,6 +117,16 @@ export const processLevelUp = (official) => {
         statChanges[selectedStat] = (statChanges[selectedStat] || 0) + growth;
     }
 
+    // ========== 重新计算效果值（属性提升 → 效果提升）==========
+    let newEffects = official.effects || {};
+    let newRawEffects = official.rawEffects || [];
+    
+    if (Array.isArray(official.rawEffects) && official.rawEffects.length > 0) {
+        const recalcResult = recalculateEffectsFromStats(official.rawEffects, newStats);
+        newEffects = recalcResult.effects;
+        newRawEffects = recalcResult.rawEffects;
+    }
+
     // 野心增长
     const newAmbition = Math.min(100, (official.ambition || 30) + config.ambitionGrowthPerLevel);
 
@@ -130,6 +142,8 @@ export const processLevelUp = (official) => {
         level: newLevel,
         xpToNextLevel: newXpToNextLevel,
         stats: newStats,
+        effects: newEffects,
+        rawEffects: newRawEffects,
         // 向后兼容
         prestige: newStats.prestige,
         administrative: newStats.administrative,
