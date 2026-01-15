@@ -190,7 +190,8 @@ export function processAIInvestment({
     playerState, // { population, resources, taxes, ..., buildings: {}, staffingRatios: {} }
     market, // Player market (used if targeting player)
     epoch,
-    daysElapsed
+    daysElapsed,
+    foreignInvestments = [] // [NEW] Existing foreign investments to check limit
 }) {
     // Helper: Check if we can invest in a nation
     const canInvestInTarget = (target) => {
@@ -309,6 +310,15 @@ export function processAIInvestment({
                 continue;
             }
 
+            // [NEW] Check if foreign investment count has reached building count limit
+            const existingForeignCount = (foreignInvestments || []).filter(
+                inv => inv.buildingId === building.id && inv.status === 'operating'
+            ).length;
+            if (existingForeignCount >= playerBuildingCount) {
+                console.log(`[AI投资] ${investorNation.name} 跳过 ${building.name} (外资数量已达上限: ${existingForeignCount}/${playerBuildingCount})`);
+                continue;
+            }
+
             // [NEW] Check staffing ratio (Requirement: "到岗率不足95%不允许投资")
             // Calculate staffing ratio from jobFill data
             const targetJobFill = target.jobFill || {};
@@ -414,7 +424,8 @@ export function selectBestInvestmentBuilding({
     targetJobFill = {},
     epoch = 0,
     market = null,
-    investorWealth = Infinity
+    investorWealth = Infinity,
+    foreignInvestments = [] // [NEW] 现有外资投资列表，用于检查上限
 }) {
     // 1. Filter buildings that meet all requirements
     const candidateBuildings = BUILDINGS.filter(b => {
@@ -444,20 +455,34 @@ export function selectBestInvestmentBuilding({
             return false;
         }
 
-        // 1.6 Check staffing ratio (>= 95%)
-        const buildingJobFillData = targetJobFill[b.id] || {};
-        const buildingJobs = b.jobs || {};
-        let totalSlots = 0;
-        let filledSlots = 0;
-        Object.entries(buildingJobs).forEach(([role, slotsPerBuilding]) => {
-            const totalRoleSlots = slotsPerBuilding * buildingCount;
-            totalSlots += totalRoleSlots;
-            filledSlots += Math.min(buildingJobFillData[role] || 0, totalRoleSlots);
-        });
-        const staffingRatio = totalSlots > 0 ? filledSlots / totalSlots : 1;
-        if (staffingRatio < MIN_FOREIGN_INVESTMENT_STAFFING_RATIO) {
-            console.log(`[投资筛选] 排除 ${b.name}: 到岗率不足 (${(staffingRatio * 100).toFixed(1)}% < 95%)`);
+        // 1.6 [NEW] Check if foreign investment count has reached building count limit
+        // Foreign investment cannot exceed the number of buildings owned by the target
+        const existingForeignCount = (foreignInvestments || []).filter(
+            inv => inv.buildingId === b.id && inv.status === 'operating'
+        ).length;
+        if (existingForeignCount >= buildingCount) {
+            console.log(`[投资筛选] 排除 ${b.name}: 外资数量已达上限 (${existingForeignCount}/${buildingCount})`);
             return false;
+        }
+
+        // 1.6 Check staffing ratio (>= 95%) - Skip if jobFill data not available
+        // For demand investment from player, jobFill may not be passed, assume player's buildings are staffed
+        const hasJobFillData = targetJobFill && Object.keys(targetJobFill).length > 0;
+        if (hasJobFillData) {
+            const buildingJobFillData = targetJobFill[b.id] || {};
+            const buildingJobs = b.jobs || {};
+            let totalSlots = 0;
+            let filledSlots = 0;
+            Object.entries(buildingJobs).forEach(([role, slotsPerBuilding]) => {
+                const totalRoleSlots = slotsPerBuilding * buildingCount;
+                totalSlots += totalRoleSlots;
+                filledSlots += Math.min(buildingJobFillData[role] || 0, totalRoleSlots);
+            });
+            const staffingRatio = totalSlots > 0 ? filledSlots / totalSlots : 1;
+            if (staffingRatio < MIN_FOREIGN_INVESTMENT_STAFFING_RATIO) {
+                console.log(`[投资筛选] 排除 ${b.name}: 到岗率不足 (${(staffingRatio * 100).toFixed(1)}% < 95%)`);
+                return false;
+            }
         }
 
         // 1.7 Check if investor can afford

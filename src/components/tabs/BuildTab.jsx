@@ -18,7 +18,7 @@ import { BUILDING_CHAINS, BUILDING_TO_CHAIN } from '../../config/buildingChains'
 /**
  * 建筑悬浮提示框 (使用 Portal)
  */
-const BuildingTooltip = ({ building, count, epoch, techsUnlocked, jobFill, anchorElement, cost, resources }) => {
+const BuildingTooltip = ({ building, count, epoch, techsUnlocked, jobFill, anchorElement, cost, resources, foreignInvestments = [], officials = [] }) => {
     if (!building || !anchorElement) return null;
 
     const [position, setPosition] = useState({ top: 0, left: 0 });
@@ -124,7 +124,20 @@ const BuildingTooltip = ({ building, count, epoch, techsUnlocked, jobFill, ancho
                     <div className="glass-ancient rounded px-2 py-1.5 mb-2 text-xs border border-ancient-gold/20">
                         <div className="text-[10px] text-gray-300 mb-1">岗位</div>
                         {Object.entries(building.jobs).map(([job, perBuilding]) => {
-                            const required = perBuilding * count;
+                            let required = perBuilding * count;
+                            // [FIX] 业主岗位需要减去外资和官员私产数量
+                            if (building.owner && job === building.owner) {
+                                const foreignCount = (foreignInvestments || []).filter(
+                                    inv => inv.buildingId === building.id && inv.status === 'operating'
+                                ).length;
+                                const officialCount = (officials || []).reduce((sum, official) => {
+                                    return sum + (official.ownedProperties || []).filter(
+                                        prop => prop.buildingId === building.id
+                                    ).length;
+                                }, 0);
+                                const slotsToRemove = perBuilding * (foreignCount + officialCount);
+                                required = Math.max(0, required - slotsToRemove);
+                            }
                             const assigned = jobFill?.[building.id]?.[job] ?? 0;
                             const fillPercent = required > 0 ? Math.min(1, assigned / required) * 100 : 0;
                             return (
@@ -182,6 +195,8 @@ const CompactBuildingCard = ({
     jobFill,
     resources,
     hasUpgrades,
+    foreignInvestments = [], // [NEW] 外资投资数据
+    officials = [], // [NEW] 官员数据
 }) => {
     const VisualIcon = Icon;
 
@@ -227,7 +242,23 @@ const CompactBuildingCard = ({
                     {building.jobs && Object.keys(building.jobs).length > 0 && (
                         <div className="bg-gray-900/40 rounded px-1 py-0.5">
                             {Object.entries(building.jobs).map(([job, perBuilding]) => {
-                                const required = perBuilding * count;
+                                let required = perBuilding * count;
+                                // [FIX] 业主岗位需要减去外资和官员私产数量
+                                if (building.owner && job === building.owner) {
+                                    // 计算该建筑的外资数量
+                                    const foreignCount = (foreignInvestments || []).filter(
+                                        inv => inv.buildingId === building.id && inv.status === 'operating'
+                                    ).length;
+                                    // 计算该建筑的官员私产数量
+                                    const officialCount = (officials || []).reduce((sum, official) => {
+                                        return sum + (official.ownedProperties || []).filter(
+                                            prop => prop.buildingId === building.id
+                                        ).length;
+                                    }, 0);
+                                    // 减去外资和官员私产的业主岗位
+                                    const slotsToRemove = perBuilding * (foreignCount + officialCount);
+                                    required = Math.max(0, required - slotsToRemove);
+                                }
                                 const assigned = jobFill?.[building.id]?.[job] ?? 0;
                                 const fillPercent = required > 0 ? Math.min(1, assigned / required) * 100 : 0;
                                 return (
@@ -333,6 +364,8 @@ const BuildTabComponent = ({
     buildingFinancialData = {},
     difficulty,
     buildingCostMod = 0,
+    foreignInvestments = [], // 外资投资数据
+    officials = [], // 官员数据
 }) => {
     const [hoveredBuilding, setHoveredBuilding] = useState({ building: null, element: null });
     // More reliable hover detection: requires both hover capability AND fine pointer (mouse/trackpad)
@@ -727,9 +760,11 @@ const BuildTabComponent = ({
                 resources={resources}
                 onShowDetails={onShowDetails}
                 hasUpgrades={canUpgradeAny}
+                foreignInvestments={foreignInvestments}
+                officials={officials}
             />
         );
-    }, [cardDataById, onBuy, onSell, handleMouseEnter, canHover, epoch, techsUnlocked, jobFill, resources, onShowDetails]);
+    }, [cardDataById, onBuy, onSell, handleMouseEnter, canHover, epoch, techsUnlocked, jobFill, resources, onShowDetails, foreignInvestments, officials]);
 
     // 渲染链内容：顶级建筑(带角标) + (展开时)其他建筑
     // 返回数组，直接插入到网格中
@@ -778,6 +813,8 @@ const BuildTabComponent = ({
                     resources={resources}
                     onShowDetails={onShowDetails}
                     hasUpgrades={canUpgradeAny}
+                    foreignInvestments={foreignInvestments}
+                    officials={officials}
                 />
 
                 {/* 链展开角标 - 右侧偏上 */}
@@ -914,6 +951,8 @@ const BuildTabComponent = ({
                 jobFill={jobFill}
                 cost={hoveredBuilding.cost}
                 resources={resources}
+                foreignInvestments={foreignInvestments}
+                officials={officials}
             />
         </div>
     );
