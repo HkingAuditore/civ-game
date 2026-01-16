@@ -13,12 +13,10 @@ const MinisterSlot = ({ ministry, official, onAssign, onRemove, allOfficials, ep
     // Helper to translate attribute names (optional, map to CN if needed)
     const formatAttr = (attr) => {
         const map = {
-            admin: '行政',
-            management: '管理',
-            intelligence: '智力',
-            charm: '魅力',
-            command: '统率',
-            bravery: '武力'
+            administrative: '行政',
+            military: '军事',
+            diplomacy: '外交',
+            prestige: '威望',
         };
         return map[attr] || attr;
     };
