@@ -12,6 +12,7 @@ import { DOMINANCE_EFFECTS, DOMINANCE_MIN_EPOCH, calculatePolicySlots, getCentri
 import { EPOCHS } from '../../../config/epochs';
 import { OfficialDetailModal } from '../../modals/OfficialDetailModal';
 import { formatNumberShortCN } from '../../../utils/numberFormat';
+import { MinistersPanel } from './MinistersPanel';
 
 export const OfficialsPanel = ({
     officials = [],
@@ -24,6 +25,9 @@ export const OfficialsPanel = ({
     onHire,
     onFire,
     onDispose,
+    onAssignMinister, // [NEW]
+    onRemoveMinister, // [NEW]
+    ministries = {},  // [NEW]
     selectionCooldown = 180,
     // 新增：内阁协同系统相关回调和数据
     epoch = 0, // 当前时代
@@ -64,6 +68,7 @@ export const OfficialsPanel = ({
     // 派系面板弹窗状态
     const [showDominancePanel, setShowDominancePanel] = useState(false);
     const [selectedOfficial, setSelectedOfficial] = useState(null);
+    const [activeTab, setActiveTab] = useState('personnel'); // 'personnel' | 'cabinet'
     useEffect(() => {
         if (!selectedOfficial?.id) return;
         const latest = officials.find(official => official.id === selectedOfficial.id);
@@ -134,9 +139,6 @@ export const OfficialsPanel = ({
                             <Icon name="Users" className="text-purple-400" />
                             官员管理
                         </h3>
-                        <p className="text-xs text-gray-400 mt-1 max-w-md">
-                            任命官员来管理你的国家事务。高级官员可提供显著加成，但需要支付每日薪俸。
-                        </p>
                     </div>
 
                     <div className="flex items-center gap-4 bg-gray-800/50 p-2 rounded-lg border border-gray-700/30">
@@ -160,7 +162,49 @@ export const OfficialsPanel = ({
                         </div>
                     </div>
                 </div>
+
+                {/* Tab Switcher */}
+                <div className="flex gap-2 mt-4 relative z-10">
+                    <button
+                        onClick={() => setActiveTab('personnel')}
+                        className={`flex-1 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-colors ${
+                            activeTab === 'personnel'
+                            ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/20'
+                            : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700 hover:text-gray-200'
+                        }`}
+                    >
+                        <Icon name="User" size={16} />
+                        人事任命
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('cabinet')}
+                        className={`flex-1 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-colors ${
+                            activeTab === 'cabinet'
+                            ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/20'
+                            : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700 hover:text-gray-200'
+                        }`}
+                    >
+                        <Icon name="Landmark" size={16} />
+                        六部尚书
+                    </button>
+                </div>
             </div>
+
+            {/* TAB CONTENT: CABINET (Ministers) */}
+            {activeTab === 'cabinet' && (
+                <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <MinistersPanel
+                        officials={officials}
+                        ministries={ministries}
+                        onAssign={onAssignMinister}
+                        onRemove={onRemoveMinister}
+                    />
+                </div>
+            )}
+
+            {/* TAB CONTENT: PERSONNEL (Existing View) */}
+            {activeTab === 'personnel' && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
 
             {/* 2. 内阁协同度显示 */}
             {officials.length > 0 && (
@@ -308,6 +352,8 @@ export const OfficialsPanel = ({
                         ))}
                     </div>
                 </div>
+            )}
+            </div>
             )}
 
             {/* 6. 在任官员列表 */}

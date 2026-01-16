@@ -557,6 +557,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
         setOfficials, // 官员状态更新函数
         officialCapacity, // 官员容量
         setOfficialCapacity, // 官员容量更新函数
+        ministries, // 六部尚书任命
         setFiscalActual, // [NEW] realized fiscal numbers per tick
         setDailyMilitaryExpense, // [NEW] store simulation military expense for UI
         overseasInvestments, // 海外投资列表
@@ -620,6 +621,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
         legitimacy, // 当前合法性值
         difficulty, // 游戏难度
         officials,
+        ministries, // [NEW] Pass ministries state
         officialCapacity, // [FIX] 添加官员容量，用于 getCabinetStatus 计算
         activeDecrees, // [NEW] Pass activeDecrees to simulation
         quotaTargets, // [NEW] Planned Economy targets
@@ -736,6 +738,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
             legitimacy, // 当前合法性值
             difficulty, // 游戏难度
             officials,
+            ministries, // [NEW] Pass ministries state
             // [FIX] 添加内阁机制所需的状态
             activeDecrees, // 当前生效的改革法令
             expansionSettings, // 自由市场扩张设置
@@ -744,7 +747,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
             priceControls, // [NEW] 计划经济价格管制设置
             foreignInvestments, // [NEW] 海外投资
         };
-    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, livingStandardStreaks, migrationCooldowns, taxShock, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, diplomacyOrganizations, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability, rulingCoalition, legitimacy, difficulty, officials, activeDecrees, expansionSettings, quotaTargets, officialCapacity, priceControls, foreignInvestments]);
+    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, livingStandardStreaks, migrationCooldowns, taxShock, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, diplomacyOrganizations, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability, rulingCoalition, legitimacy, difficulty, officials, ministries, activeDecrees, expansionSettings, quotaTargets, officialCapacity, priceControls, foreignInvestments]);
 
     // 监听国家列表变化，自动清理无效的贸易路线（修复暂停状态下无法清理的问题）
     useEffect(() => {
@@ -1021,6 +1024,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
                 // 官员系统
                 officials: current.officials || [],
+                ministries: current.ministries || {}, // [NEW] Pass ministries state
                 officialsPaid: canAffordOfficials,
                 foreignInvestments: current.foreignInvestments || [], // [NEW] Pass foreign investments to worker
                 overseasInvestments: overseasInvestmentsRef.current || [], // [FIX] Use ref for latest state to prevent race condition
