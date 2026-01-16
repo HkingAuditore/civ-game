@@ -2800,7 +2800,9 @@ export const simulateTick = ({
         console.log('[Simulation] Applying military cost:', totalArmyCost, 'Reason:', 'expense_army_maintenance');
         const available = res.silver || 0;
         if (available >= totalArmyCost) {
-            applySilverChange(-totalArmyCost, 'expense_army_maintenance');
+            // [FIX] Use Ledger for correct wealth transfer (State -> Soldier)
+            ledger.transfer('state', 'soldier', totalArmyCost, TRANSACTION_CATEGORIES.EXPENSE.MAINTENANCE, TRANSACTION_CATEGORIES.INCOME.MILITARY_PAY);
+            
             militaryDebug.applied = true;
             militaryDebug.reason = 'expense_army_maintenance';
 
@@ -2813,14 +2815,16 @@ export const simulateTick = ({
             }
 
             // [DEBUG] Verify Log Immediate
-            const logLast = silverChangeLog[silverChangeLog.length - 1];
-            militaryDebug.logEntryFound = logLast && logLast.reason === 'expense_army_maintenance';
+            const logLast = silverChangeLog.toArray().pop(); // .toArray() returns copy, get last
+            militaryDebug.logEntryFound = logLast && logLast.reason === TRANSACTION_CATEGORIES.EXPENSE.MAINTENANCE;
             militaryDebug.logSizeAfter = silverChangeLog.length;
         } else if (totalArmyCost > 0) {
             // 部分支付
             const partialPay = available * 0.9; // 留10%底
             if (partialPay > 0) {
-                applySilverChange(-partialPay, 'expense_army_maintenance_partial');
+                // [FIX] Use Ledger for partial payment too
+                ledger.transfer('state', 'soldier', partialPay, TRANSACTION_CATEGORIES.EXPENSE.MAINTENANCE, TRANSACTION_CATEGORIES.INCOME.MILITARY_PAY);
+                
                 rates.silver = (rates.silver || 0) - partialPay;
                 roleWagePayout.soldier = (roleWagePayout.soldier || 0) + partialPay;
                 // [FIX] 同步到 classFinancialData 以保持概览和财务面板数据一致
