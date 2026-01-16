@@ -1131,6 +1131,9 @@ export const simulateTick = ({
     // 然后根据业主类型调整 jobsAvailable
     // 核心逻辑：只有阶层业主(STRATUM)才提供业主岗位，其他类型(官员/外资/国企)不提供
 
+    // 每个建筑的实际岗位需求（考虑外资/官员减少业主岗位）
+    const buildingJobsRequired = {};
+
     // 遍历所有有业主的建筑类型
     BUILDINGS.forEach(building => {
         if (!building.owner || !building.jobs) return;
@@ -1485,7 +1488,6 @@ export const simulateTick = ({
     const logs = [];
     const aggregatedLogs = new Map();
     const buildingJobFill = {};
-    const buildingJobsRequired = {}; // 每个建筑的实际岗位需求（考虑外资/官员减少业主岗位）
     const buildingStaffingRatios = {};
 
     const recordAggregatedLog = (message) => {
