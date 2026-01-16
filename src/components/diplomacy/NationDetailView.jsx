@@ -4,6 +4,7 @@ import { Icon } from '../common/UIComponents';
 import { RESOURCES, DIPLOMACY_ERA_UNLOCK, BUILDINGS } from '../../config';
 import { getEstimatedMilitaryStrength } from '../../logic/diplomacy/militaryUtils';
 import { getRelationLabel } from '../../utils/diplomacyUtils';
+import { calculateDynamicGiftCost, calculateProvokeCost } from '../../utils/diplomaticUtils';
 import { calculateForeignPrice, calculateTradeStatus } from '../../utils/foreignTrade';
 
 const formatStat = (val) => {
@@ -67,6 +68,15 @@ const NationDetailView = ({
     const insultCooldown = getCooldownInfo('insult');
     const provokeCooldown = getCooldownInfo('provoke');
     const negotiateCooldown = getCooldownInfo('negotiate_treaty');
+
+    // Calculate costs
+    const playerWealth = gameState?.resources?.silver || 0;
+    const targetWealth = nation.wealth || 0;
+
+    const giftCostValue = calculateDynamicGiftCost(playerWealth, targetWealth);
+    const provokeCostValue = calculateProvokeCost(playerWealth, targetWealth);
+
+    const formatCost = (val) => val >= 10000 ? `${(val / 10000).toFixed(1)}万` : val;
 
     const strengthEstimate = getEstimatedMilitaryStrength
         ? getEstimatedMilitaryStrength(nation, epoch, daysElapsed)
@@ -170,7 +180,7 @@ const NationDetailView = ({
                             desc={giftCooldown.isOnCooldown
                                 ? `冷却中，还需 ${giftCooldown.remainingDays} 天`
                                 : "提升关系 (+10)，需要银币。"}
-                            cost="银币"
+                            cost={`银币 ${formatCost(giftCostValue)}`}
                             onClick={() => onDiplomaticAction?.(nation.id, 'gift')}
                             color="green"
                             disabled={giftCooldown.isOnCooldown}
@@ -203,7 +213,7 @@ const NationDetailView = ({
                             desc={provokeCooldown.isOnCooldown
                                 ? `冷却中，还需 ${provokeCooldown.remainingDays} 天`
                                 : "消耗银币离间其与其他国家的关系。"}
-                            cost="银币"
+                            cost={`银币 ${formatCost(provokeCostValue)}`}
                             onClick={() => onProvoke?.()}
                             color="orange"
                             disabled={provokeCooldown.isOnCooldown}
@@ -220,8 +230,8 @@ const NationDetailView = ({
                             <ActionCard
                                 icon="Swords"
                                 title="宣战"
-                                desc="开启战争！这将导致稳定度下降。"
-                                cost={diplomaticCooldownMod ? `稳定度-${diplomaticCooldownMod}` : '稳定度'}
+                                desc="开启战争！这将导致声誉受损和贸易中断。"
+                                cost="声誉/关系"
                                 onClick={() => onDeclareWar?.()}
                                 color="red"
                             />
