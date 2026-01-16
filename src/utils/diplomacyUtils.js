@@ -3,7 +3,8 @@ import { DIPLOMACY_ERA_UNLOCK, TREATY_TYPE_LABELS, getTreatyDuration as getDurat
 export const getTreatyLabel = (type) => TREATY_TYPE_LABELS[type] || type;
 
 export const getTreatyUnlockEraName = (type) => {
-    const config = DIPLOMACY_ERA_UNLOCK.treaties[type];
+    // Check both treaties and organizations since military_alliance/economic_bloc are in organizations
+    const config = DIPLOMACY_ERA_UNLOCK.treaties[type] || DIPLOMACY_ERA_UNLOCK.organizations[type];
     if (!config) return '未知时代';
     // Assuming era names or just returning "Era X"
     return `Era ${config.minEra}`;

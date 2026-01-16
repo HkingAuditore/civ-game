@@ -18,6 +18,8 @@ const NegotiationDialog = ({
     isDiplomacyUnlocked,
     epoch,
     tradableResources,
+    organizations = [],
+    nations = [],
     t = (k, v) => v // Default translation function
 }) => {
     // State to toggle Counter Offer view
@@ -30,18 +32,39 @@ const NegotiationDialog = ({
         }
     };
 
+    // Helper to convert old format to new format
+    const convertToResourcesArray = (key, amount) => {
+        if (!key || !amount) return [];
+        return [{ key, amount }];
+    };
+
+    // Helper to format resources for display
+    const formatResourcesDisplay = (resources, resourceKey, resourceAmount) => {
+        // Support both old and new format
+        const resourcesList = resources || convertToResourcesArray(resourceKey, resourceAmount);
+        if (!resourcesList || resourcesList.length === 0) return null;
+        return resourcesList
+            .filter(r => r.key && r.amount > 0)
+            .map(r => `${RESOURCES[r.key]?.name || r.key} x${r.amount}`)
+            .join(', ');
+    };
+
     const handleApplyCounterToDraft = () => {
         if (!negotiationCounter) return;
+        // Convert counter's demands to our offer, and counter's offer to our demand
+        const counterDemandResources = negotiationCounter.demandResources || 
+            convertToResourcesArray(negotiationCounter.demandResourceKey, negotiationCounter.demandResourceAmount);
+        const counterOfferResources = negotiationCounter.resources || 
+            convertToResourcesArray(negotiationCounter.resourceKey, negotiationCounter.resourceAmount);
+        
         setNegotiationDraft({
             type: negotiationDraft.type,
             durationDays: negotiationCounter.durationDays,
             maintenancePerDay: negotiationCounter.maintenancePerDay,
             signingGift: negotiationCounter.demandSilver || 0,
-            resourceKey: negotiationCounter.demandResourceKey || '',
-            resourceAmount: negotiationCounter.demandResourceAmount || 0,
+            resources: counterDemandResources,
             demandSilver: negotiationCounter.signingGift || 0,
-            demandResourceKey: negotiationCounter.resourceKey || '',
-            demandResourceAmount: negotiationCounter.resourceAmount || 0,
+            demandResources: counterOfferResources,
             stance: negotiationDraft.stance
         });
         setShowCounterOverlay(false);
@@ -49,8 +72,16 @@ const NegotiationDialog = ({
 
     // Footer Rendering
     const renderFooter = () => {
-        const treatyUnlocked = isDiplomacyUnlocked('treaties', negotiationDraft.type, epoch);
-        const canSubmit = !!selectedNation && treatyUnlocked && !selectedNation?.isAtWar;
+        // military_alliance and economic_bloc are organizations, not treaties
+        const isOrganizationType = negotiationDraft.type === 'military_alliance' || negotiationDraft.type === 'economic_bloc';
+        const category = isOrganizationType ? 'organizations' : 'treaties';
+        const treatyUnlocked = isDiplomacyUnlocked(category, negotiationDraft.type, epoch);
+        
+        // For organization types, must select an organization or choose to create new
+        const organizationSelected = !isOrganizationType || 
+            (negotiationDraft.targetOrganizationId && negotiationDraft.organizationMode);
+        
+        const canSubmit = !!selectedNation && treatyUnlocked && !selectedNation?.isAtWar && organizationSelected;
 
         return (
             <div className="flex gap-3 justify-end w-full">
@@ -101,26 +132,25 @@ const NegotiationDialog = ({
             title={`${t('negotiation.title', '外交谈判')} - ${selectedNation?.name || t('common.unknownNation', '未知国家')}`}
             footer={renderFooter()}
             size="xl"
-            containerClassName="max-h-[95vh] h-[90vh] flex flex-col"
+            containerClassName="max-h-[95vh] flex flex-col overflow-hidden"
         >
-            <div className="h-full flex flex-col gap-1 lg:grid lg:grid-cols-[1fr_1.2fr_1fr] lg:gap-4 overflow-y-auto lg:overflow-hidden p-1">
+            <div className="flex-1 flex flex-col lg:grid lg:grid-cols-[1fr_1.5fr_1fr] gap-2 lg:gap-3 overflow-hidden p-1">
 
-                {/* --- LEFT (Row 1): MY OFFER --- */}
-                <div className="flex flex-col h-auto lg:h-full lg:order-1 overflow-visible lg:overflow-hidden">
+                {/* --- LEFT: MY OFFER --- */}
+                <div className="lg:order-1 overflow-y-auto custom-scrollbar">
                     <TradeColumn
                         type="offer"
                         draft={negotiationDraft}
                         setDraft={setNegotiationDraft}
                         tradableResources={tradableResources}
-                        className="h-auto"
                         t={t}
                     />
                 </div>
 
-                {/* --- CENTER (Row 2): TERMS & STATUS --- */}
-                <div className="flex flex-col gap-1 lg:gap-4 h-auto lg:h-full lg:order-2 overflow-visible lg:overflow-y-auto pr-0 lg:pr-1 custom-scrollbar">
+                {/* --- CENTER: TERMS & STATUS --- */}
+                <div className="flex flex-col gap-2 lg:order-2 overflow-y-auto custom-scrollbar">
                     {/* Status Section */}
-                    <Card className="p-2 lg:p-4 bg-black/40 border-ancient-gold/20">
+                    <Card className="p-2 bg-black/40 border-ancient-gold/20 flex-shrink-0">
                         <DealStatus
                             round={negotiationRound}
                             evaluation={negotiationEvaluation}
@@ -131,25 +161,27 @@ const NegotiationDialog = ({
                     </Card>
 
                     {/* Terms Section */}
-                    <div className="flex-1">
+                    <div className="flex-1 min-h-0">
                          <TreatyTerms
                             draft={negotiationDraft}
                             setDraft={setNegotiationDraft}
                             isDiplomacyUnlocked={isDiplomacyUnlocked}
                             epoch={epoch}
+                            organizations={organizations}
+                            nations={nations}
+                            selectedNation={selectedNation}
                             t={t}
                         />
                     </div>
                 </div>
 
-                {/* --- RIGHT (Row 3): MY DEMAND --- */}
-                <div className="flex flex-col h-auto lg:h-full lg:order-3 overflow-visible lg:overflow-hidden">
+                {/* --- RIGHT: MY DEMAND --- */}
+                <div className="lg:order-3 overflow-y-auto custom-scrollbar">
                      <TradeColumn
                         type="demand"
                         draft={negotiationDraft}
                         setDraft={setNegotiationDraft}
                         tradableResources={tradableResources}
-                        className="h-auto"
                         t={t}
                     />
                 </div>
@@ -182,7 +214,7 @@ const NegotiationDialog = ({
                                     <div className="flex justify-between border-b border-white/10 pb-1">
                                         <span>{t('negotiation.resource', '资源')}:</span>
                                         <span className="font-mono text-cyan-400">
-                                            {negotiationCounter.resourceKey ? `${RESOURCES[negotiationCounter.resourceKey]?.name || negotiationCounter.resourceKey} x${negotiationCounter.resourceAmount}` : t('common.none', '无')}
+                                            {formatResourcesDisplay(negotiationCounter.resources, negotiationCounter.resourceKey, negotiationCounter.resourceAmount) || t('common.none', '无')}
                                         </span>
                                     </div>
                                 </div>
@@ -196,7 +228,7 @@ const NegotiationDialog = ({
                                     <div className="flex justify-between border-b border-white/10 pb-1">
                                         <span>{t('negotiation.resource', '资源')}:</span>
                                         <span className="font-mono text-red-400">
-                                            {negotiationCounter.demandResourceKey ? `${RESOURCES[negotiationCounter.demandResourceKey]?.name || negotiationCounter.demandResourceKey} x${negotiationCounter.demandResourceAmount}` : t('common.none', '无')}
+                                            {formatResourcesDisplay(negotiationCounter.demandResources, negotiationCounter.demandResourceKey, negotiationCounter.demandResourceAmount) || t('common.none', '无')}
                                         </span>
                                     </div>
                                 </div>

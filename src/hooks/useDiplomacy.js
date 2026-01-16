@@ -14,8 +14,9 @@ export const useDiplomacy = ({
         durationDays: 365,
         maintenancePerDay: 0,
         signingGift: 0,
-        resourceKey: '',
-        resourceAmount: 0,
+        resources: [], // Array of { key: string, amount: number }
+        demandSilver: 0,
+        demandResources: [], // Array of { key: string, amount: number }
         stance: 'normal'
     });
 

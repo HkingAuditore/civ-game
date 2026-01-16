@@ -28,11 +28,14 @@ const DealStatus = ({
     const {
         strategicValue = 0,
         politicalCost = 0,
-        offerValue = 0,
-        demandValue = 0
+        economicNetValue = 0,
+        targetBenefit = 0,
+        targetRisk = 0,
     } = evaluation.dealBreakdown || {};
 
-    const economicNet = offerValue - demandValue;
+    // Economic net shows what the player is offering minus demanding (player's perspective)
+    // Positive = player is giving more, Negative = player is receiving more
+    const economicNet = economicNetValue;
 
     return (
         <div className="w-full flex flex-col gap-2 lg:gap-4">

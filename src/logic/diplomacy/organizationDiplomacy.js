@@ -28,9 +28,15 @@ export const ORGANIZATION_TYPE_CONFIGS = {
         minEra: 3,
         minMembers: 2,
         maxMembers: 6,
-        createCost: 0.02,           // 创建成本：双方财富最小值 × 2%
+        createCost: 0.05,           // 创建成本：玩家财富 × 5%
         memberFee: 0.001,           // 成员费：每月国家财富 × 0.1%
         minRelation: 60,            // 创建/加入最低关系
+        leaveCost: 0.03,            // 退出成本：财富 × 3%
+        founderLeaveCost: 0.08,     // 创始人退出成本：财富 × 8%
+        leaveRelationPenalty: -15,  // 退出后与所有成员关系 -15
+        founderLeaveRelationPenalty: -25, // 创始人退出后关系惩罚
+        founderLeaveDisbands: true, // 创始人退出是否解散组织
+        kickRelationPenalty: -20,   // 被踢出后关系惩罚
         effects: {
             mutualDefense: true,     // 共同防御
             relationBonus: 5,        // 成员间关系加成
@@ -44,9 +50,15 @@ export const ORGANIZATION_TYPE_CONFIGS = {
         minEra: 5,
         minMembers: 2,
         maxMembers: 10,
-        createCost: 0.03,
-        memberFee: 0.002,
+        createCost: 0.08,           // 创建成本：玩家财富 × 8%
+        memberFee: 0.002,           // 成员费：每月国家财富 × 0.2%
         minRelation: 45,
+        leaveCost: 0.05,            // 退出成本：财富 × 5%
+        founderLeaveCost: 0.12,     // 创始人退出成本：财富 × 12%
+        leaveRelationPenalty: -10,  // 退出后与所有成员关系 -10
+        founderLeaveRelationPenalty: -20, // 创始人退出后关系惩罚
+        founderLeaveDisbands: true, // 创始人退出是否解散组织
+        kickRelationPenalty: -15,   // 被踢出后关系惩罚
         effects: {
             tariffDiscount: 0.3,     // 成员间关税减免 30%
             relationBonus: 5,
@@ -56,6 +68,42 @@ export const ORGANIZATION_TYPE_CONFIGS = {
         description: '成员国共享经济利益，减免关税，促进贸易自由化',
     },
 };
+
+/**
+ * 计算创建组织的成本
+ * @param {string} type - 组织类型
+ * @param {number} playerWealth - 玩家财富
+ * @returns {number} - 创建成本（银币）
+ */
+export function calculateCreateOrganizationCost(type, playerWealth) {
+    const config = ORGANIZATION_TYPE_CONFIGS[type];
+    if (!config) return 0;
+    return Math.floor(playerWealth * config.createCost);
+}
+
+/**
+ * 计算退出组织的成本
+ * @param {Object} organization - 组织对象
+ * @param {string} nationId - 退出国家ID
+ * @param {number} nationWealth - 国家财富
+ * @returns {Object} - { cost, relationPenalty, willDisband }
+ */
+export function calculateLeaveOrganizationCost(organization, nationId, nationWealth) {
+    const config = ORGANIZATION_TYPE_CONFIGS[organization.type];
+    if (!config) return { cost: 0, relationPenalty: 0, willDisband: false };
+    
+    const isFounder = organization.founderId === nationId;
+    const costRate = isFounder ? config.founderLeaveCost : config.leaveCost;
+    const relationPenalty = isFounder ? config.founderLeaveRelationPenalty : config.leaveRelationPenalty;
+    const willDisband = isFounder && config.founderLeaveDisbands;
+    
+    return {
+        cost: Math.floor(nationWealth * costRate),
+        relationPenalty,
+        willDisband,
+        isFounder,
+    };
+}
 
 // ===== 数据结构 =====
 

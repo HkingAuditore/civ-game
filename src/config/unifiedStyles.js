@@ -111,7 +111,7 @@ export const MODAL_STYLES = {
   header: 'flex items-center justify-between p-4 border-b border-ancient-gold/20 flex-shrink-0',
   
   // 内容区
-  body: 'flex-1 overflow-y-auto p-4',
+  body: 'flex-1 overflow-y-auto overflow-x-hidden p-4',
   
   // 底部
   footer: 'flex items-center justify-end gap-3 p-4 border-t border-ancient-gold/20 flex-shrink-0',
