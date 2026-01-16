@@ -133,3 +133,14 @@ export {
     generateRandomOfficial,
     calculateOfficialSalary
 } from './officials.js';
+
+// 建筑业主类型系统
+export {
+    OWNER_TYPES,
+    OWNER_TYPE_LABELS,
+    providesOwnerJobs,
+    calculateEffectiveJobs,
+    buildOwnershipListFromLegacy,
+    getOwnerTypeIcon,
+    getOwnerTypeColors
+} from './ownerTypes.js';

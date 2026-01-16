@@ -1,6 +1,7 @@
 import { BUILDINGS, STRATA, EPOCHS, RESOURCES, TECHS, ECONOMIC_INFLUENCE, WEALTH_DECAY_RATE, TREATY_TYPE_LABELS } from '../config';
 import { calculateArmyPopulation, calculateArmyFoodNeed, calculateArmyCapacityNeed, calculateArmyMaintenance, calculateArmyScalePenalty } from '../config';
 import { getBuildingEffectiveConfig, getUpgradeCost, getMaxUpgradeLevel, BUILDING_UPGRADES } from '../config/buildingUpgrades';
+import { buildOwnershipListFromLegacy, providesOwnerJobs, OWNER_TYPES } from '../config/ownerTypes';
 import { isResourceUnlocked } from '../utils/resources';
 import { calculateForeignPrice } from '../utils/foreignTrade';
 import { simulateBattle, UNIT_TYPES } from '../config/militaryUnits';
@@ -1125,59 +1126,44 @@ export const simulateTick = ({
     });
     // console.log('[TICK] Buildings processed. militaryCapacity:', militaryCapacity); // Commented for performance
 
-    // ========== 官员投资产业的业主岗位修正 ==========
-    // 官员投资的产业由官员自己担任业主，不应再计算原始业主（如地主）的岗位
-    // 统计各建筑类型被官员投资的数量，从 jobsAvailable 中减去对应的原始业主岗位数
-    const officialPropertyCountByBuilding = {};
-    (officials || []).forEach(official => {
-        (official.ownedProperties || []).forEach(prop => {
-            if (prop.buildingId) {
-                officialPropertyCountByBuilding[prop.buildingId] =
-                    (officialPropertyCountByBuilding[prop.buildingId] || 0) + 1;
+    // ========== 统一业主系统：修正非阶层业主的建筑岗位 ==========
+    // 使用 buildOwnershipListFromLegacy 从分散数据源构建业主信息
+    // 然后根据业主类型调整 jobsAvailable
+    // 核心逻辑：只有阶层业主(STRATUM)才提供业主岗位，其他类型(官员/外资/国企)不提供
+
+    // 遍历所有有业主的建筑类型
+    BUILDINGS.forEach(building => {
+        if (!building.owner || !building.jobs) return;
+        
+        const buildingCount = buildings[building.id] || 0;
+        if (buildingCount <= 0) return;
+        
+        const ownerRole = building.owner;
+        const ownerSlotsPerBuilding = building.jobs[ownerRole] || 0;
+        if (ownerSlotsPerBuilding <= 0) return;
+        
+        // 构建该建筑的业主实例列表
+        const ownershipList = buildOwnershipListFromLegacy(
+            building.id,
+            buildingCount,
+            officials,
+            foreignInvestments,
+            building
+        );
+        
+        // 统计非阶层业主的建筑数量
+        let nonStratumCount = 0;
+        ownershipList.forEach(ownership => {
+            if (!providesOwnerJobs(ownership.ownerType)) {
+                nonStratumCount += ownership.count || 0;
             }
         });
-    });
-
-    // 从 jobsAvailable 中减去官员投资产业的原始业主岗位
-    Object.entries(officialPropertyCountByBuilding).forEach(([buildingId, count]) => {
-        const building = BUILDINGS.find(b => b.id === buildingId);
-        if (!building || !building.owner || !building.jobs) return;
-
-        const ownerRole = building.owner;
-        const ownerSlotsPerBuilding = building.jobs[ownerRole] || 0;
-
-        if (ownerSlotsPerBuilding > 0 && jobsAvailable[ownerRole]) {
-            // 减去官员投资产业的原始业主岗位数
-            const slotsToRemove = ownerSlotsPerBuilding * count;
+        
+        // 减去非阶层业主建筑的业主岗位
+        if (nonStratumCount > 0 && jobsAvailable[ownerRole]) {
+            const slotsToRemove = ownerSlotsPerBuilding * nonStratumCount;
             jobsAvailable[ownerRole] = Math.max(0, jobsAvailable[ownerRole] - slotsToRemove);
-        }
-    });
-
-    // ========== 外资投资产业的业主岗位修正 ==========
-    // 外资投资的产业由外国投资者担任业主，不应计算本地业主的岗位
-    // 统计各建筑类型被外资投资的数量，从 jobsAvailable 中减去对应的原始业主岗位数
-    const foreignInvestmentCountByBuilding = {};
-    (foreignInvestments || []).forEach(investment => {
-        // 只统计正在运营的外资企业
-        if (investment.status === 'operating' && investment.buildingId) {
-            foreignInvestmentCountByBuilding[investment.buildingId] =
-                (foreignInvestmentCountByBuilding[investment.buildingId] || 0) + 1;
-        }
-    });
-
-    // 从 jobsAvailable 中减去外资投资产业的原始业主岗位
-    Object.entries(foreignInvestmentCountByBuilding).forEach(([buildingId, count]) => {
-        const building = BUILDINGS.find(b => b.id === buildingId);
-        if (!building || !building.owner || !building.jobs) return;
-
-        const ownerRole = building.owner;
-        const ownerSlotsPerBuilding = building.jobs[ownerRole] || 0;
-
-        if (ownerSlotsPerBuilding > 0 && jobsAvailable[ownerRole]) {
-            // 减去外资投资产业的原始业主岗位数
-            const slotsToRemove = ownerSlotsPerBuilding * count;
-            jobsAvailable[ownerRole] = Math.max(0, jobsAvailable[ownerRole] - slotsToRemove);
-            // console.log(`[外资岗位修正] ${building.name}: 移除 ${slotsToRemove} 个 ${ownerRole} 岗位 (外资 ${count} 个)`);
+            // debugLog('ownerJobs', `[业主岗位修正] ${building.name}: 移除 ${slotsToRemove} 个 ${ownerRole} 岗位 (非阶层业主 ${nonStratumCount} 个)`);
         }
     });
 
