@@ -4,7 +4,7 @@
 import { calculatePeacePayment, calculateInstallmentPlan, calculateAllyMaintenanceCost, INSTALLMENT_CONFIG } from '../../utils/diplomaticUtils.js';
 import { formatNumberShortCN } from '../../utils/numberFormat.js';
 import { STRATA } from '../strata.js';
-import { VASSAL_TYPE_CONFIGS } from '../diplomacy.js';
+import { VASSAL_TYPE_CONFIGS, TREATY_TYPE_LABELS } from '../diplomacy.js';
 
 export const REBEL_DEMAND_SURRENDER_TYPE = {
     REFORM: 'reform',
@@ -785,7 +785,53 @@ export function createAllianceRequestEvent(nation, callback) {
     };
 }
 
-import { TREATY_TYPE_LABELS } from '../diplomacy.js';
+/**
+ * 创建外交事件 - AI邀请加入国际组织
+ * @param {Object} nation - 邀请方国家
+ * @param {Object} organization - 组织对象
+ * @param {Function} callback - 回调 (accepted: boolean) => void
+ * @returns {Object} - 外交事件对象
+ */
+export function createOrganizationInviteEvent(nation, organization, callback) {
+    const orgName = organization?.name || '国际组织';
+    const orgType = organization?.type || 'unknown';
+    const memberCount = organization?.members?.length || 0;
+
+    // 根据组织类型设置描述
+    let benefits = '';
+    if (orgType === 'military_alliance') {
+        benefits = '\\n\\n加入后的效益:\\n• 与成员国共同防御\\n• 成员间关系加成 +5\\n• 军事力量加成 +10%';
+    } else if (orgType === 'economic_bloc') {
+        benefits = '\\n\\n加入后的效益:\\n• 成员间关税减免 30%\\n• 成员间关系加成 +5\\n• 贸易效率加成 +20%';
+    } else if (orgType === 'free_trade_zone') {
+        benefits = '\\n\\n加入后的效益:\\n• 成员间关税全免\\n• 贸易效率大幅提升';
+    }
+
+    return {
+        id: `organization_invite_${nation.id}_${Date.now()}`,
+        name: `${nation.name}的组织邀请`,
+        icon: orgType === 'military_alliance' ? 'Shield' : orgType === 'economic_bloc' ? 'TrendingUp' : 'Users',
+        image: null,
+        description: `${nation.name}派遣使节前来,邀请你加入"${orgName}"。\\n\\n该组织目前有${memberCount}个成员国。${benefits}\\n\\n接受邀请将与${nation.name}以及其他成员国建立更紧密的关系。`,
+        isDiplomaticEvent: true,
+        options: [
+            {
+                id: 'accept',
+                text: '接受邀请',
+                description: `加入"${orgName}"`,
+                effects: {},
+                callback: () => callback(true),
+            },
+            {
+                id: 'reject',
+                text: '婉言谢绝',
+                description: '拒绝加入,关系会略微下降',
+                effects: {},
+                callback: () => callback(false),
+            },
+        ],
+    };
+}
 
 /**
  * Treaty 2.0: 创建外交事件 - AI提出条约
@@ -1316,9 +1362,9 @@ export function createIndependenceWarEvent(nation, vassalInfo, callback) {
     };
     const vassalTypeName = vassalTypeNames[vassalInfo?.vassalType] || '附庸国';
     const independencePressure = vassalInfo?.independencePressure || 0;
-    
+
     let description = `⚠️ 紧急！你的${vassalTypeName}${nation.name}发动了独立战争！\n\n`;
-    
+
     if (independencePressure > 80) {
         description += `长期的高压统治和剥削积累了巨大的不满。${nation.name}的人民决心不惜一切代价争取独立！\n\n`;
     } else if (independencePressure > 60) {
@@ -1326,7 +1372,7 @@ export function createIndependenceWarEvent(nation, vassalInfo, callback) {
     } else {
         description += `${nation.name}趁你的注意力被其他事务分散，发动了突然的叛乱。\n\n`;
     }
-    
+
     description += `当前形势：\n`;
     description += `• 独立倾向：${Math.round(independencePressure)}%\n`;
     description += `• 自主度：${Math.round(vassalInfo?.autonomy || 0)}%\n`;
@@ -1435,10 +1481,10 @@ export function createVassalRequestEvent(nation, vassalType, reason, callback) {
         puppet: '傀儡国',
     };
     const vassalTypeName = vassalTypeNames[vassalType] || '附庸国';
-    
+
     let description = '';
     let title = '';
-    
+
     switch (reason) {
         case 'war_defeat':
             title = `${nation.name}请求臣服`;
@@ -1723,7 +1769,7 @@ ${reasonDescriptions[reason] || `${inviter.name}希望与我们建立更紧密�
  */
 export function createBorderIncidentEvent(nation, incidentDetails, callback) {
     const { casualties, isOurFault } = incidentDetails;
-    
+
     let description = '';
     if (isOurFault) {
         description = `我方边境巡逻队在争议地区与${nation.name}的部队发生冲突，造成对方${casualties}人伤亡。

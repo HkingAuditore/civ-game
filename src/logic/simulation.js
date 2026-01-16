@@ -219,6 +219,9 @@ import {
     processAIPlayerTrade,
     processAIPlayerInteraction,
     processAIAllianceFormation,
+    processAIOrganizationRecruitment,
+    processAIOrganizationMaintenance,
+    processAIOrganizationInvitesToPlayer,
     checkAIBreakAlliance,
     processNationRelationDecay,
     // AI Economy functions
@@ -233,6 +236,8 @@ import {
     // International Organization functions
     processOrganizationMonthlyUpdate,
     getOrganizationEffects,
+    shouldDisbandOrganization,
+    ORGANIZATION_TYPE_CONFIGS,
     // Population Migration functions
     processMonthlyMigration,
     applyMigrationToPopStructure,
@@ -4979,22 +4984,35 @@ export const simulateTick = ({
         processAIPlayerInteraction(visibleNations, tick, epoch, logs);
     }
 
+    // REFACTORED: AI invites player to join organizations
+    if (shouldUpdateDiplomacy) {
+        processAIOrganizationInvitesToPlayer(visibleNations, tick, logs, { organizations: updatedOrganizations }, visibleEpoch);
+    }
+
 
     // REFACTORED: Using module function for AI-AI alliance formation
     if (shouldUpdateDiplomacy) {
         const allianceResult = processAIAllianceFormation(visibleNations, tick, logs, { organizations: updatedOrganizations }, visibleEpoch);
+        const recruitResult = processAIOrganizationRecruitment(visibleNations, tick, logs, { organizations: updatedOrganizations }, visibleEpoch);
 
         if (allianceResult && allianceResult.createdOrganizations.length > 0) {
             updatedOrganizations.push(...allianceResult.createdOrganizations);
             organizationUpdatesOccurred = true;
         }
 
-        if (allianceResult && allianceResult.memberJoinRequests.length > 0) {
-            allianceResult.memberJoinRequests.forEach(req => {
+        const joinRequests = [
+            ...(allianceResult?.memberJoinRequests || []),
+            ...(recruitResult?.memberJoinRequests || []),
+        ];
+
+        if (joinRequests.length > 0) {
+            joinRequests.forEach(req => {
                 const orgIndex = updatedOrganizations.findIndex(o => o.id === req.orgId);
                 if (orgIndex >= 0) {
                     const org = updatedOrganizations[orgIndex];
-                    if (!org.members.includes(req.nationId)) {
+                    const orgConfig = ORGANIZATION_TYPE_CONFIGS[org.type];
+                    const maxMembers = orgConfig?.maxMembers || Infinity;
+                    if (!org.members.includes(req.nationId) && org.members.length < maxMembers) {
                         updatedOrganizations[orgIndex] = {
                             ...org,
                             members: [...org.members, req.nationId]
@@ -5004,6 +5022,35 @@ export const simulateTick = ({
                 }
             });
         }
+
+        const maintenanceResult = processAIOrganizationMaintenance(visibleNations, tick, logs, { organizations: updatedOrganizations }, visibleEpoch);
+        if (maintenanceResult?.memberLeaveRequests?.length) {
+            maintenanceResult.memberLeaveRequests.forEach(req => {
+                const orgIndex = updatedOrganizations.findIndex(o => o.id === req.orgId);
+                if (orgIndex >= 0) {
+                    const org = updatedOrganizations[orgIndex];
+                    if (org.members.includes(req.nationId)) {
+                        updatedOrganizations[orgIndex] = {
+                            ...org,
+                            members: org.members.filter(m => m !== req.nationId),
+                        };
+                        organizationUpdatesOccurred = true;
+                    }
+                }
+            });
+        }
+
+        const filteredOrgs = [];
+        updatedOrganizations.forEach(org => {
+            const keepSoloPlayerOrg = org?.members?.includes('player') && org.members.length === 1;
+            if (shouldDisbandOrganization(org) && !keepSoloPlayerOrg) {
+                logs.push(`🏛️ "${org.name}" 因成员不足而解散。`);
+                organizationUpdatesOccurred = true;
+                return;
+            }
+            filteredOrgs.push(org);
+        });
+        updatedOrganizations = filteredOrgs;
     }
 
 
@@ -6480,6 +6527,18 @@ export const simulateTick = ({
 
     // [NEW] Calculate foreign investment stats
     const foreignStats = calculateOverseasInvestmentSummary(updatedForeignInvestments);
+
+    if (organizationUpdatesOccurred) {
+        updatedNations = updatedNations.map(nation => {
+            const memberships = updatedOrganizations
+                .filter(org => org.members?.includes(nation.id))
+                .map(org => org.id);
+            return {
+                ...nation,
+                organizationMemberships: memberships,
+            };
+        });
+    }
 
     return {
         tradeOpportunities,

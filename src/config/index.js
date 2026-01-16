@@ -62,6 +62,7 @@ export {
     createPlayerPeaceProposalEvent,
     createBattleEvent,
     createAllianceRequestEvent,
+    createOrganizationInviteEvent,
     createAllianceProposalResultEvent,
     createAllianceBreakEvent,
     createTreatyProposalEvent,

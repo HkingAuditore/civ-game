@@ -78,7 +78,6 @@ export const TREATY_EFFECT_CONFIGS = {
         tariffMultiplier: 0.60,       // 关税减免40%
         extraMerchantSlots: 5,
         tradeEfficiencyBonus: 0.40,   // 贸易利润+40%
-        priceConvergence: true,
         overseasBuildingAccess: true,
     },
 };
