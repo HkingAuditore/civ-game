@@ -198,6 +198,7 @@ export const OfficialsPanel = ({
                         ministries={ministries}
                         onAssign={onAssignMinister}
                         onRemove={onRemoveMinister}
+                        epoch={epoch}
                     />
                 </div>
             )}

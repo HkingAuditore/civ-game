@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { MINISTRIES } from '../../../config/ministries';
+import { MINISTRIES, getMinistryName } from '../../../config/ministries';
 import * as Icons from 'lucide-react';
 
-const MinisterSlot = ({ ministry, official, onAssign, onRemove, allOfficials }) => {
+const MinisterSlot = ({ ministry, official, onAssign, onRemove, allOfficials, epoch }) => {
     const Icon = Icons[ministry.icon] || Icons.HelpCircle;
     const [isSelecting, setIsSelecting] = useState(false);
+    const displayName = getMinistryName(ministry.id, epoch);
 
     // 筛选符合条件的官员
     const candidates = allOfficials;
@@ -27,7 +28,7 @@ const MinisterSlot = ({ ministry, official, onAssign, onRemove, allOfficials }) 
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                     <Icon className={`w-5 h-5 ${ministry.color}`} />
-                    <span className="font-bold text-gray-200">{ministry.name}</span>
+                    <span className="font-bold text-gray-200">{displayName}</span>
                 </div>
                 {official && (
                     <button
@@ -63,7 +64,7 @@ const MinisterSlot = ({ ministry, official, onAssign, onRemove, allOfficials }) 
                     className="mt-1 py-3 bg-gray-700/50 hover:bg-gray-700 text-gray-300 text-sm font-medium rounded border border-dashed border-gray-600 hover:border-gray-500 transition-all flex items-center justify-center gap-2 group"
                 >
                     <Icons.Plus className="w-4 h-4 text-gray-500 group-hover:text-gray-300" />
-                    <span>任命尚书</span>
+                    <span>任命{displayName}</span>
                 </button>
             )}
 
@@ -73,7 +74,7 @@ const MinisterSlot = ({ ministry, official, onAssign, onRemove, allOfficials }) 
                         <div className="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-900/50">
                             <div className="flex items-center gap-2">
                                 <Icon className={`w-5 h-5 ${ministry.color}`} />
-                                <h3 className="font-bold text-white">任命{ministry.name}</h3>
+                                <h3 className="font-bold text-white">任命{displayName}</h3>
                             </div>
                             <button onClick={() => setIsSelecting(false)} className="text-gray-400 hover:text-white p-1 rounded hover:bg-gray-700"><Icons.X className="w-5 h-5"/></button>
                         </div>
@@ -127,7 +128,7 @@ const MinisterSlot = ({ ministry, official, onAssign, onRemove, allOfficials }) 
     );
 };
 
-export const MinistersPanel = ({ officials, ministries, onAssign, onRemove }) => {
+export const MinistersPanel = ({ officials, ministries, onAssign, onRemove, epoch }) => {
     return (
         <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -142,6 +143,7 @@ export const MinistersPanel = ({ officials, ministries, onAssign, onRemove }) =>
                             onAssign={onAssign}
                             onRemove={onRemove}
                             allOfficials={officials}
+                            epoch={epoch}
                         />
                     );
                 })}
@@ -150,9 +152,9 @@ export const MinistersPanel = ({ officials, ministries, onAssign, onRemove }) =>
             <div className="bg-blue-900/20 border border-blue-800/30 rounded p-3 text-xs text-blue-300 flex items-start gap-2">
                 <Icons.Info className="w-4 h-4 mt-0.5 shrink-0" />
                 <p>
-                    任命尚书可以获得全局属性加成。户部、工部、度支、都官、兵部尚书还会根据需求自动使用国库资金扩建相关建筑。
+                    任命大臣可以获得全局属性加成。负责经济的部门还会根据需求自动使用国库资金扩建相关建筑。
                     <br/>
-                    尚书的能力值越高，加成效果越强，自动建设的判断也越精准。
+                    大臣的能力值越高，加成效果越强，自动建设的判断也越精准。
                 </p>
             </div>
         </div>
