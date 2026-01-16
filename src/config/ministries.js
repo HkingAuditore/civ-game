@@ -88,7 +88,7 @@ export const MINISTRIES = {
         description: '负责土地、户籍与赋税。主管农业发展与粮食储备。',
         icon: 'Wheat',
         color: 'text-amber-600',
-        allowedAttributes: ['admin', 'management'], // 影响效果的属性
+        allowedAttributes: ['administrative', 'prestige'], // 影响效果的属性
         effectDescription: '提升农业产出，根据粮食供需自动扩建农田。',
         autoBuild: {
             category: 'gather', // 关注采集类
@@ -106,7 +106,7 @@ export const MINISTRIES = {
         description: '负责工程、营造与屯田。主管工业制造与基础设施。',
         icon: 'Hammer',
         color: 'text-orange-600',
-        allowedAttributes: ['intelligence', 'management'],
+        allowedAttributes: ['administrative', 'military'], // 工业往往需要行政调度和工程后勤(军事)
         effectDescription: '提升工业产出，根据工业品供需自动扩建工厂。',
         autoBuild: {
             category: 'industry', // 关注工业类
@@ -124,7 +124,7 @@ export const MINISTRIES = {
         description: '负责财政收支与贸易流通。主管商业贸易。',
         icon: 'Coins',
         color: 'text-yellow-600',
-        allowedAttributes: ['charm', 'management'],
+        allowedAttributes: ['administrative', 'diplomacy'], // 商业需要行政管理和交涉能力
         effectDescription: '提升贸易收入，自动扩建市场与商贸设施。',
         autoBuild: {
             targetBuildings: ['market', 'bank', 'port'], // 指定建筑
@@ -141,7 +141,7 @@ export const MINISTRIES = {
         description: '负责刑狱与治安。主管城市设施与民心稳定。',
         icon: 'Landmark',
         color: 'text-blue-600',
-        allowedAttributes: ['admin', 'charm'],
+        allowedAttributes: ['administrative', 'prestige'], // 市政需要行政能力和威望(民心)
         effectDescription: '提升城市人口容量与稳定度，自动扩建住宅与公共设施。',
         autoBuild: {
             category: 'civic', // 关注市政类
@@ -158,7 +158,7 @@ export const MINISTRIES = {
         description: '负责武选、地图与甲胄。主管军队训练与国防。',
         icon: 'Swords',
         color: 'text-red-600',
-        allowedAttributes: ['command', 'bravery'],
+        allowedAttributes: ['military', 'prestige'], // 军事需要统率(军事)和威望
         effectDescription: '提升军队战斗力与训练速度，自动扩建兵营。',
         autoBuild: {
             targetBuildings: ['barracks', 'archery_range', 'stable'],
@@ -175,7 +175,7 @@ export const MINISTRIES = {
         description: '负责礼仪、祭祀与贡举。主管外交关系与科举。',
         icon: 'Scroll',
         color: 'text-purple-600',
-        allowedAttributes: ['charm', 'intelligence'],
+        allowedAttributes: ['diplomacy', 'prestige'], // 外交需要交涉(外交)和威望(国体)
         effectDescription: '提升外交关系改善速度与条约成功率。',
         autoBuild: null, // 外交大臣不负责建设
         bonuses: {
