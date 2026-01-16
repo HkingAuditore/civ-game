@@ -2537,343 +2537,6 @@ export const useGameActions = (gameState, addLog) => {
                 break;
             }
 
-            case 'negotiate_treaty': {
-                const { proposal: rawProposal, onResult } = payload;
-                if (!rawProposal) return;
-
-                const normalizedProposal = {
-                    type: rawProposal.type || 'peace_treaty',
-                    durationDays: rawProposal.durationDays || getTreatyDuration(rawProposal.type || 'peace_treaty', epoch),
-                    maintenancePerDay: rawProposal.maintenancePerDay || 0,
-                    signingGift: rawProposal.signingGift || 0,
-                    resources: Array.isArray(rawProposal.resources)
-                        ? rawProposal.resources.filter(r => r?.key && r.amount > 0)
-                        : (rawProposal.resourceKey && rawProposal.resourceAmount > 0
-                            ? [{ key: rawProposal.resourceKey, amount: rawProposal.resourceAmount }]
-                            : []),
-                    demandSilver: rawProposal.demandSilver || 0,
-                    demandResources: Array.isArray(rawProposal.demandResources)
-                        ? rawProposal.demandResources.filter(r => r?.key && r.amount > 0)
-                        : (rawProposal.demandResourceKey && rawProposal.demandResourceAmount > 0
-                            ? [{ key: rawProposal.demandResourceKey, amount: rawProposal.demandResourceAmount }]
-                            : []),
-                    stance: rawProposal.stance || 'normal',
-                    targetOrganizationId: rawProposal.targetOrganizationId,
-                    organizationMode: rawProposal.organizationMode,
-                    forceAccept: rawProposal.forceAccept === true
-                };
-                const proposal = normalizedProposal;
-
-                // Get organization info if relevant
-                let organization = null;
-                let organizationMode = null;
-                const orgType = proposal.type === 'military_alliance' ? 'military_alliance' : 
-                               (proposal.type === 'economic_bloc' ? 'economic_bloc' : null);
-                
-                if (orgType && proposal.targetOrganizationId && proposal.organizationMode) {
-                    const orgs = diplomacyOrganizations?.organizations || [];
-                    organization = orgs.find(o => o.id === proposal.targetOrganizationId);
-                    organizationMode = proposal.organizationMode;
-                }
-
-                // Get production values
-                const playerProduction = gameState?.totalGoodsProduction || 
-                                        (productionPerDay?.goods || 0);
-                const targetProduction = targetNation?.productionCapacity || 
-                                        targetNation?.economyScore || 
-                                        (targetNation?.wealth || 0) * 0.01;
-
-                const evaluation = calculateNegotiationAcceptChance({
-                    proposal,
-                    nation: targetNation,
-                    epoch: epoch || 0,
-                    stance: proposal.stance,
-                    daysElapsed,
-                    playerWealth: resources?.silver || 0,
-                    targetWealth: targetNation.wealth || 0,
-                    playerPower: militaryPower || 0,
-                    targetPower: targetNation.militaryPower || targetNation.power || 0,
-                    playerProduction,
-                    targetProduction,
-                    organization,
-                    organizationMode,
-                });
-
-                const accepted = Math.random() < evaluation.acceptChance || proposal.forceAccept;
-                const stance = proposal.stance || 'normal';
-
-                const getTreatyEndDay = (t) => {
-                    if (Number.isFinite(t?.endDay)) return t.endDay;
-                    if (Number.isFinite(t?.startDay) && Number.isFinite(t?.duration)) return t.startDay + t.duration;
-                    if (Number.isFinite(t?.signedDay) && Number.isFinite(t?.duration)) return t.signedDay + t.duration;
-                    return null;
-                };
-                const isTreatyActive = (t) => {
-                    const endDay = getTreatyEndDay(t);
-                    return endDay == null || daysElapsed < endDay;
-                };
-                const hasActiveTreatyType = (types) => Array.isArray(targetNation?.treaties)
-                    && targetNation.treaties.some((t) => types.includes(t.type) && isTreatyActive(t));
-
-                if (PEACE_TREATY_TYPES.includes(proposal.type) && hasActiveTreatyType(PEACE_TREATY_TYPES)) {
-                    addLog(`与 ${targetNation.name} 的和平/互不侵犯条约仍在生效，无法重复签署。`);
-                    if (onResult) onResult({ status: 'blocked', reason: 'treaty_active' });
-                    return;
-                }
-                const shouldReplaceOpenMarket = OPEN_MARKET_TREATY_TYPES.includes(proposal.type)
-                    && hasActiveTreatyType(OPEN_MARKET_TREATY_TYPES);
-                if (!OPEN_MARKET_TREATY_TYPES.includes(proposal.type) && !PEACE_TREATY_TYPES.includes(proposal.type)
-                    && hasActiveTreatyType([proposal.type])) {
-                    addLog(`与 ${targetNation.name} 的该类条约仍在生效，无法重复签署。`);
-                    if (onResult) onResult({ status: 'blocked', reason: 'treaty_active' });
-                    return;
-                }
-
-                if (accepted) {
-                    const type = proposal.type;
-                    const durationDays = proposal.durationDays || 365;
-                    const signingGift = proposal.signingGift || 0;
-                    
-                    // Support both old single resource format and new multi-resource format
-                    const offerResources = Array.isArray(proposal.resources) 
-                        ? proposal.resources.filter(r => r.key && r.amount > 0)
-                        : (proposal.resourceKey && proposal.resourceAmount > 0 ? [{ key: proposal.resourceKey, amount: proposal.resourceAmount }] : []);
-                    
-                    const demandSilver = proposal.demandSilver || 0;
-                    
-                    const demandResources = Array.isArray(proposal.demandResources)
-                        ? proposal.demandResources.filter(r => r.key && r.amount > 0)
-                        : (proposal.demandResourceKey && proposal.demandResourceAmount > 0 ? [{ key: proposal.demandResourceKey, amount: proposal.demandResourceAmount }] : []);
-
-                    // 1. Calculate Costs (Silver)
-                    // Treaty signing cost (administrative)
-                    const signingCost = calculateTreatySigningCost(type, resources.silver || 0, targetNation.wealth || 0);
-                    // Resource Purchase Cost (Buying from domestic market to gift)
-                    let giftResourceCost = 0;
-                    for (const res of offerResources) {
-                        giftResourceCost += res.amount * getMarketPrice(res.key);
-                    }
-
-                    const totalSilverCost = signingCost + signingGift + giftResourceCost;
-
-                    // 2. Validation
-                    if ((resources.silver || 0) < totalSilverCost) {
-                        addLog(`谈判成功但无法履约：银币不足（需 ${Math.floor(totalSilverCost)}，含资源采购费）。`);
-                        return;
-                    }
-                    for (const res of offerResources) {
-                        if ((resources[res.key] || 0) < res.amount) {
-                            addLog(`谈判成功但无法履约：${RESOURCES[res.key]?.name || res.key} 库存不足。`);
-                            return;
-                        }
-                    }
-
-                    // 3. Execution (Deduct Costs)
-                    setResourcesWithReason(prev => {
-                        const next = { ...prev };
-                        next.silver = Math.max(0, (next.silver || 0) - totalSilverCost);
-                        for (const res of offerResources) {
-                            next[res.key] = Math.max(0, (next[res.key] || 0) - res.amount);
-                        }
-                        return next;
-                    }, 'treaty_negotiate_cost', { nationId, type, signingCost, signingGift, giftResourceCost });
-
-                    // 4. Execution (Receive Gains)
-                    let totalSilverGain = demandSilver;
-                    for (const res of demandResources) {
-                        // Sell received resources immediately to domestic market
-                        const resValue = res.amount * getMarketPrice(res.key);
-                        totalSilverGain += resValue;
-                    }
-                    
-                    if (totalSilverGain > 0 || demandResources.length > 0) {
-                        setResourcesWithReason(prev => {
-                            const next = { ...prev };
-                            next.silver = (next.silver || 0) + totalSilverGain;
-                            for (const res of demandResources) {
-                                next[res.key] = (next[res.key] || 0) + res.amount;
-                            }
-                            return next;
-                        }, 'treaty_negotiate_gain', { nationId, type, demandSilver });
-                    }
-
-                    // 5. Update Nation & Treaty
-                    const newTreaty = {
-                        id: `treaty_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                        type,
-                        partnerId: nationId,
-                        signedDay: daysElapsed,
-                        startDay: daysElapsed,
-                        duration: durationDays,
-                        endDay: daysElapsed + durationDays,
-                        terms: proposal,
-                        maintenancePerDay: proposal.maintenancePerDay || 0
-                    };
-
-                    setNations(prev => prev.map(n => {
-                        if (n.id === nationId) {
-                            const isPeaceTreaty = ['peace_treaty', 'white_peace', 'surrender'].includes(type);
-                            const nextInventory = { ...(n.inventory || {}) };
-                            for (const res of offerResources) {
-                                if (res.key && res.amount > 0) {
-                                    nextInventory[res.key] = (nextInventory[res.key] || 0) + res.amount;
-                                }
-                            }
-                            for (const res of demandResources) {
-                                if (res.key && res.amount > 0) {
-                                    nextInventory[res.key] = Math.max(0, (nextInventory[res.key] || 0) - res.amount);
-                                }
-                            }
-
-                            // Stance Bonus/Penalty
-                            let relationChange = 10;
-                            if (stance === 'friendly') relationChange += 5;
-                            if (stance === 'aggressive') relationChange -= 5;
-                            if (stance === 'threat') relationChange -= 15;
-
-                            const nextTreaties = (n.treaties || []).map(t => {
-                                if (!shouldReplaceOpenMarket || !OPEN_MARKET_TREATY_TYPES.includes(t.type)) return t;
-                                if (t.endDay != null && t.endDay <= daysElapsed) return t;
-                                return { ...t, endDay: daysElapsed };
-                            });
-
-                            return {
-                                ...n,
-                                relation: clampRelation((n.relation || 0) + relationChange),
-                                isAtWar: isPeaceTreaty ? false : n.isAtWar,
-                                warStartDay: isPeaceTreaty ? undefined : n.warStartDay,
-                                warScore: isPeaceTreaty ? 0 : n.warScore,
-                                treaties: [...nextTreaties, { ...newTreaty, partnerId: 'player' }],
-                                peaceTreatyUntil: isPeaceTreaty ? (daysElapsed + durationDays) : n.peaceTreatyUntil,
-                                // Update wealth/inventory for AI
-                                wealth: (n.wealth || 0) + signingGift - demandSilver,
-                                inventory: nextInventory
-                            };
-                        }
-                        return n;
-                    }));
-
-                    // 6. Organization Handling (Alliance/Bloc)
-                    if (['military_alliance', 'economic_bloc'].includes(type)) {
-                        const targetOrgId = proposal.targetOrganizationId;
-                        const orgMode = proposal.organizationMode;
-                        
-                        // Mode: kick - Remove target from organization
-                        if (orgMode === 'kick' && targetOrgId) {
-                            // Use the kick_member action
-                            handleDiplomaticAction(nationId, 'kick_member', {
-                                orgId: targetOrgId,
-                                targetMemberId: nationId,
-                            });
-                        } else {
-                            updateOrganizationState(prev => {
-                                // Mode: invite - Player invites target to join player's organization
-                                if (orgMode === 'invite' && targetOrgId && targetOrgId !== 'new') {
-                                    const targetOrg = prev.find(o => o.id === targetOrgId);
-                                    if (targetOrg && !targetOrg.members.includes(nationId)) {
-                                        return prev.map(o => o.id === targetOrgId 
-                                            ? { ...o, members: [...o.members, nationId] } 
-                                            : o
-                                        );
-                                    }
-                                    return prev;
-                                }
-                                
-                                // Mode: join - Player joins target's organization
-                                if (orgMode === 'join' && targetOrgId) {
-                                    const targetOrg = prev.find(o => o.id === targetOrgId);
-                                    if (targetOrg && !targetOrg.members.includes('player')) {
-                                        return prev.map(o => o.id === targetOrgId 
-                                            ? { ...o, members: [...o.members, 'player'] } 
-                                            : o
-                                        );
-                                    }
-                                    return prev;
-                                }
-                                
-                                // Mode: create - Create new organization with both parties
-                                if (orgMode === 'create' || !targetOrgId) {
-                                    // Check if we already have an org with both parties to prevent duplicates
-                                    const existingOrg = prev.find(o => 
-                                        o.type === type && 
-                                        o.members.includes('player') && 
-                                        o.members.includes(nationId)
-                                    );
-                                    if (existingOrg) return prev;
-                                    
-                                    const newOrg = {
-                                        id: `org_${type}_${Date.now()}`,
-                                        type,
-                                        name: type === 'military_alliance' 
-                                            ? `与${targetNation.name}的联盟` 
-                                            : `与${targetNation.name}的共同体`,
-                                        founderId: 'player',
-                                        members: ['player', nationId],
-                                        createdDay: daysElapsed,
-                                        isActive: true,
-                                    };
-                                    return [...prev, newOrg];
-                                }
-                                
-                                // Fallback: Legacy behavior - find existing org or create new
-                                let existingOrg = prev.find(o => o.type === type && o.members.includes('player'));
-                                if (existingOrg) {
-                                    if (!existingOrg.members.includes(nationId)) {
-                                        return prev.map(o => o.id === existingOrg.id 
-                                            ? { ...o, members: [...o.members, nationId] } 
-                                            : o
-                                        );
-                                    }
-                                    return prev;
-                                } else {
-                                    const newOrg = {
-                                        id: `org_${type}_${Date.now()}`,
-                                        type,
-                                        name: type === 'military_alliance' 
-                                            ? `Alliance with ${targetNation.name}` 
-                                            : `Bloc with ${targetNation.name}`,
-                                        founderId: 'player',
-                                        members: ['player', nationId],
-                                        createdDay: daysElapsed,
-                                        isActive: true,
-                                    };
-                                    return [...prev, newOrg];
-                                }
-                            });
-
-                            // Also update nation membership record
-                            setNations(prev => prev.map(n => {
-                                if (n.id === nationId) {
-                                    // We can't easily know the ID if we just created it inside updateOrganizationState without a ref,
-                                    // but for now assuming the organization state update will eventually sync or we rely on the treaty check.
-                                    // Actually, organizations are the source of truth for membership.
-                                    return { ...n, alliedWithPlayer: type === 'military_alliance' ? true : n.alliedWithPlayer };
-                                }
-                                return n;
-                            }));
-                        }
-                    }
-
-                    if (onResult) onResult({ status: 'accepted', treaty: newTreaty });
-                    addLog(`与 ${targetNation.name} 签署了 ${proposal.type === 'peace_treaty' ? '和平条约' : '条约'}。`);
-                } else {
-                    // Rejection Logic
-                    let relationPenalty = 0;
-                    if (stance === 'aggressive') relationPenalty = 15;
-                    if (stance === 'threat') relationPenalty = 30;
-
-                    if (relationPenalty > 0) {
-                        setNations(prev => prev.map(n => n.id === nationId ? { ...n, relation: Math.max(0, (n.relation || 0) - relationPenalty) } : n));
-                        addLog(`${targetNation.name} 拒绝了你的强硬要求，关系恶化 (-${relationPenalty})。`);
-                    } else {
-                        addLog(`${targetNation.name} 拒绝了你的提案。`);
-                    }
-
-                    if (onResult) onResult({ status: 'rejected' });
-                }
-                break;
-            }
-
             case 'propose_peace': {
                 // warScore 正数 = 玩家优势（玩家胜利时 +分）
                 const playerAdvantage = targetNation.warScore || 0;
@@ -2891,37 +2554,37 @@ export const useGameActions = (gameState, addLog) => {
                 triggerDiplomaticEvent(event);
                 break;
             }
-
             case 'finalize_peace': {
                 const { type, value } = payload;
                 if (!type) return;
-
                 // 如果是叛乱政府，使用专门的叛乱结束处理
                 if (targetNation.isRebelNation) {
                     // 判断是玩家胜利还是失败
                     // demand_* 视为玩家胜利（叛乱平定）- 玩家向叛军索要赔款
                     // pay_*/offer_*/peace_only 视为玩家失败（向叛军妥协）- 玩家付出任何代价或无条件求和
                     const defeatOptions = [
+
                         'pay_high',           // 支付巨额赔款
                         'pay_standard',       // 支付赔款
                         'pay_moderate',       // 支付象征性赔款
                         'pay_installment',    // 分期支付赔款
                         'pay_installment_moderate', // 分期支付（低额）
+
                         'offer_population',   // 割让人口
                         'peace_only',         // 无条件求和（玩家主动低头）
                     ];
                     const playerVictory = !defeatOptions.includes(type);
                     handleRebellionWarEnd(nationId, playerVictory);
+
                     return;
                 }
-
                 setNations(prev => prev.map(n => {
                     if (n.id === nationId) {
                         let silverChange = 0;
                         let popChange = 0;
+
                         let relationChange = 10;
                         let lootReserveChange = 0;
-
                         // Handle resource transfers
                         if (['demand_high', 'demand_standard', 'demand_installment'].includes(type)) {
                             silverChange = -Math.floor(value || 0); // AI loses silver
@@ -2938,6 +2601,7 @@ export const useGameActions = (gameState, addLog) => {
 
                         // Handle population transfers
                         if (['demand_population', 'demand_annex'].includes(type)) {
+
                             popChange = -Math.floor(value || 0); // AI loses pop
                             // TODO: Add to player population (need global setter or event)
                             // For now assuming simplified population abstraction or separate effect
@@ -2946,11 +2610,11 @@ export const useGameActions = (gameState, addLog) => {
                             // Player loses pop
                             addLog(`割让人口 ${Math.floor(value || 0)}`);
                         }
-
                         // Handle Vassalage
                         let vassalUpdates = {};
                         if (['demand_vassal', 'demand_colony', 'demand_puppet', 'demand_tributary', 'demand_protectorate'].includes(type) || type.startsWith('demand_vassal')) {
                             const vassalType = value || 'vassal'; // passed as string in event, default to unified vassal
+
                             vassalUpdates = {
                                 vassalOf: 'player',
                                 vassalType: vassalType,
@@ -2959,27 +2623,29 @@ export const useGameActions = (gameState, addLog) => {
                             };
                             addLog(`${n.name} 成为你的${VASSAL_TYPE_LABELS[vassalType] || '附庸国'}`);
                         }
-
                         return {
                             ...n,
                             isAtWar: false,
                             warScore: 0,
                             warDuration: 0,
+
                             peaceTreatyUntil: daysElapsed + 365,
                             relation: Math.min(100, Math.max(0, (n.relation || 0) + relationChange)),
                             wealth: Math.max(0, (n.wealth || 0) + silverChange),
                             population: Math.max(100, (n.population || 1000) + popChange),
+
                             lootReserve: Math.max(0, (n.lootReserve || 0) - lootReserveChange),
                             ...vassalUpdates
                         };
                     }
-                    return n;
-                }));
 
+                    return n;
+
+                }));
                 addLog(`与 ${targetNation.name} 达成和平协议。`);
                 break;
-            }
 
+            }
             case 'demand': {
                 const armyPower = calculateBattlePower(army, epoch, modifiers?.militaryBonus || 0);
                 const successChance = Math.max(0.1, (armyPower / (armyPower + 200)) * 0.6 + (targetNation.relation || 0) / 300);
@@ -2987,7 +2653,9 @@ export const useGameActions = (gameState, addLog) => {
                     const tribute = Math.min(targetNation.wealth || 0, Math.ceil(150 + armyPower * 0.25));
                     setResourcesWithReason(prev => ({ ...prev, silver: prev.silver + tribute }), 'diplomatic_demand_tribute', { nationId });
                     setNations(prev => prev.map(n =>
+
                         n.id === nationId
+
                             ? {
                                 ...n,
                                 wealth: Math.max(0, (n.wealth || 0) - tribute),
@@ -2999,6 +2667,7 @@ export const useGameActions = (gameState, addLog) => {
                             }
                             : n
                     ));
+
                     addLog(`${targetNation.name} 被迫缴纳 ${tribute} 银币。`);
                 } else {
                     const escalate = Math.random() < (0.4 + (targetNation.aggression || 0) * 0.4);
@@ -3008,6 +2677,7 @@ export const useGameActions = (gameState, addLog) => {
                                 ...n,
                                 relation: clampRelation((n.relation || 0) - 40),
                                 isAtWar: escalate ? true : n.isAtWar,
+
                                 warStartDay: escalate ? daysElapsed : n.warStartDay,
                                 warDuration: escalate ? 0 : n.warDuration,
                                 lastDiplomaticActionDay: {
@@ -3015,19 +2685,19 @@ export const useGameActions = (gameState, addLog) => {
                                     demand: daysElapsed,
                                 },
                             }
+
                             : n
                     ));
                     addLog(`${targetNation.name} 拒绝了你的勒索${escalate ? '，并向你宣战！' : '。'}`);
                 }
                 break;
             }
-
             case 'trade_route': {
                 const routeAction = payload?.action;
                 handleTradeRouteAction(nationId, routeAction, payload || {});
                 break;
-            }
 
+            }
             case 'provoke': {
                 // 挑拨关系：花费银币离间两个国家
                 const provokeCost = calculateProvokeCost(resources.silver || 0, targetNation.wealth || 0);
@@ -3035,11 +2705,11 @@ export const useGameActions = (gameState, addLog) => {
                     addLog(`银币不足，无法进行挑拨行动（需要 ${provokeCost} 银币）。`);
                     return;
                 }
-
                 // 从 payload 中获取指定的目标国家，或者随机选择
                 let otherNation;
                 if (payload.targetNationId) {
                     otherNation = nations.find(n => n.id === payload.targetNationId);
+
                     if (!otherNation) {
                         addLog('指定的目标国家不存在。');
                         return;
@@ -3051,26 +2721,23 @@ export const useGameActions = (gameState, addLog) => {
                         epoch >= (n.appearEpoch ?? 0) &&
                         (n.expireEpoch == null || epoch <= n.expireEpoch)
                     );
-
                     if (visibleNations.length === 0) {
                         addLog('没有其他国家可以被离间。');
                         return;
-                    }
 
+                    }
                     // 随机选择一个国家作为离间目标
                     otherNation = visibleNations[Math.floor(Math.random() * visibleNations.length)];
                 }
-
                 // 成功率取决于玩家与目标国家的关系
+
                 const playerRelation = targetNation.relation || 50;
                 const successChance = Math.min(0.8, 0.3 + playerRelation / 200);
-
                 setResourcesWithReason(prev => ({ ...prev, silver: prev.silver - provokeCost }), 'diplomatic_provoke_cost', { nationId });
-
                 if (Math.random() < successChance) {
                     // 成功：降低两国之间的关系
-                    const relationDamage = Math.floor(15 + Math.random() * 15);
 
+                    const relationDamage = Math.floor(15 + Math.random() * 15);
                     setNations(prev => prev.map(n => {
                         if (n.id === nationId) {
                             const newForeignRelations = { ...(n.foreignRelations || {}) };
@@ -3085,13 +2752,14 @@ export const useGameActions = (gameState, addLog) => {
                             };
                         }
                         if (n.id === otherNation.id) {
+
                             const newForeignRelations = { ...(n.foreignRelations || {}) };
                             newForeignRelations[nationId] = Math.max(0, (newForeignRelations[nationId] || 50) - relationDamage);
                             return { ...n, foreignRelations: newForeignRelations };
                         }
+
                         return n;
                     }));
-
                     addLog(`🕵️ 你成功离间了 ${targetNation.name} 与 ${otherNation.name} 的关系（-${relationDamage}）！`);
                 } else {
                     // 失败：被发现，与目标国家关系下降
@@ -3110,8 +2778,8 @@ export const useGameActions = (gameState, addLog) => {
                     addLog(`🕵️ 你的离间行动被 ${targetNation.name} 发现了，关系恶化！`);
                 }
                 break;
-            }
 
+            }
             case 'insult': {
                 // 羞辱：降低关系，可能引发战争或获得声望（暂时简化为降低关系）
                 const relationDamage = Math.floor(15 + Math.random() * 15);
@@ -3122,22 +2790,22 @@ export const useGameActions = (gameState, addLog) => {
                             relation: clampRelation((n.relation || 0) - relationDamage),
                             lastDiplomaticActionDay: {
                                 ...(n.lastDiplomaticActionDay || {}),
+
                                 insult: daysElapsed,
                             },
                         }
                         : n
                 ));
-
                 // 小概率触发宣战
                 if (Math.random() < 0.05 && (targetNation.relation || 50) < 20) {
                     // 对方宣战逻辑可以在这里扩展，目前仅提示
                     addLog(`🤬 你的羞辱彻底激怒了 ${targetNation.name}，局势紧张！`);
+
                 } else {
                     addLog(`🤬 你羞辱了 ${targetNation.name}，双方关系恶化。`);
                 }
                 break;
             }
-
             case 'propose_alliance': {
                 // 结盟请求
                 if (targetNation.isAtWar) {
@@ -3146,15 +2814,13 @@ export const useGameActions = (gameState, addLog) => {
                 }
                 if (targetNation.alliedWithPlayer) {
                     addLog(`你与 ${targetNation.name} 已经是盟友了。`);
+
                     return;
                 }
-
                 const relation = targetNation.relation || 0;
                 const minRelation = 70; // 结盟门槛
-
                 if (relation < minRelation) {
                     addLog(`${targetNation.name} 拒绝了你的结盟请求（关系需达到 ${minRelation}）。`);
-
                     // 记录冷却
                     setNations(prev => prev.map(n =>
                         n.id === nationId
@@ -3169,12 +2835,12 @@ export const useGameActions = (gameState, addLog) => {
                     ));
                     return;
                 }
-
                 // 成功结盟
                 setNations(prev => prev.map(n =>
                     n.id === nationId
                         ? {
                             ...n,
+
                             alliedWithPlayer: true,
                             relation: clampRelation(n.relation + 10),
                             lastDiplomaticActionDay: {
@@ -3192,32 +2858,47 @@ export const useGameActions = (gameState, addLog) => {
                 // 检查和平协议是否仍然有效
                 const isPeaceActive = targetNation.peaceTreatyUntil && daysElapsed < targetNation.peaceTreatyUntil;
                 const breachPenalty = isPeaceActive ? getTreatyBreachPenalty(epoch) : null;
-
                 // 检查是否为正式同盟关系
                 if (targetNation.alliedWithPlayer === true) {
                     addLog(`无法宣战：${targetNation.name} 是你的正式盟友。必须先解除同盟才能宣战！`);
+
                     return;
                 }
-
                 // 找出目标国家的正式盟友，这些盟友也会被卷入战争
                 // 但如果某个盟友同时也是玩家的正式盟友，则该盟友保持中立
+                const orgs = diplomacyOrganizations?.organizations || [];
+                const getAllianceMemberIds = (nationKey) => {
+
+                    const members = new Set();
+                    orgs.forEach(org => {
+                        if (org?.type !== 'military_alliance') return;
+                        if (!Array.isArray(org.members) || !org.members.includes(nationKey)) return;
+
+                        org.members.forEach(id => {
+                            if (id && id !== nationKey) members.add(id);
+                        });
+
+                    });
+                    return Array.from(members);
+                };
+                const targetAllianceIds = getAllianceMemberIds(targetNation.id);
+                const playerAllianceIds = getAllianceMemberIds('player');
+                const sharedAllianceIds = new Set(targetAllianceIds.filter(id => playerAllianceIds.includes(id)));
                 const targetAllies = nations.filter(n => {
                     if (n.id === nationId || n.id === targetNation.id) return false;
-                    // 检查是否是目标国家的正式联盟
-                    const isTargetAlly = (targetNation.allies || []).includes(n.id) || (n.allies || []).includes(targetNation.id);
-                    if (!isTargetAlly) return false;
-                    // 排除同时也是玩家正式盟友的国家（共同盟友保持中立）
-                    if (n.alliedWithPlayer === true) return false;
+                    if (!targetAllianceIds.includes(n.id)) return false;
+                    if (sharedAllianceIds.has(n.id)) return false;
                     return true;
                 });
+                const playerAllies = nations.filter(n => {
 
-                // 找出共同盟友（同时是玩家和目标国家的盟友），这些国家会保持中立
-                const neutralAllies = nations.filter(n => {
                     if (n.id === nationId || n.id === targetNation.id) return false;
-                    const isTargetAlly = (targetNation.allies || []).includes(n.id) || (n.allies || []).includes(targetNation.id);
-                    return isTargetAlly && n.alliedWithPlayer === true;
-                });
+                    if (!playerAllianceIds.includes(n.id)) return false;
+                    if (sharedAllianceIds.has(n.id)) return false;
 
+                    return true;
+                });
+                const neutralAllies = nations.filter(n => sharedAllianceIds.has(n.id));
                 // ===== 违约后果增强 =====
                 let breachConsequences = null;
                 if (breachPenalty) {
@@ -3233,19 +2914,19 @@ export const useGameActions = (gameState, addLog) => {
                             breachDay: daysElapsed,
                             breachType: 'peace_treaty',
                         },
+
                     };
                 }
-
                 // 对目标国家宣战
                 setNations(prev => {
                     let updated = prev.map(n => {
                         if (n.id === nationId) {
+
                             // 初始化可掠夺储备 = 财富 × 1.5
                             const initialLootReserve = (n.wealth || 500) * 1.5;
                             const nextTreaties = Array.isArray(n.treaties)
                                 ? n.treaties.filter(t => !PEACE_TREATY_TYPES.includes(t.type))
                                 : n.treaties;
-
                             const updates = {
                                 ...n,
                                 relation: Math.max(0, (n.relation || 0) - (breachPenalty?.relationPenalty || 0)),
@@ -3254,37 +2935,35 @@ export const useGameActions = (gameState, addLog) => {
                                 warStartDay: daysElapsed,
                                 warDuration: 0,
                                 enemyLosses: 0,
+
                                 peaceTreatyUntil: undefined,
                                 treaties: nextTreaties,
                                 lastTreatyBreachDay: breachPenalty ? daysElapsed : n.lastTreatyBreachDay,
                                 lootReserve: initialLootReserve,
                                 lastMilitaryActionDay: undefined,
                             };
-
                             // 违约后果：贸易中断
                             if (breachConsequences) {
                                 updates.tradeBlockadeUntil = daysElapsed + breachConsequences.tradeBlockadeDays;
                                 // 记录违约历史
+
                                 updates.breachHistory = [
                                     ...(n.breachHistory || []),
                                     breachConsequences.breachRecord,
                                 ];
                             }
-
                             return updates;
                         }
-
                         // 违约后果：声誉惩罚（所有其他国家关系下降）
                         if (breachConsequences && n.id !== nationId) {
                             return {
                                 ...n,
                                 relation: Math.max(0, (n.relation || 50) - breachConsequences.reputationPenalty),
+
                             };
                         }
-
                         return n;
                     });
-
                     // 同盟连坐：目标国家的盟友也加入战争
                     if (targetAllies.length > 0) {
                         updated = updated.map(n => {
@@ -3296,9 +2975,11 @@ export const useGameActions = (gameState, addLog) => {
                                     relation: Math.max(0, (n.relation || 50) - 40), // 关系大幅恶化
                                     isAtWar: true,
                                     warScore: 0,
+
                                     warStartDay: daysElapsed,
                                     warDuration: 0,
                                     enemyLosses: 0,
+
                                     lootReserve: initialLootReserve, // 初始化掠夺储备
                                     lastMilitaryActionDay: undefined, // 重置军事行动冷却
                                 };
@@ -3306,10 +2987,26 @@ export const useGameActions = (gameState, addLog) => {
                             return n;
                         });
                     }
-
+                    // ????????
+                    if (playerAllies.length > 0) {
+                        updated = updated.map(n => {
+                            if (playerAllies.some(ally => ally.id === n.id)) {
+                                if (n.isAtWar) return n;
+                                return {
+                                    ...n,
+                                    isAtWar: true,
+                                    warScore: n.warScore || 0,
+                                    warStartDay: daysElapsed,
+                                    warDuration: 0,
+                                    enemyLosses: n.enemyLosses || 0,
+                                    lastMilitaryActionDay: undefined,
+                                };
+                            }
+                            return n;
+                        });
+                    }
                     return updated;
                 });
-
                 // 违约后果：冻结海外投资
                 if (breachConsequences && setOverseasInvestments) {
                     setOverseasInvestments(prev =>
@@ -3324,22 +3021,26 @@ export const useGameActions = (gameState, addLog) => {
                             }
                             return inv;
                         })
+
                     );
                 }
-
                 if (breachPenalty) {
                     addLog(`⚠️ 你撕毁与 ${targetNation.name} 的和平条约！`);
                     addLog(`  📉 关系恶化 -${breachPenalty.relationPenalty}，国际声誉下降 -${breachConsequences.reputationPenalty}`);
+
                     addLog(`  🚫 贸易中断 ${breachConsequences.tradeBlockadeDays} 天，海外投资冻结`);
                 }
                 addLog(`⚔️ 你向 ${targetNation.name} 宣战了！`);
-
                 // 通知盟友参战
                 if (targetAllies.length > 0) {
                     const allyNames = targetAllies.map(a => a.name).join('、');
                     addLog(`⚔️ ${targetNation.name} 的盟友 ${allyNames} 履行同盟义务，加入了战争！`);
-                }
 
+                }
+                if (playerAllies.length > 0) {
+                    const allyNames = playerAllies.map(a => a.name).join(', ');
+                    addLog(`Player allies ${allyNames} joined the war.`);
+                }
                 // 通知共同盟友保持中立
                 if (neutralAllies.length > 0) {
                     neutralAllies.forEach(ally => {
@@ -3348,14 +3049,14 @@ export const useGameActions = (gameState, addLog) => {
                 }
                 break;
             }
-
             // ========================================================================
             // 外交干预操作（支持政府、支持叛军、颠覆活动等）
+
             // ========================================================================
             case 'foreign_intervention': {
                 const { interventionType } = options || {};
-
                 if (!interventionType) {
+
                     addLog('请选择干预类型。');
                     return;
                 }
@@ -3363,25 +3064,24 @@ export const useGameActions = (gameState, addLog) => {
                 const interventionOption = INTERVENTION_OPTIONS[interventionType];
                 if (!interventionOption) {
                     addLog('无效的干预类型。');
-                    return;
-                }
 
+                    return;
+
+                }
                 // 检查冷却
                 const lastInterventionDay = targetNation.lastDiplomaticActionDay?.intervention || 0;
+
                 if (daysElapsed - lastInterventionDay < 30) {
                     addLog(`最近已对 ${targetNation.name} 进行过干预，请等待 ${30 - (daysElapsed - lastInterventionDay)} 天。`);
                     return;
                 }
-
                 // 检查前置条件
                 if (interventionOption.requiresCivilWar && !targetNation.isInCivilWar) {
                     addLog(`${targetNation.name} 当前没有内战，无法进行军事干预。`);
                     return;
                 }
-
                 // 执行干预
                 const result = executeIntervention(targetNation, interventionType, resources);
-
                 if (!result.success) {
                     const reasons = {
                         invalid_intervention: '无效的干预类型',
@@ -3391,8 +3091,8 @@ export const useGameActions = (gameState, addLog) => {
                     };
                     addLog(`干预失败：${reasons[result.reason] || result.reason}`);
                     return;
-                }
 
+                }
                 // 扣除资源
                 if (result.cost.silver) {
                     setResourcesWithReason(
@@ -3401,7 +3101,6 @@ export const useGameActions = (gameState, addLog) => {
                         { nationId, interventionType }
                     );
                 }
-
                 // 更新目标国家
                 setNations(prev => prev.map(n => {
                     if (n.id !== nationId) return n;
@@ -3412,9 +3111,9 @@ export const useGameActions = (gameState, addLog) => {
                             ...(n.lastDiplomaticActionDay || {}),
                             intervention: daysElapsed,
                         },
+
                     };
                 }));
-
                 // 根据干预类型生成不同的日志
                 const interventionLogs = {
                     support_government: `🏛️ 你决定支持 ${targetNation.name} 的现政权，提供了援助。关系提升。`,
@@ -3426,19 +3125,19 @@ export const useGameActions = (gameState, addLog) => {
                 addLog(interventionLogs[interventionType] || result.message);
                 break;
             }
-
             case 'peace': {
                 if (!targetNation.isAtWar) {
+
                     addLog('当前并未与该国交战。');
                     return;
                 }
                 const warScore = targetNation.warScore || 0;
                 const warDuration = targetNation.warDuration || 0;
                 const enemyLosses = targetNation.enemyLosses || 0;
-
                 // 触发玩家和平提议事件
                 const peaceEvent = createPlayerPeaceProposalEvent(
                     targetNation,
+
                     warScore,
                     warDuration,
                     enemyLosses,
@@ -3449,8 +3148,10 @@ export const useGameActions = (gameState, addLog) => {
                     (proposalType, amount) => {
                         handlePlayerPeaceProposal(nationId, proposalType, amount);
                     }
+
                 );
                 triggerDiplomaticEvent(peaceEvent);
+
                 break;
             }
 
@@ -3468,16 +3169,14 @@ export const useGameActions = (gameState, addLog) => {
                 if (targetRelation < 60) {
                     addLog(`关系不足：需要与 ${targetNation.name} 的关系至少达到60才能请求结盟（当前：${Math.round(targetRelation)}）。`);
                     return;
-                }
 
+                }
                 // 计算接受概率：基于关系（60关系=30%，100关系=90%）
                 const acceptChance = 0.3 + (targetRelation - 60) * 0.015;
                 const aggression = targetNation.aggression ?? 0.3;
                 // 高侵略性国家不太愿意结盟
                 const finalChance = acceptChance * (1 - aggression * 0.5);
-
                 const accepted = Math.random() < finalChance;
-
                 if (accepted) {
                     // 结盟成功
                     setNations(prev => prev.map(n =>
@@ -3488,15 +3187,18 @@ export const useGameActions = (gameState, addLog) => {
                                 relation: Math.min(100, (n.relation || 0) + 15),
                                 lastDiplomaticActionDay: {
                                     ...(n.lastDiplomaticActionDay || {}),
+
                                     propose_alliance: daysElapsed,
                                 },
                             }
                             : n
+
                     ));
                     const resultEvent = createAllianceProposalResultEvent(targetNation, true, () => { });
                     triggerDiplomaticEvent(resultEvent);
                     addLog(`🤝 ${targetNation.name} 接受了你的结盟请求！你们正式成为盟友！`);
                 } else {
+
                     // 结盟被拒绝
                     setNations(prev => prev.map(n =>
                         n.id === nationId
@@ -3508,43 +3210,42 @@ export const useGameActions = (gameState, addLog) => {
                                     propose_alliance: daysElapsed,
                                 },
                             }
+
                             : n
                     ));
                     const resultEvent = createAllianceProposalResultEvent(targetNation, false, () => { });
                     triggerDiplomaticEvent(resultEvent);
                     addLog(`${targetNation.name} 拒绝了你的结盟请求。`);
                 }
+
                 break;
             }
-
             case 'break_alliance': {
                 // 玩家主动解除与目标国的联盟
                 if (targetNation.alliedWithPlayer !== true) {
                     addLog(`${targetNation.name} 并非你的盟友。`);
                     return;
                 }
-
                 setNations(prev => prev.map(n =>
                     n.id === nationId
                         ? { ...n, alliedWithPlayer: false, relation: Math.max(0, (n.relation || 0) - 25) }
                         : n
                 ));
-
                 const breakEvent = createAllianceBreakEvent(targetNation, 'player_break', () => { });
                 triggerDiplomaticEvent(breakEvent);
                 addLog(`你主动解除了与 ${targetNation.name} 的同盟关系。两国关系有所下降。`);
                 break;
-            }
 
+            }
             case 'propose_treaty': {
                 const treaty = payload || {};
                 const type = treaty.type;
                 const maintenancePerDay = Math.max(0, Math.floor(Number(treaty.maintenancePerDay) || 0));
-
                 if (!type) {
                     addLog('条约提案失败：缺少条约类型。');
                     return;
                 }
+
                 if (!isDiplomacyUnlocked('treaties', type, epoch)) {
                     addLog('该条约尚未解锁，无法提出。');
                     return;
@@ -3553,27 +3254,26 @@ export const useGameActions = (gameState, addLog) => {
                     addLog(`无法提出条约：${targetNation.name} 正与你交战。`);
                     return;
                 }
-
                 // Cooldown (MVP)
                 const COOLDOWN_DAYS = 120;
                 const lastActionDay = targetNation.lastDiplomaticActionDay?.propose_treaty || 0;
                 const daysSince = daysElapsed - lastActionDay;
                 if (lastActionDay > 0 && daysSince < COOLDOWN_DAYS) {
                     addLog(`⏳ 对 ${targetNation.name} 的条约提案尚在冷却中，还需 ${COOLDOWN_DAYS - daysSince} 天。`);
+
                     return;
                 }
-
                 const durationDays = Math.max(1, Math.floor(Number(treaty.durationDays) || getTreatyDuration(type, epoch)));
-
                 // Prevent spamming the same treaty while active
                 const isPeaceActive = targetNation.peaceTreatyUntil && daysElapsed < targetNation.peaceTreatyUntil;
                 const isOpenMarketActive = targetNation.openMarketUntil && daysElapsed < targetNation.openMarketUntil;
                 const hasActiveTreatyType = (types) => Array.isArray(targetNation.treaties)
                     && targetNation.treaties.some((t) => types.includes(t.type) && (!Number.isFinite(t.endDay) || daysElapsed < t.endDay));
-
                 if (PEACE_TREATY_TYPES.includes(type) && isPeaceActive) {
+
                     addLog(`与 ${targetNation.name} 的互不侵犯/和平协议仍在生效中，无法重复提出。`);
                     return;
+
                 }
                 const shouldReplaceOpenMarket = OPEN_MARKET_TREATY_TYPES.includes(type)
                     && (isOpenMarketActive || hasActiveTreatyType(OPEN_MARKET_TREATY_TYPES));
@@ -3584,13 +3284,13 @@ export const useGameActions = (gameState, addLog) => {
 
                 // Simple acceptance scoring (MVP)
                 const relation = targetNation.relation || 0;
+
                 const aggression = targetNation.aggression ?? 0.3;
                 const treatyConfig = TREATY_CONFIGS[type] || {};
                 if (Number.isFinite(treatyConfig.minRelation) && relation < treatyConfig.minRelation) {
                     addLog(`${targetNation.name} 当前关系不足，难以接受该条约。`);
                     return;
                 }
-
                 // Base by type
                 const baseChanceByType = {
                     peace_treaty: 0.45,
@@ -3603,7 +3303,6 @@ export const useGameActions = (gameState, addLog) => {
                     defensive_pact: 0.18,
                 };
                 const base = baseChanceByType[type] ?? 0.25;
-
                 // Relation boosts, aggression reduces
                 const relationBoost = Math.max(0, (relation - 40) / 100); // 40=>0, 100=>0.6
                 const aggressionPenalty = aggression * 0.25;
@@ -3612,7 +3311,6 @@ export const useGameActions = (gameState, addLog) => {
                 const maintenancePenalty = Math.min(0.25, maintenancePerDay / 500000);
 
                 let acceptChance = base + relationBoost - aggressionPenalty - maintenancePenalty;
-
                 // Type gating
                 if (type === 'open_market' && relation < 55) acceptChance *= 0.4;
                 if (type === 'trade_agreement' && relation < 50) acceptChance *= 0.5;
@@ -3620,24 +3318,22 @@ export const useGameActions = (gameState, addLog) => {
                 if (type === 'investment_pact' && relation < 60) acceptChance *= 0.4;
                 if (type === 'academic_exchange' && relation < 65) acceptChance *= 0.2;
                 if (type === 'defensive_pact' && relation < 70) acceptChance *= 0.2;
-
                 acceptChance = Math.max(0.02, Math.min(0.92, acceptChance));
-
                 const accepted = Math.random() < acceptChance;
-
                 // 计算签约成本
                 const signingCost = calculateTreatySigningCost(type, resources.silver || 0, targetNation.wealth || 0);
                 const autoMaintenancePerDay = getTreatyDailyMaintenance(type);
                 const finalMaintenancePerDay = maintenancePerDay > 0 ? maintenancePerDay : autoMaintenancePerDay;
-
                 // 如果接受，检查并扣除签约成本
                 if (accepted && signingCost > 0) {
+
                     const currentSilver = resources.silver || 0;
                     if (currentSilver < signingCost) {
                         addLog(`📜 签约失败：签约成本 ${signingCost} 银币不足（当前 ${Math.floor(currentSilver)}）。`);
                         return;
                     }
                     setResourcesWithReason(
+
                         prev => ({ ...prev, silver: Math.max(0, (prev.silver || 0) - signingCost) }),
                         'treaty_signing_cost',
                         { nationId, treatyType: type }
@@ -3646,40 +3342,43 @@ export const useGameActions = (gameState, addLog) => {
 
                 setNations(prev => prev.map(n => {
                     if (n.id !== nationId) return n;
-
                     if (!accepted) {
                         return {
                             ...n,
                             relation: Math.max(0, (n.relation || 0) - 4),
                             lastDiplomaticActionDay: {
                                 ...(n.lastDiplomaticActionDay || {}),
+
                                 propose_treaty: daysElapsed,
                             },
                         };
                     }
-
                     const nextTreaties = Array.isArray(n.treaties)
+
                         ? n.treaties.map(t => {
                             if (!shouldReplaceOpenMarket || !OPEN_MARKET_TREATY_TYPES.includes(t.type)) return t;
                             if (t.endDay != null && t.endDay <= daysElapsed) return t;
                             return { ...t, endDay: daysElapsed };
+
                         })
                         : [];
                     nextTreaties.push({
                         id: `treaty_${n.id}_${Date.now()}`,
                         type,
+
                         startDay: daysElapsed,
                         endDay: daysElapsed + durationDays,
                         maintenancePerDay: finalMaintenancePerDay,
                         direction: 'player_to_ai',
                     });
-
                     const updates = {
+
                         treaties: nextTreaties,
                         relation: Math.min(100, (n.relation || 0) + 6),
                         lastDiplomaticActionDay: {
                             ...(n.lastDiplomaticActionDay || {}),
                             propose_treaty: daysElapsed,
+
                         },
                     };
 
@@ -3696,14 +3395,13 @@ export const useGameActions = (gameState, addLog) => {
 
                     return { ...n, ...updates };
                 }));
-
                 const resultEvent = createTreatyProposalResultEvent(targetNation, { type, durationDays, maintenancePerDay: finalMaintenancePerDay }, accepted, () => { });
                 triggerDiplomaticEvent(resultEvent);
-
                 if (accepted) {
                     let costInfo = '';
                     if (signingCost > 0) {
                         costInfo = `，签约成本 ${Math.floor(signingCost)} 银币`;
+
                     }
                     if (finalMaintenancePerDay > 0) {
                         costInfo += `，每日维护费 ${finalMaintenancePerDay} 银币`;
@@ -3712,31 +3410,34 @@ export const useGameActions = (gameState, addLog) => {
                 } else {
                     addLog(`📜 ${targetNation.name} 拒绝了你的条约提案。`);
                 }
-
                 break;
             }
             case 'negotiate_treaty': {
                 const proposal = payload?.proposal || {};
+
                 const type = proposal.type;
                 const stance = payload?.stance || 'normal';
                 const round = Math.max(1, Math.floor(payload?.round || 1));
                 const maxRounds = Math.max(1, Math.floor(payload?.maxRounds || 3));
                 const forceAccept = payload?.forceAccept === true;
                 const onResult = typeof payload?.onResult === 'function' ? payload.onResult : null;
-
                 if (!isDiplomacyUnlocked('economy', 'multi_round_negotiation', epoch)) {
                     addLog('当前时代尚未解锁多轮谈判。');
                     if (onResult) onResult({ status: 'blocked', reason: 'era' });
                     return;
                 }
+
                 if (!type) {
                     addLog('谈判失败：缺少条约类型。');
                     if (onResult) onResult({ status: 'blocked', reason: 'type' });
                     return;
                 }
-                if (!isDiplomacyUnlocked('treaties', type, epoch)) {
-                    addLog('该条约尚未解锁，无法谈判。');
-                    if (onResult) onResult({ status: 'blocked', reason: 'treaty_locked' });
+                const isOrganizationType = type === 'military_alliance' || type === 'economic_bloc';
+                const unlockCategory = isOrganizationType ? 'organizations' : 'treaties';
+                if (!isDiplomacyUnlocked(unlockCategory, type, epoch)) {
+
+                    addLog(isOrganizationType ? '该组织尚未解锁，无法谈判。' : '该条约尚未解锁，无法谈判。');
+                    if (onResult) onResult({ status: 'blocked', reason: isOrganizationType ? 'org_locked' : 'treaty_locked' });
                     return;
                 }
                 if (targetNation.isAtWar) {
@@ -3744,33 +3445,40 @@ export const useGameActions = (gameState, addLog) => {
                     if (onResult) onResult({ status: 'blocked', reason: 'war' });
                     return;
                 }
-
                 const durationDays = Math.max(1, Math.floor(Number(proposal.durationDays) || getTreatyDuration(type, epoch)));
                 const maintenancePerDay = Math.max(0, Math.floor(Number(proposal.maintenancePerDay) || 0));
                 const signingGift = Math.max(0, Math.floor(Number(proposal.signingGift) || 0));
-                
                 // Support both old single resource format and new multi-resource format
                 const offerResources = Array.isArray(proposal.resources) 
                     ? proposal.resources.filter(r => r.key && r.amount > 0).map(r => ({ key: r.key, amount: Math.max(0, Math.floor(Number(r.amount) || 0)) }))
                     : (proposal.resourceKey && proposal.resourceAmount > 0 ? [{ key: proposal.resourceKey, amount: Math.max(0, Math.floor(Number(proposal.resourceAmount) || 0)) }] : []);
-                
                 const demandSilver = Math.max(0, Math.floor(Number(proposal.demandSilver) || 0));
-                
+
                 const demandResources = Array.isArray(proposal.demandResources)
                     ? proposal.demandResources.filter(r => r.key && r.amount > 0).map(r => ({ key: r.key, amount: Math.max(0, Math.floor(Number(r.amount) || 0)) }))
                     : (proposal.demandResourceKey && proposal.demandResourceAmount > 0 ? [{ key: proposal.demandResourceKey, amount: Math.max(0, Math.floor(Number(proposal.demandResourceAmount) || 0)) }] : []);
-
+                // Get organization info if relevant
+                let organization = null;
+                let organizationMode = null;
+                const orgType = type === 'military_alliance' ? 'military_alliance' :
+                    (type === 'economic_bloc' ? 'economic_bloc' : null);
+                if (orgType && proposal.targetOrganizationId && proposal.organizationMode) {
+                    const orgs = diplomacyOrganizations?.organizations || [];
+                    organization = orgs.find(o => o.id === proposal.targetOrganizationId);
+                    organizationMode = proposal.organizationMode;
+                }
                 // For backward compatibility
                 const resourceKey = offerResources[0]?.key || '';
+
                 const resourceAmount = offerResources[0]?.amount || 0;
                 const demandResourceKey = demandResources[0]?.key || '';
                 const demandResourceAmount = demandResources[0]?.amount || 0;
-
                 const isPeaceActive = targetNation.peaceTreatyUntil && daysElapsed < targetNation.peaceTreatyUntil;
                 const isOpenMarketActive = targetNation.openMarketUntil && daysElapsed < targetNation.openMarketUntil;
-                const hasActiveTreatyType = (types) => Array.isArray(targetNation.treaties)
-                    && targetNation.treaties.some((t) => types.includes(t.type) && (!Number.isFinite(t.endDay) || daysElapsed < t.endDay));
 
+                const hasActiveTreatyType = (types) => Array.isArray(targetNation.treaties)
+
+                    && targetNation.treaties.some((t) => types.includes(t.type) && (!Number.isFinite(t.endDay) || daysElapsed < t.endDay));
                 if (PEACE_TREATY_TYPES.includes(type) && isPeaceActive) {
                     addLog(`与 ${targetNation.name} 的和平/互不侵犯仍在生效中，无法重复谈判。`);
                     if (onResult) onResult({ status: 'blocked', reason: 'peace_active' });
@@ -3783,13 +3491,11 @@ export const useGameActions = (gameState, addLog) => {
                     if (onResult) onResult({ status: 'blocked', reason: 'investment_active' });
                     return;
                 }
-
                 if (signingGift > 0 && (resources.silver || 0) < signingGift) {
                     addLog('银币不足，无法支付签约赠礼。');
                     if (onResult) onResult({ status: 'blocked', reason: 'silver' });
                     return;
                 }
-                
                 // Validate all offer resources
                 for (const res of offerResources) {
                     if (!RESOURCES[res.key] || RESOURCES[res.key].type === 'virtual' || res.key === 'silver') {
@@ -3803,36 +3509,38 @@ export const useGameActions = (gameState, addLog) => {
                         return;
                     }
                 }
-
                 if (demandSilver > 0 && (targetNation.wealth || 0) < demandSilver) {
                     addLog(`${targetNation.name} 无法承担索要金额（缺少 ${demandSilver} 银币）。`);
                     if (onResult) onResult({ status: 'blocked', reason: 'demand_silver' });
                     return;
                 }
-
                 // Validate all demand resources
                 for (const res of demandResources) {
+
                     if (!RESOURCES[res.key] || RESOURCES[res.key].type === 'virtual' || res.key === 'silver') {
                         addLog(`索要资源 ${res.key} 无效，谈判已取消。`);
                         if (onResult) onResult({ status: 'blocked', reason: 'demand_resource' });
                         return;
                     }
                     const targetInventory = targetNation.inventory?.[res.key] || 0;
+
                     if (targetInventory < res.amount) {
                         addLog(`${targetNation.name} 无法提供 ${RESOURCES[res.key]?.name || res.key} ×${res.amount}。`);
                         if (onResult) onResult({ status: 'blocked', reason: 'demand_resource' });
                         return;
                     }
-                }
 
+                }
                 const evaluation = calculateNegotiationAcceptChance({
                     proposal: {
                         type,
                         durationDays,
+
                         maintenancePerDay,
                         signingGift,
                         resources: offerResources,
                         resourceKey,
+
                         resourceAmount,
                         demandSilver,
                         demandResources,
@@ -3845,23 +3553,24 @@ export const useGameActions = (gameState, addLog) => {
                     daysElapsed,
                     playerPower: calculateBattlePower(army, epoch, modifiers?.militaryBonus || 0),
                     targetPower: calculateNationBattlePower(targetNation, epoch),
+
                     playerWealth: resources?.silver || 0,
                     targetWealth: targetNation?.wealth || 0,
                     playerProduction: productionPerDay?.goods || 0,
                     targetProduction: targetNation?.productionCapacity || targetNation?.economyScore || (targetNation?.wealth || 0) * 0.01,
                 });
-
                 const accepted = forceAccept || (evaluation.dealScore || 0) >= 0;
                 const stanceDelta = stance === 'friendly' ? 2 : (stance === 'threat' ? -20 : 0);
-
                 // 计算签约成本
+
                 const negotiateSigningCost = calculateTreatySigningCost(type, resources.silver || 0, targetNation.wealth || 0);
+
                 const negotiateAutoMaintenancePerDay = getTreatyDailyMaintenance(type);
                 const negotiateFinalMaintenancePerDay = maintenancePerDay > 0 ? maintenancePerDay : negotiateAutoMaintenancePerDay;
-
                 if (accepted) {
                     // 检查并扣除签约成本
                     if (negotiateSigningCost > 0) {
+
                         const currentSilver = resources.silver || 0;
                         const totalCostNeeded = negotiateSigningCost + signingGift;
                         if (currentSilver < totalCostNeeded) {
@@ -3872,18 +3581,18 @@ export const useGameActions = (gameState, addLog) => {
                         setResourcesWithReason(
                             prev => ({ ...prev, silver: Math.max(0, (prev.silver || 0) - negotiateSigningCost) }),
                             'treaty_negotiate_signing_cost',
+
                             { nationId, treatyType: type }
                         );
                     }
-
                     if (signingGift > 0) {
                         setResourcesWithReason(
                             prev => ({ ...prev, silver: Math.max(0, (prev.silver || 0) - signingGift) }),
                             'treaty_negotiate_signing_gift',
                             { nationId, treatyType: type }
+
                         );
                     }
-                    
                     // Deduct all offer resources
                     for (const res of offerResources) {
                         if (res.amount > 0 && res.key) {
@@ -3897,11 +3606,13 @@ export const useGameActions = (gameState, addLog) => {
 
                     setNations(prev => prev.map(n => {
                         if (n.id !== nationId) return n;
-
                         const nextTreaties = Array.isArray(n.treaties)
+
                             ? n.treaties.map(t => {
                                 if (!shouldReplaceOpenMarket || !OPEN_MARKET_TREATY_TYPES.includes(t.type)) return t;
+
                                 if (t.endDay != null && t.endDay <= daysElapsed) return t;
+
                                 return { ...t, endDay: daysElapsed };
                             })
                             : [];
@@ -3909,13 +3620,16 @@ export const useGameActions = (gameState, addLog) => {
                             id: `treaty_${n.id}_${Date.now()}`,
                             type,
                             startDay: daysElapsed,
+
                             endDay: daysElapsed + durationDays,
+
                             maintenancePerDay: negotiateFinalMaintenancePerDay,
+
                             direction: 'player_to_ai',
                         });
-
                         const updates = {
                             treaties: nextTreaties,
+
                             relation: clampRelation((n.relation || 0) + 6 + stanceDelta),
                             wealth: (n.wealth || 0) + signingGift - demandSilver,
                             lastDiplomaticActionDay: {
@@ -3923,15 +3637,16 @@ export const useGameActions = (gameState, addLog) => {
                                 negotiate_treaty: daysElapsed,
                             },
                         };
-
                         if (resourceAmount > 0 && resourceKey) {
                             updates.inventory = {
                                 ...(n.inventory || {}),
                                 [resourceKey]: ((n.inventory || {})[resourceKey] || 0) + resourceAmount,
                             };
                         }
+
                         // Add all offer resources to target nation inventory
                         for (const res of offerResources) {
+
                             if (res.amount > 0 && res.key) {
                                 updates.inventory = {
                                     ...(updates.inventory || n.inventory || {}),
@@ -3942,6 +3657,7 @@ export const useGameActions = (gameState, addLog) => {
                         // Remove all demand resources from target nation inventory
                         for (const res of demandResources) {
                             if (res.amount > 0 && res.key) {
+
                                 updates.inventory = {
                                     ...(updates.inventory || n.inventory || {}),
                                     [res.key]: Math.max(0, ((updates.inventory || n.inventory || {})[res.key] || 0) - res.amount),
@@ -3960,7 +3676,58 @@ export const useGameActions = (gameState, addLog) => {
 
                         return { ...n, ...updates };
                     }));
+                    if (isOrganizationType && organization && organizationMode) {
+                        const orgConfig = ORGANIZATION_TYPE_CONFIGS[organization.type];
+                        if (organizationMode === 'invite') {
+                            updateOrganizationState(prev => prev.map(o => {
+                                if (o.id !== organization.id) return o;
+                                const members = Array.isArray(o.members) ? o.members : [];
 
+                                if (members.includes(nationId)) return o;
+                                if (orgConfig?.maxMembers && members.length >= orgConfig.maxMembers) return o;
+                                return { ...o, members: [...members, nationId] };
+                            }));
+                            setNations(prev => prev.map(n => {
+                                if (n.id !== nationId) return n;
+                                const memberships = Array.isArray(n.organizationMemberships) ? n.organizationMemberships : [];
+                                return {
+                                    ...n,
+                                    organizationMemberships: memberships.includes(organization.id)
+
+                                        ? memberships
+                                        : [...memberships, organization.id],
+
+                                };
+                            }));
+
+                        } else if (organizationMode === 'join') {
+                            updateOrganizationState(prev => prev.map(o => {
+                                if (o.id !== organization.id) return o;
+                                const members = Array.isArray(o.members) ? o.members : [];
+                                if (members.includes('player')) return o;
+                                if (orgConfig?.maxMembers && members.length >= orgConfig.maxMembers) return o;
+                                return { ...o, members: [...members, 'player'] };
+                            }));
+                        } else if (organizationMode === 'kick') {
+                            updateOrganizationState(prev => prev.map(o => {
+                                if (o.id !== organization.id) return o;
+                                const members = Array.isArray(o.members) ? o.members : [];
+
+                                return { ...o, members: members.filter(m => m !== nationId) };
+                            }));
+                            setNations(prev => prev.map(n => {
+                                if (n.id !== nationId) return n;
+                                const memberships = Array.isArray(n.organizationMemberships) ? n.organizationMemberships : [];
+                                const relationPenalty = orgConfig?.kickRelationPenalty || -20;
+                                return {
+                                    ...n,
+                                    relation: clampRelation((n.relation || 0) + relationPenalty),
+                                    organizationMemberships: memberships.filter(id => id !== organization.id),
+
+                                };
+                            }));
+                        }
+                    }
                     if (demandSilver > 0) {
                         setResourcesWithReason(
                             prev => ({ ...prev, silver: (prev.silver || 0) + demandSilver }),
@@ -3968,7 +3735,6 @@ export const useGameActions = (gameState, addLog) => {
                             { nationId, treatyType: type }
                         );
                     }
-                    
                     // Receive all demand resources
                     for (const res of demandResources) {
                         if (res.amount > 0 && res.key) {
@@ -3978,48 +3744,73 @@ export const useGameActions = (gameState, addLog) => {
                                     [res.key]: (prev[res.key] || 0) + res.amount,
                                 }),
                                 'treaty_negotiate_demand_resource',
+
                                 { nationId, treatyType: type, resourceKey: res.key, amount: res.amount }
                             );
                         }
-                    }
 
+                    }
                     let negotiateCostInfo = '';
                     if (negotiateSigningCost > 0) {
                         negotiateCostInfo = `，签约成本 ${Math.floor(negotiateSigningCost)} 银币`;
+
                     }
+
                     if (negotiateFinalMaintenancePerDay > 0) {
                         negotiateCostInfo += `，每日维护费 ${negotiateFinalMaintenancePerDay} 银币`;
                     }
+
                     if (demandSilver > 0 || demandResources.length > 0) {
                         const demandParts = [];
                         if (demandSilver > 0) demandParts.push(`索要 ${demandSilver} 银币`);
                         for (const res of demandResources) {
                             if (res.amount > 0) {
+
                                 const name = RESOURCES[res.key]?.name || res.key;
                                 demandParts.push(`索要 ${name}×${res.amount}`);
                             }
                         }
+
                         negotiateCostInfo += `，${demandParts.join('，')}`;
                     }
                     addLog(`🤝 ${targetNation.name} 同意了谈判条约（${type}）${negotiateCostInfo}。`);
                     if (onResult) onResult({ status: 'accepted', acceptChance: evaluation.acceptChance });
                     break;
                 }
-
                 const counterProposal = !forceAccept && round < maxRounds
                     ? generateCounterProposal({
                         proposal: {
                             type,
                             durationDays,
                             maintenancePerDay,
+
                             signingGift,
                             resources: offerResources,
                             resourceKey,
                             resourceAmount,
-                        }, nation: targetNation, round
-                    })
-                    : null;
+                            demandSilver,
 
+                            demandResources,
+                            demandResourceKey,
+                            demandResourceAmount,
+                            targetOrganizationId: proposal.targetOrganizationId,
+                            organizationMode: proposal.organizationMode,
+                        },
+                        nation: targetNation,
+                        round,
+                        daysElapsed,
+                        playerPower: calculateBattlePower(army, epoch, modifiers?.militaryBonus || 0),
+                        targetPower: calculateNationBattlePower(targetNation, epoch),
+                        playerWealth: resources?.silver || 0,
+                        targetWealth: targetNation?.wealth || 0,
+
+                        playerProduction: productionPerDay?.goods || 0,
+                        targetProduction: targetNation?.productionCapacity || targetNation?.economyScore || (targetNation?.wealth || 0) * 0.01,
+                        organization,
+                        organizationMode,
+                    })
+
+                    : null;
                 if (counterProposal) {
                     const counterDelta = stance === 'threat' ? -6 : (stance === 'friendly' ? 0 : -1);
                     setNations(prev => prev.map(n =>
@@ -4031,9 +3822,9 @@ export const useGameActions = (gameState, addLog) => {
                     if (onResult) onResult({ status: 'counter', counterProposal, acceptChance: evaluation.acceptChance });
                     break;
                 }
-
                 setNations(prev => prev.map(n =>
                     n.id === nationId
+
                         ? {
                             ...n,
                             relation: clampRelation((n.relation || 0) - 4 + stanceDelta),
@@ -4052,10 +3843,6 @@ export const useGameActions = (gameState, addLog) => {
                 if (onResult) onResult({ status: 'rejected', acceptChance: evaluation.acceptChance });
                 break;
             }
-
-
-
-
             case 'create_org': {
                 const type = payload?.type;
                 if (!type) {
@@ -4063,24 +3850,23 @@ export const useGameActions = (gameState, addLog) => {
                     return;
                 }
                 if (!isDiplomacyUnlocked('organizations', type, epoch)) {
+
                     addLog('该组织尚未解锁。');
                     return;
-                }
 
+                }
                 // Support solo creation (player starts it) OR joint creation (with targetNation)
                 const isSolo = nationId === 'player';
-
                 if (!isSolo && targetNation.isAtWar) {
+
                     addLog(`无法创建组织：${targetNation.name} 正与你交战。`);
                     return;
                 }
-
                 const existing = getPlayerOrganizationByType(type);
                 if (existing) {
                     addLog('你已拥有该类型的组织。');
                     return;
                 }
-
                 // If not solo, check relation
                 if (!isSolo) {
                     const relation = targetNation.relation || 0;
@@ -4089,46 +3875,45 @@ export const useGameActions = (gameState, addLog) => {
                         addLog(`关系不足（需要${minRelation}），无法与 ${targetNation.name} 共建组织。`);
                         return;
                     }
-                }
 
+                }
                 // Calculate and check create cost
                 const orgConfig = ORGANIZATION_TYPE_CONFIGS[type];
                 const playerSilver = resources.silver || 0;
                 const createCost = orgConfig ? Math.floor(playerSilver * orgConfig.createCost) : 0;
                 if (createCost > 0 && playerSilver < createCost) {
                     addLog(`创建${orgConfig.name}需要 ${createCost} 银币，你的资金不足。`);
+
                     return;
                 }
-
                 const orgName = payload?.name || (
                     isSolo
                         ? (type === 'military_alliance' ? 'New Alliance' : 'New Bloc')
                         : (type === 'economic_bloc' ? `${targetNation.name} Co-Prosperity` : `${targetNation.name} Pact`)
                 );
-
                 const initialMembers = isSolo ? ['player'] : ['player', nationId];
-
                 const org = {
                     id: `org_${type}_${Date.now()}`,
+
                     type,
                     name: orgName,
+
                     founderId: 'player',
                     members: initialMembers,
                     createdDay: daysElapsed,
+                    isActive: true,
                 };
-
                 // Deduct create cost
                 if (createCost > 0) {
                     setResourcesWithReason(prev => ({ ...prev, silver: prev.silver - createCost }), 'create_organization', { orgName: org.name });
                     addLog(`💰 创建组织花费 ${createCost} 银币。`);
                 }
-
                 updateOrganizationState(prev => [...prev, org]);
-
                 if (!isSolo) {
                     setNations(prev => prev.map(n => {
                         if (n.id !== nationId) return n;
                         const memberships = Array.isArray(n.organizationMemberships) ? n.organizationMemberships : [];
+
                         return {
                             ...n,
                             relation: clampRelation((n.relation || 0) + 5),
@@ -4138,6 +3923,7 @@ export const useGameActions = (gameState, addLog) => {
                                 create_org: daysElapsed,
                             },
                         };
+
                     }));
                     addLog(`你与 ${targetNation.name} 建立了新的组织：${orgName}。`);
                 } else {
@@ -4156,9 +3942,7 @@ export const useGameActions = (gameState, addLog) => {
                 } else if (type) {
                     org = getPlayerOrganizationByType(type);
                 }
-
                 const joinerName = nationId === 'player' ? '你' : (targetNation?.name || '未知国家');
-
                 if (!org) {
                     addLog(nationId === 'player' ? '找不到该组织。' : '没有可邀请加入的组织。');
                     return;
@@ -4167,31 +3951,29 @@ export const useGameActions = (gameState, addLog) => {
                     addLog('该组织尚未解锁。');
                     return;
                 }
-
                 // If inviting AI (nationId != player), check target status
                 if (nationId !== 'player') {
                     if (targetNation.isAtWar) {
                         addLog(`无法邀请：${targetNation.name} 正与你交战。`);
                         return;
                     }
-                }
 
+                }
                 if (isNationInOrganization(org, nationId)) {
+
                     addLog(`${joinerName} 已是该组织成员。`);
                     return;
                 }
-
                 // Checks for AI joining (relation check)
                 if (nationId !== 'player') {
                     const relation = targetNation.relation || 0;
                     const minRelation = org.type === 'military_alliance' ? 55 : 45;
+
                     if (relation < minRelation) {
                         addLog(`关系不足（需要${minRelation}），无法邀请加入。`);
                         return;
                     }
                 } else {
-                    // Player joining AI org? Check relation with leader?
-                    // For now simplicity: allow if not at war with leader?
                     // Implementation detail: we could check relation with org.founderId
                     const leaderId = org.leaderId || org.founderId;
                     if (leaderId && leaderId !== 'player') {
@@ -4200,9 +3982,9 @@ export const useGameActions = (gameState, addLog) => {
                             addLog(`无法加入：该组织领袖 ${leaderNation.name} 正与你交战。`);
                             return;
                         }
+
                     }
                 }
-
                 updateOrganizationState(prev => prev.map(o => {
                     if (o.id !== org.id) return o;
                     const members = Array.isArray(o.members) ? o.members : [];
@@ -4211,7 +3993,6 @@ export const useGameActions = (gameState, addLog) => {
                         members: members.includes(nationId) ? members : [...members, nationId],
                     };
                 }));
-
                 if (nationId !== 'player') {
                     setNations(prev => prev.map(n => {
                         if (n.id !== nationId) return n;
@@ -4224,13 +4005,12 @@ export const useGameActions = (gameState, addLog) => {
                                 ...(n.lastDiplomaticActionDay || {}),
                                 join_org: daysElapsed,
                             },
+
                         };
                     }));
                 } else {
-                    // If player joins, maybe improve relation with all members?
                     // For now, minimal effect.
                 }
-
                 addLog(`${joinerName} 加入了 ${org.name}。`);
                 break;
             }
@@ -4242,19 +4022,17 @@ export const useGameActions = (gameState, addLog) => {
 
                 const leaverName = targetNation ? targetNation.name : '你';
                 const isPlayerLeaving = nationId === 'player';
-
                 if (!org || !isNationInOrganization(org, nationId)) {
                     addLog(`${leaverName} 当前不在任何可移除的组织中。`);
                     return;
                 }
-
                 // Calculate leave cost and penalties using organization config
                 const orgConfig = ORGANIZATION_TYPE_CONFIGS[org.type];
                 const isFounder = org.founderId === nationId;
                 const leaveCostRate = isFounder ? (orgConfig?.founderLeaveCost || 0.08) : (orgConfig?.leaveCost || 0.03);
                 const relationPenalty = isFounder ? (orgConfig?.founderLeaveRelationPenalty || -25) : (orgConfig?.leaveRelationPenalty || -15);
-                const willDisband = isFounder && (orgConfig?.founderLeaveDisbands !== false);
 
+                const willDisband = isFounder && (orgConfig?.founderLeaveDisbands !== false);
                 // Player leaving: check and deduct cost
                 if (isPlayerLeaving) {
                     const playerSilver = resources.silver || 0;
@@ -4268,14 +4046,16 @@ export const useGameActions = (gameState, addLog) => {
                         addLog(`💰 退出组织支付违约金 ${leaveCost} 银币。`);
                     }
                 }
-
                 // If founder leaves and org disbands
                 if (willDisband) {
                     // Get all members except the founder for relation penalty
                     const otherMembers = (org.members || []).filter(m => m !== nationId);
-                    
                     // Apply relation penalty to all members
                     if (isPlayerLeaving && otherMembers.length > 0) {
+
+
+
+
                         setNations(prev => prev.map(n => {
                             if (!otherMembers.includes(n.id)) return n;
                             const memberships = Array.isArray(n.organizationMemberships) ? n.organizationMemberships : [];
@@ -4286,21 +4066,23 @@ export const useGameActions = (gameState, addLog) => {
                             };
                         }));
                     }
-                    
+
                     // Remove the organization entirely
                     updateOrganizationState(prev => prev.filter(o => o.id !== org.id));
+
                     addLog(`⚠️ ${leaverName}（创始国）退出了 ${org.name}，组织已解散！所有成员关系 ${relationPenalty}。`);
                 } else {
                     // Regular member leaving - just remove from org
                     updateOrganizationState(prev => prev.map(o => {
+
                         if (o.id !== org.id) return o;
                         const members = Array.isArray(o.members) ? o.members : [];
                         return {
                             ...o,
                             members: members.filter(m => m !== nationId),
+
                         };
                     }));
-
                     // Apply relation penalty
                     if (isPlayerLeaving) {
                         // Player leaving: penalize relation with all remaining members
@@ -4308,6 +4090,7 @@ export const useGameActions = (gameState, addLog) => {
                         if (remainingMembers.length > 0) {
                             setNations(prev => prev.map(n => {
                                 if (!remainingMembers.includes(n.id)) return n;
+
                                 return {
                                     ...n,
                                     relation: clampRelation((n.relation || 0) + relationPenalty),
@@ -4316,12 +4099,15 @@ export const useGameActions = (gameState, addLog) => {
                         }
                         addLog(`${leaverName} 已退出 ${org.name}。与组织成员关系 ${relationPenalty}。`);
                     } else {
+
                         // AI nation leaving
                         setNations(prev => prev.map(n => {
                             if (n.id !== nationId) return n;
                             const memberships = Array.isArray(n.organizationMemberships) ? n.organizationMemberships : [];
                             return {
+
                                 ...n,
+
                                 relation: clampRelation((n.relation || 0) + relationPenalty),
                                 organizationMemberships: memberships.filter(id => id !== org.id),
                                 lastDiplomaticActionDay: {
@@ -4330,6 +4116,7 @@ export const useGameActions = (gameState, addLog) => {
                                 },
                             };
                         }));
+
                         addLog(`${leaverName} 已退出 ${org.name}。关系 ${relationPenalty}。`);
                     }
                 }
@@ -4337,43 +4124,39 @@ export const useGameActions = (gameState, addLog) => {
             }
 
             // Kick member from organization (via negotiation)
+
             case 'kick_member': {
                 const orgId = payload?.orgId;
                 const targetMemberId = payload?.targetMemberId || nationId;
-                
                 const org = organizations.find(o => o?.id === orgId);
                 if (!org) {
                     addLog('找不到指定的组织。');
                     return;
                 }
-
                 // Check if player is in the organization
                 if (!isNationInOrganization(org, 'player')) {
                     addLog('你不是该组织的成员，无权移除其他成员。');
                     return;
                 }
-
                 // Check if target is in the organization
                 if (!isNationInOrganization(org, targetMemberId)) {
                     addLog('目标国家不是该组织的成员。');
                     return;
                 }
-
                 // Cannot kick yourself
                 if (targetMemberId === 'player') {
                     addLog('无法移除自己，请使用退出组织功能。');
                     return;
                 }
-
                 // Cannot kick the founder
                 if (targetMemberId === org.founderId) {
                     addLog('无法移除组织的创始国。');
                     return;
                 }
-
                 const kickedNation = nations.find(n => n.id === targetMemberId);
                 const kickedName = kickedNation?.name || '未知国家';
                 const orgConfig = ORGANIZATION_TYPE_CONFIGS[org.type];
+
                 const kickRelationPenalty = orgConfig?.kickRelationPenalty || -20;
 
                 // Remove from organization
@@ -4384,27 +4167,27 @@ export const useGameActions = (gameState, addLog) => {
                         ...o,
                         members: members.filter(m => m !== targetMemberId),
                     };
-                }));
 
+                }));
                 // Apply relation penalty to the kicked nation
                 setNations(prev => prev.map(n => {
                     if (n.id !== targetMemberId) return n;
                     const memberships = Array.isArray(n.organizationMemberships) ? n.organizationMemberships : [];
                     return {
                         ...n,
+
                         relation: clampRelation((n.relation || 0) + kickRelationPenalty),
                         organizationMemberships: memberships.filter(id => id !== org.id),
                         lastDiplomaticActionDay: {
                             ...(n.lastDiplomaticActionDay || {}),
+
                             kicked_from_org: daysElapsed,
                         },
                     };
                 }));
-
                 addLog(`⚠️ ${kickedName} 已被移除出 ${org.name}！与其关系 ${kickRelationPenalty}。`);
                 break;
             }
-
             // ========== 附庸系统行动 ==========
             case 'establish_vassal': {
                 const vassalType = payload?.vassalType;
@@ -4412,7 +4195,6 @@ export const useGameActions = (gameState, addLog) => {
                     addLog('无法建立附庸关系：缺少附庸类型。');
                     return;
                 }
-
                 // 动态导入附庸系统模块
                 import('../logic/diplomacy/vassalSystem').then(({ canEstablishVassal, establishVassalRelation }) => {
                     import('../config/diplomacy').then(({ VASSAL_TYPE_CONFIGS }) => {
@@ -4420,11 +4202,10 @@ export const useGameActions = (gameState, addLog) => {
                         if (!config) {
                             addLog(`无效的附庸类型：${vassalType}`);
                             return;
-                        }
 
+                        }
                         const playerMilitary = Object.values(army || {}).reduce((sum, count) => sum + count, 0) / 100;
                         const warScore = targetNation.warScore || 0;
-
                         const { canEstablish, reason } = canEstablishVassal(targetNation, vassalType, {
                             epoch,
                             playerMilitary: Math.max(0.5, playerMilitary),
@@ -4435,12 +4216,10 @@ export const useGameActions = (gameState, addLog) => {
                             addLog(`无法将 ${targetNation.name} 变为${config.name}：${reason}`);
                             return;
                         }
-
                         setNations(prev => prev.map(n => {
                             if (n.id !== nationId) return n;
                             return establishVassalRelation(n, vassalType, epoch);
                         }));
-
                         addLog(`📜 ${targetNation.name} 已成为你的${config.name}！`);
                     });
                 }).catch(err => {
@@ -4449,26 +4228,27 @@ export const useGameActions = (gameState, addLog) => {
                 });
                 break;
             }
-
             case 'release_vassal': {
                 if (targetNation.vassalOf !== 'player') {
+
                     addLog(`${targetNation.name} 不是你的附庸国。`);
                     return;
                 }
-
                 import('../logic/diplomacy/vassalSystem').then(({ releaseVassal }) => {
                     setNations(prev => prev.map(n => {
                         if (n.id !== nationId) return n;
                         return releaseVassal(n, 'released');
                     }));
+
                     addLog(`📜 你释放了 ${targetNation.name}，对方关系提升。`);
                 }).catch(err => {
+
                     console.error('Failed to load vassal system:', err);
                     addLog('附庸系统加载失败。');
                 });
                 break;
-            }
 
+            }
             case 'adjust_vassal_policy': {
                 if (targetNation.vassalOf !== 'player') {
                     addLog(`${targetNation.name} 不是你的附庸国。`);
@@ -4476,7 +4256,6 @@ export const useGameActions = (gameState, addLog) => {
                 }
 
                 const policyChanges = payload?.policy || {};
-
                 import('../logic/diplomacy/vassalSystem').then(({ adjustVassalPolicy }) => {
                     try {
                         setNations(prev => prev.map(n => {
@@ -4489,6 +4268,7 @@ export const useGameActions = (gameState, addLog) => {
                     }
                 }).catch(err => {
                     console.error('Failed to load vassal system:', err);
+
                     addLog('附庸系统加载失败。');
                 });
                 break;
@@ -4506,6 +4286,7 @@ export const useGameActions = (gameState, addLog) => {
                         const unitConfig = UNIT_TYPES[unitId];
                         if (unitConfig && unitConfig.epoch <= epoch) {
                             const newItems = Array(unitCount).fill(null).map(() => ({
+
                                 unitId,
                                 status: 'waiting',
                                 remainingTime: 1,
@@ -4515,27 +4296,24 @@ export const useGameActions = (gameState, addLog) => {
                             setMilitaryQueue(prev => [...prev, ...newItems]);
                         }
                     }
-
                     // Deduct manpower from vassal
                     setNations(prev => prev.map(n => n.id === nationId ? { ...n, manpower: Math.max(0, (n.manpower || 0) - result.manpower) } : n));
                     addLog(result.message);
                 } else {
+
                     addLog(result.message);
                 }
                 break;
             }
-
             case 'call_to_arms': {
                 const result = requestWarParticipation(targetNation, null, resources.silver || 0);
                 if (result.success) {
                     setResourcesWithReason(prev => ({ ...prev, silver: prev.silver - result.cost }), 'call_to_arms', { nationId });
-
                     // Trigger war status for vassal against player's enemies
                     const playerEnemies = nations.filter(n =>
                         (n.isAtWar && n.warTarget === 'player') || // Enemy attacking Player
                         (n.foreignWars?.player?.isAtWar) // Player attacking Enemy (AI-AI style record)
                     );
-
                     setNations(prev => prev.map(n => {
                         if (n.id === nationId) {
                             // Set Vassal to War
@@ -4549,94 +4327,93 @@ export const useGameActions = (gameState, addLog) => {
                         }
                         return n;
                     }));
-
                     addLog(result.message);
                 } else {
                     addLog(result.message);
                 }
                 break;
             }
-
             case 'demand_investment': {
                 // Find a building that player already has and can be invested
+
                 // Priority: factory > farm > other buildings player owns
                 // [FIX] Use shared building selection logic with proper filtering
                 // Import and use selectBestInvestmentBuilding for unified logic
                 import('../logic/diplomacy/autonomousInvestment').then(({ selectBestInvestmentBuilding }) => {
+
                     const result = selectBestInvestmentBuilding({
                         targetBuildings: buildings || {},
                         targetJobFill: {}, // Player's jobFill not available here, skip staffing check
                         epoch: epoch,
                         market: market,
+
                         investorWealth: targetNation.wealth || 0,
                         foreignInvestments: foreignInvestments || [] // [NEW] Pass existing foreign investments to check limit
                     });
-
                     if (!result || !result.building) {
                         addLog(`无法强迫 ${targetNation.name} 投资：没有符合条件的建筑（需要有雇佣关系、外资未满）`);
+
                         return;
                     }
-
                     const { building, cost: investmentCost } = result;
                     const buildingId = building.id;
-
                     // Check if vassal has enough wealth
+
                     if ((targetNation.wealth || 0) < investmentCost) {
                         addLog(`${targetNation.name} 国库资金不足，无法投资 ${building.name}`);
                         return;
                     }
-
                     // Create the foreign investment
+
                     import('../logic/diplomacy/overseasInvestment').then(({ createForeignInvestment }) => {
                         const investment = createForeignInvestment({
                             buildingId,
                             ownerNationId: targetNation.id,
                             investorStratum: 'state',
-                        });
 
+                        });
                         // Add to foreign investments
                         const inv = {
                             ...investment,
+
                             operatingMode: 'local',
                             investmentAmount: investmentCost,
                             createdDay: daysElapsed,
                             status: 'operating'
                         };
                         setForeignInvestments(prev => [...prev, inv]);
-
                         // Deduct wealth from vassal
                         setNations(prev => prev.map(n => n.id === nationId ? { ...n, wealth: Math.max(0, (n.wealth || 0) - investmentCost) } : n));
-
                         addLog(`成功迫使 ${targetNation.name} 投资 ${building.name}`);
+
                     });
                 });
                 break;
             }
-
             // ========== 海外投资相关行动 ==========
             case 'establish_overseas_investment': {
                 // 在附庸国建立海外投资
                 const { buildingId, ownerStratum, strategy } = payload || {};
                 const targetNationId = payload?.targetNation?.id || payload?.targetNationId || nationId;
                 const targetNation = nations.find(n => n.id === targetNationId);
-
                 console.log('🔴🔴🔴 [INVEST-DEBUG] 收到投资请求:', {
                     nationId,
                     targetNationId,
                     targetNationFound: !!targetNation,
+
                     targetNationName: targetNation?.name,
                     buildingId,
                     ownerStratum,
+
                     strategy,
                     nationsCount: nations.length,
                     nationIds: nations.map(n => n.id),
                 });
-
                 if (!targetNation || !buildingId) {
                     addLog(`建立海外投资失败：参数不完整 (targetNationId=${targetNationId}, buildingId=${buildingId})`);
                     break;
-                }
 
+                }
                 import('../logic/diplomacy/overseasInvestment').then(({ establishOverseasInvestment }) => {
                     console.log('🔴🔴🔴 [INVEST-DEBUG] 调用 establishOverseasInvestment:', {
                         targetNation: { id: targetNation.id, name: targetNation.name, vassalOf: targetNation.vassalOf },
@@ -4647,21 +4424,23 @@ export const useGameActions = (gameState, addLog) => {
 
                     const result = establishOverseasInvestment({
                         targetNation,
+
                         buildingId,
                         ownerStratum: ownerStratum || 'capitalist',
                         strategy: strategy || 'PROFIT_MAX',
                         existingInvestments: overseasInvestments || [],
                         classWealth,
+
                         daysElapsed,
                     });
-
                     console.log('🔴🔴🔴 [INVEST-DEBUG] 投资结果:', result);
-
                     if (result.success) {
+
                         // 更新海外投资列表
                         console.log('🔴🔴🔴 [INVEST-DEBUG] 准备调用 setOverseasInvestments, investment:', result.investment);
                         console.log('🔴🔴🔴 [INVEST-DEBUG] setOverseasInvestments 函数存在?', typeof setOverseasInvestments);
                         setOverseasInvestments(prev => {
+
                             console.log('🔴🔴🔴 [INVEST-DEBUG] setOverseasInvestments 被调用! prev:', prev, 'adding:', result.investment);
                             const newList = [...prev, result.investment];
                             console.log('🔴🔴🔴 [INVEST-DEBUG] 新列表:', newList);
@@ -4670,11 +4449,13 @@ export const useGameActions = (gameState, addLog) => {
                         // 扣除业主阶层财富
                         setClassWealthWithReason(prev => ({
                             ...prev,
+
                             [ownerStratum || 'capitalist']: Math.max(0, (prev[ownerStratum || 'capitalist'] || 0) - result.cost),
                         }), 'overseas_investment_cost', { ownerStratum, investmentId: result.investment?.id });
                         addLog(`🏭 ${result.message}`);
                     } else {
                         addLog(`⚠️ ${result.message}`);
+
                     }
                 }).catch(err => {
                     console.error('Failed to load overseas investment system:', err);
@@ -4682,52 +4463,45 @@ export const useGameActions = (gameState, addLog) => {
                 });
                 break;
             }
-
             case 'accept_foreign_investment': {
                 // 接受外国投资（外国 -> 玩家）
                 const { buildingId, ownerStratum, operatingMode, investmentAmount, investmentPolicy } = payload || {};
                 const investorNation = nations.find(n => n.id === nationId);
-
                 if (!investorNation || !buildingId) {
+
                     addLog('接受投资失败：参数不完整');
                     break;
                 }
-
                 const building = BUILDINGS.find(b => b.id === buildingId);
                 if (!building) break;
 
                 // [FIX] Check if player has this building - foreign investment can only operate existing buildings
+
                 const playerBuildingCount = buildings[buildingId] || 0;
                 if (playerBuildingCount <= 0) {
                     console.log(`[外资投资] 拒绝 ${investorNation.name} 投资 ${building.name}：玩家未建造该建筑`);
                     addLog(`${investorNation.name} 想投资 ${building.name}，但你还没有建造这种建筑。`);
                     break;
                 }
-
                 // 1. 玩家接收投资资金 (AI -> 玩家)
                 // 这笔钱用于支付建筑公司、购买材料等
                 const fundingReceived = investmentAmount || 0;
-
                 // 2. 计算并扣除建造成本
                 // 使用当前的建筑数量计算成本（通常外资是新增建筑，所以是第N+1个）
                 const currentCount = buildings[buildingId] || 0;
-
                 // 获取当前难度设置
                 const difficulty = gameState?.difficulty || 'normal';
-
                 // 使用 calculateBuildingCost 工具函数计算资源消耗
                 const growthFactor = getBuildingCostGrowthFactor(difficulty);
+
                 const baseMultiplier = getBuildingCostBaseMultiplier(difficulty);
                 // 假设外资建筑也享受同样的成本加成（作为一个简化的处理）
                 const buildingCostMod = gameState?.modifiers?.officialEffects?.buildingCostMod || 0;
-
                 const rawCost = calculateBuildingCost(building.baseCost, currentCount, growthFactor, baseMultiplier);
                 const constructionCost = applyBuildingCostModifier(rawCost, buildingCostMod, building.baseCost);
-
                 // [FIX] 计算总建造银币成本（包括直接银币成本 + 进口成本）
                 // 投资款应该用于覆盖这些成本，而不是作为玩家收入
                 let totalSilverCostEstimate = constructionCost.silver || 0;
-
                 // 预估进口成本
                 Object.entries(constructionCost).forEach(([res, amount]) => {
                     if (res === 'silver') return;
@@ -4738,7 +4512,6 @@ export const useGameActions = (gameState, addLog) => {
                         totalSilverCostEstimate += needed * price * 1.2; // 紧急进口溢价
                     }
                 });
-
                 // [FIX] 计算承建利润（如果投资款 > 实际成本）
                 // 这笔利润归国内工人阶层（建筑工人）
                 const constructionProfit = Math.max(0, fundingReceived - totalSilverCostEstimate);
@@ -4746,23 +4519,23 @@ export const useGameActions = (gameState, addLog) => {
                 // 执行资源扣除 - 投资款用于抵消成本，不作为收入
                 setResourcesWithReason(prev => {
                     const nextRes = { ...prev };
-
                     // [FIX] 不再将投资款加入银币
                     // 投资款直接用于覆盖建造成本
                     // 如果投资款够用，玩家不需要消耗任何银币
                     // 如果不够，玩家需要自掏腰包补差额
-
                     let remainingBudget = fundingReceived; // AI 提供的建设预算
 
                     Object.entries(constructionCost).forEach(([res, amount]) => {
                         if (res === 'silver') {
                             // 银币成本从预算中扣除
                             if (remainingBudget >= amount) {
+
                                 remainingBudget -= amount;
                                 // 不消耗玩家银币
                             } else {
                                 // 预算不够，玩家需要补差额
                                 const playerPays = amount - remainingBudget;
+
                                 remainingBudget = 0;
                                 nextRes.silver = Math.max(0, (nextRes.silver || 0) - playerPays);
                             }
@@ -4774,7 +4547,6 @@ export const useGameActions = (gameState, addLog) => {
                                 // 资源不足，从预算购买进口
                                 const needed = amount - (nextRes[res] || 0);
                                 nextRes[res] = 0; // 用光库存
-
                                 const price = market?.prices?.[res] || RESOURCES[res]?.basePrice || 1;
                                 const importCost = needed * price * 1.2; // 紧急进口溢价
 
@@ -4784,72 +4556,70 @@ export const useGameActions = (gameState, addLog) => {
                                     // 预算不够，玩家需要补差额
                                     const playerPays = importCost - remainingBudget;
                                     remainingBudget = 0;
+
                                     nextRes.silver = Math.max(0, (nextRes.silver || 0) - playerPays);
                                 }
                             }
                         }
                     });
-
                     // [FIX] 剩余预算（如有）不进入国库
                     // 理论上不应该有剩余，因为 AI 计算投资额时应该精确
                     // 如果有剩余，作为给工人的建筑费用（进入工人阶层财富）
-
                     return nextRes;
                 }, 'foreign_investment_construction', { nationId, buildingId });
-
                 // [FIX] 如果有承建利润，拨给工人阶层
                 if (constructionProfit > 0) {
                     setClassWealthWithReason(prev => ({
                         ...prev,
+
                         worker: (prev.worker || 0) + constructionProfit,
                     }), 'foreign_investment_construction_profit', { nationId, buildingId, profit: constructionProfit });
                 }
-
                 import('../logic/diplomacy/overseasInvestment').then(({ createForeignInvestment }) => {
+
                     const newInvestment = createForeignInvestment({
                         buildingId,
+
                         ownerNationId: investorNation.id,
                         investorStratum: ownerStratum || 'capitalist',
                     });
-
                     if (newInvestment) {
                         newInvestment.operatingMode = operatingMode || 'local';
+
                         newInvestment.investmentAmount = investmentAmount || 0;
                         newInvestment.createdDay = daysElapsed;
-
                         setForeignInvestments(prev => [...prev, newInvestment]);
-
                         // 增加建筑数量
                         setBuildings(prev => ({
                             ...prev,
                             [buildingId]: (prev[buildingId] || 0) + 1,
-                        }));
 
+                        }));
                         setNations(prev => prev.map(n => {
                             if (n.id !== investorNation.id) return n;
-
                             // [NEW] Apply discontent based on investment policy
                             let unrestChange = 0;
                             let relationChange = 5; // Default relation boost
-
                             if (investmentPolicy === 'guided') {
                                 unrestChange = 2;
                                 relationChange = 3; // Less relation boost
+
                             } else if (investmentPolicy === 'forced') {
                                 unrestChange = 5;
+
                                 relationChange = 1; // Minimal relation boost
                             }
-
                             return {
                                 ...n,
                                 wealth: Math.max(0, (n.wealth || 0) - (investmentAmount || 0)),
+
                                 relation: Math.min(100, (n.relation || 0) + relationChange),
                                 unrest: (n.unrest || 0) + unrestChange, // Apply discontent
                             };
                         }));
-
                         if (investmentPolicy === 'guided' || investmentPolicy === 'forced') {
                             addLog(`⚠️ 由于${investmentPolicy === 'forced' ? '强制' : '引导'}投资政策，${investorNation.name} 国内出现不满。`);
+
                         }
                         addLog(`🏭 ${investorNation.name} 投资 ${fundingReceived.toFixed(0)} 银币，在本地建设了 ${building.name}。消耗了相应的建材。`);
                     }
@@ -4859,15 +4629,15 @@ export const useGameActions = (gameState, addLog) => {
                 });
                 break;
             }
-
             case 'withdraw_overseas_investment': {
                 // 撤回海外投资
+
                 const { investmentId } = payload || {};
                 if (!investmentId) {
                     addLog('撤回投资失败：参数不完整');
                     break;
-                }
 
+                }
                 setOverseasInvestments(prev => {
                     const investment = prev.find(inv => inv.id === investmentId);
                     if (!investment) {
@@ -4882,50 +4652,47 @@ export const useGameActions = (gameState, addLog) => {
                         ...prevWealth,
                         [ownerStratum]: (prevWealth[ownerStratum] || 0) + returnAmount,
                     }), 'overseas_investment_withdraw', { ownerStratum, investmentId });
-
                     addLog(`💰 已撤回在附庸国的投资，收回 ${returnAmount.toFixed(0)} 银币（扣除20%违约金）`);
                     return prev.filter(inv => inv.id !== investmentId);
+
                 });
+
                 break;
             }
-
             case 'change_investment_mode': {
                 // 切换海外投资运营模式（支持批量修改配置）
                 const { investmentId, investmentIds, updates } = payload || {};
                 const targetIds = investmentIds || (investmentId ? [investmentId] : []);
-
                 if (targetIds.length === 0) {
                     addLog('切换配置失败：参数不完整');
                     break;
                 }
-
                 const finalUpdates = updates || {};
-
                 if (Object.keys(finalUpdates).length === 0) {
                     addLog('切换配置失败：无有效更新');
                     break;
                 }
-
                 setOverseasInvestments(prev => prev.map(inv => {
                     if (targetIds.includes(inv.id)) {
                         return { ...inv, ...finalUpdates };
                     }
                     return inv;
                 }));
-
                 addLog(`📦 已更新 ${targetIds.length} 个海外投资的运营策略`);
                 break;
             }
-
             case 'set_foreign_investment_policy': {
+
                 const { policy } = payload || {};
                 if (!policy) {
                     addLog('Foreign investment policy update failed: missing policy.');
                     break;
+
                 }
                 const policyLabels = { normal: 'normal tax', increased_tax: 'higher tax', heavy_tax: 'heavy tax' };
                 setForeignInvestmentPolicy(policy);
                 addLog(`Foreign investment policy set to ${policyLabels[policy] || policy}.`);
+
                 break;
             }
 
@@ -4940,23 +4707,27 @@ export const useGameActions = (gameState, addLog) => {
                 import('../logic/diplomacy/overseasInvestment').then(({ nationalizeInvestment }) => {
                     setForeignInvestments(prev => {
                         const investment = prev.find(inv => inv.id === investmentId);
+
                         if (!investment) {
                             addLog('找不到该外资记录');
                             return prev;
+
                         }
-
                         const ownerNation = nations.find(n => n.id === investment.ownerNationId);
-                        const result = nationalizeInvestment(investment, ownerNation);
 
+                        const result = nationalizeInvestment(investment, ownerNation);
                         if (result.success) {
                             // 降低与业主国的关系
                             if (ownerNation) {
                                 setNations(prevNations => prevNations.map(n => {
+
                                     if (n.id !== ownerNation.id) return n;
                                     return {
+
                                         ...n,
                                         relation: Math.max(0, (n.relation || 50) + result.relationPenalty),
                                     };
+
                                 }));
                             }
                             addLog(`🏛️ ${result.message}`);
@@ -4967,21 +4738,24 @@ export const useGameActions = (gameState, addLog) => {
                         }
                     });
                 }).catch(err => {
+
                     console.error('Failed to load overseas investment system:', err);
                     addLog('海外投资系统加载失败。');
                 });
+
                 break;
             }
-
             case 'investigate':
+
                 resultEvent = createInvestigationResultEvent(
                     stratumKey,
                     result.success,
                     result.success ? '他们计划在节日时发动突袭。' : null,
+
                     resultCallback
+
                 );
                 break;
-
             case 'arrest':
                 resultEvent = createArrestResultEvent(stratumKey, result.success, resultCallback);
                 // 如果失败，扣除损失
@@ -4998,11 +4772,12 @@ export const useGameActions = (gameState, addLog) => {
                     });
                 }
                 break;
-
             case 'suppress':
                 resultEvent = createSuppressionResultEvent(
+
                     stratumKey,
                     result.success,
+
                     result.playerLosses,
                     result.rebelLosses,
                     resultCallback
@@ -5014,60 +4789,65 @@ export const useGameActions = (gameState, addLog) => {
                         const newArmy = { ...prev };
                         Object.keys(newArmy).forEach(unitType => {
                             const loss = Math.ceil((newArmy[unitType] || 0) * lossRatio);
+
                             newArmy[unitType] = Math.max(0, (newArmy[unitType] || 0) - loss);
                         });
                         return newArmy;
+
                     });
                 }
+
                 // 如果镇压成功，移除叛乱政府
                 if (result.success && extraData?.id) {
                     setNations(prev => prev.filter(n => n.id !== extraData.id));
                 }
                 break;
-
             case 'appease':
             case 'negotiate':
+
             case 'bribe':
                 // 应用满意度变化
                 if (result.approvalChange && result.approvalChange > 0) {
                     setClassApproval(prev => ({
                         ...prev,
                         [stratumKey]: Math.min(100, (prev[stratumKey] || 50) + result.approvalChange),
+
                     }));
                 }
                 addLog(`${result.message}`);
                 break;
 
             case 'accept_war':
+
                 // 接受与叛乱政府的战争状态（已经在创建时设置）
                 addLog(`你决定与${stratumName}叛乱政府全面开战！`);
                 break;
-
             default:
                 console.warn('[REBELLION] Unknown action:', action);
-        }
 
+        }
         // 触发结果事件（仅当resultEvent已定义时）
+
         if (typeof resultEvent !== 'undefined' && resultEvent) {
             triggerDiplomaticEvent(resultEvent);
         }
-    };
 
+    };
     /**
      * 检测并处理叛乱战争结束
      * @param {string} nationId - 叛乱政府国家ID
      * @param {boolean} playerVictory - 玩家是否胜利
      */
     const handleRebellionAction = (action, stratumKey, extraData = {}) => {
-        if (!stratumKey) return;
 
+        if (!stratumKey) return;
         const rebellionState = (rebellionStates && rebellionStates[stratumKey]) || {};
         const totalArmy = Object.values(army || {}).reduce((sum, count) => sum + (count || 0), 0);
         const militaryStrength = calculateBattlePower(army, epoch, modifiers?.militaryBonus || 0) / 100;
         const result = processRebellionAction(action, stratumKey, rebellionState, army, militaryStrength);
         const resultCallback = () => { };
-
         if (result.updatedOrganization !== undefined || result.pauseDays) {
+
             setRebellionStates(prev => {
                 const prevState = prev?.[stratumKey] || {};
                 const nextOrganization = result.updatedOrganization !== undefined
@@ -5079,6 +4859,7 @@ export const useGameActions = (gameState, addLog) => {
                     [stratumKey]: {
                         ...prevState,
                         organization: nextOrganization,
+
                         stage,
                         phase: result.newPhase || getPhaseFromStage(stage),
                         organizationPaused: result.pauseDays || 0,
@@ -5086,13 +4867,14 @@ export const useGameActions = (gameState, addLog) => {
                         influenceShare: prevState.influenceShare || 0,
                     },
                 };
+
             });
         }
-
         let resultEvent = null;
         switch (action) {
             case 'investigate':
                 resultEvent = createInvestigationResultEvent(
+
                     stratumKey,
                     result.success,
                     result.success ? 'Discovered early warning signs.' : null,
@@ -5100,33 +4882,41 @@ export const useGameActions = (gameState, addLog) => {
                 );
                 break;
             case 'arrest':
+
                 resultEvent = createArrestResultEvent(stratumKey, result.success, resultCallback);
                 if (!result.success && result.playerLosses > 0) {
                     const lossRatio = result.playerLosses / Math.max(1, totalArmy);
                     setArmy(prev => {
                         const newArmy = { ...prev };
+
                         Object.keys(newArmy).forEach(unitType => {
                             const loss = Math.ceil((newArmy[unitType] || 0) * lossRatio);
                             newArmy[unitType] = Math.max(0, (newArmy[unitType] || 0) - loss);
                         });
+
                         return newArmy;
                     });
                 }
                 break;
+
             case 'suppress':
+
                 resultEvent = createSuppressionResultEvent(
                     stratumKey,
                     result.success,
                     result.playerLosses,
+
                     result.rebelLosses,
                     resultCallback
                 );
                 if (result.playerLosses > 0) {
                     const lossRatio = result.playerLosses / Math.max(1, totalArmy);
                     setArmy(prev => {
+
                         const newArmy = { ...prev };
                         Object.keys(newArmy).forEach(unitType => {
                             const loss = Math.ceil((newArmy[unitType] || 0) * lossRatio);
+
                             newArmy[unitType] = Math.max(0, (newArmy[unitType] || 0) - loss);
                         });
                         return newArmy;
@@ -5138,6 +4928,7 @@ export const useGameActions = (gameState, addLog) => {
                 break;
             case 'appease':
             case 'negotiate':
+
             case 'bribe':
                 if (result.approvalChange && result.approvalChange > 0) {
                     setClassApproval(prev => ({
@@ -5145,6 +4936,7 @@ export const useGameActions = (gameState, addLog) => {
                         [stratumKey]: Math.min(100, (prev[stratumKey] || 50) + result.approvalChange),
                     }));
                 }
+
                 if (result.message) {
                     addLog(`${result.message}`);
                 }
@@ -5152,22 +4944,20 @@ export const useGameActions = (gameState, addLog) => {
             case 'accept_war':
                 addLog(`Accepted war with ${STRATA[stratumKey]?.name || stratumKey} rebels.`);
                 break;
+
             default:
                 break;
-        }
 
+        }
         if (resultEvent) {
             triggerDiplomaticEvent(resultEvent);
         }
     };
-
     const handleRebellionWarEnd = (nationId, playerVictory) => {
         const rebelNation = nations.find(n => n.id === nationId && n.isRebelNation);
         if (!rebelNation) return;
-
         const stratumKey = rebelNation.rebellionStratum;
         const stratumName = STRATA[stratumKey]?.name || stratumKey;
-
         // 创建战争结束事件
         const endEvent = createRebellionEndEvent(
             rebelNation,
@@ -5182,16 +4972,16 @@ export const useGameActions = (gameState, addLog) => {
                     }), 'rebellion_end_celebrate');
                 } else if (action === 'end_rebuild') {
                     setStability(prev => Math.min(100, (prev || 50) + 5));
+
                 } else if (action === 'end_defeat') {
                     setStability(prev => Math.max(0, (prev || 50) - 20));
                 }
             }
         );
-
         // 移除叛乱政府
         setNations(prev => prev.filter(n => n.id !== nationId));
-
         // 重置叛乱状态
+
         setRebellionStates(prev => {
             const prevState = prev?.[stratumKey] || {};
             const resetOrganization = playerVictory ? 15 : 40;
@@ -5218,13 +5008,11 @@ export const useGameActions = (gameState, addLog) => {
             }));
             addLog(`${recoveredPop}名${stratumName}回归了你的统治。`);
         }
-
         // 触发结束事件 - 延迟执行确保在选项处理完成后再显示弹窗
         setTimeout(() => {
             launchDiplomaticEvent(endEvent);
         }, 200);
     };
-
     const endWarWithNation = (nationId, extraUpdates = {}) => {
         setNations(prev => prev.map(n => {
             if (n.id !== nationId) return n;
@@ -5236,21 +5024,20 @@ export const useGameActions = (gameState, addLog) => {
                 enemyLosses: 0,
                 peaceTreatyUntil: daysElapsed + 365,
                 ...extraUpdates,
+
             };
         }));
     };
-
     const handleEnemyPeaceAccept = (nationId, proposalType, amount = 0) => {
         const targetNation = nations.find(n => n.id === nationId);
         if (!targetNation) return;
-
         const durationDays = INSTALLMENT_CONFIG?.DURATION_DAYS || 365;
         const basePopulation = targetNation.population || 0;
         const transferPopulation = Math.min(basePopulation, Math.max(0, Math.floor(amount || 0)));
         const paymentAmount = Math.max(0, Math.floor(amount || 0));
-
         if (proposalType === 'annex') {
             const populationGain = transferPopulation;
+
             if (populationGain > 0) {
                 setPopulation(prev => prev + populationGain);
                 setMaxPopBonus(prev => prev + populationGain);
@@ -5259,12 +5046,13 @@ export const useGameActions = (gameState, addLog) => {
             endWarWithNation(nationId, {
                 isAnnexed: true,
                 annexedBy: 'player',
+
                 annexedAt: daysElapsed,
                 population: 0,
                 wealth: 0,
             });
-
             const annexEvent = createNationAnnexedEvent(
+
                 targetNation,
                 populationGain,
                 populationGain,
@@ -5272,12 +5060,13 @@ export const useGameActions = (gameState, addLog) => {
                 () => { }
             );
             triggerDiplomaticEvent(annexEvent);
+
             addLog(`Annexed ${targetNation.name}.`);
             return;
         }
-
         if (proposalType === 'population') {
             if (transferPopulation > 0) {
+
                 setPopulation(prev => prev + transferPopulation);
                 setMaxPopBonus(prev => prev + transferPopulation);
             }
@@ -5287,7 +5076,6 @@ export const useGameActions = (gameState, addLog) => {
             addLog(`${targetNation.name} ceded ${transferPopulation} population.`);
             return;
         }
-
         if (proposalType === 'installment') {
             endWarWithNation(nationId, {
                 installmentPayment: {
@@ -5318,7 +5106,6 @@ export const useGameActions = (gameState, addLog) => {
             addLog(`${targetNation.name} opened its market.`);
             return;
         }
-
         if (paymentAmount > 0) {
             setResourcesWithReason(
                 prev => ({ ...prev, silver: (prev.silver || 0) + paymentAmount }),
@@ -5331,7 +5118,6 @@ export const useGameActions = (gameState, addLog) => {
         });
         addLog(`${targetNation.name} paid ${paymentAmount} silver for peace.`);
     };
-
     const handleEnemyPeaceReject = (nationId) => {
         const targetNation = nations.find(n => n.id === nationId);
         if (!targetNation) return;
@@ -5341,7 +5127,6 @@ export const useGameActions = (gameState, addLog) => {
         }));
         addLog(`Rejected peace request from ${targetNation.name}.`);
     };
-
     const handlePlayerPeaceProposal = (nationId, proposalType, amount = 0) => {
         const targetNation = nations.find(n => n.id === nationId);
         if (!targetNation) return;
@@ -5349,13 +5134,11 @@ export const useGameActions = (gameState, addLog) => {
             addLog(`Peace proposal to ${targetNation.name} canceled.`);
             return;
         }
-
         const warScore = targetNation.warScore || 0;
         const aggression = targetNation.aggression ?? 0.3;
         const durationDays = INSTALLMENT_CONFIG?.DURATION_DAYS || 365;
         const paymentAmount = Math.max(0, Math.floor(amount || 0));
         const currentPop = population || 0;
-
         const demandingTypes = new Set([
             'demand_annex',
             'demand_high',
@@ -5377,12 +5160,14 @@ export const useGameActions = (gameState, addLog) => {
         if (warScore >= 300) acceptChance = 0.85;
         else if (warScore >= 150) acceptChance = 0.7;
         else if (warScore >= 50) acceptChance = 0.6;
+
         else if (warScore >= 0) acceptChance = 0.5;
         else if (warScore >= -50) acceptChance = 0.4;
         else if (warScore >= -150) acceptChance = 0.3;
-        else acceptChance = 0.2;
 
+        else acceptChance = 0.2;
         if (demandingTypes.has(proposalType)) {
+
             acceptChance *= warScore >= 50 ? 1.1 : 0.6;
         }
         if (offeringTypes.has(proposalType)) {
@@ -5391,10 +5176,8 @@ export const useGameActions = (gameState, addLog) => {
         if (proposalType === 'peace_only') {
             acceptChance *= warScore > 0 ? 0.7 : 0.5;
         }
-
         acceptChance *= (1 - aggression * 0.2);
         acceptChance = Math.min(0.95, Math.max(0.05, acceptChance));
-
         if (offeringTypes.has(proposalType)) {
             if (proposalType.startsWith('pay_')) {
                 const currentSilver = resources?.silver || 0;
@@ -5404,13 +5187,14 @@ export const useGameActions = (gameState, addLog) => {
                 }
             }
             if (proposalType === 'offer_population') {
+
                 if ((population || 0) < paymentAmount + 10) {
                     addLog(`Not enough population to cede (${paymentAmount}).`);
+
                     return;
                 }
             }
         }
-
         const accepted = Math.random() < acceptChance;
         if (!accepted) {
             setNations(prev => prev.map(n => {
@@ -5420,31 +5204,31 @@ export const useGameActions = (gameState, addLog) => {
             addLog(`${targetNation.name} rejected your peace proposal.`);
             return;
         }
-
         if (proposalType === 'demand_annex' && warScore < 500) {
             addLog('战争分数不足，无法提出吞并要求。');
             return;
         }
+
         if (proposalType === 'demand_vassal' && warScore < 300) {
             addLog('战争分数不足，无法提出附庸要求。');
             return;
         }
-
         if (proposalType === 'demand_annex') {
             const basePopulation = targetNation.population || 0;
             const transferPopulation = Math.min(basePopulation, Math.max(0, Math.floor(amount || 0)));
             if (transferPopulation > 0) {
                 setPopulation(prev => prev + transferPopulation);
+
                 setMaxPopBonus(prev => prev + transferPopulation);
             }
             endWarWithNation(nationId, {
                 isAnnexed: true,
                 annexedBy: 'player',
+
                 annexedAt: daysElapsed,
                 population: 0,
                 wealth: 0,
             });
-
             const annexEvent = createNationAnnexedEvent(
                 targetNation,
                 transferPopulation,
@@ -5455,28 +5239,31 @@ export const useGameActions = (gameState, addLog) => {
             triggerDiplomaticEvent(annexEvent);
             addLog(`Annexed ${targetNation.name}.`);
             return;
-        }
 
+        }
         if (proposalType === 'demand_population') {
             const basePopulation = targetNation.population || 0;
+
             const transferPopulation = Math.min(basePopulation, paymentAmount);
             if (transferPopulation > 0) {
                 setPopulation(prev => prev + transferPopulation);
                 setMaxPopBonus(prev => prev + transferPopulation);
+
             }
             endWarWithNation(nationId, {
                 population: Math.max(10, basePopulation - transferPopulation),
             });
             addLog(`${targetNation.name} ceded ${transferPopulation} population.`);
             return;
-        }
 
+        }
         if (proposalType === 'demand_open_market') {
             const nextTreaties = Array.isArray(targetNation.treaties) ? [...targetNation.treaties] : [];
             nextTreaties.push({
                 id: `treaty_${nationId}_${Date.now()}`,
                 type: 'open_market',
                 startDay: daysElapsed,
+
                 endDay: daysElapsed + paymentAmount,
                 maintenancePerDay: 0,
                 direction: 'war_forced',
@@ -5500,8 +5287,8 @@ export const useGameActions = (gameState, addLog) => {
             });
             addLog(`${targetNation.name} agreed to pay installments.`);
             return;
-        }
 
+        }
         if (proposalType === 'demand_high' || proposalType === 'demand_standard') {
             if (paymentAmount > 0) {
                 setResourcesWithReason(
@@ -5513,10 +5300,10 @@ export const useGameActions = (gameState, addLog) => {
             endWarWithNation(nationId, {
                 wealth: Math.max(0, (targetNation.wealth || 0) - paymentAmount),
             });
+
             addLog(`${targetNation.name} paid ${paymentAmount} silver.`);
             return;
         }
-
         if (proposalType === 'pay_high' || proposalType === 'pay_standard' || proposalType === 'pay_moderate') {
             setResourcesWithReason(
                 prev => ({ ...prev, silver: Math.max(0, (prev.silver || 0) - paymentAmount) }),
@@ -5529,9 +5316,9 @@ export const useGameActions = (gameState, addLog) => {
             addLog(`Paid ${paymentAmount} silver to ${targetNation.name}.`);
             return;
         }
-
         if (proposalType === 'pay_installment' || proposalType === 'pay_installment_moderate') {
             if (typeof setPlayerInstallmentPayment === 'function') {
+
                 setPlayerInstallmentPayment({
                     nationId: targetNation.id,
                     amount: paymentAmount,
@@ -5560,39 +5347,35 @@ export const useGameActions = (gameState, addLog) => {
             addLog(`Peace signed with ${targetNation.name}.`);
         }
     };
-
     // 返回所有操作函数
     return {
+
         // 时代
         canUpgradeEpoch,
         upgradeEpoch,
-
         // 建筑
         buyBuilding,
+
         sellBuilding,
         upgradeBuilding,
         downgradeBuilding,
         batchUpgradeBuilding,
         batchDowngradeBuilding,
-
         // 科技
         researchTech,
-
         // 政令
         toggleDecree,
-
         // 采集
         manualGather,
-
         // 军事
         recruitUnit,
         handleAutoReplenishLosses,
         disbandUnit,
         disbandAllUnits,
+
         cancelTraining,
         cancelAllTraining,
         launchBattle,
-
         // 外交
         handleDiplomaticAction,
         handleEnemyPeaceAccept,
@@ -5601,18 +5384,17 @@ export const useGameActions = (gameState, addLog) => {
 
         // 贸易路线
         handleTradeRouteAction,
-
         // 事件
         triggerRandomEvent,
         triggerDiplomaticEvent,
         handleEventOption,
-
         // 战斗结果
         setBattleResult,
         setBattleNotifications,
 
         // 添加战斗通知（非阻断式）
         addBattleNotification: (battleResult) => {
+
             const notification = {
                 id: `battle_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                 result: battleResult,
@@ -5620,12 +5402,10 @@ export const useGameActions = (gameState, addLog) => {
             };
             setBattleNotifications(prev => [...prev, notification]);
         },
-
         // 关闭单个战斗通知
         dismissBattleNotification: (notificationId) => {
             setBattleNotifications(prev => prev.filter(n => n.id !== notificationId));
         },
-
         // 关闭所有战斗通知
         dismissAllBattleNotifications: () => {
             setBattleNotifications([]);
@@ -5637,9 +5417,9 @@ export const useGameActions = (gameState, addLog) => {
         fireExistingOfficial,
         disposeExistingOfficial,
         updateOfficialSalary,
-
         // 叛乱系统
         handleRebellionAction,
         handleRebellionWarEnd,
+
     };
 };

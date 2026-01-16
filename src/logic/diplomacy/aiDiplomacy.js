@@ -4,7 +4,7 @@
  * Extracted from simulation.js for better code organization
  */
 
-import { ORGANIZATION_EFFECTS, RESOURCES, PEACE_TREATY_TYPES, getTreatyBreachPenalty } from '../../config';
+import { ORGANIZATION_EFFECTS, RESOURCES, PEACE_TREATY_TYPES, getTreatyBreachPenalty, isDiplomacyUnlocked } from '../../config';
 import {
     calculateAIGiftAmount,
 } from '../../utils/diplomaticUtils';
@@ -16,6 +16,7 @@ import {
     getAllyColdEventChance,
 } from '../../config/difficulty';
 import { canVassalPerformDiplomacy } from './vassalSystem';
+import { ORGANIZATION_TYPE_CONFIGS } from './organizationDiplomacy';
 
 const applyTreasuryChange = (resources, delta, reason, onTreasuryChange) => {
     if (!resources || !Number.isFinite(delta) || delta === 0) return 0;
@@ -520,15 +521,18 @@ import { createOrganization } from './organizationDiplomacy';
  * Conditions: Era 5+, High Wealth, Good Relations
  */
 const processAIEconomicBlocFormation = (visibleNations, tick, logs, diplomacyOrganizations, epoch) => {
+    if (!isDiplomacyUnlocked('organizations', 'economic_bloc', epoch)) {
+        return { createdOrganizations: [], memberJoinRequests: [] };
+    }
     const existingOrgs = diplomacyOrganizations?.organizations || [];
     const result = { createdOrganizations: [], memberJoinRequests: [] };
     const shuffled = [...visibleNations].sort(() => Math.random() - 0.5);
 
     shuffled.forEach(nation => {
-        if (Math.random() > 0.005) return; // Low daily chance
+        if (Math.random() > 0.015) return; // Slightly higher chance
 
         // Wealth check
-        if ((nation.wealth || 0) < 2000) return;
+        if ((nation.wealth || 0) < 1500) return;
 
         // Check if already in an economic bloc
         const myBloc = existingOrgs.find(org => org.type === 'economic_bloc' && org.members.includes(nation.id));
@@ -545,7 +549,7 @@ const processAIEconomicBlocFormation = (visibleNations, tick, logs, diplomacyOrg
 
             const relation = nation.foreignRelations?.[other.id] ?? 50;
             const otherRelation = other.foreignRelations?.[nation.id] ?? 50;
-            return relation >= 60 && otherRelation >= 60; // Moderate+ relations
+            return relation >= 55 && otherRelation >= 55; // Moderate+ relations
         });
 
         if (potentialPartners.length === 0) return;
@@ -594,6 +598,9 @@ const processAIEconomicBlocFormation = (visibleNations, tick, logs, diplomacyOrg
 };
 
 export const processAIAllianceFormation = (visibleNations, tick, logs, diplomacyOrganizations, epoch) => {
+    if (!isDiplomacyUnlocked('organizations', 'military_alliance', epoch)) {
+        return { createdOrganizations: [], memberJoinRequests: [] };
+    }
     const existingOrgs = diplomacyOrganizations?.organizations || [];
     const result = {
         createdOrganizations: [],
@@ -604,7 +611,7 @@ export const processAIAllianceFormation = (visibleNations, tick, logs, diplomacy
     const shuffledNations = [...visibleNations].sort(() => Math.random() - 0.5);
 
     shuffledNations.forEach(nation => {
-        if (Math.random() > 0.005) return; // Low daily chance
+        if (Math.random() > 0.02) return; // Slightly higher chance
 
         // Check vassal diplomatic restrictions
         const vassalAllianceCheck = canVassalPerformDiplomacy(nation, 'alliance');
@@ -634,7 +641,7 @@ export const processAIAllianceFormation = (visibleNations, tick, logs, diplomacy
 
             const relation = nation.foreignRelations?.[other.id] ?? 50;
             const otherRelation = other.foreignRelations?.[nation.id] ?? 50;
-            return relation >= 75 && otherRelation >= 75; // High relation required
+            return relation >= 65 && otherRelation >= 65; // High relation required
         });
 
         if (potentialAllies.length === 0) return;
@@ -698,6 +705,176 @@ export const processAIAllianceFormation = (visibleNations, tick, logs, diplomacy
     }
 
     return result;
+};
+
+/**
+ * AI recruits members to existing organizations (AI-AI only)
+ */
+export const processAIOrganizationRecruitment = (visibleNations, tick, logs, diplomacyOrganizations, epoch) => {
+    void tick;
+    const organizations = diplomacyOrganizations?.organizations || [];
+    const result = { memberJoinRequests: [] };
+    const nationMap = new Map(visibleNations.map(n => [n.id, n]));
+
+    organizations.forEach(org => {
+        if (!org || org.isActive === false) return;
+        if (!['military_alliance', 'economic_bloc'].includes(org.type)) return;
+        if (!isDiplomacyUnlocked('organizations', org.type, epoch)) return;
+
+        const config = ORGANIZATION_TYPE_CONFIGS[org.type];
+        const maxMembers = config?.maxMembers || 10;
+        if (org.members?.length >= maxMembers) return;
+
+        const candidates = visibleNations.filter(candidate => {
+            if (!candidate || candidate.isRebelNation) return false;
+            if (org.members.includes(candidate.id)) return false;
+            const diplomacyCheck = canVassalPerformDiplomacy(candidate, 'alliance');
+            if (!diplomacyCheck.allowed) return false;
+            return true;
+        });
+
+        if (candidates.length === 0) return;
+
+        const minRelation = org.type === 'military_alliance' ? 65 : 55;
+        const eligible = candidates.map(candidate => {
+            let sum = 0;
+            let count = 0;
+            let minRel = 100;
+
+            for (const memberId of org.members || []) {
+                if (memberId === 'player') continue;
+                const member = nationMap.get(memberId);
+                if (!member) continue;
+
+                if (candidate.foreignWars?.[memberId]?.isAtWar) {
+                    return null;
+                }
+
+                const relToMember = candidate.foreignRelations?.[memberId] ?? 50;
+                const relFromMember = member.foreignRelations?.[candidate.id] ?? 50;
+                minRel = Math.min(minRel, relToMember, relFromMember);
+                sum += relToMember + relFromMember;
+                count += 2;
+            }
+
+            if (count === 0) return null;
+            const avgRel = sum / count;
+            if (minRel < minRelation - 5) return null;
+            return { candidate, avgRel };
+        }).filter(Boolean);
+
+        if (eligible.length === 0) return;
+
+        eligible.sort((a, b) => b.avgRel - a.avgRel);
+        const pick = eligible[0];
+        const baseChance = org.type === 'military_alliance' ? 0.04 : 0.05;
+        const relationBoost = Math.max(0, (pick.avgRel - 60) / 800);
+        if (Math.random() > baseChance + relationBoost) return;
+
+        result.memberJoinRequests.push({ orgId: org.id, nationId: pick.candidate.id, orgName: org.name });
+        logs.push(`🏛️ ${pick.candidate.name} 受邀加入 "${org.name}"。`);
+    });
+
+    return result;
+};
+
+/**
+ * AI evaluates leaving organizations when relations sour or wars break out
+ */
+export const processAIOrganizationMaintenance = (visibleNations, tick, logs, diplomacyOrganizations, epoch) => {
+    void tick;
+    const organizations = diplomacyOrganizations?.organizations || [];
+    const result = { memberLeaveRequests: [] };
+    const nationMap = new Map(visibleNations.map(n => [n.id, n]));
+
+    organizations.forEach(org => {
+        if (!org || org.isActive === false) return;
+        if (!['military_alliance', 'economic_bloc'].includes(org.type)) return;
+        if (!isDiplomacyUnlocked('organizations', org.type, epoch)) return;
+
+        const threshold = org.type === 'military_alliance' ? 40 : 35;
+        for (const memberId of org.members || []) {
+            if (memberId === 'player') continue;
+            const member = nationMap.get(memberId);
+            if (!member) continue;
+
+            let sum = 0;
+            let count = 0;
+            let hasWarWithMember = false;
+
+            for (const otherId of org.members || []) {
+                if (otherId === memberId) continue;
+                if (otherId === 'player') {
+                    sum += member.relation ?? 50;
+                    count += 1;
+                    continue;
+                }
+                const rel = member.foreignRelations?.[otherId] ?? 50;
+                sum += rel;
+                count += 1;
+                if (member.foreignWars?.[otherId]?.isAtWar) {
+                    hasWarWithMember = true;
+                }
+            }
+
+            const avgRel = count > 0 ? sum / count : 50;
+            const relationDeficit = Math.max(0, threshold - avgRel);
+            const leaveChance = 0.01 + (relationDeficit / 200) + (hasWarWithMember ? 0.08 : 0);
+
+            if (avgRel < threshold && Math.random() < leaveChance) {
+                result.memberLeaveRequests.push({ orgId: org.id, nationId: memberId, orgName: org.name });
+                logs.push(`💔 ${member.name} 退出了 "${org.name}"。`);
+            }
+        }
+    });
+
+    return result;
+};
+
+/**
+ * AI invites player to join existing organizations
+ */
+export const processAIOrganizationInvitesToPlayer = (visibleNations, tick, logs, diplomacyOrganizations, epoch) => {
+    const organizations = diplomacyOrganizations?.organizations || [];
+    if (organizations.length === 0) return;
+
+    visibleNations.forEach(nation => {
+        if (!nation || nation.isRebelNation) return;
+        if (nation.isAtWar) return;
+        const relation = nation.relation ?? 50;
+        if (relation < 60) return;
+
+        const lastInviteDay = nation.lastOrgInviteDay || 0;
+        const inviteCooldown = 360;
+        if ((tick - lastInviteDay) < inviteCooldown) return;
+
+        const myOrgs = organizations.filter(org =>
+            org?.isActive !== false &&
+            ['military_alliance', 'economic_bloc'].includes(org.type) &&
+            org.members?.includes(nation.id) &&
+            !org.members?.includes('player')
+        );
+        if (myOrgs.length === 0) return;
+
+        const org = myOrgs.find(entry => isDiplomacyUnlocked('organizations', entry.type, epoch));
+        if (!org) return;
+
+        const config = ORGANIZATION_TYPE_CONFIGS[org.type];
+        const maxMembers = config?.maxMembers || 10;
+        if (org.members?.length >= maxMembers) return;
+
+        const inviteChance = 0.001 + Math.max(0, (relation - 60) / 50000);
+        if (Math.random() > inviteChance) return;
+
+        nation.lastOrgInviteDay = tick;
+        logs.push(`AI_ORG_INVITE:${JSON.stringify({
+            nationId: nation.id,
+            nationName: nation.name,
+            orgId: org.id,
+            orgName: org.name,
+            orgType: org.type,
+        })}`);
+    });
 };
 
 /**

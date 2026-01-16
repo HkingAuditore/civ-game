@@ -94,7 +94,6 @@ export const ORGANIZATION_EFFECTS = {
         tariffDiscount: 0.3,
         relationBonus: 5,
         tradeEfficiency: 0.2,
-        priceConvergence: 0.03,
     },
 };
 
@@ -236,6 +235,38 @@ export const GOVERNANCE_POLICY_DEFINITIONS = {
         requiresGovernor: true,       // Must assign an official
     },
 };
+
+/**
+ * 军事政策 (Military Policy)
+ * 控制附庸在宗主国参战时的行为
+ */
+export const MILITARY_POLICY_DEFINITIONS = {
+    autonomous: {
+        id: 'autonomous',
+        name: '自主参战',
+        description: '附庸自行决定是否参战',
+        autoJoinWar: false,           // 不自动跟随宗主国参战
+        canCallToArms: false,         // 不能征召
+        independenceGrowthMod: 0.8,   // 20% slower independence (reward for autonomy)
+    },
+    call_to_arms: {
+        id: 'call_to_arms',
+        name: '战争征召',
+        description: '需要时可征召附庸参战',
+        autoJoinWar: false,           // 不自动参战  
+        canCallToArms: true,          // 可以手动征召
+        independenceGrowthMod: 1.0,   // Normal independence growth
+    },
+    auto_join: {
+        id: 'auto_join',
+        name: '自动参战',
+        description: '宗主国参战时自动跟随',
+        autoJoinWar: true,            // 自动跟随宗主国参战
+        canCallToArms: true,          // 也可以手动征召
+        independenceGrowthMod: 1.3,   // 30% faster independence (resentment)
+    },
+};
+
 
 /**
  * 获取劳工政策对工资的修正

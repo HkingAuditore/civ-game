@@ -15,6 +15,10 @@ const BASE_CHANCE_BY_TYPE = {
     economic_bloc: 0.12,
 };
 
+const VALUE_SCALE_FACTOR = 100000;
+
+const clampValue = (value, min, max) => Math.min(max, Math.max(min, value));
+
 const getResourceGiftValue = (resourceKey, amount) => {
     if (!resourceKey || !Number.isFinite(amount) || amount <= 0) return 0;
     const basePrice = RESOURCES[resourceKey]?.basePrice || 0;
@@ -362,7 +366,7 @@ export const calculateDealScore = ({
     // Formula: perceived = (raw / targetWealth) * baseScale
     // baseScale chosen so that offering 1% of their wealth = ~1000 score points
     const targetWealthSafe = Math.max(10000, targetWealth || 10000);
-    const valueScaleFactor = 100000; // Offering 1% of their wealth = 1000 score
+    const valueScaleFactor = VALUE_SCALE_FACTOR; // Offering 1% of their wealth = 1000 score
     
     // Perceived value = how significant this amount is to the target
     // If AI has 500M wealth, 10000 silver = 10000/500000000 * 100000 = 2 points (negligible)
@@ -405,16 +409,6 @@ export const calculateDealScore = ({
     // offerValue = what player is GIVING (signingGift + resources) = what AI RECEIVES
     // demandValue = what player DEMANDS = what AI has to PAY
     
-    // Relation impact: bad relations make AI more suspicious, good relations help
-    // But don't let it dominate the calculation - cap it
-    const relationImpact = Math.max(-500, Math.min(500, (relation - 50) * 10));
-    
-    const score = (targetBenefit.benefit + offerValue + stanceScore + relationImpact) 
-                - (targetBenefit.risk + demandValue);
-
-    // --- Strategic Value (Dynamic based on treaty and circumstances) ---
-    const strategicValue = playerBenefit.strategicValue;
-    
     // --- Political Risk (Dynamic based on treaty type and power dynamics) ---
     let politicalCost = stancePoliticalCost;
     
@@ -432,6 +426,35 @@ export const calculateDealScore = ({
         }
     }
 
+    // Relation impact: bad relations make AI more suspicious, good relations help
+    // But don't let it dominate the calculation - cap it
+    const relationImpact = clampValue((relation - 50) * 8, -450, 450);
+    const treatyNet = targetBenefit.benefit - targetBenefit.risk;
+    const strategicScore = targetBenefit.strategicValue * 20;
+
+    const wealthRatio = targetWealth > 0 ? (playerWealth || 0) / targetWealth : 1;
+    const powerRatio = targetPower > 0 ? (playerPower || 0) / targetPower : 1;
+    let dominancePenalty = 0;
+    if (['open_market', 'free_trade', 'investment_pact', 'economic_bloc'].includes(type)) {
+        const wealthPressure = Math.max(0, wealthRatio - 1);
+        const powerPressure = Math.max(0, powerRatio - 1);
+        const baseWeight = type === 'open_market' ? 900 : (type === 'free_trade' ? 650 : 450);
+        dominancePenalty = (wealthPressure * baseWeight * 1.4) + (powerPressure * baseWeight * 0.9);
+    }
+    dominancePenalty = Math.round(dominancePenalty);
+
+    const score = treatyNet
+        + strategicScore
+        + offerValue
+        - demandValue
+        + stanceScore
+        + relationImpact
+        - dominancePenalty
+        - politicalCost;
+
+    // --- Strategic Value (Dynamic based on treaty and circumstances) ---
+    const strategicValue = playerBenefit.strategicValue;
+
     // --- Economic Net Value (for display) ---
     // This shows the direct monetary exchange in absolute terms (for UI display)
     const economicNetValue = offerValueRaw - demandValueRaw;
@@ -448,6 +471,9 @@ export const calculateDealScore = ({
             relationImpact,
             stanceScore,
             maintenanceValue,
+            treatyNet,
+            strategicScore,
+            dominancePenalty,
             strategicValue,
             politicalCost,
             wealthScale,
@@ -486,15 +512,6 @@ export const calculateNegotiationAcceptChance = ({
     const aggression = nation.aggression ?? 0.3;
     const maintenancePerDay = Math.max(0, Math.floor(Number(proposal.maintenancePerDay) || 0));
     const durationDays = Math.max(1, Math.floor(Number(proposal.durationDays) || 365));
-    const signingGift = Math.max(0, Math.floor(Number(proposal.signingGift) || 0));
-    // Support both old single resource format and new multi-resource format
-    const offerResources = Array.isArray(proposal.resources) ? proposal.resources : [];
-    const resourceKey = proposal.resourceKey || '';
-    const resourceAmount = Math.max(0, Math.floor(Number(proposal.resourceAmount) || 0));
-    const demandResources = Array.isArray(proposal.demandResources) ? proposal.demandResources : [];
-    const demandResourceKey = proposal.demandResourceKey || '';
-    const demandResourceAmount = Math.max(0, Math.floor(Number(proposal.demandResourceAmount) || 0));
-
     const treatyConfig = TREATY_CONFIGS[type] || {};
 
     const deal = calculateDealScore({
@@ -517,20 +534,20 @@ export const calculateNegotiationAcceptChance = ({
     // If AI thinks it's losing (negative score), low chance
     
     // Reference value for normalizing the score
-    const referenceValue = Math.max(500, (deal.breakdown.treatyValue + deal.breakdown.treatyRisk) / 2);
-    
-    // Base chance from deal score: score / referenceValue gives us a -1 to +1 range approximately
-    // We then shift and scale to get a 0-1 chance
-    const scoreChance = 0.5 + (deal.score / referenceValue) * 0.4; // Score contributes up to ±40%
+    const referenceValue = Math.max(
+        500,
+        (Math.abs(deal.breakdown.treatyValue) + Math.abs(deal.breakdown.treatyRisk)) / 2
+    );
+    const baseChance = BASE_CHANCE_BY_TYPE[type] || 0.25;
+    const baseLogit = Math.log(baseChance / (1 - baseChance));
+    const scoreNorm = deal.score / referenceValue;
+    let acceptChance = 1 / (1 + Math.exp(-(scoreNorm + baseLogit)));
     
     // Relation modifier: good relations make deals easier
-    const relationBoost = Math.max(-0.2, Math.min(0.2, (relation - 50) / 200));
+    const relationBoost = clampValue((relation - 50) / 200, -0.15, 0.15);
     
     // Aggression penalty: aggressive nations are harder to negotiate with
-    const aggressionPenalty = aggression * 0.15;
-    
-    // Maintenance penalty: high ongoing costs make deals less attractive
-    const maintenancePenalty = Math.min(0.15, maintenancePerDay / 500000);
+    const aggressionPenalty = aggression * 0.12;
     
     // Duration bonus: longer deals are slightly more attractive if beneficial
     const baseDuration = treatyConfig.baseDuration || 365;
@@ -538,11 +555,7 @@ export const calculateNegotiationAcceptChance = ({
         ? Math.min(0.05, ((durationDays - baseDuration) / baseDuration) * 0.03)
         : 0;
 
-    // Gift bonus: gifts always help (now supports multiple resources)
-    const giftValue = signingGift + getMultiResourceGiftValue(offerResources, resourceKey, resourceAmount);
-    const giftBonus = Math.min(0.15, giftValue / Math.max(1000, targetWealth * 0.1));
-
-    let acceptChance = scoreChance + relationBoost - aggressionPenalty - maintenancePenalty + durationBonus + giftBonus;
+    acceptChance = acceptChance + relationBoost - aggressionPenalty + durationBonus;
 
     // Type-specific relation gates with softer penalties
     const typeRelationRequirements = {
@@ -572,18 +585,13 @@ export const calculateNegotiationAcceptChance = ({
     // Ensure deal score and chance are correlated
     // If AI thinks it's significantly losing, cap the chance
     if (deal.score < -1000) {
-        acceptChance = Math.min(acceptChance, 0.1);
+        acceptChance = Math.min(acceptChance, 0.12);
     } else if (deal.score < -500) {
         acceptChance = Math.min(acceptChance, 0.25);
-    } else if (deal.score < 0) {
-        acceptChance = Math.min(acceptChance, 0.5);
-    }
-    
-    // If AI thinks it's gaining significantly, boost chance
-    if (deal.score > 1000) {
-        acceptChance = Math.max(acceptChance, 0.7);
+    } else if (deal.score > 1000) {
+        acceptChance = Math.max(acceptChance, 0.75);
     } else if (deal.score > 500) {
-        acceptChance = Math.max(acceptChance, 0.5);
+        acceptChance = Math.max(acceptChance, 0.55);
     }
 
     return {
@@ -598,33 +606,88 @@ export const calculateNegotiationAcceptChance = ({
 /**
  * Generate AI counter-proposal
  */
-export const generateCounterProposal = ({ proposal = {}, nation = {}, round = 1 }) => {
+export const generateCounterProposal = ({
+    proposal = {},
+    nation = {},
+    round = 1,
+    daysElapsed = 0,
+    playerPower = 0,
+    targetPower = 0,
+    playerWealth = 0,
+    targetWealth = 0,
+    playerProduction = 0,
+    targetProduction = 0,
+    organization = null,
+    organizationMode = null,
+}) => {
     const relation = nation.relation || 0;
     const aggression = nation.aggression ?? 0.3;
     const counterChance = Math.min(0.65, 0.25 + (relation / 200) - (aggression * 0.1) + (round * 0.08));
     if (Math.random() > counterChance) return null;
 
+    const deal = calculateDealScore({
+        proposal,
+        nation,
+        stance: proposal.stance || 'normal',
+        daysElapsed,
+        playerPower,
+        targetPower,
+        playerWealth,
+        targetWealth,
+        playerProduction,
+        targetProduction,
+        organization,
+        organizationMode,
+    });
+
+    const referenceValue = Math.max(
+        500,
+        (Math.abs(deal.breakdown.treatyValue) + Math.abs(deal.breakdown.treatyRisk)) / 2
+    );
+    const relationConcession = (relation - 50) * 8;
+    const roundConcession = round * 60;
+    const targetScore = Math.max(120, referenceValue * 0.15) - relationConcession - roundConcession;
+    const shortfall = Math.max(0, targetScore - deal.score);
+    if (shortfall <= 0) return null;
+
+    const targetWealthSafe = Math.max(10000, targetWealth || 10000);
+    let rawNeeded = Math.ceil((shortfall / VALUE_SCALE_FACTOR) * targetWealthSafe);
+    if (proposal.type === 'open_market') {
+        rawNeeded = Math.ceil(rawNeeded * 1.5);
+    } else if (proposal.type === 'free_trade') {
+        rawNeeded = Math.ceil(rawNeeded * 1.25);
+    }
+
     const next = { ...proposal };
     const durationBase = Math.max(1, Math.floor(Number(proposal.durationDays) || 365));
-    const maintenanceBase = Math.max(0, Math.floor(Number(proposal.maintenancePerDay) || 0));
     const giftBase = Math.max(0, Math.floor(Number(proposal.signingGift) || 0));
 
-    // AI adjusts duration
-    next.durationDays = Math.ceil(durationBase * (1.15 + Math.random() * 0.2));
+    // Reduce what player receives in a counter and ask for more from player
+    next.demandSilver = 0;
+    next.demandResources = [];
 
-    if (maintenanceBase > 0) {
-        next.maintenancePerDay = Math.ceil(maintenanceBase * (1.2 + Math.random() * 0.3));
+    const baseGiftFloor = clampValue(Math.round(targetWealthSafe * 0.01), 200, 4000);
+    const openMarketFloor = proposal.type === 'open_market'
+        ? clampValue(Math.round(targetWealthSafe * 0.02), 500, 9000)
+        : baseGiftFloor;
+    const freeTradeFloor = proposal.type === 'free_trade'
+        ? clampValue(Math.round(targetWealthSafe * 0.015), 400, 7000)
+        : baseGiftFloor;
+    const giftFloor = Math.max(openMarketFloor, freeTradeFloor);
+    const compensation = Math.ceil(rawNeeded * (0.9 + Math.random() * 0.2));
+    next.signingGift = Math.ceil(Math.max(giftBase + compensation, giftFloor));
+
+    if (proposal.resources && Array.isArray(proposal.resources) && proposal.resources.length > 0) {
+        next.resources = proposal.resources.map(res => ({
+            ...res,
+            amount: Math.ceil(Math.max(1, (res.amount || 0) * (1.1 + Math.random() * 0.2))),
+        }));
     }
 
-    const giftFloor = Math.round(120 + (1 - relation / 100) * 600);
-    next.signingGift = Math.ceil(Math.max(giftBase * (1.2 + Math.random() * 0.2), giftFloor));
-
-    if (proposal.resourceKey && proposal.resourceAmount) {
-        next.resourceAmount = Math.ceil(Math.max(1, proposal.resourceAmount * (1.1 + Math.random() * 0.2)));
-    }
-
-    if (!next.demandSilver && Math.random() < 0.3) {
-        next.demandSilver = 100;
+    if (shortfall > referenceValue * 0.4) {
+        next.durationDays = Math.max(180, Math.floor(durationBase * 0.8));
+    } else {
+        next.durationDays = Math.ceil(durationBase * (1.05 + Math.random() * 0.1));
     }
 
     return next;

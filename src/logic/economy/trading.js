@@ -149,7 +149,7 @@ const normalizePreferenceMultiplier = (v) => {
     return Math.max(0.1, Math.min(5, n));
 };
 
-const scoreImportCandidate = ({ resourceKey, partner, tick, getLocalPrice, res, demand, tradeConfig, merchantTradePreferences, getImportTaxRate }) => {
+const scoreImportCandidate = ({ resourceKey, partner, tick, getLocalPrice, res, demand, tradeConfig, merchantTradePreferences, getImportTaxRate, tradeEfficiencyMultiplier = 1 }) => {
     const localPrice = getLocalPrice(resourceKey);
     const foreignPrice = getForeignUnitPrice({ resourceKey, partner, tick });
     if (localPrice == null || foreignPrice == null) return null;
@@ -161,7 +161,7 @@ const scoreImportCandidate = ({ resourceKey, partner, tick, getLocalPrice, res, 
     const effectiveCost = foreignPrice * (1 + tariffRate);
 
     // Import if profitable (Local > EffectiveCost)
-    const profitMargin = (localPrice - effectiveCost) / Math.max(0.1, effectiveCost);
+    const profitMargin = ((localPrice - effectiveCost) / Math.max(0.1, effectiveCost)) * tradeEfficiencyMultiplier;
 
     // If trade loses money (margin <= 0), we usually shouldn't do it unless desperate for shortage?
     // But merchants are profit driven.
@@ -197,13 +197,13 @@ const scoreImportCandidate = ({ resourceKey, partner, tick, getLocalPrice, res, 
     };
 };
 
-const scoreExportCandidate = ({ resourceKey, partner, tick, getLocalPrice, res, supply, tradeConfig, merchantTradePreferences }) => {
+const scoreExportCandidate = ({ resourceKey, partner, tick, getLocalPrice, res, supply, tradeConfig, merchantTradePreferences, tradeEfficiencyMultiplier = 1 }) => {
     const localPrice = getLocalPrice(resourceKey);
     const foreignPrice = getForeignUnitPrice({ resourceKey, partner, tick });
     if (localPrice == null || foreignPrice == null) return null;
 
     // Export if partner pays more.
-    const priceAdv = (foreignPrice - localPrice) / Math.max(0.0001, localPrice);
+    const priceAdv = ((foreignPrice - localPrice) / Math.max(0.0001, localPrice)) * tradeEfficiencyMultiplier;
     if (priceAdv <= 0) return null;
 
     const availableStock = safeNumber(res?.[resourceKey], 0);
@@ -490,6 +490,8 @@ export const simulateMerchantTrade = ({
         const treatyEffects = getTreatyEffects(partner, tick);
         const treatyTariffMult = treatyEffects.tariffMultiplier; // 0~1, 低于1表示减免
 
+        const tradeEfficiencyMultiplier = 1 + Math.max(0, treatyEffects.tradeEfficiencyBonus || 0);
+
         // 创建基于条约的关税率计算函数
         const getPartnerImportTaxRate = (resource) => {
             const baseRate = getImportTaxRate(resource);
@@ -597,6 +599,7 @@ export const simulateMerchantTrade = ({
 
         shortageTop.forEach(({ resourceKey }) => {
             const c = scoreImportCandidate({
+                tradeEfficiencyMultiplier,
                 resourceKey,
                 partner,
                 tick,
@@ -612,6 +615,7 @@ export const simulateMerchantTrade = ({
 
         surplusTop.forEach(({ resourceKey }) => {
             const c = scoreExportCandidate({
+                tradeEfficiencyMultiplier,
                 resourceKey,
                 partner,
                 tick,
@@ -642,6 +646,7 @@ export const simulateMerchantTrade = ({
 
             if (candidate.type === 'export') {
                 const result = executeExportTradeV2({
+                    tradeEfficiencyMultiplier,
                     ledger, // [REFACTORED]
                     partner,
                     partnerId: partner.id,
@@ -677,6 +682,7 @@ export const simulateMerchantTrade = ({
                 }
             } else {
                 const result = executeImportTradeV2({
+                    tradeEfficiencyMultiplier,
                     ledger, // [REFACTORED]
                     partner,
                     partnerId: partner.id,
@@ -737,6 +743,7 @@ const executeExportTradeV2 = ({
     supply,
     taxBreakdown,
     tradeConfig,
+    tradeEfficiencyMultiplier = 1,
     getLocalPrice,
     foreignUnitPrice,
     getResourceTaxRate,
@@ -814,7 +821,8 @@ const executeExportTradeV2 = ({
     appliedTax += appliedTariff;
 
     const profit = revenue - outlay;
-    const profitMargin = outlay > 0 ? profit / outlay : (profit > 0 ? Infinity : -Infinity);
+    const effectiveProfit = profit * tradeEfficiencyMultiplier;
+    const profitMargin = outlay > 0 ? effectiveProfit / outlay : (effectiveProfit > 0 ? Infinity : -Infinity);
 
     if (profitMargin < tradeConfig.minProfitMargin) {
         return { success: false };
@@ -880,7 +888,7 @@ const executeExportTradeV2 = ({
             resource: resourceKey,
             amount: totalAmount,
             revenue: revenue * batchMultiplier,
-            profit: profit * batchMultiplier,
+            profit: effectiveProfit * batchMultiplier,
             daysRemaining: tradeConfig.tradeDuration,
             capitalLocked: totalOutlay
         }
@@ -898,6 +906,7 @@ const executeImportTradeV2 = ({
     res,
     taxBreakdown,
     tradeConfig,
+    tradeEfficiencyMultiplier = 1,
     getLocalPrice,
     foreignUnitPrice,
     getResourceTaxRate,
@@ -942,7 +951,8 @@ const executeImportTradeV2 = ({
 
     // Net profit
     const profit = grossRevenue - totalCostToMerchant;
-    const profitMargin = totalCostToMerchant > 0 ? profit / totalCostToMerchant : (profit > 0 ? Infinity : -Infinity);
+    const effectiveProfit = profit * tradeEfficiencyMultiplier;
+    const profitMargin = totalCostToMerchant > 0 ? effectiveProfit / totalCostToMerchant : (effectiveProfit > 0 ? Infinity : -Infinity);
 
     if (profitMargin < tradeConfig.minProfitMargin) {
         return { success: false };
@@ -1032,7 +1042,7 @@ const executeImportTradeV2 = ({
             resource: resourceKey,
             amount: totalAmount,
             revenue: grossRevenue * batchMultiplier,
-            profit: profit * batchMultiplier,
+            profit: effectiveProfit * batchMultiplier,
             daysRemaining: tradeConfig.tradeDuration,
             capitalLocked: totalCost
         }

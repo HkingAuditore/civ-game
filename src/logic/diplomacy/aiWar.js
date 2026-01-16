@@ -70,6 +70,19 @@ const areNationsAllied = (id1, id2, organizations) => {
     );
 };
 
+const getAllianceMembers = (nationId, organizations) => {
+    if (!Array.isArray(organizations)) return [];
+    const members = new Set();
+    organizations.forEach(org => {
+        if (!org || org.type !== 'military_alliance') return;
+        if (!Array.isArray(org.members) || !org.members.includes(nationId)) return;
+        org.members.forEach(id => {
+            if (id && id !== nationId) members.add(id);
+        });
+    });
+    return Array.from(members);
+};
+
 /**
  * Process rebel nation war actions (raids and surrender demands)
  * @param {Object} params - Parameters
@@ -856,20 +869,27 @@ export const checkWarDeclaration = ({
         logs.push(`WAR_DECLARATION_EVENT:${JSON.stringify({ nationId: next.id, nationName: next.name })}`);
 
         // [NEW] Trigger Auto-Join Vassals
-        // When AI declares on Player, Player's "auto_join" vassals (Colony/Puppet) automatically enter war with AI
+        // When AI declares on Player, Player's player's vassals with "auto_join" military policy automatically enter war with AI
         if (nations) {
             nations.forEach(vassal => {
                 if (vassal.vassalOf === 'player') {
-                    const config = VASSAL_TYPE_CONFIGS[vassal.vassalType];
-                    if (config?.militaryObligation === 'auto_join') {
+                    const militaryPolicy = vassal.vassalPolicy?.military || 'autonomous';
+                    // Check if the vassal has auto_join military policy
+                    if (militaryPolicy === 'auto_join') {
                         // Establish AI-AI war
                         if (!next.foreignWars) next.foreignWars = {};
                         if (!vassal.foreignWars) vassal.foreignWars = {};
 
                         if (!next.foreignWars[vassal.id]?.isAtWar) {
                             next.foreignWars[vassal.id] = { isAtWar: true, warStartDay: tick, warScore: 0 };
-                            vassal.foreignWars[next.id] = { isAtWar: true, warStartDay: tick, warScore: 0 };
-                            logs.push(`⚔️ ${vassal.name} 作为您的${config.name}，自动对 ${next.name} 宣战！`);
+                            vassal.foreignWars[next.id] = {
+                                isAtWar: true,
+                                warStartDay: tick,
+                                warScore: 0,
+                                followingSuzerain: true,  // Mark this war as following suzerain
+                                suzerainTarget: 'player'  // Track which suzerain they're following
+                            };
+                            logs.push(`⚔️ ${vassal.name} 根据军事政策自动对 ${next.name} 宣战！`);
                         }
                     }
                 }
@@ -906,15 +926,21 @@ export const checkWarDeclaration = ({
             if (nations) {
                 nations.forEach(vassal => {
                     if (vassal.vassalOf === 'player') {
-                        const config = VASSAL_TYPE_CONFIGS[vassal.vassalType];
-                        if (config?.militaryObligation === 'auto_join') {
+                        const militaryPolicy = vassal.vassalPolicy?.military || 'autonomous';
+                        if (militaryPolicy === 'auto_join') {
                             if (!next.foreignWars) next.foreignWars = {};
                             if (!vassal.foreignWars) vassal.foreignWars = {};
 
                             if (!next.foreignWars[vassal.id]?.isAtWar) {
                                 next.foreignWars[vassal.id] = { isAtWar: true, warStartDay: tick, warScore: 0 };
-                                vassal.foreignWars[next.id] = { isAtWar: true, warStartDay: tick, warScore: 0 };
-                                logs.push(`⚔️ ${vassal.name} 作为您的${config.name}，自动对 ${next.name} 宣战！`);
+                                vassal.foreignWars[next.id] = {
+                                    isAtWar: true,
+                                    warStartDay: tick,
+                                    warScore: 0,
+                                    followingSuzerain: true,
+                                    suzerainTarget: 'player'
+                                };
+                                logs.push(`⚔️ ${vassal.name} 根据军事政策自动对 ${next.name} 宣战！`);
                             }
                         }
                     }
@@ -1027,13 +1053,13 @@ export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, 
             // [NEW] Check Suzerain Protection (Attack on Vassal = Attack on Suzerain)
             // If otherNation is Player's Vassal, check if War on Player triggers
             if (otherNation.vassalOf === 'player' && !nation.isAtWar) {
-                 // AI considering attacking Player's Vassal
-                 // This effectively means declaring war on Player
-                 // So we should check player strength + vassal strength?
-                 // For now, simple logic: attacking vassal = war with player
-                 // We skip this check here to avoid AI suicide, or we let them do it?
-                 // Let's make AI smarter: consider Player Strength before attacking Vassal
-                 // ... skipping complexity for now, just trigger the war if they decide to attack
+                // AI considering attacking Player's Vassal
+                // This effectively means declaring war on Player
+                // So we should check player strength + vassal strength?
+                // For now, simple logic: attacking vassal = war with player
+                // We skip this check here to avoid AI suicide, or we let them do it?
+                // Let's make AI smarter: consider Player Strength before attacking Vassal
+                // ... skipping complexity for now, just trigger the war if they decide to attack
             }
 
             if ((isRelationsBadEnough && isAggressiveEnough) || isHatedEnemy) {
@@ -1111,19 +1137,32 @@ export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, 
                         }
                     }
 
-                    // AI alliance chain
-                    visibleNations.forEach(ally => {
-                        if (ally.id === nation.id || ally.id === otherNation.id) return;
-                        const isDefenderAlly = (otherNation.allies || []).includes(ally.id) ||
-                            (ally.allies || []).includes(otherNation.id);
-                        if (isDefenderAlly) {
-                            if (!ally.foreignWars) ally.foreignWars = {};
-                            ally.foreignWars[nation.id] = { isAtWar: true, warStartDay: tick, warScore: 0 };
-                            if (!nation.foreignWars) nation.foreignWars = {};
-                            nation.foreignWars[ally.id] = { isAtWar: true, warStartDay: tick, warScore: 0 };
-                            logs.push(`⚔️ ${ally.name} 作为 ${otherNation.name} 的盟友，加入对 ${nation.name} 的战争！`);
-                        }
+                    // AI alliance chain (organization-based)
+                    const allianceOrgs = diplomacyOrganizations?.organizations || [];
+                    const attackerAllies = getAllianceMembers(nation.id, allianceOrgs);
+                    const defenderAllies = getAllianceMembers(otherNation.id, allianceOrgs);
+                    const sharedAllies = new Set(attackerAllies.filter(id => defenderAllies.includes(id)));
+
+                    defenderAllies.forEach(allyId => {
+                        if (sharedAllies.has(allyId)) return;
+                        if (allyId === nation.id || allyId === otherNation.id) return;
+                        const ally = visibleNations.find(n => n.id === allyId);
+                        if (!ally) return;
+                        if (!ally.foreignWars) ally.foreignWars = {};
+                        ally.foreignWars[nation.id] = { isAtWar: true, warStartDay: tick, warScore: 0 };
+                        if (!nation.foreignWars) nation.foreignWars = {};
+                        nation.foreignWars[ally.id] = { isAtWar: true, warStartDay: tick, warScore: 0 };
+                        logs.push(`?? ${ally.name} ?? ${otherNation.name} ????????? ${nation.name} ????`);
                     });
+
+                    if (sharedAllies.size > 0) {
+                        sharedAllies.forEach(allyId => {
+                            const ally = visibleNations.find(n => n.id === allyId);
+                            if (ally) {
+                                logs.push(`?? ${ally.name} ???????????????`);
+                            }
+                        });
+                    }
                 }
             }
         });
@@ -1310,3 +1349,60 @@ export const processAIAIWarProgression = (visibleNations, updatedNations, tick, 
         });
     });
 };
+
+/**
+ * 检查附庸是否可以单独与某国媾和
+ * @param {Object} vassal - 附庸国对象
+ * @param {string} enemyId - 敌国ID
+ * @returns {boolean} - 是否可以媾和
+ */
+export const canVassalMakePeaceIndependently = (vassal, enemyId) => {
+    if (vassal.vassalOf !== 'player') return true; // 非玩家附庸可以自由媾和
+
+    const war = vassal.foreignWars?.[enemyId];
+    if (!war || !war.isAtWar) return true; // 没有战争则无需限制
+
+    // 如果是跟随宗主国参战，不能单独媾和
+    if (war.followingSuzerain) return false;
+
+    return true; // 其他情况允许媾和
+};
+
+/**
+ * 当玩家与某国和平后，让跟随宗主国参战的附庸也自动和平
+ * @param {string} enemyNationId - 敌国ID
+ * @param {Array} nations - 所有国家
+ * @param {Array} logs - 日志数组
+ * @returns {Array} 已和平的附庸ID列表
+ */
+export const makeVassalsPeaceAfterSuzerain = (enemyNationId, nations, logs) => {
+    const peacedVassals = [];
+
+    nations.forEach(nation => {
+        if (nation.vassalOf === 'player') {
+            const war = nation.foreignWars?.[enemyNationId];
+            if (war?.isAtWar && war?.followingSuzerain) {
+                // 结束附庸与该敌国的战争
+                nation.foreignWars[enemyNationId] = {
+                    ...war,
+                    isAtWar: false
+                };
+
+                // 同时结束敌国与附庸的战争状态
+                const enemy = nations.find(n => n.id === enemyNationId);
+                if (enemy && enemy.foreignWars?.[nation.id]) {
+                    enemy.foreignWars[nation.id] = {
+                        ...enemy.foreignWars[nation.id],
+                        isAtWar: false
+                    };
+                }
+
+                peacedVassals.push(nation.id);
+                logs.push(`📜 ${nation.name} 跟随宗主国与 ${enemy?.name || '敌国'} 达成和平。`);
+            }
+        }
+    });
+
+    return peacedVassals;
+};
+

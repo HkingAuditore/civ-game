@@ -123,7 +123,9 @@ const DealStatus = ({
             {evaluation.relationGate && (
                 <div className="bg-red-900/20 border border-red-500/30 rounded p-2 flex items-start gap-2 text-xs text-red-300 animate-pulse mt-2">
                     <Icon name="AlertTriangle" size={14} className="mt-0.5 flex-shrink-0" />
-                    <span>{t('negotiation.relationBlock', '关系恶劣，对方拒绝谈判。')}</span>
+                    <span>
+                        {t('negotiation.relationBlock', `关系不足，需要达到 ${evaluation.minRelation || 80} 关系值才能签署此类协议。`)}
+                    </span>
                 </div>
             )}
 

@@ -250,6 +250,32 @@ const INVESTMENT_POLICY_OPTIONS = [
     },
 ];
 
+// 军事政策选项 (NEW - 控制附庸是否自动参战)
+const MILITARY_POLICY_OPTIONS = [
+    {
+        id: 'autonomous',
+        title: '自主参战',
+        description: '附庸自行决定是否参战',
+        effects: '独立倾向-20%',
+        effectColor: 'text-green-400',
+    },
+    {
+        id: 'call_to_arms',
+        title: '战争征召',
+        description: '需要时可征召附庸参战',
+        effects: '维持现状（默认）',
+        effectColor: 'text-gray-400',
+    },
+    {
+        id: 'auto_join',
+        title: '自动参战',
+        description: '宗主国参战时自动跟随',
+        effects: '独立倾向+30%',
+        effectColor: 'text-red-400',
+    },
+];
+
+
 // 控制手段选项 (REVAMPED with dynamic costs)
 const CONTROL_MEASURES = [
     {
@@ -484,6 +510,9 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
     const [investmentPolicy, setInvestmentPolicy] = useState(
         nation?.vassalPolicy?.investmentPolicy || 'autonomous'
     );
+    const [militaryPolicy, setMilitaryPolicy] = useState(
+        nation?.vassalPolicy?.military || 'call_to_arms'
+    );
     const [autonomy, setAutonomy] = useState(nation?.autonomy || baseAutonomy);
     const [tributeRate, setTributeRate] = useState(
         (nation?.tributeRate || baseTributeRate) * 100
@@ -592,6 +621,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
             tradePolicy,
             labor: laborPolicy,  // NEW: Labor policy
             investmentPolicy,    // NEW: Investment policy
+            military: militaryPolicy,  // NEW: Military policy
             autonomy,
             tributeRate: tributeRate / 100,
             controlMeasures,
@@ -605,6 +635,7 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
         setTradePolicy('preferential');
         setLaborPolicy('standard');  // NEW: Reset labor policy
         setInvestmentPolicy('autonomous'); // NEW: Reset investment policy
+        setMilitaryPolicy('call_to_arms'); // NEW: Reset military policy
         setAutonomy(baseAutonomy);
         setTributeRate(baseTributeRate * 100);
         const resetMeasures = {};
@@ -740,6 +771,29 @@ const PolicyTab = memo(({ nation, onApplyPolicy, officials = [], playerMilitary 
                     ))}
                 </div>
             </div>
+
+            {/* 军事政策 (NEW) */}
+            <div>
+                <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-1.5">
+                    <Icon name="Swords" size={14} className="text-red-400" />
+                    军事政策
+                    <span className="text-[10px] text-gray-500 ml-1">（影响附庸是否自动参战）</span>
+                </h3>
+                <div className="space-y-2">
+                    {MILITARY_POLICY_OPTIONS.map(option => (
+                        <PolicyOptionCard
+                            key={option.id}
+                            selected={militaryPolicy === option.id}
+                            title={option.title}
+                            description={option.description}
+                            effects={option.effects}
+                            effectColor={option.effectColor}
+                            onClick={() => setMilitaryPolicy(option.id)}
+                        />
+                    ))}
+                </div>
+            </div>
+
 
             {/* 贸易政策 */}
             <div>

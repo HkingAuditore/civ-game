@@ -212,6 +212,7 @@ const DiplomacyTabComponent = ({
             era: '当前时代尚未解锁该功能。',
             type: '缺少条约类型，无法发起谈判。',
             treaty_locked: '条约未解锁，无法谈判。',
+            org_locked: '组织未解锁，无法谈判。',
             war: '对方正处于战争中，无法谈判。',
             peace_active: '和平/互不侵犯条约仍在生效，无法重复谈判。',
             market_active: '开放市场/贸易类条约仍在生效，无法重复谈判。',

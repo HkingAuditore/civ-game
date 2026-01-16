@@ -63,7 +63,6 @@ export const ORGANIZATION_TYPE_CONFIGS = {
             tariffDiscount: 0.3,     // 成员间关税减免 30%
             relationBonus: 5,
             tradeEfficiency: 0.2,    // 贸易效率加成 20%
-            priceConvergence: 0.03,  // 价格收敛 3%/月
         },
         description: '成员国共享经济利益，减免关税，促进贸易自由化',
     },
@@ -91,12 +90,12 @@ export function calculateCreateOrganizationCost(type, playerWealth) {
 export function calculateLeaveOrganizationCost(organization, nationId, nationWealth) {
     const config = ORGANIZATION_TYPE_CONFIGS[organization.type];
     if (!config) return { cost: 0, relationPenalty: 0, willDisband: false };
-    
+
     const isFounder = organization.founderId === nationId;
     const costRate = isFounder ? config.founderLeaveCost : config.leaveCost;
     const relationPenalty = isFounder ? config.founderLeaveRelationPenalty : config.leaveRelationPenalty;
     const willDisband = isFounder && config.founderLeaveDisbands;
-    
+
     return {
         cost: Math.floor(nationWealth * costRate),
         relationPenalty,
@@ -253,7 +252,6 @@ export function getOrganizationEffects(nationId, organizations = [], targetNatio
         relationBonus: 0,
         militaryBonus: 0,
         tradeEfficiency: 0,
-        priceConvergence: 0,
         mutualDefense: false,
         sharedOrganizations: [],  // 与目标国家共享的组织
     };
@@ -287,9 +285,6 @@ export function getOrganizationEffects(nationId, organizations = [], targetNatio
         if (config.effects.tradeEfficiency) {
             effects.tradeEfficiency = Math.max(effects.tradeEfficiency, config.effects.tradeEfficiency);
         }
-        if (config.effects.priceConvergence) {
-            effects.priceConvergence = Math.max(effects.priceConvergence, config.effects.priceConvergence);
-        }
         if (config.effects.mutualDefense) {
             effects.mutualDefense = true;
         }
@@ -305,7 +300,7 @@ export function getOrganizationEffects(nationId, organizations = [], targetNatio
  * @returns {Array} - 该国家加入的组织
  */
 export function getNationOrganizations(nationId, organizations = []) {
-    return organizations.filter(org => org.isActive && org.members.includes(nationId));
+    return organizations.filter(org => org.isActive !== false && org.members.includes(nationId));
 }
 
 /**
@@ -332,14 +327,14 @@ export function getJoinableOrganizations(nation, organizations = [], nations = [
 
     for (const org of organizations) {
         if (!org.isActive) continue;
-        
+
         const { canJoin, reason } = canJoinOrganization(nation, org, epoch);
         if (canJoin) {
             // 检查与创始国或任一成员的关系
             const config = ORGANIZATION_TYPE_CONFIGS[org.type];
             const hasGoodRelation = org.members.some(memberId => {
                 const memberNation = nations.find(n => n.id === memberId);
-                return memberNation && (nation.relation >= config.minRelation || 
+                return memberNation && (nation.relation >= config.minRelation ||
                     (memberNation.relation && memberNation.relation >= config.minRelation));
             });
 
@@ -470,9 +465,6 @@ export function getOrganizationEffectDescriptions(orgType) {
     }
     if (effects.tradeEfficiency) {
         descriptions.push(`📈 贸易效率 +${Math.round(effects.tradeEfficiency * 100)}%`);
-    }
-    if (effects.priceConvergence) {
-        descriptions.push(`💱 价格趋同 ${Math.round(effects.priceConvergence * 100)}%/月`);
     }
 
     return descriptions;

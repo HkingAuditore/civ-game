@@ -26,6 +26,7 @@ import {
     createGiftEvent,
     createAIRequestEvent,
     createAllianceRequestEvent,
+    createOrganizationInviteEvent,
     createTreatyProposalEvent,
     createTreatyBreachEvent,
     createAllyColdEvent,
@@ -3324,6 +3325,52 @@ export const useGameLoop = (gameState, addLog, actions) => {
                             }
 
                             // Treaty 2.0 MVP: 检测 AI 条约提案事件
+                            // AI 组织邀请事件
+                            if (log.includes('AI_ORG_INVITE:')) {
+                                try {
+                                    const jsonStr = log.replace('AI_ORG_INVITE:', '');
+                                    const eventData = JSON.parse(jsonStr);
+                                    const nation = result.nations?.find(n => n.id === eventData.nationId);
+                                    const orgList = result.diplomacyOrganizations?.organizations || current.diplomacyOrganizations?.organizations || [];
+                                    const org = orgList.find(entry => entry.id === eventData.orgId);
+                                    if (nation && org && currentActions && currentActions.triggerDiplomaticEvent) {
+                                        const event = createOrganizationInviteEvent(nation, org, (accepted) => {
+                                            if (accepted) {
+                                                setDiplomacyOrganizations(prev => {
+                                                    const organizations = prev?.organizations || [];
+                                                    return {
+                                                        ...(prev || {}),
+                                                        organizations: organizations.map(entry => {
+                                                            if (entry.id !== org.id) return entry;
+                                                            const members = Array.isArray(entry.members) ? entry.members : [];
+                                                            if (members.includes('player')) return entry;
+                                                            return { ...entry, members: [...members, 'player'] };
+                                                        }),
+                                                    };
+                                                });
+                                                setNations(prev => prev.map(n =>
+                                                    n.id === nation.id
+                                                        ? { ...n, relation: Math.min(100, (n.relation || 0) + 8) }
+                                                        : n
+                                                ));
+                                                addLog(`🤝 你接受了 ${nation.name} 的组织邀请，加入了“${org.name}”。`);
+                                            } else {
+                                                setNations(prev => prev.map(n =>
+                                                    n.id === nation.id
+                                                        ? { ...n, relation: Math.max(0, (n.relation || 0) - 6) }
+                                                        : n
+                                                ));
+                                                addLog(`你拒绝了 ${nation.name} 的组织邀请，关系略有下降。`);
+                                            }
+                                        });
+                                        currentActions.triggerDiplomaticEvent(event);
+                                        debugLog('event', '[EVENT DEBUG] AI org invite event triggered:', nation.name, org?.name);
+                                    }
+                                } catch (e) {
+                                    debugError('event', '[EVENT DEBUG] Failed to parse AI org invite event:', e);
+                                }
+                            }
+
                             if (log.includes('AI_TREATY_PROPOSAL:')) {
                                 try {
                                     const jsonStr = log.replace('AI_TREATY_PROPOSAL:', '');
