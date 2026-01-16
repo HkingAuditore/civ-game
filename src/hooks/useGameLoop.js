@@ -564,6 +564,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
         setDailyMilitaryExpense, // [NEW] store simulation military expense for UI
         overseasInvestments, // 海外投资列表
         setOverseasInvestments, // 海外投资更新函数
+        setDiplomacyOrganizations, // [FIX] Add missing setter
         foreignInvestments, // [NEW] 用于 simulation 计算
         setForeignInvestments, // [FIX] Destructure setter
     } = gameState;
