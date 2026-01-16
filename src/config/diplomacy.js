@@ -23,7 +23,7 @@ export const DIPLOMACY_ERA_UNLOCK = {
         merchant_stationing: { minEra: 3, name: '商人驻留' },
         overseas_building: { minEra: 4, name: '海外建筑' },
         price_convergence: { minEra: 6, name: '市场价格联动' },
-        multi_round_negotiation: { minEra: 5, name: '多轮谈判' },
+        multi_round_negotiation: { minEra: 2, name: '多轮谈判' },
     },
     migration: {
         economic_migration: { minEra: 3, name: '经济移民' },

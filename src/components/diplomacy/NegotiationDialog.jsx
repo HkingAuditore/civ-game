@@ -14,6 +14,8 @@ const NegotiationDialog = ({
     negotiationRound,
     negotiationEvaluation,
     negotiationCounter,
+    negotiationFeedback,
+    daysElapsed,
     submitNegotiation,
     isDiplomacyUnlocked,
     epoch,
@@ -125,6 +127,39 @@ const NegotiationDialog = ({
         );
     };
 
+    // Disabled reason for negotiation submit
+    const isOrganizationType = negotiationDraft.type === 'military_alliance' || negotiationDraft.type === 'economic_bloc';
+    const category = isOrganizationType ? 'organizations' : 'treaties';
+    const treatyUnlocked = isDiplomacyUnlocked(category, negotiationDraft.type, epoch);
+    const organizationSelected = !isOrganizationType || 
+        (negotiationDraft.targetOrganizationId && negotiationDraft.organizationMode);
+    const disableReason = !selectedNation
+        ? t('negotiation.noNation', '未选择国家')
+        : selectedNation?.isAtWar
+            ? t('negotiation.atWar', '对方正在战争中，无法谈判')
+            : !treatyUnlocked
+                ? t('negotiation.treatyLocked', '条约未解锁')
+                : !organizationSelected
+                    ? t('negotiation.selectOrg', '请选择组织选项')
+                    : null;
+    const getTreatyEndDay = (treaty) => {
+        if (Number.isFinite(treaty?.endDay)) return treaty.endDay;
+        if (Number.isFinite(treaty?.startDay) && Number.isFinite(treaty?.duration)) {
+            return treaty.startDay + treaty.duration;
+        }
+        if (Number.isFinite(treaty?.signedDay) && Number.isFinite(treaty?.duration)) {
+            return treaty.signedDay + treaty.duration;
+        }
+        return null;
+    };
+    const hasActiveOpenMarketTreaty = Array.isArray(selectedNation?.treaties)
+        && selectedNation.treaties.some((treaty) => {
+            const endDay = getTreatyEndDay(treaty);
+            const isActive = endDay == null || (Number.isFinite(daysElapsed) && daysElapsed < endDay);
+            return isActive && (treaty.type === 'trade_agreement' || treaty.type === 'open_market' || treaty.type === 'free_trade');
+        });
+    const willReplaceOpenMarket = negotiationDraft.type === 'open_market' && hasActiveOpenMarketTreaty;
+
     return (
         <Modal
             isOpen={isOpen}
@@ -186,6 +221,12 @@ const NegotiationDialog = ({
                     />
                 </div>
             </div>
+
+            {(negotiationFeedback || disableReason || willReplaceOpenMarket) && (
+                <div className="mt-2 rounded border border-red-500/40 bg-red-950/40 px-3 py-2 text-xs text-red-200">
+                    {negotiationFeedback || disableReason || '将覆盖现有贸易协定。'}
+                </div>
+            )}
 
             {/* Counter Offer Overlay */}
             {showCounterOverlay && negotiationCounter && (

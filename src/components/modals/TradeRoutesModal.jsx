@@ -84,15 +84,26 @@ const TradeRoutesModal = ({
         const nation = nations.find(n => n.id === nationId);
         const relation = nation?.relation || 0;
         const isAllied = nation?.alliedWithPlayer === true;
-        const isOpenMarket = Boolean(nation?.openMarketUntil && daysElapsed < nation.openMarketUntil);
+        
+        // Check both war-forced open market AND treaty-based open market
+        const isWarForcedOpenMarket = Boolean(nation?.openMarketUntil && daysElapsed < nation.openMarketUntil);
+        const treatyEffects = getTreatyEffects(nation, daysElapsed);
+        const isTreatyOpenMarket = treatyEffects.bypassRelationCap || treatyEffects.extraMerchantSlots === Infinity;
+        const isOpenMarket = isWarForcedOpenMarket || isTreatyOpenMarket;
 
         // Use the shared calculation function
         const getMaxTradeRoutesForRelation = (rel = 0, allied = false) => {
             return calculateMaxTradeRoutes(rel, allied, merchantCount);
         };
 
+        // Calculate bonus: fixed + percentage
+        const baseMax = getMaxTradeRoutesForRelation(relation, isAllied);
+        const percentBonus = Math.floor(baseMax * (treatyEffects.extraMerchantSlotsPercent || 0));
+        const fixedBonus = treatyEffects.extraMerchantSlots === Infinity ? 999 : (treatyEffects.extraMerchantSlots || 0);
+        const totalBonus = percentBonus + fixedBonus;
+
         // If force is true (e.g. from paste), bypass the relation cap
-        const cap = (isOpenMarket || force) ? 999999 : getMaxTradeRoutesForRelation(relation, isAllied);
+        const cap = (isOpenMarket || force) ? 999999 : (baseMax + totalBonus);
         const safe = Math.max(0, Math.min(cap, Math.floor(Number(nextValue) || 0)));
 
         const next = {
@@ -382,7 +393,12 @@ const TradeRoutesModal = ({
     };
 
     const isOpenMarketActiveWithNation = (nation) => {
-        return Boolean(nation?.openMarketUntil && daysElapsed < nation.openMarketUntil);
+        // Check both war-forced open market AND treaty-based open market
+        const isWarForced = Boolean(nation?.openMarketUntil && daysElapsed < nation.openMarketUntil);
+        if (isWarForced) return true;
+        
+        const treatyEffects = getTreatyEffects(nation, daysElapsed);
+        return treatyEffects.bypassRelationCap || treatyEffects.extraMerchantSlots === Infinity;
     };
 
     const renderAssignmentRow = (nation) => {
@@ -392,10 +408,16 @@ const TradeRoutesModal = ({
         // 计算条约加成的商人槽位
         const treatyEffects = getTreatyEffects(nation, daysElapsed);
         const baseMax = getMaxTradeRoutesForRelation(nation.relation || 0, nation.alliedWithPlayer === true);
-        const treatyBonus = treatyEffects.extraMerchantSlots === Infinity ? 999 : (treatyEffects.extraMerchantSlots || 0);
-        const maxWithNation = isOpenMarketActiveWithNation(nation)
+        const isFullyOpen = isOpenMarketActiveWithNation(nation);
+        
+        // Calculate bonus: fixed + percentage
+        const percentBonus = Math.floor(baseMax * (treatyEffects.extraMerchantSlotsPercent || 0));
+        const fixedBonus = treatyEffects.extraMerchantSlots === Infinity ? 999 : (treatyEffects.extraMerchantSlots || 0);
+        const totalBonus = percentBonus + fixedBonus;
+        
+        const maxWithNation = isFullyOpen
             ? 999
-            : Math.min(999, baseMax + treatyBonus);
+            : Math.min(999, baseMax + totalBonus);
 
         const disabledInc = remainingMerchants <= 0 || nation.isAtWar || value >= maxWithNation;
         const disabledDec = value <= 0;

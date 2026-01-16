@@ -71,6 +71,7 @@ const DiplomacyTabComponent = ({
     const [showNegotiationModal, setShowNegotiationModal] = useState(false);
     const [negotiationRound, setNegotiationRound] = useState(1);
     const [negotiationCounter, setNegotiationCounter] = useState(null);
+    const [negotiationFeedback, setNegotiationFeedback] = useState(null);
     const [negotiationDraft, setNegotiationDraft] = useState({
         type: 'trade_agreement',
         durationDays: 365,
@@ -149,6 +150,7 @@ const DiplomacyTabComponent = ({
         setNegotiationDraft(buildNegotiationDraft(type));
         setNegotiationCounter(null);
         setNegotiationRound(1);
+        setNegotiationFeedback(null);
         setShowNegotiationModal(true);
     };
 
@@ -199,14 +201,40 @@ const DiplomacyTabComponent = ({
             setNegotiationRound((prev) => Math.min(NEGOTIATION_MAX_ROUNDS, prev + 1));
             return;
         }
-        setShowNegotiationModal(false);
-        setNegotiationCounter(null);
-        setNegotiationRound(1);
+        if (result.status === 'accepted') {
+            setShowNegotiationModal(false);
+            setNegotiationCounter(null);
+            setNegotiationRound(1);
+            setNegotiationFeedback(null);
+            return;
+        }
+        const reasonMap = {
+            era: '当前时代尚未解锁该功能。',
+            type: '缺少条约类型，无法发起谈判。',
+            treaty_locked: '条约未解锁，无法谈判。',
+            war: '对方正处于战争中，无法谈判。',
+            peace_active: '和平/互不侵犯条约仍在生效，无法重复谈判。',
+            market_active: '开放市场/贸易类条约仍在生效，无法重复谈判。',
+            investment_active: '投资协议仍在生效，无法重复谈判。',
+            treaty_active: '该类条约仍在生效，无法重复签署。',
+            silver: '银币不足，无法支付签约费用/赠礼。',
+            resource: '赠送资源无效或库存不足。',
+            demand_silver: '对方无法承担索赔银币。',
+            demand_resource: '对方无法提供索赔资源。',
+        };
+        if (result.status === 'blocked') {
+            setNegotiationFeedback(reasonMap[result.reason] || '谈判被阻止，请检查条件。');
+            return;
+        }
+        if (result.status === 'rejected') {
+            setNegotiationFeedback('对方拒绝了提案。');
+        }
     };
 
     const submitNegotiation = (proposal, options = {}) => {
         if (!selectedNation || typeof onDiplomaticAction !== 'function') return;
         const nextRound = options?.round || negotiationRound;
+        setNegotiationFeedback(null);
         onDiplomaticAction(selectedNation.id, 'negotiate_treaty', {
             proposal,
             stance: proposal.stance || negotiationDraft.stance,
@@ -318,6 +346,8 @@ const DiplomacyTabComponent = ({
                 negotiationRound={negotiationRound}
                 negotiationEvaluation={negotiationEvaluation}
                 negotiationCounter={negotiationCounter}
+                negotiationFeedback={negotiationFeedback}
+                daysElapsed={daysElapsed}
                 submitNegotiation={submitNegotiation}
                 isDiplomacyUnlocked={isDiplomacyUnlocked}
                 epoch={epoch}

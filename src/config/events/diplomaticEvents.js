@@ -422,7 +422,7 @@ export function createPlayerPeaceProposalEvent(
         return Math.min(MAX_TERRITORY_POPULATION, Math.max(3, Math.min(hardCap, capped)));
     };
 
-    if (warScore > 350) {
+    if (warScore > 500) {
         const highTribute = Math.ceil(demandingPayments.high * 1.4);
         const populationDemand = Math.min(MAX_TERRITORY_POPULATION, Math.max(25, Math.floor((nation.population || nation.basePopulation || 1000) * 0.25)));
         const annexPopulation = nation.population || nation.basePopulation || 1000;
@@ -455,14 +455,16 @@ export function createPlayerPeaceProposalEvent(
             effects: {},
             callback: () => callback('demand_open_market', OPEN_MARKET_DURATION_DAYS),
         });
-        // 附庸选项
-        options.push({
-            id: 'demand_vassal',
-            text: '🏴 要求成为附庸国',
-            description: `迫使${nation.name}成为你的附庸国,确立宗主权与朝贡关系。`,
-            effects: {},
-            callback: () => callback('demand_vassal', 'vassal'),
-        });
+        // 附庸选项（需要更高战争分数）
+        if (warScore > 300) {
+            options.push({
+                id: 'demand_vassal',
+                text: '🏴 要求成为附庸国',
+                description: `迫使${nation.name}成为你的附庸国,确立宗主权与朝贡关系。`,
+                effects: {},
+                callback: () => callback('demand_vassal', 'vassal'),
+            });
+        }
         options.push({
             id: 'peace_only',
             text: '只接受停战',

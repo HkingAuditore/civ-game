@@ -95,6 +95,7 @@ export const useGameActions = (gameState, addLog) => {
         setClicks,
         army,
         setArmy,
+        militaryPower,
         militaryQueue,
         setMilitaryQueue,
         setBattleResult,
@@ -138,6 +139,7 @@ export const useGameActions = (gameState, addLog) => {
         setBuildingUpgrades,
         autoRecruitEnabled,
         modifiers,
+        productionPerDay,
         // Cabinet policy decrees (permanent)
         decrees,
         setDecrees,
@@ -2324,6 +2326,7 @@ export const useGameActions = (gameState, addLog) => {
         const DIPLOMATIC_COOLDOWNS = {
             gift: 30,           // 30天
             demand: 30,         // 30天
+            insult: 30,         // 30天 - 侮辱
             provoke: 30,        // 30天
             negotiate_treaty: 120, // Multi-round negotiation cooldown
         };
@@ -2343,6 +2346,7 @@ export const useGameActions = (gameState, addLog) => {
                 const actionNames = {
                     gift: '送礼',
                     demand: '索要',
+                    insult: '侮辱',
                     provoke: '挑拨',
                     propose_alliance: '请求结盟',
                     create_org: '创建组织',
@@ -2534,8 +2538,31 @@ export const useGameActions = (gameState, addLog) => {
             }
 
             case 'negotiate_treaty': {
-                const { proposal, onResult } = payload;
-                if (!proposal) return;
+                const { proposal: rawProposal, onResult } = payload;
+                if (!rawProposal) return;
+
+                const normalizedProposal = {
+                    type: rawProposal.type || 'peace_treaty',
+                    durationDays: rawProposal.durationDays || getTreatyDuration(rawProposal.type || 'peace_treaty', epoch),
+                    maintenancePerDay: rawProposal.maintenancePerDay || 0,
+                    signingGift: rawProposal.signingGift || 0,
+                    resources: Array.isArray(rawProposal.resources)
+                        ? rawProposal.resources.filter(r => r?.key && r.amount > 0)
+                        : (rawProposal.resourceKey && rawProposal.resourceAmount > 0
+                            ? [{ key: rawProposal.resourceKey, amount: rawProposal.resourceAmount }]
+                            : []),
+                    demandSilver: rawProposal.demandSilver || 0,
+                    demandResources: Array.isArray(rawProposal.demandResources)
+                        ? rawProposal.demandResources.filter(r => r?.key && r.amount > 0)
+                        : (rawProposal.demandResourceKey && rawProposal.demandResourceAmount > 0
+                            ? [{ key: rawProposal.demandResourceKey, amount: rawProposal.demandResourceAmount }]
+                            : []),
+                    stance: rawProposal.stance || 'normal',
+                    targetOrganizationId: rawProposal.targetOrganizationId,
+                    organizationMode: rawProposal.organizationMode,
+                    forceAccept: rawProposal.forceAccept === true
+                };
+                const proposal = normalizedProposal;
 
                 // Get organization info if relevant
                 let organization = null;
@@ -2572,8 +2599,35 @@ export const useGameActions = (gameState, addLog) => {
                     organizationMode,
                 });
 
-                const accepted = Math.random() < evaluation.acceptChance || payload.forceAccept;
+                const accepted = Math.random() < evaluation.acceptChance || proposal.forceAccept;
                 const stance = proposal.stance || 'normal';
+
+                const getTreatyEndDay = (t) => {
+                    if (Number.isFinite(t?.endDay)) return t.endDay;
+                    if (Number.isFinite(t?.startDay) && Number.isFinite(t?.duration)) return t.startDay + t.duration;
+                    if (Number.isFinite(t?.signedDay) && Number.isFinite(t?.duration)) return t.signedDay + t.duration;
+                    return null;
+                };
+                const isTreatyActive = (t) => {
+                    const endDay = getTreatyEndDay(t);
+                    return endDay == null || daysElapsed < endDay;
+                };
+                const hasActiveTreatyType = (types) => Array.isArray(targetNation?.treaties)
+                    && targetNation.treaties.some((t) => types.includes(t.type) && isTreatyActive(t));
+
+                if (PEACE_TREATY_TYPES.includes(proposal.type) && hasActiveTreatyType(PEACE_TREATY_TYPES)) {
+                    addLog(`与 ${targetNation.name} 的和平/互不侵犯条约仍在生效，无法重复签署。`);
+                    if (onResult) onResult({ status: 'blocked', reason: 'treaty_active' });
+                    return;
+                }
+                const shouldReplaceOpenMarket = OPEN_MARKET_TREATY_TYPES.includes(proposal.type)
+                    && hasActiveTreatyType(OPEN_MARKET_TREATY_TYPES);
+                if (!OPEN_MARKET_TREATY_TYPES.includes(proposal.type) && !PEACE_TREATY_TYPES.includes(proposal.type)
+                    && hasActiveTreatyType([proposal.type])) {
+                    addLog(`与 ${targetNation.name} 的该类条约仍在生效，无法重复签署。`);
+                    if (onResult) onResult({ status: 'blocked', reason: 'treaty_active' });
+                    return;
+                }
 
                 if (accepted) {
                     const type = proposal.type;
@@ -2649,7 +2703,9 @@ export const useGameActions = (gameState, addLog) => {
                         type,
                         partnerId: nationId,
                         signedDay: daysElapsed,
+                        startDay: daysElapsed,
                         duration: durationDays,
+                        endDay: daysElapsed + durationDays,
                         terms: proposal,
                         maintenancePerDay: proposal.maintenancePerDay || 0
                     };
@@ -2657,6 +2713,17 @@ export const useGameActions = (gameState, addLog) => {
                     setNations(prev => prev.map(n => {
                         if (n.id === nationId) {
                             const isPeaceTreaty = ['peace_treaty', 'white_peace', 'surrender'].includes(type);
+                            const nextInventory = { ...(n.inventory || {}) };
+                            for (const res of offerResources) {
+                                if (res.key && res.amount > 0) {
+                                    nextInventory[res.key] = (nextInventory[res.key] || 0) + res.amount;
+                                }
+                            }
+                            for (const res of demandResources) {
+                                if (res.key && res.amount > 0) {
+                                    nextInventory[res.key] = Math.max(0, (nextInventory[res.key] || 0) - res.amount);
+                                }
+                            }
 
                             // Stance Bonus/Penalty
                             let relationChange = 10;
@@ -2664,21 +2731,23 @@ export const useGameActions = (gameState, addLog) => {
                             if (stance === 'aggressive') relationChange -= 5;
                             if (stance === 'threat') relationChange -= 15;
 
+                            const nextTreaties = (n.treaties || []).map(t => {
+                                if (!shouldReplaceOpenMarket || !OPEN_MARKET_TREATY_TYPES.includes(t.type)) return t;
+                                if (t.endDay != null && t.endDay <= daysElapsed) return t;
+                                return { ...t, endDay: daysElapsed };
+                            });
+
                             return {
                                 ...n,
                                 relation: clampRelation((n.relation || 0) + relationChange),
                                 isAtWar: isPeaceTreaty ? false : n.isAtWar,
                                 warStartDay: isPeaceTreaty ? undefined : n.warStartDay,
                                 warScore: isPeaceTreaty ? 0 : n.warScore,
-                                treaties: [...(n.treaties || []), { ...newTreaty, partnerId: 'player' }],
+                                treaties: [...nextTreaties, { ...newTreaty, partnerId: 'player' }],
                                 peaceTreatyUntil: isPeaceTreaty ? (daysElapsed + durationDays) : n.peaceTreatyUntil,
                                 // Update wealth/inventory for AI
                                 wealth: (n.wealth || 0) + signingGift - demandSilver,
-                                inventory: {
-                                    ...(n.inventory || {}),
-                                    [resourceKey]: resourceAmount > 0 ? ((n.inventory?.[resourceKey] || 0) + resourceAmount) : (n.inventory?.[resourceKey] || 0),
-                                    [demandResourceKey]: demandResourceAmount > 0 ? Math.max(0, (n.inventory?.[demandResourceKey] || 0) - demandResourceAmount) : (n.inventory?.[demandResourceKey] || 0)
-                                }
+                                inventory: nextInventory
                             };
                         }
                         return n;
@@ -3506,10 +3575,8 @@ export const useGameActions = (gameState, addLog) => {
                     addLog(`与 ${targetNation.name} 的互不侵犯/和平协议仍在生效中，无法重复提出。`);
                     return;
                 }
-                if (OPEN_MARKET_TREATY_TYPES.includes(type) && (isOpenMarketActive || hasActiveTreatyType(OPEN_MARKET_TREATY_TYPES))) {
-                    addLog(`与 ${targetNation.name} 的开放市场协议仍在生效中，无法重复提出。`);
-                    return;
-                }
+                const shouldReplaceOpenMarket = OPEN_MARKET_TREATY_TYPES.includes(type)
+                    && (isOpenMarketActive || hasActiveTreatyType(OPEN_MARKET_TREATY_TYPES));
                 if (type === 'investment_pact' && hasActiveTreatyType(['investment_pact'])) {
                     addLog(`与 ${targetNation.name} 的投资协议仍在生效中，无法重复提出。`);
                     return;
@@ -3591,7 +3658,13 @@ export const useGameActions = (gameState, addLog) => {
                         };
                     }
 
-                    const nextTreaties = Array.isArray(n.treaties) ? [...n.treaties] : [];
+                    const nextTreaties = Array.isArray(n.treaties)
+                        ? n.treaties.map(t => {
+                            if (!shouldReplaceOpenMarket || !OPEN_MARKET_TREATY_TYPES.includes(t.type)) return t;
+                            if (t.endDay != null && t.endDay <= daysElapsed) return t;
+                            return { ...t, endDay: daysElapsed };
+                        })
+                        : [];
                     nextTreaties.push({
                         id: `treaty_${n.id}_${Date.now()}`,
                         type,
@@ -3612,7 +3685,7 @@ export const useGameActions = (gameState, addLog) => {
 
                     // Minimal effects (still asymmetric in data model: stored on AI nation; it affects your interaction with them)
                     if (OPEN_MARKET_TREATY_TYPES.includes(type)) {
-                        updates.openMarketUntil = Math.max(n.openMarketUntil || 0, daysElapsed + durationDays);
+                        updates.openMarketUntil = daysElapsed + durationDays;
                     }
                     if (PEACE_TREATY_TYPES.includes(type)) {
                         updates.peaceTreatyUntil = Math.max(n.peaceTreatyUntil || 0, daysElapsed + durationDays);
@@ -3703,11 +3776,8 @@ export const useGameActions = (gameState, addLog) => {
                     if (onResult) onResult({ status: 'blocked', reason: 'peace_active' });
                     return;
                 }
-                if (OPEN_MARKET_TREATY_TYPES.includes(type) && (isOpenMarketActive || hasActiveTreatyType(OPEN_MARKET_TREATY_TYPES))) {
-                    addLog(`与 ${targetNation.name} 的贸易/开放市场条约仍在生效中，无法重复谈判。`);
-                    if (onResult) onResult({ status: 'blocked', reason: 'market_active' });
-                    return;
-                }
+                const shouldReplaceOpenMarket = OPEN_MARKET_TREATY_TYPES.includes(type)
+                    && (isOpenMarketActive || hasActiveTreatyType(OPEN_MARKET_TREATY_TYPES));
                 if (type === 'investment_pact' && hasActiveTreatyType(['investment_pact'])) {
                     addLog(`与 ${targetNation.name} 的投资协议仍在生效中，无法重复谈判。`);
                     if (onResult) onResult({ status: 'blocked', reason: 'investment_active' });
@@ -3828,7 +3898,13 @@ export const useGameActions = (gameState, addLog) => {
                     setNations(prev => prev.map(n => {
                         if (n.id !== nationId) return n;
 
-                        const nextTreaties = Array.isArray(n.treaties) ? [...n.treaties] : [];
+                        const nextTreaties = Array.isArray(n.treaties)
+                            ? n.treaties.map(t => {
+                                if (!shouldReplaceOpenMarket || !OPEN_MARKET_TREATY_TYPES.includes(t.type)) return t;
+                                if (t.endDay != null && t.endDay <= daysElapsed) return t;
+                                return { ...t, endDay: daysElapsed };
+                            })
+                            : [];
                         nextTreaties.push({
                             id: `treaty_${n.id}_${Date.now()}`,
                             type,
@@ -3873,7 +3949,7 @@ export const useGameActions = (gameState, addLog) => {
                             }
                         }
                         if (OPEN_MARKET_TREATY_TYPES.includes(type)) {
-                            updates.openMarketUntil = Math.max(n.openMarketUntil || 0, daysElapsed + durationDays);
+                            updates.openMarketUntil = daysElapsed + durationDays;
                         }
                         if (PEACE_TREATY_TYPES.includes(type)) {
                             updates.peaceTreatyUntil = Math.max(n.peaceTreatyUntil || 0, daysElapsed + durationDays);
@@ -5342,6 +5418,15 @@ export const useGameActions = (gameState, addLog) => {
                 return { ...n, relation: Math.max(0, (n.relation || 0) - 5) };
             }));
             addLog(`${targetNation.name} rejected your peace proposal.`);
+            return;
+        }
+
+        if (proposalType === 'demand_annex' && warScore < 500) {
+            addLog('战争分数不足，无法提出吞并要求。');
+            return;
+        }
+        if (proposalType === 'demand_vassal' && warScore < 300) {
+            addLog('战争分数不足，无法提出附庸要求。');
             return;
         }
 

@@ -4526,8 +4526,19 @@ export const simulateTick = ({
         }
 
         // [MODIFIED] AI国家不再因时代过期而消失，发展完全独立
-        const visible = visibleEpoch >= (nation.appearEpoch ?? 0);
-        if (!visible) {
+        const isVisibleToPlayer = visibleEpoch >= (nation.appearEpoch ?? 0)
+            && (nation.expireEpoch == null || visibleEpoch <= nation.expireEpoch);
+        if (!isVisibleToPlayer) {
+            if (next.isAtWar) {
+                next.isAtWar = false;
+                next.warScore = 0;
+                next.warDuration = 0;
+                next.warStartDay = null;
+                next.enemyLosses = 0;
+                next.warTarget = null;
+                next.isPeaceRequesting = false;
+                next.peaceTribute = null;
+            }
             return next;
         }
 
@@ -4899,7 +4910,9 @@ export const simulateTick = ({
 
     // Filter visible nations for diplomacy processing
     const visibleNations = updatedNations.filter(n =>
-        epoch >= (n.appearEpoch ?? 0) && !n.isRebelNation
+        epoch >= (n.appearEpoch ?? 0)
+        && (n.expireEpoch == null || epoch <= n.expireEpoch)
+        && !n.isRebelNation
     );
 
     // ========================================================================

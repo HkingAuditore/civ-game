@@ -22,6 +22,14 @@ const getTradableResources = (epoch = 0) => {
     });
 };
 
+// Diplomatic action cooldown configuration (days)
+const DIPLOMATIC_COOLDOWNS = {
+    gift: 30,
+    insult: 30,
+    provoke: 30,
+    negotiate_treaty: 120,
+};
+
 const NationDetailView = ({
     nation,
     relationInfo,
@@ -40,8 +48,25 @@ const NationDetailView = ({
     merchantState,
     onMerchantStateChange,
     foreignInvestments = [],
+    gameState,
 }) => {
     const [activeTab, setActiveTab] = useState('overview');
+
+    // Calculate cooldown status for each action
+    const currentDay = gameState?.day || daysElapsed || 0;
+    const getCooldownInfo = (actionType) => {
+        const lastActionDay = nation?.lastDiplomaticActionDay?.[actionType] || 0;
+        const cooldownDays = DIPLOMATIC_COOLDOWNS[actionType] || 0;
+        const daysSinceLastAction = currentDay - lastActionDay;
+        const isOnCooldown = lastActionDay > 0 && daysSinceLastAction < cooldownDays;
+        const remainingDays = isOnCooldown ? cooldownDays - daysSinceLastAction : 0;
+        return { isOnCooldown, remainingDays };
+    };
+
+    const giftCooldown = getCooldownInfo('gift');
+    const insultCooldown = getCooldownInfo('insult');
+    const provokeCooldown = getCooldownInfo('provoke');
+    const negotiateCooldown = getCooldownInfo('negotiate_treaty');
 
     const strengthEstimate = getEstimatedMilitaryStrength
         ? getEstimatedMilitaryStrength(nation, epoch, daysElapsed)
@@ -142,34 +167,46 @@ const NationDetailView = ({
                         <ActionCard
                             icon="Gift"
                             title="赠礼"
-                            desc="提升关系 (+10)，需要银币。"
+                            desc={giftCooldown.isOnCooldown 
+                                ? `冷却中，还需 ${giftCooldown.remainingDays} 天` 
+                                : "提升关系 (+10)，需要银币。"}
                             cost="银币"
                             onClick={() => onDiplomaticAction?.(nation.id, 'gift')}
                             color="green"
+                            disabled={giftCooldown.isOnCooldown}
                         />
 
                         <ActionCard
                             icon="ScrollText"
                             title="外交谈判"
-                            desc="谈判条约、贸易协定等。"
+                            desc={negotiateCooldown.isOnCooldown 
+                                ? `冷却中，还需 ${negotiateCooldown.remainingDays} 天` 
+                                : "谈判条约、贸易协定等。"}
                             onClick={() => onNegotiate?.()}
                             color="blue"
+                            disabled={negotiateCooldown.isOnCooldown}
                         />
 
                         <ActionCard
                             icon="MessageSquareWarning"
                             title="侮辱"
-                            desc="大幅降低关系，可能激怒对方。"
+                            desc={insultCooldown.isOnCooldown 
+                                ? `冷却中，还需 ${insultCooldown.remainingDays} 天` 
+                                : "大幅降低关系，可能激怒对方。"}
                             onClick={() => onDiplomaticAction?.(nation.id, 'insult')}
                             color="orange"
+                            disabled={insultCooldown.isOnCooldown}
                         />
                         <ActionCard
                             icon="Skull"
                             title="挑拨"
-                            desc="消耗银币离间其与其他国家的关系。"
+                            desc={provokeCooldown.isOnCooldown 
+                                ? `冷却中，还需 ${provokeCooldown.remainingDays} 天` 
+                                : "消耗银币离间其与其他国家的关系。"}
                             cost="银币"
                             onClick={() => onProvoke?.()}
                             color="orange"
+                            disabled={provokeCooldown.isOnCooldown}
                         />
                         {nation.isAtWar ? (
                             <ActionCard
@@ -599,7 +636,18 @@ const ActiveTreaties = ({ nation, daysElapsed }) => {
                             {treatyTypeToLabel(treaty.type)}
                         </span>
                         <span className="text-xs text-ancient-stone/70 font-mono">
-                            {treaty.endDay ? `剩余 ${Math.max(0, treaty.endDay - daysElapsed)} 天` : '永久'}
+                            {(() => {
+                                const endDay = Number.isFinite(treaty.endDay)
+                                    ? treaty.endDay
+                                    : (Number.isFinite(treaty.startDay) && Number.isFinite(treaty.duration)
+                                        ? treaty.startDay + treaty.duration
+                                        : (Number.isFinite(treaty.signedDay) && Number.isFinite(treaty.duration)
+                                            ? treaty.signedDay + treaty.duration
+                                            : null));
+                                return endDay != null
+                                    ? `剩余 ${Math.max(0, endDay - daysElapsed)} 天`
+                                    : '永久';
+                            })()}
                         </span>
                     </div>
                 ))}

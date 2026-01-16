@@ -5,27 +5,36 @@
 
 /**
  * 条约效果配置
- * 与策划案 外交系统扩充.md 第438-541行 对应
+ * 
+ * 设计原则：
+ * - 贸易协定 (trade_agreement): 初级贸易协议，降低贸易门槛，适合关系一般的国家
+ * - 开放市场 (open_market): 完全开放市场准入，与战争强制开放市场效果一致，侧重于市场准入权
+ * - 自由贸易 (free_trade): 最高级经济一体化，关税归零+价格联动，适合长期盟友
  */
 export const TREATY_EFFECT_CONFIGS = {
     trade_agreement: {
         name: '贸易协定',
-        tariffMultiplier: 0.75,      // 关税减免25%
-        extraMerchantSlots: 3,        // 额外3个商人槽位
-        tradeEfficiencyBonus: 0.15,   // 贸易利润+15%
-    },
-    free_trade: {
-        name: '自由贸易协定',
-        tariffMultiplier: 0,          // 关税归零
-        extraMerchantSlots: Infinity, // 无限商人槽位
-        tradeEfficiencyBonus: 0.25,   // 贸易利润+25%
-        priceConvergence: true,       // 市场价格联动
+        // 初级贸易协议：降低贸易门槛，但不涉及市场准入
+        tariffMultiplier: 0.85,       // 关税减免15%
+        extraMerchantSlotsPercent: 0.20,  // 商人槽位+20%
+        tradeEfficiencyBonus: 0.08,   // 贸易利润+8%
+        relationDecayReduction: 0.1,  // 关系衰减减少10%
     },
     open_market: {
         name: '开放市场',
-        tariffMultiplier: 0.80,       // 关税减免20%
-        extraMerchantSlots: 2,        // 额外2个商人槽位
-        tradeEfficiencyBonus: 0.10,
+        // 对齐战争求和的强制开放市场效果：完全开放市场准入
+        tariffMultiplier: 0.90,        // 关税减免10%（主要不是关税优惠）
+        extraMerchantSlots: Infinity,  // 无限商人槽位（核心效果！）
+        tradeEfficiencyBonus: 0,       // 无贸易利润加成
+        allowForceTrade: true,         // 允许强制贸易（倾销/抢购）
+        bypassRelationCap: true,       // 绕过关系对商人数量的限制
+    },
+    free_trade: {
+        name: '自由贸易协定',
+        // 高级贸易协议：关税归零，深化经济合作
+        tariffMultiplier: 0,           // 关税归零
+        extraMerchantSlotsPercent: 0.50,  // 商人槽位+50%
+        relationDecayReduction: 0.3,   // 关系衰减减少30%
     },
     investment_pact: {
         name: '投资协议',
@@ -99,13 +108,16 @@ export const getTreatyEffects = (nation, daysElapsed) => {
     // 默认效果（无条约）
     const effects = {
         tariffMultiplier: 1.0,          // 关税系数（1.0=无变化，0=免税）
-        extraMerchantSlots: 0,           // 额外商人槽位
+        extraMerchantSlots: 0,           // 额外商人槽位（固定值）
+        extraMerchantSlotsPercent: 0,    // 额外商人槽位（百分比）
         tradeEfficiencyBonus: 0,         // 贸易效率加成
         hasOverseasAccess: false,        // 是否有海外建筑权限
         hasMutualDefense: false,         // 是否有共同防御
         relationDecayReduction: 0,       // 关系衰减减少
         techBonus: 0,                    // 科技加成
         hasPriceConvergence: false,      // 是否启用价格收敛
+        allowForceTrade: false,          // 是否允许强制贸易（倾销/抢购）
+        bypassRelationCap: false,        // 是否绕过关系对商人数量的限制
         activeTreatyTypes: [],           // 活跃条约类型列表
     };
     
@@ -124,13 +136,18 @@ export const getTreatyEffects = (nation, daysElapsed) => {
             effects.tariffMultiplier = Math.min(effects.tariffMultiplier, config.tariffMultiplier);
         }
         
-        // 商人槽位累加
+        // 商人槽位累加（固定值）
         if (config.extraMerchantSlots !== undefined) {
             if (config.extraMerchantSlots === Infinity) {
                 effects.extraMerchantSlots = Infinity;
             } else if (effects.extraMerchantSlots !== Infinity) {
                 effects.extraMerchantSlots += config.extraMerchantSlots;
             }
+        }
+        
+        // 商人槽位百分比累加
+        if (config.extraMerchantSlotsPercent !== undefined) {
+            effects.extraMerchantSlotsPercent += config.extraMerchantSlotsPercent;
         }
         
         // 贸易效率取最高
@@ -142,6 +159,8 @@ export const getTreatyEffects = (nation, daysElapsed) => {
         if (config.overseasBuildingAccess) effects.hasOverseasAccess = true;
         if (config.mutualDefense) effects.hasMutualDefense = true;
         if (config.priceConvergence) effects.hasPriceConvergence = true;
+        if (config.allowForceTrade) effects.allowForceTrade = true;
+        if (config.bypassRelationCap) effects.bypassRelationCap = true;
         
         // 关系衰减减少取最高
         if (config.relationDecayReduction !== undefined) {
@@ -231,21 +250,41 @@ export const getTreatyEffectDescriptionsByType = (treatyType) => {
 
     const descriptions = [];
 
+    // 市场准入效果（优先显示）
+    if (config.bypassRelationCap) {
+        descriptions.push('绕过关系限制');
+    }
+    if (config.allowForceTrade) {
+        descriptions.push('允许强制贸易');
+    }
+    
+    // 商人槽位效果
+    if (config.extraMerchantSlots === Infinity) {
+        descriptions.push('商人槽位无限');
+    } else if (typeof config.extraMerchantSlots === 'number' && config.extraMerchantSlots > 0) {
+        descriptions.push(`商人槽位 +${config.extraMerchantSlots}`);
+    } else if (typeof config.extraMerchantSlotsPercent === 'number' && config.extraMerchantSlotsPercent > 0) {
+        descriptions.push(`商人槽位 +${Math.round(config.extraMerchantSlotsPercent * 100)}%`);
+    }
+    
+    // 关税效果
     if (config.tariffMultiplier !== undefined) {
         if (config.tariffMultiplier === 0) {
             descriptions.push('关税免除');
         } else if (config.tariffMultiplier < 1) {
             const discount = Math.round((1 - config.tariffMultiplier) * 100);
-            descriptions.push(`关税减免 ${discount}%`);
+            descriptions.push(`关税 -${discount}%`);
         }
     }
-    if (config.extraMerchantSlots === Infinity) {
-        descriptions.push('商人槽位无限制');
-    } else if (typeof config.extraMerchantSlots === 'number' && config.extraMerchantSlots > 0) {
-        descriptions.push(`商人槽位 +${config.extraMerchantSlots}`);
-    }
+    
+    // 贸易利润效果
     if (config.tradeEfficiencyBonus) {
-        descriptions.push(`贸易利润 +${Math.round(config.tradeEfficiencyBonus * 100)}%`);
+        descriptions.push(`利润 +${Math.round(config.tradeEfficiencyBonus * 100)}%`);
+    }
+    
+    // 其他效果
+    if (config.priceConvergence) {
+        descriptions.push('价格联动');
     }
     if (config.overseasBuildingAccess) {
         descriptions.push('可建海外设施');
@@ -257,10 +296,7 @@ export const getTreatyEffectDescriptionsByType = (treatyType) => {
         descriptions.push(`关系衰减 -${Math.round(config.relationDecayReduction * 100)}%`);
     }
     if (config.techBonus) {
-        descriptions.push(`科技速度 +${Math.round(config.techBonus * 100)}%`);
-    }
-    if (config.priceConvergence) {
-        descriptions.push('市场价格联动');
+        descriptions.push(`科技 +${Math.round(config.techBonus * 100)}%`);
     }
 
     return descriptions;

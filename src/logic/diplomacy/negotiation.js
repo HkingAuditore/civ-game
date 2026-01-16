@@ -93,22 +93,21 @@ const calculateTreatyBenefitForNation = ({
             break;
             
         case 'free_trade':
-            // Free trade massively benefits the stronger producer
+            // Free trade: Zero tariffs + 50% more merchant slots + relation decay reduction
+            // Benefits both sides through tariff elimination
+            // Stronger producer benefits more from tariff elimination
             if (productionRatio > 1.2) {
-                benefit = 1500 * productionRatio * durationFactor;
-                risk = 100; // Small risk of dependency
+                benefit = 1000 * productionRatio * durationFactor;
+                risk = 50; // Low risk - just tariff removal
             } else if (productionRatio < 0.8) {
-                benefit = 300 * durationFactor; // Benefit from cheaper imports
-                risk = 800 * (1 / productionRatio) * durationFactor; // Risk of being flooded by imports
+                benefit = 600 * durationFactor; // Benefit from cheaper imports
+                risk = 300 * (1 / productionRatio) * durationFactor; // Some risk from foreign competition
             } else {
-                benefit = 800 * durationFactor;
-                risk = 200 * durationFactor;
+                benefit = 700 * durationFactor;
+                risk = 100 * durationFactor;
             }
-            // Dumping risk based on wealth difference
-            if (wealthRatio < 0.6) {
-                risk += 500 * durationFactor; // Risk of economic domination
-            }
-            strategicValue = 30;
+            // Less risk than before since no price convergence or unlimited slots
+            strategicValue = 35;
             break;
             
         case 'investment_pact':
@@ -124,18 +123,28 @@ const calculateTreatyBenefitForNation = ({
             break;
             
         case 'open_market':
-            // Open market benefits both but more for the stronger economy
-            if (wealthRatio > 1.2) {
-                benefit = 600 * wealthRatio * durationFactor;
-                strategicValue = 25 + Math.min(25, (wealthRatio - 1) * 20); // Stronger economy gains strategic advantage
-            } else if (wealthRatio < 0.8) {
-                benefit = 400 * durationFactor;
-                risk = 300 * (1 / wealthRatio) * durationFactor; // Weaker faces competition risk
-                strategicValue = 35; // Still valuable for market access
+            // Open market is VERY one-sided - allows bypass relation limits, unlimited merchants, force trade
+            // This is essentially economic colonization - the weaker party takes huge risk
+            // Only the economically stronger party really benefits
+            if (wealthRatio > 1.5) {
+                // Strong economy forcing open market on weaker
+                benefit = 1200 * wealthRatio * durationFactor;
+                risk = 50; // Almost no risk for the strong
+                strategicValue = 50; // High strategic value - economic dominance
+            } else if (wealthRatio < 0.7) {
+                // Weaker economy being forced to open market - VERY BAD DEAL
+                benefit = 100 * durationFactor; // Minimal benefit
+                risk = 1500 * (1 / wealthRatio) * durationFactor; // HUGE risk - economic flooding
+                strategicValue = 10; // Low strategic value - you're being exploited
             } else {
-                benefit = 500 * durationFactor;
-                risk = 100 * durationFactor;
-                strategicValue = 30; // Balanced benefit
+                // Roughly equal economies
+                benefit = 400 * durationFactor;
+                risk = 600 * durationFactor; // Still risky even for equals
+                strategicValue = 25;
+            }
+            // Additional risk based on production imbalance - if partner produces more, they flood your market
+            if (productionRatio < 0.8) {
+                risk += 800 * (1 / productionRatio) * durationFactor;
             }
             break;
             

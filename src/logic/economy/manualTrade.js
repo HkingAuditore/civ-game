@@ -2,6 +2,7 @@
 import { RESOURCES, ORGANIZATION_EFFECTS } from '../../config';
 import { VASSAL_TYPE_CONFIGS, TRADE_POLICY_DEFINITIONS } from '../../config/diplomacy';
 import { calculateForeignPrice, calculateTradeStatus } from '../../utils/foreignTrade';
+import { getTreatyEffects } from '../diplomacy/treatyEffects';
 
 /**
  * Process manual trade routes logic
@@ -135,7 +136,11 @@ export const processManualTradeRoutes = ({
         const mode = route?.mode || 'normal';
         const isForceSell = mode === 'force_sell';
         const isForceBuy = mode === 'force_buy';
-        const isOpenMarketActive = Boolean(nation?.openMarketUntil && daysElapsed < nation.openMarketUntil);
+        
+        // Check both war-forced open market AND treaty-based open market
+        const isWarForcedOpenMarket = Boolean(nation?.openMarketUntil && daysElapsed < nation.openMarketUntil);
+        const treatyEffects = getTreatyEffects(nation, daysElapsed);
+        const isOpenMarketActive = isWarForcedOpenMarket || treatyEffects.allowForceTrade || treatyEffects.bypassRelationCap;
 
         if (type === 'export') {
             // Check partner shortage
