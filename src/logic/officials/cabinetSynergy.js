@@ -261,6 +261,33 @@ export const REFORM_DECREES = {
         },
         description: '税收 -30%，稳定度 +15%',
     },
+    forced_labor: {
+        id: 'forced_labor',
+        name: '强制劳动',
+        icon: 'Hammer',
+        duration: 60,
+        cooldown: 300,
+        cost: 0,
+        effects: {
+            categories: { gather: 0.20, industry: 0.10 }, // 采集/工业产出提升
+            stability: -0.10, // 稳定度大幅下降
+            approval: { peasant: -20, worker: -15, serf: -20 }, // 底层严重不满
+        },
+        description: '采集/工业产出提升，但大幅降低底层满意度和稳定度',
+    },
+    tithe: {
+        id: 'tithe',
+        name: '什一税',
+        icon: 'Cross',
+        duration: 90,
+        cooldown: 360,
+        cost: 0,
+        effects: {
+            incomePercent: 0.10, // 收入增加
+            approval: { cleric: 15, peasant: -10, merchant: -5 }, // 教士支持，平民不满
+        },
+        description: '财政收入 +10%，教士满意度提升，平民满意度下降',
+    },
 };
 
 // ========== 核心计算函数 ==========
@@ -1073,7 +1100,9 @@ export const applyBuyPriceControl = ({
     marketPrice,
     priceControls,
     taxBreakdown,
-    resources
+    resources,
+    onTreasuryChange,
+    applyTreasuryChange
 }) => {
     const result = calculateBuyPriceControl(resourceKey, amount, marketPrice, priceControls);
 
@@ -1085,7 +1114,14 @@ export const applyBuyPriceControl = ({
             // 政府支出：检查国库是否充足
             const treasury = resources.silver || 0;
             if (treasury >= result.adjustment) {
-                resources.silver = treasury - result.adjustment;
+                if (typeof applyTreasuryChange === 'function') {
+                    applyTreasuryChange(-result.adjustment, 'price_control_buy');
+                } else {
+                    resources.silver = treasury - result.adjustment;
+                    if (typeof onTreasuryChange === 'function') {
+                        onTreasuryChange(-result.adjustment, 'price_control_buy');
+                    }
+                }
                 taxBreakdown.priceControlExpense = (taxBreakdown.priceControlExpense || 0) + result.adjustment;
             } else {
                 // 国库不足，使用市场价
@@ -1115,7 +1151,9 @@ export const applySellPriceControl = ({
     marketPrice,
     priceControls,
     taxBreakdown,
-    resources
+    resources,
+    onTreasuryChange,
+    applyTreasuryChange
 }) => {
     const result = calculateSellPriceControl(resourceKey, amount, marketPrice, priceControls);
 
@@ -1127,7 +1165,14 @@ export const applySellPriceControl = ({
             // 政府支出（保底收购补贴）
             const treasury = resources.silver || 0;
             if (treasury >= result.adjustment) {
-                resources.silver = treasury - result.adjustment;
+                if (typeof applyTreasuryChange === 'function') {
+                    applyTreasuryChange(-result.adjustment, 'price_control_sell');
+                } else {
+                    resources.silver = treasury - result.adjustment;
+                    if (typeof onTreasuryChange === 'function') {
+                        onTreasuryChange(-result.adjustment, 'price_control_sell');
+                    }
+                }
                 taxBreakdown.priceControlExpense = (taxBreakdown.priceControlExpense || 0) + result.adjustment;
             } else {
                 // 国库不足，使用市场价

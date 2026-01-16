@@ -447,7 +447,7 @@ function GameApp({ gameState }) {
         gameState.setResources(prev => ({
             ...prev,
             silver: (prev.silver || 0) + 1
-        }));
+        }), { reason: 'manual_gather_silver' });
     };
 
     // 新增：处理显示建筑详情的函数 - memoized
@@ -546,7 +546,7 @@ function GameApp({ gameState }) {
                     newRes.culture = Math.max(0, (newRes.culture || 0) - result.effects.resourceCost.culture);
                 }
                 return newRes;
-            });
+            }, { reason: 'strategic_action_cost', meta: { actionId, stratumKey } });
         }
 
         if (action.cooldown > 0) {
@@ -690,7 +690,7 @@ function GameApp({ gameState }) {
     );
     // [FIX] 从window对象读取simulation返回的军费数据（临时方案）
     // 因为React state更新延迟，gameState.dailyMilitaryExpense总是undefined
-    const simulationMilitaryExpense = window.__GAME_MILITARY_EXPENSE__;
+    const simulationMilitaryExpense = gameState.dailyMilitaryExpense || window.__GAME_MILITARY_EXPENSE__;
     const militaryUpkeepMod = gameState.modifiers?.officialEffects?.militaryUpkeepMod || 0;
     console.log('[App.jsx] Military expense final:', {
         simulationData: simulationMilitaryExpense,
@@ -1151,6 +1151,8 @@ function GameApp({ gameState }) {
                                                 onShowDetails={handleShowBuildingDetails} // 补上缺失的 onShowDetails 属性
                                                 difficulty={gameState.difficulty}
                                                 buildingCostMod={gameState.modifiers?.officialEffects?.buildingCostMod || 0}
+                                                foreignInvestments={gameState.foreignInvestments}
+                                                officials={gameState.officials}
                                             />
                                         )}
 
@@ -1231,7 +1233,7 @@ function GameApp({ gameState }) {
                                                     gameState.setResources(prev => ({
                                                         ...prev,
                                                         silver: Math.max(0, (prev.silver || 0) - amount)
-                                                    }));
+                                                    }), { reason: 'politics_spend_silver', meta: { amount } });
                                                 }}
 
                                                 // 官员系统 props
@@ -1274,7 +1276,7 @@ function GameApp({ gameState }) {
 
                                                 // 内阁协同系统 props
                                                 classWealth={gameState.classWealth}
-                                                activeDecrees={gameState.activeDecrees}
+activeDecrees={gameState.activeDecrees}
                                                 decreeCooldowns={gameState.decreeCooldowns}
                                                 quotaTargets={gameState.quotaTargets}
                                                 expansionSettings={gameState.expansionSettings}
@@ -1302,7 +1304,7 @@ function GameApp({ gameState }) {
                                                             gameState.setResources(prev => ({
                                                                 ...prev,
                                                                 silver: Math.max(0, (prev.silver || 0) - result.cost)
-                                                            }));
+                                                            }), { reason: 'decree_enact_cost', meta: { decreeId } });
                                                         }
                                                         gameState.setLogs(prev => [`颁布法令：${decree.name}`, ...prev].slice(0, 8));
                                                     }
@@ -1327,6 +1329,7 @@ function GameApp({ gameState }) {
                                                 daysElapsed={gameState.daysElapsed}
                                                 onDiplomaticAction={actions.handleDiplomaticAction}
                                                 tradeRoutes={gameState.tradeRoutes}
+                                                tradeOpportunities={gameState.tradeOpportunities} // [NEW] Backend-driven opportunities
                                                 onTradeRouteAction={actions.handleTradeRouteAction}
                                                 merchantState={gameState.merchantState}
                                                 onMerchantStateChange={gameState.setMerchantState}
@@ -1335,6 +1338,12 @@ function GameApp({ gameState }) {
                                                 popStructure={gameState.popStructure}
                                                 taxPolicies={gameState.taxPolicies}
                                                 diplomaticCooldownMod={gameState.modifiers?.officialEffects?.diplomaticCooldown || 0}
+                                                diplomacyOrganizations={gameState.diplomacyOrganizations}
+                                                overseasInvestments={gameState.overseasInvestments}
+                                                classWealth={gameState.classWealth}
+                                                foreignInvestments={gameState.foreignInvestments}
+                                                foreignInvestmentPolicy={gameState.foreignInvestmentPolicy}
+                                                gameState={gameState}
                                             />
                                         )}
 
@@ -1781,6 +1790,8 @@ function GameApp({ gameState }) {
                 <ResourceDetailModal
                     resourceKey={gameState.resourceDetailView}
                     resources={gameState.resources}
+                    treasuryChangeLog={gameState.treasuryChangeLog}
+                    daysElapsed={gameState.daysElapsed}
                     market={gameState.market}
                     buildings={gameState.buildings}
                     popStructure={gameState.popStructure}
@@ -1916,6 +1927,14 @@ function GameApp({ gameState }) {
                                     showMerchantTradeLogs: enabled,
                                     showTradeRouteLogs: enabled,
                                 },
+                            }))}
+                            showOfficialLogs={gameState.eventEffectSettings?.logVisibility?.showOfficialLogs ?? true}
+                            onToggleOfficialLogs={(enabled) => gameState.setEventEffectSettings(prev => ({
+                                ...(prev || {}),
+                                logVisibility: {
+                                    ...((prev || {}).logVisibility || {}),
+                                    showOfficialLogs: enabled,
+                                }
                             }))}
                         />
                     </div>

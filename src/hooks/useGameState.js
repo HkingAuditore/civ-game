@@ -2,7 +2,7 @@
 // 集中管理所有游戏状态，避免App.jsx中状态定义过多
 
 import { useEffect, useRef, useState } from 'react';
-import { COUNTRIES, RESOURCES, STRATA } from '../config';
+import { COUNTRIES, DEFAULT_VASSAL_STATUS, RESOURCES, STRATA } from '../config';
 import { isOldUpgradeFormat, migrateUpgradesToNewFormat } from '../utils/buildingUpgradeUtils';
 import { migrateAllOfficialsForInvestment } from '../logic/officials/migration';
 import { DEFAULT_DIFFICULTY, getDifficultyConfig, getStartingSilverMultiplier, getInitialBuildings } from '../config/difficulty';
@@ -315,6 +315,25 @@ const trimHistorySnapshot = (history, limit) => {
     return next;
 };
 
+// [NEW] 迁移旧版海外投资数据（从 input/output 到 strategy）
+const migrateOverseasInvestments = (investments) => {
+    if (!Array.isArray(investments)) return [];
+    return investments.map(inv => {
+        // 如果已有 strategy 且有效，则跳过
+        if (inv.strategy) return inv;
+
+        const newInv = { ...inv };
+        if (inv.outputDest === 'home') {
+            newInv.strategy = 'RESOURCE_EXTRACTION';
+        } else if (inv.inputSource === 'home') {
+            newInv.strategy = 'MARKET_DUMPING';
+        } else {
+            newInv.strategy = 'PROFIT_MAX';
+        }
+        return newInv;
+    });
+};
+
 const trimMarketSnapshot = (market, limit) => {
     if (!market || typeof market !== 'object') {
         return market;
@@ -413,6 +432,9 @@ const buildMinimalAutoSavePayload = (payload) => ({
     merchantState: payload.merchantState,
     tradeRoutes: payload.tradeRoutes,
     tradeStats: payload.tradeStats,
+    diplomacyOrganizations: payload.diplomacyOrganizations,
+    overseasBuildings: payload.overseasBuildings,
+    foreignInvestmentPolicy: payload.foreignInvestmentPolicy,
     eventEffectSettings: payload.eventEffectSettings,
     activeEventEffects: payload.activeEventEffects,
     rebellionStates: payload.rebellionStates,
@@ -473,6 +495,12 @@ const buildInitialTradeRoutes = () => ({
     // { nationId, resource, type: 'import'|'export', createdAt }
     routes: [],
 });
+
+const buildInitialDiplomacyOrganizations = () => ({
+    organizations: [],
+});
+
+const buildInitialOverseasBuildings = () => ([]);
 
 const isTradable = (resourceKey) => {
     if (resourceKey === 'silver') return false;
@@ -564,6 +592,23 @@ const buildInitialNations = () => {
 
         // 初始化基础人口（用于战后恢复）
         const basePopulation = 1000 + Math.floor(Math.random() * 500); // 1000-1500
+        const vassalStatus = {
+            vassalOf: Object.prototype.hasOwnProperty.call(nation, 'vassalOf')
+                ? nation.vassalOf
+                : DEFAULT_VASSAL_STATUS.vassalOf,
+            vassalType: Object.prototype.hasOwnProperty.call(nation, 'vassalType')
+                ? nation.vassalType
+                : DEFAULT_VASSAL_STATUS.vassalType,
+            autonomy: Number.isFinite(nation.autonomy)
+                ? nation.autonomy
+                : DEFAULT_VASSAL_STATUS.autonomy,
+            tributeRate: Number.isFinite(nation.tributeRate)
+                ? nation.tributeRate
+                : DEFAULT_VASSAL_STATUS.tributeRate,
+            independencePressure: Number.isFinite(nation.independencePressure)
+                ? nation.independencePressure
+                : DEFAULT_VASSAL_STATUS.independencePressure,
+        };
 
         return {
             ...nation,
@@ -571,6 +616,11 @@ const buildInitialNations = () => {
             treaties: Array.isArray(nation.treaties) ? nation.treaties : [],
             openMarketUntil: nation.openMarketUntil ?? null,
             peaceTreatyUntil: nation.peaceTreatyUntil ?? null,
+            ...vassalStatus,
+            organizationMemberships: Array.isArray(nation.organizationMemberships)
+                ? nation.organizationMemberships
+                : [],
+            overseasAssets: Array.isArray(nation.overseasAssets) ? nation.overseasAssets : [],
             warScore: nation.warScore ?? 0,
             isAtWar: nation.isAtWar ?? false,
             wealth,
@@ -613,7 +663,7 @@ const buildScenarioPopulation = (scenarioOverrides) => {
  */
 export const useGameState = () => {
     // ========== 基础资源状态 ==========
-    const [resources, setResources] = useState(INITIAL_RESOURCES);
+    const [resources, setResourcesState] = useState(INITIAL_RESOURCES);
 
     // ========== 人口与社会状态 ==========
     const [population, setPopulation] = useState(5);
@@ -647,6 +697,11 @@ export const useGameState = () => {
     // ========== 政令与外交状态 ==========
     const [nations, setNations] = useState(buildInitialNations());
 
+    // ========== 海外投资系统状态 ==========
+    const [overseasInvestments, setOverseasInvestments] = useState([]);    // 玩家在附庸国的投资
+    const [foreignInvestments, setForeignInvestments] = useState([]);
+    const [foreignInvestmentPolicy, setForeignInvestmentPolicy] = useState('normal');      // 外国在玩家国的投资
+
     // ========== 官员系统状态 ==========
     const [officials, setOfficials] = useState([]);           // 当前雇佣的官员
     const [officialCandidates, setOfficialCandidates] = useState([]); // 当前候选人列表
@@ -672,7 +727,7 @@ export const useGameState = () => {
     const [classApproval, setClassApproval] = useState({});
     const [approvalBreakdown, setApprovalBreakdown] = useState({}); // [NEW] 各阶层满意度分解数据（来自 simulation）
     const [classInfluence, setClassInfluence] = useState({});
-    const [classWealth, setClassWealth] = useState(buildInitialWealth());
+    const [classWealth, setClassWealthState] = useState(buildInitialWealth());
     const [classWealthDelta, setClassWealthDelta] = useState({});
     const [classIncome, setClassIncome] = useState({});
     const [classExpense, setClassExpense] = useState({});
@@ -706,12 +761,161 @@ export const useGameState = () => {
         forcedSubsidyPaid: 0,
         forcedSubsidyUnpaid: 0,
     });
+    const [treasuryChangeLog, setTreasuryChangeLog] = useState([]);
+    const [resourceChangeLog, setResourceChangeLog] = useState([]);
+    const [classWealthChangeLog, setClassWealthChangeLog] = useState([]);
 
     // [FIX] 每日军队维护成本（simulation返回的完整数据）
     const [dailyMilitaryExpense, setDailyMilitaryExpense] = useState(null);
 
     // ========== 时间状态 ==========
     const [daysElapsed, setDaysElapsed] = useState(0);
+
+    const appendTreasuryChangeLog = (entry) => {
+        setTreasuryChangeLog(prev => {
+            const next = [...prev, entry];
+            return next.slice(-300);
+        });
+    };
+
+    const appendResourceChangeLog = (entries) => {
+        if (!Array.isArray(entries) || entries.length === 0) return;
+        setResourceChangeLog(prev => {
+            const next = [...prev, ...entries];
+            return next.slice(-600);
+        });
+    };
+
+    const appendClassWealthChangeLog = (entries) => {
+        if (!Array.isArray(entries) || entries.length === 0) return;
+        setClassWealthChangeLog(prev => {
+            const next = [...prev, ...entries];
+            return next.slice(-600);
+        });
+    };
+
+    const setResources = (updater, options = {}) => {
+        const {
+            reason = 'unknown',
+            meta = null,
+            audit = true,
+            auditEntries = null,
+            auditStartingSilver = null,
+        } = options || {};
+        setResourcesState(prev => {
+            const before = Number(prev?.silver || 0);
+            const next = typeof updater === 'function' ? updater(prev) : updater;
+            if (!next || typeof next !== 'object') return prev;
+            const after = Number(next?.silver || 0);
+            if (audit) {
+                const resourceEntries = [];
+                const allKeys = new Set([
+                    ...Object.keys(prev || {}),
+                    ...Object.keys(next || {}),
+                ]);
+                const timestamp = Date.now();
+                allKeys.forEach((key) => {
+                    const beforeValue = Number(prev?.[key] || 0);
+                    const afterValue = Number(next?.[key] || 0);
+                    if (!Number.isFinite(beforeValue) && !Number.isFinite(afterValue)) return;
+                    if (beforeValue === afterValue) return;
+                    resourceEntries.push({
+                        timestamp,
+                        day: daysElapsed,
+                        resource: key,
+                        amount: afterValue - beforeValue,
+                        before: beforeValue,
+                        after: afterValue,
+                        reason,
+                        meta,
+                    });
+                });
+                if (resourceEntries.length > 0) {
+                    appendResourceChangeLog(resourceEntries);
+                }
+
+                const entries = Array.isArray(auditEntries) ? auditEntries : [];
+                if (entries.length > 0 && Number.isFinite(after)) {
+                    let running = Number.isFinite(auditStartingSilver) ? auditStartingSilver : before;
+                    let entryTotal = 0;
+                    entries.forEach((entry) => {
+                        const amount = Number(entry?.amount || 0);
+                        if (!Number.isFinite(amount) || amount === 0) return;
+                        const entryBefore = running;
+                        const entryAfter = entryBefore + amount;
+                        appendTreasuryChangeLog({
+                            timestamp: Date.now(),
+                            day: daysElapsed,
+                            amount,
+                            before: entryBefore,
+                            after: entryAfter,
+                            reason: entry?.reason || reason,
+                            meta: entry?.meta ?? meta,
+                        });
+                        running = entryAfter;
+                        entryTotal += amount;
+                    });
+                    const residual = (after - before) - entryTotal;
+                    if (Number.isFinite(residual) && Math.abs(residual) > 0.01) {
+                        appendTreasuryChangeLog({
+                            timestamp: Date.now(),
+                            day: daysElapsed,
+                            amount: residual,
+                            before: running,
+                            after: running + residual,
+                            reason: 'untracked_delta',
+                            meta: { reason, meta },
+                        });
+                    }
+                } else if (Number.isFinite(after) && after !== before) {
+                    appendTreasuryChangeLog({
+                        timestamp: Date.now(),
+                        day: daysElapsed,
+                        amount: after - before,
+                        before,
+                        after,
+                        reason,
+                        meta,
+                    });
+                }
+            }
+            return next;
+        });
+    };
+
+    const setClassWealth = (updater, options = {}) => {
+        const { reason = 'unknown', meta = null, audit = true } = options || {};
+        setClassWealthState(prev => {
+            const next = typeof updater === 'function' ? updater(prev) : updater;
+            if (!next || typeof next !== 'object') return prev;
+            if (audit) {
+                const entries = [];
+                const timestamp = Date.now();
+                const allKeys = new Set([
+                    ...Object.keys(prev || {}),
+                    ...Object.keys(next || {}),
+                ]);
+                allKeys.forEach((key) => {
+                    const beforeValue = Number(prev?.[key] || 0);
+                    const afterValue = Number(next?.[key] || 0);
+                    if (!Number.isFinite(beforeValue) && !Number.isFinite(afterValue)) return;
+                    if (beforeValue === afterValue) return;
+                    entries.push({
+                        timestamp,
+                        day: daysElapsed,
+                        stratum: key,
+                        amount: afterValue - beforeValue,
+                        before: beforeValue,
+                        after: afterValue,
+                        reason,
+                        meta,
+                    });
+                });
+                appendClassWealthChangeLog(entries);
+            }
+            return next;
+        });
+    };
 
     // ========== 军事系统状态 ==========
     const [army, setArmy] = useState({});
@@ -736,6 +940,8 @@ export const useGameState = () => {
     // ========== 贸易路线状态 ==========
     const [tradeRoutes, setTradeRoutes] = useState(buildInitialTradeRoutes); // 玩家创建的贸易路线
     const [tradeStats, setTradeStats] = useState({ tradeTax: 0, tradeRouteTax: 0 }); // 每日贸易路线税收
+    const [diplomacyOrganizations, setDiplomacyOrganizations] = useState(buildInitialDiplomacyOrganizations);
+    const [overseasBuildings, setOverseasBuildings] = useState(buildInitialOverseasBuildings);
 
     // ========== 和平协议状态 ==========
     // ========== 策略行动状态 ==========
@@ -815,7 +1021,10 @@ export const useGameState = () => {
         const overrides = scenario.overrides || {};
 
         if (overrides.resources) {
-            setResources({ ...INITIAL_RESOURCES, ...overrides.resources });
+            setResources(
+                { ...INITIAL_RESOURCES, ...overrides.resources },
+                { reason: 'scenario_override', meta: { scenarioId } }
+            );
         }
 
         // Default starting buildings: 1 farm + 1 lumber camp + 1 loom house
@@ -850,7 +1059,10 @@ export const useGameState = () => {
         }
 
         if (overrides.classWealth) {
-            setClassWealth({ ...buildInitialWealth(), ...overrides.classWealth });
+            setClassWealth(
+                { ...buildInitialWealth(), ...overrides.classWealth },
+                { reason: 'scenario_override', meta: { scenarioId } }
+            );
         }
 
         if (typeof overrides.stability === 'number') {
@@ -956,10 +1168,13 @@ export const useGameState = () => {
                 // Difficulty-based starting treasury boost
                 const startingSilverMultiplier = getStartingSilverMultiplier(difficultyForNewGame);
                 if (startingSilverMultiplier !== 1.0) {
-                    setResources(prev => ({
-                        ...prev,
-                        silver: Math.floor((prev?.silver ?? INITIAL_RESOURCES.silver) * startingSilverMultiplier),
-                    }));
+                    setResources(
+                        prev => ({
+                            ...prev,
+                            silver: Math.floor((prev?.silver ?? INITIAL_RESOURCES.silver) * startingSilverMultiplier),
+                        }),
+                        { reason: 'difficulty_starting_silver' }
+                    );
                 }
 
                 // 跳过自动加载，开始新游戏
@@ -1037,10 +1252,13 @@ export const useGameState = () => {
                 // Difficulty-based starting treasury boost
                 const startingSilverMultiplier = getStartingSilverMultiplier(difficultyForNewGame);
                 if (startingSilverMultiplier !== 1.0) {
-                    setResources(prev => ({
-                        ...prev,
-                        silver: Math.floor((prev?.silver ?? INITIAL_RESOURCES.silver) * startingSilverMultiplier),
-                    }));
+                    setResources(
+                        prev => ({
+                            ...prev,
+                            silver: Math.floor((prev?.silver ?? INITIAL_RESOURCES.silver) * startingSilverMultiplier),
+                        }),
+                        { reason: 'difficulty_starting_silver' }
+                    );
                 }
 
                 return;
@@ -1148,6 +1366,11 @@ export const useGameState = () => {
                 merchantState,
                 tradeRoutes,
                 tradeStats,
+                diplomacyOrganizations,
+                overseasBuildings,
+                overseasInvestments,
+                foreignInvestments,
+                foreignInvestmentPolicy,
                 eventEffectSettings,
                 activeEventEffects,
                 rebellionStates,
@@ -1172,7 +1395,7 @@ export const useGameState = () => {
         if (!data || typeof data !== 'object') {
             throw new Error('存档数据无效');
         }
-        setResources(data.resources || INITIAL_RESOURCES);
+        setResources(data.resources || INITIAL_RESOURCES, { reason: 'load_game', audit: false });
 
         // [FIX] 存档人口同步修复：防止population和popStructure不一致导致的恶性扣减循环
         // 如果存档中的population与popStructure总和不一致，以popStructure为准
@@ -1208,6 +1431,13 @@ export const useGameState = () => {
             treaties: Array.isArray(n.treaties) ? n.treaties : [],
             openMarketUntil: Object.prototype.hasOwnProperty.call(n, 'openMarketUntil') ? n.openMarketUntil : null,
             peaceTreatyUntil: Object.prototype.hasOwnProperty.call(n, 'peaceTreatyUntil') ? n.peaceTreatyUntil : null,
+            vassalOf: Object.prototype.hasOwnProperty.call(n, 'vassalOf') ? n.vassalOf : DEFAULT_VASSAL_STATUS.vassalOf,
+            vassalType: Object.prototype.hasOwnProperty.call(n, 'vassalType') ? n.vassalType : DEFAULT_VASSAL_STATUS.vassalType,
+            autonomy: Number.isFinite(n.autonomy) ? n.autonomy : DEFAULT_VASSAL_STATUS.autonomy,
+            tributeRate: Number.isFinite(n.tributeRate) ? n.tributeRate : DEFAULT_VASSAL_STATUS.tributeRate,
+            independencePressure: Number.isFinite(n.independencePressure) ? n.independencePressure : DEFAULT_VASSAL_STATUS.independencePressure,
+            organizationMemberships: Array.isArray(n.organizationMemberships) ? n.organizationMemberships : [],
+            overseasAssets: Array.isArray(n.overseasAssets) ? n.overseasAssets : [],
         })));
         setOfficials(migrateAllOfficialsForInvestment(data.officials || [], data.daysElapsed || 0));
         setOfficialCandidates(data.officialCandidates || []);
@@ -1233,7 +1463,7 @@ export const useGameState = () => {
         setTaxShock(data.taxShock || {});
         setClassApproval(data.classApproval || {});
         setClassInfluence(data.classInfluence || {});
-        setClassWealth(data.classWealth || buildInitialWealth());
+        setClassWealth(data.classWealth || buildInitialWealth(), { reason: 'load_game', audit: false });
         setClassWealthDelta(data.classWealthDelta || {});
         setClassIncome(data.classIncome || {});
         setClassExpense(data.classExpense || {});
@@ -1320,6 +1550,11 @@ export const useGameState = () => {
         });
         setTradeRoutes(data.tradeRoutes || buildInitialTradeRoutes());
         setTradeStats(data.tradeStats || { tradeTax: 0, tradeRouteTax: 0 });
+        setDiplomacyOrganizations(data.diplomacyOrganizations || buildInitialDiplomacyOrganizations());
+        setOverseasBuildings(data.overseasBuildings || buildInitialOverseasBuildings());
+        setOverseasInvestments(migrateOverseasInvestments(data.overseasInvestments || []));
+        setForeignInvestments(data.foreignInvestments || []);
+        setForeignInvestmentPolicy(data.foreignInvestmentPolicy || 'normal');
         setAutoSaveInterval(data.autoSaveInterval ?? 60);
         setIsAutoSaveEnabled(data.isAutoSaveEnabled ?? true);
         setLastAutoSaveTime(data.lastAutoSaveTime || Date.now());
@@ -1877,6 +2112,8 @@ export const useGameState = () => {
         // 资源
         resources,
         setResources,
+        treasuryChangeLog,
+        resourceChangeLog,
         market,
         setMarket,
 
@@ -1963,6 +2200,7 @@ export const useGameState = () => {
         setClassInfluence,
         classWealth,
         setClassWealth,
+        classWealthChangeLog,
         classWealthDelta,
         setClassWealthDelta,
         classIncome,
@@ -2053,6 +2291,15 @@ export const useGameState = () => {
         setTradeRoutes,
         tradeStats,
         setTradeStats,
+        diplomacyOrganizations,
+        setDiplomacyOrganizations,
+        overseasInvestments,
+        setOverseasInvestments,
+        foreignInvestments,
+        setForeignInvestments, // [FIX] Expose setter
+        foreignInvestmentPolicy,
+        setForeignInvestmentPolicy,
+        setOverseasBuildings, setOverseasBuildings,
 
         // 策略行动
         actionCooldowns,

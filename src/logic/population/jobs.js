@@ -33,6 +33,37 @@ import {
 // [FIX] Import safeWealth for wealth overflow protection
 import { safeWealth } from '../utils/helpers';
 
+// === Wealth change tracking helper ===
+// Helper function to track wealth changes for traceability
+// Returns the change log entry
+const trackWealthTransfer = (wealthChangeLog, fromStratum, toStratum, amount, reason) => {
+    if (amount <= 0) return;
+    if (!wealthChangeLog) return;
+    
+    if (!wealthChangeLog[fromStratum]) {
+        wealthChangeLog[fromStratum] = [];
+    }
+    if (!wealthChangeLog[toStratum]) {
+        wealthChangeLog[toStratum] = [];
+    }
+    
+    wealthChangeLog[fromStratum].push({ amount: -amount, reason: `${reason}_out` });
+    wealthChangeLog[toStratum].push({ amount: amount, reason: `${reason}_in` });
+};
+
+// Helper: apply wealth change with tracking
+const applyWealthChange = (wealth, wealthChangeLog, stratum, amount, reason) => {
+    if (amount === 0) return;
+    wealth[stratum] = Math.max(0, (wealth[stratum] || 0) + amount);
+    
+    if (wealthChangeLog) {
+        if (!wealthChangeLog[stratum]) {
+            wealthChangeLog[stratum] = [];
+        }
+        wealthChangeLog[stratum].push({ amount, reason });
+    }
+};
+
 /**
  * Initialize job availability tracking
  * @returns {Object} Jobs available by role
@@ -162,7 +193,8 @@ export const allocatePopulation = ({
 export const handleLayoffs = ({
     popStructure,
     jobsAvailable,
-    wealth
+    wealth,
+    wealthChangeLog = null  // Optional: for tracking changes
 }) => {
     ROLE_PRIORITY.forEach(role => {
         const current = popStructure[role] || 0;
@@ -180,6 +212,7 @@ export const handleLayoffs = ({
                 const transfer = perCapWealth * layoffs;
                 wealth[role] = Math.max(0, roleWealth - transfer);
                 wealth.unemployed = (wealth.unemployed || 0) + transfer;
+                trackWealthTransfer(wealthChangeLog, role, 'unemployed', transfer, 'layoff_wealth_transfer');
             }
         }
     });
@@ -200,7 +233,8 @@ export const fillVacancies = ({
     wealth,
     getExpectedWage,
     getHeadTaxRate,
-    effectiveTaxModifier
+    effectiveTaxModifier,
+    wealthChangeLog = null  // Optional: for tracking changes
 }) => {
     // Estimate net income for each role
     const estimateRoleNetIncome = (role) => {
@@ -287,6 +321,7 @@ export const fillVacancies = ({
                 wealth.unemployed = Math.max(0, unemployedWealth - transfer);
                 // [FIX] Apply safe wealth limit
                 wealth[entry.role] = safeWealth((wealth[entry.role] || 0) + transfer);
+                trackWealthTransfer(wealthChangeLog, 'unemployed', entry.role, transfer, 'job_hire_tier01');
             }
         } else {
             // For Tier 2/3 jobs: hire from eligible lower tiers with wealth requirement
@@ -383,6 +418,13 @@ export const fillVacancies = ({
 
                     // [FIX] Apply safe wealth limit
                     wealth[entry.role] = safeWealth((wealth[entry.role] || 0) + transfer + extraWealth);
+                    
+                    // Track the wealth transfer
+                    const reason = isLuckyUpdate ? 'job_hire_lucky_promotion' : 'job_hire_tier23';
+                    trackWealthTransfer(wealthChangeLog, sourceRole, entry.role, transfer, reason);
+                    if (extraWealth > 0) {
+                        applyWealthChange(wealth, wealthChangeLog, entry.role, extraWealth, 'job_hire_lucky_bonus');
+                    }
 
                     if (isLuckyUpdate && extraWealth > 0) {
                         // Optional: Log large luck events? (Might spam if frequent, but chance is low)
@@ -417,7 +459,8 @@ export const handleJobMigration = ({
     migrationCooldowns = {},  // Track cooldowns for each role
     // New: resource shortage data for survival migration
     supplyDemandRatio = {},   // { resource: supply/demand ratio }
-    roleProducesResource = {} // { role: [resources it produces] }
+    roleProducesResource = {}, // { role: [resources it produces] }
+    wealthChangeLog = null    // Optional: for tracking wealth changes
 }) => {
     if (JOB_MIGRATION_RATIO <= 0) return { popStructure, wealth, migrationCooldowns };
 
@@ -570,6 +613,7 @@ export const handleJobMigration = ({
                             wealth[emergencySource.role] = Math.max(0, sourceWealth - migratingWealth);
                             // [FIX] Apply safe wealth limit
                             wealth[emergencyTarget.role] = safeWealth((wealth[emergencyTarget.role] || 0) + migratingWealth);
+                            trackWealthTransfer(wealthChangeLog, emergencySource.role, emergencyTarget.role, migratingWealth, 'emergency_migration');
                         }
 
                         // Transfer population
@@ -742,6 +786,7 @@ export const handleJobMigration = ({
                 wealth[sourceCandidate.role] = Math.max(0, sourceWealth - migratingWealth);
                 // [FIX] Apply safe wealth limit
                 wealth[targetCandidate.role] = safeWealth((wealth[targetCandidate.role] || 0) + migratingWealth);
+                trackWealthTransfer(wealthChangeLog, sourceCandidate.role, targetCandidate.role, migratingWealth, 'job_migration');
             }
 
             // Transfer population

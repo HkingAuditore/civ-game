@@ -27,6 +27,48 @@ import {
     applyPopulationLossModifier,
     isInGracePeriod,
 } from '../../config/difficulty';
+import { VASSAL_TYPE_CONFIGS } from '../../config/diplomacy';
+
+const applyTreasuryChange = (resources, delta, reason, onTreasuryChange) => {
+    if (!resources || !Number.isFinite(delta) || delta === 0) return 0;
+    const before = Number(resources.silver || 0);
+    const after = Math.max(0, before + delta);
+    const actual = after - before;
+    resources.silver = after;
+    if (typeof onTreasuryChange === 'function' && actual !== 0) {
+        onTreasuryChange(actual, reason);
+    }
+    return actual;
+};
+
+/**
+ * Helper: Apply resource change and optionally invoke callback for tracking
+ * @param {Object} resources - Player resources object (mutable)
+ * @param {string} resourceType - Resource type (e.g., 'food', 'wood', 'silver')
+ * @param {number} delta - Amount to change (positive for gain, negative for loss)
+ * @param {string} reason - Reason for the change (for tracking)
+ * @param {Function} onResourceChange - Optional callback (delta, reason, resourceType)
+ */
+const applyResourceChange = (resources, resourceType, delta, reason, onResourceChange) => {
+    if (!resources || !Number.isFinite(delta) || delta === 0) return 0;
+    const before = Number(resources[resourceType] || 0);
+    const after = Math.max(0, before + delta);
+    const actual = after - before;
+    resources[resourceType] = after;
+    if (typeof onResourceChange === 'function' && actual !== 0) {
+        onResourceChange(actual, reason, resourceType);
+    }
+    return actual;
+};
+
+const areNationsAllied = (id1, id2, organizations) => {
+    if (!organizations) return false;
+    return organizations.some(org =>
+        org.type === 'military_alliance' &&
+        org.members.includes(id1) &&
+        org.members.includes(id2)
+    );
+};
 
 /**
  * Process rebel nation war actions (raids and surrender demands)
@@ -47,6 +89,8 @@ export const processRebelWarActions = ({
     population,
     army,
     logs,
+    onTreasuryChange,
+    onResourceChange,
 }) => {
     let raidPopulationLoss = 0;
     const res = resources;
@@ -122,8 +166,8 @@ export const processRebelWarActions = ({
         }
 
         // Apply resource losses
-        if (foodLoss > 0) res.food = Math.max(0, (res.food || 0) - foodLoss);
-        if (silverLoss > 0) res.silver = Math.max(0, (res.silver || 0) - silverLoss);
+        if (foodLoss > 0) applyResourceChange(res, 'food', -foodLoss, 'rebel_raid_loss', onResourceChange);
+        if (silverLoss > 0) applyTreasuryChange(res, -silverLoss, 'rebel_raid_loss', onTreasuryChange);
         if (popLoss > 0) raidPopulationLoss += popLoss;
 
         // Adjust war score
@@ -256,6 +300,8 @@ export const processAIMilitaryAction = ({
     army,
     logs,
     difficultyLevel = DEFAULT_DIFFICULTY,
+    onTreasuryChange,
+    onResourceChange,
 }) => {
     let raidPopulationLoss = 0;
     const next = nation;
@@ -407,10 +453,10 @@ export const processAIMilitaryAction = ({
         if (actionType === 'scorched_earth') {
             woodLoss = Math.floor((res.wood || 0) * actionStrength * 0.8);
             woodLoss = applyRaidDamageModifier(woodLoss, difficultyLevel);
-            if (woodLoss > 0) res.wood = Math.max(0, (res.wood || 0) - woodLoss);
+            if (woodLoss > 0) applyResourceChange(res, 'wood', -woodLoss, 'ai_scorched_earth', onResourceChange);
         }
-        if (foodLoss > 0) res.food = Math.max(0, (res.food || 0) - foodLoss);
-        if (silverLoss > 0) res.silver = Math.max(0, (res.silver || 0) - silverLoss);
+        if (foodLoss > 0) applyResourceChange(res, 'food', -foodLoss, 'ai_war_action_loss', onResourceChange);
+        if (silverLoss > 0) applyTreasuryChange(res, -silverLoss, 'ai_war_action_loss', onTreasuryChange);
         let popLoss = Math.min(Math.floor(3 * actionLossMultiplier), Math.max(1, Math.floor(actionStrength * 20 * actionLossMultiplier)));
         popLoss = applyPopulationLossModifier(popLoss, difficultyLevel);
         raidPopulationLoss += popLoss;
@@ -476,10 +522,10 @@ export const processAIMilitaryAction = ({
             if (actionType === 'scorched_earth') {
                 woodLoss = Math.floor((res.wood || 0) * actionStrength * 0.8);
                 woodLoss = applyRaidDamageModifier(woodLoss, difficultyLevel);
-                if (woodLoss > 0) res.wood = Math.max(0, (res.wood || 0) - woodLoss);
+                if (woodLoss > 0) applyResourceChange(res, 'wood', -woodLoss, 'ai_scorched_earth', onResourceChange);
             }
-            if (foodLoss > 0) res.food = Math.max(0, (res.food || 0) - foodLoss);
-            if (silverLoss > 0) res.silver = Math.max(0, (res.silver || 0) - silverLoss);
+            if (foodLoss > 0) applyResourceChange(res, 'food', -foodLoss, 'ai_war_action_loss', onResourceChange);
+            if (silverLoss > 0) applyTreasuryChange(res, -silverLoss, 'ai_war_action_loss', onTreasuryChange);
             let popLoss = Math.min(Math.floor(3 * actionLossMultiplier), Math.max(1, Math.floor(actionStrength * 20 * actionLossMultiplier)));
             popLoss = applyPopulationLossModifier(popLoss, difficultyLevel);
             raidPopulationLoss += popLoss;
@@ -745,6 +791,7 @@ export const checkWarDeclaration = ({
     stabilityValue,
     logs,
     difficultyLevel = DEFAULT_DIFFICULTY,
+    diplomacyOrganizations, // [NEW]
 }) => {
     const next = nation;
     const res = resources;
@@ -791,7 +838,7 @@ export const checkWarDeclaration = ({
     // Check conditions
     const hasPeaceTreaty = next.peaceTreatyUntil && tick < next.peaceTreatyUntil;
     // Fixed: Use formal alliance status instead of relation-based check
-    const isPlayerAlly = next.alliedWithPlayer === true;
+    const isPlayerAlly = areNationsAllied(next.id, 'player', diplomacyOrganizations?.organizations);
 
     const canDeclareWar = !next.isAtWar &&
         !hasPeaceTreaty &&
@@ -807,6 +854,27 @@ export const checkWarDeclaration = ({
         next.warDeclarationPending = true;
         logs.push(`⚠️ ${next.name} 对你发动了战争！`);
         logs.push(`WAR_DECLARATION_EVENT:${JSON.stringify({ nationId: next.id, nationName: next.name })}`);
+
+        // [NEW] Trigger Auto-Join Vassals
+        // When AI declares on Player, Player's "auto_join" vassals (Colony/Puppet) automatically enter war with AI
+        if (nations) {
+            nations.forEach(vassal => {
+                if (vassal.vassalOf === 'player') {
+                    const config = VASSAL_TYPE_CONFIGS[vassal.vassalType];
+                    if (config?.militaryObligation === 'auto_join') {
+                        // Establish AI-AI war
+                        if (!next.foreignWars) next.foreignWars = {};
+                        if (!vassal.foreignWars) vassal.foreignWars = {};
+
+                        if (!next.foreignWars[vassal.id]?.isAtWar) {
+                            next.foreignWars[vassal.id] = { isAtWar: true, warStartDay: tick, warScore: 0 };
+                            vassal.foreignWars[next.id] = { isAtWar: true, warStartDay: tick, warScore: 0 };
+                            logs.push(`⚔️ ${vassal.name} 作为您的${config.name}，自动对 ${next.name} 宣战！`);
+                        }
+                    }
+                }
+            });
+        }
     }
 
     // Wealth-based war check (also respects minWarEpoch from difficulty)
@@ -833,6 +901,25 @@ export const checkWarDeclaration = ({
             next.warDeclarationPending = true;
             logs.push(`⚠️ ${next.name} 觊觎你的财富，发动了战争！`);
             logs.push(`WAR_DECLARATION_EVENT:${JSON.stringify({ nationId: next.id, nationName: next.name, reason: 'wealth' })}`);
+
+            // [NEW] Trigger Auto-Join Vassals for Wealth War too
+            if (nations) {
+                nations.forEach(vassal => {
+                    if (vassal.vassalOf === 'player') {
+                        const config = VASSAL_TYPE_CONFIGS[vassal.vassalType];
+                        if (config?.militaryObligation === 'auto_join') {
+                            if (!next.foreignWars) next.foreignWars = {};
+                            if (!vassal.foreignWars) vassal.foreignWars = {};
+
+                            if (!next.foreignWars[vassal.id]?.isAtWar) {
+                                next.foreignWars[vassal.id] = { isAtWar: true, warStartDay: tick, warScore: 0 };
+                                vassal.foreignWars[next.id] = { isAtWar: true, warStartDay: tick, warScore: 0 };
+                                logs.push(`⚔️ ${vassal.name} 作为您的${config.name}，自动对 ${next.name} 宣战！`);
+                            }
+                        }
+                    }
+                });
+            }
         }
     }
 };
@@ -843,8 +930,9 @@ export const checkWarDeclaration = ({
  * @param {Array} visibleNations - Array of visible nations
  * @param {number} tick - Current game tick
  * @param {Array} logs - Log array (mutable)
+ * @param {Object} diplomacyOrganizations - Org state
  */
-export const processCollectiveAttackWarmonger = (visibleNations, tick, logs) => {
+export const processCollectiveAttackWarmonger = (visibleNations, tick, logs, diplomacyOrganizations) => {
     visibleNations.forEach(warmonger => {
         const activeWars = Object.values(warmonger.foreignWars || {}).filter(w => w?.isAtWar).length;
         if (activeWars < 3) return;
@@ -858,7 +946,7 @@ export const processCollectiveAttackWarmonger = (visibleNations, tick, logs) => 
         const potentialOpponents = visibleNations.filter(n => {
             if (n.id === warmonger.id) return false;
             if (n.foreignWars?.[warmonger.id]?.isAtWar) return false;
-            if ((n.allies || []).includes(warmonger.id)) return false;
+            if (areNationsAllied(n.id, warmonger.id, diplomacyOrganizations?.organizations)) return false;
             const relation = n.foreignRelations?.[warmonger.id] ?? 50;
             return relation < 40;
         });
@@ -880,10 +968,12 @@ export const processCollectiveAttackWarmonger = (visibleNations, tick, logs) => 
  * Process AI-AI war declarations
  * @param {Array} visibleNations - Array of visible nations
  * @param {Array} updatedNations - Full nations array
+
  * @param {number} tick - Current game tick
  * @param {Array} logs - Log array (mutable)
+ * @param {Object} diplomacyOrganizations - Org state
  */
-export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, logs) => {
+export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, logs, diplomacyOrganizations) => {
     visibleNations.forEach(nation => {
         if (!nation.foreignWars) nation.foreignWars = {};
 
@@ -894,8 +984,9 @@ export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, 
             const peaceUntil = nation.foreignWars[otherNation.id]?.peaceTreatyUntil || 0;
             if (tick < peaceUntil) return;
 
-            const isAllied = (nation.allies || []).includes(otherNation.id) ||
-                (otherNation.allies || []).includes(nation.id);
+
+
+            const isAllied = areNationsAllied(nation.id, otherNation.id, diplomacyOrganizations?.organizations);
             if (isAllied) return;
 
             const currentWarCount = Object.values(nation.foreignWars || {}).filter(w => w?.isAtWar).length;
@@ -913,9 +1004,9 @@ export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, 
 
             visibleNations.forEach(n => {
                 if (n.id === nation.id || n.id === otherNation.id) return;
-                const isMyAlly = (nation.allies || []).includes(n.id) || (n.allies || []).includes(nation.id);
+                const isMyAlly = areNationsAllied(nation.id, n.id, diplomacyOrganizations?.organizations);
                 if (isMyAlly) mySideStrength += calculateNationPower(n);
-                const isEnemyAlly = (otherNation.allies || []).includes(n.id) || (n.allies || []).includes(otherNation.id);
+                const isEnemyAlly = areNationsAllied(otherNation.id, n.id, diplomacyOrganizations?.organizations);
                 if (isEnemyAlly) enemySideStrength += calculateNationPower(n);
             });
 
@@ -932,6 +1023,18 @@ export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, 
             const isRelationsBadEnough = relation < 50;
             const isAggressiveEnough = aggression > 0.25;
             const isHatedEnemy = relation < 15;
+
+            // [NEW] Check Suzerain Protection (Attack on Vassal = Attack on Suzerain)
+            // If otherNation is Player's Vassal, check if War on Player triggers
+            if (otherNation.vassalOf === 'player' && !nation.isAtWar) {
+                 // AI considering attacking Player's Vassal
+                 // This effectively means declaring war on Player
+                 // So we should check player strength + vassal strength?
+                 // For now, simple logic: attacking vassal = war with player
+                 // We skip this check here to avoid AI suicide, or we let them do it?
+                 // Let's make AI smarter: consider Player Strength before attacking Vassal
+                 // ... skipping complexity for now, just trigger the war if they decide to attack
+            }
 
             if ((isRelationsBadEnough && isAggressiveEnough) || isHatedEnemy) {
                 let warChance = (aggression * 0.003) + ((50 - relation) / 5000);
@@ -965,6 +1068,17 @@ export const processAIAIWarDeclaration = (visibleNations, updatedNations, tick, 
                         `📢 国际新闻：战争爆发！${nation.name} 对 ${otherNation.name} 发起了战争！`
                     ];
                     logs.push(declarationNewsTemplates[Math.floor(Math.random() * declarationNewsTemplates.length)]);
+
+                    // [NEW] Suzerain Protection Logic
+                    if (otherNation.vassalOf === 'player') {
+                        if (!nation.isAtWar) {
+                            nation.isAtWar = true;
+                            nation.warStartDay = tick;
+                            nation.warDuration = 0;
+                            nation.warDeclarationPending = true;
+                            logs.push(`⚠️ ${nation.name} 攻击了您的附庸 ${otherNation.name}，自动对您宣战！`);
+                        }
+                    }
 
                     // Alliance chain reaction
                     const isOtherNationPlayerAlly = otherNation.alliedWithPlayer === true;

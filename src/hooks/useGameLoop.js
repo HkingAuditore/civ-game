@@ -4,12 +4,22 @@
 import { useEffect, useRef, useState } from 'react';
 import { unstable_batchedUpdates } from 'react-dom';
 import { useSimulationWorker } from './useSimulationWorker';
-import { BUILDINGS, calculateArmyMaintenance, calculateArmyPopulation, UNIT_TYPES, STRATA, RESOURCES, LOG_STORAGE_LIMIT, HISTORY_STORAGE_LIMIT } from '../config';
+import {
+    BUILDINGS,
+    calculateArmyPopulation,
+    UNIT_TYPES,
+    STRATA,
+    RESOURCES,
+    LOG_STORAGE_LIMIT,
+    HISTORY_STORAGE_LIMIT,
+    ORGANIZATION_EFFECTS,
+    OPEN_MARKET_TREATY_TYPES,
+    PEACE_TREATY_TYPES
+} from '../config';
 import { getBuildingEffectiveConfig } from '../config/buildingUpgrades';
 import { getRandomFestivalEffects } from '../config/festivalEffects';
 import { initCheatCodes } from './cheatCodes';
 import { getCalendarInfo } from '../utils/calendar';
-import { calculateForeignPrice, calculateTradeStatus } from '../utils/foreignTrade';
 import {
     createEnemyPeaceRequestEvent,
     createWarDeclarationEvent,
@@ -17,10 +27,18 @@ import {
     createAIRequestEvent,
     createAllianceRequestEvent,
     createTreatyProposalEvent,
+    createTreatyBreachEvent,
     createAllyColdEvent,
     createAIDemandSurrenderEvent,
     createAllyAttackedEvent,
     createRebelDemandSurrenderEvent,
+    createIndependenceWarEvent,
+    createOverseasInvestmentOpportunityEvent,
+    createNationalizationThreatEvent,
+    createTradeDisputeEvent,
+    createMilitaryAllianceInviteEvent,
+    createBorderIncidentEvent,
+    createVassalRequestEvent,
     REBEL_DEMAND_SURRENDER_TYPE,
 } from '../config/events';
 import { calculateTotalDailySalary, getCabinetStatus, calculateOfficialCapacity } from '../logic/officials/manager';
@@ -56,310 +74,15 @@ import {
     createRebelNation,
     createRebellionEndEvent,
 } from '../logic/rebellionSystem';
+import { getTreatyDailyMaintenance } from '../config/diplomacy';
+import { processVassalUpdates } from '../logic/diplomacy/vassalSystem';
+import { checkVassalRequests } from '../logic/diplomacy/aiDiplomacy';
 import { LOYALTY_CONFIG } from '../config/officials';
+import { updateAllOfficialsDaily } from '../logic/officials/progression';
 
 const calculateRebelPopulation = (stratumPop = 0) => {
     if (!Number.isFinite(stratumPop) || stratumPop <= 0) return 0;
     return Math.min(stratumPop, Math.max(1, Math.floor(stratumPop * 0.8)));
-};
-
-/**
- * 处理贸易路线的自动执行
- * @param {Object} current - 当前游戏状态
- * @param {Object} result - simulateTick的结果
- * @param {Function} addLog - 添加日志函数
- * @param {Function} setResources - 设置资源函数
- * @param {Function} setNations - 设置国家函数
- * @param {Function} setTradeRoutes - 设置贸易路线函数
- */
-const processTradeRoutes = (current) => {
-    const { tradeRoutes, nations, resources, daysElapsed, market, popStructure, taxPolicies } = current;
-    const routes = tradeRoutes.routes || [];
-
-    // 贸易路线配置
-    const TRADE_SPEED = 0.05; // 每天传输盈余/缺口的5%
-    const MIN_TRADE_AMOUNT = 0.1; // 最小贸易量
-
-    // 获取在岗商人数量，决定有多少条贸易路线有效
-    const merchantCount = popStructure?.merchant || 0;
-
-    const routesToRemove = [];
-    const tradeLog = [];
-    let totalTradeTax = 0; // 玩家获得的贸易税
-    const resourceDelta = {};
-    const nationDelta = {};
-
-    const addResourceDelta = (key, amount) => {
-        if (!Number.isFinite(amount) || amount === 0) return;
-        resourceDelta[key] = (resourceDelta[key] || 0) + amount;
-    };
-
-    const addNationDelta = (nationId, delta) => {
-        if (!nationId || !delta) return;
-        if (!nationDelta[nationId]) {
-            nationDelta[nationId] = { budget: 0, relation: 0, inventory: {} };
-        }
-        if (Number.isFinite(delta.budget)) {
-            nationDelta[nationId].budget += delta.budget;
-        }
-        if (Number.isFinite(delta.relation)) {
-            nationDelta[nationId].relation += delta.relation;
-        }
-        if (delta.inventory) {
-            Object.entries(delta.inventory).forEach(([resKey, amount]) => {
-                if (!Number.isFinite(amount) || amount === 0) return;
-                nationDelta[nationId].inventory[resKey] =
-                    (nationDelta[nationId].inventory[resKey] || 0) + amount;
-            });
-        }
-    };
-
-    // 只处理前 merchantCount 条贸易路线（有多少个商人在岗就让多少条贸易路线有用）
-    routes.forEach((route, index) => {
-        const { nationId, resource, type } = route;
-        const nation = nations.find(n => n.id === nationId);
-
-        if (!nation) {
-            routesToRemove.push(route);
-            return;
-        }
-
-        // 如果超过商人数量，则跳过该贸易路线
-        if (index >= merchantCount) {
-            return;
-        }
-
-        // 检查是否处于战争，如果是则暂停贸易路线
-        if (nation.isAtWar) {
-            return; // 不移除路线，只是暂停
-        }
-
-        // 获取贸易状态
-        const tradeStatus = calculateTradeStatus(resource, nation, daysElapsed);
-        const localPrice = market?.prices?.[resource] ?? (RESOURCES[resource]?.basePrice || 1);
-        const foreignPrice = calculateForeignPrice(resource, nation, daysElapsed);
-
-        // New: trade route mode
-        // - normal: must satisfy surplus/shortage like old rules
-        // - force_sell: allow exporting even if the partner has no shortage ("dumping")
-        // - force_buy: allow importing even if the partner has no surplus ("coercive purchase")
-        const mode = route?.mode || 'normal';
-        const isForceSell = mode === 'force_sell';
-        const isForceBuy = mode === 'force_buy';
-
-        // If open market treaty is active, coercive trade does not cause diplomatic debuff.
-        const isOpenMarketActive = Boolean(nation?.openMarketUntil && daysElapsed < nation.openMarketUntil);
-
-        if (type === 'export') {
-            // 出口：商人在国内以国内价购买，在国外以国外价卖出
-            // 玩家只赚取商人在国内购买时的交易税
-
-            // Normal export requires partner shortage; force_sell ignores it.
-            if (!isForceSell) {
-                if (!tradeStatus.isShortage || tradeStatus.shortageAmount <= 0) {
-                    return; // 对方没有缺口，暂停贸易但保留路线
-                }
-            }
-
-            // 计算我方盈余
-            const myInventory = resources[resource] || 0;
-            const myTarget = 500; // 简化：使用固定目标库存
-            const mySurplus = Math.max(0, myInventory - myTarget);
-
-            if (mySurplus <= MIN_TRADE_AMOUNT) {
-                return; // 我方没有盈余，暂停贸易但保留路线
-            }
-
-            // 计算本次出口量：
-            // - normal: min(盈余, 对方缺口)
-            // - force_sell: 允许倾销，只看我方盈余（但仍受 TRADE_SPEED 限制）
-            const shortageCap = Math.max(0, tradeStatus.shortageAmount || 0);
-            const exportCap = isForceSell ? mySurplus : Math.min(mySurplus, shortageCap);
-            const exportAmount = exportCap * TRADE_SPEED;
-
-            if (exportAmount < MIN_TRADE_AMOUNT) {
-                return;
-            }
-
-            // 商人在国内购买资源
-            const domesticPurchaseCost = localPrice * exportAmount;  // 商人在国内的购买成本
-            const taxRate = taxPolicies?.resourceTaxRates?.[resource] || 0; // 获取该资源的交易税率
-            // 关税存储为小数（0=无关税，0.5=50%关税，<0=补贴）
-            // 最终税率 = 交易税 + 关税（加法叠加）
-            const tariffRate = taxPolicies?.exportTariffMultipliers?.[resource] ?? taxPolicies?.resourceTariffMultipliers?.[resource] ?? 0;
-            const effectiveTaxRate = taxRate + tariffRate;
-            const tradeTax = domesticPurchaseCost * effectiveTaxRate; // 玩家获得的交易税
-
-            // 商人在国外销售
-            // force_sell：倾销折价，避免无脑刷钱，同时制造外交代价
-            const dumpingDiscount = 0.6;
-            const effectiveForeignPrice = isForceSell ? foreignPrice * dumpingDiscount : foreignPrice;
-            const foreignSaleRevenue = effectiveForeignPrice * exportAmount;  // 商人在国外的销售收入
-            const merchantProfit = foreignSaleRevenue - domesticPurchaseCost - tradeTax; // 商人获得的利润（含关税成本）
-
-            if (merchantProfit <= 0) {
-                return;
-            }
-
-            // 更新玩家资源：扣除出口的资源，交易税交给 simulation 统一处理
-            addResourceDelta(resource, -exportAmount);
-            totalTradeTax += tradeTax;
-
-            // 更新外国：支付给商人，获得资源
-            // force_sell：关系下降（被倾销），并且对方预算扣款更小（视为“低价抢购”）
-            addNationDelta(nationId, {
-                budget: -foreignSaleRevenue,
-                relation: isForceSell ? (isOpenMarketActive ? 0.2 : -0.6) : 0.2,
-                inventory: { [resource]: exportAmount },
-            });
-
-        } else if (type === 'import') {
-            // 进口：商人在国外以国外价购买，在国内以国内价卖出
-            // 玩家只赚取商人在国内销售时的交易税
-
-            // Normal import requires partner surplus; force_buy ignores it.
-            if (!isForceBuy) {
-                if (!tradeStatus.isSurplus || tradeStatus.surplusAmount <= 0) {
-                    return; // 对方没有盈余，暂停贸易但保留路线
-                }
-            }
-
-            // 计算本次进口量：
-            // - normal: 对方盈余的一定比例
-            // - force_buy: 允许强买，按固定“目标供给”抽取一部分（同时对关系造成伤害）
-            const normalImportCap = Math.max(0, tradeStatus.surplusAmount || 0);
-            const forcedBaseline = Math.max(10, tradeStatus.target || 0); // 给旧存档/无target时兜底
-            const importCap = isForceBuy ? forcedBaseline : normalImportCap;
-            const importAmount = importCap * TRADE_SPEED;
-
-            if (importAmount < MIN_TRADE_AMOUNT) {
-                return;
-            }
-
-            // 商人在国外购买资源
-            // force_buy：强买溢价（你硬要买，对方抬价），避免无脑套利
-            const forcedPremium = 1.3;
-            const effectiveForeignPrice = isForceBuy ? foreignPrice * forcedPremium : foreignPrice;
-            const foreignPurchaseCost = effectiveForeignPrice * importAmount;  // 商人在国外的购买成本
-
-            // 商人在国内销售
-            const domesticSaleRevenue = localPrice * importAmount;  // 商人在国内的销售收入
-            const taxRate = taxPolicies?.resourceTaxRates?.[resource] || 0; // 获取该资源的交易税率
-            // 关税存储为小数（0=无关税，0.5=50%关税，<0=补贴）
-            // 最终税率 = 交易税 + 关税（加法叠加）
-            const tariffRate = taxPolicies?.importTariffMultipliers?.[resource] ?? taxPolicies?.resourceTariffMultipliers?.[resource] ?? 0;
-            const effectiveTaxRate = taxRate + tariffRate;
-            const tradeTax = domesticSaleRevenue * effectiveTaxRate; // 玩家获得的交易税
-            const merchantProfit = domesticSaleRevenue - foreignPurchaseCost - tradeTax; // 商人获得的利润（含关税成本）
-
-            if (merchantProfit <= 0) {
-                return;
-            }
-
-            // 更新玩家资源：增加进口的资源，交易税交给 simulation 统一处理
-            addResourceDelta(resource, importAmount);
-            totalTradeTax += tradeTax;
-
-            // 更新外国：收到商人支付，失去资源
-            // force_buy：关系下降（被强买），库存允许被压到0
-            addNationDelta(nationId, {
-                budget: foreignPurchaseCost,
-                relation: isForceBuy ? (isOpenMarketActive ? 0.2 : -0.6) : 0.2,
-                inventory: { [resource]: -importAmount },
-            });
-
-            if (importAmount >= 1 && !isForceBuy) {
-                tradeLog.push(`🚢 进口 ${importAmount.toFixed(1)} ${RESOURCES[resource]?.name || resource} 从 ${nation.name}：商人国外购 ${foreignPurchaseCost.toFixed(1)} 银币，国内售 ${domesticSaleRevenue.toFixed(1)} 银币（税 ${tradeTax.toFixed(1)}），商人赚 ${merchantProfit.toFixed(1)} 银币。`);
-            }
-        }
-    });
-
-    // 移除无效的贸易路线
-    return { tradeTax: totalTradeTax, resourceDelta, nationDelta, routesToRemove, tradeLog };
-};
-
-const applyTradeRouteDeltas = (summary, current, addLog, setResources, setNations, setTradeRoutes, options = {}) => {
-    if (!summary) return;
-    const {
-        resourceDelta = {},
-        nationDelta = {},
-        routesToRemove = [],
-        tradeLog = [],
-    } = summary;
-    const {
-        applyResourceDelta = true,
-        applyNationDelta = true,
-        applyRouteRemoval = true,
-        applyLogs = true,
-    } = options;
-
-    if (applyRouteRemoval && routesToRemove.length > 0) {
-        setTradeRoutes(prev => ({
-            ...prev,
-            routes: prev.routes.filter(route =>
-                !routesToRemove.some(r =>
-                    r.nationId === route.nationId &&
-                    r.resource === route.resource &&
-                    r.type === route.type
-                )
-            )
-        }));
-    }
-
-    if (applyResourceDelta && Object.keys(resourceDelta).length > 0) {
-        setResources(prev => {
-            const next = { ...prev };
-            Object.entries(resourceDelta).forEach(([key, delta]) => {
-                const currentValue = next[key] || 0;
-                next[key] = Math.max(0, currentValue + delta);
-            });
-            return next;
-        });
-    }
-
-    if (applyNationDelta && Object.keys(nationDelta).length > 0) {
-        setNations(prev => prev.map(n => {
-            const delta = nationDelta[n.id];
-            if (!delta) return n;
-            const nextInventory = { ...(n.inventory || {}) };
-            Object.entries(delta.inventory || {}).forEach(([resKey, amount]) => {
-                nextInventory[resKey] = Math.max(0, (nextInventory[resKey] || 0) + amount);
-            });
-            return {
-                ...n,
-                budget: Math.max(0, (n.budget || 0) + (delta.budget || 0)),
-                inventory: nextInventory,
-                relation: Math.min(100, Math.max(-100, (n.relation || 0) + (delta.relation || 0))),
-            };
-        }));
-    }
-
-    if (applyLogs) {
-        const logVisibility = current?.eventEffectSettings?.logVisibility || {};
-        const shouldLogMerchantTrades = logVisibility.showMerchantTradeLogs ?? true;
-        const shouldLogTradeRoutes = logVisibility.showTradeRouteLogs ?? true;
-
-        if (shouldLogMerchantTrades) {
-            tradeLog.forEach(log => addLog(log));
-        }
-
-        if (!shouldLogTradeRoutes) {
-            // currently trade routes only output detailed logs above;
-            // keep this block to ensure future trade-route logs can be gated centrally.
-        }
-    }
-};
-
-
-const applyResourceDeltaToSnapshot = (resources = {}, delta = {}) => {
-    if (!delta || Object.keys(delta).length === 0) return resources || {};
-    const next = { ...(resources || {}) };
-    Object.entries(delta).forEach(([key, amount]) => {
-        if (!Number.isFinite(amount) || amount === 0) return;
-        const currentValue = next[key] || 0;
-        next[key] = Math.max(0, currentValue + amount);
-    });
-    return next;
 };
 
 const getUnitPopulationCost = (unitId) => {
@@ -805,6 +528,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
         setMerchantState,
         tradeRoutes,
         setTradeRoutes,
+        diplomacyOrganizations,
         tradeStats,
         setTradeStats,
         actionCooldowns,
@@ -834,6 +558,11 @@ export const useGameLoop = (gameState, addLog, actions) => {
         officialCapacity, // 官员容量
         setOfficialCapacity, // 官员容量更新函数
         setFiscalActual, // [NEW] realized fiscal numbers per tick
+        setDailyMilitaryExpense, // [NEW] store simulation military expense for UI
+        overseasInvestments, // 海外投资列表
+        setOverseasInvestments, // 海外投资更新函数
+        foreignInvestments, // [NEW] 用于 simulation 计算
+        setForeignInvestments, // [FIX] Destructure setter
     } = gameState;
 
     // 使用ref保存最新状态，避免闭包问题
@@ -874,6 +603,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
         lastAutoSaveTime,
         merchantState,
         tradeRoutes,
+        diplomacyOrganizations,
         actions,
         tradeStats,
         actionCooldowns,
@@ -903,10 +633,46 @@ export const useGameLoop = (gameState, addLog, actions) => {
     const AUTO_RECRUIT_BATCH_LIMIT = 3;
     const AUTO_RECRUIT_FAIL_COOLDOWN = 5000;
 
+    // [FIX] Overseas Investment Ref to track latest state updates
+    const overseasInvestmentsRef = useRef(overseasInvestments);
+    useEffect(() => {
+        overseasInvestmentsRef.current = overseasInvestments;
+    }, [overseasInvestments]);
+
+    // ========== 历史数据 Ref 管理 ==========
+    // 使用 Ref 存储高频更新的历史数据，避免每帧触发 React 重渲染
+    // 仅在节流间隔到达时同步到 State 供 UI 显示
+    const classWealthHistoryRef = useRef(classWealthHistory || {});
+    const classNeedsHistoryRef = useRef(classNeedsHistory || {});
+    const marketHistoryRef = useRef({
+        price: market?.priceHistory || {},
+        supply: market?.supplyHistory || {},
+        demand: market?.demandHistory || {},
+    });
+
+    // 初始化/同步 Ref
+    useEffect(() => {
+        if (classWealthHistory) classWealthHistoryRef.current = classWealthHistory;
+    }, []); // 仅挂载时同步，后续由 loop 维护
+
+    useEffect(() => {
+        if (classNeedsHistory) classNeedsHistoryRef.current = classNeedsHistory;
+    }, []);
+
+    useEffect(() => {
+        if (market?.priceHistory) {
+            marketHistoryRef.current = {
+                price: market.priceHistory || {},
+                supply: market.supplyHistory || {},
+                demand: market.demandHistory || {},
+            };
+        }
+    }, []);
+
     // ========== 历史数据节流 ==========
-    // 每 HISTORY_UPDATE_INTERVAL 个 tick 才更新一次历史数据，减少内存操作
+    // 每 HISTORY_UPDATE_INTERVAL 个 tick 才更新一次历史数据 State
     const historyUpdateCounterRef = useRef(0);
-    const HISTORY_UPDATE_INTERVAL = 1; // 每1个tick更新一次历史数据（保留最近30天）
+    const HISTORY_UPDATE_INTERVAL = 5; // 每5个tick同步一次历史数据到UI（显著减少重渲染）
 
     const { runSimulation } = useSimulationWorker();
 
@@ -953,6 +719,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
             lastAutoSaveTime,
             merchantState,
             tradeRoutes,
+            diplomacyOrganizations,
             actions,
             tradeStats,
             actionCooldowns,
@@ -975,8 +742,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
             quotaTargets, // 计划经济目标配额
             officialCapacity, // 官员容量
             priceControls, // [NEW] 计划经济价格管制设置
+            foreignInvestments, // [NEW] 海外投资
         };
-    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, livingStandardStreaks, migrationCooldowns, taxShock, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability, rulingCoalition, legitimacy, difficulty, officials, activeDecrees, expansionSettings, quotaTargets, officialCapacity, priceControls]);
+    }, [resources, market, buildings, buildingUpgrades, population, popStructure, maxPopBonus, epoch, techsUnlocked, decrees, gameSpeed, nations, classWealth, livingStandardStreaks, migrationCooldowns, taxShock, army, militaryQueue, jobFill, jobsAvailable, activeBuffs, activeDebuffs, taxPolicies, classWealthHistory, classNeedsHistory, militaryWageRatio, classApproval, daysElapsed, activeFestivalEffects, lastFestivalYear, isPaused, autoSaveInterval, isAutoSaveEnabled, lastAutoSaveTime, merchantState, tradeRoutes, diplomacyOrganizations, tradeStats, actions, actionCooldowns, actionUsage, promiseTasks, activeEventEffects, eventEffectSettings, rebellionStates, classInfluence, totalInfluence, birthAccumulator, stability, rulingCoalition, legitimacy, difficulty, officials, activeDecrees, expansionSettings, quotaTargets, officialCapacity, priceControls, foreignInvestments]);
 
     // 监听国家列表变化，自动清理无效的贸易路线（修复暂停状态下无法清理的问题）
     useEffect(() => {
@@ -1128,20 +896,11 @@ export const useGameLoop = (gameState, addLog, actions) => {
             const officialDailySalary = calculateTotalDailySalary(current.officials || []);
             const canAffordOfficials = (current.resources?.silver || 0) >= officialDailySalary;
 
-            // Process trade routes before simulation so their tax revenue is applied inside the worker.
-            let tradeRouteSummary = null;
-            if (current.tradeRoutes && current.tradeRoutes.routes && current.tradeRoutes.routes.length > 0) {
-                tradeRouteSummary = processTradeRoutes(current);
-            }
-            const tradeRouteTax = tradeRouteSummary?.tradeTax || 0;
-            const tradeRouteResourceDelta = tradeRouteSummary?.resourceDelta || {};
-            setTradeStats(prev => ({ ...prev, tradeRouteTax }));
-
             // Build simulation parameters - 手动列出可序列化字段，排除函数对象（如 actions）
             // 这样可以正确启用 Web Worker 加速，避免 DataCloneError
             const simulationParams = {
                 // 基础游戏数据
-                resources: applyResourceDeltaToSnapshot(current.resources, tradeRouteResourceDelta),
+                resources: current.resources,
                 market: current.market,
                 buildings: current.buildings,
                 buildingUpgrades: current.buildingUpgrades,
@@ -1153,6 +912,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 techsUnlocked: current.techsUnlocked,
                 decrees: current.decrees,
                 nations: current.nations,
+                diplomacyOrganizations: current.diplomacyOrganizations,
                 classWealth: current.classWealth,
                 classApproval: current.classApproval,
                 classInfluence: current.classInfluence,
@@ -1212,15 +972,15 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 merchantState: current.merchantState,
                 tradeRoutes: current.tradeRoutes,
                 tradeStats: current.tradeStats,
-                tradeRouteTax,
+                tradeRouteTax: current.tradeStats?.tradeRouteTax || 0, // Pass last tick's value for continuity, but worker re-calculates
 
                 // Buff/Debuff
                 activeBuffs: current.activeBuffs,
                 activeDebuffs: current.activeDebuffs,
 
-                // 历史数据
-                classWealthHistory: current.classWealthHistory,
-                classNeedsHistory: current.classNeedsHistory,
+                // 历史数据 (Pass from Ref for latest data without waiting for State)
+                classWealthHistory: classWealthHistoryRef.current,
+                classNeedsHistory: classNeedsHistoryRef.current,
 
                 // 时间和节日
                 daysElapsed: current.daysElapsed,
@@ -1262,6 +1022,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 // 官员系统
                 officials: current.officials || [],
                 officialsPaid: canAffordOfficials,
+                foreignInvestments: current.foreignInvestments || [], // [NEW] Pass foreign investments to worker
+                overseasInvestments: overseasInvestmentsRef.current || [], // [FIX] Use ref for latest state to prevent race condition
+                foreignInvestmentPolicy: current.foreignInvestmentPolicy || 'normal', // [NEW] Pass policy
             };
 
             // Execute simulation
@@ -1349,20 +1112,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     (current.activeEventEffects?.stratumDemand?.length || 0) > 0 ||
                     (current.activeEventEffects?.buildingProduction?.length || 0) > 0;
 
-                const maintenance = calculateArmyMaintenance(army);
                 const adjustedResources = { ...result.resources };
-                const resourceShortages = {}; // 记录资源短缺
-                Object.entries(maintenance).forEach(([resource, cost]) => {
-                    // 每次 Tick 计算 1 天的维护费用（不再乘以 gameSpeed）
-                    const amount = cost;
-                    if (amount <= 0) return;
-                    const available = adjustedResources[resource] || 0;
-                    const shortage = Math.max(0, amount - available);
-                    if (shortage > 0) {
-                        resourceShortages[resource] = shortage;
-                    }
-                    adjustedResources[resource] = Math.max(0, available - amount);
-                });
+                const resourceShortages = {}; // 记录资源短缺（由 simulation 记录时这里为空）
 
                 // --- Realized fiscal tracking (must match visible treasury changes) ---
                 // We must baseline against the treasury BEFORE this tick starts (current.resources.silver).
@@ -1446,8 +1197,8 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 const effectiveFiscalIncome = typeof breakdown.totalFiscalIncome === 'number'
                     ? breakdown.totalFiscalIncome
                     : (breakdown.headTax || 0) + (breakdown.industryTax || 0) +
-                        (breakdown.businessTax || 0) + (breakdown.tariff || 0) +
-                        (breakdown.warIndemnity || 0);
+                    (breakdown.businessTax || 0) + (breakdown.tariff || 0) +
+                    (breakdown.warIndemnity || 0);
                 const totalIncome = effectiveFiscalIncome + (breakdown.priceControlIncome || 0) +
                     (breakdown.tradeRouteTax || 0);
                 console.log('  ✅ 总收入:', totalIncome.toFixed(2));
@@ -1551,13 +1302,23 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 console.log('🏦 国库结束余额:', treasuryAfterDeductions.toFixed(2), '银币');
                 console.log('💵 实际净变化:', netTreasuryChange.toFixed(2), '银币');
 
+                // [DEBUG] Military Specific Trace
+                if (result._debug?.militaryDebugInfo) {
+                    console.log('⚔️ [GameLoop] Military Debug:', result._debug.militaryDebugInfo);
+                }
+                const armyCostSim = result.dailyMilitaryExpense?.dailyExpense || 0;
+                console.log('⚔️ [GameLoop] Reported Military Cost:', armyCostSim);
+
                 // === 显示simulation中的银币变化追踪 ===
                 if (result._debug?.silverChangeLog && result._debug.silverChangeLog.length > 0) {
                     console.group('🔍 银币变化详细追踪（simulation内部）');
                     console.log('  起始余额:', (result._debug.startingSilver || 0).toFixed(2), '银币');
                     result._debug.silverChangeLog.forEach((log, index) => {
-                        const sign = log.amount >= 0 ? '+' : '';
-                        console.log(`  ${index + 1}. ${log.reason}: ${sign}${log.amount.toFixed(2)} 银币 (余额: ${log.balance.toFixed(2)})`);
+                        if (!log) return;
+                        const amount = log.amount ?? 0;
+                        const balance = log.balance ?? 0;
+                        const sign = amount >= 0 ? '+' : '';
+                        console.log(`  ${index + 1}. ${log.reason}: ${sign}${amount.toFixed(2)} 银币 (余额: ${balance.toFixed(2)})`);
                     });
                     console.log('  结束余额:', (result._debug.endingSilver || 0).toFixed(2), '银币');
                     const simulationChange = (result._debug.endingSilver || 0) - (result._debug.startingSilver || 0);
@@ -1567,12 +1328,6 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
                 // === useGameLoop本地扣除（simulation之后）===
                 const useGameLoopDeductions = [];
-                const armyMaintenanceSilver = Object.entries(maintenance || {})
-                    .filter(([res]) => res === 'silver')
-                    .reduce((sum, [, cost]) => sum + cost, 0);
-                if (armyMaintenanceSilver > 0) {
-                    useGameLoopDeductions.push({ reason: '军队维护(本地)', amount: -armyMaintenanceSilver });
-                }
                 if (officialSalaryPaid > 0) {
                     useGameLoopDeductions.push({ reason: '官员薪俸', amount: -officialSalaryPaid });
                 }
@@ -1591,15 +1346,115 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     console.groupEnd();
                 }
 
-                if (Math.abs(netTreasuryChange - (totalIncome - totalExpense)) > 0.1) {
-                    console.warn('⚠️ 警告：理论净变化与实际净变化不一致！差异:',
-                        (netTreasuryChange - (totalIncome - totalExpense)).toFixed(2));
+                const auditEntries = [];
+                if (Array.isArray(result?._debug?.silverChangeLog) && result._debug.silverChangeLog.length > 0) {
+                    const aggregated = new Map();
+                    result._debug.silverChangeLog.forEach((entry) => {
+                        if (!entry) return;
+                        const amount = Number(entry.amount || 0);
+                        if (!Number.isFinite(amount) || amount === 0) return;
+                        const reason = entry.reason || 'simulation';
+                        aggregated.set(reason, (aggregated.get(reason) || 0) + amount);
+                    });
+                    aggregated.forEach((amount, reason) => {
+                        auditEntries.push({
+                            amount,
+                            reason,
+                            meta: { source: 'simulation' },
+                        });
+                    });
+                }
+                const auditReasons = new Set(auditEntries.map(entry => entry.reason));
+                const hasAnyReason = (reasons) => reasons.some(reason => auditReasons.has(reason));
+                const addAuditEntry = (amount, reason) => {
+                    if (!Number.isFinite(amount) || amount === 0) return;
+                    if (auditReasons.has(reason)) return;
+                    auditEntries.push({
+                        amount,
+                        reason,
+                        meta: { source: 'game_loop_fallback' },
+                    });
+                    auditReasons.add(reason);
+                };
+                const fallbackMilitaryExpense = Number(
+                    result?.dailyMilitaryExpense?.dailyExpense
+                    || current?.dailyMilitaryExpense?.dailyExpense
+                    || 0
+                );
+                const militaryLogKeys = ['军队维护支出', '军队维护支出（部分支付）', 'militaryPay', 'expense_army_maintenance', 'expense_army_maintenance_partial'];
+                const existingMilitaryEntry = auditEntries.find(e => militaryLogKeys.includes(e.reason));
+
+                if (fallbackMilitaryExpense > 0) {
+                    if (!existingMilitaryEntry) {
+                        // Entry missing entirely -> Force add
+                        addAuditEntry(-fallbackMilitaryExpense, 'expense_army_maintenance');
+                        console.warn('[GameLoop] Fixed missing military expense log:', -fallbackMilitaryExpense);
+                    } else if (existingMilitaryEntry.amount === 0) {
+                        // Entry exists but amount is 0 -> Fix amount
+                        existingMilitaryEntry.amount = -fallbackMilitaryExpense;
+                        existingMilitaryEntry.reason = 'expense_army_maintenance'; // Ensure standard key
+                        console.warn('[GameLoop] Fixed zero-amount military expense log:', -fallbackMilitaryExpense);
+                    }
+                    // else: Entry exists and has non-zero amount -> Assume correct
+                }
+                const fallbackSubsidy = Number(breakdown?.subsidy || 0);
+                if (fallbackSubsidy > 0 && !hasAnyReason(['subsidy', 'head_tax_subsidy', 'tax_subsidy'])) {
+                    addAuditEntry(-fallbackSubsidy, 'subsidy');
+                }
+                const fallbackTariffSubsidy = Number(breakdown?.tariffSubsidy || 0);
+                if (fallbackTariffSubsidy > 0 && !hasAnyReason(['tariff_subsidy'])) {
+                    addAuditEntry(-fallbackTariffSubsidy, 'tariff_subsidy');
+                }
+                const incomePercentMultiplier = Number.isFinite(breakdown?.incomePercentMultiplier)
+                    ? Number(breakdown.incomePercentMultiplier)
+                    : 1;
+                const fallbackTariff = Number(breakdown?.tariff || 0) * incomePercentMultiplier;
+                if (fallbackTariff !== 0 && !hasAnyReason(['tax_tariff', 'tariff'])) {
+                    addAuditEntry(fallbackTariff, 'tax_tariff');
+                }
+
+
+                if (officialSalaryPaid > 0) {
+                    auditEntries.push({
+                        amount: -officialSalaryPaid,
+                        reason: 'official_salary',
+                        meta: { source: 'game_loop' },
+                    });
+                }
+                if (forcedSubsidyPaid > 0) {
+                    auditEntries.push({
+                        amount: -forcedSubsidyPaid,
+                        reason: 'forced_subsidy',
+                        meta: { source: 'game_loop' },
+                    });
+                }
+                const treasuryIncome = auditEntries.reduce((sum, entry) => {
+                    const amount = Number(entry?.amount || 0);
+                    if (!Number.isFinite(amount) || amount <= 0) return sum;
+                    return sum + amount;
+                }, 0);
+                const auditDelta = auditEntries.reduce((sum, entry) => {
+                    const amount = Number(entry?.amount || 0);
+                    return Number.isFinite(amount) ? sum + amount : sum;
+                }, 0);
+                console.log('📋 审计净变化:', auditDelta.toFixed(2), '银币');
+                if (Math.abs(netTreasuryChange - auditDelta) > 0.1) {
+                    console.warn('⚠️ 警告：审计净变化与实际净变化不一致！差异:',
+                        (netTreasuryChange - auditDelta).toFixed(2));
                 }
 
                 console.groupEnd();
                 // === 财政日志结束 ===
 
-                setResources(adjustedResources);
+                const auditStartingSilver = Number.isFinite(result?._debug?.startingSilver)
+                    ? result._debug.startingSilver
+                    : treasuryAtTickStart;
+                setResources(adjustedResources, {
+                    reason: 'tick_update',
+                    meta: { day: current.daysElapsed || 0 },
+                    auditEntries,
+                    auditStartingSilver,
+                });
 
                 // 处理强制补贴效果的每日更新
                 // 注意：这里只处理 forcedSubsidy 的递减和过期，不处理其他效果的更新
@@ -1627,6 +1482,178 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     adjustedClassWealth[key] = (adjustedClassWealth[key] || 0) + delta;
                 });
                 let adjustedTotalWealth = Object.values(adjustedClassWealth).reduce((sum, val) => sum + val, 0);
+
+                // 3. 自主投资逻辑 (5% probability daily)
+                // Note: Autonomous investment creation is still done on main thread for now,
+                // but processed via logic imports. Could be moved to worker in future.
+                if (Math.random() < 0.05) {
+                    import('../logic/diplomacy/autonomousInvestment').then(({ processClassAutonomousInvestment }) => {
+                        const result = processClassAutonomousInvestment({
+                            nations: current.nations || [],
+                            playerNation: current.nations.find(n => n.id === 'player'),
+                            diplomacyOrganizations: current.diplomacyOrganizations,
+                            overseasInvestments: overseasInvestmentsRef.current || [],
+                            classWealth: adjustedClassWealth,
+                            market: adjustedMarket,
+                            epoch: current.epoch,
+                            daysElapsed: current.daysElapsed
+                        });
+
+                        if (result && result.success) {
+                            const { stratum, targetNation, building, cost, dailyProfit, action } = result;
+                            const newInvestment = action();
+                            if (newInvestment) {
+                                setClassWealth(prev => ({ ...prev, [stratum]: Math.max(0, (prev[stratum] || 0) - cost) }), { reason: 'autonomous_investment_cost', meta: { stratum } });
+                                setOverseasInvestments(prev => [...prev, newInvestment]);
+                                const stratumName = STRATA[stratum]?.name || stratum;
+                                addLog(`💰 ${stratumName}发现在 ${targetNation.name} 投资 ${building.name} 有利可图（预计日利 ${dailyProfit.toFixed(1)}），已自动注资 ${formatNumberShortCN(cost)}。`);
+                            }
+                        }
+                    }).catch(err => console.warn('Autonomous investment error:', err));
+                }
+
+                // 4. AI Autonomous Investment (30% chance to check daily - increased for better gameplay)
+                if (Math.random() < 0.3) {
+                    import('../logic/diplomacy/autonomousInvestment').then(({ processAIInvestment }) => {
+                        if (!processAIInvestment) return;
+
+                        const potentialInvestors = (current.nations || []).filter(n => n.id !== 'player' && (n.wealth || 0) > 5000);
+
+                        // [DEBUG] Log buildings state for debugging
+                        const playerBuildings = current.buildings || {};
+                        console.log(`[AI投资] 玩家建筑状态:`, Object.keys(playerBuildings).filter(k => playerBuildings[k] > 0).map(k => `${k}:${playerBuildings[k]}`).join(', ') || '无');
+
+                        potentialInvestors.forEach(investor => {
+                            const decision = processAIInvestment({
+                                investorNation: investor,
+                                nations: current.nations || [],
+                                diplomacyOrganizations: current.diplomacyOrganizations, // [NEW] Pass organizations for treaty checks
+                                playerState: {
+                                    population: current.population,
+                                    wealth: current.resources?.silver || 0,
+                                    resources: current.resources,
+                                    buildings: current.buildings || {}, // [FIX] Ensure buildings is always an object
+                                    jobFill: current.jobFill, // [NEW] Pass jobFill for staffing ratio calculation
+                                    id: 'player'
+                                },
+                                market: adjustedMarket,
+                                epoch: current.epoch,
+                                daysElapsed: current.daysElapsed,
+                                foreignInvestments: current.foreignInvestments || [] // [NEW] Pass existing foreign investments to check limit
+                            });
+
+                            if (decision && decision.type === 'request_investment' && decision.targetId === 'player') {
+                                // 外资：直接投资，不需要玩家批准
+                                const actionsRef = current.actions;
+
+                                if (actionsRef && actionsRef.handleDiplomaticAction) {
+                                    // 直接创建外资投资
+                                    actionsRef.handleDiplomaticAction(investor.id, 'accept_foreign_investment', {
+                                        buildingId: decision.building.id,
+                                        ownerStratum: 'capitalist',
+                                        operatingMode: 'local', // 默认当地运营模式
+                                        investmentAmount: decision.cost
+                                    });
+
+                                    console.log(`[外资] ${investor.name} 在本地投资了 ${decision.building.name}，投资额: ${decision.cost}`);
+                                    addLog(`🏦 ${investor.name} 在本地投资建造了 ${decision.building.name}。`);
+                                } else {
+                                    console.warn('[外资] handleDiplomaticAction 不可用');
+                                }
+                            }
+                        });
+                    }).catch(err => console.warn('AI investment error:', err));
+                }
+
+                // 条约维护费已在 simulation 内统一扣除并记账，避免主线程重复扣减。
+
+                // ========== 附庸每日更新（朝贡与独立倾向） ==========
+                if (current.nations && current.nations.some(n => n.vassalOf === 'player')) {
+                    const vassalLogs = [];
+
+                    // Calculate player military strength from army
+                    const totalArmyUnits = Object.values(current.army || {}).reduce((sum, count) => sum + count, 0);
+                    const playerMilitaryStrength = Math.max(0.5, totalArmyUnits / 100);
+
+                    const vassalUpdateResult = processVassalUpdates({
+                        nations: current.nations,
+                        daysElapsed: current.daysElapsed || 0,
+                        epoch: current.epoch || 0,
+                        playerMilitary: playerMilitaryStrength,
+                        playerStability: result.stability || 50,
+                        playerAtWar: current.nations.some(n => n.isAtWar && (n.warTarget === 'player' || n.id === 'player')),
+                        playerWealth: adjustedResources.silver || 0,
+                        officials: result.officials || [],  // Pass officials for governor system
+                        logs: vassalLogs
+                    });
+
+                    // [NEW] Check for vassal autonomous requests (Lower Tribute, Aid, Investment)
+                    checkVassalRequests(
+                        current.nations.filter(n => n.vassalOf === 'player'),
+                        current.daysElapsed || 0,
+                        vassalLogs
+                    );
+
+                    if (vassalUpdateResult) {
+                        // 更新国家列表（包含附庸状态变化）
+                        if (vassalUpdateResult.nations) {
+                            setNations(vassalUpdateResult.nations);
+                        }
+
+                        // 结算现金朝贡
+                        if (vassalUpdateResult.tributeIncome > 0) {
+                            setResources(prev => ({
+                                ...prev,
+                                silver: (prev.silver || 0) + vassalUpdateResult.tributeIncome
+                            }), { reason: 'vassal_tribute_cash' });
+                        }
+
+                        // 结算资源朝贡
+                        if (vassalUpdateResult.resourceTribute && Object.keys(vassalUpdateResult.resourceTribute).length > 0) {
+                            setResources(prev => {
+                                const nextRes = { ...prev };
+                                Object.entries(vassalUpdateResult.resourceTribute).forEach(([res, amount]) => {
+                                    nextRes[res] = (nextRes[res] || 0) + amount;
+                                });
+                                return nextRes;
+                            }, { reason: 'vassal_tribute_resource' });
+                        }
+
+                        // NEW: Deduct control costs from treasury
+                        if (vassalUpdateResult.totalControlCost > 0) {
+                            setResources(prev => ({
+                                ...prev,
+                                silver: Math.max(0, (prev.silver || 0) - vassalUpdateResult.totalControlCost)
+                            }), { reason: 'vassal_control_cost' });
+                            if (isDebugEnabled('diplomacy')) {
+                                console.log(`[Vassal] Deducted ${vassalUpdateResult.totalControlCost} silver for control measures.`);
+                            }
+                        }
+
+                        // 显示日志
+                        if (vassalLogs.length > 0) {
+                            vassalLogs.forEach(log => addLog(log));
+                        }
+                    }
+                }
+
+                // ========== 官员成长系统（每日经验与升级） ==========
+                let progressionChanges = [];
+                if (result.officials && result.officials.length > 0) {
+                    const progressionResult = updateAllOfficialsDaily(result.officials, {
+                        daysElapsed: current.daysElapsed,
+                    });
+                    result.officials = progressionResult.updatedOfficials;
+                    progressionChanges = progressionResult.allChanges || [];
+                    
+                    // Log level ups
+                    progressionChanges.filter(c => c.type === 'level_up').forEach(change => {
+                        const statDetails = Object.entries(change.statChanges || {})
+                            .map(([stat, val]) => `${stat}+${val}`)
+                            .join(', ');
+                        addLog(`🎖️ ${change.officialName} 晋升至 Lv.${change.newLevel}！(${statDetails})`);
+                    });
+                }
 
                 // ========== 官僚政变检测（基于忠诚度系统） ==========
                 let coupOutcome = null;
@@ -1778,93 +1805,71 @@ export const useGameLoop = (gameState, addLog, actions) => {
                 const nextNations = coupOutcome?.nations || result.nations;
                 const nextPopulation = coupOutcome?.population ?? result.population;
 
-                // --- 市场数据历史记录更新 ---
-                const previousPriceHistory = current.market?.priceHistory || {};
-                const priceHistory = { ...previousPriceHistory };
+                // --- 历史数据更新 (Update Refs directly) ---
+                const MAX_POINTS = HISTORY_STORAGE_LIMIT;
 
-                const previousSupplyHistory = current.market?.supplyHistory || {};
-                const supplyHistory = { ...previousSupplyHistory };
-
-                const previousDemandHistory = current.market?.demandHistory || {};
-                const demandHistory = { ...previousDemandHistory };
-
-                const MAX_MARKET_HISTORY_POINTS = HISTORY_STORAGE_LIMIT;
+                // 1. Market History Ref Update
+                const mHist = marketHistoryRef.current;
                 Object.keys(result.market?.prices || {}).forEach(resource => {
-                    const price = result.market?.prices?.[resource];
+                    // Price
+                    if (!mHist.price[resource]) mHist.price[resource] = [];
+                    mHist.price[resource].push(result.market?.prices?.[resource] || 0);
+                    if (mHist.price[resource].length > MAX_POINTS) mHist.price[resource].shift();
 
-                    if (!priceHistory[resource]) priceHistory[resource] = [];
-                    priceHistory[resource] = [...priceHistory[resource], price];
-                    if (priceHistory[resource].length > MAX_MARKET_HISTORY_POINTS) {
-                        priceHistory[resource].shift();
-                    }
+                    // Supply
+                    if (!mHist.supply[resource]) mHist.supply[resource] = [];
+                    mHist.supply[resource].push(result.market?.supply?.[resource] || 0);
+                    if (mHist.supply[resource].length > MAX_POINTS) mHist.supply[resource].shift();
 
-                    if (!supplyHistory[resource]) supplyHistory[resource] = [];
-                    supplyHistory[resource] = [
-                        ...supplyHistory[resource],
-                        result.market?.supply?.[resource] || 0,
-                    ];
-                    if (supplyHistory[resource].length > MAX_MARKET_HISTORY_POINTS) {
-                        supplyHistory[resource].shift();
-                    }
-
-                    if (!demandHistory[resource]) demandHistory[resource] = [];
-                    demandHistory[resource] = [
-                        ...demandHistory[resource],
-                        result.market?.demand?.[resource] || 0,
-                    ];
-                    if (demandHistory[resource].length > MAX_MARKET_HISTORY_POINTS) {
-                        demandHistory[resource].shift();
-                    }
+                    // Demand
+                    if (!mHist.demand[resource]) mHist.demand[resource] = [];
+                    mHist.demand[resource].push(result.market?.demand?.[resource] || 0);
+                    if (mHist.demand[resource].length > MAX_POINTS) mHist.demand[resource].shift();
                 });
 
-                const previousWealthHistory = current.classWealthHistory || {};
-                const wealthHistory = { ...previousWealthHistory };
-                const MAX_WEALTH_POINTS = HISTORY_STORAGE_LIMIT;
+                // 2. Class Wealth History Ref Update
+                const wHist = classWealthHistoryRef.current;
                 Object.entries(result.classWealth || {}).forEach(([key, value]) => {
-                    const series = wealthHistory[key] ? [...wealthHistory[key]] : [];
-                    series.push(value);
-                    if (series.length > MAX_WEALTH_POINTS) {
-                        series.shift();
-                    }
-                    wealthHistory[key] = series;
+                    if (!wHist[key]) wHist[key] = [];
+                    wHist[key].push(value);
+                    if (wHist[key].length > MAX_POINTS) wHist[key].shift();
                 });
 
-                const previousNeedsHistory = current.classNeedsHistory || {};
-                const needsHistory = { ...previousNeedsHistory };
-                const MAX_NEEDS_POINTS = HISTORY_STORAGE_LIMIT;
+                // 3. Class Needs History Ref Update
+                const nHist = classNeedsHistoryRef.current;
                 Object.entries(result.needsReport || {}).forEach(([key, report]) => {
-                    const series = needsHistory[key] ? [...needsHistory[key]] : [];
-                    series.push(report.satisfactionRatio);
-                    if (series.length > MAX_NEEDS_POINTS) {
-                        series.shift();
-                    }
-                    needsHistory[key] = series;
+                    if (!nHist[key]) nHist[key] = [];
+                    nHist[key].push(report.satisfactionRatio);
+                    if (nHist[key].length > MAX_POINTS) nHist[key].shift();
                 });
 
                 const adjustedMarket = {
                     ...(result.market || {}),
-                    priceHistory,
-                    supplyHistory,
-                    demandHistory,
-                    // 加成修饰符数据，供UI显示"谁吃到了buff"
+                    // Use Ref data for consistency, but this object is recreated every tick.
+                    // The cost is just object creation, not React render (until setState).
+                    priceHistory: mHist.price,
+                    supplyHistory: mHist.supply,
+                    demandHistory: mHist.demand,
                     modifiers: result.modifiers || {},
                 };
 
-                // ========== 历史数据节流更新 ==========
-                // 只在计数器到达间隔时更新历史数据，减少 80% 的数组操作
-                const shouldUpdateHistory = historyUpdateCounterRef.current >= HISTORY_UPDATE_INTERVAL;
-                if (shouldUpdateHistory) {
-                    historyUpdateCounterRef.current = 0;
-                } else {
-                    historyUpdateCounterRef.current++;
-                }
+                // ========== 历史数据节流同步 ==========
+                // 仅当计数器到达间隔时，才将 Ref 中的数据同步到 React State
+                historyUpdateCounterRef.current++;
+                const shouldUpdateUIState = historyUpdateCounterRef.current >= HISTORY_UPDATE_INTERVAL;
 
-                const MAX_HISTORY_POINTS = HISTORY_STORAGE_LIMIT;
-                if (shouldUpdateHistory) {
+                if (shouldUpdateUIState) {
+                    historyUpdateCounterRef.current = 0;
+
+                    // Sync Class History State (clone to trigger render)
+                    setClassWealthHistory({ ...classWealthHistoryRef.current });
+                    setClassNeedsHistory({ ...classNeedsHistoryRef.current });
+
+                    // Sync Global History (Legacy structure)
                     setHistory(prevHistory => {
                         const appendValue = (series = [], value) => {
                             const nextSeries = [...series, value];
-                            if (nextSeries.length > MAX_HISTORY_POINTS) {
+                            if (nextSeries.length > MAX_POINTS) {
                                 nextSeries.shift();
                             }
                             return nextSeries;
@@ -1874,7 +1879,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         const nextHistory = {
                             ...safeHistory,
                             treasury: appendValue(safeHistory.treasury, result.resources?.silver || 0),
-                            tax: appendValue(safeHistory.tax, result.taxes?.total || 0),
+                            tax: appendValue(safeHistory.tax, treasuryIncome || 0),
                             population: appendValue(safeHistory.population, nextPopulation || 0),
                         };
 
@@ -1913,7 +1918,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         const prevWealth = current.classWealth?.[key] || 0;
                         wealthDelta[key] = adjustedClassWealth[key] - prevWealth;
                     });
-                    setClassWealth(adjustedClassWealth);
+                    setClassWealth(adjustedClassWealth, { reason: 'tick_class_wealth_update', meta: { day: current.daysElapsed || 0 } });
                     setClassWealthDelta(wealthDelta);
                     setClassIncome(result.classIncome || {});
                     setClassExpense(result.classExpense || {});
@@ -1923,11 +1928,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     if (typeof window !== 'undefined') {
                         window.__buildingDebugData = result.buildingDebugData || {};
                     }
-                    // 历史数据只在节流条件满足时更新
-                    if (shouldUpdateHistory) {
-                        setClassWealthHistory(wealthHistory);
-                        setClassNeedsHistory(needsHistory);
-                    }
+                    // 历史数据更新已移至上方 Ref 管理部分，此处不再重复调用
                     setTotalInfluence(result.totalInfluence);
                     setTotalWealth(adjustedTotalWealth);
                     setActiveBuffs(result.activeBuffs);
@@ -1987,8 +1988,27 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         if (prev === nextState) return prev;
                         return nextState;
                     });
+                    if (result.tradeRoutes) {
+                        setTradeRoutes(result.tradeRoutes);
+                    }
+                    if (result.overseasInvestments) {
+                        setOverseasInvestments(result.overseasInvestments);
+                    }
+                    if (result.foreignInvestments) {
+                        setForeignInvestments(result.foreignInvestments);
+                    }
+                    // Update trade route tax stats
+                    const calculatedTradeRouteTax = result.taxes?.breakdown?.tradeRouteTax || 0;
+                    setTradeStats(prev => ({ ...prev, tradeRouteTax: calculatedTradeRouteTax }));
+
                     if (nextNations) {
                         setNations(nextNations);
+                    }
+                    if (result.diplomacyOrganizations) {
+                        setDiplomacyOrganizations(prev => ({
+                            ...(prev || {}),
+                            organizations: result.diplomacyOrganizations.organizations
+                        }));
                     }
                     if (result.jobFill) {
                         setJobFill(result.jobFill);
@@ -2003,6 +2023,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         // 这是一个临时解决方案，直到重构state管理
                         window.__GAME_MILITARY_EXPENSE__ = result.dailyMilitaryExpense;
                         current.dailyMilitaryExpense = result.dailyMilitaryExpense;
+                        if (typeof setDailyMilitaryExpense === 'function') {
+                            setDailyMilitaryExpense(result.dailyMilitaryExpense);
+                        }
                     }
                     // [NEW] Update buildings count (from Free Market expansion)
                     if (nextBuildings) {
@@ -2143,24 +2166,21 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                 addLog(`🔥 ${STRATA[stratumKey]?.name || stratumKey}阶层组织度达到70%，正在密谋叛乱！`);
                                 break;
 
+
                             case 'uprising': {
                                 // 检查影响力占比是否足够发动叛乱
                                 const stratumInfluence = rebellionStateForEvent.influenceShare;
                                 if (epochBlocksRebellion) {
                                     addLog(`⚠️ ${STRATA[stratumKey]?.name || stratumKey}阶层尚未具备发动叛乱的组织能力。`);
-                                    setRebellionStates(prev => ({
-                                        ...prev,
-                                        [stratumKey]: {
-                                            ...prev[stratumKey],
-                                            organization: 25,
-                                            stage: ORGANIZATION_STAGE.GRUMBLING,
-                                        }
-                                    }));
+                                    updatedOrganizationStates[stratumKey] = {
+                                        ...updatedOrganizationStates[stratumKey],
+                                        organization: 25,
+                                        stage: ORGANIZATION_STAGE.GRUMBLING,
+                                    };
                                     break;
                                 }
                                 if (stratumInfluence < MIN_REBELLION_INFLUENCE) {
                                     // 影响力不足无法叛乱，但组织度已满，触发人口外流
-                                    // 这避免了"卡死"情况：阶层既不能叛乱也不离开，组织度永远无法下降
                                     const stratumPop = current.popStructure?.[stratumKey] || 0;
                                     const exitRate = 0.05; // 5%人口愤怒离开
                                     const leaving = Math.max(1, Math.floor(stratumPop * exitRate));
@@ -2180,19 +2200,16 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                         setClassWealth(prev => ({
                                             ...prev,
                                             [stratumKey]: Math.max(0, (prev[stratumKey] || 0) - fleeingCapital),
-                                        }));
+                                        }), { reason: 'rebellion_fleeing_capital', meta: { stratumKey } });
                                     }
 
                                     addLog(`⚠️ ${STRATA[stratumKey]?.name || stratumKey}阶层组织度达到100%，但社会影响力不足（${Math.round(stratumInfluence * 100)}%），无法发动叛乱！${leaving}人愤怒地离开了国家。`);
 
                                     // 降低组织度，让系统恢复正常运转
-                                    setRebellionStates(prev => ({
-                                        ...prev,
-                                        [stratumKey]: {
-                                            ...prev[stratumKey],
-                                            organization: 75, // 降到75%而不是99，避免立即再次触发
-                                        }
-                                    }));
+                                    updatedOrganizationStates[stratumKey] = {
+                                        ...updatedOrganizationStates[stratumKey],
+                                        organization: 75, // 降到75%而不是99，避免立即再次触发
+                                    };
                                     break;
                                 }
 
@@ -2206,21 +2223,16 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                 );
 
                                 if (coalitionResult.isCoalition) {
-                                    // 联合叛乱：多个阶层一起发动
+                                    // 联合叛乱处理
                                     const coalitionStrata = coalitionResult.coalitionStrata;
                                     const { details, totalLoss } = calculateCoalitionPopLoss(coalitionStrata, current.popStructure);
 
-                                    // 检查是否已存在联合叛军政府或参与阶层的叛军
-                                    const existingCoalitionRebel = (current.nations || []).find(
-                                        n => n.isRebelNation && n.isAtWar && n.isCoalitionRebellion
+                                    const existingRebel = (current.nations || []).find(
+                                        n => n.isRebelNation && n.isAtWar && (n.isCoalitionRebellion || coalitionStrata.includes(n.rebellionStratum))
                                     );
-                                    const existingStrataRebel = (current.nations || []).find(
-                                        n => n.isRebelNation && n.isAtWar && coalitionStrata.includes(n.rebellionStratum)
-                                    );
-                                    const existingRebel = existingCoalitionRebel || existingStrataRebel;
 
                                     if (existingRebel) {
-                                        // 合并到已存在的叛军政府
+                                        // 合并到已存在叛军
                                         setNations(prev => prev.map(n => {
                                             if (n.id === existingRebel.id) {
                                                 const newPop = (n.population || 0) + totalLoss;
@@ -2247,10 +2259,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                             return updated;
                                         });
                                         setPopulation(prev => Math.max(0, prev - totalLoss));
-
                                         addLog(`🔥 更多人（${totalLoss}人）加入了${existingRebel.name}！`);
                                     } else {
-                                        // 创建新的联合叛乱政府
+                                        // 创建新联合叛军
                                         const rebelNation = createCoalitionRebelNation(
                                             coalitionStrata,
                                             current.popStructure,
@@ -2259,15 +2270,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                             result.totalInfluence || 0,
                                             COALITION_REBELLION_CONFIG.COALITION_BONUS
                                         );
-                                        // 标记为联合叛乱
                                         rebelNation.isCoalitionRebellion = true;
-                                        // 设置战争开始时间
                                         rebelNation.warStartDay = current.daysElapsed || 0;
-
-                                        // 将联合叛乱政府添加到国家列表
                                         setNations(prev => [...prev, rebelNation]);
-
-                                        // 从玩家处扣除所有参与阶层的人口
                                         setPopStructure(prev => {
                                             const updated = { ...prev };
                                             details.forEach(({ stratumKey: sKey, loss }) => {
@@ -2276,7 +2281,6 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                             return updated;
                                         });
                                         setPopulation(prev => Math.max(0, prev - totalLoss));
-
                                         event = createCoalitionRebellionEvent(
                                             coalitionStrata,
                                             rebelNation,
@@ -2289,17 +2293,13 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                         addLog(`🔥🔥🔥 ${coalitionNames}等多个阶层联合发动叛乱！`);
                                     }
 
-                                    // 降低参与阶层的组织度到50%
-                                    setRebellionStates(prev => {
-                                        const updated = { ...prev };
-                                        coalitionStrata.forEach(sKey => {
-                                            updated[sKey] = {
-                                                ...prev[sKey],
-                                                organization: 50,
-                                                stage: ORGANIZATION_STAGE.MOBILIZING,
-                                            };
-                                        });
-                                        return updated;
+                                    // 降低参与阶层组织度
+                                    coalitionStrata.forEach(sKey => {
+                                        updatedOrganizationStates[sKey] = {
+                                            ...updatedOrganizationStates[sKey],
+                                            organization: 50,
+                                            stage: ORGANIZATION_STAGE.MOBILIZING,
+                                        };
                                     });
                                 } else {
                                     // 单阶层叛乱
@@ -2307,13 +2307,11 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                     const stratumWealth = current.classWealth?.[stratumKey] || 0;
                                     const rebelPopLoss = calculateRebelPopulation(stratumPop);
 
-                                    // 检查是否已存在该阶层的叛军政府
                                     const existingRebelNation = (current.nations || []).find(
                                         n => n.isRebelNation && n.rebellionStratum === stratumKey && n.isAtWar
                                     );
 
                                     if (existingRebelNation) {
-                                        // 合并到已存在的叛军政府
                                         setNations(prev => prev.map(n => {
                                             if (n.id === existingRebelNation.id) {
                                                 const newPop = (n.population || 0) + rebelPopLoss;
@@ -2322,11 +2320,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                     ...n,
                                                     population: newPop,
                                                     wealth: newWealth,
-                                                    economyTraits: {
-                                                        ...n.economyTraits,
-                                                        basePopulation: newPop,
-                                                        baseWealth: newWealth,
-                                                    },
+                                                    economyTraits: { ...n.economyTraits, basePopulation: newPop, baseWealth: newWealth },
                                                 };
                                             }
                                             return n;
@@ -2336,27 +2330,12 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                             [stratumKey]: Math.max(0, (prev[stratumKey] || 0) - rebelPopLoss),
                                         }));
                                         setPopulation(prev => Math.max(0, prev - rebelPopLoss));
-
                                         addLog(`🔥 更多${STRATA[stratumKey]?.name || stratumKey}（${rebelPopLoss}人）加入了${existingRebelNation.name}！`);
-                                        // 不触发事件弹窗，只是静默合并
                                     } else {
-                                        // 创建新的叛军政府
-                                        // 准备资源掠夺数据
-                                        const resourceLoot = {
-                                            resources: current.resources || {},
-                                            marketPrices: current.market?.prices || {},
-                                        };
-                                        const rebelResult = createRebelNation(
-                                            stratumKey,
-                                            stratumPop,
-                                            stratumWealth,
-                                            stratumInfluence,
-                                            rebelPopLoss,
-                                            resourceLoot
-                                        );
+                                        const resourceLoot = { resources: current.resources || {}, marketPrices: current.market?.prices || {} };
+                                        const rebelResult = createRebelNation(stratumKey, stratumPop, stratumWealth, stratumInfluence, rebelPopLoss, resourceLoot);
                                         const rebelNation = rebelResult.nation;
 
-                                        // 扣除被掠夺的资源
                                         if (rebelResult.lootedResources && Object.keys(rebelResult.lootedResources).length > 0) {
                                             setResources(prev => {
                                                 const updated = { ...prev };
@@ -2364,16 +2343,12 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                     updated[resKey] = Math.max(0, (updated[resKey] || 0) - amount);
                                                 });
                                                 return updated;
-                                            });
-                                            const lootSummary = Object.entries(rebelResult.lootedResources)
-                                                .map(([k, v]) => `${RESOURCES[k]?.name || k}: ${v}`)
-                                                .join('、');
+                                            }, { reason: 'rebellion_loot' });
+                                            const lootSummary = Object.entries(rebelResult.lootedResources).map(([k, v]) => `${RESOURCES[k]?.name || k}: ${v}`).join('、');
                                             addLog(`⚠️ 叛军掠夺了物资：${lootSummary}（总价值约${Math.floor(rebelResult.lootedValue)}银币）`);
                                         }
 
-                                        // 设置战争开始时间
                                         rebelNation.warStartDay = current.daysElapsed || 0;
-
                                         setNations(prev => [...prev, rebelNation]);
                                         setPopStructure(prev => ({
                                             ...prev,
@@ -2381,26 +2356,15 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                         }));
                                         setPopulation(prev => Math.max(0, prev - rebelPopLoss));
 
-                                        event = createActiveRebellionEvent(
-                                            stratumKey,
-                                            rebellionStateForEvent,
-                                            hasMilitary,
-                                            militaryIsRebelling,
-                                            rebelNation,
-                                            rebellionCallback
-                                        );
+                                        event = createActiveRebellionEvent(stratumKey, rebellionStateForEvent, hasMilitary, militaryIsRebelling, rebelNation, rebellionCallback);
                                         addLog(`🔥🔥🔥 ${STRATA[stratumKey]?.name || stratumKey}阶层组织度达到100%，发动叛乱！`);
                                     }
 
-                                    // 降低组织度到50%（保持不满但不会立即再次触发叛乱）
-                                    setRebellionStates(prev => ({
-                                        ...prev,
-                                        [stratumKey]: {
-                                            ...prev[stratumKey],
-                                            organization: 50,
-                                            stage: ORGANIZATION_STAGE.MOBILIZING,
-                                        },
-                                    }));
+                                    updatedOrganizationStates[stratumKey] = {
+                                        ...updatedOrganizationStates[stratumKey],
+                                        organization: 50,
+                                        stage: ORGANIZATION_STAGE.MOBILIZING,
+                                    };
                                 }
                                 break;
                             }
@@ -2412,96 +2376,56 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     }
                 }
 
-                // 更新组织度状态（使用相同的状态名以兼容存档）
+                // 更新组织度状态
                 setRebellionStates(updatedOrganizationStates);
 
-                // ========== 起义后议和检查 ==========
-                // 如果叛乱国家对应阶层的组织度下降到不满（<30%）级别，叛军会崩溃消失
+                // 起义后议和检查
                 const rebelNations = (current.nations || []).filter(n => n.isRebelNation && n.isAtWar);
                 for (const rebelNation of rebelNations) {
                     const stratumKey = rebelNation.rebellionStratum;
                     if (!stratumKey) continue;
-
-                    // 叛军需要至少持续60天战争才会考虑崩溃
-                    const warDuration = rebelNation.warDuration || 0;
-                    if (warDuration < 60) continue;
-
-                    // 如果叛军已经不在战争中（可能已经通过投降等方式结束），跳过
-                    if (!rebelNation.isAtWar) continue;
+                    if ((rebelNation.warDuration || 0) < 60) continue;
 
                     const orgState = updatedOrganizationStates[stratumKey];
-                    const organization = orgState?.organization ?? 50; // 默认50%，避免误判
+                    const organization = orgState?.organization ?? 50;
                     const rebelWarScore = rebelNation.warScore || 0;
 
-                    // 组织度下降到 30% 以下，叛乱军崩溃
-                    // 但如果叛军战争分数大幅领先（warScore < -30），说明叛军占优，不应该瓦解
-                    // warScore 负值 = 叛军优势，正值 = 玩家优势
                     if (organization < 30 && rebelWarScore >= -20) {
                         const stratumName = STRATA[stratumKey]?.name || stratumKey;
                         addLog(`🕊️ ${rebelNation.name}内部分裂，组织度降至${Math.round(organization)}%，叛乱崩溃！`);
 
-                        // 返还部分人口给玩家
                         const returnedPop = Math.floor((rebelNation.population || 0) * 0.5);
                         if (returnedPop > 0) {
-                            setPopStructure(prev => ({
-                                ...prev,
-                                [stratumKey]: (prev[stratumKey] || 0) + returnedPop,
-                            }));
+                            setPopStructure(prev => ({ ...prev, [stratumKey]: (prev[stratumKey] || 0) + returnedPop }));
                             setPopulation(prev => prev + returnedPop);
                             addLog(`🏠 ${returnedPop}名${stratumName}从叛军中回归。`);
                         }
 
-                        // 触发叛乱平定事件弹窗
-                        const collapseCallback = (action, nation) => {
-                            debugLog('gameLoop', '[REBELLION END]', action, nation?.name);
-                        };
+                        const collapseCallback = (action, nation) => { debugLog('gameLoop', '[REBELLION END]', action, nation?.name); };
                         const collapseEvent = createRebellionEndEvent(rebelNation, true, current.resources?.silver || 0, collapseCallback);
                         if (collapseEvent && current.actions?.triggerDiplomaticEvent) {
                             current.actions.triggerDiplomaticEvent(collapseEvent);
                         }
 
-                        // 更新叛乱国家状态：结束战争
-                        setNations(prevNations => prevNations.map(n => {
-                            if (n.id === rebelNation.id) {
-                                return {
-                                    ...n,
-                                    isAtWar: false,
-                                    warScore: 0,
-                                    warDuration: 0,
-                                };
-                            }
-                            return n;
-                        }));
+                        setNations(prevNations => prevNations.map(n => n.id === rebelNation.id ? { ...n, isAtWar: false, warScore: 0, warDuration: 0 } : n));
+                        setTimeout(() => { setNations(prevNations => prevNations.filter(n => n.id !== rebelNation.id)); }, 500);
 
-                        // 将叛乱国家从列表中移除（延迟执行以确保事件显示）
-                        setTimeout(() => {
-                            setNations(prevNations => prevNations.filter(n => n.id !== rebelNation.id));
-                        }, 500);
-
-                        // 重置该阶层的组织度
                         setRebellionStates(prev => ({
                             ...prev,
-                            [stratumKey]: {
-                                ...prev[stratumKey],
-                                organization: Math.max(0, organization - 30), // 额外降低30%
-                            }
+                            [stratumKey]: { ...prev[stratumKey], organization: Math.max(0, organization - 30) }
                         }));
                     }
                 }
 
-                // 策略行动冷却 - 每日递减
+                // 策略行动冷却
                 if (actionCooldowns && Object.keys(actionCooldowns).length > 0) {
                     setActionCooldowns(prev => {
                         if (!prev) return prev;
                         let changed = false;
                         const next = {};
                         Object.entries(prev).forEach(([key, value]) => {
-                            if (value > 1) {
-                                next[key] = value - 1;
-                                changed = true;
-                            } else if (value > 1e-6) {
-                                changed = true;
-                            }
+                            if (value > 1) { next[key] = value - 1; changed = true; }
+                            else if (value > 1e-6) { changed = true; }
                         });
                         return changed ? next : prev;
                     });
@@ -2523,31 +2447,24 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         popStructure: result.popStructure || current.popStructure || {},
                     });
 
-                    // 处理完成的任务
                     if (evaluation.completed.length > 0) {
                         evaluation.completed.forEach(task => {
-                            const config = task.type === 'approval' ? null : null; // 可扩展
                             addLog(`🤝 ${task.stratumName} 的承诺已兑现：${task.description || '任务完成'}`);
                         });
                     }
 
-                    // 处理进入保持阶段的任务（两阶段机制）
                     if (evaluation.updated && evaluation.updated.length > 0) {
                         evaluation.updated.forEach(task => {
                             addLog(`✓ ${task.stratumName} 的承诺目标已达成，现在需要保持 ${task.maintainDuration} 天`);
                         });
                     }
 
-                    // 处理失败的任务
                     if (evaluation.failed.length > 0) {
                         evaluation.failed.forEach(task => {
                             const stratumKey = task.stratumKey;
-                            const failReason = task.failReason === 'maintain_broken'
-                                ? '未能保持承诺'
-                                : '未能按时完成';
+                            const failReason = task.failReason === 'maintain_broken' ? '未能保持承诺' : '未能按时完成';
                             addLog(`⚠️ 你违背了对${task.stratumName}的承诺（${failReason}），组织度暴涨！`);
 
-                            // 计算惩罚后的组织度
                             const prevState = current.rebellionStates?.[stratumKey] || {};
                             const penalty = task.failurePenalty || { organization: 50 };
                             let newOrganization = prevState.organization || 0;
@@ -2565,22 +2482,22 @@ export const useGameLoop = (gameState, addLog, actions) => {
 
                             if (reachedThreshold && !canTriggerUprising) {
                                 newOrganization = 99;
-                                const extraReason = epochBlocksRebellion
-                                    ? '当前时代他们尚缺乏发动叛乱的组织力'
-                                    : `社会影响力不足（${Math.round(stratumInfluence * 100)}%）`;
+                                const extraReason = epochBlocksRebellion ? '当前时代他们尚缺乏发动叛乱的组织力' : `社会影响力不足（${Math.round(stratumInfluence * 100)}%）`;
                                 addLog(`⚠️ ${STRATA[stratumKey]?.name || stratumKey}阶层因承诺违背组织度达到100%，但${extraReason}，无法发动叛乱！`);
                             }
 
-                            // 更新组织度状态
+                            updatedOrganizationStates[stratumKey] = {
+                                ...updatedOrganizationStates[stratumKey], // Note: Here we update persisted state, but we should probably use setRebellionStates for promise failure as it's separate from main loop? 
+                                // Actually better to keep consistent with previous logic.
+                                organization: newOrganization,
+                            };
+
+                            // Re-trigger persistence just in case
                             setRebellionStates(prev => ({
                                 ...prev,
-                                [stratumKey]: {
-                                    ...prev[stratumKey],
-                                    organization: newOrganization,
-                                },
+                                [stratumKey]: { ...prev[stratumKey], organization: newOrganization }
                             }));
 
-                            // 如果组织度达到100%，触发起义事件
                             if (canTriggerUprising && current.actions?.triggerDiplomaticEvent) {
                                 const hasMilitary = hasAvailableMilitary(current.army, current.popStructure, stratumKey);
                                 const militaryIsRebelling = isMilitaryRebelling(current.rebellionStates || {});
@@ -2591,12 +2508,9 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                     influenceShare: stratumInfluence,
                                 };
 
-                                // 创建叛乱政府
                                 const stratumPop = current.popStructure?.[stratumKey] || 0;
                                 const stratumWealth = current.classWealth?.[stratumKey] || 0;
                                 const rebelPopLoss = calculateRebelPopulation(stratumPop);
-
-                                // 准备资源掠夺数据
                                 const resourceLoot = {
                                     resources: current.resources || {},
                                     marketPrices: current.market?.prices || {},
@@ -2611,7 +2525,6 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                 );
                                 const rebelNation = rebelResult.nation;
 
-                                // 扣除被掠夺的资源
                                 if (rebelResult.lootedResources && Object.keys(rebelResult.lootedResources).length > 0) {
                                     setResources(prev => {
                                         const updated = { ...prev };
@@ -2619,16 +2532,14 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                             updated[resKey] = Math.max(0, (updated[resKey] || 0) - amount);
                                         });
                                         return updated;
-                                    });
+                                    }, { reason: 'rebellion_loot' });
                                     const lootSummary = Object.entries(rebelResult.lootedResources)
                                         .map(([k, v]) => `${RESOURCES[k]?.name || k}: ${v}`)
                                         .join('、');
                                     addLog(`⚠️ 叛军掠夺了物资：${lootSummary}（总价值约${Math.floor(rebelResult.lootedValue)}银币）`);
                                 }
 
-                                // 设置战争开始时间
                                 rebelNation.warStartDay = current.daysElapsed || 0;
-
                                 setNations(prev => [...prev, rebelNation]);
                                 setPopStructure(prev => ({
                                     ...prev,
@@ -2650,7 +2561,6 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                     rebelNation,
                                     rebellionCallback
                                 );
-
                                 addLog(`🔥🔥🔥 ${STRATA[stratumKey]?.name || stratumKey}因承诺违背，组织度达到100%，发动叛乱！`);
                                 current.actions.triggerDiplomaticEvent(event);
                                 setIsPaused(true);
@@ -2661,25 +2571,12 @@ export const useGameLoop = (gameState, addLog, actions) => {
                     // 更新任务列表（包括进入保持阶段的任务）
                     const newRemaining = [...evaluation.remaining];
                     if (evaluation.updated) {
-                        // updated 任务已经在 remaining 中了，这里只是确认
+                        // updated 任务已经在 remaining 中了
                     }
                     setPromiseTasks(newRemaining);
                 }
 
-                // 处理贸易路线并记录贸易税收入
                 // 处理玩家的分期支付
-                if (tradeRouteSummary) {
-                    applyTradeRouteDeltas(
-                        tradeRouteSummary,
-                        current,
-                        addLog,
-                        setResources,
-                        setNations,
-                        setTradeRoutes,
-                        { applyResourceDelta: false }
-                    );
-                }
-
                 if (gameState.playerInstallmentPayment && gameState.playerInstallmentPayment.remainingDays > 0) {
                     const payment = gameState.playerInstallmentPayment;
                     const paymentAmount = payment.amount;
@@ -2688,7 +2585,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                         setResources(prev => ({
                             ...prev,
                             silver: (prev.silver || 0) - paymentAmount
-                        }));
+                        }), { reason: 'installment_payment' });
 
                         gameState.setPlayerInstallmentPayment(prev => ({
                             ...prev,
@@ -3208,7 +3105,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                     setResources(prev => ({
                                                         ...prev,
                                                         silver: Math.max(0, (prev.silver || 0) - reformAmount)
-                                                    }));
+                                                    }), { reason: 'rebel_reform_payment' });
 
                                                     // 按人口比例分配给各阶层
                                                     const popShare = {};
@@ -3239,7 +3136,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                         });
                                                         debugLog('gameLoop', '[REBEL REFORM] Distributed:', distributions.join(', '));
                                                         return newWealth;
-                                                    });
+                                                    }, { reason: 'rebel_reform_distribution', meta: { coalitionStrata } });
 
                                                     const distribDesc = coalitionStrata.length > 1
                                                         ? `（按比例分配给：${distributions.join('、')}）`
@@ -3352,7 +3249,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                     if (nation && currentActions && currentActions.triggerDiplomaticEvent) {
                                         const event = createGiftEvent(nation, eventData.amount, () => {
                                             // 接受礼物的回调
-                                            setResources(prev => ({ ...prev, silver: (prev.silver || 0) + eventData.amount }));
+                                            setResources(prev => ({ ...prev, silver: (prev.silver || 0) + eventData.amount }), { reason: 'ai_gift_received' });
                                             setNations(prev => prev.map(n => n.id === nation.id ? { ...n, relation: Math.min(100, (n.relation || 0) + 15) } : n));
                                             addLog(`💰 你接受了 ${nation.name} 的礼物，获得 ${eventData.amount} 银币。`);
                                         });
@@ -3378,7 +3275,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                     addLog(`❌ 银币不足，无法满足 ${nation.name} 的请求！`);
                                                     return;
                                                 }
-                                                setResources(prev => ({ ...prev, silver: (prev.silver || 0) - eventData.amount }));
+                                                setResources(prev => ({ ...prev, silver: (prev.silver || 0) - eventData.amount }), { reason: 'ai_request_payment' });
                                                 setNations(prev => prev.map(n => n.id === nation.id ? { ...n, relation: Math.min(100, (n.relation || 0) + 10) } : n));
                                                 addLog(`🤝 你满足了 ${nation.name} 的请求，关系提升了。`);
                                             } else {
@@ -3454,10 +3351,10 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                     const updates = { treaties: nextTreaties, relation: Math.min(100, (n.relation || 0) + 8) };
 
                                                     // Minimal effects reuse existing fields for immediate gameplay impact
-                                                    if (treaty.type === 'open_market') {
+                                                    if (OPEN_MARKET_TREATY_TYPES.includes(treaty.type)) {
                                                         updates.openMarketUntil = Math.max(n.openMarketUntil || 0, daysElapsed + durationDays);
                                                     }
-                                                    if (treaty.type === 'non_aggression') {
+                                                    if (PEACE_TREATY_TYPES.includes(treaty.type)) {
                                                         updates.peaceTreatyUntil = Math.max(n.peaceTreatyUntil || 0, daysElapsed + durationDays);
                                                     }
                                                     if (treaty.type === 'defensive_pact') {
@@ -3485,6 +3382,85 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                 }
                             }
 
+                            // AI条约撕毁通知
+                            if (log.includes('AI_TREATY_BREACH:')) {
+                                try {
+                                    const jsonStr = log.replace('AI_TREATY_BREACH:', '');
+                                    const eventData = JSON.parse(jsonStr);
+                                    const nation = result.nations?.find(n => n.id === eventData.nationId);
+                                    if (nation && currentActions && currentActions.triggerDiplomaticEvent) {
+                                        const event = createTreatyBreachEvent(nation, {
+                                            relationPenalty: eventData.relationPenalty,
+                                        }, () => { });
+                                        currentActions.triggerDiplomaticEvent(event);
+                                        debugLog('event', '[EVENT DEBUG] AI Treaty Breach event triggered:', nation.name);
+                                    }
+                                } catch (e) {
+                                    debugError('event', '[EVENT DEBUG] Failed to parse AI treaty breach event:', e);
+                                }
+                            }
+
+                            // 附庸国独立战争事件
+                            if (log.includes('VASSAL_INDEPENDENCE_WAR:')) {
+                                try {
+                                    const jsonStr = log.replace('VASSAL_INDEPENDENCE_WAR:', '');
+                                    const eventData = JSON.parse(jsonStr);
+                                    const nation = result.nations?.find(n => n.id === eventData.nationId);
+                                    if (nation && currentActions && currentActions.triggerDiplomaticEvent) {
+                                        const event = createIndependenceWarEvent(nation, {
+                                            vassalType: nation.vassalType,
+                                            autonomy: nation.autonomy,
+                                            independencePressure: nation.independencePressure,
+                                            tributeRate: nation.tributeRate,
+                                        }, (action) => {
+                                            if (action === 'crush') {
+                                                // 镇压：维持战争状态，降低稳定度
+                                                setStability(prev => Math.max(0, prev - 10));
+                                                addLog(`⚔️ 你决定出兵镇压 ${nation.name} 的叛乱！`);
+                                            } else if (action === 'negotiate') {
+                                                // 谈判：尝试取消战争，大幅提高自主度和降低朝贡率
+                                                setNations(prev => prev.map(n => {
+                                                    if (n.id !== nation.id) return n;
+                                                    return {
+                                                        ...n,
+                                                        isAtWar: false,
+                                                        warTarget: null,
+                                                        independenceWar: false,
+                                                        vassalOf: 'player',
+                                                        autonomy: Math.min(100, (n.autonomy || 50) + 25),
+                                                        tributeRate: Math.max(0.02, (n.tributeRate || 0.1) * 0.5),
+                                                        independencePressure: Math.max(0, (n.independencePressure || 0) - 30),
+                                                    };
+                                                }));
+                                                addLog(`📜 你与 ${nation.name} 达成协议，提高其自主度并降低朝贡，叛乱平息。`);
+                                            } else if (action === 'release') {
+                                                // 释放：承认独立，关系提升
+                                                setNations(prev => prev.map(n => {
+                                                    if (n.id !== nation.id) return n;
+                                                    return {
+                                                        ...n,
+                                                        isAtWar: false,
+                                                        warTarget: null,
+                                                        independenceWar: false,
+                                                        vassalOf: null,
+                                                        vassalType: null,
+                                                        autonomy: 100,
+                                                        tributeRate: 0,
+                                                        independencePressure: 0,
+                                                        relation: Math.min(100, (n.relation || 50) + 30),
+                                                    };
+                                                }));
+                                                addLog(`🏳️ 你承认了 ${nation.name} 的独立，对方感激你的明智决定。`);
+                                            }
+                                        });
+                                        currentActions.triggerDiplomaticEvent(event);
+                                        debugLog('event', '[EVENT DEBUG] Independence War event triggered:', nation.name);
+                                    }
+                                } catch (e) {
+                                    debugError('event', '[EVENT DEBUG] Failed to parse independence war event:', e);
+                                }
+                            }
+
                             // 检测盟友冷淡事件
                             if (log.includes('ALLY_COLD_EVENT:')) {
                                 try {
@@ -3500,7 +3476,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                     addLog(`❌ 银币不足，无法向 ${nation.name} 赠送礼物！`);
                                                     return;
                                                 }
-                                                setResources(prev => ({ ...prev, silver: (prev.silver || 0) - giftCost }));
+                                                setResources(prev => ({ ...prev, silver: (prev.silver || 0) - giftCost }), { reason: 'ally_gift' });
                                                 setNations(prev => prev.map(n =>
                                                     n.id === nation.id
                                                         ? { ...n, relation: Math.min(100, (n.relation || 0) + 15) }
@@ -3598,7 +3574,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                                         addLog(`❌ 银币不足（需要 ${amount}，当前 ${Math.floor(currentSilver)}），无法接受投降条件！`);
                                                         return;
                                                     }
-                                                    setResources(prev => ({ ...prev, silver: Math.max(0, (prev.silver || 0) - amount) }));
+                                                    setResources(prev => ({ ...prev, silver: Math.max(0, (prev.silver || 0) - amount) }), { reason: 'war_reparation_payment' });
                                                     addLog(`💰 你向 ${nation.name} 支付了 ${amount} 银币赔款。`);
                                                 } else if (actionType === 'pay_installment') {
                                                     // 分期付款 - amount 是每日金额
@@ -3778,6 +3754,251 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                 }
                             }
 
+                            // 检测海外投资机会事件
+                            if (log.includes('OVERSEAS_INVESTMENT_OPPORTUNITY:')) {
+                                console.log('[AI投资事件监听] 检测到投资机会日志:', log);
+                                try {
+                                    const jsonStr = log.replace('OVERSEAS_INVESTMENT_OPPORTUNITY:', '');
+                                    const eventData = JSON.parse(jsonStr);
+                                    const nation = result.nations?.find(n => n.id === eventData.nationId);
+                                    console.log('[AI投资事件监听] 解析成功, nation:', nation?.name, 'currentActions:', !!currentActions, 'triggerDiplomaticEvent:', !!currentActions?.triggerDiplomaticEvent);
+                                    if (nation && currentActions && currentActions.triggerDiplomaticEvent) {
+                                        const event = createOverseasInvestmentOpportunityEvent(
+                                            nation,
+                                            eventData.opportunity,
+                                            (accepted, investmentDetails) => {
+                                                console.log('[AI投资事件监听] 回调被触发, accepted:', accepted, 'details:', investmentDetails);
+                                                if (accepted && investmentDetails) {
+                                                    // 通过外交行动建立投资
+                                                    if (actions?.handleDiplomaticAction) {
+                                                        actions.handleDiplomaticAction(nation.id, 'accept_foreign_investment', {
+                                                            buildingId: investmentDetails.buildingId,
+                                                            ownerStratum: investmentDetails.ownerStratum,
+                                                            operatingMode: investmentDetails.operatingMode,
+                                                            investmentAmount: investmentDetails.requiredInvestment
+                                                        });
+                                                    }
+                                                }
+                                            }
+                                        );
+                                        console.log('[AI投资事件监听] 创建事件成功, 正在触发:', event);
+                                        currentActions.triggerDiplomaticEvent(event);
+                                        debugLog('event', '[EVENT DEBUG] Overseas Investment Opportunity event triggered:', nation.name);
+                                    } else {
+                                        console.log('[AI投资事件监听] 缺少必要条件, nation:', !!nation, 'currentActions:', !!currentActions);
+                                    }
+                                } catch (e) {
+                                    console.error('[AI投资事件监听] 解析失败:', e);
+                                    debugError('event', '[EVENT DEBUG] Failed to parse Overseas Investment Opportunity event:', e);
+                                }
+                            }
+
+                            // 检测外资国有化威胁事件
+                            if (log.includes('NATIONALIZATION_THREAT:')) {
+                                try {
+                                    const jsonStr = log.replace('NATIONALIZATION_THREAT:', '');
+                                    const eventData = JSON.parse(jsonStr);
+                                    const nation = result.nations?.find(n => n.id === eventData.nationId);
+                                    if (nation && currentActions && currentActions.triggerDiplomaticEvent) {
+                                        const event = createNationalizationThreatEvent(
+                                            nation,
+                                            eventData.investment,
+                                            (action, details) => {
+                                                if (action === 'accept_compensation') {
+                                                    // 接受补偿，移除投资
+                                                    setResources(prev => ({
+                                                        ...prev,
+                                                        silver: (prev.silver || 0) + (details?.compensation || 0)
+                                                    }), { reason: 'nationalization_compensation' });
+                                                    addLog(`💰 你接受了 ${nation.name} 的国有化补偿金 ${details?.compensation || 0} 银币。`);
+                                                } else if (action === 'negotiate') {
+                                                    // 尝试谈判
+                                                    setNations(prev => prev.map(n =>
+                                                        n.id === nation.id
+                                                            ? { ...n, relation: Math.max(0, (n.relation || 50) - 10) }
+                                                            : n
+                                                    ));
+                                                    addLog(`🤝 你尝试与 ${nation.name} 就国有化问题进行谈判，关系下降。`);
+                                                } else if (action === 'threaten') {
+                                                    // 发出警告
+                                                    setNations(prev => prev.map(n =>
+                                                        n.id === nation.id
+                                                            ? { ...n, relation: Math.max(0, (n.relation || 50) - 25) }
+                                                            : n
+                                                    ));
+                                                    addLog(`⚠️ 你警告 ${nation.name} 不要国有化你的投资，关系严重恶化！`);
+                                                }
+                                            }
+                                        );
+                                        currentActions.triggerDiplomaticEvent(event);
+                                        debugLog('event', '[EVENT DEBUG] Nationalization Threat event triggered:', nation.name);
+                                    }
+                                } catch (e) {
+                                    debugError('event', '[EVENT DEBUG] Failed to parse Nationalization Threat event:', e);
+                                }
+                            }
+
+                            // 检测贸易争端事件
+                            if (log.includes('TRADE_DISPUTE:')) {
+                                try {
+                                    const jsonStr = log.replace('TRADE_DISPUTE:', '');
+                                    const eventData = JSON.parse(jsonStr);
+                                    const nation1 = result.nations?.find(n => n.id === eventData.nation1Id);
+                                    const nation2 = result.nations?.find(n => n.id === eventData.nation2Id);
+                                    if (nation1 && nation2 && currentActions && currentActions.triggerDiplomaticEvent) {
+                                        const event = createTradeDisputeEvent(
+                                            nation1,
+                                            nation2,
+                                            eventData.disputeType,
+                                            (decision) => {
+                                                if (decision === 'support_nation1') {
+                                                    setNations(prev => prev.map(n => {
+                                                        if (n.id === nation1.id) return { ...n, relation: Math.min(100, (n.relation || 50) + 10) };
+                                                        if (n.id === nation2.id) return { ...n, relation: Math.max(0, (n.relation || 50) - 15) };
+                                                        return n;
+                                                    }));
+                                                    addLog(`⚖️ 你在贸易争端中支持 ${nation1.name}。`);
+                                                } else if (decision === 'support_nation2') {
+                                                    setNations(prev => prev.map(n => {
+                                                        if (n.id === nation2.id) return { ...n, relation: Math.min(100, (n.relation || 50) + 10) };
+                                                        if (n.id === nation1.id) return { ...n, relation: Math.max(0, (n.relation || 50) - 15) };
+                                                        return n;
+                                                    }));
+                                                    addLog(`⚖️ 你在贸易争端中支持 ${nation2.name}。`);
+                                                } else if (decision === 'mediate') {
+                                                    setNations(prev => prev.map(n => {
+                                                        if (n.id === nation1.id || n.id === nation2.id) {
+                                                            return { ...n, relation: Math.min(100, (n.relation || 50) + 5) };
+                                                        }
+                                                        return n;
+                                                    }));
+                                                    addLog(`🤝 你成功调停了 ${nation1.name} 与 ${nation2.name} 之间的贸易争端。`);
+                                                }
+                                            }
+                                        );
+                                        currentActions.triggerDiplomaticEvent(event);
+                                        debugLog('event', '[EVENT DEBUG] Trade Dispute event triggered:', nation1.name, nation2.name);
+                                    }
+                                } catch (e) {
+                                    debugError('event', '[EVENT DEBUG] Failed to parse Trade Dispute event:', e);
+                                }
+                            }
+
+                            // 检测军事同盟邀请事件
+                            if (log.includes('MILITARY_ALLIANCE_INVITE:')) {
+                                try {
+                                    const jsonStr = log.replace('MILITARY_ALLIANCE_INVITE:', '');
+                                    const eventData = JSON.parse(jsonStr);
+                                    const inviter = result.nations?.find(n => n.id === eventData.inviterId);
+                                    const target = result.nations?.find(n => n.id === eventData.targetId);
+                                    if (inviter && target && currentActions && currentActions.triggerDiplomaticEvent) {
+                                        const event = createMilitaryAllianceInviteEvent(
+                                            inviter,
+                                            target,
+                                            eventData.reason,
+                                            (accepted, rejectType) => {
+                                                if (accepted) {
+                                                    setNations(prev => prev.map(n => {
+                                                        if (n.id === inviter.id) {
+                                                            return { ...n, alliedWithPlayer: true, relation: Math.min(100, (n.relation || 50) + 20) };
+                                                        }
+                                                        if (n.id === target.id) {
+                                                            return { ...n, relation: Math.max(0, (n.relation || 50) - 20) };
+                                                        }
+                                                        return n;
+                                                    }));
+                                                    addLog(`🤝 你与 ${inviter.name} 建立军事同盟，共同对抗 ${target.name}。`);
+                                                } else if (rejectType === 'warn_target') {
+                                                    setNations(prev => prev.map(n => {
+                                                        if (n.id === target.id) return { ...n, relation: Math.min(100, (n.relation || 50) + 15) };
+                                                        if (n.id === inviter.id) return { ...n, relation: Math.max(0, (n.relation || 50) - 25) };
+                                                        return n;
+                                                    }));
+                                                    addLog(`📢 你向 ${target.name} 通报了 ${inviter.name} 的同盟邀请。`);
+                                                } else {
+                                                    addLog(`你婉拒了 ${inviter.name} 的军事同盟邀请。`);
+                                                }
+                                            }
+                                        );
+                                        currentActions.triggerDiplomaticEvent(event);
+                                        debugLog('event', '[EVENT DEBUG] Military Alliance Invite event triggered:', inviter.name);
+                                    }
+                                } catch (e) {
+                                    debugError('event', '[EVENT DEBUG] Failed to parse Military Alliance Invite event:', e);
+                                }
+                            }
+
+                            // 检测边境冲突事件
+                            if (log.includes('BORDER_INCIDENT:')) {
+                                try {
+                                    const jsonStr = log.replace('BORDER_INCIDENT:', '');
+                                    const eventData = JSON.parse(jsonStr);
+                                    const nation = result.nations?.find(n => n.id === eventData.nationId);
+                                    if (nation && currentActions && currentActions.triggerDiplomaticEvent) {
+                                        const event = createBorderIncidentEvent(
+                                            nation,
+                                            { casualties: eventData.casualties, isOurFault: eventData.isOurFault },
+                                            (response) => {
+                                                if (response === 'apologize') {
+                                                    setResources(prev => ({ ...prev, silver: Math.max(0, (prev.silver || 0) - 500) }), { reason: 'border_incident_compensation' });
+                                                    addLog(`🙏 你向 ${nation.name} 道歉并支付了赔偿金。`);
+                                                } else if (response === 'deny') {
+                                                    setNations(prev => prev.map(n =>
+                                                        n.id === nation.id ? { ...n, relation: Math.max(0, (n.relation || 50) - 15) } : n
+                                                    ));
+                                                    addLog(`❌ 你否认了边境冲突的责任，${nation.name} 对此表示不满。`);
+                                                } else if (response === 'demand_apology') {
+                                                    addLog(`📜 你向 ${nation.name} 发出正式抗议，要求道歉。`);
+                                                } else if (response === 'retaliate') {
+                                                    setNations(prev => prev.map(n =>
+                                                        n.id === nation.id ? { ...n, relation: Math.max(0, (n.relation || 50) - 30) } : n
+                                                    ));
+                                                    addLog(`⚔️ 你下令对 ${nation.name} 进行军事报复！`);
+                                                } else if (response === 'protest') {
+                                                    addLog(`📜 你向 ${nation.name} 提出外交抗议。`);
+                                                }
+                                            }
+                                        );
+                                        currentActions.triggerDiplomaticEvent(event);
+                                        debugLog('event', '[EVENT DEBUG] Border Incident event triggered:', nation.name);
+                                    }
+                                } catch (e) {
+                                    debugError('event', '[EVENT DEBUG] Failed to parse Border Incident event:', e);
+                                }
+                            }
+
+                            // 检测附庸请求事件
+                            if (log.includes('VASSAL_REQUEST:')) {
+                                try {
+                                    const jsonStr = log.replace('VASSAL_REQUEST:', '');
+                                    const eventData = JSON.parse(jsonStr);
+                                    const nation = result.nations?.find(n => n.id === eventData.nationId);
+                                    if (nation && currentActions && currentActions.triggerDiplomaticEvent) {
+                                        const event = createVassalRequestEvent(
+                                            nation,
+                                            eventData.vassalType,
+                                            eventData.reason,
+                                            (accepted, vassalType) => {
+                                                if (accepted) {
+                                                    // 通过外交行动建立附庸关系
+                                                    if (actions?.handleDiplomaticAction) {
+                                                        actions.handleDiplomaticAction(nation.id, 'establish_vassal', {
+                                                            vassalType: vassalType
+                                                        });
+                                                    }
+                                                    addLog(`👑 ${nation.name} 成为你的附庸！`);
+                                                } else {
+                                                    addLog(`你拒绝了 ${nation.name} 成为附庸的请求。`);
+                                                }
+                                            }
+                                        );
+                                        currentActions.triggerDiplomaticEvent(event);
+                                        debugLog('event', '[EVENT DEBUG] Vassal Request event triggered:', nation.name);
+                                    }
+                                } catch (e) {
+                                    debugError('event', '[EVENT DEBUG] Failed to parse Vassal Request event:', e);
+                                }
+                            }
 
 
                         });
@@ -3909,7 +4130,7 @@ export const useGameLoop = (gameState, addLog, actions) => {
                                         next[res] = Math.max(0, (next[res] || 0) - amount);
                                     });
                                     return next;
-                                });
+                                }, { reason: 'auto_replenish_cost' });
 
                                 // 添加到队列
                                 Object.entries(replenishCounts).forEach(([unitId, count]) => {

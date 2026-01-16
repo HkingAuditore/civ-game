@@ -395,7 +395,7 @@ const MilitaryTabComponent = ({
     // This ensures MilitaryTab shows the same military expense as the financial panel,
     // which includes difficulty multiplier and wartime multiplier from simulation.js
     const simulationMilitaryExpense = window.__GAME_MILITARY_EXPENSE__;
-    const armyExpenseData = simulationMilitaryExpense || propArmyExpenseData || calculateTotalArmyExpense(
+    const armyExpenseData = propArmyExpenseData || simulationMilitaryExpense || calculateTotalArmyExpense(
         army,
         market?.prices || {},
         epoch,
@@ -1025,14 +1025,22 @@ const MilitaryTabComponent = ({
                                     >
                                         {warringNations.map((nation) => (
                                             <option key={nation.id} value={nation.id}>
-                                                {nation.name} · 战争分数 {nation.warScore || 0}
+                                                {nation.name} · 我方优势 {nation.warScore || 0}
                                             </option>
                                         ))}
                                     </select>
                                 </div>
                                 {activeNation && (
                                     <div className="flex flex-wrap gap-3">
-                                        <span>战争分数：{activeNation.warScore || 0}</span>
+                                        <span className={(() => {
+                                            const playerScore = activeNation.warScore || 0;
+                                            if (playerScore > 150) return 'text-green-400 font-bold';
+                                            if (playerScore > 0) return 'text-green-300';
+                                            if (playerScore > -150) return 'text-yellow-400';
+                                            return 'text-red-400 font-bold';
+                                        })()}>
+                                            我方优势：{activeNation.warScore || 0}
+                                        </span>
                                         <span>敌军损失：{activeNation.enemyLosses || 0}</span>
                                         <span>财富：{Math.floor(activeNation.wealth || 0)}</span>
                                         <span>军事实力：{Math.floor((activeNation.militaryStrength ?? 1.0) * 100)}%</span>
@@ -1247,7 +1255,7 @@ const MilitaryTabComponent = ({
                             <div>
                                 <h4 className="text-lg font-bold text-white font-decorative">战争分数指引</h4>
                                 <p className="text-xs text-gray-400 mt-0.5">
-                                    战争分数越高，可提出的和平条件越苛刻；分数为负时，通常需要支付赔款或割地才能求和。
+                                    "我方优势"越高，可提出的和平条件越苛刻；优势为负时，说明敌方占优，需要支付赔款或割地才能求和。
                                 </p>
                             </div>
                             <button

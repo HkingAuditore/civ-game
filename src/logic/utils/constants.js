@@ -3,7 +3,7 @@
  * Contains all constant values used across the simulation system
  */
 
-import { TECHS } from '../../config';
+import { TECHS } from '../../config/index.js';
 
 // Tech lookup map for O(1) access by tech ID
 export const TECH_MAP = TECHS.reduce((acc, tech) => {

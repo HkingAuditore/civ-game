@@ -7,6 +7,23 @@ import { STRATA, RESOURCES } from '../../config';
 import { calculateForeignPrice, calculateTradeStatus } from '../../utils/foreignTrade';
 import { isTradableResource } from '../utils/helpers';
 import { debugLog } from '../../utils/debugFlags';
+import { getTreatyEffects } from '../diplomacy/treatyEffects';
+import { TRANSACTION_CATEGORIES } from './ledger';
+
+/**
+ * Helper: Apply treasury (silver) change and optionally invoke callback for tracking
+ */
+const applyTreasuryChange = (resources, delta, reason, onTreasuryChange) => {
+    if (!resources || !Number.isFinite(delta) || delta === 0) return 0;
+    const before = Number(resources.silver || 0);
+    const after = Math.max(0, before + delta);
+    const actual = after - before;
+    resources.silver = after;
+    if (typeof onTreasuryChange === 'function' && actual !== 0) {
+        onTreasuryChange(actual, reason);
+    }
+    return actual;
+};
 
 /**
  * Default merchant trade configuration
@@ -222,11 +239,84 @@ const scoreExportCandidate = ({ resourceKey, partner, tick, getLocalPrice, res, 
 // --- Trade 2.0 end helpers ---------------------------------------------
 
 /**
+ * Analyze global trade opportunities for UI display
+ * Scans all visible nations and returns top export/import opportunities
+ */
+export const analyzeTradeOpportunities = ({
+    nations,
+    res,
+    supply,
+    demand,
+    market,
+    tick,
+    taxPolicies,
+    tradeConfig = DEFAULT_TRADE_CONFIG,
+    merchantTradePreferences = null
+}) => {
+    const opportunities = { exports: [], imports: [] };
+    const getLocalPrice = (k) => market?.prices?.[k];
+
+    // Tax rate helpers (simplified for analysis)
+    const resourceTaxRates = taxPolicies?.resourceTaxRates || {};
+    const importTariffMultipliers = taxPolicies?.importTariffMultipliers || taxPolicies?.resourceTariffMultipliers || {};
+    const getImportTaxRate = (resource) => {
+        const baseTaxRate = resourceTaxRates[resource] || 0;
+        const tariffRate = importTariffMultipliers[resource] ?? 0;
+        return baseTaxRate + tariffRate;
+    };
+
+    const tradableKeys = Object.keys(RESOURCES).filter(key => isTradableResource(key));
+    const allExports = [];
+    const allImports = [];
+
+    // Scan all visible nations
+    (nations || []).forEach(partner => {
+        if (!partner || partner.isAtWar) return;
+
+        tradableKeys.forEach(resourceKey => {
+            // Export check
+            const exp = scoreExportCandidate({
+                resourceKey,
+                partner,
+                tick,
+                getLocalPrice,
+                res,
+                supply,
+                tradeConfig,
+                merchantTradePreferences,
+            });
+            if (exp && exp.score > 0) allExports.push(exp);
+
+            // Import check
+            const imp = scoreImportCandidate({
+                resourceKey,
+                partner,
+                tick,
+                getLocalPrice,
+                res,
+                demand,
+                tradeConfig,
+                merchantTradePreferences,
+                getImportTaxRate,
+            });
+            if (imp && imp.score > 0) allImports.push(imp);
+        });
+    });
+
+    // Return top 10 of each
+    opportunities.exports = pickTopN(allExports, 10);
+    opportunities.imports = pickTopN(allImports, 10);
+
+    return opportunities;
+};
+
+/**
  * Simulate merchant trading for one tick
  * @param {Object} params - Trading parameters
  * @returns {Object} Updated merchant state
  */
 export const simulateMerchantTrade = ({
+    ledger, // [REFACTORED]
     res,
     wealth,
     popStructure,
@@ -255,6 +345,9 @@ export const simulateMerchantTrade = ({
 
     // Control whether to log merchant trade initiation messages
     shouldLogMerchantTrades = true,
+
+    // Treasury change callback for resource tracking
+    onTreasuryChange = null,
 }) => {
     const merchantCount = popStructure?.merchant || 0;
     if (merchantCount <= 0) {
@@ -288,6 +381,11 @@ export const simulateMerchantTrade = ({
         trade.daysRemaining -= 1;
 
         if (trade.daysRemaining <= 0) {
+            // [REFACTORED] Use Ledger for revenue (Income)
+            if (ledger) {
+                ledger.transfer('void', 'merchant', trade.revenue, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE, TRANSACTION_CATEGORIES.INCOME.OWNER_REVENUE);
+            }
+            // Keep roleWagePayout for other stats
             roleWagePayout.merchant = (roleWagePayout.merchant || 0) + trade.revenue;
 
             if (trade.type === 'import') {
@@ -388,6 +486,25 @@ export const simulateMerchantTrade = ({
         if (!partner) continue;
         if (isTradeBlockedWithPartner({ partner })) continue;
 
+        // 获取与该贸易伙伴的条约效果，应用关税减免
+        const treatyEffects = getTreatyEffects(partner, tick);
+        const treatyTariffMult = treatyEffects.tariffMultiplier; // 0~1, 低于1表示减免
+
+        // 创建基于条约的关税率计算函数
+        const getPartnerImportTaxRate = (resource) => {
+            const baseRate = getImportTaxRate(resource);
+            // 条约减免只作用于关税部分，不影响基础交易税
+            const tariffPart = (importTariffMultipliers[resource] ?? 0);
+            const discountedTariff = tariffPart * treatyTariffMult;
+            return (resourceTaxRates[resource] || 0) + discountedTariff;
+        };
+        const getPartnerExportTaxRate = (resource) => {
+            const baseRate = getExportTaxRate(resource);
+            const tariffPart = (exportTariffMultipliers[resource] ?? 0);
+            const discountedTariff = tariffPart * treatyTariffMult;
+            return (resourceTaxRates[resource] || 0) + discountedTariff;
+        };
+
         // Candidate scoring (cap resources scanned for perf)
         const candidates = [];
 
@@ -410,8 +527,8 @@ export const simulateMerchantTrade = ({
             let exportProfitScore = 0;
 
             if (foreignPrice != null) {
-                // Import Profitability: LocalPrice - (ForeignPrice * (1 + ImportTariff))
-                const importTariff = getImportTaxRate(resourceKey);
+                // Import Profitability: LocalPrice - (ForeignPrice * (1 + ImportTariff * treatyMult))
+                const importTariff = getPartnerImportTaxRate(resourceKey);
                 // Note: Tariff logic in execution was: foreignPrice * (1 + tariffRate) (conceptually cost)
                 // Actually execution logic: Cost = Foreign + Foreign*Tariff.
                 // If Tariff is -0.5 (-50%), Cost = Foreign * 0.5.
@@ -421,8 +538,8 @@ export const simulateMerchantTrade = ({
                     importProfitScore = (localPrice - importCost) / Math.max(0.1, importCost);
                 }
 
-                // Export Profitability: ForeignPrice - (LocalPrice * (1 + ExportTax))
-                const exportTax = getExportTaxRate(resourceKey);
+                // Export Profitability: ForeignPrice - (LocalPrice * (1 + ExportTax * treatyMult))
+                const exportTax = getPartnerExportTaxRate(resourceKey);
                 // Export tax is on Local Price.
                 const exportCost = localPrice * (1 + exportTax);
                 if (foreignPrice > exportCost) {
@@ -525,6 +642,7 @@ export const simulateMerchantTrade = ({
 
             if (candidate.type === 'export') {
                 const result = executeExportTradeV2({
+                    ledger, // [REFACTORED]
                     partner,
                     partnerId: partner.id,
                     resourceKey: candidate.resourceKey,
@@ -559,6 +677,7 @@ export const simulateMerchantTrade = ({
                 }
             } else {
                 const result = executeImportTradeV2({
+                    ledger, // [REFACTORED]
                     partner,
                     partnerId: partner.id,
                     resourceKey: candidate.resourceKey,
@@ -607,6 +726,7 @@ export const simulateMerchantTrade = ({
 // --- V2 execution functions (point-to-point) ----------------------------
 
 const executeExportTradeV2 = ({
+    ledger, // [REFACTORED]
     partner,
     partnerId,
     resourceKey,
@@ -674,7 +794,7 @@ const executeExportTradeV2 = ({
 
     const baseRate = taxPolicies?.resourceTaxRates?.[resourceKey] || 0;
     const tariffRate = taxPolicies?.exportTariffMultipliers?.[resourceKey] ?? taxPolicies?.resourceTariffMultipliers?.[resourceKey] ?? 0;
-    const baseTaxPaid = cost * baseRate * batchMultiplier;
+    // const baseTaxPaid = cost * baseRate * batchMultiplier; // Removed duplicate declaration
     const tariffPerUnit = cost * tariffRate;
     let appliedTariff = 0;
 
@@ -702,56 +822,51 @@ const executeExportTradeV2 = ({
 
     const totalAmount = amount * batchMultiplier;
     const totalOutlay = outlay * batchMultiplier;
-    const totalAppliedTax = appliedTax * batchMultiplier;
 
     if ((wealth.merchant || 0) < totalOutlay) return { success: false };
     if ((res[resourceKey] || 0) < totalAmount) return { success: false };
 
-    wealth.merchant -= totalOutlay;
+    // [REFACTORED] Use Ledger for transactions
+    // 1. Pay Base Cost (to Void/Market)
+    const baseCost = cost * batchMultiplier;
+    if (ledger) {
+        ledger.transfer('merchant', 'void', baseCost, TRANSACTION_CATEGORIES.EXPENSE.TRADE_EXPORT, TRANSACTION_CATEGORIES.EXPENSE.TRADE_EXPORT);
+    }
+    roleExpense.merchant = (roleExpense.merchant || 0) + baseCost;
 
+    // 2. Pay Base Tax (Resource Tax)
+    const baseTaxPaid = cost * baseRate * batchMultiplier;
+    if (baseTaxPaid > 0) {
+        if (ledger) ledger.transfer('merchant', 'state', baseTaxPaid, TRANSACTION_CATEGORIES.EXPENSE.RESOURCE_TAX, TRANSACTION_CATEGORIES.EXPENSE.RESOURCE_TAX);
+        roleExpense.merchant = (roleExpense.merchant || 0) + baseTaxPaid;
+    } else if (baseTaxPaid < 0) {
+        // Subsidy logic checks treasury
+        const subsidy = Math.abs(baseTaxPaid);
+        if ((res.silver || 0) >= subsidy) {
+            if (ledger) ledger.transfer('state', 'merchant', subsidy, TRANSACTION_CATEGORIES.INCOME.SUBSIDY, TRANSACTION_CATEGORIES.INCOME.SUBSIDY);
+        }
+    }
+
+    // 3. Pay Tariff
     const tariffPaid = appliedTariff * batchMultiplier;
     if (tariffPaid > 0) {
-        taxBreakdown.tariff = (taxBreakdown.tariff || 0) + tariffPaid;
+        if (ledger) ledger.transfer('merchant', 'state', tariffPaid, TRANSACTION_CATEGORIES.EXPENSE.TARIFF, TRANSACTION_CATEGORIES.EXPENSE.TARIFF);
+        roleExpense.merchant = (roleExpense.merchant || 0) + tariffPaid;
     } else if (tariffPaid < 0) {
         const subsidy = Math.abs(tariffPaid);
         if ((res.silver || 0) >= subsidy) {
-            res.silver -= subsidy;
+            if (ledger) ledger.transfer('state', 'merchant', subsidy, TRANSACTION_CATEGORIES.INCOME.SUBSIDY, TRANSACTION_CATEGORIES.INCOME.SUBSIDY);
+            // Manual detail tracking for tariff subsidy
             taxBreakdown.tariffSubsidy = (taxBreakdown.tariffSubsidy || 0) + subsidy;
         }
     }
 
-    if (totalAppliedTax < 0) {
-        const subsidy = Math.abs(totalAppliedTax);
-        res.silver -= subsidy;
-        taxBreakdown.subsidy += subsidy;
-    } else {
-        if (baseTaxPaid > 0) {
-            taxBreakdown.industryTax += baseTaxPaid;
-        }
-    }
-
-    if (totalAppliedTax > 0) {
-        roleExpense.merchant = (roleExpense.merchant || 0) + totalAppliedTax;
-    }
-
-    if (classFinancialData && classFinancialData.merchant) {
-        const tariffPaid = appliedTariff * batchMultiplier;
-        const totalTaxPaid = (cost * taxRate + appliedTariff) * batchMultiplier;
-        if (Math.abs(tariffPaid) > 0.001) {
-            classFinancialData.merchant.expense.tariffs = (classFinancialData.merchant.expense.tariffs || 0) + tariffPaid;
-            const remainingTax = totalTaxPaid - tariffPaid;
-            if (remainingTax > 0) classFinancialData.merchant.expense.transactionTax = (classFinancialData.merchant.expense.transactionTax || 0) + remainingTax;
-        } else {
-            if (totalTaxPaid > 0) classFinancialData.merchant.expense.transactionTax = (classFinancialData.merchant.expense.transactionTax || 0) + totalTaxPaid;
-        }
-        if (profit > 0) {
-            classFinancialData.merchant.income.ownerRevenue = (classFinancialData.merchant.income.ownerRevenue || 0) + profit * batchMultiplier;
-        }
-        const subsidy = totalAppliedTax < 0 ? Math.abs(totalAppliedTax) : 0;
-        if (subsidy > 0) {
-            classFinancialData.merchant.income.subsidy = (classFinancialData.merchant.income.subsidy || 0) + subsidy;
-        }
-    }
+    // Profit recording handled in classFinancialData by Ledger automatically?
+    // Wait, ledger records Income/Expense.
+    // Export PROFIT is not an explicit transaction here.
+    // Revenue is realized when trade completes (in simulateMerchantTrade main loop).
+    // Here we only record Expenses (Outlay).
+    // Ledger updates classFinancialData expenses.
 
     res[resourceKey] = Math.max(0, (res[resourceKey] || 0) - totalAmount);
     supply[resourceKey] = Math.max(0, (supply[resourceKey] || 0) - totalAmount);
@@ -773,6 +888,7 @@ const executeExportTradeV2 = ({
 };
 
 const executeImportTradeV2 = ({
+    ledger, // [REFACTORED]
     partner,
     partnerId,
     resourceKey,
@@ -839,42 +955,72 @@ const executeImportTradeV2 = ({
 
     if ((wealth.merchant || 0) < totalCost) return { success: false };
 
-    wealth.merchant -= totalCost;
-    roleExpense.merchant = (roleExpense.merchant || 0) + totalCost;
-
-    // Record taxes
-    if (totalTariff > 0) {
-        taxBreakdown.tariff = (taxBreakdown.tariff || 0) + totalTariff;
-        // Imports pay tariffs, recorded in merchant expenses
-        if (classFinancialData && classFinancialData.merchant) {
-            classFinancialData.merchant.expense.tariffs = (classFinancialData.merchant.expense.tariffs || 0) + totalTariff;
-        }
-    } else if (totalTariff < 0) {
-        // Subsidy logic (if tariff is negative)
-        const subsidyRaw = Math.abs(totalTariff);
-
-        // Check if treasury can afford subsidy
-        if ((res.silver || 0) >= subsidyRaw) {
-            taxBreakdown.tariffSubsidy = (taxBreakdown.tariffSubsidy || 0) + subsidyRaw;
-            res.silver -= subsidyRaw;
-            // Refund subsidy to merchant (reducing their effective cost)
-            wealth.merchant += subsidyRaw;
-            roleExpense.merchant -= subsidyRaw;
-
-            if (classFinancialData && classFinancialData.merchant) {
-                classFinancialData.merchant.income.subsidy = (classFinancialData.merchant.income.subsidy || 0) + subsidyRaw;
-            }
-        } else {
-            // Cannot afford property subsidy, treat as 0
-            logs.push(`Treasury empty, cannot pay import subsidy for ${RESOURCES[resourceKey]?.name || resourceKey}!`);
-            // Revert cost deduction for the subsidy part since they didn't get it? 
-            // Logic simplified: they paid full price, no subsidy back.
-        }
+    // [REFACTORED] Use Ledger
+    // 1. Pay Foreigner (Import Cost)
+    const importCostValue = totalImportCost;
+    if (ledger) {
+        ledger.transfer('merchant', 'void', importCostValue, TRANSACTION_CATEGORIES.EXPENSE.TRADE_IMPORT, TRANSACTION_CATEGORIES.EXPENSE.TRADE_IMPORT);
     }
+    roleExpense.merchant = (roleExpense.merchant || 0) + importCostValue;
 
-    if (classFinancialData && classFinancialData.merchant) {
-        if (profit > 0) {
-            classFinancialData.merchant.income.ownerRevenue = (classFinancialData.merchant.income.ownerRevenue || 0) + profit * batchMultiplier;
+    // 2. Pay Tariff
+    const tariffValue = totalTariff;
+    if (tariffValue > 0) {
+        if (ledger) ledger.transfer('merchant', 'state', tariffValue, TRANSACTION_CATEGORIES.EXPENSE.TARIFF, TRANSACTION_CATEGORIES.EXPENSE.TARIFF);
+        roleExpense.merchant = (roleExpense.merchant || 0) + tariffValue;
+    } else if (tariffValue < 0) {
+        // Subsidy logic
+        const subsidyRaw = Math.abs(tariffValue);
+        // Check treasury
+        if ((res.silver || 0) >= subsidyRaw) {
+            if (ledger) ledger.transfer('state', 'merchant', subsidyRaw, TRANSACTION_CATEGORIES.INCOME.SUBSIDY, TRANSACTION_CATEGORIES.INCOME.SUBSIDY);
+            taxBreakdown.tariffSubsidy = (taxBreakdown.tariffSubsidy || 0) + subsidyRaw;
+
+            // Refund subsidy to merchant logic handled by ledger (transfer state->merchant)
+            // But roleExpense logic in original was: expense += totalCost (includes negative tariff?), then expense -= subsidy.
+            // Let's trace: totalCost = importCost + tariff.
+            // If tariff is -100, totalCost = importCost - 100.
+            // We deducted totalCost (small amount) initially?
+            // Original code: `wealth.merchant -= totalCost`.
+            // Then `wealth.merchant += subsidyRaw`.
+            // Net change: wealth -= (importCost - subsidy) + subsidy = importCost.
+            // Wait, if tariff is negative subsidy, cost is LOWER.
+            // `totalCost` calculation at line 837: `importCost + tariff`. (tariff is negative).
+            // So totalCost is already reduced.
+            // BUT original code line 858: `wealth.merchant += subsidyRaw`.
+            // This suggests double counting? Or correcting?
+            // "Refund subsidy to merchant (reducing their effective cost)" comment.
+            // If `totalCost` already included negative tariff, then wealth deduction was small.
+            // Adding subsidy again makes wealth reduction even smaller (or positive gain?).
+            // This looks like a bug in original code or I misunderstand `totalCost`.
+            // `totalCost = importCost + tariff`.
+            // If import=1000, tariff=-200. totalCost=800.
+            // wealth -= 800.
+            // wealth += 200.
+            // Net wealth -= 600.
+            // Effective subsidy = 400?
+            // This implies the subsidy is applied TWICE.
+
+            // Let's assume standard logic: Pay full import cost, Receive subsidy.
+            // My Ledger implementation:
+            // 1. Pay Import Cost (Full).
+            // 2. Receive Subsidy.
+            // Net: Wealth -= ImportCost. Wealth += Subsidy.
+            // Net: Wealth -= (ImportCost - Subsidy).
+            // This is correct.
+
+            // My `importCostValue` is `totalImportCost` (line 835: `importCost * batchMultiplier`).
+            // It does NOT include tariff.
+            // So Ledger logic:
+            // Transfer `importCost` to Void.
+            // Transfer `subsidy` from State to Merchant.
+
+            // This matches economic reality.
+
+            // Note: `roleExpense` tracking should reflect Net Expense.
+            roleExpense.merchant = (roleExpense.merchant || 0) - subsidyRaw;
+        } else {
+            logs.push(`Treasury empty, cannot pay import subsidy for ${RESOURCES[resourceKey]?.name || resourceKey}!`);
         }
     }
     return {
@@ -1013,7 +1159,7 @@ const executeExportTrade = ({
                 // Negative tariff = export subsidy, record separately
                 const subsidy = Math.abs(tariffPaid);
                 if ((res.silver || 0) >= subsidy) {
-                    res.silver -= subsidy;
+                    applyTreasuryChange(res, -subsidy, 'expense_export_tariff_subsidy', onTreasuryChange);
                     taxBreakdown.tariffSubsidy = (taxBreakdown.tariffSubsidy || 0) + subsidy;
                 }
             }
@@ -1022,7 +1168,7 @@ const executeExportTrade = ({
             if (totalAppliedTax < 0) {
                 // 总税为负 = 补贴大于税收，从国库支付补贴
                 const subsidy = Math.abs(totalAppliedTax);
-                res.silver -= subsidy;
+                applyTreasuryChange(res, -subsidy, 'expense_export_trade_subsidy', onTreasuryChange);
                 taxBreakdown.subsidy += subsidy;
             } else {
                 // 总税为正，记录基础交易税到industryTax
@@ -1179,7 +1325,7 @@ const executeImportTrade = ({
                 // Negative tariff = import subsidy, record separately
                 const subsidy = Math.abs(tariffPaid);
                 if ((res.silver || 0) >= subsidy) {
-                    res.silver -= subsidy;
+                    applyTreasuryChange(res, -subsidy, 'expense_import_tariff_subsidy', onTreasuryChange);
                     taxBreakdown.tariffSubsidy = (taxBreakdown.tariffSubsidy || 0) + subsidy;
                 }
             }
@@ -1188,7 +1334,7 @@ const executeImportTrade = ({
             if (totalAppliedTax < 0) {
                 // 总税为负 = 补贴大于税收，从国库支付补贴
                 const subsidy = Math.abs(totalAppliedTax);
-                res.silver -= subsidy;
+                applyTreasuryChange(res, -subsidy, 'expense_import_trade_subsidy', onTreasuryChange);
                 taxBreakdown.subsidy += subsidy;
             } else {
                 // 总税为正，记录基础交易税到industryTax

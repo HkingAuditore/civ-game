@@ -185,6 +185,9 @@ export const initCheatCodes = (gameState, addLog) => {
             console.log('  cheat.setRelation(nation, value)     - Set relation with a nation');
             console.log('  cheat.makePeaceAll()        - End all wars & reset warscore');
             console.log('  cheat.declareWar(nation)    - Instantly declare war');
+            console.log('  cheat.makeVassal(nation, type)       - Make nation a vassal (type: protectorate/tributary/puppet/colony)');
+            console.log('  cheat.releaseVassal(nation)          - Release a vassal nation');
+            console.log('  cheat.listVassals()                  - List all your vassal nations');
             console.log('  cheat.setHeadTax(stratum, rate)      - Set head tax for a class');
             console.log('  cheat.setAllHeadTax(rate)            - Set head tax for all classes');
             console.log('  cheat.setResourceTax(res, rate)      - Set trade tax for a resource');
@@ -372,7 +375,7 @@ export const initCheatCodes = (gameState, addLog) => {
             gameState.setResources(prev => ({
                 ...prev,
                 silver: (prev.silver || 0) + amount
-            }));
+            }), { reason: 'cheat_code', meta: { code: 'addSilver', amount } });
             addLog(`💰 作弊码：获得 ${amount} 银币`);
             console.log(`✅ Added ${amount} silver`);
         },
@@ -384,7 +387,7 @@ export const initCheatCodes = (gameState, addLog) => {
             gameState.setResources(prev => ({
                 ...prev,
                 food: (prev.food || 0) + amount
-            }));
+            }), { reason: 'cheat_code', meta: { code: 'addFood', amount } });
             addLog(`🌾 作弊码：获得 ${amount} 食物`);
             console.log(`✅ Added ${amount} food`);
         },
@@ -396,7 +399,7 @@ export const initCheatCodes = (gameState, addLog) => {
             gameState.setResources(prev => ({
                 ...prev,
                 wood: (prev.wood || 0) + amount
-            }));
+            }), { reason: 'cheat_code', meta: { code: 'addWood', amount } });
             addLog(`🪵 作弊码：获得 ${amount} 木材`);
             console.log(`✅ Added ${amount} wood`);
         },
@@ -408,7 +411,7 @@ export const initCheatCodes = (gameState, addLog) => {
             gameState.setResources(prev => ({
                 ...prev,
                 stone: (prev.stone || 0) + amount
-            }));
+            }), { reason: 'cheat_code', meta: { code: 'addStone', amount } });
             addLog(`🪨 作弊码：获得 ${amount} 石料`);
             console.log(`✅ Added ${amount} stone`);
         },
@@ -420,7 +423,7 @@ export const initCheatCodes = (gameState, addLog) => {
             gameState.setResources(prev => ({
                 ...prev,
                 iron: (prev.iron || 0) + amount
-            }));
+            }), { reason: 'cheat_code', meta: { code: 'addIron', amount } });
             addLog(`⚙️ 作弊码：获得 ${amount} 铁矿`);
             console.log(`✅ Added ${amount} iron`);
         },
@@ -432,7 +435,7 @@ export const initCheatCodes = (gameState, addLog) => {
             gameState.setResources(prev => ({
                 ...prev,
                 brick: (prev.brick || 0) + amount
-            }));
+            }), { reason: 'cheat_code', meta: { code: 'addBrick', amount } });
             addLog(`🧱 作弊码：获得 ${amount} 砖块`);
             console.log(`✅ Added ${amount} brick`);
         },
@@ -444,7 +447,7 @@ export const initCheatCodes = (gameState, addLog) => {
             gameState.setResources(prev => ({
                 ...prev,
                 tool: (prev.tool || 0) + amount
-            }));
+            }), { reason: 'cheat_code', meta: { code: 'addTool', amount } });
             addLog(`🔨 作弊码：获得 ${amount} 工具`);
             console.log(`✅ Added ${amount} tools`);
         },
@@ -456,7 +459,7 @@ export const initCheatCodes = (gameState, addLog) => {
             gameState.setResources(prev => ({
                 ...prev,
                 cloth: (prev.cloth || 0) + amount
-            }));
+            }), { reason: 'cheat_code', meta: { code: 'addCloth', amount } });
             addLog(`🧵 作弊码：获得 ${amount} 布匹`);
             console.log(`✅ Added ${amount} cloth`);
         },
@@ -468,7 +471,7 @@ export const initCheatCodes = (gameState, addLog) => {
             gameState.setResources(prev => ({
                 ...prev,
                 beer: (prev.beer || 0) + amount
-            }));
+            }), { reason: 'cheat_code', meta: { code: 'addBeer', amount } });
             addLog(`🍺 作弊码：获得 ${amount} 啤酒`);
             console.log(`✅ Added ${amount} beer`);
         },
@@ -480,7 +483,7 @@ export const initCheatCodes = (gameState, addLog) => {
             gameState.setResources(prev => ({
                 ...prev,
                 furniture: (prev.furniture || 0) + amount
-            }));
+            }), { reason: 'cheat_code', meta: { code: 'addFurniture', amount } });
             addLog(`🪑 作弊码：获得 ${amount} 家具`);
             console.log(`✅ Added ${amount} furniture`);
         },
@@ -504,7 +507,7 @@ export const initCheatCodes = (gameState, addLog) => {
                     newResources[key] = (prev[key] || 0) + amount * multiplier;
                 });
                 return newResources;
-            });
+            }, { reason: 'cheat_code', meta: { code: 'addAll', amount } });
             addLog(`✨ 作弊码：获得所有资源 x${amount}（共 ${storableResources.length} 种）`);
             console.log(`✅ Added ${amount} of all resources (${storableResources.length} types)`);
         },
@@ -648,7 +651,7 @@ export const initCheatCodes = (gameState, addLog) => {
                 noble: 100000,
                 clergy: 30000,
                 scholar: 40000
-            });
+            }, { reason: 'cheat_code', meta: { code: 'richEmpire' } });
             addLog(`💎 作弊码：所有阶层变得富有`);
             console.log(`✅ Made all classes wealthy`);
         },
@@ -1160,7 +1163,7 @@ export const initCheatCodes = (gameState, addLog) => {
             gameState.setClassWealth(prev => ({
                 ...prev,
                 [key]: wealth,
-            }));
+            }), { reason: 'cheat_code', meta: { code: 'setClassWealth', stratumKey: key, value: wealth } });
             addLog(`💰 作弊码：${key} 财富设为 ${wealth}`);
             console.log(`✅ Wealth for "${key}" set to ${wealth}`);
         },
@@ -1174,7 +1177,7 @@ export const initCheatCodes = (gameState, addLog) => {
             Object.keys(STRATA || {}).forEach(key => {
                 map[key] = wealth;
             });
-            gameState.setClassWealth(map);
+            gameState.setClassWealth(map, { reason: 'cheat_code', meta: { code: 'setAllClassWealth', value: wealth } });
             addLog(`💰 作弊码：所有阶层财富统一为 ${wealth}`);
             console.log(`✅ All class wealth set to ${wealth}`);
         },
@@ -1267,6 +1270,122 @@ export const initCheatCodes = (gameState, addLog) => {
             }
             addLog(`⚔️ 作弊码：向 ${nation.name} 宣战`);
             console.log(`✅ War declared on "${nation.name}"`);
+        },
+
+        /**
+         * Make a nation a vassal (bypass requirements)
+         * @param {string} nationIdentifier - Nation ID or name
+         * @param {string} vassalType - Vassal type: protectorate/tributary/puppet/colony
+         */
+        makeVassal: (nationIdentifier, vassalType = 'tributary') => {
+            const nation = findNationByIdOrName(nationIdentifier, gameState.nations || []);
+            if (!nation) {
+                console.log(`❌ Nation "${nationIdentifier}" not found`);
+                console.log('%cAvailable nations:', 'color: #888;');
+                (gameState.nations || []).forEach(n => console.log(`  - ${n.name} (${n.id})`));
+                return;
+            }
+
+            const validTypes = ['protectorate', 'tributary', 'puppet', 'colony'];
+            const typeLabels = {
+                protectorate: '保护国',
+                tributary: '朝贡国',
+                puppet: '傀儡国',
+                colony: '殖民地',
+            };
+            const typeConfigs = {
+                protectorate: { autonomy: 80, tributeRate: 0.08 },
+                tributary: { autonomy: 50, tributeRate: 0.15 },
+                puppet: { autonomy: 20, tributeRate: 0.25 },
+                colony: { autonomy: 5, tributeRate: 0.35 },
+            };
+
+            if (!validTypes.includes(vassalType)) {
+                console.log(`❌ Invalid vassal type: "${vassalType}"`);
+                console.log('%cValid types:', 'color: #888;');
+                validTypes.forEach(t => console.log(`  - ${t} (${typeLabels[t]})`));
+                return;
+            }
+
+            if (nation.vassalOf === 'player') {
+                console.log(`⚠️ ${nation.name} is already your vassal`);
+                return;
+            }
+
+            const config = typeConfigs[vassalType];
+            gameState.setNations(prev => prev.map(n => {
+                if (n.id !== nation.id) return n;
+                return {
+                    ...n,
+                    vassalOf: 'player',
+                    vassalType: vassalType,
+                    autonomy: config.autonomy,
+                    tributeRate: config.tributeRate,
+                    independencePressure: 0,
+                    isAtWar: false,
+                    warScore: 0,
+                    warTarget: null,
+                };
+            }));
+
+            addLog(`👑 作弊码：${nation.name} 成为你的${typeLabels[vassalType]}`);
+            console.log(`%c✅ ${nation.name} is now your ${typeLabels[vassalType]} (${vassalType})`, 'color: #00ff00; font-weight: bold;');
+        },
+
+        /**
+         * Release a vassal nation
+         * @param {string} nationIdentifier - Nation ID or name
+         */
+        releaseVassal: (nationIdentifier) => {
+            const nation = findNationByIdOrName(nationIdentifier, gameState.nations || []);
+            if (!nation) {
+                console.log(`❌ Nation "${nationIdentifier}" not found`);
+                return;
+            }
+
+            if (nation.vassalOf !== 'player') {
+                console.log(`⚠️ ${nation.name} is not your vassal`);
+                return;
+            }
+
+            gameState.setNations(prev => prev.map(n => {
+                if (n.id !== nation.id) return n;
+                return {
+                    ...n,
+                    vassalOf: null,
+                    vassalType: null,
+                    autonomy: 100,
+                    tributeRate: 0,
+                    independencePressure: 0,
+                    relation: Math.min(100, (n.relation || 50) + 20),
+                };
+            }));
+
+            addLog(`🕊️ 作弊码：释放附庸 ${nation.name}`);
+            console.log(`%c✅ Released ${nation.name} from vassal status`, 'color: #00ff00;');
+        },
+
+        /**
+         * List all vassal nations
+         */
+        listVassals: () => {
+            const typeLabels = {
+                protectorate: '保护国',
+                tributary: '朝贡国',
+                puppet: '傀儡国',
+                colony: '殖民地',
+            };
+            const vassals = (gameState.nations || []).filter(n => n.vassalOf === 'player');
+            if (vassals.length === 0) {
+                console.log('%c📋 You have no vassals', 'color: #ffff00;');
+                return;
+            }
+            console.log('%c📋 Your Vassals:', 'color: #00ff00; font-size: 14px; font-weight: bold;');
+            vassals.forEach(v => {
+                const typeName = typeLabels[v.vassalType] || '附庸';
+                console.log(`  • ${v.name} (${v.id})`);
+                console.log(`    Type: ${typeName} | Autonomy: ${v.autonomy || 0}% | Tribute: ${Math.round((v.tributeRate || 0) * 100)}% | Independence: ${v.independencePressure || 0}%`);
+            });
         },
 
         /**
@@ -1382,6 +1501,8 @@ export const initCheatCodes = (gameState, addLog) => {
         'skipyear': () => window.cheat.skipYear(),
         'peaceall': () => window.cheat.makePeaceAll(),
         'peace': () => window.cheat.makePeaceAll(),
+        'vassal': () => console.log('%c👑 Use cheat.makeVassal("nation", "type") to make a nation your vassal', 'color: #ffff00;'),
+        'listvassal': () => window.cheat.listVassals(),
     };
 
     // Buffer to store recently typed characters

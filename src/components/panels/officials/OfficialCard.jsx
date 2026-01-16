@@ -473,6 +473,50 @@ export const OfficialCard = memo(({
             {/* 分隔线 */}
             <div className="h-px bg-gray-700/50 w-full mb-2" />
 
+            {/* 核心属性显示 */}
+            <div className="mb-2">
+                <div className="text-[9px] text-gray-500 uppercase tracking-wider mb-1 flex items-center gap-1">
+                    <Icon name="BarChart2" size={10} />
+                    核心属性
+                    {(official.level || 1) > 1 && (
+                        <span className="ml-1 px-1 py-0.5 bg-purple-900/50 text-purple-300 rounded text-[8px]">
+                            Lv.{official.level || 1}
+                        </span>
+                    )}
+                    {official.ambition > 50 && (
+                        <span className="ml-1 px-1 py-0.5 bg-orange-900/50 text-orange-300 rounded text-[8px]" title={`野心: ${official.ambition}`}>
+                            <Icon name="Flame" size={8} className="inline" /> {official.ambition}
+                        </span>
+                    )}
+                </div>
+                <div className="grid grid-cols-4 gap-1">
+                    {/* 行政 */}
+                    <div className="flex flex-col items-center p-1 bg-gray-900/40 rounded border border-blue-800/30">
+                        <Icon name="Briefcase" size={12} className="text-blue-400 mb-0.5" />
+                        <span className="text-[8px] text-gray-500">行政</span>
+                        <span className="text-[10px] font-bold text-blue-300">{official.stats?.administrative ?? official.administrative ?? 50}</span>
+                    </div>
+                    {/* 军事 */}
+                    <div className="flex flex-col items-center p-1 bg-gray-900/40 rounded border border-red-800/30">
+                        <Icon name="Sword" size={12} className="text-red-400 mb-0.5" />
+                        <span className="text-[8px] text-gray-500">军事</span>
+                        <span className="text-[10px] font-bold text-red-300">{official.stats?.military ?? official.military ?? 30}</span>
+                    </div>
+                    {/* 外交 */}
+                    <div className="flex flex-col items-center p-1 bg-gray-900/40 rounded border border-green-800/30">
+                        <Icon name="Globe" size={12} className="text-green-400 mb-0.5" />
+                        <span className="text-[8px] text-gray-500">外交</span>
+                        <span className="text-[10px] font-bold text-green-300">{official.stats?.diplomacy ?? official.diplomacy ?? 30}</span>
+                    </div>
+                    {/* 威望 */}
+                    <div className="flex flex-col items-center p-1 bg-gray-900/40 rounded border border-purple-800/30">
+                        <Icon name="Award" size={12} className="text-purple-400 mb-0.5" />
+                        <span className="text-[8px] text-gray-500">威望</span>
+                        <span className="text-[10px] font-bold text-purple-300">{official.stats?.prestige ?? official.prestige ?? 50}</span>
+                    </div>
+                </div>
+            </div>
+
             {/* 左右两栏布局 */}
             <div className="grid grid-cols-2 gap-2 min-h-[80px]">
                 {/* 左栏: 官员效果 */}

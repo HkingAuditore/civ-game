@@ -3,21 +3,294 @@
  * Handles AI nation updates, war logic, diplomacy, and economy
  */
 
-import { RESOURCES } from '../../config';
-import { simulateBattle, UNIT_TYPES } from '../../config/militaryUnits';
-import { getEnemyUnitsForEpoch } from '../../config/militaryActions';
+import { RESOURCES, PEACE_TREATY_TYPES, getTreatyBreachPenalty } from '../../config/index.js';
+import { simulateBattle, UNIT_TYPES } from '../../config/militaryUnits.js';
+import { getEnemyUnitsForEpoch } from '../../config/militaryActions.js';
 import {
     calculateAIGiftAmount,
     calculateAIPeaceTribute,
     calculateAISurrenderDemand
-} from '../../utils/diplomaticUtils';
+} from '../../utils/diplomaticUtils.js';
 import {
     clamp,
     PEACE_REQUEST_COOLDOWN_DAYS,
     MAX_CONCURRENT_WARS,
     GLOBAL_WAR_COOLDOWN
-} from '../utils';
-import { getRelationMonthlyDriftRate } from '../../config/difficulty';
+} from '../utils/index.js';
+import { getRelationMonthlyDriftRate } from '../../config/difficulty.js';
+import { processVassalUpdates } from './vassalSystem.js';
+import {
+    AI_ECONOMY_CONFIG,
+    getSocialStructureTemplate,
+    TREATY_CONFIGS,
+    TREATY_TYPE_LABELS,
+} from '../../config/diplomacy.js';
+
+const applyTreasuryChange = (resources, delta, reason, onTreasuryChange) => {
+    if (!resources || !Number.isFinite(delta) || delta === 0) return 0;
+    const before = Number(resources.silver || 0);
+    const after = Math.max(0, before + delta);
+    const actual = after - before;
+    resources.silver = after;
+    if (typeof onTreasuryChange === 'function' && actual !== 0) {
+        onTreasuryChange(actual, reason);
+    }
+    return actual;
+};
+
+/**
+ * Helper: Apply resource change and optionally invoke callback for tracking
+ */
+const applyResourceChange = (resources, resourceType, delta, reason, onResourceChange) => {
+    if (!resources || !Number.isFinite(delta) || delta === 0) return 0;
+    const before = Number(resources[resourceType] || 0);
+    const after = Math.max(0, before + delta);
+    const actual = after - before;
+    resources[resourceType] = after;
+    if (typeof onResourceChange === 'function' && actual !== 0) {
+        onResourceChange(actual, reason, resourceType);
+    }
+    return actual;
+};
+
+// ========== AI国家经济数据初始化与更新 ==========
+
+/**
+ * 财富分配系数（假设）
+ * 用于将国家总财富分配给各阶层
+ */
+const WEALTH_DISTRIBUTION = {
+    elites: 0.60,      // 精英阶层掌握60%财富
+    commoners: 0.35,   // 平民阶层掌握35%财富
+    underclass: 0.05,  // 底层阶层掌握5%财富
+};
+
+/**
+ * 计算当地生存成本
+ * @param {Object} nationPrices - 当地市场价格
+ * @returns {number} 每日生存成本
+ */
+const calculateSubsistenceCost = (nationPrices = {}) => {
+    // 基本生存篮子：食物、布料、木材
+    const basket = {
+        food: 1.0,
+        cloth: 0.1,
+        wood: 0.2,
+    };
+
+    let cost = 0;
+    Object.entries(basket).forEach(([res, amount]) => {
+        const price = nationPrices[res] || RESOURCES[res]?.basePrice || 1;
+        cost += amount * price;
+    });
+
+    return cost;
+};
+
+/**
+ * 初始化AI国家的经济数据（价格、库存、阶层）
+ * @param {Object} nation - 国家对象
+ * @param {Object} marketPrices - 玩家市场价格
+ * @returns {Object} 更新后的国家对象
+ */
+export const initializeNationEconomyData = (nation, marketPrices = {}) => {
+    if (!nation) return nation;
+    
+    const updated = { ...nation };
+    const config = AI_ECONOMY_CONFIG;
+    
+    // 1. 初始化价格数据（如果不存在）
+    if (!updated.nationPrices || Object.keys(updated.nationPrices).length === 0) {
+        updated.nationPrices = {};
+        Object.entries(RESOURCES).forEach(([resourceKey, resourceConfig]) => {
+            // 跳过虚拟资源
+            if (resourceConfig.type === 'virtual' || resourceConfig.type === 'currency') return;
+            
+            // 基于玩家市场价格或基础价格
+            const basePrice = marketPrices[resourceKey] || resourceConfig.basePrice || 1;
+            const variation = (Math.random() - 0.5) * 2 * config.prices.initialVariation;
+            updated.nationPrices[resourceKey] = Math.max(
+                resourceConfig.minPrice || 0.1,
+                Math.min(resourceConfig.maxPrice || 100, basePrice * (1 + variation))
+            );
+        });
+    }
+    
+    // 2. 初始化库存数据（如果不存在）
+    if (!updated.nationInventories || Object.keys(updated.nationInventories).length === 0) {
+        updated.nationInventories = {};
+        const wealth = updated.wealth || 1000;
+        
+        // 确定国家规模
+        let sizeMultiplier = config.inventory.baseMultipliers.small;
+        if (wealth > config.sizeThresholds.medium) {
+            sizeMultiplier = config.inventory.baseMultipliers.large;
+        } else if (wealth > config.sizeThresholds.small) {
+            sizeMultiplier = config.inventory.baseMultipliers.medium;
+        }
+        
+        Object.entries(RESOURCES).forEach(([resourceKey, resourceConfig]) => {
+            if (resourceConfig.type === 'virtual' || resourceConfig.type === 'currency') return;
+            
+            const weight = config.inventory.resourceWeights[resourceKey] || config.inventory.resourceWeights.default;
+            const baseInventory = sizeMultiplier * weight * (0.8 + Math.random() * 0.4);
+            updated.nationInventories[resourceKey] = Math.floor(baseInventory);
+        });
+    }
+    
+    // 3. 初始化阶层结构（如果不存在或不完整）
+    if (!updated.socialStructure) {
+        const governmentType = updated.governmentType || 'default';
+        updated.socialStructure = getSocialStructureTemplate(governmentType);
+    }
+    
+    // 立即执行一次完整的阶层数据更新以填充 population 和 wealth
+    updated.socialStructure = updateSocialClasses(updated).socialStructure;
+
+    // 4. 初始化稳定度（如果不存在）
+    if (typeof updated.stability !== 'number') {
+        updated.stability = 50 + (Math.random() - 0.5) * 20;
+    }
+    
+    return updated;
+};
+
+/**
+ * 更新阶层数据（人口、财富、生活水平）
+ * @param {Object} nation - 国家对象
+ * @returns {Object} 更新后的国家对象
+ */
+const updateSocialClasses = (nation) => {
+    if (!nation || !nation.socialStructure) return nation;
+
+    const updated = { ...nation };
+    const structure = { ...updated.socialStructure };
+    const totalPop = updated.population || 1000;
+    const totalWealth = updated.wealth || 1000;
+    const subsistenceCost = calculateSubsistenceCost(updated.nationPrices);
+
+    // 通用影响因素
+    let generalSatisfactionMod = 0;
+    if (updated.isAtWar) generalSatisfactionMod -= 5;
+    if (updated.vassalOf === 'player') {
+        const autonomy = updated.autonomy || 50;
+        generalSatisfactionMod -= (100 - autonomy) * 0.05;
+    }
+
+    ['elites', 'commoners', 'underclass'].forEach(stratum => {
+        if (!structure[stratum]) return;
+
+        const data = { ...structure[stratum] };
+
+        // 1. 更新人口
+        const ratio = data.ratio || 0.33;
+        data.population = Math.floor(totalPop * ratio);
+
+        // 2. 更新财富
+        // 使用预设的财富分配比例，加一点随机波动模拟流动
+        const wealthShare = WEALTH_DISTRIBUTION[stratum] || 0.33;
+        data.wealth = Math.floor(totalWealth * wealthShare);
+
+        // 3. 计算人均财富与生活水平 (SoL)
+        // 人均财富 = 阶层总财富 / 阶层人口
+        const perCapitaWealth = data.population > 0 ? data.wealth / data.population : 0;
+
+        // 生活水平 = 人均财富 / 生存成本
+        // 阈值：底层需维持 1.0，平民 2.0，精英 10.0
+        const solRatio = subsistenceCost > 0 ? perCapitaWealth / subsistenceCost : 1;
+
+        data.sol = solRatio;
+
+        // 4. 更新满意度
+        // 基于SoL和基准期望的对比
+        const expectations = {
+            elites: 15.0,
+            commoners: 3.0,
+            underclass: 1.0
+        };
+        const expectedSol = expectations[stratum] || 1.0;
+
+        // 满意度趋向目标值：(实际SoL / 期望SoL) * 50
+        // 如果实际 >= 期望，满意度 > 50
+        let targetSatisfaction = Math.min(100, (solRatio / expectedSol) * 50);
+        targetSatisfaction = Math.max(0, targetSatisfaction + generalSatisfactionMod);
+
+        // 缓慢趋近
+        const currentSat = data.satisfaction || 50;
+        data.satisfaction = currentSat * 0.95 + targetSatisfaction * 0.05;
+
+        structure[stratum] = data;
+    });
+
+    updated.socialStructure = structure;
+    return updated;
+};
+
+/**
+ * 更新AI国家的每日经济数据
+ * @param {Object} nation - 国家对象
+ * @param {Object} marketPrices - 玩家市场价格
+ * @returns {Object} 更新后的国家对象
+ */
+export const updateNationEconomyData = (nation, marketPrices = {}) => {
+    if (!nation || !nation.nationPrices) return nation;
+    
+    let updated = { ...nation };
+    const config = AI_ECONOMY_CONFIG;
+    
+    // 1. 更新价格（每日随机波动）
+    updated.nationPrices = { ...updated.nationPrices };
+    Object.entries(updated.nationPrices).forEach(([resourceKey, currentPrice]) => {
+        const resourceConfig = RESOURCES[resourceKey];
+        if (!resourceConfig) return;
+        
+        // 随机波动
+        const variation = (Math.random() - 0.5) * 2 * config.prices.dailyVariation;
+        let newPrice = currentPrice * (1 + variation);
+        
+        // 向玩家市场价格缓慢收敛（如果有自由贸易协定则更快）
+        const playerPrice = marketPrices[resourceKey];
+        if (playerPrice) {
+            const hasFreeTrade = nation.treaties?.some(t => t.type === 'free_trade' && t.status === 'active');
+            const convergenceRate = hasFreeTrade ? 0.03 : 0.01;
+            newPrice = newPrice * (1 - convergenceRate) + playerPrice * convergenceRate;
+        }
+        
+        // 限制价格范围
+        const minPrice = resourceConfig.minPrice || 0.1;
+        const maxPrice = resourceConfig.maxPrice || 100;
+        updated.nationPrices[resourceKey] = Math.max(minPrice, Math.min(maxPrice, newPrice));
+    });
+    
+    // 2. 更新库存（简化模拟生产和消费）
+    updated.nationInventories = { ...updated.nationInventories };
+    Object.entries(updated.nationInventories).forEach(([resourceKey, currentInventory]) => {
+        const resourceConfig = RESOURCES[resourceKey];
+        if (!resourceConfig) return;
+        
+        // 基于国家财富计算生产/消费基线
+        const wealthFactor = Math.max(0.5, (updated.wealth || 1000) / 2000);
+        const changeRate = config.inventory.dailyChangeRate;
+        
+        // 随机生产/消费变化
+        const change = currentInventory * changeRate * (Math.random() - 0.5) * 2 * wealthFactor;
+        
+        // 战争状态消耗更多资源
+        const warPenalty = updated.isAtWar ? 0.98 : 1.0;
+        
+        let newInventory = (currentInventory + change) * warPenalty;
+        
+        // 确保库存不为负，且有最小值
+        const minInventory = 5;
+        const maxInventory = 500 * wealthFactor;
+        updated.nationInventories[resourceKey] = Math.max(minInventory, Math.min(maxInventory, Math.floor(newInventory)));
+    });
+    
+    // 3. 全面更新阶层数据（代替旧的简单满意度更新）
+    updated = updateSocialClasses(updated);
+    
+    return updated;
+};
 
 /**
  * Update all AI nations for one tick
@@ -32,18 +305,23 @@ export const updateNations = ({
     army,
     population,
     stabilityValue,
-    logs
+    logs,
+    marketPrices = {},  // 新增：玩家市场价格，用于AI经济数据初始化和更新
+    onTreasuryChange,
+    onResourceChange,
 }) => {
     const res = { ...resources };
     let warIndemnityIncome = 0;
     let raidPopulationLoss = 0;
+    let vassalTributeIncome = 0;
 
     // Calculate player baselines for AI scaling
     const playerPopulationBaseline = Math.max(10, population);
     const playerWealthBaseline = Math.max(500, (res.food || 0) + (res.silver || 0) + (res.wood || 0));
 
     let updatedNations = (nations || []).map(nationInput => {
-        const nation = { ...nationInput };
+        // 首先初始化经济数据（如果不存在）
+        let nation = initializeNationEconomyData({ ...nationInput }, marketPrices);
         const next = nation;
 
         // Process war-related updates
@@ -58,7 +336,9 @@ export const updateNations = ({
                 res,
                 army,
                 stabilityValue,
-                logs
+                logs,
+                onTreasuryChange,
+                onResourceChange,
             });
 
             // Check for peace requests
@@ -101,10 +381,17 @@ export const updateNations = ({
             logs
         });
 
+        // Check treaty stability
+        checkTreatyStability({
+            nation: next,
+            tick,
+            logs
+        });
+
         // Process installment payments
         if (next.installmentPayment && next.installmentPayment.remainingDays > 0) {
             const payment = next.installmentPayment.amount;
-            res.silver = (res.silver || 0) + payment;
+            applyTreasuryChange(res, payment, 'installment_payment_income', onTreasuryChange);
             warIndemnityIncome += payment;
             next.installmentPayment.paidAmount += payment;
             next.installmentPayment.remainingDays -= 1;
@@ -124,7 +411,7 @@ export const updateNations = ({
             }
         }
 
-        // Update economy
+        // Update economy (原有逻辑)
         updateNationEconomy({
             nation: next,
             tick,
@@ -132,6 +419,10 @@ export const updateNations = ({
             playerPopulationBaseline,
             playerWealthBaseline
         });
+
+        // 更新AI国家经济数据（新增：价格、库存、阶层满意度）
+        const economyUpdated = updateNationEconomyData(next, marketPrices);
+        Object.assign(next, economyUpdated);
 
         return next;
     });
@@ -144,11 +435,37 @@ export const updateNations = ({
         updatedNations = processMonthlyRelationDecay(updatedNations);
     }
 
+    // 处理附庸系统更新
+    const playerAtWar = updatedNations.some(n => n.isAtWar && !n.vassalOf);
+    const playerMilitary = Object.values(army || {}).reduce((sum, count) => sum + count, 0) / 100;
+    const vassalResult = processVassalUpdates({
+        nations: updatedNations,
+        daysElapsed: tick,
+        epoch,
+        playerMilitary: Math.max(0.5, playerMilitary),
+        playerStability: stabilityValue,
+        playerAtWar,
+        logs,
+    });
+    updatedNations = vassalResult.nations;
+    vassalTributeIncome = vassalResult.tributeIncome;
+    applyTreasuryChange(res, vassalTributeIncome, 'vassal_tribute_income', onTreasuryChange);
+
+    // 处理附庸事件（独立战争等）
+    if (vassalResult.vassalEvents && vassalResult.vassalEvents.length > 0) {
+        vassalResult.vassalEvents.forEach(event => {
+            if (event.type === 'independence_war') {
+                logs.push(`VASSAL_INDEPENDENCE_WAR:${JSON.stringify(event)}`);
+            }
+        });
+    }
+
     return {
         nations: updatedNations,
         resources: res,
         warIndemnityIncome,
-        raidPopulationLoss
+        raidPopulationLoss,
+        vassalTributeIncome,
     };
 };
 
@@ -156,7 +473,7 @@ export const updateNations = ({
  * Process war actions for a nation at war with player
  * @private
  */
-const processWarActions = ({ nation, tick, epoch, res, army, stabilityValue, logs }) => {
+const processWarActions = ({ nation, tick, epoch, res, army, stabilityValue, logs, onTreasuryChange, onResourceChange }) => {
     // Frequency of AI actions based on aggression
     const actionFrequency = Math.max(10, Math.floor(30 - (nation.aggression || 0.3) * 20));
 
@@ -183,15 +500,15 @@ const processWarActions = ({ nation, tick, epoch, res, army, stabilityValue, log
     const hasDefenders = Object.values(defenderArmy).some(count => count > 0);
 
     if (!hasDefenders) {
-        // No defense - automatic loss
+        // No defense - automatic loss (AI wins)
         const lossMultiplier = { raid: 0.15, assault: 0.25, scorched_earth: 0.2 }[actionType] || 0.15;
         const foodLoss = Math.floor((res.food || 0) * lossMultiplier);
         const silverLoss = Math.floor((res.silver || 0) * lossMultiplier * 0.5);
 
-        if (foodLoss > 0) res.food = Math.max(0, (res.food || 0) - foodLoss);
-        if (silverLoss > 0) res.silver = Math.max(0, (res.silver || 0) - silverLoss);
+        if (foodLoss > 0) applyResourceChange(res, 'food', -foodLoss, 'ai_raid_loss', onResourceChange);
+        if (silverLoss > 0) applyTreasuryChange(res, -silverLoss, 'ai_raid_loss', onTreasuryChange);
 
-        nation.warScore = (nation.warScore || 0) + 8;
+        nation.warScore = (nation.warScore || 0) - 8;  // AI赢：玩家优势减少
         nation.wealth = (nation.wealth || 0) + Math.floor((foodLoss + silverLoss) * 0.08);
 
         logs.push(`⚔️ ${nation.name} ${actionType === 'raid' ? 'raided' : 'attacked'} undefended! Lost ${foodLoss} food, ${silverLoss} silver.`);
@@ -210,15 +527,15 @@ const processWarActions = ({ nation, tick, epoch, res, army, stabilityValue, log
         });
 
         if (battleResult.victory) {
-            // AI won
+            // AI won - 减少玩家优势
             const foodLoss = Math.floor((res.food || 0) * 0.1);
             const silverLoss = Math.floor((res.silver || 0) * 0.05);
-            if (foodLoss > 0) res.food = Math.max(0, (res.food || 0) - foodLoss);
-            if (silverLoss > 0) res.silver = Math.max(0, (res.silver || 0) - silverLoss);
-            nation.warScore = (nation.warScore || 0) + 5;
+            if (foodLoss > 0) applyResourceChange(res, 'food', -foodLoss, 'ai_battle_loss', onResourceChange);
+            if (silverLoss > 0) applyTreasuryChange(res, -silverLoss, 'ai_battle_loss', onTreasuryChange);
+            nation.warScore = (nation.warScore || 0) - 5;  // AI赢：玩家优势减少
         } else {
-            // Player won
-            nation.warScore = (nation.warScore || 0) - 3;
+            // Player won - 增加玩家优势
+            nation.warScore = (nation.warScore || 0) + 3;  // 玩家赢：玩家优势增加
             const enemyLosses = Object.values(battleResult.attackerLosses || {})
                 .reduce((sum, val) => sum + (val || 0), 0);
             nation.enemyLosses = (nation.enemyLosses || 0) + enemyLosses;
@@ -366,7 +683,12 @@ const checkAllianceStatus = ({ nation, tick, logs }) => {
  * @private
  */
 const checkWarDeclaration = ({ nation, nations, tick, epoch, res, stabilityValue, logs }) => {
-    const relation = nation.relation ?? 50;
+    // 附庸国不会主动对玩家宣战（独立战争由vassalSystem处理）
+    if (nation.vassalOf === 'player') {
+        return;
+    }
+
+    let relation = nation.relation ?? 50;
     const aggression = nation.aggression ?? 0.2;
 
     // Count current wars
@@ -401,9 +723,37 @@ const checkWarDeclaration = ({ nation, nations, tick, epoch, res, stabilityValue
     const hasPeaceTreaty = nation.peaceTreatyUntil && tick < nation.peaceTreatyUntil;
     // Fixed: Use formal alliance status instead of relation-based check
     const isPlayerAlly = nation.alliedWithPlayer === true;
+    let isBreakingTreaty = false;
+
+    if (hasPeaceTreaty && !isPlayerAlly) {
+        const breachPenalty = getTreatyBreachPenalty(epoch);
+        const lastBreachDay = Number.isFinite(nation.lastTreatyBreachDay) ? nation.lastTreatyBreachDay : -Infinity;
+        const canBreach = (tick - lastBreachDay) >= breachPenalty.cooldownDays;
+        const breachPressure = relation < 15 && aggression > 0.55;
+
+        if (canBreach && breachPressure) {
+            const breachChance = Math.min(0.05, 0.005 + (0.02 * (aggression - 0.55)) + Math.max(0, (15 - relation) / 500));
+            if (Math.random() < breachChance) {
+                isBreakingTreaty = true;
+                nation.relation = Math.max(0, relation - breachPenalty.relationPenalty);
+                nation.peaceTreatyUntil = undefined;
+                if (Array.isArray(nation.treaties)) {
+                    nation.treaties = nation.treaties.filter(t => !PEACE_TREATY_TYPES.includes(t.type));
+                }
+                nation.lastTreatyBreachDay = tick;
+                relation = nation.relation ?? relation;
+                logs.push(`AI_TREATY_BREACH:${JSON.stringify({
+                    nationId: nation.id,
+                    nationName: nation.name,
+                    relationPenalty: breachPenalty.relationPenalty,
+                })}`);
+                logs.push(`⚠️ ${nation.name} 撕毁了与你的和平条约。`);
+            }
+        }
+    }
 
     const canDeclareWar = !nation.isAtWar &&
-        !hasPeaceTreaty &&
+        (!hasPeaceTreaty || isBreakingTreaty) &&
         !isPlayerAlly &&
         relation < 25 &&
         currentWarsWithPlayer < MAX_CONCURRENT_WARS &&
@@ -423,7 +773,7 @@ const checkWarDeclaration = ({ nation, nations, tick, epoch, res, stabilityValue
     const aiWealth = nation.wealth || 500;
     const aiMilitaryStrength = nation.militaryStrength ?? 1.0;
 
-    if (!nation.isAtWar && !hasPeaceTreaty && !isPlayerAlly &&
+    if (!nation.isAtWar && (!hasPeaceTreaty || isBreakingTreaty) && !isPlayerAlly &&
         playerWealth > aiWealth * 2 &&
         aiMilitaryStrength > 0.8 &&
         relation < 50 &&
@@ -441,6 +791,68 @@ const checkWarDeclaration = ({ nation, nations, tick, epoch, res, stabilityValue
             logs.push(`WAR_DECLARATION_EVENT:${JSON.stringify({ nationId: nation.id, nationName: nation.name, reason: 'wealth' })}`);
         }
     }
+};
+
+/**
+ * Check treaty stability based on relations
+ * @private
+ */
+const checkTreatyStability = ({ nation, tick, logs }) => {
+    if (!nation.treaties || nation.treaties.length === 0) return;
+
+    const currentRelation = nation.relation || 50;
+    // Filter active treaties that are with the player
+    const activeTreaties = nation.treaties.filter(t =>
+        (t.status === 'active' || (!t.status && (t.endDay == null || t.endDay > tick))) &&
+        t.withPlayer !== false
+    );
+
+    let treatiesChanged = false;
+
+    activeTreaties.forEach(treaty => {
+        const config = TREATY_CONFIGS[treaty.type];
+        if (!config) return;
+
+        const minRelation = config.minRelation || 0;
+
+        // If relation is below threshold
+        if (currentRelation < minRelation) {
+            // Initialize or increment instability counter
+            treaty.instability = (treaty.instability || 0) + 1;
+
+            // Warning threshold (e.g., 10 days of low relation)
+            if (treaty.instability === 10) {
+                const treatyName = TREATY_TYPE_LABELS[treaty.type] || treaty.type;
+                logs.push(`⚠️ 与 ${nation.name} 的关系恶化，${treatyName}岌岌可危！`);
+            }
+
+            // Termination threshold (e.g., 30 days)
+            if (treaty.instability >= 30) {
+                const treatyName = TREATY_TYPE_LABELS[treaty.type] || treaty.type;
+
+                // Terminate treaty
+                treaty.status = 'terminated';
+                treaty.endDay = tick; // End immediately
+                treaty.instability = 0;
+                treatiesChanged = true;
+
+                logs.push(`❌ 由于关系长期恶化，与 ${nation.name} 的 ${treatyName} 已自动终止。`);
+
+                // Add specific logic for investment pact termination if needed (e.g., notification event)
+            }
+        } else {
+            // Recover stability if relation is good
+            if (treaty.instability > 0) {
+                treaty.instability = Math.max(0, treaty.instability - 1);
+                if (treaty.instability === 0) {
+                    // Recovered
+                }
+            }
+        }
+    });
+
+    // If any treaty was terminated, we might need to trigger cleanup or side effects elsewhere,
+    // but usually checking status='active' is enough for other systems.
 };
 
 /**
